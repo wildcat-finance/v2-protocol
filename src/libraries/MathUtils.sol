@@ -65,6 +65,17 @@ library MathUtils {
   }
 
   /**
+   * @dev Saturation addition. Add `a` to `b` and return the result
+   *      if it is less than `maxValue` or `maxValue` if it overflows.
+   */
+  function satAdd(uint256 a, uint256 b, uint256 maxValue) internal pure returns (uint256 c) {
+    unchecked {
+      c = a + b;
+      return ternary(c < maxValue, c, maxValue);
+    }
+  }
+
+  /**
    * @dev Return `valueIfTrue` if `condition` is true and `valueIfFalse` if it is false.
    *      Equivalent to `condition ? valueIfTrue : valueIfFalse`
    */
