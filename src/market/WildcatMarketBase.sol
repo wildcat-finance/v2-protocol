@@ -27,7 +27,7 @@ contract WildcatMarketBase is
   string public constant version = '1.1';
 
   /// @dev Account with blacklist control, used for blocking sanctioned addresses.
-  address public immutable sentinel;
+  IWildcatSanctionsSentinel public immutable sentinel;
 
   /// @dev Account with authority to borrow assets from the market.
   address public immutable borrower;
@@ -106,7 +106,7 @@ contract WildcatMarketBase is
       lastInterestAccruedTimestamp: uint32(block.timestamp)
     });
 
-    sentinel = parameters.sentinel;
+    sentinel = IWildcatSanctionsSentinel(parameters.sentinel);
     borrower = parameters.borrower;
     controller = parameters.controller;
     feeRecipient = parameters.feeRecipient;
@@ -163,7 +163,7 @@ contract WildcatMarketBase is
 
       if (scaledBalance > 0) {
         account.scaledBalance = 0;
-        address escrow = IWildcatSanctionsSentinel(sentinel).createEscrow(
+        address escrow = sentinel.createEscrow(
           borrower,
           accountAddress,
           address(this)

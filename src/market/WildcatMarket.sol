@@ -45,7 +45,7 @@ contract WildcatMarket is
     // Get current state
     MarketState memory state = _getUpdatedState();
 
-    if (IWildcatSanctionsSentinel(sentinel).isSanctioned(borrower, msg.sender)) {
+    if (sentinel.isSanctioned(borrower, msg.sender)) {
       _blockAccount(state, msg.sender);
       _writeState(state);
     } else {
@@ -142,7 +142,7 @@ contract WildcatMarket is
    *      Reverts if the market is closed.
    */
   function borrow(uint256 amount) external onlyBorrower nonReentrant sphereXGuardExternal {
-    if (IWildcatSanctionsSentinel(sentinel).isFlaggedByChainalysis(borrower)) {
+    if (sentinel.isFlaggedByChainalysis(borrower)) {
       revert_BorrowWhileSanctioned();
     }
 

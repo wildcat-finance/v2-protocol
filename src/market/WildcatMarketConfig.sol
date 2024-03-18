@@ -2,7 +2,6 @@
 pragma solidity >=0.8.20;
 
 import './WildcatMarketBase.sol';
-import '../interfaces/IWildcatSanctionsSentinel.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/SafeCastLib.sol';
 
@@ -74,12 +73,12 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //          *          *          *       ```--. . , ; .--'''      *
   //          *          *          *   💸        | |   |            *
   //          *          *          *          .-=||  | |=-.    💸   *
-  //  💰🤑💰 *   😅    *    😐    *    💸    `-=#$%&%$#=-'         *
+  //  💰🤑💰  *    😅    *    😐    *    💸    `-=#$%&%$#=-'         *
   //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪       *
-  //   /\     * 💰/\ 💰 * 💰/\ 💰 *    _____.,-#%&$@%#&#~,._____    *
+  //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____    *
   // ******************************************************************
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (!IWildcatSanctionsSentinel(sentinel).isSanctioned(borrower, accountAddress)) {
+    if (!sentinel.isSanctioned(borrower, accountAddress)) {
       revert_BadLaunchCode();
     }
     MarketState memory state = _getUpdatedState();
@@ -93,7 +92,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
    *      their sanctioned status overridden by the borrower.
    */
   function stunningReversal(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (IWildcatSanctionsSentinel(sentinel).isSanctioned(borrower, accountAddress)) {
+    if (sentinel.isSanctioned(borrower, accountAddress)) {
       revert_NotReversedOrStunning();
     }
 

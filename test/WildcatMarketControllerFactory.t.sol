@@ -21,7 +21,7 @@ contract WildcatMarketControllerFactoryTest is Test {
     );
     archController.registerControllerFactory(address(controllerFactory));
     assertEq(controllerFactory.archController(), address(archController), 'archController');
-    assertEq(controllerFactory.sentinel(), address(0), 'sentinel');
+    assertEq(address(controllerFactory.sentinel()), address(0), 'sentinel');
   }
 
   function _resetConstraints() internal {
@@ -124,7 +124,7 @@ contract WildcatMarketControllerFactoryTest is Test {
       .getMarketControllerParameters();
     assertEq(parameters.archController, address(archController));
     assertEq(parameters.borrower, address(1), 'borrower');
-    assertEq(parameters.sentinel, address(0), 'sentinel');
+    assertEq(address(parameters.sentinel), address(0), 'sentinel');
     assertEq(
       parameters.marketInitCodeStorage,
       controllerFactory.marketInitCodeStorage(),
