@@ -4,7 +4,7 @@ pragma solidity >=0.8.20;
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
-import '../interfaces/IERC20Metadata.sol';
+import '../interfaces/IERC20.sol';
 import '../interfaces/IWildcatMarketController.sol';
 import '../interfaces/IWildcatSanctionsSentinel.sol';
 import '../libraries/FeeMath.sol';
@@ -24,7 +24,7 @@ contract WildcatMarketBase is
   //                       Market Config (immutable)                       //
   // ==================================================================== //
 
-  string public constant version = '1.0';
+  string public constant version = '1.1';
 
   /// @dev Account with blacklist control, used for blocking sanctioned addresses.
   address public immutable sentinel;
@@ -88,7 +88,7 @@ contract WildcatMarketBase is
     asset = parameters.asset;
     name = parameters.name;
     symbol = parameters.symbol;
-    decimals = IERC20Metadata(parameters.asset).decimals();
+    decimals = IERC20(parameters.asset).decimals();
 
     _state = MarketState({
       isClosed: false,

@@ -206,11 +206,11 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
     );
     string memory expectedName = string.concat(
       parameters.namePrefix,
-      IERC20Metadata(parameters.asset).name()
+      IERC20(parameters.asset).name()
     );
     string memory expectedSymbol = string.concat(
       parameters.symbolPrefix,
-      IERC20Metadata(parameters.asset).symbol()
+      IERC20(parameters.asset).symbol()
     );
 
     vm.expectEmit(expectedMarket);

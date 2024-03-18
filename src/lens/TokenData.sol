@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import '../interfaces/IERC20Metadata.sol';
+import '../interfaces/IERC20.sol';
 
 using TokenMetadataLib for TokenMetadata global;
 
@@ -27,7 +27,7 @@ library TokenMetadataLib {
       return;
     }
     data.token = tokenAddress;
-    IERC20Metadata token = IERC20Metadata(tokenAddress);
+    IERC20 token = IERC20(tokenAddress);
     data.name = token.name();
     data.symbol = token.symbol();
     data.decimals = token.decimals();

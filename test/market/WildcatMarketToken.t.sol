@@ -67,7 +67,7 @@ contract WildcatMarketTokenTest is BaseERC20Test, Test {
       sphereXEngine: address(0)
     });
     deployControllerAndMarket(marketParameters, true, true);
-    token = IERC20Metadata(address(market));
+    token = IERC20(address(market));
     _name = 'Wildcat Token';
     _symbol = 'WCTKN';
     _decimals = 18;

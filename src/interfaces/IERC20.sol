@@ -20,4 +20,10 @@ interface IERC20 {
   function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
   function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+
+  function name() external view returns (string memory);
+
+  function symbol() external view returns (string memory);
+
+  function decimals() external view returns (uint8);
 }
