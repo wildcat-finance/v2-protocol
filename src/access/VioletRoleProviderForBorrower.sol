@@ -17,11 +17,5 @@ contract VioletRoleProviderForBorrower is AccessTokenConsumer {
     controller = wildcatMarketController;
   }
 
-  function verifyRole(uint8 v, bytes32 r, bytes32 s) external requiresAuth {
-    require(
-      verifyAccessToken(v, r, s, msg.sender),
-      'VioletRoleProviderForBorrower: invalid access token'
-    );
-    
-  }
+  function verifyRole(uint8 v, bytes32 r, bytes32 s) external requiresAuth {}
 }
