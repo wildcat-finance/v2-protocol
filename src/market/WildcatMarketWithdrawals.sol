@@ -201,14 +201,15 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     status.normalizedAmountWithdrawn = newTotalWithdrawn;
     state.normalizedUnclaimedWithdrawals -= normalizedAmountWithdrawn;
 
-    if (sentinel.isSanctioned(borrower, accountAddress)) {
+    if (_isSanctioned(accountAddress)) {
       _blockAccount(state, accountAddress);
-      address escrow = sentinel.createEscrow(
-        borrower,
-        accountAddress,
-        address(asset)
-      );
+      // Get or create an escrow contract for the lender and transfer the owed amount to it.
+      // They will be unable to withdraw from the escrow until their sanctioned
+      // status is lifted on Chainalysis, or until the borrower overrides it.
+      address escrow = sentinel.createEscrow(borrower, accountAddress, address(asset));
       asset.safeTransfer(escrow, normalizedAmountWithdrawn);
+
+      // Emit `SanctionedAccountWithdrawalSentToEscrow` event using a custom emitter.
       emit_SanctionedAccountWithdrawalSentToEscrow(
         accountAddress,
         escrow,

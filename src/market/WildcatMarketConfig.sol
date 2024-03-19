@@ -78,7 +78,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____    *
   // ******************************************************************
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (!sentinel.isSanctioned(borrower, accountAddress)) {
+    if (!_isSanctioned(accountAddress)) {
       revert_BadLaunchCode();
     }
     MarketState memory state = _getUpdatedState();
@@ -92,7 +92,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
    *      their sanctioned status overridden by the borrower.
    */
   function stunningReversal(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (sentinel.isSanctioned(borrower, accountAddress)) {
+    if (_isSanctioned(accountAddress)) {
       revert_NotReversedOrStunning();
     }
 

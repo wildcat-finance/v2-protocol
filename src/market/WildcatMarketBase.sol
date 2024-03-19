@@ -159,10 +159,12 @@ contract WildcatMarketBase is
     if (account.approval != AuthRole.Blocked) {
       uint104 scaledBalance = account.scaledBalance;
       account.approval = AuthRole.Blocked;
+      // Emit `AuthorizationStatusUpdated` event using a custom emitter.
       emit_AuthorizationStatusUpdated(accountAddress, AuthRole.Blocked);
 
       if (scaledBalance > 0) {
         account.scaledBalance = 0;
+
         address escrow = sentinel.createEscrow(
           borrower,
           accountAddress,
@@ -657,5 +659,14 @@ contract WildcatMarketBase is
 
     // Burn market tokens to stop interest accrual upon withdrawal payment.
     state.scaledTotalSupply -= scaledAmountBurned;
+  }
+
+  /**
+   * @dev Checks if `account` is flagged as a sanctioned entity by Chainalysis.
+   *      If an account is flagged mistakenly, the borrower can override their
+   *      status on the sentinel and allow them to interact with the market.
+   */
+  function _isSanctioned(address account) internal view returns (bool) {
+    return sentinel.isSanctioned(borrower, account);
   }
 }
