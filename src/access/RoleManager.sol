@@ -1,9 +1,11 @@
-pragma solidity >=0.8.20;
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity ^0.8.20;
 
 import '../types/LibRoleProvider.sol';
 import '../types/LenderApproval.sol';
 import '../libraries/MathUtils.sol';
 import '../libraries/BoolUtils.sol';
+import './IPullProvider.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -18,10 +20,6 @@ but borrowers must also be able to have their own requirements.
 One role can override another if it is a higher role or if the old role is expired.
 
 */
-
-interface IPullProvider {
-  function getLastUserApprovalTime(address user) external view returns (uint32 lastApprovalTime);
-}
 
 function removeFromArray(
   RoleProvider[] storage arr,
@@ -163,9 +161,9 @@ contract RoleManager {
     }
   }
 
-  function getUserAccess(
+  function getUserAccessAndExpiry(
     address accountAddress
-  ) external returns (bool isApproved, uint32 approvalExpiry) {
+  ) external view returns (bool isApproved, uint32 approvalExpiry) {
     LenderApproval memory status = lenderApprovals[accountAddress];
     if (status.expiry > block.timestamp) {
       return (true, status.expiry);
