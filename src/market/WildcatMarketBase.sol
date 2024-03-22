@@ -36,25 +36,25 @@ contract WildcatMarketBase is
   address public immutable feeRecipient;
 
   /// @dev Protocol fee added to interest paid by borrower.
-  uint256 public immutable protocolFeeBips;
+  uint16 public immutable protocolFeeBips;
 
   /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
-  uint256 public immutable delinquencyFeeBips;
+  uint16 public immutable delinquencyFeeBips;
 
   /// @dev Time after which delinquency incurs penalty fee.
-  uint256 public immutable delinquencyGracePeriod;
+  uint32 public immutable delinquencyGracePeriod;
+
+  /// @dev Time before withdrawal batches are processed.
+  uint32 public immutable withdrawalBatchDuration;
+
+  /// @dev Token decimals (same as underlying asset).
+  uint8 public immutable decimals;
 
   /// @dev Address of the Market Controller.
   address public immutable controller;
 
   /// @dev Address of the underlying asset.
   address public immutable asset;
-
-  /// @dev Time before withdrawal batches are processed.
-  uint256 public immutable withdrawalBatchDuration;
-
-  /// @dev Token decimals (same as underlying asset).
-  uint8 public immutable decimals;
 
   /// @dev Token name (prefixed name of underlying asset).
   string public name;
@@ -669,4 +669,6 @@ contract WildcatMarketBase is
   function _isSanctioned(address account) internal view returns (bool) {
     return sentinel.isSanctioned(borrower, account);
   }
+
+
 }
