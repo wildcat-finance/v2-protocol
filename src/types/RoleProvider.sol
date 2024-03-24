@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
+import '../libraries/MathUtils.sol';
+
 type RoleProvider is uint256;
 uint24 constant EmptyIndex = type(uint24).max;
 
@@ -12,9 +14,9 @@ function encodeRoleProvider(
   uint32 timeToLive,
   address providerAddress,
   uint24 pullProviderIndex
-) pure returns (RoleProvider roleProvider) {
+) pure returns (RoleProvider provider) {
   assembly {
-    roleProvider := or(
+    provider := or(
       or(shl(0xe0, timeToLive), shl(0x40, providerAddress)),
       shl(0x28, pullProviderIndex)
     )
@@ -24,81 +26,85 @@ function encodeRoleProvider(
 // @todo align largest type to the left to minimize mask
 
 library LibRoleProvider {
+  using MathUtils for uint256;
+
+  function calculateExpiry(RoleProvider provider, uint timestamp) internal pure returns (uint256) {
+    return timestamp.satAdd(provider.timeToLive(), type(uint32).max);
+  }
+
   /// @dev Extract `timeToLive, providerAddress, pullProviderIndex`
   ///      members from a RoleProvider
   function decodeRoleProvider(
-    RoleProvider roleProvider
+    RoleProvider provider
   )
     internal
     pure
     returns (uint32 _timeToLive, address _providerAddress, uint24 _pullProviderIndex)
   {
     assembly {
-      _timeToLive := shr(0xe0, roleProvider)
-      _providerAddress := shr(0x60, shl(0x20, roleProvider))
-      _pullProviderIndex := shr(0xe8, shl(0xc0, roleProvider))
+      _timeToLive := shr(0xe0, provider)
+      _providerAddress := shr(0x60, shl(0x20, provider))
+      _pullProviderIndex := shr(0xe8, shl(0xc0, provider))
     }
   }
 
-  /// @dev Extract `timeToLive` from `roleProvider`
-  function timeToLive(RoleProvider roleProvider) internal pure returns (uint32 _timeToLive) {
+  /// @dev Extract `timeToLive` from `provider`
+  function timeToLive(RoleProvider provider) internal pure returns (uint32 _timeToLive) {
     assembly {
-      _timeToLive := shr(0xe0, roleProvider)
+      _timeToLive := shr(0xe0, provider)
     }
   }
 
   /// @dev Returns new RoleProvider with `timeToLive` set to `_timeToLive`
   /// Note: This function does not modify the original RoleProvider
   function setTimeToLive(
-    RoleProvider roleProvider,
+    RoleProvider provider,
     uint32 _timeToLive
-  ) internal pure returns (RoleProvider newRoleProvider) {
+  ) internal pure returns (RoleProvider newProvider) {
     assembly {
-      newRoleProvider := or(shr(0x20, shl(0x20, roleProvider)), shl(0xe0, _timeToLive))
+      newProvider := or(shr(0x20, shl(0x20, provider)), shl(0xe0, _timeToLive))
     }
   }
 
-  /// @dev Extract `providerAddress` from `roleProvider`
-  function providerAddress(
-    RoleProvider roleProvider
-  ) internal pure returns (address _providerAddress) {
+  /// @dev Extract `providerAddress` from `provider`
+  function providerAddress(RoleProvider provider) internal pure returns (address _providerAddress) {
     assembly {
-      _providerAddress := shr(0x60, shl(0x20, roleProvider))
+      _providerAddress := shr(0x60, shl(0x20, provider))
     }
   }
 
   /// @dev Returns new RoleProvider with `providerAddress` set to `_providerAddress`
   /// Note: This function does not modify the original RoleProvider
   function setProviderAddress(
-    RoleProvider roleProvider,
+    RoleProvider provider,
     address _providerAddress
-  ) internal pure returns (RoleProvider newRoleProvider) {
+  ) internal pure returns (RoleProvider newProvider) {
     assembly {
-      newRoleProvider := or(
-        and(roleProvider, 0xffffffff0000000000000000000000000000000000000000ffffffffffffffff),
+      newProvider := or(
+        and(provider, 0xffffffff0000000000000000000000000000000000000000ffffffffffffffff),
         shl(0x40, _providerAddress)
       )
     }
   }
 
-  /// @dev Extract `pullProviderIndex` from `roleProvider`
+  /// @dev Extract `pullProviderIndex` from `provider`
   function pullProviderIndex(
-    RoleProvider roleProvider
+    RoleProvider provider
   ) internal pure returns (uint24 _pullProviderIndex) {
     assembly {
-      _pullProviderIndex := shr(0xe8, shl(0xc0, roleProvider))
+      _pullProviderIndex := shr(0xe8, shl(0xc0, provider))
     }
   }
 
   /// @dev Returns new RoleProvider with `pullProviderIndex` set to `_pullProviderIndex`
   /// Note: This function does not modify the original RoleProvider
   function setPullProviderIndex(
-    RoleProvider roleProvider,
+    RoleProvider provider,
     uint24 _pullProviderIndex
-  ) internal pure returns (RoleProvider newRoleProvider) {
+  ) internal pure returns (RoleProvider newProvider) {
     assembly {
-      newRoleProvider := or(
-        and(roleProvider, 0xffffffffffffffffffffffffffffffffffffffffffffffff000000ffffffffff),
+      newProvider := or(
+        and(provider, 0xffffffffffffffffffffffffffffffffffffffffffffffff000000ffffffffff),
         shl(0x28, _pullProviderIndex)
       )
     }
@@ -106,34 +112,34 @@ library LibRoleProvider {
 
   /// @dev Checks if two RoleProviders are equal
   function eq(
-    RoleProvider roleProvider,
+    RoleProvider provider,
     RoleProvider otherRoleProvider
   ) internal pure returns (bool _eq) {
     assembly {
-      _eq := eq(roleProvider, otherRoleProvider)
+      _eq := eq(provider, otherRoleProvider)
     }
   }
 
-  /// @dev Checks if `roleProvider` is null
-  function isNull(RoleProvider roleProvider) internal pure returns (bool _null) {
+  /// @dev Checks if `provider` is null
+  function isNull(RoleProvider provider) internal pure returns (bool _null) {
     assembly {
-      _null := iszero(roleProvider)
+      _null := iszero(provider)
     }
   }
 
-  /// @dev Checks if `roleProvider` is a pull provider by checking if `pullProviderIndex`
+  /// @dev Checks if `provider` is a pull provider by checking if `pullProviderIndex`
   ///      is not equal to the max uint24.
-  function isPullProvider(RoleProvider roleProvider) internal pure returns (bool _isPull) {
-    return roleProvider.pullProviderIndex() != EmptyIndex;
+  function isPullProvider(RoleProvider provider) internal pure returns (bool _isPull) {
+    return provider.pullProviderIndex() != EmptyIndex;
   }
 
-  /// @dev Set `pullProviderIndex` in `roleProvider` to the max uint24,
+  /// @dev Set `pullProviderIndex` in `provider` to the max uint24,
   ///      to mark it as not a pull provider.
   function setNotPullProvider(
-    RoleProvider roleProvider
-  ) internal pure returns (RoleProvider newRoleProvider) {
+    RoleProvider provider
+  ) internal pure returns (RoleProvider newProvider) {
     assembly {
-      newRoleProvider := or(roleProvider, 0xffffff0000000000)
+      newProvider := or(provider, 0xffffff0000000000)
     }
   }
 }
