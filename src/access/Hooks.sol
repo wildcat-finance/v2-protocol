@@ -90,9 +90,6 @@ contract AccessControlHooks {
     RoleProvider provider,
     address accountAddress
   ) internal view returns (bool isApproved) {
-    // Ensure provider is still approved
-    if (!provider.isPullProvider()) return false;
-
     // Query provider for user approval
     IRoleProvider roleProvider = IRoleProvider(provider.providerAddress());
 
