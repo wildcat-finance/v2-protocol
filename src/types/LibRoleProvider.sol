@@ -6,16 +6,16 @@ uint24 constant EmptyIndex = type(uint24).max;
 
 using LibRoleProvider for RoleProvider global;
 
-/// @dev Encode `roleTimeToLive, providerAddress, pullProviderIndex`
+/// @dev Encode `timeToLive, providerAddress, pullProviderIndex`
 ///      members into a RoleProvider
 function encodeRoleProvider(
-  uint32 roleTimeToLive,
+  uint32 timeToLive,
   address providerAddress,
   uint24 pullProviderIndex
 ) pure returns (RoleProvider roleProvider) {
   assembly {
     roleProvider := or(
-      or(shl(0xe0, roleTimeToLive), shl(0x40, providerAddress)),
+      or(shl(0xe0, timeToLive), shl(0x40, providerAddress)),
       shl(0x28, pullProviderIndex)
     )
   }
@@ -24,39 +24,37 @@ function encodeRoleProvider(
 // @todo align largest type to the left to minimize mask
 
 library LibRoleProvider {
-  /// @dev Extract ```roleTimeToLive, providerAddress, pullProviderIndex`
+  /// @dev Extract `timeToLive, providerAddress, pullProviderIndex`
   ///      members from a RoleProvider
   function decodeRoleProvider(
     RoleProvider roleProvider
   )
     internal
     pure
-    returns (uint32 _roleTimeToLive, address _providerAddress, uint24 _pullProviderIndex)
+    returns (uint32 _timeToLive, address _providerAddress, uint24 _pullProviderIndex)
   {
     assembly {
-      _roleTimeToLive := shr(0xe0, roleProvider)
+      _timeToLive := shr(0xe0, roleProvider)
       _providerAddress := shr(0x60, shl(0x20, roleProvider))
       _pullProviderIndex := shr(0xe8, shl(0xc0, roleProvider))
     }
   }
 
-  /// @dev Extract `roleTimeToLive` from `roleProvider`
-  function roleTimeToLive(
-    RoleProvider roleProvider
-  ) internal pure returns (uint32 _roleTimeToLive) {
+  /// @dev Extract `timeToLive` from `roleProvider`
+  function timeToLive(RoleProvider roleProvider) internal pure returns (uint32 _timeToLive) {
     assembly {
-      _roleTimeToLive := shr(0xe0, roleProvider)
+      _timeToLive := shr(0xe0, roleProvider)
     }
   }
 
-  /// @dev Returns new RoleProvider with `roleTimeToLive` set to `_roleTimeToLive`
+  /// @dev Returns new RoleProvider with `timeToLive` set to `_timeToLive`
   /// Note: This function does not modify the original RoleProvider
-  function setRoleTimeToLive(
+  function setTimeToLive(
     RoleProvider roleProvider,
-    uint32 _roleTimeToLive
+    uint32 _timeToLive
   ) internal pure returns (RoleProvider newRoleProvider) {
     assembly {
-      newRoleProvider := or(shr(0x20, shl(0x20, roleProvider)), shl(0xe0, _roleTimeToLive))
+      newRoleProvider := or(shr(0x20, shl(0x20, roleProvider)), shl(0xe0, _timeToLive))
     }
   }
 
