@@ -3,7 +3,7 @@ pragma solidity >=0.8.20;
 
 type HooksConfig is uint256;
 
-using LibHooks for HooksConfig global;
+using LibHooksConfig for HooksConfig global;
 
 uint constant BitsAfterUseDepositHook = 95;
 uint constant BitsAfterUseRequestWithdrawalHook = 94;
