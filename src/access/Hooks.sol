@@ -200,13 +200,6 @@ contract AccessControlHooks {
 
   function validateDeposit(address lender, uint256 scaledAmount) external {}
 
-  function validateTransfer(
-    address from,
-    address to,
-    uint scaledAmount,
-    uint scaledTotalSupply
-  ) external {}
-
   function validateRequestWithdrawal(
     address lender,
     uint32 withdrawalBatchExpiry,
@@ -218,4 +211,18 @@ contract AccessControlHooks {
     uint32 withdrawalBatchExpiry,
     uint scaledAmount
   ) external {}
+
+  function validateTransfer(
+    address from,
+    address to,
+    uint scaledAmount
+  ) external {}
+
+  function validateBorrow(uint normalizedAmount) external {}
+
+  function validateRepay(uint normalizedAmount) external {}
+
+  function validateCloseMarket() external {}
+
+  function validateAssetsSentToEscrow(address lender, address escrow, uint scaledAmount) external {}
 }
