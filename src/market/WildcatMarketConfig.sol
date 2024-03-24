@@ -112,30 +112,6 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ========================================================================== //
 
   /**
-   * @dev Updates multiple accounts' authorization statuses based on whether the controller
-   *      has them marked as approved. Requires that the lender *had* full access (i.e.
-   *      they were previously authorized) before dropping them down to WithdrawOnly,
-   *      else arbitrary accounts could grant themselves Withdraw.
-   */
-  function updateAccountAuthorizations(
-    address[] memory accounts,
-    bool authorize
-  ) external onlyController nonReentrant sphereXGuardExternal {
-    MarketState memory state = _getUpdatedState();
-    for (uint256 i = 0; i < accounts.length; i++) {
-      Account memory account = _getAccount(accounts[i]);
-      if (authorize) {
-        account.approval = AuthRole.DepositAndWithdraw;
-      } else if (account.approval == AuthRole.DepositAndWithdraw) {
-        account.approval = AuthRole.WithdrawOnly;
-      }
-      _accounts[accounts[i]] = account;
-      emit_AuthorizationStatusUpdated(accounts[i], account.approval);
-    }
-    _writeState(state);
-  }
-
-  /**
    * @dev Sets the maximum total supply - this only limits deposits and
    *      does not affect interest accrual.
    */
