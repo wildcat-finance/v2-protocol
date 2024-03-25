@@ -37,8 +37,7 @@ struct MarketState {
 }
 
 struct Account {
-  AuthRole approval;
-  uint32 approvalExpiry;
+  bool isSanctioned;
   uint104 scaledBalance;
 }
 

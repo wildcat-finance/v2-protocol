@@ -143,8 +143,8 @@ contract WildcatMarketBase is
    */
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
-    if (account.approval == AuthRole.Blocked) {
-      revert_AccountBlocked();
+    if (account.isSanctioned) {
+       revert_AccountBlocked();
     }
   }
 
@@ -156,22 +156,21 @@ contract WildcatMarketBase is
    */
   function _blockAccount(MarketState memory state, address accountAddress) internal {
     Account memory account = _accounts[accountAddress];
-    if (account.approval != AuthRole.Blocked) {
+    if (!account.isSanctioned) {
       uint104 scaledBalance = account.scaledBalance;
-      account.approval = AuthRole.Blocked;
-      // Emit `AuthorizationStatusUpdated` event using a custom emitter.
-      emit_AuthorizationStatusUpdated(accountAddress, AuthRole.Blocked);
+      account.isSanctioned = true;
+      // Emit `AccountSanctioned` event using a custom emitter.
+      emit_AccountSanctioned(accountAddress);
 
       if (scaledBalance > 0) {
         account.scaledBalance = 0;
 
-        address escrow = sentinel.createEscrow(
-          borrower,
-          accountAddress,
-          address(this)
-        );
+        address escrow = sentinel.createEscrow(borrower, accountAddress, address(this));
+        // Emit `Transfer` event using a custom emitter.
         emit_Transfer(accountAddress, escrow, state.normalizeAmount(scaledBalance));
+        // Move escrow balance to escrow account.
         _accounts[escrow].scaledBalance += scaledBalance;
+        // Emit `SanctionedAccountAssetsSentToEscrow` event using a custom emitter.
         emit_SanctionedAccountAssetsSentToEscrow(
           accountAddress,
           escrow,
