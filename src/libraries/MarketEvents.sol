@@ -132,10 +132,9 @@ function emit_InterestAndFeesAccrued(
   }
 }
 
-function emit_AuthorizationStatusUpdated(address account, AuthRole role) {
+function emit_AccountSanctioned(address account) {
   assembly {
-    mstore(0, role)
-    log2(0, 0x20, 0x4cdbc4f47aef831a90102e26cda881868aa5b0c95440b98fe37dbe530f34f5e4, account)
+    log2(0, 0, 0x4f30ec08794235a3f7eed85612ad4afbbb0a01402cac7cdcf8db50b56e5f8f36, account)
   }
 }
 

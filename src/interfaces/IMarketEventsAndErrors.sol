@@ -58,8 +58,8 @@ interface IMarketEventsAndErrors {
 
   error CloseMarketWithUnpaidWithdrawals();
 
-  /// @notice Error thrown when reserve ratio set to value
-  ///         the market currently would not meet.
+  /// @dev Error thrown when reserve ratio is set to a value
+  ///      that would make the market delinquent.
   error InsufficientReservesForNewLiquidityRatio();
 
   error InsufficientReservesForOldLiquidityRatio();
@@ -102,8 +102,8 @@ interface IMarketEventsAndErrors {
     uint256 delinquencyFeeRay,
     uint256 protocolFees
   );
-
-  event AuthorizationStatusUpdated(address indexed account, AuthRole role);
+  
+  event AccountSanctioned(address indexed account);
 
   // =====================================================================//
   //                          Withdrawl Events                            //
@@ -116,14 +116,10 @@ interface IMarketEventsAndErrors {
     uint256 normalizedAmountPaid
   );
 
-  /**
-   * @dev Emitted when a new withdrawal batch is created.
-   */
+  /// @dev Emitted when a new withdrawal batch is created.
   event WithdrawalBatchCreated(uint256 indexed expiry);
 
-  /**
-   * @dev Emitted when a withdrawal batch is paid off.
-   */
+  /// @dev Emitted when a withdrawal batch is paid off.
   event WithdrawalBatchClosed(uint256 indexed expiry);
 
   event WithdrawalBatchPayment(
