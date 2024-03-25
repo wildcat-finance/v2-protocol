@@ -5,19 +5,19 @@ type HooksConfig is uint256;
 
 using LibHooksConfig for HooksConfig global;
 
-uint constant BitsAfterUseDepositHook = 95;
-uint constant BitsAfterUseRequestWithdrawalHook = 94;
-uint constant BitsAfterUseExecuteWithdrawalHook = 93;
-uint constant BitsAfterUseTransferHook = 92;
-uint constant BitsAfterUseBorrowHook = 91;
-uint constant BitsAfterUseRepayHook = 90;
-uint constant BitsAfterUseCloseMarketHook = 89;
-uint constant BitsAfterUseAssetsSentToEscrowHook = 88;
+uint256 constant BitsAfterUseDepositHook = 95;
+uint256 constant BitsAfterUseRequestWithdrawalHook = 94;
+uint256 constant BitsAfterUseExecuteWithdrawalHook = 93;
+uint256 constant BitsAfterUseTransferHook = 92;
+uint256 constant BitsAfterUseBorrowHook = 91;
+uint256 constant BitsAfterUseRepayHook = 90;
+uint256 constant BitsAfterUseCloseMarketHook = 89;
+uint256 constant BitsAfterUseAssetsSentToEscrowHook = 88;
 
 library LibHooksConfig {
-  function readHookFlag(HooksConfig hooks, uint8 bitsAfter) internal pure returns (bool flagged) {
+  function readFlag(HooksConfig hooks, uint256 bitsAfter) internal pure returns (bool flagged) {
     assembly {
-      flagged := and(shr(bitsAfter, flags), 1)
+      flagged := and(shr(bitsAfter, hooks), 1)
     }
   }
 
