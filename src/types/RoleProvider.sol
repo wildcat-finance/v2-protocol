@@ -5,6 +5,7 @@ import '../libraries/MathUtils.sol';
 
 type RoleProvider is uint256;
 uint24 constant EmptyIndex = type(uint24).max;
+RoleProvider constant EmptyRoleProvider = RoleProvider.wrap(0);
 
 using LibRoleProvider for RoleProvider global;
 

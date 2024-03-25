@@ -8,25 +8,35 @@ import './RoleProvider.sol';
  * @param hasEverDeposited Whether the lender has ever deposited to the market
  * @param lastProvider The address of the last provider to grant the lender a credential
  * @param canRefresh Whether the last provider can refresh the lender's credential
- * @param expiry The timestamp at which the lender's credential expires
+ * @param lastApprovalTimestamp The timestamp at which the lender's credential was granted
  */
 struct LenderStatus {
   bool isBlocked;
   bool hasEverDeposited;
   address lastProvider;
   bool canRefresh;
-  uint32 expiry;
+  uint32 lastApprovalTimestamp;
 }
 
 using LibLenderStatus for LenderStatus global;
 
 library LibLenderStatus {
-  function isExpired(LenderStatus memory status) internal view returns (bool) {
-    return status.expiry < block.timestamp;
+  function isExpired(
+    LenderStatus memory status,
+    RoleProvider provider
+  ) internal view returns (bool) {
+    return provider.calculateExpiry(status.lastApprovalTimestamp) < block.timestamp;
   }
 
-  function isActive(LenderStatus memory status) internal view returns (bool) {
-    return status.expiry >= block.timestamp;
+  function hasCredential(LenderStatus memory status) internal pure returns (bool) {
+    return status.lastApprovalTimestamp > 0;
+  }
+
+  function hasActiveCredential(
+    LenderStatus memory status,
+    RoleProvider provider
+  ) internal view returns (bool) {
+    return provider.calculateExpiry(status.lastApprovalTimestamp) >= block.timestamp;
   }
 
   function setCredential(
@@ -35,14 +45,14 @@ library LibLenderStatus {
     uint256 timestamp
   ) internal pure {
     // User is approved, update status with new expiry and last provider
-    status.expiry = uint32(provider.calculateExpiry(timestamp));
+    status.lastApprovalTimestamp = uint32(timestamp);
     status.lastProvider = provider.providerAddress();
     status.canRefresh = provider.isPullProvider();
   }
 
   function unsetCredential(LenderStatus memory status) internal pure {
     status.canRefresh = false;
-    status.expiry = 0;
+    status.lastApprovalTimestamp = 0;
     status.lastProvider = address(0);
   }
 }

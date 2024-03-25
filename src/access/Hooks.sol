@@ -65,7 +65,7 @@ contract AccessControlHooks {
     if (provider.isPullProvider()) {
       removeFromArray(pullProviders, _roleProviders, provider.pullProviderIndex());
     }
-    delete _roleProviders[providerAddress];
+    _roleProviders[providerAddress] = EmptyRoleProvider;
   }
 
   function grantRole(address account) external {
@@ -113,7 +113,7 @@ contract AccessControlHooks {
   // @todo update ethereum-access-token to allow the provider to specify the
   //       cdptr to the signature
   function _validateCredential(address accountAddress, uint calldataPointer) internal {
-    uint validateSelector = IRoleProvider.validateCredential.selector;
+    uint validateSelector = uint32(IRoleProvider.validateCredential.selector);
     address providerAddress;
     assembly {
       providerAddress := shr(96, calldataload(calldataPointer))
@@ -132,7 +132,7 @@ contract AccessControlHooks {
       calldatacopy(add(ptr, 0x40), calldataPointer, extraCalldataBytes)
       let size := add(0x24, extraCalldataBytes)
       if iszero(
-        and(eq(mload(0), selector), call(gas(), sload(accountAddress.slot), 0, ptr, size, 0, 0))
+        and(eq(mload(0), validateSelector), call(gas(), providerAddress, 0, ptr, size, 0, 0))
       ) {
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
@@ -161,19 +161,34 @@ contract AccessControlHooks {
     uint256 providerIndexToSkip;
 
     // Check if user has an existing credential
-    if (status.expiry != 0) {
+    if (status.hasCredential()) {
+      RoleProvider provider = _roleProviders[status.lastProvider];
+      if (!provider.isNull()) {
+        if (status.hasActiveCredential(provider)) {
+          // If credential is not expired and the provider is still
+          // supported, the lender has a valid credential.
+          return status;
+        } else if (status.canRefresh) {
+          // If credential is expired but the provider is still supported and
+          // allows refreshing (i.e. it's a pull provider), try to refresh.
+          if (tryPullUserAccess(status, provider, accountAddress)) {
+            return status;
+          }
+          
+          providerIndexToSkip = provider.pullProviderIndex();
+        }
+        // If credential was expired and could not be refreshed, remove it
+        status.unsetCredential();
+
+      }
       // Check if the credential is still valid
-      if (status.expiry >= block.timestamp) {
+      if (status.hasActiveCredential(provider)) {
         // If credential is not expired and the provider is still
         // supported, the lender has a valid credential.
-        RoleProvider provider = _roleProviders[status.lastProvider];
-        if (!provider.isNull()) {
-          return status;
-        }
+        if (!provider.isNull()) return status;
       } else if (status.canRefresh) {
         // If credential is expired but the provider is still supported and
         // allows refreshing (i.e. it's a pull provider), try to refresh.
-        RoleProvider provider = _roleProviders[status.lastProvider];
         if (!provider.isNull()) {
           // If the credential is refreshed, return the status
           if (tryPullUserAccess(status, provider, accountAddress)) {
