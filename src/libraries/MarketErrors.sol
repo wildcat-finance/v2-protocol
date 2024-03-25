@@ -10,6 +10,16 @@ function revert_MaxSupplyExceeded() pure {
   }
 }
 
+uint256 constant CapacityChangeOnClosedMarket_ErrorSelector = 0x81b21078;
+
+/// @dev Equivalent to `revert CapacityChangeOnClosedMarket()`
+function revert_CapacityChangeOnClosedMarket() pure {
+  assembly {
+    mstore(0, 0x81b21078)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant NotApprovedBorrower_ErrorSelector = 0x02171e6a;
 
 /// @dev Equivalent to `revert NotApprovedBorrower()`

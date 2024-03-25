@@ -20,9 +20,6 @@ interface IMarketEventsAndErrors {
   /// @notice Error thrown when non-sentinel tries to use nukeFromOrbit
   error BadLaunchCode();
 
-  /// @notice Error thrown when new maxTotalSupply lower than totalSupply
-  error NewMaxSupplyTooLow();
-
   /// @notice Error thrown when transfer target is blacklisted
   error AccountBlocked();
 
@@ -55,6 +52,8 @@ interface IMarketEventsAndErrors {
   error BorrowWhileSanctioned();
 
   error BorrowFromClosedMarket();
+
+  error CapacityChangeOnClosedMarket();
 
   error CloseMarketWithUnpaidWithdrawals();
 

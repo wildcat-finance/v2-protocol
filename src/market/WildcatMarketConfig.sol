@@ -117,8 +117,11 @@ contract WildcatMarketConfig is WildcatMarketBase {
    */
   function setMaxTotalSupply(
     uint256 _maxTotalSupply
-  ) external onlyController nonReentrant sphereXGuardExternal {
+  ) external onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
+    if (state.isClosed) {
+      revert_CapacityChangeOnClosedMarket();
+    }
 
     state.maxTotalSupply = _maxTotalSupply.toUint128();
     _writeState(state);
