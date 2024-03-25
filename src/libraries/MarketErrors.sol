@@ -20,6 +20,16 @@ function revert_CapacityChangeOnClosedMarket() pure {
   }
 }
 
+uint256 constant MarketAlreadyClosed_ErrorSelector = 0x449e5f50;
+
+/// @dev Equivalent to `revert MarketAlreadyClosed()`
+function revert_MarketAlreadyClosed() pure {
+  assembly {
+    mstore(0, 0x449e5f50)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant NotApprovedBorrower_ErrorSelector = 0x02171e6a;
 
 /// @dev Equivalent to `revert NotApprovedBorrower()`

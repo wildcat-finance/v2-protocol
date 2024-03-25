@@ -217,12 +217,14 @@ contract WildcatMarket is
    *      collateralized; otherwise, transfers any assets in excess of
    *      debts to the borrower.
    */
-  function closeMarket() external onlyController nonReentrant sphereXGuardExternal {
+  function closeMarket() external onlyBorrower nonReentrant sphereXGuardExternal {
     if (_withdrawalData.unpaidBatches.length() > 0) {
       revert_CloseMarketWithUnpaidWithdrawals();
     }
 
     MarketState memory state = _getUpdatedState();
+
+    if (state.isClosed) revert_MarketAlreadyClosed();
 
     state.annualInterestBips = 0;
     state.isClosed = true;

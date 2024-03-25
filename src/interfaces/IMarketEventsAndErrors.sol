@@ -45,6 +45,8 @@ interface IMarketEventsAndErrors {
 
   error NullRepayAmount();
 
+  error MarketAlreadyClosed();
+
   error DepositToClosedMarket();
 
   error RepayToClosedMarket();
@@ -101,7 +103,7 @@ interface IMarketEventsAndErrors {
     uint256 delinquencyFeeRay,
     uint256 protocolFees
   );
-  
+
   event AccountSanctioned(address indexed account);
 
   // =====================================================================//
