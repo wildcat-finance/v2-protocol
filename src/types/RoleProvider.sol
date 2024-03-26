@@ -4,13 +4,14 @@ pragma solidity ^0.8.20;
 import '../libraries/MathUtils.sol';
 
 type RoleProvider is uint256;
-uint24 constant EmptyIndex = type(uint24).max;
+uint24 constant NotPullProviderIndex = type(uint24).max;
 RoleProvider constant EmptyRoleProvider = RoleProvider.wrap(0);
 
 using LibRoleProvider for RoleProvider global;
 
-/// @dev Encode `timeToLive, providerAddress, pullProviderIndex`
-///      members into a RoleProvider
+/**
+ * @dev Create a `RoleProvider` from its members.
+ */
 function encodeRoleProvider(
   uint32 timeToLive,
   address providerAddress,
@@ -29,12 +30,19 @@ function encodeRoleProvider(
 library LibRoleProvider {
   using MathUtils for uint256;
 
-  function calculateExpiry(RoleProvider provider, uint timestamp) internal pure returns (uint256) {
+  /**
+   * @dev Calculate the expiry for a credential granted at `timestamp` by `provider`,
+   *      adding its time-to-live to the timestamp and maxing out at the max uint32,
+   *      indicating indefinite access.
+   */
+  function calculateExpiry(
+    RoleProvider provider,
+    uint256 timestamp
+  ) internal pure returns (uint256) {
     return timestamp.satAdd(provider.timeToLive(), type(uint32).max);
   }
 
-  /// @dev Extract `timeToLive, providerAddress, pullProviderIndex`
-  ///      members from a RoleProvider
+  /// @dev Extract `timeToLive, providerAddress, pullProviderIndex` from a RoleProvider
   function decodeRoleProvider(
     RoleProvider provider
   )
@@ -56,8 +64,11 @@ library LibRoleProvider {
     }
   }
 
-  /// @dev Returns new RoleProvider with `timeToLive` set to `_timeToLive`
-  /// Note: This function does not modify the original RoleProvider
+  /**
+   * @dev Returns new RoleProvider with `timeToLive` set to `_timeToLive`
+   *
+   *      Note: This function does not modify the original RoleProvider
+   */
   function setTimeToLive(
     RoleProvider provider,
     uint32 _timeToLive
@@ -74,8 +85,11 @@ library LibRoleProvider {
     }
   }
 
-  /// @dev Returns new RoleProvider with `providerAddress` set to `_providerAddress`
-  /// Note: This function does not modify the original RoleProvider
+  /**
+   * @dev Returns new RoleProvider with `providerAddress` set to `_providerAddress`
+   *
+   *      Note: This function does not modify the original RoleProvider
+   */
   function setProviderAddress(
     RoleProvider provider,
     address _providerAddress
@@ -97,8 +111,11 @@ library LibRoleProvider {
     }
   }
 
-  /// @dev Returns new RoleProvider with `pullProviderIndex` set to `_pullProviderIndex`
-  /// Note: This function does not modify the original RoleProvider
+  /**
+   * @dev Returns new RoleProvider with `pullProviderIndex` set to `_pullProviderIndex`
+   *
+   *      Note: This function does not modify the original RoleProvider
+   */
   function setPullProviderIndex(
     RoleProvider provider,
     uint24 _pullProviderIndex
@@ -128,14 +145,18 @@ library LibRoleProvider {
     }
   }
 
-  /// @dev Checks if `provider` is a pull provider by checking if `pullProviderIndex`
-  ///      is not equal to the max uint24.
-  function isPullProvider(RoleProvider provider) internal pure returns (bool _isPull) {
-    return provider.pullProviderIndex() != EmptyIndex;
+  /**
+   * @dev Returns whether `provider` is a pull provider by checking if
+   *      `pullProviderIndex` is not equal to `NotPullProviderIndex`.
+   */
+  function isPullProvider(RoleProvider provider) internal pure returns (bool) {
+    return provider.pullProviderIndex() != NotPullProviderIndex;
   }
 
-  /// @dev Set `pullProviderIndex` in `provider` to the max uint24,
-  ///      to mark it as not a pull provider.
+  /**
+   * @dev Set `pullProviderIndex` in `provider` to `NotPullProviderIndex`
+   *      to mark it as not a pull provider.
+   */
   function setNotPullProvider(
     RoleProvider provider
   ) internal pure returns (RoleProvider newProvider) {
