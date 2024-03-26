@@ -32,7 +32,6 @@ function removeFromArray(
 // @todo custom error types
 // @todo events
 contract AccessControlHooks {
-  uint32 providerCount;
   mapping(address => LenderStatus) internal _lenderStatus;
   // Provider data is duplicated in the array and mapping to allow
   // push providers to update in a single step and pull providers to
@@ -42,18 +41,20 @@ contract AccessControlHooks {
 
   function addProvider(address providerAddress, bool isPullProvider, uint32 timeToLive) external {
     RoleProvider provider = _roleProviders[providerAddress];
-    if (!provider.isNull()) {
-      // If provider already exists, the only value that can be updated is the TTL
-      provider = provider.setTimeToLive(timeToLive);
-    } else {
-      // Role providers that are not pull providers have their `pullProviderIndex`
-      // set to `EmptyIndex`, the max uint24, to indicate they are not providers.
+    if (provider.isNull()) {
+      // Role providers that are not pull providers have `pullProviderIndex` set to
+      // `NotPullProviderIndex` (max uint24) to indicate they do not refresh credentials.
       provider = encodeRoleProvider(
         timeToLive,
         providerAddress,
-        isPullProvider ? uint24(pullProviders.length) : EmptyIndex
+        isPullProvider ? uint24(pullProviders.length) : NotPullProviderIndex
       );
-      if (isPullProvider) pullProviders.push(provider);
+      if (isPullProvider) {
+        pullProviders.push(provider);
+      }
+    } else {
+      // If provider already exists, the only value that can be updated is the TTL
+      provider = provider.setTimeToLive(timeToLive);
     }
     // Update the provider in storage
     _roleProviders[providerAddress] = provider;
@@ -85,7 +86,15 @@ contract AccessControlHooks {
     _lenderStatus[account] = status;
   }
 
-  function tryPullUserAccess(
+  /**
+   * @dev Tries to pull an active credential for an account from a
+   *      pull provider. If one exists, updates the account in memory
+   *      and returns true.
+   *
+   *      Note: Does not check that provider is a pull provider - should
+   *      only be called if that has already been checked.
+   */
+  function _tryPullCredential(
     LenderStatus memory status,
     RoleProvider provider,
     address accountAddress
@@ -96,18 +105,19 @@ contract AccessControlHooks {
     // todo - query in assembly, return false if call fails
     uint256 lastApprovalTime = roleProvider.getCredential(accountAddress);
 
-    if (lastApprovalTime == 0) return false;
+    if (lastApprovalTime > 0) {
+      // Calculate new role expiry as either max uint32 or the last approval time
+      // plus the provider's TTL, whichever is lower.
+      uint256 newExpiry = provider.calculateExpiry(lastApprovalTime);
 
-    // Calculate new role expiry as either max uint32 or the last approval time
-    // plus the provider's TTL, whichever is lower.
-    uint256 newExpiry = lastApprovalTime.satAdd(provider.timeToLive(), type(uint32).max);
-
-    // If new expiry would be expired, do not update status
-    if (newExpiry < block.timestamp) return false;
-
-    // User is approved, update status with new expiry and last provider
-    status.setCredential(provider, lastApprovalTime);
-    return true;
+      // If credential is still valid, update credential
+      if (newExpiry >= block.timestamp) {
+        // User is approved, update status with new expiry and last provider
+        status.setCredential(provider, lastApprovalTime);
+        return true;
+      }
+    }
+    return false;
   }
 
   // @todo update ethereum-access-token to allow the provider to specify the
@@ -139,7 +149,7 @@ contract AccessControlHooks {
       }
     }
     LenderStatus memory status = _lenderStatus[accountAddress];
-    status.setCredential(provider, block.timestamp, type(uint32).max);
+    status.setCredential(provider, block.timestamp);
   }
 
   /**
@@ -161,53 +171,34 @@ contract AccessControlHooks {
     uint256 providerIndexToSkip;
 
     // Check if user has an existing credential
-    if (status.hasCredential()) {
+    if (status.lastApprovalTimestamp > 0) {
       RoleProvider provider = _roleProviders[status.lastProvider];
       if (!provider.isNull()) {
-        if (status.hasActiveCredential(provider)) {
-          // If credential is not expired and the provider is still
-          // supported, the lender has a valid credential.
-          return status;
-        } else if (status.canRefresh) {
-          // If credential is expired but the provider is still supported and
-          // allows refreshing (i.e. it's a pull provider), try to refresh.
-          if (tryPullUserAccess(status, provider, accountAddress)) {
-            return status;
-          }
-          
-          providerIndexToSkip = provider.pullProviderIndex();
-        }
-        // If credential was expired and could not be refreshed, remove it
-        status.unsetCredential();
-
-      }
-      // Check if the credential is still valid
-      if (status.hasActiveCredential(provider)) {
         // If credential is not expired and the provider is still
         // supported, the lender has a valid credential.
-        if (!provider.isNull()) return status;
-      } else if (status.canRefresh) {
+        if (status.hasActiveCredential(provider)) return status;
+
         // If credential is expired but the provider is still supported and
         // allows refreshing (i.e. it's a pull provider), try to refresh.
-        if (!provider.isNull()) {
-          // If the credential is refreshed, return the status
-          if (tryPullUserAccess(status, provider, accountAddress)) {
+        if (status.canRefresh) {
+          if (_tryPullCredential(status, provider, accountAddress)) {
             return status;
           }
-          // Otherwise, skip the provider on the loop below
-          // Don't need to set a skip index if provider is null
-          // as it won't be in `pullProviders`
+          // If refresh fails, provider should be skipped in the query loop
           providerIndexToSkip = provider.pullProviderIndex();
         }
-        // If credential could not be refreshed, remove it from the lender
-        status.unsetCredential();
       }
+      // If credential could not be refreshed or the provider is no longer
+      // supported, remove it
+      status.unsetCredential();
     }
-    // Loop over all pull providers to find a valid role
+
+    uint256 providerCount = pullProviders.length;
+    // Loop over all pull providers to find a valid role for the lender
     for (uint256 i = 0; i < providerCount; i++) {
       if (i == providerIndexToSkip) continue;
       RoleProvider provider = pullProviders[i];
-      if (tryPullUserAccess(status, provider, accountAddress)) {
+      if (_tryPullCredential(status, provider, accountAddress)) {
         return status;
       }
     }
@@ -227,11 +218,7 @@ contract AccessControlHooks {
     uint scaledAmount
   ) external {}
 
-  function validateTransfer(
-    address from,
-    address to,
-    uint scaledAmount
-  ) external {}
+  function validateTransfer(address from, address to, uint scaledAmount) external {}
 
   function validateBorrow(uint normalizedAmount) external {}
 
