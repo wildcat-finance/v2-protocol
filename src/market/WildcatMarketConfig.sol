@@ -135,6 +135,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
     uint16 _annualInterestBips
   ) public onlyController nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
+    if (state.isClosed) revert_AprChangeOnClosedMarket();
 
     state.annualInterestBips = _annualInterestBips;
     _writeState(state);
