@@ -55,6 +55,8 @@ interface IMarketEventsAndErrors {
 
   error BorrowFromClosedMarket();
 
+  error AprChangeOnClosedMarket();
+
   error CapacityChangeOnClosedMarket();
 
   error CloseMarketWithUnpaidWithdrawals();
