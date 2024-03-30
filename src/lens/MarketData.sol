@@ -213,7 +213,8 @@ library MarketDataLib {
     WildcatMarketController controller = WildcatMarketController(marketData.controller);
 
     status.lender = lender;
-    status.role = market.getAccountRole(lender);
+    // @todo
+    // status.role = market.getAccountRole(lender);
     status.isAuthorizedOnController = controller.isAuthorizedLender(lender);
 
     status.scaledBalance = market.scaledBalanceOf(lender);
@@ -232,7 +233,8 @@ library MarketDataLib {
     WildcatMarketController controller = WildcatMarketController(market.controller());
 
     status.lender = lender;
-    status.role = market.getAccountRole(lender);
+    // @todo
+    // status.role = market.getAccountRole(lender);
     status.isAuthorizedOnController = controller.isAuthorizedLender(lender);
 
     status.scaledBalance = market.scaledBalanceOf(lender);

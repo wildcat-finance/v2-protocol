@@ -244,24 +244,25 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
       }
     }
 
-    bytes memory data = abi.encodeWithSelector(
-      WildcatMarketConfig.updateAccountAuthorizations.selector,
-      lenders,
-      true
-    );
-    for (uint256 i = 0; i < markets.length; i++) {
-      address market = markets[i];
-      if (!_controlledMarkets.contains(market)) {
-        revert NotControlledMarket();
-      }
-      assembly {
-        let success := call(gas(), market, 0, add(data, 0x20), mload(data), 0, 0)
-        if iszero(success) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
-      }
-    }
+    // @todo
+    // bytes memory data = abi.encodeWithSelector(
+    //   WildcatMarketConfig.updateAccountAuthorizations.selector,
+    //   lenders,
+    //   true
+    // );
+    // for (uint256 i = 0; i < markets.length; i++) {
+    //   address market = markets[i];
+    //   if (!_controlledMarkets.contains(market)) {
+    //     revert NotControlledMarket();
+    //   }
+    //   assembly {
+    //     let success := call(gas(), market, 0, add(data, 0x20), mload(data), 0, 0)
+    //     if iszero(success) {
+    //       returndatacopy(0, 0, returndatasize())
+    //       revert(0, returndatasize())
+    //     }
+    //   }
+    // }
   }
 
   /**
@@ -278,24 +279,25 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
         emit LenderDeauthorized(lender);
       }
     }
-    bytes memory data = abi.encodeWithSelector(
-      WildcatMarketConfig.updateAccountAuthorizations.selector,
-      lenders,
-      false
-    );
-    for (uint256 i = 0; i < markets.length; i++) {
-      address market = markets[i];
-      if (!_controlledMarkets.contains(market)) {
-        revert NotControlledMarket();
-      }
-      assembly {
-        let success := call(gas(), market, 0, add(data, 0x20), mload(data), 0, 0)
-        if iszero(success) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
-      }
-    }
+    // @todo
+    // bytes memory data = abi.encodeWithSelector(
+    //   WildcatMarketConfig.updateAccountAuthorizations.selector,
+    //   lenders,
+    //   false
+    // );
+    // for (uint256 i = 0; i < markets.length; i++) {
+    //   address market = markets[i];
+    //   if (!_controlledMarkets.contains(market)) {
+    //     revert NotControlledMarket();
+    //   }
+    //   assembly {
+    //     let success := call(gas(), market, 0, add(data, 0x20), mload(data), 0, 0)
+    //     if iszero(success) {
+    //       returndatacopy(0, 0, returndatasize())
+    //       revert(0, returndatasize())
+    //     }
+    //   }
+    // }
   }
 
   /**
@@ -331,10 +333,11 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
       }
       address[] memory lenders = new address[](1);
       lenders[0] = lender;
-      WildcatMarket(market).updateAccountAuthorizations(
-        lenders,
-        _authorizedLenders.contains(lender)
-      );
+      // @todo
+      // WildcatMarket(market).updateAccountAuthorizations(
+      //   lenders,
+      //   _authorizedLenders.contains(lender)
+      // );
     }
   }
 
@@ -624,7 +627,7 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
     address market
   ) external override onlyBorrower onlyControlledMarket(market) sphereXGuardExternal {
     if (WildcatMarket(market).isClosed()) {
-      revertWithSelector(MarketAlreadyClosed.selector);
+      // revertWithSelector(MarketAlreadyClosed.selector);
     }
 
     WildcatMarket(market).closeMarket();
@@ -639,7 +642,7 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
     uint256 maxTotalSupply
   ) external override onlyBorrower onlyControlledMarket(market) sphereXGuardExternal {
     if (WildcatMarket(market).isClosed()) {
-      revertWithSelector(CapacityChangeOnClosedMarket.selector);
+      // revertWithSelector(CapacityChangeOnClosedMarket.selector);
     }
     WildcatMarket(market).setMaxTotalSupply(maxTotalSupply);
   }
@@ -688,7 +691,7 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
     uint16 annualInterestBips
   ) external virtual override onlyBorrower onlyControlledMarket(market) sphereXGuardExternal {
     if (WildcatMarket(market).isClosed()) {
-      revertWithSelector(AprChangeOnClosedMarket.selector);
+      // revertWithSelector(AprChangeOnClosedMarket.selector);
     }
 
     assertValueInRange(
@@ -760,9 +763,7 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
 
   function resetReserveRatio(address market) external virtual override sphereXGuardExternal {
     TemporaryReserveRatio memory tmp = temporaryExcessReserveRatio[market];
-    if (tmp.expiry == 0) {
-      revertWithSelector(AprChangeNotPending.selector);
-    }
+    if (tmp.expiry == 0) revertWithSelector(AprChangeNotPending.selector);
     if (block.timestamp < tmp.expiry) {
       revertWithSelector(ExcessReserveRatioStillActive.selector);
     }

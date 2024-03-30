@@ -227,7 +227,7 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
 
   function _trackBlockAccount(MarketState memory state, address accountAddress) internal {
     vm.expectEmit(address(market));
-    emit AuthorizationStatusUpdated(accountAddress, AuthRole.Blocked);
+    emit AccountSanctioned(accountAddress);
 
     MarketAccount storage account = _getAccount(accountAddress);
 
@@ -235,7 +235,8 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     if (scaledBalance > 0) {
       uint256 normalizedBalance = state.normalizeAmount(scaledBalance);
       account.scaledBalance = 0;
-      account.approval = AuthRole.Blocked;
+      // account.approval = AuthRole.Blocked;
+      account.isSanctioned = true;
       address escrowAddress = calculateEscrowAddress(accountAddress, address(market));
       _getAccount(escrowAddress).scaledBalance += scaledBalance;
       vm.expectEmit(address(market));
@@ -304,6 +305,7 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     bool willBeBlocked,
     bool willBeEscrowed
   ) internal {
+    // @todo
     // bool isSanctioned = sanctionsSentinel.isSanctioned(borrower, accountAddress);
     // bool willBeBlocked = isSanctioned && market.getAccountRole(accountAddress) != AuthRole.Blocked;
     if (willBeBlocked) {
@@ -351,7 +353,7 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     uint128 normalizedAmountWithdrawn = newTotalWithdrawn - status.normalizedAmountWithdrawn;
     MarketAccount storage account = _getAccount(accountAddress);
     bool isSanctioned = sanctionsSentinel.isSanctioned(borrower, accountAddress);
-    bool willBeBlocked = isSanctioned && market.getAccountRole(accountAddress) != AuthRole.Blocked;
+    bool willBeBlocked = isSanctioned && !market.isAccountSanctioned(accountAddress);
     _trackExecuteWithdrawal(
       state,
       expiry,
