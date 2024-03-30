@@ -70,19 +70,22 @@ contract AccessControlHooks {
   }
 
   function grantRole(address account) external {
-    RoleProvider provider = _roleProviders[msg.sender];
-    require(!provider.isNull(), 'Controller: Not a push provider');
+    RoleProvider callingProvider = _roleProviders[msg.sender];
+    require(!callingProvider.isNull(), 'Controller: Not a push provider');
     LenderStatus memory status = _lenderStatus[account];
-    if (status.expiry > 0) {
-      // Can only update role if it is expired or caller is previous role provider
-      bool isPreviousRoleExpired = status.expiry < block.timestamp;
-      bool isPreviousRoleProvider = status.lastProvider == msg.sender;
-      require(
-        isPreviousRoleExpired.or(isPreviousRoleProvider),
-        'Role is not expired and sender is not previous role provider'
-      );
+    if (status.lastApprovalTimestamp > 0) {
+      RoleProvider lastProvider = _roleProviders[status.lastProvider];
+      if (!lastProvider.isNull()) {
+        // Can only update role if it is expired or caller is previous role provider
+        bool isPreviousRoleExpired = status.hasExpiredCredential(lastProvider);
+        bool isPreviousRoleProvider = status.lastProvider == msg.sender;
+        require(
+          isPreviousRoleExpired.or(isPreviousRoleProvider),
+          'Role is not expired and sender is not previous role provider'
+        );
+      }
     }
-    status.setCredential(provider, block.timestamp);
+    status.setCredential(callingProvider, block.timestamp);
     _lenderStatus[account] = status;
   }
 
