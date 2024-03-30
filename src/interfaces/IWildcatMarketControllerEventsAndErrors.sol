@@ -35,13 +35,7 @@ interface IWildcatMarketControllerEventsAndErrors {
 
   error ExcessReserveRatioStillActive();
 
-  error CapacityChangeOnClosedMarket();
-
-  error AprChangeOnClosedMarket();
-
   error AprChangeNotPending();
-
-  error MarketAlreadyClosed();
 
   error UnknownNameQueryError();
 
