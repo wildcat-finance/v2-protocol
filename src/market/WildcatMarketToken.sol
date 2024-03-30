@@ -75,6 +75,8 @@ contract WildcatMarketToken is WildcatMarketBase {
 
     if (scaledAmount == 0) revert_NullTransferAmount();
 
+    hooks.transferHook(from, to, scaledAmount);
+
     Account memory fromAccount = _getAccount(from);
     fromAccount.scaledBalance -= scaledAmount;
     _accounts[from] = fromAccount;

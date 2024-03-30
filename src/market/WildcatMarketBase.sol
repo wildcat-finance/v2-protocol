@@ -12,6 +12,7 @@ import '../libraries/MarketErrors.sol';
 import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
 import '../libraries/FunctionTypeCasts.sol';
+import '../types/HooksConfig.sol';
 
 contract WildcatMarketBase is
   SphereXProtectedRegisteredBase,
@@ -27,6 +28,8 @@ contract WildcatMarketBase is
   // ==================================================================== //
 
   string public constant version = '1.1';
+
+  HooksConfig public immutable hooks;
 
   /// @dev Account with blacklist control, used for blocking sanctioned addresses.
   IWildcatSanctionsSentinel public immutable sentinel;
@@ -108,6 +111,7 @@ contract WildcatMarketBase is
       lastInterestAccruedTimestamp: uint32(block.timestamp)
     });
 
+    hooks = parameters.hooks;
     sentinel = IWildcatSanctionsSentinel(parameters.sentinel);
     borrower = parameters.borrower;
     controller = parameters.controller;

@@ -83,19 +83,19 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
 
     uint104 scaledAmount = state.scaleAmount(amount).toUint104();
-    if (scaledAmount == 0) {
-      revert_NullBurnAmount();
-    }
+    if (scaledAmount == 0) revert_NullBurnAmount();
 
-    // Cache account data and revert_if not authorized to withdraw.
-    Account memory account = _castReturnAccount(_getAccountWithRole)(
-      msg.sender,
-      AuthRole.WithdrawOnly
-    );
+    // @todo decide parameters
+    // Execute withdrawal hook if enabled
+    hooks.queueWithdrawalHook(msg.sender, scaledAmount);
+
+    // Cache account data
+    Account memory account = _getAccount(msg.sender);
 
     // Reduce caller's balance and emit transfer event.
     account.scaledBalance -= scaledAmount;
     _accounts[msg.sender] = account;
+
     emit_Transfer(msg.sender, address(this), amount);
 
     // Cache batch expiry on the stack for gas savings.
@@ -159,9 +159,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     address[] calldata accountAddresses,
     uint32[] calldata expiries
   ) external nonReentrant sphereXGuardExternal returns (uint256[] memory amounts) {
-    if (accountAddresses.length != expiries.length) {
-      revert_InvalidArrayLength();
-    }
+    if (accountAddresses.length != expiries.length) revert_InvalidArrayLength();
+
     amounts = new uint256[](accountAddresses.length);
 
     MarketState memory state = _getUpdatedState();
@@ -179,9 +178,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     address accountAddress,
     uint32 expiry
   ) internal returns (uint256 normalizedAmountWithdrawn) {
-    if (expiry >= block.timestamp) {
-      revert_WithdrawalBatchNotExpired();
-    }
+    if (expiry >= block.timestamp) revert_WithdrawalBatchNotExpired();
+
+    // @todo decide parameters
+    hooks.executeWithdrawalHook(accountAddress, expiry);
 
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
     AccountWithdrawalStatus storage status = _withdrawalData.accountStatuses[expiry][
@@ -194,9 +194,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint128 normalizedAmountWithdrawn = newTotalWithdrawn - status.normalizedAmountWithdrawn;
 
-    if (normalizedAmountWithdrawn == 0) {
-      revert_NullWithdrawalAmount();
-    }
+    if (normalizedAmountWithdrawn == 0) revert_NullWithdrawalAmount();
 
     status.normalizedAmountWithdrawn = newTotalWithdrawn;
     state.normalizedUnclaimedWithdrawals -= normalizedAmountWithdrawn;
@@ -230,14 +228,13 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint256 maxBatches
   ) public nonReentrant sphereXGuardExternal {
     if (repayAmount > 0) {
+      hooks.repayHook(repayAmount);
       asset.safeTransferFrom(msg.sender, address(this), repayAmount);
       emit_DebtRepaid(msg.sender, repayAmount);
     }
 
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) {
-      revert_RepayToClosedMarket();
-    }
+    if (state.isClosed) revert_RepayToClosedMarket();
 
     // Calculate assets available to process the first batch - will be updated after each batch
     uint256 availableLiquidity = totalAssets() -

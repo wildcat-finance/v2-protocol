@@ -3,6 +3,8 @@ pragma solidity >=0.8.20;
 
 import { MarketState } from '../libraries/MarketState.sol';
 
+import { HooksConfig } from '../types/HooksConfig.sol';
+
 enum AuthRole {
   Null,
   Blocked,
@@ -27,6 +29,7 @@ struct MarketParameters {
   uint32 delinquencyGracePeriod;
   address archController;
   address sphereXEngine;
+  HooksConfig hooks;
 }
 
 struct MarketControllerParameters {
