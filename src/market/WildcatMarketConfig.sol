@@ -52,7 +52,6 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ========================================================================== //
   //                                  Sanctions                                 //
   // ========================================================================== //
-
   /// @dev Block a sanctioned account from interacting with the market
   ///      and transfer its balance to an escrow contract.
   // ******************************************************************
@@ -74,13 +73,11 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //          *          *          *   💸        | |   |            *
   //          *          *          *          .-=||  | |=-.    💸   *
   //  💰🤑💰  *    😅    *    😐    *    💸    `-=#$%&%$#=-'         *
-  //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪       *
-  //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____    *
+  //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪      *
+  //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____   *
   // ******************************************************************
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (!_isSanctioned(accountAddress)) {
-      revert_BadLaunchCode();
-    }
+    if (!_isSanctioned(accountAddress)) revert_BadLaunchCode();
     MarketState memory state = _getUpdatedState();
     _blockAccount(state, accountAddress);
     _writeState(state);
@@ -92,17 +89,13 @@ contract WildcatMarketConfig is WildcatMarketBase {
    *      their sanctioned status overridden by the borrower.
    */
   function stunningReversal(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (_isSanctioned(accountAddress)) {
-      revert_NotReversedOrStunning();
-    }
+    if (_isSanctioned(accountAddress)) revert_NotReversedOrStunning();
 
     Account memory account = _accounts[accountAddress];
-    if (account.approval != AuthRole.Blocked) {
-      revert_AccountNotBlocked();
-    }
+    if (!account.isSanctioned) revert_AccountNotBlocked();
 
-    account.approval = AuthRole.WithdrawOnly;
-    emit_AuthorizationStatusUpdated(accountAddress, account.approval);
+    account.isSanctioned = false;
+    emit_AccountUnsanctioned(accountAddress);
 
     _accounts[accountAddress] = account;
   }
@@ -119,9 +112,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
     uint256 _maxTotalSupply
   ) external onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) {
-      revert_CapacityChangeOnClosedMarket();
-    }
+    if (state.isClosed) revert_CapacityChangeOnClosedMarket();
 
     state.maxTotalSupply = _maxTotalSupply.toUint128();
     _writeState(state);
