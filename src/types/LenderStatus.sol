@@ -21,7 +21,7 @@ struct LenderStatus {
 using LibLenderStatus for LenderStatus global;
 
 library LibLenderStatus {
-  function isExpired(
+  function hasExpiredCredential(
     LenderStatus memory status,
     RoleProvider provider
   ) internal view returns (bool) {
