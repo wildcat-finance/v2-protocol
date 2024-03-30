@@ -5,6 +5,7 @@ import './WildcatMarketBase.sol';
 
 contract WildcatMarketToken is WildcatMarketBase {
   using SafeCastLib for uint256;
+  using FunctionTypeCasts for *;
 
   // ========================================================================== //
   //                                ERC20 Queries                               //
@@ -15,14 +16,14 @@ contract WildcatMarketToken is WildcatMarketBase {
   /// @notice Returns the normalized balance of `account` with interest.
   function balanceOf(address account) public view virtual nonReentrantView returns (uint256) {
     return
-      _castReturnMarketState(_calculateCurrentStatePointers)().normalizeAmount(
+      _calculateCurrentStatePointers.asReturnsMarketState()().normalizeAmount(
         _accounts[account].scaledBalance
       );
   }
 
   /// @notice Returns the normalized total supply with interest.
   function totalSupply() external view virtual nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().totalSupply();
+    return _calculateCurrentStatePointers.asReturnsMarketState()().totalSupply();
   }
 
   // ========================================================================== //
@@ -72,9 +73,7 @@ contract WildcatMarketToken is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
     uint104 scaledAmount = state.scaleAmount(amount).toUint104();
 
-    if (scaledAmount == 0) {
-      revert_NullTransferAmount();
-    }
+    if (scaledAmount == 0) revert_NullTransferAmount();
 
     Account memory fromAccount = _getAccount(from);
     fromAccount.scaledBalance -= scaledAmount;

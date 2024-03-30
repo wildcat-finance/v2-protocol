@@ -11,6 +11,7 @@ import '../libraries/FeeMath.sol';
 import '../libraries/MarketErrors.sol';
 import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
+import '../libraries/FunctionTypeCasts.sol';
 
 contract WildcatMarketBase is
   SphereXProtectedRegisteredBase,
@@ -19,6 +20,7 @@ contract WildcatMarketBase is
 {
   using SafeCastLib for uint256;
   using MathUtils for uint256;
+  using FunctionTypeCasts for *;
 
   // ==================================================================== //
   //                       Market Config (immutable)                       //
@@ -143,9 +145,7 @@ contract WildcatMarketBase is
    */
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
-    if (account.isSanctioned) {
-       revert_AccountBlocked();
-    }
+    if (account.isSanctioned) revert_AccountBlocked();
   }
 
   /**
@@ -159,6 +159,7 @@ contract WildcatMarketBase is
     if (!account.isSanctioned) {
       uint104 scaledBalance = account.scaledBalance;
       account.isSanctioned = true;
+
       // Emit `AccountSanctioned` event using a custom emitter.
       emit_AccountSanctioned(accountAddress);
 
@@ -181,51 +182,6 @@ contract WildcatMarketBase is
     }
   }
 
-  /**
-   * @dev Retrieve an account from storage and assert that it has at
-   *      least the required role.
-   *
-   *      If the account's role is not set, queries the controller to
-   *      determine if it is an approved lender; if it is, its role
-   *      is initialized to DepositAndWithdraw.
-   *
-   *      Return parameter is declared as a pointer rather than `Account`
-   *      to avoid unnecessary zeroing and allocation of memory.
-   */
-  function _getAccountWithRole(
-    address accountAddress,
-    AuthRole requiredRole
-  ) internal returns (uint256 accountPointer) {
-    Account memory account = _getAccount(accountAddress);
-    // If account role is null, see if it is authorized on controller.
-    if (account.approval == AuthRole.Null) {
-      if (IWildcatMarketController(controller).isAuthorizedLender(accountAddress)) {
-        account.approval = AuthRole.DepositAndWithdraw;
-        emit_AuthorizationStatusUpdated(accountAddress, AuthRole.DepositAndWithdraw);
-      }
-    }
-    // If account role is insufficient, revert.
-    if (uint256(account.approval) < uint256(requiredRole)) {
-      revert_NotApprovedLender();
-    }
-    assembly {
-      accountPointer := account
-    }
-  }
-
-  /**
-   * @dev Function type cast to avoid duplicate declaration of Account return parameter.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
-   */
-  function _castReturnAccount(
-    function(address, AuthRole) internal returns (uint256) fnIn
-  ) internal pure returns (function(address, AuthRole) internal returns (Account memory) fnOut) {
-    assembly {
-      fnOut := fnIn
-    }
-  }
-
   // ===================================================================== //
   //                       External State Getters                          //
   // ===================================================================== //
@@ -235,7 +191,7 @@ contract WildcatMarketBase is
    *      to maintain in the market to avoid delinquency.
    */
   function coverageLiquidity() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().liquidityRequired();
+    return _calculateCurrentStatePointers.asReturnsMarketState()().liquidityRequired();
   }
 
   /**
@@ -243,7 +199,7 @@ contract WildcatMarketBase is
    *      to normalized balances.
    */
   function scaleFactor() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().scaleFactor;
+    return _calculateCurrentStatePointers.asReturnsMarketState()().scaleFactor;
   }
 
   /**
@@ -282,7 +238,7 @@ contract WildcatMarketBase is
    *      - protocol fees
    */
   function borrowableAssets() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().borrowableAssets(totalAssets());
+    return _calculateCurrentStatePointers.asReturnsMarketState()().borrowableAssets(totalAssets());
   }
 
   /**
@@ -290,21 +246,21 @@ contract WildcatMarketBase is
    *      that have accrued and are pending withdrawal.
    */
   function accruedProtocolFees() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().accruedProtocolFees;
+    return _calculateCurrentStatePointers.asReturnsMarketState()().accruedProtocolFees;
   }
 
   function totalDebts() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().totalDebts();
+    return _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts();
   }
 
   function outstandingDebt() external view nonReentrantView returns (uint256) {
     return
-      _castReturnMarketState(_calculateCurrentStatePointers)().totalDebts().satSub(totalAssets());
+      _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts().satSub(totalAssets());
   }
 
   function delinquentDebt() external view nonReentrantView returns (uint256) {
     return
-      _castReturnMarketState(_calculateCurrentStatePointers)().liquidityRequired().satSub(
+      _calculateCurrentStatePointers.asReturnsMarketState()().liquidityRequired().satSub(
         totalAssets()
       );
   }
@@ -322,7 +278,7 @@ contract WildcatMarketBase is
    *      withdrawal batch if it is expired.
    */
   function currentState() public view nonReentrantView returns (MarketState memory state) {
-    state = _castReturnMarketState(_calculateCurrentStatePointers)();
+    state = _calculateCurrentStatePointers.asReturnsMarketState()();
   }
 
   /**
@@ -333,34 +289,7 @@ contract WildcatMarketBase is
    *      With `viaIR` enabled, the cast is a noop.
    */
   function _calculateCurrentStatePointers() internal view returns (uint256 state) {
-    (state, , ) = _castReturnPointers(_calculateCurrentState)();
-  }
-
-  /**
-   * @dev Function type cast to avoid duplicate declaration of MarketState return parameter.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
-   */
-  function _castReturnMarketState(
-    function() internal view returns (uint256) fnIn
-  ) internal pure returns (function() internal view returns (MarketState memory) fnOut) {
-    assembly {
-      fnOut := fnIn
-    }
-  }
-
-  /**
-   * @dev Function type cast to avoid duplicate declaration of MarketState and WithdrawalBatch
-   *      return parameters.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
-   */
-  function _castReturnPointers(
-    function() internal view returns (MarketState memory, uint32, WithdrawalBatch memory) fnIn
-  ) internal pure returns (function() internal view returns (uint256, uint32, uint256) fnOut) {
-    assembly {
-      fnOut := fnIn
-    }
+    (state, , ) = _calculateCurrentState.asReturnsPointers()();
   }
 
   /**
@@ -369,7 +298,7 @@ contract WildcatMarketBase is
    *      market tokens for the pending withdrawal batch if it is expired.
    */
   function scaledTotalSupply() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().scaledTotalSupply;
+    return _calculateCurrentStatePointers.asReturnsMarketState()().scaledTotalSupply;
   }
 
   /**
@@ -380,10 +309,10 @@ contract WildcatMarketBase is
   }
 
   /**
-   * @dev Returns current role of `account`.
+   * @dev Returns whether `account` has been marked as sanctioned.
    */
-  function getAccountRole(address account) external view nonReentrantView returns (AuthRole) {
-    return _accounts[account].approval;
+  function isAccountSanctioned(address account) external view nonReentrantView returns (bool) {
+    return _accounts[account].isSanctioned;
   }
 
   /**
@@ -392,7 +321,7 @@ contract WildcatMarketBase is
    */
   function withdrawableProtocolFees() external view returns (uint128) {
     return
-      _castReturnMarketState(_calculateCurrentStatePointers)().withdrawableProtocolFees(
+      _calculateCurrentStatePointers.asReturnsMarketState()().withdrawableProtocolFees(
         totalAssets()
       );
   }
@@ -609,10 +538,9 @@ contract WildcatMarketBase is
     uint256 availableLiquidity
   ) internal returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
+
     // Do nothing if batch is already paid
-    if (scaledAmountOwed == 0) {
-      return (0, 0);
-    }
+    if (scaledAmountOwed == 0) return (0, 0);
 
     uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
     scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
@@ -640,9 +568,8 @@ contract WildcatMarketBase is
   ) internal pure {
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     // Do nothing if batch is already paid
-    if (scaledAmountOwed == 0) {
-      return;
-    }
+    if (scaledAmountOwed == 0) return;
+
     uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
     uint104 scaledAmountBurned = MathUtils
       .min(scaledAvailableLiquidity, scaledAmountOwed)
