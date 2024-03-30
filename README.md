@@ -15,3 +15,9 @@ For other bits and pieces:
 ### The Documentation
 
 [https://wildcat-protocol.gitbook.io](https://wildcat-protocol.gitbook.io/wildcat/)
+
+### Notes on memory layout
+
+When modifying any type definition, look for any place where the type is directly accessed in yul.
+
+Most events and errors in this contract are emitted using custom emitter functions which rely on the specific order of parameters in the definition.
