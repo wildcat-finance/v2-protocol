@@ -17,7 +17,7 @@ remappings = [
   'ethereum-access-token/=lib/ethereum-access-token/contracts/'
 ]
 
-evm_version = 'shanghai'
+evm_version = 'cancun'
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
 

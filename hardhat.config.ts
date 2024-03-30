@@ -9,9 +9,12 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: "0.8.23",
+        version: "0.8.25",
       },
     ],
+    settings: {
+      evmVersion: "cancun"
+    }
   },
   networks: {
     hardhat: {
