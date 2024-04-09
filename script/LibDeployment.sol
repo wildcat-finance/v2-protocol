@@ -17,7 +17,7 @@ library LibDeployment {
     return obj.getAddress(string.concat('.', name));
   }
 
-  function has(JsonObject memory obj, string memory name) internal returns (bool) {
+  function has(JsonObject memory obj, string memory name) internal view returns (bool) {
     return obj.containsKey(string.concat('.', name));
   }
 
