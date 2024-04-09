@@ -8,7 +8,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                          coverageLiquidity()                          //
   // ===================================================================== //
 
-  function test_coverageLiquidity() external {
+  function test_coverageLiquidity() external view {
     market.coverageLiquidity();
   }
 

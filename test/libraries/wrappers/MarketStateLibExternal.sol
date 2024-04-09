@@ -50,7 +50,7 @@ library MarketStateLibExternal {
   function $withdrawableProtocolFees(
     MarketState memory state,
     uint256 totalAssets
-  ) external view returns (uint256) {
+  ) external pure returns (uint256) {
     return MarketStateLib.withdrawableProtocolFees(state, totalAssets);
   }
 }
