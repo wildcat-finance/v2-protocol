@@ -84,7 +84,7 @@ contract WildcatMarketControllerTest is BaseMarketTest {
     );
   }
 
-  function _getLenders() internal view returns (address[] memory lenders) {
+  function _getLenders() internal pure returns (address[] memory lenders) {
     lenders = new address[](4);
     lenders[0] = address(1);
     lenders[1] = address(2);
@@ -327,7 +327,7 @@ contract WildcatMarketControllerTest is BaseMarketTest {
     controller.deauthorizeLendersAndUpdateMarkets(lenders, markets);
   }
 
-  function _aliceAndBob() internal view returns (address[] memory) {
+  function _aliceAndBob() internal pure returns (address[] memory) {
     address[] memory lenders = new address[](2);
     lenders[0] = alice;
     lenders[1] = bob;
