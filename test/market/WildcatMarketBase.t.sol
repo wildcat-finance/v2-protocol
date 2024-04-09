@@ -57,7 +57,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                             totalAssets()                             //
   // ===================================================================== //
 
-  function test_totalAssets() external {
+  function test_totalAssets() external view {
     market.totalAssets();
   }
 
@@ -77,7 +77,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                         accruedProtocolFees()                         //
   // ===================================================================== //
 
-  function test_accruedProtocolFees() external {
+  function test_accruedProtocolFees() external view {
     market.accruedProtocolFees();
   }
 
@@ -85,7 +85,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                            previousState()                            //
   // ===================================================================== //
 
-  function test_previousState() external {
+  function test_previousState() external view {
     market.previousState();
   }
 
@@ -93,7 +93,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                            currentState()                             //
   // ===================================================================== //
 
-  function test_currentState() external {
+  function test_currentState() external view {
     market.currentState();
   }
 
@@ -101,7 +101,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                          scaledTotalSupply()                          //
   // ===================================================================== //
 
-  function test_scaledTotalSupply() external {
+  function test_scaledTotalSupply() external view {
     market.scaledTotalSupply();
   }
 
@@ -109,11 +109,11 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                       scaledBalanceOf(address)                        //
   // ===================================================================== //
 
-  function test_scaledBalanceOf(address account) external {
+  function test_scaledBalanceOf(address account) external view {
     market.scaledBalanceOf(account);
   }
 
-  function test_scaledBalanceOf() external {
+  function test_scaledBalanceOf() external view {
     address account;
     market.scaledBalanceOf(account);
   }

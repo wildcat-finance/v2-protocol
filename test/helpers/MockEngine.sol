@@ -21,7 +21,7 @@ contract MockEngine {
     archController = _archController;
   }
 
-  function slotsFor(address account) internal returns (bytes32[] memory arr) {
+  function slotsFor(address account) internal view returns (bytes32[] memory arr) {
     if (archController.isRegisteredMarket(account)) {
       arr = new bytes32[](7);
       for (uint i; i < 7; i++) {
@@ -100,7 +100,7 @@ contract MockEngine {
     emit NewSenderOnEngine(sender);
   }
 
-  function supportsInterface(bytes4 interfaceId) external view returns (bool) {
+  function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
     return true;
   }
 }

@@ -39,7 +39,7 @@ contract WildcatMarketConfigTest is BaseMarketTest {
   /*                        updateAccountAuthorization()                        */
   /* -------------------------------------------------------------------------- */
 
-  function _updateAccountAuthorization(address _account, bool _isAuthorized) internal {
+  function _updateAccountAuthorization(address _account, bool _isAuthorized) internal pure {
     address[] memory accounts = new address[](1);
     accounts[0] = _account;
 

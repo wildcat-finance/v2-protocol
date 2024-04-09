@@ -25,11 +25,11 @@ contract WildcatMarketTokenTest is BaseERC20Test, Test {
     return Test.bound(x, min, max);
   }
 
-  function _maxAmount() internal override returns (uint256) {
+  function _maxAmount() internal pure override returns (uint256) {
     return uint256(type(uint104).max);
   }
 
-  function _minAmount() internal override returns (uint256 min) {
+  function _minAmount() internal view override returns (uint256 min) {
     min = divUp(WildcatMarket(address(token)).scaleFactor(), RAY);
   }
 
