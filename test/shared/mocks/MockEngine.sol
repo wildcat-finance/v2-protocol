@@ -4,7 +4,7 @@ import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/WildcatArchController.sol';
 import 'src/WildcatSanctionsEscrow.sol';
-import '../helpers/VmUtils.sol' as VmUtils;
+import '../../helpers/VmUtils.sol' as VmUtils;
 import { Account as MarketAccount } from 'src/libraries/MarketState.sol';
 
 contract MockEngine {

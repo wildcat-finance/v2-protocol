@@ -5,8 +5,8 @@ import { WildcatSanctionsSentinel, IChainalysisSanctionsList } from 'src/Wildcat
 import { WildcatSanctionsEscrow, IWildcatSanctionsEscrow } from 'src/WildcatSanctionsEscrow.sol';
 import 'src/interfaces/IWildcatArchController.sol';
 import { SanctionsList } from './shared/TestConstants.sol';
-import { MockChainalysis, deployMockChainalysis } from './helpers/MockChainalysis.sol';
-import { MockERC20 } from './helpers/MockERC20.sol';
+import { MockChainalysis, deployMockChainalysis } from './shared/mocks/MockChainalysis.sol';
+import { MockERC20 } from './shared/mocks/MockERC20.sol';
 
 // -- TEMP START --
 contract MockWildcatArchController {

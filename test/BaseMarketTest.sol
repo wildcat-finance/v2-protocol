@@ -5,7 +5,7 @@ import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 
 import './shared/Test.sol';
 import './helpers/VmUtils.sol';
-import './helpers/MockController.sol';
+import './shared/mocks/MockController.sol';
 import './helpers/ExpectedStateTracker.sol';
 
 contract BaseMarketTest is Test, ExpectedStateTracker {

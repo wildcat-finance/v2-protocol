@@ -5,7 +5,7 @@ import { FeeMath, MathUtils, SafeCastLib, MarketState, HALF_RAY, RAY } from 'src
 import 'solmate/test/utils/mocks/MockERC20.sol';
 import { WildcatMarketController } from 'src/WildcatMarketController.sol';
 import { WildcatMarket, MarketParameters } from 'src/market/WildcatMarket.sol';
-import { MockController } from '../helpers/MockController.sol';
+import { MockController } from './mocks/MockController.sol';
 import { ConfigFuzzInputs, StateFuzzInputs } from './FuzzInputs.sol';
 import './TestConstants.sol';
 import './Test.sol';

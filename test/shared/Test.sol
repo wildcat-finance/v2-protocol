@@ -8,10 +8,10 @@ import 'src/WildcatArchController.sol';
 import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
 
 import '../helpers/VmUtils.sol' as VmUtils;
-import { MockEngine } from '../helpers/MockEngine.sol';
-import '../helpers/MockControllerFactory.sol';
-import '../helpers/MockSanctionsSentinel.sol';
-import { deployMockChainalysis } from '../helpers/MockChainalysis.sol';
+import { MockEngine } from './mocks/MockEngine.sol';
+import './mocks/MockControllerFactory.sol';
+import './mocks/MockSanctionsSentinel.sol';
+import { deployMockChainalysis } from './mocks/MockChainalysis.sol';
 
 struct MarketInputParameters {
   address asset;
