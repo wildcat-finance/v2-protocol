@@ -87,7 +87,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // @todo decide parameters
     // Execute withdrawal hook if enabled
-    hooks.queueWithdrawalHook(msg.sender, scaledAmount);
+    hooks.onQueueWithdrawal(msg.sender, scaledAmount);
 
     // Cache account data
     Account memory account = _getAccount(msg.sender);
@@ -177,11 +177,11 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state,
     address accountAddress,
     uint32 expiry
-  ) internal returns (uint256 normalizedAmountWithdrawn) {
+  ) internal returns (uint256) {
     if (expiry >= block.timestamp) revert_WithdrawalBatchNotExpired();
 
     // @todo decide parameters
-    hooks.executeWithdrawalHook(accountAddress, expiry);
+    hooks.onExecuteWithdrawal(accountAddress, expiry);
 
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
     AccountWithdrawalStatus storage status = _withdrawalData.accountStatuses[expiry][
@@ -228,7 +228,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint256 maxBatches
   ) public nonReentrant sphereXGuardExternal {
     if (repayAmount > 0) {
-      hooks.repayHook(repayAmount);
+      hooks.onRepay(repayAmount);
       asset.safeTransferFrom(msg.sender, address(this), repayAmount);
       emit_DebtRepaid(msg.sender, repayAmount);
     }

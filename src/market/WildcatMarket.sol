@@ -58,7 +58,7 @@ contract WildcatMarket is
       uint104 scaledAmount = state.scaleAmount(amount).toUint104();
       if (scaledAmount == 0) revert_NullMintAmount();
 
-      hooks.depositHook(msg.sender, scaledAmount);
+      hooks.onDeposit(msg.sender, scaledAmount);
 
       // Transfer deposit from caller
       asset.safeTransferFrom(msg.sender, address(this), amount);
@@ -147,7 +147,7 @@ contract WildcatMarket is
     if (amount > borrowable) revert_BorrowAmountTooHigh();
 
     // Execute borrow hook if enabled
-    hooks.borrowHook(amount);
+    hooks.onBorrow(amount);
 
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
@@ -159,7 +159,7 @@ contract WildcatMarket is
     if (state.isClosed) revert_RepayToClosedMarket();
 
     // Execute repay hook if enabled
-    hooks.repayHook(amount);
+    hooks.onRepay(amount);
 
     asset.safeTransferFrom(msg.sender, address(this), amount);
     emit_DebtRepaid(msg.sender, amount);
@@ -217,6 +217,8 @@ contract WildcatMarket is
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_MarketAlreadyClosed();
+
+    hooks.onCloseMarket();
 
     state.annualInterestBips = 0;
     state.isClosed = true;
