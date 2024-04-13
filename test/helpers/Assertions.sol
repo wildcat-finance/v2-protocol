@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 import 'src/libraries/MarketState.sol';
 import { StdAssertions } from 'forge-std/StdAssertions.sol';
 import { LibString } from 'solady/utils/LibString.sol';
+import 'src/types/HooksConfig.sol';
+import './StandardStructs.sol';
 
 using LibString for uint256;
 
@@ -71,5 +73,85 @@ contract Assertions is StdAssertions {
 
   function assertEq(uint32[] memory actual, uint32[] memory expected) internal {
     assertEq(actual, expected, 'uint32[]');
+  }
+
+  function assertEq(
+    RoleProvider actual,
+    StandardRoleProvider memory expected,
+    string memory labelPrefix
+  ) internal {
+    assertEq(
+      actual.providerAddress(),
+      expected.providerAddress,
+      string.concat(labelPrefix, 'providerAddress')
+    );
+    assertEq(actual.timeToLive(), expected.timeToLive, string.concat(labelPrefix, 'timeToLive'));
+    assertEq(
+      actual.pullProviderIndex(),
+      expected.pullProviderIndex,
+      string.concat(labelPrefix, 'pullProviderIndex')
+    );
+  }
+
+  function assertEq(RoleProvider actual, StandardRoleProvider memory expected) internal {
+    assertEq(actual, expected, 'RoleProvider.');
+  }
+
+  function assertEq(
+    HooksConfig actual,
+    StandardHooksConfig memory expected,
+    string memory labelPrefix
+  ) internal {
+    assertEq(
+      actual.hooksAddress(),
+      expected.hooksAddress,
+      string.concat(labelPrefix, 'hooksAddress')
+    );
+    assertEq(
+      actual.useOnDeposit(),
+      expected.useOnDeposit,
+      string.concat(labelPrefix, 'useOnDeposit')
+    );
+    assertEq(
+      actual.useOnQueueWithdrawal(),
+      expected.useOnQueueWithdrawal,
+      string.concat(labelPrefix, 'useOnQueueWithdrawal')
+    );
+    assertEq(
+      actual.useOnExecuteWithdrawal(),
+      expected.useOnExecuteWithdrawal,
+      string.concat(labelPrefix, 'useOnExecuteWithdrawal')
+    );
+    assertEq(
+      actual.useOnTransfer(),
+      expected.useOnTransfer,
+      string.concat(labelPrefix, 'useOnTransfer')
+    );
+    assertEq(actual.useOnBorrow(), expected.useOnBorrow, string.concat(labelPrefix, 'useOnBorrow'));
+    assertEq(actual.useOnRepay(), expected.useOnRepay, string.concat(labelPrefix, 'useOnRepay'));
+    assertEq(
+      actual.useOnCloseMarket(),
+      expected.useOnCloseMarket,
+      string.concat(labelPrefix, 'useOnCloseMarket')
+    );
+    assertEq(
+      actual.useOnAssetsSentToEscrow(),
+      expected.useOnAssetsSentToEscrow,
+      string.concat(labelPrefix, 'useOnAssetsSentToEscrow')
+    );
+    assertEq(
+      actual.useOnSetMaxTotalSupply(),
+      expected.useOnSetMaxTotalSupply,
+      string.concat(labelPrefix, 'useOnSetMaxTotalSupply')
+    );
+    assertEq(
+      actual.useOnSetAnnualInterestBips(),
+      expected.useOnSetAnnualInterestBips,
+      string.concat(labelPrefix, 'useOnSetAnnualInterestBips')
+    );
+  }
+
+  function assertEq(HooksConfig actual, StandardHooksConfig memory expected) internal {
+    assertEq(actual, expected, 'HooksConfig.');
   }
 }
