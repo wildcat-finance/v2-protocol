@@ -4,14 +4,14 @@ import './RoleProvider.sol';
 
 /**
  * @todo - generate stack version of library
- * @param isBlocked Whether the lender is blocked from the market
+ * @param isBlockedFromDeposits Whether the lender is blocked from depositing
  * @param hasEverDeposited Whether the lender has ever deposited to the market
  * @param lastProvider The address of the last provider to grant the lender a credential
  * @param canRefresh Whether the last provider can refresh the lender's credential
  * @param lastApprovalTimestamp The timestamp at which the lender's credential was granted
  */
 struct LenderStatus {
-  bool isBlocked;
+  bool isBlockedFromDeposits;
   bool hasEverDeposited;
   address lastProvider;
   bool canRefresh;
