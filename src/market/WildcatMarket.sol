@@ -218,8 +218,6 @@ contract WildcatMarket is
 
     if (state.isClosed) revert_MarketAlreadyClosed();
 
-    hooks.onCloseMarket();
-
     state.annualInterestBips = 0;
     state.isClosed = true;
     state.reserveRatioBips = 10000;
@@ -230,13 +228,17 @@ contract WildcatMarket is
     uint256 currentlyHeld = totalAssets();
     uint256 totalDebts = state.totalDebts();
     if (currentlyHeld < totalDebts) {
+      uint256 remainingDebt = totalDebts - currentlyHeld;
       // Transfer remaining debts from borrower
-      asset.safeTransferFrom(borrower, address(this), totalDebts - currentlyHeld);
+      asset.safeTransferFrom(borrower, address(this), remainingDebt);
+      hooks.onRepay(remainingDebt);
     } else if (currentlyHeld > totalDebts) {
       // Transfer excess assets to borrower
       asset.safeTransfer(borrower, currentlyHeld - totalDebts);
     }
 
+    // @todo re-assess the order of operations here
+    hooks.onCloseMarket();
     _writeState(state);
     emit_MarketClosed(block.timestamp);
   }
