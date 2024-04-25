@@ -6,7 +6,7 @@ import '../libraries/MathUtils.sol';
 import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
-import './IHooks.sol';
+import './ConstrainDeployParameters.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -26,7 +26,11 @@ using MathUtils for uint256;
  *
  *      Deposit access may be canceled by the borrower.
  */
-contract AccessControlHooks is IHooks {
+contract AccessControlHooks is ConstrainDeployParameters {
+  // ========================================================================== //
+  //                                   Events                                   //
+  // ========================================================================== //
+
   event RoleProviderUpdated(
     address indexed providerAddress,
     uint32 timeToLive,
@@ -46,10 +50,21 @@ contract AccessControlHooks is IHooks {
     uint32 credentialTimestamp
   );
 
+  // ========================================================================== //
+  //                                   Errors                                   //
+  // ========================================================================== //
+
+  error CallerNotBorrower();
   error ProviderNotFound();
   error ProviderCanNotReplaceCredential();
   /// @dev Error thrown when a provider grants a credential that is already expired.
   error GrantedCredentialExpired();
+
+  // ========================================================================== //
+  //                                    State                                   //
+  // ========================================================================== //
+
+  address internal immutable borrower;
 
   mapping(address => LenderStatus) internal _lenderStatus;
   // Provider data is duplicated in the array and mapping to allow
@@ -58,11 +73,40 @@ contract AccessControlHooks is IHooks {
   RoleProvider[] internal _pullProviders;
   mapping(address => RoleProvider) internal _roleProviders;
 
-  function version() external pure override returns (string memory) {
-    return 'AccessControlHooks';
+  HooksConfig public immutable override config;
+
+  // ========================================================================== //
+  //                                 Constructor                                //
+  // ========================================================================== //
+
+  constructor(address _deployer, HooksConfig restrictedFunctions) IHooks() {
+    borrower = _deployer;
+    // Allow deployer to grant roles with no expiry
+    _roleProviders[_deployer] = encodeRoleProvider(
+      type(uint32).max,
+      _deployer,
+      NotPullProviderIndex
+    );
+    config = encodeHooksConfig({
+      hooksAddress: address(this),
+      useOnDeposit: restrictedFunctions.useOnDeposit(),
+      useOnQueueWithdrawal: restrictedFunctions.useOnQueueWithdrawal(),
+      useOnExecuteWithdrawal: restrictedFunctions.useOnExecuteWithdrawal(),
+      useOnTransfer: restrictedFunctions.useOnTransfer(),
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnAssetsSentToEscrow: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestBips: false
+    });
   }
 
-  function config() external view override returns (HooksConfig) {
+  function version() external pure override returns (string memory) {
+    return 'SingleBorrowerAccessControlHooks';
+  }
+
+  /*   function config() external view override returns (HooksConfig) {
     return
       encodeHooksConfig({
         hooksAddress: address(this),
@@ -77,6 +121,14 @@ contract AccessControlHooks is IHooks {
         useOnSetMaxTotalSupply: false,
         useOnSetAnnualInterestBips: false
       });
+  } */
+
+  function _onCreateMarket(
+    MarketParameters calldata parameters,
+    bytes calldata extraData
+  ) internal override {
+    if (msg.sender != borrower) revert CallerNotBorrower();
+    super._onCreateMarket(parameters, extraData);
   }
 
   /**
@@ -456,48 +508,65 @@ contract AccessControlHooks is IHooks {
   function onDeposit(
     address lender,
     uint256 scaledAmount,
-    uint256 scaleFactor,
+    MarketState calldata state,
     bytes calldata extraData
   ) external override {}
 
   function onQueueWithdrawal(
     address lender,
-    uint32 withdrawalBatchExpiry,
     uint scaledAmount,
-    uint256 scaleFactor,
+    MarketState calldata state,
     bytes calldata extraData
   ) external override {}
 
   function onExecuteWithdrawal(
     address lender,
-    uint32 withdrawalBatchExpiry,
-    uint scaledAmount,
-    uint256 scaleFactor,
+    uint128 normalizedAmountWithdrawn,
+    MarketState calldata state,
     bytes calldata extraData
   ) external override {}
 
   function onTransfer(
+    address caller,
     address from,
     address to,
     uint scaledAmount,
-    uint256 scaleFactor,
+    MarketState calldata state,
     bytes calldata extraData
   ) external override {}
 
-  function onBorrow(uint normalizedAmount, bytes calldata extraData) external override {}
+  function onBorrow(
+    uint normalizedAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) external override {}
 
-  function onRepay(uint normalizedAmount, bytes calldata extraData) external override {}
+  function onRepay(
+    uint normalizedAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) external override {}
 
-  function onCloseMarket(bytes calldata extraData) external override {}
+  function onCloseMarket(MarketState calldata state, bytes calldata extraData) external override {}
 
   function onAssetsSentToEscrow(
     address lender,
+    address asset,
     address escrow,
     uint scaledAmount,
+    MarketState calldata state,
     bytes calldata extraData
   ) external override {}
 
-  function onSetMaxTotalSupply(bytes calldata extraData) external override {}
+  function onSetMaxTotalSupply(
+    uint256 maxTotalSupply,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) external override {}
 
-  function onSetAnnualInterestBips(bytes calldata extraData) external override {}
+  function onSetAnnualInterestBips(
+    uint16 annualInterestBips,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) external override {}
 }

@@ -114,7 +114,6 @@ contract WildcatMarketBase is
     hooks = parameters.hooks;
     sentinel = IWildcatSanctionsSentinel(parameters.sentinel);
     borrower = parameters.borrower;
-    controller = parameters.controller;
     feeRecipient = parameters.feeRecipient;
     protocolFeeBips = parameters.protocolFeeBips;
     delinquencyFeeBips = parameters.delinquencyFeeBips;

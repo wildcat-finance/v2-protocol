@@ -58,7 +58,7 @@ contract WildcatMarket is
       uint104 scaledAmount = state.scaleAmount(amount).toUint104();
       if (scaledAmount == 0) revert_NullMintAmount();
 
-      hooks.onDeposit(msg.sender, scaledAmount);
+      hooks.onDeposit(msg.sender, scaledAmount, state);
 
       // Transfer deposit from caller
       asset.safeTransferFrom(msg.sender, address(this), amount);
@@ -147,35 +147,35 @@ contract WildcatMarket is
     if (amount > borrowable) revert_BorrowAmountTooHigh();
 
     // Execute borrow hook if enabled
-    hooks.onBorrow(amount);
+    hooks.onBorrow(amount, state);
 
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
     emit_Borrow(amount);
   }
 
-  function _repay(MarketState memory state, uint256 amount) internal {
+  function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal {
     if (amount == 0) revert_NullRepayAmount();
     if (state.isClosed) revert_RepayToClosedMarket();
 
-    // Execute repay hook if enabled
-    hooks.onRepay(amount);
-
     asset.safeTransferFrom(msg.sender, address(this), amount);
     emit_DebtRepaid(msg.sender, amount);
+
+    // Execute repay hook if enabled
+    hooks.onRepay(amount, state, baseCalldataSize);
   }
 
   function repayOutstandingDebt() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
     uint256 outstandingDebt = state.totalDebts().satSub(totalAssets());
-    _repay(state, outstandingDebt);
+    _repay(state, outstandingDebt, 0x04);
     _writeState(state);
   }
 
   function repayDelinquentDebt() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
     uint256 delinquentDebt = state.liquidityRequired().satSub(totalAssets());
-    _repay(state, delinquentDebt);
+    _repay(state, delinquentDebt, 0x04);
     _writeState(state);
   }
 
@@ -196,6 +196,9 @@ contract WildcatMarket is
 
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_RepayToClosedMarket();
+
+    // Execute repay hook if enabled
+    hooks.onRepay(amount, state, 0x24);
 
     _writeState(state);
   }
@@ -231,14 +234,14 @@ contract WildcatMarket is
       uint256 remainingDebt = totalDebts - currentlyHeld;
       // Transfer remaining debts from borrower
       asset.safeTransferFrom(borrower, address(this), remainingDebt);
-      hooks.onRepay(remainingDebt);
+      hooks.onRepay(remainingDebt, state, 0x04);
     } else if (currentlyHeld > totalDebts) {
       // Transfer excess assets to borrower
       asset.safeTransfer(borrower, currentlyHeld - totalDebts);
     }
 
     // @todo re-assess the order of operations here
-    hooks.onCloseMarket();
+    hooks.onCloseMarket(state);
     _writeState(state);
     emit_MarketClosed(block.timestamp);
   }

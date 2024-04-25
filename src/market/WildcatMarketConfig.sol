@@ -114,6 +114,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_CapacityChangeOnClosedMarket();
 
+    hooks.onSetMaxTotalSupply(_maxTotalSupply, state);
     state.maxTotalSupply = _maxTotalSupply.toUint128();
     _writeState(state);
     emit_MaxTotalSupplyUpdated(_maxTotalSupply);
@@ -128,6 +129,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_AprChangeOnClosedMarket();
 
+    hooks.onSetAnnualInterestBips(_annualInterestBips, state);
     state.annualInterestBips = _annualInterestBips;
     _writeState(state);
     emit_AnnualInterestBipsUpdated(_annualInterestBips);
