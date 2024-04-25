@@ -17,7 +17,6 @@ struct MarketParameters {
   string name;
   string symbol;
   address borrower;
-  address controller;
   address feeRecipient;
   address sentinel;
   uint128 maxTotalSupply;
