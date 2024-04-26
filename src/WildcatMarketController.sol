@@ -397,7 +397,7 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
     parameters.name = _tmpMarketParameters.name;
     parameters.symbol = _tmpMarketParameters.symbol;
     parameters.borrower = borrower;
-    parameters.controller = address(this);
+    // parameters.controller = address(this);
     parameters.feeRecipient = _tmpMarketParameters.feeRecipient;
     parameters.sentinel = sentinel;
     parameters.maxTotalSupply = _tmpMarketParameters.maxTotalSupply;
