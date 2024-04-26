@@ -34,7 +34,22 @@ contract AccessControlHooksTest is Test, Assertions {
   }
 
   function setUp() external {
-    hooks = new AccessControlHooks();
+    hooks = new AccessControlHooks(
+      address(this),
+      encodeHooksConfig({
+        hooksAddress: address(0),
+        useOnDeposit: true,
+        useOnQueueWithdrawal: true,
+        useOnExecuteWithdrawal: true,
+        useOnTransfer: true,
+        useOnBorrow: true,
+        useOnRepay: true,
+        useOnCloseMarket: true,
+        useOnAssetsSentToEscrow: true,
+        useOnSetMaxTotalSupply: true,
+        useOnSetAnnualInterestBips: true
+      })
+    );
     mockProvider1 = new MockRoleProvider();
     mockProvider2 = new MockRoleProvider();
   }
@@ -128,7 +143,11 @@ contract AccessControlHooksTest is Test, Assertions {
     uint32 ttl1,
     uint32 ttl2
   ) external {
-    StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, ttl1, isPullProvider);
+    StandardRoleProvider storage provider = _addExpectedProvider(
+      mockProvider1,
+      ttl1,
+      isPullProvider
+    );
     _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex);
     hooks.addRoleProvider(address(mockProvider1), ttl1);
 
@@ -142,7 +161,11 @@ contract AccessControlHooksTest is Test, Assertions {
   }
 
   function test_removeRoleProvider(bool isPullProvider, uint32 timeToLive) external {
-    StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
+    StandardRoleProvider storage provider = _addExpectedProvider(
+      mockProvider1,
+      timeToLive,
+      isPullProvider
+    );
 
     hooks.addRoleProvider(address(mockProvider1), timeToLive);
 
