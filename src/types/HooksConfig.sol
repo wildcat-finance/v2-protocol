@@ -21,8 +21,6 @@ uint256 constant Bit_Enabled_AssetsSentToEscrow = 88;
 uint256 constant Bit_Enabled_SetMaxTotalSupply = 87;
 uint256 constant Bit_Enabled_SetAnnualInterestBips = 86;
 
-uint256 constant QueueWithdrawalCalldataSize = 0x24;
-uint256 constant RepayCalldataSize = 0x24;
 uint256 constant MarketStateSize = 0x01a0;
 
 function encodeHooksConfig(
@@ -121,26 +119,6 @@ library LibHooksConfig {
     return hooks.readFlag(Bit_Enabled_SetAnnualInterestBips);
   }
 
-  function copyExtraData(
-    uint256 extraDataPointer,
-    uint256 baseCalldataSize
-  ) internal pure returns (uint256 extraDataSize) {
-    assembly {
-      extraDataSize := sub(calldatasize(), baseCalldataSize)
-      calldatacopy(extraDataPointer, baseCalldataSize, extraDataSize)
-    }
-  }
-
-  function getFreePointer() internal pure returns (uint256 freePointer) {
-    assembly {
-      freePointer := mload(0x40)
-    }
-  }
-
-  // ========================================================================== //
-  //                              Hook Call Methods                             //
-  // ========================================================================== //
-
   // ========================================================================== //
   //                              Hook for deposit                              //
   // ========================================================================== //
@@ -203,6 +181,8 @@ library LibHooksConfig {
   //                          Hook for queueWithdrawal                          //
   // ========================================================================== //
 
+  uint256 constant QueueWithdrawalCalldataSize = 0x24;
+
   // Size of lender + scaledAmount + state + extraData.offset + extraData.length
   uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0224;
   uint256 internal constant QueueWithdrawalHook_ScaledAmount_Offset = 0x20;
@@ -215,14 +195,13 @@ library LibHooksConfig {
     HooksConfig self,
     address lender,
     uint256 scaledAmount,
-    MarketState memory state,
-    uint256 baseCalldataSize
+    MarketState memory state
   ) internal {
     address target = self.hooksAddress();
     uint32 onQueueWithdrawalSelector = uint32(IHooks.onQueueWithdrawal.selector);
     if (self.useOnQueueWithdrawal()) {
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
+        let extraCalldataBytes := sub(calldatasize(), QueueWithdrawalCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onQueueWithdrawal`
@@ -243,7 +222,7 @@ library LibHooksConfig {
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
           add(headPointer, QueueWithdrawalHook_ExtraData_TailOffset),
-          baseCalldataSize,
+          QueueWithdrawalCalldataSize,
           extraCalldataBytes
         )
         
@@ -433,6 +412,8 @@ library LibHooksConfig {
   //                               Hook for repay                               //
   // ========================================================================== //
 
+  uint256 internal constant RepayCalldataSize = 0x24;
+
   // Size of normalizedAmount + state + extraData.offset + extraData.length
   uint256 internal constant RepayHook_Base_Size = 0x0204;
   uint256 internal constant RepayHook_State_Offset = 0x20;
@@ -497,7 +478,7 @@ library LibHooksConfig {
     uint32 onCloseMarketSelector = uint32(IHooks.onCloseMarket.selector);
     if (self.useOnCloseMarket()) {
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), RepayCalldataSize)
+        let extraCalldataBytes := sub(calldatasize(), CloseMarketCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onCloseMarket`
@@ -549,7 +530,7 @@ library LibHooksConfig {
     uint32 onSetMaxTotalSupplySelector = uint32(IHooks.onSetMaxTotalSupply.selector);
     if (self.useOnSetMaxTotalSupply()) {
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), RepayCalldataSize)
+        let extraCalldataBytes := sub(calldatasize(), SetMaxTotalSupplyCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onSetMaxTotalSupply`
@@ -603,7 +584,7 @@ library LibHooksConfig {
     uint32 onSetAnnualInterestBipsSelector = uint32(IHooks.onSetAnnualInterestBips.selector);
     if (self.useOnSetAnnualInterestBips()) {
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), RepayCalldataSize)
+        let extraCalldataBytes := sub(calldatasize(), SetAnnualInterestBipsCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onSetAnnualInterestBips`
