@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import '../types/HooksConfig.sol';
 import '../libraries/MarketState.sol';
 import '../interfaces/IWildcatMarketControllerFactory.sol';
+import '../interfaces/WildcatStructsAndEnums.sol';
 
 abstract contract IHooks {
   error CallerNotFactory();
