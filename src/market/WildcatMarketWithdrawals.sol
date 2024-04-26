@@ -86,7 +86,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     if (scaledAmount == 0) revert_NullBurnAmount();
 
     // Execute withdrawal hook if enabled
-    hooks.onQueueWithdrawal(msg.sender, scaledAmount, state, 0x24);
+    hooks.onQueueWithdrawal(msg.sender, scaledAmount, state);
 
     // Cache account data
     Account memory account = _getAccount(msg.sender);
