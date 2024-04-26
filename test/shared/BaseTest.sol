@@ -67,7 +67,6 @@ contract BaseTest is Test {
   function getMarketState(
     StateFuzzInputs memory inputs
   ) internal view returns (MarketState memory state) {
-    inputs.constrain();
     return inputs.toState();
   }
 

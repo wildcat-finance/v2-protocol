@@ -96,6 +96,7 @@ library FuzzInputsLib {
   }
 
   function toState(StateFuzzInputs memory inputs) internal pure returns (MarketState memory state) {
+    inputs.constrain();
     state.maxTotalSupply = inputs.maxTotalSupply;
     state.accruedProtocolFees = inputs.accruedProtocolFees;
     state.normalizedUnclaimedWithdrawals = inputs.normalizedUnclaimedWithdrawals;

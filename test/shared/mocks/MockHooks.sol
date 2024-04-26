@@ -16,51 +16,76 @@ contract MockHooks is IHooks {
     config = _config;
   }
 
+  function _onCreateMarket(
+    MarketParameters calldata parameters,
+    bytes calldata extraData
+  ) internal virtual override {}
+
   function onDeposit(
     address lender,
     uint256 scaledAmount,
-    uint256 scaleFactor,
+    MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external override {}
+  ) external virtual override {}
 
   function onQueueWithdrawal(
     address lender,
-    uint32 withdrawalBatchExpiry,
     uint scaledAmount,
-    uint256 scaleFactor,
+    MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external override {}
+  ) external virtual override {}
 
   function onExecuteWithdrawal(
     address lender,
-    uint32 withdrawalBatchExpiry,
-    uint scaledAmount,
-    uint256 scaleFactor,
+    uint128 normalizedAmountWithdrawn,
+    MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external override {}
+  ) external virtual override {}
 
   function onTransfer(
+    address caller,
     address from,
     address to,
     uint scaledAmount,
-    uint256 scaleFactor,
+    MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external override {}
+  ) external virtual override {}
 
-  function onBorrow(uint normalizedAmount, bytes calldata extraData) external override {}
+  function onBorrow(
+    uint normalizedAmount,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {}
 
-  function onRepay(uint normalizedAmount, bytes calldata extraData) external override {}
+  function onRepay(
+    uint normalizedAmount,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {}
 
-  function onCloseMarket(bytes calldata extraData) external override {}
+  function onCloseMarket(
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {}
 
   function onAssetsSentToEscrow(
     address lender,
+    address asset,
     address escrow,
     uint scaledAmount,
+    MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external override {}
+  ) external virtual override {}
 
-  function onSetMaxTotalSupply(bytes calldata extraData) external override {}
+  function onSetMaxTotalSupply(
+    uint256 maxTotalSupply,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {}
 
-  function onSetAnnualInterestBips(bytes calldata extraData) external override {}
+  function onSetAnnualInterestBips(
+    uint16 annualInterestBips,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {}
 }
