@@ -95,7 +95,7 @@ library FuzzInputsLib {
     );
   }
 
-  function toState(StateFuzzInputs memory inputs) internal pure returns (MarketState memory state) {
+  function toState(StateFuzzInputs memory inputs) internal view returns (MarketState memory state) {
     inputs.constrain();
     state.maxTotalSupply = inputs.maxTotalSupply;
     state.accruedProtocolFees = inputs.accruedProtocolFees;
