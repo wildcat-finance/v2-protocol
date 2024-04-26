@@ -59,7 +59,7 @@ contract WildcatMarketToken is WildcatMarketBase {
       _approve(from, msg.sender, newAllowance);
     }
 
-    _transfer(from, to, amount, 0x66);
+    _transfer(from, to, amount, 0x64);
 
     return true;
   }
