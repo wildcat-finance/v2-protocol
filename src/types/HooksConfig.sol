@@ -21,7 +21,6 @@ uint256 constant Bit_Enabled_AssetsSentToEscrow = 88;
 uint256 constant Bit_Enabled_SetMaxTotalSupply = 87;
 uint256 constant Bit_Enabled_SetAnnualInterestBips = 86;
 
-uint256 constant DepositCalldataSize = 0x24;
 uint256 constant QueueWithdrawalCalldataSize = 0x24;
 uint256 constant RepayCalldataSize = 0x24;
 uint256 constant MarketStateSize = 0x01a0;
