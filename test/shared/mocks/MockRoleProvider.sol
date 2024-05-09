@@ -5,28 +5,56 @@ import 'forge-std/Test.sol';
 import 'src/access/IRoleProvider.sol';
 
 contract MockRoleProvider is IRoleProvider {
-  bool public override isPullProvider;
+  error BadCredential();
 
-  mapping(address => uint32) public override getCredential;
-  mapping(bytes32 => uint32) public validateCredentialTimestamp;
+  bool public callShouldRevert;
+  bool public override isPullProvider;
+  bool public callShouldReturnCorruptedData;
+
+  mapping(address => uint32) public credentialsByAccount;
+  mapping(bytes32 => uint32) public credentialsByHash;
 
   function setIsPullProvider(bool value) external {
     isPullProvider = value;
   }
 
-  function setCredential(address account, uint32 timestamp) external {
-    getCredential[account] = timestamp;
+  function setCallShouldRevert(bool value) external {
+    callShouldRevert = value;
   }
 
-  function setValidateCredentialTimestamp(bytes32 dataHash, uint32 timestamp) external {
-    validateCredentialTimestamp[dataHash] = timestamp;
+  function setCallShouldReturnCorruptedData(bool value) external {
+    callShouldReturnCorruptedData = value;
+  }
+
+  function setCredential(address account, uint32 timestamp) external {
+    credentialsByAccount[account] = timestamp;
+  }
+
+  function approveCredentialData(bytes32 dataHash, uint32 timestamp) external {
+    credentialsByHash[dataHash] = timestamp;
+  }
+
+  function getCredential(address account) external view override returns (uint32 timestamp) {
+    if (callShouldRevert) revert BadCredential();
+    if (callShouldReturnCorruptedData) {
+      assembly {
+        return(0, 0)
+      }
+    }
+    return credentialsByAccount[account];
   }
 
   function validateCredential(
     address account,
     bytes calldata data
   ) external override returns (uint32 timestamp) {
+    if (callShouldRevert) revert BadCredential();
+    if (callShouldReturnCorruptedData) {
+      assembly {
+        return(0, 0)
+      }
+    }
     bytes32 dataHash = keccak256(data);
-    timestamp = validateCredentialTimestamp[dataHash];
+    timestamp = credentialsByHash[dataHash];
   }
 }
