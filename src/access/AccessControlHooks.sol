@@ -49,6 +49,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     address indexed accountAddress,
     uint32 credentialTimestamp
   );
+  event AccountAccessRevoked(address indexed providerAddress, address indexed accountAddress);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -59,12 +60,15 @@ contract AccessControlHooks is ConstrainDeployParameters {
   error ProviderCanNotReplaceCredential();
   /// @dev Error thrown when a provider grants a credential that is already expired.
   error GrantedCredentialExpired();
+  /// @dev Error thrown when a provider is called to validate a credential and the
+  ///      returndata can not be decoded as a uint.
+  error InvalidCredentialReturned();
 
   // ========================================================================== //
   //                                    State                                   //
   // ========================================================================== //
 
-  address internal immutable borrower;
+  address public immutable borrower;
 
   mapping(address => LenderStatus) internal _lenderStatus;
   // Provider data is duplicated in the array and mapping to allow
@@ -79,6 +83,11 @@ contract AccessControlHooks is ConstrainDeployParameters {
   //                                 Constructor                                //
   // ========================================================================== //
 
+  /**
+   * @param _deployer Address of the account that called the factory.
+   * @param restrictedFunctions Configuration specifying which functions to apply
+   *                            access controls to.
+   */
   constructor(address _deployer, HooksConfig restrictedFunctions) IHooks() {
     borrower = _deployer;
     // Allow deployer to grant roles with no expiry
@@ -106,30 +115,24 @@ contract AccessControlHooks is ConstrainDeployParameters {
     return 'SingleBorrowerAccessControlHooks';
   }
 
-  /*   function config() external view override returns (HooksConfig) {
-    return
-      encodeHooksConfig({
-        hooksAddress: address(this),
-        useOnDeposit: true,
-        useOnQueueWithdrawal: true,
-        useOnExecuteWithdrawal: false,
-        useOnTransfer: false,
-        useOnBorrow: false,
-        useOnRepay: false,
-        useOnCloseMarket: false,
-        useOnAssetsSentToEscrow: false,
-        useOnSetMaxTotalSupply: false,
-        useOnSetAnnualInterestBips: false
-      });
-  } */
-
+  /**
+   * @dev Called when market is deployed using this contract as its `hooks`.
+   *
+   *      Note: Called inside the root `onCreateMarket` in the base contract,
+   *      so no need to verify the caller is the factory.
+   */
   function _onCreateMarket(
     MarketParameters calldata parameters,
     bytes calldata extraData
   ) internal override {
     if (msg.sender != borrower) revert CallerNotBorrower();
+    // Validate the deploy parameters
     super._onCreateMarket(parameters, extraData);
   }
+
+  // ========================================================================== //
+  //                             Provider management                            //
+  // ========================================================================== //
 
   /**
    * @dev Adds or updates a role provider that is able to grant user access.
@@ -165,14 +168,10 @@ contract AccessControlHooks is ConstrainDeployParameters {
     _roleProviders[providerAddress] = provider;
   }
 
-  function getRoleProvider(address providerAddress) external view returns (RoleProvider) {
-    return _roleProviders[providerAddress];
-  }
-
-  function getPullProviders() external view returns (RoleProvider[] memory) {
-    return _pullProviders;
-  }
-
+  /**
+   * @dev Removes a role provider from the `_roleProviders` mapping and, if it is a
+   *      pull provider, from the `_pullProviders` array.
+   */
   function removeRoleProvider(address providerAddress) external {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) revert ProviderNotFound();
@@ -209,6 +208,73 @@ contract AccessControlHooks is ConstrainDeployParameters {
     // Emit an event to notify that the provider's index has been updated
     emit RoleProviderUpdated(lastProviderAddress, lastProvider.timeToLive(), indexToRemove);
   }
+
+  // ========================================================================== //
+  //                              Provider queries                              //
+  // ========================================================================== //
+
+  function getRoleProvider(address providerAddress) external view returns (RoleProvider) {
+    return _roleProviders[providerAddress];
+  }
+
+  function getPullProviders() external view returns (RoleProvider[] memory) {
+    return _pullProviders;
+  }
+
+  // ========================================================================== //
+  //                                Role queries                                //
+  // ========================================================================== //
+
+  /**
+   * @dev Retrieves the current status of a lender, attempting to find a valid
+   *      credential if their current one is invalid or non-existent.
+   *
+   *      If the lender has an expired credential, will attempt to refresh it
+   *      with the previous provider if it is still supported.
+   *
+   *      If the lender has no credential, or one from a provider that is no longer
+   *      supported or will not refresh it, will loop over all providers to find
+   *      a valid credential.
+   */
+  function getLenderStatus(
+    address accountAddress
+  ) external view returns (LenderStatus memory status) {
+    status = _lenderStatus[accountAddress];
+
+    uint256 pullProviderIndexToSkip;
+
+    // Check if user has an existing credential
+    if (status.lastApprovalTimestamp > 0) {
+      RoleProvider provider = _roleProviders[status.lastProvider];
+      if (!provider.isNull()) {
+        // If credential is not expired and the provider is still
+        // supported, the lender has a valid credential.
+        if (status.hasActiveCredential(provider)) return status;
+
+        // If credential is expired but the provider is still supported and
+        // allows refreshing (i.e. it's a pull provider), try to refresh.
+        if (status.canRefresh) {
+          if (_tryGetCredential(status, provider, accountAddress)) {
+            return status;
+          }
+          // If refresh fails, provider should be skipped in the query loop
+          pullProviderIndexToSkip = provider.pullProviderIndex();
+        }
+      }
+      // If credential could not be refreshed or the provider is no longer
+      // supported, remove it
+      status.unsetCredential();
+    }
+
+    // Loop over all pull providers to find a valid role for the lender
+    if (_loopTryGetCredential(status, accountAddress, pullProviderIndexToSkip)) {
+      return status;
+    }
+  }
+
+  // ========================================================================== //
+  //                                Role actions                                //
+  // ========================================================================== //
 
   /**
    * @dev Grants a role to an account by updating the account's status.
@@ -265,65 +331,68 @@ contract AccessControlHooks is ConstrainDeployParameters {
     // Query provider for user approval
     address providerAddress = provider.providerAddress();
 
-    uint32 lastApprovalTime;
+    uint32 credentialTimestamp;
     uint getCredentialSelector = uint32(IRoleProvider.getCredential.selector);
     assembly {
       mstore(0x00, getCredentialSelector)
       mstore(0x20, accountAddress)
       // Call the provider and check if the return data is valid
       if and(gt(returndatasize(), 0x1f), staticcall(gas(), providerAddress, 0x1c, 0x24, 0, 0x20)) {
-        // If the return data is valid, set `lastApprovalTime` to the returned word
+        // If the return data is valid, set `credentialTimestamp` to the returned word
         // with a uint32 mask applied
-        lastApprovalTime := and(mload(0), 0xffffffff)
+        credentialTimestamp := and(mload(0), 0xffffffff)
       }
     }
 
+    // If the returned timestamp is null or greater than the current time, return false.
+    if (credentialTimestamp == 0 || credentialTimestamp > block.timestamp) {
+      return false;
+    }
+
     // If credential is still valid, update credential
-    if (lastApprovalTime > 0 && provider.calculateExpiry(lastApprovalTime) >= block.timestamp) {
+    if (provider.calculateExpiry(credentialTimestamp) >= block.timestamp) {
       // User is approved, update status with new expiry and last provider
-      status.setCredential(provider, lastApprovalTime);
+      status.setCredential(provider, credentialTimestamp);
       return true;
     }
-    return false;
   }
 
-  function _readProviderAddressFromCalldataSuffix(
-    uint256 baseCalldataSize
-  ) internal pure returns (address providerAddress) {
+  function _readAddress(bytes calldata hooksData) internal pure returns (address providerAddress) {
     assembly {
-      providerAddress := shr(96, calldataload(baseCalldataSize))
+      providerAddress := shr(96, calldataload(hooksData.offset))
     }
   }
 
   /**
-   * @dev Uses the data added to the end of the base call to the hook function to call
+   * @dev Uses the data added to the end of the base call to the market function to call
    *      `validateCredential` on the selected provider. Returns false if the provider does not
    *      exist, the call fails, or the credential is invalid. Only reverts if the call succeeds but
    *      does not return the correct amount of data.
    *
-   *      The calldata to the hook function must have a suffix encoded as (address, raw bytes), where
-   *      the address is packed and the raw bytes do not contain an offset or length. For example, if
-   *      the hook function were `onAction(address caller)` and the user provided a credential with a
-   *      32 byte token, the calldata sent to the hook contract would be:
-   *      [0:4] 0xde923be9
-   *      [4:36] caller address
-   *      [36:58] provider address
-   *      [58:90] token to send to the provider
+   *      The calldata to the market function must have a suffix encoded as (address, bytes), where
+   *      the address is packed and the bytes do not contain an offset or length. For example, if
+   *      the market function were `fn(uint256 arg0)` and the user provided a 32 byte `accessToken`
+   *      for provider `provider0`, the calldata to the market would be:
+   *      [0:4] selector
+   *      [4:36] arg0
+   *      [36:58] provider0
+   *      [58:90] `accessToken`
    */
   function _tryValidateCredential(
     LenderStatus memory status,
     address accountAddress,
-    uint256 baseCalldataSize
+    bytes calldata hooksData
   ) internal returns (bool) {
     // @todo use constant selector once interface is fixed
     uint validateSelector = uint32(IRoleProvider.validateCredential.selector);
-    address providerAddress = _readProviderAddressFromCalldataSuffix(baseCalldataSize);
+    address providerAddress = _readAddress(hooksData);
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) return false;
-    uint32 credentialTimestamp;
+    uint credentialTimestamp;
+    uint invalidCredentialReturnedSelector = uint32(InvalidCredentialReturned.selector);
     assembly {
       // Get the offset to the extra data provided in the hooks call, after the provider.
-      let validateDataCalldataPointer := add(baseCalldataSize, 0x14)
+      let validateDataCalldataPointer := add(hooksData.offset, 0x14)
       // Encode the call to `validateCredential(address account, bytes calldata data)`
       let calldataPointer := mload(0x40)
       // The selector is right aligned, so the real calldata buffer begins at calldataPointer + 28
@@ -331,22 +400,25 @@ contract AccessControlHooks is ConstrainDeployParameters {
       mstore(add(calldataPointer, 0x20), accountAddress)
       // Write the calldata offset to `data`
       mstore(add(calldataPointer, 0x40), 0x40)
-      let dataLength := sub(calldatasize(), validateDataCalldataPointer)
+      // Get length of the data segment in the hooks data
+      let dataLength := sub(hooksData.length, 0x14)
       // Write the length of the calldata to `data`
       mstore(add(calldataPointer, 0x60), dataLength)
       // Copy the calldata to the buffer
       calldatacopy(add(calldataPointer, 0x80), validateDataCalldataPointer, dataLength)
       // Call the provider
-      if call(gas(), providerAddress, 0, calldataPointer, add(dataLength, 0x84), 0, 0x20) {
+      if call(gas(), providerAddress, 0, add(calldataPointer, 0x1c), add(dataLength, 0x64), 0, 0x20) {
         switch lt(returndatasize(), 0x20)
         case 1 {
           // If the returndata is invalid but the call succeeded, the call must throw
-          returndatacopy(0, 0, returndatasize()) // @todo custom error
-          revert(0, returndatasize())
+          // because the validateCredential function is stateful and can have side effects.
+          mstore(0, invalidCredentialReturnedSelector)
+          revert(0x1c, 0x04)
         }
         default {
-          // If sufficient data was returned, set `credentialTimestamp` to the returned word
-          credentialTimestamp := mload(0)
+          // If the return data is valid, set `credentialTimestamp` to the returned word
+          // with a uint32 mask applied
+          credentialTimestamp := and(mload(0), 0xffffffff)
         }
       }
     }
@@ -357,61 +429,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     // Check if the returned timestamp results in a valid expiry
     if (provider.calculateExpiry(credentialTimestamp) >= block.timestamp) {
       status.setCredential(provider, credentialTimestamp);
-    }
-  }
-
-  /**
-   * @dev Retrieves the current status of a lender, attempting to find a valid
-   *      credential if their current one is invalid or non-existent.
-   *
-   *      If the lender has an expired credential, will attempt to refresh it
-   *      with the previous provider if it is still supported.
-   *
-   *      If the lender has no credential, or one from a provider that is no longer
-   *      supported or will not refresh it, will loop over all providers to find
-   *      a valid credential.
-   */
-  function getLenderStatus(
-    address accountAddress
-  ) external view returns (LenderStatus memory status) {
-    status = _lenderStatus[accountAddress];
-
-    uint256 pullProviderIndexToSkip;
-
-    // Check if user has an existing credential
-    if (status.lastApprovalTimestamp > 0) {
-      RoleProvider provider = _roleProviders[status.lastProvider];
-      if (!provider.isNull()) {
-        // If credential is not expired and the provider is still
-        // supported, the lender has a valid credential.
-        if (status.hasActiveCredential(provider)) return status;
-
-        // If credential is expired but the provider is still supported and
-        // allows refreshing (i.e. it's a pull provider), try to refresh.
-        if (status.canRefresh) {
-          if (_tryGetCredential(status, provider, accountAddress)) {
-            return status;
-          }
-          // If refresh fails, provider should be skipped in the query loop
-          pullProviderIndexToSkip = provider.pullProviderIndex();
-        }
-      }
-      // If credential could not be refreshed or the provider is no longer
-      // supported, remove it
-      status.unsetCredential();
-    }
-
-    // Loop over all pull providers to find a valid role for the lender
-    if (_loopTryGetCredential(status, accountAddress, pullProviderIndexToSkip)) {
-      return status;
-    }
-  }
-
-  function _checkCalldataSuffix(
-    uint256 baseCalldataSize
-  ) internal pure returns (uint256 suffixSize) {
-    assembly {
-      suffixSize := sub(calldatasize(), baseCalldataSize)
+      return true;
     }
   }
 
@@ -420,7 +438,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     LenderStatus memory status,
     address accountAddress,
     uint256 pullProviderIndexToSkip
-  ) internal view returns (bool) {
+  ) internal view returns (bool foundCredential) {
     uint256 providerCount = _pullProviders.length;
     for (uint256 i = 0; i < providerCount; i++) {
       if (i == pullProviderIndexToSkip) continue;
@@ -429,23 +447,42 @@ contract AccessControlHooks is ConstrainDeployParameters {
     }
   }
 
-  function _handleCalldataSuffix(
+  /**
+   * @dev Handles the hooks data passed to the contract.
+   *
+   *      If the hooks data is 20 bytes long, it is interpreted as a provider selection
+   *      to pull a credential from with `getCredential`.
+   *
+   *      If the hooks data is more than 20 bytes, it is interpreted as a request to use
+   *      `validateCredential`, where the first 20 bytes encode the provider address and
+   *      the remaining bytes are the encoded credential data to pass to the provider.
+   *
+   *      If the hooks data is less than 20 bytes, it is skipped.
+   *
+   * @param status Current lender status object, updated in memory if a credential is found
+   * @param accountAddress Address of the lender
+   * @param hooksData Bytes passed to the contract for provider selection
+   */
+  function _handleHooksData(
     LenderStatus memory status,
     address accountAddress,
-    uint256 baseCalldataSize
+    bytes calldata hooksData
   ) internal returns (bool validCredential) {
-    // Check if a calldata suffix was provided
-    uint256 suffixSize = _checkCalldataSuffix(baseCalldataSize);
-    if (suffixSize == 20) {
+    // Check if the hooks data only contains a provider address
+    if (hooksData.length == 20) {
       // @todo make the methods of updating based on the cd prefix more consistent
 
-      // If the suffix contains only an address, attempt to query a credential from that provider
-      address providerAddress = _readProviderAddressFromCalldataSuffix(baseCalldataSize);
+      // If the data contains only an address, attempt to query a credential from that provider
+      // if it exists and is a pull provider.
+      address providerAddress = _readAddress(hooksData);
       RoleProvider provider = _roleProviders[providerAddress];
-      if (!provider.isNull() && _tryGetCredential(status, provider, accountAddress)) return true;
-    } else if (suffixSize > 20) {
-      // If the suffix contains both an address and raw data, attempt to validate a credential from that provider
-      if (_tryValidateCredential(status, accountAddress, baseCalldataSize)) return true;
+      if (!provider.isNull() && provider.isPullProvider()) {
+        return _tryGetCredential(status, provider, accountAddress);
+      }
+    } else if (hooksData.length > 20) {
+      // If the data contains both an address and additional bytes, attempt to
+      // validate a credential from that provider
+      return _tryValidateCredential(status, accountAddress, hooksData);
     }
   }
 
@@ -454,7 +491,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
    *
    *     The function follows the following logic, with the process ending if a valid credential is found:
    *       1. Check if lender has an existing unexpired credential.
-   *       2. Check if a calldata suffix was provided, and if so:
+   *       2. Check if `hooksData` was provided, and if so:
    *         - If the suffix contains only an address, attempt to query a credential from that provider.
    *         - If the suffix contains both an address and raw data, attempt to validate a credential from that provider.
    *       3. If lender has an existing expired credential, attempt to refresh it.
@@ -465,31 +502,48 @@ contract AccessControlHooks is ConstrainDeployParameters {
   function _tryValidateOrUpdateStatus(
     LenderStatus memory status,
     address accountAddress,
-    uint256 baseCalldataSize
+    bytes calldata hooksData
   ) internal returns (bool hasValidCredential, bool wasUpdated) {
     status = _lenderStatus[accountAddress];
+
     // Get the last provider that granted the lender a credential, if any
     RoleProvider lastProvider = status.hasCredential()
       ? _roleProviders[status.lastProvider]
       : EmptyRoleProvider;
 
     // If the lender has an active credential and the last provider is still supported, return
-    if (!lastProvider.isNull() && status.hasActiveCredential(lastProvider)) return (true, false);
+    if (!lastProvider.isNull() && status.hasActiveCredential(lastProvider)) {
+      return (true, false);
+    }
 
     // Handle the calldata suffix, if any
-    if (_handleCalldataSuffix(status, accountAddress, baseCalldataSize)) return (true, false);
+    if (_handleHooksData(status, accountAddress, hooksData)) {
+      return (true, true);
+    }
 
+    // @todo handle skipping the provider from the hooks data step if one was given
     uint256 pullProviderIndexToSkip;
 
     // If lender has an expired credential from a pull provider, attempt to refresh it
     if (!lastProvider.isNull() && status.canRefresh) {
-      if (_tryGetCredential(status, lastProvider, accountAddress)) return (true, true);
+      if (_tryGetCredential(status, lastProvider, accountAddress)) {
+        return (true, true);
+      }
       // If refresh fails, provider should be skipped in the query loop
       pullProviderIndexToSkip = lastProvider.pullProviderIndex();
     }
 
     // Loop over all pull providers to find a valid role for the lender
-    if (_loopTryGetCredential(status, accountAddress, pullProviderIndexToSkip)) return (true, true);
+    if (_loopTryGetCredential(status, accountAddress, pullProviderIndexToSkip)) {
+      return (true, true);
+    }
+
+    // If there was previously a credential and no valid credential could be found,
+    // unset the credential.
+    if (status.hasCredential()) {
+      status.unsetCredential();
+      wasUpdated = true;
+    }
   }
 
   function _setCredentialAndEmitAccessGranted(
@@ -504,6 +558,10 @@ contract AccessControlHooks is ConstrainDeployParameters {
     _lenderStatus[accountAddress] = status;
     emit AccountAccessGranted(provider.providerAddress(), accountAddress, credentialTimestamp);
   }
+
+  // ========================================================================== //
+  //                                    Hooks                                   //
+  // ========================================================================== //
 
   function onDeposit(
     address lender,
