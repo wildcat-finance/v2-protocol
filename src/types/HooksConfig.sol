@@ -685,20 +685,4 @@ library LibHooksConfig {
       }
     }
   }
-
-  // function onSanctioned(HooksConfig hooks, address accountAddress) internal {
-  //   address target = hooks.hooksAddress();
-  //   uint32 onSanctionedSelector = uint32(IHooks.onSanctioned.selector);
-  //   if (hooks.useOnSanctioned()) {
-  //     assembly {
-  //       let ptr := mload(0x40)
-  //       mstore(ptr, onSanctionedSelector)
-  //       mstore(add(ptr, 0x20), accountAddress)
-  //       if iszero(call(gas(), target, 0, ptr, 0x24, 0, 0)) {
-  //         returndatacopy(0, 0, returndatasize())
-  //         revert(0, returndatasize())
-  //       }
-  //     }
-  //   }
-  // }
 }
