@@ -47,7 +47,7 @@ contract AccessControlHooksTest is Test, Assertions {
         useOnCloseMarket: true,
         useOnAssetsSentToEscrow: true,
         useOnSetMaxTotalSupply: true,
-        useOnSetAnnualInterestBips: true
+        useOnSetAnnualInterestAndReserveRatioBips: true
       })
     );
     mockProvider1 = new MockRoleProvider();
@@ -72,7 +72,7 @@ contract AccessControlHooksTest is Test, Assertions {
       useOnCloseMarket: false,
       useOnAssetsSentToEscrow: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestBips: false
+      useOnSetAnnualInterestAndReserveRatioBips: false
     });
     assertEq(hooks.config(), expectedConfig, 'config.');
   }
@@ -538,9 +538,9 @@ if (hooksData.giveHooksData) {
     }
     if (context.expectations.expectedError != 0) {
       vm.expectRevert(context.expectations.expectedError);
-      hooks.tryValidateOrUpdateStatus(context.account, context.hooksData);
+      hooks.tryValidateAccess(context.account, context.hooksData);
     } else {
-      (bool hasValidCredential, bool wasUpdated) = hooks.tryValidateOrUpdateStatus(
+      (bool hasValidCredential, bool wasUpdated) = hooks.tryValidateAccess(
         context.account,
         context.hooksData
       );
@@ -766,14 +766,14 @@ if (hooksData.giveHooksData) {
     bool someProviderWillGrantCredential;
   }
 
-  function test_tryValidateOrUpdateStatus_credentialNotExists(address account) external {}
+  function test_tryValidateAccess_credentialNotExists(address account) external {}
 
-  function test_tryValidateOrUpdateStatus_credentialExists(address account) external {
+  function test_tryValidateAccess_credentialExists(address account) external {
     hooks.addRoleProvider(address(mockProvider1), 1);
     vm.prank(address(mockProvider1));
     hooks.grantRole(account, uint32(block.timestamp));
 
-    (bool hasValidCredential, bool wasUpdated) = hooks.tryValidateOrUpdateStatus(account, '');
+    (bool hasValidCredential, bool wasUpdated) = hooks.tryValidateAccess(account, '');
     assertTrue(hasValidCredential, 'hasValidCredential');
     assertFalse(wasUpdated, 'wasUpdated');
   }

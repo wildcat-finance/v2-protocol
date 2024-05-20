@@ -145,9 +145,9 @@ contract Assertions is StdAssertions {
       string.concat(labelPrefix, 'useOnSetMaxTotalSupply')
     );
     assertEq(
-      actual.useOnSetAnnualInterestBips(),
-      expected.useOnSetAnnualInterestBips,
-      string.concat(labelPrefix, 'useOnSetAnnualInterestBips')
+      actual.useOnSetAnnualInterestAndReserveRatioBips(),
+      expected.useOnSetAnnualInterestAndReserveRatioBips,
+      string.concat(labelPrefix, 'useOnSetAnnualInterestAndReserveRatioBips')
     );
   }
 

@@ -32,7 +32,7 @@ struct StandardHooksConfig {
   bool useOnCloseMarket;
   bool useOnAssetsSentToEscrow;
   bool useOnSetMaxTotalSupply;
-  bool useOnSetAnnualInterestBips;
+  bool useOnSetAnnualInterestAndReserveRatioBips;
 }
 using { toHooksConfig } for StandardHooksConfig global;
 
@@ -49,6 +49,6 @@ function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConf
       useOnCloseMarket: input.useOnCloseMarket,
       useOnAssetsSentToEscrow: input.useOnAssetsSentToEscrow,
       useOnSetMaxTotalSupply: input.useOnSetMaxTotalSupply,
-      useOnSetAnnualInterestBips: input.useOnSetAnnualInterestBips
+      useOnSetAnnualInterestAndReserveRatioBips: input.useOnSetAnnualInterestAndReserveRatioBips
     });
 }
