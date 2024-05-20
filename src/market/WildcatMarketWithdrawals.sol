@@ -79,7 +79,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   /**
    * @dev Create a withdrawal request for a lender.
    */
-  function queueWithdrawal(uint256 amount) external nonReentrant sphereXGuardExternal {
+  function queueWithdrawal(uint256 amount) public nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
 
     uint104 scaledAmount = state.scaleAmount(amount).toUint104();
