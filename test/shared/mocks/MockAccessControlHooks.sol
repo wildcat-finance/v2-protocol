@@ -10,13 +10,13 @@ contract MockAccessControlHooks is AccessControlHooks {
     HooksConfig restrictedFunctions
   ) AccessControlHooks(_deployer, restrictedFunctions) {}
 
-  function tryValidateOrUpdateStatus(
+  function tryValidateAccess(
     address accountAddress,
     bytes calldata hooksData
   ) external returns (bool hasValidCredential, bool wasUpdated) {
     LenderStatus memory status = _lenderStatus[accountAddress];
     address lastProvider = status.lastProvider;
-    (hasValidCredential, wasUpdated) = _tryValidateOrUpdateStatus(status, accountAddress, hooksData);
+    (hasValidCredential, wasUpdated) = _tryValidateAccessInner(status, accountAddress, hooksData);
     if (wasUpdated) {
       _lenderStatus[accountAddress] = status;
       if (hasValidCredential) {
