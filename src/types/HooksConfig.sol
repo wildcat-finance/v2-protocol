@@ -19,7 +19,7 @@ uint256 constant Bit_Enabled_Repay = 90;
 uint256 constant Bit_Enabled_CloseMarket = 89;
 uint256 constant Bit_Enabled_AssetsSentToEscrow = 88;
 uint256 constant Bit_Enabled_SetMaxTotalSupply = 87;
-uint256 constant Bit_Enabled_SetAnnualInterestBips = 86;
+uint256 constant Bit_Enabled_SetAnnualInterestAndReserveRatioBips = 86;
 
 uint256 constant MarketStateSize = 0x01a0;
 
@@ -34,7 +34,7 @@ function encodeHooksConfig(
   bool useOnCloseMarket,
   bool useOnAssetsSentToEscrow,
   bool useOnSetMaxTotalSupply,
-  bool useOnSetAnnualInterestBips
+  bool useOnSetAnnualInterestAndReserveRatioBips
 ) pure returns (HooksConfig hooks) {
   assembly {
     hooks := shl(96, hooksAddress)
@@ -47,7 +47,13 @@ function encodeHooksConfig(
     hooks := or(hooks, shl(Bit_Enabled_CloseMarket, useOnCloseMarket))
     hooks := or(hooks, shl(Bit_Enabled_AssetsSentToEscrow, useOnAssetsSentToEscrow))
     hooks := or(hooks, shl(Bit_Enabled_SetMaxTotalSupply, useOnSetMaxTotalSupply))
-    hooks := or(hooks, shl(Bit_Enabled_SetAnnualInterestBips, useOnSetAnnualInterestBips))
+    hooks := or(
+      hooks,
+      shl(
+        Bit_Enabled_SetAnnualInterestAndReserveRatioBips,
+        useOnSetAnnualInterestAndReserveRatioBips
+      )
+    )
   }
 }
 
@@ -114,9 +120,11 @@ library LibHooksConfig {
     return hooks.readFlag(Bit_Enabled_SetMaxTotalSupply);
   }
 
-  /// @dev Whether to call hook contract for setAnnualInterestBips
-  function useOnSetAnnualInterestBips(HooksConfig hooks) internal pure returns (bool) {
-    return hooks.readFlag(Bit_Enabled_SetAnnualInterestBips);
+  /// @dev Whether to call hook contract for setAnnualInterestAndReserveRatioBips
+  function useOnSetAnnualInterestAndReserveRatioBips(
+    HooksConfig hooks
+  ) internal pure returns (bool) {
+    return hooks.readFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips);
   }
 
   // ========================================================================== //
@@ -166,9 +174,9 @@ library LibHooksConfig {
           DepositCalldataSize,
           extraCalldataBytes
         )
-        
+
         let size := add(DepositHook_Base_Size, extraCalldataBytes)
-        
+
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
@@ -225,9 +233,9 @@ library LibHooksConfig {
           QueueWithdrawalCalldataSize,
           extraCalldataBytes
         )
-        
+
         let size := add(QueueWithdrawalHook_Base_Size, extraCalldataBytes)
-        
+
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
@@ -236,9 +244,9 @@ library LibHooksConfig {
     }
   }
 
-// ========================================================================== //
-//                         Hook for executeWithdrawal                         //
-// ========================================================================== //
+  // ========================================================================== //
+  //                         Hook for executeWithdrawal                         //
+  // ========================================================================== //
 
   // Size of lender + scaledAmount + state + extraData.offset + extraData.length
   uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0224;
@@ -283,9 +291,9 @@ library LibHooksConfig {
           baseCalldataSize,
           extraCalldataBytes
         )
-        
+
         let size := add(ExecuteWithdrawalHook_Base_Size, extraCalldataBytes)
-        
+
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
@@ -348,9 +356,9 @@ library LibHooksConfig {
           baseCalldataSize,
           extraCalldataBytes
         )
-        
+
         let size := add(TransferHook_Base_Size, extraCalldataBytes)
-        
+
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
@@ -569,53 +577,71 @@ library LibHooksConfig {
 
   uint256 internal constant SetAnnualInterestBipsCalldataSize = 0x24;
   // Size of annualInterestBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetAnnualInterestBipsHook_Base_Size = 0x0204;
-  uint256 internal constant SetAnnualInterestBipsHook_State_Offset = 0x20;
-  uint256 internal constant SetAnnualInterestBipsHook_ExtraData_Head_Offset = 0x01c0;
-  uint256 internal constant SetAnnualInterestBipsHook_ExtraData_Length_Offset = 0x01e0;
-  uint256 internal constant SetAnnualInterestBipsHook_ExtraData_TailOffset = 0x0200;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0204;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBits_Offset = 0x20;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_State_Offset = 0x40;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x01e0;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset =
+    0x0200;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset = 0x0220;
 
-  function onSetAnnualInterestBips(
+  function onSetAnnualInterestAndReserveRatioBips(
     HooksConfig self,
     uint256 annualInterestBips,
+    uint256 reserveRatioBips,
     MarketState memory state
-  ) internal {
+  ) internal returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips) {
     address target = self.hooksAddress();
-    uint32 onSetAnnualInterestBipsSelector = uint32(IHooks.onSetAnnualInterestBips.selector);
-    if (self.useOnSetAnnualInterestBips()) {
+    uint32 onSetAnnualInterestBipsSelector = uint32(
+      IHooks.onSetAnnualInterestAndReserveRatioBips.selector
+    );
+    if (self.useOnSetAnnualInterestAndReserveRatioBips()) {
       assembly {
         let extraCalldataBytes := sub(calldatasize(), SetAnnualInterestBipsCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onSetAnnualInterestBips`
         mstore(cdPointer, onSetAnnualInterestBipsSelector)
-        // Write `maxTotalSupply` to hook calldata
+        // Write `annualInterestBips` to hook calldata
         mstore(headPointer, annualInterestBips)
+        // Write `reserveRatioBips` to hook calldata
+        mstore(headPointer, reserveRatioBips)
         // Copy market state to hook calldata
-        mcopy(add(headPointer, SetAnnualInterestBipsHook_State_Offset), state, MarketStateSize)
+        mcopy(
+          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_State_Offset),
+          state,
+          MarketStateSize
+        )
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, SetAnnualInterestBipsHook_ExtraData_Head_Offset),
-          SetAnnualInterestBipsHook_ExtraData_Length_Offset
+          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset),
+          SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset
         )
         // Write length for `extraData`
         mstore(
-          add(headPointer, SetAnnualInterestBipsHook_ExtraData_Length_Offset),
+          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset),
           extraCalldataBytes
         )
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, SetAnnualInterestBipsHook_ExtraData_TailOffset),
+          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset),
           SetAnnualInterestBipsCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(SetAnnualInterestBipsHook_Base_Size, extraCalldataBytes)
+        let size := add(SetAnnualInterestAndReserveRatioBipsHook_Base_Size, extraCalldataBytes)
 
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
+        // Returndata is expected to have the new values for `annualInterestBips` and `reserveRatioBips`
+        if or(
+          lt(returndatasize(), 0x40),
+          iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0x40))
+        ) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
         }
+
+        newAnnualInterestBips := and(mload(0), 0xffff)
+        newReserveRatioBips := and(mload(0x20), 0xffff)
       }
     }
   }

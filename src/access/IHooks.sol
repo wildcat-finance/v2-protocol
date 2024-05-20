@@ -95,9 +95,10 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
-  function onSetAnnualInterestBips(
+  function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
+    uint16 reserveRatioBips,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  ) external virtual returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips);
 }

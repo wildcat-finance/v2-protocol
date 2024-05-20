@@ -63,6 +63,8 @@ contract AccessControlHooks is ConstrainDeployParameters {
   /// @dev Error thrown when a provider is called to validate a credential and the
   ///      returndata can not be decoded as a uint.
   error InvalidCredentialReturned();
+  /// @dev Error thrown when a user does not have a valid credential
+  error NotApprovedLender();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -123,11 +125,11 @@ contract AccessControlHooks is ConstrainDeployParameters {
    */
   function _onCreateMarket(
     MarketParameters calldata parameters,
-    bytes calldata extraData
+    bytes calldata hooksData
   ) internal override {
     if (msg.sender != borrower) revert CallerNotBorrower();
     // Validate the deploy parameters
-    super._onCreateMarket(parameters, extraData);
+    super._onCreateMarket(parameters, hooksData);
   }
 
   // ========================================================================== //
@@ -407,7 +409,15 @@ contract AccessControlHooks is ConstrainDeployParameters {
       // Copy the calldata to the buffer
       calldatacopy(add(calldataPointer, 0x80), validateDataCalldataPointer, dataLength)
       // Call the provider
-      if call(gas(), providerAddress, 0, add(calldataPointer, 0x1c), add(dataLength, 0x64), 0, 0x20) {
+      if call(
+        gas(),
+        providerAddress,
+        0,
+        add(calldataPointer, 0x1c),
+        add(dataLength, 0x64),
+        0,
+        0x20
+      ) {
         switch lt(returndatasize(), 0x20)
         case 1 {
           // If the returndata is invalid but the call succeeded, the call must throw
@@ -499,7 +509,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
    *
    * note: Does not update storage or emit an event, but is stateful because it can invoke `validateCredential` on a provider.
    */
-  function _tryValidateOrUpdateStatus(
+  function _tryValidateAccessInner(
     LenderStatus memory status,
     address accountAddress,
     bytes calldata hooksData
@@ -546,6 +556,27 @@ contract AccessControlHooks is ConstrainDeployParameters {
     }
   }
 
+  function _tryValidateAccess(
+    LenderStatus memory status,
+    address accountAddress,
+    bytes calldata hooksData
+  ) internal returns (bool hasValidCredential) {
+    bool wasUpdated;
+    (hasValidCredential, wasUpdated) = _tryValidateAccessInner(status, accountAddress, hooksData);
+    if (wasUpdated) {
+      _lenderStatus[accountAddress] = status;
+      if (hasValidCredential) {
+        emit AccountAccessGranted(
+          status.lastProvider,
+          accountAddress,
+          status.lastApprovalTimestamp
+        );
+      } else {
+        emit AccountAccessRevoked(status.lastProvider, accountAddress);
+      }
+    }
+  }
+
   function _setCredentialAndEmitAccessGranted(
     LenderStatus memory status,
     RoleProvider provider,
@@ -565,47 +596,88 @@ contract AccessControlHooks is ConstrainDeployParameters {
 
   function onDeposit(
     address lender,
-    uint256 scaledAmount,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) external override {}
+    uint /* scaledAmount */,
+    MarketState calldata /* state */,
+    bytes calldata hooksData
+  ) external override {
+    // Retrieve the lender's status from storage
+    LenderStatus memory status = _lenderStatus[lender];
+    // Attempt to validate the lender's access
+    // Uses the inner method here as storage may need to be updated if this
+    // is their first deposit
+    (bool hasValidCredential, bool wasUpdated) = _tryValidateAccessInner(status, lender, hooksData);
+    if (!hasValidCredential) {
+      revert NotApprovedLender();
+    }
+    // Emit event if the lender's status was updated
+    if (wasUpdated) {
+      emit AccountAccessGranted(status.lastProvider, lender, status.lastApprovalTimestamp);
+    }
+    // If this is the lender's first deposit, set `hasEverDeposited` to true
+    if (!status.hasEverDeposited) {
+      status.hasEverDeposited = true;
+      wasUpdated = true;
+    }
+    // Update the lender's status in storage if its role or deposit status was updated
+    if (wasUpdated) {
+      _lenderStatus[lender] = status;
+    }
+    if (
+      status.isBlockedFromDeposits || !_tryValidateAccess(_lenderStatus[lender], lender, hooksData)
+    ) {
+      revert NotApprovedLender();
+    }
+  }
 
+  /**
+   * @dev Called when a lender attempts to queue a withdrawal.
+   *      Passes the check if the lender has either deposited before or
+   *      has a valid credential from a role provider.
+   */
   function onQueueWithdrawal(
     address lender,
-    uint scaledAmount,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) external override {}
+    uint /* scaledAmount */,
+    MarketState calldata /* state */,
+    bytes calldata hooksData
+  ) external override {
+    LenderStatus memory status = _lenderStatus[lender];
+    if (!status.hasEverDeposited && !_tryValidateAccess(status, lender, hooksData)) {
+      revert NotApprovedLender();
+    }
+  }
 
   function onExecuteWithdrawal(
     address lender,
-    uint128 normalizedAmountWithdrawn,
-    MarketState calldata state,
-    bytes calldata extraData
+    uint128 /* normalizedAmountWithdrawn */,
+    MarketState calldata /* state */,
+    bytes calldata hooksData
   ) external override {}
 
   function onTransfer(
-    address caller,
-    address from,
+    address /* caller */,
+    address /* from */,
     address to,
-    uint scaledAmount,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) external override {}
+    uint /* scaledAmount */,
+    MarketState calldata /* state */,
+    bytes calldata /* extraData */
+  ) external override {
+    LenderStatus memory toStatus = _lenderStatus[to];
+    if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
+  }
 
   function onBorrow(
-    uint normalizedAmount,
-    MarketState calldata state,
-    bytes calldata extraData
+    uint /* normalizedAmount */,
+    MarketState calldata /* state */,
+    bytes calldata /* extraData */
   ) external override {}
 
   function onRepay(
     uint normalizedAmount,
     MarketState calldata state,
-    bytes calldata extraData
+    bytes calldata hooksData
   ) external override {}
 
-  function onCloseMarket(MarketState calldata state, bytes calldata extraData) external override {}
+  function onCloseMarket(MarketState calldata state, bytes calldata hooksData) external override {}
 
   function onAssetsSentToEscrow(
     address lender,
@@ -613,18 +685,24 @@ contract AccessControlHooks is ConstrainDeployParameters {
     address escrow,
     uint scaledAmount,
     MarketState calldata state,
-    bytes calldata extraData
+    bytes calldata hooksData
   ) external override {}
 
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata state,
-    bytes calldata extraData
+    bytes calldata hooksData
   ) external override {}
 
-  function onSetAnnualInterestBips(
+  function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) external override {}
+    uint16 reserveRatioBips,
+    MarketState calldata intermediateState,
+    bytes calldata hooksData
+  )
+    external
+    virtual
+    override
+    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
+  {}
 }
