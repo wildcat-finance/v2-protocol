@@ -123,13 +123,19 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /**
    * @dev Sets the annual interest rate earned by lenders in bips.
    */
-  function setAnnualInterestBips(
-    uint16 _annualInterestBips
+  function setAnnualInterestAndReserveRatioBips(
+    uint16 _annualInterestBips,
+    uint16 _reserveRatioBips
   ) public onlyController nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
+    uint256 initialReserveRatioBips = state.reserveRatioBips;
     if (state.isClosed) revert_AprChangeOnClosedMarket();
 
-    hooks.onSetAnnualInterestBips(_annualInterestBips, state);
+    (_annualInterestBips, _reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(
+      _annualInterestBips,
+      _reserveRatioBips,
+      state
+    );
     state.annualInterestBips = _annualInterestBips;
     _writeState(state);
     emit_AnnualInterestBipsUpdated(_annualInterestBips);
