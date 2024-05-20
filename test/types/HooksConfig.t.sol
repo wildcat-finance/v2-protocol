@@ -300,11 +300,12 @@ contract HooksConfigTest is Test, Assertions {
     }
   }
 
-  function test_onSetAnnualInterestBips(
+  function test_onSetAnnualInterestAndReserveRatioBips(
     StateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData,
-    uint16 annualInterestBips
+    uint16 annualInterestBips,
+    uint16 reserveRatioBips
   ) external {
     MarketState memory state = stateInput.toState();
     mockHookCaller.setState(state);
@@ -312,15 +313,19 @@ contract HooksConfigTest is Test, Assertions {
     HooksConfig config = configInput.toHooksConfig();
     mockHookCaller.setConfig(config);
     bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.setAnnualInterestBips.selector, annualInterestBips),
+      abi.encodeWithSelector(
+        mockHookCaller.setAnnualInterestAndReserveRatioBips.selector,
+        annualInterestBips,
+        reserveRatioBips
+      ),
       extraData
     );
-    if (config.useOnSetAnnualInterestBips()) {
+    if (config.useOnSetAnnualInterestAndReserveRatioBips()) {
       vm.expectEmit();
       emit OnSetAnnualInterestBipsCalled(annualInterestBips, state, extraData);
     }
     _callMockHookCaller(_calldata);
-    if (!config.useOnSetAnnualInterestBips()) {
+    if (!config.useOnSetAnnualInterestAndReserveRatioBips()) {
       assertEq(hooks.lastCalldataHash(), 0);
     }
   }
