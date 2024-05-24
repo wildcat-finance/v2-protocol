@@ -19,6 +19,3 @@
 [submodule "lib/vulcan"]
 	path = lib/vulcan
 	url = https://github.com/nomoixyz/vulcan
-[submodule "lib/ethereum-access-token"]
-	path = lib/ethereum-access-token
-	url = https://github.com/wildcat-finance/ethereum-access-token
