@@ -65,11 +65,11 @@ contract MockHookCaller {
     hooks.onSetMaxTotalSupply(maxTotalSupply, state);
   }
 
-  function setAnnualInterestBipsAndReserveRatioBips(
+  function setAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips
   ) external returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips) {
     return
-      hooks.onSetAnnualInterestBipsAndReserveRatioBips(annualInterestBips, reserveRatioBips, state);
+      hooks.onSetAnnualInterestAndReserveRatioBips(annualInterestBips, reserveRatioBips, state);
   }
 }
