@@ -161,29 +161,30 @@ contract WildcatMarketBase is
    */
   function _blockAccount(MarketState memory state, address accountAddress) internal {
     Account memory account = _accounts[accountAddress];
-    if (!account.isSanctioned) {
-      uint104 scaledBalance = account.scaledBalance;
+    // @todo queue withdrawal instead of sending balance to escrow
+    // if (!account.isSanctioned) {
+    //   uint104 scaledBalance = account.scaledBalance;
 
-      // Emit `AccountSanctioned` event using a custom emitter.
-      emit_AccountSanctioned(accountAddress);
+    //   // Emit `AccountSanctioned` event using a custom emitter.
+    //   emit_AccountSanctioned(accountAddress);
 
-      if (scaledBalance > 0) {
-        account.scaledBalance = 0;
+    //   if (scaledBalance > 0) {
+    //     account.scaledBalance = 0;
 
-        address escrow = sentinel.createEscrow(borrower, accountAddress, address(this));
-        // Emit `Transfer` event using a custom emitter.
-        emit_Transfer(accountAddress, escrow, state.normalizeAmount(scaledBalance));
-        // Move escrow balance to escrow account.
-        _accounts[escrow].scaledBalance += scaledBalance;
-        // Emit `SanctionedAccountAssetsSentToEscrow` event using a custom emitter.
-        emit_SanctionedAccountAssetsSentToEscrow(
-          accountAddress,
-          escrow,
-          state.normalizeAmount(scaledBalance)
-        );
-      }
-      _accounts[accountAddress] = account;
-    }
+    //     address escrow = sentinel.createEscrow(borrower, accountAddress, address(this));
+    //     // Emit `Transfer` event using a custom emitter.
+    //     emit_Transfer(accountAddress, escrow, state.normalizeAmount(scaledBalance));
+    //     // Move escrow balance to escrow account.
+    //     _accounts[escrow].scaledBalance += scaledBalance;
+    //     // Emit `SanctionedAccountAssetsSentToEscrow` event using a custom emitter.
+    //     emit_SanctionedAccountAssetsSentToEscrow(
+    //       accountAddress,
+    //       escrow,
+    //       state.normalizeAmount(scaledBalance)
+    //     );
+    //   }
+    //   _accounts[accountAddress] = account;
+    // }
   }
 
   // ===================================================================== //
@@ -316,7 +317,9 @@ contract WildcatMarketBase is
    * @dev Returns whether `account` has been marked as sanctioned.
    */
   function isAccountSanctioned(address account) external view nonReentrantView returns (bool) {
-    return _accounts[account].isSanctioned;
+    // @todo remove?
+    // return _accounts[account].isSanctioned;
+    return _isSanctioned(account);
   }
 
   /**
