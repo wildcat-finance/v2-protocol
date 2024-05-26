@@ -45,40 +45,37 @@ contract WildcatMarket is
     // Get current state
     MarketState memory state = _getUpdatedState();
 
-    if (_isSanctioned(msg.sender)) {
-      _blockAccount(state, msg.sender);
-      _writeState(state);
-    } else {
-      if (state.isClosed) revert_DepositToClosedMarket();
+    // Revert if market is closed
+    if (state.isClosed) revert_DepositToClosedMarket();
 
-      // Reduce amount if it would exceed totalSupply
-      amount = MathUtils.min(amount, state.maximumDeposit());
+    // Reduce amount if it would exceed totalSupply
+    amount = MathUtils.min(amount, state.maximumDeposit());
 
-      // Scale the mint amount
-      uint104 scaledAmount = state.scaleAmount(amount).toUint104();
-      if (scaledAmount == 0) revert_NullMintAmount();
+    // Scale the mint amount
+    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    if (scaledAmount == 0) revert_NullMintAmount();
 
-      hooks.onDeposit(msg.sender, scaledAmount, state);
+    // Cache account data and revert if not authorized to deposit
+    Account memory account = _getAccount(msg.sender);
 
-      // Transfer deposit from caller
-      asset.safeTransferFrom(msg.sender, address(this), amount);
+    hooks.onDeposit(msg.sender, scaledAmount, state);
 
-      // Cache account data and revert if not authorized to deposit.
-      Account memory account = _getAccount(msg.sender);
-      account.scaledBalance += scaledAmount;
-      _accounts[msg.sender] = account;
+    // Transfer deposit from caller
+    asset.safeTransferFrom(msg.sender, address(this), amount);
 
-      emit_Transfer(address(0), msg.sender, amount);
-      emit_Deposit(msg.sender, amount, scaledAmount);
+    account.scaledBalance += scaledAmount;
+    _accounts[msg.sender] = account;
 
-      // Increase supply
-      state.scaledTotalSupply += scaledAmount;
+    emit_Transfer(address(0), msg.sender, amount);
+    emit_Deposit(msg.sender, amount, scaledAmount);
 
-      // Update stored state
-      _writeState(state);
+    // Increase supply
+    state.scaledTotalSupply += scaledAmount;
 
-      return amount;
-    }
+    // Update stored state
+    _writeState(state);
+
+    return amount;
   }
 
   /**
