@@ -235,8 +235,9 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     if (scaledBalance > 0) {
       uint256 normalizedBalance = state.normalizeAmount(scaledBalance);
       account.scaledBalance = 0;
+      // @todo rm
       // account.approval = AuthRole.Blocked;
-      account.isSanctioned = true;
+      // account.isSanctioned = true;
       address escrowAddress = calculateEscrowAddress(accountAddress, address(market));
       _getAccount(escrowAddress).scaledBalance += scaledBalance;
       vm.expectEmit(address(market));
