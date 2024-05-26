@@ -109,7 +109,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
       useOnCloseMarket: false,
       useOnAssetsSentToEscrow: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestBips: false
+      useOnSetAnnualInterestAndReserveRatioBips: false
     });
   }
 
