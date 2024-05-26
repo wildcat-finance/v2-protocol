@@ -4,6 +4,7 @@ import 'src/libraries/MarketState.sol';
 import { StdAssertions } from 'forge-std/StdAssertions.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import 'src/types/HooksConfig.sol';
+import 'src/types/LenderStatus.sol';
 import './StandardStructs.sol';
 
 using LibString for uint256;
@@ -153,5 +154,29 @@ contract Assertions is StdAssertions {
 
   function assertEq(HooksConfig actual, StandardHooksConfig memory expected) internal {
     assertEq(actual, expected, 'HooksConfig.');
+  }
+
+  function assertEq(LenderStatus actual, LenderStatus expected, string memory key) internal {
+    assertEq(
+      actual.isBlockedFromDeposits,
+      expected.isBlockedFromDeposits,
+      string.concat(key, '.isBlockedFromDeposits')
+    );
+    assertEq(
+      actual.hasEverDeposited,
+      expected.hasEverDeposited,
+      string.concat(key, '.hasEverDeposited')
+    );
+    assertEq(actual.lastProvider, expected.lastProvider, string.concat(key, '.lastProvider'));
+    assertEq(actual.canRefresh, expected.canRefresh, string.concat(key, '.canRefresh'));
+    assertEq(
+      actual.lastApprovalTimestamp,
+      expected.lastApprovalTimestamp,
+      string.concat(key, '.lastApprovalTimestamp')
+    );
+  }
+
+  function assertEq(LenderStatus actual, LenderStatus expected) internal {
+    assertEq(actual, expected, 'LenderStatus');
   }
 }
