@@ -21,7 +21,15 @@ struct LenderStatus {
 using LibLenderStatus for LenderStatus global;
 
 library LibLenderStatus {
-  function hasExpiredCredential(
+  /**
+   * @dev Returns whether the lender's credential has expired.
+   *
+   *      Note: Does not check if the lender has a credential - if the
+   *      provider's TTL is greater than the current block timestamp,
+   *      this function will always return false. Should always be used
+   *      in conjunction with `hasCredential`.
+   */
+  function credentialExpired(
     LenderStatus memory status,
     RoleProvider provider
   ) internal view returns (bool) {
@@ -32,7 +40,15 @@ library LibLenderStatus {
     return status.lastApprovalTimestamp > 0;
   }
 
-  function hasActiveCredential(
+  /**
+    * @dev Returns whether the lender's credential has not expired.
+   *
+   *      Note: Does not check if the lender has a credential - if the
+   *      provider's TTL is greater than the current block timestamp,
+   *      this function will always return true. Should always be used
+   *      in conjunction with `hasCredential`.
+   */
+  function credentialNotExpired(
     LenderStatus memory status,
     RoleProvider provider
   ) internal view returns (bool) {

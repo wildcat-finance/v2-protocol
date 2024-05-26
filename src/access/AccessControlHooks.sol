@@ -251,7 +251,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
       if (!provider.isNull()) {
         // If credential is not expired and the provider is still
         // supported, the lender has a valid credential.
-        if (status.hasActiveCredential(provider)) return status;
+        if (status.credentialNotExpired(provider)) return status;
 
         // If credential is expired but the provider is still supported and
         // allows refreshing (i.e. it's a pull provider), try to refresh.
@@ -522,7 +522,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
       : EmptyRoleProvider;
 
     // If the lender has an active credential and the last provider is still supported, return
-    if (!lastProvider.isNull() && status.hasActiveCredential(lastProvider)) {
+    if (!lastProvider.isNull() && status.credentialNotExpired(lastProvider)) {
       return (true, false);
     }
 
