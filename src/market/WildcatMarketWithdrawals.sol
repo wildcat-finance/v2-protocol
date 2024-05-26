@@ -76,26 +76,21 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   //                             Withdrawal Actions                             //
   // ========================================================================== //
 
-  /**
-   * @dev Create a withdrawal request for a lender.
-   */
-  function queueWithdrawal(uint256 amount) public nonReentrant sphereXGuardExternal {
-    MarketState memory state = _getUpdatedState();
-
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
-    if (scaledAmount == 0) revert_NullBurnAmount();
-
+  function _queueWithdrawal(
+    MarketState memory state,
+    Account memory account,
+    address accountAddress,
+    uint104 scaledAmount,
+    uint normalizedAmount
+  ) internal {
     // Execute withdrawal hook if enabled
-    hooks.onQueueWithdrawal(msg.sender, scaledAmount, state);
-
-    // Cache account data
-    Account memory account = _getAccount(msg.sender);
+    hooks.onQueueWithdrawal(accountAddress, scaledAmount, state);
 
     // Reduce caller's balance and emit transfer event.
     account.scaledBalance -= scaledAmount;
-    _accounts[msg.sender] = account;
+    _accounts[accountAddress] = account;
 
-    emit_Transfer(msg.sender, address(this), amount);
+    emit_Transfer(accountAddress, address(this), normalizedAmount);
 
     // Cache batch expiry on the stack for gas savings.
     uint32 expiry = state.pendingWithdrawalExpiry;
@@ -110,11 +105,11 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
 
     // Add scaled withdrawal amount to account withdrawal status, withdrawal batch and market state.
-    _withdrawalData.accountStatuses[expiry][msg.sender].scaledAmount += scaledAmount;
+    _withdrawalData.accountStatuses[expiry][accountAddress].scaledAmount += scaledAmount;
     batch.scaledTotalAmount += scaledAmount;
     state.scaledPendingWithdrawals += scaledAmount;
 
-    emit_WithdrawalQueued(expiry, msg.sender, scaledAmount, amount);
+    emit_WithdrawalQueued(expiry, accountAddress, scaledAmount, normalizedAmount);
 
     // Burn as much of the withdrawal batch as possible with available liquidity.
     uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets());
@@ -127,6 +122,38 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // Update stored state
     _writeState(state);
+  }
+
+  /**
+   * @dev Create a withdrawal request for a lender.
+   */
+  function queueWithdrawal(uint256 amount) public nonReentrant sphereXGuardExternal {
+    MarketState memory state = _getUpdatedState();
+
+    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    if (scaledAmount == 0) revert_NullBurnAmount();
+
+    // Cache account data
+    Account memory account = _getAccount(msg.sender);
+
+    _queueWithdrawal(state, account, msg.sender, scaledAmount, amount);
+  }
+
+  /**
+   * @dev Queue a withdrawal for all of the caller's balance.
+   */
+  function queueFullWithdrawal() external nonReentrant sphereXGuardExternal {
+    MarketState memory state = _getUpdatedState();
+
+    // Cache account data
+    Account memory account = _getAccount(msg.sender);
+
+    uint104 scaledAmount = account.scaledBalance;
+    if (scaledAmount == 0) revert_NullBurnAmount();
+
+    uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
+
+    _queueWithdrawal(state, account, msg.sender, scaledAmount, normalizedAmount);
   }
 
   /**
