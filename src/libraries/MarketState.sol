@@ -37,7 +37,6 @@ struct MarketState {
 }
 
 struct Account {
-  bool isSanctioned;
   uint104 scaledBalance;
 }
 
