@@ -148,7 +148,9 @@ contract WildcatMarketBase is
    */
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
-    if (account.isSanctioned) revert_AccountBlocked();
+    if (_isSanctioned(accountAddress)) {
+      revert_AccountBlocked();
+    }
   }
 
   /**
@@ -161,7 +163,6 @@ contract WildcatMarketBase is
     Account memory account = _accounts[accountAddress];
     if (!account.isSanctioned) {
       uint104 scaledBalance = account.scaledBalance;
-      account.isSanctioned = true;
 
       // Emit `AccountSanctioned` event using a custom emitter.
       emit_AccountSanctioned(accountAddress);
