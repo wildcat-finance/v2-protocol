@@ -156,7 +156,7 @@ contract Assertions is StdAssertions {
     assertEq(actual, expected, 'HooksConfig.');
   }
 
-  function assertEq(LenderStatus actual, LenderStatus expected, string memory key) internal {
+  function assertEq(LenderStatus memory actual, LenderStatus memory expected, string memory key) internal {
     assertEq(
       actual.isBlockedFromDeposits,
       expected.isBlockedFromDeposits,
@@ -176,7 +176,7 @@ contract Assertions is StdAssertions {
     );
   }
 
-  function assertEq(LenderStatus actual, LenderStatus expected) internal {
+  function assertEq(LenderStatus memory actual, LenderStatus memory expected) internal {
     assertEq(actual, expected, 'LenderStatus');
   }
 }
