@@ -758,7 +758,7 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
       WildcatMarket(market).setReserveRatioBips(originalReserveRatioBips);
     }
 
-    WildcatMarket(market).setAnnualInterestBips(annualInterestBips);
+    // WildcatMarket(market).setAnnualInterestBips(annualInterestBips);
   }
 
   function resetReserveRatio(address market) external virtual override sphereXGuardExternal {
