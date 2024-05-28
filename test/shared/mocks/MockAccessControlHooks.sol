@@ -5,10 +5,7 @@ pragma solidity ^0.8.20;
 import 'src/access/AccessControlHooks.sol';
 
 contract MockAccessControlHooks is AccessControlHooks {
-  constructor(
-    address _deployer,
-    HooksConfig restrictedFunctions
-  ) AccessControlHooks(_deployer, restrictedFunctions) {}
+  constructor(address _deployer) AccessControlHooks(_deployer, '') {}
 
   function tryValidateAccess(
     address accountAddress,
