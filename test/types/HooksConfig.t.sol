@@ -12,7 +12,7 @@ import '../shared/mocks/MockHookCaller.sol';
 using LibString for uint;
 
 contract HooksConfigTest is Test, Assertions {
-  MockHooks internal hooks = new MockHooks();
+  MockHooks internal hooks = new MockHooks(address(this), '');
   MockHookCaller internal mockHookCaller = new MockHookCaller();
 
   function _callMockHookCaller(bytes memory _calldata) internal {
@@ -322,11 +322,27 @@ contract HooksConfigTest is Test, Assertions {
     );
     if (config.useOnSetAnnualInterestAndReserveRatioBips()) {
       vm.expectEmit();
-      emit OnSetAnnualInterestBipsCalled(annualInterestBips, state, extraData);
+      emit OnSetAnnualInterestAndReserveRatioBipsCalled(
+        annualInterestBips,
+        reserveRatioBips,
+        state,
+        extraData
+      );
     }
     _callMockHookCaller(_calldata);
     if (!config.useOnSetAnnualInterestAndReserveRatioBips()) {
       assertEq(hooks.lastCalldataHash(), 0);
     }
+  }
+
+  function test_mergeSharedFlags(
+    StandardHooksConfig memory _a,
+    StandardHooksConfig memory _b
+  ) external {
+    StandardHooksConfig memory expectedMergeResult = _a.mergeSharedFlags(_b);
+    HooksConfig a = _a.toHooksConfig();
+    HooksConfig b = _b.toHooksConfig();
+    HooksConfig actualMergeResult = a.mergeSharedFlags(b);
+    assertEq(actualMergeResult, expectedMergeResult, 'mergeSharedFlags');
   }
 }

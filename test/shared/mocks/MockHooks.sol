@@ -45,8 +45,9 @@ event OnSetMaxTotalSupplyCalled(
   MarketState intermediateState,
   bytes extraData
 );
-event OnSetAnnualInterestBipsCalled(
+event OnSetAnnualInterestAndReserveRatioBipsCalled(
   uint16 annualInterestBips,
+  uint16 reserveRatioBips,
   MarketState intermediateState,
   bytes extraData
 );
@@ -199,6 +200,6 @@ contract MockHooks is IHooks {
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
     lastCalldataHash = keccak256(msg.data);
-    emit OnSetAnnualInterestBipsCalled(annualInterestBips, intermediateState, extraData);
+    emit OnSetAnnualInterestAndReserveRatioBipsCalled(annualInterestBips, reserveRatioBips, intermediateState, extraData);
   }
 }
