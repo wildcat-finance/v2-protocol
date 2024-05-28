@@ -68,6 +68,7 @@ contract MockHooks is IHooks {
 
   constructor(address _caller, bytes memory _constructorArgs) {
     deployer = _caller;
+    if (_constructorArgs.length > 0)
     constructorArgs = _constructorArgs;
     constructorArgsHash = keccak256(_constructorArgs);
   }
@@ -201,5 +202,13 @@ contract MockHooks is IHooks {
   {
     lastCalldataHash = keccak256(msg.data);
     emit OnSetAnnualInterestAndReserveRatioBipsCalled(annualInterestBips, reserveRatioBips, intermediateState, extraData);
+  }
+}
+
+contract MockHooksWithConfig is MockHooks {
+  constructor(address _caller, bytes memory _constructorArgs)
+    MockHooks(_caller, _constructorArgs)
+  {
+    config = abi.decode(_constructorArgs, (HooksConfig));
   }
 }
