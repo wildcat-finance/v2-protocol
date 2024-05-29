@@ -23,13 +23,18 @@ abstract contract IHooks {
   ///      should be invoked by markets using it.
   function config() external view virtual returns (HooksConfig);
 
-  function onCreateMarket(MarketParameters calldata parameters, bytes calldata extraData) external {
+  function onCreateMarket(
+    address deployer,
+    DeployMarketInputs calldata parameters,
+    bytes calldata extraData
+  ) external {
     if (msg.sender != factory) revert CallerNotFactory();
-    _onCreateMarket(parameters, extraData);
+    _onCreateMarket(deployer, parameters, extraData);
   }
 
   function _onCreateMarket(
-    MarketParameters calldata parameters,
+    address deployer,
+    DeployMarketInputs calldata parameters,
     bytes calldata extraData
   ) internal virtual;
 

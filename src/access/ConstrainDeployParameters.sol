@@ -106,8 +106,9 @@ abstract contract ConstrainDeployParameters is IHooks {
   }
 
   function _onCreateMarket(
-    MarketParameters calldata parameters,
-    bytes calldata
+    address /* deployer */,
+    DeployMarketInputs calldata parameters,
+    bytes calldata /* extraData */
   ) internal virtual override {
     enforceParameterConstraints(
       parameters.annualInterestBips,

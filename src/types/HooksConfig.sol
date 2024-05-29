@@ -58,6 +58,35 @@ function encodeHooksConfig(
 }
 
 library LibHooksConfig {
+  function setHooksAddress(
+    HooksConfig hooks,
+    address _hooksAddress
+  ) internal pure returns (HooksConfig updatedHooks) {
+    assembly {
+      // Shift twice to clear the address
+      updatedHooks := shr(96, shl(96, hooks))
+      // Set the new address
+      updatedHooks := or(updatedHooks, shl(96, _hooksAddress))
+    }
+  }
+
+  /**
+   * @dev Create a merged HooksConfig with the shared flags of `a` and `b`
+   *      and the address of `a`.
+   */
+  function mergeSharedFlags(
+    HooksConfig a,
+    HooksConfig b
+  ) internal pure returns (HooksConfig merged) {
+    assembly {
+      let addressA := shl(96, shr(96, a))
+      let flagsA := shl(96, a)
+      let flagsB := shl(96, b)
+      let mergedFlags := shr(96, and(flagsA, flagsB))
+      merged := or(addressA, mergedFlags)
+    }
+  }
+
   // ========================================================================== //
   //                              Parameter Readers                             //
   // ========================================================================== //
@@ -575,9 +604,9 @@ library LibHooksConfig {
   //                       Hook for setAnnualInterestBips                       //
   // ========================================================================== //
 
-  uint256 internal constant SetAnnualInterestBipsCalldataSize = 0x24;
+  uint256 internal constant SetAnnualInterestBipsCalldataSize = 0x44;
   // Size of annualInterestBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0204;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0224;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBits_Offset = 0x20;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_State_Offset = 0x40;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x01e0;
@@ -587,8 +616,8 @@ library LibHooksConfig {
 
   function onSetAnnualInterestAndReserveRatioBips(
     HooksConfig self,
-    uint256 annualInterestBips,
-    uint256 reserveRatioBips,
+    uint16 annualInterestBips,
+    uint16 reserveRatioBips,
     MarketState memory state
   ) internal returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips) {
     address target = self.hooksAddress();
@@ -605,7 +634,10 @@ library LibHooksConfig {
         // Write `annualInterestBips` to hook calldata
         mstore(headPointer, annualInterestBips)
         // Write `reserveRatioBips` to hook calldata
-        mstore(headPointer, reserveRatioBips)
+        mstore(
+          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBits_Offset),
+          reserveRatioBips
+        )
         // Copy market state to hook calldata
         mcopy(
           add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_State_Offset),
@@ -643,6 +675,8 @@ library LibHooksConfig {
         newAnnualInterestBips := and(mload(0), 0xffff)
         newReserveRatioBips := and(mload(0x20), 0xffff)
       }
+    } else {
+      (newAnnualInterestBips, newReserveRatioBips) = (annualInterestBips, reserveRatioBips);
     }
   }
 

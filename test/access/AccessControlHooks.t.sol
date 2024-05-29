@@ -34,22 +34,7 @@ contract AccessControlHooksTest is Test, Assertions {
   MockRoleProvider internal mockProvider2;
 
   function setUp() external {
-    hooks = new MockAccessControlHooks(
-      address(this),
-      encodeHooksConfig({
-        hooksAddress: address(0),
-        useOnDeposit: true,
-        useOnQueueWithdrawal: true,
-        useOnExecuteWithdrawal: true,
-        useOnTransfer: true,
-        useOnBorrow: true,
-        useOnRepay: true,
-        useOnCloseMarket: true,
-        useOnAssetsSentToEscrow: true,
-        useOnSetMaxTotalSupply: true,
-        useOnSetAnnualInterestAndReserveRatioBips: true
-      })
-    );
+    hooks = new MockAccessControlHooks(address(this));
     mockProvider1 = new MockRoleProvider();
     mockProvider2 = new MockRoleProvider();
     assertEq(hooks.factory(), address(this), 'factory');

@@ -34,7 +34,7 @@ struct StandardHooksConfig {
   bool useOnSetMaxTotalSupply;
   bool useOnSetAnnualInterestAndReserveRatioBips;
 }
-using { toHooksConfig } for StandardHooksConfig global;
+using { mergeSharedFlags, toHooksConfig } for StandardHooksConfig global;
 
 function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConfig) {
   return
@@ -50,5 +50,26 @@ function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConf
       useOnAssetsSentToEscrow: input.useOnAssetsSentToEscrow,
       useOnSetMaxTotalSupply: input.useOnSetMaxTotalSupply,
       useOnSetAnnualInterestAndReserveRatioBips: input.useOnSetAnnualInterestAndReserveRatioBips
+    });
+}
+
+function mergeSharedFlags(
+  StandardHooksConfig memory a,
+  StandardHooksConfig memory b
+) pure returns (StandardHooksConfig memory merged) {
+  return
+    StandardHooksConfig({
+      hooksAddress: a.hooksAddress,
+      useOnDeposit: a.useOnDeposit && b.useOnDeposit,
+      useOnQueueWithdrawal: a.useOnQueueWithdrawal && b.useOnQueueWithdrawal,
+      useOnExecuteWithdrawal: a.useOnExecuteWithdrawal && b.useOnExecuteWithdrawal,
+      useOnTransfer: a.useOnTransfer && b.useOnTransfer,
+      useOnBorrow: a.useOnBorrow && b.useOnBorrow,
+      useOnRepay: a.useOnRepay && b.useOnRepay,
+      useOnCloseMarket: a.useOnCloseMarket && b.useOnCloseMarket,
+      useOnAssetsSentToEscrow: a.useOnAssetsSentToEscrow && b.useOnAssetsSentToEscrow,
+      useOnSetMaxTotalSupply: a.useOnSetMaxTotalSupply && b.useOnSetMaxTotalSupply,
+      useOnSetAnnualInterestAndReserveRatioBips: a.useOnSetAnnualInterestAndReserveRatioBips &&
+        b.useOnSetAnnualInterestAndReserveRatioBips
     });
 }

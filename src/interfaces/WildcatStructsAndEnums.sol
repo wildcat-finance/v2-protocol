@@ -31,6 +31,19 @@ struct MarketParameters {
   HooksConfig hooks;
 }
 
+struct DeployMarketInputs {
+  address asset;
+  string namePrefix;
+  string symbolPrefix;
+  uint128 maxTotalSupply;
+  uint16 annualInterestBips;
+  uint16 delinquencyFeeBips;
+  uint32 withdrawalBatchDuration;
+  uint16 reserveRatioBips;
+  uint32 delinquencyGracePeriod;
+  HooksConfig hooks;
+}
+
 struct MarketControllerParameters {
   address archController;
   address borrower;

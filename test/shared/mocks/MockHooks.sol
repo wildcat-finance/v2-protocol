@@ -45,20 +45,38 @@ event OnSetMaxTotalSupplyCalled(
   MarketState intermediateState,
   bytes extraData
 );
-event OnSetAnnualInterestBipsCalled(
+event OnSetAnnualInterestAndReserveRatioBipsCalled(
   uint16 annualInterestBips,
+  uint16 reserveRatioBips,
   MarketState intermediateState,
   bytes extraData
 );
 
 contract MockHooks is IHooks {
   bytes32 public lastCalldataHash;
+  address public deployer;
+  bytes public constructorArgs;
+  bytes32 public immutable constructorArgsHash;
   HooksConfig public override config;
+  address public lastDeployer;
+  DeployMarketInputs internal _lastDeployMarketInputs;
+  bytes public lastCreateMarketHooksData;
+
+  function lastDeployMarketInputs() external view returns (DeployMarketInputs memory) {
+    return _lastDeployMarketInputs;
+  }
+
+  constructor(address _caller, bytes memory _constructorArgs) {
+    deployer = _caller;
+    if (_constructorArgs.length > 0)
+    constructorArgs = _constructorArgs;
+    constructorArgsHash = keccak256(_constructorArgs);
+  }
 
   /// @dev Returns the version string of the hooks contract.
   ///      Used to determine what the contract does and how `extraData` is interpreted.
   function version() external view override returns (string memory) {
-    return 'mock';
+    return 'mock-hooks';
   }
 
   function setConfig(HooksConfig _config) external {
@@ -66,9 +84,14 @@ contract MockHooks is IHooks {
   }
 
   function _onCreateMarket(
-    MarketParameters calldata parameters,
+    address deployer,
+    DeployMarketInputs calldata parameters,
     bytes calldata extraData
-  ) internal virtual override {}
+  ) internal virtual override {
+    lastDeployer = deployer;
+    _lastDeployMarketInputs = parameters;
+    lastCreateMarketHooksData = extraData;
+  }
 
   function onDeposit(
     address lender,
@@ -178,6 +201,14 @@ contract MockHooks is IHooks {
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
     lastCalldataHash = keccak256(msg.data);
-    emit OnSetAnnualInterestBipsCalled(annualInterestBips, intermediateState, extraData);
+    emit OnSetAnnualInterestAndReserveRatioBipsCalled(annualInterestBips, reserveRatioBips, intermediateState, extraData);
+  }
+}
+
+contract MockHooksWithConfig is MockHooks {
+  constructor(address _caller, bytes memory _constructorArgs)
+    MockHooks(_caller, _constructorArgs)
+  {
+    config = abi.decode(_constructorArgs, (HooksConfig));
   }
 }

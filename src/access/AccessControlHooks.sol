@@ -87,10 +87,11 @@ contract AccessControlHooks is ConstrainDeployParameters {
 
   /**
    * @param _deployer Address of the account that called the factory.
-   * @param restrictedFunctions Configuration specifying which functions to apply
+   * @param {} unused parameters
+   *  restrictedFunctions Configuration specifying which functions to apply
    *                            access controls to.
    */
-  constructor(address _deployer, HooksConfig restrictedFunctions) IHooks() {
+  constructor(address _deployer, bytes memory /* args */) IHooks() {
     borrower = _deployer;
     // Allow deployer to grant roles with no expiry
     _roleProviders[_deployer] = encodeRoleProvider(
@@ -100,10 +101,10 @@ contract AccessControlHooks is ConstrainDeployParameters {
     );
     config = encodeHooksConfig({
       hooksAddress: address(this),
-      useOnDeposit: restrictedFunctions.useOnDeposit(),
-      useOnQueueWithdrawal: restrictedFunctions.useOnQueueWithdrawal(),
-      useOnExecuteWithdrawal: restrictedFunctions.useOnExecuteWithdrawal(),
-      useOnTransfer: restrictedFunctions.useOnTransfer(),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: true,
+      useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: false,
@@ -124,12 +125,13 @@ contract AccessControlHooks is ConstrainDeployParameters {
    *      so no need to verify the caller is the factory.
    */
   function _onCreateMarket(
-    MarketParameters calldata parameters,
+    address deployer,
+    DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override {
     if (msg.sender != borrower) revert CallerNotBorrower();
     // Validate the deploy parameters
-    super._onCreateMarket(parameters, hooksData);
+    super._onCreateMarket(deployer, parameters, hooksData);
   }
 
   // ========================================================================== //

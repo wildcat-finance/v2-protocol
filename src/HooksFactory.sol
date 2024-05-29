@@ -1,55 +1,417 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
+import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSet.sol';
+import 'solady/utils/SafeTransferLib.sol';
 import './interfaces/IWildcatArchController.sol';
 import './libraries/LibStoredInitCode.sol';
+import './libraries/MathUtils.sol';
+import './ReentrancyGuard.sol';
+import './interfaces/WildcatStructsAndEnums.sol';
+import './access/IHooks.sol';
+import './IHooksFactory.sol';
+import './types/TransientBytesArray.sol';
+import './spherex/SphereXProtectedRegisteredBase.sol';
+import { queryName, querySymbol } from './libraries/StringQuery.sol';
 
-contract HooksFactory {
-  error NotApprovedBorrower();
-  error NotApprovedHooksConstructor();
-  error DeploymentFailed();
+struct TmpMarketParameterStorage {
+  address borrower;
+  address asset;
+  address feeRecipient;
+  uint16 protocolFeeBips;
+  uint128 maxTotalSupply;
+  uint16 annualInterestBips;
+  uint16 delinquencyFeeBips;
+  uint32 withdrawalBatchDuration;
+  uint16 reserveRatioBips;
+  uint32 delinquencyGracePeriod;
+  string name;
+  string symbol;
+  HooksConfig hooks;
+}
 
-  event HooksContractDeployed(address hooksInstance, address hooksConstructor);
+contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactory {
+  using SafeTransferLib for address;
 
-  IWildcatArchController public immutable archController;
-  mapping(address => bool) public hooksDeployed;
-  mapping(address => bool) public whitelistedHooksConstructors;
+  TransientBytesArray internal constant _tmpMarketParameters =
+    TransientBytesArray.wrap(uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1);
 
-  constructor(address _archController) {
-    archController = IWildcatArchController(_archController);
+  uint256 internal immutable ownCreate2Prefix = LibStoredInitCode.getCreate2Prefix(address(this));
+
+  address public immutable override marketInitCodeStorage;
+
+  uint256 public immutable override marketInitCodeHash;
+
+  address public immutable override sanctionsSentinel;
+  address[] internal _hooksTemplates;
+  mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
+  mapping(address hooksInstance => address hooksTemplate)
+    public
+    override getHooksTemplateForInstance;
+
+  constructor(
+    address archController_,
+    address _sanctionsSentinel,
+    address _marketInitCodeStorage,
+    uint256 _marketInitCodeHash
+  ) {
+    marketInitCodeStorage = _marketInitCodeStorage;
+    marketInitCodeHash = _marketInitCodeHash;
+    _archController = archController_;
+    sanctionsSentinel = _sanctionsSentinel;
+    __SphereXProtectedRegisteredBase_init(sphereXEngine());
   }
 
-  function deployHooksForMarket(address hooksConstructor, bytes calldata constructorArgs) external {
-    if (!archController.isRegisteredBorrower(msg.sender)) {
+  function registerWithArchController() external override {
+    IWildcatArchController(_archController).registerController(address(this));
+  }
+
+  function archController() external view override returns (address) {
+    return _archController;
+  }
+
+  // ========================================================================== //
+  //                          Internal Storage Helpers                          //
+  // ========================================================================== //
+
+  /**
+   * @dev Get the temporary market parameters from transient storage.
+   * todo More efficient decoding
+   */
+  function _getTmpMarketParameters()
+    internal
+    view
+    returns (TmpMarketParameterStorage memory parameters)
+  {
+    return abi.decode(_tmpMarketParameters.read(), (TmpMarketParameterStorage));
+  }
+
+  /**
+   * @dev Set the temporary market parameters in transient storage.
+   * todo More efficient encoding
+   */
+  function _setTmpMarketParameters(TmpMarketParameterStorage memory parameters) internal {
+    _tmpMarketParameters.write(abi.encode(parameters));
+  }
+
+  // ========================================================================== //
+  //                                  Modifiers                                 //
+  // ========================================================================== //
+
+  modifier onlyArchControllerOwner() {
+    if (msg.sender != IWildcatArchController(_archController).owner()) {
+      revert CallerNotArchControllerOwner();
+    }
+    _;
+  }
+
+  // ========================================================================== //
+  //                               Hooks Templates                              //
+  // ========================================================================== //
+
+  function addHooksTemplate(
+    address hooksTemplate,
+    string calldata name,
+    address feeRecipient,
+    address originationFeeAsset,
+    uint80 originationFeeAmount,
+    uint16 protocolFeeBips
+  ) external override onlyArchControllerOwner {
+    if (_templateDetails[hooksTemplate].exists) {
+      revert HooksTemplateAlreadyExists();
+    }
+    _validateFees(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
+    _templateDetails[hooksTemplate] = HooksTemplate({
+      exists: true,
+      name: name,
+      feeRecipient: feeRecipient,
+      originationFeeAsset: originationFeeAsset,
+      originationFeeAmount: originationFeeAmount,
+      protocolFeeBips: protocolFeeBips,
+      enabled: true,
+      index: uint24(_hooksTemplates.length)
+    });
+    _hooksTemplates.push(hooksTemplate);
+    emit HooksTemplateAdded(
+      hooksTemplate,
+      name,
+      feeRecipient,
+      originationFeeAsset,
+      originationFeeAmount,
+      protocolFeeBips
+    );
+  }
+
+  function _validateFees(
+    address feeRecipient,
+    address originationFeeAsset,
+    uint80 originationFeeAmount,
+    uint16 protocolFeeBips
+  ) internal pure {
+    bool hasOriginationFee = originationFeeAmount > 0;
+    bool nullFeeRecipient = feeRecipient == address(0);
+    bool nullOriginationFeeAsset = originationFeeAsset == address(0);
+    if (
+      (protocolFeeBips > 0 && nullFeeRecipient) ||
+      (hasOriginationFee && nullFeeRecipient) ||
+      (hasOriginationFee && nullOriginationFeeAsset) ||
+      protocolFeeBips > 10000
+    ) {
+      revert InvalidFeeConfiguration();
+    }
+  }
+
+  /// @dev Update the fees for a hooks template
+  /// Note: The new fee structure will apply to all NEW markets created with existing
+  ///       or future instances of the hooks template, but not to existing markets.
+  function updateHooksTemplateFees(
+    address hooksTemplate,
+    address feeRecipient,
+    address originationFeeAsset,
+    uint80 originationFeeAmount,
+    uint16 protocolFeeBips
+  ) external override onlyArchControllerOwner {
+    if (!_templateDetails[hooksTemplate].exists) {
+      revert HooksTemplateNotFound();
+    }
+    _validateFees(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
+    HooksTemplate storage template = _templateDetails[hooksTemplate];
+    template.feeRecipient = feeRecipient;
+    template.originationFeeAsset = originationFeeAsset;
+    template.originationFeeAmount = originationFeeAmount;
+    template.protocolFeeBips = protocolFeeBips;
+    emit HooksTemplateFeesUpdated(
+      hooksTemplate,
+      feeRecipient,
+      originationFeeAsset,
+      originationFeeAmount,
+      protocolFeeBips
+    );
+  }
+
+  function disableHooksTemplate(address hooksTemplate) external override onlyArchControllerOwner {
+    if (!_templateDetails[hooksTemplate].exists) {
+      revert HooksTemplateNotFound();
+    }
+    _templateDetails[hooksTemplate].enabled = false;
+    // Emit an event to indicate that the template has been removed
+    emit HooksTemplateDisabled(hooksTemplate);
+  }
+
+  function getHooksTemplateDetails(
+    address hooksTemplate
+  ) external view override returns (HooksTemplate memory) {
+    return _templateDetails[hooksTemplate];
+  }
+
+  function isHooksTemplate(address hooksTemplate) external view override returns (bool) {
+    return _templateDetails[hooksTemplate].exists;
+  }
+
+  function getHooksTemplates() external view override returns (address[] memory) {
+    return _hooksTemplates;
+  }
+
+  // ========================================================================== //
+  //                               Hooks Instances                              //
+  // ========================================================================== //
+
+  /// @dev Deploy a hooks instance for an approved template with constructor args.
+  ///      Callable by approved borrowers on the arch-controller.
+  ///      May require payment of origination fees.
+  function deployHooksInstance(
+    address hooksTemplate,
+    bytes calldata constructorArgs
+  ) external override returns (address hooksInstance) {
+    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
       revert NotApprovedBorrower();
     }
-    if (!whitelistedHooksConstructors[hooksConstructor]) {
-      revert NotApprovedHooksConstructor();
-    }
+    hooksInstance = _deployHooksInstance(hooksTemplate, constructorArgs);
+  }
 
-    address hooks;
+  function isHooksInstance(address hooksInstance) external view override returns (bool) {
+    return getHooksTemplateForInstance[hooksInstance] != address(0);
+  }
+
+  function _deployHooksInstance(
+    address hooksTemplate,
+    bytes calldata constructorArgs
+  ) internal returns (address hooksInstance) {
+    HooksTemplate storage template = _templateDetails[hooksTemplate];
+    if (!template.exists) {
+      revert HooksTemplateNotFound();
+    }
+    if (!template.enabled) {
+      revert HooksTemplateNotAvailable();
+    }
 
     assembly {
       let initCodePointer := mload(0x40)
-      let initCodeSize := sub(extcodesize(hooksConstructor), 1)
+      let initCodeSize := sub(extcodesize(hooksTemplate), 1)
       // Copy code from target address to memory starting at byte 1
-      extcodecopy(hooksConstructor, initCodePointer, 1, initCodeSize)
+      extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
       // Write the address of the caller as the first parameter
       mstore(endInitCodePointer, caller())
-      // Copy constructor args to init code after the address of the deployer
+      // Write the offset to the encoded constructor args
+      mstore(add(endInitCodePointer, 0x20), 0x40)
+      // Write the length of the encoded constructor args
       let constructorArgsSize := constructorArgs.length
-      calldatacopy(add(endInitCodePointer, 0x20), constructorArgs.offset, constructorArgsSize)
-      // Copy constructor args from calldata to end of initcode after (address, args.offset, args.length)
-      let initCodeSizeWithArgs := add(add(initCodeSize, 0x20), constructorArgsSize)
-      hooks := create(0, initCodePointer, initCodeSizeWithArgs)
-      if iszero(hooks) {
+      mstore(add(endInitCodePointer, 0x40), constructorArgsSize)
+      // Copy constructor args to initcode after the bytes length
+      calldatacopy(add(endInitCodePointer, 0x60), constructorArgs.offset, constructorArgsSize)
+      // Get the full size of the initcode with the constructor args
+      let initCodeSizeWithArgs := add(add(initCodeSize, 0x60), constructorArgsSize)
+      // Deploy the contract with the initcode
+      hooksInstance := create(0, initCodePointer, initCodeSizeWithArgs)
+      if iszero(hooksInstance) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
         revert(0x1c, 0x04)
       }
     }
 
-    emit HooksContractDeployed(hooks, hooksConstructor);
-    hooksDeployed[hooks] = true;
+    emit HooksInstanceDeployed(hooksInstance, hooksTemplate);
+    getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
+  }
+
+  // ========================================================================== //
+  //                                   Markets                                  //
+  // ========================================================================== //
+
+  /**
+   * @dev Get the temporarily stored market parameters for a market that is
+   *      currently being deployed.
+   */
+  function getMarketParameters() external view returns (MarketParameters memory parameters) {
+    TmpMarketParameterStorage memory tmp = _getTmpMarketParameters();
+
+    parameters.asset = tmp.asset;
+    parameters.name = tmp.name;
+    parameters.symbol = tmp.symbol;
+    parameters.borrower = tmp.borrower;
+    // parameters.controller = address(this);
+    parameters.feeRecipient = tmp.feeRecipient;
+    parameters.sentinel = sanctionsSentinel;
+    parameters.maxTotalSupply = tmp.maxTotalSupply;
+    parameters.protocolFeeBips = tmp.protocolFeeBips;
+    parameters.annualInterestBips = tmp.annualInterestBips;
+    parameters.delinquencyFeeBips = tmp.delinquencyFeeBips;
+    parameters.withdrawalBatchDuration = tmp.withdrawalBatchDuration;
+    parameters.reserveRatioBips = tmp.reserveRatioBips;
+    parameters.delinquencyGracePeriod = tmp.delinquencyGracePeriod;
+    parameters.archController = _archController;
+    parameters.sphereXEngine = sphereXEngine();
+    parameters.hooks = tmp.hooks;
+  }
+
+  function computeMarketAddress(bytes32 salt) external view override returns (address) {
+    return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+  }
+
+  function _deployMarket(
+    DeployMarketInputs memory parameters,
+    bytes memory hooksData,
+    HooksTemplate memory template,
+    bytes32 salt
+  ) internal returns (address market) {
+    address hooksInstance = parameters.hooks.hooksAddress();
+    if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+
+    if (!(address(bytes20(salt)) == msg.sender || bytes20(salt) == bytes20(0))) {
+      revert SaltDoesNotContainSender();
+    }
+
+    if (template.originationFeeAsset != address(0)) {
+      template.originationFeeAsset.safeTransferFrom(
+        msg.sender,
+        template.feeRecipient,
+        template.originationFeeAmount
+      );
+    }
+
+    parameters.hooks = parameters.hooks.mergeSharedFlags(IHooks(hooksInstance).config());
+
+    IHooks(hooksInstance).onCreateMarket(msg.sender, parameters, hooksData);
+
+    TmpMarketParameterStorage memory tmp = TmpMarketParameterStorage({
+      borrower: msg.sender,
+      asset: parameters.asset,
+      name: string.concat(parameters.namePrefix, queryName(parameters.asset)),
+      symbol: string.concat(parameters.symbolPrefix, querySymbol(parameters.asset)),
+      feeRecipient: template.feeRecipient,
+      protocolFeeBips: template.protocolFeeBips,
+      maxTotalSupply: parameters.maxTotalSupply,
+      annualInterestBips: parameters.annualInterestBips,
+      delinquencyFeeBips: parameters.delinquencyFeeBips,
+      withdrawalBatchDuration: parameters.withdrawalBatchDuration,
+      reserveRatioBips: parameters.reserveRatioBips,
+      delinquencyGracePeriod: parameters.delinquencyGracePeriod,
+      hooks: parameters.hooks
+    });
+
+    // @todo efficient encoding
+    _setTmpMarketParameters(tmp);
+    market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+
+    if (market.code.length != 0) {
+      revert MarketAlreadyExists();
+    }
+    LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, salt);
+
+    IWildcatArchController(_archController).registerMarket(market);
+
+    _tmpMarketParameters.setEmpty();
+
+    emit MarketDeployed(
+      market,
+      tmp.name,
+      tmp.symbol,
+      tmp.asset,
+      tmp.maxTotalSupply,
+      tmp.annualInterestBips,
+      tmp.delinquencyFeeBips,
+      tmp.withdrawalBatchDuration,
+      tmp.reserveRatioBips,
+      tmp.delinquencyGracePeriod,
+      tmp.hooks
+    );
+  }
+
+  function deployMarket(
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes32 salt
+  ) external override returns (address market) {
+    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
+      revert NotApprovedBorrower();
+    }
+    address hooksInstance = parameters.hooks.hooksAddress();
+    address hooksTemplate = getHooksTemplateForInstance[hooksInstance];
+    if (hooksTemplate == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+    HooksTemplate memory template = _templateDetails[hooksTemplate];
+    market = _deployMarket(parameters, hooksData, template, salt);
+  }
+
+  function deployMarketAndHooks(
+    address hooksTemplate,
+    bytes calldata hooksTemplateArgs,
+    DeployMarketInputs memory parameters,
+    bytes calldata hooksData,
+    bytes32 salt
+  ) external override returns (address market, address hooksInstance) {
+    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
+      revert NotApprovedBorrower();
+    }
+    if (!_templateDetails[hooksTemplate].exists) {
+      revert HooksTemplateNotFound();
+    }
+    HooksTemplate memory template = _templateDetails[hooksTemplate];
+    hooksInstance = _deployHooksInstance(hooksTemplate, hooksTemplateArgs);
+    parameters.hooks = parameters.hooks.setHooksAddress(hooksInstance);
+    market = _deployMarket(parameters, hooksData, template, salt);
   }
 }
