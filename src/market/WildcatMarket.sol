@@ -213,10 +213,6 @@ contract WildcatMarket is
    *      debts to the borrower.
    */
   function closeMarket() external onlyBorrower nonReentrant sphereXGuardExternal {
-    if (_withdrawalData.unpaidBatches.length() > 0) {
-      revert_CloseMarketWithUnpaidWithdrawals();
-    }
-
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_MarketAlreadyClosed();
@@ -235,9 +231,30 @@ contract WildcatMarket is
       // Transfer remaining debts from borrower
       asset.safeTransferFrom(borrower, address(this), remainingDebt);
       hooks.onRepay(remainingDebt, state, 0x04);
+      currentlyHeld += remainingDebt;
     } else if (currentlyHeld > totalDebts) {
+      uint256 excessDebt = currentlyHeld - totalDebts;
       // Transfer excess assets to borrower
-      asset.safeTransfer(borrower, currentlyHeld - totalDebts);
+      asset.safeTransfer(borrower, excessDebt);
+      currentlyHeld -= excessDebt;
+    }
+
+    
+    // @todo make sure this isn't needed
+    // Still track available liquidity in case of a rounding error
+    uint256 availableLiquidity = totalAssets() -
+      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+
+    uint256 numBatches = _withdrawalData.unpaidBatches.length();
+    for (uint256 i; i < numBatches;i++) {
+      // Process the next unpaid batch using available liquidity
+      uint256 normalizedAmountPaid = _processUnpaidWithdrawalBatch(state, availableLiquidity);
+      // Reduce liquidity available to next batch
+      availableLiquidity -= normalizedAmountPaid;
+    }
+
+    if (state.scaledPendingWithdrawals != 0) {
+      revert_CloseMarketWithUnpaidWithdrawals();
     }
 
     // @todo re-assess the order of operations here
