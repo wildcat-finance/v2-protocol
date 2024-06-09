@@ -19,7 +19,7 @@ abstract contract ConstrainDeployParameters is IHooks {
   uint16 internal constant MinimumDelinquencyFeeBips = 0;
   uint16 internal constant MaximumDelinquencyFeeBips = 10_000;
 
-  uint32 internal constant MinimumWithdrawalBatchDuration = 5 minutes;
+  uint32 internal constant MinimumWithdrawalBatchDuration = 0;
   uint32 internal constant MaximumWithdrawalBatchDuration = 365 days;
 
   uint16 internal constant MinimumAnnualInterestBips = 0;
