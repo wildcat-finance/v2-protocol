@@ -9,14 +9,15 @@ import 'src/WildcatArchController.sol';
 import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
 
 import '../helpers/VmUtils.sol' as VmUtils;
-import '../helpers/Assertions.sol' ;
+import '../helpers/Assertions.sol';
 import { MockEngine } from './mocks/MockEngine.sol';
-import './mocks/MockControllerFactory.sol';
 import './mocks/MockSanctionsSentinel.sol';
 import { deployMockChainalysis } from './mocks/MockChainalysis.sol';
 import { AlwaysAuthorizedRoleProvider } from './mocks/AlwaysAuthorizedRoleProvider.sol';
 import { MockRoleProvider } from './mocks/MockRoleProvider.sol';
 import { HooksFactory, IHooksFactoryEventsAndErrors } from 'src/HooksFactory.sol';
+import 'src/libraries/LibStoredInitCode.sol';
+import 'src/market/WildcatMarket.sol';
 import 'src/access/AccessControlHooks.sol';
 import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
@@ -25,7 +26,6 @@ struct MarketInputParameters {
   string namePrefix;
   string symbolPrefix;
   address borrower;
-  address controller;
   address feeRecipient;
   address sentinel;
   uint128 maxTotalSupply;
@@ -41,11 +41,9 @@ struct MarketInputParameters {
   HooksConfig hooksConfig;
 }
 
-contract Test is ForgeTest, Prankster, Assertions, IWildcatMarketControllerEventsAndErrors {
+contract Test is ForgeTest, Prankster, Assertions {
   HooksFactory internal hooksFactory;
   WildcatArchController internal archController;
-  WildcatMarketControllerFactory internal controllerFactory;
-  WildcatMarketController internal controller;
   AccessControlHooks internal hooks;
   WildcatMarket internal market;
   MockSanctionsSentinel internal sanctionsSentinel;
@@ -191,7 +189,7 @@ contract Test is ForgeTest, Prankster, Assertions, IWildcatMarketControllerEvent
     MarketInputParameters memory parameters,
     bool authorizeAll,
     bool disableConstraints
-  ) internal asSelf returns (MockController) {
+  ) internal asSelf returns (AccessControlHooks hooksInstance) {
     if (!archController.isRegisteredBorrower(parameters.borrower)) {
       archController.registerBorrower(parameters.borrower);
     }
@@ -201,32 +199,33 @@ contract Test is ForgeTest, Prankster, Assertions, IWildcatMarketControllerEvent
     startPrank(parameters.borrower);
     bool emptyConfig = HooksConfig.unwrap(parameters.hooksConfig) == 0;
     if (parameters.hooksConfig.hooksAddress() == address(0)) {
-      address hooksInstance = computeCreateAddress(
-        address(hooksFactory),
-        vm.getNonce(address(hooksFactory))
+      hooksInstance = AccessControlHooks(
+        computeCreateAddress(address(hooksFactory), vm.getNonce(address(hooksFactory)))
       );
       vm.expectEmit(address(hooksFactory));
       emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
-        hooksInstance,
+        address(hooksInstance),
         parameters.hooksTemplate
       );
       assertEq(
         hooksFactory.deployHooksInstance(parameters.hooksTemplate, ''),
-        hooksInstance,
+        address(hooksInstance),
         'hooksInstance address'
       );
-      parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(hooksInstance);
+      parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(hooksInstance));
+    } else {
+      hooksInstance = AccessControlHooks(parameters.hooksConfig.hooksAddress());
     }
-    hooks = AccessControlHooks(parameters.hooksConfig.hooksAddress());
     if (emptyConfig) {
-      parameters.hooksConfig = hooks.config();
+      parameters.hooksConfig = hooksInstance.config();
     }
     if (authorizeAll) {
       AlwaysAuthorizedRoleProvider provider = new AlwaysAuthorizedRoleProvider();
-      hooks.addRoleProvider(address(provider), type(uint32).max);
+      hooksInstance.addRoleProvider(address(provider), type(uint32).max);
     }
-    hooks.addRoleProvider(address(ecdsaRoleProvider), type(uint32).max);
+    hooksInstance.addRoleProvider(address(ecdsaRoleProvider), type(uint32).max);
     stopPrank();
+    hooks = hooksInstance;
   }
 
   event UpdateProtocolFeeConfiguration(
@@ -353,22 +352,6 @@ contract Test is ForgeTest, Prankster, Assertions, IWildcatMarketControllerEvent
       parameters.withdrawalBatchDuration,
       'withdrawalBatchDuration'
     );
-    // assertEq(market.asset(), parameters.asset, 'asset');
-    // assertEq(market.maxTotalSupply(), parameters.maxTotalSupply, 'maxTotalSupply');
-    // assertEq(market.annualInterestBips(), parameters.annualInterestBips, 'annualInterestBips');
-    // assertEq(market.delinquencyFeeBips(), parameters.delinquencyFeeBips, 'delinquencyFeeBips');
-    // assertEq(
-    // market.withdrawalBatchDuration(),
-    // parameters.withdrawalBatchDuration,
-    // 'withdrawalBatchDuration'
-    // );
-    // assertEq(market.reserveRatioBips(), parameters.reserveRatioBips, 'reserveRatioBips');
-    // assertEq(
-    // market.delinquencyGracePeriod(),
-    // parameters.delinquencyGracePeriod,
-    // 'delinquencyGracePeriod'
-    // );
-    // assertEq(market.hooksConfig(), parameters.hooksConfig, 'hooksConfig');
   }
 
   function deployControllerAndMarket(
