@@ -59,7 +59,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     marketInitCodeHash = _marketInitCodeHash;
     _archController = archController_;
     sanctionsSentinel = _sanctionsSentinel;
-    __SphereXProtectedRegisteredBase_init(sphereXEngine());
+    __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
   }
 
   function registerWithArchController() external override {
@@ -315,9 +315,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     bytes32 salt
   ) internal returns (address market) {
     address hooksInstance = parameters.hooks.hooksAddress();
-    if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
-      revert HooksInstanceNotFound();
-    }
 
     if (!(address(bytes20(salt)) == msg.sender || bytes20(salt) == bytes20(0))) {
       revert SaltDoesNotContainSender();
