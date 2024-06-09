@@ -50,6 +50,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     uint32 credentialTimestamp
   );
   event AccountAccessRevoked(address indexed providerAddress, address indexed accountAddress);
+  event AccountMadeFirstDeposit(address indexed accountAddress);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -58,6 +59,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
   error CallerNotBorrower();
   error ProviderNotFound();
   error ProviderCanNotReplaceCredential();
+  error ProviderCanNotRevokeCredential();
   /// @dev Error thrown when a provider grants a credential that is already expired.
   error GrantedCredentialExpired();
   /// @dev Error thrown when a provider is called to validate a credential and the
@@ -129,7 +131,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override {
-    if (msg.sender != borrower) revert CallerNotBorrower();
+    if (deployer != borrower) revert CallerNotBorrower();
     // Validate the deploy parameters
     super._onCreateMarket(deployer, parameters, hooksData);
   }
@@ -145,6 +147,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
    *      If the provider is already approved, only updates `timeToLive`.
    */
   function addRoleProvider(address providerAddress, uint32 timeToLive) external {
+    if (msg.sender != borrower) revert CallerNotBorrower();
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) {
       bool isPullProvider = IRoleProvider(providerAddress).isPullProvider();
@@ -229,6 +232,12 @@ contract AccessControlHooks is ConstrainDeployParameters {
   //                                Role queries                                //
   // ========================================================================== //
 
+  function getPreviousLenderStatus(
+    address accountAddress
+  ) external view returns (LenderStatus memory status) {
+    status = _lenderStatus[accountAddress];
+  }
+
   /**
    * @dev Retrieves the current status of a lender, attempting to find a valid
    *      credential if their current one is invalid or non-existent.
@@ -245,7 +254,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
   ) external view returns (LenderStatus memory status) {
     status = _lenderStatus[accountAddress];
 
-    uint256 pullProviderIndexToSkip;
+    uint256 pullProviderIndexToSkip = type(uint256).max;
 
     // Check if user has an existing credential
     if (status.lastApprovalTimestamp > 0) {
@@ -302,7 +311,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     if (newExpiry < block.timestamp) revert GrantedCredentialExpired();
 
     // Check if the account has ever had a credential
-    if (status.lastApprovalTimestamp > 0) {
+    if (status.hasCredential()) {
       RoleProvider lastProvider = _roleProviders[status.lastProvider];
 
       // Check if the provider that last granted access is still supported
@@ -318,6 +327,39 @@ contract AccessControlHooks is ConstrainDeployParameters {
     }
 
     _setCredentialAndEmitAccessGranted(status, callingProvider, account, roleGrantedTimestamp);
+  }
+
+  // @todo add tests to AccessControlHooks.t.sol
+  function revokeRole(address account) external {
+    LenderStatus memory status = _lenderStatus[account];
+    if (status.lastProvider != msg.sender) {
+      revert ProviderCanNotRevokeCredential();
+    }
+    status.unsetCredential();
+    _lenderStatus[account] = status;
+    emit AccountAccessRevoked(msg.sender, account);
+  }
+
+  // @todo add tests to AccessControlHooks.t.sol
+  function blockFromDeposits(address account) external {
+    if (msg.sender != borrower) revert CallerNotBorrower();
+    LenderStatus memory status = _lenderStatus[account];
+    if (status.hasCredential()) {
+      status.unsetCredential();
+      emit AccountAccessRevoked(status.lastProvider, account);
+    }
+    status.isBlockedFromDeposits = true;
+    _lenderStatus[account] = status;
+    emit AccountBlockedFromDeposits(account);
+  }
+
+  // @todo add tests to AccessControlHooks.t.sol
+  function unblockFromDeposits(address account) external {
+    if (msg.sender != borrower) revert CallerNotBorrower();
+    LenderStatus memory status = _lenderStatus[account];
+    status.isBlockedFromDeposits = false;
+    _lenderStatus[account] = status;
+    emit AccountUnblockedFromDeposits(account);
   }
 
   /**
@@ -516,8 +558,6 @@ contract AccessControlHooks is ConstrainDeployParameters {
     address accountAddress,
     bytes calldata hooksData
   ) internal returns (bool hasValidCredential, bool wasUpdated) {
-    status = _lenderStatus[accountAddress];
-
     // Get the last provider that granted the lender a credential, if any
     RoleProvider lastProvider = status.hasCredential()
       ? _roleProviders[status.lastProvider]
@@ -534,7 +574,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     }
 
     // @todo handle skipping the provider from the hooks data step if one was given
-    uint256 pullProviderIndexToSkip;
+    uint256 pullProviderIndexToSkip = type(uint256).max;
 
     // If lender has an expired credential from a pull provider, attempt to refresh it
     if (!lastProvider.isNull() && status.canRefresh) {
@@ -604,30 +644,39 @@ contract AccessControlHooks is ConstrainDeployParameters {
   ) external override {
     // Retrieve the lender's status from storage
     LenderStatus memory status = _lenderStatus[lender];
+    // Check that the lender is not blocked
+    if (status.isBlockedFromDeposits) {
+      revert NotApprovedLender();
+    }
+
     // Attempt to validate the lender's access
     // Uses the inner method here as storage may need to be updated if this
     // is their first deposit
-    (bool hasValidCredential, bool wasUpdated) = _tryValidateAccessInner(status, lender, hooksData);
+    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(
+      status,
+      lender,
+      hooksData
+    );
     if (!hasValidCredential) {
       revert NotApprovedLender();
     }
-    // Emit event if the lender's status was updated
-    if (wasUpdated) {
+
+    bool depositStatusUpdated = !status.hasEverDeposited;
+
+    // If the lender has never deposited before, emit an event
+    if (depositStatusUpdated) {
+      emit AccountMadeFirstDeposit(lender);
+      status.hasEverDeposited = true;
+    }
+
+    // If the lender's role was updated, emit an event
+    if (roleUpdated) {
       emit AccountAccessGranted(status.lastProvider, lender, status.lastApprovalTimestamp);
     }
-    // If this is the lender's first deposit, set `hasEverDeposited` to true
-    if (!status.hasEverDeposited) {
-      status.hasEverDeposited = true;
-      wasUpdated = true;
-    }
-    // Update the lender's status in storage if its role or deposit status was updated
-    if (wasUpdated) {
+
+    // Update the lender's status in storage if role or deposit status was updated
+    if (depositStatusUpdated.or(roleUpdated)) {
       _lenderStatus[lender] = status;
-    }
-    if (
-      status.isBlockedFromDeposits || !_tryValidateAccess(_lenderStatus[lender], lender, hooksData)
-    ) {
-      revert NotApprovedLender();
     }
   }
 
