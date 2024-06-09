@@ -3,16 +3,13 @@ pragma solidity >=0.8.20;
 
 import 'src/libraries/MathUtils.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
-import './TestConstants.sol';
-import { bound } from '../helpers/VmUtils.sol';
+import '../../shared/TestConstants.sol';
+import { bound } from '../VmUtils.sol';
 
-using MathUtils for uint256;
-
-using FuzzInputsLib for ConfigFuzzInputs global;
-using FuzzInputsLib for StateFuzzInputs global;
+using LibMarketStateFuzzInputs for MarketStateFuzzInputs global;
 
 // Used for fuzzing initial state for libraries
-struct StateFuzzInputs {
+struct MarketStateFuzzInputs {
   uint128 maxTotalSupply;
   uint128 accruedProtocolFees;
   uint128 normalizedUnclaimedWithdrawals;
@@ -26,51 +23,10 @@ struct StateFuzzInputs {
   uint32 lastInterestAccruedTimestamp;
 }
 
-// Used for fuzzing market deployment parameters
-struct ConfigFuzzInputs {
-  uint128 maxTotalSupply;
-  uint16 protocolFeeBips;
-  uint16 annualInterestBips;
-  uint16 delinquencyFeeBips;
-  uint32 withdrawalBatchDuration;
-  uint16 reserveRatioBips;
-  uint32 delinquencyGracePeriod;
-  address feeRecipient;
-}
+library LibMarketStateFuzzInputs {
+  using MathUtils for uint256;
 
-library FuzzInputsLib {
-  function constrain(ConfigFuzzInputs memory inputs) internal pure {
-    inputs.annualInterestBips = uint16(
-      bound(inputs.annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips)
-    );
-    inputs.delinquencyFeeBips = uint16(
-      bound(inputs.delinquencyFeeBips, MinimumDelinquencyFeeBips, MaximumDelinquencyFeeBips)
-    );
-    inputs.withdrawalBatchDuration = uint32(
-      bound(
-        inputs.withdrawalBatchDuration,
-        MinimumWithdrawalBatchDuration,
-        MaximumWithdrawalBatchDuration
-      )
-    );
-    inputs.reserveRatioBips = uint16(
-      bound(inputs.reserveRatioBips, MinimumReserveRatioBips, MaximumReserveRatioBips)
-    );
-    inputs.delinquencyGracePeriod = uint32(
-      bound(
-        inputs.delinquencyGracePeriod,
-        MinimumDelinquencyGracePeriod,
-        MaximumDelinquencyGracePeriod
-      )
-    );
-    if (inputs.protocolFeeBips > 0) {
-      inputs.feeRecipient = address(
-        uint160(bound(uint160(inputs.feeRecipient), 1, type(uint160).max))
-      );
-    }
-  }
-
-  function constrain(StateFuzzInputs memory inputs) internal view {
+  function constrain(MarketStateFuzzInputs memory inputs) internal view {
     inputs.scaleFactor = uint112(bound(inputs.scaleFactor, RAY, type(uint112).max));
     inputs.scaledTotalSupply = uint104(bound(inputs.scaledTotalSupply, 0, type(uint104).max));
     inputs.maxTotalSupply = uint128(
@@ -95,7 +51,9 @@ library FuzzInputsLib {
     );
   }
 
-  function toState(StateFuzzInputs memory inputs) internal view returns (MarketState memory state) {
+  function toState(
+    MarketStateFuzzInputs memory inputs
+  ) internal view returns (MarketState memory state) {
     inputs.constrain();
     state.maxTotalSupply = inputs.maxTotalSupply;
     state.accruedProtocolFees = inputs.accruedProtocolFees;
