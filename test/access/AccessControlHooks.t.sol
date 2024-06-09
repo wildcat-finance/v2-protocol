@@ -7,11 +7,10 @@ import { LibString } from 'solady/utils/LibString.sol';
 import '../shared/mocks/MockRoleProvider.sol';
 import '../shared/mocks/MockAccessControlHooks.sol';
 import '../helpers/Assertions.sol';
-
-import { bound } from '../helpers/VmUtils.sol';
+import { bound, warp } from '../helpers/VmUtils.sol';
+import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
-
 import 'src/libraries/BoolUtils.sol';
 
 using LibString for uint256;
@@ -19,14 +18,7 @@ using LibString for address;
 using MathUtils for uint256;
 using BoolUtils for bool;
 
-struct ExpectedCall {
-  address target;
-  bytes data;
-}
-
 contract AccessControlHooksTest is Test, Assertions {
-  using AccessControlTestTypeCasts for *;
-
   uint24 internal numPullProviders;
   StandardRoleProvider[] internal expectedRoleProviders;
   MockAccessControlHooks internal hooks;
@@ -42,7 +34,7 @@ contract AccessControlHooksTest is Test, Assertions {
     _addExpectedProvider(MockRoleProvider(address(this)), type(uint32).max, false);
     _validateRoleProviders();
     // Set block.timestamp to 4:50 am, May 3 2024
-    vm.warp(1714737030);
+    warp(1714737030);
   }
 
   function test_config() external {
@@ -308,11 +300,7 @@ contract AccessControlHooksTest is Test, Assertions {
     uint32 timestamp
   ) external {
     timestamp = uint32(bound(timestamp, block.timestamp.satSub(timeToLive), type(uint32).max));
-    StandardRoleProvider storage provider = _addExpectedProvider(
-      mockProvider1,
-      timeToLive,
-      isPullProvider
-    );
+    _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
     hooks.addRoleProvider(address(mockProvider1), timeToLive);
     _expectAccountAccessGranted(address(mockProvider1), account, timestamp);
     vm.prank(address(mockProvider1));
@@ -386,7 +374,6 @@ contract AccessControlHooksTest is Test, Assertions {
   ///      a greater expiry.
   function test_grantRole_ProviderCanNotReplaceCredential(
     address account,
-    bool isPullProvider,
     uint32 timeToLive1,
     uint32 timeToLive2,
     uint32 timestamp
@@ -413,116 +400,18 @@ contract AccessControlHooksTest is Test, Assertions {
     hooks.grantRole(account, timestamp);
   }
 
-  /*
-
-bytes memory hooksData;
-if (
-  credential.credentialExists &&
-  !credential.expired &&
-  credential.providerApproved
-) {
-  // Returns true, no update, no calls made
-}
-// Hooks stage
-if (hooksData.giveHooksData) {
-  if (hooksData.giveDataToValidate) {
-    hooksData = hex"aabbccddeeff";
-    provider.approveCredentialData()
-  }
-}
-
-    Scenarios to test:
-    1. User has existing credential
-      - Pass conditions:
-        - !expired & providerApproved
-        - expired & providerApproved & isPullProvider & willRefresh
-      - Fail conditions:
-        - !expired + !providerApproved  
-        - expired + providerApproved + !isPullProvider
-        - expired + providerApproved + isPullProvider + !willRefresh
-    2. User has expired credential
-      - Provider does not exist
-      - Provider exists but is not a pull provider
-      - Provider is a pull provider and will refresh credential
-      - Provider is a pull provider and will not refresh credential
-    3. User has no credential:
-      - No pull providers will grant credential
-      - There is a pull provider that will grant a credential
-  */
-
-  struct ExistingCredentialOptions {
-    // Whether the user has an existing credential
-    bool credentialExists;
-    // Whether the provider that granted the credential is still approved
-    bool providerApproved;
-    // Whether the credential is expired
-    bool expired;
-    // Whether the provider is a pull provider
-    bool isPullProvider;
-    // Whether provider will return valid encoded timestamp
-    bool willReturnUint;
-    // Provider will grant credential, but credential is expired
-    bool newCredentialExpired;
-    // Provider will revert on getCredential
-    bool callWillRevert;
-  }
-
-  // @todo handle cases where timestamp > block.timestamp
-  struct HooksDataOptions {
-    // Whether to give any hooks data
-    bool giveHooksData;
-    // Give data for validation rather than just the provider address
-    bool giveDataToValidate;
-    // Provider exists
-    bool providerApproved;
-    // Provider is a pull provider
-    bool isPullProvider;
-    // Whether provider will return valid encoded timestamp
-    bool willReturnUint;
-    // Provider will grant credential, but credential is expired
-    bool credentialExpired;
-    // Provider will revert on validateCredential / getCredential
-    bool callWillRevert;
-  }
-
   function test_fuzz_getOrValidateCredential(
-    ExistingCredentialOptions memory existingCredentialOptions,
-    HooksDataOptions memory dataOptions
+    AccessControlHooksFuzzInputs memory fuzzInputs
   ) external {
-    // ExistingCredentialOptions memory existingCredentialOptions;
-    // existingCredentialOptions.credentialExists = true;
-    // existingCredentialOptions.providerApproved = true;
-    // existingCredentialOptions.expired = false;
-
-    HookValidationContext memory context;
-    context.account = address(50);
-    context.existingCredentialOptions = existingCredentialOptions;
-    context.dataOptions = dataOptions;
-    context.previousProvider = mockProvider1;
-    context.providerToGiveData = mockProvider2;
-    vm.label(address(mockProvider1), 'previousProvider');
-    vm.label(address(mockProvider2), 'providerToGiveData');
-
-    _setUpExistingCredential(context);
-    _setUpHooksData(context);
-    _setUpCredentialRefresh(context);
-
-    // If a previous credential exists but the lender will not end up with a valid credential,
-    // the last provider and approval timestamp should be reset
-    if (existingCredentialOptions.credentialExists && !context.expectations.hasValidCredential) {
-      context.expectations.wasUpdated = true;
-      context.expectations.lastProvider = address(0);
-      context.expectations.lastApprovalTimestamp = 0;
-    }
-
-    for (uint i; i < context.expectations.expectedCalls.length; i++) {
-      vm.expectCall(
-        context.expectations.expectedCalls[i].target,
-        context.expectations.expectedCalls[i].data
-      );
-    }
+    AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
+      fuzzInputs,
+      hooks,
+      mockProvider1,
+      mockProvider2,
+      address(50)
+    );
+    context.registerExpectations(false);
     if (context.expectations.expectedError != 0) {
-      vm.expectRevert(context.expectations.expectedError);
       hooks.tryValidateAccess(context.account, context.hooksData);
     } else {
       (bool hasValidCredential, bool wasUpdated) = hooks.tryValidateAccess(
@@ -531,208 +420,13 @@ if (hooksData.giveHooksData) {
       );
       assertEq(hasValidCredential, context.expectations.hasValidCredential, 'hasValidCredential');
       assertEq(wasUpdated, context.expectations.wasUpdated, 'wasUpdated');
-    }
-  }
-
-  struct ValidationExpectations {
-    bool hasValidCredential;
-    bool wasUpdated;
-    ExpectedCall[] expectedCalls;
-    bytes4 expectedError;
-    address lastProvider;
-    uint32 lastApprovalTimestamp;
-  }
-
-  struct HookValidationContext {
-    address account;
-    bytes hooksData;
-    ExistingCredentialOptions existingCredentialOptions;
-    HooksDataOptions dataOptions;
-    ValidationExpectations expectations;
-    MockRoleProvider previousProvider;
-    MockRoleProvider providerToGiveData;
-  }
-
-  function _setUpExistingCredential(HookValidationContext memory context) internal {
-    MockRoleProvider provider = context.previousProvider;
-    ExistingCredentialOptions memory existingCredentialOptions = context.existingCredentialOptions;
-    if (existingCredentialOptions.credentialExists) {
-      // If the credential should exist, add the provider and grant the role
-      uint32 credentialTimestamp = existingCredentialOptions.expired
-        ? uint32(block.timestamp - 2)
-        : uint32(block.timestamp);
-
-      if (existingCredentialOptions.isPullProvider) {
-        provider.setIsPullProvider(true);
-      }
-      uint currentTimestamp = block.timestamp;
-      if (existingCredentialOptions.expired) {
-        vm.warp(credentialTimestamp);
-      }
-
-      // If the credential should exist, add the provider and grant the role
-      hooks.addRoleProvider(address(provider), 1);
-      vm.prank(address(provider));
-      hooks.grantRole(context.account, credentialTimestamp);
-
-      if (existingCredentialOptions.expired) {
-        vm.warp(currentTimestamp);
-      }
-
-      // If the provider should no longer be approved, remove it
-      if (!existingCredentialOptions.providerApproved) {
-        hooks.removeRoleProvider(address(provider));
-      }
-
-      // If the credential should be valid still, expect the account to have a valid credential
-      // from the provider with no changes
-      if (!existingCredentialOptions.expired && existingCredentialOptions.providerApproved) {
-        context.expectations.hasValidCredential = true;
-        context.expectations.wasUpdated = false;
-        context.expectations.lastProvider = address(provider);
-        context.expectations.lastApprovalTimestamp = credentialTimestamp;
-      }
-    }
-  }
-
-  // Runs after _setUpExistingCredential and _setUpHooksData
-  function _setUpCredentialRefresh(HookValidationContext memory context) internal {
-    MockRoleProvider provider = context.previousProvider;
-    ExistingCredentialOptions memory existingCredentialOptions = context.existingCredentialOptions;
-
-    // The contract will call the provider if all of the following are true:
-    // - The account has an expired credential
-    // - The provider is a pull provider
-    // - The provider is approved
-    // - The hooks data step will not return a valid credential
-    bool contractWillBeCalled = existingCredentialOptions
-      .credentialExists
-      .and(existingCredentialOptions.expired)
-      .and(existingCredentialOptions.isPullProvider)
-      .and(existingCredentialOptions.providerApproved)
-      .and(!context.expectations.hasValidCredential);
-
-    if (contractWillBeCalled) {
-      uint32 credentialTimestamp = existingCredentialOptions.newCredentialExpired
-        ? uint32(block.timestamp - 2)
-        : uint32(block.timestamp);
-
-      // If `willReturnUint` is false, make the provider return 0 bytes
-      if (!existingCredentialOptions.willReturnUint) {
-        provider.setCallShouldReturnCorruptedData(true);
-      }
-      if (existingCredentialOptions.callWillRevert) {
-        provider.setCallShouldRevert(true);
-      }
-      provider.setCredential(context.account, credentialTimestamp);
-
-      ArrayHelpers.cloneAndPush.asPushExpectedCall()(
-        context.expectations.expectedCalls,
-        ExpectedCall(
-          address(provider),
-          abi.encodeWithSelector(IRoleProvider.getCredential.selector, context.account)
-        )
+      LenderStatus memory status = hooks.getPreviousLenderStatus(context.account);
+      assertEq(status.lastProvider, context.expectations.lastProvider, 'lastProvider');
+      assertEq(
+        status.lastApprovalTimestamp,
+        context.expectations.lastApprovalTimestamp,
+        'lastApprovalTimestamp'
       );
-
-      // The call will return a valid credential if all of the following are true:
-      // - The provider will return a valid uint
-      // - The credential is not expired
-      // - The call will not revert
-      bool hooksWillYieldCredential = contractWillBeCalled
-        .and(existingCredentialOptions.willReturnUint)
-        .and(!existingCredentialOptions.newCredentialExpired)
-        .and(!existingCredentialOptions.callWillRevert);
-
-      if (hooksWillYieldCredential) {
-        context.expectations.hasValidCredential = true;
-        context.expectations.wasUpdated = true;
-        context.expectations.lastProvider = address(provider);
-        context.expectations.lastApprovalTimestamp = credentialTimestamp;
-      }
-    }
-  }
-
-  function _setUpHooksData(HookValidationContext memory context) internal {
-    MockRoleProvider provider = context.providerToGiveData;
-    HooksDataOptions memory dataOptions = context.dataOptions;
-    address account = context.account;
-
-    // The contract will call the provider if all of the following are true:
-    // - The account does not already have a valid credential
-    // - Hooks data is given
-    // - The provider is approved
-    // - The provider is a pull provider or `validateCredential` is being called
-    bool contractWillBeCalled = (!context.expectations.hasValidCredential)
-      .and(dataOptions.giveHooksData)
-      .and(dataOptions.providerApproved)
-      .and(dataOptions.isPullProvider || dataOptions.giveDataToValidate);
-
-    if (dataOptions.giveHooksData) {
-      uint32 credentialTimestamp = dataOptions.credentialExpired
-        ? uint32(block.timestamp - 2)
-        : uint32(block.timestamp);
-
-      provider.setIsPullProvider(dataOptions.isPullProvider);
-      // If provider should be approved, add it to the list of role providers
-      if (dataOptions.providerApproved) {
-        hooks.addRoleProvider(address(provider), 1);
-      }
-
-      // If `willReturnUint` is false, make the provider return 0 bytes
-      provider.setCallShouldReturnCorruptedData(!dataOptions.willReturnUint);
-      // If `callWillRevert` is true, make the provider revert
-      provider.setCallShouldRevert(dataOptions.callWillRevert);
-
-      if (dataOptions.giveDataToValidate) {
-        bytes memory validateData = hex'aabbccddeeff';
-        if (dataOptions.willReturnUint) {
-          provider.approveCredentialData(keccak256(validateData), credentialTimestamp);
-        }
-        context.hooksData = abi.encodePacked(provider, validateData);
-      } else {
-        context.hooksData = abi.encodePacked(provider);
-        if (dataOptions.willReturnUint) {
-          provider.setCredential(context.account, credentialTimestamp);
-        }
-      }
-
-      // The call will return a valid credential if all of the following are true:
-      // - The provider will return a valid uint
-      // - The credential is not expired
-      // - The call will not revert
-      bool hooksWillYieldCredential = contractWillBeCalled
-        .and(dataOptions.willReturnUint)
-        .and(!dataOptions.credentialExpired)
-        .and(!dataOptions.callWillRevert);
-
-      if (hooksWillYieldCredential) {
-        context.expectations.hasValidCredential = true;
-        context.expectations.wasUpdated = true;
-        context.expectations.lastProvider = address(provider);
-        context.expectations.lastApprovalTimestamp = credentialTimestamp;
-      }
-    }
-
-    if (contractWillBeCalled) {
-      bytes memory expectedCalldata = dataOptions.giveDataToValidate
-        ? abi.encodeWithSelector(
-          IRoleProvider.validateCredential.selector,
-          context.account,
-          hex'aabbccddeeff'
-        )
-        : abi.encodeWithSelector(IRoleProvider.getCredential.selector, context.account);
-
-      ArrayHelpers.cloneAndPush.asPushExpectedCall()(
-        context.expectations.expectedCalls,
-        ExpectedCall(address(provider), expectedCalldata)
-      );
-      if (
-        (!dataOptions.callWillRevert).and(!dataOptions.willReturnUint).and(
-          dataOptions.giveDataToValidate
-        )
-      ) {
-        context.expectations.expectedError = AccessControlHooks.InvalidCredentialReturned.selector;
-      }
     }
   }
 
@@ -751,9 +445,7 @@ if (hooksData.giveHooksData) {
     bool someProviderWillGrantCredential;
   }
 
-  function test_tryValidateAccess_credentialNotExists(address account) external {}
-
-  function test_tryValidateAccess_credentialExists(address account) external {
+  function test_tryValidateAccess_existingCredential(address account) external {
     hooks.addRoleProvider(address(mockProvider1), 1);
     vm.prank(address(mockProvider1));
     hooks.grantRole(account, uint32(block.timestamp));
@@ -762,23 +454,6 @@ if (hooksData.giveHooksData) {
     assertTrue(hasValidCredential, 'hasValidCredential');
     assertFalse(wasUpdated, 'wasUpdated');
   }
-}
 
-library AccessControlTestTypeCasts {
-  function asPushExpectedCall(
-    function(MemoryPointer, uint256) internal pure returns (MemoryPointer) _fn
-  )
-    internal
-    pure
-    returns (
-      function(ExpectedCall[] memory, ExpectedCall memory)
-        internal
-        pure
-        returns (ExpectedCall[] memory) fn
-    )
-  {
-    assembly {
-      fn := _fn
-    }
-  }
+  function test_tryValidateAccess_validateCredential(address account) external {}
 }
