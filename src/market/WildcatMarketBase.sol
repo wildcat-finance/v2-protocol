@@ -27,7 +27,7 @@ contract WildcatMarketBase is
   //                       Market Config (immutable)                       //
   // ==================================================================== //
 
-  string public constant version = '1.1';
+  string public constant version = '2';
 
   HooksConfig public immutable hooks;
 
