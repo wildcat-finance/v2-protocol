@@ -61,6 +61,10 @@ interface IMarketEventsAndErrors {
 
   error CloseMarketWithUnpaidWithdrawals();
 
+  error AnnualInterestBipsTooHigh();
+
+  error ReserveRatioBipsTooHigh();
+
   /// @dev Error thrown when reserve ratio is set to a value
   ///      that would make the market delinquent.
   error InsufficientReservesForNewLiquidityRatio();

@@ -122,41 +122,36 @@ contract WildcatMarketConfig is WildcatMarketBase {
 
   /**
    * @dev Sets the annual interest rate earned by lenders in bips.
+   *
+   *      If the new reserve ratio is lower than the old ratio,
+   *      asserts that the market is not currently delinquent.
+   *
+   *      If the new reserve ratio is higher than the old ratio,
+   *      asserts that the market will not become delinquent
+   *      because of the change.
    */
   function setAnnualInterestAndReserveRatioBips(
     uint16 _annualInterestBips,
     uint16 _reserveRatioBips
-  ) public onlyController nonReentrant sphereXGuardExternal {
+  ) public onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
-    uint256 initialReserveRatioBips = state.reserveRatioBips;
     if (state.isClosed) revert_AprChangeOnClosedMarket();
+
+    uint256 initialReserveRatioBips = state.reserveRatioBips;
 
     (_annualInterestBips, _reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(
       _annualInterestBips,
       _reserveRatioBips,
       state
     );
-    state.annualInterestBips = _annualInterestBips;
-    _writeState(state);
-    emit_AnnualInterestBipsUpdated(_annualInterestBips);
-  }
 
-  /**
-   * @dev Adjust the market's reserve ratio.
-   *
-   *      If the new ratio is lower than the old ratio,
-   *      asserts that the market is not currently delinquent.
-   *
-   *      If the new ratio is higher than the old ratio,
-   *      asserts that the market will not become delinquent
-   *      because of the change.
-   */
-  function setReserveRatioBips(
-    uint16 _reserveRatioBips
-  ) public onlyController nonReentrant sphereXGuardExternal {
-    MarketState memory state = _getUpdatedState();
+    if (_annualInterestBips > BIP) {
+      revert AnnualInterestBipsTooHigh();
+    }
 
-    uint256 initialReserveRatioBips = state.reserveRatioBips;
+    if (_reserveRatioBips > BIP) {
+      revert ReserveRatioBipsTooHigh();
+    }
 
     if (_reserveRatioBips < initialReserveRatioBips) {
       if (state.liquidityRequired() > totalAssets()) {
@@ -164,12 +159,15 @@ contract WildcatMarketConfig is WildcatMarketBase {
       }
     }
     state.reserveRatioBips = _reserveRatioBips;
+    state.annualInterestBips = _annualInterestBips;
     if (_reserveRatioBips > initialReserveRatioBips) {
       if (state.liquidityRequired() > totalAssets()) {
         revert_InsufficientReservesForNewLiquidityRatio();
       }
     }
+
     _writeState(state);
+    emit_AnnualInterestBipsUpdated(_annualInterestBips);
     emit_ReserveRatioBipsUpdated(_reserveRatioBips);
   }
 }
