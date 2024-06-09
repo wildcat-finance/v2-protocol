@@ -55,9 +55,6 @@ contract WildcatMarketBase is
   /// @dev Token decimals (same as underlying asset).
   uint8 public immutable decimals;
 
-  /// @dev Address of the Market Controller.
-  address public immutable controller;
-
   /// @dev Address of the underlying asset.
   address public immutable asset;
 
@@ -129,11 +126,6 @@ contract WildcatMarketBase is
 
   modifier onlyBorrower() {
     if (msg.sender != borrower) revert_NotApprovedBorrower();
-    _;
-  }
-
-  modifier onlyController() {
-    if (msg.sender != controller) revert_NotController();
     _;
   }
 
