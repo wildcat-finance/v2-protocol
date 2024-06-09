@@ -230,6 +230,7 @@ contract WildcatMarket is
       uint256 remainingDebt = totalDebts - currentlyHeld;
       // Transfer remaining debts from borrower
       asset.safeTransferFrom(borrower, address(this), remainingDebt);
+      emit DebtRepaid(borrower, remainingDebt);
       hooks.onRepay(remainingDebt, state, 0x04);
       currentlyHeld += remainingDebt;
     } else if (currentlyHeld > totalDebts) {
@@ -239,14 +240,30 @@ contract WildcatMarket is
       currentlyHeld -= excessDebt;
     }
 
-    
     // @todo make sure this isn't needed
     // Still track available liquidity in case of a rounding error
-    uint256 availableLiquidity = totalAssets() -
+    uint256 availableLiquidity = currentlyHeld -
       (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
 
+    // If there is a pending withdrawal batch which is not fully paid off, set aside
+    // up to the available liquidity for that batch.
+    if (state.pendingWithdrawalExpiry != 0) {
+      uint32 expiry = state.pendingWithdrawalExpiry;
+      WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
+      if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
+        (, uint128 normalizedAmountPaid) = _applyWithdrawalBatchPayment(
+          batch,
+          state,
+          expiry,
+          availableLiquidity
+        );
+        availableLiquidity -= normalizedAmountPaid;
+        _withdrawalData.batches[expiry] = batch;
+      }
+    }
+
     uint256 numBatches = _withdrawalData.unpaidBatches.length();
-    for (uint256 i; i < numBatches;i++) {
+    for (uint256 i; i < numBatches; i++) {
       // Process the next unpaid batch using available liquidity
       uint256 normalizedAmountPaid = _processUnpaidWithdrawalBatch(state, availableLiquidity);
       // Reduce liquidity available to next batch
