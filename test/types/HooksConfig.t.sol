@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import 'src/types/HooksConfig.sol';
 import { Test, console2 } from 'forge-std/Test.sol';
 import '../helpers/Assertions.sol';
-import '../shared/FuzzInputs.sol';
+import '../helpers/fuzz/MarketStateFuzzInputs.sol';
 import 'solady/utils/LibString.sol';
 import '../shared/mocks/MockHooks.sol';
 import '../shared/mocks/MockHookCaller.sol';
@@ -64,7 +64,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onDeposit(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData
   ) external {
@@ -88,7 +88,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onQueueWithdrawal(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData
   ) external {
@@ -112,7 +112,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onExecuteWithdrawal(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     address lender,
     uint128 normalizedAmountWithdrawn,
@@ -143,7 +143,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onTransfer(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     address to,
     uint256 scaledAmount,
@@ -171,7 +171,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onBorrow(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData
   ) external {
@@ -195,7 +195,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onRepay(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData
   ) external {
@@ -219,7 +219,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onCloseMarket(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData
   ) external {
@@ -243,7 +243,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onAssetsSentToEscrow(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData,
     address lender,
@@ -277,7 +277,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onSetMaxTotalSupply(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData
   ) external {
@@ -301,7 +301,7 @@ contract HooksConfigTest is Test, Assertions {
   }
 
   function test_onSetAnnualInterestAndReserveRatioBips(
-    StateFuzzInputs memory stateInput,
+    MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData,
     uint16 annualInterestBips,
