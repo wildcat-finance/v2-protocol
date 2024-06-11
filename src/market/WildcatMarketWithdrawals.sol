@@ -227,6 +227,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint256 repayAmount,
     uint256 maxBatches
   ) public nonReentrant sphereXGuardExternal {
+    // Repay before updating state to ensure the paid amount is counted towards
+    // any pending or unpaid withdrawals.
     if (repayAmount > 0) {
       asset.safeTransferFrom(msg.sender, address(this), repayAmount);
       emit_DebtRepaid(msg.sender, repayAmount);
@@ -235,7 +237,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_RepayToClosedMarket();
 
-    hooks.onRepay(repayAmount, state, 0x44);
+    if (repayAmount > 0) hooks.onRepay(repayAmount, state, 0x44);
 
     // Calculate assets available to process the first batch - will be updated after each batch
     uint256 availableLiquidity = totalAssets() -
