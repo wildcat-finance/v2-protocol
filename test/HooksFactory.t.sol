@@ -11,6 +11,7 @@ import './helpers/Assertions.sol';
 import './shared/mocks/MockHooks.sol';
 import './helpers/StandardStructs.sol';
 import 'src/market/WildcatMarket.sol';
+import 'src/access/AccessControlHooks.sol';
 
 // @todo test removal
 
@@ -667,6 +668,52 @@ contract HooksFactoryTest is Test, Assertions {
     );
   }
 
+  function test_deployMarket_NotApprovedBorrower() external {
+    DeployMarketInputs memory parameters;
+    vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
+    hooksFactory.deployMarket(parameters, '', bytes32(uint(1)));
+  }
+
+  function test_deployMarket_HooksInstanceNotFound() external {
+    archController.registerBorrower(address(this));
+    DeployMarketInputs memory parameters;
+    vm.expectRevert(IHooksFactoryEventsAndErrors.HooksInstanceNotFound.selector);
+    hooksFactory.deployMarket(parameters, '', bytes32(uint(1)));
+  }
+
+  function test_deployMarket_SaltDoesNotContainSender(
+    FuzzDeployMarketInputs memory paramsInput,
+    FuzzFeeConfigurationInputs memory feesInput
+  ) external constrain(feesInput) {
+    archController.registerBorrower(address(this));
+
+    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+
+    bytes memory constructorArgs = 'o hey this is my market arg do u like it';
+    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+
+    paramsInput.templateHooksConfig.hooksAddress = address(hooksInstance);
+    paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
+
+    hooksInstance.setConfig(paramsInput.templateHooksConfig.toHooksConfig());
+    
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: paramsInput.maxTotalSupply,
+      annualInterestBips: paramsInput.annualInterestBips,
+      delinquencyFeeBips: paramsInput.delinquencyFeeBips,
+      withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
+      reserveRatioBips: paramsInput.reserveRatioBips,
+      delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      hooks: paramsInput.marketHooksConfig.toHooksConfig()
+    });
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+    hooksFactory.deployMarket(parameters, '', keccak256('test'));
+  }
+
   function test_deployMarketAndHooks(
     FuzzDeployMarketInputs memory paramsInput,
     FuzzFeeConfigurationInputs memory feesInput
@@ -730,9 +777,9 @@ contract HooksFactoryTest is Test, Assertions {
   }
 
   struct CreateMarketAndHooksContext {
-    bytes  constructorArgs;
-    bytes  createMarketHooksData;
-    DeployMarketInputs  parameters;
+    bytes constructorArgs;
+    bytes createMarketHooksData;
+    DeployMarketInputs parameters;
     address expectedHooksInstance;
     address hooksInstance;
     HooksConfig expectedConfig;
