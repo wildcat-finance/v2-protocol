@@ -6,8 +6,6 @@ import { VmSafe } from 'forge-std/Vm.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
 
 import 'src/WildcatArchController.sol';
-import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
-
 import '../helpers/VmUtils.sol' as VmUtils;
 import '../helpers/Assertions.sol';
 import { MockEngine } from './mocks/MockEngine.sol';
@@ -116,7 +114,9 @@ contract Test is ForgeTest, Prankster, Assertions {
     _checkSphereXConfig(address(hooksFactory), 'HooksFactory');
 
     // Deploy initcode storage for hooks template
-    hooksTemplate = LibStoredInitCode.deployInitCode(type(AccessControlHooks).creationCode);
+    if (hooksTemplate == address(0)) {
+      hooksTemplate = _getHooksTemplate();
+    }
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
@@ -142,6 +142,10 @@ contract Test is ForgeTest, Prankster, Assertions {
     ecdsaRoleProvider.setRequiredSigner(wallet.addr);
     roleProvider1 = new MockRoleProvider();
     roleProvider2 = new MockRoleProvider();
+  }
+
+  function _getHooksTemplate() internal virtual returns (address) {
+    return LibStoredInitCode.deployInitCode(type(AccessControlHooks).creationCode);
   }
 
   function deployBaseContracts() internal {
