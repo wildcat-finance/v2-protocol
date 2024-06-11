@@ -377,27 +377,29 @@ contract WithdrawalsTest is BaseMarketTest {
   /*                      processUnpaidWithdrawalBatches()                      */
   /* -------------------------------------------------------------------------- */
 
-  function test_processUnpaidWithdrawalBatches_NoBatches() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_NoBatches() external {
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
-  function test_processUnpaidWithdrawalBatches_NoAvailableLiquidity() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_NoAvailableLiquidity() external {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
-  function test_processUnpaidWithdrawalBatches_Single() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_Single() external {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     fastForward(parameters.withdrawalBatchDuration * 2);
-    MarketState memory state = pendingState();
+    updateState(pendingState(true));
+    market.updateState();
     asset.mint(address(market), 1e18);
     lastTotalAssets += 1e18;
+    MarketState memory state = pendingState(true);
     _trackProcessUnpaidWithdrawalBatch(state);
     updateState(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
-  function test_processUnpaidWithdrawalBatches_InsufficientAssetsForSecond() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_InsufficientAssetsForSecond() external {
     uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     uint32 expiry2 = uint32(expiry1 + parameters.withdrawalBatchDuration);
     _depositBorrowWithdraw(alice, 2e18, 1.6e18, 1e18);
@@ -419,7 +421,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _checkState();
   }
 
-  function test_processUnpaidWithdrawalBatches_SufficientAssetsForBoth() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_SufficientAssetsForBoth() external {
     uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     uint32 expiry2 = uint32(expiry1 + parameters.withdrawalBatchDuration);
     _depositBorrowWithdraw(alice, 2e18, 1.6e18, 1e18);
@@ -441,7 +443,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _checkState();
   }
 
-  function test_processUnpaidWithdrawalBatches_MaxZero() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_MaxZero() external {
     uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     uint32 expiry2 = uint32(expiry1 + parameters.withdrawalBatchDuration);
     _depositBorrowWithdraw(alice, 2e18, 1.6e18, 1e18);
@@ -495,7 +497,7 @@ contract WithdrawalsTest is BaseMarketTest {
     asset.mint(address(this), 1e18);
     asset.approve(address(market), 1e18);
     vm.prank(borrower);
-    controller.closeMarket(address(market));
+    market.closeMarket();
     vm.expectRevert(IMarketEventsAndErrors.RepayToClosedMarket.selector);
     market.repayAndProcessUnpaidWithdrawalBatches(1e18, 10);
   }
