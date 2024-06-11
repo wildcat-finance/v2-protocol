@@ -76,7 +76,6 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   function marketInitCodeHash() external view returns (uint256);
 
-
   /// @dev Set-up function to register the factory as a controller with the arch-controller.
   ///      This enables the factory to register new markets.
   function registerWithArchController() external;
@@ -175,6 +174,10 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   // ========================================================================== //
   //                                   Markets                                  //
   // ========================================================================== //
+
+  /// @dev Get the temporarily stored market parameters for a market that is
+  ///      currently being deployed.
+  function getMarketParameters() external view returns (MarketParameters memory parameters);
 
   /// @dev Deploy a market with an existing hooks deployment (in `parameters.hooks`)
   ///

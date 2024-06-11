@@ -282,7 +282,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
    * @dev Get the temporarily stored market parameters for a market that is
    *      currently being deployed.
    */
-  function getMarketParameters() external view returns (MarketParameters memory parameters) {
+  function getMarketParameters() external view override returns (MarketParameters memory parameters) {
     TmpMarketParameterStorage memory tmp = _getTmpMarketParameters();
 
     parameters.asset = tmp.asset;
