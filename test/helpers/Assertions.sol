@@ -2,6 +2,7 @@ pragma solidity ^0.8.20;
 
 import 'src/libraries/MarketState.sol';
 import { StdAssertions } from 'forge-std/StdAssertions.sol';
+import 'forge-std/console2.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import 'src/types/HooksConfig.sol';
 import 'src/types/LenderStatus.sol';
@@ -310,5 +311,68 @@ contract Assertions is StdAssertions {
 
   function assertEq(DeployMarketInputs memory actual, DeployMarketInputs memory expected) internal {
     assertEq(actual, expected, 'DeployMarketInput');
+  }
+
+  function assertBytesEq(
+    bytes memory actual,
+    bytes memory expected,
+    string memory label,
+    bool hasSelector
+  ) internal {
+    if (keccak256(actual) != keccak256(expected)) {
+      if (bytes(label).length != 0) {
+        label = string.concat(' (', label, ')');
+      }
+      string memory errorMessage = string.concat('Error: actual != expected', label);
+      emit log(errorMessage);
+      console2.log('Error: actual != expected', label);
+      printWordsInBytes(actual, '  actual', hasSelector);
+      printWordsInBytes(expected, '  expected', hasSelector);
+      revert(errorMessage);
+    }
+  }
+
+  function assertBytesEq(bytes memory actual, bytes memory expected, string memory label) internal {
+    assertBytesEq(actual, expected, label, false);
+  }
+
+  function printWordsInBytes(
+    bytes memory data,
+    string memory linePrefix,
+    bool hasSelector
+  ) internal pure {
+    uint i;
+    if (hasSelector) {
+      i = 4;
+      uint selector;
+      assembly {
+        selector := shr(224, mload(add(data, 0x20)))
+      }
+      console2.log(string.concat(linePrefix, '[0:4]:'), selector.toHexString());
+    }
+    for (; i < data.length; i += 32) {
+      uint word;
+      assembly {
+        word := mload(add(data, add(i, 0x20)))
+      }
+      uint end = i + 32;
+      if (end > data.length) {
+        end = data.length;
+      }
+      string memory prefix = string.concat(
+        linePrefix,
+        '[',
+        i.toString(),
+        ':',
+        end.toString(),
+        ']: '
+      );
+
+      console2.log(prefix, word.toHexString());
+    }
+  }
+
+  function printWordsInBytes(bytes memory data, bool hasSelector) internal pure {
+    printWordsInBytes(data, '', hasSelector);
   }
 }
