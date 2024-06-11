@@ -122,7 +122,7 @@ library MarketDataLib {
     data.underlyingToken.fill(market.asset());
 
     data.borrower = market.borrower();
-    data.controller = market.controller();
+    // data.controller = market.controller();
     data.feeRecipient = market.feeRecipient();
     data.protocolFeeBips = market.protocolFeeBips();
     data.delinquencyFeeBips = market.delinquencyFeeBips();
@@ -133,7 +133,7 @@ library MarketDataLib {
       data.originalAnnualInterestBips,
       data.originalReserveRatioBips,
       data.temporaryReserveRatioExpiry
-    ) = WildcatMarketController(market.controller()).temporaryExcessReserveRatio(address(market));
+    ) = WildcatMarketController(address(0)/* market.controller() */).temporaryExcessReserveRatio(address(market));
     data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
 
     data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
@@ -230,7 +230,7 @@ library MarketDataLib {
     WildcatMarket market,
     address lender
   ) internal view {
-    WildcatMarketController controller = WildcatMarketController(market.controller());
+    WildcatMarketController controller = WildcatMarketController(address(0)/* market.controller() */);
 
     status.lender = lender;
     // @todo
