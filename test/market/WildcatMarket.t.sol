@@ -7,12 +7,13 @@ import 'src/libraries/MathUtils.sol';
 import 'src/libraries/SafeCastLib.sol';
 import 'src/libraries/MarketState.sol';
 import 'solady/utils/SafeTransferLib.sol';
+import { AccessControlHooksDataFuzzInputs, ExistingCredentialFuzzInputs } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 contract WildcatMarketTest is BaseMarketTest {
   using stdStorage for StdStorage;
-  // using WadRayMath for uint256;
   using MathUtils for int256;
   using MathUtils for uint256;
+  using SafeCastLib for uint256;
 
   // ===================================================================== //
   //                             updateState()                             //
@@ -41,7 +42,7 @@ contract WildcatMarketTest is BaseMarketTest {
     setUp();
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
-    uint32 timestamp = uint32(1);
+    uint32 timestamp = uint32(block.timestamp);
     uint32 expiry = previousState.pendingWithdrawalExpiry;
     fastForward(2 days);
     MarketState memory state = pendingState();
@@ -69,7 +70,7 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_updateState_HasPendingExpiredBatch_SameBlock() external {
     parameters.annualInterestBips = 3650;
     parameters.withdrawalBatchDuration = 0;
-    setUpContracts(true);
+    setUpContracts(false, true);
     setUp();
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
@@ -217,18 +218,18 @@ contract WildcatMarketTest is BaseMarketTest {
   //                             closeMarket()                              //
   // ===================================================================== //
 
-  function test_closeMarket_TransferRemainingDebt() external asAccount(address(controller)) {
+  function test_closeMarket_TransferRemainingDebt() external asAccount(borrower) {
     // Borrow 80% of deposits then request withdrawal of 100% of deposits
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
-    startPrank(borrower);
+    // startPrank(borrower);
     asset.approve(address(market), 8e17);
-    stopPrank();
+    // stopPrank();
     vm.expectEmit(address(asset));
     emit Transfer(borrower, address(market), 8e17);
     market.closeMarket();
   }
 
-  function test_closeMarket_TransferExcessAssets() external asAccount(address(controller)) {
+  function test_closeMarket_TransferExcessAssets() external asAccount(borrower) {
     // Borrow 80% of deposits then request withdrawal of 100% of deposits
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     asset.mint(address(market), 1e18);
@@ -237,28 +238,80 @@ contract WildcatMarketTest is BaseMarketTest {
     market.closeMarket();
   }
 
-  function test_closeMarket_FailTransferRemainingDebt() external asAccount(address(controller)) {
+  function test_closeMarket_FailTransferRemainingDebt() external asAccount(borrower) {
     // Borrow 80% of deposits then request withdrawal of 100% of deposits
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
     market.closeMarket();
   }
 
-  function test_closeMarket_NotController() external {
-    vm.expectRevert(IMarketEventsAndErrors.NotController.selector);
+  function test_closeMarket_NotApprovedBorrower() external {
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
     market.closeMarket();
   }
 
-  function test_closeMarket_CloseMarketWithUnpaidWithdrawals()
-    external
-    asAccount(address(controller))
-  {
+  function test_closeMarket_repayUnpaidAndPendingWithdrawals() external asAccount(borrower) {
+    _depositBorrowWithdraw(alice, 2e18, 16e17, 1e18);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    // updateState(pendingState());
+    _requestWithdrawal(alice, 1e18);
+    assertEq(market.getUnpaidBatchExpiries().length, 1, 'batch not still open');
+
+    uint remainingDebt = market.totalDebts() - 4e17;
+
+    MarketState memory state = pendingState();
+    asset.mint(borrower, remainingDebt);
+    asset.approve(address(market), remainingDebt);
+    _trackRepay(state, borrower, remainingDebt);
+    _applyWithdrawalBatchPayment(
+      _getWithdrawalBatch(state.pendingWithdrawalExpiry),
+      state,
+      state.pendingWithdrawalExpiry,
+      lastTotalAssets - (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees),
+      true
+    );
+    _trackProcessUnpaidWithdrawalBatch(state);
+    state.annualInterestBips = 0;
+    state.isClosed = true;
+    state.reserveRatioBips = 10000;
+    state.timeDelinquent = 0;
+    updateState(state);
+    market.closeMarket();
+    assertEq(market.getUnpaidBatchExpiries().length, 0);
+    _checkState();
+  }
+
+  function test_closeMarket_repayUnpaidWithdrawals() external asAccount(borrower) {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+    updateState(pendingState());
+    assertEq(market.getUnpaidBatchExpiries().length, 1);
+
+    uint remainingDebt = market.totalDebts() - 2e17;
+
+    MarketState memory state = pendingState();
+    asset.mint(borrower, remainingDebt);
+    asset.approve(address(market), remainingDebt);
+    _trackRepay(state, borrower, remainingDebt);
+    _trackProcessUnpaidWithdrawalBatch(state);
+    state.annualInterestBips = 0;
+    state.isClosed = true;
+    state.reserveRatioBips = 10000;
+    state.timeDelinquent = 0;
+    updateState(state);
+    market.closeMarket();
+    assertEq(market.getUnpaidBatchExpiries().length, 0);
+    _checkState();
+  }
+
+  function test_closeMarket_UnpaidWithdrawals_TransferFailure() external asAccount(borrower) {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     fastForward(parameters.withdrawalBatchDuration + 1);
     market.updateState();
     uint32[] memory unpaidBatches = market.getUnpaidBatchExpiries();
     assertEq(unpaidBatches.length, 1);
-    vm.expectRevert(IMarketEventsAndErrors.CloseMarketWithUnpaidWithdrawals.selector);
+    vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
     market.closeMarket();
   }
 
@@ -281,7 +334,7 @@ contract WildcatMarketTest is BaseMarketTest {
   }
 
   function test_repay_RepayToClosedMarket() external {
-    vm.prank(address(controller));
+    vm.prank(borrower);
     market.closeMarket();
     asset.mint(address(this), 1e18);
     asset.approve(address(market), 1e18);
@@ -351,5 +404,99 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_repayDelinquentDebt_NullRepayAmount() external {
     vm.expectRevert(IMarketEventsAndErrors.NullRepayAmount.selector);
     market.repayDelinquentDebt();
+  }
+
+  // ========================================================================== //
+  //                            Credentials Provider                            //
+  // ========================================================================== //
+
+  function test_depositUpTo_FuzzAccess(AccessControlHooksFuzzInputs memory fuzzInputs) external {
+    address carol = address(0xca701);
+    AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
+      fuzzInputs,
+      hooks,
+      roleProvider1,
+      roleProvider2,
+      carol
+    );
+
+    uint amount = 10e18;
+    MarketState memory state = pendingState();
+    (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, carol);
+    asset.mint(carol, amount);
+    vm.prank(carol);
+    asset.approve(address(market), amount);
+    (uint104 scaledAmount, uint256 expectedNormalizedAmount) = _trackDeposit(state, carol, amount);
+    bytes memory data = abi.encodePacked(
+      abi.encodeWithSelector(WildcatMarket.depositUpTo.selector, amount),
+      context.hooksData
+    );
+    address marketAddress = address(market);
+
+    // If the caller won't be authorized and no other error is expected, expect NotApprovedLender error
+    if (
+      !context.expectations.hasValidCredential && context.expectations.expectedError == bytes4(0)
+    ) {
+      context.expectations.expectedError = IMarketEventsAndErrors.NotApprovedLender.selector;
+    }
+    context.registerExpectations(true);
+    vm.prank(carol);
+    (bool success, bytes memory returnData) = marketAddress.call(data);
+    // Check both because expectRevert will change success to true if it reverts
+    if (success && context.expectations.expectedError == bytes4(0)) {
+      uint256 actualNormalizedAmount = abi.decode(returnData, (uint256));
+      assertEq(actualNormalizedAmount, expectedNormalizedAmount, 'Actual amount deposited');
+      _checkState();
+      assertApproxEqAbs(market.balanceOf(carol), currentBalance + amount, 1);
+      assertEq(market.scaledBalanceOf(carol), currentScaledBalance + scaledAmount);
+    }
+  }
+
+  function test_queueWithdrawal_FuzzAccess(
+    AccessControlHooksFuzzInputs memory fuzzInputs
+  ) external {
+    address carol = address(0xca701);
+    AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
+      fuzzInputs,
+      hooks,
+      roleProvider1,
+      roleProvider2,
+      carol
+    );
+
+    uint amount = 1e18;
+    _deposit(alice, amount);
+    MarketState memory state = pendingState();
+    updateState(state);
+    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    MarketAccount storage _alice = _getAccount(alice);
+    MarketAccount storage _carol = _getAccount(carol);
+    _alice.scaledBalance -= scaledAmount;
+    _carol.scaledBalance += scaledAmount;
+    vm.prank(alice);
+    market.transfer(carol, amount);
+    bytes memory data = abi.encodePacked(
+      abi.encodeWithSelector(market.queueWithdrawal.selector, amount),
+      context.hooksData
+    );
+    address marketAddress = address(market);
+
+    // If the caller won't be authorized and no other error is expected, expect NotApprovedLender error
+    if (
+      !context.expectations.hasValidCredential && context.expectations.expectedError == bytes4(0)
+    ) {
+      context.expectations.expectedError = IMarketEventsAndErrors.NotApprovedLender.selector;
+    }
+    context.registerExpectations(true);
+    vm.prank(carol);
+    if (context.expectations.expectedError == bytes4(0)) {
+      _trackQueueWithdrawal(state, carol, amount);
+    }
+    (bool success, bytes memory returnData) = marketAddress.call(data);
+    // Check both because expectRevert will change success to true if it reverts
+    if (success && context.expectations.expectedError == bytes4(0)) {
+      _checkState();
+      assertEq(market.balanceOf(carol), 0, 'carol balance');
+    }
   }
 }
