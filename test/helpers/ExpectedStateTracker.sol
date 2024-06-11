@@ -8,7 +8,7 @@ import './Assertions.sol';
 import '../shared/Test.sol';
 import { Account as MarketAccount } from 'src/libraries/MarketState.sol';
 
-contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
+contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
   using FeeMath for MarketState;
   using SafeCastLib for uint256;
   using MathUtils for uint256;
@@ -35,7 +35,6 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
       namePrefix: 'Wildcat ',
       symbolPrefix: 'WC',
       borrower: borrower,
-      controller: address(0),
       feeRecipient: feeRecipient,
       sentinel: address(sanctionsSentinel),
       maxTotalSupply: uint128(DefaultMaximumSupply),
@@ -45,6 +44,9 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
       withdrawalBatchDuration: DefaultWithdrawalBatchDuration,
       reserveRatioBips: DefaultReserveRatio,
       delinquencyGracePeriod: DefaultGracePeriod,
+      hooksTemplate: hooksTemplate,
+      deployMarketHooksData: '',
+      hooksConfig: HooksConfig.wrap(0),
       sphereXEngine: address(0)
     });
   }
@@ -71,27 +73,58 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
   }
 
   function pendingState() internal returns (MarketState memory state) {
+    return pendingState(false);
+  }
+
+  function pendingState(bool expectEvents) internal returns (MarketState memory state) {
     state = previousState;
-    //
     if (block.timestamp > state.pendingWithdrawalExpiry && state.pendingWithdrawalExpiry != 0) {
       uint256 expiry = state.pendingWithdrawalExpiry;
       if (expiry != state.lastInterestAccruedTimestamp) {
-        state.updateScaleFactorAndFees(
+        uint prevTimestamp = state.lastInterestAccruedTimestamp;
+        (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
+          .updateScaleFactorAndFees(
+            parameters.protocolFeeBips,
+            parameters.delinquencyFeeBips,
+            parameters.delinquencyGracePeriod,
+            expiry
+          );
+        if (expectEvents) {
+          vm.expectEmit(address(market));
+          emit InterestAndFeesAccrued(
+            prevTimestamp,
+            expiry,
+            state.scaleFactor,
+            baseInterestRay,
+            delinquencyFeeRay,
+            protocolFee
+          );
+        }
+      }
+      _processExpiredWithdrawalBatch(state, expectEvents);
+    }
+    uint timestamp = block.timestamp;
+    
+    if (block.timestamp != state.lastInterestAccruedTimestamp) {
+      uint prevTimestamp = state.lastInterestAccruedTimestamp;
+      (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
+        .updateScaleFactorAndFees(
           parameters.protocolFeeBips,
           parameters.delinquencyFeeBips,
           parameters.delinquencyGracePeriod,
-          expiry
+          timestamp
+        );
+      if (expectEvents) {
+        vm.expectEmit(address(market));
+        emit InterestAndFeesAccrued(
+          prevTimestamp,
+          block.timestamp,
+          state.scaleFactor,
+          baseInterestRay,
+          delinquencyFeeRay,
+          protocolFee
         );
       }
-      _processExpiredWithdrawalBatch(state);
-    }
-    if (block.timestamp != state.lastInterestAccruedTimestamp) {
-      state.updateScaleFactorAndFees(
-        parameters.protocolFeeBips,
-        parameters.delinquencyFeeBips,
-        parameters.delinquencyGracePeriod,
-        block.timestamp
-      );
     }
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 pendingBatchExpiry = state.pendingWithdrawalExpiry;
@@ -103,7 +136,13 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
           lastTotalAssets
         );
         if (availableLiquidity > 0) {
-          _applyWithdrawalBatchPayment(pendingBatch, state, pendingBatchExpiry, availableLiquidity);
+          _applyWithdrawalBatchPayment(
+            pendingBatch,
+            state,
+            pendingBatchExpiry,
+            availableLiquidity,
+            expectEvents
+          );
         }
       }
     }
@@ -161,6 +200,12 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
 
   function _checkState(string memory key) internal {
     assertEq(market.previousState(), previousState, string.concat(key, 'previousState'));
+    uint snapshotId = vm.snapshot();
+    this.checkCurrentState(string.concat(key, 'state.'));
+    vm.revertTo(snapshotId);
+  }
+
+  function checkCurrentState(string memory key) external {
     MarketState memory state = pendingState();
     updateState(state);
     assertEq(market.currentState(), state, string.concat(key, 'currentState'));
@@ -181,6 +226,15 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     }
     uint32[] memory unpaidBatches = _withdrawalData.unpaidBatches.values();
     assertEq(market.getUnpaidBatchExpiries(), unpaidBatches, string.concat(key, 'unpaidBatches'));
+  }
+
+  function _checkState(MarketState memory state) internal {
+    assertEq(market.previousState(), previousState, 'previousState');
+    updateState(state);
+
+    uint snapshotId = vm.snapshot();
+    this.checkCurrentState('state.');
+    vm.revertTo(snapshotId);
   }
 
   function _checkState() internal {
@@ -291,7 +345,7 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
 
     uint256 availableLiquidity = _availableLiquidityForPendingBatch(batch, state);
     if (availableLiquidity > 0) {
-      _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
+      _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity, true);
     }
 
     updateState(state);
@@ -390,7 +444,7 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     uint256 availableLiquidity = lastTotalAssets -
       (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
     if (availableLiquidity > 0) {
-      _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
+      _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity, true);
     }
     if (batch.scaledTotalAmount == batch.scaledAmountBurned) {
       _withdrawalData.unpaidBatches.shift();
@@ -405,7 +459,7 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
    *      as of the time of expiry and retrieve the current liquid assets in the market
    * (assets which are not already owed to protocol fees or prior withdrawal batches).
    */
-  function _processExpiredWithdrawalBatch(MarketState memory state) internal {
+  function _processExpiredWithdrawalBatch(MarketState memory state, bool expectEvents) internal {
     WithdrawalBatch storage batch = _getWithdrawalBatch(state.pendingWithdrawalExpiry);
 
     if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
@@ -417,22 +471,25 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
           batch,
           state,
           state.pendingWithdrawalExpiry,
-          availableLiquidity
+          availableLiquidity,
+          expectEvents
         );
       }
     }
-    // vm.expectEmit(address(market));
-    emit WithdrawalBatchExpired(
-      state.pendingWithdrawalExpiry,
-      batch.scaledTotalAmount,
-      batch.scaledAmountBurned,
-      batch.normalizedAmountPaid
-    );
+    if (expectEvents) {
+      vm.expectEmit(address(market));
+      emit WithdrawalBatchExpired(
+        state.pendingWithdrawalExpiry,
+        batch.scaledTotalAmount,
+        batch.scaledAmountBurned,
+        batch.normalizedAmountPaid
+      );
+    }
 
     if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
       _withdrawalData.unpaidBatches.push(state.pendingWithdrawalExpiry);
-    } else {
-      // vm.expectEmit(address(market));
+    } else if (expectEvents) {
+      vm.expectEmit(address(market));
       emit WithdrawalBatchClosed(state.pendingWithdrawalExpiry);
     }
 
@@ -459,7 +516,8 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     WithdrawalBatch storage batch,
     MarketState memory state,
     uint32 expiry,
-    uint256 availableLiquidity
+    uint256 availableLiquidity,
+    bool expectEvents
   ) internal {
     uint104 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity).toUint104();
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
@@ -480,9 +538,11 @@ contract ExpectedStateTracker is Test, Assertions, IMarketEventsAndErrors {
     state.scaledTotalSupply -= scaledAmountBurned;
 
     // Emit transfer for external trackers to indicate burn.
-    // vm.expectEmit(address(market));
-    emit Transfer(address(market), address(0), normalizedAmountPaid);
-    // vm.expectEmit(address(market));
-    emit WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
+    if (expectEvents) {
+      vm.expectEmit(address(market));
+      emit Transfer(address(market), address(0), normalizedAmountPaid);
+      vm.expectEmit(address(market));
+      emit WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
+    }
   }
 }
