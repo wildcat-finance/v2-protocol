@@ -5,11 +5,9 @@ import 'src/types/HooksConfig.sol';
 import { Test, console2 } from 'forge-std/Test.sol';
 import '../helpers/Assertions.sol';
 import '../helpers/fuzz/MarketStateFuzzInputs.sol';
-import 'solady/utils/LibString.sol';
 import '../shared/mocks/MockHooks.sol';
 import '../shared/mocks/MockHookCaller.sol';
 
-using LibString for uint;
 
 contract HooksConfigTest is Test, Assertions {
   MockHooks internal hooks = new MockHooks(address(this), '');
@@ -30,31 +28,6 @@ contract HooksConfigTest is Test, Assertions {
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
       }
-    }
-  }
-
-  function prettyPrintBytes(bytes memory data, bool hasSelector) internal {
-    uint i;
-    if (hasSelector) {
-      i = 4;
-      uint selector;
-      assembly {
-        selector := shr(224, mload(add(data, 0x20)))
-      }
-      console2.log('[0:4]:', selector.toHexString());
-    }
-    for (; i < data.length; i += 32) {
-      uint word;
-      assembly {
-        word := mload(add(data, add(i, 0x20)))
-      }
-      uint end = i + 32;
-      if (end > data.length) {
-        end = data.length;
-      }
-      string memory prefix = string.concat('[', i.toString(), ':', end.toString(), ']: ');
-
-      console2.log(prefix, word.toHexString());
     }
   }
 
@@ -305,8 +278,14 @@ contract HooksConfigTest is Test, Assertions {
     StandardHooksConfig memory configInput,
     bytes memory extraData,
     uint16 annualInterestBips,
-    uint16 reserveRatioBips
+    uint16 reserveRatioBips,
+    uint16 annualInterestBipsToReturn,
+    uint16 reserveRatioBipsToReturn
   ) external {
+    hooks.setAnnualInterestAndReserveRatioBips(
+      annualInterestBipsToReturn,
+      reserveRatioBipsToReturn
+    );
     MarketState memory state = stateInput.toState();
     mockHookCaller.setState(state);
     configInput.hooksAddress = address(hooks);
@@ -320,6 +299,7 @@ contract HooksConfigTest is Test, Assertions {
       ),
       extraData
     );
+
     if (config.useOnSetAnnualInterestAndReserveRatioBips()) {
       vm.expectEmit();
       emit OnSetAnnualInterestAndReserveRatioBipsCalled(
@@ -330,7 +310,17 @@ contract HooksConfigTest is Test, Assertions {
       );
     }
     _callMockHookCaller(_calldata);
-    if (!config.useOnSetAnnualInterestAndReserveRatioBips()) {
+    if (config.useOnSetAnnualInterestAndReserveRatioBips()) {
+      uint16 returnedAnnualInterestBips;
+      uint16 returnedReserveRatioBips;
+      assembly {
+        returndatacopy(0, 0, 0x40)
+        returnedAnnualInterestBips := mload(0)
+        returnedReserveRatioBips := mload(0x20)
+      }
+      assertEq(returnedAnnualInterestBips, annualInterestBipsToReturn, 'updatedAnnualInterestBips');
+      assertEq(returnedReserveRatioBips, reserveRatioBipsToReturn, 'updatedReserveRatioBips');
+    } else {
       assertEq(hooks.lastCalldataHash(), 0);
     }
   }
