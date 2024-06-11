@@ -12,110 +12,29 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     assertEq(market.maximumDeposit(), DefaultMaximumSupply - _depositAmount);
   }
 
-  function test_maximumDeposit_SupplyExceedsMaximum() external returns (uint256) {
+  function test_maximumDeposit_SupplyExceedsMaximum() external {
     _deposit(alice, parameters.maxTotalSupply);
     fastForward(365 days);
     assertEq(market.totalSupply(), 110_000e18);
     assertEq(market.maximumDeposit(), 0);
   }
 
-  function test_maxTotalSupply() external returns (uint256) {
+  function test_maxTotalSupply() external asAccount(borrower) {
     assertEq(market.maxTotalSupply(), parameters.maxTotalSupply);
-    vm.prank(parameters.controller);
     market.setMaxTotalSupply(10000);
     assertEq(market.maxTotalSupply(), 10000);
   }
 
-  function test_annualInterestBips() external returns (uint256) {
+  function test_annualInterestBips() external asAccount(borrower) {
     assertEq(market.annualInterestBips(), parameters.annualInterestBips);
-    vm.prank(parameters.controller);
     market.setAnnualInterestAndReserveRatioBips(10000, 10000);
     assertEq(market.annualInterestBips(), 10000);
   }
 
-  function test_reserveRatioBips() external returns (uint256) {}
-
-  /* -------------------------------------------------------------------------- */
-  /*                        updateAccountAuthorization()                        */
-  /* -------------------------------------------------------------------------- */
-
-  function _updateAccountAuthorization(address _account, bool _isAuthorized) internal pure {
-    address[] memory accounts = new address[](1);
-    accounts[0] = _account;
-
-    // @todo
-    // market.updateAccountAuthorizations(accounts, _isAuthorized);
-  }
-
-  function test_updateAccountAuthorization_Revoke_NoInitialRole(
-    address _account
-  ) external asAccount(parameters.controller) {
-    _updateAccountAuthorization(_account, false);
-    // @todo
-    // assertEq(
-    // uint(market.getAccountRole(_account)),
-    // uint(AuthRole.Null),
-    // 'account role should be null'
-    // );
-  }
-
-  function test_updateAccountAuthorization_Revoke_WithInitialRole(
-    address _account
-  ) external asAccount(parameters.controller) {
-    // @todo
-    // vm.expectEmit(address(market));
-    // emit AuthorizationStatusUpdated(_account, AuthRole.DepositAndWithdraw);
-    _updateAccountAuthorization(_account, true);
-
-    // @todo
-    // vm.expectEmit(address(market));
-    // emit AuthorizationStatusUpdated(_account, AuthRole.WithdrawOnly);
-    _updateAccountAuthorization(_account, false);
-
-    // @todo
-    // assertEq(
-    // uint(market.getAccountRole(_account)),
-    // uint(AuthRole.WithdrawOnly),
-    // 'account role should be WithdrawOnly'
-    // );
-  }
-
-  function test_updateAccountAuthorization_Revoke_AccountBlocked(address _account) external {
-    sanctionsSentinel.sanction(_account);
-    market.nukeFromOrbit(_account);
-    vm.startPrank(parameters.controller);
-    vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
-    _updateAccountAuthorization(_account, false);
-  }
-
-  function test_updateAccountAuthorization(
-    address _account
-  ) external asAccount(parameters.controller) {
-    // @todo
-    // vm.expectEmit(address(market));
-    // emit AuthorizationStatusUpdated(_account, AuthRole.DepositAndWithdraw);
-    _updateAccountAuthorization(_account, true);
-    // @todo
-    // assertEq(
-    //   uint(market.getAccountRole(_account)),
-    //   uint(AuthRole.DepositAndWithdraw),
-    //   'account role should be DepositAndWithdraw'
-    // );
-  }
-
-  function test_updateAccountAuthorization_NotController(address _account) external {
-    vm.expectRevert(IMarketEventsAndErrors.NotController.selector);
-    _updateAccountAuthorization(_account, true);
-    vm.expectRevert(IMarketEventsAndErrors.NotController.selector);
-    _updateAccountAuthorization(_account, false);
-  }
-
-  function test_updateAccountAuthorization_AccountBlocked(address _account) external {
-    sanctionsSentinel.sanction(_account);
-    market.nukeFromOrbit(_account);
-    vm.startPrank(parameters.controller);
-    vm.expectRevert(IMarketEventsAndErrors.AccountBlocked.selector);
-    _updateAccountAuthorization(_account, true);
+  function test_reserveRatioBips() external asAccount(borrower) {
+    assertEq(market.reserveRatioBips(), parameters.reserveRatioBips);
+    market.setAnnualInterestAndReserveRatioBips(10000, 10000);
+    assertEq(market.reserveRatioBips(), 10000);
   }
 
   function test_nukeFromOrbit(address _account) external {
@@ -198,7 +117,7 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     // vm.expectEmit(address(market)); // this line causing the test fail
     // emit AuthorizationStatusUpdated(alice, AuthRole.WithdrawOnly);
     // market.stunningReversal(alice);
-    
+
     assertFalse(market.isAccountSanctioned(alice), 'account should be unsanctioned');
     /* assertEq(
       uint(market.getAccountRole(alice)),
@@ -226,7 +145,7 @@ contract WildcatMarketConfigTest is BaseMarketTest {
   function test_setMaxTotalSupply(
     uint256 _totalSupply,
     uint256 _maxTotalSupply
-  ) external asAccount(parameters.controller) {
+  ) external asAccount(borrower) {
     _totalSupply = bound(_totalSupply, 0, DefaultMaximumSupply);
     _maxTotalSupply = bound(_maxTotalSupply, _totalSupply, type(uint128).max);
     if (_totalSupply > 0) {
@@ -236,15 +155,15 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     assertEq(market.maxTotalSupply(), _maxTotalSupply, 'maxTotalSupply should be _maxTotalSupply');
   }
 
-  function test_setMaxTotalSupply_NotController(uint128 _maxTotalSupply) external {
-    vm.expectRevert(IMarketEventsAndErrors.NotController.selector);
+  function test_setMaxTotalSupply_NotApprovedBorrower(uint128 _maxTotalSupply) external {
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
     market.setMaxTotalSupply(_maxTotalSupply);
   }
 
   function test_setMaxTotalSupply_BelowCurrentSupply(
     uint256 _totalSupply,
     uint256 _maxTotalSupply
-  ) external asAccount(parameters.controller) {
+  ) external asAccount(borrower) {
     _totalSupply = bound(_totalSupply, 1, DefaultMaximumSupply - 1);
     _maxTotalSupply = bound(_maxTotalSupply, 0, _totalSupply - 1);
     _deposit(alice, _totalSupply);
@@ -252,72 +171,70 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     assertEq(market.maxTotalSupply(), _maxTotalSupply, 'maxTotalSupply should be _maxTotalSupply');
   }
 
-  function test_setAnnualInterestBips(
-    uint16 _annualInterestBips
-  ) external asAccount(parameters.controller) {
+  function test_setAnnualInterestAndReserveRatioBips(
+    uint16 _annualInterestBips,
+    uint16 _reserveRatioBips
+  ) external asAccount(borrower) {
     _annualInterestBips = uint16(bound(_annualInterestBips, 0, 10000));
-    // @todo
-    // market.setAnnualInterestBips(_annualInterestBips);
+    _reserveRatioBips = uint16(bound(_reserveRatioBips, 0, 10000));
+    market.setAnnualInterestAndReserveRatioBips(_annualInterestBips, _reserveRatioBips);
     assertEq(market.annualInterestBips(), _annualInterestBips);
-  }
-
-  function test_setAnnualInterestBips_NotController(uint16 _annualInterestBips) external {
-    vm.expectRevert(IMarketEventsAndErrors.NotController.selector);
-    // @todo
-    // market.setAnnualInterestBips(_annualInterestBips);
-  }
-
-  function test_setReserveRatioBips(
-    uint256 _reserveRatioBips
-  ) external asAccount(parameters.controller) {
-    _reserveRatioBips = bound(_reserveRatioBips, 0, 10000);
-    market.setReserveRatioBips(uint16(_reserveRatioBips));
     assertEq(market.reserveRatioBips(), _reserveRatioBips);
   }
 
-  /* 	function test_setReserveRatioBips_IncreaseWhileDelinquent(
+  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsTooHigh(
+    uint16 _reserveRatioBips
+  ) external asAccount(borrower) {
+    _reserveRatioBips = uint16(bound(_reserveRatioBips, 0, 10000));
+    vm.expectRevert(IMarketEventsAndErrors.AnnualInterestBipsTooHigh.selector);
+    market.setAnnualInterestAndReserveRatioBips(10001, _reserveRatioBips);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_NotApprovedBorrower() external {
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+    market.setAnnualInterestAndReserveRatioBips(0, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsTooHigh()
+    external
+    asAccount(borrower)
+  {
+    vm.expectRevert(IMarketEventsAndErrors.AnnualInterestBipsTooHigh.selector);
+    market.setAnnualInterestAndReserveRatioBips(10001, 0);
+  }
+
+  /* function test_setAnnualInterestAndReserveRatioBips_IncreaseWhileDelinquent(
 		uint256 _reserveRatioBips
-	) external asAccount(parameters.controller) {
+	) external asAccount(borrower) {
 		_reserveRatioBips = bound(
 			_reserveRatioBips,
 			parameters.reserveRatioBips + 1,
 			10000
 		);
-		_induceDelinquency();
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
 		vm.expectEmit(address(market));
 		emit ReserveRatioBipsUpdated(uint16(_reserveRatioBips));
-		market.setReserveRatioBips(uint16(_reserveRatioBips));
+		market.setAnnualInterestAndReserveRatioBips(uint16(parameters.annualInterestBips), uint16(_reserveRatioBips));
 		assertEq(market.reserveRatioBips(), _reserveRatioBips);
 	} */
 
-  function _induceDelinquency() internal {
-    _deposit(alice, 1e18);
-    _borrow(2e17);
-    _requestWithdrawal(alice, 9e17);
-  }
-
   // Market already deliquent, LCR set to lower value
-  function test_setReserveRatioBips_InsufficientReservesForOldLiquidityRatio()
+  function test_setAnnualInterestAndReserveRatioBips_InsufficientReservesForOldLiquidityRatio()
     external
-    asAccount(parameters.controller)
+    asAccount(borrower)
   {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForOldLiquidityRatio.selector);
-    market.setReserveRatioBips(1000);
+    market.setAnnualInterestAndReserveRatioBips(10000, 1000);
   }
 
-  function test_setReserveRatioBips_InsufficientReservesForNewLiquidityRatio()
+  function test_setAnnualInterestAndReserveRatioBips_InsufficientReservesForNewLiquidityRatio()
     external
-    asAccount(parameters.controller)
+    asAccount(borrower)
   {
     _deposit(alice, 1e18);
     _borrow(7e17);
     vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForNewLiquidityRatio.selector);
-    market.setReserveRatioBips(3001);
-  }
-
-  function test_setReserveRatioBips_NotController(uint16 _reserveRatioBips) external {
-    vm.expectRevert(IMarketEventsAndErrors.NotController.selector);
-    market.setReserveRatioBips(_reserveRatioBips);
+    market.setAnnualInterestAndReserveRatioBips(10000, 3001);
   }
 }
