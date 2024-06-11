@@ -5,6 +5,7 @@ import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSe
 import 'solady/utils/SafeTransferLib.sol';
 import './market/WildcatMarket.sol';
 import './interfaces/IWildcatArchController.sol';
+import './interfaces/IWildcatMarketController.sol';
 import './interfaces/IWildcatMarketControllerFactory.sol';
 import './libraries/LibStoredInitCode.sol';
 import './libraries/MathUtils.sol';
@@ -749,13 +750,16 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
       }
       tmp.expiry = expiry;
       temporaryExcessReserveRatio[market] = tmp;
-      WildcatMarket(market).setReserveRatioBips(temporaryReserveRatioBips);
+      // @todo test on market
+      // WildcatMarket(market).setReserveRatioBips(temporaryReserveRatioBips);
     } else if (tmp.expiry != 0) {
       // If there is a temporary reserve ratio and the new interest rate is greater
       // than or equal to the original, reset the reserve ratio early.
       emit TemporaryExcessReserveRatioCanceled(market);
       delete temporaryExcessReserveRatio[market];
-      WildcatMarket(market).setReserveRatioBips(originalReserveRatioBips);
+      
+      // @todo test on market
+      // WildcatMarket(market).setReserveRatioBips(originalReserveRatioBips);
     }
 
     // WildcatMarket(market).setAnnualInterestBips(annualInterestBips);
@@ -769,7 +773,9 @@ contract WildcatMarketController is SphereXProtectedRegisteredBase, IWildcatMark
     }
 
     emit TemporaryExcessReserveRatioExpired(market);
-    WildcatMarket(market).setReserveRatioBips(uint256(tmp.originalReserveRatioBips).toUint16());
+    
+      // @todo test on market
+      // WildcatMarket(market).setReserveRatioBips(uint256(tmp.originalReserveRatioBips).toUint16());
     delete temporaryExcessReserveRatio[market];
   }
 
