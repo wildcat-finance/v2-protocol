@@ -217,21 +217,12 @@ contract WildcatMarket is
 
     if (state.isClosed) revert_MarketAlreadyClosed();
 
-    state.annualInterestBips = 0;
-    state.isClosed = true;
-    state.reserveRatioBips = 10000;
-    // Ensures that delinquency fee doesn't increase scale factor further
-    // as doing so would mean last lender in market couldn't fully redeem
-    state.timeDelinquent = 0;
-
     uint256 currentlyHeld = totalAssets();
     uint256 totalDebts = state.totalDebts();
     if (currentlyHeld < totalDebts) {
-      uint256 remainingDebt = totalDebts - currentlyHeld;
       // Transfer remaining debts from borrower
-      asset.safeTransferFrom(borrower, address(this), remainingDebt);
-      emit DebtRepaid(borrower, remainingDebt);
-      hooks.onRepay(remainingDebt, state, 0x04);
+      uint256 remainingDebt = totalDebts - currentlyHeld;
+      _repay(state, remainingDebt, 0x04);
       currentlyHeld += remainingDebt;
     } else if (currentlyHeld > totalDebts) {
       uint256 excessDebt = currentlyHeld - totalDebts;
@@ -239,6 +230,13 @@ contract WildcatMarket is
       asset.safeTransfer(borrower, excessDebt);
       currentlyHeld -= excessDebt;
     }
+    hooks.onCloseMarket(state);
+    state.annualInterestBips = 0;
+    state.isClosed = true;
+    state.reserveRatioBips = 10000;
+    // Ensures that delinquency fee doesn't increase scale factor further
+    // as doing so would mean last lender in market couldn't fully redeem
+    state.timeDelinquent = 0;
 
     // @todo make sure this isn't needed
     // Still track available liquidity in case of a rounding error
@@ -275,7 +273,7 @@ contract WildcatMarket is
     }
 
     // @todo re-assess the order of operations here
-    hooks.onCloseMarket(state);
+    // hooks.onCloseMarket(state);
     _writeState(state);
     emit_MarketClosed(block.timestamp);
   }
