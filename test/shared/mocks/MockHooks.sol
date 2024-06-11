@@ -57,13 +57,43 @@ contract MockHooks is IHooks {
   address public deployer;
   bytes public constructorArgs;
   bytes32 public immutable constructorArgsHash;
-  HooksConfig public override config;
+  HooksConfig public override config = encodeHooksConfig({
+    useOnDeposit: true,
+    useOnQueueWithdrawal: true,
+    useOnExecuteWithdrawal: true,
+    useOnTransfer: true,
+    useOnBorrow: true,
+    useOnRepay: true,
+    useOnCloseMarket: true,
+    useOnAssetsSentToEscrow: true,
+    useOnSetMaxTotalSupply: true,
+    useOnSetAnnualInterestAndReserveRatioBips: true,
+    hooksAddress: address(this)
+  });
   address public lastDeployer;
   DeployMarketInputs internal _lastDeployMarketInputs;
   bytes public lastCreateMarketHooksData;
+  bool updateAnnualInterestAndReserveRatioBips;
+  uint16 public annualInterestBipsToReturn;
+  uint16 public reserveRatioBipsToReturn;
+  bytes public lastExtraData;
+
+  function reset() external {
+    lastCalldataHash = 0;
+    DeployMarketInputs memory inputs;
+    _lastDeployMarketInputs = inputs;
+    lastCreateMarketHooksData = '';
+    lastExtraData = '';
+  }
 
   function lastDeployMarketInputs() external view returns (DeployMarketInputs memory) {
     return _lastDeployMarketInputs;
+  }
+
+  function setAnnualInterestAndReserveRatioBips(uint16 _annualInterestBips, uint16 _reserveRatioBips) external {
+    updateAnnualInterestAndReserveRatioBips = true;
+    annualInterestBipsToReturn = _annualInterestBips;
+    reserveRatioBipsToReturn = _reserveRatioBips;
   }
 
   constructor(address _caller, bytes memory _constructorArgs) {
@@ -82,13 +112,31 @@ contract MockHooks is IHooks {
   function setConfig(HooksConfig _config) external {
     config = _config;
   }
+  event RoleProviderAdded(
+    address indexed providerAddress,
+    uint32 timeToLive,
+    uint24 pullProviderIndex
+  );
+  event AccountAccessGranted(
+    address indexed providerAddress,
+    address indexed accountAddress,
+    uint32 credentialTimestamp
+  );
+  // Shim function to work with BaseMarketTest
+  function grantRole(address account, uint32 roleGrantedTimestamp) external {
+    emit AccountAccessGranted(msg.sender, account, roleGrantedTimestamp);
+  }
+  // Shim function to work with BaseMarketTest
+  function addRoleProvider(address providerAddress, uint32 timeToLive) external {
+    emit RoleProviderAdded(providerAddress, timeToLive, 0);
+  }
 
   function _onCreateMarket(
-    address deployer,
+    address _deployer,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
   ) internal virtual override {
-    lastDeployer = deployer;
+    lastDeployer = _deployer;
     _lastDeployMarketInputs = parameters;
     lastCreateMarketHooksData = extraData;
   }
@@ -99,6 +147,7 @@ contract MockHooks is IHooks {
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual override {
+    lastExtraData = extraData;
     lastCalldataHash = keccak256(msg.data);
     emit OnDepositCalled(lender, scaledAmount, intermediateState, extraData);
   }
@@ -200,8 +249,10 @@ contract MockHooks is IHooks {
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
-    lastCalldataHash = keccak256(msg.data);
     emit OnSetAnnualInterestAndReserveRatioBipsCalled(annualInterestBips, reserveRatioBips, intermediateState, extraData);
+    (updatedAnnualInterestBips, updatedReserveRatioBips) = updateAnnualInterestAndReserveRatioBips
+      ? (annualInterestBipsToReturn, reserveRatioBipsToReturn)
+      : (annualInterestBips, reserveRatioBips);
   }
 }
 
