@@ -21,7 +21,8 @@
     "lint:fix": "prettier --write 'src/**/*.sol' 'test/**/*.sol' && solhint --config ./.solhint.json --ignore-path ./.solhintignore 'src/**/*.sol' 'test/**/*.sol'",
     "clean:coverage": "rm -rf coverage lcov.info",
     "coverage": "yarn clean:coverage && forge coverage --report summary --report lcov && lcov -o lcov.info --remove lcov.info --rc lcov_branch_coverage=1 --rc lcov_function_coverage=1 --rc lcov_line_coverage=1 'test/*' 'scripts/*' && genhtml lcov.info -o coverage --branch-coverage --function-coverage  && echo \"Coverage report written to ./coverage/index.html\" && open-cli ./coverage/index.html && rm lcov.info",
-    "test": "forge test --block-timestamp $(date +%s)"
+    "test": "forge test --block-timestamp $(date +%s)",
+    "test:ir": "FOUNDRY_PROFILE=ir forge test --block-timestamp $(date +%s)"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.9.3",

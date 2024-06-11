@@ -1,6 +1,8 @@
 broadcast
 out/
+ir-out/
 cache/
+ir-cache/
 key.txt
 node_modules/
 vaultabi.json

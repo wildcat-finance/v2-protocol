@@ -3,9 +3,14 @@ src = 'src'
 out = 'out'
 libs = ['lib']
 gas_reports = ["WildcatMarket"]
-fs_permissions = [{ access = "read-write", path = "./deployments.json"}]
 
-# via_ir = true
+ffi=true
+solc="0.8.25"
+fs_permissions = [
+  { access = "read-write", path = "./deployments/"},
+  { access = "read-write", path = "./out/"},
+  { access = "read-write", path = "./deployments-old.json"}
+]
 
 remappings = [
   'forge-std/=lib/forge-std/src/',
@@ -22,6 +27,11 @@ evm_version = 'cancun'
 ignored_warnings_from = ["src/", "test/"]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
+
+[profile.ir]
+via_ir=true
+out='ir-out'
+cache_path='ir-cache'
 
 [profile.default.fuzz]
 runs = 1000
