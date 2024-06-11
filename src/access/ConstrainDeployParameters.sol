@@ -118,4 +118,30 @@ abstract contract ConstrainDeployParameters is IHooks {
       parameters.delinquencyGracePeriod
     );
   }
+
+  function onSetAnnualInterestAndReserveRatioBips(
+    uint16 annualInterestBips,
+    uint16 reserveRatioBips,
+    MarketState calldata /* intermediateState */,
+    bytes calldata /* extraData */
+  )
+    public
+    virtual
+    override
+    returns (uint16 /* newAnnualInterestBips */, uint16 /* newReserveRatioBips */)
+  {
+    assertValueInRange(
+      annualInterestBips,
+      MinimumAnnualInterestBips,
+      MaximumAnnualInterestBips,
+      AnnualInterestBipsOutOfBounds.selector
+    );
+    assertValueInRange(
+      reserveRatioBips,
+      MinimumReserveRatioBips,
+      MaximumReserveRatioBips,
+      ReserveRatioBipsOutOfBounds.selector
+    );
+    return (annualInterestBips, reserveRatioBips);
+  }
 }

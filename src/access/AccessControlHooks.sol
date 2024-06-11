@@ -751,9 +751,16 @@ contract AccessControlHooks is ConstrainDeployParameters {
     MarketState calldata intermediateState,
     bytes calldata hooksData
   )
-    external
+    public
     virtual
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
-  {}
+  {
+    return super.onSetAnnualInterestAndReserveRatioBips(
+      annualInterestBips,
+      reserveRatioBips,
+      intermediateState,
+      hooksData
+    );
+  }
 }
