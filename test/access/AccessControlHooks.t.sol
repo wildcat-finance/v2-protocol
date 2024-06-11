@@ -410,7 +410,7 @@ contract AccessControlHooksTest is Test, Assertions {
       mockProvider2,
       address(50)
     );
-    context.registerExpectations(false);
+    context.registerExpectations(true);
     if (context.expectations.expectedError != 0) {
       hooks.tryValidateAccess(context.account, context.hooksData);
     } else {
@@ -456,4 +456,22 @@ contract AccessControlHooksTest is Test, Assertions {
   }
 
   function test_tryValidateAccess_validateCredential(address account) external {}
+
+  function test_getParameterConstraints() external view {
+    MarketParameterConstraints memory constraints = hooks.getParameterConstraints();
+    assertEq(constraints.minimumDelinquencyGracePeriod, 0, 'minimumDelinquencyGracePeriod');
+    assertEq(constraints.maximumDelinquencyGracePeriod, 90 days, 'maximumDelinquencyGracePeriod');
+    assertEq(constraints.minimumReserveRatioBips, 0, 'minimumReserveRatioBips');
+    assertEq(constraints.maximumReserveRatioBips, 10_000, 'maximumReserveRatioBips');
+    assertEq(constraints.minimumDelinquencyFeeBips, 0, 'minimumDelinquencyFeeBips');
+    assertEq(constraints.maximumDelinquencyFeeBips, 10_000, 'maximumDelinquencyFeeBips');
+    assertEq(constraints.minimumWithdrawalBatchDuration, 0, 'minimumWithdrawalBatchDuration');
+    assertEq(
+      constraints.maximumWithdrawalBatchDuration,
+      365 days,
+      'maximumWithdrawalBatchDuration'
+    );
+    assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');
+    assertEq(constraints.maximumAnnualInterestBips, 10_000, 'maximumAnnualInterestBips');
+  }
 }
