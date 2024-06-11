@@ -449,8 +449,6 @@ library LibHooksConfig {
   //                               Hook for repay                               //
   // ========================================================================== //
 
-  uint256 internal constant RepayCalldataSize = 0x24;
-
   // Size of normalizedAmount + state + extraData.offset + extraData.length
   uint256 internal constant RepayHook_Base_Size = 0x0204;
   uint256 internal constant RepayHook_State_Offset = 0x20;
@@ -484,7 +482,7 @@ library LibHooksConfig {
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
           add(headPointer, RepayHook_ExtraData_TailOffset),
-          RepayCalldataSize,
+          baseCalldataSize,
           extraCalldataBytes
         )
 
