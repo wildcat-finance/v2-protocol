@@ -5,7 +5,7 @@ import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
 import '../interfaces/IERC20.sol';
-import '../interfaces/IWildcatMarketController.sol';
+import '../IHooksFactory.sol';
 import '../interfaces/IWildcatSanctionsSentinel.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/MarketErrors.sol';
@@ -84,7 +84,7 @@ contract WildcatMarketBase is
   // ===================================================================== //
 
   constructor() {
-    MarketParameters memory parameters = IWildcatMarketController(msg.sender).getMarketParameters();
+    MarketParameters memory parameters = IHooksFactory(msg.sender).getMarketParameters();
 
     // Set asset metadata
     asset = parameters.asset;
