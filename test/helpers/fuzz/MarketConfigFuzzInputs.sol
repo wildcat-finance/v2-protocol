@@ -62,7 +62,6 @@ library LibMarketConfigFuzzInputs {
       namePrefix: 'Wildcat ',
       symbolPrefix: 'WC',
       borrower: borrower,
-      controller: /* controllerFactory.computeControllerAddress(borrower) */ address(0),
       feeRecipient: inputs.feeRecipient,
       sentinel: address(0),
       maxTotalSupply: inputs.maxTotalSupply,
