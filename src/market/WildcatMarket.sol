@@ -282,7 +282,7 @@ contract WildcatMarket is
 
       uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
-      uint32 expiry = _queueWithdrawal(state, account, msg.sender, scaledAmount, normalizedAmount);
+      uint32 expiry = _queueWithdrawal(state, account, accountAddress, scaledAmount, normalizedAmount);
 
       emit SanctionedAccountAssetsQueuedForWithdrawal(
         expiry,
