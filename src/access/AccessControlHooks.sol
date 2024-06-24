@@ -67,6 +67,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
   error InvalidCredentialReturned();
   /// @dev Error thrown when a user does not have a valid credential
   error NotApprovedLender();
+  error InvalidArrayLength();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -299,6 +300,26 @@ contract AccessControlHooks is ConstrainDeployParameters {
    *      - the new expiry is later than the current expiry
    */
   function grantRole(address account, uint32 roleGrantedTimestamp) external {
+    _grantRole(account, roleGrantedTimestamp);
+  }
+
+  /**
+   * @dev Grants roles to multiple accounts by updating their statuses.
+   *      Can only be called by an approved role provider.
+   *
+   *      If any account has an existing credential, it can only be updated if:
+   *      - the previous credential's provider is no longer supported, OR
+   *      - the caller is the previous role provider, OR
+   *      - the new expiry is later than the current expiry
+   */
+  function grantRoles(address[] memory accounts, uint32[] memory roleGrantedTimestamps) external {
+    if (accounts.length != roleGrantedTimestamps.length) revert InvalidArrayLength();
+    for (uint256 i = 0; i < accounts.length; i++) {
+      _grantRole(accounts[i], roleGrantedTimestamps[i]);
+    }
+  }
+
+  function _grantRole(address account, uint32 roleGrantedTimestamp) internal {
     RoleProvider callingProvider = _roleProviders[msg.sender];
 
     if (callingProvider.isNull()) revert ProviderNotFound();
@@ -327,6 +348,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
     }
 
     _setCredentialAndEmitAccessGranted(status, callingProvider, account, roleGrantedTimestamp);
+
   }
 
   // @todo add tests to AccessControlHooks.t.sol
