@@ -136,45 +136,20 @@ contract WildcatMarketBase is
   /**
    * @dev Retrieve an account from storage.
    *
-   *      Reverts if account is blocked.
+   *      Reverts if account is sanctioned.
    */
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
-    if (account.isSanctioned) revert_AccountBlocked();
+    if (_isSanctioned(accountAddress)) revert_AccountBlocked();
   }
 
   /**
-   * @dev Block an account and transfer its balance of market tokens
-   *      to an escrow contract.
-   *
-   *      If the account is already blocked, this function does nothing.
+   * @dev Checks if `account` is flagged as a sanctioned entity by Chainalysis.
+   *      If an account is flagged mistakenly, the borrower can override their
+   *      status on the sentinel and allow them to interact with the market.
    */
-  function _blockAccount(MarketState memory state, address accountAddress) internal {
-    Account memory account = _accounts[accountAddress];
-    if (!account.isSanctioned) {
-      uint104 scaledBalance = account.scaledBalance;
-      account.isSanctioned = true;
-
-      // Emit `AccountSanctioned` event using a custom emitter.
-      emit_AccountSanctioned(accountAddress);
-
-      if (scaledBalance > 0) {
-        account.scaledBalance = 0;
-
-        address escrow = sentinel.createEscrow(borrower, accountAddress, address(this));
-        // Emit `Transfer` event using a custom emitter.
-        emit_Transfer(accountAddress, escrow, state.normalizeAmount(scaledBalance));
-        // Move escrow balance to escrow account.
-        _accounts[escrow].scaledBalance += scaledBalance;
-        // Emit `SanctionedAccountAssetsSentToEscrow` event using a custom emitter.
-        emit_SanctionedAccountAssetsSentToEscrow(
-          accountAddress,
-          escrow,
-          state.normalizeAmount(scaledBalance)
-        );
-      }
-      _accounts[accountAddress] = account;
-    }
+  function _isSanctioned(address account) internal view returns (bool) {
+    return sentinel.isSanctioned(borrower, account);
   }
 
   // ===================================================================== //
@@ -307,7 +282,7 @@ contract WildcatMarketBase is
    * @dev Returns whether `account` has been marked as sanctioned.
    */
   function isAccountSanctioned(address account) external view nonReentrantView returns (bool) {
-    return _accounts[account].isSanctioned;
+    return _isSanctioned(account);
   }
 
   /**
@@ -324,6 +299,8 @@ contract WildcatMarketBase is
   // /*//////////////////////////////////////////////////////////////
   //                     Internal State Handlers
   // //////////////////////////////////////////////////////////////*/
+
+  function _blockAccount(MarketState memory state, address accountAddress) internal virtual {}
 
   /**
    * @dev Returns cached MarketState after accruing interest and delinquency / protocol fees
@@ -580,14 +557,5 @@ contract WildcatMarketBase is
 
     // Burn market tokens to stop interest accrual upon withdrawal payment.
     state.scaledTotalSupply -= scaledAmountBurned;
-  }
-
-  /**
-   * @dev Checks if `account` is flagged as a sanctioned entity by Chainalysis.
-   *      If an account is flagged mistakenly, the borrower can override their
-   *      status on the sentinel and allow them to interact with the market.
-   */
-  function _isSanctioned(address account) internal view returns (bool) {
-    return sentinel.isSanctioned(borrower, account);
   }
 }
