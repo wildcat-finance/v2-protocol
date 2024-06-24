@@ -52,6 +52,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ========================================================================== //
   //                                  Sanctions                                 //
   // ========================================================================== //
+
   /// @dev Block a sanctioned account from interacting with the market
   ///      and transfer its balance to an escrow contract.
   // ******************************************************************
