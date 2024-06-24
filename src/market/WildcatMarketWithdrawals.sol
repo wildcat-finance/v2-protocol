@@ -82,7 +82,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     address accountAddress,
     uint104 scaledAmount,
     uint normalizedAmount
-  ) internal {
+  ) internal returns (uint32 expiry) {
     // Execute queueWithdrawal hook if enabled
     hooks.onQueueWithdrawal(accountAddress, scaledAmount, state);
 
@@ -93,7 +93,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     emit_Transfer(accountAddress, address(this), normalizedAmount);
 
     // Cache batch expiry on the stack for gas savings
-    uint32 expiry = state.pendingWithdrawalExpiry;
+    expiry = state.pendingWithdrawalExpiry;
 
     // If there is no pending withdrawal batch, create a new one.
     if (state.pendingWithdrawalExpiry == 0) {
@@ -127,7 +127,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   /**
    * @dev Create a withdrawal request for a lender.
    */
-  function queueWithdrawal(uint256 amount) public nonReentrant sphereXGuardExternal {
+  function queueWithdrawal(uint256 amount) public nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
     uint104 scaledAmount = state.scaleAmount(amount).toUint104();
@@ -136,13 +136,13 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // Cache account data
     Account memory account = _getAccount(msg.sender);
 
-    _queueWithdrawal(state, account, msg.sender, scaledAmount, amount);
+    return _queueWithdrawal(state, account, msg.sender, scaledAmount, amount);
   }
 
   /**
    * @dev Queue a withdrawal for all of the caller's balance.
    */
-  function queueFullWithdrawal() external nonReentrant sphereXGuardExternal {
+  function queueFullWithdrawal() external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
     // Cache account data
@@ -153,7 +153,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
-    _queueWithdrawal(state, account, msg.sender, scaledAmount, normalizedAmount);
+    return _queueWithdrawal(state, account, msg.sender, scaledAmount, normalizedAmount);
   }
 
   /**
