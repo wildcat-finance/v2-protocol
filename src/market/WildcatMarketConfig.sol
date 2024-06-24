@@ -83,23 +83,6 @@ contract WildcatMarketConfig is WildcatMarketBase {
     _writeState(state);
   }
 
-  /**
-   * @dev Unblock an account that was previously sanctioned and blocked
-   *      and has since been removed from the sanctions list or had
-   *      their sanctioned status overridden by the borrower.
-   */
-  function stunningReversal(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (_isSanctioned(accountAddress)) revert_NotReversedOrStunning();
-
-    Account memory account = _accounts[accountAddress];
-    if (!account.isSanctioned) revert_AccountNotBlocked();
-
-    account.isSanctioned = false;
-    emit_AccountUnsanctioned(accountAddress);
-
-    _accounts[accountAddress] = account;
-  }
-
   // ========================================================================== //
   //                           External Config Setters                          //
   // ========================================================================== //
