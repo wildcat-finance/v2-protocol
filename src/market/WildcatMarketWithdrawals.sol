@@ -227,7 +227,6 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     state.normalizedUnclaimedWithdrawals -= normalizedAmountWithdrawn;
 
     if (_isSanctioned(accountAddress)) {
-      _blockAccount(state, accountAddress);
       // Get or create an escrow contract for the lender and transfer the owed amount to it.
       // They will be unable to withdraw from the escrow until their sanctioned
       // status is lifted on Chainalysis, or until the borrower overrides it.
