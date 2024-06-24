@@ -89,6 +89,13 @@ interface IMarketEventsAndErrors {
     uint256 amount
   );
 
+  event SanctionedAccountAssetsQueuedForWithdrawal(
+    uint256 indexed expiry,
+    address indexed account,
+    uint256 scaledAmount,
+    uint256 normalizedAmount
+  );
+
   event Deposit(address indexed account, uint256 assetAmount, uint256 scaledAmount);
 
   event Borrow(uint256 assetAmount);
