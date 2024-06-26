@@ -104,7 +104,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       _processExpiredWithdrawalBatch(state, expectEvents);
     }
     uint timestamp = block.timestamp;
-    
+
     if (block.timestamp != state.lastInterestAccruedTimestamp) {
       uint prevTimestamp = state.lastInterestAccruedTimestamp;
       (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
@@ -354,15 +354,11 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     uint32 expiry,
     address accountAddress,
     uint256 withdrawalAmount,
-    bool willBeBlocked,
     bool willBeEscrowed
   ) internal {
     // @todo
     // bool isSanctioned = sanctionsSentinel.isSanctioned(borrower, accountAddress);
     // bool willBeBlocked = isSanctioned && market.getAccountRole(accountAddress) != AuthRole.Blocked;
-    if (willBeBlocked) {
-      _trackBlockAccount(state, accountAddress);
-    }
 
     if (willBeEscrowed) {
       address escrow = calculateEscrowAddress(accountAddress, parameters.asset);
@@ -405,13 +401,11 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     uint128 normalizedAmountWithdrawn = newTotalWithdrawn - status.normalizedAmountWithdrawn;
     MarketAccount storage account = _getAccount(accountAddress);
     bool isSanctioned = sanctionsSentinel.isSanctioned(borrower, accountAddress);
-    bool willBeBlocked = isSanctioned && !market.isAccountSanctioned(accountAddress);
     _trackExecuteWithdrawal(
       state,
       expiry,
       accountAddress,
       normalizedAmountWithdrawn,
-      willBeBlocked,
       isSanctioned
     );
   }
@@ -428,6 +422,63 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     lastTotalAssets += normalizedAmount;
   }
 
+  function _trackCloseMarket(MarketState memory state, bool expectEvents) internal {
+    uint256 currentlyHeld = lastTotalAssets;
+    uint totalDebts = state.totalDebts();
+    if (currentlyHeld < totalDebts) {
+      uint256 remainingDebt = totalDebts - currentlyHeld;
+      _trackRepay(state, borrower, remainingDebt);
+      currentlyHeld += remainingDebt;
+    } else if (currentlyHeld > totalDebts) {
+      uint256 excessDebt = currentlyHeld - totalDebts;
+      if (expectEvents) {
+        vm.expectEmit(parameters.asset);
+        emit Transfer(address(market), borrower, excessDebt);
+      }
+      currentlyHeld -= excessDebt;
+    }
+
+    state.annualInterestBips = 0;
+    state.isClosed = true;
+    state.reserveRatioBips = 10000;
+    state.timeDelinquent = 0;
+    uint256 availableLiquidity = currentlyHeld -
+      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+
+    if (state.pendingWithdrawalExpiry != 0) {
+      uint32 expiry = state.pendingWithdrawalExpiry;
+      WithdrawalBatch storage batch = _withdrawalData.batches[expiry];
+      if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
+        uint128 normalizedAmountPaid = _applyWithdrawalBatchPayment(
+          batch,
+          state,
+          expiry,
+          availableLiquidity,
+          expectEvents
+        );
+        availableLiquidity -= normalizedAmountPaid;
+        _withdrawalData.batches[expiry] = batch;
+      }
+    }
+
+    uint256 numBatches = _withdrawalData.unpaidBatches.length();
+    for (uint256 i; i < numBatches; i++) {
+      // Process the next unpaid batch using available liquidity
+      uint256 normalizedAmountPaid = _trackProcessUnpaidWithdrawalBatch(state, availableLiquidity);
+      // Reduce liquidity available to next batch
+      availableLiquidity -= normalizedAmountPaid;
+    }
+
+    if (state.scaledPendingWithdrawals != 0) {
+      revert_CloseMarketWithUnpaidWithdrawals();
+    }
+    if (expectEvents) {
+      vm.expectEmit(address(market));
+      emit MarketClosed(block.timestamp);
+    }
+    updateState(state);
+  }
+
   function _trackBorrow(uint256 normalizedAmount) internal {
     vm.expectEmit(parameters.asset);
     emit Transfer(address(market), parameters.borrower, normalizedAmount);
@@ -436,20 +487,34 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     lastTotalAssets -= normalizedAmount;
   }
 
-  function _trackProcessUnpaidWithdrawalBatch(MarketState memory state) internal {
+  function _trackProcessUnpaidWithdrawalBatch(
+    MarketState memory state,
+    uint256 availableLiquidity
+  ) internal returns (uint128 normalizedAmountPaid) {
     uint32 expiry = _withdrawalData.unpaidBatches.first();
     WithdrawalBatch storage batch = _getWithdrawalBatch(expiry);
-    uint256 availableLiquidity = lastTotalAssets -
-      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
     if (availableLiquidity > 0) {
-      _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity, true);
+      normalizedAmountPaid = _applyWithdrawalBatchPayment(
+        batch,
+        state,
+        expiry,
+        availableLiquidity,
+        true
+      );
     }
     if (batch.scaledTotalAmount == batch.scaledAmountBurned) {
       _withdrawalData.unpaidBatches.shift();
       vm.expectEmit(address(market));
       emit WithdrawalBatchClosed(expiry);
     }
-    // updateState(state);
+  }
+
+  function _trackProcessUnpaidWithdrawalBatch(
+    MarketState memory state
+  ) internal returns (uint128 normalizedAmountPaid) {
+    uint256 availableLiquidity = lastTotalAssets -
+      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+    return _trackProcessUnpaidWithdrawalBatch(state, availableLiquidity);
   }
 
   /**
@@ -516,14 +581,14 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     uint32 expiry,
     uint256 availableLiquidity,
     bool expectEvents
-  ) internal {
+  ) internal returns (uint128 normalizedAmountPaid) {
     uint104 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity).toUint104();
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     if (scaledAmountOwed == 0) {
-      return;
+      return 0;
     }
     uint104 scaledAmountBurned = uint104(MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed));
-    uint128 normalizedAmountPaid = state.normalizeAmount(scaledAmountBurned).toUint128();
+    normalizedAmountPaid = state.normalizeAmount(scaledAmountBurned).toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;
