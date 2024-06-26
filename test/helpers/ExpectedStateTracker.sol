@@ -327,7 +327,9 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     emit Transfer(accountAddress, address(market), normalizedAmount);
 
     if (state.pendingWithdrawalExpiry == 0) {
-      state.pendingWithdrawalExpiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+      state.pendingWithdrawalExpiry = uint32(
+        block.timestamp + (state.isClosed ? 0 : parameters.withdrawalBatchDuration)
+      );
       vm.expectEmit(address(market));
       emit WithdrawalBatchCreated(state.pendingWithdrawalExpiry);
     }
@@ -401,13 +403,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     uint128 normalizedAmountWithdrawn = newTotalWithdrawn - status.normalizedAmountWithdrawn;
     MarketAccount storage account = _getAccount(accountAddress);
     bool isSanctioned = sanctionsSentinel.isSanctioned(borrower, accountAddress);
-    _trackExecuteWithdrawal(
-      state,
-      expiry,
-      accountAddress,
-      normalizedAmountWithdrawn,
-      isSanctioned
-    );
+    _trackExecuteWithdrawal(state, expiry, accountAddress, normalizedAmountWithdrawn, isSanctioned);
   }
 
   function _trackRepay(
