@@ -110,6 +110,22 @@ contract WithdrawalsTest is BaseMarketTest {
     assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
   }
 
+  function test_queueWithdrawal_AfterMarketClosed(
+    uint128 userBalance,
+    uint128 withdrawalAmount
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _closeMarket();
+    _requestWithdrawal(alice, userBalance);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
+  }
+
   function test_queueWithdrawal_BurnPartial(
     uint128 userBalance,
     uint128 borrowAmount
