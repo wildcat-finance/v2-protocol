@@ -8,6 +8,7 @@ import '../libraries/BoolUtils.sol';
 contract WildcatMarketWithdrawals is WildcatMarketBase {
   using SafeTransferLib for address;
   using MathUtils for uint256;
+  using MathUtils for bool;
   using SafeCastLib for uint256;
   using BoolUtils for bool;
 
@@ -97,7 +98,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // If there is no pending withdrawal batch, create a new one.
     if (state.pendingWithdrawalExpiry == 0) {
-      expiry = uint32(block.timestamp + withdrawalBatchDuration);
+      // If the market is closed, use zero duration withdrawal batch duration to minimize
+      // the number of withdrawals per batch.
+      uint duration = state.isClosed.ternary(0, withdrawalBatchDuration);
+      expiry = uint32(block.timestamp + duration);
       emit_WithdrawalBatchCreated(expiry);
       state.pendingWithdrawalExpiry = expiry;
     }
@@ -206,9 +210,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint32 expiry,
     uint baseCalldataSize
   ) internal returns (uint256) {
-    if (expiry >= block.timestamp) revert_WithdrawalBatchNotExpired();
-
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
+    // If the market is closed, allow withdrawal prior to expiry.
+    if (expiry >= block.timestamp && !state.isClosed) {
+      revert_WithdrawalBatchNotExpired();
+    }
+
     AccountWithdrawalStatus storage status = _withdrawalData.accountStatuses[expiry][
       accountAddress
     ];
