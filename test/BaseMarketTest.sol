@@ -103,7 +103,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     uint256 actualNormalizedAmount = market.depositUpTo(amount);
     assertEq(actualNormalizedAmount, expectedNormalizedAmount, 'Actual amount deposited');
     _checkState(state);
-    assertApproxEqAbs(market.balanceOf(from), currentBalance + amount, 1);
+    assertEq(market.balanceOf(from), currentBalance + amount);
     assertEq(market.scaledBalanceOf(from), currentScaledBalance + scaledAmount);
     return actualNormalizedAmount;
   }
@@ -112,11 +112,34 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     MarketState memory state = pendingState();
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);
     (, uint104 scaledAmount) = _trackQueueWithdrawal(state, from, amount);
-    // updateState(state);
     market.queueWithdrawal(amount);
     _checkState(state);
-    assertApproxEqAbs(market.balanceOf(from), currentBalance - amount, 1, 'balance');
-    assertEq(market.scaledBalanceOf(from), currentScaledBalance - scaledAmount, 'scaledBalance');
+    assertApproxEqAbs(
+      market.balanceOf(from),
+      currentBalance - amount,
+      1,
+      unicode'balance after withdrawal (± 1)'
+    );
+    assertEq(
+      market.balanceOf(from),
+      state.normalizeAmount(currentScaledBalance - scaledAmount),
+      'balance after withdrawal (exact)'
+    );
+    assertEq(
+      market.scaledBalanceOf(from),
+      currentScaledBalance - scaledAmount,
+      'scaledBalance after withdrawal'
+    );
+  }
+
+  function _closeMarket() internal asAccount(borrower) {
+    uint owed = market.totalDebts() - market.totalAssets();
+    asset.mint(borrower, owed);
+    asset.approve(address(market), owed);
+    MarketState memory state = pendingState();
+    _trackCloseMarket(state, true);
+    market.closeMarket();
+    _checkState(state);
   }
 
   function _borrow(uint256 amount) internal asAccount(borrower) {
