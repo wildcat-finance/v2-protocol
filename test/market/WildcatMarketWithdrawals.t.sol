@@ -198,13 +198,34 @@ contract WithdrawalsTest is BaseMarketTest {
     market.executeWithdrawal(alice, uint32(expiry));
   }
 
+  function test_executeWithdrawal_MarketClosed() external {
+    _deposit(alice, 1e18);
+    _requestWithdrawal(alice, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    _closeMarket();
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18,  false);
+    vm.prank(alice);
+    market.executeWithdrawal(alice, expiry);
+  }
+
+  function test_executeWithdrawal_MarketClosed_BeforeExpiry() external {
+    _deposit(alice, 1e18);
+    _requestWithdrawal(alice, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    _closeMarket();
+    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18,  false);
+    vm.prank(alice);
+    market.executeWithdrawal(alice, expiry);
+  }
+
   function test_executeWithdrawal_Sanctioned() external {
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
     fastForward(parameters.withdrawalBatchDuration + 1);
     sanctionsSentinel.sanction(alice);
     address escrow = sanctionsSentinel.getEscrowAddress(borrower, alice, address(asset));
-    _trackExecuteWithdrawal(pendingState(), uint32(block.timestamp - 1), alice, 1e18, true, true);
+    _trackExecuteWithdrawal(pendingState(), uint32(block.timestamp - 1), alice, 1e18, true);
     market.executeWithdrawal(alice, uint32(block.timestamp - 1));
   }
 
@@ -307,9 +328,9 @@ contract WithdrawalsTest is BaseMarketTest {
     expiries[2] = expiry2;
     expiries[3] = expiry2;
     MarketState memory state = pendingState();
-    _trackExecuteWithdrawal(state, expiry1, alice, 0.5e18, true, true);
+    _trackExecuteWithdrawal(state, expiry1, alice, 0.5e18, true);
     _trackExecuteWithdrawal(state, expiry1, bob);
-    _trackExecuteWithdrawal(state, expiry2, alice, 0.5e18, false, true);
+    _trackExecuteWithdrawal(state, expiry2, alice, 0.5e18, true);
     _trackExecuteWithdrawal(state, expiry2, bob);
     market.executeWithdrawals(accounts, expiries);
   }
