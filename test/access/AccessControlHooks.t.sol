@@ -474,4 +474,22 @@ contract AccessControlHooksTest is Test, Assertions {
     assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');
     assertEq(constraints.maximumAnnualInterestBips, 10_000, 'maximumAnnualInterestBips');
   }
+
+  function test_grantRoles() external {
+    address[] memory accounts = new address[](4);
+    for (uint160 i; i < accounts.length; i++) {
+      accounts[i] = address(i);
+    }
+    uint32 timestamp= uint32(block.timestamp + 1);
+    hooks.addRoleProvider(address(mockProvider1), 1);
+
+    uint32[] memory timestamps = new uint32[](accounts.length);
+    for (uint i; i < accounts.length; i++) {
+      timestamps[i] = timestamp;
+    }
+    vm.prank(address(mockProvider1));
+    hooks.grantRoles(accounts, timestamps);
+    vm.prank(address(mockProvider1));
+    hooks.grantRoles(accounts, timestamps);
+  }
 }
