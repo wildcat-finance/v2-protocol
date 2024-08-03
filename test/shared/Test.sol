@@ -356,6 +356,17 @@ contract Test is ForgeTest, Prankster, Assertions {
       parameters.withdrawalBatchDuration,
       'withdrawalBatchDuration'
     );
+    assertEq(
+      market.name(),
+      string.concat(parameters.namePrefix, IERC20(parameters.asset).name()),
+      'name'
+    );
+    assertEq(
+      market.symbol(),
+      string.concat(parameters.symbolPrefix, IERC20(parameters.asset).symbol()),
+      'symbol'
+    );
+    assertEq(market.decimals(), IERC20(parameters.asset).decimals(), 'decimals');
   }
 
   function deployControllerAndMarket(
