@@ -6,7 +6,7 @@ import 'src/interfaces/IMarketEventsAndErrors.sol';
 import 'src/libraries/MathUtils.sol';
 import 'src/libraries/SafeCastLib.sol';
 import 'src/libraries/MarketState.sol';
-import 'solady/utils/SafeTransferLib.sol';
+import 'src/libraries/LibERC20.sol';
 import { AccessControlHooksDataFuzzInputs, ExistingCredentialFuzzInputs } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 contract WildcatMarketTest is BaseMarketTest {
@@ -138,7 +138,7 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function testDepositUpTo_TransferFail() public asAccount(alice) {
     asset.approve(address(market), 0);
-    vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+    vm.expectRevert(LibERC20.TransferFromFailed.selector);
     market.depositUpTo(50_000e18);
   }
 
@@ -241,7 +241,7 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_closeMarket_FailTransferRemainingDebt() external asAccount(borrower) {
     // Borrow 80% of deposits then request withdrawal of 100% of deposits
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
-    vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+    vm.expectRevert(LibERC20.TransferFromFailed.selector);
     market.closeMarket();
   }
 
@@ -311,7 +311,7 @@ contract WildcatMarketTest is BaseMarketTest {
     market.updateState();
     uint32[] memory unpaidBatches = market.getUnpaidBatchExpiries();
     assertEq(unpaidBatches.length, 1);
-    vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+    vm.expectRevert(LibERC20.TransferFromFailed.selector);
     market.closeMarket();
   }
 
