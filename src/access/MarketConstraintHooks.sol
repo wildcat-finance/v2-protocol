@@ -3,7 +3,13 @@ pragma solidity >=0.8.20;
 
 import './IHooks.sol';
 
-abstract contract ConstrainDeployParameters is IHooks {
+struct TemporaryReserveRatio {
+  uint16 originalAnnualInterestBips;
+  uint16 originalReserveRatioBips;
+  uint32 expiry;
+}
+
+abstract contract MarketConstraintHooks is IHooks {
   error DelinquencyGracePeriodOutOfBounds();
   error ReserveRatioBipsOutOfBounds();
   error DelinquencyFeeBipsOutOfBounds();
@@ -117,6 +123,42 @@ abstract contract ConstrainDeployParameters is IHooks {
       parameters.reserveRatioBips,
       parameters.delinquencyGracePeriod
     );
+  }
+
+  /**
+   * @dev Returns the new temporary reserve ratio for a given interest rate
+   *      change. This is calculated as no change if the rate change is LEQ
+   *      a 25% decrease, otherwise double the relative difference between
+   *      the old and new APR rates (in bips), bounded to a maximum of 100%.
+   *      If this value is lower than the existing reserve ratio, the existing
+   *      reserve ratio is returned instead.
+   */
+  function _calculateTemporaryReserveRatioBips(
+    uint256 annualInterestBips,
+    uint256 originalAnnualInterestBips,
+    uint256 originalReserveRatioBips
+  ) internal pure returns (uint16 temporaryReserveRatioBips) {
+    // Calculate the relative reduction in the interest rate in bips,
+    // bound to a maximum of 100%
+    uint256 relativeDiff = MathUtils.mulDiv(
+      10000,
+      originalAnnualInterestBips - annualInterestBips,
+      originalAnnualInterestBips
+    );
+
+    // If the reduction is 25% (2500 bips) or less, return the original reserve ratio
+    if (relativeDiff <= 2500) {
+      temporaryReserveRatioBips = uint16(originalReserveRatioBips);
+    } else {
+      // Calculate double the relative reduction in the interest rate in bips,
+      // bound to a maximum of 100%
+      uint256 boundRelativeDiff = MathUtils.min(10000, MathUtils.bipMul(2, relativeDiff));
+
+      // If the bound relative diff is lower than the existing reserve ratio, return the latter.
+      temporaryReserveRatioBips = uint16(
+        MathUtils.max(boundRelativeDiff, originalReserveRatioBips)
+      );
+    }
   }
 
   function onSetAnnualInterestAndReserveRatioBips(

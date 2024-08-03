@@ -6,7 +6,7 @@ import '../libraries/MathUtils.sol';
 import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
-import './ConstrainDeployParameters.sol';
+import './MarketConstraintHooks.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -23,7 +23,7 @@ using MathUtils for uint256;
  *
  *      Deposit access may be canceled by the borrower.
  */
-contract AccessControlHooks is ConstrainDeployParameters {
+contract AccessControlHooks is MarketConstraintHooks {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
