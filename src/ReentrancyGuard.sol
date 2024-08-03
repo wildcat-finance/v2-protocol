@@ -8,10 +8,10 @@ uint256 constant _REENTRANCY_GUARD_SLOT = 0x929eee14;
 
 /**
  * @title ReentrancyGuard
- * @author 0age, d1ll0n
- *         https://github.com/ProjectOpenSea/seaport-1.6
- *
- * Changes: Removed the checks for whether tstore is supported.
+ * @author d1ll0n
+ * @notice Changes from original:
+ *   - Removed the checks for whether tstore is supported.
+ * @author Modified from Seaport contract by 0age (https://github.com/ProjectOpenSea/seaport-1.6)
  *
  * @notice ReentrancyGuard contains a transient storage variable and related
  *         functionality for protecting against reentrancy.
