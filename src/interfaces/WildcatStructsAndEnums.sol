@@ -5,17 +5,13 @@ import { MarketState } from '../libraries/MarketState.sol';
 
 import { HooksConfig } from '../types/HooksConfig.sol';
 
-enum AuthRole {
-  Null,
-  Blocked,
-  WithdrawOnly,
-  DepositAndWithdraw
-}
-
 struct MarketParameters {
   address asset;
-  string name;
-  string symbol;
+  uint8 decimals;
+  bytes32 packedNameWord0;
+  bytes32 packedNameWord1;
+  bytes32 packedSymbolWord0;
+  bytes32 packedSymbolWord1;
   address borrower;
   address feeRecipient;
   address sentinel;
