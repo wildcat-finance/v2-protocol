@@ -110,7 +110,7 @@ contract AccessControlHooks is MarketConstraintHooks {
       useOnCloseMarket: false,
       useOnAssetsSentToEscrow: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false
+      useOnSetAnnualInterestAndReserveRatioBips: true
     });
   }
 
