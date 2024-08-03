@@ -7,19 +7,6 @@ import '../libraries/Withdrawal.sol';
 
 library TypeCasts {
   /**
-   * @dev Function type cast to avoid duplicate declaration of Account return parameter.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
-   */
-  function asReturnsAccount(
-    function(address, AuthRole) internal returns (uint256) fnIn
-  ) internal pure returns (function(address, AuthRole) internal returns (Account memory) fnOut) {
-    assembly {
-      fnOut := fnIn
-    }
-  }
-
-  /**
    * @dev Function type cast to avoid duplicate declaration of MarketState return parameter.
    *
    *      With `viaIR` enabled, calling this function is a noop.
