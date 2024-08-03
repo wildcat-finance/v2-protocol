@@ -1,7 +1,5 @@
 pragma solidity ^0.8.20;
 
-import { AuthRole } from '../interfaces/WildcatStructsAndEnums.sol';
-
 uint256 constant InterestAndFeesAccrued_abi_head_size = 0xc0;
 uint256 constant InterestAndFeesAccrued_toTimestamp_offset = 0x20;
 uint256 constant InterestAndFeesAccrued_scaleFactor_offset = 0x40;
@@ -55,6 +53,20 @@ function emit_SanctionedAccountAssetsSentToEscrow(address account, address escro
     mstore(0, escrow)
     mstore(0x20, amount)
     log2(0, 0x40, 0x571e706c2f09ae0632313e5f3ae89fffdedfc370a2ea59a07fb0d8091147645b, account)
+  }
+}
+
+function emit_SanctionedAccountAssetsQueuedForWithdrawal(
+  address account,
+  uint32 expiry,
+  uint256 scaledAmount,
+  uint256 normalizedAmount
+) {
+  assembly {
+    mstore(0, expiry)
+    mstore(0x20, scaledAmount)
+    mstore(0x40, normalizedAmount)
+    log2(0, 0x60, 0xe12b220b92469ae28fb0d79de531f94161431be9f073b96b8aad3effb88be6fa, account)
   }
 }
 
