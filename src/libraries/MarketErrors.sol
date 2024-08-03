@@ -89,6 +89,21 @@ function revert_ReserveRatioBipsTooHigh() pure {
     revert(0x1c, 0x04)
   }
 }
+/* 
+code size: 25634
+initcode size: 28024
+
+errors: -48 runtime, -48 initcode
+*/
+uint256 constant AnnualInterestBipsTooHigh_ErrorSelector = 0xcf1f916f;
+
+/// @dev Equivalent to `revert ReserveRatioBipsTooHigh()`
+function revert_AnnualInterestBipsTooHigh() pure {
+  assembly {
+    mstore(0, 0xcf1f916f)
+    revert(0x1c, 0x04)
+  }
+}
 
 uint256 constant InterestRateTooHigh_ErrorSelector = 0x40c2ffa4;
 
@@ -130,32 +145,22 @@ function revert_AccountBlocked() pure {
   }
 }
 
-uint256 constant AccountNotBlocked_ErrorSelector = 0xe79042e6;
-
-/// @dev Equivalent to `revert AccountNotBlocked()`
-function revert_AccountNotBlocked() pure {
-  assembly {
-    mstore(0, 0xe79042e6)
-    revert(0x1c, 0x04)
-  }
-}
-
-uint256 constant NotReversedOrStunning_ErrorSelector = 0x3c57ebee;
-
-/// @dev Equivalent to `revert NotReversedOrStunning()`
-function revert_NotReversedOrStunning() pure {
-  assembly {
-    mstore(0, 0x3c57ebee)
-    revert(0x1c, 0x04)
-  }
-}
-
 uint256 constant BorrowAmountTooHigh_ErrorSelector = 0x119fe6e3;
 
 /// @dev Equivalent to `revert BorrowAmountTooHigh()`
 function revert_BorrowAmountTooHigh() pure {
   assembly {
     mstore(0, 0x119fe6e3)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant BadRescueAsset_ErrorSelector = 0x11530cde;
+
+/// @dev Equivalent to `revert BadRescueAsset()`
+function revert_BadRescueAsset() pure {
+  assembly {
+    mstore(0, 0x11530cde)
     revert(0x1c, 0x04)
   }
 }
