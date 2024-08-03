@@ -29,6 +29,18 @@ contract WildcatMarket is
   }
 
   /**
+   * @dev Token rescue function for recovering tokens sent to the market
+   *      contract by mistake or otherwise outside of the normal course of
+   *      operation.
+   */
+  function rescueTokens(address token) external onlyBorrower {
+    if (token == asset) {
+      revert_BadRescueAsset();
+    }
+    token.safeTransferAll(msg.sender);
+  }
+
+  /**
    * @dev Deposit up to `amount` underlying assets and mint market tokens
    *      for `msg.sender`.
    *
@@ -282,11 +294,17 @@ contract WildcatMarket is
 
       uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
-      uint32 expiry = _queueWithdrawal(state, account, accountAddress, scaledAmount, normalizedAmount);
-
-      emit SanctionedAccountAssetsQueuedForWithdrawal(
-        expiry,
+      uint32 expiry = _queueWithdrawal(
+        state,
+        account,
         accountAddress,
+        scaledAmount,
+        normalizedAmount
+      );
+
+      emit_SanctionedAccountAssetsQueuedForWithdrawal(
+        accountAddress,
+        expiry,
         scaledAmount,
         normalizedAmount
       );
