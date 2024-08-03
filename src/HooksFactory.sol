@@ -2,7 +2,7 @@
 pragma solidity >=0.8.20;
 
 import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSet.sol';
-import 'solady/utils/SafeTransferLib.sol';
+import './libraries/LibERC20.sol';
 import './interfaces/IWildcatArchController.sol';
 import './libraries/LibStoredInitCode.sol';
 import './libraries/MathUtils.sol';
@@ -25,13 +25,16 @@ struct TmpMarketParameterStorage {
   uint32 withdrawalBatchDuration;
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
-  string name;
-  string symbol;
+  bytes32 packedNameWord0;
+  bytes32 packedNameWord1;
+  bytes32 packedSymbolWord0;
+  bytes32 packedSymbolWord1;
+  uint8 decimals;
   HooksConfig hooks;
 }
 
 contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactory {
-  using SafeTransferLib for address;
+  using LibERC20 for address;
 
   TransientBytesArray internal constant _tmpMarketParameters =
     TransientBytesArray.wrap(uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1);
@@ -282,14 +285,21 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
    * @dev Get the temporarily stored market parameters for a market that is
    *      currently being deployed.
    */
-  function getMarketParameters() external view override returns (MarketParameters memory parameters) {
+  function getMarketParameters()
+    external
+    view
+    override
+    returns (MarketParameters memory parameters)
+  {
     TmpMarketParameterStorage memory tmp = _getTmpMarketParameters();
 
     parameters.asset = tmp.asset;
-    parameters.name = tmp.name;
-    parameters.symbol = tmp.symbol;
+    parameters.packedNameWord0 = tmp.packedNameWord0;
+    parameters.packedNameWord1 = tmp.packedNameWord1;
+    parameters.packedSymbolWord0 = tmp.packedSymbolWord0;
+    parameters.packedSymbolWord1 = tmp.packedSymbolWord1;
+    parameters.decimals = tmp.decimals;
     parameters.borrower = tmp.borrower;
-    // parameters.controller = address(this);
     parameters.feeRecipient = tmp.feeRecipient;
     parameters.sentinel = sanctionsSentinel;
     parameters.maxTotalSupply = tmp.maxTotalSupply;
@@ -306,6 +316,28 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   function computeMarketAddress(bytes32 salt) external view override returns (address) {
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+  }
+
+  /**
+   * @dev Given a string of at most 63 bytes, produces a packed version with two words,
+   *      where the first word contains the length byte and the first 31 bytes of the string,
+   *      and the second word contains the second 32 bytes of the string.
+   */
+  function _packString(string memory str) internal pure returns (bytes32 word0, bytes32 word1) {
+    assembly {
+      let length := mload(str)
+      // Equivalent to:
+      // if (str.length > 63) revert NameOrSymbolTooLong();
+      if gt(length, 0x3f) {
+        mstore(0, 0x19a65cb6)
+        revert(0x1c, 0x04)
+      }
+      // Load the length and first 31 bytes of the string into the first word
+      // by reading from 31 bytes after the length pointer.
+      word0 := mload(add(str, 0x1f))
+      // If the string is less than 32 bytes, the second word will be zeroed out.
+      word1 := mul(mload(add(str, 0x3f)), gt(mload(str), 0x1f))
+    }
   }
 
   function _deployMarket(
@@ -331,12 +363,22 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.hooks = parameters.hooks.mergeSharedFlags(IHooks(hooksInstance).config());
 
     IHooks(hooksInstance).onCreateMarket(msg.sender, parameters, hooksData);
+    uint8 decimals = parameters.asset.decimals();
+
+    string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
+    string memory symbol = string.concat(parameters.symbolPrefix, parameters.asset.symbol());
+
+    (bytes32 packedNameWord0, bytes32 packedNameWord1) = _packString(name);
+    (bytes32 packedSymbolWord0, bytes32 packedSymbolWord1) = _packString(symbol);
 
     TmpMarketParameterStorage memory tmp = TmpMarketParameterStorage({
       borrower: msg.sender,
       asset: parameters.asset,
-      name: string.concat(parameters.namePrefix, queryName(parameters.asset)),
-      symbol: string.concat(parameters.symbolPrefix, querySymbol(parameters.asset)),
+      packedNameWord0: packedNameWord0,
+      packedNameWord1: packedNameWord1,
+      packedSymbolWord0: packedSymbolWord0,
+      packedSymbolWord1: packedSymbolWord1,
+      decimals: decimals,
       feeRecipient: template.feeRecipient,
       protocolFeeBips: template.protocolFeeBips,
       maxTotalSupply: parameters.maxTotalSupply,
@@ -363,8 +405,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
     emit MarketDeployed(
       market,
-      tmp.name,
-      tmp.symbol,
+      name,
+      symbol,
       tmp.asset,
       tmp.maxTotalSupply,
       tmp.annualInterestBips,
