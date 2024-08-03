@@ -4,10 +4,10 @@ pragma solidity >=0.8.20;
 import './interfaces/IERC20.sol';
 import './interfaces/IWildcatSanctionsEscrow.sol';
 import './interfaces/IWildcatSanctionsSentinel.sol';
-import 'solady/utils/SafeTransferLib.sol';
+import './libraries/LibERC20.sol';
 
 contract WildcatSanctionsEscrow is IWildcatSanctionsEscrow {
-  using SafeTransferLib for address;
+  using LibERC20 for address;
 
   address public immutable override sentinel;
   address public immutable override borrower;
