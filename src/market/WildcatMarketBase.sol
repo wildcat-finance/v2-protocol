@@ -27,7 +27,17 @@ contract WildcatMarketBase is
   //                       Market Config (immutable)                       //
   // ==================================================================== //
 
-  string public constant version = '2';
+  /**
+   * @dev Return the contract version string "2".
+   */
+  function version() external pure returns (string memory) {
+    assembly {
+      mstore(0x40, 0)
+      mstore(0x41, 0x0132)
+      mstore(0x20, 0x20)
+      return(0x20, 0x60)
+    }
+  }
 
   HooksConfig public immutable hooks;
 
@@ -58,11 +68,50 @@ contract WildcatMarketBase is
   /// @dev Address of the underlying asset.
   address public immutable asset;
 
-  /// @dev Token name (prefixed name of underlying asset).
-  string public name;
+  bytes32 internal immutable PACKED_NAME_WORD_0;
+  bytes32 internal immutable PACKED_NAME_WORD_1;
+  bytes32 internal immutable PACKED_SYMBOL_WORD_0;
+  bytes32 internal immutable PACKED_SYMBOL_WORD_1;
 
-  /// @dev Token symbol (prefixed symbol of underlying asset).
-  string public symbol;
+  function symbol() external view returns (string memory) {
+    bytes32 symbolWord0 = PACKED_SYMBOL_WORD_0;
+    bytes32 symbolWord1 = PACKED_SYMBOL_WORD_1;
+
+    assembly {
+      // The layout here is:
+      // 0x00: Offset to the string
+      // 0x20: Length of the string
+      // 0x40: First word of the string
+      // 0x60: Second word of the string
+      // The first word of the string that is kept in immutable storage also contains the
+      // length byte, meaning the total size limit of the string is 63 bytes.
+      mstore(0, 0x20)
+      mstore(0x20, 0)
+      mstore(0x3f, symbolWord0)
+      mstore(0x60, symbolWord1)
+      return(0, 0x80)
+    }
+  }
+
+  function name() external view returns (string memory) {
+    bytes32 nameWord0 = PACKED_NAME_WORD_0;
+    bytes32 nameWord1 = PACKED_NAME_WORD_1;
+
+    assembly {
+      // The layout here is:
+      // 0x00: Offset to the string
+      // 0x20: Length of the string
+      // 0x40: First word of the string
+      // 0x60: Second word of the string
+      // The first word of the string that is kept in immutable storage also contains the
+      // length byte, meaning the total size limit of the string is 63 bytes.
+      mstore(0, 0x20)
+      mstore(0x20, 0)
+      mstore(0x3f, nameWord0)
+      mstore(0x60, nameWord1)
+      return(0, 0x80)
+    }
+  }
 
   /// @dev Returns immutable arch-controller address.
   function archController() external view returns (address) {
@@ -88,25 +137,38 @@ contract WildcatMarketBase is
 
     // Set asset metadata
     asset = parameters.asset;
-    name = parameters.name;
-    symbol = parameters.symbol;
-    decimals = IERC20(parameters.asset).decimals();
+    decimals = parameters.decimals;
 
-    _state = MarketState({
-      isClosed: false,
-      maxTotalSupply: parameters.maxTotalSupply,
-      accruedProtocolFees: 0,
-      normalizedUnclaimedWithdrawals: 0,
-      scaledTotalSupply: 0,
-      scaledPendingWithdrawals: 0,
-      pendingWithdrawalExpiry: 0,
-      isDelinquent: false,
-      timeDelinquent: 0,
-      annualInterestBips: parameters.annualInterestBips,
-      reserveRatioBips: parameters.reserveRatioBips,
-      scaleFactor: uint112(RAY),
-      lastInterestAccruedTimestamp: uint32(block.timestamp)
-    });
+    PACKED_NAME_WORD_0 = parameters.packedNameWord0;
+    PACKED_NAME_WORD_1 = parameters.packedNameWord1;
+    PACKED_SYMBOL_WORD_0 = parameters.packedSymbolWord0;
+    PACKED_SYMBOL_WORD_1 = parameters.packedSymbolWord1;
+
+    uint maxTotalSupply = parameters.maxTotalSupply;
+    assembly {
+      // MarketState Slot 0 Storage Layout:
+      // [15:31] | state.maxTotalSupply
+      // [31:32] | state.isClosed = false
+      sstore(_state.slot, shl(8, maxTotalSupply))
+    }
+
+    uint reserveRatioBips = parameters.reserveRatioBips;
+    uint annualInterestBips = parameters.annualInterestBips;
+    assembly {
+      // MarketState Slot 3 Storage Layout:
+      // [6:10] | lastInterestAccruedTimestamp
+      // [10:24] | scaleFactor
+      // [24:26] | reserveRatioBips
+      // [26:28] | annualInterestBips
+      // [28:32] | timeDelinquent = 0
+
+      let slot3 := or(
+        or(or(shl(0xb0, timestamp()), shl(0x40, RAY)), shl(0x30, reserveRatioBips)),
+        shl(0x20, annualInterestBips)
+      )
+
+      sstore(add(_state.slot, 3), slot3)
+    }
 
     hooks = parameters.hooks;
     sentinel = IWildcatSanctionsSentinel(parameters.sentinel);
@@ -125,7 +187,15 @@ contract WildcatMarketBase is
   // ===================================================================== //
 
   modifier onlyBorrower() {
-    if (msg.sender != borrower) revert_NotApprovedBorrower();
+    address _borrower = borrower;
+    assembly {
+      // Equivalent to
+      // if (msg.sender != borrower) revert_NotApprovedBorrower();
+      if xor(caller(), _borrower) {
+        mstore(0, 0x02171e6a)
+        revert(0x1c, 0x04)
+      }
+    }
     _;
   }
 
@@ -148,8 +218,25 @@ contract WildcatMarketBase is
    *      If an account is flagged mistakenly, the borrower can override their
    *      status on the sentinel and allow them to interact with the market.
    */
-  function _isSanctioned(address account) internal view returns (bool) {
-    return sentinel.isSanctioned(borrower, account);
+  function _isSanctioned(address account) internal view returns (bool result) {
+    address _borrower = borrower;
+    address _sentinel = address(sentinel);
+    assembly {
+      let freeMemoryPointer := mload(0x40)
+      mstore(0, 0x06e74444)
+      mstore(0x20, _borrower)
+      mstore(0x40, account)
+      // Call `sentinel.isSanctioned(borrower, account)` and revert if the call fails
+      // or does not return 32 bytes.
+      if iszero(
+        and(eq(returndatasize(), 0x20), staticcall(gas(), _sentinel, 0x1c, 0x44, 0, 0x20))
+      ) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      result := mload(0)
+      mstore(0x40, freeMemoryPointer)
+    }
   }
 
   // ===================================================================== //
@@ -223,23 +310,16 @@ contract WildcatMarketBase is
     return _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts();
   }
 
-  function outstandingDebt() external view nonReentrantView returns (uint256) {
-    return
-      _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts().satSub(totalAssets());
-  }
-
-  function delinquentDebt() external view nonReentrantView returns (uint256) {
-    return
-      _calculateCurrentStatePointers.asReturnsMarketState()().liquidityRequired().satSub(
-        totalAssets()
-      );
-  }
-
   /**
    * @dev Returns the state of the market as of the last update.
    */
   function previousState() external view returns (MarketState memory) {
-    return _state;
+    // return _state;
+    MarketState memory state = _state;
+
+    assembly {
+      return(state, 0x1a0)
+    }
   }
 
   /**
@@ -247,8 +327,11 @@ contract WildcatMarketBase is
    *      interest and fees accrued since the last update and processing the pending
    *      withdrawal batch if it is expired.
    */
-  function currentState() public view nonReentrantView returns (MarketState memory state) {
+  function currentState() external view nonReentrantView returns (MarketState memory state) {
     state = _calculateCurrentStatePointers.asReturnsMarketState()();
+    assembly {
+      return(state, 0x1a0)
+    }
   }
 
   /**
@@ -276,13 +359,6 @@ contract WildcatMarketBase is
    */
   function scaledBalanceOf(address account) external view nonReentrantView returns (uint256) {
     return _accounts[account].scaledBalance;
-  }
-
-  /**
-   * @dev Returns whether `account` has been marked as sanctioned.
-   */
-  function isAccountSanctioned(address account) external view nonReentrantView returns (bool) {
-    return _isSanctioned(account);
   }
 
   /**
@@ -454,7 +530,75 @@ contract WildcatMarketBase is
   function _writeState(MarketState memory state) internal {
     bool isDelinquent = state.liquidityRequired() > totalAssets();
     state.isDelinquent = isDelinquent;
-    _state = state;
+
+    {
+      bool isClosed = state.isClosed;
+      uint maxTotalSupply = state.maxTotalSupply;
+      assembly {
+        // Slot 0 Storage Layout:
+        // [15:31] | state.maxTotalSupply
+        // [31:32] | state.isClosed
+        let slot0 := or(isClosed, shl(0x08, maxTotalSupply))
+        sstore(_state.slot, slot0)
+      }
+    }
+    {
+      uint accruedProtocolFees = state.accruedProtocolFees;
+      uint normalizedUnclaimedWithdrawals = state.normalizedUnclaimedWithdrawals;
+      assembly {
+        // Slot 1 Storage Layout:
+        // [0:16] | state.normalizedUnclaimedWithdrawals
+        // [16:32] | state.accruedProtocolFees
+        let slot1 := or(accruedProtocolFees, shl(0x80, normalizedUnclaimedWithdrawals))
+        sstore(add(_state.slot, 1), slot1)
+      }
+    }
+    {
+      uint scaledTotalSupply = state.scaledTotalSupply;
+      uint scaledPendingWithdrawals = state.scaledPendingWithdrawals;
+      uint pendingWithdrawalExpiry = state.pendingWithdrawalExpiry;
+      assembly {
+        // Slot 2 Storage Layout:
+        // [1:2] | state.isDelinquent
+        // [2:6] | state.pendingWithdrawalExpiry
+        // [6:19] | state.scaledPendingWithdrawals
+        // [19:32] | state.scaledTotalSupply
+        let slot2 := or(
+          or(
+            or(shl(0xf0, isDelinquent), shl(0xd0, pendingWithdrawalExpiry)),
+            shl(0x68, scaledPendingWithdrawals)
+          ),
+          scaledTotalSupply
+        )
+        sstore(add(_state.slot, 2), slot2)
+      }
+    }
+    {
+      uint timeDelinquent = state.timeDelinquent;
+      uint annualInterestBips = state.annualInterestBips;
+      uint reserveRatioBips = state.reserveRatioBips;
+      uint scaleFactor = state.scaleFactor;
+      uint lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
+      assembly {
+        // Slot 3 Storage Layout:
+        // [6:10] | state.lastInterestAccruedTimestamp
+        // [10:24] | state.scaleFactor
+        // [24:26] | state.reserveRatioBips
+        // [26:28] | state.annualInterestBips
+        // [28:32] | state.timeDelinquent
+        let slot3 := or(
+          or(
+            or(
+              or(shl(0xb0, lastInterestAccruedTimestamp), shl(0x40, scaleFactor)),
+              shl(0x30, reserveRatioBips)
+            ),
+            shl(0x20, annualInterestBips)
+          ),
+          timeDelinquent
+        )
+        sstore(add(_state.slot, 3), slot3)
+      }
+    }
     emit_StateUpdated(state.scaleFactor, isDelinquent);
   }
 
@@ -557,5 +701,23 @@ contract WildcatMarketBase is
 
     // Burn market tokens to stop interest accrual upon withdrawal payment.
     state.scaledTotalSupply -= scaledAmountBurned;
+  }
+
+  /**
+   * @dev Function to obfuscate the fact that a value is constant from solc's optimizer.
+   *      This prevents function specialization for calls with a constant input parameter,
+   *      which usually has very little benefit in terms of gas savings but can
+   *      drastically increase contract size.
+   *
+   *      The value returned will always match the input value outside of the constructor,
+   *      fallback and receive functions.
+   */
+  function _runtimeConstant(
+    uint256 actualConstant
+  ) internal pure returns (uint256 runtimeConstant) {
+    assembly {
+      mstore(0, actualConstant)
+      runtimeConstant := mload(iszero(calldatasize()))
+    }
   }
 }
