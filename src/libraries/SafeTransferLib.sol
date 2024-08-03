@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-/// @notice Safe ERC20 transfer library that gracefully handles missing return values.
+import './StringQuery.sol';
+
+/// @notice Safe ERC20 library
 /// @author d1ll0n
 /// @notice Changes from solady:
 ///   - Removed Permit2 and ETH functions
 ///   - `balanceOf(address)` reverts if the call fails or does not return >=32 bytes
+///   - Added queries for `name`, `symbol`, `decimals`
 /// @author Modified from Solady (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
 /// @author Previously modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/SafeTransferLib.sol)
 ///
@@ -25,6 +28,15 @@ library SafeTransferLib {
 
   /// @dev The ERC20 `balanceOf` call has failed.
   error BalanceOfFailed();
+
+  /// @dev The ERC20 `name` call has failed.
+  error NameFailed();
+
+  /// @dev The ERC20 `symbol` call has failed.
+  error SymbolFailed();
+
+  /// @dev The ERC20 `decimals` call has failed.
+  error DecimalsFailed();
 
   /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
   /*                      ERC20 OPERATIONS                      */
@@ -138,5 +150,48 @@ library SafeTransferLib {
       }
       amount := mload(0x00)
     }
+  }
+
+  /// @dev Returns the `decimals` of ERC20 `token`.
+  /// Reverts if the call to `decimals` reverts or returns less than 32 bytes.
+  function decimals(address token) internal view returns (uint8 _decimals) {
+    assembly {
+      // Write selector for `decimals()` to the end of the first word
+      // of scratch space.
+      mstore(0, 0x313ce567)
+      // Call `asset.decimals()`, writing up to 32 bytes of returndata
+      // to scratch space, overwriting the calldata used for the call.
+      // Reverts if the call fails, does not return exactly 32 bytes, or the returndata
+      // exceeds 8 bits.
+      if iszero(
+        and(
+          and(eq(returndatasize(), 0x20), lt(mload(0), 0x100)),
+          staticcall(gas(), token, 0x1c, 0x04, 0, 0x20)
+        )
+      ) {
+        mstore(0x00, 0x3394d170) // `DecimalsFailed()`.
+        revert(0x1c, 0x04)
+      }
+      // Read the return value from scratch space
+      _decimals := mload(0)
+    }
+  }
+
+  /// @dev Returns the `name` of ERC20 `token`.
+  /// Reverts if the call to `name` reverts or returns a value which is neither
+  /// a bytes32 string nor a valid ABI-encoded string.
+  function name(address token) internal view returns (string memory) {
+    // The `name` function selector is 0x06fdde03.
+    // The `NameFailed` error selector is 0x2ed09f54.
+    return queryStringOrBytes32AsString(target, 0x06fdde03, 0x2ed09f54);
+  }
+
+  /// @dev Returns the `symbol` of ERC20 `token`.
+  /// Reverts if the call to `symbol` reverts or returns a value which is neither
+  /// a bytes32 string nor a valid ABI-encoded string.
+  function symbol(address token) internal view returns (string memory) {
+    // The `symbol` function selector is 0x95d89b41.
+    // The `SymbolFailed` error selector is 0x3ddcc60a.
+    return queryStringOrBytes32AsString(target, 0x95d89b41, 0x3ddcc60a);
   }
 }
