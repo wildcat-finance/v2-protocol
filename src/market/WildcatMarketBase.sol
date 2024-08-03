@@ -12,6 +12,7 @@ import '../libraries/MarketErrors.sol';
 import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
 import '../libraries/FunctionTypeCasts.sol';
+import '../libraries/LibERC20.sol';
 import '../types/HooksConfig.sol';
 
 contract WildcatMarketBase is
@@ -22,6 +23,7 @@ contract WildcatMarketBase is
   using SafeCastLib for uint256;
   using MathUtils for uint256;
   using FunctionTypeCasts for *;
+  using LibERC20 for address;
 
   // ==================================================================== //
   //                       Market Config (immutable)                       //
@@ -132,8 +134,32 @@ contract WildcatMarketBase is
   //                             Constructor                               //
   // ===================================================================== //
 
+  function _getMarketParameters() internal view returns (uint256 marketParametersPointer) {
+    assembly {
+      marketParametersPointer := mload(0x40)
+      mstore(0x40, add(marketParametersPointer, 0x260))
+      // Write the selector for IHooksFactory.getMarketParameters
+      mstore(0x00, 0x04032dbb)
+      // Call `getMarketParameters` and copy the returned struct to the allocated memory
+      // buffer, reverting if the call fails or does not return the correct amount of bytes.
+      // This overrides all the ABI decoding safety checks, as the call is always made to
+      // the factory contract which will only ever return the prepared market parameters.
+      if iszero(
+        and(
+          eq(returndatasize(), 0x260),
+          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x260)
+        )
+      ) {
+        revert(0, 0)
+      }
+    }
+  }
+
   constructor() {
-    MarketParameters memory parameters = IHooksFactory(msg.sender).getMarketParameters();
+    // Cast the function signature of `_getMarketParameters` to get a valid reference to
+    // a `MarketParameters` object without creating a duplicate allocation or unnecessarily
+    // zeroing out the memory buffer.
+    MarketParameters memory parameters = _getMarketParameters.asReturnsMarketParameters()();
 
     // Set asset metadata
     asset = parameters.asset;
@@ -144,30 +170,36 @@ contract WildcatMarketBase is
     PACKED_SYMBOL_WORD_0 = parameters.packedSymbolWord0;
     PACKED_SYMBOL_WORD_1 = parameters.packedSymbolWord1;
 
-    uint maxTotalSupply = parameters.maxTotalSupply;
-    assembly {
-      // MarketState Slot 0 Storage Layout:
-      // [15:31] | state.maxTotalSupply
-      // [31:32] | state.isClosed = false
-      sstore(_state.slot, shl(8, maxTotalSupply))
-    }
+    {
+      // Initialize the market state - all values in slots 1 and 2 of the struct are
+      // initialized to zero, so they are skipped.
 
-    uint reserveRatioBips = parameters.reserveRatioBips;
-    uint annualInterestBips = parameters.annualInterestBips;
-    assembly {
-      // MarketState Slot 3 Storage Layout:
-      // [6:10] | lastInterestAccruedTimestamp
-      // [10:24] | scaleFactor
-      // [24:26] | reserveRatioBips
-      // [26:28] | annualInterestBips
-      // [28:32] | timeDelinquent = 0
+      uint maxTotalSupply = parameters.maxTotalSupply;
+      uint reserveRatioBips = parameters.reserveRatioBips;
+      uint annualInterestBips = parameters.annualInterestBips;
 
-      let slot3 := or(
-        or(or(shl(0xb0, timestamp()), shl(0x40, RAY)), shl(0x30, reserveRatioBips)),
-        shl(0x20, annualInterestBips)
-      )
+      assembly {
+        // MarketState Slot 0 Storage Layout:
+        // [15:31] | state.maxTotalSupply
+        // [31:32] | state.isClosed = false
 
-      sstore(add(_state.slot, 3), slot3)
+        let slot0 := shl(8, maxTotalSupply)
+        sstore(_state.slot, slot0)
+
+        // MarketState Slot 3 Storage Layout:
+        // [6:10] | lastInterestAccruedTimestamp
+        // [10:24] | scaleFactor
+        // [24:26] | reserveRatioBips
+        // [26:28] | annualInterestBips
+        // [28:32] | timeDelinquent = 0
+
+        let slot3 := or(
+          or(or(shl(0xb0, timestamp()), shl(0x40, RAY)), shl(0x30, reserveRatioBips)),
+          shl(0x20, annualInterestBips)
+        )
+
+        sstore(add(_state.slot, 3), slot3)
+      }
     }
 
     hooks = parameters.hooks;
@@ -262,26 +294,8 @@ contract WildcatMarketBase is
   /**
    * @dev Total balance in underlying asset.
    */
-  function totalAssets() public view returns (uint256 _totalAssets) {
-    address assetAddress = asset;
-    assembly {
-      // Write selector for `balanceOf(address)` to the end of the first word
-      // of scratch space, then write `address(this)` to the second word.
-      mstore(0, 0x70a08231)
-      mstore(0x20, address())
-      // Call `asset.balanceOf(address(this))`, writing up to 32 bytes of returndata
-      // to scratch space, overwriting calldata.
-      // Reverts if the call fails or does not return exactly 32 bytes.
-      if iszero(
-        and(eq(returndatasize(), 0x20), staticcall(gas(), assetAddress, 0x1c, 0x24, 0, 0x20))
-      ) {
-        // Revert with error message from the call.
-        returndatacopy(0, 0, returndatasize())
-        revert(0, returndatasize())
-      }
-      // Read the return value from scratch space
-      _totalAssets := mload(0)
-    }
+  function totalAssets() public view returns (uint256 ) {
+    return asset.balanceOf(address(this));
   }
 
   /**
@@ -314,7 +328,6 @@ contract WildcatMarketBase is
    * @dev Returns the state of the market as of the last update.
    */
   function previousState() external view returns (MarketState memory) {
-    // return _state;
     MarketState memory state = _state;
 
     assembly {

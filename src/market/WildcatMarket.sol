@@ -246,7 +246,6 @@ contract WildcatMarket is
     // as doing so would mean last lender in market couldn't fully redeem
     state.timeDelinquent = 0;
 
-    // @todo make sure this isn't needed
     // Still track available liquidity in case of a rounding error
     uint256 availableLiquidity = currentlyHeld -
       (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
