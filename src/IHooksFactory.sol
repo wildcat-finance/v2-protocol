@@ -33,6 +33,7 @@ interface IHooksFactoryEventsAndErrors {
   error InvalidFeeConfiguration();
   error SaltDoesNotContainSender();
   error MarketAlreadyExists();
+  error NameOrSymbolTooLong();
 
   event HooksInstanceDeployed(address hooksInstance, address hooksTemplate);
   event HooksTemplateAdded(
