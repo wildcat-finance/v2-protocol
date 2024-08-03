@@ -206,7 +206,7 @@ contract WildcatMarket is
     if (state.isClosed) revert_RepayToClosedMarket();
 
     // Execute repay hook if enabled
-    hooks.onRepay(amount, state, 0x24);
+    hooks.onRepay(amount, state, _runtimeConstant(0x24));
 
     _writeState(state);
   }
