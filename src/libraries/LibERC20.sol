@@ -10,8 +10,8 @@ import './StringQuery.sol';
 ///   - `balanceOf(address)` reverts if the call fails or does not return >=32 bytes
 ///   - Added queries for `name`, `symbol`, `decimals`
 ///   - Set name to LibERC20 as it has queries unrelated to transfers and stripped ETH functions
-/// @author Modified from Solady (https://github.com/vectorized/solady/blob/main/src/utils/SafeTransferLib.sol)
-/// @author Previously modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/SafeTransferLib.sol)
+/// @author Modified from Solady (https://github.com/vectorized/solady/blob/main/src/utils/LibERC20.sol)
+/// @author Previously modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/LibERC20.sol)
 ///
 /// @dev Note:
 /// - For ERC20s, this implementation won't check that a token has code,
@@ -184,7 +184,7 @@ library LibERC20 {
   function name(address token) internal view returns (string memory) {
     // The `name` function selector is 0x06fdde03.
     // The `NameFailed` error selector is 0x2ed09f54.
-    return queryStringOrBytes32AsString(target, 0x06fdde03, 0x2ed09f54);
+    return queryStringOrBytes32AsString(token, 0x06fdde03, 0x2ed09f54);
   }
 
   /// @dev Returns the `symbol` of ERC20 `token`.
@@ -193,6 +193,6 @@ library LibERC20 {
   function symbol(address token) internal view returns (string memory) {
     // The `symbol` function selector is 0x95d89b41.
     // The `SymbolFailed` error selector is 0x3ddcc60a.
-    return queryStringOrBytes32AsString(target, 0x95d89b41, 0x3ddcc60a);
+    return queryStringOrBytes32AsString(token, 0x95d89b41, 0x3ddcc60a);
   }
 }
