@@ -20,7 +20,6 @@ contract WildcatMarketBaseTest is BaseMarketTest {
     assertEq(market.scaleFactor(), 1e27, 'scaleFactor should be 1 ray');
     fastForward(365 days);
     assertEq(market.scaleFactor(), 1.1e27, 'scaleFactor should grow by 10% from APR');
-    // updateState(pendingState());
     // Deposit one token
     _deposit(alice, 1e18);
     // Borrow 80% of market assets
@@ -38,19 +37,6 @@ contract WildcatMarketBaseTest is BaseMarketTest {
         FeeMath.calculateLinearInterestFromBips(parameters.annualInterestBips, 2_000)
       );
     assertEq(market.scaleFactor(), scaleFactorAtGracePeriodExpiry);
-    // uint256 dayOneInterest = FeeMath.calculateLinearInterestFromBips(
-    // 	1000,
-    // 	86_400
-    // );
-    // uint256 scaleFactorDayOne = 1.1e27 + MathUtils.rayMul(1.1e27, dayOneInterest);
-    // uint256 scaleFactor = scaleFactorDayOne +
-    // 	MathUtils.rayMul(scaleFactorDayOne, FeeMath.calculateLinearInterestFromBips(2000, 364 days));
-
-    // assertEq(
-    // 	market.scaleFactor(),
-    // 	scaleFactor,
-    // 	'scaleFactor should grow by 20% with delinquency fees'
-    // );
   }
 
   // ===================================================================== //
@@ -102,7 +88,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   // ===================================================================== //
 
   function test_scaledTotalSupply() external view {
-    market.scaledTotalSupply();
+    market.currentState().scaledTotalSupply;
   }
 
   // ===================================================================== //
@@ -123,20 +109,23 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   // ===================================================================== //
 
   function test_withdrawableProtocolFees() external {
-    assertEq(market.withdrawableProtocolFees(), 0);
+    assertEq(previousState.withdrawableProtocolFees(market.totalAssets()), 0);
     _deposit(alice, 1e18);
     fastForward(365 days);
-    assertEq(market.withdrawableProtocolFees(), 1e16);
+
+    MarketState memory state = pendingState();
+    assertEq(state.withdrawableProtocolFees(market.totalAssets()), 1e16);
   }
 
   function test_withdrawableProtocolFees_LessNormalizedUnclaimedWithdrawals() external {
-    assertEq(market.withdrawableProtocolFees(), 0);
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 0);
     _deposit(alice, 1e18);
     _borrow(8e17);
     fastForward(365 days);
     _requestWithdrawal(alice, 1e18);
-    assertEq(market.withdrawableProtocolFees(), 1e16);
+    // MarketState memory state = market.currentState();
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
     asset.mint(address(market), 8e17 + 1);
-    assertEq(market.withdrawableProtocolFees(), 1e16);
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
   }
 }
