@@ -7,6 +7,7 @@ import '../libraries/SafeCastLib.sol';
 
 contract WildcatMarketConfig is WildcatMarketBase {
   using SafeCastLib for uint256;
+  using FunctionTypeCasts for *;
 
   // ===================================================================== //
   //                      External Config Getters                          //
@@ -16,8 +17,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
    * @dev Returns whether or not a market has been closed.
    */
   function isClosed() external view returns (bool) {
-    MarketState memory state = currentState();
-    return state.isClosed;
+    // Use stored state because the state update can not affect whether
+    // the market is closed.
+    return _state.isClosed;
   }
 
   /**
@@ -25,7 +27,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
    *      currently be deposited to the market.
    */
   function maximumDeposit() external view returns (uint256) {
-    MarketState memory state = currentState();
+    MarketState memory state = _calculateCurrentStatePointers.asReturnsMarketState()();
     return state.maximumDeposit();
   }
 
@@ -91,6 +93,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /**
    * @dev Sets the maximum total supply - this only limits deposits and
    *      does not affect interest accrual.
+   *
+   *      The hooks contract may block the change but can not modify the
+   *      value being set.
    */
   function setMaxTotalSupply(
     uint256 _maxTotalSupply
@@ -130,11 +135,11 @@ contract WildcatMarketConfig is WildcatMarketBase {
     );
 
     if (_annualInterestBips > BIP) {
-      revert AnnualInterestBipsTooHigh();
+      revert_AnnualInterestBipsTooHigh();
     }
 
     if (_reserveRatioBips > BIP) {
-      revert ReserveRatioBipsTooHigh();
+      revert_ReserveRatioBipsTooHigh();
     }
 
     if (_reserveRatioBips < initialReserveRatioBips) {
