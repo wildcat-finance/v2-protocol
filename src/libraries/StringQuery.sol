@@ -5,6 +5,8 @@ import { LibBit } from 'solady/utils/LibBit.sol';
 
 using LibBit for uint256;
 
+uint256 constant OnlyFullWordMask = 0xffffffe0;
+
 function bytes32ToString(bytes32 value) pure returns (string memory str) {
   uint256 size;
   unchecked {
