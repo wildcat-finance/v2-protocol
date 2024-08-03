@@ -186,7 +186,14 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint32 expiry
   ) public nonReentrant sphereXGuardExternal returns (uint256) {
     MarketState memory state = _getUpdatedState();
-    uint256 normalizedAmountWithdrawn = _executeWithdrawal(state, accountAddress, expiry, 0x44);
+    // Use an obfuscated constant for the base calldata size to prevent solc
+    // function specialization.
+    uint256 normalizedAmountWithdrawn = _executeWithdrawal(
+      state,
+      accountAddress,
+      expiry,
+      _runtimeConstant(0x44)
+    );
     // Update stored state
     _writeState(state);
     return normalizedAmountWithdrawn;
@@ -277,7 +284,9 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_RepayToClosedMarket();
 
-    if (repayAmount > 0) hooks.onRepay(repayAmount, state, 0x44);
+    // Use an obfuscated constant for the base calldata size to prevent solc
+    // function specialization.
+    if (repayAmount > 0) hooks.onRepay(repayAmount, state, _runtimeConstant(0x44));
 
     // Calculate assets available to process the first batch - will be updated after each batch
     uint256 availableLiquidity = totalAssets() -
