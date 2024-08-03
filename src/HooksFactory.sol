@@ -12,7 +12,6 @@ import './access/IHooks.sol';
 import './IHooksFactory.sol';
 import './types/TransientBytesArray.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
-import { queryName, querySymbol } from './libraries/StringQuery.sol';
 
 struct TmpMarketParameterStorage {
   address borrower;
