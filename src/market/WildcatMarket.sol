@@ -15,7 +15,7 @@ contract WildcatMarket is
 {
   using MathUtils for uint256;
   using SafeCastLib for uint256;
-  using SafeTransferLib for address;
+  using LibERC20 for address;
 
   /**
    * @dev Apply pending interest, delinquency fees and protocol fees

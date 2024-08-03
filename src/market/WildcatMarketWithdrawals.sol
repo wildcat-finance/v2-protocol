@@ -2,11 +2,11 @@
 pragma solidity >=0.8.20;
 
 import './WildcatMarketBase.sol';
-import '../libraries/SafeTransferLib.sol';
+import '../libraries/LibERC20.sol';
 import '../libraries/BoolUtils.sol';
 
 contract WildcatMarketWithdrawals is WildcatMarketBase {
-  using SafeTransferLib for address;
+  using LibERC20 for address;
   using MathUtils for uint256;
   using MathUtils for bool;
   using SafeCastLib for uint256;
