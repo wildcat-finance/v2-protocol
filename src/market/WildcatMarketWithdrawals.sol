@@ -2,7 +2,7 @@
 pragma solidity >=0.8.20;
 
 import './WildcatMarketBase.sol';
-import 'solady/utils/SafeTransferLib.sol';
+import '../libraries/SafeTransferLib.sol';
 import '../libraries/BoolUtils.sol';
 
 contract WildcatMarketWithdrawals is WildcatMarketBase {
@@ -131,7 +131,9 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   /**
    * @dev Create a withdrawal request for a lender.
    */
-  function queueWithdrawal(uint256 amount) public nonReentrant sphereXGuardExternal returns (uint32 expiry) {
+  function queueWithdrawal(
+    uint256 amount
+  ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
     uint104 scaledAmount = state.scaleAmount(amount).toUint104();
@@ -146,7 +148,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   /**
    * @dev Queue a withdrawal for all of the caller's balance.
    */
-  function queueFullWithdrawal() external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
+  function queueFullWithdrawal()
+    external
+    nonReentrant
+    sphereXGuardExternal
+    returns (uint32 expiry)
+  {
     MarketState memory state = _getUpdatedState();
 
     // Cache account data
@@ -196,7 +203,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
 
     for (uint256 i = 0; i < accountAddresses.length; i++) {
-      // Provide baseCalldataSize of calldatasize() to indicate no data should be passed as `extraData`
+      // Use calldatasize() for baseCalldataSize to indicate no data should be passed as `extraData`
       amounts[i] = _executeWithdrawal(state, accountAddresses[i], expiries[i], msg.data.length);
     }
     // Update stored state
