@@ -11,9 +11,6 @@ import './ConstrainDeployParameters.sol';
 using BoolUtils for bool;
 using MathUtils for uint256;
 
-// @todo custom error types
-// @todo events
-
 /**
  * @title AccessControlHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
@@ -90,7 +87,7 @@ contract AccessControlHooks is ConstrainDeployParameters {
 
   /**
    * @param _deployer Address of the account that called the factory.
-   * @param {} unused parameters
+   * @param {} unused extra bytes to match the constructor signature
    *  restrictedFunctions Configuration specifying which functions to apply
    *                            access controls to.
    */
@@ -348,7 +345,6 @@ contract AccessControlHooks is ConstrainDeployParameters {
     }
 
     _setCredentialAndEmitAccessGranted(status, callingProvider, account, roleGrantedTimestamp);
-
   }
 
   // @todo add tests to AccessControlHooks.t.sol
@@ -563,17 +559,20 @@ contract AccessControlHooks is ConstrainDeployParameters {
   }
 
   /**
-   * @dev Internal function used to validate or update the status of a lender account for hooks on restricted actions.
+   * @dev Internal function used to validate or update the status of a lender account for
+   *      hooks on restricted actions.
    *
-   *     The function follows the following logic, with the process ending if a valid credential is found:
+   *     The function follows these steps until a valid credential is found:
    *       1. Check if lender has an existing unexpired credential.
    *       2. Check if `hooksData` was provided, and if so:
-   *         - If the suffix contains only an address, attempt to query a credential from that provider.
-   *         - If the suffix contains both an address and raw data, attempt to validate a credential from that provider.
+   *         - If it contains only an address, call `getCredential` on that provider.
+   *         - If it contains an address and bytes, call `validateCredential` on that provider.
    *       3. If lender has an existing expired credential, attempt to refresh it.
-   *       4. Loop over all pull providers to find a valid credential, excluding the last provider if it failed to refresh.
+   *       4. Loop over all pull providers to find a valid credential, excluding the last provider
+   *          if it failed to refresh.
    *
-   * note: Does not update storage or emit an event, but is stateful because it can invoke `validateCredential` on a provider.
+   * note: Does not update storage or emit an event, but is stateful because it can invoke
+   *       `validateCredential` on a provider.
    */
   function _tryValidateAccessInner(
     LenderStatus memory status,
@@ -778,11 +777,12 @@ contract AccessControlHooks is ConstrainDeployParameters {
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
-    return super.onSetAnnualInterestAndReserveRatioBips(
-      annualInterestBips,
-      reserveRatioBips,
-      intermediateState,
-      hooksData
-    );
+    return
+      super.onSetAnnualInterestAndReserveRatioBips(
+        annualInterestBips,
+        reserveRatioBips,
+        intermediateState,
+        hooksData
+      );
   }
 }
