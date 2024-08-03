@@ -2,7 +2,6 @@
 pragma solidity >=0.8.20;
 
 import { MarketState } from '../libraries/MarketState.sol';
-import { AuthRole } from './WildcatStructsAndEnums.sol';
 
 interface IMarketEventsAndErrors {
   /// @notice Error thrown when deposit exceeds maxTotalSupply
@@ -23,9 +22,7 @@ interface IMarketEventsAndErrors {
   /// @notice Error thrown when transfer target is blacklisted
   error AccountBlocked();
 
-  error AccountNotBlocked();
-
-  error NotReversedOrStunning();
+  error BadRescueAsset();
 
   error BorrowAmountTooHigh();
 
@@ -90,8 +87,8 @@ interface IMarketEventsAndErrors {
   );
 
   event SanctionedAccountAssetsQueuedForWithdrawal(
-    uint256 indexed expiry,
     address indexed account,
+    uint256 expiry,
     uint256 scaledAmount,
     uint256 normalizedAmount
   );
