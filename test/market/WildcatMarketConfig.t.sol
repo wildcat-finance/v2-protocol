@@ -6,17 +6,17 @@ import '../BaseMarketTest.sol';
 
 contract WildcatMarketConfigTest is BaseMarketTest {
   function test_maximumDeposit(uint256 _depositAmount) external returns (uint256) {
-    assertEq(market.maximumDeposit(), parameters.maxTotalSupply);
+    assertEq(market.maximumDeposit(), parameters.maxTotalSupply, 'maximumDeposit');
     _depositAmount = bound(_depositAmount, 1, DefaultMaximumSupply);
     _deposit(alice, _depositAmount);
-    assertEq(market.maximumDeposit(), DefaultMaximumSupply - _depositAmount);
+    assertEq(market.maximumDeposit(), DefaultMaximumSupply - _depositAmount, 'new maximumDeposit');
   }
 
   function test_maximumDeposit_SupplyExceedsMaximum() external {
     _deposit(alice, parameters.maxTotalSupply);
     fastForward(365 days);
-    assertEq(market.totalSupply(), 110_000e18);
-    assertEq(market.maximumDeposit(), 0);
+    _checkState('state after one year');
+    assertEq(market.maximumDeposit(), 0, 'maximumDeposit after 1 year');
   }
 
   function test_maxTotalSupply() external asAccount(borrower) {
@@ -40,106 +40,47 @@ contract WildcatMarketConfigTest is BaseMarketTest {
   function test_nukeFromOrbit(address _account) external {
     _deposit(_account, 1e18);
     sanctionsSentinel.sanction(_account);
-    address escrow = sanctionsSentinel.getEscrowAddress(borrower, _account, address(market));
 
-    // @todo
-    // vm.expectEmit(address(market));
-    // emit AuthorizationStatusUpdated(_account, AuthRole.Blocked);
+    MarketState memory state = pendingState();
+    (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, _account);
+    (uint32 expiry, uint104 scaledAmount) = _trackQueueWithdrawal(state, _account, 1e18);
     vm.expectEmit(address(market));
-    emit Transfer(_account, escrow, 1e18);
-    vm.expectEmit(address(market));
-    emit SanctionedAccountAssetsSentToEscrow(_account, escrow, 1e18);
+    emit SanctionedAccountAssetsQueuedForWithdrawal(_account, expiry, currentScaledBalance, currentBalance);
     market.nukeFromOrbit(_account);
-    // @todo
-    // assertEq(
-    // uint(market.getAccountRole(_account)),
-    // uint(AuthRole.Blocked),
-    // 'account role should be Blocked'
-    // );
+    fastForward(parameters.withdrawalBatchDuration+1);
+    state = pendingState();
+    _trackExecuteWithdrawal(state, expiry, _account, 1e18, true);
+    market.executeWithdrawal(_account, expiry);
   }
 
   function test_nukeFromOrbit_AlreadyNuked(address _account) external {
     sanctionsSentinel.sanction(_account);
-
-    // @todo
-    // vm.expectEmit(address(market));
-    // emit AuthorizationStatusUpdated(_account, AuthRole.Blocked);
     market.nukeFromOrbit(_account);
     market.nukeFromOrbit(_account);
-    // @todo
-    assertTrue(market.isAccountSanctioned(_account), 'account should be sanctioned');
   }
 
   function test_nukeFromOrbit_NullBalance(address _account) external {
     sanctionsSentinel.sanction(_account);
     address escrow = sanctionsSentinel.getEscrowAddress(borrower, _account, address(market));
-
-    // @todo
-    vm.expectEmit(address(market));
-    emit AccountSanctioned(_account);
     market.nukeFromOrbit(_account);
-    assertTrue(market.isAccountSanctioned(_account), 'account should be sanctioned');
     assertEq(escrow.code.length, 0, 'escrow should not be deployed');
   }
 
   function test_nukeFromOrbit_WithBalance() external {
     _deposit(alice, 1e18);
-    address escrow = sanctionsSentinel.getEscrowAddress(borrower, alice, address(market));
+    address escrow = sanctionsSentinel.getEscrowAddress(borrower, alice, address(asset));
     sanctionsSentinel.sanction(alice);
-
+    MarketState memory state = pendingState();
+    (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, alice);
+    (uint32 expiry, uint104 scaledAmount) = _trackQueueWithdrawal(state, alice, 1e18);
     vm.expectEmit(address(market));
-    emit AccountSanctioned(alice);
-
-    vm.expectEmit(address(market));
-    emit Transfer(alice, escrow, 1e18);
-    vm.expectEmit(address(market));
-    emit SanctionedAccountAssetsSentToEscrow(alice, escrow, 1e18);
+    emit SanctionedAccountAssetsQueuedForWithdrawal(alice, expiry, currentScaledBalance, currentBalance);
     market.nukeFromOrbit(alice);
-    assertTrue(market.isAccountSanctioned(alice), 'account should be sanctioned');
   }
 
   function test_nukeFromOrbit_BadLaunchCode(address _account) external {
     vm.expectRevert(IMarketEventsAndErrors.BadLaunchCode.selector);
     market.nukeFromOrbit(_account);
-  }
-
-  function test_stunningReversal() external {
-    sanctionsSentinel.sanction(alice);
-
-    vm.expectEmit(address(market));
-    emit AccountSanctioned(alice);
-    market.nukeFromOrbit(alice);
-
-    vm.prank(borrower);
-    sanctionsSentinel.overrideSanction(alice);
-
-    // @todo
-    // vm.expectEmit(address(market)); // this line causing the test fail
-    // emit AuthorizationStatusUpdated(alice, AuthRole.WithdrawOnly);
-    // market.stunningReversal(alice);
-
-    assertFalse(market.isAccountSanctioned(alice), 'account should be unsanctioned');
-    /* assertEq(
-      uint(market.getAccountRole(alice)),
-      uint(AuthRole.WithdrawOnly),
-      'account role should be WithdrawOnly'
-    ); */
-  }
-
-  function test_stunningReversal_AccountNotBlocked(address _account) external {
-    vm.expectRevert(IMarketEventsAndErrors.AccountNotBlocked.selector);
-    // @todo
-    // market.stunningReversal(_account);
-  }
-
-  function test_stunningReversal_NotReversedOrStunning() external {
-    sanctionsSentinel.sanction(alice);
-    vm.expectEmit(address(market));
-    emit AccountSanctioned(alice);
-
-    market.nukeFromOrbit(alice);
-    vm.expectRevert(IMarketEventsAndErrors.NotReversedOrStunning.selector);
-    // market.stunningReversal(alice);
   }
 
   function test_setMaxTotalSupply(
