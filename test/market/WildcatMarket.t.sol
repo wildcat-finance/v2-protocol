@@ -7,6 +7,7 @@ import 'src/libraries/MathUtils.sol';
 import 'src/libraries/SafeCastLib.sol';
 import 'src/libraries/MarketState.sol';
 import 'src/libraries/LibERC20.sol';
+import 'solady/utils/LibPRNG.sol';
 import { AccessControlHooksDataFuzzInputs, ExistingCredentialFuzzInputs } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 contract WildcatMarketTest is BaseMarketTest {
@@ -14,6 +15,7 @@ contract WildcatMarketTest is BaseMarketTest {
   using MathUtils for int256;
   using MathUtils for uint256;
   using SafeCastLib for uint256;
+  using LibPRNG for LibPRNG.PRNG;
 
   // ===================================================================== //
   //                             updateState()                             //
@@ -498,5 +500,79 @@ contract WildcatMarketTest is BaseMarketTest {
       _checkState();
       assertEq(market.balanceOf(carol), 0, 'carol balance');
     }
+  }
+
+  function test_withdraw_afterMarketClosed(uint depositAmount, uint8 numBatches) external {
+    LibPRNG.PRNG memory rng;
+    numBatches = uint8(bound(numBatches, 6, 25));
+    depositAmount = bound(depositAmount, 1e15, type(uint80).max);
+    uint totalDepositAmount = uint(depositAmount) * uint(numBatches);
+
+    _deposit(alice, totalDepositAmount);
+
+    uint i;
+    uint amountLeftToWithdraw = totalDepositAmount;
+
+    while (amountLeftToWithdraw > totalDepositAmount / 2) {
+      uint avg = amountLeftToWithdraw / numBatches;
+      uint max = MathUtils.min(amountLeftToWithdraw + 1, avg * 2);
+      uint amount;
+
+      if (max > 1e18) {
+        amount = bound(rng.uniform(max), MathUtils.min(avg, amountLeftToWithdraw), max);
+      } else {
+        amount = amountLeftToWithdraw;
+      }
+      if (amount == 0) {
+        continue;
+      }
+      vm.prank(alice);
+      market.queueWithdrawal(amount);
+      amountLeftToWithdraw -= amount;
+      fastForward(parameters.withdrawalBatchDuration + 1);
+    }
+    uint256 remainingDebt = market.totalDebts() - market.totalAssets();
+    asset.mint(borrower, remainingDebt);
+    vm.prank(borrower);
+    asset.approve(address(market), remainingDebt);
+    vm.prank(borrower);
+    market.closeMarket();
+    assertTrue(market.isClosed(), 'market not closed');
+    while (amountLeftToWithdraw > 0) {
+      uint avg = amountLeftToWithdraw / numBatches;
+      uint max = MathUtils.min(amountLeftToWithdraw + 1, avg * 2);
+      uint amount;
+
+      if (max > 1e18) {
+        amount = bound(rng.uniform(max), MathUtils.min(avg, amountLeftToWithdraw), max);
+      } else {
+        amount = amountLeftToWithdraw;
+      }
+      vm.prank(alice);
+      market.queueWithdrawal(amount);
+      amountLeftToWithdraw -= amount;
+      fastForward(parameters.withdrawalBatchDuration + 1);
+    }
+    assertFalse(market.currentState().isDelinquent, 'should not be delinquent');
+    assertEq(market.currentState().scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+  }
+
+  function test_rescueTokens_NotApprovedBorrower() external {
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+    market.rescueTokens(address(market));
+  }
+  function test_rescueTokens_BadRescueAsset() external asAccount(borrower) {
+    vm.expectRevert(IMarketEventsAndErrors.BadRescueAsset.selector);
+    market.rescueTokens(address(market));
+    vm.expectRevert(IMarketEventsAndErrors.BadRescueAsset.selector);
+    market.rescueTokens(address(asset));
+  }
+
+  function test_rescueTokens() external asAccount(borrower) {
+    MockERC20 token = new MockERC20('Token', 'TKN', 18);
+    token.mint(address(market), 1e18);
+    vm.expectEmit(address(token));
+    emit IERC20.Transfer(address(market), borrower, 1e18);
+    market.rescueTokens(address(token));
   }
 }
