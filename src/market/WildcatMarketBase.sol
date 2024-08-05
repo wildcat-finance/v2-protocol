@@ -294,7 +294,7 @@ contract WildcatMarketBase is
   /**
    * @dev Total balance in underlying asset.
    */
-  function totalAssets() public view returns (uint256 ) {
+  function totalAssets() public view returns (uint256) {
     return asset.balanceOf(address(this));
   }
 
@@ -673,7 +673,9 @@ contract WildcatMarketBase is
 
     uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
     scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
-    normalizedAmountPaid = state.normalizeAmount(scaledAmountBurned).toUint128();
+    // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
+    // it is always possible to finish withdrawal batches on closed markets.
+    normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;
@@ -703,7 +705,11 @@ contract WildcatMarketBase is
     uint104 scaledAmountBurned = MathUtils
       .min(scaledAvailableLiquidity, scaledAmountOwed)
       .toUint104();
-    uint128 normalizedAmountPaid = state.normalizeAmount(scaledAmountBurned).toUint128();
+    // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
+    // it is always possible to finish withdrawal batches on closed markets.
+    uint128 normalizedAmountPaid = MathUtils
+      .mulDiv(scaledAmountBurned, state.scaleFactor, RAY)
+      .toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;
