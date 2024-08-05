@@ -34,7 +34,8 @@ struct StandardHooksConfig {
   bool useOnSetMaxTotalSupply;
   bool useOnSetAnnualInterestAndReserveRatioBips;
 }
-using { mergeSharedFlags, toHooksConfig } for StandardHooksConfig global;
+using { mergeFlags, mergeSharedFlags, toHooksConfig } for StandardHooksConfig global;
+using { toHooksDeploymentConfig } for StandardHooksDeploymentConfig global;
 
 function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConfig) {
   return
@@ -72,4 +73,44 @@ function mergeSharedFlags(
       useOnSetAnnualInterestAndReserveRatioBips: a.useOnSetAnnualInterestAndReserveRatioBips &&
         b.useOnSetAnnualInterestAndReserveRatioBips
     });
+}
+
+struct StandardHooksDeploymentConfig {
+  StandardHooksConfig optional;
+  StandardHooksConfig required;
+}
+
+function toHooksDeploymentConfig(
+  StandardHooksDeploymentConfig memory input
+) pure returns (HooksDeploymentConfig) {
+  return
+    encodeHooksDeploymentConfig({
+      optionalFlags: input.optional.toHooksConfig(),
+      requiredFlags: input.required.toHooksConfig()
+    });
+}
+
+function mergeFlags(
+  StandardHooksConfig memory config,
+  StandardHooksDeploymentConfig memory flags
+) pure returns (StandardHooksConfig memory merged) {
+  merged = mergeSharedFlags(config, flags.optional);
+  merged.useOnDeposit = merged.useOnDeposit || flags.required.useOnDeposit;
+  merged.useOnQueueWithdrawal = merged.useOnQueueWithdrawal || flags.required.useOnQueueWithdrawal;
+  merged.useOnExecuteWithdrawal =
+    merged.useOnExecuteWithdrawal ||
+    flags.required.useOnExecuteWithdrawal;
+  merged.useOnTransfer = merged.useOnTransfer || flags.required.useOnTransfer;
+  merged.useOnBorrow = merged.useOnBorrow || flags.required.useOnBorrow;
+  merged.useOnRepay = merged.useOnRepay || flags.required.useOnRepay;
+  merged.useOnCloseMarket = merged.useOnCloseMarket || flags.required.useOnCloseMarket;
+  merged.useOnAssetsSentToEscrow =
+    merged.useOnAssetsSentToEscrow ||
+    flags.required.useOnAssetsSentToEscrow;
+  merged.useOnSetMaxTotalSupply =
+    merged.useOnSetMaxTotalSupply ||
+    flags.required.useOnSetMaxTotalSupply;
+  merged.useOnSetAnnualInterestAndReserveRatioBips =
+    merged.useOnSetAnnualInterestAndReserveRatioBips ||
+    flags.required.useOnSetAnnualInterestAndReserveRatioBips;
 }
