@@ -88,7 +88,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   // ===================================================================== //
 
   function test_scaledTotalSupply() external view {
-    market.currentState().scaledTotalSupply;
+    assertEq(market.currentState().scaledTotalSupply, market.scaledTotalSupply());
   }
 
   // ===================================================================== //
@@ -127,5 +127,6 @@ contract WildcatMarketBaseTest is BaseMarketTest {
     assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
     asset.mint(address(market), 8e17 + 1);
     assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
+    assertEq(market.withdrawableProtocolFees(), 1e16);
   }
 }
