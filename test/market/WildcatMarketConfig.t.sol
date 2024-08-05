@@ -5,6 +5,7 @@ import 'src/interfaces/IMarketEventsAndErrors.sol';
 import '../BaseMarketTest.sol';
 
 contract WildcatMarketConfigTest is BaseMarketTest {
+  using MathUtils for uint;
   function test_maximumDeposit(uint256 _depositAmount) external returns (uint256) {
     assertEq(market.maximumDeposit(), parameters.maxTotalSupply, 'maximumDeposit');
     _depositAmount = bound(_depositAmount, 1, DefaultMaximumSupply);
@@ -33,8 +34,6 @@ contract WildcatMarketConfigTest is BaseMarketTest {
 
   function test_reserveRatioBips() external asAccount(borrower) {
     assertEq(market.reserveRatioBips(), parameters.reserveRatioBips);
-    market.setAnnualInterestAndReserveRatioBips(10000, 10000);
-    assertEq(market.reserveRatioBips(), 10000);
   }
 
   function test_nukeFromOrbit(address _account) external {
@@ -45,9 +44,14 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, _account);
     (uint32 expiry, uint104 scaledAmount) = _trackQueueWithdrawal(state, _account, 1e18);
     vm.expectEmit(address(market));
-    emit SanctionedAccountAssetsQueuedForWithdrawal(_account, expiry, currentScaledBalance, currentBalance);
+    emit SanctionedAccountAssetsQueuedForWithdrawal(
+      _account,
+      expiry,
+      currentScaledBalance,
+      currentBalance
+    );
     market.nukeFromOrbit(_account);
-    fastForward(parameters.withdrawalBatchDuration+1);
+    fastForward(parameters.withdrawalBatchDuration + 1);
     state = pendingState();
     _trackExecuteWithdrawal(state, expiry, _account, 1e18, true);
     market.executeWithdrawal(_account, expiry);
@@ -74,7 +78,12 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, alice);
     (uint32 expiry, uint104 scaledAmount) = _trackQueueWithdrawal(state, alice, 1e18);
     vm.expectEmit(address(market));
-    emit SanctionedAccountAssetsQueuedForWithdrawal(alice, expiry, currentScaledBalance, currentBalance);
+    emit SanctionedAccountAssetsQueuedForWithdrawal(
+      alice,
+      expiry,
+      currentScaledBalance,
+      currentBalance
+    );
     market.nukeFromOrbit(alice);
   }
 
@@ -113,22 +122,47 @@ contract WildcatMarketConfigTest is BaseMarketTest {
   }
 
   function test_setAnnualInterestAndReserveRatioBips(
-    uint16 _annualInterestBips,
-    uint16 _reserveRatioBips
+    uint16 _annualInterestBips
   ) external asAccount(borrower) {
-    _annualInterestBips = uint16(bound(_annualInterestBips, 0, 10000));
-    _reserveRatioBips = uint16(bound(_reserveRatioBips, 0, 10000));
-    market.setAnnualInterestAndReserveRatioBips(_annualInterestBips, _reserveRatioBips);
+    _annualInterestBips = uint16(bound(_annualInterestBips, 1, 10000));
+    uint reserveRatioBips;
+    if (_annualInterestBips < 750) {
+      uint256 relativeDiff = MathUtils.mulDiv(
+        10000,
+        1_000 - uint(_annualInterestBips),
+        1_000
+      );
+      reserveRatioBips = MathUtils.min(10_000, 2* relativeDiff);
+    } else {
+      reserveRatioBips = DefaultReserveRatio;
+    }
+    market.setAnnualInterestAndReserveRatioBips(_annualInterestBips, 0);
     assertEq(market.annualInterestBips(), _annualInterestBips);
-    assertEq(market.reserveRatioBips(), _reserveRatioBips);
+    assertEq(market.reserveRatioBips(), reserveRatioBips);
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsTooHigh(
-    uint16 _reserveRatioBips
+  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsOutOfBounds(
   ) external asAccount(borrower) {
-    _reserveRatioBips = uint16(bound(_reserveRatioBips, 0, 10000));
+    vm.expectRevert(MarketConstraintHooks.AnnualInterestBipsOutOfBounds.selector);
+    market.setAnnualInterestAndReserveRatioBips(10001, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsTooHigh()
+    external
+    asAccount(borrower)
+  {
+    resetWithMockHooks();
     vm.expectRevert(IMarketEventsAndErrors.AnnualInterestBipsTooHigh.selector);
-    market.setAnnualInterestAndReserveRatioBips(10001, _reserveRatioBips);
+    market.setAnnualInterestAndReserveRatioBips(10001, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_ReserveRatioBipsTooHigh()
+    external
+    asAccount(borrower)
+  {
+    resetWithMockHooks();
+    vm.expectRevert(IMarketEventsAndErrors.ReserveRatioBipsTooHigh.selector);
+    market.setAnnualInterestAndReserveRatioBips(0, 10_001);
   }
 
   function test_setAnnualInterestAndReserveRatioBips_NotApprovedBorrower() external {
@@ -136,46 +170,269 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     market.setAnnualInterestAndReserveRatioBips(0, 0);
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsTooHigh()
-    external
-    asAccount(borrower)
-  {
-    vm.expectRevert(IMarketEventsAndErrors.AnnualInterestBipsTooHigh.selector);
-    market.setAnnualInterestAndReserveRatioBips(10001, 0);
-  }
-
-  /* function test_setAnnualInterestAndReserveRatioBips_IncreaseWhileDelinquent(
-		uint256 _reserveRatioBips
-	) external asAccount(borrower) {
-		_reserveRatioBips = bound(
-			_reserveRatioBips,
-			parameters.reserveRatioBips + 1,
-			10000
-		);
-    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
-		vm.expectEmit(address(market));
-		emit ReserveRatioBipsUpdated(uint16(_reserveRatioBips));
-		market.setAnnualInterestAndReserveRatioBips(uint16(parameters.annualInterestBips), uint16(_reserveRatioBips));
-		assertEq(market.reserveRatioBips(), _reserveRatioBips);
-	} */
-
   // Market already deliquent, LCR set to lower value
   function test_setAnnualInterestAndReserveRatioBips_InsufficientReservesForOldLiquidityRatio()
     external
     asAccount(borrower)
   {
-    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    _deposit(alice, 1e18);
+    _borrow(4e17);
+    market.setAnnualInterestAndReserveRatioBips(700, 0);
+    _checkTemporaryReserveRatioAndMarketBips(
+      700,
+      DefaultInterest,
+      6_000,
+      DefaultReserveRatio,
+      block.timestamp + 2 weeks
+    );
+    previousState.annualInterestBips = 700;
+    previousState.reserveRatioBips = 6_000;
+    _requestWithdrawal(alice, 1e18);
+
+    assertTrue(market.currentState().isDelinquent, 'market should be delinquent');
+
     vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForOldLiquidityRatio.selector);
-    market.setAnnualInterestAndReserveRatioBips(10000, 1000);
+    market.setAnnualInterestAndReserveRatioBips(800, 0);
   }
 
   function test_setAnnualInterestAndReserveRatioBips_InsufficientReservesForNewLiquidityRatio()
     external
     asAccount(borrower)
   {
-    _deposit(alice, 1e18);
-    _borrow(7e17);
+    _depositBorrowWithdraw(alice, 1e18, 5e17, 1e18);
     vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForNewLiquidityRatio.selector);
-    market.setAnnualInterestAndReserveRatioBips(10000, 3001);
+    // The hooks contract will set the reserve ratio to 50.2% which would
+    // make the market delinquent
+    market.setAnnualInterestAndReserveRatioBips(749, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_OneQuarterReduction() public {
+    vm.prank(borrower);
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
+      address(market),
+      2_000,
+      2_000,
+      block.timestamp + 2 weeks
+    );
+    market.setAnnualInterestAndReserveRatioBips(750, 0);
+    _checkTemporaryReserveRatioAndMarketBips(
+      750,
+      DefaultInterest,
+      2000,
+      DefaultReserveRatio,
+      block.timestamp + 2 weeks
+    );
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_Decrease_Decrease() public {
+    uint256 expiry = block.timestamp + 2 weeks;
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
+      address(market),
+      DefaultReserveRatio,
+      6_000,
+      expiry
+    );
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(700, 0);
+    _checkTemporaryReserveRatioAndMarketBips(
+      700,
+      DefaultInterest,
+      6_000,
+      DefaultReserveRatio,
+      expiry
+    );
+
+    fastForward(1 weeks);
+
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioUpdated(
+      address(market),
+      DefaultReserveRatio,
+      8_000,
+      expiry + 1 weeks
+    );
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(600, 0);
+    _checkTemporaryReserveRatioAndMarketBips(
+      600,
+      DefaultInterest,
+      8_000,
+      DefaultReserveRatio,
+      expiry + 1 weeks
+    );
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_Decrease_Increase() public {
+    uint256 expiry = block.timestamp + 2 weeks;
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
+      address(market),
+      DefaultReserveRatio,
+      5_020,
+      expiry
+    );
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(749, 0);
+
+    _checkTemporaryReserveRatioAndMarketBips(
+      749,
+      DefaultInterest,
+      5_020,
+      DefaultReserveRatio,
+      expiry
+    );
+
+    fastForward(1 weeks);
+
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioUpdated(
+      address(market),
+      DefaultReserveRatio,
+      2_000,
+      expiry
+    );
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(850, 0);
+    _checkTemporaryReserveRatioAndMarketBips(
+      850,
+      DefaultInterest,
+      DefaultReserveRatio,
+      DefaultReserveRatio,
+      expiry
+    );
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_MaxReserveRatio() public {
+    uint256 expiry = block.timestamp + 2 weeks;
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
+      address(market),
+      DefaultReserveRatio,
+      10_000,
+      expiry
+    );
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(400, 0);
+
+    _checkTemporaryReserveRatioAndMarketBips(
+      400,
+      DefaultInterest,
+      10_000,
+      DefaultReserveRatio,
+      expiry
+    );
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_Decrease_Cancel() public {
+    uint256 expiry = block.timestamp + 2 weeks;
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
+      address(market),
+      DefaultReserveRatio,
+      6_000,
+      expiry
+    );
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(700, 0);
+
+    _checkTemporaryReserveRatioAndMarketBips(
+      700,
+      DefaultInterest,
+      6_000,
+      DefaultReserveRatio,
+      expiry
+    );
+
+    fastForward(1 weeks);
+
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioCanceled(address(market));
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(1_001, 0);
+    _checkTemporaryReserveRatioAndMarketBips(1_001, 0, DefaultReserveRatio, 0, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_Decrease_Expire() public {
+    uint256 expiry = block.timestamp + 2 weeks;
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
+      address(market),
+      DefaultReserveRatio,
+      6_000,
+      expiry
+    );
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(700, 0);
+
+    _checkTemporaryReserveRatioAndMarketBips(
+      700,
+      DefaultInterest,
+      6_000,
+      DefaultReserveRatio,
+      expiry
+    );
+
+    fastForward(2 weeks);
+
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioExpired(address(market));
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(700, 0);
+    _checkTemporaryReserveRatioAndMarketBips(700, 0, DefaultReserveRatio, 0, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_Decrease_Undercollateralized() public {
+    _deposit(alice, 50_000e18);
+    vm.prank(borrower);
+    market.borrow(5_000e18 + 1);
+
+    vm.startPrank(borrower);
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForNewLiquidityRatio.selector);
+    market.setAnnualInterestAndReserveRatioBips(550, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_AprChangeOnClosedMarket()
+    public
+    asAccount(borrower)
+  {
+    market.closeMarket();
+    vm.expectRevert(AprChangeOnClosedMarket.selector);
+    market.setAnnualInterestAndReserveRatioBips(550, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_Increase() public {
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(DefaultInterest + 1, 0);
+
+    _checkTemporaryReserveRatioAndMarketBips(DefaultInterest + 1, 0, DefaultReserveRatio, 0, 0);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_Increase_Undercollateralized() public {
+    _deposit(alice, 50_000e18);
+    vm.prank(borrower);
+    market.borrow(5_000e18 + 1);
+
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(DefaultInterest, 0 + 1);
+  }
+
+  function _checkTemporaryReserveRatioAndMarketBips(
+    uint256 annualInterestBips,
+    uint256 originalAnnualInterestBips,
+    uint256 reserveRatioBips,
+    uint256 originalReserveRatioBips,
+    uint256 temporaryReserveRatioExpiry
+  ) internal {
+    (uint256 _originalAnnualInterestBips, uint256 _originalReserveRatioBips, uint256 expiry) = hooks
+      .temporaryExcessReserveRatio(address(market));
+
+    assertEq(market.annualInterestBips(), annualInterestBips, 'annualInterestBips');
+    assertEq(market.reserveRatioBips(), reserveRatioBips, 'reserveRatioBips');
+
+    assertEq(_originalAnnualInterestBips, originalAnnualInterestBips, 'originalAnnualInterestBips');
+    assertEq(_originalReserveRatioBips, originalReserveRatioBips, 'originalReserveRatioBips');
+    assertEq(expiry, temporaryReserveRatioExpiry, 'temporaryReserveRatioExpiry');
   }
 }
