@@ -147,6 +147,16 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     );
   }
 
+  function _requestFullWithdrawal(address from) internal asAccount(from) {
+    MarketState memory state = pendingState();
+    (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);
+    (, uint104 scaledAmount) = _trackQueueWithdrawal(state, from, currentBalance);
+    market.queueFullWithdrawal();
+    _checkState(state);
+    assertEq(market.balanceOf(from), 0, 'balance after withdrawal (exact)');
+    assertEq(market.scaledBalanceOf(from), 0, 'scaledBalance after withdrawal');
+  }
+
   function _closeMarket() internal asAccount(borrower) {
     uint owed = market.totalDebts() - market.totalAssets();
     asset.mint(borrower, owed);
