@@ -73,6 +73,7 @@ library LibMarketConfigFuzzInputs {
       delinquencyGracePeriod: inputs.delinquencyGracePeriod,
       sphereXEngine: address(0),
       hooksTemplate: address(0),
+      deployHooksConstructorArgs: '',
       deployMarketHooksData: '',
       hooksConfig: HooksConfig.wrap(0)
     });
