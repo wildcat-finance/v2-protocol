@@ -467,7 +467,6 @@ contract AccessControlHooks is MarketConstraintHooks {
     address accountAddress,
     bytes calldata hooksData
   ) internal returns (bool) {
-    // @todo use constant selector once interface is fixed
     uint validateSelector = uint32(IRoleProvider.validateCredential.selector);
     address providerAddress = _readAddress(hooksData);
     RoleProvider provider = _roleProviders[providerAddress];
@@ -562,8 +561,6 @@ contract AccessControlHooks is MarketConstraintHooks {
   ) internal returns (bool validCredential) {
     // Check if the hooks data only contains a provider address
     if (hooksData.length == 20) {
-      // @todo make the methods of updating based on the cd prefix more consistent
-
       // If the data contains only an address, attempt to query a credential from that provider
       // if it exists and is a pull provider.
       address providerAddress = _readAddress(hooksData);

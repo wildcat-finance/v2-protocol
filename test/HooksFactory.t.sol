@@ -12,8 +12,9 @@ import './shared/mocks/MockHooks.sol';
 import './helpers/StandardStructs.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/access/AccessControlHooks.sol';
+import 'solady/utils/LibString.sol';
 
-// @todo test removal
+using LibString for string;
 
 struct FuzzFeeConfigurationInputs {
   address feeRecipient;
@@ -63,31 +64,6 @@ contract HooksFactoryTest is Test, Assertions {
     initCodeHash = uint256(keccak256(marketInitCode));
     initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
   }
-
-  /*   function _constrainValidFeeConfiguration(
-    address _feeRecipient,
-    address _originationFeeAsset,
-    uint80 _originationFeeAmount,
-    uint16 _protocolFeeBips
-  )
-    internal
-    view
-    returns (
-      address feeRecipient,
-      address originationFeeAsset,
-      uint80 originationFeeAmount,
-      uint16 protocolFeeBips
-    )
-  {
-    bool hasFeeRecipient = _feeRecipient != nullAddress;
-    bool canHaveOriginationFee = _originationFeeAsset != nullAddress && hasFeeRecipient;
-    feeRecipient = _feeRecipient;
-    originationFeeAsset = _originationFeeAsset;
-    protocolFeeBips = uint16(bound(_protocolFeeBips, 0, hasFeeRecipient ? 10_000 : 0));
-    originationFeeAmount = uint80(
-      bound(_originationFeeAmount, 0, canHaveOriginationFee ? type(uint80).max : 0)
-    );
-  } */
 
   modifier constrain(FuzzFeeConfigurationInputs memory input) {
     bool hasFeeRecipient = input.feeRecipient != nullAddress;
@@ -692,11 +668,13 @@ contract HooksFactoryTest is Test, Assertions {
     MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
 
     bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
-    // paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
-
+    string
+      memory tooLongNamePrefix = 'name is way too long to fit into 63 bytes sheesh this is so much bytes wow dont do this pls';
+    string
+      memory tooLongSymbolPrefix = 'symbol is way too long to fit into 63 bytes sheesh this is so much bytes wow dont do this pls';
     DeployMarketInputs memory parameters = DeployMarketInputs({
       asset: address(underlying),
-      namePrefix: 'name is way too long to fit into 63 bytes sheesh this is so much bytes wow dont do this pls',
+      namePrefix: tooLongNamePrefix,
       symbolPrefix: 'symbol',
       maxTotalSupply: type(uint128).max,
       annualInterestBips: 1000,
@@ -709,11 +687,24 @@ contract HooksFactoryTest is Test, Assertions {
     vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
     hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
     parameters.namePrefix = '';
-    parameters
-      .symbolPrefix = 'symbol is way too long to fit into 63 bytes sheesh this is so much bytes wow dont do this pls';
+    parameters.symbolPrefix = tooLongSymbolPrefix;
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
     hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+
+    uint maxNamePrefixLength = 63 - bytes(underlying.name()).length;
+    uint maxSymbolPrefixLength = 63 - bytes(underlying.symbol()).length;
+    parameters.namePrefix = tooLongNamePrefix.slice(0, maxNamePrefixLength);
+    parameters.symbolPrefix = tooLongSymbolPrefix.slice(0, maxSymbolPrefixLength);
+    WildcatMarket market = WildcatMarket(
+      hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)))
+    );
+    assertEq(market.name(), string(bytes.concat(bytes(parameters.namePrefix), bytes( underlying.name()))), 'name');
+    assertEq(
+      market.symbol(),
+      string.concat(parameters.symbolPrefix, underlying.symbol()),
+      'symbol'
+    );
   }
 
   function test_deployMarket_MarketAlreadyExists() external {
@@ -741,6 +732,33 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.MarketAlreadyExists.selector);
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+  }
+
+  function test_deployMarket_AssetBlacklisted() external {
+    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    bytes memory constructorArgs = '';
+    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+    // paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+    archController.addBlacklist(parameters.asset);
+    vm.expectRevert(IHooksFactoryEventsAndErrors.AssetBlacklisted.selector);
     hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
   }
 

@@ -3,7 +3,6 @@ pragma solidity >=0.8.20;
 import './RoleProvider.sol';
 
 /**
- * @todo - generate stack version of library
  * @param isBlockedFromDeposits Whether the lender is blocked from depositing
  * @param hasEverDeposited Whether the lender has ever deposited to the market
  * @param lastProvider The address of the last provider to grant the lender a credential

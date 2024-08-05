@@ -25,7 +25,6 @@ function encodeRoleProvider(
   }
 }
 
-// @todo align largest type to the left to minimize mask
 
 library LibRoleProvider {
   using MathUtils for uint256;
