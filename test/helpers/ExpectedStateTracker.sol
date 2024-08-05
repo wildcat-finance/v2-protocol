@@ -45,6 +45,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       reserveRatioBips: DefaultReserveRatio,
       delinquencyGracePeriod: DefaultGracePeriod,
       hooksTemplate: hooksTemplate,
+      deployHooksConstructorArgs: '',
       deployMarketHooksData: '',
       hooksConfig: HooksConfig.wrap(0),
       sphereXEngine: address(0)
@@ -584,7 +585,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       return 0;
     }
     uint104 scaledAmountBurned = uint104(MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed));
-    normalizedAmountPaid = state.normalizeAmount(scaledAmountBurned).toUint128();
+    normalizedAmountPaid =  MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;
