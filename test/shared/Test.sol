@@ -14,6 +14,7 @@ import { deployMockChainalysis } from './mocks/MockChainalysis.sol';
 import { AlwaysAuthorizedRoleProvider } from './mocks/AlwaysAuthorizedRoleProvider.sol';
 import { MockRoleProvider } from './mocks/MockRoleProvider.sol';
 import { HooksFactory, IHooksFactoryEventsAndErrors } from 'src/HooksFactory.sol';
+import { MockHooks } from './mocks/MockHooks.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/access/AccessControlHooks.sol';
@@ -35,6 +36,7 @@ struct MarketInputParameters {
   uint32 delinquencyGracePeriod;
   address sphereXEngine;
   address hooksTemplate;
+  bytes deployHooksConstructorArgs;
   bytes deployMarketHooksData;
   HooksConfig hooksConfig;
 }
@@ -212,7 +214,7 @@ contract Test is ForgeTest, Prankster, Assertions {
         parameters.hooksTemplate
       );
       assertEq(
-        hooksFactory.deployHooksInstance(parameters.hooksTemplate, ''),
+        hooksFactory.deployHooksInstance(parameters.hooksTemplate, parameters.deployHooksConstructorArgs),
         address(hooksInstance),
         'hooksInstance address'
       );
@@ -248,7 +250,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   function updateFeeConfiguration(MarketInputParameters memory parameters) internal asSelf {
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateFeesUpdated(
-      hooksTemplate,
+      parameters.hooksTemplate,
       parameters.feeRecipient,
       address(0),
       0,
@@ -256,7 +258,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     );
 
     hooksFactory.updateHooksTemplateFees(
-      hooksTemplate,
+      parameters.hooksTemplate,
       parameters.feeRecipient,
       address(0),
       0,

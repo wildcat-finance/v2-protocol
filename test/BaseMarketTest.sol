@@ -5,7 +5,6 @@ import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 
 import './shared/Test.sol';
 import './helpers/VmUtils.sol';
-import './shared/mocks/MockController.sol';
 import './helpers/ExpectedStateTracker.sol';
 
 contract BaseMarketTest is Test, ExpectedStateTracker {
@@ -56,6 +55,22 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
 
     _approve(alice, address(market), type(uint256).max);
     _approve(bob, address(market), type(uint256).max);
+  }
+
+  function resetWithMockHooks() internal asSelf {
+    parameters.hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
+    hooksFactory.addHooksTemplate(
+      parameters.hooksTemplate,
+      'MockHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+    hooks = AccessControlHooks(address(0));
+    parameters.deployHooksConstructorArgs = abi.encode(address(this), '');
+    parameters.hooksConfig = EmptyHooksConfig;
+    setUpContracts(false, false);
   }
 
   function _authorizeLender(address account) internal asAccount(parameters.borrower) {
