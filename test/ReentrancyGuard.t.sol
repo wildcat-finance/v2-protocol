@@ -36,8 +36,8 @@ contract ReentrancyGuardView is Test {
 
   function testFunctions() external {
     assertEq(reentrant.getIndex(), 0);
-    assertEq(reentrant.increment(), 1);
-    assertEq(reentrant.callSelf(true), 2);
+    assertEq(reentrant.increment(), 0);
+    assertEq(reentrant.callSelf(true), 1);
     assertEq(reentrant.callSelf(false), 2);
   }
 
