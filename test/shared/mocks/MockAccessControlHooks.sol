@@ -23,7 +23,7 @@ contract MockAccessControlHooks is AccessControlHooks {
           status.lastApprovalTimestamp
         );
       } else {
-        emit AccountAccessRevoked(lastProvider, accountAddress);
+        emit AccountAccessRevoked(accountAddress);
       }
     }
   }

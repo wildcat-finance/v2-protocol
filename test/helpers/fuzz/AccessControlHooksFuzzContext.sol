@@ -52,7 +52,14 @@ if (hooksData.giveHooksData) {
       - There is a pull provider that will grant a credential
   */
 
+enum FunctionKind {
+  MarketFunction,
+  HooksFunction,
+  DepositFunction
+}
+
 struct AccessControlHooksFuzzContext {
+  FunctionKind functionKind;
   AccessControlHooks hooks;
   address borrower;
   address account;
@@ -132,8 +139,10 @@ function createAccessControlHooksFuzzContext(
   AccessControlHooks hooks,
   MockRoleProvider mockProvider1,
   MockRoleProvider mockProvider2,
-  address account
+  address account,
+  FunctionKind functionKind
 ) returns (AccessControlHooksFuzzContext memory context) {
+  context.functionKind = functionKind;
   context.hooks = hooks;
   context.borrower = hooks.borrower();
   context.account = account;
@@ -149,9 +158,12 @@ function createAccessControlHooksFuzzContext(
   context.setUpCredentialRefresh();
 
   // If a previous credential exists but the lender will not end up with a valid credential,
-  // the last provider and approval timestamp should be reset
+  // the last provider and approval timestamp should be reset if the call is not to a function
+  // that reverts on failure.
   if (
-    fuzzInputs.existingCredentialInputs.credentialExists && !context.expectations.hasValidCredential
+    fuzzInputs.existingCredentialInputs.credentialExists &&
+    !context.expectations.hasValidCredential &&
+    functionKind == FunctionKind.HooksFunction
   ) {
     context.expectations.wasUpdated = true;
     context.expectations.lastProvider = address(0);
@@ -185,10 +197,7 @@ library LibAccessControlHooksFuzzContext {
         );
       } else if (!skipRevokedEvent) {
         vm.expectEmit(address(context.hooks));
-        emit AccessControlHooks.AccountAccessRevoked(
-          address(context.previousProvider),
-          context.account
-        );
+        emit AccessControlHooks.AccountAccessRevoked(context.account);
       }
     }
     if (context.expectations.expectedError != 0) {
@@ -200,13 +209,56 @@ library LibAccessControlHooksFuzzContext {
    * @dev Validate state after execution
    */
   function validate(AccessControlHooksFuzzContext memory context) internal view {
-    LenderStatus memory status = context.hooks.getPreviousLenderStatus(context.account);
-    vm.assertEq(status.lastProvider, context.expectations.lastProvider, 'lastProvider');
-    vm.assertEq(
-      status.lastApprovalTimestamp,
-      context.expectations.lastApprovalTimestamp,
-      'lastApprovalTimestamp'
-    );
+    LenderStatus memory priorStatus = context.hooks.getPreviousLenderStatus(context.account);
+    LenderStatus memory currentStatus = context.hooks.getLenderStatus(context.account);
+    // if (context.expectations.wasUpdated )
+    // If the account does not have a valid credential but that will not be reflected because the encapsulating
+    // call failed, the new status should not match the previous one.
+    if (
+      !context.expectations.wasUpdated &&
+      context.expectations.expectedError == 0 &&
+      context.existingCredentialOptions.credentialExists &&
+      !context.expectations.hasValidCredential
+    ) {
+      vm.assertEq(priorStatus.lastProvider, address(context.previousProvider), 'previous provider');
+      vm.assertEq(currentStatus.lastProvider, address(0), 'current provider != 0');
+      vm.assertEq(currentStatus.lastApprovalTimestamp, 0, 'current timestamp != 0');
+    }
+
+    // If the call was to the hooks contract directly, or to the market with a valid credential, the current
+    // status should match the previous one.
+    if (
+      
+      context.expectations.expectedError == 0 &&
+      context.expectations.wasUpdated &&
+      (context.functionKind != FunctionKind.HooksFunction || context.expectations.hasValidCredential )
+    ) {
+      vm.assertEq(
+        priorStatus.isBlockedFromDeposits,
+        currentStatus.isBlockedFromDeposits,
+        '.isBlockedFromDeposits'
+      );
+      vm.assertEq(
+        priorStatus.hasEverDeposited,
+        currentStatus.hasEverDeposited,
+        '.hasEverDeposited'
+      );
+      vm.assertEq(priorStatus.lastProvider, currentStatus.lastProvider, '.lastProvider');
+      vm.assertEq(priorStatus.canRefresh, currentStatus.canRefresh, '.canRefresh');
+      vm.assertEq(
+        priorStatus.lastApprovalTimestamp,
+        currentStatus.lastApprovalTimestamp,
+        '.lastApprovalTimestamp'
+      );
+      vm.assertEq(priorStatus.lastProvider, context.expectations.lastProvider, 'lastProvider');
+      vm.assertEq(
+        priorStatus.lastApprovalTimestamp,
+        context.expectations.lastApprovalTimestamp,
+        'lastApprovalTimestamp'
+      );
+    }
+
+    /*  */
   }
 
   function setUpExistingCredential(AccessControlHooksFuzzContext memory context) internal {

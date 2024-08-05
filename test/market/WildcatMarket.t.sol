@@ -8,7 +8,6 @@ import 'src/libraries/SafeCastLib.sol';
 import 'src/libraries/MarketState.sol';
 import 'src/libraries/LibERC20.sol';
 import 'solady/utils/LibPRNG.sol';
-import { AccessControlHooksDataFuzzInputs, ExistingCredentialFuzzInputs } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 contract WildcatMarketTest is BaseMarketTest {
   using stdStorage for StdStorage;
@@ -120,6 +119,14 @@ contract WildcatMarketTest is BaseMarketTest {
     market.depositUpTo(0);
   }
 
+  function test_depositUpTo_BlockedFromDeposits() public asAccount(bob) {
+    asset.mint(bob, 1e18);
+    asset.approve(address(market), 1e18);
+    _blockLender(bob);
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
+    market.depositUpTo(1e18);
+  }
+
   function testDepositUpTo_MaxSupplyExceeded() public asAccount(bob) {
     _authorizeLender(bob);
     asset.transfer(address(1), type(uint128).max);
@@ -131,7 +138,7 @@ contract WildcatMarketTest is BaseMarketTest {
     assertEq(asset.balanceOf(bob), 0);
   }
 
-  function testDepositUpTo_NotApprovedLender() public asAccount(bob) {
+  function test_DepositUpTo_NotApprovedLender() public asAccount(bob) {
     asset.mint(bob, 1e18);
     asset.approve(address(market), 1e18);
     vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
@@ -419,7 +426,8 @@ contract WildcatMarketTest is BaseMarketTest {
       hooks,
       roleProvider1,
       roleProvider2,
-      carol
+      carol,
+      FunctionKind.DepositFunction
     );
 
     uint amount = 10e18;
@@ -452,6 +460,7 @@ contract WildcatMarketTest is BaseMarketTest {
       assertApproxEqAbs(market.balanceOf(carol), currentBalance + amount, 1);
       assertEq(market.scaledBalanceOf(carol), currentScaledBalance + scaledAmount);
     }
+    context.validate();
   }
 
   function test_queueWithdrawal_FuzzAccess(
@@ -463,7 +472,8 @@ contract WildcatMarketTest is BaseMarketTest {
       hooks,
       roleProvider1,
       roleProvider2,
-      carol
+      carol,
+      FunctionKind.MarketFunction
     );
 
     uint amount = 1e18;
@@ -500,6 +510,14 @@ contract WildcatMarketTest is BaseMarketTest {
       _checkState();
       assertEq(market.balanceOf(carol), 0, 'carol balance');
     }
+    context.validate();
+  }
+
+  function test_queueWithdrawal_HasDepositedButBlocked(uint amount) external asAccount(alice) {
+    amount = bound(amount, 1, DefaultMaximumSupply);
+    _deposit(alice, amount);
+    _blockLender(alice);
+    market.queueWithdrawal(amount);
   }
 
   function test_withdraw_afterMarketClosed(uint depositAmount, uint8 numBatches) external {
@@ -561,6 +579,7 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
     market.rescueTokens(address(market));
   }
+
   function test_rescueTokens_BadRescueAsset() external asAccount(borrower) {
     vm.expectRevert(IMarketEventsAndErrors.BadRescueAsset.selector);
     market.rescueTokens(address(market));

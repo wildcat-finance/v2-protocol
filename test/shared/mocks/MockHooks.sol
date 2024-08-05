@@ -140,6 +140,7 @@ contract MockHooks is IHooks {
 
   function _onCreateMarket(
     address _deployer,
+    address _marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
   ) internal virtual override {

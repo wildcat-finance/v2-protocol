@@ -85,7 +85,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
 
   function _deauthorizeLender(address account) internal asAccount(parameters.borrower) {
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessRevoked(parameters.borrower, account);
+    emit AccessControlHooks.AccountAccessRevoked( account);
     hooks.revokeRole(account);
   }
 

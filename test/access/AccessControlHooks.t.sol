@@ -8,17 +8,18 @@ import '../shared/mocks/MockRoleProvider.sol';
 import '../shared/mocks/MockAccessControlHooks.sol';
 import '../helpers/Assertions.sol';
 import { bound, warp } from '../helpers/VmUtils.sol';
-import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
 import 'src/libraries/BoolUtils.sol';
+import { Prankster } from 'sol-utils/test/Prankster.sol';
 
 using LibString for uint256;
 using LibString for address;
 using MathUtils for uint256;
 using BoolUtils for bool;
 
-contract AccessControlHooksTest is Test, Assertions {
+contract AccessControlHooksTest is Test, Assertions, Prankster {
   uint24 internal numPullProviders;
   StandardRoleProvider[] internal expectedRoleProviders;
   MockAccessControlHooks internal hooks;
@@ -35,6 +36,22 @@ contract AccessControlHooksTest is Test, Assertions {
     _validateRoleProviders();
     // Set block.timestamp to 4:50 am, May 3 2024
     warp(1714737030);
+  }
+
+  function test_onCreateMarket_CallerNotFactory() external asAccount(address(1)) {
+    vm.expectRevert(IHooks.CallerNotFactory.selector);
+    DeployMarketInputs memory inputs;
+    hooks.onCreateMarket(address(1), address(1), inputs, '');
+  }
+
+  function test_onCreateMarket_CallerNotBorrower() external {
+    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    DeployMarketInputs memory inputs;
+    hooks.onCreateMarket(address(1), address(1), inputs, '');
+  }
+
+  function test_version() external {
+    assertEq(hooks.version(), 'SingleBorrowerAccessControlHooks');
   }
 
   function test_config() external {
@@ -54,6 +71,12 @@ contract AccessControlHooksTest is Test, Assertions {
     });
     expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
     assertEq(hooks.config(), expectedConfig, 'config.');
+  }
+
+  function test_onDeposit_NotHookedMarket() external {
+    MarketState memory state;
+    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    hooks.onDeposit(address(1), 0, state, '');
   }
 
   // ========================================================================== //
@@ -162,9 +185,48 @@ contract AccessControlHooksTest is Test, Assertions {
     _validateRoleProviders();
   }
 
+  function test_addRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
+    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    hooks.addRoleProvider(address(2), 1);
+  }
+
   function test_addRoleProvider_badInterface(uint32 timeToLive) external {
     vm.expectRevert();
     hooks.addRoleProvider(address(2), timeToLive);
+    _validateRoleProviders();
+  }
+
+  function test_addRoleProvider_updateTimeToLive(uint32 ttl1, uint32 ttl2) external {
+    StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, ttl1, true);
+    _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex);
+    hooks.addRoleProvider(address(mockProvider1), ttl1);
+
+    // Validate the initial state
+    _validateRoleProviders();
+
+    // Update the TTL using `addRoleProvider`
+    provider.timeToLive = ttl2;
+    _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex);
+    hooks.addRoleProvider(address(mockProvider1), ttl2);
+
+    // Validate the updated state
+    _validateRoleProviders();
+  }
+
+  function test_addRoleProvider_updateTimeToLive2(uint32 ttl1, uint32 ttl2) external {
+    StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, ttl1, false);
+    _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex);
+    hooks.addRoleProvider(address(mockProvider1), ttl1);
+
+    // Validate the initial state
+    _validateRoleProviders();
+
+    // Update the TTL using `addRoleProvider`
+    provider.timeToLive = ttl2;
+    _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex);
+    hooks.addRoleProvider(address(mockProvider1), ttl2);
+
+    // Validate the updated state
     _validateRoleProviders();
   }
 
@@ -209,9 +271,14 @@ contract AccessControlHooksTest is Test, Assertions {
     _validateRoleProviders();
   }
 
-  function test_removeRoleProvider_ProviderNotFound(bool isPullProvider) external {
-    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+  function test_removeRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
+    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
     hooks.removeRoleProvider(address(mockProvider1));
+  }
+
+  function test_removeRoleProvider_ProviderNotFound() external {
+    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    hooks.removeRoleProvider(address(2));
   }
 
   /// @dev Remove the last pull provider. Should not cause any changes
@@ -410,7 +477,8 @@ contract AccessControlHooksTest is Test, Assertions {
       hooks,
       mockProvider1,
       mockProvider2,
-      address(50)
+      address(50),
+      FunctionKind.HooksFunction
     );
     context.registerExpectations(true);
     if (context.expectations.expectedError != 0) {
@@ -422,14 +490,23 @@ contract AccessControlHooksTest is Test, Assertions {
       );
       assertEq(hasValidCredential, context.expectations.hasValidCredential, 'hasValidCredential');
       assertEq(wasUpdated, context.expectations.wasUpdated, 'wasUpdated');
-      LenderStatus memory status = hooks.getPreviousLenderStatus(context.account);
+      LenderStatus memory status = hooks.getLenderStatus(context.account);
+      assertEq(status, hooks.getPreviousLenderStatus(context.account), 'status');
       assertEq(status.lastProvider, context.expectations.lastProvider, 'lastProvider');
       assertEq(
         status.lastApprovalTimestamp,
         context.expectations.lastApprovalTimestamp,
         'lastApprovalTimestamp'
       );
+      // LenderStatus memory _status = hooks.getLenderStatus(context.account);
+      // assertEq(status.isBlockedFromDeposits, context.expectations.isBlockedFromDeposits, 'isBlockedFromDeposits');
+      // bool isBlockedFromDeposits;
+      // bool hasEverDeposited;
+      // address lastProvider;
+      // bool canRefresh;
+      // uint32 lastApprovalTimestamp;
     }
+    context.validate();
   }
 
   struct UserAccessContext {
@@ -482,7 +559,7 @@ contract AccessControlHooksTest is Test, Assertions {
     for (uint160 i; i < accounts.length; i++) {
       accounts[i] = address(i);
     }
-    uint32 timestamp= uint32(block.timestamp + 1);
+    uint32 timestamp = uint32(block.timestamp + 1);
     hooks.addRoleProvider(address(mockProvider1), 1);
 
     uint32[] memory timestamps = new uint32[](accounts.length);
@@ -493,5 +570,93 @@ contract AccessControlHooksTest is Test, Assertions {
     hooks.grantRoles(accounts, timestamps);
     vm.prank(address(mockProvider1));
     hooks.grantRoles(accounts, timestamps);
+  }
+
+  function test_grantRoles_InvalidArrayLength() external {
+    address[] memory accounts = new address[](4);
+    uint32[] memory timestamps = new uint32[](3);
+    vm.expectRevert(AccessControlHooks.InvalidArrayLength.selector);
+    hooks.grantRoles(accounts, timestamps);
+  }
+
+  /// @dev `grantRole` reverts if the provider is not found.
+  function test_grantRoles_ProviderNotFound(address account, uint32 timestamp) external {
+    address[] memory accounts = new address[](1);
+    uint32[] memory timestamps = new uint32[](1);
+    vm.prank(address(1));
+    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    hooks.grantRoles(accounts, timestamps);
+  }
+
+  // ========================================================================== //
+  //                                 revokeRole                                 //
+  // ========================================================================== //
+
+  function test_revokeRole() external {
+    hooks.addRoleProvider(address(mockProvider1), 1);
+    vm.startPrank(address(mockProvider1));
+    hooks.grantRole(address(1), uint32(block.timestamp));
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountAccessRevoked(address(1));
+    hooks.revokeRole(address(1));
+  }
+
+  function test_revokeRole_ProviderCanNotRevokeCredential() external {
+    hooks.addRoleProvider(address(mockProvider1), 1);
+    vm.prank(address(mockProvider1));
+    hooks.grantRole(address(1), uint32(block.timestamp));
+    vm.prank(address(mockProvider2));
+    vm.expectRevert(AccessControlHooks.ProviderCanNotRevokeCredential.selector);
+    hooks.revokeRole(address(1));
+  }
+
+  // ========================================================================== //
+  //                              blockFromDeposits                             //
+  // ========================================================================== //
+
+  function test_blockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
+    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    hooks.blockFromDeposits(address(1));
+  }
+
+  function test_blockFromDeposits(address account) external {
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+    hooks.blockFromDeposits(account);
+    LenderStatus memory status = hooks.getLenderStatus(account);
+    assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
+  }
+
+  function test_blockFromDeposits_UnsetsCredential(address account) external {
+    hooks.addRoleProvider(address(mockProvider1), 1);
+    vm.prank(address(mockProvider1));
+    hooks.grantRole(account, uint32(block.timestamp));
+
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountAccessRevoked(account);
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+
+    hooks.blockFromDeposits(account);
+    LenderStatus memory status = hooks.getLenderStatus(account);
+    assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
+  }
+
+  // ========================================================================== //
+  //                             unblockFromDeposits                            //
+  // ========================================================================== //
+
+  function test_unblockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
+    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    hooks.unblockFromDeposits(address(1));
+  }
+
+  function test_unblockFromDeposits(address account) external {
+    hooks.blockFromDeposits(account);
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountUnblockedFromDeposits(account);
+    hooks.unblockFromDeposits(account);
+    LenderStatus memory status = hooks.getLenderStatus(account);
+    assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
   }
 }

@@ -18,7 +18,7 @@ import { MockHooks } from './mocks/MockHooks.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/access/AccessControlHooks.sol';
-import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 struct MarketInputParameters {
   address asset;
@@ -214,7 +214,10 @@ contract Test is ForgeTest, Prankster, Assertions {
         parameters.hooksTemplate
       );
       assertEq(
-        hooksFactory.deployHooksInstance(parameters.hooksTemplate, parameters.deployHooksConstructorArgs),
+        hooksFactory.deployHooksInstance(
+          parameters.hooksTemplate,
+          parameters.deployHooksConstructorArgs
+        ),
         address(hooksInstance),
         'hooksInstance address'
       );
@@ -376,6 +379,13 @@ contract Test is ForgeTest, Prankster, Assertions {
       'symbol'
     );
     assertEq(market.decimals(), IERC20(parameters.asset).decimals(), 'decimals');
+    address hooksAddress = parameters.hooksConfig.hooksAddress();
+    if (
+      keccak256(bytes(IHooks(hooksAddress).version())) ==
+      keccak256('SingleBorrowerAccessControlHooks')
+    ) {
+      assertTrue(AccessControlHooks(hooksAddress).hookedMarkets(address(market)), 'hookedMarkets');
+    }
   }
 
   function deployControllerAndMarket(

@@ -49,6 +49,8 @@ contract RoleProviderTest is Test, Assertions {
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setTimeToLive(newTimeToLive);
     assertEq(provider.timeToLive(), newTimeToLive);
+    input.timeToLive = newTimeToLive;
+    assertEq(provider, input, 'with new ttl');
   }
 
   function test_setProviderAddress(
@@ -59,6 +61,8 @@ contract RoleProviderTest is Test, Assertions {
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setProviderAddress(newProviderAddress);
     assertEq(provider.providerAddress(), newProviderAddress);
+    input.providerAddress = newProviderAddress;
+    assertEq(provider, input, 'with new providerAddress');
   }
 
   function test_setPullProviderIndex(
@@ -66,9 +70,14 @@ contract RoleProviderTest is Test, Assertions {
     bool isPullProvider,
     uint24 newPullProviderIndex
   ) external setNullIndex(input, isPullProvider) {
+    if (!isPullProvider) {
+      newPullProviderIndex = NotPullProviderIndex;
+    }
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setPullProviderIndex(newPullProviderIndex);
     assertEq(provider.pullProviderIndex(), newPullProviderIndex);
+    input.pullProviderIndex = newPullProviderIndex;
+    assertEq(provider, input, 'with new pullProviderIndex');
   }
 
   function test_eq(

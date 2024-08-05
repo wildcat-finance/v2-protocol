@@ -36,6 +36,14 @@ struct FuzzDeployMarketInputs {
   StandardHooksDeploymentConfig templateHooksConfig;
 }
 
+contract BrokenHooksTemplate {
+  constructor() {
+    assembly {
+      revert(0, 0)
+    }
+  }
+}
+
 contract HooksFactoryTest is Test, Assertions {
   WildcatArchController archController;
   IHooksFactory hooksFactory;
@@ -110,6 +118,7 @@ contract HooksFactoryTest is Test, Assertions {
     hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
     archController.registerControllerFactory(address(hooksFactory));
     hooksFactory.registerWithArchController();
+    assertEq(hooksFactory.archController(), address(archController));
   }
 
   // ========================================================================== //
@@ -394,6 +403,14 @@ contract HooksFactoryTest is Test, Assertions {
     assertEq(hooksInstance.constructorArgsHash(), keccak256(constructorArgs));
   }
 
+  function test_deployHooksInstance_DeploymentFailed() external {
+    archController.registerBorrower(address(this));
+    address template = LibStoredInitCode.deployInitCode(type(BrokenHooksTemplate).creationCode);
+    hooksFactory.addHooksTemplate(template, 'name', address(0), address(0), 0, 0);
+    vm.expectRevert(IHooksFactoryEventsAndErrors.DeploymentFailed.selector);
+    hooksFactory.deployHooksInstance(template, '');
+  }
+
   function test_deployHooksInstance_NotApprovedBorrower() external {
     vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
     hooksFactory.deployHooksInstance(address(0), '');
@@ -641,10 +658,10 @@ contract HooksFactoryTest is Test, Assertions {
     bytes memory constructorArgs = 'o hey this is my market arg do u like it';
     MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
 
-    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it'; 
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
     paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
 
-    hooksInstance.setConfig( paramsInput.templateHooksConfig.toHooksDeploymentConfig() );
+    hooksInstance.setConfig(paramsInput.templateHooksConfig.toHooksDeploymentConfig());
 
     DeployMarketInputs memory parameters = DeployMarketInputs({
       asset: address(underlying),
@@ -665,6 +682,66 @@ contract HooksFactoryTest is Test, Assertions {
       paramsInput.templateHooksConfig,
       createMarketHooksData
     );
+  }
+
+  function test_deployMarket_NameOrSymbolTooLong() external {
+    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    bytes memory constructorArgs = '';
+    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+    // paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name is way too long to fit into 63 bytes sheesh this is so much bytes wow dont do this pls',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+    vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+    parameters.namePrefix = '';
+    parameters
+      .symbolPrefix = 'symbol is way too long to fit into 63 bytes sheesh this is so much bytes wow dont do this pls';
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+  }
+
+  function test_deployMarket_MarketAlreadyExists() external {
+    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    bytes memory constructorArgs = '';
+    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+    // paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.MarketAlreadyExists.selector);
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
   }
 
   function test_deployMarket_NotApprovedBorrower() external {
@@ -690,11 +767,11 @@ contract HooksFactoryTest is Test, Assertions {
 
     bytes memory constructorArgs = 'o hey this is my market arg do u like it';
     MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
- 
+
     paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
 
-    hooksInstance.setConfig( paramsInput.templateHooksConfig.toHooksDeploymentConfig() );
-    
+    hooksInstance.setConfig(paramsInput.templateHooksConfig.toHooksDeploymentConfig());
+
     DeployMarketInputs memory parameters = DeployMarketInputs({
       asset: address(underlying),
       namePrefix: 'name',
@@ -730,7 +807,7 @@ contract HooksFactoryTest is Test, Assertions {
       .mergeFlags(paramsInput.templateHooksConfig)
       .toHooksConfig();
 
-    context.constructorArgs = abi.encode( paramsInput.templateHooksConfig.toHooksDeploymentConfig() );
+    context.constructorArgs = abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig());
     context.createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
 
     context.parameters = DeployMarketInputs({
@@ -771,6 +848,69 @@ contract HooksFactoryTest is Test, Assertions {
       MockHooks(context.hooksInstance),
       context.constructorArgs
     );
+  }
+
+  function test_deployMarketAndHooks_NotApprovedBorrower(
+    FuzzDeployMarketInputs memory paramsInput,
+    FuzzFeeConfigurationInputs memory feesInput
+  ) external constrain(feesInput) {
+    hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooksWithConfig).creationCode);
+    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+
+    CreateMarketAndHooksContext memory context;
+    context.expectedHooksInstance = _setUpDeployHooksInstance(hooksTemplate);
+    _setUpDeployMarket(feesInput);
+
+    paramsInput.marketHooksConfig.hooksAddress = context.expectedHooksInstance;
+    context.expectedConfig = paramsInput
+      .marketHooksConfig
+      .mergeFlags(paramsInput.templateHooksConfig)
+      .toHooksConfig();
+
+    context.constructorArgs = abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig());
+    context.createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+
+    context.parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: paramsInput.maxTotalSupply,
+      annualInterestBips: paramsInput.annualInterestBips,
+      delinquencyFeeBips: paramsInput.delinquencyFeeBips,
+      withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
+      reserveRatioBips: paramsInput.reserveRatioBips,
+      delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      hooks: paramsInput.marketHooksConfig.toHooksConfig()
+    });
+    vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
+    hooksFactory.deployMarketAndHooks(
+      hooksTemplate,
+      context.constructorArgs,
+      context.parameters,
+      context.createMarketHooksData,
+      bytes32(uint(1))
+    );
+  }
+
+  function test_deployMarketAndHooks_HooksTemplateNotFound(
+    FuzzDeployMarketInputs memory paramsInput
+  ) external {
+    archController.registerBorrower(address(this));
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: paramsInput.maxTotalSupply,
+      annualInterestBips: paramsInput.annualInterestBips,
+      delinquencyFeeBips: paramsInput.delinquencyFeeBips,
+      withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
+      reserveRatioBips: paramsInput.reserveRatioBips,
+      delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      hooks: EmptyHooksConfig
+    });
+    vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
+    hooksFactory.deployMarketAndHooks(address(0), '', parameters, '', bytes32(uint(1)));
   }
 
   struct CreateMarketAndHooksContext {
