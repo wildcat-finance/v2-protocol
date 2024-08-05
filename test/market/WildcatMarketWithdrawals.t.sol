@@ -397,7 +397,7 @@ contract WithdrawalsTest is BaseMarketTest {
       parameters.withdrawalBatchDuration
     );
     uint scaleFactor2 = scaleFactor1.rayMul(RAY + delinquencyFeeRay + baseInterestRay);
-    uint256 feesAccruedOnWithdrawal = uint(8e17).rayMul(scaleFactor2) - 8e17;
+    uint256 feesAccruedOnWithdrawal = uint(8e17).mulDiv(scaleFactor2, RAY) - 8e17;
 
     asset.mint(address(market), feesAccruedOnWithdrawal);
     lastTotalAssets += feesAccruedOnWithdrawal;
@@ -405,7 +405,10 @@ contract WithdrawalsTest is BaseMarketTest {
     updateState(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
 
-    _checkBatch(expiry, 1e18, 1e18, 1e18 + feesAccruedOnWithdrawal);
+    uint scaledAvailableLiquidity = state.scaleAmount(feesAccruedOnWithdrawal);
+    uint normalizedAmountPaid = MathUtils
+    .mulDiv(scaledAvailableLiquidity, state.scaleFactor, RAY);
+    _checkBatch(expiry, 1e18, 1e18, 1e18 + normalizedAmountPaid);
     assertEq(market.getUnpaidBatchExpiries().length, 0);
     _checkState();
   }
