@@ -370,16 +370,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
     string memory symbol = string.concat(parameters.symbolPrefix, parameters.asset.symbol());
 
-    (bytes32 packedNameWord0, bytes32 packedNameWord1) = _packString(name);
-    (bytes32 packedSymbolWord0, bytes32 packedSymbolWord1) = _packString(symbol);
-
     TmpMarketParameterStorage memory tmp = TmpMarketParameterStorage({
       borrower: msg.sender,
       asset: parameters.asset,
-      packedNameWord0: packedNameWord0,
-      packedNameWord1: packedNameWord1,
-      packedSymbolWord0: packedSymbolWord0,
-      packedSymbolWord1: packedSymbolWord1,
+      packedNameWord0: bytes32(0),
+      packedNameWord1: bytes32(0),
+      packedSymbolWord0: bytes32(0),
+      packedSymbolWord1: bytes32(0),
       decimals: decimals,
       feeRecipient: template.feeRecipient,
       protocolFeeBips: template.protocolFeeBips,
@@ -391,6 +388,10 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       delinquencyGracePeriod: parameters.delinquencyGracePeriod,
       hooks: parameters.hooks
     });
+    {
+      (tmp.packedNameWord0, tmp.packedNameWord1) = _packString(name);
+      (tmp.packedSymbolWord0, tmp.packedSymbolWord1) = _packString(symbol);
+    }
 
     _setTmpMarketParameters(tmp);
 
