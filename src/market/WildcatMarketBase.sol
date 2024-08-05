@@ -90,7 +90,7 @@ contract WildcatMarketBase is
       mstore(0, 0x20)
       mstore(0x20, 0)
       mstore(0x3f, symbolWord0)
-      mstore(0x60, symbolWord1)
+      mstore(0x5f, symbolWord1)
       return(0, 0x80)
     }
   }
@@ -110,7 +110,7 @@ contract WildcatMarketBase is
       mstore(0, 0x20)
       mstore(0x20, 0)
       mstore(0x3f, nameWord0)
-      mstore(0x60, nameWord1)
+      mstore(0x5f, nameWord1)
       return(0, 0x80)
     }
   }
