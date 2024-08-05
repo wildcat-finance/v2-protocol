@@ -351,6 +351,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     assertEq(market.annualInterestBips(), parameters.annualInterestBips, 'annualInterestBips');
     assertEq(market.reserveRatioBips(), parameters.reserveRatioBips, 'reserveRatioBips');
     assertEq(market.borrower(), parameters.borrower, 'borrower');
+    assertEq(market.archController(), address(archController), 'archController');
     assertEq(market.feeRecipient(), parameters.feeRecipient, 'feeRecipient');
     assertEq(market.protocolFeeBips(), parameters.protocolFeeBips, 'protocolFeeBips');
     assertEq(market.delinquencyFeeBips(), parameters.delinquencyFeeBips, 'delinquencyFeeBips');
