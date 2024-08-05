@@ -6,9 +6,29 @@ import '../libraries/MarketState.sol';
 
 type HooksConfig is uint256;
 
+HooksConfig constant EmptyHooksConfig = HooksConfig.wrap(0);
+
 using LibHooksConfig for HooksConfig global;
+using LibHooksConfig for HooksDeploymentConfig global;
+
+// Type that contains only the flags for a specific hooks contract, with one
+// set of flags for optional hooks and one set of flags for required hooks.
+type HooksDeploymentConfig is uint256;
+
+function encodeHooksDeploymentConfig(
+  HooksConfig optionalFlags,
+  HooksConfig requiredFlags
+) pure returns (HooksDeploymentConfig flags) {
+  assembly {
+    let cleanedOptionalFlags := and(0xffff, shr(0x50, optionalFlags))
+    let cleanedRequiredFlags := and(0xffff0000, shr(0x40, requiredFlags))
+    flags := or(cleanedOptionalFlags, cleanedRequiredFlags)
+  }
+}
 
 // --------------------- Bits after hook activation flag -------------------- //
+
+// Offsets are from the right
 
 uint256 constant Bit_Enabled_Deposit = 95;
 uint256 constant Bit_Enabled_QueueWithdrawal = 94;
@@ -79,11 +99,59 @@ library LibHooksConfig {
     HooksConfig b
   ) internal pure returns (HooksConfig merged) {
     assembly {
-      let addressA := shl(96, shr(96, a))
-      let flagsA := shl(96, a)
-      let flagsB := shl(96, b)
-      let mergedFlags := shr(96, and(flagsA, flagsB))
+      let addressA := shl(0x60, shr(0x60, a))
+      let flagsA := shl(0xa0, a)
+      let flagsB := shl(0xa0, b)
+      let mergedFlags := shr(0xa0, and(flagsA, flagsB))
       merged := or(addressA, mergedFlags)
+    }
+  }
+
+  /**
+   * @dev Create a merged HooksConfig with the shared flags of `a` and `b`
+   *      and the address of `a`.
+   */
+  function mergeAllFlags(
+    HooksConfig a,
+    HooksConfig b
+  ) internal pure returns (HooksConfig merged) {
+    assembly {
+      let addressA := shl(0x60, shr(0x60, a))
+      let flagsA := shl(0xa0, a)
+      let flagsB := shl(0xa0, b)
+      let mergedFlags := shr(0xa0, or(flagsA, flagsB))
+      merged := or(addressA, mergedFlags)
+    }
+  }
+
+  function mergeFlags(
+    HooksConfig config,
+    HooksDeploymentConfig flags
+  ) internal pure returns (HooksConfig merged) {
+    assembly {
+      let _hooksAddress := shl(96, shr(96, config))
+      // Position flags at the end of the word
+      let configFlags := shr(0x50, config)
+      // Optional flags are already in the right position, required flags must be
+      // shifted to align with the other flags. The leading and trailing bits for all 3
+      // words will be masked out at the end
+      let _optionalFlags := flags
+      let _requiredFlags := shr(0x10, flags)
+      let mergedFlags := and(0xffff, or(and(configFlags, _optionalFlags), _requiredFlags))
+
+      merged := or(_hooksAddress, shl(0x50, mergedFlags))
+    }
+  }
+
+  function optionalFlags(HooksDeploymentConfig flags) internal pure returns (HooksConfig config) {
+    assembly {
+      config := shl(0x50, and(flags, 0xffff))
+    }
+  }
+
+  function requiredFlags(HooksDeploymentConfig flags) internal pure returns (HooksConfig config) {
+    assembly {
+      config := shl(0x40, and(flags, 0xffff0000))
     }
   }
 
@@ -94,6 +162,12 @@ library LibHooksConfig {
   function readFlag(HooksConfig hooks, uint256 bitsAfter) internal pure returns (bool flagged) {
     assembly {
       flagged := and(shr(bitsAfter, hooks), 1)
+    }
+  }
+
+  function setFlag(HooksConfig hooks, uint256 bitsAfter) internal pure returns (HooksConfig updatedHooks) {
+    assembly {
+      updatedHooks := or(hooks, shl(bitsAfter, 1))
     }
   }
 
