@@ -46,7 +46,7 @@ contract AccessControlHooks is MarketConstraintHooks {
     address indexed accountAddress,
     uint32 credentialTimestamp
   );
-  event AccountAccessRevoked(address indexed providerAddress, address indexed accountAddress);
+  event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed accountAddress);
 
   // ========================================================================== //
@@ -65,6 +65,7 @@ contract AccessControlHooks is MarketConstraintHooks {
   /// @dev Error thrown when a user does not have a valid credential
   error NotApprovedLender();
   error InvalidArrayLength();
+  error NotHookedMarket();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -80,6 +81,17 @@ contract AccessControlHooks is MarketConstraintHooks {
   mapping(address => RoleProvider) internal _roleProviders;
 
   HooksDeploymentConfig public immutable override config;
+
+  mapping(address => bool) public hookedMarkets;
+
+  // ========================================================================== //
+  //                                  Modifiers                                 //
+  // ========================================================================== //
+
+  modifier onlyBorrower() {
+    if (msg.sender != borrower) revert CallerNotBorrower();
+    _;
+  }
 
   // ========================================================================== //
   //                                 Constructor                                //
@@ -130,12 +142,14 @@ contract AccessControlHooks is MarketConstraintHooks {
    */
   function _onCreateMarket(
     address deployer,
+    address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override {
     if (deployer != borrower) revert CallerNotBorrower();
     // Validate the deploy parameters
-    super._onCreateMarket(deployer, parameters, hooksData);
+    super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
+    hookedMarkets[address(marketAddress)] = true;
   }
 
   // ========================================================================== //
@@ -148,8 +162,7 @@ contract AccessControlHooks is MarketConstraintHooks {
    *      if the provider can refresh credentials, added to `pullProviders`.
    *      If the provider is already approved, only updates `timeToLive`.
    */
-  function addRoleProvider(address providerAddress, uint32 timeToLive) external {
-    if (msg.sender != borrower) revert CallerNotBorrower();
+  function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyBorrower {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) {
       bool isPullProvider = IRoleProvider(providerAddress).isPullProvider();
@@ -170,7 +183,7 @@ contract AccessControlHooks is MarketConstraintHooks {
       uint24 pullProviderIndex = provider.pullProviderIndex();
       if (pullProviderIndex != NotPullProviderIndex) {
         _pullProviders[pullProviderIndex] = provider;
-      }
+      } else {}
       emit RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);
     }
     // Update the provider in storage
@@ -181,7 +194,7 @@ contract AccessControlHooks is MarketConstraintHooks {
    * @dev Removes a role provider from the `_roleProviders` mapping and, if it is a
    *      pull provider, from the `_pullProviders` array.
    */
-  function removeRoleProvider(address providerAddress) external {
+  function removeRoleProvider(address providerAddress) external onlyBorrower {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) revert ProviderNotFound();
     // Remove the provider from `_roleProviders`
@@ -301,7 +314,11 @@ contract AccessControlHooks is MarketConstraintHooks {
    *      - the new expiry is later than the current expiry
    */
   function grantRole(address account, uint32 roleGrantedTimestamp) external {
-    _grantRole(account, roleGrantedTimestamp);
+    RoleProvider callingProvider = _roleProviders[msg.sender];
+
+    if (callingProvider.isNull()) revert ProviderNotFound();
+
+    _grantRole(callingProvider, account, roleGrantedTimestamp);
   }
 
   /**
@@ -314,17 +331,21 @@ contract AccessControlHooks is MarketConstraintHooks {
    *      - the new expiry is later than the current expiry
    */
   function grantRoles(address[] memory accounts, uint32[] memory roleGrantedTimestamps) external {
-    if (accounts.length != roleGrantedTimestamps.length) revert InvalidArrayLength();
-    for (uint256 i = 0; i < accounts.length; i++) {
-      _grantRole(accounts[i], roleGrantedTimestamps[i]);
-    }
-  }
-
-  function _grantRole(address account, uint32 roleGrantedTimestamp) internal {
     RoleProvider callingProvider = _roleProviders[msg.sender];
 
     if (callingProvider.isNull()) revert ProviderNotFound();
 
+    if (accounts.length != roleGrantedTimestamps.length) revert InvalidArrayLength();
+    for (uint256 i = 0; i < accounts.length; i++) {
+      _grantRole(callingProvider, accounts[i], roleGrantedTimestamps[i]);
+    }
+  }
+
+  function _grantRole(
+    RoleProvider callingProvider,
+    address account,
+    uint32 roleGrantedTimestamp
+  ) internal {
     LenderStatus memory status = _lenderStatus[account];
 
     uint256 newExpiry = callingProvider.calculateExpiry(roleGrantedTimestamp);
@@ -351,7 +372,6 @@ contract AccessControlHooks is MarketConstraintHooks {
     _setCredentialAndEmitAccessGranted(status, callingProvider, account, roleGrantedTimestamp);
   }
 
-  // @todo add tests to AccessControlHooks.t.sol
   function revokeRole(address account) external {
     LenderStatus memory status = _lenderStatus[account];
     if (status.lastProvider != msg.sender) {
@@ -359,25 +379,21 @@ contract AccessControlHooks is MarketConstraintHooks {
     }
     status.unsetCredential();
     _lenderStatus[account] = status;
-    emit AccountAccessRevoked(msg.sender, account);
+    emit AccountAccessRevoked(account);
   }
 
-  // @todo add tests to AccessControlHooks.t.sol
-  function blockFromDeposits(address account) external {
-    if (msg.sender != borrower) revert CallerNotBorrower();
+  function blockFromDeposits(address account) external onlyBorrower {
     LenderStatus memory status = _lenderStatus[account];
     if (status.hasCredential()) {
       status.unsetCredential();
-      emit AccountAccessRevoked(status.lastProvider, account);
+      emit AccountAccessRevoked(account);
     }
     status.isBlockedFromDeposits = true;
     _lenderStatus[account] = status;
     emit AccountBlockedFromDeposits(account);
   }
 
-  // @todo add tests to AccessControlHooks.t.sol
-  function unblockFromDeposits(address account) external {
-    if (msg.sender != borrower) revert CallerNotBorrower();
+  function unblockFromDeposits(address account) external onlyBorrower {
     LenderStatus memory status = _lenderStatus[account];
     status.isBlockedFromDeposits = false;
     _lenderStatus[account] = status;
@@ -598,7 +614,6 @@ contract AccessControlHooks is MarketConstraintHooks {
       return (true, true);
     }
 
-    // @todo handle skipping the provider from the hooks data step if one was given
     uint256 pullProviderIndexToSkip = type(uint256).max;
 
     // If lender has an expired credential from a pull provider, attempt to refresh it
@@ -639,7 +654,7 @@ contract AccessControlHooks is MarketConstraintHooks {
           status.lastApprovalTimestamp
         );
       } else {
-        emit AccountAccessRevoked(status.lastProvider, accountAddress);
+        emit AccountAccessRevoked(accountAddress);
       }
     }
   }
@@ -667,6 +682,9 @@ contract AccessControlHooks is MarketConstraintHooks {
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {
+    if (!hookedMarkets[msg.sender]) {
+      revert NotHookedMarket();
+    }
     // Retrieve the lender's status from storage
     LenderStatus memory status = _lenderStatus[lender];
     // Check that the lender is not blocked
