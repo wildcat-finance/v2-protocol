@@ -8,7 +8,6 @@ import '../helpers/fuzz/MarketStateFuzzInputs.sol';
 import '../shared/mocks/MockHooks.sol';
 import '../shared/mocks/MockHookCaller.sol';
 
-
 contract HooksConfigTest is Test, Assertions {
   MockHooks internal hooks = new MockHooks(address(this), '');
   MockHookCaller internal mockHookCaller = new MockHookCaller();
@@ -34,6 +33,44 @@ contract HooksConfigTest is Test, Assertions {
   function testEncode(StandardHooksConfig memory input) external {
     HooksConfig hooks = input.toHooksConfig();
     assertEq(hooks, input);
+  }
+
+  function test_mergeSharedFlags(
+    StandardHooksConfig memory _a,
+    StandardHooksConfig memory _b
+  ) external {
+    StandardHooksConfig memory expectedMergeResult = _a.mergeSharedFlags(_b);
+    HooksConfig a = _a.toHooksConfig();
+    HooksConfig b = _b.toHooksConfig();
+    HooksConfig actualMergeResult = a.mergeSharedFlags(b);
+    assertEq(actualMergeResult, expectedMergeResult, 'mergeSharedFlags');
+  }
+
+  function test_encodeHooksDeploymentConfig(
+    StandardHooksDeploymentConfig memory _deploymentFlags
+  ) external {
+    _deploymentFlags.optional.hooksAddress = address(0);
+    _deploymentFlags.required.hooksAddress = address(0);
+    HooksConfig _optional = _deploymentFlags.optional.toHooksConfig();
+    HooksConfig _required = _deploymentFlags.required.toHooksConfig();
+    HooksDeploymentConfig flags = encodeHooksDeploymentConfig(_optional, _required);
+    assertEq(flags.optionalFlags(), _optional, 'optionalFlags');
+    assertEq(flags.requiredFlags(), _required, 'requiredFlags');
+  }
+
+  function test_mergeFlags(
+    StandardHooksConfig memory _config,
+    StandardHooksDeploymentConfig memory _deploymentFlags
+  ) external {
+    StandardHooksConfig memory expectedMergeResult = _config.mergeFlags(_deploymentFlags);
+    HooksConfig config = _config.toHooksConfig();
+    HooksDeploymentConfig flags = encodeHooksDeploymentConfig(
+      _deploymentFlags.optional.toHooksConfig(),
+      _deploymentFlags.required.toHooksConfig()
+    );
+
+    HooksConfig actualMergeResult = config.mergeFlags(flags);
+    assertEq(actualMergeResult, expectedMergeResult, 'mergeSharedFlags');
   }
 
   function test_onDeposit(
@@ -323,16 +360,5 @@ contract HooksConfigTest is Test, Assertions {
     } else {
       assertEq(hooks.lastCalldataHash(), 0);
     }
-  }
-
-  function test_mergeSharedFlags(
-    StandardHooksConfig memory _a,
-    StandardHooksConfig memory _b
-  ) external {
-    StandardHooksConfig memory expectedMergeResult = _a.mergeSharedFlags(_b);
-    HooksConfig a = _a.toHooksConfig();
-    HooksConfig b = _b.toHooksConfig();
-    HooksConfig actualMergeResult = a.mergeSharedFlags(b);
-    assertEq(actualMergeResult, expectedMergeResult, 'mergeSharedFlags');
   }
 }
