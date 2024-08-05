@@ -16,6 +16,7 @@ contract WildcatMarket is
   using MathUtils for uint256;
   using SafeCastLib for uint256;
   using LibERC20 for address;
+  using BoolUtils for bool;
 
   /**
    * @dev Apply pending interest, delinquency fees and protocol fees
@@ -34,7 +35,7 @@ contract WildcatMarket is
    *      operation.
    */
   function rescueTokens(address token) external onlyBorrower {
-    if (token == asset) {
+    if ((token == asset).or(token == address(this))) {
       revert_BadRescueAsset();
     }
     token.safeTransferAll(msg.sender);
