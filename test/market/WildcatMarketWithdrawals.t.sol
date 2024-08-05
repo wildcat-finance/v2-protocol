@@ -161,6 +161,133 @@ contract WithdrawalsTest is BaseMarketTest {
     _requestWithdrawal(alice, withdrawalAmount);
   }
 
+
+  /* -------------------------------------------------------------------------- */
+  /*                              queueFullWithdrawal()                             */
+  /* -------------------------------------------------------------------------- */
+
+  function test_queueFullWithdrawal_NotApprovedLender() external {
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    market.transfer(bob, 1e18);
+    vm.startPrank(bob);
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
+    market.queueFullWithdrawal();
+  }
+
+  function test_queueFullWithdrawal_AuthorizedWithdrawOnly() public asAccount(bob) {
+    _deposit(bob, 1e18);
+    _deauthorizeLender(bob);
+    stopPrank();
+    _requestFullWithdrawal(bob);
+  }
+
+  function test_queueFullWithdrawal_AuthorizedOnHooks() public {
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    market.transfer(bob, 1e18);
+    _authorizeLender(bob);
+    vm.startPrank(bob);
+    market.queueFullWithdrawal();
+  }
+
+  function test_queueFullWithdrawal_NullBurnAmount() external asAccount(alice) {
+    vm.expectRevert(IMarketEventsAndErrors.NullBurnAmount.selector);
+    market.queueFullWithdrawal();
+  }
+
+  function test_queueFullWithdrawal_AddToExisting(
+    uint256 userBalance1,
+    uint256 userBalance2
+  ) external asAccount(alice) {
+    userBalance1 = bound(
+      userBalance1,
+      2,
+      DefaultMaximumSupply / 2
+    );
+    userBalance2 = bound(
+      userBalance2,
+      2,
+      DefaultMaximumSupply - userBalance1
+    );
+    _deposit(alice, userBalance1);
+    _deposit(bob, userBalance2);
+    _requestFullWithdrawal(alice);
+    _requestFullWithdrawal(bob);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(
+      state.normalizedUnclaimedWithdrawals,
+      userBalance1 + userBalance2,
+      'normalizedUnclaimedWithdrawals'
+    );
+  }
+
+  function test_queueFullWithdrawal_BurnAll(
+    uint128 userBalance
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _requestFullWithdrawal(alice);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
+  }
+
+  function test_queueFullWithdrawal_AfterMarketClosed(
+    uint128 userBalance
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _closeMarket();
+    _requestFullWithdrawal(alice);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
+  }
+
+  function test_queueFullWithdrawal_BurnPartial(
+    uint128 userBalance,
+    uint128 borrowAmount
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    borrowAmount = uint128(
+      bound(borrowAmount, 2, uint256(userBalance).bipMul(10000 - parameters.reserveRatioBips))
+    );
+    _deposit(alice, userBalance);
+    _borrow(borrowAmount);
+    _requestFullWithdrawal(alice);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, true, 'state.isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'state.timeDelinquent');
+    uint128 remainingAssets = userBalance - borrowAmount;
+
+    assertEq(state.scaledPendingWithdrawals, borrowAmount, 'state.scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, borrowAmount, 'state.scaledTotalSupply');
+    assertEq(
+      state.normalizedUnclaimedWithdrawals,
+      remainingAssets,
+      'state.normalizedUnclaimedWithdrawals'
+    );
+  }
+
+  function test_queueFullWithdrawal(
+    uint128 userBalance
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _requestFullWithdrawal(alice);
+  }
+
   /* -------------------------------------------------------------------------- */
   /*                             executeWithdrawal()                            */
   /* -------------------------------------------------------------------------- */
