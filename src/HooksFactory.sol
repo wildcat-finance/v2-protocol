@@ -361,7 +361,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
     parameters.hooks = parameters.hooks.mergeFlags(IHooks(hooksInstance).config());
 
-    IHooks(hooksInstance).onCreateMarket(msg.sender, parameters, hooksData);
+    market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+
+    IHooks(hooksInstance).onCreateMarket(msg.sender, market, parameters, hooksData);
     uint8 decimals = parameters.asset.decimals();
 
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
@@ -389,9 +391,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       hooks: parameters.hooks
     });
 
-    // @todo efficient encoding
     _setTmpMarketParameters(tmp);
-    market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
 
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
