@@ -2,6 +2,7 @@
 pragma solidity >=0.8.20;
 
 import './IHooks.sol';
+import '../libraries/BoolUtils.sol';
 
 struct TemporaryReserveRatio {
   uint16 originalAnnualInterestBips;
@@ -10,11 +11,31 @@ struct TemporaryReserveRatio {
 }
 
 abstract contract MarketConstraintHooks is IHooks {
+  using BoolUtils for bool;
+
   error DelinquencyGracePeriodOutOfBounds();
   error ReserveRatioBipsOutOfBounds();
   error DelinquencyFeeBipsOutOfBounds();
   error WithdrawalBatchDurationOutOfBounds();
   error AnnualInterestBipsOutOfBounds();
+
+  event TemporaryExcessReserveRatioActivated(
+    address indexed market,
+    uint256 originalReserveRatioBips,
+    uint256 temporaryReserveRatioBips,
+    uint256 temporaryReserveRatioExpiry
+  );
+
+  event TemporaryExcessReserveRatioUpdated(
+    address indexed market,
+    uint256 originalReserveRatioBips,
+    uint256 temporaryReserveRatioBips,
+    uint256 temporaryReserveRatioExpiry
+  );
+
+  event TemporaryExcessReserveRatioCanceled(address indexed market);
+
+  event TemporaryExcessReserveRatioExpired(address indexed market);
 
   uint32 internal constant MinimumDelinquencyGracePeriod = 0;
   uint32 internal constant MaximumDelinquencyGracePeriod = 90 days;
@@ -30,6 +51,8 @@ abstract contract MarketConstraintHooks is IHooks {
 
   uint16 internal constant MinimumAnnualInterestBips = 0;
   uint16 internal constant MaximumAnnualInterestBips = 10_000;
+
+  mapping(address => TemporaryReserveRatio) public temporaryExcessReserveRatio;
 
   function assertValueInRange(
     uint256 value,
@@ -152,7 +175,7 @@ abstract contract MarketConstraintHooks is IHooks {
     } else {
       // Calculate double the relative reduction in the interest rate in bips,
       // bound to a maximum of 100%
-      uint256 boundRelativeDiff = MathUtils.min(10000, MathUtils.bipMul(2, relativeDiff));
+      uint256 boundRelativeDiff = MathUtils.min(10000, 2 * relativeDiff);
 
       // If the bound relative diff is lower than the existing reserve ratio, return the latter.
       temporaryReserveRatioBips = uint16(
@@ -161,29 +184,105 @@ abstract contract MarketConstraintHooks is IHooks {
     }
   }
 
+  /**
+   * @dev Hook to enforce constraints on changes to the annual interest rate
+   *      and reserve ratio. Reducing the APR triggers an update period of two weeks,
+   *      during which the market's reserve ratio is temporarily increased proportionally
+   *      to the reduction. The original APR is pegged to the previous value during this
+   *      time to prevent abuse of the allowed 25% unpenalized reduction.
+   *
+   * @param annualInterestBips The new annual interest rate in bips provided by the borrower.
+   * @param {} Unused parameter for the reserve ratio bips provided by the borrower.
+   * @param intermediateState The current state of the market.
+   * @param {} Unused parameter for extra data.
+   *
+   * @return newAnnualInterestBips The new annual interest rate in bips to be set.
+   *                               always equal to the input parameter.
+   * @return newReserveRatioBips The new reserve ratio in bips to be set.
+   */
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
-    uint16 reserveRatioBips,
-    MarketState calldata /* intermediateState */,
+    uint16 /* reserveRatioBips */,
+    MarketState calldata intermediateState,
     bytes calldata /* extraData */
-  )
-    public
-    virtual
-    override
-    returns (uint16 /* newAnnualInterestBips */, uint16 /* newReserveRatioBips */)
-  {
+  ) public virtual override returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips) {
+    (newAnnualInterestBips, newReserveRatioBips) = (
+      annualInterestBips,
+      intermediateState.reserveRatioBips
+    );
+    address market = msg.sender;
+
     assertValueInRange(
       annualInterestBips,
       MinimumAnnualInterestBips,
       MaximumAnnualInterestBips,
       AnnualInterestBipsOutOfBounds.selector
     );
-    assertValueInRange(
-      reserveRatioBips,
-      MinimumReserveRatioBips,
-      MaximumReserveRatioBips,
-      ReserveRatioBipsOutOfBounds.selector
-    );
-    return (annualInterestBips, reserveRatioBips);
+
+    // Get the existing temporary reserve ratio from storage, if any
+    TemporaryReserveRatio memory tmp = temporaryExcessReserveRatio[market];
+
+    if (tmp.expiry > 0) {
+      bool canExpire = (annualInterestBips >= intermediateState.annualInterestBips).and(
+        block.timestamp >= tmp.expiry
+      );
+      bool canCancel = annualInterestBips >= tmp.originalAnnualInterestBips;
+      if (canExpire.or(canCancel)) {
+        // If the update period has expired and the provided value doesn't reduce it further,
+        // or it is not expired but the new value undoes the reduction for the current update
+        // period, reset the temporary reserve ratio.
+        if (canExpire) {
+          emit TemporaryExcessReserveRatioExpired(market);
+        } else {
+          emit TemporaryExcessReserveRatioCanceled(market);
+        }
+        delete temporaryExcessReserveRatio[market];
+        return (newAnnualInterestBips, tmp.originalReserveRatioBips);
+      }
+    }
+
+    // Get the original values for the ongoing or newly created update period.
+    (uint16 originalAnnualInterestBips, uint16 originalReserveRatioBips) = tmp.expiry == 0
+      ? (intermediateState.annualInterestBips, intermediateState.reserveRatioBips)
+      : (tmp.originalAnnualInterestBips, tmp.originalReserveRatioBips);
+
+    if (annualInterestBips < originalAnnualInterestBips) {
+      // If the new interest rate is lower than the original, calculate a temporarily
+      // increased reserve ratio as:
+      // relativeReduction <= 0.25 ? originalReserveRatio : max(originalReserveRatio, min(2 * relativeReduction, 100%))
+      uint16 temporaryReserveRatioBips = _calculateTemporaryReserveRatioBips(
+        annualInterestBips,
+        originalAnnualInterestBips,
+        originalReserveRatioBips
+      );
+      uint32 expiry = uint32(block.timestamp + 2 weeks);
+      if (tmp.expiry == 0) {
+        // If there is no existing temporary reserve ratio, store the current
+        // interest rate and reserve ratio as the original values.
+        emit TemporaryExcessReserveRatioActivated(
+          market,
+          originalReserveRatioBips,
+          temporaryReserveRatioBips,
+          expiry
+        );
+        tmp.originalAnnualInterestBips = originalAnnualInterestBips;
+        tmp.originalReserveRatioBips = originalReserveRatioBips;
+      } else {
+        // If the new APR is lower than the original but higher than the current rate,
+        // update the reserve ratio but leave the previous expiry; otherwise, reset the timer.
+        if (annualInterestBips >= intermediateState.annualInterestBips) {
+          expiry = tmp.expiry;
+        }
+        emit TemporaryExcessReserveRatioUpdated(
+          market,
+          originalReserveRatioBips,
+          temporaryReserveRatioBips,
+          expiry
+        );
+      }
+      tmp.expiry = expiry;
+      temporaryExcessReserveRatio[market] = tmp;
+      newReserveRatioBips = temporaryReserveRatioBips;
+    }
   }
 }
