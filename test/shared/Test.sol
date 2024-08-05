@@ -221,7 +221,13 @@ contract Test is ForgeTest, Prankster, Assertions {
       hooksInstance = AccessControlHooks(parameters.hooksConfig.hooksAddress());
     }
     if (emptyConfig) {
-      parameters.hooksConfig = hooksInstance.config();
+      HooksDeploymentConfig _config = hooksInstance.config();
+      // Enable all hooks by default
+      HooksConfig config = _config
+        .optionalFlags()
+        .setHooksAddress(address(hooksInstance))
+        .mergeAllFlags(_config.requiredFlags());
+      parameters.hooksConfig = config;
     }
     if (authorizeAll) {
       AlwaysAuthorizedRoleProvider provider = new AlwaysAuthorizedRoleProvider();

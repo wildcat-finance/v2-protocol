@@ -57,19 +57,23 @@ contract MockHooks is IHooks {
   address public deployer;
   bytes public constructorArgs;
   bytes32 public immutable constructorArgsHash;
-  HooksConfig public override config = encodeHooksConfig({
-    useOnDeposit: true,
-    useOnQueueWithdrawal: true,
-    useOnExecuteWithdrawal: true,
-    useOnTransfer: true,
-    useOnBorrow: true,
-    useOnRepay: true,
-    useOnCloseMarket: true,
-    useOnAssetsSentToEscrow: true,
-    useOnSetMaxTotalSupply: true,
-    useOnSetAnnualInterestAndReserveRatioBips: true,
-    hooksAddress: address(this)
-  });
+  HooksDeploymentConfig public override config =
+    encodeHooksDeploymentConfig({
+      optionalFlags: encodeHooksConfig({
+        useOnDeposit: true,
+        useOnQueueWithdrawal: true,
+        useOnExecuteWithdrawal: true,
+        useOnTransfer: true,
+        useOnBorrow: true,
+        useOnRepay: true,
+        useOnCloseMarket: true,
+        useOnAssetsSentToEscrow: true,
+        useOnSetMaxTotalSupply: true,
+        useOnSetAnnualInterestAndReserveRatioBips: true,
+        hooksAddress: address(this)
+      }),
+      requiredFlags: EmptyHooksConfig
+    });
   address public lastDeployer;
   DeployMarketInputs internal _lastDeployMarketInputs;
   bytes public lastCreateMarketHooksData;
@@ -90,7 +94,10 @@ contract MockHooks is IHooks {
     return _lastDeployMarketInputs;
   }
 
-  function setAnnualInterestAndReserveRatioBips(uint16 _annualInterestBips, uint16 _reserveRatioBips) external {
+  function setAnnualInterestAndReserveRatioBips(
+    uint16 _annualInterestBips,
+    uint16 _reserveRatioBips
+  ) external {
     updateAnnualInterestAndReserveRatioBips = true;
     annualInterestBipsToReturn = _annualInterestBips;
     reserveRatioBipsToReturn = _reserveRatioBips;
@@ -98,8 +105,7 @@ contract MockHooks is IHooks {
 
   constructor(address _caller, bytes memory _constructorArgs) {
     deployer = _caller;
-    if (_constructorArgs.length > 0)
-    constructorArgs = _constructorArgs;
+    if (_constructorArgs.length > 0) constructorArgs = _constructorArgs;
     constructorArgsHash = keccak256(_constructorArgs);
   }
 
@@ -109,9 +115,10 @@ contract MockHooks is IHooks {
     return 'mock-hooks';
   }
 
-  function setConfig(HooksConfig _config) external {
+  function setConfig(HooksDeploymentConfig _config) external {
     config = _config;
   }
+
   event RoleProviderAdded(
     address indexed providerAddress,
     uint32 timeToLive,
@@ -249,7 +256,12 @@ contract MockHooks is IHooks {
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
-    emit OnSetAnnualInterestAndReserveRatioBipsCalled(annualInterestBips, reserveRatioBips, intermediateState, extraData);
+    emit OnSetAnnualInterestAndReserveRatioBipsCalled(
+      annualInterestBips,
+      reserveRatioBips,
+      intermediateState,
+      extraData
+    );
     (updatedAnnualInterestBips, updatedReserveRatioBips) = updateAnnualInterestAndReserveRatioBips
       ? (annualInterestBipsToReturn, reserveRatioBipsToReturn)
       : (annualInterestBips, reserveRatioBips);
@@ -257,9 +269,7 @@ contract MockHooks is IHooks {
 }
 
 contract MockHooksWithConfig is MockHooks {
-  constructor(address _caller, bytes memory _constructorArgs)
-    MockHooks(_caller, _constructorArgs)
-  {
-    config = abi.decode(_constructorArgs, (HooksConfig));
+  constructor(address _caller, bytes memory _constructorArgs) MockHooks(_caller, _constructorArgs) {
+    config = abi.decode(_constructorArgs, (HooksDeploymentConfig));
   }
 }
