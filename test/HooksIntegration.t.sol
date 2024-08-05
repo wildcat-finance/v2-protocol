@@ -29,7 +29,10 @@ contract HooksIntegrationTest is BaseMarketTest {
     deployHooksInstance(parameters, false, false);
     configInput.hooksAddress = address(hooks);
     HooksConfig config = configInput.toHooksConfig();
-    MockHooks(address(hooks)).setConfig(config);
+    MockHooks(address(hooks)).setConfig(encodeHooksDeploymentConfig({
+      optionalFlags: config,
+      requiredFlags: EmptyHooksConfig
+    }));
     parameters.hooksConfig = config;
     setUpContracts(false, false);
     MockHooks(address(hooks)).reset();
@@ -113,11 +116,12 @@ contract HooksIntegrationTest is BaseMarketTest {
       abi.encodeWithSelector(market.queueWithdrawal.selector, 100),
       extraData
     );
+    bytes memory _returndata = abi.encode(block.timestamp + parameters.withdrawalBatchDuration);
     if (config.useOnQueueWithdrawal) {
       vm.expectEmit();
       emit OnQueueWithdrawalCalled(alice, 100, state, extraData);
     }
-    _callMarket(_calldata, '', 'queueWithdrawal');
+    _callMarket(_calldata, _returndata, 'queueWithdrawal');
     if (!config.useOnQueueWithdrawal) {
       assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
     }

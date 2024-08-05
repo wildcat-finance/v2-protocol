@@ -38,8 +38,9 @@ contract AccessControlHooksTest is Test, Assertions {
   }
 
   function test_config() external {
-    StandardHooksConfig memory expectedConfig = StandardHooksConfig({
-      hooksAddress: address(hooks),
+    StandardHooksDeploymentConfig memory expectedConfig;
+    expectedConfig.optional = StandardHooksConfig({
+      hooksAddress: address(0),
       useOnDeposit: true,
       useOnQueueWithdrawal: true,
       useOnExecuteWithdrawal: true,
@@ -51,6 +52,7 @@ contract AccessControlHooksTest is Test, Assertions {
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false
     });
+    expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
     assertEq(hooks.config(), expectedConfig, 'config.');
   }
 

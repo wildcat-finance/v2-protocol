@@ -33,7 +33,7 @@ struct FuzzDeployMarketInputs {
   uint32 delinquencyGracePeriod;
   // Hooks config
   StandardHooksConfig marketHooksConfig;
-  StandardHooksConfig templateHooksConfig;
+  StandardHooksDeploymentConfig templateHooksConfig;
 }
 
 contract HooksFactoryTest is Test, Assertions {
@@ -557,12 +557,12 @@ contract HooksFactoryTest is Test, Assertions {
     DeployMarketInputs memory parameters,
     FuzzFeeConfigurationInputs memory feesInput,
     StandardHooksConfig memory marketHooksConfig,
-    StandardHooksConfig memory templateHooksConfig,
+    StandardHooksDeploymentConfig memory templateHooksConfig,
     bytes memory hooksData
   ) internal {
     // Ensure the market's hooks config was updated to only include flags shared with the hooks instance
     HooksConfig marketConfig = market.hooks();
-    assertEq(marketConfig, marketHooksConfig.mergeSharedFlags(templateHooksConfig), 'hooksConfig');
+    assertEq(marketConfig, marketHooksConfig.mergeFlags(templateHooksConfig), 'hooksConfig');
 
     MockHooks hooksInstance = MockHooks(parameters.hooks.hooksAddress());
     // Check that the hooks instance received the correct data in `onCreateMarket`
@@ -610,14 +610,14 @@ contract HooksFactoryTest is Test, Assertions {
     DeployMarketInputs memory parameters,
     FuzzFeeConfigurationInputs memory feesInput,
     StandardHooksConfig memory marketHooksConfig,
-    StandardHooksConfig memory templateHooksConfig,
+    StandardHooksDeploymentConfig memory templateHooksConfig,
     bytes memory hooksData
   ) internal returns (WildcatMarket market) {
     _setUpDeployMarket(feesInput);
     _expectEventsDeployMarket(
       parameters,
       feesInput,
-      marketHooksConfig.mergeSharedFlags(templateHooksConfig).toHooksConfig()
+      marketHooksConfig.mergeFlags(templateHooksConfig).toHooksConfig()
     );
     market = WildcatMarket(hooksFactory.deployMarket(parameters, hooksData, bytes32(uint(1))));
     _validateDeployedMarket(
@@ -641,11 +641,10 @@ contract HooksFactoryTest is Test, Assertions {
     bytes memory constructorArgs = 'o hey this is my market arg do u like it';
     MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
 
-    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
-    paramsInput.templateHooksConfig.hooksAddress = address(hooksInstance);
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it'; 
     paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
 
-    hooksInstance.setConfig(paramsInput.templateHooksConfig.toHooksConfig());
+    hooksInstance.setConfig( paramsInput.templateHooksConfig.toHooksDeploymentConfig() );
 
     DeployMarketInputs memory parameters = DeployMarketInputs({
       asset: address(underlying),
@@ -691,11 +690,10 @@ contract HooksFactoryTest is Test, Assertions {
 
     bytes memory constructorArgs = 'o hey this is my market arg do u like it';
     MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
-
-    paramsInput.templateHooksConfig.hooksAddress = address(hooksInstance);
+ 
     paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
 
-    hooksInstance.setConfig(paramsInput.templateHooksConfig.toHooksConfig());
+    hooksInstance.setConfig( paramsInput.templateHooksConfig.toHooksDeploymentConfig() );
     
     DeployMarketInputs memory parameters = DeployMarketInputs({
       asset: address(underlying),
@@ -726,14 +724,13 @@ contract HooksFactoryTest is Test, Assertions {
     context.expectedHooksInstance = _setUpDeployHooksInstance(hooksTemplate);
     _setUpDeployMarket(feesInput);
 
-    paramsInput.templateHooksConfig.hooksAddress = context.expectedHooksInstance;
     paramsInput.marketHooksConfig.hooksAddress = context.expectedHooksInstance;
     context.expectedConfig = paramsInput
       .marketHooksConfig
-      .mergeSharedFlags(paramsInput.templateHooksConfig)
+      .mergeFlags(paramsInput.templateHooksConfig)
       .toHooksConfig();
 
-    context.constructorArgs = abi.encode(paramsInput.templateHooksConfig.toHooksConfig());
+    context.constructorArgs = abi.encode( paramsInput.templateHooksConfig.toHooksDeploymentConfig() );
     context.createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
 
     context.parameters = DeployMarketInputs({

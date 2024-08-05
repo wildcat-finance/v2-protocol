@@ -359,7 +359,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       );
     }
 
-    parameters.hooks = parameters.hooks.mergeSharedFlags(IHooks(hooksInstance).config());
+    parameters.hooks = parameters.hooks.mergeFlags(IHooks(hooksInstance).config());
 
     IHooks(hooksInstance).onCreateMarket(msg.sender, parameters, hooksData);
     uint8 decimals = parameters.asset.decimals();

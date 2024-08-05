@@ -18,9 +18,9 @@ abstract contract IHooks {
   ///      Used to determine what the contract does and how `extraData` is interpreted.
   function version() external view virtual returns (string memory);
 
-  /// @dev Returns the HooksConfig for the hooks contract, specifying which hooks
-  ///      should be invoked by markets using it.
-  function config() external view virtual returns (HooksConfig);
+  /// @dev Returns the HooksDeploymentConfig type which contains the sets
+  ///      of optional and required hooks that this contract implements.
+  function config() external view virtual returns (HooksDeploymentConfig);
 
   function onCreateMarket(
     address deployer,

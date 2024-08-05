@@ -79,7 +79,7 @@ contract AccessControlHooks is MarketConstraintHooks {
   RoleProvider[] internal _pullProviders;
   mapping(address => RoleProvider) internal _roleProviders;
 
-  HooksConfig public immutable override config;
+  HooksDeploymentConfig public immutable override config;
 
   // ========================================================================== //
   //                                 Constructor                                //
@@ -99,8 +99,8 @@ contract AccessControlHooks is MarketConstraintHooks {
       _deployer,
       NotPullProviderIndex
     );
-    config = encodeHooksConfig({
-      hooksAddress: address(this),
+    HooksConfig optionalFlags = encodeHooksConfig({
+      hooksAddress: address(0),
       useOnDeposit: true,
       useOnQueueWithdrawal: true,
       useOnExecuteWithdrawal: true,
@@ -110,8 +110,12 @@ contract AccessControlHooks is MarketConstraintHooks {
       useOnCloseMarket: false,
       useOnAssetsSentToEscrow: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true
+      useOnSetAnnualInterestAndReserveRatioBips: false
     });
+    HooksConfig requiredFlags = EmptyHooksConfig.setFlag(
+      Bit_Enabled_SetAnnualInterestAndReserveRatioBips
+    );
+    config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
   }
 
   function version() external pure override returns (string memory) {

@@ -100,6 +100,51 @@ contract Assertions is StdAssertions {
     assertEq(actual, expected, 'RoleProvider.');
   }
 
+  function assertEq(
+    HooksDeploymentConfig actual,
+    HooksDeploymentConfig expected,
+    string memory labelPrefix
+  ) internal {
+    assertEq(
+      actual.optionalFlags(),
+      expected.optionalFlags(),
+      string.concat(labelPrefix, 'optionalFlags')
+    );
+    assertEq(
+      actual.requiredFlags(),
+      expected.requiredFlags(),
+      string.concat(labelPrefix, 'requiredFlags')
+    );
+  }
+
+  function assertEq(HooksDeploymentConfig actual, HooksDeploymentConfig expected) internal {
+    assertEq(actual, expected, 'HooksDeploymentConfig.');
+  }
+
+  function assertEq(
+    HooksDeploymentConfig actual,
+    StandardHooksDeploymentConfig memory expected,
+    string memory labelPrefix
+  ) internal {
+    assertEq(
+      actual.optionalFlags(),
+      expected.optional,
+      string.concat(labelPrefix, 'optionalFlags')
+    );
+    assertEq(
+      actual.requiredFlags(),
+      expected.required,
+      string.concat(labelPrefix, 'requiredFlags')
+    );
+  }
+
+  function assertEq(
+    HooksDeploymentConfig actual,
+    StandardHooksDeploymentConfig memory expected
+  ) internal {
+    assertEq(actual, expected, 'HooksDeploymentConfig.');
+  }
+
   function assertEq(HooksConfig actual, HooksConfig expected, string memory labelPrefix) internal {
     assertEq(
       actual.hooksAddress(),
