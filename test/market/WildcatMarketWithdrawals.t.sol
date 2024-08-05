@@ -787,4 +787,12 @@ contract WithdrawalsTest is BaseMarketTest {
     market.updateState();
     _checkBatch(expiry, 1e18, 1e18, 1e18);
   }
+
+  function test_liquidityAvailableBetweenWithdrawalAndExpiry() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    asset.mint(address(market), 8e17);
+    fastForward( parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+  }
 }
