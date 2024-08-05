@@ -78,7 +78,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   /**
    * @dev Get the temporary market parameters from transient storage.
-   * todo More efficient decoding
    */
   function _getTmpMarketParameters()
     internal
@@ -90,7 +89,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   /**
    * @dev Set the temporary market parameters in transient storage.
-   * todo More efficient encoding
    */
   function _setTmpMarketParameters(TmpMarketParameterStorage memory parameters) internal {
     _tmpMarketParameters.write(abi.encode(parameters));
@@ -345,6 +343,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     HooksTemplate memory template,
     bytes32 salt
   ) internal returns (address market) {
+    if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
+      revert AssetBlacklisted();
+    }
     address hooksInstance = parameters.hooks.hooksAddress();
 
     if (!(address(bytes20(salt)) == msg.sender || bytes20(salt) == bytes20(0))) {

@@ -34,6 +34,7 @@ interface IHooksFactoryEventsAndErrors {
   error SaltDoesNotContainSender();
   error MarketAlreadyExists();
   error NameOrSymbolTooLong();
+  error AssetBlacklisted();
 
   event HooksInstanceDeployed(address hooksInstance, address hooksTemplate);
   event HooksTemplateAdded(
