@@ -6,6 +6,7 @@ import { console } from 'forge-std/console.sol';
 import 'solady/utils/LibString.sol';
 
 string constant bashFilePath = 'deployments/write-standard-json.sh';
+import 'src/libraries/LibStoredInitCode.sol';
 
 using LibString for string;
 using LibString for address;
@@ -71,9 +72,10 @@ function getDeploymentsForNetwork(
 ) returns (Deployments memory deployments) {
   checkFfiEnabled();
   deployments.dir = pathJoin('deployments', networkName);
-  checkDirectoryExistsAndAccessible(deployments.dir);
+  checkDirectoryExistsAndAccessible(deployments.dir, true);
   deployments.filePath = pathJoin(deployments.dir, 'deployments.json');
   deployments.forgeOutDir = getForgeOutputDirectory();
+  checkDirectoryExistsAndAccessible(deployments.forgeOutDir, false);
 
   if (forgeVm.exists(deployments.filePath)) {
     console.log(string.concat('Reading deployments from ', deployments.filePath));
@@ -129,6 +131,44 @@ library LibDeployment {
   // ========================================================================== //
   //                                 Deployments                                //
   // ========================================================================== //
+
+  function getOrDeployInitcodeStorage(
+    Deployments memory self,
+    string memory namePath,
+    bytes memory creationCode,
+    bool overrideExisting
+  ) internal returns (address deployment, bool didDeploy) {
+    ContractArtifact memory artifact = parseContractNamePath(namePath);
+    string memory label = string.concat(artifact.name, '_initCodeStorage');
+    if (overrideExisting || !self.has(label)) {
+      deployment = self.broadcastDeployInitcode(creationCode);
+
+      artifact.deployment = deployment;
+
+      self.set(label, deployment);
+      self.pushArtifact(artifact);
+      didDeploy = true;
+    } else {
+      deployment = self.get(label);
+      console.log(string.concat('Found ', namePath, ' at'), deployment);
+    }
+  }
+
+  function addArtifactWithoutDeploying(
+    Deployments memory self,
+    string memory customLabel,
+    string memory namePath,
+    address deploymentAddress,
+    bytes memory constructorArgs
+  ) internal {
+    ContractArtifact memory artifact = parseContractNamePath(namePath);
+
+    artifact.deployment = deploymentAddress;
+    artifact.constructorArgs = constructorArgs;
+
+    self.set(customLabel, deploymentAddress);
+    self.pushArtifact(artifact);
+  }
 
   /**
    * @dev Deploy a contract or retrieve an existing deployment.
@@ -327,6 +367,15 @@ library LibDeployment {
     forgeVm.stopBroadcast();
   }
 
+  function broadcastDeployInitcode(
+    Deployments memory deployments,
+    bytes memory creationCode
+  ) internal returns (address deployment) {
+    deployments.broadcast();
+    deployment = LibStoredInitCode.deployInitCode(creationCode);
+    forgeVm.stopBroadcast();
+  }
+
   function findForgeArtifact(
     ContractArtifact memory artifact,
     string memory forgeOutDir
@@ -339,17 +388,15 @@ library LibDeployment {
       for (uint256 i = components.length - 1; i > 0; i--) {
         string memory prev = components[i - 1];
         fileName = pathJoin(prev, fileName);
-        if (forgeVm.exists(string.concat(forgeOutDir, fileName))) {
-          return string.concat(forgeOutDir, fileName);
+        string memory searchPath = pathJoin(forgeOutDir, fileName);
+        if (forgeVm.exists(searchPath)) {
+          return searchPath;
         }
       }
     }
-    string memory jsonPath = string.concat(
+    string memory jsonPath = pathJoin(
       forgeOutDir,
-      artifact.name,
-      '.sol/',
-      artifact.name,
-      '.json'
+      string.concat(artifact.name, '.sol/', artifact.name, '.json')
     );
     if (forgeVm.exists(jsonPath)) {
       return jsonPath;
@@ -373,6 +420,18 @@ function mkdir(string memory path) {
 }
 
 function pathJoin(string memory a, string memory b) pure returns (string memory) {
+  uint aLen;
+  uint bLen;
+  assembly {
+    aLen := mload(a)
+    bLen := mload(b)
+  }
+  if (a.endsWith('/')) {
+    a = a.slice(0, aLen - 1);
+  }
+  if (b.startsWith('/')) {
+    b = b.slice(1);
+  }
   return join(a, b, '/');
 }
 
@@ -387,12 +446,7 @@ function join(
 }
 
 function getNetworkName() view returns (string memory) {
-  return
-    block.chainid == 1
-      ? 'mainnet'
-      : block.chainid == 11155111
-        ? 'sepolia'
-        : '';
+  return block.chainid == 1 ? 'mainnet' : block.chainid == 11155111 ? 'sepolia' : '';
 }
 
 /**
@@ -406,7 +460,7 @@ function getForgeOutputDirectory() returns (string memory) {
   args[1] = 'config';
   args[2] = '--basic';
   args[3] = '--json';
-  string memory out = forgeVm.parseJsonString(string(forgeVm.ffi(args)), '.out');
+  return forgeVm.parseJsonString(string(forgeVm.ffi(args)), '.out');
 }
 
 function parseContractNamePath(string memory namePath) pure returns (ContractArtifact memory path) {
@@ -538,6 +592,7 @@ function isFfiEnabled() returns (bool result) {
       }
       revert('Failed to validate FFI access.');
     }
+    return true;
   } catch {
     result = false;
   }
@@ -551,29 +606,34 @@ function checkFfiEnabled() {
   }
 }
 
-function checkDirectoryExistsAndAccessible(string memory dir) {
+function checkDirectoryExistsAndAccessible(string memory dir, bool writeAccess) {
+  string memory requestString = string.concat(
+    ' Please grant read',
+    writeAccess ? '-write' : '',
+    ' permission for `',
+    dir,
+    '` in foundry.toml.'
+  );
   string memory readErrorMessage = string.concat(
     'LibDeployment requires access to the `',
     dir,
     '` directory.',
-    ' Please grant read-write permission for `',
-    dir,
-    '` in foundry.toml.'
+    requestString
   );
   string memory writeErrorMessage = string.concat(
     'LibDeployment requires access to the `',
     dir,
     '` directory but',
-    ' the current configuration only provides read access.',
-    ' Please grant read-write permission for `',
-    dir,
-    '` in foundry.toml.'
+    ' the current configuration only provides read access.',requestString
   );
   bool dirExists;
   try forgeVm.exists(dir) returns (bool exists) {
     dirExists = exists;
   } catch {
     revert(readErrorMessage);
+  }
+  if (dirExists && !writeAccess) {
+    return;
   }
   if (!dirExists) {
     try forgeVm.createDir(dir, true) {
