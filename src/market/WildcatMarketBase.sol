@@ -6,7 +6,6 @@ import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
 import '../interfaces/IERC20.sol';
 import '../IHooksFactory.sol';
-import '../interfaces/IWildcatSanctionsSentinel.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/MarketErrors.sol';
 import '../libraries/MarketEvents.sol';
@@ -44,7 +43,7 @@ contract WildcatMarketBase is
   HooksConfig public immutable hooks;
 
   /// @dev Account with blacklist control, used for blocking sanctioned addresses.
-  IWildcatSanctionsSentinel public immutable sentinel;
+  address public immutable sentinel;
 
   /// @dev Account with authority to borrow assets from the market.
   address public immutable borrower;
@@ -203,7 +202,7 @@ contract WildcatMarketBase is
     }
 
     hooks = parameters.hooks;
-    sentinel = IWildcatSanctionsSentinel(parameters.sentinel);
+    sentinel = parameters.sentinel;
     borrower = parameters.borrower;
     feeRecipient = parameters.feeRecipient;
     protocolFeeBips = parameters.protocolFeeBips;
@@ -688,7 +687,7 @@ contract WildcatMarketBase is
     state.scaledTotalSupply -= scaledAmountBurned;
 
     // Emit transfer for external trackers to indicate burn.
-    emit_Transfer(address(this), address(0), normalizedAmountPaid);
+    emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
     emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
   }
 
@@ -737,6 +736,55 @@ contract WildcatMarketBase is
     assembly {
       mstore(0, actualConstant)
       runtimeConstant := mload(iszero(calldatasize()))
+    }
+  }
+
+  function _runtimeConstant(
+    address actualConstant
+  ) internal pure returns (address runtimeConstant) {
+    assembly {
+      mstore(0, actualConstant)
+      runtimeConstant := mload(iszero(calldatasize()))
+    }
+  }
+
+  function _isFlaggedByChainalysis(address account) internal view returns (bool isFlagged) {
+    address sentinelAddress = address(sentinel);
+    assembly {
+      mstore(0, 0x95c09839)
+      mstore(0x20, account)
+      if iszero(
+        and(eq(returndatasize(), 0x20), staticcall(gas(), sentinelAddress, 0x1c, 0x24, 0, 0x20))
+      ) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      isFlagged := mload(0)
+    }
+  }
+
+  function _createEscrowForUnderlyingAsset(
+    address accountAddress
+  ) internal returns (address escrow) {
+    address tokenAddress = address(asset);
+    address borrowerAddress = borrower;
+    address sentinelAddress = address(sentinel);
+
+    assembly {
+      let freeMemoryPointer := mload(0x40)
+      mstore(0, 0xa1054f6b)
+      mstore(0x20, borrowerAddress)
+      mstore(0x40, accountAddress)
+      mstore(0x60, tokenAddress)
+      if iszero(
+        and(eq(returndatasize(), 0x20), call(gas(), sentinelAddress, 0, 0x1c, 0x64, 0, 0x20))
+      ) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      escrow := mload(0)
+      mstore(0x40, freeMemoryPointer)
+      mstore(0x60, 0)
     }
   }
 }

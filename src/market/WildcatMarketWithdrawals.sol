@@ -143,7 +143,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // Cache account data
     Account memory account = _getAccount(msg.sender);
 
-    return _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, 0x24);
+    return
+      _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, _runtimeConstant(0x24));
   }
 
   /**
@@ -165,7 +166,15 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
-    return _queueWithdrawal(state, account, msg.sender, scaledAmount, normalizedAmount, 0x04);
+    return
+      _queueWithdrawal(
+        state,
+        account,
+        msg.sender,
+        scaledAmount,
+        normalizedAmount,
+        _runtimeConstant(0x04)
+      );
   }
 
   /**
@@ -252,7 +261,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       // Get or create an escrow contract for the lender and transfer the owed amount to it.
       // They will be unable to withdraw from the escrow until their sanctioned
       // status is lifted on Chainalysis, or until the borrower overrides it.
-      address escrow = sentinel.createEscrow(borrower, accountAddress, address(asset));
+      address escrow = _createEscrowForUnderlyingAsset(accountAddress);
       asset.safeTransfer(escrow, normalizedAmountWithdrawn);
 
       // Emit `SanctionedAccountWithdrawalSentToEscrow` event using a custom emitter.

@@ -78,7 +78,7 @@ contract WildcatMarket is
     account.scaledBalance += scaledAmount;
     _accounts[msg.sender] = account;
 
-    emit_Transfer(address(0), msg.sender, amount);
+    emit_Transfer(_runtimeConstant(address(0)), msg.sender, amount);
     emit_Deposit(msg.sender, amount, scaledAmount);
 
     // Increase supply
@@ -147,7 +147,9 @@ contract WildcatMarket is
     // Check if the borrower is flagged as a sanctioned entity on Chainalysis.
     // Uses `isFlaggedByChainalysis` instead of `isSanctioned` to prevent the borrower
     // overriding their sanction status.
-    if (sentinel.isFlaggedByChainalysis(borrower)) revert_BorrowWhileSanctioned();
+    if (_isFlaggedByChainalysis(borrower)) {
+      revert_BorrowWhileSanctioned();
+    }
 
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_BorrowFromClosedMarket();
