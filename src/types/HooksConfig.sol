@@ -292,8 +292,6 @@ library LibHooksConfig {
   //                          Hook for queueWithdrawal                          //
   // ========================================================================== //
 
-  uint256 constant QueueWithdrawalCalldataSize = 0x24;
-
   // Size of lender + scaledAmount + state + extraData.offset + extraData.length
   uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0224;
   uint256 internal constant QueueWithdrawalHook_ScaledAmount_Offset = 0x20;
@@ -306,13 +304,14 @@ library LibHooksConfig {
     HooksConfig self,
     address lender,
     uint256 scaledAmount,
-    MarketState memory state
+    MarketState memory state,
+    uint256 baseCalldataSize
   ) internal {
     address target = self.hooksAddress();
     uint32 onQueueWithdrawalSelector = uint32(IHooks.onQueueWithdrawal.selector);
     if (self.useOnQueueWithdrawal()) {
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), QueueWithdrawalCalldataSize)
+        let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onQueueWithdrawal`
@@ -333,7 +332,7 @@ library LibHooksConfig {
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
           add(headPointer, QueueWithdrawalHook_ExtraData_TailOffset),
-          QueueWithdrawalCalldataSize,
+          baseCalldataSize,
           extraCalldataBytes
         )
 
