@@ -60,16 +60,6 @@ function revert_NotApprovedLender() pure {
   }
 }
 
-uint256 constant NotController_ErrorSelector = 0x23019e67;
-
-/// @dev Equivalent to `revert NotController()`
-function revert_NotController() pure {
-  assembly {
-    mstore(0, 0x23019e67)
-    revert(0x1c, 0x04)
-  }
-}
-
 uint256 constant BadLaunchCode_ErrorSelector = 0xa97ab167;
 
 /// @dev Equivalent to `revert BadLaunchCode()`
@@ -105,36 +95,6 @@ function revert_AnnualInterestBipsTooHigh() pure {
   }
 }
 
-uint256 constant InterestRateTooHigh_ErrorSelector = 0x40c2ffa4;
-
-/// @dev Equivalent to `revert InterestRateTooHigh()`
-function revert_InterestRateTooHigh() pure {
-  assembly {
-    mstore(0, 0x40c2ffa4)
-    revert(0x1c, 0x04)
-  }
-}
-
-uint256 constant InterestFeeTooHigh_ErrorSelector = 0x8e395cd1;
-
-/// @dev Equivalent to `revert InterestFeeTooHigh()`
-function revert_InterestFeeTooHigh() pure {
-  assembly {
-    mstore(0, 0x8e395cd1)
-    revert(0x1c, 0x04)
-  }
-}
-
-uint256 constant PenaltyFeeTooHigh_ErrorSelector = 0xfdc73e4c;
-
-/// @dev Equivalent to `revert PenaltyFeeTooHigh()`
-function revert_PenaltyFeeTooHigh() pure {
-  assembly {
-    mstore(0, 0xfdc73e4c)
-    revert(0x1c, 0x04)
-  }
-}
-
 uint256 constant AccountBlocked_ErrorSelector = 0x6bc671fd;
 
 /// @dev Equivalent to `revert AccountBlocked()`
@@ -161,16 +121,6 @@ uint256 constant BadRescueAsset_ErrorSelector = 0x11530cde;
 function revert_BadRescueAsset() pure {
   assembly {
     mstore(0, 0x11530cde)
-    revert(0x1c, 0x04)
-  }
-}
-
-uint256 constant FeeSetWithoutRecipient_ErrorSelector = 0x199c082f;
-
-/// @dev Equivalent to `revert FeeSetWithoutRecipient()`
-function revert_FeeSetWithoutRecipient() pure {
-  assembly {
-    mstore(0, 0x199c082f)
     revert(0x1c, 0x04)
   }
 }

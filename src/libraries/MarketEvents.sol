@@ -144,18 +144,6 @@ function emit_InterestAndFeesAccrued(
   }
 }
 
-function emit_AccountSanctioned(address account) {
-  assembly {
-    log2(0, 0, 0x4f30ec08794235a3f7eed85612ad4afbbb0a01402cac7cdcf8db50b56e5f8f36, account)
-  }
-}
-
-function emit_AccountUnsanctioned(address account) {
-  assembly {
-    log2(0, 0, 0xd9e9283b4de9ea1af783b5a09aaec9d8e9b6ffc2f35193087876533b881b1250, account)
-  }
-}
-
 function emit_WithdrawalBatchExpired(
   uint256 expiry,
   uint256 scaledTotalAmount,
