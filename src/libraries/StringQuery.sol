@@ -53,22 +53,12 @@ function queryStringOrBytes32AsString(
     }
   }
   if (isBytes32) {
-    uint256 value;
+    bytes32 value;
     assembly {
       returndatacopy(0x00, 0x00, 0x20)
       value := mload(0)
     }
-    uint256 size;
-    unchecked {
-      uint256 sizeInBits = 255 - value.ffs();
-      size = (sizeInBits + 7) / 8;
-    }
-    assembly {
-      str := mload(0x40)
-      mstore(0x40, add(str, 0x40))
-      mstore(str, size)
-      mstore(add(str, 0x20), value)
-    }
+    str = bytes32ToString(value);
   } else {
     // If returndata is a string, copy the length and value
     assembly {
