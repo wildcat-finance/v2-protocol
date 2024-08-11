@@ -6,17 +6,18 @@ import { MarketState } from '../libraries/MarketState.sol';
 import { WithdrawalBatch } from '../libraries/Withdrawal.sol';
 
 /**
- * @dev Library with type-casts from functions returning raw pointers
- *      to functions returning instances of specific types.
+ * @dev Type-casts to convert functions returning raw (uint) pointers
+ *      to functions returning memory pointers of specific types.
  *
  *      Used to get around solc's over-allocation of memory when
  *      dynamic return parameters are re-assigned.
+ *
+ *      With `viaIR` enabled, calling any of these functions is a noop.
  */
 library FunctionTypeCasts {
   /**
-   * @dev Function type cast to avoid duplicate declaration of MarketState return parameter.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
+   * @dev Function type cast to avoid duplicate declaration/allocation
+   *      of MarketState return parameter.
    */
   function asReturnsMarketState(
     function() internal view returns (uint256) fnIn
@@ -27,10 +28,8 @@ library FunctionTypeCasts {
   }
 
   /**
-   * @dev Function type cast to avoid duplicate declaration of MarketState and WithdrawalBatch
-   *      return parameters.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
+   * @dev Function type cast to avoid duplicate declaration/allocation
+   *      of MarketState and WithdrawalBatch return parameters.
    */
   function asReturnsPointers(
     function() internal view returns (MarketState memory, uint32, WithdrawalBatch memory) fnIn
@@ -41,9 +40,8 @@ library FunctionTypeCasts {
   }
 
   /**
-   * @dev Function type cast to enable manual allocation of MarketParameters return parameter.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
+   * @dev Function type cast to avoid duplicate declaration/allocation
+   *      of manually allocated MarketParameters in market constructor.
    */
   function asReturnsMarketParameters(
     function() internal view returns (uint256) fnIn
