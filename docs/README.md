@@ -5,3 +5,7 @@
 - [Terminology](./Terminology.md)
 - [Known issues](./Known%20Issues.md) - list of some things we know are issues or which might seem like issues but are intentional
 - [V2 Changelog](./CHANGELOG.md) - changes between V1 and V2
+- [Hooks](./hooks/Hooks.md)
+    - [How hooks work](./hooks/How%20Hooks%20Work.md)
+    - templates/
+        - [Access Control Hooks](./hooks/templates/Access%20Control%20Hooks.md)
