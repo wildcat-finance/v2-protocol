@@ -19,13 +19,13 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   address internal nonwlUser = address(0x43);
 
   function setUp() public virtual {
-    setUpContracts(false, false);
+    setUpContracts(false);
   }
 
-  function setUpContracts(bool authorizeAll, bool disableControllerChecks) internal {
+  function setUpContracts(bool authorizeAll) internal {
     MarketInputParameters memory inputs = parameters;
     if (address(hooks) == address(0)) {
-      deployHooksInstance(inputs, authorizeAll, disableControllerChecks);
+      deployHooksInstance(inputs, authorizeAll);
     }
 
     inputs.asset = address(asset = new MockERC20('Token', 'TKN', 18));
@@ -70,7 +70,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     hooks = AccessControlHooks(address(0));
     parameters.deployHooksConstructorArgs = abi.encode(address(this), '');
     parameters.hooksConfig = EmptyHooksConfig;
-    setUpContracts(false, false);
+    setUpContracts(false);
   }
 
   function _authorizeLender(address account) internal asAccount(parameters.borrower) {
