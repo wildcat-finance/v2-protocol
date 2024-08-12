@@ -9,7 +9,6 @@ Each of the following is considered a core function on the WildcatMarket contrac
 - `borrow`
 - `repay` (+ `repayOutstandingDebt`, `repayDelinquentDebt`)
 - `closeMarket`
-- `nukeFromOrbit`
 - `setMaxTotalSupply`
 - `nukeFromOrbit`
 - `setAnnualInterestAndReserveRatioBips`
