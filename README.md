@@ -4,15 +4,15 @@ Here's the code. Enjoy it.
 
 For other bits and pieces:
 
-### The Whitepaper
+### The Whitepaper [Out Of Date For V2]
 
 [https://tinyurl.com/wildcat-whitepaper](https://github.com/wildcat-finance/wildcat-whitepaper/blob/main/whitepaper_v1.0.pdf)
 
-### The Manifesto
+### The Manifesto 
 
 [https://tinyurl.com/wildcat-manifesto](https://medium.com/@wildcatprotocol/the-wildcat-manifesto-db23d4b9484d)
 
-### The Documentation
+### The V1 Documentation [Out Of Date For V2]
 
 [https://wildcat-protocol.gitbook.io](https://wildcat-protocol.gitbook.io/wildcat/)
 
@@ -87,4 +87,4 @@ interface IHooks {
 
 ### Example: Access Control
 
-Restrict deposits to users manually approved or registered on Violet.
+Restrict deposits to users manually approved or registered elsewhere.
