@@ -221,7 +221,7 @@ contract WildcatMarketBase is
     address _borrower = borrower;
     assembly {
       // Equivalent to
-      // if (msg.sender != borrower) revert_NotApprovedBorrower();
+      // if (msg.sender != borrower) revert NotApprovedBorrower();
       if xor(caller(), _borrower) {
         mstore(0, 0x02171e6a)
         revert(0x1c, 0x04)
