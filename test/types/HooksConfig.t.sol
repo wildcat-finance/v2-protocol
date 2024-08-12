@@ -100,6 +100,7 @@ contract HooksConfigTest is Test, Assertions {
   function test_onQueueWithdrawal(
     MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
+    uint scaledAmount,
     bytes memory extraData
   ) external {
     MarketState memory state = stateInput.toState();
@@ -107,13 +108,15 @@ contract HooksConfigTest is Test, Assertions {
     configInput.hooksAddress = address(hooks);
     HooksConfig config = configInput.toHooksConfig();
     mockHookCaller.setConfig(config);
+    uint32 expiry = uint32(block.timestamp + 1 days);
+
     bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(mockHookCaller.queueWithdrawal.selector, 100),
+      abi.encodeWithSelector(mockHookCaller.queueWithdrawal.selector, expiry, scaledAmount),
       extraData
     );
     if (config.useOnQueueWithdrawal()) {
       vm.expectEmit();
-      emit OnQueueWithdrawalCalled(address(this), 100, state, extraData);
+      emit OnQueueWithdrawalCalled(address(this), expiry, scaledAmount, state, extraData);
     }
     _callMockHookCaller(_calldata);
     if (!config.useOnQueueWithdrawal()) {
@@ -252,14 +255,11 @@ contract HooksConfigTest is Test, Assertions {
     }
   }
 
-  function test_onAssetsSentToEscrow(
+  function test_onNukeFromOrbit(
     MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     bytes memory extraData,
-    address lender,
-    address asset,
-    address escrow,
-    uint scaledAmount
+    address lender
   ) external {
     MarketState memory state = stateInput.toState();
     mockHookCaller.setState(state);
@@ -268,20 +268,17 @@ contract HooksConfigTest is Test, Assertions {
     mockHookCaller.setConfig(config);
     bytes memory _calldata = abi.encodePacked(
       abi.encodeWithSelector(
-        mockHookCaller.sendAssetsToEscrow.selector,
-        lender,
-        asset,
-        escrow,
-        scaledAmount
+        mockHookCaller.nukeFromOrbit.selector,
+        lender
       ),
       extraData
     );
-    if (config.useOnAssetsSentToEscrow()) {
+    if (config.useOnNukeFromOrbit()) {
       vm.expectEmit();
-      emit OnAssetsSentToEscrowCalled(lender, asset, escrow, scaledAmount, state, extraData);
+      emit OnNukeFromOrbitCalled(lender, state, extraData);
     }
     _callMockHookCaller(_calldata);
-    if (!config.useOnAssetsSentToEscrow()) {
+    if (!config.useOnNukeFromOrbit()) {
       assertEq(hooks.lastCalldataHash(), 0);
     }
   }
