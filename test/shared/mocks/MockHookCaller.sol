@@ -21,8 +21,8 @@ contract MockHookCaller {
     hooks.onDeposit(msg.sender, scaledAmount, state);
   }
 
-  function queueWithdrawal(uint scaledAmount) external {
-    hooks.onQueueWithdrawal(msg.sender, scaledAmount, state, 0x24);
+  function queueWithdrawal(uint32 expiry, uint scaledAmount) external {
+    hooks.onQueueWithdrawal(msg.sender, expiry, scaledAmount, state, 0x44);
   }
 
   function executeWithdrawal(address lender, uint128 normalizedAmountWithdrawn) external {
@@ -52,13 +52,8 @@ contract MockHookCaller {
     hooks.onCloseMarket(state);
   }
 
-  function sendAssetsToEscrow(
-    address lender,
-    address asset,
-    address escrow,
-    uint scaledAmount
-  ) external {
-    hooks.onAssetsSentToEscrow(lender, asset, escrow, scaledAmount, state, 0x84);
+  function nukeFromOrbit(address lender) external {
+    hooks.onNukeFromOrbit(lender, state);
   }
 
   function setMaxTotalSupply(uint256 maxTotalSupply) external {

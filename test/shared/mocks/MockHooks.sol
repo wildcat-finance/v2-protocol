@@ -11,6 +11,7 @@ event OnDepositCalled(
 );
 event OnQueueWithdrawalCalled(
   address lender,
+  uint32 expiry,
   uint scaledAmount,
   MarketState intermediateState,
   bytes extraData
@@ -32,11 +33,8 @@ event OnTransferCalled(
 event OnBorrowCalled(uint normalizedAmount, MarketState intermediateState, bytes extraData);
 event OnRepayCalled(uint normalizedAmount, MarketState intermediateState, bytes extraData);
 event OnCloseMarketCalled(MarketState intermediateState, bytes extraData);
-event OnAssetsSentToEscrowCalled(
+event OnNukeFromOrbitCalled(
   address lender,
-  address asset,
-  address escrow,
-  uint scaledAmount,
   MarketState intermediateState,
   bytes extraData
 );
@@ -67,7 +65,7 @@ contract MockHooks is IHooks {
         useOnBorrow: true,
         useOnRepay: true,
         useOnCloseMarket: true,
-        useOnAssetsSentToEscrow: true,
+        useOnNukeFromOrbit: true,
         useOnSetMaxTotalSupply: true,
         useOnSetAnnualInterestAndReserveRatioBips: true,
         hooksAddress: address(this)
@@ -162,12 +160,13 @@ contract MockHooks is IHooks {
 
   function onQueueWithdrawal(
     address lender,
+    uint32 expiry,
     uint scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
-    emit OnQueueWithdrawalCalled(lender, scaledAmount, intermediateState, extraData);
+    emit OnQueueWithdrawalCalled(lender, expiry, scaledAmount, intermediateState, extraData);
   }
 
   function onExecuteWithdrawal(
@@ -218,20 +217,14 @@ contract MockHooks is IHooks {
     emit OnCloseMarketCalled(intermediateState, extraData);
   }
 
-  function onAssetsSentToEscrow(
+  function onNukeFromOrbit(
     address lender,
-    address asset,
-    address escrow,
-    uint scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
-    emit OnAssetsSentToEscrowCalled(
+    emit OnNukeFromOrbitCalled(
       lender,
-      asset,
-      escrow,
-      scaledAmount,
       intermediateState,
       extraData
     );
