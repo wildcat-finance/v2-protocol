@@ -85,27 +85,27 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint normalizedAmount,
     uint baseCalldataSize
   ) internal returns (uint32 expiry) {
-    // Execute queueWithdrawal hook if enabled
-    hooks.onQueueWithdrawal(accountAddress, scaledAmount, state, baseCalldataSize);
-
-    // Reduce account's balance and emit transfer event
-    account.scaledBalance -= scaledAmount;
-    _accounts[accountAddress] = account;
-
-    emit_Transfer(accountAddress, address(this), normalizedAmount);
 
     // Cache batch expiry on the stack for gas savings
     expiry = state.pendingWithdrawalExpiry;
 
     // If there is no pending withdrawal batch, create a new one.
     if (state.pendingWithdrawalExpiry == 0) {
-      // If the market is closed, use zero duration withdrawal batch duration to minimize
-      // the number of withdrawals per batch.
+      // If the market is closed, use zero for withdrawal batch duration.
       uint duration = state.isClosed.ternary(0, withdrawalBatchDuration);
       expiry = uint32(block.timestamp + duration);
       emit_WithdrawalBatchCreated(expiry);
       state.pendingWithdrawalExpiry = expiry;
     }
+
+    // Execute queueWithdrawal hook if enabled
+    hooks.onQueueWithdrawal(accountAddress, expiry, scaledAmount, state, baseCalldataSize);
+
+    // Reduce account's balance and emit transfer event
+    account.scaledBalance -= scaledAmount;
+    _accounts[accountAddress] = account;
+
+    emit_Transfer(accountAddress, address(this), normalizedAmount);
 
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
 

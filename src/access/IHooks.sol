@@ -48,6 +48,7 @@ abstract contract IHooks {
 
   function onQueueWithdrawal(
     address lender,
+    uint32 expiry,
     uint scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
@@ -86,11 +87,8 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
-  function onAssetsSentToEscrow(
+  function onNukeFromOrbit(
     address lender,
-    address asset,
-    address escrow,
-    uint scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual;

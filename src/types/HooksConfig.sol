@@ -37,7 +37,7 @@ uint256 constant Bit_Enabled_Transfer = 92;
 uint256 constant Bit_Enabled_Borrow = 91;
 uint256 constant Bit_Enabled_Repay = 90;
 uint256 constant Bit_Enabled_CloseMarket = 89;
-uint256 constant Bit_Enabled_AssetsSentToEscrow = 88;
+uint256 constant Bit_Enabled_NukeFromOrbit = 88;
 uint256 constant Bit_Enabled_SetMaxTotalSupply = 87;
 uint256 constant Bit_Enabled_SetAnnualInterestAndReserveRatioBips = 86;
 
@@ -52,7 +52,7 @@ function encodeHooksConfig(
   bool useOnBorrow,
   bool useOnRepay,
   bool useOnCloseMarket,
-  bool useOnAssetsSentToEscrow,
+  bool useOnNukeFromOrbit,
   bool useOnSetMaxTotalSupply,
   bool useOnSetAnnualInterestAndReserveRatioBips
 ) pure returns (HooksConfig hooks) {
@@ -65,7 +65,7 @@ function encodeHooksConfig(
     hooks := or(hooks, shl(Bit_Enabled_Borrow, useOnBorrow))
     hooks := or(hooks, shl(Bit_Enabled_Repay, useOnRepay))
     hooks := or(hooks, shl(Bit_Enabled_CloseMarket, useOnCloseMarket))
-    hooks := or(hooks, shl(Bit_Enabled_AssetsSentToEscrow, useOnAssetsSentToEscrow))
+    hooks := or(hooks, shl(Bit_Enabled_NukeFromOrbit, useOnNukeFromOrbit))
     hooks := or(hooks, shl(Bit_Enabled_SetMaxTotalSupply, useOnSetMaxTotalSupply))
     hooks := or(
       hooks,
@@ -111,10 +111,7 @@ library LibHooksConfig {
    * @dev Create a merged HooksConfig with the shared flags of `a` and `b`
    *      and the address of `a`.
    */
-  function mergeAllFlags(
-    HooksConfig a,
-    HooksConfig b
-  ) internal pure returns (HooksConfig merged) {
+  function mergeAllFlags(HooksConfig a, HooksConfig b) internal pure returns (HooksConfig merged) {
     assembly {
       let addressA := shl(0x60, shr(0x60, a))
       let flagsA := shl(0xa0, a)
@@ -165,9 +162,21 @@ library LibHooksConfig {
     }
   }
 
-  function setFlag(HooksConfig hooks, uint256 bitsAfter) internal pure returns (HooksConfig updatedHooks) {
+  function setFlag(
+    HooksConfig hooks,
+    uint256 bitsAfter
+  ) internal pure returns (HooksConfig updatedHooks) {
     assembly {
       updatedHooks := or(hooks, shl(bitsAfter, 1))
+    }
+  }
+
+  function clearFlag(
+    HooksConfig hooks,
+    uint256 bitsAfter
+  ) internal pure returns (HooksConfig updatedHooks) {
+    assembly {
+      updatedHooks := and(hooks, not(shl(bitsAfter, 1)))
     }
   }
 
@@ -214,8 +223,8 @@ library LibHooksConfig {
   }
 
   /// @dev Whether to call hook contract when account sanctioned
-  function useOnAssetsSentToEscrow(HooksConfig hooks) internal pure returns (bool) {
-    return hooks.readFlag(Bit_Enabled_AssetsSentToEscrow);
+  function useOnNukeFromOrbit(HooksConfig hooks) internal pure returns (bool) {
+    return hooks.readFlag(Bit_Enabled_NukeFromOrbit);
   }
 
   /// @dev Whether to call hook contract for setMaxTotalSupply
@@ -293,31 +302,34 @@ library LibHooksConfig {
   // ========================================================================== //
 
   // Size of lender + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0224;
-  uint256 internal constant QueueWithdrawalHook_ScaledAmount_Offset = 0x20;
-  uint256 internal constant QueueWithdrawalHook_State_Offset = 0x40;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Head_Offset = 0x1e0;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0244;
+  uint256 internal constant QueueWithdrawalHook_Expiry_Offset = 0x20;
+  uint256 internal constant QueueWithdrawalHook_ScaledAmount_Offset = 0x40;
+  uint256 internal constant QueueWithdrawalHook_State_Offset = 0x60;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_Head_Offset = 0x200;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset = 0x0220;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset = 0x0240;
 
   function onQueueWithdrawal(
     HooksConfig self,
     address lender,
+    uint32 expiry,
     uint256 scaledAmount,
     MarketState memory state,
     uint256 baseCalldataSize
   ) internal {
     address target = self.hooksAddress();
-    uint32 onQueueWithdrawalSelector = uint32(IHooks.onQueueWithdrawal.selector);
     if (self.useOnQueueWithdrawal()) {
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onQueueWithdrawal`
-        mstore(cdPointer, onQueueWithdrawalSelector)
+        mstore(cdPointer, 0x7ce23452)
         // Write `lender` to hook calldata
         mstore(headPointer, lender)
+        // Write `expiry` to hook calldata
+        mstore(add(headPointer, QueueWithdrawalHook_Expiry_Offset), expiry)
         // Write `scaledAmount` to hook calldata
         mstore(add(headPointer, QueueWithdrawalHook_ScaledAmount_Offset), scaledAmount)
         // Copy market state to hook calldata
@@ -755,59 +767,43 @@ library LibHooksConfig {
   //                       Hook for assets sent to escrow                       //
   // ========================================================================== //
 
-  // Size of lender + asset + escrow + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant AssetsSentToEscrowHook_Base_Size = 0x0264;
-  uint256 internal constant AssetsSentToEscrowHook_Asset_Offset = 0x20;
-  uint256 internal constant AssetsSentToEscrowHook_Escrow_Offset = 0x40;
-  uint256 internal constant AssetsSentToEscrowHook_ScaledAmount_Offset = 0x60;
-  uint256 internal constant AssetsSentToEscrowHook_State_Offset = 0x80;
-  uint256 internal constant AssetsSentToEscrowHook_ExtraData_Head_Offset = 0x220;
-  uint256 internal constant AssetsSentToEscrowHook_ExtraData_Length_Offset = 0x0240;
-  uint256 internal constant AssetsSentToEscrowHook_ExtraData_TailOffset = 0x0260;
+  uint256 internal constant NukeFromOrbitCalldataSize = 0x24;
+  // Size of lender + state + extraData.offset + extraData.length
+  uint256 internal constant NukeFromOrbit_Base_Size = 0x0204;
+  uint256 internal constant NukeFromOrbit_State_Offset = 0x20;
+  uint256 internal constant NukeFromOrbit_ExtraData_Head_Offset = 0x01c0;
+  uint256 internal constant NukeFromOrbit_ExtraData_Length_Offset = 0x01e0;
+  uint256 internal constant NukeFromOrbit_ExtraData_TailOffset = 0x0200;
 
-  function onAssetsSentToEscrow(
-    HooksConfig self,
-    address lender,
-    address asset,
-    address escrow,
-    uint scaledAmount,
-    MarketState memory state,
-    uint256 baseCalldataSize
-  ) internal {
+  function onNukeFromOrbit(HooksConfig self, address lender, MarketState memory state) internal {
     address target = self.hooksAddress();
-    uint32 onAssetsSentToEscrowSelector = uint32(IHooks.onAssetsSentToEscrow.selector);
-    if (self.useOnAssetsSentToEscrow()) {
+    uint32 onNukeFromOrbitSelector = uint32(IHooks.onNukeFromOrbit.selector);
+    if (self.useOnNukeFromOrbit()) {
       assembly {
-        let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
+        let extraCalldataBytes := sub(calldatasize(), NukeFromOrbitCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
-        // Write selector for `onAssetsSentToEscrow`
-        mstore(cdPointer, onAssetsSentToEscrowSelector)
+        // Write selector for `onNukeFromOrbit`
+        mstore(cdPointer, onNukeFromOrbitSelector)
         // Write `lender` to hook calldata
         mstore(headPointer, lender)
-        // Write `asset` to hook calldata
-        mstore(add(headPointer, AssetsSentToEscrowHook_Asset_Offset), asset)
-        // Write `escrow` to hook calldata
-        mstore(add(headPointer, AssetsSentToEscrowHook_Escrow_Offset), escrow)
-        // Write `scaledAmount` to hook calldata
-        mstore(add(headPointer, AssetsSentToEscrowHook_ScaledAmount_Offset), scaledAmount)
         // Copy market state to hook calldata
-        mcopy(add(headPointer, AssetsSentToEscrowHook_State_Offset), state, MarketStateSize)
+        mcopy(add(headPointer, NukeFromOrbit_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, AssetsSentToEscrowHook_ExtraData_Head_Offset),
-          AssetsSentToEscrowHook_ExtraData_Length_Offset
+          add(headPointer, NukeFromOrbit_ExtraData_Head_Offset),
+          NukeFromOrbit_ExtraData_Length_Offset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, AssetsSentToEscrowHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, NukeFromOrbit_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, AssetsSentToEscrowHook_ExtraData_TailOffset),
-          baseCalldataSize,
+          add(headPointer, NukeFromOrbit_ExtraData_TailOffset),
+          NukeFromOrbitCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(AssetsSentToEscrowHook_Base_Size, extraCalldataBytes)
+        let size := add(NukeFromOrbit_Base_Size, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())

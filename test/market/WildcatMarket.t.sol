@@ -71,7 +71,7 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_updateState_HasPendingExpiredBatch_SameBlock() external {
     parameters.annualInterestBips = 3650;
     parameters.withdrawalBatchDuration = 0;
-    setUpContracts(false, true);
+    setUpContracts(false);
     setUp();
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
@@ -463,6 +463,17 @@ contract WildcatMarketTest is BaseMarketTest {
     context.validate();
   }
 
+  function castRegisterExpectationsAndInput(
+    AccessControlHooksFuzzContext memory context
+  ) internal pure returns (function(uint, bool) internal castRegisterExpectations, uint contextPointer) {
+    function(AccessControlHooksFuzzContext memory, bool)
+      internal realFn = LibAccessControlHooksFuzzContext.registerExpectations;
+    assembly {
+      castRegisterExpectations := realFn
+      contextPointer := context
+    }
+  }
+
   function test_queueWithdrawal_FuzzAccess(
     AccessControlHooksFuzzInputs memory fuzzInputs
   ) external {
@@ -499,10 +510,14 @@ contract WildcatMarketTest is BaseMarketTest {
     ) {
       context.expectations.expectedError = IMarketEventsAndErrors.NotApprovedLender.selector;
     }
-    context.registerExpectations(true);
+    // context.registerExpectations(true);
     vm.prank(carol);
     if (context.expectations.expectedError == bytes4(0)) {
-      _trackQueueWithdrawal(state, carol, amount);
+      (
+        function(uint, bool) internal castRegisterExpectations,
+        uint contextPointer
+      ) = castRegisterExpectationsAndInput(context);
+      _trackQueueWithdrawal(state, carol, amount, castRegisterExpectations, contextPointer);
     }
     (bool success, bytes memory returnData) = marketAddress.call(data);
     // Check both because expectRevert will change success to true if it reverts

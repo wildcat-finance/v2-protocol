@@ -75,13 +75,14 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //          *          *          *       ```--. . , ; .--'''      *
   //          *          *          *   💸        | |   |            *
   //          *          *          *          .-=||  | |=-.    💸   *
-  //  💰🤑💰  *    😅    *    😐    *    💸    `-=#$%&%$#=-'         *
-  //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪      *
-  //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____   *
+  //  💰🤑💰 *    😅   *    😐    *    💸    `-=#$%&%$#=-'         *
+  //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪       *
+  //   /\     * 💰/\ 💰 * 💰/\ 💰 *    _____.,-#%&$@%#&#~,._____    *
   // ******************************************************************
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
     if (!_isSanctioned(accountAddress)) revert_BadLaunchCode();
     MarketState memory state = _getUpdatedState();
+    hooks.onNukeFromOrbit(accountAddress, state);
     _blockAccount(state, accountAddress);
     _writeState(state);
   }

@@ -44,7 +44,8 @@ contract WildcatMarketTokenTest is BaseERC20Test, BaseMarketTest {
     parameters.maxTotalSupply = uint128(_maxAmount());
     parameters.annualInterestBips = 0;
     parameters.withdrawalBatchDuration = 0;
-    BaseMarketTest.setUpContracts(true, true);
+    parameters.hooksConfig = parameters.hooksConfig.clearFlag(Bit_Enabled_Transfer);
+    BaseMarketTest.setUpContracts(true);
     token = IERC20(address(market));
     _name = 'Wildcat Token';
     _symbol = 'WCTKN';
@@ -81,9 +82,12 @@ contract WildcatMarketTokenTest is BaseERC20Test, BaseMarketTest {
   }
 
   function testTransferToBlockedAccount() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    BaseMarketTest.setUpContracts(true);
     _mint(alice, 1);
     _blockLender(bob);
     vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
-    token.transfer(bob, 1);
+    vm.prank(alice);
+    market.transfer(bob, 1);
   }
 }

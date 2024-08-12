@@ -65,7 +65,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: false,
-      useOnAssetsSentToEscrow: false,
+      useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false
     });

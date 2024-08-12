@@ -120,7 +120,7 @@ contract AccessControlHooks is MarketConstraintHooks {
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: false,
-      useOnAssetsSentToEscrow: false,
+      useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false
     });
@@ -673,6 +673,11 @@ contract AccessControlHooks is MarketConstraintHooks {
   //                                    Hooks                                   //
   // ========================================================================== //
 
+  /**
+   * @dev Called when a lender attempts to deposit.
+   *      Passes the check if the lender is not blocked from deposits
+   *      and has a valid credential from an approved role provider.
+   */
   function onDeposit(
     address lender,
     uint /* scaledAmount */,
@@ -722,11 +727,12 @@ contract AccessControlHooks is MarketConstraintHooks {
 
   /**
    * @dev Called when a lender attempts to queue a withdrawal.
-   *      Passes the check if the lender has either deposited before or
-   *      has a valid credential from a role provider.
+   *      Passes the check if the lender has deposited before or has a valid credential
+   *      from an approved role provider.
    */
   function onQueueWithdrawal(
     address lender,
+    uint32 /* expiry */,
     uint /* scaledAmount */,
     MarketState calldata /* state */,
     bytes calldata hooksData
@@ -737,6 +743,9 @@ contract AccessControlHooks is MarketConstraintHooks {
     }
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onExecuteWithdrawal(
     address lender,
     uint128 /* normalizedAmountWithdrawn */,
@@ -744,39 +753,57 @@ contract AccessControlHooks is MarketConstraintHooks {
     bytes calldata hooksData
   ) external override {}
 
+  /**
+   * @dev Called when a lender attempts to transfer market tokens.
+   *      Passes the check if the recipient is not blocked from deposits
+   *      and has a valid credential from an approved role provider.
+   */
   function onTransfer(
     address /* caller */,
     address /* from */,
     address to,
     uint /* scaledAmount */,
     MarketState calldata /* state */,
-    bytes calldata /* extraData */
+    bytes calldata extraData
   ) external override {
     LenderStatus memory toStatus = _lenderStatus[to];
     if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
+    // Attempt to validate the recipient's access
+    // Uses the inner method here as storage may need to be updated if this
+    // is their first deposit
+    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(toStatus, to, extraData);
+    if (!hasValidCredential) {
+      revert NotApprovedLender();
+    }
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onBorrow(
     uint /* normalizedAmount */,
     MarketState calldata /* state */,
     bytes calldata /* extraData */
   ) external override {}
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onRepay(
     uint normalizedAmount,
     MarketState calldata state,
     bytes calldata hooksData
   ) external override {}
 
-  function onCloseMarket(MarketState calldata state, bytes calldata hooksData) external override {}
+  function onCloseMarket(
+    MarketState calldata /* state */,
+    bytes calldata /* hooksData */
+  ) external override {}
 
-  function onAssetsSentToEscrow(
-    address lender,
-    address asset,
-    address escrow,
-    uint scaledAmount,
-    MarketState calldata state,
-    bytes calldata hooksData
+  function onNukeFromOrbit(
+    address /* lender */,
+    MarketState calldata /* state */,
+    bytes calldata /* hooksData */
   ) external override {}
 
   function onSetMaxTotalSupply(
