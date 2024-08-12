@@ -26,15 +26,14 @@ contract HooksIntegrationTest is BaseMarketTest {
   }
 
   function _setUp(StandardHooksConfig memory configInput) internal {
-    deployHooksInstance(parameters, false, false);
+    deployHooksInstance(parameters, false);
     configInput.hooksAddress = address(hooks);
     HooksConfig config = configInput.toHooksConfig();
-    MockHooks(address(hooks)).setConfig(encodeHooksDeploymentConfig({
-      optionalFlags: config,
-      requiredFlags: EmptyHooksConfig
-    }));
+    MockHooks(address(hooks)).setConfig(
+      encodeHooksDeploymentConfig({ optionalFlags: config, requiredFlags: EmptyHooksConfig })
+    );
     parameters.hooksConfig = config;
-    setUpContracts(false, false);
+    setUpContracts(false);
     MockHooks(address(hooks)).reset();
   }
 
@@ -53,7 +52,7 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnDeposit) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnDepositCalled(alice, 100, state, extraData);
     }
     _callMarket(_calldata, '', 'deposit');
@@ -69,7 +68,7 @@ contract HooksIntegrationTest is BaseMarketTest {
     }
   }
 
-  function test_onDeposit_fromDepositUpTo(
+  function test_onDeposit_depositUpTo(
     StandardHooksConfig memory config,
     bytes memory extraData
   ) external {
@@ -83,7 +82,7 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnDeposit) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnDepositCalled(alice, 100, state, extraData);
     }
     _callMarket(_calldata, abi.encode(100), 'depositUpTo returndata');
@@ -116,13 +115,67 @@ contract HooksIntegrationTest is BaseMarketTest {
       abi.encodeWithSelector(market.queueWithdrawal.selector, 100),
       extraData
     );
-    bytes memory _returndata = abi.encode(block.timestamp + parameters.withdrawalBatchDuration);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    bytes memory _returndata = abi.encode(expiry);
+    state.pendingWithdrawalExpiry = expiry;
     if (config.useOnQueueWithdrawal) {
-      vm.expectEmit();
-      emit OnQueueWithdrawalCalled(alice, 100, state, extraData);
+      vm.expectEmit(address(hooks));
+      emit OnQueueWithdrawalCalled(alice, expiry, 100, state, extraData);
     }
     _callMarket(_calldata, _returndata, 'queueWithdrawal');
     if (!config.useOnQueueWithdrawal) {
+      assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
+    }
+  }
+
+  function test_onQueueWithdrawal_queueFullWithdrawal(
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external {
+    _setUp(config);
+    _deposit(alice, 1e18);
+    MockHooks(address(hooks)).reset();
+    startPrank(alice);
+    MarketState memory state = pendingState();
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(market.queueFullWithdrawal.selector),
+      extraData
+    );
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    bytes memory _returndata = abi.encode(expiry);
+    state.pendingWithdrawalExpiry = expiry;
+    if (config.useOnQueueWithdrawal) {
+      vm.expectEmit(address(hooks));
+      emit OnQueueWithdrawalCalled(alice, expiry, 1e18, state, extraData);
+    }
+    _callMarket(_calldata, _returndata, 'queueWithdrawal');
+    if (!config.useOnQueueWithdrawal) {
+      assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
+    }
+  }
+
+  function test_onQueueWithdrawal_nukeFromOrbit(
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external {
+    _setUp(config);
+    _deposit(alice, 1e18);
+    MockHooks(address(hooks)).reset();
+    sanctionsSentinel.sanction(alice);
+    startPrank(alice);
+    MarketState memory state = pendingState();
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(market.nukeFromOrbit.selector, alice),
+      extraData
+    );
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    state.pendingWithdrawalExpiry = expiry;
+    if (config.useOnQueueWithdrawal) {
+      vm.expectEmit(address(hooks));
+      emit OnQueueWithdrawalCalled(alice, expiry, 1e18, state, '');
+    }
+    _callMarket(_calldata, '', 'nukeFromOrbit');
+    if (!config.useOnQueueWithdrawal && !config.useOnNukeFromOrbit) {
       assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
     }
   }
@@ -148,7 +201,7 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnExecuteWithdrawal) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnExecuteWithdrawalCalled(alice, 1e18, state, extraData);
     }
     _callMarket(_calldata, abi.encode(1e18), 'executeWithdrawal');
@@ -182,10 +235,10 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnExecuteWithdrawal) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnExecuteWithdrawalCalled(alice, 1e18, state, '');
       _trackExecuteWithdrawal(state, expiry, alice);
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnExecuteWithdrawalCalled(bob, 1e18, state, '');
       _trackExecuteWithdrawal(state, expiry, bob);
     }
@@ -218,7 +271,7 @@ contract HooksIntegrationTest is BaseMarketTest {
     );
 
     if (config.useOnTransfer) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnTransferCalled(alice, alice, to, 1e18, state, extraData);
     }
     vm.prank(alice);
@@ -247,7 +300,7 @@ contract HooksIntegrationTest is BaseMarketTest {
     );
 
     if (config.useOnTransfer) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnTransferCalled(bob, alice, to, 1e18, state, extraData);
     }
     vm.prank(bob);
@@ -273,7 +326,7 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnBorrow) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnBorrowCalled(100, state, extraData);
     }
     _callMarket(_calldata, '', 'borrow');
@@ -301,7 +354,7 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnRepay) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnRepayCalled(100, state, extraData);
     }
     _callMarket(_calldata, '', 'repay');
@@ -310,7 +363,10 @@ contract HooksIntegrationTest is BaseMarketTest {
     }
   }
 
-  function test_onRepay_repayAndProcessUnpaidWithdrawalBatches(StandardHooksConfig memory config, bytes memory extraData) external {
+  function test_onRepay_repayAndProcessUnpaidWithdrawalBatches(
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external {
     _setUp(config);
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     MockHooks(address(hooks)).reset();
@@ -325,7 +381,7 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnRepay) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnRepayCalled(8e17, state, extraData);
     }
     _callMarket(_calldata, '', 'repayAndProcessUnpaidWithdrawalBatches');
@@ -348,7 +404,7 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnCloseMarket) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnCloseMarketCalled(state, extraData);
     }
     _callMarket(_calldata, '', 'closeMarket');
@@ -374,11 +430,45 @@ contract HooksIntegrationTest is BaseMarketTest {
       extraData
     );
     if (config.useOnSetMaxTotalSupply) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnSetMaxTotalSupplyCalled(100, state, extraData);
     }
     _callMarket(_calldata, '', 'setMaxTotalSupply');
     if (!config.useOnSetMaxTotalSupply) {
+      assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
+    }
+  }
+
+  // ========================================================================== //
+  //                               onNukeFromOrbit                              //
+  // ========================================================================== //
+
+  function test_onNukeFromOrbit(
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external {
+    _setUp(config);
+    _deposit(alice, 1e18);
+    MockHooks(address(hooks)).reset();
+    sanctionsSentinel.sanction(alice);
+    startPrank(alice);
+    MarketState memory state = pendingState();
+    if (config.useOnNukeFromOrbit) {
+      vm.expectEmit(address(hooks));
+      emit OnNukeFromOrbitCalled(alice, state, extraData);
+    }
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(market.nukeFromOrbit.selector, alice),
+      extraData
+    );
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    state.pendingWithdrawalExpiry = expiry;
+    if (config.useOnQueueWithdrawal) {
+      vm.expectEmit(address(hooks));
+      emit OnQueueWithdrawalCalled(alice, expiry, 1e18, state, '');
+    }
+    _callMarket(_calldata, '', 'nukeFromOrbit');
+    if (!config.useOnQueueWithdrawal && !config.useOnNukeFromOrbit) {
       assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
     }
   }
@@ -415,7 +505,7 @@ contract HooksIntegrationTest is BaseMarketTest {
     );
 
     if (config.useOnSetAnnualInterestAndReserveRatioBips) {
-      vm.expectEmit();
+      vm.expectEmit(address(hooks));
       emit OnSetAnnualInterestAndReserveRatioBipsCalled(
         annualInterestBips,
         reserveRatioBips,
