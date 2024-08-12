@@ -183,9 +183,9 @@ contract Assertions is StdAssertions {
       string.concat(labelPrefix, 'useOnCloseMarket')
     );
     assertEq(
-      actual.useOnAssetsSentToEscrow(),
-      expected.useOnAssetsSentToEscrow(),
-      string.concat(labelPrefix, 'useOnAssetsSentToEscrow')
+      actual.useOnNukeFromOrbit(),
+      expected.useOnNukeFromOrbit(),
+      string.concat(labelPrefix, 'useOnNukeFromOrbit')
     );
     assertEq(
       actual.useOnSetMaxTotalSupply(),
@@ -241,9 +241,9 @@ contract Assertions is StdAssertions {
       string.concat(labelPrefix, 'useOnCloseMarket')
     );
     assertEq(
-      actual.useOnAssetsSentToEscrow(),
-      expected.useOnAssetsSentToEscrow,
-      string.concat(labelPrefix, 'useOnAssetsSentToEscrow')
+      actual.useOnNukeFromOrbit(),
+      expected.useOnNukeFromOrbit,
+      string.concat(labelPrefix, 'useOnNukeFromOrbit')
     );
     assertEq(
       actual.useOnSetMaxTotalSupply(),

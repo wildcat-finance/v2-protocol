@@ -30,7 +30,7 @@ struct StandardHooksConfig {
   bool useOnBorrow;
   bool useOnRepay;
   bool useOnCloseMarket;
-  bool useOnAssetsSentToEscrow;
+  bool useOnNukeFromOrbit;
   bool useOnSetMaxTotalSupply;
   bool useOnSetAnnualInterestAndReserveRatioBips;
 }
@@ -48,7 +48,7 @@ function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConf
       useOnBorrow: input.useOnBorrow,
       useOnRepay: input.useOnRepay,
       useOnCloseMarket: input.useOnCloseMarket,
-      useOnAssetsSentToEscrow: input.useOnAssetsSentToEscrow,
+      useOnNukeFromOrbit: input.useOnNukeFromOrbit,
       useOnSetMaxTotalSupply: input.useOnSetMaxTotalSupply,
       useOnSetAnnualInterestAndReserveRatioBips: input.useOnSetAnnualInterestAndReserveRatioBips
     });
@@ -68,7 +68,7 @@ function mergeSharedFlags(
       useOnBorrow: a.useOnBorrow && b.useOnBorrow,
       useOnRepay: a.useOnRepay && b.useOnRepay,
       useOnCloseMarket: a.useOnCloseMarket && b.useOnCloseMarket,
-      useOnAssetsSentToEscrow: a.useOnAssetsSentToEscrow && b.useOnAssetsSentToEscrow,
+      useOnNukeFromOrbit: a.useOnNukeFromOrbit && b.useOnNukeFromOrbit,
       useOnSetMaxTotalSupply: a.useOnSetMaxTotalSupply && b.useOnSetMaxTotalSupply,
       useOnSetAnnualInterestAndReserveRatioBips: a.useOnSetAnnualInterestAndReserveRatioBips &&
         b.useOnSetAnnualInterestAndReserveRatioBips
@@ -104,9 +104,9 @@ function mergeFlags(
   merged.useOnBorrow = merged.useOnBorrow || flags.required.useOnBorrow;
   merged.useOnRepay = merged.useOnRepay || flags.required.useOnRepay;
   merged.useOnCloseMarket = merged.useOnCloseMarket || flags.required.useOnCloseMarket;
-  merged.useOnAssetsSentToEscrow =
-    merged.useOnAssetsSentToEscrow ||
-    flags.required.useOnAssetsSentToEscrow;
+  merged.useOnNukeFromOrbit =
+    merged.useOnNukeFromOrbit ||
+    flags.required.useOnNukeFromOrbit;
   merged.useOnSetMaxTotalSupply =
     merged.useOnSetMaxTotalSupply ||
     flags.required.useOnSetMaxTotalSupply;

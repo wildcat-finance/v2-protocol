@@ -316,16 +316,31 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     updateState(state);
   }
 
+  function registerExpectationsStandin(uint, bool) internal {}
+
   function _trackQueueWithdrawal(
     MarketState memory state,
     address accountAddress,
     uint256 normalizedAmount
   ) internal returns (uint32 expiry, uint104 scaledAmount) {
-    scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
+    return _trackQueueWithdrawal(
+      state,
+      accountAddress,
+      normalizedAmount,
+      registerExpectationsStandin,
+      0
+    );
+  }
 
+  function _trackQueueWithdrawal(
+    MarketState memory state,
+    address accountAddress,
+    uint256 normalizedAmount,
+    function (uint, bool) internal registerHookExpectations,
+    uint registerHookExpectationsInput
+  ) internal returns (uint32 expiry, uint104 scaledAmount) {
+    scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
     _getAccount(accountAddress).scaledBalance -= scaledAmount;
-    vm.expectEmit(address(market));
-    emit Transfer(accountAddress, address(market), normalizedAmount);
 
     if (state.pendingWithdrawalExpiry == 0) {
       state.pendingWithdrawalExpiry = uint32(
@@ -335,6 +350,12 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       emit WithdrawalBatchCreated(state.pendingWithdrawalExpiry);
     }
     expiry = state.pendingWithdrawalExpiry;
+    if (registerHookExpectationsInput != 0) {
+      registerHookExpectations(registerHookExpectationsInput, true);
+    }
+
+    vm.expectEmit(address(market));
+    emit Transfer(accountAddress, address(market), normalizedAmount);
 
     _getWithdrawalStatus(expiry, accountAddress).scaledAmount += scaledAmount;
     WithdrawalBatch storage batch = _getWithdrawalBatch(expiry);
