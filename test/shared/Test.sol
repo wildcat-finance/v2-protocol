@@ -18,7 +18,7 @@ import { MockHooks } from './mocks/MockHooks.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/access/AccessControlHooks.sol';
-import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, LibAccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 struct MarketInputParameters {
   address asset;
@@ -193,8 +193,7 @@ contract Test is ForgeTest, Prankster, Assertions {
 
   function deployHooksInstance(
     MarketInputParameters memory parameters,
-    bool authorizeAll,
-    bool disableConstraints
+    bool authorizeAll
   ) internal asSelf returns (AccessControlHooks hooksInstance) {
     if (!archController.isRegisteredBorrower(parameters.borrower)) {
       archController.registerBorrower(parameters.borrower);
@@ -227,11 +226,12 @@ contract Test is ForgeTest, Prankster, Assertions {
     }
     if (emptyConfig) {
       HooksDeploymentConfig _config = hooksInstance.config();
-      // Enable all hooks by default
+      // Enable all hooks by default, other than transfer
       HooksConfig config = _config
         .optionalFlags()
         .setHooksAddress(address(hooksInstance))
-        .mergeAllFlags(_config.requiredFlags());
+        .mergeAllFlags(_config.requiredFlags())
+        .clearFlag(Bit_Enabled_Transfer);
       parameters.hooksConfig = config;
     }
     if (authorizeAll) {
@@ -386,16 +386,6 @@ contract Test is ForgeTest, Prankster, Assertions {
     ) {
       assertTrue(AccessControlHooks(hooksAddress).hookedMarkets(address(market)), 'hookedMarkets');
     }
-  }
-
-  function deployControllerAndMarket(
-    MarketInputParameters memory parameters,
-    bool authorizeAll,
-    bool disableConstraints
-  ) internal {
-    deployHooksInstance(parameters, authorizeAll, disableConstraints);
-
-    deployMarket(parameters);
   }
 
   function bound(
