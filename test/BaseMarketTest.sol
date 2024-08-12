@@ -5,7 +5,6 @@ import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 
 import './shared/Test.sol';
 import './helpers/VmUtils.sol';
-import './helpers/MockController.sol';
 import './helpers/ExpectedStateTracker.sol';
 
 contract BaseMarketTest is Test, ExpectedStateTracker {
@@ -16,7 +15,6 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   MockERC20 internal asset;
 
   address internal wildcatController = address(0x69);
-  address internal wintermuteController = address(0x70);
   address internal wlUser = address(0x42);
   address internal nonwlUser = address(0x43);
 
@@ -24,22 +22,25 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     setUpContracts(false);
   }
 
-  function setUpContracts(bool disableControllerChecks) internal {
-    if (address(controller) == address(0)) {
-      deployController(parameters.borrower, false, disableControllerChecks);
+  function setUpContracts(bool authorizeAll) internal {
+    MarketInputParameters memory inputs = parameters;
+    if (address(hooks) == address(0)) {
+      deployHooksInstance(inputs, authorizeAll);
     }
-    parameters.controller = address(controller);
-    parameters.asset = address(asset = new MockERC20('Token', 'TKN', 18));
-    deployMarket(parameters);
+
+    inputs.asset = address(asset = new MockERC20('Token', 'TKN', 18));
+    deployMarket(inputs);
+    parameters = inputs;
+    hooks = AccessControlHooks(parameters.hooksConfig.hooksAddress());
     _authorizeLender(alice);
     previousState = MarketState({
       isClosed: false,
-      maxTotalSupply: parameters.maxTotalSupply,
+      maxTotalSupply: inputs.maxTotalSupply,
       scaledTotalSupply: 0,
       isDelinquent: false,
       timeDelinquent: 0,
-      reserveRatioBips: parameters.reserveRatioBips,
-      annualInterestBips: parameters.annualInterestBips,
+      reserveRatioBips: inputs.reserveRatioBips,
+      annualInterestBips: inputs.annualInterestBips,
       scaleFactor: uint112(RAY),
       lastInterestAccruedTimestamp: uint32(block.timestamp),
       scaledPendingWithdrawals: 0,
@@ -56,16 +57,42 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     _approve(bob, address(market), type(uint256).max);
   }
 
+  function resetWithMockHooks() internal asSelf {
+    parameters.hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
+    hooksFactory.addHooksTemplate(
+      parameters.hooksTemplate,
+      'MockHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+    hooks = AccessControlHooks(address(0));
+    parameters.deployHooksConstructorArgs = abi.encode(address(this), '');
+    parameters.hooksConfig = EmptyHooksConfig;
+    setUpContracts(false);
+  }
+
   function _authorizeLender(address account) internal asAccount(parameters.borrower) {
-    address[] memory lenders = new address[](1);
-    lenders[0] = account;
-    controller.authorizeLenders(lenders);
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountAccessGranted(
+      parameters.borrower,
+      account,
+      uint32(block.timestamp)
+    );
+    hooks.grantRole(account, uint32(block.timestamp));
   }
 
   function _deauthorizeLender(address account) internal asAccount(parameters.borrower) {
-    address[] memory lenders = new address[](1);
-    lenders[0] = account;
-    controller.deauthorizeLenders(lenders);
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountAccessRevoked( account);
+    hooks.revokeRole(account);
+  }
+
+  function _blockLender(address account) internal asAccount(parameters.borrower) {
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+    hooks.blockFromDeposits(account);
   }
 
   function _depositBorrowWithdraw(
@@ -90,8 +117,8 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     (uint104 scaledAmount, uint256 expectedNormalizedAmount) = _trackDeposit(state, from, amount);
     uint256 actualNormalizedAmount = market.depositUpTo(amount);
     assertEq(actualNormalizedAmount, expectedNormalizedAmount, 'Actual amount deposited');
-    _checkState();
-    assertApproxEqAbs(market.balanceOf(from), currentBalance + amount, 1);
+    _checkState(state);
+    assertEq(market.balanceOf(from), currentBalance + amount);
     assertEq(market.scaledBalanceOf(from), currentScaledBalance + scaledAmount);
     return actualNormalizedAmount;
   }
@@ -100,33 +127,52 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     MarketState memory state = pendingState();
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);
     (, uint104 scaledAmount) = _trackQueueWithdrawal(state, from, amount);
-    updateState(state);
     market.queueWithdrawal(amount);
-    _checkState();
-    assertApproxEqAbs(market.balanceOf(from), currentBalance - amount, 1, 'balance');
-    assertEq(market.scaledBalanceOf(from), currentScaledBalance - scaledAmount, 'scaledBalance');
+    _checkState(state);
+    assertApproxEqAbs(
+      market.balanceOf(from),
+      currentBalance - amount,
+      1,
+      unicode'balance after withdrawal (± 1)'
+    );
+    assertEq(
+      market.balanceOf(from),
+      state.normalizeAmount(currentScaledBalance - scaledAmount),
+      'balance after withdrawal (exact)'
+    );
+    assertEq(
+      market.scaledBalanceOf(from),
+      currentScaledBalance - scaledAmount,
+      'scaledBalance after withdrawal'
+    );
   }
 
-  function _withdraw(address from, uint256 amount) internal asAccount(from) {
-    // MarketState memory state = pendingState();
-    // uint256 scaledAmount = state.scaleAmount(amount);
-    // @todo fix
-    /* 		MarketState memory state = pendingState();
-    uint256 scaledAmount = state.scaleAmount(amount);
-    state.decreaseScaledTotalSupply(scaledAmount);
-    market.withdraw(amount);
-    updateState(state);
-    lastTotalAssets -= amount;
-    _checkState(); */
+  function _requestFullWithdrawal(address from) internal asAccount(from) {
+    MarketState memory state = pendingState();
+    (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);
+    (, uint104 scaledAmount) = _trackQueueWithdrawal(state, from, currentBalance);
+    market.queueFullWithdrawal();
+    _checkState(state);
+    assertEq(market.balanceOf(from), 0, 'balance after withdrawal (exact)');
+    assertEq(market.scaledBalanceOf(from), 0, 'scaledBalance after withdrawal');
+  }
+
+  function _closeMarket() internal asAccount(borrower) {
+    uint owed = market.totalDebts() - market.totalAssets();
+    asset.mint(borrower, owed);
+    asset.approve(address(market), owed);
+    MarketState memory state = pendingState();
+    _trackCloseMarket(state, true);
+    market.closeMarket();
+    _checkState(state);
   }
 
   function _borrow(uint256 amount) internal asAccount(borrower) {
     MarketState memory state = pendingState();
 
     _trackBorrow(amount);
-    updateState(state);
     market.borrow(amount);
-    _checkState();
+    _checkState(state);
   }
 
   function _approve(address from, address to, uint256 amount) internal asAccount(from) {

@@ -9,9 +9,12 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: "0.8.17",
+        version: "0.8.25",
       },
     ],
+    settings: {
+      evmVersion: "cancun"
+    }
   },
   networks: {
     hardhat: {
@@ -24,7 +27,7 @@ const config: HardhatUserConfig = {
     },
   },
   // specify separate cache for hardhat, since it could possibly conflict with foundry's
-  paths: { cache: "hh-cache", sources: "reference" },
+  paths: { cache: "hh-cache", sources: "src" },
 };
 
 export default config;

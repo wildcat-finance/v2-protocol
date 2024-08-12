@@ -2,12 +2,12 @@
 pragma solidity >=0.8.20;
 
 import './WildcatMarketBase.sol';
-import '../interfaces/IWildcatSanctionsSentinel.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/SafeCastLib.sol';
 
 contract WildcatMarketConfig is WildcatMarketBase {
   using SafeCastLib for uint256;
+  using FunctionTypeCasts for *;
 
   // ===================================================================== //
   //                      External Config Getters                          //
@@ -17,8 +17,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
    * @dev Returns whether or not a market has been closed.
    */
   function isClosed() external view returns (bool) {
-    MarketState memory state = currentState();
-    return state.isClosed;
+    // Use stored state because the state update can not affect whether
+    // the market is closed.
+    return _state.isClosed;
   }
 
   /**
@@ -26,7 +27,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
    *      currently be deposited to the market.
    */
   function maximumDeposit() external view returns (uint256) {
-    MarketState memory state = currentState();
+    MarketState memory state = _calculateCurrentStatePointers.asReturnsMarketState()();
     return state.maximumDeposit();
   }
 
@@ -74,38 +75,16 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //          *          *          *       ```--. . , ; .--'''      *
   //          *          *          *   💸        | |   |            *
   //          *          *          *          .-=||  | |=-.    💸   *
-  //  💰🤑💰 *   😅    *    😐    *    💸    `-=#$%&%$#=-'         *
+  //  💰🤑💰 *    😅   *    😐    *    💸    `-=#$%&%$#=-'         *
   //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪       *
   //   /\     * 💰/\ 💰 * 💰/\ 💰 *    _____.,-#%&$@%#&#~,._____    *
   // ******************************************************************
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (!IWildcatSanctionsSentinel(sentinel).isSanctioned(borrower, accountAddress)) {
-      revert_BadLaunchCode();
-    }
+    if (!_isSanctioned(accountAddress)) revert_BadLaunchCode();
     MarketState memory state = _getUpdatedState();
+    hooks.onNukeFromOrbit(accountAddress, state);
     _blockAccount(state, accountAddress);
     _writeState(state);
-  }
-
-  /**
-   * @dev Unblock an account that was previously sanctioned and blocked
-   *      and has since been removed from the sanctions list or had
-   *      their sanctioned status overridden by the borrower.
-   */
-  function stunningReversal(address accountAddress) external nonReentrant sphereXGuardExternal {
-    if (IWildcatSanctionsSentinel(sentinel).isSanctioned(borrower, accountAddress)) {
-      revert_NotReversedOrStunning();
-    }
-
-    Account memory account = _accounts[accountAddress];
-    if (account.approval != AuthRole.Blocked) {
-      revert_AccountNotBlocked();
-    }
-
-    account.approval = AuthRole.WithdrawOnly;
-    emit_AuthorizationStatusUpdated(accountAddress, account.approval);
-
-    _accounts[accountAddress] = account;
   }
 
   // ========================================================================== //
@@ -113,38 +92,19 @@ contract WildcatMarketConfig is WildcatMarketBase {
   // ========================================================================== //
 
   /**
-   * @dev Updates multiple accounts' authorization statuses based on whether the controller
-   *      has them marked as approved. Requires that the lender *had* full access (i.e.
-   *      they were previously authorized) before dropping them down to WithdrawOnly,
-   *      else arbitrary accounts could grant themselves Withdraw.
-   */
-  function updateAccountAuthorizations(
-    address[] memory accounts,
-    bool authorize
-  ) external onlyController nonReentrant sphereXGuardExternal {
-    MarketState memory state = _getUpdatedState();
-    for (uint256 i = 0; i < accounts.length; i++) {
-      Account memory account = _getAccount(accounts[i]);
-      if (authorize) {
-        account.approval = AuthRole.DepositAndWithdraw;
-      } else if (account.approval == AuthRole.DepositAndWithdraw) {
-        account.approval = AuthRole.WithdrawOnly;
-      }
-      _accounts[accounts[i]] = account;
-      emit_AuthorizationStatusUpdated(accounts[i], account.approval);
-    }
-    _writeState(state);
-  }
-
-  /**
    * @dev Sets the maximum total supply - this only limits deposits and
    *      does not affect interest accrual.
+   *
+   *      The hooks contract may block the change but can not modify the
+   *      value being set.
    */
   function setMaxTotalSupply(
     uint256 _maxTotalSupply
-  ) external onlyController nonReentrant sphereXGuardExternal {
+  ) external onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
+    if (state.isClosed) revert_CapacityChangeOnClosedMarket();
 
+    hooks.onSetMaxTotalSupply(_maxTotalSupply, state);
     state.maxTotalSupply = _maxTotalSupply.toUint128();
     _writeState(state);
     emit_MaxTotalSupplyUpdated(_maxTotalSupply);
@@ -152,33 +112,36 @@ contract WildcatMarketConfig is WildcatMarketBase {
 
   /**
    * @dev Sets the annual interest rate earned by lenders in bips.
-   */
-  function setAnnualInterestBips(
-    uint16 _annualInterestBips
-  ) public onlyController nonReentrant sphereXGuardExternal {
-    MarketState memory state = _getUpdatedState();
-
-    state.annualInterestBips = _annualInterestBips;
-    _writeState(state);
-    emit_AnnualInterestBipsUpdated(_annualInterestBips);
-  }
-
-  /**
-   * @dev Adjust the market's reserve ratio.
    *
-   *      If the new ratio is lower than the old ratio,
+   *      If the new reserve ratio is lower than the old ratio,
    *      asserts that the market is not currently delinquent.
    *
-   *      If the new ratio is higher than the old ratio,
+   *      If the new reserve ratio is higher than the old ratio,
    *      asserts that the market will not become delinquent
    *      because of the change.
    */
-  function setReserveRatioBips(
+  function setAnnualInterestAndReserveRatioBips(
+    uint16 _annualInterestBips,
     uint16 _reserveRatioBips
-  ) public onlyController nonReentrant sphereXGuardExternal {
+  ) public onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
+    if (state.isClosed) revert_AprChangeOnClosedMarket();
 
     uint256 initialReserveRatioBips = state.reserveRatioBips;
+
+    (_annualInterestBips, _reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(
+      _annualInterestBips,
+      _reserveRatioBips,
+      state
+    );
+
+    if (_annualInterestBips > BIP) {
+      revert_AnnualInterestBipsTooHigh();
+    }
+
+    if (_reserveRatioBips > BIP) {
+      revert_ReserveRatioBipsTooHigh();
+    }
 
     if (_reserveRatioBips < initialReserveRatioBips) {
       if (state.liquidityRequired() > totalAssets()) {
@@ -186,12 +149,15 @@ contract WildcatMarketConfig is WildcatMarketBase {
       }
     }
     state.reserveRatioBips = _reserveRatioBips;
+    state.annualInterestBips = _annualInterestBips;
     if (_reserveRatioBips > initialReserveRatioBips) {
       if (state.liquidityRequired() > totalAssets()) {
         revert_InsufficientReservesForNewLiquidityRatio();
       }
     }
+
     _writeState(state);
+    emit_AnnualInterestBipsUpdated(_annualInterestBips);
     emit_ReserveRatioBipsUpdated(_reserveRatioBips);
   }
 }

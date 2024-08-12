@@ -2,7 +2,6 @@
 pragma solidity >=0.8.20;
 
 import { MarketState } from '../libraries/MarketState.sol';
-import { AuthRole } from './WildcatStructsAndEnums.sol';
 
 interface IMarketEventsAndErrors {
   /// @notice Error thrown when deposit exceeds maxTotalSupply
@@ -20,15 +19,10 @@ interface IMarketEventsAndErrors {
   /// @notice Error thrown when non-sentinel tries to use nukeFromOrbit
   error BadLaunchCode();
 
-  /// @notice Error thrown when new maxTotalSupply lower than totalSupply
-  error NewMaxSupplyTooLow();
-
   /// @notice Error thrown when transfer target is blacklisted
   error AccountBlocked();
 
-  error AccountNotBlocked();
-
-  error NotReversedOrStunning();
+  error BadRescueAsset();
 
   error BorrowAmountTooHigh();
 
@@ -48,6 +42,8 @@ interface IMarketEventsAndErrors {
 
   error NullRepayAmount();
 
+  error MarketAlreadyClosed();
+
   error DepositToClosedMarket();
 
   error RepayToClosedMarket();
@@ -56,10 +52,18 @@ interface IMarketEventsAndErrors {
 
   error BorrowFromClosedMarket();
 
+  error AprChangeOnClosedMarket();
+
+  error CapacityChangeOnClosedMarket();
+
   error CloseMarketWithUnpaidWithdrawals();
 
-  /// @notice Error thrown when reserve ratio set to value
-  ///         the market currently would not meet.
+  error AnnualInterestBipsTooHigh();
+
+  error ReserveRatioBipsTooHigh();
+
+  /// @dev Error thrown when reserve ratio is set to a value
+  ///      that would make the market delinquent.
   error InsufficientReservesForNewLiquidityRatio();
 
   error InsufficientReservesForOldLiquidityRatio();
@@ -80,6 +84,13 @@ interface IMarketEventsAndErrors {
     address indexed account,
     address escrow,
     uint256 amount
+  );
+
+  event SanctionedAccountAssetsQueuedForWithdrawal(
+    address indexed account,
+    uint256 expiry,
+    uint256 scaledAmount,
+    uint256 normalizedAmount
   );
 
   event Deposit(address indexed account, uint256 assetAmount, uint256 scaledAmount);
@@ -103,7 +114,7 @@ interface IMarketEventsAndErrors {
     uint256 protocolFees
   );
 
-  event AuthorizationStatusUpdated(address indexed account, AuthRole role);
+  event AccountSanctioned(address indexed account);
 
   // =====================================================================//
   //                          Withdrawl Events                            //
@@ -116,14 +127,10 @@ interface IMarketEventsAndErrors {
     uint256 normalizedAmountPaid
   );
 
-  /**
-   * @dev Emitted when a new withdrawal batch is created.
-   */
+  /// @dev Emitted when a new withdrawal batch is created.
   event WithdrawalBatchCreated(uint256 indexed expiry);
 
-  /**
-   * @dev Emitted when a withdrawal batch is paid off.
-   */
+  /// @dev Emitted when a withdrawal batch is paid off.
   event WithdrawalBatchClosed(uint256 indexed expiry);
 
   event WithdrawalBatchPayment(

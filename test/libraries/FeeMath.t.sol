@@ -2,7 +2,9 @@
 pragma solidity ^0.8.20;
 
 import { FeeMath, MathUtils, SafeCastLib, MarketState } from 'src/libraries/FeeMath.sol';
-import '../shared/BaseTest.sol';
+import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
+import '../helpers/fuzz/MarketStateFuzzInputs.sol';
+import '../shared/Test.sol';
 import './wrappers/FeeMathExternal.sol';
 
 function maxRayMulRhs(uint256 left) pure returns (uint256 maxRight) {
@@ -14,7 +16,7 @@ function maxRayMulRhs(uint256 left) pure returns (uint256 maxRight) {
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
-contract FeeMathTest is BaseTest {
+contract FeeMathTest is Test {
   using MathUtils for uint256;
   using SafeCastLib for uint256;
   using FeeMathExternal for MarketState;
@@ -109,11 +111,11 @@ contract FeeMathTest is BaseTest {
   }
 
   function test_updateScaleFactorAndFees_NoTimeDelta(
-    ConfigFuzzInputs calldata configInputs,
-    StateFuzzInputs calldata stateInputs
+    MarketConfigFuzzInputs calldata configInputs,
+    MarketStateFuzzInputs calldata stateInputs
   ) external {
-    MarketInputParameters memory parameters = getMarketParameters(configInputs);
-    MarketState memory state = getMarketState(stateInputs);
+    MarketInputParameters memory parameters = configInputs.toParameters();
+    MarketState memory state = stateInputs.toState();
     bytes32 stateHash = keccak256(abi.encode(state));
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;

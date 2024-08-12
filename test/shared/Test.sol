@@ -1,24 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import { console, console2, StdAssertions, StdChains, StdCheats, stdError, StdInvariant, stdJson, stdMath, StdStorage, stdStorage, StdUtils, Vm, StdStyle, DSTest, Test as ForgeTest } from 'forge-std/Test.sol';
+import { console, console2, StdAssertions, StdChains, StdCheats, stdError, StdInvariant, stdJson, stdMath, StdStorage, stdStorage, StdUtils, Vm, StdStyle, Test as ForgeTest } from 'forge-std/Test.sol';
+import { VmSafe } from 'forge-std/Vm.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
 
 import 'src/WildcatArchController.sol';
-import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
-
 import '../helpers/VmUtils.sol' as VmUtils;
-import { MockEngine } from '../helpers/MockEngine.sol';
-import '../helpers/MockControllerFactory.sol';
-import '../helpers/MockSanctionsSentinel.sol';
-import { deployMockChainalysis } from '../helpers/MockChainalysis.sol';
+import '../helpers/Assertions.sol';
+import { MockEngine } from './mocks/MockEngine.sol';
+import './mocks/MockSanctionsSentinel.sol';
+import { deployMockChainalysis } from './mocks/MockChainalysis.sol';
+import { AlwaysAuthorizedRoleProvider } from './mocks/AlwaysAuthorizedRoleProvider.sol';
+import { MockRoleProvider } from './mocks/MockRoleProvider.sol';
+import { HooksFactory, IHooksFactoryEventsAndErrors } from 'src/HooksFactory.sol';
+import { MockHooks } from './mocks/MockHooks.sol';
+import 'src/libraries/LibStoredInitCode.sol';
+import 'src/market/WildcatMarket.sol';
+import 'src/access/AccessControlHooks.sol';
+import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, LibAccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 struct MarketInputParameters {
   address asset;
   string namePrefix;
   string symbolPrefix;
   address borrower;
-  address controller;
   address feeRecipient;
   address sentinel;
   uint128 maxTotalSupply;
@@ -29,17 +35,31 @@ struct MarketInputParameters {
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
   address sphereXEngine;
+  address hooksTemplate;
+  bytes deployHooksConstructorArgs;
+  bytes deployMarketHooksData;
+  HooksConfig hooksConfig;
 }
 
-contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
+contract Test is ForgeTest, Prankster, Assertions {
+  HooksFactory internal hooksFactory;
   WildcatArchController internal archController;
-  WildcatMarketControllerFactory internal controllerFactory;
-  WildcatMarketController internal controller;
+  AccessControlHooks internal hooks;
   WildcatMarket internal market;
   MockSanctionsSentinel internal sanctionsSentinel;
+  MockRoleProvider internal ecdsaRoleProvider;
+  MockRoleProvider internal roleProvider1;
+  MockRoleProvider internal roleProvider2;
+  address internal hooksTemplate;
   address internal SphereXAdmin = address(this);
   address internal SphereXOperator = address(0x08374708);
   address internal SphereXEngine;
+  uint internal numDeployedMarkets;
+  uint internal roleProviderSignerPrivateKey;
+
+  function _nextSalt(address borrower) internal returns (bytes32 salt) {
+    return bytes32((uint256(uint160(borrower)) << 96) | numDeployedMarkets++);
+  }
 
   modifier asSelf() {
     startPrank(address(this));
@@ -49,6 +69,18 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
 
   constructor() {
     deployBaseContracts();
+    // Set block.timestamp to 4:50 am, May 3 2024
+    VmUtils.warp(1714737030);
+  }
+
+  function _storeMarketInitCode()
+    internal
+    virtual
+    returns (address initCodeStorage, uint256 initCodeHash)
+  {
+    bytes memory marketInitCode = type(WildcatMarket).creationCode;
+    initCodeHash = uint256(keccak256(marketInitCode));
+    initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
   }
 
   function deployBaseContracts(bool withEngine) internal asSelf {
@@ -59,14 +91,63 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
     } else {
       SphereXEngine = address(0);
     }
+    // Update the SphereXOperator and SphereXEngine on the ArchController
     updateArchControllerEngine();
     sanctionsSentinel = new MockSanctionsSentinel(address(archController));
-    controllerFactory = new MockControllerFactory(
+
+    (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
+    hooksFactory = new HooksFactory(
       address(archController),
-      address(sanctionsSentinel)
+      address(sanctionsSentinel),
+      marketTemplate,
+      marketInitCodeHash
     );
-    archController.registerControllerFactory(address(controllerFactory));
-    _checkSphereXConfig(address(controllerFactory), 'WildcatMarketControllerFactory');
+
+    // Register the hooks factory as a controller factory so it can register
+    // itself as a controller with the ArchController
+    archController.registerControllerFactory(address(hooksFactory));
+    _checkSphereXConfig(address(hooksFactory), 'HooksFactory');
+    vm.expectEmit(address(archController));
+    emit ControllerAdded(address(hooksFactory), address(hooksFactory));
+
+    // Have the hooks factory register itself as a controller so it can
+    // register markets.
+    hooksFactory.registerWithArchController();
+    _checkSphereXConfig(address(hooksFactory), 'HooksFactory');
+
+    // Deploy initcode storage for hooks template
+    if (hooksTemplate == address(0)) {
+      hooksTemplate = _getHooksTemplate();
+    }
+    vm.expectEmit(address(hooksFactory));
+    emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
+      hooksTemplate,
+      'AccessControlHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+    hooksFactory.addHooksTemplate(
+      hooksTemplate,
+      'AccessControlHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+
+    // Deploy a role provider for the hooks
+    ecdsaRoleProvider = new MockRoleProvider();
+    VmSafe.Wallet memory wallet = vm.createWallet('roleProviderSigner');
+    roleProviderSignerPrivateKey = wallet.privateKey;
+    ecdsaRoleProvider.setRequiredSigner(wallet.addr);
+    roleProvider1 = new MockRoleProvider();
+    roleProvider2 = new MockRoleProvider();
+  }
+
+  function _getHooksTemplate() internal virtual returns (address) {
+    return LibStoredInitCode.deployInitCode(type(AccessControlHooks).creationCode);
   }
 
   function deployBaseContracts() internal {
@@ -110,66 +191,56 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
   event MarketAdded(address indexed controller, address market);
   event NewSenderOnEngine(address sender);
 
-  function deployController(
-    address borrower,
-    bool authorizeAll,
-    bool disableConstraints
-  ) internal asSelf returns (MockController) {
-    archController.registerBorrower(borrower);
-    address expectedController = controllerFactory.computeControllerAddress(borrower);
-
-    vm.expectEmit(expectedController);
-    emit ChangedSpherexOperator(address(0), address(archController));
-
-    vm.expectEmit(expectedController);
-    emit ChangedSpherexEngineAddress(address(0), SphereXEngine);
-
-    if (SphereXEngine != address(0)) {
-      vm.expectEmit(SphereXEngine);
-      emit NewSenderOnEngine(expectedController);
-      vm.expectEmit(address(archController));
-      emit NewAllowedSenderOnchain(expectedController);
+  function deployHooksInstance(
+    MarketInputParameters memory parameters,
+    bool authorizeAll
+  ) internal asSelf returns (AccessControlHooks hooksInstance) {
+    if (!archController.isRegisteredBorrower(parameters.borrower)) {
+      archController.registerBorrower(parameters.borrower);
     }
-
-    vm.expectEmit(address(archController));
-    emit ControllerAdded(address(controllerFactory), expectedController);
-
-    vm.expectEmit(address(controllerFactory));
-    emit NewController(borrower, expectedController);
-
-    uint256 numControllers = controllerFactory.getDeployedControllersCount();
-
-    startPrank(borrower);
-    MockController _controller = MockController(controllerFactory.deployController());
-    assertTrue(
-      controllerFactory.isDeployedController(address(_controller)),
-      'controller not recognized by factory'
-    );
-    assertTrue(
-      archController.isRegisteredController(address(_controller)),
-      'controller not recognized by arch controller'
-    );
-    assertEq(
-      controllerFactory.getDeployedControllersCount(),
-      numControllers + 1,
-      'controller count'
-    );
-
-    address[] memory controllers = controllerFactory.getDeployedControllers();
-    assertEq(controllers[controllers.length - 1], expectedController, 'getDeployedControllers');
-    controllers = controllerFactory.getDeployedControllers(numControllers, numControllers + 1);
-    assertEq(controllers[controllers.length - 1], expectedController, 'getDeployedControllers');
-
-    _checkSphereXConfig(address(_controller), 'WildcatMarketController');
-    stopPrank();
-    if (disableConstraints) {
-      _controller.toggleParameterChecks();
+    if (parameters.hooksTemplate == address(0)) {
+      parameters.hooksTemplate = hooksTemplate;
+    }
+    startPrank(parameters.borrower);
+    bool emptyConfig = HooksConfig.unwrap(parameters.hooksConfig) == 0;
+    if (parameters.hooksConfig.hooksAddress() == address(0)) {
+      hooksInstance = AccessControlHooks(
+        computeCreateAddress(address(hooksFactory), vm.getNonce(address(hooksFactory)))
+      );
+      vm.expectEmit(address(hooksFactory));
+      emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+        address(hooksInstance),
+        parameters.hooksTemplate
+      );
+      assertEq(
+        hooksFactory.deployHooksInstance(
+          parameters.hooksTemplate,
+          parameters.deployHooksConstructorArgs
+        ),
+        address(hooksInstance),
+        'hooksInstance address'
+      );
+      parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(hooksInstance));
+    } else {
+      hooksInstance = AccessControlHooks(parameters.hooksConfig.hooksAddress());
+    }
+    if (emptyConfig) {
+      HooksDeploymentConfig _config = hooksInstance.config();
+      // Enable all hooks by default, other than transfer
+      HooksConfig config = _config
+        .optionalFlags()
+        .setHooksAddress(address(hooksInstance))
+        .mergeAllFlags(_config.requiredFlags())
+        .clearFlag(Bit_Enabled_Transfer);
+      parameters.hooksConfig = config;
     }
     if (authorizeAll) {
-      _controller.authorizeAll();
+      AlwaysAuthorizedRoleProvider provider = new AlwaysAuthorizedRoleProvider();
+      hooksInstance.addRoleProvider(address(provider), type(uint32).max);
     }
-    controller = _controller;
-    return _controller;
+    hooksInstance.addRoleProvider(address(ecdsaRoleProvider), type(uint32).max);
+    stopPrank();
+    hooks = hooksInstance;
   }
 
   event UpdateProtocolFeeConfiguration(
@@ -180,14 +251,17 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
   );
 
   function updateFeeConfiguration(MarketInputParameters memory parameters) internal asSelf {
-    vm.expectEmit(address(controllerFactory));
-    emit UpdateProtocolFeeConfiguration(
+    vm.expectEmit(address(hooksFactory));
+    emit IHooksFactoryEventsAndErrors.HooksTemplateFeesUpdated(
+      parameters.hooksTemplate,
       parameters.feeRecipient,
-      parameters.protocolFeeBips,
       address(0),
-      0
+      0,
+      parameters.protocolFeeBips
     );
-    controllerFactory.setProtocolFeeConfiguration(
+
+    hooksFactory.updateHooksTemplateFees(
+      parameters.hooksTemplate,
       parameters.feeRecipient,
       address(0),
       0,
@@ -195,24 +269,10 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
     );
   }
 
-  function deployMarket(
-    MarketInputParameters memory parameters
-  ) internal asAccount(parameters.borrower) returns (WildcatMarket) {
-    updateFeeConfiguration(parameters);
-    address expectedMarket = controller.computeMarketAddress(
-      parameters.asset,
-      parameters.namePrefix,
-      parameters.symbolPrefix
-    );
-    string memory expectedName = string.concat(
-      parameters.namePrefix,
-      IERC20Metadata(parameters.asset).name()
-    );
-    string memory expectedSymbol = string.concat(
-      parameters.symbolPrefix,
-      IERC20Metadata(parameters.asset).symbol()
-    );
-
+  function _expectMarketDeployedEvents(
+    MarketInputParameters memory parameters,
+    address expectedMarket
+  ) internal {
     vm.expectEmit(expectedMarket);
     emit ChangedSpherexOperator(address(0), address(archController));
 
@@ -227,10 +287,18 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
     }
 
     vm.expectEmit(address(archController));
-    emit MarketAdded(address(controller), expectedMarket);
+    emit MarketAdded(address(hooksFactory), expectedMarket);
 
-    vm.expectEmit(address(controller));
-    emit MarketDeployed(
+    string memory expectedName = string.concat(
+      parameters.namePrefix,
+      IERC20(parameters.asset).name()
+    );
+    string memory expectedSymbol = string.concat(
+      parameters.symbolPrefix,
+      IERC20(parameters.asset).symbol()
+    );
+    vm.expectEmit(address(hooksFactory));
+    emit IHooksFactoryEventsAndErrors.MarketDeployed(
       expectedMarket,
       expectedName,
       expectedSymbol,
@@ -240,48 +308,91 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
       parameters.delinquencyFeeBips,
       parameters.withdrawalBatchDuration,
       parameters.reserveRatioBips,
-      parameters.delinquencyGracePeriod
+      parameters.delinquencyGracePeriod,
+      parameters.hooksConfig
     );
+  }
+
+  function deployMarket(
+    MarketInputParameters memory parameters
+  ) internal asAccount(parameters.borrower) returns (WildcatMarket) {
+    updateFeeConfiguration(parameters);
+
+    bytes32 salt = _nextSalt(parameters.borrower);
+
+    address expectedMarket = hooksFactory.computeMarketAddress(salt);
+
+    DeployMarketInputs memory deployInputs = DeployMarketInputs({
+      asset: parameters.asset,
+      namePrefix: parameters.namePrefix,
+      symbolPrefix: parameters.symbolPrefix,
+      maxTotalSupply: parameters.maxTotalSupply,
+      annualInterestBips: parameters.annualInterestBips,
+      delinquencyFeeBips: parameters.delinquencyFeeBips,
+      withdrawalBatchDuration: parameters.withdrawalBatchDuration,
+      reserveRatioBips: parameters.reserveRatioBips,
+      delinquencyGracePeriod: parameters.delinquencyGracePeriod,
+      hooks: parameters.hooksConfig
+    });
+    _expectMarketDeployedEvents(parameters, expectedMarket);
     market = WildcatMarket(
-      controller.deployMarket(
-        parameters.asset,
-        parameters.namePrefix,
-        parameters.symbolPrefix,
-        parameters.maxTotalSupply,
-        parameters.annualInterestBips,
-        parameters.delinquencyFeeBips,
-        parameters.withdrawalBatchDuration,
-        parameters.reserveRatioBips,
-        parameters.delinquencyGracePeriod
-      )
-    );
-    assertTrue(
-      controller.isControlledMarket(address(market)),
-      'deployed market is not recognized by the controller'
+      hooksFactory.deployMarket(deployInputs, parameters.deployMarketHooksData, salt)
     );
     assertTrue(
       archController.isRegisteredMarket(address(market)),
       'deployed market is not recognized by the arch controller'
     );
     _checkSphereXConfig(address(market), 'WildcatMarket');
+    validateMarketConfiguration(parameters);
     return market;
   }
 
-  function deployControllerAndMarket(
-    MarketInputParameters memory parameters,
-    bool authorizeAll,
-    bool disableConstraints
-  ) internal {
-    deployController(parameters.borrower, authorizeAll, disableConstraints);
-
-    deployMarket(parameters);
+  function validateMarketConfiguration(MarketInputParameters memory parameters) internal {
+    assertEq(market.asset(), parameters.asset, 'asset');
+    assertEq(market.hooks(), parameters.hooksConfig, 'hooks');
+    assertEq(market.maxTotalSupply(), parameters.maxTotalSupply, 'maxTotalSupply');
+    assertEq(market.annualInterestBips(), parameters.annualInterestBips, 'annualInterestBips');
+    assertEq(market.reserveRatioBips(), parameters.reserveRatioBips, 'reserveRatioBips');
+    assertEq(market.borrower(), parameters.borrower, 'borrower');
+    assertEq(market.archController(), address(archController), 'archController');
+    assertEq(market.feeRecipient(), parameters.feeRecipient, 'feeRecipient');
+    assertEq(market.protocolFeeBips(), parameters.protocolFeeBips, 'protocolFeeBips');
+    assertEq(market.delinquencyFeeBips(), parameters.delinquencyFeeBips, 'delinquencyFeeBips');
+    assertEq(
+      market.delinquencyGracePeriod(),
+      parameters.delinquencyGracePeriod,
+      'delinquencyGracePeriod'
+    );
+    assertEq(
+      market.withdrawalBatchDuration(),
+      parameters.withdrawalBatchDuration,
+      'withdrawalBatchDuration'
+    );
+    assertEq(
+      market.name(),
+      string.concat(parameters.namePrefix, IERC20(parameters.asset).name()),
+      'name'
+    );
+    assertEq(
+      market.symbol(),
+      string.concat(parameters.symbolPrefix, IERC20(parameters.asset).symbol()),
+      'symbol'
+    );
+    assertEq(market.decimals(), IERC20(parameters.asset).decimals(), 'decimals');
+    address hooksAddress = parameters.hooksConfig.hooksAddress();
+    if (
+      keccak256(bytes(IHooks(hooksAddress).version())) ==
+      keccak256('SingleBorrowerAccessControlHooks')
+    ) {
+      assertTrue(AccessControlHooks(hooksAddress).hookedMarkets(address(market)), 'hookedMarkets');
+    }
   }
 
   function bound(
     uint256 value,
     uint256 min,
     uint256 max
-  ) internal view virtual override returns (uint256 result) {
+  ) internal pure virtual override returns (uint256 result) {
     return VmUtils.bound(value, min, max);
   }
 
@@ -292,5 +403,16 @@ contract Test is ForgeTest, Prankster, IWildcatMarketControllerEventsAndErrors {
     uint256 max
   ) internal view virtual returns (uint256, uint256) {
     return VmUtils.dbound(value1, value2, min, max);
+  }
+
+  function getSignedCredentialHooksData(
+    address account,
+    uint32 timestamp
+  ) internal view returns (bytes memory hooksData) {
+    bytes32 digest = keccak256(abi.encode(account, timestamp));
+
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(roleProviderSignerPrivateKey, digest);
+    bytes memory signature = abi.encodePacked(r, s, v);
+    hooksData = abi.encodePacked(address(ecdsaRoleProvider), abi.encode(timestamp, signature));
   }
 }

@@ -8,7 +8,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                          coverageLiquidity()                          //
   // ===================================================================== //
 
-  function test_coverageLiquidity() external {
+  function test_coverageLiquidity() external view {
     market.coverageLiquidity();
   }
 
@@ -20,7 +20,6 @@ contract WildcatMarketBaseTest is BaseMarketTest {
     assertEq(market.scaleFactor(), 1e27, 'scaleFactor should be 1 ray');
     fastForward(365 days);
     assertEq(market.scaleFactor(), 1.1e27, 'scaleFactor should grow by 10% from APR');
-    // updateState(pendingState());
     // Deposit one token
     _deposit(alice, 1e18);
     // Borrow 80% of market assets
@@ -38,26 +37,13 @@ contract WildcatMarketBaseTest is BaseMarketTest {
         FeeMath.calculateLinearInterestFromBips(parameters.annualInterestBips, 2_000)
       );
     assertEq(market.scaleFactor(), scaleFactorAtGracePeriodExpiry);
-    // uint256 dayOneInterest = FeeMath.calculateLinearInterestFromBips(
-    // 	1000,
-    // 	86_400
-    // );
-    // uint256 scaleFactorDayOne = 1.1e27 + MathUtils.rayMul(1.1e27, dayOneInterest);
-    // uint256 scaleFactor = scaleFactorDayOne +
-    // 	MathUtils.rayMul(scaleFactorDayOne, FeeMath.calculateLinearInterestFromBips(2000, 364 days));
-
-    // assertEq(
-    // 	market.scaleFactor(),
-    // 	scaleFactor,
-    // 	'scaleFactor should grow by 20% with delinquency fees'
-    // );
   }
 
   // ===================================================================== //
   //                             totalAssets()                             //
   // ===================================================================== //
 
-  function test_totalAssets() external {
+  function test_totalAssets() external view {
     market.totalAssets();
   }
 
@@ -77,7 +63,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                         accruedProtocolFees()                         //
   // ===================================================================== //
 
-  function test_accruedProtocolFees() external {
+  function test_accruedProtocolFees() external view {
     market.accruedProtocolFees();
   }
 
@@ -85,7 +71,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                            previousState()                            //
   // ===================================================================== //
 
-  function test_previousState() external {
+  function test_previousState() external view {
     market.previousState();
   }
 
@@ -93,7 +79,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                            currentState()                             //
   // ===================================================================== //
 
-  function test_currentState() external {
+  function test_currentState() external view {
     market.currentState();
   }
 
@@ -101,19 +87,19 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   //                          scaledTotalSupply()                          //
   // ===================================================================== //
 
-  function test_scaledTotalSupply() external {
-    market.scaledTotalSupply();
+  function test_scaledTotalSupply() external view {
+    assertEq(market.currentState().scaledTotalSupply, market.scaledTotalSupply());
   }
 
   // ===================================================================== //
   //                       scaledBalanceOf(address)                        //
   // ===================================================================== //
 
-  function test_scaledBalanceOf(address account) external {
+  function test_scaledBalanceOf(address account) external view {
     market.scaledBalanceOf(account);
   }
 
-  function test_scaledBalanceOf() external {
+  function test_scaledBalanceOf() external view {
     address account;
     market.scaledBalanceOf(account);
   }
@@ -123,20 +109,24 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   // ===================================================================== //
 
   function test_withdrawableProtocolFees() external {
-    assertEq(market.withdrawableProtocolFees(), 0);
+    assertEq(previousState.withdrawableProtocolFees(market.totalAssets()), 0);
     _deposit(alice, 1e18);
     fastForward(365 days);
-    assertEq(market.withdrawableProtocolFees(), 1e16);
+
+    MarketState memory state = pendingState();
+    assertEq(state.withdrawableProtocolFees(market.totalAssets()), 1e16);
   }
 
   function test_withdrawableProtocolFees_LessNormalizedUnclaimedWithdrawals() external {
-    assertEq(market.withdrawableProtocolFees(), 0);
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 0);
     _deposit(alice, 1e18);
     _borrow(8e17);
     fastForward(365 days);
     _requestWithdrawal(alice, 1e18);
-    assertEq(market.withdrawableProtocolFees(), 1e16);
+    // MarketState memory state = market.currentState();
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
     asset.mint(address(market), 8e17 + 1);
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
     assertEq(market.withdrawableProtocolFees(), 1e16);
   }
 }

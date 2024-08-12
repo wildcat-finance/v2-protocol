@@ -4,13 +4,15 @@ pragma solidity >=0.8.20;
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
-import '../interfaces/IERC20Metadata.sol';
-import '../interfaces/IWildcatMarketController.sol';
-import '../interfaces/IWildcatSanctionsSentinel.sol';
+import '../interfaces/IERC20.sol';
+import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/MarketErrors.sol';
 import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
+import '../libraries/FunctionTypeCasts.sol';
+import '../libraries/LibERC20.sol';
+import '../types/HooksConfig.sol';
 
 contract WildcatMarketBase is
   SphereXProtectedRegisteredBase,
@@ -19,12 +21,26 @@ contract WildcatMarketBase is
 {
   using SafeCastLib for uint256;
   using MathUtils for uint256;
+  using FunctionTypeCasts for *;
+  using LibERC20 for address;
 
   // ==================================================================== //
   //                       Market Config (immutable)                       //
   // ==================================================================== //
 
-  string public constant version = '1.0';
+  /**
+   * @dev Return the contract version string "2".
+   */
+  function version() external pure returns (string memory) {
+    assembly {
+      mstore(0x40, 0)
+      mstore(0x41, 0x0132)
+      mstore(0x20, 0x20)
+      return(0x20, 0x60)
+    }
+  }
+
+  HooksConfig public immutable hooks;
 
   /// @dev Account with blacklist control, used for blocking sanctioned addresses.
   address public immutable sentinel;
@@ -36,31 +52,67 @@ contract WildcatMarketBase is
   address public immutable feeRecipient;
 
   /// @dev Protocol fee added to interest paid by borrower.
-  uint256 public immutable protocolFeeBips;
+  uint public immutable protocolFeeBips;
 
   /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
-  uint256 public immutable delinquencyFeeBips;
+  uint public immutable delinquencyFeeBips;
 
   /// @dev Time after which delinquency incurs penalty fee.
-  uint256 public immutable delinquencyGracePeriod;
-
-  /// @dev Address of the Market Controller.
-  address public immutable controller;
-
-  /// @dev Address of the underlying asset.
-  address public immutable asset;
+  uint public immutable delinquencyGracePeriod;
 
   /// @dev Time before withdrawal batches are processed.
-  uint256 public immutable withdrawalBatchDuration;
+  uint public immutable withdrawalBatchDuration;
 
   /// @dev Token decimals (same as underlying asset).
   uint8 public immutable decimals;
 
-  /// @dev Token name (prefixed name of underlying asset).
-  string public name;
+  /// @dev Address of the underlying asset.
+  address public immutable asset;
 
-  /// @dev Token symbol (prefixed symbol of underlying asset).
-  string public symbol;
+  bytes32 internal immutable PACKED_NAME_WORD_0;
+  bytes32 internal immutable PACKED_NAME_WORD_1;
+  bytes32 internal immutable PACKED_SYMBOL_WORD_0;
+  bytes32 internal immutable PACKED_SYMBOL_WORD_1;
+
+  function symbol() external view returns (string memory) {
+    bytes32 symbolWord0 = PACKED_SYMBOL_WORD_0;
+    bytes32 symbolWord1 = PACKED_SYMBOL_WORD_1;
+
+    assembly {
+      // The layout here is:
+      // 0x00: Offset to the string
+      // 0x20: Length of the string
+      // 0x40: First word of the string
+      // 0x60: Second word of the string
+      // The first word of the string that is kept in immutable storage also contains the
+      // length byte, meaning the total size limit of the string is 63 bytes.
+      mstore(0, 0x20)
+      mstore(0x20, 0)
+      mstore(0x3f, symbolWord0)
+      mstore(0x5f, symbolWord1)
+      return(0, 0x80)
+    }
+  }
+
+  function name() external view returns (string memory) {
+    bytes32 nameWord0 = PACKED_NAME_WORD_0;
+    bytes32 nameWord1 = PACKED_NAME_WORD_1;
+
+    assembly {
+      // The layout here is:
+      // 0x00: Offset to the string
+      // 0x20: Length of the string
+      // 0x40: First word of the string
+      // 0x60: Second word of the string
+      // The first word of the string that is kept in immutable storage also contains the
+      // length byte, meaning the total size limit of the string is 63 bytes.
+      mstore(0, 0x20)
+      mstore(0x20, 0)
+      mstore(0x3f, nameWord0)
+      mstore(0x5f, nameWord1)
+      return(0, 0x80)
+    }
+  }
 
   /// @dev Returns immutable arch-controller address.
   function archController() external view returns (address) {
@@ -81,34 +133,77 @@ contract WildcatMarketBase is
   //                             Constructor                               //
   // ===================================================================== //
 
+  function _getMarketParameters() internal view returns (uint256 marketParametersPointer) {
+    assembly {
+      marketParametersPointer := mload(0x40)
+      mstore(0x40, add(marketParametersPointer, 0x260))
+      // Write the selector for IHooksFactory.getMarketParameters
+      mstore(0x00, 0x04032dbb)
+      // Call `getMarketParameters` and copy the returned struct to the allocated memory
+      // buffer, reverting if the call fails or does not return the correct amount of bytes.
+      // This overrides all the ABI decoding safety checks, as the call is always made to
+      // the factory contract which will only ever return the prepared market parameters.
+      if iszero(
+        and(
+          eq(returndatasize(), 0x260),
+          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x260)
+        )
+      ) {
+        revert(0, 0)
+      }
+    }
+  }
+
   constructor() {
-    MarketParameters memory parameters = IWildcatMarketController(msg.sender).getMarketParameters();
+    // Cast the function signature of `_getMarketParameters` to get a valid reference to
+    // a `MarketParameters` object without creating a duplicate allocation or unnecessarily
+    // zeroing out the memory buffer.
+    MarketParameters memory parameters = _getMarketParameters.asReturnsMarketParameters()();
 
     // Set asset metadata
     asset = parameters.asset;
-    name = parameters.name;
-    symbol = parameters.symbol;
-    decimals = IERC20Metadata(parameters.asset).decimals();
+    decimals = parameters.decimals;
 
-    _state = MarketState({
-      isClosed: false,
-      maxTotalSupply: parameters.maxTotalSupply,
-      accruedProtocolFees: 0,
-      normalizedUnclaimedWithdrawals: 0,
-      scaledTotalSupply: 0,
-      scaledPendingWithdrawals: 0,
-      pendingWithdrawalExpiry: 0,
-      isDelinquent: false,
-      timeDelinquent: 0,
-      annualInterestBips: parameters.annualInterestBips,
-      reserveRatioBips: parameters.reserveRatioBips,
-      scaleFactor: uint112(RAY),
-      lastInterestAccruedTimestamp: uint32(block.timestamp)
-    });
+    PACKED_NAME_WORD_0 = parameters.packedNameWord0;
+    PACKED_NAME_WORD_1 = parameters.packedNameWord1;
+    PACKED_SYMBOL_WORD_0 = parameters.packedSymbolWord0;
+    PACKED_SYMBOL_WORD_1 = parameters.packedSymbolWord1;
 
+    {
+      // Initialize the market state - all values in slots 1 and 2 of the struct are
+      // initialized to zero, so they are skipped.
+
+      uint maxTotalSupply = parameters.maxTotalSupply;
+      uint reserveRatioBips = parameters.reserveRatioBips;
+      uint annualInterestBips = parameters.annualInterestBips;
+
+      assembly {
+        // MarketState Slot 0 Storage Layout:
+        // [15:31] | state.maxTotalSupply
+        // [31:32] | state.isClosed = false
+
+        let slot0 := shl(8, maxTotalSupply)
+        sstore(_state.slot, slot0)
+
+        // MarketState Slot 3 Storage Layout:
+        // [6:10] | lastInterestAccruedTimestamp
+        // [10:24] | scaleFactor
+        // [24:26] | reserveRatioBips
+        // [26:28] | annualInterestBips
+        // [28:32] | timeDelinquent = 0
+
+        let slot3 := or(
+          or(or(shl(0xb0, timestamp()), shl(0x40, RAY)), shl(0x30, reserveRatioBips)),
+          shl(0x20, annualInterestBips)
+        )
+
+        sstore(add(_state.slot, 3), slot3)
+      }
+    }
+
+    hooks = parameters.hooks;
     sentinel = parameters.sentinel;
     borrower = parameters.borrower;
-    controller = parameters.controller;
     feeRecipient = parameters.feeRecipient;
     protocolFeeBips = parameters.protocolFeeBips;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
@@ -123,12 +218,15 @@ contract WildcatMarketBase is
   // ===================================================================== //
 
   modifier onlyBorrower() {
-    if (msg.sender != borrower) revert_NotApprovedBorrower();
-    _;
-  }
-
-  modifier onlyController() {
-    if (msg.sender != controller) revert_NotController();
+    address _borrower = borrower;
+    assembly {
+      // Equivalent to
+      // if (msg.sender != borrower) revert NotApprovedBorrower();
+      if xor(caller(), _borrower) {
+        mstore(0, 0x02171e6a)
+        revert(0x1c, 0x04)
+      }
+    }
     _;
   }
 
@@ -139,89 +237,36 @@ contract WildcatMarketBase is
   /**
    * @dev Retrieve an account from storage.
    *
-   *      Reverts if account is blocked.
+   *      Reverts if account is sanctioned.
    */
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
-    if (account.approval == AuthRole.Blocked) {
-      revert_AccountBlocked();
-    }
+    if (_isSanctioned(accountAddress)) revert_AccountBlocked();
   }
 
   /**
-   * @dev Block an account and transfer its balance of market tokens
-   *      to an escrow contract.
-   *
-   *      If the account is already blocked, this function does nothing.
+   * @dev Checks if `account` is flagged as a sanctioned entity by Chainalysis.
+   *      If an account is flagged mistakenly, the borrower can override their
+   *      status on the sentinel and allow them to interact with the market.
    */
-  function _blockAccount(MarketState memory state, address accountAddress) internal {
-    Account memory account = _accounts[accountAddress];
-    if (account.approval != AuthRole.Blocked) {
-      uint104 scaledBalance = account.scaledBalance;
-      account.approval = AuthRole.Blocked;
-      emit_AuthorizationStatusUpdated(accountAddress, AuthRole.Blocked);
-
-      if (scaledBalance > 0) {
-        account.scaledBalance = 0;
-        address escrow = IWildcatSanctionsSentinel(sentinel).createEscrow(
-          borrower,
-          accountAddress,
-          address(this)
-        );
-        emit_Transfer(accountAddress, escrow, state.normalizeAmount(scaledBalance));
-        _accounts[escrow].scaledBalance += scaledBalance;
-        emit_SanctionedAccountAssetsSentToEscrow(
-          accountAddress,
-          escrow,
-          state.normalizeAmount(scaledBalance)
-        );
-      }
-      _accounts[accountAddress] = account;
-    }
-  }
-
-  /**
-   * @dev Retrieve an account from storage and assert that it has at
-   *      least the required role.
-   *
-   *      If the account's role is not set, queries the controller to
-   *      determine if it is an approved lender; if it is, its role
-   *      is initialized to DepositAndWithdraw.
-   *
-   *      Return parameter is declared as a pointer rather than `Account`
-   *      to avoid unnecessary zeroing and allocation of memory.
-   */
-  function _getAccountWithRole(
-    address accountAddress,
-    AuthRole requiredRole
-  ) internal returns (uint256 accountPointer) {
-    Account memory account = _getAccount(accountAddress);
-    // If account role is null, see if it is authorized on controller.
-    if (account.approval == AuthRole.Null) {
-      if (IWildcatMarketController(controller).isAuthorizedLender(accountAddress)) {
-        account.approval = AuthRole.DepositAndWithdraw;
-        emit_AuthorizationStatusUpdated(accountAddress, AuthRole.DepositAndWithdraw);
-      }
-    }
-    // If account role is insufficient, revert.
-    if (uint256(account.approval) < uint256(requiredRole)) {
-      revert_NotApprovedLender();
-    }
+  function _isSanctioned(address account) internal view returns (bool result) {
+    address _borrower = borrower;
+    address _sentinel = address(sentinel);
     assembly {
-      accountPointer := account
-    }
-  }
-
-  /**
-   * @dev Function type cast to avoid duplicate declaration of Account return parameter.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
-   */
-  function _castReturnAccount(
-    function(address, AuthRole) internal returns (uint256) fnIn
-  ) internal pure returns (function(address, AuthRole) internal returns (Account memory) fnOut) {
-    assembly {
-      fnOut := fnIn
+      let freeMemoryPointer := mload(0x40)
+      mstore(0, 0x06e74444)
+      mstore(0x20, _borrower)
+      mstore(0x40, account)
+      // Call `sentinel.isSanctioned(borrower, account)` and revert if the call fails
+      // or does not return 32 bytes.
+      if iszero(
+        and(eq(returndatasize(), 0x20), staticcall(gas(), _sentinel, 0x1c, 0x44, 0, 0x20))
+      ) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      result := mload(0)
+      mstore(0x40, freeMemoryPointer)
     }
   }
 
@@ -234,7 +279,7 @@ contract WildcatMarketBase is
    *      to maintain in the market to avoid delinquency.
    */
   function coverageLiquidity() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().liquidityRequired();
+    return _calculateCurrentStatePointers.asReturnsMarketState()().liquidityRequired();
   }
 
   /**
@@ -242,32 +287,14 @@ contract WildcatMarketBase is
    *      to normalized balances.
    */
   function scaleFactor() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().scaleFactor;
+    return _calculateCurrentStatePointers.asReturnsMarketState()().scaleFactor;
   }
 
   /**
    * @dev Total balance in underlying asset.
    */
-  function totalAssets() public view returns (uint256 _totalAssets) {
-    address assetAddress = asset;
-    assembly {
-      // Write selector for `balanceOf(address)` to the end of the first word
-      // of scratch space, then write `address(this)` to the second word.
-      mstore(0, 0x70a08231)
-      mstore(0x20, address())
-      // Call `asset.balanceOf(address(this))`, writing up to 32 bytes of returndata
-      // to scratch space, overwriting calldata.
-      // Reverts if the call fails or does not return exactly 32 bytes.
-      if iszero(
-        and(eq(returndatasize(), 0x20), staticcall(gas(), assetAddress, 0x1c, 0x24, 0, 0x20))
-      ) {
-        // Revert with error message from the call.
-        returndatacopy(0, 0, returndatasize())
-        revert(0, returndatasize())
-      }
-      // Read the return value from scratch space
-      _totalAssets := mload(0)
-    }
+  function totalAssets() public view returns (uint256) {
+    return asset.balanceOf(address(this));
   }
 
   /**
@@ -281,7 +308,7 @@ contract WildcatMarketBase is
    *      - protocol fees
    */
   function borrowableAssets() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().borrowableAssets(totalAssets());
+    return _calculateCurrentStatePointers.asReturnsMarketState()().borrowableAssets(totalAssets());
   }
 
   /**
@@ -289,30 +316,22 @@ contract WildcatMarketBase is
    *      that have accrued and are pending withdrawal.
    */
   function accruedProtocolFees() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().accruedProtocolFees;
+    return _calculateCurrentStatePointers.asReturnsMarketState()().accruedProtocolFees;
   }
 
   function totalDebts() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().totalDebts();
-  }
-
-  function outstandingDebt() external view nonReentrantView returns (uint256) {
-    return
-      _castReturnMarketState(_calculateCurrentStatePointers)().totalDebts().satSub(totalAssets());
-  }
-
-  function delinquentDebt() external view nonReentrantView returns (uint256) {
-    return
-      _castReturnMarketState(_calculateCurrentStatePointers)().liquidityRequired().satSub(
-        totalAssets()
-      );
+    return _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts();
   }
 
   /**
    * @dev Returns the state of the market as of the last update.
    */
   function previousState() external view returns (MarketState memory) {
-    return _state;
+    MarketState memory state = _state;
+
+    assembly {
+      return(state, 0x1a0)
+    }
   }
 
   /**
@@ -320,8 +339,11 @@ contract WildcatMarketBase is
    *      interest and fees accrued since the last update and processing the pending
    *      withdrawal batch if it is expired.
    */
-  function currentState() public view nonReentrantView returns (MarketState memory state) {
-    state = _castReturnMarketState(_calculateCurrentStatePointers)();
+  function currentState() external view nonReentrantView returns (MarketState memory state) {
+    state = _calculateCurrentStatePointers.asReturnsMarketState()();
+    assembly {
+      return(state, 0x1a0)
+    }
   }
 
   /**
@@ -332,34 +354,7 @@ contract WildcatMarketBase is
    *      With `viaIR` enabled, the cast is a noop.
    */
   function _calculateCurrentStatePointers() internal view returns (uint256 state) {
-    (state, , ) = _castReturnPointers(_calculateCurrentState)();
-  }
-
-  /**
-   * @dev Function type cast to avoid duplicate declaration of MarketState return parameter.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
-   */
-  function _castReturnMarketState(
-    function() internal view returns (uint256) fnIn
-  ) internal pure returns (function() internal view returns (MarketState memory) fnOut) {
-    assembly {
-      fnOut := fnIn
-    }
-  }
-
-  /**
-   * @dev Function type cast to avoid duplicate declaration of MarketState and WithdrawalBatch
-   *      return parameters.
-   *
-   *      With `viaIR` enabled, calling this function is a noop.
-   */
-  function _castReturnPointers(
-    function() internal view returns (MarketState memory, uint32, WithdrawalBatch memory) fnIn
-  ) internal pure returns (function() internal view returns (uint256, uint32, uint256) fnOut) {
-    assembly {
-      fnOut := fnIn
-    }
+    (state, , ) = _calculateCurrentState.asReturnsPointers()();
   }
 
   /**
@@ -368,7 +363,7 @@ contract WildcatMarketBase is
    *      market tokens for the pending withdrawal batch if it is expired.
    */
   function scaledTotalSupply() external view nonReentrantView returns (uint256) {
-    return _castReturnMarketState(_calculateCurrentStatePointers)().scaledTotalSupply;
+    return _calculateCurrentStatePointers.asReturnsMarketState()().scaledTotalSupply;
   }
 
   /**
@@ -379,19 +374,12 @@ contract WildcatMarketBase is
   }
 
   /**
-   * @dev Returns current role of `account`.
-   */
-  function getAccountRole(address account) external view nonReentrantView returns (AuthRole) {
-    return _accounts[account].approval;
-  }
-
-  /**
    * @dev Returns the amount of protocol fees that are currently
    *      withdrawable by the fee recipient.
    */
   function withdrawableProtocolFees() external view returns (uint128) {
     return
-      _castReturnMarketState(_calculateCurrentStatePointers)().withdrawableProtocolFees(
+      _calculateCurrentStatePointers.asReturnsMarketState()().withdrawableProtocolFees(
         totalAssets()
       );
   }
@@ -399,6 +387,8 @@ contract WildcatMarketBase is
   // /*//////////////////////////////////////////////////////////////
   //                     Internal State Handlers
   // //////////////////////////////////////////////////////////////*/
+
+  function _blockAccount(MarketState memory state, address accountAddress) internal virtual {}
 
   /**
    * @dev Returns cached MarketState after accruing interest and delinquency / protocol fees
@@ -552,7 +542,75 @@ contract WildcatMarketBase is
   function _writeState(MarketState memory state) internal {
     bool isDelinquent = state.liquidityRequired() > totalAssets();
     state.isDelinquent = isDelinquent;
-    _state = state;
+
+    {
+      bool isClosed = state.isClosed;
+      uint maxTotalSupply = state.maxTotalSupply;
+      assembly {
+        // Slot 0 Storage Layout:
+        // [15:31] | state.maxTotalSupply
+        // [31:32] | state.isClosed
+        let slot0 := or(isClosed, shl(0x08, maxTotalSupply))
+        sstore(_state.slot, slot0)
+      }
+    }
+    {
+      uint accruedProtocolFees = state.accruedProtocolFees;
+      uint normalizedUnclaimedWithdrawals = state.normalizedUnclaimedWithdrawals;
+      assembly {
+        // Slot 1 Storage Layout:
+        // [0:16] | state.normalizedUnclaimedWithdrawals
+        // [16:32] | state.accruedProtocolFees
+        let slot1 := or(accruedProtocolFees, shl(0x80, normalizedUnclaimedWithdrawals))
+        sstore(add(_state.slot, 1), slot1)
+      }
+    }
+    {
+      uint scaledTotalSupply = state.scaledTotalSupply;
+      uint scaledPendingWithdrawals = state.scaledPendingWithdrawals;
+      uint pendingWithdrawalExpiry = state.pendingWithdrawalExpiry;
+      assembly {
+        // Slot 2 Storage Layout:
+        // [1:2] | state.isDelinquent
+        // [2:6] | state.pendingWithdrawalExpiry
+        // [6:19] | state.scaledPendingWithdrawals
+        // [19:32] | state.scaledTotalSupply
+        let slot2 := or(
+          or(
+            or(shl(0xf0, isDelinquent), shl(0xd0, pendingWithdrawalExpiry)),
+            shl(0x68, scaledPendingWithdrawals)
+          ),
+          scaledTotalSupply
+        )
+        sstore(add(_state.slot, 2), slot2)
+      }
+    }
+    {
+      uint timeDelinquent = state.timeDelinquent;
+      uint annualInterestBips = state.annualInterestBips;
+      uint reserveRatioBips = state.reserveRatioBips;
+      uint scaleFactor = state.scaleFactor;
+      uint lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
+      assembly {
+        // Slot 3 Storage Layout:
+        // [6:10] | state.lastInterestAccruedTimestamp
+        // [10:24] | state.scaleFactor
+        // [24:26] | state.reserveRatioBips
+        // [26:28] | state.annualInterestBips
+        // [28:32] | state.timeDelinquent
+        let slot3 := or(
+          or(
+            or(
+              or(shl(0xb0, lastInterestAccruedTimestamp), shl(0x40, scaleFactor)),
+              shl(0x30, reserveRatioBips)
+            ),
+            shl(0x20, annualInterestBips)
+          ),
+          timeDelinquent
+        )
+        sstore(add(_state.slot, 3), slot3)
+      }
+    }
     emit_StateUpdated(state.scaleFactor, isDelinquent);
   }
 
@@ -608,14 +666,15 @@ contract WildcatMarketBase is
     uint256 availableLiquidity
   ) internal returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
+
     // Do nothing if batch is already paid
-    if (scaledAmountOwed == 0) {
-      return (0, 0);
-    }
+    if (scaledAmountOwed == 0) return (0, 0);
 
     uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
     scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
-    normalizedAmountPaid = state.normalizeAmount(scaledAmountBurned).toUint128();
+    // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
+    // it is always possible to finish withdrawal batches on closed markets.
+    normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;
@@ -628,7 +687,7 @@ contract WildcatMarketBase is
     state.scaledTotalSupply -= scaledAmountBurned;
 
     // Emit transfer for external trackers to indicate burn.
-    emit_Transfer(address(this), address(0), normalizedAmountPaid);
+    emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
     emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
   }
 
@@ -639,14 +698,17 @@ contract WildcatMarketBase is
   ) internal pure {
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     // Do nothing if batch is already paid
-    if (scaledAmountOwed == 0) {
-      return;
-    }
+    if (scaledAmountOwed == 0) return;
+
     uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
     uint104 scaledAmountBurned = MathUtils
       .min(scaledAvailableLiquidity, scaledAmountOwed)
       .toUint104();
-    uint128 normalizedAmountPaid = state.normalizeAmount(scaledAmountBurned).toUint128();
+    // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
+    // it is always possible to finish withdrawal batches on closed markets.
+    uint128 normalizedAmountPaid = MathUtils
+      .mulDiv(scaledAmountBurned, state.scaleFactor, RAY)
+      .toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;
@@ -657,5 +719,72 @@ contract WildcatMarketBase is
 
     // Burn market tokens to stop interest accrual upon withdrawal payment.
     state.scaledTotalSupply -= scaledAmountBurned;
+  }
+
+  /**
+   * @dev Function to obfuscate the fact that a value is constant from solc's optimizer.
+   *      This prevents function specialization for calls with a constant input parameter,
+   *      which usually has very little benefit in terms of gas savings but can
+   *      drastically increase contract size.
+   *
+   *      The value returned will always match the input value outside of the constructor,
+   *      fallback and receive functions.
+   */
+  function _runtimeConstant(
+    uint256 actualConstant
+  ) internal pure returns (uint256 runtimeConstant) {
+    assembly {
+      mstore(0, actualConstant)
+      runtimeConstant := mload(iszero(calldatasize()))
+    }
+  }
+
+  function _runtimeConstant(
+    address actualConstant
+  ) internal pure returns (address runtimeConstant) {
+    assembly {
+      mstore(0, actualConstant)
+      runtimeConstant := mload(iszero(calldatasize()))
+    }
+  }
+
+  function _isFlaggedByChainalysis(address account) internal view returns (bool isFlagged) {
+    address sentinelAddress = address(sentinel);
+    assembly {
+      mstore(0, 0x95c09839)
+      mstore(0x20, account)
+      if iszero(
+        and(eq(returndatasize(), 0x20), staticcall(gas(), sentinelAddress, 0x1c, 0x24, 0, 0x20))
+      ) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      isFlagged := mload(0)
+    }
+  }
+
+  function _createEscrowForUnderlyingAsset(
+    address accountAddress
+  ) internal returns (address escrow) {
+    address tokenAddress = address(asset);
+    address borrowerAddress = borrower;
+    address sentinelAddress = address(sentinel);
+
+    assembly {
+      let freeMemoryPointer := mload(0x40)
+      mstore(0, 0xa1054f6b)
+      mstore(0x20, borrowerAddress)
+      mstore(0x40, accountAddress)
+      mstore(0x60, tokenAddress)
+      if iszero(
+        and(eq(returndatasize(), 0x20), call(gas(), sentinelAddress, 0, 0x1c, 0x64, 0, 0x20))
+      ) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      escrow := mload(0)
+      mstore(0x40, freeMemoryPointer)
+      mstore(0x60, 0)
+    }
   }
 }

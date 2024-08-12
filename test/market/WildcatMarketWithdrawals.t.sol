@@ -110,6 +110,22 @@ contract WithdrawalsTest is BaseMarketTest {
     assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
   }
 
+  function test_queueWithdrawal_AfterMarketClosed(
+    uint128 userBalance,
+    uint128 withdrawalAmount
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _closeMarket();
+    _requestWithdrawal(alice, userBalance);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
+  }
+
   function test_queueWithdrawal_BurnPartial(
     uint128 userBalance,
     uint128 borrowAmount
@@ -143,6 +159,133 @@ contract WithdrawalsTest is BaseMarketTest {
     withdrawalAmount = uint128(bound(withdrawalAmount, 2, userBalance));
     _deposit(alice, userBalance);
     _requestWithdrawal(alice, withdrawalAmount);
+  }
+
+
+  /* -------------------------------------------------------------------------- */
+  /*                              queueFullWithdrawal()                             */
+  /* -------------------------------------------------------------------------- */
+
+  function test_queueFullWithdrawal_NotApprovedLender() external {
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    market.transfer(bob, 1e18);
+    vm.startPrank(bob);
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
+    market.queueFullWithdrawal();
+  }
+
+  function test_queueFullWithdrawal_AuthorizedWithdrawOnly() public asAccount(bob) {
+    _deposit(bob, 1e18);
+    _deauthorizeLender(bob);
+    stopPrank();
+    _requestFullWithdrawal(bob);
+  }
+
+  function test_queueFullWithdrawal_AuthorizedOnHooks() public {
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    market.transfer(bob, 1e18);
+    _authorizeLender(bob);
+    vm.startPrank(bob);
+    market.queueFullWithdrawal();
+  }
+
+  function test_queueFullWithdrawal_NullBurnAmount() external asAccount(alice) {
+    vm.expectRevert(IMarketEventsAndErrors.NullBurnAmount.selector);
+    market.queueFullWithdrawal();
+  }
+
+  function test_queueFullWithdrawal_AddToExisting(
+    uint256 userBalance1,
+    uint256 userBalance2
+  ) external asAccount(alice) {
+    userBalance1 = bound(
+      userBalance1,
+      2,
+      DefaultMaximumSupply / 2
+    );
+    userBalance2 = bound(
+      userBalance2,
+      2,
+      DefaultMaximumSupply - userBalance1
+    );
+    _deposit(alice, userBalance1);
+    _deposit(bob, userBalance2);
+    _requestFullWithdrawal(alice);
+    _requestFullWithdrawal(bob);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(
+      state.normalizedUnclaimedWithdrawals,
+      userBalance1 + userBalance2,
+      'normalizedUnclaimedWithdrawals'
+    );
+  }
+
+  function test_queueFullWithdrawal_BurnAll(
+    uint128 userBalance
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _requestFullWithdrawal(alice);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
+  }
+
+  function test_queueFullWithdrawal_AfterMarketClosed(
+    uint128 userBalance
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _closeMarket();
+    _requestFullWithdrawal(alice);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, false, 'isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'timeDelinquent');
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'normalizedUnclaimedWithdrawals');
+  }
+
+  function test_queueFullWithdrawal_BurnPartial(
+    uint128 userBalance,
+    uint128 borrowAmount
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    borrowAmount = uint128(
+      bound(borrowAmount, 2, uint256(userBalance).bipMul(10000 - parameters.reserveRatioBips))
+    );
+    _deposit(alice, userBalance);
+    _borrow(borrowAmount);
+    _requestFullWithdrawal(alice);
+    MarketState memory state = previousState;
+    assertEq(state.isDelinquent, true, 'state.isDelinquent');
+    assertEq(state.timeDelinquent, 0, 'state.timeDelinquent');
+    uint128 remainingAssets = userBalance - borrowAmount;
+
+    assertEq(state.scaledPendingWithdrawals, borrowAmount, 'state.scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, borrowAmount, 'state.scaledTotalSupply');
+    assertEq(
+      state.normalizedUnclaimedWithdrawals,
+      remainingAssets,
+      'state.normalizedUnclaimedWithdrawals'
+    );
+  }
+
+  function test_queueFullWithdrawal(
+    uint128 userBalance
+  ) external asAccount(alice) {
+    userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
+    _deposit(alice, userBalance);
+    _requestFullWithdrawal(alice);
   }
 
   /* -------------------------------------------------------------------------- */
@@ -198,13 +341,34 @@ contract WithdrawalsTest is BaseMarketTest {
     market.executeWithdrawal(alice, uint32(expiry));
   }
 
+  function test_executeWithdrawal_MarketClosed() external {
+    _deposit(alice, 1e18);
+    _requestWithdrawal(alice, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    _closeMarket();
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18,  false);
+    vm.prank(alice);
+    market.executeWithdrawal(alice, expiry);
+  }
+
+  function test_executeWithdrawal_MarketClosed_BeforeExpiry() external {
+    _deposit(alice, 1e18);
+    _requestWithdrawal(alice, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    _closeMarket();
+    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18,  false);
+    vm.prank(alice);
+    market.executeWithdrawal(alice, expiry);
+  }
+
   function test_executeWithdrawal_Sanctioned() external {
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
     fastForward(parameters.withdrawalBatchDuration + 1);
     sanctionsSentinel.sanction(alice);
     address escrow = sanctionsSentinel.getEscrowAddress(borrower, alice, address(asset));
-    _trackExecuteWithdrawal(pendingState(), uint32(block.timestamp - 1), alice, 1e18, true, true);
+    _trackExecuteWithdrawal(pendingState(), uint32(block.timestamp - 1), alice, 1e18, true);
     market.executeWithdrawal(alice, uint32(block.timestamp - 1));
   }
 
@@ -307,9 +471,9 @@ contract WithdrawalsTest is BaseMarketTest {
     expiries[2] = expiry2;
     expiries[3] = expiry2;
     MarketState memory state = pendingState();
-    _trackExecuteWithdrawal(state, expiry1, alice, 0.5e18, true, true);
+    _trackExecuteWithdrawal(state, expiry1, alice, 0.5e18, true);
     _trackExecuteWithdrawal(state, expiry1, bob);
-    _trackExecuteWithdrawal(state, expiry2, alice, 0.5e18, false, true);
+    _trackExecuteWithdrawal(state, expiry2, alice, 0.5e18, true);
     _trackExecuteWithdrawal(state, expiry2, bob);
     market.executeWithdrawals(accounts, expiries);
   }
@@ -360,7 +524,7 @@ contract WithdrawalsTest is BaseMarketTest {
       parameters.withdrawalBatchDuration
     );
     uint scaleFactor2 = scaleFactor1.rayMul(RAY + delinquencyFeeRay + baseInterestRay);
-    uint256 feesAccruedOnWithdrawal = uint(8e17).rayMul(scaleFactor2) - 8e17;
+    uint256 feesAccruedOnWithdrawal = uint(8e17).mulDiv(scaleFactor2, RAY) - 8e17;
 
     asset.mint(address(market), feesAccruedOnWithdrawal);
     lastTotalAssets += feesAccruedOnWithdrawal;
@@ -368,7 +532,10 @@ contract WithdrawalsTest is BaseMarketTest {
     updateState(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
 
-    _checkBatch(expiry, 1e18, 1e18, 1e18 + feesAccruedOnWithdrawal);
+    uint scaledAvailableLiquidity = state.scaleAmount(feesAccruedOnWithdrawal);
+    uint normalizedAmountPaid = MathUtils
+    .mulDiv(scaledAvailableLiquidity, state.scaleFactor, RAY);
+    _checkBatch(expiry, 1e18, 1e18, 1e18 + normalizedAmountPaid);
     assertEq(market.getUnpaidBatchExpiries().length, 0);
     _checkState();
   }
@@ -377,27 +544,29 @@ contract WithdrawalsTest is BaseMarketTest {
   /*                      processUnpaidWithdrawalBatches()                      */
   /* -------------------------------------------------------------------------- */
 
-  function test_processUnpaidWithdrawalBatches_NoBatches() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_NoBatches() external {
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
-  function test_processUnpaidWithdrawalBatches_NoAvailableLiquidity() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_NoAvailableLiquidity() external {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
-  function test_processUnpaidWithdrawalBatches_Single() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_Single() external {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     fastForward(parameters.withdrawalBatchDuration * 2);
-    MarketState memory state = pendingState();
+    updateState(pendingState(true));
+    market.updateState();
     asset.mint(address(market), 1e18);
     lastTotalAssets += 1e18;
+    MarketState memory state = pendingState(true);
     _trackProcessUnpaidWithdrawalBatch(state);
     updateState(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
-  function test_processUnpaidWithdrawalBatches_InsufficientAssetsForSecond() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_InsufficientAssetsForSecond() external {
     uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     uint32 expiry2 = uint32(expiry1 + parameters.withdrawalBatchDuration);
     _depositBorrowWithdraw(alice, 2e18, 1.6e18, 1e18);
@@ -419,7 +588,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _checkState();
   }
 
-  function test_processUnpaidWithdrawalBatches_SufficientAssetsForBoth() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_SufficientAssetsForBoth() external {
     uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     uint32 expiry2 = uint32(expiry1 + parameters.withdrawalBatchDuration);
     _depositBorrowWithdraw(alice, 2e18, 1.6e18, 1e18);
@@ -441,7 +610,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _checkState();
   }
 
-  function test_processUnpaidWithdrawalBatches_MaxZero() external {
+  function test_repayAndProcessUnpaidWithdrawalBatches_MaxZero() external {
     uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     uint32 expiry2 = uint32(expiry1 + parameters.withdrawalBatchDuration);
     _depositBorrowWithdraw(alice, 2e18, 1.6e18, 1e18);
@@ -495,7 +664,7 @@ contract WithdrawalsTest is BaseMarketTest {
     asset.mint(address(this), 1e18);
     asset.approve(address(market), 1e18);
     vm.prank(borrower);
-    controller.closeMarket(address(market));
+    market.closeMarket();
     vm.expectRevert(IMarketEventsAndErrors.RepayToClosedMarket.selector);
     market.repayAndProcessUnpaidWithdrawalBatches(1e18, 10);
   }
@@ -617,5 +786,13 @@ contract WithdrawalsTest is BaseMarketTest {
     // emit WithdrawalBatchPayment(expiry, 8e17, 8e17 + feesAccruedOnWithdrawal);
     market.updateState();
     _checkBatch(expiry, 1e18, 1e18, 1e18);
+  }
+
+  function test_liquidityAvailableBetweenWithdrawalAndExpiry() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    asset.mint(address(market), 8e17);
+    fastForward( parameters.withdrawalBatchDuration + 1);
+    market.updateState();
   }
 }

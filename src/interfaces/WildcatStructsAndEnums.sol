@@ -3,19 +3,16 @@ pragma solidity >=0.8.20;
 
 import { MarketState } from '../libraries/MarketState.sol';
 
-enum AuthRole {
-  Null,
-  Blocked,
-  WithdrawOnly,
-  DepositAndWithdraw
-}
+import { HooksConfig } from '../types/HooksConfig.sol';
 
 struct MarketParameters {
   address asset;
-  string name;
-  string symbol;
+  uint8 decimals;
+  bytes32 packedNameWord0;
+  bytes32 packedNameWord1;
+  bytes32 packedSymbolWord0;
+  bytes32 packedSymbolWord1;
   address borrower;
-  address controller;
   address feeRecipient;
   address sentinel;
   uint128 maxTotalSupply;
@@ -27,6 +24,20 @@ struct MarketParameters {
   uint32 delinquencyGracePeriod;
   address archController;
   address sphereXEngine;
+  HooksConfig hooks;
+}
+
+struct DeployMarketInputs {
+  address asset;
+  string namePrefix;
+  string symbolPrefix;
+  uint128 maxTotalSupply;
+  uint16 annualInterestBips;
+  uint16 delinquencyFeeBips;
+  uint32 withdrawalBatchDuration;
+  uint16 reserveRatioBips;
+  uint32 delinquencyGracePeriod;
+  HooksConfig hooks;
 }
 
 struct MarketControllerParameters {

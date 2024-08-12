@@ -5,7 +5,25 @@ import { Vm, VmSafe } from 'forge-std/Vm.sol';
 import { logAssume } from './Metrics.sol';
 
 address constant VM_ADDRESS = address(uint160(uint256(keccak256('hevm cheat code'))));
+address constant CLOCK_ADDRESS = address(uint160(uint256(keccak256('.clock'))));
+
 Vm constant vm = Vm(VM_ADDRESS);
+
+contract Clock {
+  function time() external view returns (uint256) {
+    assembly {
+      mstore(0, timestamp())
+      return(0, 0x20)
+    }
+  }
+}
+
+function getTimestamp() returns (uint256) {
+  if (CLOCK_ADDRESS.code.length == 0) {
+    vm.etch(CLOCK_ADDRESS, type(Clock).runtimeCode);
+  }
+  return Clock(CLOCK_ADDRESS).time();
+}
 
 function recordLogs() {
   vm.recordLogs();
@@ -31,10 +49,23 @@ contract FastForward {
   }
 }
 
-// Utility to get around stack optimizations by ir pipeline
+contract Warp {
+  constructor(uint256 time) {
+    vm.warp(time);
+    assembly {
+      selfdestruct(caller())
+    }
+  }
+}
+
+// Utility functions to get around stack optimizations by ir pipeline
 // causing timestamp after warp to match timestamp before
 function fastForward(uint256 time) {
   new FastForward(time);
+}
+
+function warp(uint256 time) {
+  new Warp(time);
 }
 
 // dependent bound - bound value1 to the range [min, max]

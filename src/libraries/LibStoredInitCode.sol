@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.24;
 
 library LibStoredInitCode {
   error InitCodeDeploymentFailed();
@@ -120,5 +120,67 @@ library LibStoredInitCode {
         revert(0x1c, 0x04)
       }
     }
+  }
+
+  function create2WithStoredInitCode(
+    address initCodeStorage,
+    bytes32 salt,
+    uint256 value,
+    bytes memory constructorArgs
+  ) internal returns (address deployment) {
+    assembly {
+      let initCodePointer := mload(0x40)
+      let initCodeSize := sub(extcodesize(initCodeStorage), 1)
+      // Copy code from target address to memory starting at byte 1
+      extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
+      // Copy constructor args from memory to initcode
+      let constructorArgsSize := mload(constructorArgs)
+      mcopy(add(initCodePointer, initCodeSize), add(constructorArgs, 0x20), constructorArgsSize)
+      let initCodeSizeWithArgs := add(initCodeSize, constructorArgsSize)
+      deployment := create2(value, initCodePointer, initCodeSizeWithArgs, salt)
+      if iszero(deployment) {
+        mstore(0x00, 0x30116425) // DeploymentFailed()
+        revert(0x1c, 0x04)
+      }
+    }
+  }
+
+  function create2WithStoredInitCode(
+    address initCodeStorage,
+    bytes32 salt,
+    bytes memory constructorArgs
+  ) internal returns (address deployment) {
+    return create2WithStoredInitCode(initCodeStorage, salt, 0, constructorArgs);
+  }
+
+  function create2WithStoredInitCodeCD(
+    address initCodeStorage,
+    bytes32 salt,
+    uint256 value,
+    bytes calldata constructorArgs
+  ) internal returns (address deployment) {
+    assembly {
+      let initCodePointer := mload(0x40)
+      let initCodeSize := sub(extcodesize(initCodeStorage), 1)
+      // Copy code from target address to memory starting at byte 1
+      extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
+      // Copy constructor args from calldata to end of initcode
+      let constructorArgsSize := constructorArgs.length
+      calldatacopy(add(initCodePointer, initCodeSize), constructorArgs.offset, constructorArgsSize)
+      let initCodeSizeWithArgs := add(initCodeSize, constructorArgsSize)
+      deployment := create2(value, initCodePointer, initCodeSizeWithArgs, salt)
+      if iszero(deployment) {
+        mstore(0x00, 0x30116425) // DeploymentFailed()
+        revert(0x1c, 0x04)
+      }
+    }
+  }
+
+  function create2WithStoredInitCodeCD(
+    address initCodeStorage,
+    bytes32 salt,
+    bytes calldata constructorArgs
+  ) internal returns (address deployment) {
+    return create2WithStoredInitCodeCD(initCodeStorage, salt, 0, constructorArgs);
   }
 }

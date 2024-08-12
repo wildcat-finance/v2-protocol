@@ -4,32 +4,26 @@ pragma solidity >=0.8.20;
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { BaseERC20Test } from '../helpers/BaseERC20Test.sol';
 import '../shared/TestConstants.sol';
-import '../shared/Test.sol';
+import '../BaseMarketTest.sol';
 
 bytes32 constant DaiSalt = bytes32(uint256(1));
 
-contract WildcatMarketTokenTest is BaseERC20Test, Test {
+contract WildcatMarketTokenTest is BaseERC20Test, BaseMarketTest {
   using MarketStateLib for MarketState;
-
-  // WildcatMarketFactory internal factory;
-  // WildcatMarketController internal controller;
-  MockERC20 internal asset;
-  address internal feeRecipient = address(0xfee);
-  address internal borrower = address(this);
 
   function bound(
     uint x,
     uint min,
     uint max
-  ) internal view virtual override(StdUtils, Test) returns (uint256 result) {
+  ) internal pure virtual override(StdUtils, Test) returns (uint256 result) {
     return Test.bound(x, min, max);
   }
 
-  function _maxAmount() internal override returns (uint256) {
+  function _maxAmount() internal pure override returns (uint256) {
     return uint256(type(uint104).max);
   }
 
-  function _minAmount() internal override returns (uint256 min) {
+  function _minAmount() internal view override returns (uint256 min) {
     min = divUp(WildcatMarket(address(token)).scaleFactor(), RAY);
   }
 
@@ -46,53 +40,17 @@ contract WildcatMarketTokenTest is BaseERC20Test, Test {
     }
   }
 
-  function setUp() public override {
-    asset = new MockERC20('Token', 'TKN', 18);
-
-    MarketInputParameters memory marketParameters = MarketInputParameters({
-      asset: address(asset),
-      namePrefix: 'Wildcat ',
-      symbolPrefix: 'WC',
-      borrower: borrower,
-      controller: controllerFactory.computeControllerAddress(borrower),
-      feeRecipient: feeRecipient,
-      sentinel: address(sanctionsSentinel),
-      maxTotalSupply: uint128(_maxAmount()),
-      protocolFeeBips: DefaultProtocolFeeBips,
-      annualInterestBips: 0,
-      delinquencyFeeBips: DefaultDelinquencyFee,
-      withdrawalBatchDuration: 0,
-      reserveRatioBips: DefaultReserveRatio,
-      delinquencyGracePeriod: DefaultGracePeriod,
-      sphereXEngine: address(0)
-    });
-    deployControllerAndMarket(marketParameters, true, true);
-    token = IERC20Metadata(address(market));
+  function setUp() public override(BaseERC20Test, BaseMarketTest) {
+    parameters.maxTotalSupply = uint128(_maxAmount());
+    parameters.annualInterestBips = 0;
+    parameters.withdrawalBatchDuration = 0;
+    parameters.hooksConfig = parameters.hooksConfig.clearFlag(Bit_Enabled_Transfer);
+    BaseMarketTest.setUpContracts(true);
+    token = IERC20(address(market));
     _name = 'Wildcat Token';
     _symbol = 'WCTKN';
     _decimals = 18;
-    // vm.warp(block.timestamp + 5008);
-    // assertEq(WildcatMarket(address(token)).scaleFactor(), 2e27);
   }
-
-  function testCtrl() external {
-    assertEq(
-      address(controller),
-      controllerFactory.computeControllerAddress(borrower),
-      'bad controller address'
-    );
-    assertTrue(MockController(address(controller)).AUTH_ALL(), 'bad auth');
-    assertEq(
-      controllerFactory.controllerInitCodeHash(),
-      uint256(keccak256(type(MockController).creationCode)),
-      'bad init code hash'
-    );
-    console2.log(market.name());
-  }
-
-  // function _assertTokenAmountEq(uint256 expected, uint256 actual) internal virtual override {
-  // 	assertEq(expected, actual);
-  // }
 
   function _mint(address to, uint256 amount) internal override {
     require(amount <= _maxAmount(), 'amount too large');
@@ -121,5 +79,15 @@ contract WildcatMarketTokenTest is BaseERC20Test, Test {
   function testTransferFromNullAmount() external {
     vm.expectRevert(IMarketEventsAndErrors.NullTransferAmount.selector);
     token.transferFrom(address(0), address(1), 0);
+  }
+
+  function testTransferToBlockedAccount() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    BaseMarketTest.setUpContracts(true);
+    _mint(alice, 1);
+    _blockLender(bob);
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
+    vm.prank(alice);
+    market.transfer(bob, 1);
   }
 }

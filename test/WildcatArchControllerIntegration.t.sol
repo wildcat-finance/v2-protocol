@@ -11,9 +11,9 @@ contract WildcatArchControllerIntegrationTest is BaseMarketTest {
     controllers = new address[](numControllers);
     markets = new address[](numControllers * numMarketsPerController);
     for (uint i = 0; i < numControllers; i++) {
-      controllers[i] = address(deployController(borrower, false, false));
+      MarketInputParameters memory parameters;
+      controllers[i] = address(deployHooksInstance(parameters, false));
       for (uint j = 0; j < numMarketsPerController; j++) {
-        parameters.controller = address(controller);
         parameters.asset = address(asset = new MockERC20('Token', 'TKN', 18));
         markets[i * numMarketsPerController + j] = address(deployMarket(parameters));
       }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity >=0.8.20;
 
-import 'src/interfaces/IERC20Metadata.sol';
+import 'src/interfaces/IERC20.sol';
 import 'src/libraries/MathUtils.sol';
 import { Test } from 'forge-std/Test.sol';
 import { DSInvariantTest } from 'solmate/test/utils/DSInvariantTest.sol';
@@ -18,7 +18,7 @@ bytes32 constant PERMIT_TYPEHASH = keccak256(
  * Modified from https://github.com/transmissions11/solmate
  */
 abstract contract BaseERC20Test is Test {
-  IERC20Metadata token;
+  IERC20 token;
   string _name;
   string _symbol;
   uint8 _decimals;

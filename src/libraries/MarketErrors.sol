@@ -1,5 +1,7 @@
 pragma solidity ^0.8.20;
 
+uint256 constant MaxSupplyExceeded_ErrorSelector = 0x8a164f63;
+
 /// @dev Equivalent to `revert MaxSupplyExceeded()`
 function revert_MaxSupplyExceeded() pure {
   assembly {
@@ -7,6 +9,38 @@ function revert_MaxSupplyExceeded() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant CapacityChangeOnClosedMarket_ErrorSelector = 0x81b21078;
+
+/// @dev Equivalent to `revert CapacityChangeOnClosedMarket()`
+function revert_CapacityChangeOnClosedMarket() pure {
+  assembly {
+    mstore(0, 0x81b21078)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant AprChangeOnClosedMarket_ErrorSelector = 0xb9de88a2;
+
+/// @dev Equivalent to `revert AprChangeOnClosedMarket()`
+function revert_AprChangeOnClosedMarket() pure {
+  assembly {
+    mstore(0, 0xb9de88a2)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant MarketAlreadyClosed_ErrorSelector = 0x449e5f50;
+
+/// @dev Equivalent to `revert MarketAlreadyClosed()`
+function revert_MarketAlreadyClosed() pure {
+  assembly {
+    mstore(0, 0x449e5f50)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant NotApprovedBorrower_ErrorSelector = 0x02171e6a;
 
 /// @dev Equivalent to `revert NotApprovedBorrower()`
 function revert_NotApprovedBorrower() pure {
@@ -16,6 +50,8 @@ function revert_NotApprovedBorrower() pure {
   }
 }
 
+uint256 constant NotApprovedLender_ErrorSelector = 0xe50a45ce;
+
 /// @dev Equivalent to `revert NotApprovedLender()`
 function revert_NotApprovedLender() pure {
   assembly {
@@ -24,13 +60,7 @@ function revert_NotApprovedLender() pure {
   }
 }
 
-/// @dev Equivalent to `revert NotController()`
-function revert_NotController() pure {
-  assembly {
-    mstore(0, 0x23019e67)
-    revert(0x1c, 0x04)
-  }
-}
+uint256 constant BadLaunchCode_ErrorSelector = 0xa97ab167;
 
 /// @dev Equivalent to `revert BadLaunchCode()`
 function revert_BadLaunchCode() pure {
@@ -40,6 +70,8 @@ function revert_BadLaunchCode() pure {
   }
 }
 
+uint256 constant ReserveRatioBipsTooHigh_ErrorSelector = 0x8ec83073;
+
 /// @dev Equivalent to `revert ReserveRatioBipsTooHigh()`
 function revert_ReserveRatioBipsTooHigh() pure {
   assembly {
@@ -47,30 +79,23 @@ function revert_ReserveRatioBipsTooHigh() pure {
     revert(0x1c, 0x04)
   }
 }
+/* 
+code size: 25634
+initcode size: 28024
 
-/// @dev Equivalent to `revert InterestRateTooHigh()`
-function revert_InterestRateTooHigh() pure {
+errors: -48 runtime, -48 initcode
+*/
+uint256 constant AnnualInterestBipsTooHigh_ErrorSelector = 0xcf1f916f;
+
+/// @dev Equivalent to `revert ReserveRatioBipsTooHigh()`
+function revert_AnnualInterestBipsTooHigh() pure {
   assembly {
-    mstore(0, 0x40c2ffa4)
+    mstore(0, 0xcf1f916f)
     revert(0x1c, 0x04)
   }
 }
 
-/// @dev Equivalent to `revert InterestFeeTooHigh()`
-function revert_InterestFeeTooHigh() pure {
-  assembly {
-    mstore(0, 0x8e395cd1)
-    revert(0x1c, 0x04)
-  }
-}
-
-/// @dev Equivalent to `revert PenaltyFeeTooHigh()`
-function revert_PenaltyFeeTooHigh() pure {
-  assembly {
-    mstore(0, 0xfdc73e4c)
-    revert(0x1c, 0x04)
-  }
-}
+uint256 constant AccountBlocked_ErrorSelector = 0x6bc671fd;
 
 /// @dev Equivalent to `revert AccountBlocked()`
 function revert_AccountBlocked() pure {
@@ -80,21 +105,7 @@ function revert_AccountBlocked() pure {
   }
 }
 
-/// @dev Equivalent to `revert AccountNotBlocked()`
-function revert_AccountNotBlocked() pure {
-  assembly {
-    mstore(0, 0xe79042e6)
-    revert(0x1c, 0x04)
-  }
-}
-
-/// @dev Equivalent to `revert NotReversedOrStunning()`
-function revert_NotReversedOrStunning() pure {
-  assembly {
-    mstore(0, 0x3c57ebee)
-    revert(0x1c, 0x04)
-  }
-}
+uint256 constant BorrowAmountTooHigh_ErrorSelector = 0x119fe6e3;
 
 /// @dev Equivalent to `revert BorrowAmountTooHigh()`
 function revert_BorrowAmountTooHigh() pure {
@@ -104,13 +115,17 @@ function revert_BorrowAmountTooHigh() pure {
   }
 }
 
-/// @dev Equivalent to `revert FeeSetWithoutRecipient()`
-function revert_FeeSetWithoutRecipient() pure {
+uint256 constant BadRescueAsset_ErrorSelector = 0x11530cde;
+
+/// @dev Equivalent to `revert BadRescueAsset()`
+function revert_BadRescueAsset() pure {
   assembly {
-    mstore(0, 0x199c082f)
+    mstore(0, 0x11530cde)
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant InsufficientReservesForFeeWithdrawal_ErrorSelector = 0xf784cfa4;
 
 /// @dev Equivalent to `revert InsufficientReservesForFeeWithdrawal()`
 function revert_InsufficientReservesForFeeWithdrawal() pure {
@@ -120,6 +135,8 @@ function revert_InsufficientReservesForFeeWithdrawal() pure {
   }
 }
 
+uint256 constant WithdrawalBatchNotExpired_ErrorSelector = 0x2561b880;
+
 /// @dev Equivalent to `revert WithdrawalBatchNotExpired()`
 function revert_WithdrawalBatchNotExpired() pure {
   assembly {
@@ -127,6 +144,8 @@ function revert_WithdrawalBatchNotExpired() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant NullMintAmount_ErrorSelector = 0xe4aa5055;
 
 /// @dev Equivalent to `revert NullMintAmount()`
 function revert_NullMintAmount() pure {
@@ -136,6 +155,8 @@ function revert_NullMintAmount() pure {
   }
 }
 
+uint256 constant NullBurnAmount_ErrorSelector = 0xd61c50f8;
+
 /// @dev Equivalent to `revert NullBurnAmount()`
 function revert_NullBurnAmount() pure {
   assembly {
@@ -143,6 +164,8 @@ function revert_NullBurnAmount() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant NullFeeAmount_ErrorSelector = 0x45c835cb;
 
 /// @dev Equivalent to `revert NullFeeAmount()`
 function revert_NullFeeAmount() pure {
@@ -152,6 +175,8 @@ function revert_NullFeeAmount() pure {
   }
 }
 
+uint256 constant NullTransferAmount_ErrorSelector = 0xddee9b30;
+
 /// @dev Equivalent to `revert NullTransferAmount()`
 function revert_NullTransferAmount() pure {
   assembly {
@@ -159,6 +184,8 @@ function revert_NullTransferAmount() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant NullWithdrawalAmount_ErrorSelector = 0x186334fe;
 
 /// @dev Equivalent to `revert NullWithdrawalAmount()`
 function revert_NullWithdrawalAmount() pure {
@@ -168,6 +195,8 @@ function revert_NullWithdrawalAmount() pure {
   }
 }
 
+uint256 constant NullRepayAmount_ErrorSelector = 0x7e082088;
+
 /// @dev Equivalent to `revert NullRepayAmount()`
 function revert_NullRepayAmount() pure {
   assembly {
@@ -175,6 +204,8 @@ function revert_NullRepayAmount() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant DepositToClosedMarket_ErrorSelector = 0x22d7c043;
 
 /// @dev Equivalent to `revert DepositToClosedMarket()`
 function revert_DepositToClosedMarket() pure {
@@ -184,6 +215,8 @@ function revert_DepositToClosedMarket() pure {
   }
 }
 
+uint256 constant RepayToClosedMarket_ErrorSelector = 0x61d1bc8f;
+
 /// @dev Equivalent to `revert RepayToClosedMarket()`
 function revert_RepayToClosedMarket() pure {
   assembly {
@@ -191,6 +224,8 @@ function revert_RepayToClosedMarket() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant BorrowWhileSanctioned_ErrorSelector = 0x4a1c13a9;
 
 /// @dev Equivalent to `revert BorrowWhileSanctioned()`
 function revert_BorrowWhileSanctioned() pure {
@@ -200,6 +235,8 @@ function revert_BorrowWhileSanctioned() pure {
   }
 }
 
+uint256 constant BorrowFromClosedMarket_ErrorSelector = 0xd0242b28;
+
 /// @dev Equivalent to `revert BorrowFromClosedMarket()`
 function revert_BorrowFromClosedMarket() pure {
   assembly {
@@ -207,6 +244,8 @@ function revert_BorrowFromClosedMarket() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant CloseMarketWithUnpaidWithdrawals_ErrorSelector = 0x4d790997;
 
 /// @dev Equivalent to `revert CloseMarketWithUnpaidWithdrawals()`
 function revert_CloseMarketWithUnpaidWithdrawals() pure {
@@ -216,6 +255,8 @@ function revert_CloseMarketWithUnpaidWithdrawals() pure {
   }
 }
 
+uint256 constant InsufficientReservesForNewLiquidityRatio_ErrorSelector = 0x253ecbb9;
+
 /// @dev Equivalent to `revert InsufficientReservesForNewLiquidityRatio()`
 function revert_InsufficientReservesForNewLiquidityRatio() pure {
   assembly {
@@ -224,6 +265,8 @@ function revert_InsufficientReservesForNewLiquidityRatio() pure {
   }
 }
 
+uint256 constant InsufficientReservesForOldLiquidityRatio_ErrorSelector = 0x0a68e5bf;
+
 /// @dev Equivalent to `revert InsufficientReservesForOldLiquidityRatio()`
 function revert_InsufficientReservesForOldLiquidityRatio() pure {
   assembly {
@@ -231,6 +274,8 @@ function revert_InsufficientReservesForOldLiquidityRatio() pure {
     revert(0x1c, 0x04)
   }
 }
+
+uint256 constant InvalidArrayLength_ErrorSelector = 0x9d89020a;
 
 /// @dev Equivalent to `revert InvalidArrayLength()`
 function revert_InvalidArrayLength() pure {

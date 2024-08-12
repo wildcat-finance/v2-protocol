@@ -8,7 +8,7 @@ address constant bob = address(0xb0b);
 address constant feeRecipient = address(0xfee);
 address constant borrower = address(0xb04405e4);
 
-uint128 constant DefaultMaximumSupply = 100_000e18;
+uint128 constant DefaultMaximumSupply = type(uint104).max;
 uint16 constant DefaultInterest = 1000;
 uint16 constant DefaultDelinquencyFee = 1000;
 uint16 constant DefaultReserveRatio = 2000;

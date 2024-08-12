@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import { AuthRole } from '../interfaces/WildcatStructsAndEnums.sol';
 import './MathUtils.sol';
 import './SafeCastLib.sol';
 import './FeeMath.sol';
@@ -37,7 +36,6 @@ struct MarketState {
 }
 
 struct Account {
-  AuthRole approval;
   uint104 scaledBalance;
 }
 
