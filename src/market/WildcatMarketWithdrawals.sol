@@ -56,12 +56,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       revert_WithdrawalBatchNotExpired();
     }
     (, uint32 pendingBatchExpiry, WithdrawalBatch memory pendingBatch) = _calculateCurrentState();
-    WithdrawalBatch memory batch;
-    if (expiry == pendingBatchExpiry) {
-      batch = pendingBatch;
-    } else {
-      batch = _withdrawalData.batches[expiry];
-    }
+    WithdrawalBatch memory batch = expiry == pendingBatchExpiry
+      ? pendingBatch
+      : _withdrawalData.batches[expiry];
+
     AccountWithdrawalStatus memory status = _withdrawalData.accountStatuses[expiry][accountAddress];
     // Rounding errors will lead to some dust accumulating in the batch, but the cost of
     // executing a withdrawal will be lower for users.
