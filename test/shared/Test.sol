@@ -347,7 +347,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     });
     _expectMarketDeployedEvents(parameters, expectedMarket);
     market = WildcatMarket(
-      hooksFactory.deployMarket(deployInputs, parameters.deployMarketHooksData, salt)
+      hooksFactory.deployMarket(deployInputs, parameters.deployMarketHooksData, salt, address(0), 0)
     );
     assertTrue(
       archController.isRegisteredMarket(address(market)),
