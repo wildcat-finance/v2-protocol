@@ -23,6 +23,7 @@ struct HooksTemplate {
 }
 
 interface IHooksFactoryEventsAndErrors {
+  error FeeMismatch();
   error NotApprovedBorrower();
   error HooksTemplateNotFound();
   error HooksTemplateNotAvailable();
@@ -195,10 +196,14 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///      - Payment of origination fee fails.
   ///      - The deployment fails.
   ///      - The call to `onDeployMarket` fails.
+  ///      - `originationFeeAsset` does not match the hook template's
+  ///      - `originationFeeAmount` does not match the hook template's
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
-    bytes32 salt
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   ) external returns (address market);
 
   /// @dev Deploy a hooks instance for an approved template,then deploy a new market with that
@@ -209,7 +214,9 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     bytes calldata hooksConstructorArgs,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
-    bytes32 salt
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
   function computeMarketAddress(bytes32 salt) external view returns (address);

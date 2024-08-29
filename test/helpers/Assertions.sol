@@ -272,9 +272,9 @@ contract Assertions is StdAssertions {
       string.concat(key, '.isBlockedFromDeposits')
     );
     assertEq(
-      actual.hasEverDeposited,
-      expected.hasEverDeposited,
-      string.concat(key, '.hasEverDeposited')
+      actual.isKnownLender,
+      expected.isKnownLender,
+      string.concat(key, '.isKnownLender')
     );
     assertEq(actual.lastProvider, expected.lastProvider, string.concat(key, '.lastProvider'));
     assertEq(actual.canRefresh, expected.canRefresh, string.concat(key, '.canRefresh'));

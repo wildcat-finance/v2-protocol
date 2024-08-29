@@ -11,6 +11,12 @@ import './MarketConstraintHooks.sol';
 using BoolUtils for bool;
 using MathUtils for uint256;
 
+struct HookedMarket {
+  bool isHooked;
+  bool transferRequiresAccess;
+  bool depositRequiresAccess;
+}
+
 /**
  * @title AccessControlHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
@@ -18,8 +24,9 @@ using MathUtils for uint256;
  *      which are manually approved by the borrower.
  *
  *      Withdrawals are restricted in the same way for users that have not
- *      made a deposit, while users who have made a deposit at any point
- *      remain approved even if they are later removed.
+ *      made a deposit, while users who have made a deposit at any point (or
+ *      received market tokens while having deposit access) will always remain
+ *      approved, even if their access is later revoked.
  *
  *      Deposit access may be canceled by the borrower.
  */
@@ -82,7 +89,7 @@ contract AccessControlHooks is MarketConstraintHooks {
 
   HooksDeploymentConfig public immutable override config;
 
-  mapping(address => bool) public hookedMarkets;
+  mapping(address => HookedMarket) internal _hookedMarkets;
 
   // ========================================================================== //
   //                                  Modifiers                                 //
@@ -115,7 +122,7 @@ contract AccessControlHooks is MarketConstraintHooks {
       hooksAddress: address(0),
       useOnDeposit: true,
       useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: true,
+      useOnExecuteWithdrawal: false,
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
@@ -145,11 +152,28 @@ contract AccessControlHooks is MarketConstraintHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal override {
-    if (deployer != borrower) revert CallerNotBorrower();
+  ) internal override returns (HooksConfig marketHooksConfig) {
     // Validate the deploy parameters
     super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
-    hookedMarkets[address(marketAddress)] = true;
+    if (deployer != borrower) revert CallerNotBorrower();
+    marketHooksConfig = parameters.hooks;
+    // Use the deposit and transfer flags to determine whether those require
+    // access control. These are tracked separately because if the market
+    // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
+    // enabled, but may not require access control.
+    HookedMarket memory hookedMarket = HookedMarket({
+      isHooked: true,
+      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
+      depositRequiresAccess: marketHooksConfig.useOnDeposit()
+    });
+
+    if (marketHooksConfig.useOnQueueWithdrawal()) {
+      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
+        Bit_Enabled_Deposit
+      );
+    }
+    marketHooksConfig = marketHooksConfig.mergeFlags(config);
+    _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
 
   // ========================================================================== //
@@ -241,6 +265,14 @@ contract AccessControlHooks is MarketConstraintHooks {
 
   function getPullProviders() external view returns (RoleProvider[] memory) {
     return _pullProviders;
+  }
+
+  // ========================================================================== //
+  //                               Market Queries                               //
+  // ========================================================================== //
+
+  function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
+    return _hookedMarkets[marketAddress];
   }
 
   // ========================================================================== //
@@ -642,8 +674,22 @@ contract AccessControlHooks is MarketConstraintHooks {
   ) internal returns (bool hasValidCredential) {
     bool wasUpdated;
     (hasValidCredential, wasUpdated) = _tryValidateAccessInner(status, accountAddress, hooksData);
+    _writeLenderStatus(status, accountAddress, hasValidCredential, wasUpdated, false);
+  }
+
+  /**
+   * @dev Updates a lender's status in storage and emits an event when a
+   *      credential is granted or revoked, or when the lender is marked
+   *      as a known lender.
+   */
+  function _writeLenderStatus(
+    LenderStatus memory status,
+    address accountAddress,
+    bool hasValidCredential,
+    bool wasUpdated,
+    bool canSetKnownLender
+  ) internal {
     if (wasUpdated) {
-      _lenderStatus[accountAddress] = status;
       if (hasValidCredential) {
         emit AccountAccessGranted(
           status.lastProvider,
@@ -654,6 +700,16 @@ contract AccessControlHooks is MarketConstraintHooks {
         emit AccountAccessRevoked(accountAddress);
       }
     }
+    // Mark account as a known lender if they have a valid credential, are not
+    // already known, and the function counts as a deposit.
+    if (canSetKnownLender.and(hasValidCredential).and(!status.isKnownLender)) {
+      status.isKnownLender = true;
+      emit AccountMadeFirstDeposit(accountAddress);
+      wasUpdated = true;
+    }
+
+    // Write the account's status to storage if it was updated
+    if (wasUpdated) _lenderStatus[accountAddress] = status;
   }
 
   function _setCredentialAndEmitAccessGranted(
@@ -684,15 +740,14 @@ contract AccessControlHooks is MarketConstraintHooks {
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {
-    if (!hookedMarkets[msg.sender]) {
-      revert NotHookedMarket();
-    }
+    HookedMarket memory market = _hookedMarkets[msg.sender];
+    if (!market.isHooked) revert NotHookedMarket();
+
     // Retrieve the lender's status from storage
     LenderStatus memory status = _lenderStatus[lender];
+
     // Check that the lender is not blocked
-    if (status.isBlockedFromDeposits) {
-      revert NotApprovedLender();
-    }
+    if (status.isBlockedFromDeposits) revert NotApprovedLender();
 
     // Attempt to validate the lender's access
     // Uses the inner method here as storage may need to be updated if this
@@ -702,33 +757,19 @@ contract AccessControlHooks is MarketConstraintHooks {
       lender,
       hooksData
     );
-    if (!hasValidCredential) {
+
+    if (market.depositRequiresAccess.and(!hasValidCredential)) {
       revert NotApprovedLender();
     }
 
-    bool depositStatusUpdated = !status.hasEverDeposited;
-
-    // If the lender has never deposited before, emit an event
-    if (depositStatusUpdated) {
-      emit AccountMadeFirstDeposit(lender);
-      status.hasEverDeposited = true;
-    }
-
-    // If the lender's role was updated, emit an event
-    if (roleUpdated) {
-      emit AccountAccessGranted(status.lastProvider, lender, status.lastApprovalTimestamp);
-    }
-
-    // Update the lender's status in storage if role or deposit status was updated
-    if (depositStatusUpdated.or(roleUpdated)) {
-      _lenderStatus[lender] = status;
-    }
+    _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
   }
 
   /**
    * @dev Called when a lender attempts to queue a withdrawal.
-   *      Passes the check if the lender has deposited before or has a valid credential
-   *      from an approved role provider.
+   *      Passes the check if the lender has previously deposited or received
+   *      market tokens while having the ability to deposit, or currently has a
+   *      valid credential from an approved role provider.
    */
   function onQueueWithdrawal(
     address lender,
@@ -738,7 +779,7 @@ contract AccessControlHooks is MarketConstraintHooks {
     bytes calldata hooksData
   ) external override {
     LenderStatus memory status = _lenderStatus[lender];
-    if (!status.hasEverDeposited && !_tryValidateAccess(status, lender, hooksData)) {
+    if (!status.isKnownLender && !_tryValidateAccess(status, lender, hooksData)) {
       revert NotApprovedLender();
     }
   }
@@ -754,9 +795,17 @@ contract AccessControlHooks is MarketConstraintHooks {
   ) external override {}
 
   /**
-   * @dev Called when a lender attempts to transfer market tokens.
-   *      Passes the check if the recipient is not blocked from deposits
-   *      and has a valid credential from an approved role provider.
+   * @dev Called when a lender attempts to transfer market tokens on a market
+   *      that requires credentials for either transfers or withdrawals.
+   *
+   *      Allows the transfer if the recipient:
+   *      - is a known lender OR
+   *      - is not blocked AND
+   *        - has a valid credential OR
+   *        - market does not require a credential for transfers
+   *
+   *    If the recipient is not a known lender but does have a valid
+   *    credential, they will be marked as a known lender.
    */
   function onTransfer(
     address /* caller */,
@@ -766,14 +815,28 @@ contract AccessControlHooks is MarketConstraintHooks {
     MarketState calldata /* state */,
     bytes calldata extraData
   ) external override {
+    HookedMarket memory market = _hookedMarkets[msg.sender];
+
+    if (!market.isHooked) revert NotHookedMarket();
+
     LenderStatus memory toStatus = _lenderStatus[to];
-    if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
-    // Attempt to validate the recipient's access
-    // Uses the inner method here as storage may need to be updated if this
-    // is their first deposit
-    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(toStatus, to, extraData);
-    if (!hasValidCredential) {
-      revert NotApprovedLender();
+
+    // If the recipient is a known lender, skip access control checks.
+    if (!toStatus.isKnownLender) {
+      // Respect `isBlockedFromDeposits` only if the recipient is not a known lender
+      if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
+
+      // Attempt to validate the lender's access even if the market does not require
+      // a credential for transfers, as the recipient may need to be updated to reflect
+      // their new status as a known lender.
+      (bool hasValidCredential, bool wasUpdated) = _tryValidateAccessInner(toStatus, to, extraData);
+
+      // Revert if the recipient does not have a valid credential and the market requires one
+      if (market.transferRequiresAccess.and(!hasValidCredential)) {
+        revert NotApprovedLender();
+      }
+
+      _writeLenderStatus(toStatus, to, hasValidCredential, wasUpdated, true);
     }
   }
 

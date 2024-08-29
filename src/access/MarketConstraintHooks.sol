@@ -139,7 +139,7 @@ abstract contract MarketConstraintHooks is IHooks {
     address /* marketAddress */,
     DeployMarketInputs calldata parameters,
     bytes calldata /* extraData */
-  ) internal virtual override {
+  ) internal virtual override returns (HooksConfig) {
     enforceParameterConstraints(
       parameters.annualInterestBips,
       parameters.delinquencyFeeBips,

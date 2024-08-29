@@ -141,10 +141,11 @@ contract MockHooks is IHooks {
     address _marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
-  ) internal virtual override {
+  ) internal virtual override returns (HooksConfig) {
     lastDeployer = _deployer;
     _lastDeployMarketInputs = parameters;
     lastCreateMarketHooksData = extraData;
+    return parameters.hooks.mergeFlags(config);
   }
 
   function onDeposit(

@@ -27,9 +27,9 @@ abstract contract IHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
-  ) external {
+  ) external returns (HooksConfig) {
     if (msg.sender != factory) revert CallerNotFactory();
-    _onCreateMarket(deployer, marketAddress, parameters, extraData);
+    return _onCreateMarket(deployer, marketAddress, parameters, extraData);
   }
 
   function _onCreateMarket(
@@ -37,7 +37,7 @@ abstract contract IHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
-  ) internal virtual;
+  ) internal virtual returns (HooksConfig);
 
   function onDeposit(
     address lender,

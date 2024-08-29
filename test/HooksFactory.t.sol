@@ -560,9 +560,14 @@ contract HooksFactoryTest is Test, Assertions {
     MockHooks hooksInstance = MockHooks(parameters.hooks.hooksAddress());
     // Check that the hooks instance received the correct data in `onCreateMarket`
     // Update parameter.hooks for assertEq on the parameters object
-    parameters.hooks = marketConfig;
+
     assertEq(hooksInstance.lastDeployer(), address(this), 'onCreateMarket: deployer');
-    assertEq(hooksInstance.lastDeployMarketInputs(), parameters, 'onCreateMarket: parameters');
+    assertEq(
+      hooksInstance.lastDeployMarketInputs(),
+      parameters,
+      'onCreateMarket: input parameters'
+    );
+    parameters.hooks = marketConfig;
     assertEq(
       hooksInstance.lastCreateMarketHooksData(),
       hooksData,
@@ -612,7 +617,15 @@ contract HooksFactoryTest is Test, Assertions {
       feesInput,
       marketHooksConfig.mergeFlags(templateHooksConfig).toHooksConfig()
     );
-    market = WildcatMarket(hooksFactory.deployMarket(parameters, hooksData, bytes32(uint(1))));
+    market = WildcatMarket(
+      hooksFactory.deployMarket(
+        parameters,
+        hooksData,
+        bytes32(uint(1)),
+        feesInput.originationFeeAsset,
+        feesInput.originationFeeAmount
+      )
+    );
     _validateDeployedMarket(
       market,
       parameters,
@@ -685,21 +698,25 @@ contract HooksFactoryTest is Test, Assertions {
       hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
     });
     vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
-    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
     parameters.namePrefix = '';
     parameters.symbolPrefix = tooLongSymbolPrefix;
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
-    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
 
     uint maxNamePrefixLength = 63 - bytes(underlying.name()).length;
     uint maxSymbolPrefixLength = 63 - bytes(underlying.symbol()).length;
     parameters.namePrefix = tooLongNamePrefix.slice(0, maxNamePrefixLength);
     parameters.symbolPrefix = tooLongSymbolPrefix.slice(0, maxSymbolPrefixLength);
     WildcatMarket market = WildcatMarket(
-      hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)))
+      hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0)
     );
-    assertEq(market.name(), string(bytes.concat(bytes(parameters.namePrefix), bytes( underlying.name()))), 'name');
+    assertEq(
+      market.name(),
+      string(bytes.concat(bytes(parameters.namePrefix), bytes(underlying.name()))),
+      'name'
+    );
     assertEq(
       market.symbol(),
       string.concat(parameters.symbolPrefix, underlying.symbol()),
@@ -729,10 +746,10 @@ contract HooksFactoryTest is Test, Assertions {
       delinquencyGracePeriod: 10000,
       hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
     });
-    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.MarketAlreadyExists.selector);
-    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
   }
 
   function test_deployMarket_AssetBlacklisted() external {
@@ -759,20 +776,20 @@ contract HooksFactoryTest is Test, Assertions {
     });
     archController.addBlacklist(parameters.asset);
     vm.expectRevert(IHooksFactoryEventsAndErrors.AssetBlacklisted.selector);
-    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)));
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
   }
 
   function test_deployMarket_NotApprovedBorrower() external {
     DeployMarketInputs memory parameters;
     vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
-    hooksFactory.deployMarket(parameters, '', bytes32(uint(1)));
+    hooksFactory.deployMarket(parameters, '', bytes32(uint(1)), address(0), 0);
   }
 
   function test_deployMarket_HooksInstanceNotFound() external {
     archController.registerBorrower(address(this));
     DeployMarketInputs memory parameters;
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksInstanceNotFound.selector);
-    hooksFactory.deployMarket(parameters, '', bytes32(uint(1)));
+    hooksFactory.deployMarket(parameters, '', bytes32(uint(1)), address(0), 0);
   }
 
   function test_deployMarket_SaltDoesNotContainSender(
@@ -804,7 +821,13 @@ contract HooksFactoryTest is Test, Assertions {
     });
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
-    hooksFactory.deployMarket(parameters, '', keccak256('test'));
+    hooksFactory.deployMarket(
+      parameters,
+      '',
+      keccak256('test'),
+      feesInput.originationFeeAsset,
+      feesInput.originationFeeAmount
+    );
   }
 
   function test_deployMarketAndHooks(
@@ -849,7 +872,9 @@ contract HooksFactoryTest is Test, Assertions {
         context.constructorArgs,
         context.parameters,
         context.createMarketHooksData,
-        bytes32(uint(1))
+        bytes32(uint(1)),
+        feesInput.originationFeeAsset,
+        feesInput.originationFeeAmount
       );
       _validateDeployedMarket(
         WildcatMarket(context.marketAddress),
@@ -906,7 +931,9 @@ contract HooksFactoryTest is Test, Assertions {
       context.constructorArgs,
       context.parameters,
       context.createMarketHooksData,
-      bytes32(uint(1))
+      bytes32(uint(1)),
+      feesInput.originationFeeAsset,
+      feesInput.originationFeeAmount
     );
   }
 
@@ -928,7 +955,72 @@ contract HooksFactoryTest is Test, Assertions {
       hooks: EmptyHooksConfig
     });
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
-    hooksFactory.deployMarketAndHooks(address(0), '', parameters, '', bytes32(uint(1)));
+    hooksFactory.deployMarketAndHooks(
+      address(0),
+      '',
+      parameters,
+      '',
+      bytes32(uint(1)),
+      address(0),
+      0
+    );
+  }
+
+  function test_deployMarketAndHooks_FeeMismatch(
+    FuzzDeployMarketInputs memory paramsInput,
+    FuzzFeeConfigurationInputs memory feesInput
+  ) external constrain(feesInput) {
+    hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooksWithConfig).creationCode);
+    archController.registerBorrower(address(this));
+    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+
+    CreateMarketAndHooksContext memory context;
+    context.expectedHooksInstance = _setUpDeployHooksInstance(hooksTemplate);
+    _setUpDeployMarket(feesInput);
+
+    paramsInput.marketHooksConfig.hooksAddress = context.expectedHooksInstance;
+    context.expectedConfig = paramsInput
+      .marketHooksConfig
+      .mergeFlags(paramsInput.templateHooksConfig)
+      .toHooksConfig();
+
+    context.constructorArgs = abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig());
+    context.createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+
+    context.parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: paramsInput.maxTotalSupply,
+      annualInterestBips: paramsInput.annualInterestBips,
+      delinquencyFeeBips: paramsInput.delinquencyFeeBips,
+      withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
+      reserveRatioBips: paramsInput.reserveRatioBips,
+      delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      hooks: paramsInput.marketHooksConfig.toHooksConfig()
+    });
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
+
+    hooksFactory.deployMarketAndHooks(
+      hooksTemplate,
+      context.constructorArgs,
+      context.parameters,
+      context.createMarketHooksData,
+      bytes32(uint(1)),
+      feesInput.useOriginationFeeAsset ? address(0) : address(1),
+      feesInput.originationFeeAmount
+    );
+    vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
+    hooksFactory.deployMarketAndHooks(
+      hooksTemplate,
+      context.constructorArgs,
+      context.parameters,
+      context.createMarketHooksData,
+      bytes32(uint(1)),
+      feesInput.originationFeeAsset,
+      feesInput.originationFeeAmount > 0 ? 0 : 1
+    );
   }
 
   struct CreateMarketAndHooksContext {

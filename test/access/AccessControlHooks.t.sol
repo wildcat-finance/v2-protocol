@@ -50,6 +50,37 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     hooks.onCreateMarket(address(1), address(1), inputs, '');
   }
 
+  function _getIsKnownLenderStatus(AccessControlHooksFuzzContext memory context) internal {
+    hooks.setIsKnownLender(context.account, true);
+  }
+
+  function test_onCreateMarket_ForceEnableDepositTransferHooks() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, '');
+    HooksConfig expectedConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: true,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true
+    });
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(config, expectedConfig, 'config');
+    assertEq(market.isHooked, true, 'isHooked');
+    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+  }
+
   function test_version() external {
     assertEq(hooks.version(), 'SingleBorrowerAccessControlHooks');
   }
@@ -60,7 +91,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       hooksAddress: address(0),
       useOnDeposit: true,
       useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: true,
+      useOnExecuteWithdrawal: false,
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
@@ -478,7 +509,9 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       mockProvider1,
       mockProvider2,
       address(50),
-      FunctionKind.HooksFunction
+      FunctionKind.HooksFunction,
+      _getIsKnownLenderStatus,
+      0
     );
     context.registerExpectations(true);
     if (context.expectations.expectedError != 0) {
@@ -501,7 +534,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       // LenderStatus memory _status = hooks.getLenderStatus(context.account);
       // assertEq(status.isBlockedFromDeposits, context.expectations.isBlockedFromDeposits, 'isBlockedFromDeposits');
       // bool isBlockedFromDeposits;
-      // bool hasEverDeposited;
+      // bool isKnownLender;
       // address lastProvider;
       // bool canRefresh;
       // uint32 lastApprovalTimestamp;
