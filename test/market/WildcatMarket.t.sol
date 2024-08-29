@@ -437,15 +437,13 @@ contract WildcatMarketTest is BaseMarketTest {
   /// @dev Helper for fuzz tests to acquire `isKnownLender` while keeping the expected
   //       market state up-to-date. Fuzz library will handle acquiring permission to
   //       execute a deposit if it is required.
-  function _getKnownLenderStatus(
-    AccessControlHooksFuzzContext memory context
-  ) internal {
+  function _getKnownLenderStatus(AccessControlHooksFuzzContext memory context) internal {
     MarketState memory state = _toMarketState(context.getKnownLenderInputParameter);
     uint amount = 1e18;
     address depositor = context.config.useOnDeposit
       ? context.account
       : (context.account == alice ? bob : alice);
-      safeStartPrank(depositor);
+    safeStartPrank(depositor);
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, depositor);
     asset.mint(depositor, amount);
     asset.approve(address(market), amount);
@@ -489,6 +487,7 @@ contract WildcatMarketTest is BaseMarketTest {
     MarketState memory state = pendingState();
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
+      address(market),
       hooks,
       roleProvider1,
       roleProvider2,
@@ -578,6 +577,7 @@ contract WildcatMarketTest is BaseMarketTest {
     market.transfer(carol, amount);
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
+      address(market),
       hooks,
       roleProvider1,
       roleProvider2,
@@ -708,7 +708,7 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.prank(alice);
     market.transfer(bob, 0.5e18);
     LenderStatus memory status = hooks.getPreviousLenderStatus(bob);
-    assertTrue(status.isKnownLender, 'bob.isKnownLender');
+    assertTrue(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob.isKnownLender');
   }
 
   function test_transfer_ToBlockedKnownLender() external {
@@ -717,7 +717,7 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.prank(alice);
     market.transfer(bob, 0.5e18);
     LenderStatus memory status = hooks.getPreviousLenderStatus(bob);
-    assertTrue(status.isKnownLender, 'bob.isKnownLender');
+    assertTrue(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob.isKnownLender');
     _blockLender(bob);
     vm.prank(alice);
     market.transfer(bob, 0.5e18);

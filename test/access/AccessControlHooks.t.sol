@@ -51,7 +51,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function _getIsKnownLenderStatus(AccessControlHooksFuzzContext memory context) internal {
-    hooks.setIsKnownLender(context.account, true);
+    hooks.setIsKnownLender(context.account, context.market, true);
   }
 
   function test_onCreateMarket_ForceEnableDepositTransferHooks() external {
@@ -507,6 +507,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   ) external {
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
+      address(1),
       hooks,
       mockProvider1,
       mockProvider2,
