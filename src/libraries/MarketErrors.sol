@@ -79,6 +79,7 @@ function revert_ReserveRatioBipsTooHigh() pure {
     revert(0x1c, 0x04)
   }
 }
+
 /* 
 code size: 25634
 initcode size: 28024
@@ -281,6 +282,45 @@ uint256 constant InvalidArrayLength_ErrorSelector = 0x9d89020a;
 function revert_InvalidArrayLength() pure {
   assembly {
     mstore(0, 0x9d89020a)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant ProtocolFeeTooHigh_ErrorSelector = 0x499fddb1;
+
+/// @dev Equivalent to `revert ProtocolFeeTooHigh()`
+function revert_ProtocolFeeTooHigh() pure {
+  assembly {
+    mstore(0, 0x499fddb1)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant ProtocolFeeChangeOnClosedMarket_ErrorSelector = 0x37f1a75f;
+
+/// @dev Equivalent to `revert ProtocolFeeChangeOnClosedMarket()`
+function revert_ProtocolFeeChangeOnClosedMarket() pure {
+  assembly {
+    mstore(0, 0x37f1a75f)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant ProtocolFeeNotChanged_ErrorSelector = 0xe0cf78fc;
+
+/// @dev Equivalent to `revert ProtocolFeeNotChanged()`
+function revert_ProtocolFeeNotChanged() pure {
+  assembly {
+    mstore(0, 0xe0cf78fc)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant NotFactory_ErrorSelector = 0x32cc7236;
+
+function revert_NotFactory() pure {
+  assembly {
+    mstore(0, 0x32cc7236)
     revert(0x1c, 0x04)
   }
 }

@@ -773,6 +773,56 @@ library LibHooksConfig {
   }
 
   // ========================================================================== //
+  //                     Hook for protocol fee bips updated                     //
+  // ========================================================================== //
+
+  uint256 internal constant SetProtocolFeeBipsCalldataSize = 0x24;
+  // Size of protocolFeeBips + state + extraData.offset + extraData.length
+  uint256 internal constant SetProtocolFeeBips_Base_Size = 0x0224;
+  uint256 internal constant SetProtocolFeeBips_State_Offset = 0x20;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_Head_Offset = 0x01e0;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_Length_Offset = 0x0200;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset = 0x0220;
+
+  function onSetProtocolFeeBips(HooksConfig self, uint protocolFeeBips, MarketState memory state) internal {
+    address target = self.hooksAddress();
+    uint32 onSetProtocolFeeBipsSelector = uint32(IHooks.onSetProtocolFeeBips.selector);
+    if (self.useOnSetProtocolFeeBips()) {
+      assembly {
+        let extraCalldataBytes := sub(calldatasize(), SetProtocolFeeBipsCalldataSize)
+        let cdPointer := mload(0x40)
+        let headPointer := add(cdPointer, 0x20)
+        // Write selector for `onSetProtocolFeeBips`
+        mstore(cdPointer, onSetProtocolFeeBipsSelector)
+        // Write `protocolFeeBips` to hook calldata
+        mstore(headPointer, protocolFeeBips)
+        // Copy market state to hook calldata
+        mcopy(add(headPointer, SetProtocolFeeBips_State_Offset), state, MarketStateSize)
+        // Write bytes offset for `extraData`
+        mstore(
+          add(headPointer, SetProtocolFeeBips_ExtraData_Head_Offset),
+          SetProtocolFeeBips_ExtraData_Length_Offset
+        )
+        // Write length for `extraData`
+        mstore(add(headPointer, SetProtocolFeeBips_ExtraData_Length_Offset), extraCalldataBytes)
+        // Copy `extraData` from end of calldata to hook calldata
+        calldatacopy(
+          add(headPointer, SetProtocolFeeBips_ExtraData_TailOffset),
+          SetProtocolFeeBipsCalldataSize,
+          extraCalldataBytes
+        )
+
+        let size := add(SetProtocolFeeBips_Base_Size, extraCalldataBytes)
+
+        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
+          returndatacopy(0, 0, returndatasize())
+          revert(0, returndatasize())
+        }
+      }
+    }
+  }
+
+  // ========================================================================== //
   //                       Hook for assets sent to escrow                       //
   // ========================================================================== //
 

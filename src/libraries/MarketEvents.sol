@@ -34,6 +34,13 @@ function emit_MaxTotalSupplyUpdated(uint256 assets) {
   }
 }
 
+function emit_ProtocolFeeBipsUpdated(uint256 protocolFeeBips) {
+  assembly {
+    mstore(0, protocolFeeBips)
+    log1(0, 0x20, 0x4b34705283cdb9398d0e50b216b8fb424c6d4def5db9bfadc661ee3adc6076ee)
+  }
+}
+
 function emit_AnnualInterestBipsUpdated(uint256 annualInterestBipsUpdated) {
   assembly {
     mstore(0, annualInterestBipsUpdated)
