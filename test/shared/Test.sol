@@ -56,6 +56,8 @@ contract Test is ForgeTest, Prankster, Assertions {
   address internal SphereXEngine;
   uint internal numDeployedMarkets;
   uint internal roleProviderSignerPrivateKey;
+  bool depositRequiresAccess;
+  bool transferRequiresAccess;
 
   function _nextSalt(address borrower) internal returns (bytes32 salt) {
     return bytes32((uint256(uint160(borrower)) << 96) | numDeployedMarkets++);
@@ -297,6 +299,15 @@ contract Test is ForgeTest, Prankster, Assertions {
       parameters.symbolPrefix,
       IERC20(parameters.asset).symbol()
     );
+    HooksConfig expectedConfig = parameters.hooksConfig;
+    if (
+      keccak256(bytes(IHooks(expectedConfig.hooksAddress()).version())) ==
+      keccak256('SingleBorrowerAccessControlHooks')
+    ) {
+      if (expectedConfig.useOnQueueWithdrawal()) {
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
+      }
+    }
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.MarketDeployed(
       expectedMarket,
@@ -309,7 +320,7 @@ contract Test is ForgeTest, Prankster, Assertions {
       parameters.withdrawalBatchDuration,
       parameters.reserveRatioBips,
       parameters.delinquencyGracePeriod,
-      parameters.hooksConfig
+      expectedConfig
     );
   }
 
@@ -348,8 +359,19 @@ contract Test is ForgeTest, Prankster, Assertions {
   }
 
   function validateMarketConfiguration(MarketInputParameters memory parameters) internal {
+    HooksConfig expectedConfig = parameters.hooksConfig;
+    if (
+      keccak256(bytes(IHooks(expectedConfig.hooksAddress()).version())) ==
+      keccak256('SingleBorrowerAccessControlHooks')
+    ) {
+      depositRequiresAccess = expectedConfig.useOnDeposit();
+      transferRequiresAccess = expectedConfig.useOnTransfer();
+      if (expectedConfig.useOnQueueWithdrawal()) {
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
+      }
+    }
     assertEq(market.asset(), parameters.asset, 'asset');
-    assertEq(market.hooks(), parameters.hooksConfig, 'hooks');
+    assertEq(market.hooks(), expectedConfig, 'hooks');
     assertEq(market.maxTotalSupply(), parameters.maxTotalSupply, 'maxTotalSupply');
     assertEq(market.annualInterestBips(), parameters.annualInterestBips, 'annualInterestBips');
     assertEq(market.reserveRatioBips(), parameters.reserveRatioBips, 'reserveRatioBips');
@@ -384,7 +406,16 @@ contract Test is ForgeTest, Prankster, Assertions {
       keccak256(bytes(IHooks(hooksAddress).version())) ==
       keccak256('SingleBorrowerAccessControlHooks')
     ) {
-      assertTrue(AccessControlHooks(hooksAddress).hookedMarkets(address(market)), 'hookedMarkets');
+      HookedMarket memory hookedMarket = AccessControlHooks(hooksAddress).getHookedMarket(
+        address(market)
+      );
+      assertTrue(hookedMarket.isHooked, 'getHookedMarket');
+      assertEq(
+        hookedMarket.transferRequiresAccess,
+        transferRequiresAccess,
+        'transferRequiresAccess'
+      );
+      assertEq(hookedMarket.depositRequiresAccess, depositRequiresAccess, 'depositRequiresAccess');
     }
   }
 

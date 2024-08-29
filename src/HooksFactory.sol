@@ -45,6 +45,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   uint256 public immutable override marketInitCodeHash;
 
   address public immutable override sanctionsSentinel;
+
   address[] internal _hooksTemplates;
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
   mapping(address hooksInstance => address hooksTemplate)
@@ -360,11 +361,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       );
     }
 
-    parameters.hooks = parameters.hooks.mergeFlags(IHooks(hooksInstance).config());
-
     market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
 
-    IHooks(hooksInstance).onCreateMarket(msg.sender, market, parameters, hooksData);
+    parameters.hooks = IHooks(hooksInstance).onCreateMarket(msg.sender, market, parameters, hooksData);
     uint8 decimals = parameters.asset.decimals();
 
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());

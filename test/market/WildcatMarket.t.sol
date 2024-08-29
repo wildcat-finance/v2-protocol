@@ -419,19 +419,83 @@ contract WildcatMarketTest is BaseMarketTest {
   //                            Credentials Provider                            //
   // ========================================================================== //
 
+  function _toPointer(MarketState memory state) internal pure returns (uint256 pointer) {
+    assembly {
+      pointer := state
+    }
+  }
+
+  function _toMarketState(uint256 pointer) internal pure returns (MarketState memory state) {
+    // note: don't do this - the declaration of `MarketState` as a return param is VERY wasteful
+    // casting function types is far more efficient than casting their outputs/inputs to structs
+    // it just doesn't matter here because it's for a test
+    assembly {
+      state := pointer
+    }
+  }
+
+  /// @dev Helper for fuzz tests to acquire `isKnownLender` while keeping the expected
+  //       market state up-to-date. Fuzz library will handle acquiring permission to
+  //       execute a deposit if it is required.
+  function _getKnownLenderStatus(
+    AccessControlHooksFuzzContext memory context
+  ) internal {
+    MarketState memory state = _toMarketState(context.getKnownLenderInputParameter);
+    uint amount = 1e18;
+    address depositor = context.config.useOnDeposit
+      ? context.account
+      : (context.account == alice ? bob : alice);
+      safeStartPrank(depositor);
+    (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, depositor);
+    asset.mint(depositor, amount);
+    asset.approve(address(market), amount);
+    (uint104 scaledAmount, uint256 expectedNormalizedAmount) = _trackDeposit(
+      state,
+      depositor,
+      amount
+    );
+    uint256 actualNormalizedAmount = market.depositUpTo(amount);
+    assertEq(actualNormalizedAmount, expectedNormalizedAmount, 'Actual amount deposited');
+    _checkState(state);
+    assertEq(market.balanceOf(depositor), currentBalance + amount);
+    assertEq(market.scaledBalanceOf(depositor), currentScaledBalance + scaledAmount);
+    if (!context.config.useOnDeposit) {
+      _getAccount(depositor).scaledBalance -= uint104(amount);
+      _getAccount(context.account).scaledBalance += uint104(amount);
+      market.transfer(context.account, amount);
+    }
+    safeStopPrank();
+  }
+
   function test_depositUpTo_FuzzAccess(AccessControlHooksFuzzInputs memory fuzzInputs) external {
+    parameters.hooksConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: fuzzInputs.configInputs.useOnDeposit,
+      useOnQueueWithdrawal: fuzzInputs.configInputs.useOnQueueWithdrawal,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: fuzzInputs.configInputs.useOnTransfer,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true
+    });
+
+    setUpContracts(false);
     address carol = address(0xca701);
+    uint amount = 10e18;
+    MarketState memory state = pendingState();
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
       hooks,
       roleProvider1,
       roleProvider2,
       carol,
-      FunctionKind.DepositFunction
+      FunctionKind.DepositFunction,
+      _getKnownLenderStatus,
+      _toPointer(state)
     );
-
-    uint amount = 10e18;
-    MarketState memory state = pendingState();
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, carol);
     asset.mint(carol, amount);
     vm.prank(carol);
@@ -465,7 +529,11 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function castRegisterExpectationsAndInput(
     AccessControlHooksFuzzContext memory context
-  ) internal pure returns (function(uint, bool) internal castRegisterExpectations, uint contextPointer) {
+  )
+    internal
+    pure
+    returns (function(uint, bool) internal castRegisterExpectations, uint contextPointer)
+  {
     function(AccessControlHooksFuzzContext memory, bool)
       internal realFn = LibAccessControlHooksFuzzContext.registerExpectations;
     assembly {
@@ -477,15 +545,23 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_queueWithdrawal_FuzzAccess(
     AccessControlHooksFuzzInputs memory fuzzInputs
   ) external {
+    fuzzInputs.configInputs.useOnTransfer = false;
+    parameters.hooksConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: fuzzInputs.configInputs.useOnDeposit,
+      useOnQueueWithdrawal: fuzzInputs.configInputs.useOnQueueWithdrawal,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: fuzzInputs.configInputs.useOnTransfer,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true
+    });
+
+    setUpContracts(false);
     address carol = address(0xca701);
-    AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
-      fuzzInputs,
-      hooks,
-      roleProvider1,
-      roleProvider2,
-      carol,
-      FunctionKind.MarketFunction
-    );
 
     uint amount = 1e18;
     _deposit(alice, amount);
@@ -498,6 +574,16 @@ contract WildcatMarketTest is BaseMarketTest {
     _carol.scaledBalance += scaledAmount;
     vm.prank(alice);
     market.transfer(carol, amount);
+    AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
+      fuzzInputs,
+      hooks,
+      roleProvider1,
+      roleProvider2,
+      carol,
+      FunctionKind.QueueWithdrawal,
+      _getKnownLenderStatus,
+      _toPointer(state)
+    );
     bytes memory data = abi.encodePacked(
       abi.encodeWithSelector(market.queueWithdrawal.selector, amount),
       context.hooksData
@@ -523,7 +609,11 @@ contract WildcatMarketTest is BaseMarketTest {
     // Check both because expectRevert will change success to true if it reverts
     if (success && context.expectations.expectedError == bytes4(0)) {
       _checkState();
-      assertEq(market.balanceOf(carol), 0, 'carol balance');
+      assertEq(
+        market.balanceOf(carol),
+        state.normalizeAmount(_carol.scaledBalance),
+        'carol balance'
+      );
     }
     context.validate();
   }
@@ -608,5 +698,27 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.expectEmit(address(token));
     emit IERC20.Transfer(address(market), borrower, 1e18);
     market.rescueTokens(address(token));
+  }
+
+  function test_transfer_GrantsKnownLender() external {
+    _deposit(alice, 1e18);
+    _authorizeLender(bob);
+    vm.prank(alice);
+    market.transfer(bob, 0.5e18);
+    LenderStatus memory status = hooks.getPreviousLenderStatus(bob);
+    assertTrue(status.isKnownLender, 'bob.isKnownLender');
+  }
+
+  function test_transfer_ToBlockedKnownLender() external {
+    _deposit(alice, 1e18);
+    _authorizeLender(bob);
+    vm.prank(alice);
+    market.transfer(bob, 0.5e18);
+    LenderStatus memory status = hooks.getPreviousLenderStatus(bob);
+    assertTrue(status.isKnownLender, 'bob.isKnownLender');
+    _blockLender(bob);
+    vm.prank(alice);
+    market.transfer(bob, 0.5e18);
+    assertEq(market.balanceOf(bob), 1e18, 'bob.balance');
   }
 }

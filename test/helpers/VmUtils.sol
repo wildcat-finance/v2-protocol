@@ -112,3 +112,42 @@ function bound(uint256 x, uint256 min, uint256 max) pure returns (uint256 result
     result = max - rem + 1;
   }
 }
+
+uint256 constant TMP_PRANK_ARR_SLOT = uint256(keccak256('prank cache'));
+
+struct PrankCache {
+  bool recurring;
+  address prank;
+}
+
+function safeStartPrank(address prank) {
+  (VmSafe.CallerMode callerMode, address msgSender, ) = vm.readCallers();
+  PrankCache[] storage prankArray;
+  uint prankArraySlot = TMP_PRANK_ARR_SLOT;
+  assembly {
+    prankArray.slot := prankArraySlot
+  }
+  if (callerMode == VmSafe.CallerMode.Prank || callerMode == VmSafe.CallerMode.RecurrentPrank) {
+    vm.stopPrank();
+    prankArray.push(
+      PrankCache({ recurring: callerMode == VmSafe.CallerMode.RecurrentPrank, prank: msgSender })
+    );
+  }
+  vm.stopPrank();
+  vm.startPrank(prank);
+}
+
+function safeStopPrank() {
+  vm.stopPrank();
+  PrankCache[] storage prankArray;
+  uint prankArraySlot = TMP_PRANK_ARR_SLOT;
+  assembly {
+    prankArray.slot := prankArraySlot
+  }
+  if (prankArray.length > 0) {
+    PrankCache memory cache = prankArray[prankArray.length - 1];
+    if (cache.recurring) vm.startPrank(cache.prank);
+    else vm.prank(cache.prank);
+    prankArray.pop();
+  }
+}
