@@ -85,7 +85,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
 
   function _deauthorizeLender(address account) internal asAccount(parameters.borrower) {
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessRevoked( account);
+    emit AccessControlHooks.AccountAccessRevoked(account);
     hooks.revokeRole(account);
   }
 
@@ -108,8 +108,12 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     _requestWithdrawal(from, withdrawalAmount);
   }
 
-  function _deposit(address from, uint256 amount) internal asAccount(from) returns (uint256) {
-    _authorizeLender(from);
+  function _deposit(
+    address from,
+    uint256 amount,
+    bool preAuthorizeLender
+  ) internal asAccount(from) returns (uint256) {
+    if (preAuthorizeLender) _authorizeLender(from);
     MarketState memory state = pendingState();
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);
     asset.mint(from, amount);
@@ -121,6 +125,10 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     assertEq(market.balanceOf(from), currentBalance + amount);
     assertEq(market.scaledBalanceOf(from), currentScaledBalance + scaledAmount);
     return actualNormalizedAmount;
+  }
+
+  function _deposit(address from, uint256 amount) internal returns (uint256) {
+    return _deposit(from, amount, true);
   }
 
   function _requestWithdrawal(address from, uint256 amount) internal asAccount(from) {

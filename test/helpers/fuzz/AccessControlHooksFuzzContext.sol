@@ -9,7 +9,7 @@ import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
 import { Vm, VmSafe } from 'forge-std/Vm.sol';
 
 import '../../shared/mocks/MockRoleProvider.sol';
-import { warp } from '../../helpers/VmUtils.sol';
+import { warp, safeStartPrank, safeStopPrank } from '../../helpers/VmUtils.sol';
 
 using BoolUtils for bool;
 
@@ -53,22 +53,31 @@ if (hooksData.giveHooksData) {
   */
 
 enum FunctionKind {
-  MarketFunction,
   HooksFunction,
-  DepositFunction
+  DepositFunction,
+  QueueWithdrawal,
+  IncomingTransferFunction
 }
 
 struct AccessControlHooksFuzzContext {
   FunctionKind functionKind;
+  bool willCheckCredentials;
   AccessControlHooks hooks;
   address borrower;
   address account;
   bytes hooksData;
+  MarketHooksConfigContext config;
   ExistingCredentialFuzzInputs existingCredentialOptions;
   AccessControlHooksDataFuzzInputs dataOptions;
+  MarketHooksConfigFuzzInputs configOptions;
   AccessControlValidationExpectations expectations;
   MockRoleProvider previousProvider;
   MockRoleProvider providerToGiveData;
+  // Function for the test invoking this library to handle acquiring the `isKnownLender` status
+  // and updating its state expectations
+  function(AccessControlHooksFuzzContext memory /* context */) internal getKnownLenderStatus;
+  // Arbitrary parameter for the invoking test to use, most likely a pointer to some struct
+  uint256 getKnownLenderInputParameter;
 }
 
 struct AccessControlValidationExpectations {
@@ -89,6 +98,23 @@ struct AccessControlValidationExpectations {
 struct AccessControlHooksFuzzInputs {
   ExistingCredentialFuzzInputs existingCredentialInputs;
   AccessControlHooksDataFuzzInputs dataInputs;
+  MarketHooksConfigFuzzInputs configInputs;
+}
+
+struct MarketHooksConfigContext {
+  bool useOnDeposit;
+  bool useOnQueueWithdrawal;
+  bool useOnExecuteWithdrawal;
+  bool useOnTransfer;
+  bool transferRequiresAccess;
+  bool depositRequiresAccess;
+}
+
+struct MarketHooksConfigFuzzInputs {
+  bool useOnDeposit;
+  bool useOnQueueWithdrawal;
+  bool useOnExecuteWithdrawal;
+  bool useOnTransfer;
 }
 
 struct ExistingCredentialFuzzInputs {
@@ -106,6 +132,10 @@ struct ExistingCredentialFuzzInputs {
   bool newCredentialExpired;
   // Provider will revert on getCredential
   bool callWillRevert;
+  // Account is blocked from deposits
+  bool isBlockedFromDeposits;
+  // Account is a known lender
+  bool isKnownLender;
 }
 
 // @todo handle cases where timestamp > block.timestamp
@@ -134,28 +164,66 @@ struct ExpectedCall {
 address constant VM_ADDRESS = address(uint160(uint256(keccak256('hevm cheat code'))));
 Vm constant vm = Vm(VM_ADDRESS);
 
+function toMarketHooksConfigContext(
+  MarketHooksConfigFuzzInputs memory inputs
+) pure returns (MarketHooksConfigContext memory) {
+  return
+    MarketHooksConfigContext({
+      useOnDeposit: inputs.useOnDeposit || inputs.useOnQueueWithdrawal,
+      useOnQueueWithdrawal: inputs.useOnQueueWithdrawal,
+      useOnExecuteWithdrawal: inputs.useOnExecuteWithdrawal,
+      useOnTransfer: inputs.useOnTransfer || inputs.useOnQueueWithdrawal,
+      transferRequiresAccess: inputs.useOnTransfer,
+      depositRequiresAccess: inputs.useOnDeposit
+    });
+}
+
+using { toMarketHooksConfigContext } for MarketHooksConfigFuzzInputs global;
+
 function createAccessControlHooksFuzzContext(
   AccessControlHooksFuzzInputs memory fuzzInputs,
   AccessControlHooks hooks,
   MockRoleProvider mockProvider1,
   MockRoleProvider mockProvider2,
   address account,
-  FunctionKind functionKind
+  FunctionKind functionKind,
+  function(AccessControlHooksFuzzContext memory /* context */) internal getKnownLenderStatus,
+  uint256 getKnownLenderInputParameter
 ) returns (AccessControlHooksFuzzContext memory context) {
+  LenderStatus memory originalStatus = hooks.getLenderStatus(account);
   context.functionKind = functionKind;
   context.hooks = hooks;
   context.borrower = hooks.borrower();
   context.account = account;
   context.existingCredentialOptions = fuzzInputs.existingCredentialInputs;
   context.dataOptions = fuzzInputs.dataInputs;
+  context.configOptions = fuzzInputs.configInputs;
+  context.getKnownLenderStatus = getKnownLenderStatus;
+  context.getKnownLenderInputParameter = getKnownLenderInputParameter;
+
+  context.existingCredentialOptions.isKnownLender = context
+    .existingCredentialOptions
+    .isKnownLender
+    .and(
+      fuzzInputs.configInputs.useOnDeposit ||
+        fuzzInputs.configInputs.useOnTransfer ||
+        fuzzInputs.configInputs.useOnQueueWithdrawal
+    )
+    .or(originalStatus.isKnownLender);
+
   context.previousProvider = mockProvider1;
   context.providerToGiveData = mockProvider2;
+
+  context.config = fuzzInputs.configInputs.toMarketHooksConfigContext();
+
   vm.label(address(mockProvider1), 'previousProvider');
   vm.label(address(mockProvider2), 'providerToGiveData');
 
   context.setUpExistingCredential();
+  context.setUpBypassExpectations();
   context.setUpHooksData();
   context.setUpCredentialRefresh();
+  context.setUpAccessDeniedErrorExpectation();
 
   // If a previous credential exists but the lender will not end up with a valid credential,
   // the last provider and approval timestamp should be reset if the call is not to a function
@@ -163,7 +231,7 @@ function createAccessControlHooksFuzzContext(
   if (
     fuzzInputs.existingCredentialInputs.credentialExists &&
     !context.expectations.hasValidCredential &&
-    functionKind == FunctionKind.HooksFunction
+    context.expectations.expectedError == 0
   ) {
     context.expectations.wasUpdated = true;
     context.expectations.lastProvider = address(0);
@@ -200,6 +268,19 @@ library LibAccessControlHooksFuzzContext {
         emit AccessControlHooks.AccountAccessRevoked(context.account);
       }
     }
+    if (
+      !context.existingCredentialOptions.isKnownLender &&
+      context.expectations.hasValidCredential &&
+      context.willCheckCredentials
+    ) {
+      if (
+        context.functionKind == FunctionKind.IncomingTransferFunction ||
+        context.functionKind == FunctionKind.DepositFunction
+      ) {
+        vm.expectEmit(address(context.hooks));
+        emit AccessControlHooks.AccountMadeFirstDeposit(context.account);
+      }
+    }
     if (context.expectations.expectedError != 0) {
       vm.expectRevert(context.expectations.expectedError);
     }
@@ -211,7 +292,7 @@ library LibAccessControlHooksFuzzContext {
   function validate(AccessControlHooksFuzzContext memory context) internal view {
     LenderStatus memory priorStatus = context.hooks.getPreviousLenderStatus(context.account);
     LenderStatus memory currentStatus = context.hooks.getLenderStatus(context.account);
-    // if (context.expectations.wasUpdated )
+
     // If the account does not have a valid credential but that will not be reflected because the encapsulating
     // call failed, the new status should not match the previous one.
     if (
@@ -225,30 +306,38 @@ library LibAccessControlHooksFuzzContext {
       vm.assertEq(currentStatus.lastApprovalTimestamp, 0, 'current timestamp != 0');
     }
 
+    // Should be known lender if they were already or if the call
+    // succeeded and was a deposit or incoming transfer, and the hook was enabled
+    vm.assertEq(
+      priorStatus.isKnownLender,
+      context.existingCredentialOptions.isKnownLender ||
+        (context.willCheckCredentials &&
+          context.expectations.expectedError == 0 &&
+          (context.functionKind == FunctionKind.DepositFunction ||
+            context.functionKind == FunctionKind.IncomingTransferFunction)),
+      'priorStatus.isKnownLender'
+    );
+
     // If the call was to the hooks contract directly, or to the market with a valid credential, the current
     // status should match the previous one.
     if (
-      
       context.expectations.expectedError == 0 &&
       context.expectations.wasUpdated &&
-      (context.functionKind != FunctionKind.HooksFunction || context.expectations.hasValidCredential )
+      (context.functionKind != FunctionKind.HooksFunction ||
+        context.expectations.hasValidCredential)
     ) {
       vm.assertEq(
         priorStatus.isBlockedFromDeposits,
         currentStatus.isBlockedFromDeposits,
-        '.isBlockedFromDeposits'
+        'status.isBlockedFromDeposits'
       );
-      vm.assertEq(
-        priorStatus.hasEverDeposited,
-        currentStatus.hasEverDeposited,
-        '.hasEverDeposited'
-      );
-      vm.assertEq(priorStatus.lastProvider, currentStatus.lastProvider, '.lastProvider');
-      vm.assertEq(priorStatus.canRefresh, currentStatus.canRefresh, '.canRefresh');
+      vm.assertEq(priorStatus.isKnownLender, currentStatus.isKnownLender, 'status.isKnownLender');
+      vm.assertEq(priorStatus.lastProvider, currentStatus.lastProvider, 'status.lastProvider');
+      vm.assertEq(priorStatus.canRefresh, currentStatus.canRefresh, 'status.canRefresh');
       vm.assertEq(
         priorStatus.lastApprovalTimestamp,
         currentStatus.lastApprovalTimestamp,
-        '.lastApprovalTimestamp'
+        'status.lastApprovalTimestamp'
       );
       vm.assertEq(priorStatus.lastProvider, context.expectations.lastProvider, 'lastProvider');
       vm.assertEq(
@@ -265,6 +354,48 @@ library LibAccessControlHooksFuzzContext {
     MockRoleProvider provider = context.previousProvider;
     ExistingCredentialFuzzInputs memory existingCredentialOptions = context
       .existingCredentialOptions;
+
+    if (
+      existingCredentialOptions.isKnownLender &&
+      !context.hooks.getLenderStatus(context.account).isKnownLender
+    ) {
+      // To get known lender status:
+      // 1. set a temporary role using a temporarily whitelisted role provider
+      //    - only necessary if market requires access for deposits / incoming transfers
+      // 2. call the provided function for `getKnownLenderStatus`
+      //    - this is defined by the specific test using the fuzz context as it will need to
+      //      handle cleaning up its own expectations for the state of the market
+      // 3. clean up hooks state for other expectations (revoke role & remove provider)
+      //    - only necessary if market requires access for deposits / incoming transfers
+      bool getTmpAccess = context.config.useOnDeposit || context.config.useOnTransfer;
+
+      if (getTmpAccess) {
+        provider.setIsPullProvider(false);
+        safeStartPrank(context.borrower);
+        context.hooks.addRoleProvider(address(provider), 1);
+        safeStopPrank();
+
+        safeStartPrank(address(provider));
+        context.hooks.grantRole(context.account, uint32(block.timestamp));
+        safeStopPrank();
+      }
+
+      context.getKnownLenderStatus(context);
+      if (getTmpAccess) {
+        safeStartPrank(address(provider));
+        context.hooks.revokeRole(context.account);
+        safeStopPrank();
+        safeStartPrank(context.borrower);
+        context.hooks.removeRoleProvider(address(provider));
+        safeStopPrank();
+      }
+    }
+
+    if (existingCredentialOptions.isBlockedFromDeposits) {
+      vm.prank(context.borrower);
+      context.hooks.blockFromDeposits(context.account);
+    }
+
     if (existingCredentialOptions.credentialExists) {
       uint32 originalTimestamp = uint32(block.timestamp);
       // If the credential should exist, add the provider and grant the role
@@ -306,20 +437,80 @@ library LibAccessControlHooksFuzzContext {
     }
   }
 
+  function setUpBypassExpectations(AccessControlHooksFuzzContext memory context) internal pure {
+    context.willCheckCredentials = true;
+    if (context.functionKind == FunctionKind.IncomingTransferFunction) {
+      if (!context.config.useOnTransfer) {
+        // If hook is disabled, credentials will not be called
+        context.willCheckCredentials = false;
+      } else if (context.existingCredentialOptions.isKnownLender) {
+        // If a transfer recipient is a known lender, their credentials will not be checked
+        context.willCheckCredentials = false;
+      } else if (context.existingCredentialOptions.isBlockedFromDeposits) {
+        // If a transfer recipient is not a known lender and is blocked from depositing, the call will
+        // revert before checking credentials
+        context.expectations.expectedError = AccessControlHooks.NotApprovedLender.selector;
+        context.willCheckCredentials = false;
+      }
+    } else if (context.functionKind == FunctionKind.DepositFunction) {
+      if (!context.config.useOnDeposit) {
+        context.willCheckCredentials = false;
+      } else if (context.existingCredentialOptions.isBlockedFromDeposits) {
+        // If a depositor is blocked from depositing, the call will revert before checking credentials
+        context.expectations.expectedError = AccessControlHooks.NotApprovedLender.selector;
+        context.willCheckCredentials = false;
+      }
+    } else if (context.functionKind == FunctionKind.QueueWithdrawal) {
+      if (!context.config.useOnQueueWithdrawal) {
+        context.willCheckCredentials = false;
+      } else {
+        // If the function is a withdrawal and the account is a known lender, the credential
+        // check will be bypassed.
+        context.willCheckCredentials = !context.existingCredentialOptions.isKnownLender;
+      }
+    }
+  }
+
+  function setUpAccessDeniedErrorExpectation(
+    AccessControlHooksFuzzContext memory context
+  ) internal pure {
+    if (
+      !context.willCheckCredentials ||
+      context.expectations.expectedError != 0 ||
+      context.expectations.hasValidCredential
+    ) return;
+    if (
+      (context.functionKind == FunctionKind.QueueWithdrawal &&
+        context.config.useOnQueueWithdrawal) ||
+      (context.functionKind == FunctionKind.DepositFunction &&
+        context.config.depositRequiresAccess) ||
+      (context.functionKind == FunctionKind.IncomingTransferFunction &&
+        context.config.transferRequiresAccess)
+    ) {
+      context.expectations.expectedError = AccessControlHooks.NotApprovedLender.selector;
+    }
+  }
+
   function setUpHooksData(AccessControlHooksFuzzContext memory context) internal {
     MockRoleProvider provider = context.providerToGiveData;
     AccessControlHooksDataFuzzInputs memory dataOptions = context.dataOptions;
 
     // The contract will call the provider if all of the following are true:
     // - The account does not already have a valid credential
+    // - The call will not revert before checking credentials
+    // - The credential check won't be bypassed
     // - Hooks data is given
     // - The provider is approved
     // - The provider is a pull provider or `validateCredential` is being called
-    bool contractWillBeCalled = (!context.expectations.hasValidCredential)
+    bool providerWillBeCalled = (!context.expectations.hasValidCredential)
+      .and(context.expectations.expectedError == 0)
+      .and(context.willCheckCredentials)
       .and(dataOptions.giveHooksData)
       .and(dataOptions.providerApproved)
       .and(dataOptions.isPullProvider || dataOptions.giveDataToValidate);
 
+    // Regardless of whether the provider will be called, set up the provider for
+    // the given fuzz inputs
     if (dataOptions.giveHooksData) {
       uint32 credentialTimestamp = dataOptions.credentialExpired
         ? uint32(block.timestamp - 2)
@@ -354,7 +545,7 @@ library LibAccessControlHooksFuzzContext {
       // - The provider will return a valid uint
       // - The credential is not expired
       // - The call will not revert
-      bool hooksWillYieldCredential = contractWillBeCalled
+      bool hooksWillYieldCredential = providerWillBeCalled
         .and(dataOptions.willReturnUint)
         .and(!dataOptions.credentialExpired)
         .and(!dataOptions.callWillRevert);
@@ -367,7 +558,9 @@ library LibAccessControlHooksFuzzContext {
       }
     }
 
-    if (contractWillBeCalled) {
+    // If the provider will be called, set up the expectations for the call to be made
+    // and whether the call will revert
+    if (providerWillBeCalled) {
       bytes memory expectedCalldata = dataOptions.giveDataToValidate
         ? abi.encodeWithSelector(
           IRoleProvider.validateCredential.selector,
@@ -401,11 +594,13 @@ library LibAccessControlHooksFuzzContext {
 
     // The contract will call the provider if all of the following are true:
     // - The account has an expired credential
+    // - The credential check won't be bypassed
     // - The provider is a pull provider
     // - The provider is approved
     // - The hooks data step will not return a valid credential
     bool contractWillBeCalled = existingCredentialOptions
       .credentialExists
+      .and(context.willCheckCredentials)
       .and(existingCredentialOptions.expired)
       .and(existingCredentialOptions.isPullProvider)
       .and(existingCredentialOptions.providerApproved)

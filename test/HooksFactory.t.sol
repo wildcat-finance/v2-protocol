@@ -560,9 +560,10 @@ contract HooksFactoryTest is Test, Assertions {
     MockHooks hooksInstance = MockHooks(parameters.hooks.hooksAddress());
     // Check that the hooks instance received the correct data in `onCreateMarket`
     // Update parameter.hooks for assertEq on the parameters object
-    parameters.hooks = marketConfig;
+    
     assertEq(hooksInstance.lastDeployer(), address(this), 'onCreateMarket: deployer');
-    assertEq(hooksInstance.lastDeployMarketInputs(), parameters, 'onCreateMarket: parameters');
+    assertEq(hooksInstance.lastDeployMarketInputs(), parameters, 'onCreateMarket: input parameters');
+    parameters.hooks = marketConfig;
     assertEq(
       hooksInstance.lastCreateMarketHooksData(),
       hooksData,
