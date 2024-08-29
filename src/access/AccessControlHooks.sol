@@ -762,8 +762,9 @@ contract AccessControlHooks is MarketConstraintHooks {
 
   /**
    * @dev Called when a lender attempts to deposit.
-   *      Passes the check if the lender is not blocked from deposits
-   *      and has a valid credential from an approved role provider.
+   *      Passes the check if the deposit amount is at least the minimum deposit
+   *      amount, the lender is not blocked from depositing, and either the lender
+   *      has a valid credential or the market does not require access for deposits.
    */
   function onDeposit(
     address lender,
