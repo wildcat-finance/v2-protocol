@@ -63,10 +63,12 @@ function emit_SanctionedAccountAssetsQueuedForWithdrawal(
   uint256 normalizedAmount
 ) {
   assembly {
+    let freePointer := mload(0x40)
     mstore(0, expiry)
     mstore(0x20, scaledAmount)
     mstore(0x40, normalizedAmount)
     log2(0, 0x60, 0xe12b220b92469ae28fb0d79de531f94161431be9f073b96b8aad3effb88be6fa, account)
+    mstore(0x40, freePointer)
   }
 }
 
