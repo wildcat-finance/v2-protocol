@@ -27,4 +27,8 @@ contract MockAccessControlHooks is AccessControlHooks {
       }
     }
   }
+
+  function setIsKnownLender(address accountAddress, bool isKnownLender) external {
+    _lenderStatus[accountAddress].isKnownLender = isKnownLender;
+  }
 }
