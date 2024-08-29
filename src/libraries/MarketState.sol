@@ -26,6 +26,8 @@ struct MarketState {
   bool isDelinquent;
   // Seconds borrower has been delinquent
   uint32 timeDelinquent;
+  // Fee charged to borrowers as a fraction of the annual interest rate
+  uint16 protocolFeeBips;
   // Annual interest rate accrued to lenders, in basis points
   uint16 annualInterestBips;
   // Percentage of outstanding balance that must be held in liquid reserves

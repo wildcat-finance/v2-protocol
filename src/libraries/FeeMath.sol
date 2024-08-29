@@ -39,11 +39,10 @@ library FeeMath {
 
   function applyProtocolFee(
     MarketState memory state,
-    uint256 baseInterestRay,
-    uint256 protocolFeeBips
+    uint256 baseInterestRay
   ) internal pure returns (uint256 protocolFee) {
     // Protocol fee is charged in addition to the interest paid to lenders.
-    uint256 protocolFeeRay = protocolFeeBips.bipMul(baseInterestRay);
+    uint256 protocolFeeRay = uint(state.protocolFeeBips).bipMul(baseInterestRay);
     protocolFee = uint256(state.scaledTotalSupply).rayMul(
       uint256(state.scaleFactor).rayMul(protocolFeeRay)
     );
@@ -131,7 +130,6 @@ library FeeMath {
    *      before and after withdrawal batch expiry.
    *
    * @param state Market scale parameters
-   * @param protocolFeeBips Protocol fee rate (in bips)
    * @param delinquencyFeeBips Delinquency fee rate (in bips)
    * @param delinquencyGracePeriod Grace period (in seconds) before delinquency fees apply
    * @param timestamp Time to calculate interest and fees accrued until
@@ -141,7 +139,6 @@ library FeeMath {
    */
   function updateScaleFactorAndFees(
     MarketState memory state,
-    uint256 protocolFeeBips,
     uint256 delinquencyFeeBips,
     uint256 delinquencyGracePeriod,
     uint256 timestamp
@@ -152,8 +149,8 @@ library FeeMath {
   {
     baseInterestRay = state.calculateBaseInterest(timestamp);
 
-    if (protocolFeeBips > 0) {
-      protocolFee = state.applyProtocolFee(baseInterestRay, protocolFeeBips);
+    if (state.protocolFeeBips > 0) {
+      protocolFee = state.applyProtocolFee(baseInterestRay);
     }
 
     if (delinquencyFeeBips > 0) {

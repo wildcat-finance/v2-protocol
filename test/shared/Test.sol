@@ -310,6 +310,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     }
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.MarketDeployed(
+      parameters.hooksTemplate,
       expectedMarket,
       expectedName,
       expectedSymbol,
@@ -378,7 +379,25 @@ contract Test is ForgeTest, Prankster, Assertions {
     assertEq(market.borrower(), parameters.borrower, 'borrower');
     assertEq(market.archController(), address(archController), 'archController');
     assertEq(market.feeRecipient(), parameters.feeRecipient, 'feeRecipient');
-    assertEq(market.protocolFeeBips(), parameters.protocolFeeBips, 'protocolFeeBips');
+    assertEq(market.factory(), address(hooksFactory), 'factory');
+    MarketState memory state = market.previousState();
+    MarketState memory expectedState = MarketState({
+      isClosed: false,
+      maxTotalSupply: parameters.maxTotalSupply,
+      accruedProtocolFees: 0,
+      normalizedUnclaimedWithdrawals: 0,
+      scaledTotalSupply: 0,
+      scaledPendingWithdrawals: 0,
+      pendingWithdrawalExpiry: 0,
+      isDelinquent: false,
+      timeDelinquent: 0,
+      protocolFeeBips: parameters.protocolFeeBips,
+      annualInterestBips: parameters.annualInterestBips,
+      reserveRatioBips: parameters.reserveRatioBips,
+      scaleFactor: uint112(RAY),
+      lastInterestAccruedTimestamp: uint32(block.timestamp)
+    });
+    assertEq(state, expectedState, 'initial state');
     assertEq(market.delinquencyFeeBips(), parameters.delinquencyFeeBips, 'delinquencyFeeBips');
     assertEq(
       market.delinquencyGracePeriod(),

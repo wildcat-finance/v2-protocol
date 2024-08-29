@@ -61,6 +61,11 @@ contract Assertions is StdAssertions {
       expected.lastInterestAccruedTimestamp,
       string.concat(key, '.lastInterestAccruedTimestamp')
     );
+    assertEq(
+      actual.protocolFeeBips,
+      expected.protocolFeeBips,
+      string.concat(key, '.protocolFeeBips')
+    );
   }
 
   function assertEq(MarketState memory actual, MarketState memory expected) internal {
@@ -197,6 +202,11 @@ contract Assertions is StdAssertions {
       expected.useOnSetAnnualInterestAndReserveRatioBips(),
       string.concat(labelPrefix, 'useOnSetAnnualInterestAndReserveRatioBips')
     );
+    assertEq(
+      actual.useOnSetProtocolFeeBips(),
+      expected.useOnSetProtocolFeeBips(),
+      string.concat(labelPrefix, 'useOnSetProtocolFeeBips')
+    );
   }
 
   function assertEq(HooksConfig actual, HooksConfig expected) internal {
@@ -255,6 +265,11 @@ contract Assertions is StdAssertions {
       expected.useOnSetAnnualInterestAndReserveRatioBips,
       string.concat(labelPrefix, 'useOnSetAnnualInterestAndReserveRatioBips')
     );
+    assertEq(
+      actual.useOnSetProtocolFeeBips(),
+      expected.useOnSetProtocolFeeBips,
+      string.concat(labelPrefix, 'useOnSetProtocolFeeBips')
+    );
   }
 
   function assertEq(HooksConfig actual, StandardHooksConfig memory expected) internal {
@@ -271,11 +286,7 @@ contract Assertions is StdAssertions {
       expected.isBlockedFromDeposits,
       string.concat(key, '.isBlockedFromDeposits')
     );
-    assertEq(
-      actual.isKnownLender,
-      expected.isKnownLender,
-      string.concat(key, '.isKnownLender')
-    );
+    assertEq(actual.isKnownLender, expected.isKnownLender, string.concat(key, '.isKnownLender'));
     assertEq(actual.lastProvider, expected.lastProvider, string.concat(key, '.lastProvider'));
     assertEq(actual.canRefresh, expected.canRefresh, string.concat(key, '.canRefresh'));
     assertEq(

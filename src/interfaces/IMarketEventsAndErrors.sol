@@ -13,8 +13,8 @@ interface IMarketEventsAndErrors {
   /// @notice Error thrown when non-approved lender tries lending to the market
   error NotApprovedLender();
 
-  /// @notice Error thrown when non-controller tries accessing controller-only actions
-  error NotController();
+  /// @notice Error thrown when caller other than factory tries changing protocol fee
+  error NotFactory();
 
   /// @notice Error thrown when non-sentinel tries to use nukeFromOrbit
   error BadLaunchCode();
@@ -56,11 +56,17 @@ interface IMarketEventsAndErrors {
 
   error CapacityChangeOnClosedMarket();
 
+  error ProtocolFeeChangeOnClosedMarket();
+
+  error ProtocolFeeNotChanged();
+
   error CloseMarketWithUnpaidWithdrawals();
 
   error AnnualInterestBipsTooHigh();
 
   error ReserveRatioBipsTooHigh();
+
+  error ProtocolFeeTooHigh();
 
   /// @dev Error thrown when reserve ratio is set to a value
   ///      that would make the market delinquent.
@@ -75,6 +81,8 @@ interface IMarketEventsAndErrors {
   event Approval(address indexed owner, address indexed spender, uint256 value);
 
   event MaxTotalSupplyUpdated(uint256 assets);
+
+  event ProtocolFeeBipsUpdated(uint256 protocolFeeBips);
 
   event AnnualInterestBipsUpdated(uint256 annualInterestBipsUpdated);
 

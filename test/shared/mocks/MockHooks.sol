@@ -49,7 +49,11 @@ event OnSetAnnualInterestAndReserveRatioBipsCalled(
   MarketState intermediateState,
   bytes extraData
 );
-
+event OnSetProtocolFeeBipsCalled(
+  uint protocolFeeBips,
+  MarketState intermediateState,
+  bytes extraData
+);
 contract MockHooks is IHooks {
   bytes32 public lastCalldataHash;
   address public deployer;
@@ -68,6 +72,7 @@ contract MockHooks is IHooks {
         useOnNukeFromOrbit: true,
         useOnSetMaxTotalSupply: true,
         useOnSetAnnualInterestAndReserveRatioBips: true,
+        useOnSetProtocolFeeBips: true,
         hooksAddress: address(this)
       }),
       requiredFlags: EmptyHooksConfig
@@ -251,6 +256,7 @@ contract MockHooks is IHooks {
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
+    lastCalldataHash = keccak256(msg.data);
     emit OnSetAnnualInterestAndReserveRatioBipsCalled(
       annualInterestBips,
       reserveRatioBips,
@@ -260,6 +266,15 @@ contract MockHooks is IHooks {
     (updatedAnnualInterestBips, updatedReserveRatioBips) = updateAnnualInterestAndReserveRatioBips
       ? (annualInterestBipsToReturn, reserveRatioBipsToReturn)
       : (annualInterestBips, reserveRatioBips);
+  }
+
+  function onSetProtocolFeeBips(
+    uint16 protocolFeeBips,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {
+    lastCalldataHash = keccak256(msg.data);
+    emit OnSetProtocolFeeBipsCalled(protocolFeeBips, intermediateState, extraData);
   }
 }
 

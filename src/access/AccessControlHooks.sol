@@ -129,7 +129,8 @@ contract AccessControlHooks is MarketConstraintHooks {
       useOnCloseMarket: false,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false
+      useOnSetAnnualInterestAndReserveRatioBips: false,
+      useOnSetProtocolFeeBips: false
     });
     HooksConfig requiredFlags = EmptyHooksConfig.setFlag(
       Bit_Enabled_SetAnnualInterestAndReserveRatioBips
@@ -870,9 +871,9 @@ contract AccessControlHooks is MarketConstraintHooks {
   ) external override {}
 
   function onSetMaxTotalSupply(
-    uint256 maxTotalSupply,
-    MarketState calldata state,
-    bytes calldata hooksData
+    uint256 /* maxTotalSupply */,
+    MarketState calldata /* state */,
+    bytes calldata /* hooksData */
   ) external override {}
 
   function onSetAnnualInterestAndReserveRatioBips(
@@ -894,4 +895,10 @@ contract AccessControlHooks is MarketConstraintHooks {
         hooksData
       );
   }
+
+  function onSetProtocolFeeBips(
+    uint16 /* protocolFeeBips */,
+    MarketState memory /* intermediateState */,
+    bytes calldata /* extraData */
+  ) external override {}
 }

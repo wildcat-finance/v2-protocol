@@ -36,6 +36,7 @@ interface IHooksFactoryEventsAndErrors {
   error MarketAlreadyExists();
   error NameOrSymbolTooLong();
   error AssetBlacklisted();
+  error SetProtocolFeeBipsFailed();
 
   event HooksInstanceDeployed(address hooksInstance, address hooksTemplate);
   event HooksTemplateAdded(
@@ -56,6 +57,7 @@ interface IHooksFactoryEventsAndErrors {
   );
 
   event MarketDeployed(
+    address indexed hooksTemplate,
     address indexed market,
     string name,
     string symbol,
@@ -147,6 +149,25 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   /// @dev Get the list of approved hooks templates.
   function getHooksTemplates() external view returns (address[] memory);
 
+  function getHooksTemplates(
+    uint256 start,
+    uint256 end
+  ) external view returns (address[] memory arr);
+
+  function getHooksTemplatesCount() external view returns (uint256);
+
+  function getMarketsForHooksTemplate(
+    address hooksTemplate
+  ) external view returns (address[] memory);
+
+  function getMarketsForHooksTemplate(
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) external view returns (address[] memory arr);
+
+  function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256);
+
   // ========================================================================== //
   //                               Hooks Instances                              //
   // ========================================================================== //
@@ -220,4 +241,12 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ) external returns (address market, address hooks);
 
   function computeMarketAddress(bytes32 salt) external view returns (address);
+
+  function pushProtocolFeeBipsUpdates(
+    address hooksTemplate,
+    uint marketStartIndex,
+    uint marketEndIndex
+  ) external;
+
+  function pushProtocolFeeBipsUpdates(address hooksTemplate) external;
 }

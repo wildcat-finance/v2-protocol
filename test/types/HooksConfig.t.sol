@@ -358,4 +358,28 @@ contract HooksConfigTest is Test, Assertions {
       assertEq(hooks.lastCalldataHash(), 0);
     }
   }
+
+  function test_onSetProtocolFeeBips(
+    MarketStateFuzzInputs memory stateInput,
+    StandardHooksConfig memory configInput,
+    bytes memory extraData
+  ) external {
+    MarketState memory state = stateInput.toState();
+    mockHookCaller.setState(state);
+    configInput.hooksAddress = address(hooks);
+    HooksConfig config = configInput.toHooksConfig();
+    mockHookCaller.setConfig(config);
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(mockHookCaller.setProtocolFeeBips.selector, 100),
+      extraData
+    );
+    if (config.useOnSetProtocolFeeBips()) {
+      vm.expectEmit();
+      emit OnSetProtocolFeeBipsCalled(100, state, extraData);
+    }
+    _callMockHookCaller(_calldata);
+    if (!config.useOnSetProtocolFeeBips()) {
+      assertEq(hooks.lastCalldataHash(), 0);
+    }
+  }
 }

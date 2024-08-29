@@ -67,4 +67,8 @@ contract MockHookCaller {
     return
       hooks.onSetAnnualInterestAndReserveRatioBips(annualInterestBips, reserveRatioBips, state);
   }
+
+  function setProtocolFeeBips(uint16 protocolFeeBips) external {
+    hooks.onSetProtocolFeeBips(protocolFeeBips, state);
+  }
 }

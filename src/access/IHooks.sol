@@ -105,4 +105,10 @@ abstract contract IHooks {
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips);
+
+  function onSetProtocolFeeBips(
+    uint16 protocolFeeBips,
+    MarketState memory intermediateState,
+    bytes calldata extraData
+  ) external virtual;
 }

@@ -474,6 +474,33 @@ contract HooksIntegrationTest is BaseMarketTest {
   }
 
   // ========================================================================== //
+  //                            onSetProtocolFeeBips                            //
+  // ========================================================================== //
+
+  function test_onSetProtocolFeeBips(
+    uint16 protocolFeeBips,
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external {
+    protocolFeeBips = uint16(bound(protocolFeeBips, 0, 999));
+    _setUp(config);
+    MarketState memory state = pendingState();
+    if (config.useOnSetProtocolFeeBips) {
+      vm.expectEmit(address(hooks));
+      emit OnSetProtocolFeeBipsCalled(protocolFeeBips, state, extraData);
+    }
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(market.setProtocolFeeBips.selector, protocolFeeBips),
+      extraData
+    );
+    vm.prank(address(hooksFactory));
+    _callMarket(_calldata, '', 'setProtocolFeeBips');
+    if (!config.useOnSetProtocolFeeBips) {
+      assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
+    }
+  }
+
+  // ========================================================================== //
   //                   onSetAnnualInterestAndReserveRatioBips                   //
   // ========================================================================== //
 

@@ -6,6 +6,7 @@ import '../BaseMarketTest.sol';
 
 contract WildcatMarketConfigTest is BaseMarketTest {
   using MathUtils for uint;
+
   function test_maximumDeposit(uint256 _depositAmount) external returns (uint256) {
     assertEq(market.maximumDeposit(), parameters.maxTotalSupply, 'maximumDeposit');
     _depositAmount = bound(_depositAmount, 1, DefaultMaximumSupply);
@@ -35,6 +36,10 @@ contract WildcatMarketConfigTest is BaseMarketTest {
   function test_reserveRatioBips() external asAccount(borrower) {
     assertEq(market.reserveRatioBips(), parameters.reserveRatioBips);
   }
+
+  // ========================================================================== //
+  //                                nukeFromOrbit                               //
+  // ========================================================================== //
 
   function test_nukeFromOrbit(address _account) external {
     _deposit(_account, 1e18);
@@ -92,6 +97,10 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     market.nukeFromOrbit(_account);
   }
 
+  // ========================================================================== //
+  //                              setMaxTotalSupply                             //
+  // ========================================================================== //
+
   function test_setMaxTotalSupply(
     uint256 _totalSupply,
     uint256 _maxTotalSupply
@@ -121,18 +130,18 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     assertEq(market.maxTotalSupply(), _maxTotalSupply, 'maxTotalSupply should be _maxTotalSupply');
   }
 
+  // ========================================================================== //
+  //                    setAnnualInterestAndReserveRatioBips                    //
+  // ========================================================================== //
+
   function test_setAnnualInterestAndReserveRatioBips(
     uint16 _annualInterestBips
   ) external asAccount(borrower) {
     _annualInterestBips = uint16(bound(_annualInterestBips, 1, 10000));
     uint reserveRatioBips;
     if (_annualInterestBips < 750) {
-      uint256 relativeDiff = MathUtils.mulDiv(
-        10000,
-        1_000 - uint(_annualInterestBips),
-        1_000
-      );
-      reserveRatioBips = MathUtils.min(10_000, 2* relativeDiff);
+      uint256 relativeDiff = MathUtils.mulDiv(10000, 1_000 - uint(_annualInterestBips), 1_000);
+      reserveRatioBips = MathUtils.min(10_000, 2 * relativeDiff);
     } else {
       reserveRatioBips = DefaultReserveRatio;
     }
@@ -141,8 +150,10 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     assertEq(market.reserveRatioBips(), reserveRatioBips);
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsOutOfBounds(
-  ) external asAccount(borrower) {
+  function test_setAnnualInterestAndReserveRatioBips_AnnualInterestBipsOutOfBounds()
+    external
+    asAccount(borrower)
+  {
     vm.expectRevert(MarketConstraintHooks.AnnualInterestBipsOutOfBounds.selector);
     market.setAnnualInterestAndReserveRatioBips(10001, 0);
   }
@@ -424,7 +435,7 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     uint256 reserveRatioBips,
     uint256 originalReserveRatioBips,
     uint256 temporaryReserveRatioExpiry
-  ) internal {
+  ) internal view {
     (uint256 _originalAnnualInterestBips, uint256 _originalReserveRatioBips, uint256 expiry) = hooks
       .temporaryExcessReserveRatio(address(market));
 
@@ -434,5 +445,48 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     assertEq(_originalAnnualInterestBips, originalAnnualInterestBips, 'originalAnnualInterestBips');
     assertEq(_originalReserveRatioBips, originalReserveRatioBips, 'originalReserveRatioBips');
     assertEq(expiry, temporaryReserveRatioExpiry, 'temporaryReserveRatioExpiry');
+  }
+
+  // ========================================================================== //
+  //                             setProtocolFeeBips                             //
+  // ========================================================================== //
+
+  function test_setProtocolFeeBips(
+    uint16 _protocolFeeBips
+  ) external asAccount(address(hooksFactory)) {
+    // max = 999 because it must not match the current fee, which is 1000 by default
+    _protocolFeeBips = uint16(bound(_protocolFeeBips, 0, 999));
+    vm.expectEmit(address(market));
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(_protocolFeeBips);
+    market.setProtocolFeeBips(_protocolFeeBips);
+    assertEq(market.previousState().protocolFeeBips, _protocolFeeBips, 'protocolFeeBips');
+  }
+
+  function test_setProtocolFeeBips_NotFactory() external {
+    // max = 999 because it must not match the current fee, which is 1000 by default
+    vm.expectRevert(IMarketEventsAndErrors.NotFactory.selector);
+    market.setProtocolFeeBips(0);
+  }
+
+  function test_setProtocolFeeBips_ProtocolFeeTooHigh() external asAccount(address(hooksFactory)) {
+    // max = 1001 because it must not match the current fee, which is 1000 by default
+    vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeTooHigh.selector);
+    market.setProtocolFeeBips(1001);
+  }
+
+  function test_setProtocolFeeBips_ProtocolFeeNotChanged()
+    external
+    asAccount(address(hooksFactory))
+  {
+    vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeNotChanged.selector);
+    market.setProtocolFeeBips(DefaultProtocolFeeBips);
+  }
+
+  function test_setProtocolFeeBips_ProtocolFeeChangeOnClosedMarket() external {
+    vm.prank(borrower);
+    market.closeMarket();
+    vm.prank(address(hooksFactory));
+    vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeChangeOnClosedMarket.selector);
+    market.setProtocolFeeBips(0);
   }
 }

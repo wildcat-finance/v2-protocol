@@ -31,6 +31,9 @@ uint32 constant MaximumWithdrawalBatchDuration = 365 days;
 uint16 constant MinimumAnnualInterestBips = 0;
 uint16 constant MaximumAnnualInterestBips = 10_000;
 
+uint16 constant MinimumProtocolFeeBips = 0;
+uint16 constant MaximumProtocolFeeBips = 1_000;
+
 IChainalysisSanctionsList constant SanctionsList = IChainalysisSanctionsList(
   0x40C57923924B5c5c5455c48D93317139ADDaC8fb
 );

@@ -73,7 +73,7 @@ contract HooksFactoryTest is Test, Assertions {
       input.originationFeeAsset = nullAddress;
     }
     bool canHaveOriginationFee = input.originationFeeAsset != nullAddress && hasFeeRecipient;
-    uint maxProtocolFee = hasFeeRecipient ? 10_000 : 0;
+    uint maxProtocolFee = hasFeeRecipient ? 1_000 : 0;
     input.protocolFeeBips = uint16(bound(input.protocolFeeBips, 0, maxProtocolFee));
     input.originationFeeAmount = uint80(
       bound(input.originationFeeAmount, 0, canHaveOriginationFee ? type(uint80).max : 0)
@@ -194,7 +194,7 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, notNullFeeRecipient, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 10001);
+    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 1_001);
   }
 
   // ========================================================================== //
@@ -291,7 +291,60 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, notNullFeeRecipient, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, nullAddress, 0, 10001);
+    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, nullAddress, 0, 1_001);
+  }
+
+  // ========================================================================== //
+  //                         getMarketsForHooksTemplate                         //
+  // ========================================================================== //
+
+  function test_getMarketsForHooksTemplate() external {
+    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    bytes memory constructorArgs = '';
+    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+    address market0 = hooksFactory.deployMarket(
+      parameters,
+      createMarketHooksData,
+      bytes32(uint(1)),
+      address(0),
+      0
+    );
+    address market1 = hooksFactory.deployMarket(
+      parameters,
+      createMarketHooksData,
+      bytes32(uint(2)),
+      address(0),
+      0
+    );
+    address[] memory markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate);
+    assertEq(markets.length, 2);
+    assertEq(markets[0], market0);
+    assertEq(markets[1], market1);
+    markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate, 0, 3);
+    assertEq(markets.length, 2);
+    assertEq(markets[0], market0);
+    assertEq(markets[1], market1);
+    markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate, 1, 2);
+    assertEq(markets.length, 1);
+    assertEq(markets[0], market1);
+    assertEq(hooksFactory.getMarketsForHooksTemplateCount(hooksTemplate), 2);
   }
 
   // ========================================================================== //
@@ -493,6 +546,16 @@ contract HooksFactoryTest is Test, Assertions {
     address[] memory hooksTemplates = hooksFactory.getHooksTemplates();
     assertEq(hooksTemplates.length, previousHooksTemplates.length + 1, 'hooksTemplates.length');
     assertEq(hooksTemplates[hooksTemplates.length - 1], hooksTemplate, 'hooksTemplates[-1]');
+    assertEq(
+      hooksTemplates,
+      hooksFactory.getHooksTemplates(0, hooksTemplates.length + 1),
+      'getHooksTemplate(start, end)'
+    );
+    assertEq(
+      hooksFactory.getHooksTemplatesCount(),
+      hooksTemplates.length,
+      'getHooksTemplatesCount()'
+    );
 
     HooksTemplate memory details = hooksFactory.getHooksTemplateDetails(hooksTemplate);
     assertEq(
@@ -531,6 +594,7 @@ contract HooksFactoryTest is Test, Assertions {
     string memory symbol = string.concat(parameters.symbolPrefix, ERC20(parameters.asset).symbol());
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.MarketDeployed(
+      hooksTemplate,
       hooksFactory.computeMarketAddress(bytes32(uint(1))),
       name,
       symbol,
@@ -590,7 +654,8 @@ contract HooksFactoryTest is Test, Assertions {
     assertEq(address(market.sentinel()), sanctionsSentinel, 'sentinel');
     assertEq(market.borrower(), address(this), 'borrower');
     assertEq(market.feeRecipient(), feesInput.feeRecipient, 'feeRecipient');
-    assertEq(market.protocolFeeBips(), feesInput.protocolFeeBips, 'protocolFeeBips');
+    MarketState memory state = market.previousState();
+    assertEq(state.protocolFeeBips, feesInput.protocolFeeBips, 'protocolFeeBips');
     assertEq(market.delinquencyFeeBips(), parameters.delinquencyFeeBips, 'delinquencyFeeBips');
     assertEq(
       market.delinquencyGracePeriod(),
@@ -1031,5 +1096,101 @@ contract HooksFactoryTest is Test, Assertions {
     address hooksInstance;
     HooksConfig expectedConfig;
     address marketAddress;
+  }
+
+  // ========================================================================== //
+  //                         pushProtocolFeeBipsUpdates                         //
+  // ========================================================================== //
+
+  function test_pushProtocolFeeBipsUpdates() external {
+    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0xfee), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    bytes memory constructorArgs = '';
+    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+    address market0 = hooksFactory.deployMarket(
+      parameters,
+      createMarketHooksData,
+      bytes32(uint(1)),
+      address(0),
+      0
+    );
+    address market1 = hooksFactory.deployMarket(
+      parameters,
+      createMarketHooksData,
+      bytes32(uint(2)),
+      address(0),
+      0
+    );
+
+    hooksFactory.updateHooksTemplateFees(hooksTemplate, address(0xfee), address(0), 0, 1_000);
+    vm.expectEmit(market0);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(1_000);
+    vm.expectEmit(market1);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(1_000);
+    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate);
+    assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 1_000);
+    assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 1_000);
+
+    hooksFactory.updateHooksTemplateFees(hooksTemplate, address(0xfee), address(0), 0, 500);
+    vm.expectEmit(market0);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(500);
+    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate, 0, 1);
+    assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 500);
+    assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 1_000);
+
+    hooksFactory.updateHooksTemplateFees(hooksTemplate, address(0xfee), address(0), 0, 100);
+    vm.expectEmit(market1);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(100);
+    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate, 1, 2);
+    assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 500);
+    assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 100);
+  }
+
+  function test_pushProtocolFeeBipsUpdates_HooksTemplateNotFound() external {
+    vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
+    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate);
+  }
+
+  function test_pushProtocolFeeBipsUpdates_SetProtocolFeeBipsFailed() external {
+    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0xfee), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    bytes memory constructorArgs = '';
+    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
+    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(2)), address(0), 0);
+    vm.expectRevert(IHooksFactoryEventsAndErrors.SetProtocolFeeBipsFailed.selector);
+    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate);
   }
 }

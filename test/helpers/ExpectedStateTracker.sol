@@ -85,7 +85,6 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
         uint prevTimestamp = state.lastInterestAccruedTimestamp;
         (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
           .updateScaleFactorAndFees(
-            parameters.protocolFeeBips,
             parameters.delinquencyFeeBips,
             parameters.delinquencyGracePeriod,
             expiry
@@ -110,7 +109,6 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       uint prevTimestamp = state.lastInterestAccruedTimestamp;
       (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
         .updateScaleFactorAndFees(
-          parameters.protocolFeeBips,
           parameters.delinquencyFeeBips,
           parameters.delinquencyGracePeriod,
           timestamp
