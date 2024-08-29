@@ -62,6 +62,7 @@ enum FunctionKind {
 struct AccessControlHooksFuzzContext {
   FunctionKind functionKind;
   bool willCheckCredentials;
+  address market;
   AccessControlHooks hooks;
   address borrower;
   address account;
@@ -182,6 +183,7 @@ using { toMarketHooksConfigContext } for MarketHooksConfigFuzzInputs global;
 
 function createAccessControlHooksFuzzContext(
   AccessControlHooksFuzzInputs memory fuzzInputs,
+  address market,
   AccessControlHooks hooks,
   MockRoleProvider mockProvider1,
   MockRoleProvider mockProvider2,
@@ -191,6 +193,7 @@ function createAccessControlHooksFuzzContext(
   uint256 getKnownLenderInputParameter
 ) returns (AccessControlHooksFuzzContext memory context) {
   LenderStatus memory originalStatus = hooks.getLenderStatus(account);
+  context.market = market;
   context.functionKind = functionKind;
   context.hooks = hooks;
   context.borrower = hooks.borrower();
@@ -209,7 +212,7 @@ function createAccessControlHooksFuzzContext(
         fuzzInputs.configInputs.useOnTransfer ||
         fuzzInputs.configInputs.useOnQueueWithdrawal
     )
-    .or(originalStatus.isKnownLender);
+    .or(hooks.isKnownLenderOnMarket(account, market));
 
   context.previousProvider = mockProvider1;
   context.providerToGiveData = mockProvider2;
@@ -309,7 +312,7 @@ library LibAccessControlHooksFuzzContext {
     // Should be known lender if they were already or if the call
     // succeeded and was a deposit or incoming transfer, and the hook was enabled
     vm.assertEq(
-      priorStatus.isKnownLender,
+      context.hooks.isKnownLenderOnMarket(context.account, context.market),
       context.existingCredentialOptions.isKnownLender ||
         (context.willCheckCredentials &&
           context.expectations.expectedError == 0 &&
@@ -331,7 +334,6 @@ library LibAccessControlHooksFuzzContext {
         currentStatus.isBlockedFromDeposits,
         'status.isBlockedFromDeposits'
       );
-      vm.assertEq(priorStatus.isKnownLender, currentStatus.isKnownLender, 'status.isKnownLender');
       vm.assertEq(priorStatus.lastProvider, currentStatus.lastProvider, 'status.lastProvider');
       vm.assertEq(priorStatus.canRefresh, currentStatus.canRefresh, 'status.canRefresh');
       vm.assertEq(
@@ -357,7 +359,7 @@ library LibAccessControlHooksFuzzContext {
 
     if (
       existingCredentialOptions.isKnownLender &&
-      !context.hooks.getLenderStatus(context.account).isKnownLender
+      !context.hooks.isKnownLenderOnMarket(context.account, context.market)
     ) {
       // To get known lender status:
       // 1. set a temporary role using a temporarily whitelisted role provider

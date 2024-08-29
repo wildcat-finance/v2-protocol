@@ -79,8 +79,10 @@ contract AccessControlHooks is MarketConstraintHooks {
   // ========================================================================== //
 
   address public immutable borrower;
-
+  // Credentials by lender address
   mapping(address => LenderStatus) internal _lenderStatus;
+  // Whether an account is a known lender for a given market
+  mapping(address lender => mapping(address market => bool)) public isKnownLenderOnMarket;
   // Provider data is duplicated in the array and mapping to allow
   // push providers to update in a single step and pull providers to
   // be looped over without having to access the mapping.
@@ -703,10 +705,13 @@ contract AccessControlHooks is MarketConstraintHooks {
     }
     // Mark account as a known lender if they have a valid credential, are not
     // already known, and the function counts as a deposit.
-    if (canSetKnownLender.and(hasValidCredential).and(!status.isKnownLender)) {
-      status.isKnownLender = true;
+    if (
+      canSetKnownLender.and(hasValidCredential).and(
+        !isKnownLenderOnMarket[accountAddress][msg.sender]
+      )
+    ) {
+      isKnownLenderOnMarket[accountAddress][msg.sender] = true;
       emit AccountMadeFirstDeposit(accountAddress);
-      wasUpdated = true;
     }
 
     // Write the account's status to storage if it was updated
@@ -780,7 +785,7 @@ contract AccessControlHooks is MarketConstraintHooks {
     bytes calldata hooksData
   ) external override {
     LenderStatus memory status = _lenderStatus[lender];
-    if (!status.isKnownLender && !_tryValidateAccess(status, lender, hooksData)) {
+    if (!isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)) {
       revert NotApprovedLender();
     }
   }
@@ -820,10 +825,10 @@ contract AccessControlHooks is MarketConstraintHooks {
 
     if (!market.isHooked) revert NotHookedMarket();
 
-    LenderStatus memory toStatus = _lenderStatus[to];
 
     // If the recipient is a known lender, skip access control checks.
-    if (!toStatus.isKnownLender) {
+    if (!isKnownLenderOnMarket[to][msg.sender]) {
+      LenderStatus memory toStatus = _lenderStatus[to];
       // Respect `isBlockedFromDeposits` only if the recipient is not a known lender
       if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
 
