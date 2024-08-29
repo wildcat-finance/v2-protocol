@@ -465,6 +465,17 @@ contract WildcatMarketTest is BaseMarketTest {
     safeStopPrank();
   }
 
+
+  function test_deposit_DepositBelowMinimum() external {
+    parameters.minimumDeposit = 101;
+    setUpContracts(false);
+    startPrank(alice);
+    asset.mint(alice, 1e18);
+    asset.approve(address(market), 1e18);
+    vm.expectRevert(AccessControlHooks.DepositBelowMinimum.selector);
+    market.deposit(100);
+  }
+
   function test_depositUpTo_FuzzAccess(AccessControlHooksFuzzInputs memory fuzzInputs) external {
     parameters.hooksConfig = encodeHooksConfig({
       hooksAddress: address(hooks),

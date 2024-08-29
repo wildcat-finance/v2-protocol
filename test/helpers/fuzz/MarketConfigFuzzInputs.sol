@@ -75,7 +75,8 @@ library LibMarketConfigFuzzInputs {
       hooksTemplate: address(0),
       deployHooksConstructorArgs: '',
       deployMarketHooksData: '',
-      hooksConfig: HooksConfig.wrap(0)
+      hooksConfig: HooksConfig.wrap(0),
+      minimumDeposit: 0
     });
   }
 }

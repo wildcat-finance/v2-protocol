@@ -7,14 +7,17 @@ import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
 import './MarketConstraintHooks.sol';
+import '../libraries/SafeCastLib.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
+using SafeCastLib for uint256;
 
 struct HookedMarket {
   bool isHooked;
   bool transferRequiresAccess;
   bool depositRequiresAccess;
+  uint128 minimumDeposit;
 }
 
 /**
@@ -56,6 +59,8 @@ contract AccessControlHooks is MarketConstraintHooks {
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed accountAddress);
 
+  event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
+
   // ========================================================================== //
   //                                   Errors                                   //
   // ========================================================================== //
@@ -73,6 +78,7 @@ contract AccessControlHooks is MarketConstraintHooks {
   error NotApprovedLender();
   error InvalidArrayLength();
   error NotHookedMarket();
+  error DepositBelowMinimum();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -160,6 +166,13 @@ contract AccessControlHooks is MarketConstraintHooks {
     super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
     if (deployer != borrower) revert CallerNotBorrower();
     marketHooksConfig = parameters.hooks;
+    uint256 minimumDeposit;
+    if (hooksData.length == 32) {
+      assembly {
+        minimumDeposit := calldataload(hooksData.offset)
+      }
+      emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+    }
     // Use the deposit and transfer flags to determine whether those require
     // access control. These are tracked separately because if the market
     // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
@@ -167,7 +180,8 @@ contract AccessControlHooks is MarketConstraintHooks {
     HookedMarket memory hookedMarket = HookedMarket({
       isHooked: true,
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
-      depositRequiresAccess: marketHooksConfig.useOnDeposit()
+      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
+      minimumDeposit: minimumDeposit.toUint128()
     });
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
@@ -177,6 +191,17 @@ contract AccessControlHooks is MarketConstraintHooks {
     }
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
     _hookedMarkets[address(marketAddress)] = hookedMarket;
+  }
+
+  // ========================================================================== //
+  //                              Market Management                             //
+  // ========================================================================== //
+
+  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
+    HookedMarket storage hookedMarket = _hookedMarkets[market];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    hookedMarket.minimumDeposit = newMinimumDeposit;
+    emit MinimumDepositUpdated(market, newMinimumDeposit);
   }
 
   // ========================================================================== //
@@ -742,8 +767,8 @@ contract AccessControlHooks is MarketConstraintHooks {
    */
   function onDeposit(
     address lender,
-    uint /* scaledAmount */,
-    MarketState calldata /* state */,
+    uint scaledAmount,
+    MarketState calldata state,
     bytes calldata hooksData
   ) external override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
@@ -754,6 +779,12 @@ contract AccessControlHooks is MarketConstraintHooks {
 
     // Check that the lender is not blocked
     if (status.isBlockedFromDeposits) revert NotApprovedLender();
+
+    // Check that the deposit amount is at or above the market's minimum
+    uint normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
+    if (market.minimumDeposit > normalizedAmount) {
+      revert DepositBelowMinimum();
+    }
 
     // Attempt to validate the lender's access
     // Uses the inner method here as storage may need to be updated if this
@@ -785,7 +816,9 @@ contract AccessControlHooks is MarketConstraintHooks {
     bytes calldata hooksData
   ) external override {
     LenderStatus memory status = _lenderStatus[lender];
-    if (!isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)) {
+    if (
+      !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)
+    ) {
       revert NotApprovedLender();
     }
   }
@@ -824,7 +857,6 @@ contract AccessControlHooks is MarketConstraintHooks {
     HookedMarket memory market = _hookedMarkets[msg.sender];
 
     if (!market.isHooked) revert NotHookedMarket();
-
 
     // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {

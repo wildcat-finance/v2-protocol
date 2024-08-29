@@ -26,6 +26,9 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   MockRoleProvider internal mockProvider1;
   MockRoleProvider internal mockProvider2;
 
+  bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
+  uint256 internal constant Panic_Arithmetic = 0x11;
+
   function setUp() external {
     hooks = new MockAccessControlHooks(address(this));
     mockProvider1 = new MockRoleProvider();
@@ -80,6 +83,50 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     assertEq(market.isHooked, true, 'isHooked');
     assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
     assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+  }
+
+  function test_onCreateMarket_setMinimumDeposit() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
+    HooksConfig expectedConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: true,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
+    });
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(config, expectedConfig, 'config');
+    assertEq(market.isHooked, true, 'isHooked');
+    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
+  }
+
+  function test_onCreateMarket_MinimumDepositOverflow() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
+    HooksConfig config = hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(type(uint136).max)
+    );
   }
 
   function test_version() external {
@@ -687,5 +734,53 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     hooks.unblockFromDeposits(account);
     LenderStatus memory status = hooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
+  }
+
+  // ========================================================================== //
+  //                              setMinimumDeposit                             //
+  // ========================================================================== //
+
+  function test_setMinimumDeposit() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
+    HooksConfig expectedConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: true,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
+    });
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(config, expectedConfig, 'config');
+    assertEq(market.isHooked, true, 'isHooked');
+    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
+
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.MinimumDepositUpdated(address(1), 2e18);
+    hooks.setMinimumDeposit(address(1), 2e18);
+    assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
+  }
+
+  function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
+    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    hooks.setMinimumDeposit(address(1), 1);
+  }
+
+  function test_setMinimumDeposit_NotHookedMarket() external {
+    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    hooks.setMinimumDeposit(address(1), 1);
   }
 }
