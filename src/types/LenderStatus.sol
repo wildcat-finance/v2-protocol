@@ -3,15 +3,16 @@ pragma solidity >=0.8.20;
 import './RoleProvider.sol';
 
 /**
- * @param isBlockedFromDeposits Whether the lender is blocked from depositing
- * @param hasEverDeposited Whether the lender has ever deposited to the market
- * @param lastProvider The address of the last provider to grant the lender a credential
- * @param canRefresh Whether the last provider can refresh the lender's credential
- * @param lastApprovalTimestamp The timestamp at which the lender's credential was granted
+ * @param isBlockedFromDeposits   Whether the lender is blocked from depositing
+ * @param isKnownLender           Whether the lender has irrevocable permission to withdraw & receive
+ *                                tokens for market.
+ * @param lastProvider            The address of the last provider to grant the lender a credential
+ * @param canRefresh              Whether the last provider can refresh the lender's credential
+ * @param lastApprovalTimestamp   The timestamp at which the lender's credential was granted
  */
 struct LenderStatus {
   bool isBlockedFromDeposits;
-  bool hasEverDeposited;
+  bool isKnownLender;
   address lastProvider;
   bool canRefresh;
   uint32 lastApprovalTimestamp;
