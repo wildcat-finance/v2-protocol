@@ -39,6 +39,7 @@ struct MarketInputParameters {
   bytes deployHooksConstructorArgs;
   bytes deployMarketHooksData;
   HooksConfig hooksConfig;
+  uint128 minimumDeposit;
 }
 
 contract Test is ForgeTest, Prankster, Assertions {
@@ -124,7 +125,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
-      'AccessControlHooks',
+      'SingleBorrowerAccessControlHooks',
       address(0),
       address(0),
       0,
@@ -132,7 +133,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     );
     hooksFactory.addHooksTemplate(
       hooksTemplate,
-      'AccessControlHooks',
+      'SingleBorrowerAccessControlHooks',
       address(0),
       address(0),
       0,
@@ -275,6 +276,15 @@ contract Test is ForgeTest, Prankster, Assertions {
     MarketInputParameters memory parameters,
     address expectedMarket
   ) internal {
+    if (
+      parameters.minimumDeposit > 0 &&
+      keccak256(bytes(hooksFactory.getHooksTemplateDetails(parameters.hooksTemplate).name)) ==
+      keccak256('SingleBorrowerAccessControlHooks')
+    ) {
+      vm.expectEmit(parameters.hooksConfig.hooksAddress());
+      emit AccessControlHooks.MinimumDepositUpdated(expectedMarket, parameters.minimumDeposit);
+    }
+
     vm.expectEmit(expectedMarket);
     emit ChangedSpherexOperator(address(0), address(archController));
 
@@ -329,6 +339,10 @@ contract Test is ForgeTest, Prankster, Assertions {
     MarketInputParameters memory parameters
   ) internal asAccount(parameters.borrower) returns (WildcatMarket) {
     updateFeeConfiguration(parameters);
+
+    if (parameters.deployMarketHooksData.length == 0 && parameters.minimumDeposit > 0) {
+      parameters.deployMarketHooksData = abi.encode(parameters.minimumDeposit);
+    }
 
     bytes32 salt = _nextSalt(parameters.borrower);
 

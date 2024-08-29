@@ -17,14 +17,18 @@ struct HookedMarket {
   bool isHooked;
   bool transferRequiresAccess;
   bool depositRequiresAccess;
+  bool withdrawalRequiresAccess;
   uint128 minimumDeposit;
+  uint32 fixedTermEndTime;
 }
 
 /**
- * @title AccessControlHooks
+ * @title FixedTermLoanHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
  *      to accounts that have credentials from approved role providers, or
- *      which are manually approved by the borrower.
+ *      which are manually approved by the borrower. Restricts withdrawals
+ *      until a fixed loan term has elapsed, which can be reduced but not
+ *      increased by the borrower.
  *
  *      Withdrawals are restricted in the same way for users that have not
  *      made a deposit, while users who have made a deposit at any point (or
@@ -33,7 +37,7 @@ struct HookedMarket {
  *
  *      Deposit access may be canceled by the borrower.
  */
-contract AccessControlHooks is MarketConstraintHooks {
+contract FixedTermLoanHooks is MarketConstraintHooks {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
@@ -61,6 +65,8 @@ contract AccessControlHooks is MarketConstraintHooks {
 
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
 
+  event FixedTermUpdated(address market, uint32 fixedTermEndTime);
+
   // ========================================================================== //
   //                                   Errors                                   //
   // ========================================================================== //
@@ -79,11 +85,16 @@ contract AccessControlHooks is MarketConstraintHooks {
   error InvalidArrayLength();
   error NotHookedMarket();
   error DepositBelowMinimum();
+  error FixedTermNotProvided();
+  error InvalidFixedTerm();
+  error IncreaseFixedTerm();
+  error WithdrawBeforeTermEnd();
 
   // ========================================================================== //
   //                                    State                                   //
   // ========================================================================== //
 
+  uint32 public constant MaximumLoanTerm = 365 days;
   address public immutable borrower;
   // Credentials by lender address
   mapping(address => LenderStatus) internal _lenderStatus;
@@ -129,7 +140,7 @@ contract AccessControlHooks is MarketConstraintHooks {
     HooksConfig optionalFlags = encodeHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
-      useOnQueueWithdrawal: true,
+      useOnQueueWithdrawal: false,
       useOnExecuteWithdrawal: false,
       useOnTransfer: true,
       useOnBorrow: false,
@@ -140,14 +151,14 @@ contract AccessControlHooks is MarketConstraintHooks {
       useOnSetAnnualInterestAndReserveRatioBips: false,
       useOnSetProtocolFeeBips: false
     });
-    HooksConfig requiredFlags = EmptyHooksConfig.setFlag(
-      Bit_Enabled_SetAnnualInterestAndReserveRatioBips
-    );
+    HooksConfig requiredFlags = EmptyHooksConfig
+      .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+      .setFlag(Bit_Enabled_QueueWithdrawal);
     config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
   }
 
   function version() external pure override returns (string memory) {
-    return 'SingleBorrowerAccessControlHooks';
+    return 'FixedTermLoanHooks';
   }
 
   /**
@@ -165,14 +176,30 @@ contract AccessControlHooks is MarketConstraintHooks {
     // Validate the deploy parameters
     super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
     if (deployer != borrower) revert CallerNotBorrower();
+    if (hooksData.length < 32) revert FixedTermNotProvided();
+
     marketHooksConfig = parameters.hooks;
+
+    uint32 fixedTermEndTime;
+    assembly {
+      fixedTermEndTime := calldataload(hooksData.offset)
+    }
+
+    if (
+      fixedTermEndTime < block.timestamp || (fixedTermEndTime - block.timestamp) > MaximumLoanTerm
+    ) {
+      revert InvalidFixedTerm();
+    }
+    emit FixedTermUpdated(marketAddress, fixedTermEndTime);
+
     uint256 minimumDeposit;
-    if (hooksData.length == 32) {
+    if (hooksData.length == 64) {
       assembly {
-        minimumDeposit := calldataload(hooksData.offset)
+        minimumDeposit := calldataload(add(hooksData.offset, 0x20))
       }
       emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
     }
+
     // Use the deposit and transfer flags to determine whether those require
     // access control. These are tracked separately because if the market
     // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
@@ -181,7 +208,9 @@ contract AccessControlHooks is MarketConstraintHooks {
       isHooked: true,
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
-      minimumDeposit: minimumDeposit.toUint128()
+      withdrawalRequiresAccess: marketHooksConfig.useOnQueueWithdrawal(),
+      minimumDeposit: minimumDeposit.toUint128(),
+      fixedTermEndTime: fixedTermEndTime
     });
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
@@ -202,6 +231,14 @@ contract AccessControlHooks is MarketConstraintHooks {
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     hookedMarket.minimumDeposit = newMinimumDeposit;
     emit MinimumDepositUpdated(market, newMinimumDeposit);
+  }
+
+  function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyBorrower {
+    HookedMarket storage hookedMarket = _hookedMarkets[market];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
+    hookedMarket.fixedTermEndTime = newFixedTermEndTime;
+    emit FixedTermUpdated(market, newFixedTermEndTime);
   }
 
   // ========================================================================== //
@@ -762,9 +799,8 @@ contract AccessControlHooks is MarketConstraintHooks {
 
   /**
    * @dev Called when a lender attempts to deposit.
-   *      Passes the check if the deposit amount is at least the minimum deposit
-   *      amount, the lender is not blocked from depositing, and either the lender
-   *      has a valid credential or the market does not require access for deposits.
+   *      Passes the check if the lender is not blocked from deposits
+   *      and has a valid credential from an approved role provider.
    */
   function onDeposit(
     address lender,
@@ -816,11 +852,18 @@ contract AccessControlHooks is MarketConstraintHooks {
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {
+    HookedMarket memory market = _hookedMarkets[msg.sender];
+    if (!market.isHooked) revert NotHookedMarket();
+    if (market.fixedTermEndTime > block.timestamp) {
+      revert WithdrawBeforeTermEnd();
+    }
     LenderStatus memory status = _lenderStatus[lender];
-    if (
-      !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)
-    ) {
-      revert NotApprovedLender();
+    if (market.withdrawalRequiresAccess) {
+      if (
+        !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)
+      ) {
+        revert NotApprovedLender();
+      }
     }
   }
 

@@ -48,7 +48,8 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       deployHooksConstructorArgs: '',
       deployMarketHooksData: '',
       hooksConfig: HooksConfig.wrap(0),
-      sphereXEngine: address(0)
+      sphereXEngine: address(0),
+      minimumDeposit: 0
     });
   }
 

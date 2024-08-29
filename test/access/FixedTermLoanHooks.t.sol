@@ -2,13 +2,13 @@
 pragma solidity >=0.8.20;
 
 import 'forge-std/Test.sol';
-import 'src/access/AccessControlHooks.sol';
+import 'src/access/FixedTermLoanHooks.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import '../shared/mocks/MockRoleProvider.sol';
-import '../shared/mocks/MockAccessControlHooks.sol';
+import '../shared/mocks/MockFixedTermLoanHooks.sol';
 import '../helpers/Assertions.sol';
 import { bound, warp } from '../helpers/VmUtils.sol';
-import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, AccessControlHooks, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
 import 'src/libraries/BoolUtils.sol';
@@ -19,10 +19,10 @@ using LibString for address;
 using MathUtils for uint256;
 using BoolUtils for bool;
 
-contract AccessControlHooksTest is Test, Assertions, Prankster {
+contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   uint24 internal numPullProviders;
   StandardRoleProvider[] internal expectedRoleProviders;
-  MockAccessControlHooks internal hooks;
+  MockFixedTermLoanHooks internal hooks;
   MockRoleProvider internal mockProvider1;
   MockRoleProvider internal mockProvider2;
 
@@ -30,7 +30,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   uint256 internal constant Panic_Arithmetic = 0x11;
 
   function setUp() external {
-    hooks = new MockAccessControlHooks(address(this));
+    hooks = new MockFixedTermLoanHooks(address(this));
     mockProvider1 = new MockRoleProvider();
     mockProvider2 = new MockRoleProvider();
     assertEq(hooks.factory(), address(this), 'factory');
@@ -48,9 +48,15 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function test_onCreateMarket_CallerNotBorrower() external {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
     DeployMarketInputs memory inputs;
     hooks.onCreateMarket(address(1), address(1), inputs, '');
+  }
+
+  function test_onCreateMarket_FixedTermNotProvided() external {
+    vm.expectRevert(FixedTermLoanHooks.FixedTermNotProvided.selector);
+    DeployMarketInputs memory inputs;
+    hooks.onCreateMarket(address(this), address(1), inputs, '');
   }
 
   function _getIsKnownLenderStatus(AccessControlHooksFuzzContext memory context) internal {
@@ -63,7 +69,14 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
       address(hooks)
     );
-    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, '');
+    vm.expectEmit(address(hooks));
+    emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 365 days));
+    HooksConfig config = hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + (365 days))
+    );
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
       useOnDeposit: true,
@@ -83,6 +96,24 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     assertEq(market.isHooked, true, 'isHooked');
     assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
     assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.withdrawalRequiresAccess, true, 'withdrawalRequiresAccess');
+  }
+
+  function test_onCreateMarket_InvalidFixedTerm() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    vm.expectRevert(FixedTermLoanHooks.InvalidFixedTerm.selector);
+    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0));
+    vm.expectRevert(FixedTermLoanHooks.InvalidFixedTerm.selector);
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + (366 days))
+    );
   }
 
   function test_onCreateMarket_setMinimumDeposit() external {
@@ -91,7 +122,12 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
       address(hooks)
     );
-    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
+    HooksConfig config = hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
       useOnDeposit: true,
@@ -112,6 +148,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
     assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
+    assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
   }
 
   function test_onCreateMarket_MinimumDepositOverflow() external {
@@ -125,12 +162,12 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       address(this),
       address(1),
       inputs,
-      abi.encode(type(uint136).max)
+      abi.encode(block.timestamp + 365 days, type(uint136).max)
     );
   }
 
   function test_version() external {
-    assertEq(hooks.version(), 'SingleBorrowerAccessControlHooks');
+    assertEq(hooks.version(), 'FixedTermLoanHooks');
   }
 
   function test_config() external {
@@ -138,7 +175,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     expectedConfig.optional = StandardHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
-      useOnQueueWithdrawal: true,
+      useOnQueueWithdrawal: false,
       useOnExecuteWithdrawal: false,
       useOnTransfer: true,
       useOnBorrow: false,
@@ -150,13 +187,135 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       useOnSetProtocolFeeBips: false
     });
     expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
+    expectedConfig.required.useOnQueueWithdrawal = true;
     assertEq(hooks.config(), expectedConfig, 'config.');
+  }
+
+  function test_onCreateMarket_config(
+    bool useOnQueueWithdrawal,
+    bool useOnDeposit,
+    bool useOnTransfer
+  ) external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnQueueWithdrawal: useOnQueueWithdrawal,
+      useOnDeposit: useOnDeposit,
+      useOnTransfer: useOnTransfer,
+      useOnExecuteWithdrawal: false,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: false,
+      useOnSetProtocolFeeBips: false
+    });
+    StandardHooksConfig memory expectedConfig;
+    expectedConfig.hooksAddress = address(hooks);
+    expectedConfig.useOnQueueWithdrawal = true;
+    expectedConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
+    expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal;
+    expectedConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
+
+    HooksConfig config = hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    assertEq(config, expectedConfig, 'config');
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(market.isHooked, true, 'isHooked');
+    assertEq(market.transferRequiresAccess, useOnTransfer, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, useOnDeposit, 'depositRequiresAccess');
+    assertEq(market.withdrawalRequiresAccess, useOnQueueWithdrawal, 'withdrawalRequiresAccess');
+    assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
   }
 
   function test_onDeposit_NotHookedMarket() external {
     MarketState memory state;
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
     hooks.onDeposit(address(1), 0, state, '');
+  }
+
+  function test_setFixedTermEndTime_NotHookedMarket() external {
+    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    hooks.setFixedTermEndTime(address(1), 0);
+  }
+
+  function test_setFixedTermEndTime_CallerNotBorrower() external asAccount(address(1)) {
+    vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
+    hooks.setFixedTermEndTime(address(1), 0);
+  }
+
+  function test_setFixedTermEndTime_IncreaseFixedTerm() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    vm.expectRevert(FixedTermLoanHooks.IncreaseFixedTerm.selector);
+    hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 366 days));
+  }
+
+  function test_setFixedTermEndTime() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    vm.expectEmit(address(hooks));
+    emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
+    hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(market.fixedTermEndTime, uint32(block.timestamp + 364 days), 'fixedTermEndTime');
+  }
+
+  function test_onQueueWithdrawal_WithdrawBeforeTermEnd() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    vm.prank(address(1));
+    MarketState memory state;
+    vm.expectRevert(FixedTermLoanHooks.WithdrawBeforeTermEnd.selector);
+    hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
+  }
+
+  function test_onQueueWithdrawal() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    vm.prank(address(1));
+    MarketState memory state;
+    vm.warp(block.timestamp + 366 days);
+    hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
+  }
+
+  function test_onQueueWithdrawal_NotHookedMarket() external {
+    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    MarketState memory state;
+    hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
   }
 
   // ========================================================================== //
@@ -213,7 +372,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     uint24 pullProviderIndex
   ) internal {
     vm.expectEmit();
-    emit AccessControlHooks.RoleProviderAdded(providerAddress, timeToLive, pullProviderIndex);
+    emit FixedTermLoanHooks.RoleProviderAdded(providerAddress, timeToLive, pullProviderIndex);
   }
 
   function _expectRoleProviderUpdated(
@@ -222,12 +381,12 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     uint24 pullProviderIndex
   ) internal {
     vm.expectEmit();
-    emit AccessControlHooks.RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);
+    emit FixedTermLoanHooks.RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);
   }
 
   function _expectRoleProviderRemoved(address providerAddress, uint24 pullProviderIndex) internal {
     vm.expectEmit();
-    emit AccessControlHooks.RoleProviderRemoved(providerAddress, pullProviderIndex);
+    emit FixedTermLoanHooks.RoleProviderRemoved(providerAddress, pullProviderIndex);
   }
 
   function _expectAccountAccessGranted(
@@ -236,7 +395,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     uint32 credentialTimestamp
   ) internal {
     vm.expectEmit();
-    emit AccessControlHooks.AccountAccessGranted(
+    emit FixedTermLoanHooks.AccountAccessGranted(
       providerAddress,
       accountAddress,
       credentialTimestamp
@@ -266,7 +425,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function test_addRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
     hooks.addRoleProvider(address(2), 1);
   }
 
@@ -352,12 +511,12 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function test_removeRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
     hooks.removeRoleProvider(address(mockProvider1));
   }
 
   function test_removeRoleProvider_ProviderNotFound() external {
-    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    vm.expectRevert(FixedTermLoanHooks.ProviderNotFound.selector);
     hooks.removeRoleProvider(address(2));
   }
 
@@ -416,7 +575,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   /// @dev `grantRole` reverts if the provider is not found.
   function test_grantRole_ProviderNotFound(address account, uint32 timestamp) external {
     vm.prank(address(1));
-    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    vm.expectRevert(FixedTermLoanHooks.ProviderNotFound.selector);
     hooks.grantRole(address(2), timestamp);
   }
 
@@ -438,7 +597,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     hooks.addRoleProvider(address(mockProvider1), timeToLive);
 
     vm.prank(address(mockProvider1));
-    vm.expectRevert(AccessControlHooks.GrantedCredentialExpired.selector);
+    vm.expectRevert(FixedTermLoanHooks.GrantedCredentialExpired.selector);
     hooks.grantRole(account, timestamp);
   }
 
@@ -544,7 +703,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider1));
     hooks.grantRole(account, timestamp);
 
-    vm.expectRevert(AccessControlHooks.ProviderCanNotReplaceCredential.selector);
+    vm.expectRevert(FixedTermLoanHooks.ProviderCanNotReplaceCredential.selector);
     vm.prank(address(mockProvider2));
     hooks.grantRole(account, timestamp);
   }
@@ -555,7 +714,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
       address(1),
-      hooks,
+      AccessControlHooks(address(hooks)),
       mockProvider1,
       mockProvider2,
       address(50),
@@ -651,7 +810,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   function test_grantRoles_InvalidArrayLength() external {
     address[] memory accounts = new address[](4);
     uint32[] memory timestamps = new uint32[](3);
-    vm.expectRevert(AccessControlHooks.InvalidArrayLength.selector);
+    vm.expectRevert(FixedTermLoanHooks.InvalidArrayLength.selector);
     hooks.grantRoles(accounts, timestamps);
   }
 
@@ -660,7 +819,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     address[] memory accounts = new address[](1);
     uint32[] memory timestamps = new uint32[](1);
     vm.prank(address(1));
-    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    vm.expectRevert(FixedTermLoanHooks.ProviderNotFound.selector);
     hooks.grantRoles(accounts, timestamps);
   }
 
@@ -673,7 +832,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     vm.startPrank(address(mockProvider1));
     hooks.grantRole(address(1), uint32(block.timestamp));
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessRevoked(address(1));
+    emit FixedTermLoanHooks.AccountAccessRevoked(address(1));
     hooks.revokeRole(address(1));
   }
 
@@ -682,7 +841,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider1));
     hooks.grantRole(address(1), uint32(block.timestamp));
     vm.prank(address(mockProvider2));
-    vm.expectRevert(AccessControlHooks.ProviderCanNotRevokeCredential.selector);
+    vm.expectRevert(FixedTermLoanHooks.ProviderCanNotRevokeCredential.selector);
     hooks.revokeRole(address(1));
   }
 
@@ -691,13 +850,13 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   // ========================================================================== //
 
   function test_blockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
     hooks.blockFromDeposits(address(1));
   }
 
   function test_blockFromDeposits(address account) external {
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+    emit FixedTermLoanHooks.AccountBlockedFromDeposits(account);
     hooks.blockFromDeposits(account);
     LenderStatus memory status = hooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
@@ -709,9 +868,9 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     hooks.grantRole(account, uint32(block.timestamp));
 
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessRevoked(account);
+    emit FixedTermLoanHooks.AccountAccessRevoked(account);
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+    emit FixedTermLoanHooks.AccountBlockedFromDeposits(account);
 
     hooks.blockFromDeposits(account);
     LenderStatus memory status = hooks.getLenderStatus(account);
@@ -723,14 +882,14 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   // ========================================================================== //
 
   function test_unblockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
     hooks.unblockFromDeposits(address(1));
   }
 
   function test_unblockFromDeposits(address account) external {
     hooks.blockFromDeposits(account);
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountUnblockedFromDeposits(account);
+    emit FixedTermLoanHooks.AccountUnblockedFromDeposits(account);
     hooks.unblockFromDeposits(account);
     LenderStatus memory status = hooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
@@ -746,7 +905,12 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
       address(hooks)
     );
-    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
+    HooksConfig config = hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
       useOnDeposit: true,
@@ -769,18 +933,18 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
 
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.MinimumDepositUpdated(address(1), 2e18);
+    emit FixedTermLoanHooks.MinimumDepositUpdated(address(1), 2e18);
     hooks.setMinimumDeposit(address(1), 2e18);
     assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
   }
 
   function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
     hooks.setMinimumDeposit(address(1), 1);
   }
 
   function test_setMinimumDeposit_NotHookedMarket() external {
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
     hooks.setMinimumDeposit(address(1), 1);
   }
 }
