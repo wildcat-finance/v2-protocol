@@ -33,6 +33,7 @@ struct StandardHooksConfig {
   bool useOnNukeFromOrbit;
   bool useOnSetMaxTotalSupply;
   bool useOnSetAnnualInterestAndReserveRatioBips;
+  bool useOnSetProtocolFeeBips;
 }
 using { mergeFlags, mergeSharedFlags, toHooksConfig } for StandardHooksConfig global;
 using { toHooksDeploymentConfig } for StandardHooksDeploymentConfig global;
@@ -50,7 +51,8 @@ function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConf
       useOnCloseMarket: input.useOnCloseMarket,
       useOnNukeFromOrbit: input.useOnNukeFromOrbit,
       useOnSetMaxTotalSupply: input.useOnSetMaxTotalSupply,
-      useOnSetAnnualInterestAndReserveRatioBips: input.useOnSetAnnualInterestAndReserveRatioBips
+      useOnSetAnnualInterestAndReserveRatioBips: input.useOnSetAnnualInterestAndReserveRatioBips,
+      useOnSetProtocolFeeBips: input.useOnSetProtocolFeeBips
     });
 }
 
@@ -71,7 +73,8 @@ function mergeSharedFlags(
       useOnNukeFromOrbit: a.useOnNukeFromOrbit && b.useOnNukeFromOrbit,
       useOnSetMaxTotalSupply: a.useOnSetMaxTotalSupply && b.useOnSetMaxTotalSupply,
       useOnSetAnnualInterestAndReserveRatioBips: a.useOnSetAnnualInterestAndReserveRatioBips &&
-        b.useOnSetAnnualInterestAndReserveRatioBips
+        b.useOnSetAnnualInterestAndReserveRatioBips,
+      useOnSetProtocolFeeBips: a.useOnSetProtocolFeeBips && b.useOnSetProtocolFeeBips
     });
 }
 
@@ -104,13 +107,14 @@ function mergeFlags(
   merged.useOnBorrow = merged.useOnBorrow || flags.required.useOnBorrow;
   merged.useOnRepay = merged.useOnRepay || flags.required.useOnRepay;
   merged.useOnCloseMarket = merged.useOnCloseMarket || flags.required.useOnCloseMarket;
-  merged.useOnNukeFromOrbit =
-    merged.useOnNukeFromOrbit ||
-    flags.required.useOnNukeFromOrbit;
+  merged.useOnNukeFromOrbit = merged.useOnNukeFromOrbit || flags.required.useOnNukeFromOrbit;
   merged.useOnSetMaxTotalSupply =
     merged.useOnSetMaxTotalSupply ||
     flags.required.useOnSetMaxTotalSupply;
   merged.useOnSetAnnualInterestAndReserveRatioBips =
     merged.useOnSetAnnualInterestAndReserveRatioBips ||
     flags.required.useOnSetAnnualInterestAndReserveRatioBips;
+  merged.useOnSetProtocolFeeBips =
+    merged.useOnSetProtocolFeeBips ||
+    flags.required.useOnSetProtocolFeeBips;
 }

@@ -41,6 +41,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
       timeDelinquent: 0,
       reserveRatioBips: inputs.reserveRatioBips,
       annualInterestBips: inputs.annualInterestBips,
+      protocolFeeBips: inputs.protocolFeeBips,
       scaleFactor: uint112(RAY),
       lastInterestAccruedTimestamp: uint32(block.timestamp),
       scaledPendingWithdrawals: 0,

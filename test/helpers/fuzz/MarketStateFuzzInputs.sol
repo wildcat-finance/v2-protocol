@@ -17,6 +17,7 @@ struct MarketStateFuzzInputs {
   uint32 pendingWithdrawalExpiry;
   bool isDelinquent;
   uint32 timeDelinquent;
+  uint16 protocolFeeBips;
   uint16 annualInterestBips;
   uint16 reserveRatioBips;
   uint112 scaleFactor;
@@ -36,7 +37,9 @@ library LibMarketStateFuzzInputs {
         type(uint128).max
       )
     );
-
+    inputs.protocolFeeBips = uint16(
+      bound(inputs.protocolFeeBips, MinimumProtocolFeeBips, MaximumProtocolFeeBips)
+    );
     inputs.annualInterestBips = uint16(
       bound(inputs.annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips)
     );
@@ -62,6 +65,7 @@ library LibMarketStateFuzzInputs {
     state.pendingWithdrawalExpiry = inputs.pendingWithdrawalExpiry;
     state.isDelinquent = inputs.isDelinquent;
     state.timeDelinquent = inputs.timeDelinquent;
+    state.protocolFeeBips = inputs.protocolFeeBips;
     state.annualInterestBips = inputs.annualInterestBips;
     state.reserveRatioBips = inputs.reserveRatioBips;
     state.scaleFactor = inputs.scaleFactor;

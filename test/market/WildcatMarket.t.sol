@@ -479,7 +479,8 @@ contract WildcatMarketTest is BaseMarketTest {
       useOnCloseMarket: false,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
     });
 
     setUpContracts(false);
@@ -557,7 +558,8 @@ contract WildcatMarketTest is BaseMarketTest {
       useOnCloseMarket: false,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
     });
 
     setUpContracts(false);

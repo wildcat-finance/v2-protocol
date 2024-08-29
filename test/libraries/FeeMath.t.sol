@@ -65,6 +65,7 @@ contract FeeMathTest is Test {
 
   function test_updateScaleFactorAndFees_WithFeesAndPenalties() external {
     MarketState memory state;
+    state.protocolFeeBips = 1000;
     state.timeDelinquent = 1000;
     state.isDelinquent = true;
     uint256 delinquencyGracePeriod = 0;
@@ -75,9 +76,7 @@ contract FeeMathTest is Test {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    // @todo fix
     (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      1000,
       1000,
       delinquencyGracePeriod,
       block.timestamp
@@ -116,12 +115,12 @@ contract FeeMathTest is Test {
   ) external {
     MarketInputParameters memory parameters = configInputs.toParameters();
     MarketState memory state = stateInputs.toState();
+    state.protocolFeeBips = parameters.protocolFeeBips;
     bytes32 stateHash = keccak256(abi.encode(state));
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
     (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      parameters.protocolFeeBips,
       parameters.delinquencyFeeBips,
       parameters.delinquencyGracePeriod,
       state.lastInterestAccruedTimestamp

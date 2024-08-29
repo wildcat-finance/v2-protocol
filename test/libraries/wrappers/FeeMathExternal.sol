@@ -20,10 +20,9 @@ library FeeMathExternal {
 
   function $applyProtocolFee(
     MarketState memory state,
-    uint256 baseInterestRay,
-    uint256 protocolFeeBips
+    uint256 baseInterestRay
   ) external pure returns (MarketState memory newState, uint256 protocolFee) {
-    protocolFee = FeeMath.applyProtocolFee(state, baseInterestRay, protocolFeeBips);
+    protocolFee = FeeMath.applyProtocolFee(state, baseInterestRay);
     newState = state;
   }
 
@@ -57,7 +56,6 @@ library FeeMathExternal {
 
   function $updateScaleFactorAndFees(
     MarketState memory state,
-    uint256 protocolFeeBips,
     uint256 delinquencyFeeBips,
     uint256 delinquencyGracePeriod,
     uint256 timestamp
@@ -74,7 +72,6 @@ library FeeMathExternal {
     newState = state;
     (baseInterestRay, delinquencyFeeRay, protocolFee) = FeeMath.updateScaleFactorAndFees(
       state,
-      protocolFeeBips,
       delinquencyFeeBips,
       delinquencyGracePeriod,
       timestamp

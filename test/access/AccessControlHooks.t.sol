@@ -72,7 +72,8 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       useOnCloseMarket: false,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
     });
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
@@ -98,7 +99,8 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       useOnCloseMarket: false,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false
+      useOnSetAnnualInterestAndReserveRatioBips: false,
+      useOnSetProtocolFeeBips: false
     });
     expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
     assertEq(hooks.config(), expectedConfig, 'config.');
@@ -531,13 +533,6 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
         context.expectations.lastApprovalTimestamp,
         'lastApprovalTimestamp'
       );
-      // LenderStatus memory _status = hooks.getLenderStatus(context.account);
-      // assertEq(status.isBlockedFromDeposits, context.expectations.isBlockedFromDeposits, 'isBlockedFromDeposits');
-      // bool isBlockedFromDeposits;
-      // bool isKnownLender;
-      // address lastProvider;
-      // bool canRefresh;
-      // uint32 lastApprovalTimestamp;
     }
     context.validate();
   }
