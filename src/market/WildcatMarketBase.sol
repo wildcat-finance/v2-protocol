@@ -48,11 +48,11 @@ contract WildcatMarketBase is
   /// @dev Account with authority to borrow assets from the market.
   address public immutable borrower;
 
+  /// @dev Factory that deployed the market. Has the ability to update the protocol fee.
+  address public immutable factory;
+
   /// @dev Account that receives protocol fees.
   address public immutable feeRecipient;
-
-  /// @dev Protocol fee added to interest paid by borrower.
-  uint public immutable protocolFeeBips;
 
   /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
   uint public immutable delinquencyFeeBips;
@@ -155,6 +155,7 @@ contract WildcatMarketBase is
   }
 
   constructor() {
+    factory = msg.sender;
     // Cast the function signature of `_getMarketParameters` to get a valid reference to
     // a `MarketParameters` object without creating a duplicate allocation or unnecessarily
     // zeroing out the memory buffer.
@@ -176,6 +177,7 @@ contract WildcatMarketBase is
       uint maxTotalSupply = parameters.maxTotalSupply;
       uint reserveRatioBips = parameters.reserveRatioBips;
       uint annualInterestBips = parameters.annualInterestBips;
+      uint protocolFeeBips = parameters.protocolFeeBips;
 
       assembly {
         // MarketState Slot 0 Storage Layout:
@@ -186,15 +188,16 @@ contract WildcatMarketBase is
         sstore(_state.slot, slot0)
 
         // MarketState Slot 3 Storage Layout:
-        // [6:10] | lastInterestAccruedTimestamp
-        // [10:24] | scaleFactor
-        // [24:26] | reserveRatioBips
-        // [26:28] | annualInterestBips
+        // [4:8] | lastInterestAccruedTimestamp
+        // [8:22] | scaleFactor = 1e27
+        // [22:24] | reserveRatioBips
+        // [24:26] | annualInterestBips
+        // [26:28] | protocolFeeBips
         // [28:32] | timeDelinquent = 0
 
         let slot3 := or(
-          or(or(shl(0xb0, timestamp()), shl(0x40, RAY)), shl(0x30, reserveRatioBips)),
-          shl(0x20, annualInterestBips)
+          or(or(shl(0xc0, timestamp()), shl(0x50, RAY)), shl(0x40, reserveRatioBips)),
+          or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
         )
 
         sstore(add(_state.slot, 3), slot3)
@@ -205,7 +208,6 @@ contract WildcatMarketBase is
     sentinel = parameters.sentinel;
     borrower = parameters.borrower;
     feeRecipient = parameters.feeRecipient;
-    protocolFeeBips = parameters.protocolFeeBips;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
     delinquencyGracePeriod = parameters.delinquencyGracePeriod;
     withdrawalBatchDuration = parameters.withdrawalBatchDuration;
@@ -330,7 +332,7 @@ contract WildcatMarketBase is
     MarketState memory state = _state;
 
     assembly {
-      return(state, 0x1a0)
+      return(state, 0x1c0)
     }
   }
 
@@ -342,7 +344,7 @@ contract WildcatMarketBase is
   function currentState() external view nonReentrantView returns (MarketState memory state) {
     state = _calculateCurrentStatePointers.asReturnsMarketState()();
     assembly {
-      return(state, 0x1a0)
+      return(state, 0x1c0)
     }
   }
 
@@ -412,7 +414,6 @@ contract WildcatMarketBase is
       if (expiry != lastInterestAccruedTimestamp) {
         (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
           .updateScaleFactorAndFees(
-            protocolFeeBips,
             delinquencyFeeBips,
             delinquencyGracePeriod,
             expiry
@@ -433,7 +434,6 @@ contract WildcatMarketBase is
     if (block.timestamp != lastInterestAccruedTimestamp) {
       (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
         .updateScaleFactorAndFees(
-          protocolFeeBips,
           delinquencyFeeBips,
           delinquencyGracePeriod,
           block.timestamp
@@ -490,7 +490,6 @@ contract WildcatMarketBase is
       // This will only be false if withdrawalBatchDuration is 0.
       if (pendingBatchExpiry != state.lastInterestAccruedTimestamp) {
         state.updateScaleFactorAndFees(
-          protocolFeeBips,
           delinquencyFeeBips,
           delinquencyGracePeriod,
           pendingBatchExpiry
@@ -510,7 +509,6 @@ contract WildcatMarketBase is
 
     if (state.lastInterestAccruedTimestamp != block.timestamp) {
       state.updateScaleFactorAndFees(
-        protocolFeeBips,
         delinquencyFeeBips,
         delinquencyGracePeriod,
         block.timestamp
@@ -587,24 +585,29 @@ contract WildcatMarketBase is
     }
     {
       uint timeDelinquent = state.timeDelinquent;
+      uint protocolFeeBips = state.protocolFeeBips;
       uint annualInterestBips = state.annualInterestBips;
       uint reserveRatioBips = state.reserveRatioBips;
       uint scaleFactor = state.scaleFactor;
       uint lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       assembly {
         // Slot 3 Storage Layout:
-        // [6:10] | state.lastInterestAccruedTimestamp
-        // [10:24] | state.scaleFactor
-        // [24:26] | state.reserveRatioBips
-        // [26:28] | state.annualInterestBips
+        // [4:8] | state.lastInterestAccruedTimestamp
+        // [8:22] | state.scaleFactor
+        // [22:24] | state.reserveRatioBips
+        // [24:26] | state.annualInterestBips
+        // [26:28] | protocolFeeBips
         // [28:32] | state.timeDelinquent
         let slot3 := or(
           or(
             or(
-              or(shl(0xb0, lastInterestAccruedTimestamp), shl(0x40, scaleFactor)),
-              shl(0x30, reserveRatioBips)
+              or(shl(0xc0, lastInterestAccruedTimestamp), shl(0x50, scaleFactor)),
+              shl(0x40, reserveRatioBips)
             ),
-            shl(0x20, annualInterestBips)
+            or(
+              shl(0x30, annualInterestBips),
+              shl(0x20, protocolFeeBips)
+            )
           ),
           timeDelinquent
         )
