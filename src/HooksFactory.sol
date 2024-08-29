@@ -342,7 +342,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     DeployMarketInputs memory parameters,
     bytes memory hooksData,
     HooksTemplate memory template,
-    bytes32 salt
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   ) internal returns (address market) {
     if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
       revert AssetBlacklisted();
@@ -353,17 +355,25 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert SaltDoesNotContainSender();
     }
 
-    if (template.originationFeeAsset != address(0)) {
-      template.originationFeeAsset.safeTransferFrom(
-        msg.sender,
-        template.feeRecipient,
-        template.originationFeeAmount
-      );
+    if (
+      originationFeeAsset != template.originationFeeAsset ||
+      originationFeeAmount != template.originationFeeAmount
+    ) {
+      revert FeeMismatch();
+    }
+
+    if (originationFeeAsset != address(0)) {
+      originationFeeAsset.safeTransferFrom(msg.sender, template.feeRecipient, originationFeeAmount);
     }
 
     market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
 
-    parameters.hooks = IHooks(hooksInstance).onCreateMarket(msg.sender, market, parameters, hooksData);
+    parameters.hooks = IHooks(hooksInstance).onCreateMarket(
+      msg.sender,
+      market,
+      parameters,
+      hooksData
+    );
     uint8 decimals = parameters.asset.decimals();
 
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
@@ -421,7 +431,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
-    bytes32 salt
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   ) external override returns (address market) {
     if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
       revert NotApprovedBorrower();
@@ -432,7 +444,14 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert HooksInstanceNotFound();
     }
     HooksTemplate memory template = _templateDetails[hooksTemplate];
-    market = _deployMarket(parameters, hooksData, template, salt);
+    market = _deployMarket(
+      parameters,
+      hooksData,
+      template,
+      salt,
+      originationFeeAsset,
+      originationFeeAmount
+    );
   }
 
   function deployMarketAndHooks(
@@ -440,7 +459,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     bytes calldata hooksTemplateArgs,
     DeployMarketInputs memory parameters,
     bytes calldata hooksData,
-    bytes32 salt
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   ) external override returns (address market, address hooksInstance) {
     if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
       revert NotApprovedBorrower();
@@ -451,6 +472,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     HooksTemplate memory template = _templateDetails[hooksTemplate];
     hooksInstance = _deployHooksInstance(hooksTemplate, hooksTemplateArgs);
     parameters.hooks = parameters.hooks.setHooksAddress(hooksInstance);
-    market = _deployMarket(parameters, hooksData, template, salt);
+    market = _deployMarket(
+      parameters,
+      hooksData,
+      template,
+      salt,
+      originationFeeAsset,
+      originationFeeAmount
+    );
   }
 }
