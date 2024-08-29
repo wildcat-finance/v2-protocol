@@ -348,9 +348,9 @@ library LibDeployment {
   function broadcast(Deployments memory deployments) internal {
     uint256 key = forgeVm.envOr(deployments.privateKeyVarName, uint256(0));
     if (key == 0) {
-      forgeVm.startBroadcast();
+      forgeVm.broadcast();
     } else {
-      forgeVm.startBroadcast(key);
+      forgeVm.broadcast(key);
     }
   }
 
@@ -364,7 +364,6 @@ library LibDeployment {
     assembly {
       deployment := create(0, add(initCode, 0x20), mload(initCode))
     }
-    forgeVm.stopBroadcast();
   }
 
   function broadcastDeployInitcode(
@@ -373,7 +372,6 @@ library LibDeployment {
   ) internal returns (address deployment) {
     deployments.broadcast();
     deployment = LibStoredInitCode.deployInitCode(creationCode);
-    forgeVm.stopBroadcast();
   }
 
   function findForgeArtifact(
