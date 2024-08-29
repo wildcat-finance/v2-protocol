@@ -73,7 +73,7 @@ contract HooksFactoryTest is Test, Assertions {
       input.originationFeeAsset = nullAddress;
     }
     bool canHaveOriginationFee = input.originationFeeAsset != nullAddress && hasFeeRecipient;
-    uint maxProtocolFee = hasFeeRecipient ? 10_000 : 0;
+    uint maxProtocolFee = hasFeeRecipient ? 1_000 : 0;
     input.protocolFeeBips = uint16(bound(input.protocolFeeBips, 0, maxProtocolFee));
     input.originationFeeAmount = uint80(
       bound(input.originationFeeAmount, 0, canHaveOriginationFee ? type(uint80).max : 0)
@@ -194,7 +194,7 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, notNullFeeRecipient, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 10001);
+    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 1_001);
   }
 
   // ========================================================================== //
@@ -291,7 +291,7 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, notNullFeeRecipient, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, nullAddress, 0, 10001);
+    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, nullAddress, 0, 1_001);
   }
 
   // ========================================================================== //
@@ -590,7 +590,8 @@ contract HooksFactoryTest is Test, Assertions {
     assertEq(address(market.sentinel()), sanctionsSentinel, 'sentinel');
     assertEq(market.borrower(), address(this), 'borrower');
     assertEq(market.feeRecipient(), feesInput.feeRecipient, 'feeRecipient');
-    assertEq(market.protocolFeeBips(), feesInput.protocolFeeBips, 'protocolFeeBips');
+    MarketState memory state = market.previousState();
+    assertEq(state.protocolFeeBips, feesInput.protocolFeeBips, 'protocolFeeBips');
     assertEq(market.delinquencyFeeBips(), parameters.delinquencyFeeBips, 'delinquencyFeeBips');
     assertEq(
       market.delinquencyGracePeriod(),

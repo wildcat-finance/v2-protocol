@@ -156,7 +156,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       (protocolFeeBips > 0 && nullFeeRecipient) ||
       (hasOriginationFee && nullFeeRecipient) ||
       (hasOriginationFee && nullOriginationFeeAsset) ||
-      protocolFeeBips > 10000
+      protocolFeeBips > 1_000
     ) {
       revert InvalidFeeConfiguration();
     }
