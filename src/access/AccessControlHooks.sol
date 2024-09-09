@@ -57,7 +57,7 @@ contract AccessControlHooks is MarketConstraintHooks {
     uint32 credentialTimestamp
   );
   event AccountAccessRevoked(address indexed accountAddress);
-  event AccountMadeFirstDeposit(address indexed accountAddress);
+  event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
 
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
 
@@ -736,7 +736,7 @@ contract AccessControlHooks is MarketConstraintHooks {
       )
     ) {
       isKnownLenderOnMarket[accountAddress][msg.sender] = true;
-      emit AccountMadeFirstDeposit(accountAddress);
+      emit AccountMadeFirstDeposit(msg.sender, accountAddress);
     }
 
     // Write the account's status to storage if it was updated
