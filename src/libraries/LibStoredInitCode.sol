@@ -91,7 +91,7 @@ library LibStoredInitCode {
       let initCodeSize := sub(extcodesize(initCodeStorage), 1)
       extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
       deployment := create(value, initCodePointer, initCodeSize)
-      if iszero(deployment) {
+      if iszero(extcodesize(deployment)) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
         revert(0x1c, 0x04)
       }
@@ -115,7 +115,7 @@ library LibStoredInitCode {
       let initCodeSize := sub(extcodesize(initCodeStorage), 1)
       extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
       deployment := create2(value, initCodePointer, initCodeSize, salt)
-      if iszero(deployment) {
+      if iszero(extcodesize(deployment)) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
         revert(0x1c, 0x04)
       }
@@ -138,7 +138,7 @@ library LibStoredInitCode {
       mcopy(add(initCodePointer, initCodeSize), add(constructorArgs, 0x20), constructorArgsSize)
       let initCodeSizeWithArgs := add(initCodeSize, constructorArgsSize)
       deployment := create2(value, initCodePointer, initCodeSizeWithArgs, salt)
-      if iszero(deployment) {
+      if iszero(extcodesize(deployment)) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
         revert(0x1c, 0x04)
       }
@@ -169,7 +169,7 @@ library LibStoredInitCode {
       calldatacopy(add(initCodePointer, initCodeSize), constructorArgs.offset, constructorArgsSize)
       let initCodeSizeWithArgs := add(initCodeSize, constructorArgsSize)
       deployment := create2(value, initCodePointer, initCodeSizeWithArgs, salt)
-      if iszero(deployment) {
+      if iszero(extcodesize(deployment)) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
         revert(0x1c, 0x04)
       }
