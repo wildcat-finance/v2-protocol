@@ -161,7 +161,6 @@ contract WithdrawalsTest is BaseMarketTest {
     _requestWithdrawal(alice, withdrawalAmount);
   }
 
-
   /* -------------------------------------------------------------------------- */
   /*                              queueFullWithdrawal()                             */
   /* -------------------------------------------------------------------------- */
@@ -200,16 +199,8 @@ contract WithdrawalsTest is BaseMarketTest {
     uint256 userBalance1,
     uint256 userBalance2
   ) external asAccount(alice) {
-    userBalance1 = bound(
-      userBalance1,
-      2,
-      DefaultMaximumSupply / 2
-    );
-    userBalance2 = bound(
-      userBalance2,
-      2,
-      DefaultMaximumSupply - userBalance1
-    );
+    userBalance1 = bound(userBalance1, 2, DefaultMaximumSupply / 2);
+    userBalance2 = bound(userBalance2, 2, DefaultMaximumSupply - userBalance1);
     _deposit(alice, userBalance1);
     _deposit(bob, userBalance2);
     _requestFullWithdrawal(alice);
@@ -226,9 +217,7 @@ contract WithdrawalsTest is BaseMarketTest {
     );
   }
 
-  function test_queueFullWithdrawal_BurnAll(
-    uint128 userBalance
-  ) external asAccount(alice) {
+  function test_queueFullWithdrawal_BurnAll(uint128 userBalance) external asAccount(alice) {
     userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
     _deposit(alice, userBalance);
     _requestFullWithdrawal(alice);
@@ -280,9 +269,7 @@ contract WithdrawalsTest is BaseMarketTest {
     );
   }
 
-  function test_queueFullWithdrawal(
-    uint128 userBalance
-  ) external asAccount(alice) {
+  function test_queueFullWithdrawal(uint128 userBalance) external asAccount(alice) {
     userBalance = uint128(bound(userBalance, 2, DefaultMaximumSupply));
     _deposit(alice, userBalance);
     _requestFullWithdrawal(alice);
@@ -347,7 +334,7 @@ contract WithdrawalsTest is BaseMarketTest {
     uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     _closeMarket();
     fastForward(parameters.withdrawalBatchDuration + 1);
-    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18,  false);
+    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18, false);
     vm.prank(alice);
     market.executeWithdrawal(alice, expiry);
   }
@@ -357,7 +344,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _requestWithdrawal(alice, 1e18);
     uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     _closeMarket();
-    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18,  false);
+    _trackExecuteWithdrawal(pendingState(), expiry, alice, 1e18, false);
     vm.prank(alice);
     market.executeWithdrawal(alice, expiry);
   }
@@ -533,8 +520,7 @@ contract WithdrawalsTest is BaseMarketTest {
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
 
     uint scaledAvailableLiquidity = state.scaleAmount(feesAccruedOnWithdrawal);
-    uint normalizedAmountPaid = MathUtils
-    .mulDiv(scaledAvailableLiquidity, state.scaleFactor, RAY);
+    uint normalizedAmountPaid = MathUtils.mulDiv(scaledAvailableLiquidity, state.scaleFactor, RAY);
     _checkBatch(expiry, 1e18, 1e18, 1e18 + normalizedAmountPaid);
     assertEq(market.getUnpaidBatchExpiries().length, 0);
     _checkState();
@@ -792,7 +778,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     asset.mint(address(market), 8e17);
-    fastForward( parameters.withdrawalBatchDuration + 1);
+    fastForward(parameters.withdrawalBatchDuration + 1);
     market.updateState();
   }
 }
