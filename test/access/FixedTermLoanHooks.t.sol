@@ -85,7 +85,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
@@ -136,7 +136,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
@@ -188,6 +188,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     });
     expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
     expectedConfig.required.useOnQueueWithdrawal = true;
+    expectedConfig.required.useOnCloseMarket = true;
     assertEq(hooks.config(), expectedConfig, 'config.');
   }
 
@@ -205,7 +206,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnExecuteWithdrawal: false,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false,
@@ -214,6 +215,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     StandardHooksConfig memory expectedConfig;
     expectedConfig.hooksAddress = address(hooks);
     expectedConfig.useOnQueueWithdrawal = true;
+    expectedConfig.useOnCloseMarket = true;
     expectedConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
     expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal;
     expectedConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
@@ -919,7 +921,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
