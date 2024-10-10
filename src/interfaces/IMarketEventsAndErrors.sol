@@ -58,8 +58,6 @@ interface IMarketEventsAndErrors {
 
   error ProtocolFeeChangeOnClosedMarket();
 
-  error ProtocolFeeNotChanged();
-
   error CloseMarketWithUnpaidWithdrawals();
 
   error AnnualInterestBipsTooHigh();

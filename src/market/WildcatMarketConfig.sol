@@ -168,10 +168,12 @@ contract WildcatMarketConfig is WildcatMarketBase {
     if (_protocolFeeBips > 1_000) revert_ProtocolFeeTooHigh();
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_ProtocolFeeChangeOnClosedMarket();
-    if (_protocolFeeBips == state.protocolFeeBips) revert_ProtocolFeeNotChanged();
-    hooks.onSetProtocolFeeBips(_protocolFeeBips, state);
-    state.protocolFeeBips = _protocolFeeBips;
-    emit ProtocolFeeBipsUpdated(_protocolFeeBips);
+    if (_protocolFeeBips != state.protocolFeeBips)
+      {
+        hooks.onSetProtocolFeeBips(_protocolFeeBips, state);
+        state.protocolFeeBips = _protocolFeeBips;
+        emit ProtocolFeeBipsUpdated(_protocolFeeBips);
+      }
     _writeState(state);
   }
     

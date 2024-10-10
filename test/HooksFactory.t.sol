@@ -1167,30 +1167,4 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate);
   }
 
-  function test_pushProtocolFeeBipsUpdates_SetProtocolFeeBipsFailed() external {
-    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0xfee), address(0), 0, 0);
-    archController.registerBorrower(address(this));
-
-    bytes memory constructorArgs = '';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
-
-    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
-
-    DeployMarketInputs memory parameters = DeployMarketInputs({
-      asset: address(underlying),
-      namePrefix: 'name',
-      symbolPrefix: 'symbol',
-      maxTotalSupply: type(uint128).max,
-      annualInterestBips: 1000,
-      delinquencyFeeBips: 1000,
-      withdrawalBatchDuration: 10000,
-      reserveRatioBips: 10000,
-      delinquencyGracePeriod: 10000,
-      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
-    });
-    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
-    hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(2)), address(0), 0);
-    vm.expectRevert(IHooksFactoryEventsAndErrors.SetProtocolFeeBipsFailed.selector);
-    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate);
-  }
 }
