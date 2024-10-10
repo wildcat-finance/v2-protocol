@@ -203,7 +203,10 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
       assembly {
         minimumDeposit := calldataload(add(hooksData.offset, 0x20))
       }
-      emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+      if (minimumDeposit > 0) {
+        marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
+        emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+      }
       if (hooksData.length > 64) {
         assembly {
           transfersDisabled := and(calldataload(add(hooksData.offset, 0x40)), 1)

@@ -88,16 +88,16 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   function test_onCreateMarket_setMinimumDeposit() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(
       address(hooks)
     );
     HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
       useOnDeposit: true,
-      useOnQueueWithdrawal: true,
+      useOnQueueWithdrawal: false,
       useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
+      useOnTransfer: false,
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: false,

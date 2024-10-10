@@ -176,7 +176,10 @@ contract AccessControlHooks is MarketConstraintHooks {
       assembly {
         minimumDeposit := calldataload(hooksData.offset)
       }
-      emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+      if (minimumDeposit > 0) {
+        marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
+        emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+      }
       if (hooksData.length > 32) {
         assembly {
           transfersDisabled := and(calldataload(add(hooksData.offset, 0x20)), 1)

@@ -119,9 +119,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   function test_onCreateMarket_setMinimumDeposit() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -133,7 +131,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnDeposit: true,
       useOnQueueWithdrawal: true,
       useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
+      useOnTransfer: false,
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: false,
@@ -202,7 +200,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     vm.expectRevert(FixedTermLoanHooks.TransfersDisabled.selector);
     MarketState memory state;
     vm.prank(address(1));
-    hooks.onTransfer(address(1), address(2), address(3),  100, state, "");
+    hooks.onTransfer(address(1), address(2), address(3), 100, state, '');
   }
 
   function test_onCreateMarket_MinimumDepositOverflow() external {
@@ -248,7 +246,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   function test_onCreateMarket_config(
     bool useOnQueueWithdrawal,
     bool useOnDeposit,
-    bool useOnTransfer
+    bool useOnTransfer,
+    uint128 minimumDeposit
   ) external {
     DeployMarketInputs memory inputs;
     inputs.hooks = encodeHooksConfig({
@@ -269,14 +268,14 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     expectedConfig.hooksAddress = address(hooks);
     expectedConfig.useOnQueueWithdrawal = true;
     expectedConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
-    expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal;
+    expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal || minimumDeposit > 0;
     expectedConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
 
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
+      abi.encode(block.timestamp + 365 days, minimumDeposit)
     );
     assertEq(config, expectedConfig, 'config');
     HookedMarket memory market = hooks.getHookedMarket(address(1));
@@ -285,6 +284,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     assertEq(market.depositRequiresAccess, useOnDeposit, 'depositRequiresAccess');
     assertEq(market.withdrawalRequiresAccess, useOnQueueWithdrawal, 'withdrawalRequiresAccess');
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
+    assertEq(market.minimumDeposit, minimumDeposit, 'minimumDeposit');
+    assertEq(market.transfersDisabled, false, 'transfersDisabled');
   }
 
   function test_onDeposit_NotHookedMarket() external {
