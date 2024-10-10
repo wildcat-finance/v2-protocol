@@ -281,7 +281,7 @@ library LibAccessControlHooksFuzzContext {
         context.functionKind == FunctionKind.DepositFunction
       ) {
         vm.expectEmit(address(context.hooks));
-        emit AccessControlHooks.AccountMadeFirstDeposit(context.account);
+        emit AccessControlHooks.AccountMadeFirstDeposit(context.market, context.account);
       }
     }
     if (context.expectations.expectedError != 0) {
