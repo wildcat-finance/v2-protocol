@@ -306,16 +306,6 @@ function revert_ProtocolFeeChangeOnClosedMarket() pure {
   }
 }
 
-uint256 constant ProtocolFeeNotChanged_ErrorSelector = 0xe0cf78fc;
-
-/// @dev Equivalent to `revert ProtocolFeeNotChanged()`
-function revert_ProtocolFeeNotChanged() pure {
-  assembly {
-    mstore(0, 0xe0cf78fc)
-    revert(0x1c, 0x04)
-  }
-}
-
 uint256 constant NotFactory_ErrorSelector = 0x32cc7236;
 
 function revert_NotFactory() pure {

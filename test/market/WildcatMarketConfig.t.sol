@@ -474,14 +474,6 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     market.setProtocolFeeBips(1001);
   }
 
-  function test_setProtocolFeeBips_ProtocolFeeNotChanged()
-    external
-    asAccount(address(hooksFactory))
-  {
-    vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeNotChanged.selector);
-    market.setProtocolFeeBips(DefaultProtocolFeeBips);
-  }
-
   function test_setProtocolFeeBips_ProtocolFeeChangeOnClosedMarket() external {
     vm.prank(borrower);
     market.closeMarket();
