@@ -322,20 +322,21 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     address accountAddress,
     uint256 normalizedAmount
   ) internal returns (uint32 expiry, uint104 scaledAmount) {
-    return _trackQueueWithdrawal(
-      state,
-      accountAddress,
-      normalizedAmount,
-      registerExpectationsStandin,
-      0
-    );
+    return
+      _trackQueueWithdrawal(
+        state,
+        accountAddress,
+        normalizedAmount,
+        registerExpectationsStandin,
+        0
+      );
   }
 
   function _trackQueueWithdrawal(
     MarketState memory state,
     address accountAddress,
     uint256 normalizedAmount,
-    function (uint, bool) internal registerHookExpectations,
+    function(uint, bool) internal registerHookExpectations,
     uint registerHookExpectationsInput
   ) internal returns (uint32 expiry, uint104 scaledAmount) {
     scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
@@ -476,6 +477,27 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
         availableLiquidity -= normalizedAmountPaid;
         _withdrawalData.batches[expiry] = batch;
       }
+      state.pendingWithdrawalExpiry = 0;
+      if (expectEvents) {
+        vm.expectEmit(address(market));
+        emit WithdrawalBatchExpired(
+          expiry,
+          batch.scaledTotalAmount,
+          batch.scaledAmountBurned,
+          batch.normalizedAmountPaid
+        );
+        vm.expectEmit(address(market));
+        emit WithdrawalBatchClosed(expiry);
+      }
+
+      if (expiry == block.timestamp) {
+        uint32 newExpiry = expiry + 1;
+        if (expectEvents) {
+          vm.expectEmit(address(market));
+          emit WithdrawalBatchCreated(newExpiry);
+        }
+        state.pendingWithdrawalExpiry = newExpiry;
+      }
     }
 
     uint256 numBatches = _withdrawalData.unpaidBatches.length();
@@ -605,7 +627,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       return 0;
     }
     uint104 scaledAmountBurned = uint104(MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed));
-    normalizedAmountPaid =  MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
+    normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;

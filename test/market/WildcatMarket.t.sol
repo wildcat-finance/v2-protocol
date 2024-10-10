@@ -284,6 +284,7 @@ contract WildcatMarketTest is BaseMarketTest {
     state.isClosed = true;
     state.reserveRatioBips = 10000;
     state.timeDelinquent = 0;
+    state.pendingWithdrawalExpiry = 0;
     updateState(state);
     market.closeMarket();
     assertEq(market.getUnpaidBatchExpiries().length, 0);
@@ -400,7 +401,6 @@ contract WildcatMarketTest is BaseMarketTest {
     }
     safeStopPrank();
   }
-
 
   function test_deposit_DepositBelowMinimum() external {
     parameters.minimumDeposit = 101;
