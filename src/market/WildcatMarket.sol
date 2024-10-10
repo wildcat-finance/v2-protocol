@@ -254,6 +254,26 @@ contract WildcatMarket is
         availableLiquidity -= normalizedAmountPaid;
         _withdrawalData.batches[expiry] = batch;
       }
+
+      // Remove the pending batch to ensure new withdrawals are not
+      // added to it after the market is closed.
+      state.pendingWithdrawalExpiry = 0;
+      emit_WithdrawalBatchExpired(
+        expiry,
+        batch.scaledTotalAmount,
+        batch.scaledAmountBurned,
+        batch.normalizedAmountPaid
+      );
+      emit_WithdrawalBatchClosed(expiry);
+
+      // If the batch expiry is at the time of the market's closure, create
+      // a new empty batch that expires in one second to ensure new batches
+      // aren't created after the market is closed with the same expiry.
+      if (expiry == block.timestamp) {
+        uint32 newExpiry = expiry + 1;
+        emit_WithdrawalBatchCreated(newExpiry);
+        state.pendingWithdrawalExpiry = newExpiry;
+      }
     }
 
     uint256 numBatches = _withdrawalData.unpaidBatches.length();
