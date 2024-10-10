@@ -949,4 +949,24 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
     hooks.setMinimumDeposit(address(1), 1);
   }
+
+  function test_closeMarket() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    vm.expectEmit(address(hooks));
+    vm.prank(address(1));
+    emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp));
+    MarketState memory state;
+    hooks.onCloseMarket(state, '');
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(market.fixedTermEndTime, uint32(block.timestamp), 'fixedTermEndTime');
+  }
 }
