@@ -235,10 +235,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint baseCalldataSize
   ) internal returns (uint256) {
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
-    // If the market is closed, allow withdrawal prior to expiry.
-    if (expiry >= block.timestamp && !state.isClosed) {
-      revert_WithdrawalBatchNotExpired();
-    }
+    if (expiry == state.pendingWithdrawalExpiry) revert_WithdrawalBatchNotExpired();
 
     AccountWithdrawalStatus storage status = _withdrawalData.accountStatuses[expiry][
       accountAddress
