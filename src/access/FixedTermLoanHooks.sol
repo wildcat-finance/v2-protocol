@@ -90,6 +90,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   error InvalidFixedTerm();
   error IncreaseFixedTerm();
   error WithdrawBeforeTermEnd();
+  error NoReducingAprBeforeTermEnd();
   error TransfersDisabled();
 
   // ========================================================================== //
@@ -998,6 +999,17 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
+
+    HookedMarket storage hookedMarket = _hookedMarkets[msg.sender];
+
+    /* Revert if market is still in fixed term and new APR is lower than it was */
+    if (
+      (hookedMarket.fixedTermEndTime > block.timestamp) &&
+      (annualInterestBips < intermediateState.annualInterestBips)
+    ) {
+      revert NoReducingAprBeforeTermEnd();
+    }
+
     return
       super.onSetAnnualInterestAndReserveRatioBips(
         annualInterestBips,
