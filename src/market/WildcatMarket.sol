@@ -176,20 +176,6 @@ contract WildcatMarket is
     hooks.onRepay(amount, state, baseCalldataSize);
   }
 
-  function repayOutstandingDebt() external nonReentrant sphereXGuardExternal {
-    MarketState memory state = _getUpdatedState();
-    uint256 outstandingDebt = state.totalDebts().satSub(totalAssets());
-    _repay(state, outstandingDebt, 0x04);
-    _writeState(state);
-  }
-
-  function repayDelinquentDebt() external nonReentrant sphereXGuardExternal {
-    MarketState memory state = _getUpdatedState();
-    uint256 delinquentDebt = state.liquidityRequired().satSub(totalAssets());
-    _repay(state, delinquentDebt, 0x04);
-    _writeState(state);
-  }
-
   /**
    * @dev Transfers funds from the caller to the market.
    *
