@@ -18,6 +18,7 @@ struct HookedMarket {
   bool transferRequiresAccess;
   bool depositRequiresAccess;
   uint128 minimumDeposit;
+  bool transfersDisabled;
 }
 
 /**
@@ -79,6 +80,7 @@ contract AccessControlHooks is MarketConstraintHooks {
   error InvalidArrayLength();
   error NotHookedMarket();
   error DepositBelowMinimum();
+  error TransfersDisabled();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -167,11 +169,22 @@ contract AccessControlHooks is MarketConstraintHooks {
     if (deployer != borrower) revert CallerNotBorrower();
     marketHooksConfig = parameters.hooks;
     uint256 minimumDeposit;
-    if (hooksData.length == 32) {
+    bool transfersDisabled;
+    bool transferRequiresAccess = marketHooksConfig.useOnTransfer();
+    bool depositRequiresAccess = marketHooksConfig.useOnDeposit();
+    if (hooksData.length >= 32) {
       assembly {
         minimumDeposit := calldataload(hooksData.offset)
       }
       emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+      if (hooksData.length > 32) {
+        assembly {
+          transfersDisabled := and(calldataload(add(hooksData.offset, 0x20)), 1)
+        }
+        if (transfersDisabled) {
+          marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
+        }
+      }
     }
     // Use the deposit and transfer flags to determine whether those require
     // access control. These are tracked separately because if the market
@@ -179,9 +192,10 @@ contract AccessControlHooks is MarketConstraintHooks {
     // enabled, but may not require access control.
     HookedMarket memory hookedMarket = HookedMarket({
       isHooked: true,
-      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
-      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
-      minimumDeposit: minimumDeposit.toUint128()
+      transferRequiresAccess: transferRequiresAccess,
+      depositRequiresAccess: depositRequiresAccess,
+      minimumDeposit: minimumDeposit.toUint128(),
+      transfersDisabled: transfersDisabled
     });
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
@@ -858,6 +872,10 @@ contract AccessControlHooks is MarketConstraintHooks {
     HookedMarket memory market = _hookedMarkets[msg.sender];
 
     if (!market.isHooked) revert NotHookedMarket();
+
+    if (market.transfersDisabled) {
+      revert TransfersDisabled();
+    }
 
     // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {
