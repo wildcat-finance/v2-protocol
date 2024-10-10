@@ -945,9 +945,9 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {
-      HookedMarket memory market = _hookedMarkets[msg.sender];
-      if (!market.isHooked) revert NotHookedMarket();
-      if (market.fixedTermEndTime > block.timestamp) {
+    HookedMarket memory market = _hookedMarkets[msg.sender];
+    if (!market.isHooked) revert NotHookedMarket();
+    if (market.fixedTermEndTime > block.timestamp) {
       _hookedMarkets[msg.sender].fixedTermEndTime = uint32(block.timestamp);
     }
   }
