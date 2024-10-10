@@ -945,6 +945,43 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     hooks.setMinimumDeposit(address(1), 1);
   }
 
+  function test_setAnnualInterestAndReserveRatioBips_ReducingAprDuringFixedTerm() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    HooksConfig config = hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    HooksConfig expectedConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: true,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: true,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
+    });
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    MarketState memory state;
+
+    state.annualInterestBips = 101;
+    state.reserveRatioBips = 1000;
+
+    vm.prank(address(1));
+    vm.expectRevert(FixedTermLoanHooks.NoReducingAprBeforeTermEnd.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(100, 1000, state, '');
+  }
+
   function test_setMinimumDeposit_NotHookedMarket() external {
     vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
     hooks.setMinimumDeposit(address(1), 1);
