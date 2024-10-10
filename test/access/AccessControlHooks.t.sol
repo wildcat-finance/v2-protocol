@@ -114,6 +114,83 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
   }
 
+  function test_onCreateMarket_setMinimumDeposit_Zero() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0));
+    HooksConfig expectedConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: true,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
+    });
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(config, expectedConfig, 'config');
+    assertEq(market.isHooked, true, 'isHooked');
+    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.minimumDeposit, 0, 'minimumDeposit');
+  }
+
+  function test_onCreateMarket_disableTransfers() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    HooksConfig config = hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(0, true)
+    );
+    HooksConfig expectedConfig = encodeHooksConfig({
+      hooksAddress: address(hooks),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: true,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
+    });
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertEq(config, expectedConfig, 'config');
+    assertEq(market.isHooked, true, 'isHooked');
+    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.minimumDeposit, 0, 'minimumDeposit');
+    assertEq(market.transfersDisabled, true, 'transfersDisabled');
+    assertTrue(config.useOnTransfer(), 'useOnTransfer');
+  }
+
+  function test_onTransfer_TransfersDisabled() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18, true));
+    vm.expectRevert(AccessControlHooks.TransfersDisabled.selector);
+    MarketState memory state;
+    vm.prank(address(1));
+    hooks.onTransfer(address(1), address(2), address(3), 100, state, '');
+  }
+
   function test_onCreateMarket_MinimumDepositOverflow() external {
     DeployMarketInputs memory inputs;
 
