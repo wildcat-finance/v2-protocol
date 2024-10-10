@@ -153,6 +153,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     });
     HooksConfig requiredFlags = EmptyHooksConfig
       .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+      .setFlag(Bit_Enabled_CloseMarket)
       .setFlag(Bit_Enabled_QueueWithdrawal);
     config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
   }
@@ -943,7 +944,13 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   function onCloseMarket(
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
-  ) external override {}
+  ) external override {
+      HookedMarket memory market = _hookedMarkets[msg.sender];
+      if (!market.isHooked) revert NotHookedMarket();
+      if (market.fixedTermEndTime > block.timestamp) {
+      _hookedMarkets[msg.sender].fixedTermEndTime = uint32(block.timestamp);
+    }
+  }
 
   function onNukeFromOrbit(
     address /* lender */,
