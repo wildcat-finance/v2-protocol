@@ -20,6 +20,7 @@ struct HookedMarket {
   bool withdrawalRequiresAccess;
   uint128 minimumDeposit;
   uint32 fixedTermEndTime;
+  bool transfersDisabled;
 }
 
 /**
@@ -90,6 +91,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   error IncreaseFixedTerm();
   error WithdrawBeforeTermEnd();
   error NoReducingAprBeforeTermEnd();
+  error TransfersDisabled();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -195,11 +197,26 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     emit FixedTermUpdated(marketAddress, fixedTermEndTime);
 
     uint256 minimumDeposit;
-    if (hooksData.length == 64) {
+    bool transfersDisabled;
+    bool transferRequiresAccess = marketHooksConfig.useOnTransfer();
+    bool depositRequiresAccess = marketHooksConfig.useOnDeposit();
+    bool withdrawalRequiresAccess = marketHooksConfig.useOnQueueWithdrawal();
+    if (hooksData.length >= 64) {
       assembly {
         minimumDeposit := calldataload(add(hooksData.offset, 0x20))
       }
-      emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+      if (minimumDeposit > 0) {
+        marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
+        emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
+      }
+      if (hooksData.length > 64) {
+        assembly {
+          transfersDisabled := and(calldataload(add(hooksData.offset, 0x40)), 1)
+        }
+        if (transfersDisabled) {
+          marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
+        }
+      }
     }
 
     // Use the deposit and transfer flags to determine whether those require
@@ -208,11 +225,12 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     // enabled, but may not require access control.
     HookedMarket memory hookedMarket = HookedMarket({
       isHooked: true,
-      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
-      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
-      withdrawalRequiresAccess: marketHooksConfig.useOnQueueWithdrawal(),
+      transferRequiresAccess: transferRequiresAccess,
+      depositRequiresAccess: depositRequiresAccess,
+      withdrawalRequiresAccess: withdrawalRequiresAccess,
       minimumDeposit: minimumDeposit.toUint128(),
-      fixedTermEndTime: fixedTermEndTime
+      fixedTermEndTime: fixedTermEndTime,
+      transfersDisabled: transfersDisabled
     });
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
@@ -903,6 +921,10 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     HookedMarket memory market = _hookedMarkets[msg.sender];
 
     if (!market.isHooked) revert NotHookedMarket();
+
+    if (market.transfersDisabled) {
+      revert TransfersDisabled();
+    }
 
     // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {
