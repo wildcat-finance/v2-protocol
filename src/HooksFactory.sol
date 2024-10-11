@@ -45,7 +45,26 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   address public immutable override sanctionsSentinel;
 
+  /**
+   * @dev Return the contract name "WildcatHooksFactory"
+   */
+  function name() external pure returns (string memory) {
+    // Use yul to avoid duplicate memory allocation and reduce code size
+    // Uses words at 0x20, 0x40, 0x60
+    // 0x20 is overwritten with the ABI offset (32)
+    // 0x40 contains the free pointer which will be 1 byte when this function executes.
+    // The length of the string (19) is written to the last byte of the free pointer word.
+    // 0x60 is the zero slot, so it will not have any dirty bits when this function executes.
+    // It is overwritten with the name bytes in the same operation as the length.
+    assembly {
+      mstore(0x53, 0x1357696c64636174486f6f6b73466163746f7279)
+      mstore(0x20, 0x20)
+      return(0x20, 0x60)
+    }
+  }
+
   address[] internal _hooksTemplates;
+  mapping(address borrower => address[] hooksInstances) internal _hooksInstancesByBorrower;
   mapping(address hooksTemplate => address[] markets) internal _marketsByHooksTemplate;
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
   mapping(address hooksInstance => address hooksTemplate)
@@ -282,6 +301,18 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     hooksInstance = _deployHooksInstance(hooksTemplate, constructorArgs);
   }
 
+  function getHooksInstancesForBorrower(
+    address borrower
+  ) external view override returns (address[] memory) {
+    return _hooksInstancesByBorrower[borrower];
+  }
+
+  function getHooksInstancesCountForBorrower(
+    address borrower
+  ) external view override returns (uint256) {
+    return _hooksInstancesByBorrower[borrower].length;
+  }
+
   function isHooksInstance(address hooksInstance) external view override returns (bool) {
     return getHooksTemplateForInstance[hooksInstance] != address(0);
   }
@@ -298,7 +329,10 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert HooksTemplateNotAvailable();
     }
 
+    uint256 numHooksForBorrower = _hooksInstancesByBorrower[msg.sender].length;
+    bytes32 salt;
     assembly {
+      salt := or(shl(96, caller()), numHooksForBorrower)
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(hooksTemplate), 1)
       // Copy code from target address to memory starting at byte 1
@@ -316,12 +350,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       // Get the full size of the initcode with the constructor args
       let initCodeSizeWithArgs := add(add(initCodeSize, 0x60), constructorArgsSize)
       // Deploy the contract with the initcode
-      hooksInstance := create(0, initCodePointer, initCodeSizeWithArgs)
+      hooksInstance := create2(0, initCodePointer, initCodeSizeWithArgs, salt)
       if iszero(hooksInstance) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
         revert(0x1c, 0x04)
       }
     }
+    _hooksInstancesByBorrower[msg.sender].push(hooksInstance);
 
     emit HooksInstanceDeployed(hooksInstance, hooksTemplate);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
@@ -585,7 +620,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       }
     }
   }
-
 
   /**
    * @dev Push any changes to the fee configuration of `hooksTemplate` to all markets

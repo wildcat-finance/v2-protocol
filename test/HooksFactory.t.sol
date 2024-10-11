@@ -463,7 +463,11 @@ contract HooksFactoryTest is Test, Assertions {
     address hooksTemplate,
     bytes memory constructorArgs
   ) internal returns (MockHooks hooksInstance) {
-    address expectedHooksInstance = _setUpDeployHooksInstance(hooksTemplate);
+    address expectedHooksInstance = _setUpDeployHooksInstance(
+      hooksTemplate,
+      address(this),
+      constructorArgs
+    );
     _expectEventsDeployHooksInstance(hooksTemplate, expectedHooksInstance);
     // Check event
     hooksInstance = MockHooks(hooksFactory.deployHooksInstance(hooksTemplate, constructorArgs));
@@ -475,13 +479,57 @@ contract HooksFactoryTest is Test, Assertions {
     );
   }
 
+  function getNextInstanceAddress(
+    address hooksTemplate,
+    address borrower,
+    bytes memory constructorArgs
+  ) internal view returns (address) {
+    uint256 initCodeHash;
+
+    assembly {
+      let initCodePointer := mload(0x40)
+      let initCodeSize := sub(extcodesize(hooksTemplate), 1)
+      // Copy code from target address to memory starting at byte 1
+      extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
+      let endInitCodePointer := add(initCodePointer, initCodeSize)
+      // Write the address of the caller as the first parameter
+      mstore(endInitCodePointer, borrower)
+      // Write the offset to the encoded constructor args
+      mstore(add(endInitCodePointer, 0x20), 0x40)
+      // Write the length of the encoded constructor args
+      let constructorArgsSize := mload(constructorArgs)
+      mstore(add(endInitCodePointer, 0x40), constructorArgsSize)
+      // Copy constructor args to initcode after the bytes length
+      mcopy(add(endInitCodePointer, 0x60), add(constructorArgs, 0x20), constructorArgsSize)
+      // Get the full size of the initcode with the constructor args
+      let initCodeSizeWithArgs := add(add(initCodeSize, 0x60), constructorArgsSize)
+      initCodeHash := keccak256(initCodePointer, initCodeSizeWithArgs)
+    }
+
+    uint256 numPreviousInstances = hooksFactory.getHooksInstancesCountForBorrower(borrower);
+    bytes32 salt;
+
+    assembly {
+      salt := or(shl(96, borrower), numPreviousInstances)
+    }
+
+    return
+      LibStoredInitCode.calculateCreate2Address(
+        LibStoredInitCode.getCreate2Prefix(address(hooksFactory)),
+        salt,
+        initCodeHash
+      );
+  }
   function _setUpDeployHooksInstance(
-    address hooksTemplate
+    address hooksTemplate,
+    address borrower,
+    bytes memory constructorArgs
   ) internal returns (address expectedAddress) {
-    expectedAddress = computeCreateAddress(
-      address(hooksFactory),
-      vm.getNonce(address(hooksFactory))
-    );
+    // expectedAddress = computeCreateAddress(
+    //   address(hooksFactory),
+    //   vm.getNonce(address(hooksFactory))
+    // );
+    expectedAddress = getNextInstanceAddress(hooksTemplate, borrower, constructorArgs);
     assertFalse(hooksFactory.isHooksInstance(expectedAddress), 'isHooksInstance before deploy');
   }
 
@@ -904,7 +952,11 @@ contract HooksFactoryTest is Test, Assertions {
     _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
 
     CreateMarketAndHooksContext memory context;
-    context.expectedHooksInstance = _setUpDeployHooksInstance(hooksTemplate);
+    context.expectedHooksInstance = _setUpDeployHooksInstance(
+      hooksTemplate,
+      address(this),
+      abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig())
+    );
     _setUpDeployMarket(feesInput);
 
     paramsInput.marketHooksConfig.hooksAddress = context.expectedHooksInstance;
@@ -966,7 +1018,11 @@ contract HooksFactoryTest is Test, Assertions {
     _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
 
     CreateMarketAndHooksContext memory context;
-    context.expectedHooksInstance = _setUpDeployHooksInstance(hooksTemplate);
+    context.expectedHooksInstance = _setUpDeployHooksInstance(
+      hooksTemplate,
+      address(this),
+      abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig())
+    );
     _setUpDeployMarket(feesInput);
 
     paramsInput.marketHooksConfig.hooksAddress = context.expectedHooksInstance;
@@ -1040,7 +1096,11 @@ contract HooksFactoryTest is Test, Assertions {
     _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
 
     CreateMarketAndHooksContext memory context;
-    context.expectedHooksInstance = _setUpDeployHooksInstance(hooksTemplate);
+    context.expectedHooksInstance = _setUpDeployHooksInstance(
+      hooksTemplate,
+      address(this),
+      abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig())
+    );
     _setUpDeployMarket(feesInput);
 
     paramsInput.marketHooksConfig.hooksAddress = context.expectedHooksInstance;

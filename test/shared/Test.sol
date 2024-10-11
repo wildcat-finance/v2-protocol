@@ -194,6 +194,48 @@ contract Test is ForgeTest, Prankster, Assertions {
   event MarketAdded(address indexed controller, address market);
   event NewSenderOnEngine(address sender);
 
+  function getNextInstanceAddress(
+    address hooksTemplate,
+    address borrower,
+    bytes memory constructorArgs
+  ) internal view returns (address) {
+    uint256 initCodeHash;
+
+    assembly {
+      let initCodePointer := mload(0x40)
+      let initCodeSize := sub(extcodesize(hooksTemplate), 1)
+      // Copy code from target address to memory starting at byte 1
+      extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
+      let endInitCodePointer := add(initCodePointer, initCodeSize)
+      // Write the address of the caller as the first parameter
+      mstore(endInitCodePointer, borrower)
+      // Write the offset to the encoded constructor args
+      mstore(add(endInitCodePointer, 0x20), 0x40)
+      // Write the length of the encoded constructor args
+      let constructorArgsSize := mload(constructorArgs)
+      mstore(add(endInitCodePointer, 0x40), constructorArgsSize)
+      // Copy constructor args to initcode after the bytes length
+      mcopy(add(endInitCodePointer, 0x60), add(constructorArgs, 0x20), constructorArgsSize)
+      // Get the full size of the initcode with the constructor args
+      let initCodeSizeWithArgs := add(add(initCodeSize, 0x60), constructorArgsSize)
+      initCodeHash := keccak256(initCodePointer, initCodeSizeWithArgs)
+    }
+
+    uint256 numPreviousInstances = hooksFactory.getHooksInstancesCountForBorrower(borrower);
+    bytes32 salt;
+
+    assembly {
+      salt := or(shl(96, borrower), numPreviousInstances)
+    }
+
+    return
+      LibStoredInitCode.calculateCreate2Address(
+        LibStoredInitCode.getCreate2Prefix(address(hooksFactory)),
+        salt,
+        initCodeHash
+      );
+  }
+
   function deployHooksInstance(
     MarketInputParameters memory parameters,
     bool authorizeAll
@@ -207,8 +249,13 @@ contract Test is ForgeTest, Prankster, Assertions {
     startPrank(parameters.borrower);
     bool emptyConfig = HooksConfig.unwrap(parameters.hooksConfig) == 0;
     if (parameters.hooksConfig.hooksAddress() == address(0)) {
+      uint previousCount = hooksFactory.getHooksInstancesCountForBorrower(parameters.borrower);
       hooksInstance = AccessControlHooks(
-        computeCreateAddress(address(hooksFactory), vm.getNonce(address(hooksFactory)))
+        getNextInstanceAddress(
+          parameters.hooksTemplate,
+          parameters.borrower,
+          parameters.deployHooksConstructorArgs
+        )
       );
       vm.expectEmit(address(hooksFactory));
       emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
@@ -224,6 +271,17 @@ contract Test is ForgeTest, Prankster, Assertions {
         'hooksInstance address'
       );
       parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(hooksInstance));
+      assertEq(
+        hooksFactory.getHooksInstancesCountForBorrower(parameters.borrower),
+        previousCount + 1,
+        'did not update instance count for borrower'
+      );
+      address[] memory instances = hooksFactory.getHooksInstancesForBorrower(parameters.borrower);
+      assertEq(
+        instances[instances.length - 1],
+        address(hooksInstance),
+        'did not add instance to borrower list'
+      );
     } else {
       hooksInstance = AccessControlHooks(parameters.hooksConfig.hooksAddress());
     }
