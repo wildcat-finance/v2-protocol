@@ -143,7 +143,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
       revert_ReserveRatioBipsTooHigh();
     }
 
-    if (_reserveRatioBips < initialReserveRatioBips) {
+    if (_reserveRatioBips <= initialReserveRatioBips) {
       if (state.liquidityRequired() > totalAssets()) {
         revert_InsufficientReservesForOldLiquidityRatio();
       }
