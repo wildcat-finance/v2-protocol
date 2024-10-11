@@ -249,18 +249,13 @@ contract Test is ForgeTest, Prankster, Assertions {
     startPrank(parameters.borrower);
     bool emptyConfig = HooksConfig.unwrap(parameters.hooksConfig) == 0;
     if (parameters.hooksConfig.hooksAddress() == address(0)) {
+      uint previousCount = hooksFactory.getHooksInstancesCountForBorrower(parameters.borrower);
       hooksInstance = AccessControlHooks(
-        // LibStoredInitCode.calculateCreate2Address(
-        //   LibStoredInitCode.getCreate2Prefix(address(hooksFactory)),
-        //   salt,
-        //   initCodeHash
-        // )
         getNextInstanceAddress(
           parameters.hooksTemplate,
           parameters.borrower,
           parameters.deployHooksConstructorArgs
         )
-        // computeCreateAddress(address(hooksFactory), vm.getNonce(address(hooksFactory)))
       );
       vm.expectEmit(address(hooksFactory));
       emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
@@ -276,6 +271,17 @@ contract Test is ForgeTest, Prankster, Assertions {
         'hooksInstance address'
       );
       parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(hooksInstance));
+      assertEq(
+        hooksFactory.getHooksInstancesCountForBorrower(parameters.borrower),
+        previousCount + 1,
+        'did not update instance count for borrower'
+      );
+      address[] memory instances = hooksFactory.getHooksInstancesForBorrower(parameters.borrower);
+      assertEq(
+        instances[instances.length - 1],
+        address(hooksInstance),
+        'did not add instance to borrower list'
+      );
     } else {
       hooksInstance = AccessControlHooks(parameters.hooksConfig.hooksAddress());
     }
