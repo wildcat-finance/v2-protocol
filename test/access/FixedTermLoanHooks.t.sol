@@ -169,7 +169,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
