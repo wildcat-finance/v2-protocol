@@ -34,6 +34,7 @@ interface IHooksFactoryEventsAndErrors {
   error InvalidFeeConfiguration();
   error SaltDoesNotContainSender();
   error MarketAlreadyExists();
+  error HooksInstanceAlreadyExists();
   error NameOrSymbolTooLong();
   error AssetBlacklisted();
   error SetProtocolFeeBipsFailed();
@@ -188,6 +189,10 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     address hooksTemplate,
     bytes calldata constructorArgs
   ) external returns (address hooksDeployment);
+
+  function getHooksInstancesForBorrower(address borrower) external view returns (address[] memory);
+
+  function getHooksInstancesCountForBorrower(address borrower) external view returns (uint256);
 
   /// @dev Check if a hooks instance was deployed by the factory.
   function isHooksInstance(address hooks) external view returns (bool);
