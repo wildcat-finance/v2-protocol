@@ -42,11 +42,17 @@ interface IMarketEventsAndErrors {
 
   error NullRepayAmount();
 
+  error NullBuyBackAmount();
+
   error MarketAlreadyClosed();
 
   error DepositToClosedMarket();
 
   error RepayToClosedMarket();
+
+  error BuyBackOnClosedMarket();
+
+  error BuyBackOnDelinquentMarket();
 
   error BorrowWhileSanctioned();
 
@@ -157,6 +163,8 @@ interface IMarketEventsAndErrors {
     address indexed account,
     uint256 normalizedAmount
   );
+
+  event ForceBuyBack(address indexed lender, uint256 scaledAmount, uint256 normalizedAmount);
 
   event SanctionedAccountWithdrawalSentToEscrow(
     address indexed account,
