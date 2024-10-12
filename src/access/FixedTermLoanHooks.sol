@@ -21,6 +21,8 @@ struct HookedMarket {
   uint128 minimumDeposit;
   uint32 fixedTermEndTime;
   bool transfersDisabled;
+  bool allowClosureBeforeTerm;
+  bool allowTermReduction;
 }
 
 /**
@@ -93,6 +95,8 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   error NoReducingAprBeforeTermEnd();
   error TransfersDisabled();
   error ForceBuyBacksDisabled();
+  error ClosureDisabledBeforeTerm();
+  error TermReductionDisabled();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -197,17 +201,35 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     }
     emit FixedTermUpdated(marketAddress, fixedTermEndTime);
 
+    // Use the deposit and transfer flags to determine whether those require
+    // access control. These are tracked separately because if the market
+    // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
+    // enabled, but may not require access control.
+    // Initialisations to zero here (and subsequent updates) are just because
+    // of stack-too-deep errors otherwise.
+    HookedMarket memory hookedMarket = HookedMarket({
+      isHooked: true,
+      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
+      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
+      withdrawalRequiresAccess: marketHooksConfig.useOnQueueWithdrawal(),
+      fixedTermEndTime: fixedTermEndTime,
+      minimumDeposit: 0,
+      transfersDisabled: false,
+      allowClosureBeforeTerm: false,
+      allowTermReduction: false
+    });
+
     uint256 minimumDeposit;
     bool transfersDisabled;
-    bool transferRequiresAccess = marketHooksConfig.useOnTransfer();
-    bool depositRequiresAccess = marketHooksConfig.useOnDeposit();
-    bool withdrawalRequiresAccess = marketHooksConfig.useOnQueueWithdrawal();
+    bool allowClosureBeforeTerm;
+    bool allowTermReduction;
     if (hooksData.length >= 64) {
       assembly {
         minimumDeposit := calldataload(add(hooksData.offset, 0x20))
       }
       if (minimumDeposit > 0) {
         marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
+        hookedMarket.minimumDeposit = minimumDeposit.toUint128();
         emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
       }
       if (hooksData.length > 64) {
@@ -216,23 +238,27 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
         }
         if (transfersDisabled) {
           marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
+          hookedMarket.transfersDisabled = transfersDisabled;
+        }
+      }
+      if (hooksData.length > 96) {
+        assembly {
+          allowClosureBeforeTerm := and(calldataload(add(hooksData.offset, 0x60)), 1)
+        }
+        if (allowClosureBeforeTerm) {
+          marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_CloseMarket);
+          hookedMarket.allowClosureBeforeTerm = allowClosureBeforeTerm;
+        }
+      }
+      if (hooksData.length > 128) {
+        assembly {
+          allowTermReduction := and(calldataload(add(hooksData.offset, 0x80)), 1)
+        }
+        if (allowTermReduction) {
+          hookedMarket.allowTermReduction = allowTermReduction;
         }
       }
     }
-
-    // Use the deposit and transfer flags to determine whether those require
-    // access control. These are tracked separately because if the market
-    // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
-    // enabled, but may not require access control.
-    HookedMarket memory hookedMarket = HookedMarket({
-      isHooked: true,
-      transferRequiresAccess: transferRequiresAccess,
-      depositRequiresAccess: depositRequiresAccess,
-      withdrawalRequiresAccess: withdrawalRequiresAccess,
-      minimumDeposit: minimumDeposit.toUint128(),
-      fixedTermEndTime: fixedTermEndTime,
-      transfersDisabled: transfersDisabled
-    });
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
@@ -257,6 +283,8 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyBorrower {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime)
+      revert TermReductionDisabled();
     if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
     hookedMarket.fixedTermEndTime = newFixedTermEndTime;
     emit FixedTermUpdated(market, newFixedTermEndTime);
@@ -971,6 +999,8 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   ) external override {
     HookedMarket storage market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
+    if (!market.allowClosureBeforeTerm && block.timestamp < market.fixedTermEndTime)
+      revert ClosureDisabledBeforeTerm();
     if (market.fixedTermEndTime > block.timestamp) {
       market.fixedTermEndTime = uint32(block.timestamp);
       emit FixedTermUpdated(msg.sender, market.fixedTermEndTime);
