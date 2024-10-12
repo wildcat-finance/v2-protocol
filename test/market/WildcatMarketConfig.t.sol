@@ -206,6 +206,21 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     market.setAnnualInterestAndReserveRatioBips(800, 0);
   }
 
+  function test_setAnnualInterestAndReserveRatioBips_InsufficientReservesForOldLiquidityRatio_NoChange()
+    external
+    asAccount(borrower)
+  {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+
+    assertTrue(market.currentState().isDelinquent, 'market should be delinquent');
+
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForOldLiquidityRatio.selector);
+    market.setAnnualInterestAndReserveRatioBips(
+      previousState.annualInterestBips,
+      previousState.reserveRatioBips
+    );
+  }
+
   function test_setAnnualInterestAndReserveRatioBips_InsufficientReservesForNewLiquidityRatio()
     external
     asAccount(borrower)
