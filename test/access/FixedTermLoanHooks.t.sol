@@ -13,6 +13,7 @@ import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
 import 'src/libraries/BoolUtils.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
+import { fastForward } from '../helpers/VmUtils.sol';
 
 using LibString for uint256;
 using LibString for address;
@@ -330,13 +331,28 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
+      abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
     );
     vm.expectEmit(address(hooks));
     emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
     hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 364 days), 'fixedTermEndTime');
+  }
+
+  function test_setFixedTermEndTime_ReductionDisabled() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18, false, false, false)
+    );
+    vm.expectRevert(FixedTermLoanHooks.TermReductionDisabled.selector);
+    hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
   }
 
   function test_onQueueWithdrawal_WithdrawBeforeTermEnd() external {
@@ -1051,10 +1067,10 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
+      abi.encode(block.timestamp + 365 days, 1e18, false, true)
     );
-    vm.expectEmit(address(hooks));
     vm.prank(address(1));
+    vm.expectEmit(address(hooks));
     emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp));
     MarketState memory state;
     hooks.onCloseMarket(state, '');
