@@ -132,10 +132,14 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     return _deposit(from, amount, true);
   }
 
-  function _requestWithdrawal(address from, uint256 amount) internal asAccount(from) {
+  function _requestWithdrawal(
+    address from,
+    uint256 amount
+  ) internal asAccount(from) returns (uint32 expiry) {
     MarketState memory state = pendingState();
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);
-    (, uint104 scaledAmount) = _trackQueueWithdrawal(state, from, amount);
+    uint104 scaledAmount;
+    (expiry, scaledAmount) = _trackQueueWithdrawal(state, from, amount);
     market.queueWithdrawal(amount);
     _checkState(state);
     assertApproxEqAbs(

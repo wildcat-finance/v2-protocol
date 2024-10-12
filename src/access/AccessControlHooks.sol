@@ -19,6 +19,7 @@ struct HookedMarket {
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
+  bool allowForceBuyBacks;
 }
 
 /**
@@ -59,7 +60,6 @@ contract AccessControlHooks is MarketConstraintHooks {
   );
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
-
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
 
   // ========================================================================== //
@@ -81,6 +81,7 @@ contract AccessControlHooks is MarketConstraintHooks {
   error NotHookedMarket();
   error DepositBelowMinimum();
   error TransfersDisabled();
+  error ForceBuyBacksDisabled();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -152,8 +153,36 @@ contract AccessControlHooks is MarketConstraintHooks {
     return 'SingleBorrowerAccessControlHooks';
   }
 
+  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
+    assembly {
+      value := and(calldataload(add(data.offset, offset)), 1)
+    }
+  }
+
+  function _readUint128Cd(bytes calldata data) internal pure returns (uint128 value) {
+    uint _value;
+    assembly {
+      _value := calldataload(data.offset)
+    }
+    return _value.toUint128();
+  }
+
   /**
    * @dev Called when market is deployed using this contract as its `hooks`.
+   *
+   *     @param deployer      Address of the account that called the factory - must
+   *                          match the borrower address.
+   *     @param marketAddress Address of the market being deployed.
+   *     @param parameters    Parameters used to deploy the market.
+   *     @param hooksData     Extra data passed to the market deployment function containing
+   *                          the parameters for the hooks.
+   *
+   *     `hooksData` is a tuple of (
+   *        uint128? minimumDeposit,
+   *        bool? transfersDisabled,
+   *        bool? allowForceBuyBacks
+   *     )
+   *     Where none of the parameters are mandatory.
    *
    *      Note: Called inside the root `onCreateMarket` in the base contract,
    *      so no need to verify the caller is the factory.
@@ -168,38 +197,31 @@ contract AccessControlHooks is MarketConstraintHooks {
     super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
     if (deployer != borrower) revert CallerNotBorrower();
     marketHooksConfig = parameters.hooks;
-    uint256 minimumDeposit;
-    bool transfersDisabled;
-    bool transferRequiresAccess = marketHooksConfig.useOnTransfer();
-    bool depositRequiresAccess = marketHooksConfig.useOnDeposit();
-    if (hooksData.length >= 32) {
-      assembly {
-        minimumDeposit := calldataload(hooksData.offset)
-      }
-      if (minimumDeposit > 0) {
-        marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-        emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
-      }
-      if (hooksData.length > 32) {
-        assembly {
-          transfersDisabled := and(calldataload(add(hooksData.offset, 0x20)), 1)
-        }
-        if (transfersDisabled) {
-          marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
-        }
-      }
-    }
-    // Use the deposit and transfer flags to determine whether those require
-    // access control. These are tracked separately because if the market
-    // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
-    // enabled, but may not require access control.
+
+    // Read `minimumDeposit`, `transfersDisabled`, and `allowForceBuyBacks` from `hooksData`
+    // If the calldata does not contain sufficient bytes for a parameter, it will be read as zero.
+    //
+    // Use the deposit and transfer flags to determine whether those require access control.
+    // These are tracked separately because if the market enables `onQueueWithdrawal`, deposit
+    // and transfer hooks will also be  enabled, but may not require access control.
     HookedMarket memory hookedMarket = HookedMarket({
       isHooked: true,
-      transferRequiresAccess: transferRequiresAccess,
-      depositRequiresAccess: depositRequiresAccess,
-      minimumDeposit: minimumDeposit.toUint128(),
-      transfersDisabled: transfersDisabled
+      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
+      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
+      minimumDeposit: _readUint128Cd(hooksData),
+      transfersDisabled: _readBoolCd(hooksData, 0x20),
+      allowForceBuyBacks: _readBoolCd(hooksData, 0x40)
     });
+
+    if (hookedMarket.minimumDeposit > 0) {
+      // If there is a minimum deposit, the deposit hook must be enabled
+      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
+      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
+    }
+    if (hookedMarket.transfersDisabled) {
+      // If transfers are disabled, the transfer hook must be enabled
+      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
+    }
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
@@ -960,4 +982,27 @@ contract AccessControlHooks is MarketConstraintHooks {
     MarketState memory /* intermediateState */,
     bytes calldata /* extraData */
   ) external override {}
+
+  function onForceBuyBack(
+    address lender,
+    uint scaledAmount,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {
+    HookedMarket memory market = _hookedMarkets[msg.sender];
+    if (!market.isHooked) revert NotHookedMarket();
+    if (!market.allowForceBuyBacks) revert ForceBuyBacksDisabled();
+    // If the borrower does not already have a credential, grant them one
+    LenderStatus storage status = _lenderStatus[borrower];
+    if (!status.hasCredential()) {
+      // Give the borrower a self-granted credential with no expiry so they are
+      // able to withdraw the purchased market tokens.
+      _setCredentialAndEmitAccessGranted(
+        status,
+        _roleProviders[borrower],
+        borrower,
+        uint32(block.timestamp)
+      );
+    }
+  }
 }

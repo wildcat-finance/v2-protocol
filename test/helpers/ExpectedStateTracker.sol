@@ -49,7 +49,9 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       deployMarketHooksData: '',
       hooksConfig: HooksConfig.wrap(0),
       sphereXEngine: address(0),
-      minimumDeposit: 0
+      minimumDeposit: 0,
+      transfersDisabled: false,
+      allowForceBuyBack: false
     });
   }
 

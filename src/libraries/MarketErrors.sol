@@ -206,6 +206,16 @@ function revert_NullRepayAmount() pure {
   }
 }
 
+uint256 constant NullBuyBackAmount_ErrorSelector = 0x50394120;
+
+/// @dev Equivalent to `revert NullBuyBackAmount()`
+function revert_NullBuyBackAmount() pure {
+  assembly {
+    mstore(0, 0x50394120)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant DepositToClosedMarket_ErrorSelector = 0x22d7c043;
 
 /// @dev Equivalent to `revert DepositToClosedMarket()`
@@ -222,6 +232,26 @@ uint256 constant RepayToClosedMarket_ErrorSelector = 0x61d1bc8f;
 function revert_RepayToClosedMarket() pure {
   assembly {
     mstore(0, 0x61d1bc8f)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant BuyBackOnClosedMarket_Selector = 0xf788d279;
+
+/// @dev Equivalent to `revert BuyBackOnClosedMarket()`
+function revert_BuyBackOnClosedMarket() pure {
+  assembly {
+    mstore(0, 0xf788d279)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant BuyBackOnDelinquentMarket_Selector = 0x1707a7b7;
+
+/// @dev Equivalent to `revert BuyBackOnDelinquentMarket()`
+function revert_BuyBackOnDelinquentMarket() pure {
+  assembly {
+    mstore(0, 0x1707a7b7)
     revert(0x1c, 0x04)
   }
 }
