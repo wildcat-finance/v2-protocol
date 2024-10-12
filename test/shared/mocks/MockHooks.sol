@@ -33,11 +33,7 @@ event OnTransferCalled(
 event OnBorrowCalled(uint normalizedAmount, MarketState intermediateState, bytes extraData);
 event OnRepayCalled(uint normalizedAmount, MarketState intermediateState, bytes extraData);
 event OnCloseMarketCalled(MarketState intermediateState, bytes extraData);
-event OnNukeFromOrbitCalled(
-  address lender,
-  MarketState intermediateState,
-  bytes extraData
-);
+event OnNukeFromOrbitCalled(address lender, MarketState intermediateState, bytes extraData);
 event OnSetMaxTotalSupplyCalled(
   uint256 maxTotalSupply,
   MarketState intermediateState,
@@ -51,6 +47,12 @@ event OnSetAnnualInterestAndReserveRatioBipsCalled(
 );
 event OnSetProtocolFeeBipsCalled(
   uint protocolFeeBips,
+  MarketState intermediateState,
+  bytes extraData
+);
+event OnForceBuyBackCalled(
+  address lender,
+  uint scaledAmount,
   MarketState intermediateState,
   bytes extraData
 );
@@ -229,11 +231,7 @@ contract MockHooks is IHooks {
     bytes calldata extraData
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
-    emit OnNukeFromOrbitCalled(
-      lender,
-      intermediateState,
-      extraData
-    );
+    emit OnNukeFromOrbitCalled(lender, intermediateState, extraData);
   }
 
   function onSetMaxTotalSupply(
@@ -275,6 +273,16 @@ contract MockHooks is IHooks {
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
     emit OnSetProtocolFeeBipsCalled(protocolFeeBips, intermediateState, extraData);
+  }
+
+  function onForceBuyBack(
+    address lender,
+    uint scaledAmount,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {
+    lastCalldataHash = keccak256(msg.data);
+    emit OnForceBuyBackCalled(lender, scaledAmount, intermediateState, extraData);
   }
 }
 

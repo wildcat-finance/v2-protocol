@@ -54,6 +54,13 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
+  function onForceBuyBack(
+    address lender,
+    uint scaledAmount,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual;
+
   function onExecuteWithdrawal(
     address lender,
     uint128 normalizedAmountWithdrawn,

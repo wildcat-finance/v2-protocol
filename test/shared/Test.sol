@@ -40,6 +40,8 @@ struct MarketInputParameters {
   bytes deployMarketHooksData;
   HooksConfig hooksConfig;
   uint128 minimumDeposit;
+  bool transfersDisabled;
+  bool allowForceBuyBack;
 }
 
 contract Test is ForgeTest, Prankster, Assertions {
@@ -398,8 +400,12 @@ contract Test is ForgeTest, Prankster, Assertions {
   ) internal asAccount(parameters.borrower) returns (WildcatMarket) {
     updateFeeConfiguration(parameters);
 
-    if (parameters.deployMarketHooksData.length == 0 && parameters.minimumDeposit > 0) {
-      parameters.deployMarketHooksData = abi.encode(parameters.minimumDeposit);
+    if (parameters.deployMarketHooksData.length == 0) {
+      parameters.deployMarketHooksData = abi.encode(
+        parameters.minimumDeposit,
+        parameters.transfersDisabled,
+        parameters.allowForceBuyBack
+      );
     }
 
     bytes32 salt = _nextSalt(parameters.borrower);

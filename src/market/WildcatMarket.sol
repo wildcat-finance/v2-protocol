@@ -200,6 +200,32 @@ contract WildcatMarket is
     _writeState(state);
   }
 
+  function forceBuyBack(address lender, uint256 normalizedAmount) external onlyBorrower {
+    MarketState memory state = _getUpdatedState();
+    if (state.isClosed) revert_BuyBackOnClosedMarket();
+    if (state.isDelinquent) revert_BuyBackOnDelinquentMarket();
+
+    uint104 scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
+    if (scaledAmount == 0) revert_NullBuyBackAmount();
+
+    hooks.onForceBuyBack(lender, scaledAmount, state);
+
+    asset.safeTransferFrom(msg.sender, lender, normalizedAmount);
+
+    Account memory from = _accounts[lender];
+    from.scaledBalance -= scaledAmount;
+    _accounts[lender] = from;
+
+    Account memory to = _accounts[msg.sender];
+    to.scaledBalance += scaledAmount;
+    _accounts[msg.sender] = to;
+
+    emit_Transfer(lender, msg.sender, scaledAmount);
+    emit_ForceBuyBack(lender, scaledAmount, normalizedAmount);
+
+    _writeState(state);
+  }
+
   /**
    * @dev Sets the market APR to 0% and marks market as closed.
    *

@@ -404,6 +404,7 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function test_deposit_DepositBelowMinimum() external {
     parameters.minimumDeposit = 101;
+    parameters.deployMarketHooksData = '';
     setUpContracts(false);
     startPrank(alice);
     asset.mint(alice, 1e18);
@@ -669,5 +670,52 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.prank(alice);
     market.transfer(bob, 0.5e18);
     assertEq(market.balanceOf(bob), 1e18, 'bob.balance');
+  }
+
+  // ========================================================================== //
+  //                                Force Buyback                               //
+  // ========================================================================== //
+  function test_forceBuyBack_NotApprovedBorrower() external {
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+    market.forceBuyBack(alice, 0);
+  }
+
+  function test_forceBuyBack_BuyBackOnClosedMarket() external asAccount(borrower) {
+    market.closeMarket();
+    vm.expectRevert(IMarketEventsAndErrors.BuyBackOnClosedMarket.selector);
+    market.forceBuyBack(alice, 1e18);
+  }
+
+  function test_forceBuyBack_BuyBackOnDelinquentMarket() external asAccount(borrower) {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 3e17);
+    vm.expectRevert(IMarketEventsAndErrors.BuyBackOnDelinquentMarket.selector);
+    market.forceBuyBack(alice, 5e17);
+  }
+
+  function test_forceBuyBack_NullBuyBackAmount() external asAccount(borrower) {
+    vm.expectRevert(IMarketEventsAndErrors.NullBuyBackAmount.selector);
+    market.forceBuyBack(alice, 0);
+  }
+
+  function test_forceBuyBack_ForceBuyBacksDisabled() external asAccount(borrower) {
+    _deposit(alice, 1e18);
+    vm.expectRevert(AccessControlHooks.ForceBuyBacksDisabled.selector);
+    market.forceBuyBack(alice, 1e17);
+  }
+
+  function test_forceBuyBack() external asAccount(borrower) {
+    parameters.allowForceBuyBack = true;
+    parameters.deployMarketHooksData = '';
+    setUpContracts(false);
+    _deposit(alice, 1e18);
+    asset.approve(address(market), 1e17);
+    asset.mint(borrower, 1e17);
+    vm.expectEmit(address(asset));
+    emit IMarketEventsAndErrors.Transfer(borrower, alice, 1e17);
+    vm.expectEmit(address(market));
+    emit IMarketEventsAndErrors.Transfer(alice, borrower, 1e17);
+    vm.expectEmit(address(market));
+    emit IMarketEventsAndErrors.ForceBuyBack(alice, 1e17, 1e17);
+    market.forceBuyBack(alice, 1e17);
   }
 }
