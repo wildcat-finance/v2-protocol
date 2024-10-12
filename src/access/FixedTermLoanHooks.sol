@@ -92,6 +92,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   error WithdrawBeforeTermEnd();
   error NoReducingAprBeforeTermEnd();
   error TransfersDisabled();
+  error ForceBuyBacksDisabled();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -1024,4 +1025,13 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     MarketState memory /* intermediateState */,
     bytes calldata /* extraData */
   ) external override {}
+
+  function onForceBuyBack(
+    address lender,
+    uint scaledAmount,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {
+    revert ForceBuyBacksDisabled();
+  }
 }
