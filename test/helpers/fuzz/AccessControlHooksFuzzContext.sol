@@ -3,6 +3,7 @@ pragma solidity >=0.8.20;
 
 import 'src/libraries/BoolUtils.sol';
 import 'src/access/AccessControlHooks.sol';
+import { FixedTermLoanHooks, HookedMarket as FT_HookedMarket } from 'src/access/FixedTermLoanHooks.sol';
 
 import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
@@ -56,11 +57,18 @@ enum FunctionKind {
   HooksFunction,
   DepositFunction,
   QueueWithdrawal,
-  IncomingTransferFunction
+  IncomingTransferFunction,
+  ForceBuyBackFunction
+}
+
+enum HooksKind {
+  AccessControlHooks,
+  FixedTermLoanHooks
 }
 
 struct AccessControlHooksFuzzContext {
   FunctionKind functionKind;
+  uint256 functionInputAmount;
   bool willCheckCredentials;
   address market;
   AccessControlHooks hooks;
@@ -103,19 +111,33 @@ struct AccessControlHooksFuzzInputs {
 }
 
 struct MarketHooksConfigContext {
+  HooksKind hooksKind;
   bool useOnDeposit;
   bool useOnQueueWithdrawal;
   bool useOnExecuteWithdrawal;
   bool useOnTransfer;
   bool transferRequiresAccess;
   bool depositRequiresAccess;
+  uint128 minimumDeposit;
+  bool transfersDisabled;
+  bool allowForceBuyBacks;
+  uint32 fixedTermEndTime;
+  bool allowClosureBeforeTerm;
+  bool allowTermReduction;
 }
 
 struct MarketHooksConfigFuzzInputs {
+  bool isAccessControlHooks;
   bool useOnDeposit;
   bool useOnQueueWithdrawal;
   bool useOnExecuteWithdrawal;
   bool useOnTransfer;
+  uint128 minimumDeposit;
+  bool transfersDisabled;
+  bool allowForceBuyBacks;
+  uint16 fixedTermDuration;
+  bool allowClosureBeforeTerm;
+  bool allowTermReduction;
 }
 
 struct ExistingCredentialFuzzInputs {
@@ -167,15 +189,24 @@ Vm constant vm = Vm(VM_ADDRESS);
 
 function toMarketHooksConfigContext(
   MarketHooksConfigFuzzInputs memory inputs
-) pure returns (MarketHooksConfigContext memory) {
+) view returns (MarketHooksConfigContext memory) {
   return
     MarketHooksConfigContext({
-      useOnDeposit: inputs.useOnDeposit || inputs.useOnQueueWithdrawal,
-      useOnQueueWithdrawal: inputs.useOnQueueWithdrawal,
+      hooksKind: inputs.isAccessControlHooks
+        ? HooksKind.AccessControlHooks
+        : HooksKind.FixedTermLoanHooks,
+      useOnDeposit: inputs.useOnDeposit || inputs.useOnQueueWithdrawal || inputs.minimumDeposit > 0,
+      useOnQueueWithdrawal: inputs.useOnQueueWithdrawal || !inputs.isAccessControlHooks,
       useOnExecuteWithdrawal: inputs.useOnExecuteWithdrawal,
       useOnTransfer: inputs.useOnTransfer || inputs.useOnQueueWithdrawal,
-      transferRequiresAccess: inputs.useOnTransfer,
-      depositRequiresAccess: inputs.useOnDeposit
+      transferRequiresAccess: inputs.useOnTransfer || inputs.transfersDisabled,
+      depositRequiresAccess: inputs.useOnDeposit,
+      minimumDeposit: inputs.minimumDeposit,
+      transfersDisabled: inputs.transfersDisabled,
+      allowForceBuyBacks: inputs.allowForceBuyBacks,
+      fixedTermEndTime: uint32(block.timestamp + inputs.fixedTermDuration),
+      allowClosureBeforeTerm: inputs.allowClosureBeforeTerm,
+      allowTermReduction: inputs.allowTermReduction
     });
 }
 
@@ -189,12 +220,14 @@ function createAccessControlHooksFuzzContext(
   MockRoleProvider mockProvider2,
   address account,
   FunctionKind functionKind,
+  uint256 amount,
   function(AccessControlHooksFuzzContext memory /* context */) internal getKnownLenderStatus,
   uint256 getKnownLenderInputParameter
 ) returns (AccessControlHooksFuzzContext memory context) {
   LenderStatus memory originalStatus = hooks.getLenderStatus(account);
   context.market = market;
   context.functionKind = functionKind;
+  context.functionInputAmount = amount;
   context.hooks = hooks;
   context.borrower = hooks.borrower();
   context.account = account;
@@ -439,12 +472,16 @@ library LibAccessControlHooksFuzzContext {
     }
   }
 
-  function setUpBypassExpectations(AccessControlHooksFuzzContext memory context) internal pure {
+  function setUpBypassExpectations(AccessControlHooksFuzzContext memory context) internal view {
     context.willCheckCredentials = true;
     if (context.functionKind == FunctionKind.IncomingTransferFunction) {
       if (!context.config.useOnTransfer) {
         // If hook is disabled, credentials will not be called
         context.willCheckCredentials = false;
+      } else if (context.config.transfersDisabled) {
+        // If transfers are disabled, the call will revert before checking credentials
+        context.willCheckCredentials = false;
+        context.expectations.expectedError = AccessControlHooks.TransfersDisabled.selector;
       } else if (context.existingCredentialOptions.isKnownLender) {
         // If a transfer recipient is a known lender, their credentials will not be checked
         context.willCheckCredentials = false;
@@ -461,14 +498,28 @@ library LibAccessControlHooksFuzzContext {
         // If a depositor is blocked from depositing, the call will revert before checking credentials
         context.expectations.expectedError = AccessControlHooks.NotApprovedLender.selector;
         context.willCheckCredentials = false;
+      } else if (context.functionInputAmount < context.config.minimumDeposit) {
+        // If the deposit amount is less than the minimum, the call will revert before checking credentials
+        context.expectations.expectedError = AccessControlHooks.DepositBelowMinimum.selector;
+        context.willCheckCredentials = false;
       }
     } else if (context.functionKind == FunctionKind.QueueWithdrawal) {
       if (!context.config.useOnQueueWithdrawal) {
+        context.willCheckCredentials = false;
+      } else if (
+        context.config.hooksKind == HooksKind.FixedTermLoanHooks &&
+        context.config.fixedTermEndTime > block.timestamp
+      ) {
+        context.expectations.expectedError = FixedTermLoanHooks.WithdrawBeforeTermEnd.selector;
         context.willCheckCredentials = false;
       } else {
         // If the function is a withdrawal and the account is a known lender, the credential
         // check will be bypassed.
         context.willCheckCredentials = !context.existingCredentialOptions.isKnownLender;
+      }
+    } else if (context.functionKind == FunctionKind.ForceBuyBackFunction) {
+      if (!context.config.allowForceBuyBacks) {
+        context.expectations.expectedError = AccessControlHooks.ForceBuyBacksDisabled.selector;
       }
     }
   }
