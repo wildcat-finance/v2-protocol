@@ -414,6 +414,21 @@ contract WildcatMarketTest is BaseMarketTest {
   }
 
   function test_depositUpTo_FuzzAccess(AccessControlHooksFuzzInputs memory fuzzInputs) external {
+    parameters.allowClosureBeforeTerm = fuzzInputs.configInputs.allowClosureBeforeTerm;
+    parameters.fixedTermEndTime = uint32(
+      fuzzInputs.configInputs.fixedTermDuration + block.timestamp
+    );
+    parameters.allowTermReduction = fuzzInputs.configInputs.allowTermReduction;
+    fuzzInputs.configInputs.minimumDeposit = 1;
+    fuzzInputs.configInputs.transfersDisabled = false;
+    parameters.minimumDeposit = fuzzInputs.configInputs.minimumDeposit;
+    parameters.transfersDisabled = fuzzInputs.configInputs.transfersDisabled;
+    parameters.allowForceBuyBack = fuzzInputs.configInputs.allowForceBuyBacks;
+    parameters.deployMarketHooksData = '';
+    if (!fuzzInputs.configInputs.isAccessControlHooks) {
+      parameters.hooksTemplate = fixedTermHooksTemplate;
+      hooks = AccessControlHooks(address(0));
+    }
     parameters.hooksConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
       useOnDeposit: fuzzInputs.configInputs.useOnDeposit,
@@ -441,6 +456,7 @@ contract WildcatMarketTest is BaseMarketTest {
       roleProvider2,
       carol,
       FunctionKind.DepositFunction,
+      amount,
       _getKnownLenderStatus,
       _toPointer(state)
     );
@@ -475,6 +491,12 @@ contract WildcatMarketTest is BaseMarketTest {
     context.validate();
   }
 
+  function test_ft() internal {
+    parameters.hooksTemplate = fixedTermHooksTemplate;
+    hooks = AccessControlHooks(address(0));
+    setUpContracts(false);
+    assertEq(hooks.version(), 'FixedTermLoanHooks');
+  }
   function castRegisterExpectationsAndInput(
     AccessControlHooksFuzzContext memory context
   )
@@ -493,7 +515,23 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_queueWithdrawal_FuzzAccess(
     AccessControlHooksFuzzInputs memory fuzzInputs
   ) external {
+    parameters.allowClosureBeforeTerm = fuzzInputs.configInputs.allowClosureBeforeTerm;
+    parameters.fixedTermEndTime = uint32(
+      fuzzInputs.configInputs.fixedTermDuration + block.timestamp
+    );
+    parameters.allowTermReduction = fuzzInputs.configInputs.allowTermReduction;
     fuzzInputs.configInputs.useOnTransfer = false;
+    fuzzInputs.configInputs.minimumDeposit = 1;
+    fuzzInputs.configInputs.transfersDisabled = false;
+    parameters.minimumDeposit = fuzzInputs.configInputs.minimumDeposit;
+    parameters.transfersDisabled = fuzzInputs.configInputs.transfersDisabled;
+    parameters.allowForceBuyBack = fuzzInputs.configInputs.allowForceBuyBacks;
+    parameters.deployMarketHooksData = '';
+    if (!fuzzInputs.configInputs.isAccessControlHooks) {
+      parameters.hooksTemplate = fixedTermHooksTemplate;
+      hooks = AccessControlHooks(address(0));
+    }
+
     parameters.hooksConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
       useOnDeposit: fuzzInputs.configInputs.useOnDeposit,
@@ -531,6 +569,7 @@ contract WildcatMarketTest is BaseMarketTest {
       roleProvider2,
       carol,
       FunctionKind.QueueWithdrawal,
+      scaledAmount,
       _getKnownLenderStatus,
       _toPointer(state)
     );

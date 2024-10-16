@@ -18,7 +18,8 @@ import { MockHooks } from './mocks/MockHooks.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/access/AccessControlHooks.sol';
-import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, LibAccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import { FixedTermLoanHooks, HookedMarket as FT_HookedMarket } from 'src/access/FixedTermLoanHooks.sol';
+import { HooksKind, AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, LibAccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 struct MarketInputParameters {
   address asset;
@@ -42,6 +43,9 @@ struct MarketInputParameters {
   uint128 minimumDeposit;
   bool transfersDisabled;
   bool allowForceBuyBack;
+  uint32 fixedTermEndTime;
+  bool allowClosureBeforeTerm;
+  bool allowTermReduction;
 }
 
 contract Test is ForgeTest, Prankster, Assertions {
@@ -54,6 +58,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   MockRoleProvider internal roleProvider1;
   MockRoleProvider internal roleProvider2;
   address internal hooksTemplate;
+  address internal fixedTermHooksTemplate;
   address internal SphereXAdmin = address(this);
   address internal SphereXOperator = address(0x08374708);
   address internal SphereXEngine;
@@ -124,6 +129,11 @@ contract Test is ForgeTest, Prankster, Assertions {
     if (hooksTemplate == address(0)) {
       hooksTemplate = _getHooksTemplate();
     }
+    if (fixedTermHooksTemplate == address(0)) {
+      fixedTermHooksTemplate = LibStoredInitCode.deployInitCode(
+        type(FixedTermLoanHooks).creationCode
+      );
+    }
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
@@ -136,6 +146,23 @@ contract Test is ForgeTest, Prankster, Assertions {
     hooksFactory.addHooksTemplate(
       hooksTemplate,
       'SingleBorrowerAccessControlHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+    vm.expectEmit(address(hooksFactory));
+    emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
+      fixedTermHooksTemplate,
+      'FixedTermLoanHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+    hooksFactory.addHooksTemplate(
+      fixedTermHooksTemplate,
+      'FixedTermLoanHooks',
       address(0),
       address(0),
       0,
@@ -361,38 +388,63 @@ contract Test is ForgeTest, Prankster, Assertions {
     vm.expectEmit(address(archController));
     emit MarketAdded(address(hooksFactory), expectedMarket);
 
-    string memory expectedName = string.concat(
-      parameters.namePrefix,
-      IERC20(parameters.asset).name()
-    );
-    string memory expectedSymbol = string.concat(
-      parameters.symbolPrefix,
-      IERC20(parameters.asset).symbol()
-    );
     HooksConfig expectedConfig = parameters.hooksConfig;
-    if (
-      keccak256(bytes(IHooks(expectedConfig.hooksAddress()).version())) ==
-      keccak256('SingleBorrowerAccessControlHooks')
-    ) {
-      if (expectedConfig.useOnQueueWithdrawal()) {
-        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
+    {
+      bytes32 hooksVersionHash = keccak256(bytes(IHooks(expectedConfig.hooksAddress()).version()));
+      if (hooksVersionHash == keccak256('SingleBorrowerAccessControlHooks')) {
+        if (expectedConfig.useOnQueueWithdrawal()) {
+          expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(
+            Bit_Enabled_Transfer
+          );
+        }
+        if (parameters.transfersDisabled) {
+          expectedConfig = expectedConfig.setFlag(Bit_Enabled_Transfer);
+        }
+        if (parameters.minimumDeposit > 0) {
+          expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
+        }
+      } else if (hooksVersionHash == keccak256('FixedTermLoanHooks')) {
+        if (expectedConfig.useOnQueueWithdrawal()) {
+          expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(
+            Bit_Enabled_Transfer
+          );
+        }
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_CloseMarket).setFlag(
+          Bit_Enabled_QueueWithdrawal
+        );
+        if (parameters.transfersDisabled) {
+          expectedConfig = expectedConfig.setFlag(Bit_Enabled_Transfer);
+        }
+        if (parameters.minimumDeposit > 0) {
+          expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
+        }
       }
     }
-    vm.expectEmit(address(hooksFactory));
-    emit IHooksFactoryEventsAndErrors.MarketDeployed(
-      parameters.hooksTemplate,
-      expectedMarket,
-      expectedName,
-      expectedSymbol,
-      parameters.asset,
-      parameters.maxTotalSupply,
-      parameters.annualInterestBips,
-      parameters.delinquencyFeeBips,
-      parameters.withdrawalBatchDuration,
-      parameters.reserveRatioBips,
-      parameters.delinquencyGracePeriod,
-      expectedConfig
-    );
+    {
+      string memory expectedName = string.concat(
+        parameters.namePrefix,
+        IERC20(parameters.asset).name()
+      );
+      string memory expectedSymbol = string.concat(
+        parameters.symbolPrefix,
+        IERC20(parameters.asset).symbol()
+      );
+      vm.expectEmit(address(hooksFactory));
+      emit IHooksFactoryEventsAndErrors.MarketDeployed(
+        parameters.hooksTemplate,
+        expectedMarket,
+        expectedName,
+        expectedSymbol,
+        parameters.asset,
+        parameters.maxTotalSupply,
+        parameters.annualInterestBips,
+        parameters.delinquencyFeeBips,
+        parameters.withdrawalBatchDuration,
+        parameters.reserveRatioBips,
+        parameters.delinquencyGracePeriod,
+        expectedConfig
+      );
+    }
   }
 
   function deployMarket(
@@ -401,11 +453,21 @@ contract Test is ForgeTest, Prankster, Assertions {
     updateFeeConfiguration(parameters);
 
     if (parameters.deployMarketHooksData.length == 0) {
-      parameters.deployMarketHooksData = abi.encode(
-        parameters.minimumDeposit,
-        parameters.transfersDisabled,
-        parameters.allowForceBuyBack
-      );
+      if (parameters.hooksTemplate == hooksTemplate) {
+        parameters.deployMarketHooksData = abi.encode(
+          parameters.minimumDeposit,
+          parameters.transfersDisabled,
+          parameters.allowForceBuyBack
+        );
+      } else if (parameters.hooksTemplate == fixedTermHooksTemplate) {
+        parameters.deployMarketHooksData = abi.encode(
+          parameters.fixedTermEndTime,
+          parameters.minimumDeposit,
+          parameters.transfersDisabled,
+          parameters.allowClosureBeforeTerm,
+          parameters.allowTermReduction
+        );
+      }
     }
 
     bytes32 salt = _nextSalt(parameters.borrower);
@@ -439,14 +501,34 @@ contract Test is ForgeTest, Prankster, Assertions {
 
   function validateMarketConfiguration(MarketInputParameters memory parameters) internal {
     HooksConfig expectedConfig = parameters.hooksConfig;
-    if (
-      keccak256(bytes(IHooks(expectedConfig.hooksAddress()).version())) ==
-      keccak256('SingleBorrowerAccessControlHooks')
-    ) {
+    bytes32 expectedHooksVersion = keccak256(
+      bytes(IHooks(expectedConfig.hooksAddress()).version())
+    );
+    if (expectedHooksVersion == keccak256('SingleBorrowerAccessControlHooks')) {
       depositRequiresAccess = expectedConfig.useOnDeposit();
       transferRequiresAccess = expectedConfig.useOnTransfer();
       if (expectedConfig.useOnQueueWithdrawal()) {
         expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
+      }
+      if (parameters.transfersDisabled) {
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Transfer);
+      }
+      if (parameters.minimumDeposit > 0) {
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
+      }
+    } else if (expectedHooksVersion == keccak256('FixedTermLoanHooks')) {
+      transferRequiresAccess = expectedConfig.useOnTransfer();
+      depositRequiresAccess = expectedConfig.useOnDeposit();
+      expectedConfig = expectedConfig.setFlag(Bit_Enabled_CloseMarket);
+      if (expectedConfig.useOnQueueWithdrawal()) {
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
+      }
+      expectedConfig = expectedConfig.setFlag(Bit_Enabled_QueueWithdrawal);
+      if (parameters.transfersDisabled) {
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Transfer);
+      }
+      if (parameters.minimumDeposit > 0) {
+        expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
       }
     }
     assertEq(market.asset(), parameters.asset, 'asset');
@@ -499,10 +581,8 @@ contract Test is ForgeTest, Prankster, Assertions {
     );
     assertEq(market.decimals(), IERC20(parameters.asset).decimals(), 'decimals');
     address hooksAddress = parameters.hooksConfig.hooksAddress();
-    if (
-      keccak256(bytes(IHooks(hooksAddress).version())) ==
-      keccak256('SingleBorrowerAccessControlHooks')
-    ) {
+    bytes32 hooksVersionHash = keccak256(bytes(IHooks(hooksAddress).version()));
+    if (hooksVersionHash == keccak256('SingleBorrowerAccessControlHooks')) {
       HookedMarket memory hookedMarket = AccessControlHooks(hooksAddress).getHookedMarket(
         address(market)
       );
@@ -513,6 +593,16 @@ contract Test is ForgeTest, Prankster, Assertions {
         'transferRequiresAccess'
       );
       assertEq(hookedMarket.depositRequiresAccess, depositRequiresAccess, 'depositRequiresAccess');
+    } else if (hooksVersionHash == 'FixedTermLoanHooks') {
+      FT_HookedMarket memory hookedMarket = FixedTermLoanHooks(hooksAddress).getHookedMarket(
+        address(market)
+      );
+      assertTrue(hookedMarket.isHooked, 'getHookedMarket');
+      assertEq(
+        hookedMarket.transferRequiresAccess,
+        transferRequiresAccess,
+        'transferRequiresAccess'
+      );
     }
   }
 

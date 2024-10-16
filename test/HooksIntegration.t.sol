@@ -549,4 +549,39 @@ contract HooksIntegrationTest is BaseMarketTest {
       assertEq(market.reserveRatioBips(), reserveRatioBipsToReturn);
     }
   }
+
+  // ========================================================================== //
+  //                               onForceBuyBack                               //
+  // ========================================================================== //
+
+  function test_onForceBuyBack(
+    address lender,
+    // uint112 scaledAmount,
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external asAccount(borrower) {
+    _setUp(config);
+    // _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    MockHooks(address(hooks)).reset();
+    startPrank(borrower);
+    // asset.mint(borrower, 1e18);
+    // asset.approve(address(market), 1e18);
+    // _setUp(config);
+    _deposit(lender, 1e18, true);
+    MockHooks(address(hooks)).reset();
+    asset.mint(borrower, 1e18);
+    asset.approve(address(market), 1e18);
+    MarketState memory state = pendingState();
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(market.forceBuyBack.selector, lender, 1e18),
+      extraData
+    );
+    vm.expectEmit(address(hooks));
+    emit OnForceBuyBackCalled(lender, 1e18, state, extraData);
+    vm.expectEmit(address(asset));
+    emit IERC20.Transfer(borrower, lender, 1e18);
+    vm.expectEmit(address(market));
+    emit IERC20.Transfer(lender, borrower, 1e18);
+    _callMarket(_calldata, '', 'forceBuyBack');
+  }
 }

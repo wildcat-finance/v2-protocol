@@ -13,7 +13,7 @@ import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
 import 'src/libraries/BoolUtils.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
-import { fastForward } from '../helpers/VmUtils.sol';
+import { getTimestamp, fastForward } from '../helpers/VmUtils.sol';
 
 using LibString for uint256;
 using LibString for address;
@@ -781,6 +781,37 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     hooks.grantRole(account, timestamp);
   }
 
+  function test_getLenderStatus_loop() external {
+    address bob = address(0xb0b);
+    mockProvider1.setIsPullProvider(false);
+    mockProvider2.setIsPullProvider(true);
+    mockProvider2.setCredential(bob, uint32(block.timestamp));
+    hooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+    hooks.addRoleProvider(address(mockProvider2), type(uint32).max);
+    LenderStatus memory status = hooks.getLenderStatus(bob);
+    assertEq(status.lastProvider, address(mockProvider2), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, block.timestamp, 'lastApprovalTimestamp');
+    assertEq(status.canRefresh, true, 'canRefresh');
+    assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
+  }
+
+  function test_getLenderStatus_refresh() external {
+    address bob = address(0xb0b);
+    mockProvider1.setIsPullProvider(false);
+    mockProvider2.setIsPullProvider(true);
+    mockProvider2.setCredential(bob, uint32(block.timestamp));
+    hooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+    hooks.addRoleProvider(address(mockProvider2), 1);
+    fastForward(2);
+    uint32 newTimestamp = uint32(getTimestamp());
+    mockProvider2.setCredential(bob, newTimestamp);
+    LenderStatus memory status = hooks.getLenderStatus(bob);
+    assertEq(status.lastProvider, address(mockProvider2), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, newTimestamp, 'lastApprovalTimestamp');
+    assertEq(status.canRefresh, true, 'canRefresh');
+    assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
+  }
+
   function test_fuzz_getOrValidateCredential(
     AccessControlHooksFuzzInputs memory fuzzInputs
   ) external {
@@ -792,6 +823,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       mockProvider2,
       address(50),
       FunctionKind.HooksFunction,
+      0,
       _getIsKnownLenderStatus,
       0
     );
@@ -1076,5 +1108,39 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     hooks.onCloseMarket(state, '');
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(market.fixedTermEndTime, uint32(block.timestamp), 'fixedTermEndTime');
+  }
+
+  function test_closeMarket_ClosureDisabledBeforeTerm()external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18, false, false)
+    );
+    vm.prank(address(1));
+    vm.expectRevert(FixedTermLoanHooks.ClosureDisabledBeforeTerm.selector);
+    MarketState memory state;
+    hooks.onCloseMarket(state, '');
+  }
+
+  function test_forceBuyBack_ForceBuyBacksDisabled() external {
+    
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    vm.expectRevert(FixedTermLoanHooks.ForceBuyBacksDisabled.selector);
+    MarketState memory state;
+    hooks.onForceBuyBack(address(1), 0, state, '');
   }
 }
