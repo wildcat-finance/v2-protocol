@@ -4,7 +4,8 @@ pragma solidity >=0.8.20;
 import 'src/interfaces/IERC20.sol';
 import 'src/libraries/MathUtils.sol';
 import { Test } from 'forge-std/Test.sol';
-import { DSInvariantTest } from 'solmate/test/utils/DSInvariantTest.sol';
+// import { DSInvariantTest } from 'solmate/test/utils/DSInvariantTest.sol';
+import {StdInvariant} from "forge-std/StdInvariant.sol";
 
 bytes32 constant PERMIT_TYPEHASH = keccak256(
   'Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)'
@@ -17,7 +18,7 @@ bytes32 constant PERMIT_TYPEHASH = keccak256(
  * @author transmissions11
  * Modified from https://github.com/transmissions11/solmate
  */
-abstract contract BaseERC20Test is Test {
+abstract contract BaseERC20Test is StdInvariant, Test {
   IERC20 token;
   string _name;
   string _symbol;
@@ -41,7 +42,8 @@ abstract contract BaseERC20Test is Test {
 
   function setUp() public virtual;
 
-  function invariantMetadata() public {
+  function testMetadata() public {
+    assertGt(uint160(address(token)), 0);
     assertEq(token.name(), _name);
     assertEq(token.symbol(), _symbol);
     assertEq(token.decimals(), _decimals);

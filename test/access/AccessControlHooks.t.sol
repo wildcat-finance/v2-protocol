@@ -637,6 +637,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
       mockProvider2,
       address(50),
       FunctionKind.HooksFunction,
+      0,
       _getIsKnownLenderStatus,
       0
     );
