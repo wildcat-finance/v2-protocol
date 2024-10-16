@@ -246,7 +246,6 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
           allowClosureBeforeTerm := and(calldataload(add(hooksData.offset, 0x60)), 1)
         }
         if (allowClosureBeforeTerm) {
-          marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_CloseMarket);
           hookedMarket.allowClosureBeforeTerm = allowClosureBeforeTerm;
         }
       }
