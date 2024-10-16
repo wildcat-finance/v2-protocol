@@ -64,7 +64,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     uint32 credentialTimestamp
   );
   event AccountAccessRevoked(address indexed accountAddress);
-  event AccountMadeFirstDeposit(address indexed accountAddress);
+  event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
 
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
 
@@ -170,8 +170,46 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     return 'FixedTermLoanHooks';
   }
 
+  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
+    assembly {
+      value := and(calldataload(add(data.offset, offset)), 1)
+    }
+  }
+
+  function _readUint32Cd(bytes calldata data) internal pure returns (uint32 value) {
+    uint _value;
+    assembly {
+      _value := calldataload(data.offset)
+    }
+    return _value.toUint32();
+  }
+
+  function _readUint128Cd(bytes calldata data, uint offset) internal pure returns (uint128 value) {
+    uint _value;
+    assembly {
+      _value := calldataload(add(data.offset, offset))
+    }
+    return _value.toUint128();
+  }
+
   /**
    * @dev Called when market is deployed using this contract as its `hooks`.
+   *
+   *     @param deployer      Address of the account that called the factory - must
+   *                          match the borrower address.
+   *     @param marketAddress Address of the market being deployed.
+   *     @param parameters    Parameters used to deploy the market.
+   *     @param hooksData     Extra data passed to the market deployment function containing
+   *                          the parameters for the hooks.
+   *
+   *     `hooksData` is a tuple of (
+   *        uint32 fixedTermEndTime,
+   *        uint128? minimumDeposit,
+   *        bool? transfersDisabled,
+   *        bool? allowClosureBeforeTerm,
+   *        bool? allowTermReduction
+   *     )
+   *     Where none of the parameters are mandatory except `fixedTermEndTime`.
    *
    *      Note: Called inside the root `onCreateMarket` in the base contract,
    *      so no need to verify the caller is the factory.
@@ -189,10 +227,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
 
     marketHooksConfig = parameters.hooks;
 
-    uint32 fixedTermEndTime;
-    assembly {
-      fixedTermEndTime := calldataload(hooksData.offset)
-    }
+    uint32 fixedTermEndTime = _readUint32Cd(hooksData);
 
     if (
       fixedTermEndTime < block.timestamp || (fixedTermEndTime - block.timestamp) > MaximumLoanTerm
@@ -207,56 +242,27 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     // enabled, but may not require access control.
     // Initialisations to zero here (and subsequent updates) are just because
     // of stack-too-deep errors otherwise.
+
+    // Read `minimumDeposit`, `transfersDisabled`, `allowClosureBeforeTerm` and `allowTermReduction`
+    // from `hooksData`.
+    // If the calldata does not contain sufficient bytes for a parameter, it will be read as zero.
     HookedMarket memory hookedMarket = HookedMarket({
       isHooked: true,
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
       withdrawalRequiresAccess: marketHooksConfig.useOnQueueWithdrawal(),
       fixedTermEndTime: fixedTermEndTime,
-      minimumDeposit: 0,
-      transfersDisabled: false,
-      allowClosureBeforeTerm: false,
-      allowTermReduction: false
+      minimumDeposit: _readUint128Cd(hooksData, 0x20),
+      transfersDisabled: _readBoolCd(hooksData, 0x40),
+      allowClosureBeforeTerm: _readBoolCd(hooksData, 0x60),
+      allowTermReduction: _readBoolCd(hooksData, 0x80)
     });
-
-    uint256 minimumDeposit;
-    bool transfersDisabled;
-    bool allowClosureBeforeTerm;
-    bool allowTermReduction;
-    if (hooksData.length >= 64) {
-      assembly {
-        minimumDeposit := calldataload(add(hooksData.offset, 0x20))
-      }
-      if (minimumDeposit > 0) {
-        marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-        hookedMarket.minimumDeposit = minimumDeposit.toUint128();
-        emit MinimumDepositUpdated(marketAddress, uint128(minimumDeposit));
-      }
-      if (hooksData.length > 64) {
-        assembly {
-          transfersDisabled := and(calldataload(add(hooksData.offset, 0x40)), 1)
-        }
-        if (transfersDisabled) {
-          marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
-          hookedMarket.transfersDisabled = transfersDisabled;
-        }
-      }
-      if (hooksData.length > 96) {
-        assembly {
-          allowClosureBeforeTerm := and(calldataload(add(hooksData.offset, 0x60)), 1)
-        }
-        if (allowClosureBeforeTerm) {
-          hookedMarket.allowClosureBeforeTerm = allowClosureBeforeTerm;
-        }
-      }
-      if (hooksData.length > 128) {
-        assembly {
-          allowTermReduction := and(calldataload(add(hooksData.offset, 0x80)), 1)
-        }
-        if (allowTermReduction) {
-          hookedMarket.allowTermReduction = allowTermReduction;
-        }
-      }
+    if (hookedMarket.minimumDeposit > 0) {
+      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
+      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
+    }
+    if (hookedMarket.transfersDisabled) {
+      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
     }
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
@@ -821,7 +827,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
       )
     ) {
       isKnownLenderOnMarket[accountAddress][msg.sender] = true;
-      emit AccountMadeFirstDeposit(accountAddress);
+      emit AccountMadeFirstDeposit(msg.sender, accountAddress);
     }
 
     // Write the account's status to storage if it was updated
@@ -1029,7 +1035,6 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
-
     HookedMarket storage hookedMarket = _hookedMarkets[msg.sender];
 
     /* Revert if market is still in fixed term and new APR is lower than it was */
