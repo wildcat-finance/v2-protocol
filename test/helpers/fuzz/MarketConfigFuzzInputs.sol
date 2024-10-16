@@ -76,7 +76,12 @@ library LibMarketConfigFuzzInputs {
       deployHooksConstructorArgs: '',
       deployMarketHooksData: '',
       hooksConfig: HooksConfig.wrap(0),
-      minimumDeposit: 0
+      minimumDeposit: 0,
+      transfersDisabled: false,
+      allowForceBuyBack: false,
+      fixedTermEndTime: 0,
+      allowClosureBeforeTerm: true,
+      allowTermReduction: true
     });
   }
 }
