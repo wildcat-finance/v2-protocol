@@ -11,6 +11,7 @@ using LibMarketConfigFuzzInputs for MarketConfigFuzzInputs global;
 
 // Used for fuzzing market deployment parameters
 struct MarketConfigFuzzInputs {
+  bool isAccessControlHooks;
   uint128 maxTotalSupply;
   uint16 protocolFeeBips;
   uint16 annualInterestBips;
@@ -19,6 +20,16 @@ struct MarketConfigFuzzInputs {
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
   address feeRecipient;
+  uint128 minimumDeposit;
+  bool useOnDeposit;
+  bool useOnQueueWithdrawal;
+  bool useOnExecuteWithdrawal;
+  bool useOnTransfer;
+  bool transfersDisabled;
+  bool allowForceBuyBacks;
+  uint16 fixedTermDuration;
+  bool allowClosureBeforeTerm;
+  bool allowTermReduction;
 }
 
 library LibMarketConfigFuzzInputs {
@@ -37,7 +48,7 @@ library LibMarketConfigFuzzInputs {
       )
     );
     inputs.reserveRatioBips = uint16(
-      bound(inputs.reserveRatioBips, MinimumReserveRatioBips, MaximumReserveRatioBips)
+      bound(inputs.reserveRatioBips, MinimumReserveRatioBips, 9_999)
     );
     inputs.delinquencyGracePeriod = uint32(
       bound(
@@ -46,42 +57,52 @@ library LibMarketConfigFuzzInputs {
         MaximumDelinquencyGracePeriod
       )
     );
+    inputs.maxTotalSupply = uint128(bound(inputs.maxTotalSupply, 100, type(uint104).max));
+    inputs.minimumDeposit = uint128(bound(inputs.minimumDeposit, 0, inputs.maxTotalSupply));
+    inputs.protocolFeeBips = uint16(bound(inputs.protocolFeeBips, 0, 1_000));
     if (inputs.protocolFeeBips > 0) {
       inputs.feeRecipient = address(
         uint160(bound(uint160(inputs.feeRecipient), 1, type(uint160).max))
       );
     }
+    if (inputs.isAccessControlHooks) {
+      inputs.allowClosureBeforeTerm = false;
+      inputs.allowTermReduction = false;
+      inputs.fixedTermDuration = 0;
+    } else {
+      inputs.allowForceBuyBacks = false;
+      inputs.fixedTermDuration = uint16(bound(inputs.fixedTermDuration, 1, type(uint16).max));
+    }
   }
 
-  function toParameters(
-    MarketConfigFuzzInputs calldata inputs
-  ) internal pure returns (MarketInputParameters memory parameters) {
+  function updateParameters(
+    MarketConfigFuzzInputs memory inputs,
+    MarketInputParameters storage parameters,
+    address accessControlTemplate,
+    address fixedTermHooksTemplate
+  ) internal {
     inputs.constrain();
-    parameters = MarketInputParameters({
-      asset: address(0),
-      namePrefix: 'Wildcat ',
-      symbolPrefix: 'WC',
-      borrower: borrower,
-      feeRecipient: inputs.feeRecipient,
-      sentinel: address(0),
-      maxTotalSupply: inputs.maxTotalSupply,
-      protocolFeeBips: inputs.protocolFeeBips,
-      annualInterestBips: inputs.annualInterestBips,
-      delinquencyFeeBips: inputs.delinquencyFeeBips,
-      withdrawalBatchDuration: inputs.withdrawalBatchDuration,
-      reserveRatioBips: inputs.reserveRatioBips,
-      delinquencyGracePeriod: inputs.delinquencyGracePeriod,
-      sphereXEngine: address(0),
-      hooksTemplate: address(0),
-      deployHooksConstructorArgs: '',
-      deployMarketHooksData: '',
-      hooksConfig: HooksConfig.wrap(0),
-      minimumDeposit: 0,
-      transfersDisabled: false,
-      allowForceBuyBack: false,
-      fixedTermEndTime: 0,
-      allowClosureBeforeTerm: true,
-      allowTermReduction: true
-    });
+    parameters.hooksConfig = HooksConfig.wrap(0);
+
+    parameters.feeRecipient = inputs.feeRecipient;
+    parameters.maxTotalSupply = inputs.maxTotalSupply;
+    parameters.protocolFeeBips = inputs.protocolFeeBips;
+    parameters.annualInterestBips = inputs.annualInterestBips;
+    parameters.delinquencyFeeBips = inputs.delinquencyFeeBips;
+    parameters.withdrawalBatchDuration = inputs.withdrawalBatchDuration;
+    parameters.reserveRatioBips = inputs.reserveRatioBips;
+    parameters.delinquencyGracePeriod = inputs.delinquencyGracePeriod;
+    parameters.hooksTemplate = inputs.isAccessControlHooks
+      ? accessControlTemplate
+      : fixedTermHooksTemplate;
+    parameters.deployMarketHooksData = '';
+    parameters.minimumDeposit = inputs.minimumDeposit;
+    parameters.transfersDisabled = inputs.transfersDisabled;
+    parameters.allowForceBuyBack = inputs.allowForceBuyBacks;
+    parameters.fixedTermEndTime = inputs.isAccessControlHooks
+      ? 0
+      : uint32(inputs.fixedTermDuration + block.timestamp);
+    parameters.allowClosureBeforeTerm = inputs.allowClosureBeforeTerm;
+    parameters.allowTermReduction = inputs.allowTermReduction;
   }
 }
