@@ -123,8 +123,22 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     uint256 actualNormalizedAmount = market.depositUpTo(amount);
     assertEq(actualNormalizedAmount, expectedNormalizedAmount, 'Actual amount deposited');
     _checkState(state);
-    assertEq(market.balanceOf(from), currentBalance + amount);
-    assertEq(market.scaledBalanceOf(from), currentScaledBalance + scaledAmount);
+    assertEq(
+      market.balanceOf(from),
+      currentBalance + state.normalizeAmount(scaledAmount),
+      'Resulting balance != old balance + normalize(scale(deposit))'
+    );
+    assertApproxEqAbs(
+      market.balanceOf(from),
+      currentBalance + amount,
+      1,
+      'Resulting balance not within 1 wei of old balance + amount deposited'
+    );
+    assertEq(
+      market.scaledBalanceOf(from),
+      currentScaledBalance + scaledAmount,
+      'Resulting scaled balance'
+    );
     return actualNormalizedAmount;
   }
 
