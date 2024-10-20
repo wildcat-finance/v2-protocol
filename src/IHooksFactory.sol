@@ -203,6 +203,17 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   // ========================================================================== //
   //                                   Markets                                  //
   // ========================================================================== //
+  function getMarketsForHooksInstance(
+    address hooksInstance
+  ) external view returns (address[] memory);
+
+  function getMarketsForHooksInstance(
+    address hooksInstance,
+    uint256 start,
+    uint256 len
+  ) external view returns (address[] memory arr);
+
+  function getMarketsForHooksInstanceCount(address hooksInstance) external view returns (uint256);
 
   /// @dev Get the temporarily stored market parameters for a market that is
   ///      currently being deployed.
