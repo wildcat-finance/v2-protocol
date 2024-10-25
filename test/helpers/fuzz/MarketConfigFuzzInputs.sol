@@ -6,6 +6,7 @@ import '../../shared/TestConstants.sol';
 import { bound } from '../../helpers/VmUtils.sol';
 import { MarketInputParameters } from '../../shared/Test.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
+import { PRNG } from '../PRNG.sol';
 
 using LibMarketConfigFuzzInputs for MarketConfigFuzzInputs global;
 
@@ -23,7 +24,6 @@ struct MarketConfigFuzzInputs {
   uint128 minimumDeposit;
   bool useOnDeposit;
   bool useOnQueueWithdrawal;
-  bool useOnExecuteWithdrawal;
   bool useOnTransfer;
   bool transfersDisabled;
   bool allowForceBuyBacks;
@@ -33,6 +33,42 @@ struct MarketConfigFuzzInputs {
 }
 
 library LibMarketConfigFuzzInputs {
+  function rand(PRNG rng) internal pure returns (MarketConfigFuzzInputs memory inputs) {
+    inputs.annualInterestBips = uint16(
+      rng.next(MinimumAnnualInterestBips, MaximumAnnualInterestBips)
+    );
+    inputs.delinquencyFeeBips = uint16(
+      rng.next(MinimumDelinquencyFeeBips, MaximumDelinquencyFeeBips)
+    );
+    inputs.withdrawalBatchDuration = uint32(
+      rng.next(MinimumWithdrawalBatchDuration, MaximumWithdrawalBatchDuration)
+    );
+    inputs.reserveRatioBips = uint16(rng.next(MinimumReserveRatioBips, 9_999));
+    inputs.delinquencyGracePeriod = uint32(
+      rng.next(MinimumDelinquencyGracePeriod, MaximumDelinquencyGracePeriod)
+    );
+    inputs.maxTotalSupply = uint128(rng.next(100, type(uint104).max));
+    inputs.protocolFeeBips = uint16(rng.next(0, 1_000));
+    if (inputs.protocolFeeBips > 0) {
+      inputs.feeRecipient = address(uint160(rng.next(1, type(uint160).max)));
+    }
+    bool useMinimumDeposit = rng.nextBool();
+    inputs.minimumDeposit = useMinimumDeposit ? uint128(rng.next(0, inputs.maxTotalSupply)) : 0;
+
+    inputs.isAccessControlHooks = rng.nextBool();
+    inputs.transfersDisabled = rng.nextBool();
+    inputs.useOnDeposit = rng.nextBool();
+    inputs.useOnQueueWithdrawal = rng.nextBool();
+    inputs.useOnTransfer = rng.nextBool();
+    inputs.allowForceBuyBacks = rng.nextBool();
+
+    if (!inputs.isAccessControlHooks) {
+      inputs.fixedTermDuration = uint16(rng.next(1, type(uint16).max));
+      inputs.allowClosureBeforeTerm = rng.nextBool();
+      inputs.allowTermReduction = rng.nextBool();
+    }
+  }
+
   function constrain(MarketConfigFuzzInputs memory inputs) internal pure {
     inputs.annualInterestBips = uint16(
       bound(inputs.annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips)
@@ -70,7 +106,6 @@ library LibMarketConfigFuzzInputs {
       inputs.allowTermReduction = false;
       inputs.fixedTermDuration = 0;
     } else {
-      inputs.allowForceBuyBacks = false;
       inputs.fixedTermDuration = uint16(bound(inputs.fixedTermDuration, 1, type(uint16).max));
     }
   }
