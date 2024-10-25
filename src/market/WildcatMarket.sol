@@ -220,7 +220,7 @@ contract WildcatMarket is
     to.scaledBalance += scaledAmount;
     _accounts[msg.sender] = to;
 
-    emit_Transfer(lender, msg.sender, scaledAmount);
+    emit_Transfer(lender, msg.sender, normalizedAmount);
     emit_ForceBuyBack(lender, scaledAmount, normalizedAmount);
 
     _writeState(state);
