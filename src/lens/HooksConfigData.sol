@@ -45,7 +45,6 @@ struct MarketHooksData {
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  // Access control flags
   bool allowForceBuyBacks;
   // Fixed term loan flags
   bool withdrawalRequiresAccess;
@@ -84,6 +83,7 @@ library HooksConfigDataLib {
       data.transfersDisabled = hookedMarket.transfersDisabled;
       data.allowClosureBeforeTerm = hookedMarket.allowClosureBeforeTerm;
       data.allowTermReduction = hookedMarket.allowTermReduction;
+      data.allowForceBuyBacks = hookedMarket.allowForceBuyBacks;
     }
   }
 

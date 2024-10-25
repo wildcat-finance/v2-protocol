@@ -205,4 +205,93 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   function _approve(address from, address to, uint256 amount) internal asAccount(from) {
     asset.approve(to, amount);
   }
+
+  // function applyFuzzedHooksConfig(MarketHooksConfigFuzzInputs memory inputs) internal {
+  //   inputs.minimumDeposit = uint128(bound(inputs.minimumDeposit, 0, parameters.maxTotalSupply));
+  //   if (inputs.isAccessControlHooks) {
+  //     inputs.allowClosureBeforeTerm = false;
+  //     inputs.allowTermReduction = false;
+  //     inputs.fixedTermDuration = 0;
+  //   } else {
+  //     inputs.fixedTermDuration = uint16(bound(inputs.fixedTermDuration, 1, type(uint16).max));
+  //   }
+
+  //   parameters.minimumDeposit = inputs.minimumDeposit;
+  //   parameters.transfersDisabled = inputs.transfersDisabled;
+  //   parameters.allowForceBuyBack = inputs.allowForceBuyBacks;
+  //   parameters.fixedTermEndTime = inputs.isAccessControlHooks
+  //     ? 0
+  //     : uint32(inputs.fixedTermDuration + block.timestamp);
+  //   parameters.allowClosureBeforeTerm = inputs.allowClosureBeforeTerm;
+  //   parameters.allowTermReduction = inputs.allowTermReduction;
+
+  //   parameters.hooksConfig = encodeHooksConfig({
+  //     hooksAddress: address(hooks),
+  //     useOnDeposit: inputs.useOnDeposit,
+  //     useOnQueueWithdrawal: inputs.useOnQueueWithdrawal,
+  //     useOnExecuteWithdrawal: false,
+  //     useOnTransfer: inputs.useOnTransfer,
+  //     useOnBorrow: false,
+  //     useOnRepay: false,
+  //     useOnCloseMarket: false,
+  //     useOnNukeFromOrbit: false,
+  //     useOnSetMaxTotalSupply: false,
+  //     useOnSetAnnualInterestAndReserveRatioBips: true,
+  //     useOnSetProtocolFeeBips: false
+  //   });
+  //   resetWithNewHooks(inputs.isAccessControlHooks ? HooksKind.AccessControl : HooksKind.FixedTerm);
+  // }
+
+  function applyFuzzedHooksConfig(MarketHooksConfigFuzzInputs memory inputs) internal {
+    inputs.minimumDeposit = uint128(bound(inputs.minimumDeposit, 0, parameters.maxTotalSupply));
+    if (inputs.isAccessControlHooks) {
+      inputs.allowClosureBeforeTerm = false;
+      inputs.allowTermReduction = false;
+      inputs.fixedTermDuration = 0;
+    } else {
+      inputs.fixedTermDuration = uint16(bound(inputs.fixedTermDuration, 1, type(uint16).max));
+    }
+
+    // parameters.hooksTemplate = inputs.isAccessControlHooks ? hooksTemplate : fixedTermHooksTemplate;
+    // parameters.deployMarketHooksData = '';
+    parameters.minimumDeposit = inputs.minimumDeposit;
+    parameters.transfersDisabled = inputs.transfersDisabled;
+    parameters.allowForceBuyBack = inputs.allowForceBuyBacks;
+    parameters.fixedTermEndTime = inputs.isAccessControlHooks
+      ? 0
+      : uint32(inputs.fixedTermDuration + block.timestamp);
+    parameters.allowClosureBeforeTerm = inputs.allowClosureBeforeTerm;
+    parameters.allowTermReduction = inputs.allowTermReduction;
+
+    // hooks = AccessControlHooks(address(0));
+
+    parameters.hooksConfig = encodeHooksConfig({
+      hooksAddress: address(0),
+      useOnDeposit: inputs.useOnDeposit,
+      useOnQueueWithdrawal: inputs.useOnQueueWithdrawal,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: inputs.useOnTransfer,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
+    });
+    // setUpContracts(false);
+    resetWithNewHooks(inputs.isAccessControlHooks ? HooksKind.AccessControl : HooksKind.FixedTerm);
+  }
+
+  function resetWithNewHooks(HooksKind kind) internal {
+    if (kind == HooksKind.AccessControl) {
+      parameters.hooksTemplate = hooksTemplate;
+    } else if (kind == HooksKind.FixedTerm) {
+      parameters.hooksTemplate = fixedTermHooksTemplate;
+    }
+    parameters.deployMarketHooksData = '';
+    hooks = AccessControlHooks(address(0));
+    parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(0));
+    setUpContracts(false);
+  }
 }

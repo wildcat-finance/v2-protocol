@@ -331,7 +331,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
+      abi.encode(block.timestamp + 365 days, 1e18, false, false, false, true)
     );
     vm.expectEmit(address(hooks));
     emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
@@ -349,7 +349,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false, false)
+      abi.encode(block.timestamp + 365 days, 1e18, false, false, false, false)
     );
     vm.expectRevert(FixedTermLoanHooks.TermReductionDisabled.selector);
     hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
@@ -1099,7 +1099,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, true)
+      abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
     );
     vm.prank(address(1));
     vm.expectEmit(address(hooks));
@@ -1110,7 +1110,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     assertEq(market.fixedTermEndTime, uint32(block.timestamp), 'fixedTermEndTime');
   }
 
-  function test_closeMarket_ClosureDisabledBeforeTerm()external {
+  function test_closeMarket_ClosureDisabledBeforeTerm() external {
     DeployMarketInputs memory inputs;
     inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
       address(hooks)
@@ -1119,7 +1119,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false)
+      abi.encode(block.timestamp + 365 days, 1e18, false, false, false)
     );
     vm.prank(address(1));
     vm.expectRevert(FixedTermLoanHooks.ClosureDisabledBeforeTerm.selector);
@@ -1128,7 +1128,6 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   }
 
   function test_forceBuyBack_ForceBuyBacksDisabled() external {
-    
     DeployMarketInputs memory inputs;
     inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
       address(hooks)
@@ -1141,6 +1140,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     );
     vm.expectRevert(FixedTermLoanHooks.ForceBuyBacksDisabled.selector);
     MarketState memory state;
-    hooks.onForceBuyBack(address(1), 0, state, '');
+    vm.prank(address(1));
+    hooks.onForceBuyBack(address(2), 0, state, '');
   }
 }

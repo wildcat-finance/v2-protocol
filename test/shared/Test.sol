@@ -19,7 +19,7 @@ import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/access/AccessControlHooks.sol';
 import { FixedTermLoanHooks, HookedMarket as FT_HookedMarket } from 'src/access/FixedTermLoanHooks.sol';
-import { HooksKind, AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, LibAccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import { HooksKind, AccessControlHooksFuzzInputs, MarketHooksConfigFuzzInputs, AccessControlHooksFuzzContext, LibAccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 struct MarketInputParameters {
   address asset;
@@ -66,6 +66,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   uint internal roleProviderSignerPrivateKey;
   bool depositRequiresAccess;
   bool transferRequiresAccess;
+  bool withdrawalRequiresAccess;
 
   function _nextSalt(address borrower) internal returns (bytes32 salt) {
     return bytes32((uint256(uint160(borrower)) << 96) | numDeployedMarkets++);
@@ -464,6 +465,7 @@ contract Test is ForgeTest, Prankster, Assertions {
           parameters.fixedTermEndTime,
           parameters.minimumDeposit,
           parameters.transfersDisabled,
+          parameters.allowForceBuyBack,
           parameters.allowClosureBeforeTerm,
           parameters.allowTermReduction
         );
@@ -519,6 +521,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     } else if (expectedHooksVersion == keccak256('FixedTermLoanHooks')) {
       transferRequiresAccess = expectedConfig.useOnTransfer();
       depositRequiresAccess = expectedConfig.useOnDeposit();
+      withdrawalRequiresAccess = expectedConfig.useOnQueueWithdrawal();
       expectedConfig = expectedConfig.setFlag(Bit_Enabled_CloseMarket);
       if (expectedConfig.useOnQueueWithdrawal()) {
         expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
@@ -593,6 +596,9 @@ contract Test is ForgeTest, Prankster, Assertions {
         'transferRequiresAccess'
       );
       assertEq(hookedMarket.depositRequiresAccess, depositRequiresAccess, 'depositRequiresAccess');
+      assertEq(hookedMarket.minimumDeposit, parameters.minimumDeposit, 'minimumDeposit');
+      assertEq(hookedMarket.transfersDisabled, parameters.transfersDisabled, 'transfersDisabled');
+      assertEq(hookedMarket.allowForceBuyBacks, parameters.allowForceBuyBack, 'allowForceBuyBacks');
     } else if (hooksVersionHash == 'FixedTermLoanHooks') {
       FT_HookedMarket memory hookedMarket = FixedTermLoanHooks(hooksAddress).getHookedMarket(
         address(market)
@@ -602,6 +608,26 @@ contract Test is ForgeTest, Prankster, Assertions {
         hookedMarket.transferRequiresAccess,
         transferRequiresAccess,
         'transferRequiresAccess'
+      );
+      assertEq(hookedMarket.depositRequiresAccess, depositRequiresAccess, 'depositRequiresAccess');
+      assertEq(
+        hookedMarket.withdrawalRequiresAccess,
+        withdrawalRequiresAccess,
+        'withdrawalRequiresAccess'
+      );
+      assertEq(hookedMarket.fixedTermEndTime, parameters.fixedTermEndTime, 'fixedTermEndTime');
+      assertEq(hookedMarket.minimumDeposit, parameters.minimumDeposit, 'minimumDeposit');
+      assertEq(hookedMarket.transfersDisabled, parameters.transfersDisabled, 'transfersDisabled');
+      assertEq(hookedMarket.allowForceBuyBacks, parameters.allowForceBuyBack, 'allowForceBuyBacks');
+      assertEq(
+        hookedMarket.allowClosureBeforeTerm,
+        parameters.allowClosureBeforeTerm,
+        'allowClosureBeforeTerm'
+      );
+      assertEq(
+        hookedMarket.allowTermReduction,
+        parameters.allowTermReduction,
+        'allowTermReduction'
       );
     }
   }
