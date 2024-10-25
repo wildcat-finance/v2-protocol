@@ -4,6 +4,7 @@ pragma solidity >=0.8.20;
 import './MarketData.sol';
 import './TokenData.sol';
 import './HooksInstanceData.sol';
+import './HooksDataForBorrower.sol';
 
 contract MarketLens {
   WildcatArchController public immutable archController;
@@ -12,6 +13,16 @@ contract MarketLens {
   constructor(address _archController, address _hooksFactory) {
     archController = WildcatArchController(_archController);
     hooksFactory = HooksFactory(_hooksFactory);
+  }
+
+  // ========================================================================== //
+  //                         All hooks data for borrower                        //
+  // ========================================================================== //
+
+  function getHooksDataForBorrower(
+    address borrower
+  ) public view returns (HooksDataForBorrower memory data) {
+    data.fill(archController, hooksFactory, borrower);
   }
 
   // ========================================================================== //
