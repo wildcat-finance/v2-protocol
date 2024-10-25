@@ -993,10 +993,10 @@ contract AccessControlHooks is MarketConstraintHooks {
   ) external override {}
 
   function onForceBuyBack(
-    address lender,
-    uint scaledAmount,
-    MarketState calldata intermediateState,
-    bytes calldata extraData
+    address /* lender */,
+    uint /* scaledAmount */,
+    MarketState calldata /* intermediateState */,
+    bytes calldata /* extraData */
   ) external virtual override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
