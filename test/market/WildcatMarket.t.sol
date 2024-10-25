@@ -691,12 +691,6 @@ contract WildcatMarketTest is BaseMarketTest {
     market.forceBuyBack(alice, 0);
   }
 
-  function test_forceBuyBack_BuyBackOnClosedMarket() external asAccount(borrower) {
-    market.closeMarket();
-    vm.expectRevert(IMarketEventsAndErrors.BuyBackOnClosedMarket.selector);
-    market.forceBuyBack(alice, 1e18);
-  }
-
   function test_forceBuyBack_BuyBackOnDelinquentMarket() external asAccount(borrower) {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 3e17);
     vm.expectRevert(IMarketEventsAndErrors.BuyBackOnDelinquentMarket.selector);

@@ -50,8 +50,6 @@ interface IMarketEventsAndErrors {
 
   error RepayToClosedMarket();
 
-  error BuyBackOnClosedMarket();
-
   error BuyBackOnDelinquentMarket();
 
   error BorrowWhileSanctioned();
