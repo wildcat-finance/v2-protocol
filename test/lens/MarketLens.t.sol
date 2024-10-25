@@ -185,29 +185,7 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(data.totalMarkets, 1, 'totalMarkets');
   }
 
-  function test_getMarketData() external {
-    MarketConfigFuzzInputs memory inputs = MarketConfigFuzzInputs({
-      isAccessControlHooks: true,
-      maxTotalSupply: 7256,
-      protocolFeeBips: 4873,
-      annualInterestBips: 852,
-      delinquencyFeeBips: 1433,
-      withdrawalBatchDuration: 4294967041,
-      reserveRatioBips: 0,
-      delinquencyGracePeriod: 16329,
-      feeRecipient: 0x0000000000000000000000000000000799010002,
-      minimumDeposit: 100000000000000000000,
-      useOnDeposit: true,
-      useOnQueueWithdrawal: false,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: false,
-      transfersDisabled: true,
-      allowForceBuyBacks: true,
-      fixedTermDuration: 46288,
-      allowClosureBeforeTerm: true,
-      allowTermReduction: false
-    });
-    uint8 conditions = 235;
+  function test_getMarketData(MarketConfigFuzzInputs memory inputs, uint8 conditions) external {
     FuzzConditions condition = FuzzConditions(bound(conditions, 0, 3));
     if (condition != FuzzConditions.Default) {
       inputs.maxTotalSupply = 100e18;
@@ -471,6 +449,35 @@ contract MarketDataTest is BaseMarketTest {
     checkHooksTemplateData(data, true);
   }
 
+  function test_getHooksTemplateForBorrower_withUnknownTemplate() external {
+    originationFeeAsset.mint(address(this), 1e18);
+    originationFeeAsset.approve(address(hooksFactory), 1e18);
+    hooksFactory.updateHooksTemplateFees(
+      hooksTemplate,
+      address(this),
+      address(originationFeeAsset),
+      1e18,
+      1_000
+    );
+    parameters.feeRecipient = address(this);
+    address mockTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
+    hooksFactory.addHooksTemplate(
+      mockTemplate,
+      'MockHooks',
+      address(this),
+      address(originationFeeAsset),
+      1e18,
+      1_000
+    );
+
+    HooksTemplateData memory data = lens.getHooksTemplateForBorrower(
+      address(this),
+      address(mockTemplate)
+    );
+
+    checkHooksTemplateData(data, mockTemplate, 'MockHooks', 2);
+  }
+
   function checkFeeConfiguration(FeeConfiguration memory config) internal view {
     assertEq(config.feeRecipient, parameters.feeRecipient, 'feeRecipient');
     assertEq(config.protocolFeeBips, parameters.protocolFeeBips, 'protocolFeeBips');
@@ -488,20 +495,29 @@ contract MarketDataTest is BaseMarketTest {
     );
   }
 
-  function checkHooksTemplateData(HooksTemplateData memory data, bool isAccessControl) internal {
-    assertEq(
-      data.hooksTemplate,
-      isAccessControl ? hooksTemplate : fixedTermHooksTemplate,
-      'hooksTemplate'
+  function checkHooksTemplateData(HooksTemplateData memory data, bool isAccessControl) internal view {
+    (address template, string memory name, uint index) = isAccessControl
+      ? (hooksTemplate, 'SingleBorrowerAccessControlHooks', 0)
+      : (fixedTermHooksTemplate, 'FixedTermLoanHooks', 1);
+    checkHooksTemplateData(
+      data,
+      template,
+      name,
+      index
     );
+  }
+
+  function checkHooksTemplateData(
+    HooksTemplateData memory data,
+    address template,
+    string memory name,
+    uint index
+  ) internal view {
+    assertEq(data.hooksTemplate, template, 'hooksTemplate');
     assertEq(data.exists, true, 'exists');
     assertEq(data.enabled, true, 'enabled');
-    assertEq(data.index, isAccessControl ? 0 : 1, 'index');
-    assertEq(
-      data.name,
-      isAccessControl ? 'SingleBorrowerAccessControlHooks' : 'FixedTermLoanHooks',
-      'name'
-    );
+    assertEq(data.index, index, 'index');
+    assertEq(data.name, name, 'name');
     assertEq(
       data.totalMarkets,
       hooksFactory.getMarketsForHooksTemplateCount(data.hooksTemplate),
