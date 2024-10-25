@@ -342,6 +342,15 @@ contract AccessControlHooks is MarketConstraintHooks {
     return _hookedMarkets[marketAddress];
   }
 
+  function getHookedMarkets(
+    address[] calldata marketAddresses
+  ) external view returns (HookedMarket[] memory hookedMarkets) {
+    hookedMarkets = new HookedMarket[](marketAddresses.length);
+    for (uint256 i = 0; i < marketAddresses.length; i++) {
+      hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];
+    }
+  }
+
   // ========================================================================== //
   //                                Role queries                                //
   // ========================================================================== //

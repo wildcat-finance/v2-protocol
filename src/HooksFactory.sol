@@ -48,7 +48,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   /**
    * @dev Return the contract name "WildcatHooksFactory"
    */
-  function name() external pure returns (string memory) {
+  function name() external pure override returns (string memory) {
     // Use yul to avoid duplicate memory allocation and reduce code size
     // Uses words at 0x20, 0x40, 0x60
     // 0x20 is overwritten with the ABI offset (32)
@@ -64,9 +64,27 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   address[] internal _hooksTemplates;
+
+  /// @dev Mapping from borrower to their deployed hooks instances
   mapping(address borrower => address[] hooksInstances) internal _hooksInstancesByBorrower;
+
+  /**
+   * @dev Mapping from hooks template to markets created with it.
+   *      Used for pushing protocol fee changes to affected markets.
+   */
   mapping(address hooksTemplate => address[] markets) internal _marketsByHooksTemplate;
+
+  /**
+   * @dev Mapping from hooks instance to markets deployed using it.
+   *      Intended primarily for off-chain queries.
+   */
+  mapping(address hooksInstance => address[] markets) internal _marketsByHooksInstance;
+
+  /**
+   * @dev Mapping from hooks template to its fee configuration and name
+   */
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
+
   mapping(address hooksInstance => address hooksTemplate)
     public
     override getHooksTemplateForInstance;
@@ -366,6 +384,32 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   //                                   Markets                                  //
   // ========================================================================== //
 
+  function getMarketsForHooksInstance(
+    address hooksInstance
+  ) external view override returns (address[] memory) {
+    return _marketsByHooksInstance[hooksInstance];
+  }
+
+  function getMarketsForHooksInstance(
+    address hooksInstance,
+    uint256 start,
+    uint256 end
+  ) external view override returns (address[] memory arr) {
+    address[] storage markets = _marketsByHooksInstance[hooksInstance];
+    end = MathUtils.min(end, markets.length);
+    uint256 count = end - start;
+    arr = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      arr[i] = markets[start + i];
+    }
+  }
+
+  function getMarketsForHooksInstanceCount(
+    address hooksInstance
+  ) external view override returns (uint256) {
+    return _marketsByHooksInstance[hooksInstance].length;
+  }
+
   /**
    * @dev Get the temporarily stored market parameters for a market that is
    *      currently being deployed.
@@ -506,6 +550,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _tmpMarketParameters.setEmpty();
 
     _marketsByHooksTemplate[hooksTemplate].push(market);
+    _marketsByHooksInstance[hooksInstance].push(market);
 
     emit MarketDeployed(
       hooksTemplate,
@@ -625,7 +670,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
    * @dev Push any changes to the fee configuration of `hooksTemplate` to all markets
    *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
    */
-  function pushProtocolFeeBipsUpdates(address hooksTemplate) external {
+  function pushProtocolFeeBipsUpdates(address hooksTemplate) external override {
     pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
   }
 }

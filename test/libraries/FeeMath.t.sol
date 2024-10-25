@@ -109,11 +109,13 @@ contract FeeMathTest is Test {
     // assertEq(state.scaleFactor, 1.1e27, 'incorrect scaleFactor');
   }
 
+  MarketInputParameters parameters;
+
   function test_updateScaleFactorAndFees_NoTimeDelta(
     MarketConfigFuzzInputs calldata configInputs,
     MarketStateFuzzInputs calldata stateInputs
   ) external {
-    MarketInputParameters memory parameters = configInputs.toParameters();
+    configInputs.updateParameters(parameters, hooksTemplate, fixedTermHooksTemplate);
     MarketState memory state = stateInputs.toState();
     state.protocolFeeBips = parameters.protocolFeeBips;
     bytes32 stateHash = keccak256(abi.encode(state));
