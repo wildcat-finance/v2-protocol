@@ -66,10 +66,9 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   );
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
-
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
-
   event FixedTermUpdated(address market, uint32 fixedTermEndTime);
+  event DisabledForceBuyBacks(address market);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -297,6 +296,15 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
     hookedMarket.fixedTermEndTime = newFixedTermEndTime;
     emit FixedTermUpdated(market, newFixedTermEndTime);
+  }
+
+  function disableForceBuyBacks(address market) external onlyBorrower {
+    HookedMarket storage hookedMarket = _hookedMarkets[market];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (hookedMarket.allowForceBuyBacks) {
+      hookedMarket.allowForceBuyBacks = false;
+      emit DisabledForceBuyBacks(market);
+    }
   }
 
   // ========================================================================== //

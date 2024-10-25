@@ -14,6 +14,7 @@ import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
 import 'src/libraries/BoolUtils.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
 import { getTimestamp, fastForward } from '../helpers/VmUtils.sol';
+import { VmSafe } from 'forge-std/Vm.sol';
 
 using LibString for uint256;
 using LibString for address;
@@ -642,7 +643,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   }
 
   // ========================================================================== //
-  //                               Role Management                              //
+  //                                  grantRole                                 //
   // ========================================================================== //
 
   /// @dev `grantRole` reverts if the provider is not found.
@@ -780,6 +781,10 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider2));
     hooks.grantRole(account, timestamp);
   }
+  
+  // ========================================================================== //
+  //                               getLenderStatus                              //
+  // ========================================================================== //
 
   function test_getLenderStatus_loop() external {
     address bob = address(0xb0b);
@@ -811,6 +816,10 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     assertEq(status.canRefresh, true, 'canRefresh');
     assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
   }
+
+  // ========================================================================== //
+  //                           getOrValidateCredential                          //
+  // ========================================================================== //
 
   function test_fuzz_getOrValidateCredential(
     AccessControlHooksFuzzInputs memory fuzzInputs
@@ -848,21 +857,11 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     }
     context.validate();
   }
+  
 
-  struct UserAccessContext {
-    // Whether user already has credential
-    bool userHasCredential;
-    // Whether user's credential is expired
-    bool userCredentialExpired;
-    // Whether last credential is expired
-    bool lastProviderRemoved;
-    // Whether last provider is a pull provider
-    bool lastProviderIsPullProvider;
-    // Whether last
-
-    bool expiredCredentialWillBeRefreshed;
-    bool someProviderWillGrantCredential;
-  }
+  // ========================================================================== //
+  //                              tryValidateAccess                             //
+  // ========================================================================== //
 
   function test_tryValidateAccess_existingCredential(address account) external {
     hooks.addRoleProvider(address(mockProvider1), 1);
@@ -875,6 +874,10 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   }
 
   function test_tryValidateAccess_validateCredential(address account) external {}
+
+  // ========================================================================== //
+  //                           getParameterConstraints                          //
+  // ========================================================================== //
 
   function test_getParameterConstraints() external view {
     MarketParameterConstraints memory constraints = hooks.getParameterConstraints();
@@ -893,6 +896,10 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');
     assertEq(constraints.maximumAnnualInterestBips, 10_000, 'maximumAnnualInterestBips');
   }
+  
+  // ========================================================================== //
+  //                                 grantRoles                                 //
+  // ========================================================================== //
 
   function test_grantRoles() external {
     address[] memory accounts = new address[](4);
@@ -1048,6 +1055,15 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     hooks.setMinimumDeposit(address(1), 1);
   }
 
+  function test_setMinimumDeposit_NotHookedMarket() external {
+    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    hooks.setMinimumDeposit(address(1), 1);
+  }
+
+  // ========================================================================== //
+  //                    setAnnualInterestAndReserveRatioBips                    //
+  // ========================================================================== //
+  
   function test_setAnnualInterestAndReserveRatioBips_ReducingAprDuringFixedTerm() external {
     DeployMarketInputs memory inputs;
 
@@ -1085,10 +1101,9 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     hooks.onSetAnnualInterestAndReserveRatioBips(100, 1000, state, '');
   }
 
-  function test_setMinimumDeposit_NotHookedMarket() external {
-    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
-    hooks.setMinimumDeposit(address(1), 1);
-  }
+// ========================================================================== //
+//                                 closeMarket                                //
+// ========================================================================== //
 
   function test_closeMarket() external {
     DeployMarketInputs memory inputs;
@@ -1143,4 +1158,38 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     vm.prank(address(1));
     hooks.onForceBuyBack(address(2), 0, state, '');
   }
+
+  // ========================================================================== //
+  //                            disableForceBuyBacks                            //
+  // ========================================================================== //
+  
+    function test_disableForceBuyBack_CallerNotBorrower() external asAccount(address(2)) {
+      vm.expectRevert(FixedTermLoanHooks.CallerNotBorrower.selector);
+      hooks.disableForceBuyBacks(address(1));
+    }
+  
+    function test_disableForceBuyBack_NotHookedMarket() external {
+      vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+      hooks.disableForceBuyBacks(address(1));
+    }
+  
+    function test_disableForceBuyBack() external {
+      DeployMarketInputs memory inputs;
+      hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(uint32(block.timestamp + 1), 0, true, true));
+      vm.expectEmit(address(hooks));
+      emit FixedTermLoanHooks.DisabledForceBuyBacks(address(1));
+      hooks.disableForceBuyBacks(address(1));
+      HookedMarket memory market = hooks.getHookedMarket(address(1));
+      assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
+    }
+    function test_disableForceBuyBack_noop() external {
+      DeployMarketInputs memory inputs;
+      hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(uint32(block.timestamp + 1), 0, true, false));
+      vm.record();
+      hooks.disableForceBuyBacks(address(1));
+      VmSafe.Log[] memory logs = vm.getRecordedLogs();
+      assertEq(logs.length, 0, 'should not emit any events');
+      HookedMarket memory market = hooks.getHookedMarket(address(1));
+      assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
+    }
 }
