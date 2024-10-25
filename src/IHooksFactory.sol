@@ -86,6 +86,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///      This enables the factory to register new markets.
   function registerWithArchController() external;
 
+  function name() external view returns (string memory);
+
   // ========================================================================== //
   //                               Hooks Templates                              //
   // ========================================================================== //

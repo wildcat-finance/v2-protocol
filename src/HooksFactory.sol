@@ -48,7 +48,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   /**
    * @dev Return the contract name "WildcatHooksFactory"
    */
-  function name() external pure returns (string memory) {
+  function name() external pure override returns (string memory) {
     // Use yul to avoid duplicate memory allocation and reduce code size
     // Uses words at 0x20, 0x40, 0x60
     // 0x20 is overwritten with the ABI offset (32)
@@ -670,7 +670,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
    * @dev Push any changes to the fee configuration of `hooksTemplate` to all markets
    *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
    */
-  function pushProtocolFeeBipsUpdates(address hooksTemplate) external {
+  function pushProtocolFeeBipsUpdates(address hooksTemplate) external override {
     pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
   }
 }
