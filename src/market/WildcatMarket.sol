@@ -220,9 +220,9 @@ contract WildcatMarket is
     _accounts[msg.sender] = to;
 
     emit_Transfer(lender, msg.sender, normalizedAmount);
-    emit_ForceBuyBack(lender, scaledAmount, normalizedAmount);
 
-    _writeState(state);
+    uint32 expiry = _queueWithdrawal(state, to, msg.sender, scaledAmount, normalizedAmount, _runtimeConstant(0x44));
+    emit_ForceBuyBack(lender, scaledAmount, normalizedAmount, expiry);
   }
 
   /**

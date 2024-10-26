@@ -509,13 +509,7 @@ contract WildcatMarketTest is BaseMarketTest {
         fastForward(parameters.fixedTermEndTime - block.timestamp);
       }
       MarketState memory state = pendingState(true);
-      uint scaledAmount = state.scaleAmount(amount);
-      vm.expectEmit(address(asset));
-      emit IMarketEventsAndErrors.Transfer(borrower, alice, amount);
-      vm.expectEmit(address(market));
-      emit IMarketEventsAndErrors.Transfer(alice, borrower, amount);
-      vm.expectEmit(address(market));
-      emit IMarketEventsAndErrors.ForceBuyBack(alice, scaledAmount, amount);
+      _trackForceBuyBack(state, alice, amount);
     }
     market.forceBuyBack(alice, amount);
   }
@@ -722,12 +716,9 @@ contract WildcatMarketTest is BaseMarketTest {
     _deposit(alice, 1e18);
     asset.approve(address(market), 1e17);
     asset.mint(borrower, 1e17);
-    vm.expectEmit(address(asset));
-    emit IMarketEventsAndErrors.Transfer(borrower, alice, 1e17);
-    vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.Transfer(alice, borrower, 1e17);
-    vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.ForceBuyBack(alice, 1e17, 1e17);
+    MarketState memory state = pendingState(true);
+
+    _trackForceBuyBack(state, alice, 1e17);
     market.forceBuyBack(alice, 1e17);
   }
 }
