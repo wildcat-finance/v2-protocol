@@ -585,6 +585,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     assertEq(market.decimals(), IERC20(parameters.asset).decimals(), 'decimals');
     address hooksAddress = parameters.hooksConfig.hooksAddress();
     bytes32 hooksVersionHash = keccak256(bytes(IHooks(hooksAddress).version()));
+
     if (hooksVersionHash == keccak256('SingleBorrowerAccessControlHooks')) {
       HookedMarket memory hookedMarket = AccessControlHooks(hooksAddress).getHookedMarket(
         address(market)
@@ -599,6 +600,18 @@ contract Test is ForgeTest, Prankster, Assertions {
       assertEq(hookedMarket.minimumDeposit, parameters.minimumDeposit, 'minimumDeposit');
       assertEq(hookedMarket.transfersDisabled, parameters.transfersDisabled, 'transfersDisabled');
       assertEq(hookedMarket.allowForceBuyBacks, parameters.allowForceBuyBack, 'allowForceBuyBacks');
+
+      address[] memory marketAddresses = new address[](1);
+      marketAddresses[0] = address(market);
+      HookedMarket[] memory hookedMarkets = AccessControlHooks(hooksAddress).getHookedMarkets(
+        marketAddresses
+      );
+      assertEq(hookedMarkets.length, 1, 'getHookedMarkets');
+      assertEq(
+        keccak256(abi.encode(hookedMarkets[0])),
+        keccak256(abi.encode(hookedMarket)),
+        'getHookedMarkets'
+      );
     } else if (hooksVersionHash == 'FixedTermLoanHooks') {
       FT_HookedMarket memory hookedMarket = FixedTermLoanHooks(hooksAddress).getHookedMarket(
         address(market)
@@ -628,6 +641,18 @@ contract Test is ForgeTest, Prankster, Assertions {
         hookedMarket.allowTermReduction,
         parameters.allowTermReduction,
         'allowTermReduction'
+      );
+
+      address[] memory marketAddresses = new address[](1);
+      marketAddresses[0] = address(market);
+      FT_HookedMarket[] memory hookedMarkets = FixedTermLoanHooks(hooksAddress).getHookedMarkets(
+        marketAddresses
+      );
+      assertEq(hookedMarkets.length, 1, 'getHookedMarkets');
+      assertEq(
+        keccak256(abi.encode(hookedMarkets[0])),
+        keccak256(abi.encode(hookedMarket)),
+        'getHookedMarkets'
       );
     }
   }
