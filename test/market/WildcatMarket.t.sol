@@ -685,7 +685,6 @@ contract WildcatMarketTest is BaseMarketTest {
   }
 
   function test_transfer_RecipientNotKnownLender(bool fixedTerm) external {
-    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
     if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
     resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.AccessControl);
     _deposit(alice, 1e18);
