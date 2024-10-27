@@ -316,14 +316,14 @@ library LibAccessControlHooksFuzzContext {
     if (context.expectations.wasUpdated) {
       if (context.expectations.hasValidCredential) {
         vm.expectEmit(address(context.hooks));
-        emit AccessControlHooks.AccountAccessGranted(
+        emit BaseAccessControls.AccountAccessGranted(
           context.expectations.lastProvider,
           context.account,
           context.expectations.lastApprovalTimestamp
         );
       } else if (!skipRevokedEvent) {
         vm.expectEmit(address(context.hooks));
-        emit AccessControlHooks.AccountAccessRevoked(context.account);
+        emit BaseAccessControls.AccountAccessRevoked(context.account);
       }
     }
     if (
@@ -336,7 +336,7 @@ library LibAccessControlHooksFuzzContext {
         context.functionKind == FunctionKind.DepositFunction
       ) {
         vm.expectEmit(address(context.hooks));
-        emit AccessControlHooks.AccountMadeFirstDeposit(context.market, context.account);
+        emit BaseAccessControls.AccountMadeFirstDeposit(context.market, context.account);
       }
     }
     if (context.expectations.expectedError != 0) {
@@ -516,7 +516,7 @@ library LibAccessControlHooksFuzzContext {
       } else if (context.existingCredentialOptions.isBlockedFromDeposits) {
         // If a transfer recipient is not a known lender and is blocked from depositing, the call will
         // revert before checking credentials
-        context.expectations.expectedError = AccessControlHooks.NotApprovedLender.selector;
+        context.expectations.expectedError = BaseAccessControls.NotApprovedLender.selector;
         context.willCheckCredentials = false;
       }
     } else if (context.functionKind == FunctionKind.DepositFunction) {
@@ -524,7 +524,7 @@ library LibAccessControlHooksFuzzContext {
         context.willCheckCredentials = false;
       } else if (context.existingCredentialOptions.isBlockedFromDeposits) {
         // If a depositor is blocked from depositing, the call will revert before checking credentials
-        context.expectations.expectedError = AccessControlHooks.NotApprovedLender.selector;
+        context.expectations.expectedError = BaseAccessControls.NotApprovedLender.selector;
         context.willCheckCredentials = false;
       } else if (context.functionInputAmount < context.config.minimumDeposit) {
         // If the deposit amount is less than the minimum, the call will revert before checking credentials
@@ -569,7 +569,7 @@ library LibAccessControlHooksFuzzContext {
       (context.functionKind == FunctionKind.IncomingTransferFunction &&
         context.config.transferRequiresAccess)
     ) {
-      context.expectations.expectedError = AccessControlHooks.NotApprovedLender.selector;
+      context.expectations.expectedError = BaseAccessControls.NotApprovedLender.selector;
     }
   }
 
@@ -660,7 +660,7 @@ library LibAccessControlHooksFuzzContext {
           dataOptions.giveDataToValidate
         )
       ) {
-        context.expectations.expectedError = AccessControlHooks.InvalidCredentialReturned.selector;
+        context.expectations.expectedError = BaseAccessControls.InvalidCredentialReturned.selector;
       }
     }
   }

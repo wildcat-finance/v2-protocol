@@ -337,7 +337,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       LenderStatus memory status = hooks.getPreviousLenderStatus(borrower);
       if (!status.hasCredential()) {
         vm.expectEmit(address(hooks));
-        emit AccessControlHooks.AccountAccessGranted(borrower, borrower, uint32(block.timestamp));
+        emit BaseAccessControls.AccountAccessGranted(borrower, borrower, uint32(block.timestamp));
       }
     }
     vm.expectEmit(parameters.asset);
