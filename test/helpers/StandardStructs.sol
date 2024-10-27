@@ -8,6 +8,7 @@ struct StandardRoleProvider {
   address providerAddress;
   uint32 timeToLive;
   uint24 pullProviderIndex;
+  uint24 pushProviderIndex;
 }
 
 using { toRoleProvider } for StandardRoleProvider global;
@@ -17,7 +18,8 @@ function toRoleProvider(StandardRoleProvider memory input) pure returns (RolePro
     encodeRoleProvider({
       providerAddress: input.providerAddress,
       timeToLive: input.timeToLive,
-      pullProviderIndex: input.pullProviderIndex
+      pullProviderIndex: input.pullProviderIndex,
+      pushProviderIndex: input.pushProviderIndex
     });
 }
 

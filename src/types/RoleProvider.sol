@@ -15,12 +15,13 @@ using LibRoleProvider for RoleProvider global;
 function encodeRoleProvider(
   uint32 timeToLive,
   address providerAddress,
-  uint24 pullProviderIndex
+  uint24 pullProviderIndex,
+  uint24 pushProviderIndex
 ) pure returns (RoleProvider provider) {
   assembly {
     provider := or(
       or(shl(0xe0, timeToLive), shl(0x40, providerAddress)),
-      shl(0x28, pullProviderIndex)
+      or(shl(0x28, pullProviderIndex), shl(0x10, pushProviderIndex))
     )
   }
 }
@@ -47,12 +48,13 @@ library LibRoleProvider {
   )
     internal
     pure
-    returns (uint32 _timeToLive, address _providerAddress, uint24 _pullProviderIndex)
+    returns (uint32 _timeToLive, address _providerAddress, uint24 _pullProviderIndex, uint24 _pushProviderIndex)
   {
     assembly {
       _timeToLive := shr(0xe0, provider)
       _providerAddress := shr(0x60, shl(0x20, provider))
       _pullProviderIndex := shr(0xe8, shl(0xc0, provider))
+      _pushProviderIndex := shr(0xe8, shl(0xd8, provider))
     }
   }
 
@@ -110,6 +112,15 @@ library LibRoleProvider {
     }
   }
 
+  /// @dev Extract `pushProviderIndex` from `provider`
+  function pushProviderIndex(
+    RoleProvider provider
+  ) internal pure returns (uint24 _pushProviderIndex) {
+    assembly {
+      _pushProviderIndex := shr(0xe8, shl(0xd8, provider))
+    }
+  }
+
   /**
    * @dev Returns new RoleProvider with `pullProviderIndex` set to `_pullProviderIndex`
    *
@@ -123,6 +134,23 @@ library LibRoleProvider {
       newProvider := or(
         and(provider, 0xffffffffffffffffffffffffffffffffffffffffffffffff000000ffffffffff),
         shl(0x28, _pullProviderIndex)
+      )
+    }
+  }
+
+  /**
+   * @dev Returns new RoleProvider with `pushProviderIndex` set to `_pushProviderIndex`
+   *
+   *      Note: This function does not modify the original RoleProvider
+   */
+  function setPushProviderIndex(
+    RoleProvider provider,
+    uint24 _pushProviderIndex
+  ) internal pure returns (RoleProvider newProvider) {
+    assembly {
+      newProvider := or(
+        and(provider, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff000000ffff),
+        shl(0x10, _pushProviderIndex)
       )
     }
   }

@@ -8,6 +8,7 @@ import '../helpers/Assertions.sol';
 contract RoleProviderTest is Test, Assertions {
   modifier setNullIndex(StandardRoleProvider memory input, bool isPullProvider) {
     if (!isPullProvider) input.pullProviderIndex = NullProviderIndex;
+    else input.pushProviderIndex = NullProviderIndex;
     _;
   }
 
@@ -25,8 +26,12 @@ contract RoleProviderTest is Test, Assertions {
   ) external setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     assertEq(provider, input);
-    (input.timeToLive, input.providerAddress, input.pullProviderIndex) = provider
-      .decodeRoleProvider();
+    (
+      input.timeToLive,
+      input.providerAddress,
+      input.pullProviderIndex,
+      input.pushProviderIndex
+    ) = provider.decodeRoleProvider();
     assertEq(provider, input);
   }
 
@@ -78,6 +83,40 @@ contract RoleProviderTest is Test, Assertions {
     assertEq(provider.pullProviderIndex(), newPullProviderIndex);
     input.pullProviderIndex = newPullProviderIndex;
     assertEq(provider, input, 'with new pullProviderIndex');
+  }
+
+  function test_setPushProviderIndex(
+    StandardRoleProvider memory input,
+    bool isPullProvider,
+    uint24 newPushProviderIndex
+  ) external setNullIndex(input, isPullProvider) {
+    if (isPullProvider) {
+      newPushProviderIndex = NullProviderIndex;
+    }
+    RoleProvider provider = input.toRoleProvider();
+    provider = provider.setPushProviderIndex(newPushProviderIndex);
+    assertEq(provider.pushProviderIndex(), newPushProviderIndex);
+    input.pushProviderIndex = newPushProviderIndex;
+    assertEq(provider, input, 'with new pullProviderIndex');
+  }
+
+  function test_setPushProviderIndex() external {
+    RoleProvider provider = encodeRoleProvider({
+      providerAddress: address(type(uint160).max),
+      pullProviderIndex: type(uint24).max,
+      pushProviderIndex: type(uint24).max,
+      timeToLive: type(uint32).max
+    });
+    assertEq(provider.providerAddress(), address(type(uint160).max));
+    assertEq(provider.pullProviderIndex(), type(uint24).max);
+    assertEq(provider.pushProviderIndex(), type(uint24).max);
+    assertEq(provider.timeToLive(), type(uint32).max);
+    provider = provider.setPushProviderIndex(1_000);
+    assertEq(provider.providerAddress(), address(type(uint160).max));
+    assertEq(provider.pullProviderIndex(), type(uint24).max);
+    assertEq(provider.pushProviderIndex(), 1_000);
+    assertEq(provider.timeToLive(), type(uint32).max);
+
   }
 
   function test_eq(
