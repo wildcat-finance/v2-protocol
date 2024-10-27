@@ -76,7 +76,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
 
   function _authorizeLender(address account) internal asAccount(parameters.borrower) {
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessGranted(
+    emit BaseAccessControls.AccountAccessGranted(
       parameters.borrower,
       account,
       uint32(block.timestamp)
@@ -86,13 +86,13 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
 
   function _deauthorizeLender(address account) internal asAccount(parameters.borrower) {
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessRevoked(account);
+    emit BaseAccessControls.AccountAccessRevoked(account);
     hooks.revokeRole(account);
   }
 
   function _blockLender(address account) internal asAccount(parameters.borrower) {
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(account);
     hooks.blockFromDeposits(account);
   }
 

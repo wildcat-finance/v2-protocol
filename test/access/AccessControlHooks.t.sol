@@ -49,7 +49,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function test_onCreateMarket_CallerNotBorrower() external {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     DeployMarketInputs memory inputs;
     hooks.onCreateMarket(address(1), address(1), inputs, '');
   }
@@ -291,7 +291,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     uint24 pullProviderIndex
   ) internal {
     vm.expectEmit();
-    emit AccessControlHooks.RoleProviderAdded(providerAddress, timeToLive, pullProviderIndex);
+    emit BaseAccessControls.RoleProviderAdded(providerAddress, timeToLive, pullProviderIndex);
   }
 
   function _expectRoleProviderUpdated(
@@ -300,12 +300,12 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     uint24 pullProviderIndex
   ) internal {
     vm.expectEmit();
-    emit AccessControlHooks.RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);
+    emit BaseAccessControls.RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);
   }
 
   function _expectRoleProviderRemoved(address providerAddress, uint24 pullProviderIndex) internal {
     vm.expectEmit();
-    emit AccessControlHooks.RoleProviderRemoved(providerAddress, pullProviderIndex);
+    emit BaseAccessControls.RoleProviderRemoved(providerAddress, pullProviderIndex);
   }
 
   function _expectAccountAccessGranted(
@@ -314,7 +314,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     uint32 credentialTimestamp
   ) internal {
     vm.expectEmit();
-    emit AccessControlHooks.AccountAccessGranted(
+    emit BaseAccessControls.AccountAccessGranted(
       providerAddress,
       accountAddress,
       credentialTimestamp
@@ -344,7 +344,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function test_addRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.addRoleProvider(address(2), 1);
   }
 
@@ -430,12 +430,12 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function test_removeRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.removeRoleProvider(address(mockProvider1));
   }
 
   function test_removeRoleProvider_ProviderNotFound() external {
-    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    vm.expectRevert(BaseAccessControls.ProviderNotFound.selector);
     hooks.removeRoleProvider(address(2));
   }
 
@@ -494,7 +494,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   /// @dev `grantRole` reverts if the provider is not found.
   function test_grantRole_ProviderNotFound(address account, uint32 timestamp) external {
     vm.prank(address(1));
-    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    vm.expectRevert(BaseAccessControls.ProviderNotFound.selector);
     hooks.grantRole(address(2), timestamp);
   }
 
@@ -516,7 +516,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     hooks.addRoleProvider(address(mockProvider1), timeToLive);
 
     vm.prank(address(mockProvider1));
-    vm.expectRevert(AccessControlHooks.GrantedCredentialExpired.selector);
+    vm.expectRevert(BaseAccessControls.GrantedCredentialExpired.selector);
     hooks.grantRole(account, timestamp);
   }
 
@@ -622,7 +622,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider1));
     hooks.grantRole(account, timestamp);
 
-    vm.expectRevert(AccessControlHooks.ProviderCanNotReplaceCredential.selector);
+    vm.expectRevert(BaseAccessControls.ProviderCanNotReplaceCredential.selector);
     vm.prank(address(mockProvider2));
     hooks.grantRole(account, timestamp);
   }
@@ -730,7 +730,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   function test_grantRoles_InvalidArrayLength() external {
     address[] memory accounts = new address[](4);
     uint32[] memory timestamps = new uint32[](3);
-    vm.expectRevert(AccessControlHooks.InvalidArrayLength.selector);
+    vm.expectRevert(BaseAccessControls.InvalidArrayLength.selector);
     hooks.grantRoles(accounts, timestamps);
   }
 
@@ -739,7 +739,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     address[] memory accounts = new address[](1);
     uint32[] memory timestamps = new uint32[](1);
     vm.prank(address(1));
-    vm.expectRevert(AccessControlHooks.ProviderNotFound.selector);
+    vm.expectRevert(BaseAccessControls.ProviderNotFound.selector);
     hooks.grantRoles(accounts, timestamps);
   }
 
@@ -752,7 +752,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     vm.startPrank(address(mockProvider1));
     hooks.grantRole(address(1), uint32(block.timestamp));
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessRevoked(address(1));
+    emit BaseAccessControls.AccountAccessRevoked(address(1));
     hooks.revokeRole(address(1));
   }
 
@@ -761,7 +761,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider1));
     hooks.grantRole(address(1), uint32(block.timestamp));
     vm.prank(address(mockProvider2));
-    vm.expectRevert(AccessControlHooks.ProviderCanNotRevokeCredential.selector);
+    vm.expectRevert(BaseAccessControls.ProviderCanNotRevokeCredential.selector);
     hooks.revokeRole(address(1));
   }
 
@@ -770,13 +770,13 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   // ========================================================================== //
 
   function test_blockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.blockFromDeposits(address(1));
   }
 
   function test_blockFromDeposits(address account) external {
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(account);
     hooks.blockFromDeposits(account);
     LenderStatus memory status = hooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
@@ -788,9 +788,9 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     hooks.grantRole(account, uint32(block.timestamp));
 
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountAccessRevoked(account);
+    emit BaseAccessControls.AccountAccessRevoked(account);
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(account);
 
     hooks.blockFromDeposits(account);
     LenderStatus memory status = hooks.getLenderStatus(account);
@@ -802,14 +802,14 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   // ========================================================================== //
 
   function test_unblockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.unblockFromDeposits(address(1));
   }
 
   function test_unblockFromDeposits(address account) external {
     hooks.blockFromDeposits(account);
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.AccountUnblockedFromDeposits(account);
+    emit BaseAccessControls.AccountUnblockedFromDeposits(account);
     hooks.unblockFromDeposits(account);
     LenderStatus memory status = hooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
@@ -854,7 +854,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.setMinimumDeposit(address(1), 1);
   }
 
@@ -868,7 +868,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
 // ========================================================================== //
 
   function test_disableForceBuyBack_CallerNotBorrower() external asAccount(address(2)) {
-    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.disableForceBuyBacks(address(1));
   }
 
