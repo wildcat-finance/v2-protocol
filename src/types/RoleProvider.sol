@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import '../libraries/MathUtils.sol';
 
 type RoleProvider is uint256;
-uint24 constant NotPullProviderIndex = type(uint24).max;
+uint24 constant NullProviderIndex = type(uint24).max;
 RoleProvider constant EmptyRoleProvider = RoleProvider.wrap(0);
 
 using LibRoleProvider for RoleProvider global;
@@ -146,14 +146,14 @@ library LibRoleProvider {
 
   /**
    * @dev Returns whether `provider` is a pull provider by checking if
-   *      `pullProviderIndex` is not equal to `NotPullProviderIndex`.
+   *      `pullProviderIndex` is not equal to `NullProviderIndex`.
    */
   function isPullProvider(RoleProvider provider) internal pure returns (bool) {
-    return provider.pullProviderIndex() != NotPullProviderIndex;
+    return provider.pullProviderIndex() != NullProviderIndex;
   }
 
   /**
-   * @dev Set `pullProviderIndex` in `provider` to `NotPullProviderIndex`
+   * @dev Set `pullProviderIndex` in `provider` to `NullProviderIndex`
    *      to mark it as not a pull provider.
    */
   function setNotPullProvider(

@@ -7,7 +7,7 @@ import '../helpers/Assertions.sol';
 
 contract RoleProviderTest is Test, Assertions {
   modifier setNullIndex(StandardRoleProvider memory input, bool isPullProvider) {
-    if (!isPullProvider) input.pullProviderIndex = NotPullProviderIndex;
+    if (!isPullProvider) input.pullProviderIndex = NullProviderIndex;
     _;
   }
 
@@ -71,7 +71,7 @@ contract RoleProviderTest is Test, Assertions {
     uint24 newPullProviderIndex
   ) external setNullIndex(input, isPullProvider) {
     if (!isPullProvider) {
-      newPullProviderIndex = NotPullProviderIndex;
+      newPullProviderIndex = NullProviderIndex;
     }
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setPullProviderIndex(newPullProviderIndex);
@@ -112,7 +112,7 @@ contract RoleProviderTest is Test, Assertions {
     bool isPullProvider
   ) external setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
-    assertEq(provider.isPullProvider(), input.pullProviderIndex != NotPullProviderIndex);
+    assertEq(provider.isPullProvider(), input.pullProviderIndex != NullProviderIndex);
   }
 
   function test_setNotPullProvider(
@@ -121,7 +121,7 @@ contract RoleProviderTest is Test, Assertions {
   ) external setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setNotPullProvider();
-    input.pullProviderIndex = NotPullProviderIndex;
+    input.pullProviderIndex = NullProviderIndex;
     assertEq(provider, input);
   }
 }

@@ -95,7 +95,7 @@ contract BaseAccessControls {
     _roleProviders[_borrower] = encodeRoleProvider(
       type(uint32).max,
       _borrower,
-      NotPullProviderIndex
+      NullProviderIndex
     );
   }
 
@@ -160,11 +160,11 @@ contract BaseAccessControls {
     if (provider.isNull()) {
       bool isPullProvider = IRoleProvider(providerAddress).isPullProvider();
       // Role providers that are not pull providers have `pullProviderIndex` set to
-      // `NotPullProviderIndex` (max uint24) to indicate they do not refresh credentials.
+      // `NullProviderIndex` (max uint24) to indicate they do not refresh credentials.
       provider = encodeRoleProvider(
         timeToLive,
         providerAddress,
-        isPullProvider ? uint24(_pullProviders.length) : NotPullProviderIndex
+        isPullProvider ? uint24(_pullProviders.length) : NullProviderIndex
       );
       if (isPullProvider) {
         _pullProviders.push(provider);
@@ -174,7 +174,7 @@ contract BaseAccessControls {
       // If provider already exists, the only value that can be updated is the TTL
       provider = provider.setTimeToLive(timeToLive);
       uint24 pullProviderIndex = provider.pullProviderIndex();
-      if (pullProviderIndex != NotPullProviderIndex) {
+      if (pullProviderIndex != NullProviderIndex) {
         _pullProviders[pullProviderIndex] = provider;
       } else {}
       emit RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);

@@ -521,7 +521,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     if (address(mockProvider) != address(this) && address(mockProvider).code.length > 0) {
       mockProvider.setIsPullProvider(isPullProvider);
     }
-    uint24 pullProviderIndex = isPullProvider ? numPullProviders++ : NotPullProviderIndex;
+    uint24 pullProviderIndex = isPullProvider ? numPullProviders++ : NullProviderIndex;
     expectedRoleProviders.push(
       StandardRoleProvider({
         providerAddress: address(mockProvider),
@@ -536,7 +536,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     RoleProvider[] memory pullProviders = hooks.getPullProviders();
     uint256 index;
     for (uint i; i < expectedRoleProviders.length; i++) {
-      if (expectedRoleProviders[i].pullProviderIndex != NotPullProviderIndex) {
+      if (expectedRoleProviders[i].pullProviderIndex != NullProviderIndex) {
         if (index >= pullProviders.length) {
           emit log('Error: provider with pullProviderIndex not found');
           fail();
@@ -600,7 +600,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   function test_addRoleProvider(bool isPullProvider, uint32 timeToLive) external {
     mockProvider1.setIsPullProvider(isPullProvider);
 
-    uint24 pullProviderIndex = isPullProvider ? 0 : NotPullProviderIndex;
+    uint24 pullProviderIndex = isPullProvider ? 0 : NullProviderIndex;
     expectedRoleProviders.push(
       StandardRoleProvider({
         providerAddress: address(mockProvider1),
@@ -861,7 +861,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider1));
     hooks.grantRole(account, timestamp);
 
-    _expectRoleProviderRemoved(address(mockProvider1), NotPullProviderIndex);
+    _expectRoleProviderRemoved(address(mockProvider1), NullProviderIndex);
     hooks.removeRoleProvider(address(mockProvider1));
 
     _expectAccountAccessGranted(address(mockProvider2), account, timestamp);
