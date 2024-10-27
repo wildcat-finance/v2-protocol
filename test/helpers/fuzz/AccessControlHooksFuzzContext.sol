@@ -62,8 +62,9 @@ enum FunctionKind {
 }
 
 enum HooksKind {
-  AccessControlHooks,
-  FixedTermLoanHooks
+  AccessControl,
+  FixedTerm,
+  Other
 }
 
 struct AccessControlHooksFuzzContext {
@@ -94,6 +95,8 @@ struct AccessControlValidationExpectations {
   bool hasValidCredential;
   // Whether the account's credential will be updated (added, refreshed or revoked)
   bool wasUpdated;
+  // Whether the account's credential will be updated upon a call to getStatus
+  bool willBeUpdated;
   // Expected calls to occur between the hooks instance and role providers
   ExpectedCall[] expectedCalls;
   // Error the hooks instance should throw
@@ -118,6 +121,7 @@ struct MarketHooksConfigContext {
   bool useOnTransfer;
   bool transferRequiresAccess;
   bool depositRequiresAccess;
+  bool withdrawalRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
   bool allowForceBuyBacks;
@@ -187,20 +191,25 @@ struct ExpectedCall {
 address constant VM_ADDRESS = address(uint160(uint256(keccak256('hevm cheat code'))));
 Vm constant vm = Vm(VM_ADDRESS);
 
+bool constant DEBUG = false;
+
 function toMarketHooksConfigContext(
   MarketHooksConfigFuzzInputs memory inputs
 ) view returns (MarketHooksConfigContext memory) {
   return
     MarketHooksConfigContext({
       hooksKind: inputs.isAccessControlHooks
-        ? HooksKind.AccessControlHooks
-        : HooksKind.FixedTermLoanHooks,
+        ? HooksKind.AccessControl
+        : HooksKind.FixedTerm,
       useOnDeposit: inputs.useOnDeposit || inputs.useOnQueueWithdrawal || inputs.minimumDeposit > 0,
       useOnQueueWithdrawal: inputs.useOnQueueWithdrawal || !inputs.isAccessControlHooks,
       useOnExecuteWithdrawal: inputs.useOnExecuteWithdrawal,
-      useOnTransfer: inputs.useOnTransfer || inputs.useOnQueueWithdrawal,
+      useOnTransfer: inputs.useOnTransfer ||
+        inputs.transfersDisabled ||
+        inputs.useOnQueueWithdrawal,
       transferRequiresAccess: inputs.useOnTransfer || inputs.transfersDisabled,
       depositRequiresAccess: inputs.useOnDeposit,
+      withdrawalRequiresAccess: !inputs.isAccessControlHooks && inputs.useOnQueueWithdrawal,
       minimumDeposit: inputs.minimumDeposit,
       transfersDisabled: inputs.transfersDisabled,
       allowForceBuyBacks: inputs.allowForceBuyBacks,
@@ -224,7 +233,7 @@ function createAccessControlHooksFuzzContext(
   function(AccessControlHooksFuzzContext memory /* context */) internal getKnownLenderStatus,
   uint256 getKnownLenderInputParameter
 ) returns (AccessControlHooksFuzzContext memory context) {
-  LenderStatus memory originalStatus = hooks.getLenderStatus(account);
+  // LenderStatus memory originalStatus = hooks.getLenderStatus(account);
   context.market = market;
   context.functionKind = functionKind;
   context.functionInputAmount = amount;
@@ -237,20 +246,32 @@ function createAccessControlHooksFuzzContext(
   context.getKnownLenderStatus = getKnownLenderStatus;
   context.getKnownLenderInputParameter = getKnownLenderInputParameter;
 
+  context.config = fuzzInputs.configInputs.toMarketHooksConfigContext();
+
+  bool alreadyKnownLender = hooks.isKnownLenderOnMarket(account, market);
+
   context.existingCredentialOptions.isKnownLender = context
     .existingCredentialOptions
     .isKnownLender
     .and(
-      fuzzInputs.configInputs.useOnDeposit ||
-        fuzzInputs.configInputs.useOnTransfer ||
-        fuzzInputs.configInputs.useOnQueueWithdrawal
+      context.config.useOnDeposit ||
+        (context.config.useOnTransfer && !context.config.transfersDisabled)
     )
-    .or(hooks.isKnownLenderOnMarket(account, market));
+    .or(alreadyKnownLender);
+
+  if (DEBUG) {
+    console.log('Is known lender: ', context.existingCredentialOptions.isKnownLender);
+    console.log('  useOnDeposit: ', context.config.useOnDeposit);
+    console.log(
+      '  useOnTransfer & transfers allowed: ',
+      context.config.useOnTransfer && !context.config.transfersDisabled
+    );
+    console.log('  useOnQueueWithdrawal: ', context.config.useOnQueueWithdrawal);
+    console.log('  already known lender: ', alreadyKnownLender);
+  }
 
   context.previousProvider = mockProvider1;
   context.providerToGiveData = mockProvider2;
-
-  context.config = fuzzInputs.configInputs.toMarketHooksConfigContext();
 
   vm.label(address(mockProvider1), 'previousProvider');
   vm.label(address(mockProvider2), 'providerToGiveData');
@@ -269,7 +290,8 @@ function createAccessControlHooksFuzzContext(
     !context.expectations.hasValidCredential &&
     context.expectations.expectedError == 0
   ) {
-    context.expectations.wasUpdated = true;
+    context.expectations.willBeUpdated = true;
+    context.expectations.wasUpdated = context.willCheckCredentials;
     context.expectations.lastProvider = address(0);
     context.expectations.lastApprovalTimestamp = 0;
   }
@@ -332,7 +354,7 @@ library LibAccessControlHooksFuzzContext {
     // If the account does not have a valid credential but that will not be reflected because the encapsulating
     // call failed, the new status should not match the previous one.
     if (
-      !context.expectations.wasUpdated &&
+      !context.expectations.willBeUpdated &&
       context.expectations.expectedError == 0 &&
       context.existingCredentialOptions.credentialExists &&
       !context.expectations.hasValidCredential
@@ -362,11 +384,17 @@ library LibAccessControlHooksFuzzContext {
       (context.functionKind != FunctionKind.HooksFunction ||
         context.expectations.hasValidCredential)
     ) {
+      if (DEBUG) {
+        console.log('Was updated: ', context.expectations.wasUpdated);
+        console.log('Has valid credential: ', context.expectations.hasValidCredential);
+        console.log('Will check credentials: ', context.willCheckCredentials);
+      }
       vm.assertEq(
         priorStatus.isBlockedFromDeposits,
         currentStatus.isBlockedFromDeposits,
         'status.isBlockedFromDeposits'
       );
+      // if (!context.expectations.hasValidCredential) {
       vm.assertEq(priorStatus.lastProvider, currentStatus.lastProvider, 'status.lastProvider');
       vm.assertEq(priorStatus.canRefresh, currentStatus.canRefresh, 'status.canRefresh');
       vm.assertEq(
@@ -507,7 +535,7 @@ library LibAccessControlHooksFuzzContext {
       if (!context.config.useOnQueueWithdrawal) {
         context.willCheckCredentials = false;
       } else if (
-        context.config.hooksKind == HooksKind.FixedTermLoanHooks &&
+        context.config.hooksKind == HooksKind.FixedTerm &&
         context.config.fixedTermEndTime > block.timestamp
       ) {
         context.expectations.expectedError = FixedTermLoanHooks.WithdrawBeforeTermEnd.selector;
@@ -532,6 +560,7 @@ library LibAccessControlHooksFuzzContext {
       context.expectations.expectedError != 0 ||
       context.expectations.hasValidCredential
     ) return;
+    // If the caller won't be authorized and no other error is expected, expect NotApprovedLender error
     if (
       (context.functionKind == FunctionKind.QueueWithdrawal &&
         context.config.useOnQueueWithdrawal) ||

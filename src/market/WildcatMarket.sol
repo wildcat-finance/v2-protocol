@@ -202,7 +202,6 @@ contract WildcatMarket is
 
   function forceBuyBack(address lender, uint256 normalizedAmount) external nonReentrant onlyBorrower {
     MarketState memory state = _getUpdatedState();
-    if (state.isClosed) revert_BuyBackOnClosedMarket();
     if (state.isDelinquent) revert_BuyBackOnDelinquentMarket();
 
     uint104 scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
@@ -220,10 +219,10 @@ contract WildcatMarket is
     to.scaledBalance += scaledAmount;
     _accounts[msg.sender] = to;
 
-    emit_Transfer(lender, msg.sender, scaledAmount);
-    emit_ForceBuyBack(lender, scaledAmount, normalizedAmount);
+    emit_Transfer(lender, msg.sender, normalizedAmount);
 
-    _writeState(state);
+    uint32 expiry = _queueWithdrawal(state, to, msg.sender, scaledAmount, normalizedAmount, _runtimeConstant(0x44));
+    emit_ForceBuyBack(lender, scaledAmount, normalizedAmount, expiry);
   }
 
   /**

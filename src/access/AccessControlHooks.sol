@@ -61,6 +61,7 @@ contract AccessControlHooks is MarketConstraintHooks {
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
+  event DisabledForceBuyBacks(address market);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -241,6 +242,15 @@ contract AccessControlHooks is MarketConstraintHooks {
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     hookedMarket.minimumDeposit = newMinimumDeposit;
     emit MinimumDepositUpdated(market, newMinimumDeposit);
+  }
+
+  function disableForceBuyBacks(address market) external onlyBorrower {
+    HookedMarket storage hookedMarket = _hookedMarkets[market];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (hookedMarket.allowForceBuyBacks) {
+      hookedMarket.allowForceBuyBacks = false;
+      emit DisabledForceBuyBacks(market);
+    }
   }
 
   // ========================================================================== //
@@ -993,10 +1003,10 @@ contract AccessControlHooks is MarketConstraintHooks {
   ) external override {}
 
   function onForceBuyBack(
-    address lender,
-    uint scaledAmount,
-    MarketState calldata intermediateState,
-    bytes calldata extraData
+    address /* lender */,
+    uint /* scaledAmount */,
+    MarketState calldata /* intermediateState */,
+    bytes calldata /* extraData */
   ) external virtual override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();

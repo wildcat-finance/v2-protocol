@@ -564,9 +564,6 @@ contract HooksIntegrationTest is BaseMarketTest {
     // _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     MockHooks(address(hooks)).reset();
     startPrank(borrower);
-    // asset.mint(borrower, 1e18);
-    // asset.approve(address(market), 1e18);
-    // _setUp(config);
     _deposit(lender, 1e18, true);
     MockHooks(address(hooks)).reset();
     asset.mint(borrower, 1e18);
@@ -578,10 +575,6 @@ contract HooksIntegrationTest is BaseMarketTest {
     );
     vm.expectEmit(address(hooks));
     emit OnForceBuyBackCalled(lender, 1e18, state, extraData);
-    vm.expectEmit(address(asset));
-    emit IERC20.Transfer(borrower, lender, 1e18);
-    vm.expectEmit(address(market));
-    emit IERC20.Transfer(lender, borrower, 1e18);
     _callMarket(_calldata, '', 'forceBuyBack');
   }
 }

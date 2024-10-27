@@ -13,6 +13,7 @@ import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
 import 'src/libraries/BoolUtils.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
+import { VmSafe } from 'forge-std/Vm.sol';
 
 using LibString for uint256;
 using LibString for address;
@@ -860,5 +861,39 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   function test_setMinimumDeposit_NotHookedMarket() external {
     vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
     hooks.setMinimumDeposit(address(1), 1);
+  }
+
+// ========================================================================== //
+//                            disableForceBuyBacks                            //
+// ========================================================================== //
+
+  function test_disableForceBuyBack_CallerNotBorrower() external asAccount(address(2)) {
+    vm.expectRevert(AccessControlHooks.CallerNotBorrower.selector);
+    hooks.disableForceBuyBacks(address(1));
+  }
+
+  function test_disableForceBuyBack_NotHookedMarket() external {
+    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    hooks.disableForceBuyBacks(address(1));
+  }
+
+  function test_disableForceBuyBack() external {
+    DeployMarketInputs memory inputs;
+    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0, true, true));
+    vm.expectEmit(address(hooks));
+    emit AccessControlHooks.DisabledForceBuyBacks(address(1));
+    hooks.disableForceBuyBacks(address(1));
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
+  }
+  function test_disableForceBuyBack_noop() external {
+    DeployMarketInputs memory inputs;
+    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0, true, false));
+    vm.record();
+    hooks.disableForceBuyBacks(address(1));
+    VmSafe.Log[] memory logs = vm.getRecordedLogs();
+    assertEq(logs.length, 0, 'should not emit any events');
+    HookedMarket memory market = hooks.getHookedMarket(address(1));
+    assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
   }
 }
