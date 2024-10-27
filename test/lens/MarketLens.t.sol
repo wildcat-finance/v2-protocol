@@ -104,7 +104,7 @@ contract MarketDataTest is BaseMarketTest {
 
   function applyFuzzInputs(MarketConfigFuzzInputs memory inputs) internal {
     inputs.updateParameters(parameters, hooksTemplate, fixedTermHooksTemplate);
-    hooks = AccessControlHooks(address(0));
+    hooks = OpenTermHooks(address(0));
     setUpContracts(false);
   }
 
@@ -158,15 +158,15 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(data.borrower, borrower, 'borrower');
     assertEq(
       uint256(data.kind),
-      inputs.isAccessControlHooks
-        ? uint256(HooksInstanceKind.AccessControl)
+      inputs.isOpenTermHooks
+        ? uint256(HooksInstanceKind.OpenTerm)
         : uint256(HooksInstanceKind.FixedTermLoan),
       'kind'
     );
     assertEq(data.hooksTemplate, parameters.hooksTemplate, 'hooksTemplate');
     assertEq(
       data.hooksTemplateName,
-      inputs.isAccessControlHooks ? 'SingleBorrowerAccessControlHooks' : 'FixedTermLoanHooks',
+      inputs.isOpenTermHooks ? 'OpenTermHooks' : 'FixedTermHooks',
       'hooksTemplateName'
     );
     checkConstraints(data.constraints);
@@ -204,7 +204,7 @@ contract MarketDataTest is BaseMarketTest {
           _borrow(borrowAmount - 1);
         }
       } else if (condition == FuzzConditions.DepositBorrowWithdraw) {
-        if (!inputs.isAccessControlHooks) fastForward(inputs.fixedTermDuration);
+        if (!inputs.isOpenTermHooks) fastForward(inputs.fixedTermDuration);
         // uint borrowAmount = depositAmount.bipMul(10_000 - parameters.reserveRatioBips);
         uint borrowAmount = depositAmount.bipMul(10_000 - parameters.reserveRatioBips);
         if (borrowAmount > 1) {
@@ -497,8 +497,8 @@ contract MarketDataTest is BaseMarketTest {
 
   function checkHooksTemplateData(HooksTemplateData memory data, bool isAccessControl) internal view {
     (address template, string memory name, uint index) = isAccessControl
-      ? (hooksTemplate, 'SingleBorrowerAccessControlHooks', 0)
-      : (fixedTermHooksTemplate, 'FixedTermLoanHooks', 1);
+      ? (hooksTemplate, 'OpenTermHooks', 0)
+      : (fixedTermHooksTemplate, 'FixedTermHooks', 1);
     checkHooksTemplateData(
       data,
       template,

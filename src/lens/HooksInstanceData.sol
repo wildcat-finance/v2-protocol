@@ -2,8 +2,8 @@
 pragma solidity >=0.8.20;
 
 import '../interfaces/WildcatStructsAndEnums.sol';
-import { AccessControlHooks, HookedMarket as AccessControlHookedMarket } from '../access/AccessControlHooks.sol';
-import { FixedTermLoanHooks, HookedMarket as FixedTermHookedMarket } from '../access/FixedTermLoanHooks.sol';
+import { OpenTermHooks, HookedMarket as OpenTermHookedMarket } from '../access/OpenTermHooks.sol';
+import { FixedTermHooks, HookedMarket as FixedTermHookedMarket } from '../access/FixedTermHooks.sol';
 import '../access/IHooks.sol';
 import '../HooksFactory.sol';
 import './HooksConfigData.sol';
@@ -41,20 +41,20 @@ library HooksInstanceDataLib {
     IHooks hooks = IHooks(hooksAddress);
 
     bytes32 versionHash = keccak256(bytes(data.hooksTemplateName));
-    if (versionHash == keccak256('SingleBorrowerAccessControlHooks')) {
-      data.kind = HooksInstanceKind.AccessControl;
-    } else if (versionHash == keccak256('FixedTermLoanHooks')) {
+    if (versionHash == keccak256('OpenTermHooks')) {
+      data.kind = HooksInstanceKind.OpenTerm;
+    } else if (versionHash == keccak256('FixedTermHooks')) {
       data.kind = HooksInstanceKind.FixedTermLoan;
     }
 
     if (data.kind != HooksInstanceKind.Unknown) {
-      AccessControlHooks accessControlHooks = AccessControlHooks(hooksAddress);
+      OpenTermHooks hooks = OpenTermHooks(hooksAddress);
       if (data.borrower == address(0)) {
-        data.borrower = accessControlHooks.borrower();
+        data.borrower = hooks.borrower();
       }
-      data.pullProviders = accessControlHooks.getPullProviders().toRoleProviderDatas();
-      data.pushProviders = accessControlHooks.getPushProviders().toRoleProviderDatas();
-      data.constraints = accessControlHooks.getParameterConstraints();
+      data.pullProviders = hooks.getPullProviders().toRoleProviderDatas();
+      data.pushProviders = hooks.getPushProviders().toRoleProviderDatas();
+      data.constraints = hooks.getParameterConstraints();
     }
     data.deploymentFlags.fill(hooks.config());
     data.totalMarkets = factory.getMarketsForHooksInstanceCount(hooksAddress);

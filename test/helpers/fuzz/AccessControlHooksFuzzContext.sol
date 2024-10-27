@@ -2,8 +2,8 @@
 pragma solidity >=0.8.20;
 
 import 'src/libraries/BoolUtils.sol';
-import 'src/access/AccessControlHooks.sol';
-import { FixedTermLoanHooks, HookedMarket as FT_HookedMarket } from 'src/access/FixedTermLoanHooks.sol';
+import 'src/access/OpenTermHooks.sol';
+import { FixedTermHooks, HookedMarket as FT_HookedMarket } from 'src/access/FixedTermHooks.sol';
 
 import 'sol-utils/ir-only/MemoryPointer.sol';
 import { ArrayHelpers } from 'sol-utils/ir-only/ArrayHelpers.sol';
@@ -62,7 +62,7 @@ enum FunctionKind {
 }
 
 enum HooksKind {
-  AccessControl,
+  OpenTerm,
   FixedTerm,
   Other
 }
@@ -72,7 +72,7 @@ struct AccessControlHooksFuzzContext {
   uint256 functionInputAmount;
   bool willCheckCredentials;
   address market;
-  AccessControlHooks hooks;
+  OpenTermHooks hooks;
   address borrower;
   address account;
   bytes hooksData;
@@ -131,7 +131,7 @@ struct MarketHooksConfigContext {
 }
 
 struct MarketHooksConfigFuzzInputs {
-  bool isAccessControlHooks;
+  bool isOpenTermHooks;
   bool useOnDeposit;
   bool useOnQueueWithdrawal;
   bool useOnExecuteWithdrawal;
@@ -198,18 +198,18 @@ function toMarketHooksConfigContext(
 ) view returns (MarketHooksConfigContext memory) {
   return
     MarketHooksConfigContext({
-      hooksKind: inputs.isAccessControlHooks
-        ? HooksKind.AccessControl
+      hooksKind: inputs.isOpenTermHooks
+        ? HooksKind.OpenTerm
         : HooksKind.FixedTerm,
       useOnDeposit: inputs.useOnDeposit || inputs.useOnQueueWithdrawal || inputs.minimumDeposit > 0,
-      useOnQueueWithdrawal: inputs.useOnQueueWithdrawal || !inputs.isAccessControlHooks,
+      useOnQueueWithdrawal: inputs.useOnQueueWithdrawal || !inputs.isOpenTermHooks,
       useOnExecuteWithdrawal: inputs.useOnExecuteWithdrawal,
       useOnTransfer: inputs.useOnTransfer ||
         inputs.transfersDisabled ||
         inputs.useOnQueueWithdrawal,
       transferRequiresAccess: inputs.useOnTransfer || inputs.transfersDisabled,
       depositRequiresAccess: inputs.useOnDeposit,
-      withdrawalRequiresAccess: !inputs.isAccessControlHooks && inputs.useOnQueueWithdrawal,
+      withdrawalRequiresAccess: !inputs.isOpenTermHooks && inputs.useOnQueueWithdrawal,
       minimumDeposit: inputs.minimumDeposit,
       transfersDisabled: inputs.transfersDisabled,
       allowForceBuyBacks: inputs.allowForceBuyBacks,
@@ -224,7 +224,7 @@ using { toMarketHooksConfigContext } for MarketHooksConfigFuzzInputs global;
 function createAccessControlHooksFuzzContext(
   AccessControlHooksFuzzInputs memory fuzzInputs,
   address market,
-  AccessControlHooks hooks,
+  OpenTermHooks hooks,
   MockRoleProvider mockProvider1,
   MockRoleProvider mockProvider2,
   address account,
@@ -509,7 +509,7 @@ library LibAccessControlHooksFuzzContext {
       } else if (context.config.transfersDisabled) {
         // If transfers are disabled, the call will revert before checking credentials
         context.willCheckCredentials = false;
-        context.expectations.expectedError = AccessControlHooks.TransfersDisabled.selector;
+        context.expectations.expectedError = OpenTermHooks.TransfersDisabled.selector;
       } else if (context.existingCredentialOptions.isKnownLender) {
         // If a transfer recipient is a known lender, their credentials will not be checked
         context.willCheckCredentials = false;
@@ -528,7 +528,7 @@ library LibAccessControlHooksFuzzContext {
         context.willCheckCredentials = false;
       } else if (context.functionInputAmount < context.config.minimumDeposit) {
         // If the deposit amount is less than the minimum, the call will revert before checking credentials
-        context.expectations.expectedError = AccessControlHooks.DepositBelowMinimum.selector;
+        context.expectations.expectedError = OpenTermHooks.DepositBelowMinimum.selector;
         context.willCheckCredentials = false;
       }
     } else if (context.functionKind == FunctionKind.QueueWithdrawal) {
@@ -538,7 +538,7 @@ library LibAccessControlHooksFuzzContext {
         context.config.hooksKind == HooksKind.FixedTerm &&
         context.config.fixedTermEndTime > block.timestamp
       ) {
-        context.expectations.expectedError = FixedTermLoanHooks.WithdrawBeforeTermEnd.selector;
+        context.expectations.expectedError = FixedTermHooks.WithdrawBeforeTermEnd.selector;
         context.willCheckCredentials = false;
       } else {
         // If the function is a withdrawal and the account is a known lender, the credential
@@ -547,7 +547,7 @@ library LibAccessControlHooksFuzzContext {
       }
     } else if (context.functionKind == FunctionKind.ForceBuyBackFunction) {
       if (!context.config.allowForceBuyBacks) {
-        context.expectations.expectedError = AccessControlHooks.ForceBuyBacksDisabled.selector;
+        context.expectations.expectedError = OpenTermHooks.ForceBuyBacksDisabled.selector;
       }
     }
   }

@@ -3,13 +3,13 @@ pragma solidity ^0.8.20;
 
 import '../types/HooksConfig.sol';
 import '../access/IHooks.sol';
-import { HookedMarket as AccessControlHookedMarket, AccessControlHooks } from '../access/AccessControlHooks.sol';
-import { HookedMarket as FixedTermHookedMarket, FixedTermLoanHooks } from '../access/FixedTermLoanHooks.sol';
+import { HookedMarket as OpenTermHookedMarket, OpenTermHooks } from '../access/OpenTermHooks.sol';
+import { HookedMarket as FixedTermHookedMarket, FixedTermHooks } from '../access/FixedTermHooks.sol';
 import { WildcatMarket } from '../market/WildcatMarket.sol';
 
 enum HooksInstanceKind {
   Unknown,
-  AccessControl,
+  OpenTerm,
   FixedTermLoan
 }
 
@@ -62,18 +62,18 @@ library HooksConfigDataLib {
     data.hooksAddress = encodedHooksConfig.hooksAddress();
     data.flags.fill(encodedHooksConfig);
     bytes32 versionHash = keccak256(bytes(IHooks(encodedHooksConfig.hooksAddress()).version()));
-    if (versionHash == keccak256(bytes('SingleBorrowerAccessControlHooks'))) {
-      data.kind = HooksInstanceKind.AccessControl;
-      AccessControlHooks hooks = AccessControlHooks(data.hooksAddress);
-      AccessControlHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
+    if (versionHash == keccak256(bytes('OpenTermHooks'))) {
+      data.kind = HooksInstanceKind.OpenTerm;
+      OpenTermHooks hooks = OpenTermHooks(data.hooksAddress);
+      OpenTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
       data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
       data.minimumDeposit = hookedMarket.minimumDeposit;
       data.transfersDisabled = hookedMarket.transfersDisabled;
       data.allowForceBuyBacks = hookedMarket.allowForceBuyBacks;
-    } else if (versionHash == keccak256(bytes('FixedTermLoanHooks'))) {
+    } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
       data.kind = HooksInstanceKind.FixedTermLoan;
-      FixedTermLoanHooks hooks = FixedTermLoanHooks(data.hooksAddress);
+      FixedTermHooks hooks = FixedTermHooks(data.hooksAddress);
       FixedTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
       data.depositRequiresAccess = hookedMarket.depositRequiresAccess;

@@ -413,7 +413,7 @@ contract WildcatMarketTest is BaseMarketTest {
     startPrank(alice);
     asset.mint(alice, 1e18);
     asset.approve(address(market), 1e18);
-    vm.expectRevert(AccessControlHooks.DepositBelowMinimum.selector);
+    vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
     market.deposit(100);
   }
 
@@ -463,9 +463,9 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function test_ft() internal {
     parameters.hooksTemplate = fixedTermHooksTemplate;
-    hooks = AccessControlHooks(address(0));
+    hooks = OpenTermHooks(address(0));
     setUpContracts(false);
-    assertEq(hooks.version(), 'FixedTermLoanHooks');
+    assertEq(hooks.version(), 'FixedTermHooks');
   }
 
   function castRegisterExpectationsAndInput(
@@ -497,11 +497,11 @@ contract WildcatMarketTest is BaseMarketTest {
     asset.mint(borrower, amount);
 
     if (!parameters.allowForceBuyBack) {
-      vm.expectRevert(AccessControlHooks.ForceBuyBacksDisabled.selector);
-    } else if (!fuzzInputs.isAccessControlHooks && !fastForwardToTermEnd) {
-      vm.expectRevert(FixedTermLoanHooks.ForceBuyBackDisabledBeforeTerm.selector);
+      vm.expectRevert(OpenTermHooks.ForceBuyBacksDisabled.selector);
+    } else if (!fuzzInputs.isOpenTermHooks && !fastForwardToTermEnd) {
+      vm.expectRevert(FixedTermHooks.ForceBuyBackDisabledBeforeTerm.selector);
     } else {
-      if (!fuzzInputs.isAccessControlHooks && fastForwardToTermEnd) {
+      if (!fuzzInputs.isOpenTermHooks && fastForwardToTermEnd) {
         fastForward(parameters.fixedTermEndTime - block.timestamp);
       }
       MarketState memory state = pendingState(true);
@@ -676,16 +676,16 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_transfer_TransfersDisabled(bool fixedTerm) external {
     parameters.transfersDisabled = true;
     if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
-    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.AccessControl);
+    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.OpenTerm);
     _deposit(alice, 1e18);
     vm.prank(alice);
-    vm.expectRevert(AccessControlHooks.TransfersDisabled.selector);
+    vm.expectRevert(OpenTermHooks.TransfersDisabled.selector);
     market.transfer(bob, 0.5e18);
   }
 
   function test_transfer_RecipientNotKnownLender(bool fixedTerm) external {
     if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
-    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.AccessControl);
+    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.OpenTerm);
     _deposit(alice, 1e18);
     vm.prank(alice);
     market.transfer(bob, 0.5e18);
@@ -722,7 +722,7 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function test_forceBuyBack_ForceBuyBacksDisabled() external asAccount(borrower) {
     _deposit(alice, 1e18);
-    vm.expectRevert(AccessControlHooks.ForceBuyBacksDisabled.selector);
+    vm.expectRevert(OpenTermHooks.ForceBuyBacksDisabled.selector);
     market.forceBuyBack(alice, 1e17);
   }
 
@@ -731,10 +731,10 @@ contract WildcatMarketTest is BaseMarketTest {
     parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
     parameters.hooksTemplate = fixedTermHooksTemplate;
     parameters.deployMarketHooksData = '';
-    hooks = AccessControlHooks(address(0));
+    hooks = OpenTermHooks(address(0));
     parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(0));
     setUpContracts(false);
-    vm.expectRevert(FixedTermLoanHooks.ForceBuyBackDisabledBeforeTerm.selector);
+    vm.expectRevert(FixedTermHooks.ForceBuyBackDisabledBeforeTerm.selector);
     market.forceBuyBack(alice, 1e17);
   }
 

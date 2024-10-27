@@ -23,7 +23,7 @@ struct HookedMarket {
 }
 
 /**
- * @title FixedTermLoanHooks
+ * @title FixedTermHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
  *      to accounts that have credentials from approved role providers, or
  *      which are manually approved by the borrower. Restricts withdrawals
@@ -37,7 +37,7 @@ struct HookedMarket {
  *
  *      Deposit access may be canceled by the borrower.
  */
-contract FixedTermLoanHooks is BaseAccessControls, MarketConstraintHooks {
+contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
@@ -110,7 +110,7 @@ contract FixedTermLoanHooks is BaseAccessControls, MarketConstraintHooks {
   }
 
   function version() external pure override returns (string memory) {
-    return 'FixedTermLoanHooks';
+    return 'FixedTermHooks';
   }
 
   function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {

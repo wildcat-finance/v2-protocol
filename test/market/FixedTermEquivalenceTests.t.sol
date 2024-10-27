@@ -15,7 +15,7 @@ contract FixedTermWildcatMarketTest is WildcatMarketTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermLoanHooks(address(hooks)).setFixedTermEndTime(
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(
       address(market),
       uint32(block.timestamp)
     );
@@ -30,7 +30,7 @@ contract FixedTermWithdrawalsTest is WithdrawalsTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermLoanHooks(address(hooks)).setFixedTermEndTime(
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(
       address(market),
       uint32(block.timestamp)
     );
@@ -45,7 +45,7 @@ contract FixedTermWildcatMarketBaseTest is WildcatMarketBaseTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermLoanHooks(address(hooks)).setFixedTermEndTime(
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(
       address(market),
       uint32(block.timestamp)
     );
@@ -60,7 +60,7 @@ contract FixedTermWildcatMarketConfigTest is WildcatMarketConfigTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermLoanHooks(address(hooks)).setFixedTermEndTime(
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(
       address(market),
       uint32(block.timestamp)
     );
@@ -75,7 +75,7 @@ contract FixedTermWildcatMarketTokenTest is WildcatMarketTokenTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermLoanHooks(address(hooks)).setFixedTermEndTime(
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(
       address(market),
       uint32(block.timestamp)
     );

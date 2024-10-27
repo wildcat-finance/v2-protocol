@@ -31,7 +31,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     inputs.asset = address(asset = new MockERC20('Token', 'TKN', 18));
     deployMarket(inputs);
     parameters = inputs;
-    hooks = AccessControlHooks(parameters.hooksConfig.hooksAddress());
+    hooks = OpenTermHooks(parameters.hooksConfig.hooksAddress());
     _authorizeLender(alice);
     previousState = MarketState({
       isClosed: false,
@@ -68,7 +68,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
       0,
       0
     );
-    hooks = AccessControlHooks(address(0));
+    hooks = OpenTermHooks(address(0));
     parameters.deployHooksConstructorArgs = abi.encode(address(this), '');
     parameters.hooksConfig = EmptyHooksConfig;
     setUpContracts(false);
@@ -207,7 +207,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   }
   function applyFuzzedHooksConfig(MarketHooksConfigFuzzInputs memory inputs) internal {
     inputs.minimumDeposit = uint128(bound(inputs.minimumDeposit, 0, parameters.maxTotalSupply));
-    if (inputs.isAccessControlHooks) {
+    if (inputs.isOpenTermHooks) {
       inputs.allowClosureBeforeTerm = false;
       inputs.allowTermReduction = false;
       inputs.fixedTermDuration = 0;
@@ -215,18 +215,18 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
       inputs.fixedTermDuration = uint16(bound(inputs.fixedTermDuration, 1, type(uint16).max));
     }
 
-    parameters.hooksTemplate = inputs.isAccessControlHooks ? hooksTemplate : fixedTermHooksTemplate;
+    parameters.hooksTemplate = inputs.isOpenTermHooks ? hooksTemplate : fixedTermHooksTemplate;
     parameters.deployMarketHooksData = '';
     parameters.minimumDeposit = inputs.minimumDeposit;
     parameters.transfersDisabled = inputs.transfersDisabled;
     parameters.allowForceBuyBack = inputs.allowForceBuyBacks;
-    parameters.fixedTermEndTime = inputs.isAccessControlHooks
+    parameters.fixedTermEndTime = inputs.isOpenTermHooks
       ? 0
       : uint32(inputs.fixedTermDuration + block.timestamp);
     parameters.allowClosureBeforeTerm = inputs.allowClosureBeforeTerm;
     parameters.allowTermReduction = inputs.allowTermReduction;
 
-    hooks = AccessControlHooks(address(0));
+    hooks = OpenTermHooks(address(0));
 
     parameters.hooksConfig = encodeHooksConfig({
       hooksAddress: address(0),
@@ -246,20 +246,20 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   }
 
   function resetWithNewHooks(HooksKind kind) internal {
-    if (kind == HooksKind.AccessControl) {
+    if (kind == HooksKind.OpenTerm) {
       parameters.hooksTemplate = hooksTemplate;
     } else if (kind == HooksKind.FixedTerm) {
       parameters.hooksTemplate = fixedTermHooksTemplate;
     }
     parameters.deployMarketHooksData = '';
-    hooks = AccessControlHooks(address(0));
+    hooks = OpenTermHooks(address(0));
     parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(0));
     setUp();
   }
 
   function reset() internal {
     resetWithNewHooks(
-      parameters.hooksTemplate == hooksTemplate ? HooksKind.AccessControl : HooksKind.FixedTerm
+      parameters.hooksTemplate == hooksTemplate ? HooksKind.OpenTerm : HooksKind.FixedTerm
     );
   }
 }

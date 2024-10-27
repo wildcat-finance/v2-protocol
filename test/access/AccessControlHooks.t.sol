@@ -2,8 +2,8 @@
 pragma solidity >=0.8.20;
 
 import 'forge-std/Test.sol';
-import 'src/access/AccessControlHooks.sol';
-import '../shared/mocks/MockAccessControlHooks.sol';
+import 'src/access/OpenTermHooks.sol';
+import '../shared/mocks/MockOpenTermHooks.sol';
 import { VmSafe } from 'forge-std/Vm.sol';
 import './BaseAccessControls.t.sol';
 
@@ -12,11 +12,11 @@ using LibString for address;
 using MathUtils for uint256;
 using BoolUtils for bool;
 
-contract AccessControlHooksTest is BaseAccessControlsTest {
-  MockAccessControlHooks internal hooks;
+contract OpenTermHooksTest is BaseAccessControlsTest {
+  MockOpenTermHooks internal hooks;
 
   function setUp() external {
-    hooks = new MockAccessControlHooks(address(this));
+    hooks = new MockOpenTermHooks(address(this));
     baseHooks = MockBaseAccessControls(address(hooks));
     assertEq(hooks.factory(), address(this), 'factory');
     assertEq(hooks.borrower(), address(this), 'borrower');
@@ -51,8 +51,8 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
     mockProvider2.setIsPullProvider(isPullProvider2);
     _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
     _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
-    hooks = MockAccessControlHooks(
-      address(new AccessControlHooks(address(this), abi.encode(inputs)))
+    hooks = MockOpenTermHooks(
+      address(new OpenTermHooks(address(this), abi.encode(inputs)))
     );
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
@@ -68,7 +68,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
     bytes32 salt1 = bytes32(uint256(1));
     bytes32 salt2 = bytes32(uint256(2));
     NameAndProviderInputs memory inputs;
-    inputs.name = 'AccessControlHooks Name';
+    inputs.name = 'OpenTermHooks Name';
     inputs.roleProviderFactory = address(providerFactory);
     inputs.newProviderInputs = new CreateProviderInputs[](2);
     inputs.newProviderInputs[0] = CreateProviderInputs({
@@ -89,8 +89,8 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
       ttl2,
       isPullProvider2
     );
-    hooks = MockAccessControlHooks(
-      address(new AccessControlHooks(address(this), abi.encode(inputs)))
+    hooks = MockOpenTermHooks(
+      address(new OpenTermHooks(address(this), abi.encode(inputs)))
     );
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
@@ -105,7 +105,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
   ) external {
     bytes32 salt = bytes32(uint256(1));
     NameAndProviderInputs memory inputs;
-    inputs.name = 'AccessControlHooks Name';
+    inputs.name = 'OpenTermHooks Name';
     inputs.roleProviderFactory = address(providerFactory);
     inputs.newProviderInputs = new CreateProviderInputs[](1);
     inputs.existingProviders = new ExistingProviderInputs[](1);
@@ -120,8 +120,8 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
       ttl2,
       isPullProvider2
     );
-    hooks = MockAccessControlHooks(
-      address(new AccessControlHooks(address(this), abi.encode(inputs)))
+    hooks = MockOpenTermHooks(
+      address(new OpenTermHooks(address(this), abi.encode(inputs)))
     );
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
@@ -131,13 +131,13 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
   function test_constructor_NewProviders_CreateRoleProviderFailed() external {
     providerFactory.setNextProviderAddress(address(0));
     NameAndProviderInputs memory inputs;
-    inputs.name = 'AccessControlHooks Name';
+    inputs.name = 'OpenTermHooks Name';
     inputs.roleProviderFactory = address(providerFactory);
     inputs.newProviderInputs = new CreateProviderInputs[](1);
     inputs.newProviderInputs[0].timeToLive = 1 days;
     inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(bytes32(0), false);
     vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
-    new AccessControlHooks(address(this), abi.encode(inputs));
+    new OpenTermHooks(address(this), abi.encode(inputs));
   }
 
   // ========================================================================== //
@@ -282,7 +282,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
       address(hooks)
     );
     hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18, true));
-    vm.expectRevert(AccessControlHooks.TransfersDisabled.selector);
+    vm.expectRevert(OpenTermHooks.TransfersDisabled.selector);
     MarketState memory state;
     vm.prank(address(1));
     hooks.onTransfer(address(1), address(2), address(3), 100, state, '');
@@ -304,7 +304,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
   }
 
   function test_version() external {
-    assertEq(hooks.version(), 'SingleBorrowerAccessControlHooks');
+    assertEq(hooks.version(), 'OpenTermHooks');
   }
 
   function test_config() external {
@@ -382,7 +382,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
 
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.MinimumDepositUpdated(address(1), 2e18);
+    emit OpenTermHooks.MinimumDepositUpdated(address(1), 2e18);
     hooks.setMinimumDeposit(address(1), 2e18);
     assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
   }
@@ -393,7 +393,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
   }
 
   function test_setMinimumDeposit_NotHookedMarket() external {
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
     hooks.setMinimumDeposit(address(1), 1);
   }
 
@@ -407,7 +407,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
   }
 
   function test_disableForceBuyBack_NotHookedMarket() external {
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
     hooks.disableForceBuyBacks(address(1));
   }
 
@@ -415,7 +415,7 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
     DeployMarketInputs memory inputs;
     hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0, true, true));
     vm.expectEmit(address(hooks));
-    emit AccessControlHooks.DisabledForceBuyBacks(address(1));
+    emit OpenTermHooks.DisabledForceBuyBacks(address(1));
     hooks.disableForceBuyBacks(address(1));
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
@@ -437,20 +437,20 @@ contract AccessControlHooksTest is BaseAccessControlsTest {
   // ========================================================================== //
 
   function test_onDeposit_NotHookedMarket() external {
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
     MarketState memory state;
     hooks.onDeposit(address(1), 0, state, '');
   }
 
   function test_onTransfer_NotHookedMarket() external {
     MarketState memory state;
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
     hooks.onTransfer(address(1), address(1), address(1), 0, state, '');
   }
 
   function test_onForceBuyBack_NotHookedMarket() external {
     MarketState memory state;
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
     hooks.onForceBuyBack(address(1), 0, state, '');
   }
 }

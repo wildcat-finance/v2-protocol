@@ -17,8 +17,8 @@ import { HooksFactory, IHooksFactoryEventsAndErrors } from 'src/HooksFactory.sol
 import { MockHooks } from './mocks/MockHooks.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
-import 'src/access/AccessControlHooks.sol';
-import { FixedTermLoanHooks, HookedMarket as FT_HookedMarket } from 'src/access/FixedTermLoanHooks.sol';
+import 'src/access/OpenTermHooks.sol';
+import { FixedTermHooks, HookedMarket as FT_HookedMarket } from 'src/access/FixedTermHooks.sol';
 import { HooksKind, AccessControlHooksFuzzInputs, MarketHooksConfigFuzzInputs, AccessControlHooksFuzzContext, LibAccessControlHooksFuzzContext, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 struct MarketInputParameters {
@@ -51,7 +51,7 @@ struct MarketInputParameters {
 contract Test is ForgeTest, Prankster, Assertions {
   HooksFactory internal hooksFactory;
   WildcatArchController internal archController;
-  AccessControlHooks internal hooks;
+  OpenTermHooks internal hooks;
   WildcatMarket internal market;
   MockSanctionsSentinel internal sanctionsSentinel;
   MockRoleProvider internal ecdsaRoleProvider;
@@ -132,13 +132,13 @@ contract Test is ForgeTest, Prankster, Assertions {
     }
     if (fixedTermHooksTemplate == address(0)) {
       fixedTermHooksTemplate = LibStoredInitCode.deployInitCode(
-        type(FixedTermLoanHooks).creationCode
+        type(FixedTermHooks).creationCode
       );
     }
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
-      'SingleBorrowerAccessControlHooks',
+      'OpenTermHooks',
       address(0),
       address(0),
       0,
@@ -146,7 +146,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     );
     hooksFactory.addHooksTemplate(
       hooksTemplate,
-      'SingleBorrowerAccessControlHooks',
+      'OpenTermHooks',
       address(0),
       address(0),
       0,
@@ -155,7 +155,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       fixedTermHooksTemplate,
-      'FixedTermLoanHooks',
+      'FixedTermHooks',
       address(0),
       address(0),
       0,
@@ -163,7 +163,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     );
     hooksFactory.addHooksTemplate(
       fixedTermHooksTemplate,
-      'FixedTermLoanHooks',
+      'FixedTermHooks',
       address(0),
       address(0),
       0,
@@ -180,7 +180,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   }
 
   function _getHooksTemplate() internal virtual returns (address) {
-    return LibStoredInitCode.deployInitCode(type(AccessControlHooks).creationCode);
+    return LibStoredInitCode.deployInitCode(type(OpenTermHooks).creationCode);
   }
 
   function deployBaseContracts() internal {
@@ -269,7 +269,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   function deployHooksInstance(
     MarketInputParameters memory parameters,
     bool authorizeAll
-  ) internal asSelf returns (AccessControlHooks hooksInstance) {
+  ) internal asSelf returns (OpenTermHooks hooksInstance) {
     if (!archController.isRegisteredBorrower(parameters.borrower)) {
       archController.registerBorrower(parameters.borrower);
     }
@@ -280,7 +280,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     bool emptyConfig = HooksConfig.unwrap(parameters.hooksConfig) == 0;
     if (parameters.hooksConfig.hooksAddress() == address(0)) {
       uint previousCount = hooksFactory.getHooksInstancesCountForBorrower(parameters.borrower);
-      hooksInstance = AccessControlHooks(
+      hooksInstance = OpenTermHooks(
         getNextInstanceAddress(
           parameters.hooksTemplate,
           parameters.borrower,
@@ -313,7 +313,7 @@ contract Test is ForgeTest, Prankster, Assertions {
         'did not add instance to borrower list'
       );
     } else {
-      hooksInstance = AccessControlHooks(parameters.hooksConfig.hooksAddress());
+      hooksInstance = OpenTermHooks(parameters.hooksConfig.hooksAddress());
     }
     if (emptyConfig) {
       HooksDeploymentConfig _config = hooksInstance.config();
@@ -367,10 +367,10 @@ contract Test is ForgeTest, Prankster, Assertions {
     if (
       parameters.minimumDeposit > 0 &&
       keccak256(bytes(hooksFactory.getHooksTemplateDetails(parameters.hooksTemplate).name)) ==
-      keccak256('SingleBorrowerAccessControlHooks')
+      keccak256('OpenTermHooks')
     ) {
       vm.expectEmit(parameters.hooksConfig.hooksAddress());
-      emit AccessControlHooks.MinimumDepositUpdated(expectedMarket, parameters.minimumDeposit);
+      emit OpenTermHooks.MinimumDepositUpdated(expectedMarket, parameters.minimumDeposit);
     }
 
     vm.expectEmit(expectedMarket);
@@ -392,7 +392,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     HooksConfig expectedConfig = parameters.hooksConfig;
     {
       bytes32 hooksVersionHash = keccak256(bytes(IHooks(expectedConfig.hooksAddress()).version()));
-      if (hooksVersionHash == keccak256('SingleBorrowerAccessControlHooks')) {
+      if (hooksVersionHash == keccak256('OpenTermHooks')) {
         if (expectedConfig.useOnQueueWithdrawal()) {
           expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(
             Bit_Enabled_Transfer
@@ -404,7 +404,7 @@ contract Test is ForgeTest, Prankster, Assertions {
         if (parameters.minimumDeposit > 0) {
           expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
         }
-      } else if (hooksVersionHash == keccak256('FixedTermLoanHooks')) {
+      } else if (hooksVersionHash == keccak256('FixedTermHooks')) {
         if (expectedConfig.useOnQueueWithdrawal()) {
           expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(
             Bit_Enabled_Transfer
@@ -506,7 +506,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     bytes32 expectedHooksVersion = keccak256(
       bytes(IHooks(expectedConfig.hooksAddress()).version())
     );
-    if (expectedHooksVersion == keccak256('SingleBorrowerAccessControlHooks')) {
+    if (expectedHooksVersion == keccak256('OpenTermHooks')) {
       depositRequiresAccess = expectedConfig.useOnDeposit();
       transferRequiresAccess = expectedConfig.useOnTransfer();
       if (expectedConfig.useOnQueueWithdrawal()) {
@@ -518,7 +518,7 @@ contract Test is ForgeTest, Prankster, Assertions {
       if (parameters.minimumDeposit > 0) {
         expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
       }
-    } else if (expectedHooksVersion == keccak256('FixedTermLoanHooks')) {
+    } else if (expectedHooksVersion == keccak256('FixedTermHooks')) {
       transferRequiresAccess = expectedConfig.useOnTransfer();
       depositRequiresAccess = expectedConfig.useOnDeposit();
       withdrawalRequiresAccess = expectedConfig.useOnQueueWithdrawal();
@@ -586,8 +586,8 @@ contract Test is ForgeTest, Prankster, Assertions {
     address hooksAddress = parameters.hooksConfig.hooksAddress();
     bytes32 hooksVersionHash = keccak256(bytes(IHooks(hooksAddress).version()));
 
-    if (hooksVersionHash == keccak256('SingleBorrowerAccessControlHooks')) {
-      HookedMarket memory hookedMarket = AccessControlHooks(hooksAddress).getHookedMarket(
+    if (hooksVersionHash == keccak256('OpenTermHooks')) {
+      HookedMarket memory hookedMarket = OpenTermHooks(hooksAddress).getHookedMarket(
         address(market)
       );
       assertTrue(hookedMarket.isHooked, 'getHookedMarket');
@@ -603,7 +603,7 @@ contract Test is ForgeTest, Prankster, Assertions {
 
       address[] memory marketAddresses = new address[](1);
       marketAddresses[0] = address(market);
-      HookedMarket[] memory hookedMarkets = AccessControlHooks(hooksAddress).getHookedMarkets(
+      HookedMarket[] memory hookedMarkets = OpenTermHooks(hooksAddress).getHookedMarkets(
         marketAddresses
       );
       assertEq(hookedMarkets.length, 1, 'getHookedMarkets');
@@ -612,8 +612,8 @@ contract Test is ForgeTest, Prankster, Assertions {
         keccak256(abi.encode(hookedMarket)),
         'getHookedMarkets'
       );
-    } else if (hooksVersionHash == 'FixedTermLoanHooks') {
-      FT_HookedMarket memory hookedMarket = FixedTermLoanHooks(hooksAddress).getHookedMarket(
+    } else if (hooksVersionHash == 'FixedTermHooks') {
+      FT_HookedMarket memory hookedMarket = FixedTermHooks(hooksAddress).getHookedMarket(
         address(market)
       );
       assertTrue(hookedMarket.isHooked, 'getHookedMarket');
@@ -645,7 +645,7 @@ contract Test is ForgeTest, Prankster, Assertions {
 
       address[] memory marketAddresses = new address[](1);
       marketAddresses[0] = address(market);
-      FT_HookedMarket[] memory hookedMarkets = FixedTermLoanHooks(hooksAddress).getHookedMarkets(
+      FT_HookedMarket[] memory hookedMarkets = FixedTermHooks(hooksAddress).getHookedMarkets(
         marketAddresses
       );
       assertEq(hookedMarkets.length, 1, 'getHookedMarkets');

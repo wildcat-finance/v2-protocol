@@ -2,7 +2,7 @@
 pragma solidity >=0.8.20;
 
 import 'forge-std/Test.sol';
-import '../shared/mocks/MockFixedTermLoanHooks.sol';
+import '../shared/mocks/MockFixedTermHooks.sol';
 import { bound, warp } from '../helpers/VmUtils.sol';
 import { VmSafe } from 'forge-std/Vm.sol';
 import './BaseAccessControls.t.sol';
@@ -12,11 +12,11 @@ using LibString for address;
 using MathUtils for uint256;
 using BoolUtils for bool;
 
-contract FixedTermLoanHooksTest is BaseAccessControlsTest {
-  MockFixedTermLoanHooks internal hooks;
+contract FixedTermHooksTest is BaseAccessControlsTest {
+  MockFixedTermHooks internal hooks;
 
   function setUp() external {
-    hooks = new MockFixedTermLoanHooks(address(this));
+    hooks = new MockFixedTermHooks(address(this));
     baseHooks = MockBaseAccessControls(address(hooks));
     assertEq(hooks.factory(), address(this), 'factory');
     assertEq(hooks.borrower(), address(this), 'borrower');
@@ -37,7 +37,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     uint32 ttl2
   ) external {
     NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.name = 'FixedTermHooks Name';
     inputs.existingProviders = new ExistingProviderInputs[](2);
     inputs.existingProviders[0] = ExistingProviderInputs({
       providerAddress: address(mockProvider1),
@@ -51,8 +51,8 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     mockProvider2.setIsPullProvider(isPullProvider2);
     _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
     _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
-    hooks = MockFixedTermLoanHooks(
-      address(new FixedTermLoanHooks(address(this), abi.encode(inputs)))
+    hooks = MockFixedTermHooks(
+      address(new FixedTermHooks(address(this), abi.encode(inputs)))
     );
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
@@ -68,7 +68,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     bytes32 salt1 = bytes32(uint256(1));
     bytes32 salt2 = bytes32(uint256(2));
     NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.name = 'FixedTermHooks Name';
     inputs.roleProviderFactory = address(providerFactory);
     inputs.newProviderInputs = new CreateProviderInputs[](2);
     inputs.newProviderInputs[0] = CreateProviderInputs({
@@ -89,8 +89,8 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       ttl2,
       isPullProvider2
     );
-    hooks = MockFixedTermLoanHooks(
-      address(new FixedTermLoanHooks(address(this), abi.encode(inputs)))
+    hooks = MockFixedTermHooks(
+      address(new FixedTermHooks(address(this), abi.encode(inputs)))
     );
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
@@ -105,7 +105,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
   ) external {
     bytes32 salt = bytes32(uint256(1));
     NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.name = 'FixedTermHooks Name';
     inputs.roleProviderFactory = address(providerFactory);
     inputs.newProviderInputs = new CreateProviderInputs[](1);
     inputs.existingProviders = new ExistingProviderInputs[](1);
@@ -120,8 +120,8 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       ttl2,
       isPullProvider2
     );
-    hooks = MockFixedTermLoanHooks(
-      address(new FixedTermLoanHooks(address(this), abi.encode(inputs)))
+    hooks = MockFixedTermHooks(
+      address(new FixedTermHooks(address(this), abi.encode(inputs)))
     );
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
@@ -131,13 +131,13 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
   function test_constructor_NewProviders_CreateRoleProviderFailed() external {
     providerFactory.setNextProviderAddress(address(0));
     NameAndProviderInputs memory inputs;
-    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.name = 'FixedTermHooks Name';
     inputs.roleProviderFactory = address(providerFactory);
     inputs.newProviderInputs = new CreateProviderInputs[](1);
     inputs.newProviderInputs[0].timeToLive = 1 days;
     inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(bytes32(0), false);
     vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
-    new FixedTermLoanHooks(address(this), abi.encode(inputs));
+    new FixedTermHooks(address(this), abi.encode(inputs));
   }
 
   // ========================================================================== //
@@ -157,7 +157,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
   }
 
   function test_onCreateMarket_FixedTermNotProvided() external {
-    vm.expectRevert(FixedTermLoanHooks.FixedTermNotProvided.selector);
+    vm.expectRevert(FixedTermHooks.FixedTermNotProvided.selector);
     DeployMarketInputs memory inputs;
     hooks.onCreateMarket(address(this), address(1), inputs, '');
   }
@@ -169,7 +169,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       address(hooks)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 365 days));
+    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 365 days));
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -204,9 +204,9 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
       address(hooks)
     );
-    vm.expectRevert(FixedTermLoanHooks.InvalidFixedTerm.selector);
+    vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
     hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0));
-    vm.expectRevert(FixedTermLoanHooks.InvalidFixedTerm.selector);
+    vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
     hooks.onCreateMarket(
       address(this),
       address(1),
@@ -296,7 +296,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       inputs,
       abi.encode(block.timestamp + 365 days, 1e18, true)
     );
-    vm.expectRevert(FixedTermLoanHooks.TransfersDisabled.selector);
+    vm.expectRevert(FixedTermHooks.TransfersDisabled.selector);
     MarketState memory state;
     vm.prank(address(1));
     hooks.onTransfer(address(1), address(2), address(3), 100, state, '');
@@ -318,7 +318,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
   }
 
   function test_version() external {
-    assertEq(hooks.version(), 'FixedTermLoanHooks');
+    assertEq(hooks.version(), 'FixedTermHooks');
   }
 
   function test_config() external {
@@ -391,12 +391,12 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
 
   function test_onDeposit_NotHookedMarket() external {
     MarketState memory state;
-    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
     hooks.onDeposit(address(1), 0, state, '');
   }
 
   function test_setFixedTermEndTime_NotHookedMarket() external {
-    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
     hooks.setFixedTermEndTime(address(1), 0);
   }
 
@@ -416,7 +416,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       inputs,
       abi.encode(block.timestamp + 365 days, 1e18)
     );
-    vm.expectRevert(FixedTermLoanHooks.IncreaseFixedTerm.selector);
+    vm.expectRevert(FixedTermHooks.IncreaseFixedTerm.selector);
     hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 366 days));
   }
 
@@ -432,7 +432,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       abi.encode(block.timestamp + 365 days, 1e18, false, false, false, true)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
+    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
     hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 364 days), 'fixedTermEndTime');
@@ -449,7 +449,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       inputs,
       abi.encode(block.timestamp + 365 days, 1e18, false, false, false, false)
     );
-    vm.expectRevert(FixedTermLoanHooks.TermReductionDisabled.selector);
+    vm.expectRevert(FixedTermHooks.TermReductionDisabled.selector);
     hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
   }
 
@@ -464,7 +464,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     );
     vm.prank(address(1));
     MarketState memory state;
-    vm.expectRevert(FixedTermLoanHooks.WithdrawBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
     hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
   }
 
@@ -484,7 +484,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
   }
 
   function test_onQueueWithdrawal_NotHookedMarket() external {
-    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
     MarketState memory state;
     hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
   }
@@ -549,7 +549,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
 
     vm.expectEmit(address(hooks));
-    emit FixedTermLoanHooks.MinimumDepositUpdated(address(1), 2e18);
+    emit FixedTermHooks.MinimumDepositUpdated(address(1), 2e18);
     hooks.setMinimumDeposit(address(1), 2e18);
     assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
   }
@@ -560,7 +560,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
   }
 
   function test_setMinimumDeposit_NotHookedMarket() external {
-    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
     hooks.setMinimumDeposit(address(1), 1);
   }
 
@@ -601,7 +601,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     state.reserveRatioBips = 1000;
 
     vm.prank(address(1));
-    vm.expectRevert(FixedTermLoanHooks.NoReducingAprBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermHooks.NoReducingAprBeforeTermEnd.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(100, 1000, state, '');
   }
 
@@ -622,7 +622,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
     );
     vm.prank(address(1));
     vm.expectEmit(address(hooks));
-    emit FixedTermLoanHooks.FixedTermUpdated(address(1), uint32(block.timestamp));
+    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp));
     MarketState memory state;
     hooks.onCloseMarket(state, '');
     HookedMarket memory market = hooks.getHookedMarket(address(1));
@@ -641,7 +641,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       abi.encode(block.timestamp + 365 days, 1e18, false, false, false)
     );
     vm.prank(address(1));
-    vm.expectRevert(FixedTermLoanHooks.ClosureDisabledBeforeTerm.selector);
+    vm.expectRevert(FixedTermHooks.ClosureDisabledBeforeTerm.selector);
     MarketState memory state;
     hooks.onCloseMarket(state, '');
   }
@@ -657,7 +657,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       inputs,
       abi.encode(block.timestamp + 365 days, 1e18)
     );
-    vm.expectRevert(FixedTermLoanHooks.ForceBuyBacksDisabled.selector);
+    vm.expectRevert(FixedTermHooks.ForceBuyBacksDisabled.selector);
     MarketState memory state;
     vm.prank(address(1));
     hooks.onForceBuyBack(address(2), 0, state, '');
@@ -673,7 +673,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
   }
 
   function test_disableForceBuyBack_NotHookedMarket() external {
-    vm.expectRevert(FixedTermLoanHooks.NotHookedMarket.selector);
+    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
     hooks.disableForceBuyBacks(address(1));
   }
 
@@ -686,7 +686,7 @@ contract FixedTermLoanHooksTest is BaseAccessControlsTest {
       abi.encode(uint32(block.timestamp + 1), 0, true, true)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermLoanHooks.DisabledForceBuyBacks(address(1));
+    emit FixedTermHooks.DisabledForceBuyBacks(address(1));
     hooks.disableForceBuyBacks(address(1));
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');

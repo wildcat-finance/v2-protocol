@@ -8,7 +8,7 @@ import '../shared/mocks/MockRoleProvider.sol';
 import '../shared/mocks/MockRoleProviderFactory.sol';
 import '../helpers/Assertions.sol';
 import { bound, warp } from '../helpers/VmUtils.sol';
-import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, AccessControlHooks, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, OpenTermHooks, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
 import { getTimestamp, fastForward } from '../helpers/VmUtils.sol';
 
@@ -639,7 +639,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
       address(1),
-      AccessControlHooks(address(baseHooks)),
+      OpenTermHooks(address(baseHooks)),
       mockProvider1,
       mockProvider2,
       address(50),

@@ -12,7 +12,7 @@ using LibMarketConfigFuzzInputs for MarketConfigFuzzInputs global;
 
 // Used for fuzzing market deployment parameters
 struct MarketConfigFuzzInputs {
-  bool isAccessControlHooks;
+  bool isOpenTermHooks;
   uint128 maxTotalSupply;
   uint16 protocolFeeBips;
   uint16 annualInterestBips;
@@ -55,14 +55,14 @@ library LibMarketConfigFuzzInputs {
     bool useMinimumDeposit = rng.nextBool();
     inputs.minimumDeposit = useMinimumDeposit ? uint128(rng.next(0, inputs.maxTotalSupply)) : 0;
 
-    inputs.isAccessControlHooks = rng.nextBool();
+    inputs.isOpenTermHooks = rng.nextBool();
     inputs.transfersDisabled = rng.nextBool();
     inputs.useOnDeposit = rng.nextBool();
     inputs.useOnQueueWithdrawal = rng.nextBool();
     inputs.useOnTransfer = rng.nextBool();
     inputs.allowForceBuyBacks = rng.nextBool();
 
-    if (!inputs.isAccessControlHooks) {
+    if (!inputs.isOpenTermHooks) {
       inputs.fixedTermDuration = uint16(rng.next(1, type(uint16).max));
       inputs.allowClosureBeforeTerm = rng.nextBool();
       inputs.allowTermReduction = rng.nextBool();
@@ -101,7 +101,7 @@ library LibMarketConfigFuzzInputs {
         uint160(bound(uint160(inputs.feeRecipient), 1, type(uint160).max))
       );
     }
-    if (inputs.isAccessControlHooks) {
+    if (inputs.isOpenTermHooks) {
       inputs.allowClosureBeforeTerm = false;
       inputs.allowTermReduction = false;
       inputs.fixedTermDuration = 0;
@@ -127,14 +127,14 @@ library LibMarketConfigFuzzInputs {
     parameters.withdrawalBatchDuration = inputs.withdrawalBatchDuration;
     parameters.reserveRatioBips = inputs.reserveRatioBips;
     parameters.delinquencyGracePeriod = inputs.delinquencyGracePeriod;
-    parameters.hooksTemplate = inputs.isAccessControlHooks
+    parameters.hooksTemplate = inputs.isOpenTermHooks
       ? accessControlTemplate
       : fixedTermHooksTemplate;
     parameters.deployMarketHooksData = '';
     parameters.minimumDeposit = inputs.minimumDeposit;
     parameters.transfersDisabled = inputs.transfersDisabled;
     parameters.allowForceBuyBack = inputs.allowForceBuyBacks;
-    parameters.fixedTermEndTime = inputs.isAccessControlHooks
+    parameters.fixedTermEndTime = inputs.isOpenTermHooks
       ? 0
       : uint32(inputs.fixedTermDuration + block.timestamp);
     parameters.allowClosureBeforeTerm = inputs.allowClosureBeforeTerm;

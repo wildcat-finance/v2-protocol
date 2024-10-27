@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 // ========================================================================== //
-//        Common structs for AccessControlHooks and FixedTermLoanHooks        //
+//        Common structs for OpenTermHooks and FixedTermHooks        //
 // ========================================================================== //
 
 /**

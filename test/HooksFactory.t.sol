@@ -11,7 +11,7 @@ import './helpers/Assertions.sol';
 import './shared/mocks/MockHooks.sol';
 import './helpers/StandardStructs.sol';
 import 'src/market/WildcatMarket.sol';
-import 'src/access/AccessControlHooks.sol';
+import 'src/access/OpenTermHooks.sol';
 import 'solady/utils/LibString.sol';
 
 using LibString for string;
