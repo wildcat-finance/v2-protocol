@@ -5,6 +5,7 @@ import 'forge-std/Test.sol';
 import 'src/access/AccessControlHooks.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import '../shared/mocks/MockRoleProvider.sol';
+import '../shared/mocks/MockRoleProviderFactory.sol';
 import '../shared/mocks/MockAccessControlHooks.sol';
 import '../helpers/Assertions.sol';
 import { bound, warp } from '../helpers/VmUtils.sol';
@@ -26,6 +27,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   MockAccessControlHooks internal hooks;
   MockRoleProvider internal mockProvider1;
   MockRoleProvider internal mockProvider2;
+  MockRoleProviderFactory internal providerFactory = new MockRoleProviderFactory();
 
   bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
   uint256 internal constant Panic_Arithmetic = 0x11;
@@ -41,6 +43,121 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     // Set block.timestamp to 4:50 am, May 3 2024
     warp(1714737030);
   }
+
+  // ========================================================================== //
+  //                                 Constructor                                //
+  // ========================================================================== //
+
+  function test_constructor_ExistingProviders(
+    bool isPullProvider1,
+    uint32 ttl1,
+    bool isPullProvider2,
+    uint32 ttl2
+  ) external {
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'Some Name';
+    inputs.existingProviders = new ExistingProviderInputs[](2);
+    inputs.existingProviders[0] = ExistingProviderInputs({
+      providerAddress: address(mockProvider1),
+      timeToLive: ttl1
+    });
+    inputs.existingProviders[1] = ExistingProviderInputs({
+      providerAddress: address(mockProvider2),
+      timeToLive: ttl2
+    });
+    mockProvider1.setIsPullProvider(isPullProvider1);
+    mockProvider2.setIsPullProvider(isPullProvider2);
+    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
+    _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
+    hooks = MockAccessControlHooks(
+      address(new AccessControlHooks(address(this), abi.encode(inputs)))
+    );
+    _validateRoleProviders();
+    assertEq(hooks.name(), inputs.name, 'name');
+  }
+
+  function test_constructor_NewProviders(
+    bool isPullProvider1,
+    uint32 ttl1,
+    bool isPullProvider2,
+    uint32 ttl2
+  ) external {
+    bytes32 salt1 = bytes32(uint256(1));
+    bytes32 salt2 = bytes32(uint256(2));
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'AccessControlHooks Name';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](2);
+    inputs.newProviderInputs[0] = CreateProviderInputs({
+      providerFactoryCalldata: abi.encode(salt1, isPullProvider1),
+      timeToLive: ttl1
+    });
+    inputs.newProviderInputs[1] = CreateProviderInputs({
+      providerFactoryCalldata: abi.encode(salt2, isPullProvider2),
+      timeToLive: ttl2
+    });
+    _addExpectedProvider(
+      MockRoleProvider(providerFactory.computeProviderAddress(salt1)),
+      ttl1,
+      isPullProvider1
+    );
+    _addExpectedProvider(
+      MockRoleProvider(providerFactory.computeProviderAddress(salt2)),
+      ttl2,
+      isPullProvider2
+    );
+    hooks = MockAccessControlHooks(
+      address(new AccessControlHooks(address(this), abi.encode(inputs)))
+    );
+    _validateRoleProviders();
+    assertEq(hooks.name(), inputs.name, 'name');
+  }
+
+  function test_constructor_NewAndExistingProviders(
+    bool isPullProvider1,
+    uint32 ttl1,
+    bool isPullProvider2,
+    uint32 ttl2
+  ) external {
+    bytes32 salt = bytes32(uint256(1));
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'AccessControlHooks Name';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](1);
+    inputs.existingProviders = new ExistingProviderInputs[](1);
+    inputs.existingProviders[0].timeToLive = ttl1;
+    inputs.existingProviders[0].providerAddress = address(mockProvider1);
+    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(salt, isPullProvider2);
+    inputs.newProviderInputs[0].timeToLive = ttl2;
+
+    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
+    _addExpectedProvider(
+      MockRoleProvider(providerFactory.computeProviderAddress(salt)),
+      ttl2,
+      isPullProvider2
+    );
+    hooks = MockAccessControlHooks(
+      address(new AccessControlHooks(address(this), abi.encode(inputs)))
+    );
+    _validateRoleProviders();
+    assertEq(hooks.name(), inputs.name, 'name');
+  }
+
+  function test_constructor_NewProviders_CreateRoleProviderFailed() external {
+    providerFactory.setNextProviderAddress(address(0));
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'AccessControlHooks Name';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](1);
+    inputs.newProviderInputs[0].timeToLive = 1 days;
+    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(bytes32(0), false);
+    vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
+    new AccessControlHooks(address(this), abi.encode(inputs));
+  }
+
+  // ========================================================================== //
+  //                               onCreateMarket                               //
+  // ========================================================================== //
 
   function test_onCreateMarket_CallerNotFactory() external asAccount(address(1)) {
     vm.expectRevert(IHooks.CallerNotFactory.selector);
@@ -89,9 +206,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   function test_onCreateMarket_setMinimumDeposit() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
@@ -231,12 +346,6 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     assertEq(hooks.config(), expectedConfig, 'config.');
   }
 
-  function test_onDeposit_NotHookedMarket() external {
-    MarketState memory state;
-    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
-    hooks.onDeposit(address(1), 0, state, '');
-  }
-
   // ========================================================================== //
   //                              State validation                              //
   // ========================================================================== //
@@ -246,7 +355,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     uint32 timeToLive,
     bool isPullProvider
   ) internal returns (StandardRoleProvider storage) {
-    if (address(mockProvider) != address(this)) {
+    if (address(mockProvider) != address(this) && address(mockProvider).code.length > 0) {
       mockProvider.setIsPullProvider(isPullProvider);
     }
     uint24 pullProviderIndex = isPullProvider ? numPullProviders++ : NotPullProviderIndex;
@@ -322,8 +431,59 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
   }
 
   // ========================================================================== //
+  //                                   setName                                  //
+  // ========================================================================== //
+
+  function test_setName_CallerNotBorrower() external {
+    vm.prank(address(1));
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    hooks.setName('');
+  }
+
+  function test_setName() external {
+    vm.expectEmit(address(hooks));
+    emit BaseAccessControls.NameUpdated('New Name');
+    hooks.setName('New Name');
+    assertEq(hooks.name(), 'New Name', 'name');
+  }
+
+  // ========================================================================== //
   //                          Role provider management                          //
   // ========================================================================== //
+
+  function test_createRoleProvider_CallerNotBorrower(
+    bool isPullProvider,
+    uint32 timeToLive
+  ) external {
+    vm.prank(address(1));
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    hooks.createRoleProvider(address(1), 0, '');
+  }
+
+  function test_createRoleProvider(bool isPullProvider, uint32 timeToLive) external {
+    bytes32 salt = bytes32(uint256(1));
+    bytes memory factoryInput = abi.encode(salt, isPullProvider);
+    address expectedProviderAddress = providerFactory.computeProviderAddress(salt);
+    _addExpectedProvider(MockRoleProvider(expectedProviderAddress), timeToLive, isPullProvider);
+    _expectRoleProviderAdded(
+      expectedProviderAddress,
+      timeToLive,
+      isPullProvider ? 0 : NotPullProviderIndex
+    );
+    hooks.createRoleProvider(address(providerFactory), timeToLive, factoryInput);
+  }
+
+  function test_createRoleProvider_CreateRoleProviderFailed(
+    bool isPullProvider,
+    uint32 timeToLive
+  ) external {
+    bytes32 salt = bytes32(uint256(1));
+    bytes memory factoryInput = abi.encode(salt, isPullProvider);
+    address expectedProviderAddress = providerFactory.computeProviderAddress(salt);
+    providerFactory.setNextProviderAddress(address(0));
+    vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
+    hooks.createRoleProvider(address(providerFactory), timeToLive, factoryInput);
+  }
 
   function test_addRoleProvider(bool isPullProvider, uint32 timeToLive) external {
     mockProvider1.setIsPullProvider(isPullProvider);
@@ -863,9 +1023,9 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     hooks.setMinimumDeposit(address(1), 1);
   }
 
-// ========================================================================== //
-//                            disableForceBuyBacks                            //
-// ========================================================================== //
+  // ========================================================================== //
+  //                            disableForceBuyBacks                            //
+  // ========================================================================== //
 
   function test_disableForceBuyBack_CallerNotBorrower() external asAccount(address(2)) {
     vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
@@ -886,6 +1046,7 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
   }
+
   function test_disableForceBuyBack_noop() external {
     DeployMarketInputs memory inputs;
     hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0, true, false));
@@ -895,5 +1056,27 @@ contract AccessControlHooksTest is Test, Assertions, Prankster {
     assertEq(logs.length, 0, 'should not emit any events');
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
+  }
+
+  // ========================================================================== //
+  //                               NotHookedMarket                              //
+  // ========================================================================== //
+
+  function test_onDeposit_NotHookedMarket() external {
+    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    MarketState memory state;
+    hooks.onDeposit(address(1), 0, state, '');
+  }
+
+  function test_onTransfer_NotHookedMarket() external {
+    MarketState memory state;
+    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    hooks.onTransfer(address(1), address(1), address(1), 0, state, '');
+  }
+
+  function test_onForceBuyBack_NotHookedMarket() external {
+    MarketState memory state;
+    vm.expectRevert(AccessControlHooks.NotHookedMarket.selector);
+    hooks.onForceBuyBack(address(1), 0, state, '');
   }
 }

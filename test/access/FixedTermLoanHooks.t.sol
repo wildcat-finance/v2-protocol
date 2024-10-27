@@ -5,6 +5,7 @@ import 'forge-std/Test.sol';
 import 'src/access/FixedTermLoanHooks.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import '../shared/mocks/MockRoleProvider.sol';
+import '../shared/mocks/MockRoleProviderFactory.sol';
 import '../shared/mocks/MockFixedTermLoanHooks.sol';
 import '../helpers/Assertions.sol';
 import { bound, warp } from '../helpers/VmUtils.sol';
@@ -27,6 +28,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
   MockFixedTermLoanHooks internal hooks;
   MockRoleProvider internal mockProvider1;
   MockRoleProvider internal mockProvider2;
+  MockRoleProviderFactory internal providerFactory = new MockRoleProviderFactory();
 
   bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
   uint256 internal constant Panic_Arithmetic = 0x11;
@@ -42,6 +44,121 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     // Set block.timestamp to 4:50 am, May 3 2024
     warp(1714737030);
   }
+
+  // ========================================================================== //
+  //                                 Constructor                                //
+  // ========================================================================== //
+
+  function test_constructor_ExistingProviders(
+    bool isPullProvider1,
+    uint32 ttl1,
+    bool isPullProvider2,
+    uint32 ttl2
+  ) external {
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.existingProviders = new ExistingProviderInputs[](2);
+    inputs.existingProviders[0] = ExistingProviderInputs({
+      providerAddress: address(mockProvider1),
+      timeToLive: ttl1
+    });
+    inputs.existingProviders[1] = ExistingProviderInputs({
+      providerAddress: address(mockProvider2),
+      timeToLive: ttl2
+    });
+    mockProvider1.setIsPullProvider(isPullProvider1);
+    mockProvider2.setIsPullProvider(isPullProvider2);
+    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
+    _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
+    hooks = MockFixedTermLoanHooks(
+      address(new FixedTermLoanHooks(address(this), abi.encode(inputs)))
+    );
+    _validateRoleProviders();
+    assertEq(hooks.name(), inputs.name, 'name');
+  }
+
+  function test_constructor_NewProviders(
+    bool isPullProvider1,
+    uint32 ttl1,
+    bool isPullProvider2,
+    uint32 ttl2
+  ) external {
+    bytes32 salt1 = bytes32(uint256(1));
+    bytes32 salt2 = bytes32(uint256(2));
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](2);
+    inputs.newProviderInputs[0] = CreateProviderInputs({
+      providerFactoryCalldata: abi.encode(salt1, isPullProvider1),
+      timeToLive: ttl1
+    });
+    inputs.newProviderInputs[1] = CreateProviderInputs({
+      providerFactoryCalldata: abi.encode(salt2, isPullProvider2),
+      timeToLive: ttl2
+    });
+    _addExpectedProvider(
+      MockRoleProvider(providerFactory.computeProviderAddress(salt1)),
+      ttl1,
+      isPullProvider1
+    );
+    _addExpectedProvider(
+      MockRoleProvider(providerFactory.computeProviderAddress(salt2)),
+      ttl2,
+      isPullProvider2
+    );
+    hooks = MockFixedTermLoanHooks(
+      address(new FixedTermLoanHooks(address(this), abi.encode(inputs)))
+    );
+    _validateRoleProviders();
+    assertEq(hooks.name(), inputs.name, 'name');
+  }
+
+  function test_constructor_NewAndExistingProviders(
+    bool isPullProvider1,
+    uint32 ttl1,
+    bool isPullProvider2,
+    uint32 ttl2
+  ) external {
+    bytes32 salt = bytes32(uint256(1));
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](1);
+    inputs.existingProviders = new ExistingProviderInputs[](1);
+    inputs.existingProviders[0].timeToLive = ttl1;
+    inputs.existingProviders[0].providerAddress = address(mockProvider1);
+    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(salt, isPullProvider2);
+    inputs.newProviderInputs[0].timeToLive = ttl2;
+
+    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
+    _addExpectedProvider(
+      MockRoleProvider(providerFactory.computeProviderAddress(salt)),
+      ttl2,
+      isPullProvider2
+    );
+    hooks = MockFixedTermLoanHooks(
+      address(new FixedTermLoanHooks(address(this), abi.encode(inputs)))
+    );
+    _validateRoleProviders();
+    assertEq(hooks.name(), inputs.name, 'name');
+  }
+
+  function test_constructor_NewProviders_CreateRoleProviderFailed() external {
+    providerFactory.setNextProviderAddress(address(0));
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'FixedTermLoanHooks Name';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](1);
+    inputs.newProviderInputs[0].timeToLive = 1 days;
+    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(bytes32(0), false);
+    vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
+    new FixedTermLoanHooks(address(this), abi.encode(inputs));
+  }
+
+  // ========================================================================== //
+  //                               onCreateMarket                               //
+  // ========================================================================== //
 
   function test_onCreateMarket_CallerNotFactory() external asAccount(address(1)) {
     vm.expectRevert(IHooks.CallerNotFactory.selector);
@@ -401,7 +518,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     uint32 timeToLive,
     bool isPullProvider
   ) internal returns (StandardRoleProvider storage) {
-    if (address(mockProvider) != address(this)) {
+    if (address(mockProvider) != address(this) && address(mockProvider).code.length > 0) {
       mockProvider.setIsPullProvider(isPullProvider);
     }
     uint24 pullProviderIndex = isPullProvider ? numPullProviders++ : NotPullProviderIndex;

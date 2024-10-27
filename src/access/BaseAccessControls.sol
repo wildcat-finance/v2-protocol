@@ -7,6 +7,8 @@ import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
 import '../libraries/SafeCastLib.sol';
+import './ProviderStructs.sol';
+import './IRoleProviderFactory.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -37,6 +39,7 @@ contract BaseAccessControls {
   );
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
+  event NameUpdated(string name);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -54,12 +57,15 @@ contract BaseAccessControls {
   /// @dev Error thrown when a user does not have a valid credential
   error NotApprovedLender();
   error InvalidArrayLength();
+  error CreateRoleProviderFailed();
 
   // ========================================================================== //
   //                                    State                                   //
   // ========================================================================== //
 
   address public immutable borrower;
+  // Name of the hooks instance
+  string public name;
   // Credentials by lender address
   mapping(address => LenderStatus) internal _lenderStatus;
   // Whether an account is a known lender for a given market
@@ -93,9 +99,51 @@ contract BaseAccessControls {
     );
   }
 
+  function _initialize(NameAndProviderInputs memory inputs) internal {
+    name = inputs.name;
+    for (uint256 i = 0; i < inputs.existingProviders.length; i++) {
+      ExistingProviderInputs memory provider = inputs.existingProviders[i];
+      _addRoleProvider(provider.providerAddress, provider.timeToLive);
+    }
+    IRoleProviderFactory providerFactory = IRoleProviderFactory(inputs.roleProviderFactory);
+    if (address(providerFactory) != address(0)) {
+      for (uint256 i; i < inputs.newProviderInputs.length; i++) {
+        CreateProviderInputs memory createProviderInputs = inputs.newProviderInputs[i];
+        _createRoleProvider(
+          providerFactory,
+          createProviderInputs.timeToLive,
+          createProviderInputs.providerFactoryCalldata
+        );
+      }
+    }
+  }
+
+  function setName(string memory _name) external onlyBorrower {
+    name = _name;
+    emit NameUpdated(_name);
+  }
+
   // ========================================================================== //
   //                             Provider management                            //
   // ========================================================================== //
+
+  function createRoleProvider(
+    address providerFactory,
+    uint32 timeToLive,
+    bytes memory data
+  ) external onlyBorrower {
+    _createRoleProvider(IRoleProviderFactory(providerFactory), timeToLive, data);
+  }
+
+  function _createRoleProvider(
+    IRoleProviderFactory providerFactory,
+    uint32 timeToLive,
+    bytes memory data
+  ) internal {
+    address providerAddress = providerFactory.createRoleProvider(data);
+    if (providerAddress == address(0)) revert CreateRoleProviderFailed();
+    _addRoleProvider(providerAddress, timeToLive);
+  }
 
   /**
    * @dev Adds or updates a role provider that is able to grant user access.
@@ -104,6 +152,10 @@ contract BaseAccessControls {
    *      If the provider is already approved, only updates `timeToLive`.
    */
   function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyBorrower {
+    _addRoleProvider(providerAddress, timeToLive);
+  }
+
+  function _addRoleProvider(address providerAddress, uint32 timeToLive) internal {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) {
       bool isPullProvider = IRoleProvider(providerAddress).isPullProvider();

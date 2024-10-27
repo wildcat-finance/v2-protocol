@@ -79,11 +79,10 @@ contract FixedTermLoanHooks is BaseAccessControls, MarketConstraintHooks {
 
   /**
    * @param _deployer Address of the account that called the factory.
-   * @param {} unused extra bytes to match the constructor signature
-   *  restrictedFunctions Configuration specifying which functions to apply
-   *                            access controls to.
+   * @param args Optional abi-encoded `NameAndProviderInputs` struct to initialize
+   *             the providers and name for the hooks instance.
    */
-  constructor(address _deployer, bytes memory /* args */) BaseAccessControls(_deployer) IHooks() {
+  constructor(address _deployer, bytes memory args) BaseAccessControls(_deployer) IHooks() {
     HooksConfig optionalFlags = encodeHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
@@ -103,6 +102,11 @@ contract FixedTermLoanHooks is BaseAccessControls, MarketConstraintHooks {
       .setFlag(Bit_Enabled_CloseMarket)
       .setFlag(Bit_Enabled_QueueWithdrawal);
     config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
+
+    if (args.length > 0) {
+      NameAndProviderInputs memory inputs = abi.decode(args, (NameAndProviderInputs));
+      _initialize(inputs);
+    }
   }
 
   function version() external pure override returns (string memory) {
