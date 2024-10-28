@@ -87,7 +87,7 @@ library LibHooksConfig {
   ) internal pure returns (HooksConfig updatedHooks) {
     assembly {
       // Shift twice to clear the address
-      updatedHooks := shr(96, shl(96, hooks))
+      updatedHooks := shr(160, shl(160, hooks))
       // Set the new address
       updatedHooks := or(updatedHooks, shl(96, _hooksAddress))
     }

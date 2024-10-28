@@ -48,7 +48,11 @@ contract BrokenHooksTemplate {
 contract HooksFactoryTest is Test, Assertions {
   WildcatArchController archController;
   IHooksFactory hooksFactory;
-  address hooksTemplate;
+  address internal immutable MockHooksTemplate =
+    LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
+
+  address internal immutable MockHooksWithConfigTemplate =
+    LibStoredInitCode.deployInitCode(type(MockHooksWithConfig).creationCode);
 
   address internal constant nullAddress = address(0);
   MockERC20 internal feeToken = new MockERC20('Token', 'TKN', 18);
@@ -91,7 +95,7 @@ contract HooksFactoryTest is Test, Assertions {
       marketTemplate,
       marketInitCodeHash
     );
-    hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
+    // hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
     archController.registerControllerFactory(address(hooksFactory));
     hooksFactory.registerWithArchController();
     assertEq(hooksFactory.archController(), address(archController));
@@ -107,7 +111,7 @@ contract HooksFactoryTest is Test, Assertions {
     vm.expectEmit(address(hooksFactory));
     string memory name = 'name';
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
-      hooksTemplate,
+      MockHooksTemplate,
       name,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -115,7 +119,7 @@ contract HooksFactoryTest is Test, Assertions {
       feesInput.protocolFeeBips
     );
     hooksFactory.addHooksTemplate(
-      hooksTemplate,
+      MockHooksTemplate,
       name,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -124,8 +128,8 @@ contract HooksFactoryTest is Test, Assertions {
     );
     address[] memory hooksTemplates = hooksFactory.getHooksTemplates();
     assertEq(hooksTemplates.length, 1);
-    assertEq(hooksTemplates[0], hooksTemplate);
-    HooksTemplate memory template = hooksFactory.getHooksTemplateDetails(hooksTemplate);
+    assertEq(hooksTemplates[0], MockHooksTemplate);
+    HooksTemplate memory template = hooksFactory.getHooksTemplateDetails(MockHooksTemplate);
     assertEq(
       template,
       HooksTemplate({
@@ -148,7 +152,7 @@ contract HooksFactoryTest is Test, Assertions {
     vm.prank(address(1));
     string memory name = 'name';
     hooksFactory.addHooksTemplate(
-      hooksTemplate,
+      MockHooksTemplate,
       name,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -162,7 +166,7 @@ contract HooksFactoryTest is Test, Assertions {
   ) external constrain(feesInput) {
     string memory name = 'name';
     hooksFactory.addHooksTemplate(
-      hooksTemplate,
+      MockHooksTemplate,
       name,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -171,7 +175,7 @@ contract HooksFactoryTest is Test, Assertions {
     );
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateAlreadyExists.selector);
     hooksFactory.addHooksTemplate(
-      hooksTemplate,
+      MockHooksTemplate,
       name,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -185,16 +189,16 @@ contract HooksFactoryTest is Test, Assertions {
     string memory name = 'name';
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 1);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, name, nullAddress, nullAddress, 0, 1);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 1, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, name, nullAddress, nullAddress, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, notNullFeeRecipient, 1, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, name, nullAddress, notNullFeeRecipient, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 1_001);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, name, nullAddress, nullAddress, 0, 1_001);
   }
 
   // ========================================================================== //
@@ -205,11 +209,11 @@ contract HooksFactoryTest is Test, Assertions {
     FuzzFeeConfigurationInputs memory feesInput
   ) external constrain(feesInput) {
     string memory name = 'name';
-    hooksFactory.addHooksTemplate(hooksTemplate, name, address(0), address(0), 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, name, address(0), address(0), 0, 0);
 
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateFeesUpdated(
-      hooksTemplate,
+      MockHooksTemplate,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
       feesInput.originationFeeAmount,
@@ -217,13 +221,13 @@ contract HooksFactoryTest is Test, Assertions {
     );
 
     hooksFactory.updateHooksTemplateFees(
-      hooksTemplate,
+      MockHooksTemplate,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
       feesInput.originationFeeAmount,
       feesInput.protocolFeeBips
     );
-    HooksTemplate memory template = hooksFactory.getHooksTemplateDetails(hooksTemplate);
+    HooksTemplate memory template = hooksFactory.getHooksTemplateDetails(MockHooksTemplate);
     assertEq(
       template,
       HooksTemplate({
@@ -237,7 +241,7 @@ contract HooksFactoryTest is Test, Assertions {
         protocolFeeBips: feesInput.protocolFeeBips
       })
     );
-    assertTrue(hooksFactory.isHooksTemplate(hooksTemplate), '!isHooksTemplate');
+    assertTrue(hooksFactory.isHooksTemplate(MockHooksTemplate), '!isHooksTemplate');
   }
 
   function test_updateHooksTemplateFees_CallerNotArchControllerOwner(
@@ -247,7 +251,7 @@ contract HooksFactoryTest is Test, Assertions {
     uint16 protocolFeeBips
   ) external {
     string memory name = 'name';
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, name, nullAddress, nullAddress, 0, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.CallerNotArchControllerOwner.selector);
     vm.prank(address(1));
@@ -279,19 +283,19 @@ contract HooksFactoryTest is Test, Assertions {
   function test_updateHooksTemplateFees_InvalidFeeConfiguration() external {
     address notNullFeeRecipient = address(1);
     string memory name = 'name';
-    hooksFactory.addHooksTemplate(hooksTemplate, name, nullAddress, nullAddress, 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, name, nullAddress, nullAddress, 0, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, nullAddress, 0, 1);
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, nullAddress, nullAddress, 0, 1);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, nullAddress, 1, 0);
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, nullAddress, nullAddress, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, notNullFeeRecipient, 1, 0);
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, nullAddress, notNullFeeRecipient, 1, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, nullAddress, nullAddress, 0, 1_001);
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, nullAddress, nullAddress, 0, 1_001);
   }
 
   // ========================================================================== //
@@ -299,11 +303,11 @@ contract HooksFactoryTest is Test, Assertions {
   // ========================================================================== //
 
   function test_getMarketsForHooksTemplate() external {
-    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
     archController.registerBorrower(address(this));
 
     bytes memory constructorArgs = '';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, constructorArgs);
 
     bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
 
@@ -333,18 +337,18 @@ contract HooksFactoryTest is Test, Assertions {
       address(0),
       0
     );
-    address[] memory markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate);
+    address[] memory markets = hooksFactory.getMarketsForHooksTemplate(MockHooksTemplate);
     assertEq(markets.length, 2);
     assertEq(markets[0], market0);
     assertEq(markets[1], market1);
-    markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate, 0, 3);
+    markets = hooksFactory.getMarketsForHooksTemplate(MockHooksTemplate, 0, 3);
     assertEq(markets.length, 2);
     assertEq(markets[0], market0);
     assertEq(markets[1], market1);
-    markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate, 1, 2);
+    markets = hooksFactory.getMarketsForHooksTemplate(MockHooksTemplate, 1, 2);
     assertEq(markets.length, 1);
     assertEq(markets[0], market1);
-    assertEq(hooksFactory.getMarketsForHooksTemplateCount(hooksTemplate), 2);
+    assertEq(hooksFactory.getMarketsForHooksTemplateCount(MockHooksTemplate), 2);
   }
 
   // ========================================================================== //
@@ -355,7 +359,7 @@ contract HooksFactoryTest is Test, Assertions {
     FuzzFeeConfigurationInputs memory feesInput
   ) external constrain(feesInput) {
     hooksFactory.addHooksTemplate(
-      hooksTemplate,
+      MockHooksTemplate,
       'name',
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -364,11 +368,11 @@ contract HooksFactoryTest is Test, Assertions {
     );
 
     vm.expectEmit(address(hooksFactory));
-    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(hooksTemplate);
+    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(MockHooksTemplate);
 
-    hooksFactory.disableHooksTemplate(hooksTemplate);
+    hooksFactory.disableHooksTemplate(MockHooksTemplate);
 
-    HooksTemplate memory template = hooksFactory.getHooksTemplateDetails(hooksTemplate);
+    HooksTemplate memory template = hooksFactory.getHooksTemplateDetails(MockHooksTemplate);
     assertEq(
       template,
       HooksTemplate({
@@ -390,11 +394,11 @@ contract HooksFactoryTest is Test, Assertions {
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
   ) external {
-    hooksFactory.addHooksTemplate(hooksTemplate, 'name', nullAddress, nullAddress, 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'name', nullAddress, nullAddress, 0, 0);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.CallerNotArchControllerOwner.selector);
     vm.prank(address(1));
-    hooksFactory.disableHooksTemplate(hooksTemplate);
+    hooksFactory.disableHooksTemplate(MockHooksTemplate);
   }
 
   function test_disableHooksTemplate_HooksTemplateNotFound(
@@ -404,7 +408,7 @@ contract HooksFactoryTest is Test, Assertions {
     uint16 protocolFeeBips
   ) external {
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
-    hooksFactory.disableHooksTemplate(hooksTemplate);
+    hooksFactory.disableHooksTemplate(MockHooksTemplate);
   }
 
   // ========================================================================== //
@@ -416,7 +420,7 @@ contract HooksFactoryTest is Test, Assertions {
   ) external constrain(feesInput) {
     archController.registerBorrower(address(this));
     hooksFactory.addHooksTemplate(
-      hooksTemplate,
+      MockHooksTemplate,
       'name',
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -426,7 +430,7 @@ contract HooksFactoryTest is Test, Assertions {
     // vm.expectEmit(address(hooksFactory));
     // emit IHooksFactory.HooksContractDeployed(address(0), address(0));
     bytes memory constructorArgs = 'o hey this is my hook arg do u like it';
-    address hooks = hooksFactory.deployHooksInstance(hooksTemplate, constructorArgs);
+    address hooks = hooksFactory.deployHooksInstance(MockHooksTemplate, constructorArgs);
     MockHooks hooksInstance = MockHooks(hooks);
     assertEq(hooksInstance.deployer(), address(this));
     assertEq(hooksInstance.constructorArgsHash(), keccak256(constructorArgs));
@@ -453,10 +457,10 @@ contract HooksFactoryTest is Test, Assertions {
 
   function test_deployHooksInstance_HooksTemplateNotAvailable() external {
     archController.registerBorrower(address(this));
-    hooksFactory.addHooksTemplate(hooksTemplate, 'name', nullAddress, nullAddress, 0, 0);
-    hooksFactory.disableHooksTemplate(hooksTemplate);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'name', nullAddress, nullAddress, 0, 0);
+    hooksFactory.disableHooksTemplate(MockHooksTemplate);
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
-    hooksFactory.deployHooksInstance(hooksTemplate, '');
+    hooksFactory.deployHooksInstance(MockHooksTemplate, '');
   }
 
   function _validateDeployHooksInstance(
@@ -520,6 +524,7 @@ contract HooksFactoryTest is Test, Assertions {
         initCodeHash
       );
   }
+
   function _setUpDeployHooksInstance(
     address hooksTemplate,
     address borrower,
@@ -628,33 +633,52 @@ contract HooksFactoryTest is Test, Assertions {
     }
   }
 
+  struct ExpectEventsDeployMarketArgs {
+    DeployMarketInputs parameters;
+    FuzzFeeConfigurationInputs feesInput;
+    HooksConfig expectedConfig;
+    address hooksTemplate;
+  }
+
   // @todo context obj for tracking variables like salt
-  function _expectEventsDeployMarket(
-    DeployMarketInputs memory parameters,
-    FuzzFeeConfigurationInputs memory feesInput,
-    HooksConfig expectedConfig
-  ) internal {
-    if (feesInput.originationFeeAsset != nullAddress && feesInput.originationFeeAmount > 0) {
-      vm.expectEmit(address(feeToken));
-      emit ERC20.Transfer(address(this), feesInput.feeRecipient, feesInput.originationFeeAmount);
+  function _expectEventsDeployMarket(ExpectEventsDeployMarketArgs memory args) internal {
+    {
+      if (
+        args.feesInput.originationFeeAsset != nullAddress && args.feesInput.originationFeeAmount > 0
+      ) {
+        vm.expectEmit(address(feeToken));
+        emit ERC20.Transfer(
+          address(this),
+          args.feesInput.feeRecipient,
+          args.feesInput.originationFeeAmount
+        );
+      }
     }
-    string memory name = string.concat(parameters.namePrefix, ERC20(parameters.asset).name());
-    string memory symbol = string.concat(parameters.symbolPrefix, ERC20(parameters.asset).symbol());
-    vm.expectEmit(address(hooksFactory));
-    emit IHooksFactoryEventsAndErrors.MarketDeployed(
-      hooksTemplate,
-      hooksFactory.computeMarketAddress(bytes32(uint(1))),
-      name,
-      symbol,
-      parameters.asset,
-      parameters.maxTotalSupply,
-      parameters.annualInterestBips,
-      parameters.delinquencyFeeBips,
-      parameters.withdrawalBatchDuration,
-      parameters.reserveRatioBips,
-      parameters.delinquencyGracePeriod,
-      expectedConfig
-    );
+    {
+      string memory name = string.concat(
+        args.parameters.namePrefix,
+        ERC20(args.parameters.asset).name()
+      );
+      string memory symbol = string.concat(
+        args.parameters.symbolPrefix,
+        ERC20(args.parameters.asset).symbol()
+      );
+      vm.expectEmit(address(hooksFactory));
+      emit IHooksFactoryEventsAndErrors.MarketDeployed(
+        args.hooksTemplate,
+        hooksFactory.computeMarketAddress(bytes32(uint(1))),
+        name,
+        symbol,
+        args.parameters.asset,
+        args.parameters.maxTotalSupply,
+        args.parameters.annualInterestBips,
+        args.parameters.delinquencyFeeBips,
+        args.parameters.withdrawalBatchDuration,
+        args.parameters.reserveRatioBips,
+        args.parameters.delinquencyGracePeriod,
+        args.expectedConfig
+      );
+    }
   }
 
   function _validateDeployedMarket(
@@ -722,13 +746,17 @@ contract HooksFactoryTest is Test, Assertions {
     FuzzFeeConfigurationInputs memory feesInput,
     StandardHooksConfig memory marketHooksConfig,
     StandardHooksDeploymentConfig memory templateHooksConfig,
-    bytes memory hooksData
+    bytes memory hooksData,
+    address hooksTemplate
   ) internal returns (WildcatMarket market) {
     _setUpDeployMarket(feesInput);
     _expectEventsDeployMarket(
-      parameters,
-      feesInput,
-      marketHooksConfig.mergeFlags(templateHooksConfig).toHooksConfig()
+      ExpectEventsDeployMarketArgs({
+        parameters: parameters,
+        feesInput: feesInput,
+        expectedConfig: marketHooksConfig.mergeFlags(templateHooksConfig).toHooksConfig(),
+        hooksTemplate: hooksTemplate
+      })
     );
     market = WildcatMarket(
       hooksFactory.deployMarket(
@@ -755,10 +783,10 @@ contract HooksFactoryTest is Test, Assertions {
   ) external constrain(feesInput) {
     archController.registerBorrower(address(this));
 
-    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+    _validateAddHooksTemplate(MockHooksTemplate, 'name', feesInput);
 
     bytes memory constructorArgs = 'o hey this is my market arg do u like it';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, constructorArgs);
 
     bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
     paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
@@ -782,16 +810,17 @@ contract HooksFactoryTest is Test, Assertions {
       feesInput,
       paramsInput.marketHooksConfig,
       paramsInput.templateHooksConfig,
-      createMarketHooksData
+      createMarketHooksData,
+      MockHooksTemplate
     );
   }
 
   function test_deployMarket_NameOrSymbolTooLong() external {
-    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
     archController.registerBorrower(address(this));
 
     bytes memory constructorArgs = '';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, constructorArgs);
 
     bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
     string
@@ -838,11 +867,11 @@ contract HooksFactoryTest is Test, Assertions {
   }
 
   function test_deployMarket_MarketAlreadyExists() external {
-    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
     archController.registerBorrower(address(this));
 
     bytes memory constructorArgs = '';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, constructorArgs);
 
     bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
     // paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
@@ -866,11 +895,11 @@ contract HooksFactoryTest is Test, Assertions {
   }
 
   function test_deployMarket_AssetBlacklisted() external {
-    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0), address(0), 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
     archController.registerBorrower(address(this));
 
     bytes memory constructorArgs = '';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, constructorArgs);
 
     bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
     // paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
@@ -911,10 +940,10 @@ contract HooksFactoryTest is Test, Assertions {
   ) external constrain(feesInput) {
     archController.registerBorrower(address(this));
 
-    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+    _validateAddHooksTemplate(MockHooksTemplate, 'name', feesInput);
 
     bytes memory constructorArgs = 'o hey this is my market arg do u like it';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, constructorArgs);
 
     paramsInput.marketHooksConfig.hooksAddress = address(hooksInstance);
 
@@ -947,13 +976,12 @@ contract HooksFactoryTest is Test, Assertions {
     FuzzDeployMarketInputs memory paramsInput,
     FuzzFeeConfigurationInputs memory feesInput
   ) external constrain(feesInput) {
-    hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooksWithConfig).creationCode);
     archController.registerBorrower(address(this));
-    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+    _validateAddHooksTemplate(MockHooksWithConfigTemplate, 'name', feesInput);
 
     CreateMarketAndHooksContext memory context;
     context.expectedHooksInstance = _setUpDeployHooksInstance(
-      hooksTemplate,
+      MockHooksWithConfigTemplate,
       address(this),
       abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig())
     );
@@ -980,12 +1008,19 @@ contract HooksFactoryTest is Test, Assertions {
       delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
       hooks: paramsInput.marketHooksConfig.toHooksConfig()
     });
-    _expectEventsDeployHooksInstance(hooksTemplate, context.expectedHooksInstance);
-    _expectEventsDeployMarket(context.parameters, feesInput, context.expectedConfig);
+    _expectEventsDeployHooksInstance(MockHooksWithConfigTemplate, context.expectedHooksInstance);
+    _expectEventsDeployMarket(
+      ExpectEventsDeployMarketArgs({
+        parameters: context.parameters,
+        feesInput: feesInput,
+        expectedConfig: context.expectedConfig,
+        hooksTemplate: MockHooksWithConfigTemplate
+      })
+    );
 
     {
       (context.marketAddress, context.hooksInstance) = hooksFactory.deployMarketAndHooks(
-        hooksTemplate,
+        MockHooksWithConfigTemplate,
         context.constructorArgs,
         context.parameters,
         context.createMarketHooksData,
@@ -1003,7 +1038,7 @@ contract HooksFactoryTest is Test, Assertions {
       );
     }
     _validateDeployedHooksInstance(
-      hooksTemplate,
+      MockHooksWithConfigTemplate,
       context.expectedHooksInstance,
       MockHooks(context.hooksInstance),
       context.constructorArgs
@@ -1014,12 +1049,11 @@ contract HooksFactoryTest is Test, Assertions {
     FuzzDeployMarketInputs memory paramsInput,
     FuzzFeeConfigurationInputs memory feesInput
   ) external constrain(feesInput) {
-    hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooksWithConfig).creationCode);
-    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+    _validateAddHooksTemplate(MockHooksWithConfigTemplate, 'name', feesInput);
 
     CreateMarketAndHooksContext memory context;
     context.expectedHooksInstance = _setUpDeployHooksInstance(
-      hooksTemplate,
+      MockHooksWithConfigTemplate,
       address(this),
       abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig())
     );
@@ -1048,7 +1082,7 @@ contract HooksFactoryTest is Test, Assertions {
     });
     vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
     hooksFactory.deployMarketAndHooks(
-      hooksTemplate,
+      MockHooksWithConfigTemplate,
       context.constructorArgs,
       context.parameters,
       context.createMarketHooksData,
@@ -1091,13 +1125,12 @@ contract HooksFactoryTest is Test, Assertions {
     FuzzDeployMarketInputs memory paramsInput,
     FuzzFeeConfigurationInputs memory feesInput
   ) external constrain(feesInput) {
-    hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooksWithConfig).creationCode);
     archController.registerBorrower(address(this));
-    _validateAddHooksTemplate(hooksTemplate, 'name', feesInput);
+    _validateAddHooksTemplate(MockHooksWithConfigTemplate, 'name', feesInput);
 
     CreateMarketAndHooksContext memory context;
     context.expectedHooksInstance = _setUpDeployHooksInstance(
-      hooksTemplate,
+      MockHooksWithConfigTemplate,
       address(this),
       abi.encode(paramsInput.templateHooksConfig.toHooksDeploymentConfig())
     );
@@ -1128,7 +1161,7 @@ contract HooksFactoryTest is Test, Assertions {
     vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
 
     hooksFactory.deployMarketAndHooks(
-      hooksTemplate,
+      MockHooksWithConfigTemplate,
       context.constructorArgs,
       context.parameters,
       context.createMarketHooksData,
@@ -1138,7 +1171,7 @@ contract HooksFactoryTest is Test, Assertions {
     );
     vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
     hooksFactory.deployMarketAndHooks(
-      hooksTemplate,
+      MockHooksWithConfigTemplate,
       context.constructorArgs,
       context.parameters,
       context.createMarketHooksData,
@@ -1163,11 +1196,11 @@ contract HooksFactoryTest is Test, Assertions {
   // ========================================================================== //
 
   function test_pushProtocolFeeBipsUpdates() external {
-    hooksFactory.addHooksTemplate(hooksTemplate, 'template', address(0xfee), address(0), 0, 0);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0xfee), address(0), 0, 0);
     archController.registerBorrower(address(this));
 
     bytes memory constructorArgs = '';
-    MockHooks hooksInstance = _validateDeployHooksInstance(hooksTemplate, constructorArgs);
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, constructorArgs);
 
     bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
 
@@ -1198,33 +1231,32 @@ contract HooksFactoryTest is Test, Assertions {
       0
     );
 
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, address(0xfee), address(0), 0, 1_000);
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 1_000);
     vm.expectEmit(market0);
     emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(1_000);
     vm.expectEmit(market1);
     emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(1_000);
-    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate);
     assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 1_000);
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 1_000);
 
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, address(0xfee), address(0), 0, 500);
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 500);
     vm.expectEmit(market0);
     emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(500);
-    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate, 0, 1);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 0, 1);
     assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 500);
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 1_000);
 
-    hooksFactory.updateHooksTemplateFees(hooksTemplate, address(0xfee), address(0), 0, 100);
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 100);
     vm.expectEmit(market1);
     emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(100);
-    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate, 1, 2);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 1, 2);
     assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 500);
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 100);
   }
 
   function test_pushProtocolFeeBipsUpdates_HooksTemplateNotFound() external {
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
-    hooksFactory.pushProtocolFeeBipsUpdates(hooksTemplate);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate);
   }
-
 }

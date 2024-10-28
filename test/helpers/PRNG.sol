@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 
+import { bound } from './VmUtils.sol';
+
 type PRNG is uint256;
 using LibPRNG for PRNG global;
 
@@ -33,6 +35,18 @@ library LibPRNG {
       result := keccak256(self, 0x20)
       mstore(self, result)
     }
+  }
+
+  function next(PRNG self, uint256 min, uint256 max) internal pure returns (uint256) {
+    return bound(self.next(), min, max);
+  }
+
+  function nextBool(PRNG self) internal pure returns (bool) {
+    return bound(self.next(), 0, 1) == 1;
+  }
+
+  function nextEnum(PRNG self, uint8 min, uint8 max) internal pure returns (uint8) {
+    return uint8(bound(self.next(), min, max));
   }
 
   /// @dev Returns the next `length` bytes of pseudorandom data.
