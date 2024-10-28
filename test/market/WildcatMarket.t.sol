@@ -72,7 +72,6 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_updateState_HasPendingExpiredBatch_SameBlock() external {
     parameters.annualInterestBips = 3650;
     parameters.withdrawalBatchDuration = 0;
-    setUpContracts(false);
     setUp();
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
@@ -487,10 +486,7 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_forceBuyBack_FuzzAccess(
     MarketHooksConfigFuzzInputs memory fuzzInputs,
     bool fastForwardToTermEnd
-  )
-    external
-    asAccount(borrower)
-  {
+  ) external asAccount(borrower) {
     applyFuzzedHooksConfig(fuzzInputs);
     uint amount = MathUtils.max(
       100,
@@ -677,6 +673,34 @@ contract WildcatMarketTest is BaseMarketTest {
     assertEq(market.balanceOf(bob), 1e18, 'bob.balance');
   }
 
+  function test_transfer_TransfersDisabled(bool fixedTerm) external {
+    parameters.transfersDisabled = true;
+    if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
+    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.AccessControl);
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    vm.expectRevert(AccessControlHooks.TransfersDisabled.selector);
+    market.transfer(bob, 0.5e18);
+  }
+
+  function test_transfer_RecipientNotKnownLender(bool fixedTerm) external {
+    if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
+    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.AccessControl);
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    market.transfer(bob, 0.5e18);
+  }
+
+  function test_transfer_NotApprovedLender() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
+    reset();
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    market.transfer(bob, 0.5e18);
+  }
+
   // ========================================================================== //
   //                                Force Buyback                               //
   // ========================================================================== //
@@ -705,14 +729,18 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_forceBuyBack_ForceBuyBackDisabledBeforeTerm() external asAccount(borrower) {
     parameters.allowForceBuyBack = true;
     parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
-    resetWithNewHooks(HooksKind.FixedTerm);
+    parameters.hooksTemplate = fixedTermHooksTemplate;
+    parameters.deployMarketHooksData = '';
+    hooks = AccessControlHooks(address(0));
+    parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(0));
+    setUpContracts(false);
     vm.expectRevert(FixedTermLoanHooks.ForceBuyBackDisabledBeforeTerm.selector);
     market.forceBuyBack(alice, 1e17);
   }
 
   function test_forceBuyBack() external asAccount(borrower) {
     parameters.allowForceBuyBack = true;
-    resetWithNewHooks(HooksKind.AccessControl);
+    reset();
     _deposit(alice, 1e18);
     asset.approve(address(market), 1e17);
     asset.mint(borrower, 1e17);

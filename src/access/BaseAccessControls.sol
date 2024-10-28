@@ -7,6 +7,8 @@ import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
 import '../libraries/SafeCastLib.sol';
+import './ProviderStructs.sol';
+import './IRoleProviderFactory.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -20,14 +22,20 @@ contract BaseAccessControls {
   event RoleProviderUpdated(
     address indexed providerAddress,
     uint32 timeToLive,
-    uint24 pullProviderIndex
+    uint24 pullProviderIndex,
+    uint24 pushProviderIndex
   );
   event RoleProviderAdded(
     address indexed providerAddress,
     uint32 timeToLive,
-    uint24 pullProviderIndex
+    uint24 pullProviderIndex,
+    uint24 pushProviderIndex
   );
-  event RoleProviderRemoved(address indexed providerAddress, uint24 pullProviderIndex);
+  event RoleProviderRemoved(
+    address indexed providerAddress,
+    uint24 pullProviderIndex,
+    uint24 pushProviderIndex
+  );
   event AccountBlockedFromDeposits(address indexed accountAddress);
   event AccountUnblockedFromDeposits(address indexed accountAddress);
   event AccountAccessGranted(
@@ -37,6 +45,7 @@ contract BaseAccessControls {
   );
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
+  event NameUpdated(string name);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -54,20 +63,21 @@ contract BaseAccessControls {
   /// @dev Error thrown when a user does not have a valid credential
   error NotApprovedLender();
   error InvalidArrayLength();
+  error CreateRoleProviderFailed();
 
   // ========================================================================== //
   //                                    State                                   //
   // ========================================================================== //
 
   address public immutable borrower;
+  // Name of the hooks instance
+  string public name;
   // Credentials by lender address
   mapping(address => LenderStatus) internal _lenderStatus;
   // Whether an account is a known lender for a given market
   mapping(address lender => mapping(address market => bool)) public isKnownLenderOnMarket;
-  // Provider data is duplicated in the array and mapping to allow
-  // push providers to update in a single step and pull providers to
-  // be looped over without having to access the mapping.
   RoleProvider[] internal _pullProviders;
+  RoleProvider[] internal _pushProviders;
   mapping(address => RoleProvider) internal _roleProviders;
 
   // ========================================================================== //
@@ -86,16 +96,61 @@ contract BaseAccessControls {
   constructor(address _borrower) {
     borrower = _borrower;
     // Allow deployer to grant roles with no expiry
-    _roleProviders[_borrower] = encodeRoleProvider(
+    RoleProvider borrowerProvider = encodeRoleProvider(
       type(uint32).max,
       _borrower,
-      NotPullProviderIndex
+      NullProviderIndex,
+      0
     );
+    _roleProviders[borrower] = borrowerProvider;
+    _pushProviders.push(borrowerProvider);
+  }
+
+  function _initialize(NameAndProviderInputs memory inputs) internal {
+    name = inputs.name;
+    for (uint256 i = 0; i < inputs.existingProviders.length; i++) {
+      ExistingProviderInputs memory provider = inputs.existingProviders[i];
+      _addRoleProvider(provider.providerAddress, provider.timeToLive);
+    }
+    IRoleProviderFactory providerFactory = IRoleProviderFactory(inputs.roleProviderFactory);
+    if (address(providerFactory) != address(0)) {
+      for (uint256 i; i < inputs.newProviderInputs.length; i++) {
+        CreateProviderInputs memory createProviderInputs = inputs.newProviderInputs[i];
+        _createRoleProvider(
+          providerFactory,
+          createProviderInputs.timeToLive,
+          createProviderInputs.providerFactoryCalldata
+        );
+      }
+    }
+  }
+
+  function setName(string memory _name) external onlyBorrower {
+    name = _name;
+    emit NameUpdated(_name);
   }
 
   // ========================================================================== //
   //                             Provider management                            //
   // ========================================================================== //
+
+  function createRoleProvider(
+    address providerFactory,
+    uint32 timeToLive,
+    bytes memory data
+  ) external onlyBorrower {
+    _createRoleProvider(IRoleProviderFactory(providerFactory), timeToLive, data);
+  }
+
+  function _createRoleProvider(
+    IRoleProviderFactory providerFactory,
+    uint32 timeToLive,
+    bytes memory data
+  ) internal {
+    address providerAddress = providerFactory.createRoleProvider(data);
+    if (providerAddress == address(0)) revert CreateRoleProviderFailed();
+    _addRoleProvider(providerAddress, timeToLive);
+  }
 
   /**
    * @dev Adds or updates a role provider that is able to grant user access.
@@ -104,28 +159,41 @@ contract BaseAccessControls {
    *      If the provider is already approved, only updates `timeToLive`.
    */
   function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyBorrower {
+    _addRoleProvider(providerAddress, timeToLive);
+  }
+
+  function _addRoleProvider(address providerAddress, uint32 timeToLive) internal {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) {
       bool isPullProvider = IRoleProvider(providerAddress).isPullProvider();
+      (uint24 pullProviderIndex, uint24 pushProviderIndex) = isPullProvider
+        ? (uint24(_pullProviders.length), NullProviderIndex)
+        : (NullProviderIndex, uint24(_pushProviders.length));
       // Role providers that are not pull providers have `pullProviderIndex` set to
-      // `NotPullProviderIndex` (max uint24) to indicate they do not refresh credentials.
+      // `NullProviderIndex` (max uint24) to indicate they do not refresh credentials.
       provider = encodeRoleProvider(
         timeToLive,
         providerAddress,
-        isPullProvider ? uint24(_pullProviders.length) : NotPullProviderIndex
+        pullProviderIndex,
+        pushProviderIndex
       );
       if (isPullProvider) {
         _pullProviders.push(provider);
+      } else {
+        _pushProviders.push(provider);
       }
-      emit RoleProviderAdded(providerAddress, timeToLive, provider.pullProviderIndex());
+      emit RoleProviderAdded(providerAddress, timeToLive, pullProviderIndex, pushProviderIndex);
     } else {
       // If provider already exists, the only value that can be updated is the TTL
       provider = provider.setTimeToLive(timeToLive);
       uint24 pullProviderIndex = provider.pullProviderIndex();
-      if (pullProviderIndex != NotPullProviderIndex) {
+      uint24 pushProviderIndex = provider.pushProviderIndex();
+      if (pullProviderIndex != NullProviderIndex) {
         _pullProviders[pullProviderIndex] = provider;
-      } else {}
-      emit RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);
+      } else {
+        _pushProviders[pushProviderIndex] = provider;
+      }
+      emit RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex, pushProviderIndex);
     }
     // Update the provider in storage
     _roleProviders[providerAddress] = provider;
@@ -140,10 +208,16 @@ contract BaseAccessControls {
     if (provider.isNull()) revert ProviderNotFound();
     // Remove the provider from `_roleProviders`
     _roleProviders[providerAddress] = EmptyRoleProvider;
-    emit RoleProviderRemoved(providerAddress, provider.pullProviderIndex());
+    emit RoleProviderRemoved(
+      providerAddress,
+      provider.pullProviderIndex(),
+      provider.pushProviderIndex()
+    );
     // If the provider is a pull provider, remove it from `_pullProviders`
     if (provider.isPullProvider()) {
       _removePullProvider(provider.pullProviderIndex());
+    } else {
+      _removePushProvider(provider.pushProviderIndex());
     }
   }
 
@@ -169,7 +243,42 @@ contract BaseAccessControls {
     address lastProviderAddress = lastProvider.providerAddress();
     _roleProviders[lastProviderAddress] = lastProvider;
     // Emit an event to notify that the provider's index has been updated
-    emit RoleProviderUpdated(lastProviderAddress, lastProvider.timeToLive(), indexToRemove);
+    emit RoleProviderUpdated(
+      lastProviderAddress,
+      lastProvider.timeToLive(),
+      indexToRemove,
+      NullProviderIndex
+    );
+  }
+
+  /**
+   * @dev Remove a push provider from the `_pushProviders` array.
+   *      If the provider is not the last in the array, the last provider
+   *      is moved to the index of the provider being removed, so its index
+   *      must also be updated in the `_roleProviders` mapping.
+   */
+  function _removePushProvider(uint24 indexToRemove) internal {
+    // Get the last index in the array
+    uint256 lastIndex = _pushProviders.length - 1;
+    // If the index to remove is the last index, just pop the last element
+    if (indexToRemove == lastIndex) {
+      _pushProviders.pop();
+      return;
+    }
+    // If the index to remove is not the last index, move the last element
+    // to the index of the element being removed
+    RoleProvider lastProvider = _pushProviders[lastIndex].setPushProviderIndex(indexToRemove);
+    _pushProviders[indexToRemove] = lastProvider;
+    _pushProviders.pop();
+    address lastProviderAddress = lastProvider.providerAddress();
+    _roleProviders[lastProviderAddress] = lastProvider;
+    // Emit an event to notify that the provider's index has been updated
+    emit RoleProviderUpdated(
+      lastProviderAddress,
+      lastProvider.timeToLive(),
+      NullProviderIndex,
+      indexToRemove
+    );
   }
 
   // ========================================================================== //
@@ -182,6 +291,10 @@ contract BaseAccessControls {
 
   function getPullProviders() external view returns (RoleProvider[] memory) {
     return _pullProviders;
+  }
+
+  function getPushProviders() external view returns (RoleProvider[] memory) {
+    return _pushProviders;
   }
 
   // ========================================================================== //

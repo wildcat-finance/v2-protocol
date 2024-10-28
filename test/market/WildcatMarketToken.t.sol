@@ -40,7 +40,7 @@ contract WildcatMarketTokenTest is BaseERC20Test, BaseMarketTest {
     }
   }
 
-  function setUp() public override(BaseERC20Test, BaseMarketTest) {
+  function setUp() public virtual override(BaseERC20Test, BaseMarketTest) {
     parameters.maxTotalSupply = uint128(_maxAmount());
     parameters.annualInterestBips = 0;
     parameters.withdrawalBatchDuration = 0;
