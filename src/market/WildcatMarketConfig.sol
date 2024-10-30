@@ -75,9 +75,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //          *          *          *       ```--. . , ; .--'''      *
   //          *          *          *   💸        | |   |            *
   //          *          *          *          .-=||  | |=-.    💸   *
-  //  💰🤑💰 *    😅   *    😐    *    💸    `-=#$%&%$#=-'         *
-  //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪       *
-  //   /\     * 💰/\ 💰 * 💰/\ 💰 *    _____.,-#%&$@%#&#~,._____    *
+  //  💰🤑💰  *    😅    *    😐    *    💸    `-=#$%&%$#=-'         *
+  //   \|/    *   /|\    *   /|\    *  🌪         | ;  :|    🌪      *
+  //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____   *
   // ******************************************************************
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
     if (!_isSanctioned(accountAddress)) revert_BadLaunchCode();
@@ -161,20 +161,16 @@ contract WildcatMarketConfig is WildcatMarketBase {
     emit_ReserveRatioBipsUpdated(_reserveRatioBips);
   }
 
-  function setProtocolFeeBips(
-    uint16 _protocolFeeBips
-  ) external nonReentrant sphereXGuardExternal {
+  function setProtocolFeeBips(uint16 _protocolFeeBips) external nonReentrant sphereXGuardExternal {
     if (msg.sender != factory) revert_NotFactory();
     if (_protocolFeeBips > 1_000) revert_ProtocolFeeTooHigh();
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_ProtocolFeeChangeOnClosedMarket();
-    if (_protocolFeeBips != state.protocolFeeBips)
-      {
-        hooks.onSetProtocolFeeBips(_protocolFeeBips, state);
-        state.protocolFeeBips = _protocolFeeBips;
-        emit ProtocolFeeBipsUpdated(_protocolFeeBips);
-      }
+    if (_protocolFeeBips != state.protocolFeeBips) {
+      hooks.onSetProtocolFeeBips(_protocolFeeBips, state);
+      state.protocolFeeBips = _protocolFeeBips;
+      emit ProtocolFeeBipsUpdated(_protocolFeeBips);
+    }
     _writeState(state);
   }
-    
 }
