@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 interface IRoleProvider {
@@ -12,5 +12,8 @@ interface IRoleProvider {
    * @param data The data to validate the credential with.
    * @return timestamp The timestamp at which the credential was granted.
    */
-  function validateCredential(address account, bytes calldata data) external returns (uint32 timestamp);
+  function validateCredential(
+    address account,
+    bytes calldata data
+  ) external returns (uint32 timestamp);
 }
