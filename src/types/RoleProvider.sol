@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import '../libraries/MathUtils.sol';
@@ -26,7 +26,6 @@ function encodeRoleProvider(
   }
 }
 
-
 library LibRoleProvider {
   using MathUtils for uint256;
 
@@ -48,7 +47,12 @@ library LibRoleProvider {
   )
     internal
     pure
-    returns (uint32 _timeToLive, address _providerAddress, uint24 _pullProviderIndex, uint24 _pushProviderIndex)
+    returns (
+      uint32 _timeToLive,
+      address _providerAddress,
+      uint24 _pullProviderIndex,
+      uint24 _pushProviderIndex
+    )
   {
     assembly {
       _timeToLive := shr(0xe0, provider)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 import './RoleProvider.sol';
 
@@ -38,7 +38,7 @@ library LibLenderStatus {
   }
 
   /**
-    * @dev Returns whether the lender's credential has not expired.
+   * @dev Returns whether the lender's credential has not expired.
    *
    *      Note: Does not check if the lender has a credential - if the
    *      provider's TTL is greater than the current block timestamp,
