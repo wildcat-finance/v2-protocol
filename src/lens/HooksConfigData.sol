@@ -68,6 +68,7 @@ library HooksConfigDataLib {
       OpenTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
       data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
+      data.withdrawalRequiresAccess = encodedHooksConfig.useOnQueueWithdrawal();
       data.minimumDeposit = hookedMarket.minimumDeposit;
       data.transfersDisabled = hookedMarket.transfersDisabled;
       data.allowForceBuyBacks = hookedMarket.allowForceBuyBacks;

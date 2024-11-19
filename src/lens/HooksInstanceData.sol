@@ -15,9 +15,9 @@ using HooksInstanceDataLib for HooksInstanceData global;
 struct HooksInstanceData {
   address hooksAddress;
   address borrower;
+  string name;
   HooksInstanceKind kind;
-  address hooksTemplate;
-  string hooksTemplateName;
+  HooksTemplateData hooksTemplate;
   MarketParameterConstraints constraints;
   HooksDeploymentFlags deploymentFlags;
   RoleProviderData[] pullProviders;
@@ -35,12 +35,12 @@ library HooksInstanceDataLib {
   ) internal view {
     data.hooksAddress = hooksAddress;
 
-    data.hooksTemplate = factory.getHooksTemplateForInstance(hooksAddress);
-    data.hooksTemplateName = factory.getHooksTemplateDetails(data.hooksTemplate).name;
+    address templateAddress = factory.getHooksTemplateForInstance(hooksAddress);
+    data.hooksTemplate.fill(factory, templateAddress, data.borrower);
 
     IHooks hooks = IHooks(hooksAddress);
 
-    bytes32 versionHash = keccak256(bytes(data.hooksTemplateName));
+    bytes32 versionHash = keccak256(bytes(data.hooksTemplate.name));
     if (versionHash == keccak256('OpenTermHooks')) {
       data.kind = HooksInstanceKind.OpenTerm;
     } else if (versionHash == keccak256('FixedTermHooks')) {
@@ -55,6 +55,7 @@ library HooksInstanceDataLib {
       data.pullProviders = hooks.getPullProviders().toRoleProviderDatas();
       data.pushProviders = hooks.getPushProviders().toRoleProviderDatas();
       data.constraints = hooks.getParameterConstraints();
+      data.name = hooks.name();
     }
     data.deploymentFlags.fill(hooks.config());
     data.totalMarkets = factory.getMarketsForHooksInstanceCount(hooksAddress);
