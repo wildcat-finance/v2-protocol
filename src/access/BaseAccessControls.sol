@@ -427,6 +427,16 @@ contract BaseAccessControls {
   }
 
   function revokeRole(address account) external {
+    _revokeRole(account);
+  }
+
+  function revokeRoles(address[] memory accounts) external {
+    for (uint256 i = 0; i < accounts.length; i++) {
+      _revokeRole(accounts[i]);
+    }
+  }
+
+  function _revokeRole(address account) internal {
     LenderStatus memory status = _lenderStatus[account];
     if (status.lastProvider != msg.sender) {
       revert ProviderCanNotRevokeCredential();
