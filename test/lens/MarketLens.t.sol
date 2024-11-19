@@ -163,9 +163,9 @@ contract MarketDataTest is BaseMarketTest {
         : uint256(HooksInstanceKind.FixedTermLoan),
       'kind'
     );
-    assertEq(data.hooksTemplate, parameters.hooksTemplate, 'hooksTemplate');
+    assertEq(data.hooksTemplate.hooksTemplate, parameters.hooksTemplate, 'hooksTemplate');
     assertEq(
-      data.hooksTemplateName,
+      data.hooksTemplate.name,
       inputs.isOpenTermHooks ? 'OpenTermHooks' : 'FixedTermHooks',
       'hooksTemplateName'
     );
