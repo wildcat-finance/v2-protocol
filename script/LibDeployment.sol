@@ -11,7 +11,7 @@ import 'src/libraries/LibStoredInitCode.sol';
 using LibString for string;
 using LibString for address;
 using LibString for bytes;
-using JsonUtil for Json;
+using JsonUtil for Json global;
 using JsonUtil for Deployments global;
 using LibDeployment for Deployments global;
 using LibDeployment for ContractArtifact global;
@@ -42,6 +42,7 @@ struct Deployments {
  *                        e.g. `Counter` or `src/Counter.sol:Counter`
  * @param name            Name of the contract, e.g. Counter
  * @param artifactDir     The directory where the deployment artifact will be saved
+ * @param customLabel       Custom label for deployments mapping and output file.
  * @param constructorArgs The abi-encoded constructor arguments for the deployment
  * @param deployment      The address of the deployment
  */
@@ -50,6 +51,7 @@ struct ContractArtifact {
   /** The name of the contract */
   string name;
   string artifactDir;
+  string customLabel;
   bytes constructorArgs;
   address deployment;
 }
@@ -162,7 +164,7 @@ library LibDeployment {
     bytes memory constructorArgs
   ) internal {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
-
+    artifact.customLabel = customLabel;
     artifact.deployment = deploymentAddress;
     artifact.constructorArgs = constructorArgs;
 
@@ -278,11 +280,9 @@ library LibDeployment {
     Deployments memory deployments,
     ContractArtifact memory artifact
   ) internal {
-    string memory deploymentName = string.concat(
-      artifact.name,
-      '-',
-      artifact.deployment.toHexString()
-    );
+    string memory deploymentName = bytes(artifact.customLabel).length > 0
+      ? artifact.customLabel
+      : string.concat(artifact.name, '-', artifact.deployment.toHexString());
 
     artifact.artifactDir = pathJoin(deployments.dir, deploymentName);
     mkdir(artifact.artifactDir);
@@ -354,6 +354,14 @@ library LibDeployment {
     }
   }
 
+  function broadcastAs(Deployments memory deployments, string memory pvtKeyVarName) internal {
+    uint256 key = forgeVm.envOr(pvtKeyVarName, uint256(0));
+    if (key == 0) {
+      revert(string.concat('Private key not found in environment variable ', pvtKeyVarName));
+    }
+    forgeVm.broadcast(key);
+  }
+
   function broadcastCreate(
     Deployments memory deployments,
     bytes memory creationCode,
@@ -363,6 +371,9 @@ library LibDeployment {
     deployments.broadcast();
     assembly {
       deployment := create(0, add(initCode, 0x20), mload(initCode))
+    }
+    if (deployment == address(0)) {
+      revert('Failed to deploy contract');
     }
   }
 
@@ -505,7 +516,7 @@ library StandardInputJson {
         console.logBytes('Output from bash script:');
         console.logBytes(result);
       }
-      revert('Failed to write standard input json');
+      revert(string.concat('Failed to write standard input json for ', artifact.namePath));
     }
     console.logBytes(result);
   }
@@ -559,6 +570,10 @@ library JsonUtil {
 
   function get(Json memory json, string memory key) internal pure returns (address) {
     return forgeVm.parseJsonAddress(json.serialized, string.concat('.', key));
+  }
+
+  function getBytes(Json memory json, string memory key) internal pure returns (bytes memory) {
+    return forgeVm.parseJsonBytes(json.serialized, string.concat('.', key));
   }
 
   function has(Deployments memory deployments, string memory name) internal view returns (bool) {
@@ -622,7 +637,8 @@ function checkDirectoryExistsAndAccessible(string memory dir, bool writeAccess) 
     'LibDeployment requires access to the `',
     dir,
     '` directory but',
-    ' the current configuration only provides read access.',requestString
+    ' the current configuration only provides read access.',
+    requestString
   );
   bool dirExists;
   try forgeVm.exists(dir) returns (bool exists) {
