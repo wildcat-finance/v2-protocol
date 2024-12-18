@@ -47,7 +47,7 @@ abstract contract MarketConstraintHooks is IHooks {
   uint16 internal constant MaximumDelinquencyFeeBips = 10_000;
 
   uint32 internal constant MinimumWithdrawalBatchDuration = 0;
-  uint32 internal constant MaximumWithdrawalBatchDuration = 365 days;
+  uint32 internal constant MaximumWithdrawalBatchDuration = 90 days;
 
   uint16 internal constant MinimumAnnualInterestBips = 0;
   uint16 internal constant MaximumAnnualInterestBips = 10_000;
