@@ -26,7 +26,7 @@ uint16 constant MinimumDelinquencyFeeBips = 1_000;
 uint16 constant MaximumDelinquencyFeeBips = 10_000;
 
 uint32 constant MinimumWithdrawalBatchDuration = 0;
-uint32 constant MaximumWithdrawalBatchDuration = 365 days;
+uint32 constant MaximumWithdrawalBatchDuration = 90 days;
 
 uint16 constant MinimumAnnualInterestBips = 0;
 uint16 constant MaximumAnnualInterestBips = 10_000;
