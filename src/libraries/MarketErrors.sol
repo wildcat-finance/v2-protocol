@@ -236,16 +236,6 @@ function revert_RepayToClosedMarket() pure {
   }
 }
 
-uint256 constant BuyBackOnClosedMarket_Selector = 0xf788d279;
-
-/// @dev Equivalent to `revert BuyBackOnClosedMarket()`
-function revert_BuyBackOnClosedMarket() pure {
-  assembly {
-    mstore(0, 0xf788d279)
-    revert(0x1c, 0x04)
-  }
-}
-
 uint256 constant BuyBackOnDelinquentMarket_Selector = 0x1707a7b7;
 
 /// @dev Equivalent to `revert BuyBackOnDelinquentMarket()`

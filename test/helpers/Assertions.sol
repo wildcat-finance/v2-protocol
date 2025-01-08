@@ -99,6 +99,11 @@ contract Assertions is StdAssertions {
       expected.pullProviderIndex,
       string.concat(labelPrefix, 'pullProviderIndex')
     );
+    assertEq(
+      actual.pushProviderIndex(),
+      expected.pushProviderIndex,
+      string.concat(labelPrefix, 'pushProviderIndex')
+    );
   }
 
   function assertEq(RoleProvider actual, StandardRoleProvider memory expected) internal {

@@ -21,6 +21,7 @@ struct HooksInstanceData {
   MarketParameterConstraints constraints;
   HooksDeploymentFlags deploymentFlags;
   RoleProviderData[] pullProviders;
+  RoleProviderData[] pushProviders;
   uint256 totalMarkets;
 }
 
@@ -52,6 +53,7 @@ library HooksInstanceDataLib {
         data.borrower = accessControlHooks.borrower();
       }
       data.pullProviders = accessControlHooks.getPullProviders().toRoleProviderDatas();
+      data.pushProviders = accessControlHooks.getPushProviders().toRoleProviderDatas();
       data.constraints = accessControlHooks.getParameterConstraints();
     }
     data.deploymentFlags.fill(hooks.config());

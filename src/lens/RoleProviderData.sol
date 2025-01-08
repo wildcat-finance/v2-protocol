@@ -9,11 +9,12 @@ struct RoleProviderData {
   uint32 timeToLive;
   address providerAddress;
   uint24 pullProviderIndex;
+  uint24 pushProviderIndex;
 }
 
 library RoleProviderDataLib {
   function fill(RoleProviderData memory data, RoleProvider provider) internal pure {
-    (data.timeToLive, data.providerAddress, data.pullProviderIndex) = provider.decodeRoleProvider();
+    (data.timeToLive, data.providerAddress, data.pullProviderIndex, data.pushProviderIndex) = provider.decodeRoleProvider();
   }
 
   function toRoleProviderDatas(
