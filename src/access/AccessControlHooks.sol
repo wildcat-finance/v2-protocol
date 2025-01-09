@@ -210,7 +210,8 @@ contract AccessControlHooks is MarketConstraintHooks {
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
       minimumDeposit: _readUint128Cd(hooksData),
       transfersDisabled: _readBoolCd(hooksData, 0x20),
-      allowForceBuyBacks: _readBoolCd(hooksData, 0x40)
+      // DEV: intentionally disabled for initial V2 launch
+      allowForceBuyBacks: false // _readBoolCd(hooksData, 0x40)
     });
 
     if (hookedMarket.minimumDeposit > 0) {
