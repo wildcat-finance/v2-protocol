@@ -887,7 +887,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     assertEq(constraints.minimumWithdrawalBatchDuration, 0, 'minimumWithdrawalBatchDuration');
     assertEq(
       constraints.maximumWithdrawalBatchDuration,
-      365 days,
+      90 days,
       'maximumWithdrawalBatchDuration'
     );
     assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');
