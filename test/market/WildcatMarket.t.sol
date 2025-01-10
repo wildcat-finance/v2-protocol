@@ -710,10 +710,13 @@ contract WildcatMarketTest is BaseMarketTest {
     market.transfer(bob, 0.5e18);
     assertEq(market.balanceOf(bob), 1e18, 'bob.balance');
   }
+  
+  /* DEV: test disabled as force buyback has been disabled in initial V2 launch
 
   // ========================================================================== //
   //                                Force Buyback                               //
   // ========================================================================== //
+  
   function test_forceBuyBack_NotApprovedBorrower() external {
     vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
     market.forceBuyBack(alice, 0);
@@ -731,13 +734,11 @@ contract WildcatMarketTest is BaseMarketTest {
     market.forceBuyBack(alice, 5e17);
   }
 
-  /* DEV: test disabled as force buyback has been disabled in initial V2 launch
-
+  
   function test_forceBuyBack_NullBuyBackAmount() external asAccount(borrower) {
     vm.expectRevert(IMarketEventsAndErrors.NullBuyBackAmount.selector);
     market.forceBuyBack(alice, 0);
   }
-  */
 
   function test_forceBuyBack_ForceBuyBacksDisabled() external asAccount(borrower) {
     _deposit(alice, 1e18);

@@ -1127,6 +1127,7 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     hooks.onCloseMarket(state, '');
   }
 
+  /* DEV: test disabled as force buyback has been disabled in initial V2 launch
   function test_forceBuyBack_ForceBuyBacksDisabled() external {
     
     DeployMarketInputs memory inputs;
@@ -1143,4 +1144,6 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
     MarketState memory state;
     hooks.onForceBuyBack(address(1), 0, state, '');
   }
+  */
+ 
 }

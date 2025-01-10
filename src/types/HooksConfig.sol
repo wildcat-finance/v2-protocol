@@ -878,7 +878,8 @@ library LibHooksConfig {
       }
     }
   }
-
+  
+  /* DEV: hook removed as force buyback has been disabled in initial V2 launch
   // ========================================================================== //
   //                           Hook for forced buyback                          //
   // ========================================================================== //
@@ -892,6 +893,7 @@ library LibHooksConfig {
   uint256 internal constant ForceBuyBackHook_ExtraData_Length_Offset = 0x0220;
   uint256 internal constant ForceBuyBackHook_ExtraData_TailOffset = 0x0240;
 
+  
   function onForceBuyBack(
     HooksConfig self,
     address lender,
@@ -934,4 +936,5 @@ library LibHooksConfig {
       }
     }
   }
+  */
 }

@@ -200,6 +200,7 @@ contract WildcatMarket is
     _writeState(state);
   }
 
+  /*
   function forceBuyBack(address lender, uint256 normalizedAmount) external nonReentrant onlyBorrower {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_BuyBackOnClosedMarket();
@@ -225,7 +226,8 @@ contract WildcatMarket is
 
     _writeState(state);
   }
-
+  */
+ 
   /**
    * @dev Sets the market APR to 0% and marks market as closed.
    *
