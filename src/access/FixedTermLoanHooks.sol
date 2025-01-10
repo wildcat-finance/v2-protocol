@@ -1069,6 +1069,7 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
     bytes calldata /* extraData */
   ) external override {}
 
+  /* DEV: hook removed as force buyback has been disabled in initial V2 launch
   function onForceBuyBack(
     address lender,
     uint scaledAmount,
@@ -1077,4 +1078,5 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
   ) external virtual override {
     revert ForceBuyBacksDisabled();
   }
+  */
 }

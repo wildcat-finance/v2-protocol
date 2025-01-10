@@ -554,6 +554,7 @@ contract HooksIntegrationTest is BaseMarketTest {
   //                               onForceBuyBack                               //
   // ========================================================================== //
 
+  /* DEV: test disabled as force buyback has been disabled in initial V2 launch
   function test_onForceBuyBack(
     address lender,
     // uint112 scaledAmount,
@@ -584,4 +585,5 @@ contract HooksIntegrationTest is BaseMarketTest {
     emit IERC20.Transfer(lender, borrower, 1e18);
     _callMarket(_calldata, '', 'forceBuyBack');
   }
+  */
 }

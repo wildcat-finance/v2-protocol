@@ -993,6 +993,7 @@ contract AccessControlHooks is MarketConstraintHooks {
     bytes calldata /* extraData */
   ) external override {}
 
+  /* DEV: hook removed as force buyback has been disabled in initial V2 launch
   function onForceBuyBack(
     address lender,
     uint scaledAmount,
@@ -1015,4 +1016,5 @@ contract AccessControlHooks is MarketConstraintHooks {
       );
     }
   }
+  */
 }
