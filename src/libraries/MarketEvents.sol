@@ -87,10 +87,10 @@ function emit_Deposit(address account, uint256 assetAmount, uint256 scaledAmount
   }
 }
 
-function emit_Borrow(uint256 assetAmount) {
+function emit_Borrow(address borrower, uint256 assetAmount) {
   assembly {
     mstore(0, assetAmount)
-    log1(0, 0x20, 0xb848ae6b1253b6cb77e81464128ce8bd94d3d524fea54e801e0da869784dca33)
+    log2(0, 0x20, 0xb848ae6b1253b6cb77e81464128ce8bd94d3d524fea54e801e0da869784dca33, borrower)
   }
 }
 
