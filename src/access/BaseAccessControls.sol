@@ -430,7 +430,7 @@ contract BaseAccessControls {
     _revokeRole(account);
   }
 
-  function revokeRoles(address[] memory accounts) external {
+  function revokeRoles(address[] calldata accounts) external {
     for (uint256 i = 0; i < accounts.length; i++) {
       _revokeRole(accounts[i]);
     }
@@ -438,7 +438,7 @@ contract BaseAccessControls {
 
   function _revokeRole(address account) internal {
     LenderStatus memory status = _lenderStatus[account];
-    if (status.lastProvider != msg.sender) {
+    if (msg.sender != status.lastProvider) {
       revert ProviderCanNotRevokeCredential();
     }
     status.unsetCredential();
@@ -447,6 +447,16 @@ contract BaseAccessControls {
   }
 
   function blockFromDeposits(address account) external onlyBorrower {
+    _blockFromDeposits(account);
+  }
+
+  function blockFromDeposits(address[] calldata accounts) external onlyBorrower {
+    for (uint256 i; i < accounts.length; i++) {
+      _blockFromDeposits(accounts[i]);
+    }
+  }
+
+  function _blockFromDeposits(address account) internal {
     LenderStatus memory status = _lenderStatus[account];
     if (status.hasCredential()) {
       status.unsetCredential();
