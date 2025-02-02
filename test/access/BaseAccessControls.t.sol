@@ -747,6 +747,32 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   }
 
   // ========================================================================== //
+  //                                 revokeRoles                                //
+  // ========================================================================== //
+
+  function test_revokeRoles() external {
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+    address[] memory lenders = new address[](1);
+    lenders[0] = address(1);
+    vm.startPrank(address(mockProvider1));
+    baseHooks.grantRole(address(1), uint32(block.timestamp));
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AccountAccessRevoked(address(1));
+    baseHooks.revokeRoles(lenders);
+  }
+
+  function test_revokeRoles_ProviderCanNotRevokeCredential() external {
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+    address[] memory lenders = new address[](1);
+    lenders[0] = address(1);
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(address(1), uint32(block.timestamp));
+    vm.prank(address(mockProvider2));
+    vm.expectRevert(BaseAccessControls.ProviderCanNotRevokeCredential.selector);
+    baseHooks.revokeRoles(lenders);
+  }
+
+  // ========================================================================== //
   //                              blockFromDeposits                             //
   // ========================================================================== //
 
@@ -774,6 +800,41 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     emit BaseAccessControls.AccountBlockedFromDeposits(account);
 
     baseHooks.blockFromDeposits(account);
+    LenderStatus memory status = baseHooks.getLenderStatus(account);
+    assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
+  }
+
+  function test_blockFromDeposits_multiple_CallerNotBorrower() external asAccount(address(1)) {
+    address[] memory accounts = new address[](1);
+    accounts[0] = address(0);
+    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    baseHooks.blockFromDeposits(accounts);
+  }
+
+  function test_blockFromDeposits_multiple(address account) external {
+    address[] memory accounts = new address[](1);
+    accounts[0] = account;
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+    baseHooks.blockFromDeposits(accounts);
+    LenderStatus memory status = baseHooks.getLenderStatus(account);
+    assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
+  }
+
+  function test_blockFromDeposits_multiple_UnsetsCredential(address account) external {
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(account, uint32(block.timestamp));
+
+    address[] memory accounts = new address[](1);
+    accounts[0] = account;
+
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AccountAccessRevoked(account);
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+
+    baseHooks.blockFromDeposits(accounts);
     LenderStatus memory status = baseHooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
   }
