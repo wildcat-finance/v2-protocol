@@ -161,6 +161,17 @@ contract MarketLens {
     }
   }
 
+  function getLenderAccountsData(
+    address marketAddress,
+    address[] memory lenders
+  ) external view returns (LenderAccountData[] memory data) {
+    data = new LenderAccountData[](lenders.length);
+    WildcatMarket market = WildcatMarket(marketAddress);
+    for (uint256 i; i < lenders.length; i++) {
+      data[i].fill(market, lenders[i]);
+    }
+  }
+
   function queryLenderAccount(
     LenderAccountQuery memory query
   ) external view returns (LenderAccountQueryResult memory result) {
