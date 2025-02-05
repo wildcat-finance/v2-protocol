@@ -57,8 +57,7 @@ enum FunctionKind {
   HooksFunction,
   DepositFunction,
   QueueWithdrawal,
-  IncomingTransferFunction,
-  ForceBuyBackFunction
+  IncomingTransferFunction
 }
 
 enum HooksKind {
@@ -124,7 +123,6 @@ struct MarketHooksConfigContext {
   bool withdrawalRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  bool allowForceBuyBacks;
   uint32 fixedTermEndTime;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
@@ -138,7 +136,6 @@ struct MarketHooksConfigFuzzInputs {
   bool useOnTransfer;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  bool allowForceBuyBacks;
   uint16 fixedTermDuration;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
@@ -212,7 +209,6 @@ function toMarketHooksConfigContext(
       withdrawalRequiresAccess: !inputs.isOpenTermHooks && inputs.useOnQueueWithdrawal,
       minimumDeposit: inputs.minimumDeposit,
       transfersDisabled: inputs.transfersDisabled,
-      allowForceBuyBacks: inputs.allowForceBuyBacks,
       fixedTermEndTime: uint32(block.timestamp + inputs.fixedTermDuration),
       allowClosureBeforeTerm: inputs.allowClosureBeforeTerm,
       allowTermReduction: inputs.allowTermReduction
@@ -544,10 +540,6 @@ library LibAccessControlHooksFuzzContext {
         // If the function is a withdrawal and the account is a known lender, the credential
         // check will be bypassed.
         context.willCheckCredentials = !context.existingCredentialOptions.isKnownLender;
-      }
-    } else if (context.functionKind == FunctionKind.ForceBuyBackFunction) {
-      if (!context.config.allowForceBuyBacks) {
-        context.expectations.expectedError = OpenTermHooks.ForceBuyBacksDisabled.selector;
       }
     }
   }

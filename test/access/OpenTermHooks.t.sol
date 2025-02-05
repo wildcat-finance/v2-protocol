@@ -398,41 +398,6 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
   }
 
   // ========================================================================== //
-  //                            disableForceBuyBacks                            //
-  // ========================================================================== //
-
-  function test_disableForceBuyBack_CallerNotBorrower() external asAccount(address(2)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
-    hooks.disableForceBuyBacks(address(1));
-  }
-
-  function test_disableForceBuyBack_NotHookedMarket() external {
-    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
-    hooks.disableForceBuyBacks(address(1));
-  }
-
-  function test_disableForceBuyBack() external {
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0, true, true));
-    vm.expectEmit(address(hooks));
-    emit OpenTermHooks.DisabledForceBuyBacks(address(1));
-    hooks.disableForceBuyBacks(address(1));
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
-  }
-
-  function test_disableForceBuyBack_noop() external {
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0, true, false));
-    vm.record();
-    hooks.disableForceBuyBacks(address(1));
-    VmSafe.Log[] memory logs = vm.getRecordedLogs();
-    assertEq(logs.length, 0, 'should not emit any events');
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
-  }
-
-  // ========================================================================== //
   //                               NotHookedMarket                              //
   // ========================================================================== //
 
@@ -446,11 +411,5 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     MarketState memory state;
     vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
     hooks.onTransfer(address(1), address(1), address(1), 0, state, '');
-  }
-
-  function test_onForceBuyBack_NotHookedMarket() external {
-    MarketState memory state;
-    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
-    hooks.onForceBuyBack(address(1), 0, state, '');
   }
 }

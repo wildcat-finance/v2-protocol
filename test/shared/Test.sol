@@ -42,7 +42,6 @@ struct MarketInputParameters {
   HooksConfig hooksConfig;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  bool allowForceBuyBack;
   uint32 fixedTermEndTime;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
@@ -457,15 +456,13 @@ contract Test is ForgeTest, Prankster, Assertions {
       if (parameters.hooksTemplate == hooksTemplate) {
         parameters.deployMarketHooksData = abi.encode(
           parameters.minimumDeposit,
-          parameters.transfersDisabled,
-          parameters.allowForceBuyBack
+          parameters.transfersDisabled
         );
       } else if (parameters.hooksTemplate == fixedTermHooksTemplate) {
         parameters.deployMarketHooksData = abi.encode(
           parameters.fixedTermEndTime,
           parameters.minimumDeposit,
           parameters.transfersDisabled,
-          parameters.allowForceBuyBack,
           parameters.allowClosureBeforeTerm,
           parameters.allowTermReduction
         );
@@ -599,7 +596,6 @@ contract Test is ForgeTest, Prankster, Assertions {
       assertEq(hookedMarket.depositRequiresAccess, depositRequiresAccess, 'depositRequiresAccess');
       assertEq(hookedMarket.minimumDeposit, parameters.minimumDeposit, 'minimumDeposit');
       assertEq(hookedMarket.transfersDisabled, parameters.transfersDisabled, 'transfersDisabled');
-      assertEq(hookedMarket.allowForceBuyBacks, parameters.allowForceBuyBack, 'allowForceBuyBacks');
 
       address[] memory marketAddresses = new address[](1);
       marketAddresses[0] = address(market);
@@ -631,7 +627,6 @@ contract Test is ForgeTest, Prankster, Assertions {
       assertEq(hookedMarket.fixedTermEndTime, parameters.fixedTermEndTime, 'fixedTermEndTime');
       assertEq(hookedMarket.minimumDeposit, parameters.minimumDeposit, 'minimumDeposit');
       assertEq(hookedMarket.transfersDisabled, parameters.transfersDisabled, 'transfersDisabled');
-      assertEq(hookedMarket.allowForceBuyBacks, parameters.allowForceBuyBack, 'allowForceBuyBacks');
       assertEq(
         hookedMarket.allowClosureBeforeTerm,
         parameters.allowClosureBeforeTerm,

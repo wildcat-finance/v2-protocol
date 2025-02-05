@@ -19,7 +19,6 @@ struct HookedMarket {
   bool transfersDisabled;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
-  bool allowForceBuyBacks;
 }
 
 /**
@@ -44,7 +43,6 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
 
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
   event FixedTermUpdated(address market, uint32 fixedTermEndTime);
-  event DisabledForceBuyBacks(address market);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -58,8 +56,6 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   error WithdrawBeforeTermEnd();
   error NoReducingAprBeforeTermEnd();
   error TransfersDisabled();
-  error ForceBuyBacksDisabled();
-  error ForceBuyBackDisabledBeforeTerm();
   error ClosureDisabledBeforeTerm();
   error TermReductionDisabled();
 
@@ -149,7 +145,6 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
    *        uint32 fixedTermEndTime,
    *        uint128? minimumDeposit,
    *        bool? transfersDisabled,
-   *        bool? allowForceBuyBacks,
    *        bool? allowClosureBeforeTerm,
    *        bool? allowTermReduction
    *     )
@@ -198,9 +193,8 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
       fixedTermEndTime: fixedTermEndTime,
       minimumDeposit: _readUint128Cd(hooksData, 0x20),
       transfersDisabled: _readBoolCd(hooksData, 0x40),
-      allowForceBuyBacks: _readBoolCd(hooksData, 0x60),
-      allowClosureBeforeTerm: _readBoolCd(hooksData, 0x80),
-      allowTermReduction: _readBoolCd(hooksData, 0xa0)
+      allowClosureBeforeTerm: _readBoolCd(hooksData, 0x60),
+      allowTermReduction: _readBoolCd(hooksData, 0x80)
     });
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
@@ -238,15 +232,6 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
     hookedMarket.fixedTermEndTime = newFixedTermEndTime;
     emit FixedTermUpdated(market, newFixedTermEndTime);
-  }
-
-  function disableForceBuyBacks(address market) external onlyBorrower {
-    HookedMarket storage hookedMarket = _hookedMarkets[market];
-    if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (hookedMarket.allowForceBuyBacks) {
-      hookedMarket.allowForceBuyBacks = false;
-      emit DisabledForceBuyBacks(market);
-    }
   }
 
   // ========================================================================== //
@@ -423,9 +408,10 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   ) external override {
     HookedMarket storage market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
-    if (!market.allowClosureBeforeTerm && block.timestamp < market.fixedTermEndTime)
-      revert ClosureDisabledBeforeTerm();
-    if (market.fixedTermEndTime > block.timestamp) {
+    if (block.timestamp < market.fixedTermEndTime) {
+      if (!(market.allowTermReduction || market.allowClosureBeforeTerm)) {
+        revert ClosureDisabledBeforeTerm();  
+      }
       market.fixedTermEndTime = uint32(block.timestamp);
       emit FixedTermUpdated(msg.sender, market.fixedTermEndTime);
     }
@@ -478,30 +464,4 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     MarketState memory /* intermediateState */,
     bytes calldata /* extraData */
   ) external override {}
-
-  function onForceBuyBack(
-    address /* lender */,
-    uint /* scaledAmount */,
-    MarketState calldata /* intermediateState */,
-    bytes calldata /* extraData */
-  ) external virtual override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-    if (!market.allowForceBuyBacks) revert ForceBuyBacksDisabled();
-    if (market.fixedTermEndTime > block.timestamp) {
-      revert ForceBuyBackDisabledBeforeTerm();
-    }
-    // If the borrower does not already have a credential, grant them one
-    LenderStatus storage status = _lenderStatus[borrower];
-    if (!status.hasCredential()) {
-      // Give the borrower a self-granted credential with no expiry so they are
-      // able to withdraw the purchased market tokens.
-      _setCredentialAndEmitAccessGranted(
-        status,
-        _roleProviders[borrower],
-        borrower,
-        uint32(block.timestamp)
-      );
-    }
-  }
 }

@@ -219,7 +219,6 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     parameters.deployMarketHooksData = '';
     parameters.minimumDeposit = inputs.minimumDeposit;
     parameters.transfersDisabled = inputs.transfersDisabled;
-    parameters.allowForceBuyBack = inputs.allowForceBuyBacks;
     parameters.fixedTermEndTime = inputs.isOpenTermHooks
       ? 0
       : uint32(inputs.fixedTermDuration + block.timestamp);

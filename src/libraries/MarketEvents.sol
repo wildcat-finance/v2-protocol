@@ -226,15 +226,6 @@ function emit_WithdrawalExecuted(uint256 expiry, address account, uint256 normal
   }
 }
 
-function emit_ForceBuyBack(address lender, uint256 scaledAmount, uint256 normalizedAmount, uint32 withdrawalExpiry) {
-  assembly {
-    mstore(0, scaledAmount)
-    mstore(0x20, normalizedAmount)
-    mstore(0x40, withdrawalExpiry)
-    log2(0, 0x60, 0xd26ddbc1840a7e87449ec6172fa0ba67fadecc95a60ab7ec01d8f712b4d8cda3, lender)
-  }
-}
-
 function emit_SanctionedAccountWithdrawalSentToEscrow(
   address account,
   address escrow,

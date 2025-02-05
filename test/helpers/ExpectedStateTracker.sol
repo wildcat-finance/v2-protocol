@@ -51,7 +51,6 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       sphereXEngine: address(0),
       minimumDeposit: 0,
       transfersDisabled: false,
-      allowForceBuyBack: false,
       fixedTermEndTime: 0,
       allowClosureBeforeTerm: true,
       allowTermReduction: true
@@ -321,33 +320,6 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
   }
 
   function registerExpectationsStandin(uint, bool) internal {}
-
-  function _trackForceBuyBack(
-    MarketState memory state,
-    address accountAddress,
-    uint normalizedAmount
-  ) internal {
-    uint104 scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
-    if (
-      parameters.hooksTemplate == hooksTemplate ||
-      parameters.hooksTemplate == fixedTermHooksTemplate
-    ) {
-      // If using a standard hooks template and borrower does not have a credential,
-      // they will be issued one.
-      LenderStatus memory status = hooks.getPreviousLenderStatus(borrower);
-      if (!status.hasCredential()) {
-        vm.expectEmit(address(hooks));
-        emit BaseAccessControls.AccountAccessGranted(borrower, borrower, uint32(block.timestamp));
-      }
-    }
-    vm.expectEmit(parameters.asset);
-    emit IMarketEventsAndErrors.Transfer(borrower, accountAddress, normalizedAmount);
-    vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.Transfer(accountAddress, borrower, normalizedAmount);
-    _getAccount(accountAddress).scaledBalance -= scaledAmount;
-    _getAccount(borrower).scaledBalance += scaledAmount;
-    _trackQueueWithdrawal(state, borrower, normalizedAmount);
-  }
 
   function _trackQueueWithdrawal(
     MarketState memory state,

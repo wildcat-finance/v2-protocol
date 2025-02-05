@@ -26,7 +26,6 @@ struct MarketConfigFuzzInputs {
   bool useOnQueueWithdrawal;
   bool useOnTransfer;
   bool transfersDisabled;
-  bool allowForceBuyBacks;
   uint16 fixedTermDuration;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
@@ -60,7 +59,6 @@ library LibMarketConfigFuzzInputs {
     inputs.useOnDeposit = rng.nextBool();
     inputs.useOnQueueWithdrawal = rng.nextBool();
     inputs.useOnTransfer = rng.nextBool();
-    inputs.allowForceBuyBacks = rng.nextBool();
 
     if (!inputs.isOpenTermHooks) {
       inputs.fixedTermDuration = uint16(rng.next(1, type(uint16).max));
@@ -133,7 +131,6 @@ library LibMarketConfigFuzzInputs {
     parameters.deployMarketHooksData = '';
     parameters.minimumDeposit = inputs.minimumDeposit;
     parameters.transfersDisabled = inputs.transfersDisabled;
-    parameters.allowForceBuyBack = inputs.allowForceBuyBacks;
     parameters.fixedTermEndTime = inputs.isOpenTermHooks
       ? 0
       : uint32(inputs.fixedTermDuration + block.timestamp);

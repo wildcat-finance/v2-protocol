@@ -483,33 +483,6 @@ contract WildcatMarketTest is BaseMarketTest {
     }
   }
 
-  function test_forceBuyBack_FuzzAccess(
-    MarketHooksConfigFuzzInputs memory fuzzInputs,
-    bool fastForwardToTermEnd
-  ) external asAccount(borrower) {
-    applyFuzzedHooksConfig(fuzzInputs);
-    uint amount = MathUtils.max(
-      100,
-      MathUtils.max(parameters.maxTotalSupply / 2, parameters.minimumDeposit)
-    );
-    _deposit(alice, amount);
-    asset.approve(address(market), amount);
-    asset.mint(borrower, amount);
-
-    if (!parameters.allowForceBuyBack) {
-      vm.expectRevert(OpenTermHooks.ForceBuyBacksDisabled.selector);
-    } else if (!fuzzInputs.isOpenTermHooks && !fastForwardToTermEnd) {
-      vm.expectRevert(FixedTermHooks.ForceBuyBackDisabledBeforeTerm.selector);
-    } else {
-      if (!fuzzInputs.isOpenTermHooks && fastForwardToTermEnd) {
-        fastForward(parameters.fixedTermEndTime - block.timestamp);
-      }
-      MarketState memory state = pendingState(true);
-      _trackForceBuyBack(state, alice, amount);
-    }
-    market.forceBuyBack(alice, amount);
-  }
-
   function test_queueWithdrawal_FuzzAccess(
     AccessControlHooksFuzzInputs memory fuzzInputs
   ) external {
@@ -699,54 +672,5 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.prank(alice);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
     market.transfer(bob, 0.5e18);
-  }
-
-  // ========================================================================== //
-  //                                Force Buyback                               //
-  // ========================================================================== //
-  function test_forceBuyBack_NotApprovedBorrower() external {
-    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
-    market.forceBuyBack(alice, 0);
-  }
-
-  function test_forceBuyBack_BuyBackOnDelinquentMarket() external asAccount(borrower) {
-    _depositBorrowWithdraw(alice, 1e18, 8e17, 3e17);
-    vm.expectRevert(IMarketEventsAndErrors.BuyBackOnDelinquentMarket.selector);
-    market.forceBuyBack(alice, 5e17);
-  }
-
-  function test_forceBuyBack_NullBuyBackAmount() external asAccount(borrower) {
-    vm.expectRevert(IMarketEventsAndErrors.NullBuyBackAmount.selector);
-    market.forceBuyBack(alice, 0);
-  }
-
-  function test_forceBuyBack_ForceBuyBacksDisabled() external asAccount(borrower) {
-    _deposit(alice, 1e18);
-    vm.expectRevert(OpenTermHooks.ForceBuyBacksDisabled.selector);
-    market.forceBuyBack(alice, 1e17);
-  }
-
-  function test_forceBuyBack_ForceBuyBackDisabledBeforeTerm() external asAccount(borrower) {
-    parameters.allowForceBuyBack = true;
-    parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
-    parameters.hooksTemplate = fixedTermHooksTemplate;
-    parameters.deployMarketHooksData = '';
-    hooks = OpenTermHooks(address(0));
-    parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(0));
-    setUpContracts(false);
-    vm.expectRevert(FixedTermHooks.ForceBuyBackDisabledBeforeTerm.selector);
-    market.forceBuyBack(alice, 1e17);
-  }
-
-  function test_forceBuyBack() external asAccount(borrower) {
-    parameters.allowForceBuyBack = true;
-    reset();
-    _deposit(alice, 1e18);
-    asset.approve(address(market), 1e17);
-    asset.mint(borrower, 1e17);
-    MarketState memory state = pendingState(true);
-
-    _trackForceBuyBack(state, alice, 1e17);
-    market.forceBuyBack(alice, 1e17);
   }
 }

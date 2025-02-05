@@ -45,7 +45,6 @@ struct MarketHooksData {
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  bool allowForceBuyBacks;
   // Fixed term loan flags
   bool withdrawalRequiresAccess;
   uint32 fixedTermEndTime;
@@ -71,7 +70,6 @@ library HooksConfigDataLib {
       data.withdrawalRequiresAccess = encodedHooksConfig.useOnQueueWithdrawal();
       data.minimumDeposit = hookedMarket.minimumDeposit;
       data.transfersDisabled = hookedMarket.transfersDisabled;
-      data.allowForceBuyBacks = hookedMarket.allowForceBuyBacks;
     } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
       data.kind = HooksInstanceKind.FixedTermLoan;
       FixedTermHooks hooks = FixedTermHooks(data.hooksAddress);
@@ -84,7 +82,6 @@ library HooksConfigDataLib {
       data.transfersDisabled = hookedMarket.transfersDisabled;
       data.allowClosureBeforeTerm = hookedMarket.allowClosureBeforeTerm;
       data.allowTermReduction = hookedMarket.allowTermReduction;
-      data.allowForceBuyBacks = hookedMarket.allowForceBuyBacks;
     }
   }
 

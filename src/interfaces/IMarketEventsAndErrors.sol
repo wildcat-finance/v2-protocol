@@ -162,13 +162,6 @@ interface IMarketEventsAndErrors {
     uint256 normalizedAmount
   );
 
-  event ForceBuyBack(
-    address indexed lender,
-    uint256 scaledAmount,
-    uint256 normalizedAmount,
-    uint32 withdrawalExpiry
-  );
-
   event SanctionedAccountWithdrawalSentToEscrow(
     address indexed account,
     address escrow,

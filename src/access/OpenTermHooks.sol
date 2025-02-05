@@ -15,7 +15,6 @@ struct HookedMarket {
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  bool allowForceBuyBacks;
 }
 
 /**
@@ -36,7 +35,6 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                                   Events                                   //
   // ========================================================================== //
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
-  event DisabledForceBuyBacks(address market);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -45,7 +43,6 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
   error NotHookedMarket();
   error DepositBelowMinimum();
   error TransfersDisabled();
-  error ForceBuyBacksDisabled();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -121,7 +118,6 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
    *     `hooksData` is a tuple of (
    *        uint128? minimumDeposit,
    *        bool? transfersDisabled,
-   *        bool? allowForceBuyBacks
    *     )
    *     Where none of the parameters are mandatory.
    *
@@ -139,7 +135,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
     if (deployer != borrower) revert CallerNotBorrower();
     marketHooksConfig = parameters.hooks;
 
-    // Read `minimumDeposit`, `transfersDisabled`, and `allowForceBuyBacks` from `hooksData`
+    // Read `minimumDeposit` and `transfersDisabled` from `hooksData`
     // If the calldata does not contain sufficient bytes for a parameter, it will be read as zero.
     //
     // Use the deposit and transfer flags to determine whether those require access control.
@@ -150,8 +146,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
       minimumDeposit: _readUint128Cd(hooksData),
-      transfersDisabled: _readBoolCd(hooksData, 0x20),
-      allowForceBuyBacks: _readBoolCd(hooksData, 0x40)
+      transfersDisabled: _readBoolCd(hooksData, 0x20)
     });
 
     if (hookedMarket.minimumDeposit > 0) {
@@ -182,15 +177,6 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     hookedMarket.minimumDeposit = newMinimumDeposit;
     emit MinimumDepositUpdated(market, newMinimumDeposit);
-  }
-
-  function disableForceBuyBacks(address market) external onlyBorrower {
-    HookedMarket storage hookedMarket = _hookedMarkets[market];
-    if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (hookedMarket.allowForceBuyBacks) {
-      hookedMarket.allowForceBuyBacks = false;
-      emit DisabledForceBuyBacks(market);
-    }
   }
 
   // ========================================================================== //
@@ -397,27 +383,4 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
     MarketState memory /* intermediateState */,
     bytes calldata /* extraData */
   ) external override {}
-
-  function onForceBuyBack(
-    address /* lender */,
-    uint /* scaledAmount */,
-    MarketState calldata /* intermediateState */,
-    bytes calldata /* extraData */
-  ) external virtual override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-    if (!market.allowForceBuyBacks) revert ForceBuyBacksDisabled();
-    // If the borrower does not already have a credential, grant them one
-    LenderStatus storage status = _lenderStatus[borrower];
-    if (!status.hasCredential()) {
-      // Give the borrower a self-granted credential with no expiry so they are
-      // able to withdraw the purchased market tokens.
-      _setCredentialAndEmitAccessGranted(
-        status,
-        _roleProviders[borrower],
-        borrower,
-        uint32(block.timestamp)
-      );
-    }
-  }
 }

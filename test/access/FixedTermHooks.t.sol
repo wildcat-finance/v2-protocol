@@ -429,7 +429,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false, false, true)
+      abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
     );
     vm.expectEmit(address(hooks));
     emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
@@ -618,7 +618,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
+      abi.encode(block.timestamp + 365 days, 1e18, false, true)
     );
     vm.prank(address(1));
     vm.expectEmit(address(hooks));
@@ -638,73 +638,11 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + 365 days, 1e18, false, false, false)
+      abi.encode(block.timestamp + 365 days, 1e18, false, false)
     );
     vm.prank(address(1));
     vm.expectRevert(FixedTermHooks.ClosureDisabledBeforeTerm.selector);
     MarketState memory state;
     hooks.onCloseMarket(state, '');
-  }
-
-  function test_forceBuyBack_ForceBuyBacksDisabled() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(block.timestamp + 365 days, 1e18)
-    );
-    vm.expectRevert(FixedTermHooks.ForceBuyBacksDisabled.selector);
-    MarketState memory state;
-    vm.prank(address(1));
-    hooks.onForceBuyBack(address(2), 0, state, '');
-  }
-
-  // ========================================================================== //
-  //                            disableForceBuyBacks                            //
-  // ========================================================================== //
-
-  function test_disableForceBuyBack_CallerNotBorrower() external asAccount(address(2)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
-    hooks.disableForceBuyBacks(address(1));
-  }
-
-  function test_disableForceBuyBack_NotHookedMarket() external {
-    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
-    hooks.disableForceBuyBacks(address(1));
-  }
-
-  function test_disableForceBuyBack() external {
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(uint32(block.timestamp + 1), 0, true, true)
-    );
-    vm.expectEmit(address(hooks));
-    emit FixedTermHooks.DisabledForceBuyBacks(address(1));
-    hooks.disableForceBuyBacks(address(1));
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
-  }
-
-  function test_disableForceBuyBack_noop() external {
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(
-      address(this),
-      address(1),
-      inputs,
-      abi.encode(uint32(block.timestamp + 1), 0, true, false)
-    );
-    vm.record();
-    hooks.disableForceBuyBacks(address(1));
-    VmSafe.Log[] memory logs = vm.getRecordedLogs();
-    assertEq(logs.length, 0, 'should not emit any events');
-    HookedMarket memory market = hooks.getHookedMarket(address(1));
-    assertFalse(market.allowForceBuyBacks, 'allowForceBuyBacks != false');
   }
 }
