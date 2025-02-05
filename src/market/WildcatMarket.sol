@@ -34,7 +34,7 @@ contract WildcatMarket is
    *      contract by mistake or otherwise outside of the normal course of
    *      operation.
    */
-  function rescueTokens(address token) external onlyBorrower {
+  function rescueTokens(address token) external nonReentrant onlyBorrower {
     if ((token == asset).or(token == address(this))) {
       revert_BadRescueAsset();
     }
