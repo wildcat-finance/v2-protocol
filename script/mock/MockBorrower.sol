@@ -37,7 +37,6 @@
 
 // /*
 // [+] executeWithdrawals: function executeWithdrawals(address[] accountAddresses, uint32[] expiries) returns (uint256[] amounts)
-// [+] forceBuyBack: function forceBuyBack(address lender, uint256 normalizedAmount)
 // [+] queueFullWithdrawal: function queueFullWithdrawal() returns (uint32 expiry)
 // [+] repayAndProcessUnpaidWithdrawalBatches: function repayAndProcessUnpaidWithdrawalBatches(uint256 repayAmount, uint256 maxBatches)
 // [+] rescueTokens: function rescueTokens(address token)

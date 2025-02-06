@@ -77,7 +77,6 @@ struct MarketHooksOptions {
   DepositAccess depositAccess;
   WithdrawalAccess withdrawalAccess;
   uint128 minimumDeposit;
-  bool allowForceBuyBacks;
   uint32 fixedTermEndTime;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
@@ -92,8 +91,7 @@ function encodeHooksData(MarketHooksOptions memory options) pure returns (bytes 
     return
       abi.encode(
         options.minimumDeposit,
-        options.transferAccess == TransferAccess.Disabled,
-        options.allowForceBuyBacks
+        options.transferAccess == TransferAccess.Disabled
       );
   }
   return
@@ -101,7 +99,6 @@ function encodeHooksData(MarketHooksOptions memory options) pure returns (bytes 
       options.fixedTermEndTime,
       options.minimumDeposit,
       options.transferAccess == TransferAccess.Disabled,
-      options.allowForceBuyBacks,
       options.allowClosureBeforeTerm,
       options.allowTermReduction
     );
