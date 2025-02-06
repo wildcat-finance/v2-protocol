@@ -125,7 +125,6 @@
 //         depositAccess: restrictive ? DepositAccess.RequiresCredential : DepositAccess.Open,
 //         withdrawalAccess: restrictive ? WithdrawalAccess.RequiresCredential : WithdrawalAccess.Open,
 //         minimumDeposit: uint128(1e16),
-//         allowForceBuyBacks: restrictive ? false : true,
 //         fixedTermEndTime: openTerm ? 0 : uint32(block.timestamp + 100 days),
 //         allowClosureBeforeTerm: restrictive ? false : true,
 //         allowTermReduction: restrictive ? false : true

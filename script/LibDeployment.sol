@@ -104,9 +104,20 @@ function getDeployments() returns (Deployments memory deployments) {
 /// @author d1ll0n
 /// @dev Library for managing deployments for Forge scripts.
 ///
-///  Provides functions for deploying contracts, retrieving deployments and saving
-///  deployment artifacts that include compiler output, standard input json and
-///  constructor args.
+/// Provides functions for deploying contracts, retrieving deployments and saving
+/// deployment artifacts that include compiler output, standard input json and
+/// constructor args.
+///
+///
+///
+/// ===================================================================================
+///                                   Private Key                             
+/// ===================================================================================
+///  By default, it will attempt to use the private key at environment variable
+///  `PVT_KEY_<NETWORK NAME>`. If none exists, it will use whatever key is configured
+///  with Foundry.
+///
+///  To use another environment variable, use `deployments.withPrivateKeyVarName(name)`.
 ///
 /// ===================================================================================
 ///                              Setup Instructions
@@ -118,14 +129,13 @@ function getDeployments() returns (Deployments memory deployments) {
 ///             { access = "read-write", path = "./deployments/"},
 ///             { access = "read-write", path = "./out/"},
 ///         ]
-///    If your output directory is different, replace `./out/` with the correct path and
-///    change the `outputDir` constant in this file.
+///    If your output directory is different in the foundry profile you are using for
+///    deployment, replace `./out/` with the correct path. The script will automatically
+///    detect the correct output directory for the profile it is running in.
 ///
 /// 2. Enable FFI so that the script can rush bash commands. This is used to generate
 ///    the standard input json for the contract deployment.
 ///    Add `ffi=true` to the foundry.toml file.
-///
-///
 library LibDeployment {
   using LibDeployment for Json;
   using LibDeployment for ContractArtifact[];

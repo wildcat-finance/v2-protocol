@@ -14,6 +14,7 @@ import './DeployTypes.sol';
 import './mock/MockERC20Factory.sol';
 import './mock/MockArchControllerOwner.sol';
 import './mock/UniversalProvider.sol';
+import './Lender.sol';
 
 using LibString for address;
 using LibString for string;
@@ -35,18 +36,46 @@ interface IEngine {
 
 contract DeployV2 is Script {
   function run() public virtual {
-    // forceDeployLens();
-    addCloseMarket();
+    // seedLender('LENDER_2', true, 12e18, 5e18, 2e18);
+    // seedLender('LENDER_2', false, 13e18, 6e18, 2e18);
+    forceDeployLens();
+  }
+
+  function seedLender(string memory lenderName, bool openMarket, uint depositAmount, uint withdrawAmount, uint borrowAmount) internal {
+    string memory lenderPvtKeyVarName = string.concat(lenderName, '_PVT_KEY');
+    Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName(
+      'PVT_KEY'
+    );
+    string memory marketLabel = openMarket ? 'op2TOK_market' : 'fx2TOK_market';
+    address market = deployments.get(marketLabel);
+    Lender memory lender = buildLender(lenderName, market);
+    if (!openMarket) {
+      OpenTermHooks hooks = OpenTermHooks(deployments.get('fx2TOK_hooks'));
+      deployments.broadcast();
+      hooks.grantRole(lender.account, uint32(block.timestamp));
+      console.log(string.concat('Granted role to lender ', lender.account.toHexString()));
+    }
+    lender.deposit(depositAmount);
+    if (!openMarket) lender.withdraw(withdrawAmount);
+    
+    if (borrowAmount > 0 ) {
+      deployments.broadcast();
+      lender.market.borrow(borrowAmount);
+    }
   }
 
   function addCloseMarket() internal {
     Deployments memory deployments = getDeploymentsForNetwork('sepolia').withPrivateKeyVarName(
       'PVT_KEY'
     );
-    uint216 pattern = 14451904267781507293472597357567865620281743582632039118805013802;
+
     IEngine engine = IEngine(0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e);
-    uint216[] memory patterns = new uint216[](1);
-    patterns[0] = pattern;
+    uint216[] memory patterns = new uint216[](5);
+    patterns[0] = 94418217012137984803774416703850667173250690997694159855897612912;
+    patterns[1] = 92083039521021907843879083621254831642817523105040888014352789085;
+    patterns[2] = 46697456462908571842451701755225422725380819403284149584678459579;
+    patterns[3] = 55812322464611803823919095340941798065809022442869364620170712203;
+    patterns[4] = 14451904267781507293472597357567865620281743582632039118805013802;
     deployments.broadcast();
     engine.addAllowedPatterns(patterns);
     console.log('Added close market pattern');
@@ -114,8 +143,8 @@ contract DeployV2 is Script {
 
     (
       address marketTemplate,
-      ,
-      /*  bool didDeployMarketTemplate */ uint256 marketInitCodeHash
+      bool didDeployMarketTemplate,
+      uint256 marketInitCodeHash
     ) = _storeMarketInitCode(deployments);
     // require(didDeployMarketTemplate, 'Market template should be deployed');
     (address hooksFactory, bool didDeployHooksFactory) = deployments.getOrDeploy(
@@ -163,7 +192,6 @@ contract DeployV2 is Script {
       'Ownership should be returned'
     );
 
-    deployments.write();
     HooksFactory factory = HooksFactory(hooksFactory);
     assertEq(factory.getHooksTemplatesCount(), 2, 'Wrong # of templates');
     address OpenTermHooks = deployments.get('OpenTermHooks_initCodeStorage');
@@ -185,6 +213,7 @@ contract DeployV2 is Script {
       1,
       'wrong # of markets for FixedTermHooks'
     );
+    deployments.write();
   }
 
   function _getCreationCode(
@@ -442,7 +471,6 @@ contract DeployV2 is Script {
     bool openTerm,
     bool restrictive
   ) internal view returns (MarketConfig memory config) {
-    config.marketSymbol = string.concat(config.symbolPrefix, config.tokenSymbol);
     // token parameters
     config.tokenName = 'Token';
     config.tokenSymbol = 'TOK';
@@ -457,13 +485,13 @@ contract DeployV2 is Script {
     config.withdrawalBatchDuration = uint32(1);
     config.reserveRatioBips = 1_000;
     config.delinquencyGracePeriod = uint32(1);
+    config.marketSymbol = string.concat(config.symbolPrefix, config.tokenSymbol);
     config.hooks = MarketHooksOptions({
       isOpenTerm: openTerm,
       transferAccess: restrictive ? TransferAccess.Disabled : TransferAccess.Open,
       depositAccess: restrictive ? DepositAccess.RequiresCredential : DepositAccess.Open,
       withdrawalAccess: restrictive ? WithdrawalAccess.RequiresCredential : WithdrawalAccess.Open,
       minimumDeposit: uint128(1e16),
-      allowForceBuyBacks: restrictive ? false : true,
       fixedTermEndTime: openTerm ? 0 : uint32(block.timestamp + 1_500),
       allowClosureBeforeTerm: restrictive ? false : true,
       allowTermReduction: restrictive ? false : true,
@@ -489,6 +517,7 @@ contract DeployV2 is Script {
       console.log(string.concat('Error: ', errorMessage));
       console.log(string.concat('Expected: ', a.toString()));
       console.log(string.concat('Actual: ', b.toString()));
+      revert(string.concat('Error: ', errorMessage));
     }
   }
 
@@ -509,6 +538,7 @@ contract DeployV2 is Script {
       console.log(string.concat('Error: ', errorMessage));
       console.log(string.concat('Expected: ', a));
       console.log(string.concat('Actual: ', b));
+      revert(string.concat('Error: ', errorMessage));
     }
   }
 
@@ -551,7 +581,6 @@ contract DeployV2 is Script {
       console.log('Did deposit #2');
 
       deployments.broadcast();
-      market.forceBuyBack{ gas: 400_000 }(borrower, 5e17);
       console.log('Did force buyback');
     }
 
