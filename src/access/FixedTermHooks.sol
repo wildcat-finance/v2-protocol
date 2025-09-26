@@ -63,7 +63,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                                    State                                   //
   // ========================================================================== //
 
-  uint32 public constant MaximumLoanTerm = 365 days;
+  uint32 public constant MaximumLoanTerm = 730 days;
 
   HooksDeploymentConfig public immutable override config;
 
