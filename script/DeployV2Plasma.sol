@@ -71,7 +71,7 @@ contract DeployV2Plasma is Script {
     if (isTestnet) {
       chainalysis = deployments.get('MockChainalysisContract');
     } else {
-      chainalysis = deployments.get('Chainalysis');
+      chainalysis = deployments.get('ChainalysisProxy');
     }
     // Owner is deployer on mainnet, or the MockArchControllerOwner on testnet
     if (isTestnet) {
@@ -206,11 +206,6 @@ contract DeployV2Plasma is Script {
       RedoAllDeployments
     );
     archController = WildcatArchController(_archController);
-    (chainalysis, ) = deployments.getOrDeploy(
-      'MockChainalysisContract',
-      _getCreationCode(deployments, 'MockChainalysisContract'),
-      RedoAllDeployments
-    );
     if (getIsTestnet()) {
       (chainalysis, ) = deployments.getOrDeploy(
         'MockChainalysisContract',
@@ -218,7 +213,11 @@ contract DeployV2Plasma is Script {
         RedoAllDeployments
       );
     } else {
-      chainalysis = deployments.get('Chainalysis');
+      (chainalysis, ) = deployments.getOrDeploy(
+        'ChainalysisProxy',
+        _getCreationCode(deployments, 'ChainalysisProxy'),
+        RedoAllDeployments
+      );
     }
     (address _sentinel, bool didDeploySentinel) = deployments.getOrDeploy(
       'WildcatSanctionsSentinel',
