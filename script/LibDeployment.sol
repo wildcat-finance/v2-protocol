@@ -557,7 +557,7 @@ library JsonUtil {
       sstore(jsonIdSlot, add(counter, 1))
 
       // Get unique id
-      mstore(0, address())
+      mstore(0, 0x01)
       mstore(32, counter)
       let id := keccak256(0, 64)
 
