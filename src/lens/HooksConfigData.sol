@@ -45,6 +45,7 @@ struct MarketHooksData {
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
+  bool unused_allowForceBuyBacks;
   // Fixed term loan flags
   bool withdrawalRequiresAccess;
   uint32 fixedTermEndTime;

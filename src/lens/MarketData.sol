@@ -90,6 +90,7 @@ library MarketDataLib {
     }
     data.fillConfig();
     data.fillTemporaryExcessReserveRatio();
+    data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
     data.fillState();
   }
 
