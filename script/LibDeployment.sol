@@ -111,7 +111,7 @@ function getDeployments() returns (Deployments memory deployments) {
 ///
 ///
 /// ===================================================================================
-///                                   Private Key                             
+///                                   Private Key
 /// ===================================================================================
 ///  By default, it will attempt to use the private key at environment variable
 ///  `PVT_KEY_<NETWORK NAME>`. If none exists, it will use whatever key is configured
@@ -160,9 +160,11 @@ library LibDeployment {
       self.set(label, deployment);
       self.pushArtifact(artifact);
       didDeploy = true;
+
+      console.log(string.concat('Deployed template for ', namePath, ' to'), deployment);
     } else {
       deployment = self.get(label);
-      console.log(string.concat('Found ', namePath, ' at'), deployment);
+      console.log(string.concat('Found template for ', namePath, ' at'), deployment);
     }
   }
 
@@ -465,7 +467,19 @@ function join(
 }
 
 function getNetworkName() view returns (string memory) {
-  return block.chainid == 1 ? 'mainnet' : block.chainid == 11155111 ? 'sepolia' : '';
+  if (block.chainid == 1) return 'mainnet';
+  if (block.chainid == 11155111) return 'sepolia';
+  if (block.chainid == 9745) return 'plasma-mainnet';
+  if (block.chainid == 9746) return 'plasma-testnet';
+  revert('Unknown chain id');
+}
+
+function getIsTestnet() view returns (bool) {
+  if (block.chainid == 1) return false;
+  if (block.chainid == 11155111) return true;
+  if (block.chainid == 9745) return false;
+  if (block.chainid == 9746) return true;
+  revert('Unknown chain id');
 }
 
 /**
@@ -590,7 +604,10 @@ library JsonUtil {
     return has(deployments.deployments, name);
   }
 
-  function get(Deployments memory deployments, string memory name) internal pure returns (address) {
+  function get(Deployments memory deployments, string memory name) internal view returns (address) {
+    if (!deployments.has(name)) {
+      revert(string.concat('Contract ', name, ' not found in deployments'));
+    }
     return get(deployments.deployments, name);
   }
 
@@ -662,6 +679,12 @@ function checkDirectoryExistsAndAccessible(string memory dir, bool writeAccess) 
   if (!dirExists) {
     try forgeVm.createDir(dir, true) {
       console.log(string.concat('Created directory: ', dir));
+      // initialize deployments.json
+      try forgeVm.writeFile(pathJoin(dir, 'deployments.json'), '{}') {
+        console.log(string.concat('Initialized deployments.json in ', dir));
+      } catch {
+        revert(writeErrorMessage);
+      }
     } catch {
       revert(writeErrorMessage);
     }
