@@ -211,7 +211,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       address(this),
       address(1),
       inputs,
-      abi.encode(block.timestamp + (366 days))
+      abi.encode(block.timestamp + (731 days))
     );
   }
 
