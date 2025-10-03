@@ -22,3 +22,6 @@
 [submodule "lib/ethereum-access-token"]
 	path = lib/ethereum-access-token
 	url = https://github.com/wildcat-finance/ethereum-access-token
+[submodule "lib/vault-v2"]
+	path = lib/vault-v2
+	url = https://github.com/morpho-org/vault-v2.git
