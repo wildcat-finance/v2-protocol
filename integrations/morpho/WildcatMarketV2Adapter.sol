@@ -133,11 +133,10 @@ contract WildcatMarketV2Adapter is IWildcatMarketV2Adapter {
 		if (msg.sender != parentVault) revert NotAuthorized();
 
 		if (assets > 0) {
-			// Attempt to realize up to 8 matured withdrawal batches owed to this adapter.
-			// This is a arbitrary number of batches to call to increase available liquidity before deallocation.
+			// attempt to realize up to 8 matured withdrawal batches owed to this adapter
+			// this is a arbitrary number of batches to call to increase available liquidity before deallocation
 			_realizeClaimable(8);
 
-			// Check if the adapter has enough asset balance to fulfill the deallocation.
 			uint256 available = asset.balanceOf(address(this));
 			if (available < assets) revert InsufficientImmediateLiquidity();
 		}
