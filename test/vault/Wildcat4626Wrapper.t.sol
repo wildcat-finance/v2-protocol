@@ -10,8 +10,8 @@ import {IWildcatMarketToken} from "src/vault/Wildcat4626Wrapper.sol";
 contract MockMarketToken is IWildcatMarketToken {
     using MathUtils for uint256;
 
-    string public constant name = "Mock Wildcat Market Token";
-    string public constant symbol = "mwcUSDC";
+    string public constant name = "Mock fries USDC";
+    string public constant symbol = "friesUSDC";
     uint8 public immutable override decimals;
 
     uint256 public override scaleFactor;
@@ -90,11 +90,11 @@ contract Wildcat4626WrapperTest is Test {
     address internal constant ALICE = address(0xA11CE);
     address internal constant BOB = address(0xB0B);
 
-    uint256 internal constant INITIAL_ASSETS = 1000e6;
+    uint256 internal constant INITIAL_ASSETS = 100e18;
 
     function setUp() external {
-        market = new MockMarketToken(6);
-        wrapper = new Wildcat4626Wrapper(address(market), "wcUSDC Vault Share", "wcUSDC-v", address(this));
+        market = new MockMarketToken(18);
+        wrapper = new Wildcat4626Wrapper(address(market));
 
     market.mint(ALICE, INITIAL_ASSETS);
     market.mint(BOB, INITIAL_ASSETS);
@@ -106,48 +106,53 @@ contract Wildcat4626WrapperTest is Test {
     market.approve(address(wrapper), type(uint256).max);
     }
 
+    function test_metadataDerivedFromMarketSymbol() external {
+    assertEq(wrapper.name(), "friesUSDCX [4626 Vault Shares]");
+    assertEq(wrapper.symbol(), "v-friesUSDC");
+    }
+
     function test_depositMintsScaledShares() external {
         vm.prank(ALICE);
-        uint256 shares = wrapper.deposit(500e6, ALICE);
+        uint256 shares = wrapper.deposit(50e18, ALICE);
 
-        assertEq(shares, 500e6, "scaled mismatch");
+        assertEq(shares, 50e18, "scaled mismatch");
         assertEq(wrapper.balanceOf(ALICE), shares, "share balance");
         assertEq(wrapper.totalSupply(), shares, "total supply");
-        assertEq(wrapper.totalAssets(), 500e6, "total assets");
+        assertEq(wrapper.totalAssets(), 50e18, "total assets");
         assertEq(market.scaledBalanceOf(address(wrapper)), shares, "market scaled balance");
     }
 
     function test_withdrawBurnsScaledShares() external {
         vm.prank(ALICE);
-        wrapper.deposit(400e6, ALICE);
+        wrapper.deposit(40e18, ALICE);
 
         vm.prank(ALICE);
-        uint256 sharesBurned = wrapper.withdraw(150e6, ALICE, ALICE);
+        uint256 sharesBurned = wrapper.withdraw(15e18, ALICE, ALICE);
 
-        assertEq(sharesBurned, 150e6, "shares burned");
-        assertEq(wrapper.balanceOf(ALICE), 250e6, "remaining shares");
-        assertEq(wrapper.totalAssets(), 250e6, "assets after withdraw");
-        assertEq(market.balanceOf(ALICE), INITIAL_ASSETS - 250e6, "alice normalized balance");
+        assertEq(sharesBurned, 15e18, "shares burned");
+        assertEq(wrapper.balanceOf(ALICE), 25e18, "remaining shares");
+        assertEq(wrapper.totalAssets(), 25e18, "assets after withdraw");
+        assertEq(market.balanceOf(ALICE), INITIAL_ASSETS - 25e18, "alice normalized balance");
     }
 
     function test_mintConsumesExpectedAssets() external {
         vm.prank(ALICE);
-        uint256 assetsSpent = wrapper.mint(200e6, ALICE);
+        uint256 assetsSpent = wrapper.mint(20e18, ALICE);
 
-        assertEq(assetsSpent, 200e6, "assets spent");
-        assertEq(wrapper.balanceOf(ALICE), 200e6, "share balance");
-        assertEq(market.balanceOf(ALICE), INITIAL_ASSETS - 200e6, "alice outstanding assets");
+        assertEq(assetsSpent, 20e18, "assets spent");
+        assertEq(wrapper.balanceOf(ALICE), 20e18, "share balance");
+        assertEq(market.balanceOf(ALICE), INITIAL_ASSETS - 20e18, "alice outstanding assets");
     }
 
     function test_redeemAfterScaleFactorChange() external {
         vm.prank(ALICE);
-        wrapper.deposit(100e6, ALICE);
+        wrapper.deposit(10e18, ALICE);
 
         market.setScaleFactor(RAY * 2);
 
-        uint256 expectedAssets = MathUtils.rayMul(100e6, RAY * 2);
+        uint256 expectedAssets = MathUtils.rayMul(10e18, RAY * 2);
         vm.prank(ALICE);
-        uint256 assetsReturned = wrapper.redeem(100e6, ALICE, ALICE);
+        uint256 assetsReturned = wrapper.redeem(10e18, ALICE, ALICE);
 
         assertEq(assetsReturned, expectedAssets, "redeemed assets");
         assertEq(wrapper.totalSupply(), 0, "zero supply");
@@ -156,89 +161,77 @@ contract Wildcat4626WrapperTest is Test {
 
     function test_withdrawBySpenderUsesAllowance() external {
         vm.startPrank(ALICE);
-        wrapper.deposit(300e6, ALICE);
-        wrapper.approve(BOB, 100e6);
+        wrapper.deposit(30e18, ALICE);
+        wrapper.approve(BOB, 10e18);
         vm.stopPrank();
 
         vm.prank(BOB);
-        uint256 sharesBurned = wrapper.withdraw(100e6, BOB, ALICE);
+        uint256 sharesBurned = wrapper.withdraw(10e18, BOB, ALICE);
 
-        assertEq(sharesBurned, 100e6, "burned by spender");
-        assertEq(wrapper.balanceOf(ALICE), 200e6, "alice residual shares");
+        assertEq(sharesBurned, 10e18, "burned by spender");
+        assertEq(wrapper.balanceOf(ALICE), 20e18, "alice residual shares");
     }
 
     function test_multipleDepositorsAccrual() external {
         vm.prank(ALICE);
-        uint256 aliceShares = wrapper.deposit(200e6, ALICE);
-        assertEq(aliceShares, 200e6, "alice shares");
+        uint256 aliceShares = wrapper.deposit(20e18, ALICE);
+        assertEq(aliceShares, 20e18, "alice shares");
 
         uint256 newScale = RAY + (RAY / 2);
         market.setScaleFactor(newScale);
 
         vm.prank(BOB);
-        uint256 bobShares = wrapper.deposit(300e6, BOB);
+        uint256 bobShares = wrapper.deposit(30e18, BOB);
 
-        assertEq(bobShares, 200e6, "bob shares");
-        assertEq(wrapper.balanceOf(ALICE), 200e6, "alice share balance");
-        assertEq(wrapper.balanceOf(BOB), 200e6, "bob share balance");
-        assertEq(wrapper.totalSupply(), 400e6, "total share supply");
-        assertEq(wrapper.totalAssets(), 600e6, "vault assets after deposits");
-        assertEq(wrapper.convertToAssets(wrapper.balanceOf(ALICE)), 300e6, "alice assets");
-        assertEq(wrapper.convertToAssets(wrapper.balanceOf(BOB)), 300e6, "bob assets");
-        assertEq(market.scaledBalanceOf(address(wrapper)), 400e6, "scaled balance");
+        assertEq(bobShares, 20e18, "bob shares");
+        assertEq(wrapper.balanceOf(ALICE), 20e18, "alice share balance");
+        assertEq(wrapper.balanceOf(BOB), 20e18, "bob share balance");
+        assertEq(wrapper.totalSupply(), 40e18, "total share supply");
+        assertEq(wrapper.totalAssets(), 60e18, "vault assets after deposits");
+        assertEq(wrapper.convertToAssets(wrapper.balanceOf(ALICE)), 30e18, "alice assets");
+        assertEq(wrapper.convertToAssets(wrapper.balanceOf(BOB)), 30e18, "bob assets");
+        assertEq(market.scaledBalanceOf(address(wrapper)), 40e18, "scaled balance");
     }
 
     function test_multipleDepositorsWithdrawals() external {
         vm.prank(ALICE);
-        wrapper.deposit(300e6, ALICE);
+        wrapper.deposit(30e18, ALICE);
 
         vm.prank(BOB);
-        wrapper.deposit(300e6, BOB);
+        wrapper.deposit(30e18, BOB);
 
         uint256 doubledScale = RAY * 2;
         market.setScaleFactor(doubledScale);
 
         vm.prank(ALICE);
-        uint256 sharesBurned = wrapper.withdraw(300e6, ALICE, ALICE);
+        uint256 sharesBurned = wrapper.withdraw(30e18, ALICE, ALICE);
 
-        assertEq(sharesBurned, 150e6, "alice burned shares");
-        assertEq(wrapper.balanceOf(ALICE), 150e6, "alice remaining shares");
-        assertEq(wrapper.balanceOf(BOB), 300e6, "bob shares");
-        assertEq(wrapper.totalAssets(), 900e6, "vault assets after withdraw");
-        assertEq(wrapper.convertToAssets(wrapper.balanceOf(BOB)), 600e6, "bob assets after interest");
-        assertEq(market.scaledBalanceOf(address(wrapper)), 450e6, "scaled balance after withdraw");
+        assertEq(sharesBurned, 15e18, "alice burned shares");
+        assertEq(wrapper.balanceOf(ALICE), 15e18, "alice remaining shares");
+        assertEq(wrapper.balanceOf(BOB), 30e18, "bob shares");
+        assertEq(wrapper.totalAssets(), 90e18, "vault assets after withdraw");
+        assertEq(wrapper.convertToAssets(wrapper.balanceOf(BOB)), 60e18, "bob assets after interest");
+        assertEq(market.scaledBalanceOf(address(wrapper)), 45e18, "scaled balance after withdraw");
     }
 
-    function test_capEnforced() external {
-        wrapper.setWrapperCap(200e6);
+    function test_totalAssetsTracksDirectTransfers() external {
+        uint256 strayAssets = 5e18;
 
         vm.prank(ALICE);
-        wrapper.deposit(150e6, ALICE);
+        market.transfer(address(wrapper), strayAssets);
+
+        assertEq(wrapper.totalAssets(), strayAssets, "stray assets counted");
 
         vm.prank(ALICE);
-        vm.expectRevert(Wildcat4626Wrapper.CapExceeded.selector);
-        wrapper.deposit(100e6, ALICE);
-    }
+        uint256 sharesMinted = wrapper.deposit(10e18, ALICE);
+        assertEq(sharesMinted, 10e18, "deposit shares unaffected by stray");
 
-    function test_ownerControls() external {
-        wrapper.setWrapperCap(123);
-        assertEq(wrapper.wrapperCap(), 123, "cap updated");
-
-        wrapper.setOwner(BOB);
-        assertEq(wrapper.owner(), BOB, "owner updated");
-
-        vm.prank(BOB);
-        wrapper.setWrapperCap(456);
-        assertEq(wrapper.wrapperCap(), 456, "cap by new owner");
-    }
-
-    function test_nonOwnerCannotUpdate() external {
-        vm.prank(ALICE);
-        vm.expectRevert(Wildcat4626Wrapper.NotOwner.selector);
-        wrapper.setWrapperCap(10);
+        assertEq(wrapper.totalAssets(), strayAssets + 10e18, "total assets include stray and deposit");
 
         vm.prank(ALICE);
-        vm.expectRevert(Wildcat4626Wrapper.NotOwner.selector);
-        wrapper.setOwner(ALICE);
+        uint256 sharesBurned = wrapper.withdraw(10e18, ALICE, ALICE);
+
+        assertEq(sharesBurned, 10e18, "withdraw burns expected shares");
+        assertEq(wrapper.totalAssets(), strayAssets, "stray assets remain after withdrawal");
     }
 }
