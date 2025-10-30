@@ -107,7 +107,7 @@ contract Wildcat4626WrapperTest is Test {
     }
 
     function test_metadataDerivedFromMarketSymbol() external {
-    assertEq(wrapper.name(), "friesUSDCX [4626 Vault Shares]");
+    assertEq(wrapper.name(), "friesUSDC [4626 Vault Shares]");
     assertEq(wrapper.symbol(), "v-friesUSDC");
     }
 

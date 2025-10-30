@@ -55,7 +55,7 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
     function _vaultName(address marketAddress) private view returns (string memory) {
         if (marketAddress == address(0)) revert ZeroAddress();
         string memory marketSymbol = IERC20Metadata(marketAddress).symbol();
-        return string.concat(marketSymbol, "X [4626 Vault Shares]");
+        return string.concat(marketSymbol, " [4626 Vault Shares]");
     }
 
     function _vaultSymbol(address marketAddress) private view returns (string memory) {
