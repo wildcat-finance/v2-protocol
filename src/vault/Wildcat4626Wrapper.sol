@@ -13,6 +13,8 @@ interface IWildcatMarketToken is IERC20Metadata {
     function scaleFactor() external view returns (uint256);
 
     function scaledBalanceOf(address account) external view returns (uint256);
+
+    function borrower() external view returns (address);
 }
 
 /**
@@ -29,9 +31,12 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
     error ZeroShares();
     error CapExceeded();
     error SharesMismatch(uint256 expected, uint256 actual);
+    error NotMarketOwner();
+    error CannotSweepMarketAsset();
 
     IWildcatMarketToken public immutable wrappedMarket;
     uint256 public immutable wrapperCap;
+    address public immutable marketOwner;
 
     uint8 private immutable _decimals;
 
@@ -45,6 +50,9 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
 
         wrappedMarket = IWildcatMarketToken(marketAddress);
         wrapperCap = type(uint256).max;
+        address owner = wrappedMarket.borrower();
+        if (owner == address(0)) revert ZeroAddress();
+        marketOwner = owner;
         _decimals = wrappedMarket.decimals();
     }
 
@@ -52,6 +60,8 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
         return _decimals;
     }
 
+
+    event TokensSwept(address indexed token, address indexed to, uint256 amount);
     function _vaultName(address marketAddress) private view returns (string memory) {
         if (marketAddress == address(0)) revert ZeroAddress();
         string memory marketSymbol = IERC20Metadata(marketAddress).symbol();
@@ -258,6 +268,25 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
         if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
 
         emit Withdraw(msg.sender, receiver, owner_, assets, shares);
+    }
+
+    /// @notice sweep arbitrary erc20 balances (excluding the wrapped market's debt token)
+    /// @dev only the underlying market's borrower may call this. util for any case where
+    ///      non-market tokens somehow accrue to the wrapper.
+    function sweep(address token, address to)
+        external
+        nonReentrant
+        returns (uint256 amount)
+    {
+        if (msg.sender != marketOwner) revert NotMarketOwner();
+        if (token == address(0) || to == address(0)) revert ZeroAddress();
+        if (token == address(wrappedMarket)) revert CannotSweepMarketAsset();
+
+        amount = LibERC20.balanceOf(token, address(this));
+        if (amount == 0) revert ZeroAssets();
+
+        token.safeTransfer(to, amount);
+        emit TokensSwept(token, to, amount);
     }
 
     // -------------------------------------------------------------------------

@@ -7,6 +7,32 @@ import {MathUtils, RAY} from "src/libraries/MathUtils.sol";
 import {Wildcat4626Wrapper} from "src/vault/Wildcat4626Wrapper.sol";
 import {IWildcatMarketToken} from "src/vault/Wildcat4626Wrapper.sol";
 
+contract MockErc20 {
+    string public constant name = "Mock Token";
+    string public constant symbol = "MTKN";
+    uint8 public constant decimals = 18;
+
+    mapping(address => uint256) internal _balances;
+
+    function mint(address to, uint256 amount) external {
+        _balances[to] += amount;
+    }
+
+    function balanceOf(address account) external view returns (uint256) {
+        return _balances[account];
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        uint256 balance = _balances[msg.sender];
+        require(balance >= amount, "BALANCE");
+        unchecked {
+            _balances[msg.sender] = balance - amount;
+            _balances[to] += amount;
+        }
+        return true;
+    }
+}
+
 contract MockMarketToken is IWildcatMarketToken {
     using MathUtils for uint256;
 
@@ -15,14 +41,16 @@ contract MockMarketToken is IWildcatMarketToken {
     uint8 public immutable override decimals;
 
     uint256 public override scaleFactor;
+    address public immutable override borrower;
 
     mapping(address => uint256) internal _scaledBalances;
     mapping(address => mapping(address => uint256)) public override allowance;
     uint256 internal _scaledTotalSupply;
 
-    constructor(uint8 tokenDecimals) {
+    constructor(uint8 tokenDecimals, address borrower_) {
         decimals = tokenDecimals;
         scaleFactor = RAY;
+        borrower = borrower_;
     }
 
     function balanceOf(address account) public view override returns (uint256) {
@@ -89,24 +117,25 @@ contract Wildcat4626WrapperTest is Test {
 
     address internal constant ALICE = address(0xA11CE);
     address internal constant BOB = address(0xB0B);
+    address internal constant BORROWER = address(0xB0123123);
 
     uint256 internal constant INITIAL_ASSETS = 100e18;
 
     function setUp() external {
-        market = new MockMarketToken(18);
+        market = new MockMarketToken(18, BORROWER);
         wrapper = new Wildcat4626Wrapper(address(market));
 
-    market.mint(ALICE, INITIAL_ASSETS);
-    market.mint(BOB, INITIAL_ASSETS);
+        market.mint(ALICE, INITIAL_ASSETS);
+        market.mint(BOB, INITIAL_ASSETS);
 
-    vm.prank(ALICE);
-    market.approve(address(wrapper), type(uint256).max);
+        vm.prank(ALICE);
+        market.approve(address(wrapper), type(uint256).max);
 
-    vm.prank(BOB);
-    market.approve(address(wrapper), type(uint256).max);
+        vm.prank(BOB);
+        market.approve(address(wrapper), type(uint256).max);
     }
 
-    function test_metadataDerivedFromMarketSymbol() external {
+    function test_metadataDerivedFromMarketSymbol() external view {
     assertEq(wrapper.name(), "friesUSDC [4626 Vault Shares]");
     assertEq(wrapper.symbol(), "v-friesUSDC");
     }
@@ -233,5 +262,33 @@ contract Wildcat4626WrapperTest is Test {
 
         assertEq(sharesBurned, 10e18, "withdraw burns expected shares");
         assertEq(wrapper.totalAssets(), strayAssets, "stray assets remain after withdrawal");
+    }
+
+    function test_sweepRevertsForNonMarketOwner() external {
+        MockErc20 stray = new MockErc20();
+        uint256 strayAmount = 25e18;
+        stray.mint(address(wrapper), strayAmount);
+
+        vm.expectRevert(Wildcat4626Wrapper.NotMarketOwner.selector);
+        vm.prank(ALICE);
+        wrapper.sweep(address(stray), ALICE);
+    }
+
+    function test_sweepRevertsForMarketAsset() external {
+        vm.expectRevert(Wildcat4626Wrapper.CannotSweepMarketAsset.selector);
+        vm.prank(BORROWER);
+        wrapper.sweep(address(market), BORROWER);
+    }
+
+    function test_sweepSendsBalanceToBorrower() external {
+        MockErc20 stray = new MockErc20();
+        uint256 strayAmount = 42e18;
+        stray.mint(address(wrapper), strayAmount);
+
+        vm.prank(BORROWER);
+        uint256 swept = wrapper.sweep(address(stray), BORROWER);
+
+        assertEq(swept, strayAmount, "swept amount");
+        assertEq(stray.balanceOf(BORROWER), strayAmount, "borrower received stray tokens");
     }
 }
