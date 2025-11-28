@@ -34,6 +34,10 @@ contract StubMarketToken is IWildcatMarketToken {
         return _balances[account];
     }
 
+    function maxTotalSupply() external pure override returns (uint256) {
+        return uint256(type(uint128).max);
+    }
+
     function transfer(address, uint256) external pure override returns (bool) {
         revert("UNSUPPORTED");
     }

@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: TODO
+// SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity >=0.8.20;
 
+import {ERC4626} from "solady/tokens/ERC4626.sol";
 import {IERC20Metadata} from "openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {IERC4626} from "openzeppelin/contracts/interfaces/IERC4626.sol";
-import {ERC20} from "openzeppelin/contracts/token/ERC20/ERC20.sol";
-
 import {ReentrancyGuard} from "../ReentrancyGuard.sol";
 import {MathUtils, RAY} from "../libraries/MathUtils.sol";
 import {LibERC20} from "../libraries/LibERC20.sol";
@@ -15,6 +13,8 @@ interface IWildcatMarketToken is IERC20Metadata {
     function scaledBalanceOf(address account) external view returns (uint256);
 
     function borrower() external view returns (address);
+
+    function maxTotalSupply() external view returns (uint256);
 }
 
 /**
@@ -22,7 +22,7 @@ interface IWildcatMarketToken is IERC20Metadata {
  * @notice Wraps a debt token with an erc-4626 non-rebasing share token.
  *  Shares mirror the market's scaled balance. 
  */
-contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
+contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     using MathUtils for uint256;
     using LibERC20 for address;
 
@@ -35,47 +35,66 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
     error CannotSweepMarketAsset();
 
     IWildcatMarketToken public immutable wrappedMarket;
-    uint256 public immutable wrapperCap;
     address public immutable marketOwner;
 
     uint8 private immutable _decimals;
+    string private _name;
+    string private _symbol;
 
     /**
      * @param marketAddress the wildcat market (debt token) address to wrap
      */
-    constructor(address marketAddress)
-        ERC20(_vaultName(marketAddress), _vaultSymbol(marketAddress))
-    {
+    constructor(address marketAddress) {
         if (marketAddress == address(0)) revert ZeroAddress();
 
         wrappedMarket = IWildcatMarketToken(marketAddress);
-        wrapperCap = type(uint256).max;
         address owner = wrappedMarket.borrower();
         if (owner == address(0)) revert ZeroAddress();
         marketOwner = owner;
         _decimals = wrappedMarket.decimals();
-    }
 
-    function decimals() public view override(ERC20, IERC20Metadata) returns (uint8) {
-        return _decimals;
-    }
-
-
-    event TokensSwept(address indexed token, address indexed to, uint256 amount);
-    function _vaultName(address marketAddress) private view returns (string memory) {
-        if (marketAddress == address(0)) revert ZeroAddress();
         string memory marketSymbol = IERC20Metadata(marketAddress).symbol();
-        return string.concat(marketSymbol, " [4626 Vault Shares]");
-    }
-
-    function _vaultSymbol(address marketAddress) private view returns (string memory) {
-        if (marketAddress == address(0)) revert ZeroAddress();
-        string memory marketSymbol = IERC20Metadata(marketAddress).symbol();
-        return string.concat("v-", marketSymbol);
+        _name = string.concat(marketSymbol, " [4626 Vault Shares]");
+        _symbol = string.concat("v-", marketSymbol);
     }
 
     // -------------------------------------------------------------------------
-    // erc4626 view interface
+    // ERC20 Metadata
+    // -------------------------------------------------------------------------
+
+    function name() public view override returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return _symbol;
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    // -------------------------------------------------------------------------
+    // ERC4626 Configuration Overrides
+    // -------------------------------------------------------------------------
+
+    /// @dev disabled virtual shares since we use the market's scale factor for conversions
+    function _useVirtualShares() internal pure override returns (bool) {
+        return false;
+    }
+
+    function _underlyingDecimals() internal view override returns (uint8) {
+        return _decimals;
+    }
+
+    // -------------------------------------------------------------------------
+    // Events
+    // -------------------------------------------------------------------------
+
+    event TokensSwept(address indexed token, address indexed to, uint256 amount);
+
+    // -------------------------------------------------------------------------
+    // ERC4626 View Interface
     // -------------------------------------------------------------------------
 
     /// @notice Address of the wrapped Wildcat market token.
@@ -84,7 +103,7 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
     }
 
     /// @notice Alias for the wrapped market so integrators can treat it as the ERC-4626 asset.
-    function asset() public view override(IERC4626) returns (address) {
+    function asset() public view override returns (address) {
         return address(wrappedMarket);
     }
 
@@ -107,13 +126,12 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
         return _convertToAssetsDown(shares, scaleFactor);
     }
 
-    /// @notice Remaining normalized assets the wrapper can accept before hitting `wrapperCap`.
+    /// @notice Remaining normalized assets the wrapper can accept before hitting the market's maxTotalSupply.
     function maxDeposit(address) public view override returns (uint256) {
-        uint256 cap = wrapperCap;
-        if (cap == type(uint256).max) return cap;
+        uint256 marketCap = wrappedMarket.maxTotalSupply();
         uint256 held = totalAssets();
-        if (held >= cap) return 0;
-        return cap - held;
+        if (held >= marketCap) return 0;
+        return marketCap - held;
     }
 
     /// @notice Shares minted for depositing `assets`, rounded down.
@@ -121,10 +139,9 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
         return convertToShares(assets);
     }
 
-    /// @notice Remaining shares that could be minted without violating `wrapperCap`.
+    /// @notice Remaining shares that could be minted without violating the market's maxTotalSupply.
     function maxMint(address) public view override returns (uint256) {
         uint256 capAssets = maxDeposit(address(0));
-        if (capAssets == type(uint256).max) return capAssets;
         uint256 scaleFactor = wrappedMarket.scaleFactor();
         return _convertToSharesDown(capAssets, scaleFactor);
     }
@@ -161,19 +178,33 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
         return convertToAssets(shares);
     }
 
+    /// @notice Returns the current exchange rate of assets per share, scaled by RAY (1e27).
+    /// @dev This is equivalent to the market's scale factor. Useful for integrators to see
+    ///      the exchange rate without needing to pick a sample share size.
+    function assetsPerShareRay() external view returns (uint256) {
+        return wrappedMarket.scaleFactor();
+    }
+
+    /// @notice Returns the current exchange rate of shares per asset, scaled by RAY (1e27).
+    /// @dev This is the inverse of the scale factor to see
+    ///      how many shares a given asset amount would yield.
+    function sharesPerAssetRay() external view returns (uint256) {
+        return MathUtils.mulDiv(RAY, RAY, wrappedMarket.scaleFactor());
+    }
+
     // -------------------------------------------------------------------------
-    // Mutating interface
+    // Mutating Interface
     // -------------------------------------------------------------------------
 
     /// @notice Pull `assets` from the caller and mint the resulting shares to `receiver`.
-    function deposit(uint256 assets, address receiver) external nonReentrant override returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256 shares) {
         if (assets == 0) revert ZeroAssets();
 
         uint256 limit = maxDeposit(receiver);
         if (assets > limit) revert CapExceeded();
 
         uint256 scaleFactor = wrappedMarket.scaleFactor();
-        uint256 expectedShares = _scaledSharesForAssets(assets, scaleFactor);
+        uint256 expectedShares = _convertToSharesHalfUp(assets, scaleFactor);
         if (expectedShares == 0) revert ZeroShares();
 
         address assetAddress = address(wrappedMarket);
@@ -189,7 +220,7 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
     }
 
     /// @notice Mint exactly `shares` to `receiver`, charging the caller the required assets (rounded up).
-    function mint(uint256 shares, address receiver) external nonReentrant override returns (uint256 assets) {
+    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256 assets) {
         if (shares == 0) revert ZeroShares();
 
         uint256 limit = maxMint(receiver);
@@ -213,15 +244,15 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
 
     /// @notice Withdraw `assets` to `receiver`, burning shares from `owner_` (shares rounded up).
     function withdraw(uint256 assets, address receiver, address owner_)
-        external
-        nonReentrant
+        public
         override
+        nonReentrant
         returns (uint256 shares)
     {
         if (assets == 0) revert ZeroAssets();
 
         uint256 scaleFactor = wrappedMarket.scaleFactor();
-        shares = _scaledSharesForAssets(assets, scaleFactor);
+        shares = _convertToSharesHalfUp(assets, scaleFactor);
         if (shares == 0) revert ZeroShares();
 
         if (msg.sender != owner_) {
@@ -242,9 +273,9 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
 
     /// @notice Redeem `shares` from `owner_` and send the corresponding assets to `receiver` (assets rounded down).
     function redeem(uint256 shares, address receiver, address owner_)
-        external
-        nonReentrant
+        public
         override
+        nonReentrant
         returns (uint256 assets)
     {
         if (shares == 0) revert ZeroShares();
@@ -254,7 +285,7 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
         }
 
         uint256 scaleFactor = wrappedMarket.scaleFactor();
-        assets = _scaledAssetsForShares(shares, scaleFactor);
+        assets = _convertToAssetsDown(shares, scaleFactor);
         if (assets == 0) revert ZeroAssets();
 
         uint256 scaledBefore = wrappedMarket.scaledBalanceOf(address(this));
@@ -301,26 +332,16 @@ contract Wildcat4626Wrapper is ERC20, ReentrancyGuard, IERC4626 {
         return MathUtils.mulDivUp(assets, RAY, scaleFactor);
     }
 
+    /// @dev half-up rounding to match the market's rayDiv behavior in transfers
+    function _convertToSharesHalfUp(uint256 assets, uint256 scaleFactor) internal pure returns (uint256) {
+        return (assets * RAY + scaleFactor / 2) / scaleFactor;
+    }
+
     function _convertToAssetsDown(uint256 shares, uint256 scaleFactor) internal pure returns (uint256) {
         return MathUtils.mulDiv(shares, scaleFactor, RAY);
     }
 
     function _convertToAssetsUp(uint256 shares, uint256 scaleFactor) internal pure returns (uint256) {
-        if (shares == 0) return 0;
-
-        uint256 assets = MathUtils.mulDiv(shares, scaleFactor, RAY);
-        if (assets.rayDiv(scaleFactor) < shares) {
-            assets += 1;
-        }
-
-        return assets;
-    }
-
-    function _scaledSharesForAssets(uint256 assets, uint256 scaleFactor) internal pure returns (uint256) {
-        return assets.rayDiv(scaleFactor);
-    }
-
-    function _scaledAssetsForShares(uint256 shares, uint256 scaleFactor) internal pure returns (uint256) {
-        return shares.rayMul(scaleFactor);
+        return MathUtils.mulDivUp(shares, scaleFactor, RAY);
     }
 }
