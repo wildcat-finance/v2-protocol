@@ -52,15 +52,26 @@ contract StubMarketToken is IWildcatMarketToken {
   }
 }
 
+contract StubArchController {
+    mapping(address => bool) public isRegisteredMarket;
+
+    function registerMarket(address market) external returns (bool) {
+        isRegisteredMarket[market] = true;
+    }
+}
+
 contract Wildcat4626WrapperFactoryTest is Test {
   Wildcat4626WrapperFactory internal factory;
   StubMarketToken internal market;
+  StubArchController internal archController;
 
   address internal constant BORROWER = address(0xB0123);
 
   function setUp() external {
-    factory = new Wildcat4626WrapperFactory();
+    archController = new StubArchController();
+    factory = new Wildcat4626WrapperFactory(address(archController));
     market = new StubMarketToken(BORROWER);
+    archController.registerMarket(address(market));
   }
 
   function test_createWrapperDeploysAndRecords() external {
@@ -76,6 +87,18 @@ contract Wildcat4626WrapperFactoryTest is Test {
     vm.expectRevert(
       abi.encodeWithSelector(
         Wildcat4626WrapperFactory.WrapperAlreadyExists.selector,
+        address(market)
+      )
+    );
+    factory.createWrapper(address(market));
+  }
+
+  function test_createWrapperRevertsIfNotRegisteredMarket() external {
+    market = new StubMarketToken(BORROWER);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626WrapperFactory.NotRegisteredMarket.selector,
         address(market)
       )
     );
