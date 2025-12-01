@@ -1,0 +1,488 @@
+{
+    "abi": [
+        {
+            "type": "constructor",
+            "inputs": [],
+            "stateMutability": "nonpayable"
+        },
+        {
+            "type": "function",
+            "name": "cancelOwnershipHandover",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "function",
+            "name": "completeOwnershipHandover",
+            "inputs": [
+                {
+                    "name": "pendingOwner",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "function",
+            "name": "isSanctioned",
+            "inputs": [
+                {
+                    "name": "account",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "",
+                    "type": "bool",
+                    "internalType": "bool"
+                }
+            ],
+            "stateMutability": "view"
+        },
+        {
+            "type": "function",
+            "name": "owner",
+            "inputs": [],
+            "outputs": [
+                {
+                    "name": "result",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
+            "stateMutability": "view"
+        },
+        {
+            "type": "function",
+            "name": "ownershipHandoverExpiresAt",
+            "inputs": [
+                {
+                    "name": "pendingOwner",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
+            "outputs": [
+                {
+                    "name": "result",
+                    "type": "uint256",
+                    "internalType": "uint256"
+                }
+            ],
+            "stateMutability": "view"
+        },
+        {
+            "type": "function",
+            "name": "renounceOwnership",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "function",
+            "name": "requestOwnershipHandover",
+            "inputs": [],
+            "outputs": [],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "function",
+            "name": "sanctionsRegistry",
+            "inputs": [],
+            "outputs": [
+                {
+                    "name": "",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
+            "stateMutability": "view"
+        },
+        {
+            "type": "function",
+            "name": "setSanctionsRegistry",
+            "inputs": [
+                {
+                    "name": "_sanctionsRegistry",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
+            "outputs": [],
+            "stateMutability": "nonpayable"
+        },
+        {
+            "type": "function",
+            "name": "transferOwnership",
+            "inputs": [
+                {
+                    "name": "newOwner",
+                    "type": "address",
+                    "internalType": "address"
+                }
+            ],
+            "outputs": [],
+            "stateMutability": "payable"
+        },
+        {
+            "type": "event",
+            "name": "OwnershipHandoverCanceled",
+            "inputs": [
+                {
+                    "name": "pendingOwner",
+                    "type": "address",
+                    "indexed": true,
+                    "internalType": "address"
+                }
+            ],
+            "anonymous": false
+        },
+        {
+            "type": "event",
+            "name": "OwnershipHandoverRequested",
+            "inputs": [
+                {
+                    "name": "pendingOwner",
+                    "type": "address",
+                    "indexed": true,
+                    "internalType": "address"
+                }
+            ],
+            "anonymous": false
+        },
+        {
+            "type": "event",
+            "name": "OwnershipTransferred",
+            "inputs": [
+                {
+                    "name": "oldOwner",
+                    "type": "address",
+                    "indexed": true,
+                    "internalType": "address"
+                },
+                {
+                    "name": "newOwner",
+                    "type": "address",
+                    "indexed": true,
+                    "internalType": "address"
+                }
+            ],
+            "anonymous": false
+        },
+        {
+            "type": "error",
+            "name": "NewOwnerIsZeroAddress",
+            "inputs": []
+        },
+        {
+            "type": "error",
+            "name": "NoHandoverRequest",
+            "inputs": []
+        },
+        {
+            "type": "error",
+            "name": "Unauthorized",
+            "inputs": []
+        }
+    ],
+    "bytecode": {
+        "object": "0x6080806040523460435733638b78c6d81955335f7f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08180a361043b90816100488239f35b5f80fdfe6080604052600480361015610012575f80fd5b5f3560e01c806325692962146103105780634999c8e1146102e957806354d1f13d146102a557806355095aea1461025e578063715018a61461021a5780638da5cb5b146101ee578063df592f7d146101b6578063f04e283e14610135578063f2fde38b146100c75763fee81cf414610088575f80fd5b346100c35760203660031901126100c357356001600160a01b03811681036100c35763389a75e1600c525f52602080600c2054604051908152f35b5f80fd5b5060203660031901126100c35780356001600160a01b03811691908281036100c3576100f1610412565b60601b1561012a5750638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a355005b637448fbae5f52601cfd5b5060203660031901126100c35780356001600160a01b03811691908281036100c35761015f610412565b63389a75e1600c525f526020600c2090815442116101ab57505f9055638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a355005b636f5e88185f52601cfd5b50346100c35760203660031901126100c357356001600160a01b03811681036100c3576101e4602091610359565b6040519015158152f35b346100c3575f3660031901126100c357638b78c6d819546040516001600160a01b039091168152602090f35b5f3660031901126100c35761022d610412565b5f638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a355005b50346100c35760203660031901126100c357356001600160a01b038116908190036100c35761028b610412565b6bffffffffffffffffffffffff60a01b5f5416175f555f80f35b5f3660031901126100c35763389a75e1600c52335f525f6020600c2055337ffa7b8eab7da67f412cc9575ed43464468f9bfbae89d1675917346ca6d8fe3c925f80a2005b346100c3575f3660031901126100c3575f546040516001600160a01b039091168152602090f35b5f3660031901126100c35763389a75e1600c52335f526202a30042016020600c2055337fdbf36a107da19e49527a7176a1babf963b4b0ff8cde35ee35d6cd8f1f9ac7e1d5f80a2005b5f546001600160a01b039081169190821561040b576024602092604051948593849263df592f7d60e01b84521660048301525afa908115610400575f9161039e575090565b905060203d6020116103f9575b601f8101601f1916820167ffffffffffffffff8111838210176103e5576020918391604052810103126100c3575180151581036100c35790565b634e487b7160e01b5f52604160045260245ffd5b503d6103ab565b6040513d5f823e3d90fd5b5050505f90565b638b78c6d81954330361042157565b6382b429005f526004601cfdfea164736f6c6343000819000a",
+        "sourceMap": "94:479:44:-:0;;;;;;;339:10;4634:328:32;;;339:10:44;4634:328:32;;;;;94:479:44;;;;;;;;;;",
+        "linkReferences": {}
+    },
+    "deployedBytecode": {
+        "object": "0x6080604052600480361015610012575f80fd5b5f3560e01c806325692962146103105780634999c8e1146102e957806354d1f13d146102a557806355095aea1461025e578063715018a61461021a5780638da5cb5b146101ee578063df592f7d146101b6578063f04e283e14610135578063f2fde38b146100c75763fee81cf414610088575f80fd5b346100c35760203660031901126100c357356001600160a01b03811681036100c35763389a75e1600c525f52602080600c2054604051908152f35b5f80fd5b5060203660031901126100c35780356001600160a01b03811691908281036100c3576100f1610412565b60601b1561012a5750638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a355005b637448fbae5f52601cfd5b5060203660031901126100c35780356001600160a01b03811691908281036100c35761015f610412565b63389a75e1600c525f526020600c2090815442116101ab57505f9055638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e05f80a355005b636f5e88185f52601cfd5b50346100c35760203660031901126100c357356001600160a01b03811681036100c3576101e4602091610359565b6040519015158152f35b346100c3575f3660031901126100c357638b78c6d819546040516001600160a01b039091168152602090f35b5f3660031901126100c35761022d610412565b5f638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a355005b50346100c35760203660031901126100c357356001600160a01b038116908190036100c35761028b610412565b6bffffffffffffffffffffffff60a01b5f5416175f555f80f35b5f3660031901126100c35763389a75e1600c52335f525f6020600c2055337ffa7b8eab7da67f412cc9575ed43464468f9bfbae89d1675917346ca6d8fe3c925f80a2005b346100c3575f3660031901126100c3575f546040516001600160a01b039091168152602090f35b5f3660031901126100c35763389a75e1600c52335f526202a30042016020600c2055337fdbf36a107da19e49527a7176a1babf963b4b0ff8cde35ee35d6cd8f1f9ac7e1d5f80a2005b5f546001600160a01b039081169190821561040b576024602092604051948593849263df592f7d60e01b84521660048301525afa908115610400575f9161039e575090565b905060203d6020116103f9575b601f8101601f1916820167ffffffffffffffff8111838210176103e5576020918391604052810103126100c3575180151581036100c35790565b634e487b7160e01b5f52604160045260245ffd5b503d6103ab565b6040513d5f823e3d90fd5b5050505f90565b638b78c6d81954330361042157565b6382b429005f526004601cfdfea164736f6c6343000819000a",
+        "sourceMap": "94:479:44:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;94:479:44;;;;;-1:-1:-1;;;;;94:479:44;;;;;;10204:237:32;;;94:479:44;10204:237:32;94:479:44;10204:237:32;;;;94:479:44;;;;;;;;;;;-1:-1:-1;94:479:44;;-1:-1:-1;;94:479:44;;;;;;-1:-1:-1;;;;;94:479:44;;;;;;;;;10797:70:32;;:::i;:::-;6789:183;;;;;5147:382;;;;;;;94:479:44;5147:382:32;;;94:479:44;6789:183:32;;94:479:44;6789:183:32;;;94:479:44;-1:-1:-1;94:479:44;;-1:-1:-1;;94:479:44;;;;;;-1:-1:-1;;;;;94:479:44;;;;;;;;;10797:70:32;;:::i;:::-;8816:526;;;94:479:44;8816:526:32;94:479:44;8816:526:32;;;;;;;;;;94:479:44;8816:526:32;;5147:382;;;;;;94:479:44;5147:382:32;;;94:479:44;8816:526:32;;94:479:44;8816:526:32;;;94:479:44;;;;;;;-1:-1:-1;;94:479:44;;;;;-1:-1:-1;;;;;94:479:44;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;-1:-1:-1;;94:479:44;;;;-1:-1:-1;;9833:70:32;94:479:44;;-1:-1:-1;;;;;94:479:44;;;;;;;;;;;-1:-1:-1;;94:479:44;;;;10797:70:32;;:::i;:::-;94:479:44;5147:382:32;;;;;;;;;;94:479:44;;;;;;;;-1:-1:-1;;94:479:44;;;;;-1:-1:-1;;;;;94:479:44;;;;;;;;10797:70:32;;:::i;:::-;94:479:44;;;;;;;;;;;;;;;-1:-1:-1;;94:479:44;;;;8141:339:32;;;;94:479:44;8141:339:32;94:479:44;8141:339:32;;;;;;94:479:44;8141:339:32;;94:479:44;;;;;;;-1:-1:-1;;94:479:44;;;;;;;;-1:-1:-1;;;;;94:479:44;;;;;;;;;;;-1:-1:-1;;94:479:44;;;;7549:383:32;;;;94:479:44;7549:383:32;6282:9;7442:15;94:479:44;7549:383:32;;;;;;94:479:44;7549:383:32;;94:479:44;359:212;437:17;94:479;-1:-1:-1;;;;;94:479:44;;;;;437:31;;433:64;;94:479;509:57;94:479;;;;;;;;;;;509:57;;94:479;509:57;;;94:479;509:57;;;;;;;437:17;509:57;;;502:64;359:212;:::o;509:57::-;;;;;;;;;;94:479;;;-1:-1:-1;;94:479:44;;;;;;;;;;;;509:57;94:479;;;;;509:57;;94:479;;;;;;;;;;;;359:212;:::o;94:479::-;;;;437:17;94:479;;509:57;94:479;;437:17;94:479;509:57;;;;;;94:479;;;437:17;94:479;;;;;433:64;478:12;;;437:17;478:12;:::o;5593:364:32:-;-1:-1:-1;;5691:260:32;;;;;5593:364::o;5691:260::-;;;;;;",
+        "linkReferences": {}
+    },
+    "methodIdentifiers": {
+        "cancelOwnershipHandover()": "54d1f13d",
+        "completeOwnershipHandover(address)": "f04e283e",
+        "isSanctioned(address)": "df592f7d",
+        "owner()": "8da5cb5b",
+        "ownershipHandoverExpiresAt(address)": "fee81cf4",
+        "renounceOwnership()": "715018a6",
+        "requestOwnershipHandover()": "25692962",
+        "sanctionsRegistry()": "4999c8e1",
+        "setSanctionsRegistry(address)": "55095aea",
+        "transferOwnership(address)": "f2fde38b"
+    },
+    "rawMetadata": "{\"compiler\":{\"version\":\"0.8.25+commit.b61c2a91\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"NewOwnerIsZeroAddress\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"NoHandoverRequest\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"Unauthorized\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"pendingOwner\",\"type\":\"address\"}],\"name\":\"OwnershipHandoverCanceled\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"pendingOwner\",\"type\":\"address\"}],\"name\":\"OwnershipHandoverRequested\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"oldOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"cancelOwnershipHandover\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"pendingOwner\",\"type\":\"address\"}],\"name\":\"completeOwnershipHandover\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"isSanctioned\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"result\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"pendingOwner\",\"type\":\"address\"}],\"name\":\"ownershipHandoverExpiresAt\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"result\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"requestOwnershipHandover\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"sanctionsRegistry\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_sanctionsRegistry\",\"type\":\"address\"}],\"name\":\"setSanctionsRegistry\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}],\"devdoc\":{\"errors\":{\"NewOwnerIsZeroAddress()\":[{\"details\":\"The `newOwner` cannot be the zero address.\"}],\"NoHandoverRequest()\":[{\"details\":\"The `pendingOwner` does not have a valid handover request.\"}],\"Unauthorized()\":[{\"details\":\"The caller is not authorized to call the function.\"}]},\"events\":{\"OwnershipHandoverCanceled(address)\":{\"details\":\"The ownership handover to `pendingOwner` has been canceled.\"},\"OwnershipHandoverRequested(address)\":{\"details\":\"An ownership handover to `pendingOwner` has been requested.\"},\"OwnershipTransferred(address,address)\":{\"details\":\"The ownership is transferred from `oldOwner` to `newOwner`. This event is intentionally kept the same as OpenZeppelin's Ownable to be compatible with indexers and [EIP-173](https://eips.ethereum.org/EIPS/eip-173), despite it not being as lightweight as a single argument event.\"}},\"kind\":\"dev\",\"methods\":{\"cancelOwnershipHandover()\":{\"details\":\"Cancels the two-step ownership handover to the caller, if any.\"},\"completeOwnershipHandover(address)\":{\"details\":\"Allows the owner to complete the two-step ownership handover to `pendingOwner`. Reverts if there is no existing ownership handover requested by `pendingOwner`.\"},\"owner()\":{\"details\":\"Returns the owner of the contract.\"},\"ownershipHandoverExpiresAt(address)\":{\"details\":\"Returns the expiry timestamp for the two-step ownership handover to `pendingOwner`.\"},\"renounceOwnership()\":{\"details\":\"Allows the owner to renounce their ownership.\"},\"requestOwnershipHandover()\":{\"details\":\"Request a two-step ownership handover to the caller. The request will automatically expire in 48 hours (172800 seconds) by default.\"},\"transferOwnership(address)\":{\"details\":\"Allows the owner to transfer the ownership to `newOwner`.\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/ChainalysisProxy.sol\":\"ChainalysisProxy\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":ds-test/=lib/ds-test/src/\",\":erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/\",\":ethereum-access-token/=lib/ethereum-access-token/contracts/\",\":forge-std/=lib/forge-std/src/\",\":openzeppelin-contracts/=lib/openzeppelin-contracts/\",\":openzeppelin/=lib/openzeppelin-contracts/\",\":sol-utils/=lib/sol-utils/src/\",\":solady/=lib/solady/src/\",\":solmate/=lib/solmate/src/\",\":vulcan/=lib/vulcan/src/\"],\"viaIR\":true},\"sources\":{\"lib/solady/src/auth/Ownable.sol\":{\"keccak256\":\"0xd916b6ca098f26e08eff367c6fc1853956839d8d1c9d2df715784b6dec99889b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://7a9d8137ec1f5fb4210fbebeafa002f5b9cab28579445bd8281c56862e63aa30\",\"dweb:/ipfs/QmPLBcT1JkBKa4jK6qNficwZx2uGG4MetPNErJArdX6G61\"]},\"src/ChainalysisProxy.sol\":{\"keccak256\":\"0xb314d2c76c9a891f70fcb382ed66671564c77bcb853048427427534c504511f9\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://01371b42ff633babb69e40cde2538be4538d08fcdd949aaf252de800617e41b7\",\"dweb:/ipfs/QmdA6LMJPy7AhPguTieyfg16n6AUXbbmkQV52AxRYojyRB\"]}},\"version\":1}",
+    "metadata": {
+        "compiler": {
+            "version": "0.8.25+commit.b61c2a91"
+        },
+        "language": "Solidity",
+        "output": {
+            "abi": [
+                {
+                    "inputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "constructor"
+                },
+                {
+                    "inputs": [],
+                    "type": "error",
+                    "name": "NewOwnerIsZeroAddress"
+                },
+                {
+                    "inputs": [],
+                    "type": "error",
+                    "name": "NoHandoverRequest"
+                },
+                {
+                    "inputs": [],
+                    "type": "error",
+                    "name": "Unauthorized"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "pendingOwner",
+                            "type": "address",
+                            "indexed": true
+                        }
+                    ],
+                    "type": "event",
+                    "name": "OwnershipHandoverCanceled",
+                    "anonymous": false
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "pendingOwner",
+                            "type": "address",
+                            "indexed": true
+                        }
+                    ],
+                    "type": "event",
+                    "name": "OwnershipHandoverRequested",
+                    "anonymous": false
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "oldOwner",
+                            "type": "address",
+                            "indexed": true
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "newOwner",
+                            "type": "address",
+                            "indexed": true
+                        }
+                    ],
+                    "type": "event",
+                    "name": "OwnershipTransferred",
+                    "anonymous": false
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "payable",
+                    "type": "function",
+                    "name": "cancelOwnershipHandover"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "pendingOwner",
+                            "type": "address"
+                        }
+                    ],
+                    "stateMutability": "payable",
+                    "type": "function",
+                    "name": "completeOwnershipHandover"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "account",
+                            "type": "address"
+                        }
+                    ],
+                    "stateMutability": "view",
+                    "type": "function",
+                    "name": "isSanctioned",
+                    "outputs": [
+                        {
+                            "internalType": "bool",
+                            "name": "",
+                            "type": "bool"
+                        }
+                    ]
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "view",
+                    "type": "function",
+                    "name": "owner",
+                    "outputs": [
+                        {
+                            "internalType": "address",
+                            "name": "result",
+                            "type": "address"
+                        }
+                    ]
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "pendingOwner",
+                            "type": "address"
+                        }
+                    ],
+                    "stateMutability": "view",
+                    "type": "function",
+                    "name": "ownershipHandoverExpiresAt",
+                    "outputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "result",
+                            "type": "uint256"
+                        }
+                    ]
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "payable",
+                    "type": "function",
+                    "name": "renounceOwnership"
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "payable",
+                    "type": "function",
+                    "name": "requestOwnershipHandover"
+                },
+                {
+                    "inputs": [],
+                    "stateMutability": "view",
+                    "type": "function",
+                    "name": "sanctionsRegistry",
+                    "outputs": [
+                        {
+                            "internalType": "address",
+                            "name": "",
+                            "type": "address"
+                        }
+                    ]
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "_sanctionsRegistry",
+                            "type": "address"
+                        }
+                    ],
+                    "stateMutability": "nonpayable",
+                    "type": "function",
+                    "name": "setSanctionsRegistry"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "address",
+                            "name": "newOwner",
+                            "type": "address"
+                        }
+                    ],
+                    "stateMutability": "payable",
+                    "type": "function",
+                    "name": "transferOwnership"
+                }
+            ],
+            "devdoc": {
+                "kind": "dev",
+                "methods": {
+                    "cancelOwnershipHandover()": {
+                        "details": "Cancels the two-step ownership handover to the caller, if any."
+                    },
+                    "completeOwnershipHandover(address)": {
+                        "details": "Allows the owner to complete the two-step ownership handover to `pendingOwner`. Reverts if there is no existing ownership handover requested by `pendingOwner`."
+                    },
+                    "owner()": {
+                        "details": "Returns the owner of the contract."
+                    },
+                    "ownershipHandoverExpiresAt(address)": {
+                        "details": "Returns the expiry timestamp for the two-step ownership handover to `pendingOwner`."
+                    },
+                    "renounceOwnership()": {
+                        "details": "Allows the owner to renounce their ownership."
+                    },
+                    "requestOwnershipHandover()": {
+                        "details": "Request a two-step ownership handover to the caller. The request will automatically expire in 48 hours (172800 seconds) by default."
+                    },
+                    "transferOwnership(address)": {
+                        "details": "Allows the owner to transfer the ownership to `newOwner`."
+                    }
+                },
+                "version": 1
+            },
+            "userdoc": {
+                "kind": "user",
+                "methods": {},
+                "version": 1
+            }
+        },
+        "settings": {
+            "remappings": [
+                "ds-test/=lib/ds-test/src/",
+                "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+                "ethereum-access-token/=lib/ethereum-access-token/contracts/",
+                "forge-std/=lib/forge-std/src/",
+                "openzeppelin-contracts/=lib/openzeppelin-contracts/",
+                "openzeppelin/=lib/openzeppelin-contracts/",
+                "sol-utils/=lib/sol-utils/src/",
+                "solady/=lib/solady/src/",
+                "solmate/=lib/solmate/src/",
+                "vulcan/=lib/vulcan/src/"
+            ],
+            "optimizer": {
+                "enabled": true,
+                "runs": 200
+            },
+            "metadata": {
+                "bytecodeHash": "none"
+            },
+            "compilationTarget": {
+                "src/ChainalysisProxy.sol": "ChainalysisProxy"
+            },
+            "evmVersion": "cancun",
+            "libraries": {},
+            "viaIR": true
+        },
+        "sources": {
+            "lib/solady/src/auth/Ownable.sol": {
+                "keccak256": "0xd916b6ca098f26e08eff367c6fc1853956839d8d1c9d2df715784b6dec99889b",
+                "urls": [
+                    "bzz-raw://7a9d8137ec1f5fb4210fbebeafa002f5b9cab28579445bd8281c56862e63aa30",
+                    "dweb:/ipfs/QmPLBcT1JkBKa4jK6qNficwZx2uGG4MetPNErJArdX6G61"
+                ],
+                "license": "MIT"
+            },
+            "src/ChainalysisProxy.sol": {
+                "keccak256": "0xb314d2c76c9a891f70fcb382ed66671564c77bcb853048427427534c504511f9",
+                "urls": [
+                    "bzz-raw://01371b42ff633babb69e40cde2538be4538d08fcdd949aaf252de800617e41b7",
+                    "dweb:/ipfs/QmdA6LMJPy7AhPguTieyfg16n6AUXbbmkQV52AxRYojyRB"
+                ],
+                "license": "MIT"
+            }
+        },
+        "version": 1
+    },
+    "id": 44
+}

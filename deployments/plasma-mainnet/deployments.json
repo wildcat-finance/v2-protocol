@@ -1,0 +1,14 @@
+{
+    "ChainalysisProxy": "0x38056F7fE6396417b191BF7Dc6a3aA04235f3f46",
+    "FixedTermHooks_initCodeStorage": "0x59010b706959c15977304C2553F3f4c697A73018",
+    "HooksFactory": "0xB46bae25AC6D23148531ed1853a8881FD842E517",
+    "MarketLens": "0x7e5d6d9f9a2091dD781118514F5397A8107c81c5",
+    "OpenAccessRoleProvider": "0x792F1368f8B8f450c14875eb6FF0028dFc2629b4",
+    "OpenTermHooks_initCodeStorage": "0x40217f6e5891C8F1524744C0747e07d316a0c798",
+    "SphereXEngine": "0x931fe4a88e1C1f1A7402dF6A40988f38503f1061",
+    "WildcatArchController": "0xdb2e0DE97d6d96aa56754635704a4273E0F348ae",
+    "WildcatCopyOfChainalysisList": "0xfEB516d9D946dD487A9346F6fee11f40C6945eE4",
+    "WildcatMarket_initCodeStorage": "0x74b253041BE30b7698B5f69239c271Ea8DB57261",
+    "WildcatSanctionsSentinel": "0x37064895ba2C1e269EAF7FF32564818d08903f5B",
+    "WildcatFeeRecipient":"0x437e0551892C2C9b06d3fFd248fe60572e08CD1A"
+}
