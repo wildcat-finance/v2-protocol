@@ -63,12 +63,9 @@ library FeeMath {
       timestamp - state.lastInterestAccruedTimestamp
     );
 
-    if (timeWithPenalty > 0) {
+    if ((timeWithPenalty > 0) && (delinquencyFeeBips > 0)) {
       // Calculate penalty fees on the interest accrued.
-      // delinquencyFeeRay initialized to default value (hopefully 0) on function call
-      if (delinquencyFeeBips > 0) {
-        delinquencyFeeRay = calculateLinearInterestFromBips(delinquencyFeeBips, timeWithPenalty);
-      }
+      delinquencyFeeRay = calculateLinearInterestFromBips(delinquencyFeeBips, timeWithPenalty);
     }
   }
 
