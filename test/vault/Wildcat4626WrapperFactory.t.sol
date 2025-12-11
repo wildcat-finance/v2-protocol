@@ -7,6 +7,12 @@ import { Wildcat4626Wrapper, IWildcatMarketToken } from 'src/vault/Wildcat4626Wr
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
 
+contract StubSanctionsSentinel {
+  function isSanctioned(address, address) external pure returns (bool) {
+    return false;
+  }
+}
+
 contract StubMarketToken is IWildcatMarketToken {
   string public constant name = 'Stub Market';
   string public constant symbol = 'stubUSDC';
@@ -14,12 +20,14 @@ contract StubMarketToken is IWildcatMarketToken {
 
   uint256 public override scaleFactor = RAY;
   address public immutable override borrower;
+  address public immutable override sentinel;
 
   mapping(address => uint256) internal _balances;
   mapping(address => mapping(address => uint256)) public override allowance;
 
-  constructor(address borrower_) {
+  constructor(address borrower_, address sentinel_) {
     borrower = borrower_;
+    sentinel = sentinel_;
   }
 
   function balanceOf(address account) public view override returns (uint256) {
@@ -64,13 +72,15 @@ contract Wildcat4626WrapperFactoryTest is Test {
   Wildcat4626WrapperFactory internal factory;
   StubMarketToken internal market;
   StubArchController internal archController;
+  StubSanctionsSentinel internal sanctionsSentinel;
 
   address internal constant BORROWER = address(0xB0123);
 
   function setUp() external {
     archController = new StubArchController();
     factory = new Wildcat4626WrapperFactory(address(archController));
-    market = new StubMarketToken(BORROWER);
+    sanctionsSentinel = new StubSanctionsSentinel();
+    market = new StubMarketToken(BORROWER, address(sanctionsSentinel));
     archController.registerMarket(address(market));
   }
 
@@ -94,7 +104,7 @@ contract Wildcat4626WrapperFactoryTest is Test {
   }
 
   function test_createWrapperRevertsIfNotRegisteredMarket() external {
-    market = new StubMarketToken(BORROWER);
+    market = new StubMarketToken(BORROWER, address(sanctionsSentinel));
 
     vm.expectRevert(
       abi.encodeWithSelector(

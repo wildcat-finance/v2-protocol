@@ -7,6 +7,22 @@ import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { IWildcatMarketToken } from 'src/vault/Wildcat4626Wrapper.sol';
 
+contract MockSanctionsSentinel {
+  mapping(address => bool) public sanctioned;
+
+  function isSanctioned(address, address account) external view returns (bool) {
+    return sanctioned[account];
+  }
+
+  function sanction(address account) external {
+    sanctioned[account] = true;
+  }
+
+  function unsanction(address account) external {
+    sanctioned[account] = false;
+  }
+}
+
 contract MockErc20 {
   string public constant name = 'HEX Token';
   string public constant symbol = 'HEX';
@@ -42,15 +58,17 @@ contract MockMarketToken is IWildcatMarketToken {
 
   uint256 public override scaleFactor;
   address public immutable override borrower;
+  address public immutable override sentinel;
 
   mapping(address => uint256) internal _scaledBalances;
   mapping(address => mapping(address => uint256)) public override allowance;
   uint256 internal _scaledTotalSupply;
 
-  constructor(uint8 tokenDecimals, address borrower_) {
+  constructor(uint8 tokenDecimals, address borrower_, address sentinel_) {
     decimals = tokenDecimals;
     scaleFactor = RAY;
     borrower = borrower_;
+    sentinel = sentinel_;
   }
 
   function balanceOf(address account) public view override returns (uint256) {
@@ -116,6 +134,7 @@ contract MockMarketToken is IWildcatMarketToken {
 contract Wildcat4626WrapperTest is Test {
   using MathUtils for uint256;
 
+  MockSanctionsSentinel internal sanctionsSentinel;
   MockMarketToken internal market;
   Wildcat4626Wrapper internal wrapper;
 
@@ -126,7 +145,8 @@ contract Wildcat4626WrapperTest is Test {
   uint256 internal constant INITIAL_ASSETS = 100e18;
 
   function setUp() external {
-    market = new MockMarketToken(18, BORROWER);
+    sanctionsSentinel = new MockSanctionsSentinel();
+    market = new MockMarketToken(18, BORROWER, address(sanctionsSentinel));
     wrapper = new Wildcat4626Wrapper(address(market));
 
     market.mint(FED, INITIAL_ASSETS);
@@ -395,7 +415,7 @@ contract Wildcat4626WrapperTest is Test {
     vm.prank(FED);
     uint256 shares = wrapper.deposit(assets, FED);
 
-    assertEq(shares, expectedShares, 'shares match');
+    assertEq(shares, expectedShares, 'shares match half-up');
     assertEq(wrapper.balanceOf(FED), expectedShares, 'wrapper balance correct');
   }
 
@@ -422,11 +442,176 @@ contract Wildcat4626WrapperTest is Test {
     vm.prank(FED);
     uint256 sharesBurned = wrapper.withdraw(assets, FED, FED);
 
-    assertEq(sharesBurned, expectedSharesBurned, "shares burned match market's half-up rounding");
+    assertEq(sharesBurned, expectedSharesBurned, "shares burned match half-up");
     assertEq(
       wrapper.balanceOf(FED),
       fedSharesBefore - expectedSharesBurned,
       'balance decreased correctly'
     );
+  }
+
+  function test_deposit_revertsForSanctionedCaller() external {
+    sanctionsSentinel.sanction(FED);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
+    vm.prank(FED);
+    wrapper.deposit(1, FED);
+  }
+
+  function test_deposit_revertsForSanctionedReceiver() external {
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(FED);
+    wrapper.deposit(1, BOB);
+  }
+
+  function test_withdraw_revertsForSanctionedOwner() external {
+    vm.prank(FED);
+    wrapper.deposit(10e18, FED);
+
+    sanctionsSentinel.sanction(FED);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
+    vm.prank(FED);
+    wrapper.withdraw(1, FED, FED);
+  }
+
+  function test_withdraw_revertsForSanctionedReceiver() external {
+    vm.prank(FED);
+    wrapper.deposit(10e18, FED);
+
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(FED);
+    wrapper.withdraw(1, BOB, FED);
+  }
+
+  function test_transfer_revertsForSanctionedDestination() external {
+    vm.prank(FED);
+    wrapper.deposit(5e18, FED);
+
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(FED);
+    wrapper.transfer(BOB, 1e18);
+  }
+
+  function test_mint_revertsForSanctionedCaller() external {
+    sanctionsSentinel.sanction(FED);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
+    vm.prank(FED);
+    wrapper.mint(1, FED);
+  }
+
+  function test_mint_revertsForSanctionedReceiver() external {
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(FED);
+    wrapper.mint(1, BOB);
+  }
+
+  function test_redeem_revertsForSanctionedCaller() external {
+    vm.prank(FED);
+    wrapper.deposit(10e18, FED);
+
+    vm.prank(FED);
+    wrapper.approve(BOB, type(uint256).max);
+
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(BOB);
+    wrapper.redeem(1, BOB, FED);
+  }
+
+  function test_redeem_revertsForSanctionedOwner() external {
+    vm.prank(FED);
+    wrapper.deposit(10e18, FED);
+
+    sanctionsSentinel.sanction(FED);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
+    vm.prank(FED);
+    wrapper.redeem(1, FED, FED);
+  }
+
+  function test_redeem_revertsForSanctionedReceiver() external {
+    vm.prank(FED);
+    wrapper.deposit(10e18, FED);
+
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(FED);
+    wrapper.redeem(1, BOB, FED);
+  }
+
+  function test_withdraw_revertsForSanctionedCaller() external {
+    vm.prank(FED);
+    wrapper.deposit(10e18, FED);
+
+    vm.prank(FED);
+    wrapper.approve(BOB, type(uint256).max);
+
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(BOB);
+    wrapper.withdraw(1, BOB, FED);
+  }
+
+  function test_transfer_revertsForSanctionedFrom() external {
+    vm.prank(FED);
+    wrapper.deposit(5e18, FED);
+
+    sanctionsSentinel.sanction(FED);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
+    vm.prank(FED);
+    wrapper.transfer(BOB, 1e18);
+  }
+
+  function test_transferFrom_revertsForSanctionedFrom() external {
+    vm.prank(FED);
+    wrapper.deposit(5e18, FED);
+
+    vm.prank(FED);
+    wrapper.approve(BOB, type(uint256).max);
+
+    sanctionsSentinel.sanction(FED);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
+    vm.prank(BOB);
+    wrapper.transferFrom(FED, BOB, 1e18);
+  }
+
+  function test_transferFrom_revertsForSanctionedTo() external {
+    vm.prank(FED);
+    wrapper.deposit(5e18, FED);
+
+    vm.prank(FED);
+    wrapper.approve(BOB, type(uint256).max);
+
+    address ALICE = address(0xA11CE);
+    sanctionsSentinel.sanction(ALICE);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, ALICE));
+    vm.prank(BOB);
+    wrapper.transferFrom(FED, ALICE, 1e18);
+  }
+
+  function test_sweep_revertsForSanctionedTo() external {
+    MockErc20 stray = new MockErc20();
+    stray.mint(address(wrapper), 10e18);
+
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(BORROWER);
+    wrapper.sweep(address(stray), BOB);
+  }
+
+  function test_constructor_revertsForZeroSentinel() external {
+    // Deploy a market with zero sentinel
+    MockMarketToken badMarket = new MockMarketToken(18, BORROWER, address(0));
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    new Wildcat4626Wrapper(address(badMarket));
+  }
+
+  function test_constructor_revertsForZeroBorrower() external {
+    // Deploy a market with zero borrower
+    MockMarketToken badMarket = new MockMarketToken(18, address(0), address(sanctionsSentinel));
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    new Wildcat4626Wrapper(address(badMarket));
   }
 }
