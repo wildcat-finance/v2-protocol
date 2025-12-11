@@ -65,7 +65,10 @@ library FeeMath {
 
     if (timeWithPenalty > 0) {
       // Calculate penalty fees on the interest accrued.
-      delinquencyFeeRay = calculateLinearInterestFromBips(delinquencyFeeBips, timeWithPenalty);
+      // delinquencyFeeRay initialized to default value (hopefully 0) on function call
+      if (delinquencyFeeBips > 0) {
+        delinquencyFeeRay = calculateLinearInterestFromBips(delinquencyFeeBips, timeWithPenalty);
+      }
     }
   }
 
@@ -153,13 +156,11 @@ library FeeMath {
       protocolFee = state.applyProtocolFee(baseInterestRay);
     }
 
-    if (delinquencyFeeBips > 0) {
-      delinquencyFeeRay = state.updateDelinquency(
-        timestamp,
-        delinquencyFeeBips,
-        delinquencyGracePeriod
-      );
-    }
+    delinquencyFeeRay = state.updateDelinquency(
+      timestamp,
+      delinquencyFeeBips,
+      delinquencyGracePeriod
+    );
 
     // Calculate new scaleFactor
     uint256 prevScaleFactor = state.scaleFactor;
