@@ -43,8 +43,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   IWildcatSanctionsSentinel public immutable sanctionsSentinel;
 
   uint8 private immutable _decimals;
-  string private immutable _name;
-  string private immutable _symbol;
+  string private _name;
+  string private _symbol;
 
   /**
    * @param marketAddress the wildcat market (debt token) address to wrap
