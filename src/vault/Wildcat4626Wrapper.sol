@@ -218,10 +218,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address receiver
   ) public override nonReentrant returns (uint256 shares) {
     _checkNotSanctioned(msg.sender);
-    _checkNotSanctioned(receiver);
     if (assets == 0) revert ZeroAssets();
 
-    uint256 limit = maxDeposit(receiver);
+    uint256 limit = _remainingCapacityAssets();
     if (assets > limit) revert CapExceeded();
 
     uint256 scaleFactor = wrappedMarket.scaleFactor();
@@ -247,13 +246,13 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address receiver
   ) public override nonReentrant returns (uint256 assets) {
     _checkNotSanctioned(msg.sender);
-    _checkNotSanctioned(receiver);
     if (shares == 0) revert ZeroShares();
-  
-    uint256 limit = maxMint(receiver);
-    if (shares > limit) revert CapExceeded();
-  
     uint256 scaleFactor = wrappedMarket.scaleFactor();
+    // Reuse the `assets` return variable to hold remaining capacity for the cap check.
+    assets = _remainingCapacityAssets();
+    if (assets == 0 || shares > _convertToSharesHalfUp(assets, scaleFactor)) {
+      revert CapExceeded();
+    }
   
     //  minimum assets for half-up rounding to yield `shares`
     uint256 numerator = shares * scaleFactor;
@@ -284,7 +283,6 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address owner_
   ) public override nonReentrant returns (uint256 shares) {
     _checkNotSanctioned(msg.sender);
-    _checkNotSanctioned(owner_);
     _checkNotSanctioned(receiver);
     if (assets == 0) revert ZeroAssets();
 
@@ -316,7 +314,6 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address owner_
   ) public override nonReentrant returns (uint256 assets) {
     _checkNotSanctioned(msg.sender);
-    _checkNotSanctioned(owner_);
     _checkNotSanctioned(receiver);
     if (shares == 0) revert ZeroShares();
 
@@ -360,6 +357,15 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
+
+  /// @dev Remaining normalized assets before reaching the market's maxTotalSupply,
+  ///      without sanctions checks (execution paths already enforce them).
+  function _remainingCapacityAssets() internal view returns (uint256) {
+    uint256 marketCap = wrappedMarket.maxTotalSupply();
+    uint256 held = wrappedMarket.balanceOf(address(this));
+    if (held >= marketCap) return 0;
+    return marketCap - held;
+  }
 
   /// @dev floor rounding for spec-compliant previews.
   function _convertToSharesDown(

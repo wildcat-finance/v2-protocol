@@ -28,10 +28,10 @@ contract Wildcat4626WrapperFactory {
   function createWrapper(address market) external returns (address wrapper) {
     if (market == address(0)) revert ZeroAddress();
 
-    if (!archController.isRegisteredMarket(market)) revert NotRegisteredMarket(market);
-
     address existing = wrapperForMarket[market];
     if (existing != address(0)) revert WrapperAlreadyExists(market);
+
+    if (!archController.isRegisteredMarket(market)) revert NotRegisteredMarket(market);
 
     wrapper = address(new Wildcat4626Wrapper(market));
     wrapperForMarket[market] = wrapper;
