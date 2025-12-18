@@ -13,6 +13,7 @@
 - Wildcat4626WrapperFactory (v2-protocol/src/vault/Wildcat4626WrapperFactory.sol) permissionlessly deploys at most one wrapper per registered market via `archController.isRegisteredMarket`, stored in `wrapperForMarket`.
 - Tests (v2-protocol/test/vault/4626) cover metadata, rounding rules, scale‑factor changes, sanctions, cap, donation/inflation resistance, fuzzed execution, and a full ERC‑4626 standard test suite against a real WildcatMarket.
 
+Full documentation can be found in `docs/EIP-4626.md`
 
 ## Audit Scope
 
