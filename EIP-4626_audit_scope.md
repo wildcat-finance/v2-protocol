@@ -15,8 +15,10 @@
 
 Full documentation can be found in `docs/EIP-4626.md`
 
-## Audit Scope
+## Commit
+https://github.com/wildcat-finance/v2-protocol/commit/f8d8b9babbe02e5c4d4294abbd8661bb7cf57c10
 
+## Audit Scope
 | Filepath | nSLOC |
 | --- | --- |
 | src/vault/Wildcat4626Wrapper.sol | 281 |
