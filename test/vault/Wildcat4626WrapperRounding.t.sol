@@ -370,6 +370,30 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     );
   }
 
+  /// @notice Fuzz: maxWithdraw should be the tight upper bound for withdraw.
+  function testFuzz_maxWithdraw_isTight(uint256 depositAssets, uint256 scaleOffset) external {
+    depositAssets = bound(depositAssets, 1e12, 100e18);
+    scaleOffset = bound(scaleOffset, 0, 10 * RAY);
+    market.setScaleFactor(RAY + scaleOffset);
+
+    vm.prank(ALICE);
+    wrapper.deposit(depositAssets, ALICE);
+
+    uint256 maxWithdraw = wrapper.maxWithdraw(ALICE);
+    vm.assume(maxWithdraw > 0);
+
+    uint256 snapshot = vm.snapshot();
+    vm.prank(ALICE);
+    wrapper.withdraw(maxWithdraw, ALICE, ALICE);
+    vm.revertToAndDelete(snapshot);
+
+    if (maxWithdraw < type(uint256).max) {
+      vm.prank(ALICE);
+      vm.expectRevert();
+      wrapper.withdraw(maxWithdraw + 1, ALICE, ALICE);
+    }
+  }
+
   /// @notice Fuzz: redeem() should never revert with SharesMismatch for valid inputs
   function testFuzz_redeem_neverSharesMismatch(
     uint256 depositAssets,

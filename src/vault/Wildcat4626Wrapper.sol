@@ -172,7 +172,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 shares = balanceOf(owner_);
     if (shares == 0) return 0;
     uint256 scaleFactor = wrappedMarket.scaleFactor();
-    return _convertToAssetsHalfUp(shares, scaleFactor);
+    // Inverse of half-up rounding used by withdraw: largest assets that still round to <= shares.
+    return (shares * scaleFactor + (scaleFactor - 1) / 2) / RAY;
   }
 
   /// @notice Shares that would be burned to withdraw `assets`, rounded up (ceiling) per ERC-4626
