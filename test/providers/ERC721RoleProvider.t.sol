@@ -4,6 +4,7 @@ pragma solidity >=0.8.20;
 import { MockERC721 } from 'solmate/test/utils/mocks/MockERC721.sol';
 
 import '../BaseMarketTest.sol';
+import { fastForward } from '../helpers/VmUtils.sol';
 import 'src/providers/ERC721RoleProvider.sol';
 
 contract ERC721RoleProviderTest is BaseMarketTest {
@@ -46,4 +47,30 @@ contract ERC721RoleProviderTest is BaseMarketTest {
     market.depositUpTo(amount);
     vm.stopPrank();
   }
+
+  /// @dev Credentials invalidate when NFT moves.
+  function test_deposit_erc721_expires_after_ttl() external {
+    vm.startPrank(parameters.borrower);
+    hooks.addRoleProvider(address(provider), 1);
+    vm.stopPrank();
+
+    _deposit(approvedLender, 1e18, false);
+
+    vm.prank(approvedLender);
+    nft.transferFrom(approvedLender, unapprovedLender, 1);
+
+    _deposit(approvedLender, 1e18, false);
+
+    fastForward(2);
+
+    uint256 amount = 1e18;
+    asset.mint(approvedLender, amount);
+
+    vm.startPrank(approvedLender);
+    asset.approve(address(market), amount);
+    vm.expectRevert(AccessControlHooks.NotApprovedLender.selector);
+    market.depositUpTo(amount);
+    vm.stopPrank();
+  }
+
 }
