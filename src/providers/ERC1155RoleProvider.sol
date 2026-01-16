@@ -20,9 +20,11 @@ contract ERC1155RoleProvider is IRoleProvider {
   address public immutable token;
   uint256 public immutable tokenId;
 
-  constructor(address _token, uint256 _tokenId) {
+  constructor(address _token, uint256 _tokenId, bool skipInterfaceCheck) {
     if (_token.code.length == 0) revert InvalidTokenAddress();
-    if (!_supportsInterface(_token, ERC1155_INTERFACE_ID)) revert InvalidERC1155();
+    if (!skipInterfaceCheck && !_supportsInterface(_token, ERC1155_INTERFACE_ID)) {
+      revert InvalidERC1155();
+    }
     token = _token;
     tokenId = _tokenId;
   }

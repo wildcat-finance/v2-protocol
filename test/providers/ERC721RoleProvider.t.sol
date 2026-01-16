@@ -24,7 +24,7 @@ contract ERC721RoleProviderTest is BaseMarketTest {
     unapprovedLender = bob;
 
     nft = new MockERC721('Access', 'ACCESS');
-    provider = new ERC721RoleProvider(address(nft));
+    provider = new ERC721RoleProvider(address(nft), false);
     nft.mint(approvedLender, 1);
 
     vm.startPrank(parameters.borrower);
@@ -77,12 +77,17 @@ contract ERC721RoleProviderTest is BaseMarketTest {
 
   function test_constructor_reverts_without_code() external {
     vm.expectRevert(ERC721RoleProvider.InvalidTokenAddress.selector);
-    new ERC721RoleProvider(address(0));
+    new ERC721RoleProvider(address(0), false);
   }
 
   function test_constructor_reverts_without_erc721_interface() external {
     NonERC721 nonErc721 = new NonERC721();
     vm.expectRevert(ERC721RoleProvider.InvalidERC721.selector);
-    new ERC721RoleProvider(address(nonErc721));
+    new ERC721RoleProvider(address(nonErc721), false);
+  }
+
+  function test_constructor_allows_skip_interface_check() external {
+    NonERC721 nonErc721 = new NonERC721();
+    new ERC721RoleProvider(address(nonErc721), true);
   }
 }

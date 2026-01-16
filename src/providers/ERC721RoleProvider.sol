@@ -19,9 +19,11 @@ contract ERC721RoleProvider is IRoleProvider {
 
   address public immutable token;
 
-  constructor(address _token) {
+  constructor(address _token, bool skipInterfaceCheck) {
     if (_token.code.length == 0) revert InvalidTokenAddress();
-    if (!_supportsInterface(_token, ERC721_INTERFACE_ID)) revert InvalidERC721();
+    if (!skipInterfaceCheck && !_supportsInterface(_token, ERC721_INTERFACE_ID)) {
+      revert InvalidERC721();
+    }
     token = _token;
   }
 

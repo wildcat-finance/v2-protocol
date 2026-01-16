@@ -25,7 +25,7 @@ contract ERC1155RoleProviderTest is BaseMarketTest {
     unapprovedLender = bob;
 
     token = new MockERC1155();
-    provider = new ERC1155RoleProvider(address(token), tokenId);
+    provider = new ERC1155RoleProvider(address(token), tokenId, false);
     token.mint(approvedLender, tokenId, 1, '');
 
     vm.startPrank(parameters.borrower);
@@ -96,12 +96,17 @@ contract ERC1155RoleProviderTest is BaseMarketTest {
 
   function test_constructor_reverts_without_code() external {
     vm.expectRevert(ERC1155RoleProvider.InvalidTokenAddress.selector);
-    new ERC1155RoleProvider(address(0), tokenId);
+    new ERC1155RoleProvider(address(0), tokenId, false);
   }
 
   function test_constructor_reverts_without_erc1155_interface() external {
     NonERC1155 nonErc1155 = new NonERC1155();
     vm.expectRevert(ERC1155RoleProvider.InvalidERC1155.selector);
-    new ERC1155RoleProvider(address(nonErc1155), tokenId);
+    new ERC1155RoleProvider(address(nonErc1155), tokenId, false);
+  }
+
+  function test_constructor_allows_skip_interface_check() external {
+    NonERC1155 nonErc1155 = new NonERC1155();
+    new ERC1155RoleProvider(address(nonErc1155), tokenId, true);
   }
 }
