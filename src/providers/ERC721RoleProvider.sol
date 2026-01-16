@@ -7,10 +7,21 @@ interface IERC721 {
   function balanceOf(address owner) external view returns (uint256);
 }
 
+interface IERC165 {
+  function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
+
 contract ERC721RoleProvider is IRoleProvider {
+  error InvalidTokenAddress();
+  error InvalidERC721();
+
+  bytes4 private constant ERC721_INTERFACE_ID = 0x80ac58cd;
+
   address public immutable token;
 
   constructor(address _token) {
+    if (_token.code.length == 0) revert InvalidTokenAddress();
+    if (!_supportsInterface(_token, ERC721_INTERFACE_ID)) revert InvalidERC721();
     token = _token;
   }
 
@@ -34,5 +45,16 @@ contract ERC721RoleProvider is IRoleProvider {
       return uint32(block.timestamp);
     }
     return 0;
+  }
+
+  function _supportsInterface(
+    address target,
+    bytes4 interfaceId
+  ) internal view returns (bool) {
+    try IERC165(target).supportsInterface(interfaceId) returns (bool supported) {
+      return supported;
+    } catch {
+      return false;
+    }
   }
 }

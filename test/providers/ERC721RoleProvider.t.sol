@@ -7,6 +7,8 @@ import '../BaseMarketTest.sol';
 import { fastForward } from '../helpers/VmUtils.sol';
 import 'src/providers/ERC721RoleProvider.sol';
 
+contract NonERC721 {}
+
 contract ERC721RoleProviderTest is BaseMarketTest {
   MockERC721 internal nft;
   ERC721RoleProvider internal provider;
@@ -48,7 +50,7 @@ contract ERC721RoleProviderTest is BaseMarketTest {
     vm.stopPrank();
   }
 
-  /// @dev Credentials invalidate when NFT moves.
+  /// @dev Pull-provider credentials remain valid until TTL expiry.
   function test_deposit_erc721_expires_after_ttl() external {
     vm.startPrank(parameters.borrower);
     hooks.addRoleProvider(address(provider), 1);
@@ -73,4 +75,14 @@ contract ERC721RoleProviderTest is BaseMarketTest {
     vm.stopPrank();
   }
 
+  function test_constructor_reverts_without_code() external {
+    vm.expectRevert(ERC721RoleProvider.InvalidTokenAddress.selector);
+    new ERC721RoleProvider(address(0));
+  }
+
+  function test_constructor_reverts_without_erc721_interface() external {
+    NonERC721 nonErc721 = new NonERC721();
+    vm.expectRevert(ERC721RoleProvider.InvalidERC721.selector);
+    new ERC721RoleProvider(address(nonErc721));
+  }
 }
