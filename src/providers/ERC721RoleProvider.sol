@@ -11,6 +11,8 @@ interface IERC165 {
   function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
+/// @notice ERC721 role provider; compatible with ERC721A/721C implementations.
+/// @dev Deploy with skipInterfaceCheck=true for non-ERC165 collections (Punks).
 contract ERC721RoleProvider is IRoleProvider {
   error InvalidTokenAddress();
   error InvalidERC721();
