@@ -61,3 +61,22 @@ call_override = false
 dictionary_weight = 80
 include_storage = true
 include_push_bytes = true
+
+[lint]
+lint_on_build = false
+exclude_lints = [
+  "unaliased-plain-import",
+  "unsafe-cheatcode",
+  "unused-import",
+  "screaming-snake-case-const",
+  "mixed-case-variable",
+  "mixed-case-function",
+  "screaming-snake-case-immutable",
+  "unwrapped-modifier-logic",
+  "erc20-unchecked-transfer",
+  "unsafe-typecast",
+  "named-struct-fields",
+  "unchecked-call",
+  "asm-keccak256",
+  "pascal-case-struct",
+]
