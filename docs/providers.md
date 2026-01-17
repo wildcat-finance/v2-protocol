@@ -8,6 +8,8 @@ This document captures current provider choices and future candidates.
 - ERC5192/5484: ERC721-compatible for balance-based gating. "Locked/soulbound" is token/contract-specific and not enforced by default.
 - ERC1155RoleProvider: gates on `balanceOf(lender, tokenId) > 0` for a configured ERC1155.
   - `skipInterfaceCheck` can be used for ERC165-less collections.
+- MerkleRoleProvider: validates `keccak256(abi.encode(lender))` using a sorted-pair proof from `hooksData`.
+  - Root is mutable via `updateRoot` for the configured admin.
 
 ## TODO
 ### ERC4907 (rentable ERC721)
