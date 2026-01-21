@@ -10,6 +10,8 @@ This document captures current provider choices and future candidates.
   - `skipInterfaceCheck` can be used for ERC165-less collections.
 - MerkleRoleProvider: validates `keccak256(abi.encode(lender))` using a sorted-pair proof from `hooksData`.
   - Root is mutable via `updateRoot` for the configured admin.
+  - `hooksData` encoding: `abi.encodePacked(provider, abi.encode(bytes32[] proof))`.
+  - `isMember(account, proof)` mirrors on-chain verification against the current root.
 
 ## TODO
 ### ERC4907 (rentable ERC721)

@@ -5,6 +5,12 @@ import 'src/access/IRoleProvider.sol';
 import 'solady/utils/MerkleProofLib.sol';
 
 /// @notice Merkle allowlist provider that validates address membership proofs.
+/// @dev Proofs use sorted pairs (same as Solady/OZ). Leaf = keccak256(abi.encode(account)).
+///      hooksData must be `abi.encodePacked(provider, abi.encode(proof))` where
+///      `proof` is `bytes32[]` encoded with standard ABI (offset + length + elements).
+///      Malformed hooksData returns no credential (fail closed).
+///      SDK note: when adding a helper, return `abi.encodePacked(provider, abi.encode(proof))`
+///      to match the encoding expected by AccessControlHooks.
 contract MerkleRoleProvider is IRoleProvider {
   error CallerNotAdmin();
   error InvalidAdmin();
@@ -25,6 +31,10 @@ contract MerkleRoleProvider is IRoleProvider {
     bytes32 oldRoot = root;
     root = newRoot;
     emit RootUpdated(oldRoot, newRoot);
+  }
+
+  function isMember(address account, bytes32[] calldata proof) external view returns (bool) {
+    return MerkleProofLib.verifyCalldata(proof, root, keccak256(abi.encode(account)));
   }
 
   function isPullProvider() external pure override returns (bool) {

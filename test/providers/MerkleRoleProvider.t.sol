@@ -140,6 +140,13 @@ contract MerkleRoleProviderTest is BaseMarketTest {
     _expectDepositRevertNotApproved(approvedLender, 1e18, hooksData);
   }
 
+  /// @dev isMember mirrors proof verification against the current root.
+  function test_isMember_checks_proof() external {
+    bytes32[] memory proof = _proofForApproved();
+    assertTrue(provider.isMember(approvedLender, proof), 'expected member with proof');
+    assertFalse(provider.isMember(unapprovedLender, proof), 'expected non-member with proof');
+  }
+
   function _depositWithHooksData(
     address from,
     uint256 amount,
