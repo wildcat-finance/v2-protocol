@@ -5,6 +5,8 @@ This document captures current provider choices and future candidates.
 ## Current
 - ERC721RoleProvider: gates on `balanceOf(lender) > 0` for a configured ERC721.
   - `skipInterfaceCheck` can be used for ERC165-less collections.
+- ERC20RoleProvider: gates on `balanceOf(lender) >= minBalance` for a configured ERC20.
+  - `minBalance` is in base units of the ERC20.
 - ERC5192RoleProvider: validates ownership of a specific tokenId via hooksData.
   - `requireLocked` enforces `locked(tokenId)` when true.
   - `hooksData` encoding: `abi.encodePacked(provider, abi.encode(tokenId))`.
