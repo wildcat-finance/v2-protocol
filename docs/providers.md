@@ -5,7 +5,14 @@ This document captures current provider choices and future candidates.
 ## Current
 - ERC721RoleProvider: gates on `balanceOf(lender) > 0` for a configured ERC721.
   - `skipInterfaceCheck` can be used for ERC165-less collections.
-- ERC5192/5484: ERC721-compatible for balance-based gating. "Locked/soulbound" is token/contract-specific and not enforced by default.
+- ERC5192RoleProvider: validates ownership of a specific tokenId via hooksData.
+  - `requireLocked` enforces `locked(tokenId)` when true.
+  - `hooksData` encoding: `abi.encodePacked(provider, abi.encode(tokenId))`.
+  - `skipInterfaceCheck` bypasses ERC165.
+- ERC5484RoleProvider: validates ownership of a specific tokenId via hooksData.
+  - `allowedBurnAuthMask` selects permitted burnAuth values (bit 0: IssuerOnly, 1: OwnerOnly, 2: Both, 3: Neither).
+  - `hooksData` encoding: `abi.encodePacked(provider, abi.encode(tokenId))`.
+  - `skipInterfaceCheck` bypasses ERC165.
 - ERC1155RoleProvider: gates on `balanceOf(lender, tokenId) > 0` for a configured ERC1155.
   - `skipInterfaceCheck` can be used for ERC165-less collections.
 - MerkleRoleProvider: validates `keccak256(abi.encode(lender))` using a sorted-pair proof from `hooksData`.
@@ -32,12 +39,9 @@ This document captures current provider choices and future candidates.
 - Provider config likely needs registry + implementation + token contract (+ optional salt).
 - TTL: keep at 0/short because ownership changes on transfer.
 
-### ERC5192 / ERC5484 (soulbound)
-- Base gating is the same as ERC721.
-- Optional checks if we want "must be locked":
-  - `locked(tokenId)` for ERC5192.
-  - burn/issuer rules for ERC5484.
-- TokenId-specific.
+### ERC5484 stricter enforcement
+- Optional checks if we want burn/issuer rules enforced for a specific tokenId.
+- TokenId-specific provider needed for these checks.
 
 ## Notes
 - ERC721A/721C are implementation variants; ERC721RoleProvider already works.
