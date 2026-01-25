@@ -18,6 +18,7 @@ abstract contract MarketConstraintHooks is IHooks {
   error DelinquencyFeeBipsOutOfBounds();
   error WithdrawalBatchDurationOutOfBounds();
   error AnnualInterestBipsOutOfBounds();
+  error CommitmentFeeBipsOutOfRange();
 
   event TemporaryExcessReserveRatioActivated(
     address indexed market,
@@ -52,6 +53,9 @@ abstract contract MarketConstraintHooks is IHooks {
   uint16 internal constant MinimumAnnualInterestBips = 0;
   uint16 internal constant MaximumAnnualInterestBips = 10_000;
 
+  uint16 internal constant MinimumCommitmentFeeBips = 0;
+  uint16 internal constant MaximumCommitmentFeeBips = 10_000;
+
   mapping(address => TemporaryReserveRatio) public temporaryExcessReserveRatio;
 
   function assertValueInRange(
@@ -79,7 +83,8 @@ abstract contract MarketConstraintHooks is IHooks {
     uint16 delinquencyFeeBips,
     uint32 withdrawalBatchDuration,
     uint16 reserveRatioBips,
-    uint32 delinquencyGracePeriod
+    uint32 delinquencyGracePeriod,
+    uint16 commitmentFeeBips
   ) internal view virtual {
     assertValueInRange(
       annualInterestBips,
@@ -111,6 +116,12 @@ abstract contract MarketConstraintHooks is IHooks {
       MaximumDelinquencyGracePeriod,
       DelinquencyGracePeriodOutOfBounds.selector
     );
+    assertValueInRange(
+      commitmentFeeBips,
+      MinimumCommitmentFeeBips,
+      MaximumCommitmentFeeBips,
+      CommitmentFeeBipsOutOfRange.selector
+    );
   }
 
   /**
@@ -132,6 +143,8 @@ abstract contract MarketConstraintHooks is IHooks {
     constraints.maximumWithdrawalBatchDuration = MaximumWithdrawalBatchDuration;
     constraints.minimumAnnualInterestBips = MinimumAnnualInterestBips;
     constraints.maximumAnnualInterestBips = MaximumAnnualInterestBips;
+    constraints.minimumCommitmentFeeBips = MinimumCommitmentFeeBips;
+    constraints.maximumCommitmentFeeBips = MaximumCommitmentFeeBips;
   }
 
   function _onCreateMarket(
@@ -145,7 +158,8 @@ abstract contract MarketConstraintHooks is IHooks {
       parameters.delinquencyFeeBips,
       parameters.withdrawalBatchDuration,
       parameters.reserveRatioBips,
-      parameters.delinquencyGracePeriod
+      parameters.delinquencyGracePeriod,
+      parameters.commitmentFeeBips
     );
   }
 

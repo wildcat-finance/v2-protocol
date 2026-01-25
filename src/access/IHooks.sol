@@ -120,4 +120,10 @@ abstract contract IHooks {
     MarketState memory intermediateState,
     bytes calldata extraData
   ) external virtual;
+
+  function onSetCommitmentFeeBips(
+    uint16 commitmentFeeBips,
+    MarketState memory intermediateState,
+    bytes calldata extraData
+  ) external virtual;
 }

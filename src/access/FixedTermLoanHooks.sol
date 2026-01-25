@@ -157,7 +157,8 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     HooksConfig requiredFlags = EmptyHooksConfig
       .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
@@ -1065,6 +1066,12 @@ contract FixedTermLoanHooks is MarketConstraintHooks {
 
   function onSetProtocolFeeBips(
     uint16 /* protocolFeeBips */,
+    MarketState memory /* intermediateState */,
+    bytes calldata /* extraData */
+  ) external override {}
+
+  function onSetCommitmentFeeBips(
+    uint16 /* commitmentFeeBips */,
     MarketState memory /* intermediateState */,
     bytes calldata /* extraData */
   ) external override {}

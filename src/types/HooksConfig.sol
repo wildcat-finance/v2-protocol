@@ -20,7 +20,7 @@ function encodeHooksDeploymentConfig(
   HooksConfig requiredFlags
 ) pure returns (HooksDeploymentConfig flags) {
   assembly {
-    let cleanedOptionalFlags := and(0xffff, shr(0x50, optionalFlags))
+    let cleanedOptionalFlags := and(0xffff, shr(0x50, optionalFlags)) // using 12 of 16 now
     let cleanedRequiredFlags := and(0xffff0000, shr(0x40, requiredFlags))
     flags := or(cleanedOptionalFlags, cleanedRequiredFlags)
   }
@@ -41,8 +41,9 @@ uint256 constant Bit_Enabled_NukeFromOrbit = 88;
 uint256 constant Bit_Enabled_SetMaxTotalSupply = 87;
 uint256 constant Bit_Enabled_SetAnnualInterestAndReserveRatioBips = 86;
 uint256 constant Bit_Enabled_SetProtocolFeeBips = 85;
+uint256 constant Bit_Enabled_SetCommitmentFeeBips = 84;
 
-uint256 constant MarketStateSize = 0x01c0;
+uint256 constant MarketStateSize = 0x0200;
 
 function encodeHooksConfig(
   address hooksAddress,
@@ -56,7 +57,8 @@ function encodeHooksConfig(
   bool useOnNukeFromOrbit,
   bool useOnSetMaxTotalSupply,
   bool useOnSetAnnualInterestAndReserveRatioBips,
-  bool useOnSetProtocolFeeBips
+  bool useOnSetProtocolFeeBips,
+  bool useOnSetCommitmentFeeBips
 ) pure returns (HooksConfig hooks) {
   assembly {
     hooks := shl(96, hooksAddress)
@@ -77,6 +79,7 @@ function encodeHooksConfig(
       )
     )
     hooks := or(hooks, shl(Bit_Enabled_SetProtocolFeeBips, useOnSetProtocolFeeBips))
+    hooks := or(hooks, shl(Bit_Enabled_SetCommitmentFeeBips, useOnSetCommitmentFeeBips))
   }
 }
 
@@ -245,6 +248,11 @@ library LibHooksConfig {
   /// @dev Whether to call hook contract for setProtocolFeeBips
   function useOnSetProtocolFeeBips(HooksConfig hooks) internal pure returns (bool) {
     return hooks.readFlag(Bit_Enabled_SetProtocolFeeBips);
+  }
+
+  /// @dev Whether to call hook contract for setCommitmentFeeBips
+  function useOnSetCommitmentFeeBips(HooksConfig hooks) internal pure returns (bool) {
+    return hooks.readFlag(Bit_Enabled_SetCommitmentFeeBips);
   }
 
   // ========================================================================== //
@@ -820,6 +828,60 @@ library LibHooksConfig {
         )
 
         let size := add(SetProtocolFeeBips_Base_Size, extraCalldataBytes)
+
+        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
+          returndatacopy(0, 0, returndatasize())
+          revert(0, returndatasize())
+        }
+      }
+    }
+  }
+
+    // ========================================================================== //
+  //                     Hook for commitment fee bips updated                     //
+  // ========================================================================== //
+
+  uint256 internal constant SetCommitmentFeeBipsCalldataSize = 0x24;
+  // Size of commitmentFeeBips + state + extraData.offset + extraData.length
+  uint256 internal constant SetCommitmentFeeBips_Base_Size = 0x0224;
+  uint256 internal constant SetCommitmentFeeBips_State_Offset = 0x20;
+  uint256 internal constant SetCommitmentFeeBips_ExtraData_Head_Offset = 0x01e0;
+  uint256 internal constant SetCommitmentFeeBips_ExtraData_Length_Offset = 0x0200;
+  uint256 internal constant SetCommitmentFeeBips_ExtraData_TailOffset = 0x0220;
+
+  function onSetCommitmentFeeBips(
+    HooksConfig self,
+    uint commitmentFeeBips,
+    MarketState memory state
+  ) internal {
+    address target = self.hooksAddress();
+    uint32 onSetCommitmentFeeBipsSelector = uint32(IHooks.onSetCommitmentFeeBips.selector);
+    if (self.useOnSetCommitmentFeeBips()) {
+      assembly {
+        let extraCalldataBytes := sub(calldatasize(), SetCommitmentFeeBipsCalldataSize)
+        let cdPointer := mload(0x40)
+        let headPointer := add(cdPointer, 0x20)
+        // Write selector for `onSetCommitmentFeeBips`
+        mstore(cdPointer, onSetCommitmentFeeBipsSelector)
+        // Write `commitmentFeeBips` to hook calldata
+        mstore(headPointer, commitmentFeeBips)
+        // Copy market state to hook calldata
+        mcopy(add(headPointer, SetCommitmentFeeBips_State_Offset), state, MarketStateSize)
+        // Write bytes offset for `extraData`
+        mstore(
+          add(headPointer, SetCommitmentFeeBips_ExtraData_Head_Offset),
+          SetCommitmentFeeBips_ExtraData_Length_Offset
+        )
+        // Write length for `extraData`
+        mstore(add(headPointer, SetCommitmentFeeBips_ExtraData_Length_Offset), extraCalldataBytes)
+        // Copy `extraData` from end of calldata to hook calldata
+        calldatacopy(
+          add(headPointer, SetCommitmentFeeBips_ExtraData_TailOffset),
+          SetCommitmentFeeBipsCalldataSize,
+          extraCalldataBytes
+        )
+
+        let size := add(SetCommitmentFeeBips_Base_Size, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())

@@ -34,6 +34,7 @@ struct StandardHooksConfig {
   bool useOnSetMaxTotalSupply;
   bool useOnSetAnnualInterestAndReserveRatioBips;
   bool useOnSetProtocolFeeBips;
+  bool useOnSetCommitmentFeeBips;
 }
 using { mergeFlags, mergeSharedFlags, toHooksConfig } for StandardHooksConfig global;
 using { toHooksDeploymentConfig } for StandardHooksDeploymentConfig global;
@@ -52,7 +53,8 @@ function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConf
       useOnNukeFromOrbit: input.useOnNukeFromOrbit,
       useOnSetMaxTotalSupply: input.useOnSetMaxTotalSupply,
       useOnSetAnnualInterestAndReserveRatioBips: input.useOnSetAnnualInterestAndReserveRatioBips,
-      useOnSetProtocolFeeBips: input.useOnSetProtocolFeeBips
+      useOnSetProtocolFeeBips: input.useOnSetProtocolFeeBips,
+      useOnSetCommitmentFeeBips: input.useOnSetCommitmentFeeBips
     });
 }
 
@@ -74,7 +76,8 @@ function mergeSharedFlags(
       useOnSetMaxTotalSupply: a.useOnSetMaxTotalSupply && b.useOnSetMaxTotalSupply,
       useOnSetAnnualInterestAndReserveRatioBips: a.useOnSetAnnualInterestAndReserveRatioBips &&
         b.useOnSetAnnualInterestAndReserveRatioBips,
-      useOnSetProtocolFeeBips: a.useOnSetProtocolFeeBips && b.useOnSetProtocolFeeBips
+      useOnSetProtocolFeeBips: a.useOnSetProtocolFeeBips && b.useOnSetProtocolFeeBips,
+      useOnSetCommitmentFeeBips: a.useOnSetCommitmentFeeBips && b.useOnSetCommitmentFeeBips
     });
 }
 
@@ -117,4 +120,6 @@ function mergeFlags(
   merged.useOnSetProtocolFeeBips =
     merged.useOnSetProtocolFeeBips ||
     flags.required.useOnSetProtocolFeeBips;
+  merged.useOnSetCommitmentFeeBips = merged.useOnSetCommitmentFeeBips || 
+    flags.required.useOnSetCommitmentFeeBips;
 }

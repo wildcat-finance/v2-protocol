@@ -22,6 +22,7 @@ struct MarketParameters {
   uint32 withdrawalBatchDuration;
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
+  uint16 commitmentFeeBips;
   address archController;
   address sphereXEngine;
   HooksConfig hooks;
@@ -37,6 +38,7 @@ struct DeployMarketInputs {
   uint32 withdrawalBatchDuration;
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
+  uint16 commitmentFeeBips;
   HooksConfig hooks;
 }
 
@@ -56,6 +58,8 @@ struct MarketControllerParameters {
   uint32 maximumWithdrawalBatchDuration;
   uint16 minimumAnnualInterestBips;
   uint16 maximumAnnualInterestBips;
+  uint16 minimumCommitmentFeeBips;
+  uint16 maximumCommitmentFeeBips;
   address sphereXEngine;
 }
 
@@ -77,4 +81,6 @@ struct MarketParameterConstraints {
   uint32 maximumWithdrawalBatchDuration;
   uint16 minimumAnnualInterestBips;
   uint16 maximumAnnualInterestBips;
+  uint16 minimumCommitmentFeeBips;
+  uint16 maximumCommitmentFeeBips;
 }

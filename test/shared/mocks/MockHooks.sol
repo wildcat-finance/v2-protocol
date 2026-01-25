@@ -77,6 +77,7 @@ contract MockHooks is IHooks {
         useOnSetMaxTotalSupply: true,
         useOnSetAnnualInterestAndReserveRatioBips: true,
         useOnSetProtocolFeeBips: true,
+        useOnSetCommitmentFeeBips: true,
         hooksAddress: address(this)
       }),
       requiredFlags: EmptyHooksConfig
