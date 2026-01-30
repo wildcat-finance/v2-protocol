@@ -44,6 +44,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       withdrawalBatchDuration: DefaultWithdrawalBatchDuration,
       reserveRatioBips: DefaultReserveRatio,
       delinquencyGracePeriod: DefaultGracePeriod,
+      commitmentFeeBips: DefaultCommitmentFee,
       hooksTemplate: hooksTemplate,
       deployHooksConstructorArgs: '',
       deployMarketHooksData: '',

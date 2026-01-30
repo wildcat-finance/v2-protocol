@@ -15,6 +15,7 @@ uint16 constant DefaultReserveRatio = 2000;
 uint32 constant DefaultGracePeriod = 2000;
 uint16 constant DefaultProtocolFeeBips = 1000;
 uint32 constant DefaultWithdrawalBatchDuration = 86400;
+uint16 constant DefaultCommitmentFee = 1000;
 
 uint32 constant MinimumDelinquencyGracePeriod = 0;
 uint32 constant MaximumDelinquencyGracePeriod = 86_400;
@@ -33,6 +34,9 @@ uint16 constant MaximumAnnualInterestBips = 10_000;
 
 uint16 constant MinimumProtocolFeeBips = 0;
 uint16 constant MaximumProtocolFeeBips = 1_000;
+
+uint16 constant MinimumCommitmentFeeBips = 0;
+uint16 constant MaximumCommitmentFeeBips = 10_000;
 
 IChainalysisSanctionsList constant SanctionsList = IChainalysisSanctionsList(
   0x40C57923924B5c5c5455c48D93317139ADDaC8fb

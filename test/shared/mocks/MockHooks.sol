@@ -50,6 +50,11 @@ event OnSetProtocolFeeBipsCalled(
   MarketState intermediateState,
   bytes extraData
 );
+event OnSetCommitmentFeeBipsCalled(
+  uint commitmentFeeBips,
+  MarketState intermediateState,
+  bytes extraData
+);
 /* DEV: event removed as force buyback has been disabled in initial V2 launch
 event OnForceBuyBackCalled(
   address lender,
@@ -276,6 +281,15 @@ contract MockHooks is IHooks {
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
     emit OnSetProtocolFeeBipsCalled(protocolFeeBips, intermediateState, extraData);
+  }
+
+  function onSetCommitmentFeeBips(
+    uint16 commitmentFeeBips,
+    MarketState calldata intermediateState,
+    bytes calldata extraData
+  ) external virtual override {
+    lastCalldataHash = keccak256(msg.data);
+    emit OnSetCommitmentFeeBipsCalled(commitmentFeeBips, intermediateState, extraData);
   }
 
   /* DEV: hook disabled as force buyback has been disabled in initial V2 launch

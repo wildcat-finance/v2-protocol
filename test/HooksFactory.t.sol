@@ -317,6 +317,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: 10000,
       reserveRatioBips: 10000,
       delinquencyGracePeriod: 10000,
+      commitmentFeeBips: 1000,
       hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
     });
     address market0 = hooksFactory.deployMarket(

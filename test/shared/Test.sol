@@ -35,6 +35,7 @@ struct MarketInputParameters {
   uint32 withdrawalBatchDuration;
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
+  uint16 commitmentFeeBips;
   address sphereXEngine;
   address hooksTemplate;
   bytes deployHooksConstructorArgs;
@@ -484,6 +485,7 @@ contract Test is ForgeTest, Prankster, Assertions {
       withdrawalBatchDuration: parameters.withdrawalBatchDuration,
       reserveRatioBips: parameters.reserveRatioBips,
       delinquencyGracePeriod: parameters.delinquencyGracePeriod,
+      commitmentFeeBips: parameters.commitmentFeeBips,
       hooks: parameters.hooksConfig
     });
     _expectMarketDeployedEvents(parameters, expectedMarket);
@@ -555,7 +557,9 @@ contract Test is ForgeTest, Prankster, Assertions {
       annualInterestBips: parameters.annualInterestBips,
       reserveRatioBips: parameters.reserveRatioBips,
       scaleFactor: uint112(RAY),
-      lastInterestAccruedTimestamp: uint32(block.timestamp)
+      lastInterestAccruedTimestamp: uint32(block.timestamp),
+      drawnAmount: 0,
+      commitmentFeeBips: parameters.commitmentFeeBips
     });
     assertEq(state, expectedState, 'initial state');
     assertEq(market.delinquencyFeeBips(), parameters.delinquencyFeeBips, 'delinquencyFeeBips');

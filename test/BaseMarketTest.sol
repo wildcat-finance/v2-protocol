@@ -44,10 +44,12 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
       protocolFeeBips: inputs.protocolFeeBips,
       scaleFactor: uint112(RAY),
       lastInterestAccruedTimestamp: uint32(block.timestamp),
+      commitmentFeeBips: inputs.commitmentFeeBips,
       scaledPendingWithdrawals: 0,
       pendingWithdrawalExpiry: 0,
       normalizedUnclaimedWithdrawals: 0,
-      accruedProtocolFees: 0
+      accruedProtocolFees: 0,
+      drawnAmount: 0
     });
     lastTotalAssets = 0;
 
