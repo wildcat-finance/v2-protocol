@@ -32,6 +32,7 @@ struct FuzzDeployMarketInputs {
   uint32 withdrawalBatchDuration;
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
+  uint16 commitmentFeeBips;
   // Hooks config
   StandardHooksConfig marketHooksConfig;
   StandardHooksDeploymentConfig templateHooksConfig;
@@ -776,6 +777,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
       reserveRatioBips: paramsInput.reserveRatioBips,
       delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      commitmentFeeBips: paramsInput.commitmentFeeBips,
       hooks: paramsInput.marketHooksConfig.toHooksConfig()
     });
     _validateDeployMarket(
@@ -809,6 +811,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: 10000,
       reserveRatioBips: 10000,
       delinquencyGracePeriod: 10000,
+      commitmentFeeBips: 1000,
       hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
     });
     vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
@@ -858,6 +861,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: 10000,
       reserveRatioBips: 10000,
       delinquencyGracePeriod: 10000,
+      commitmentFeeBips: 1000,
       hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
     });
     hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
@@ -886,6 +890,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: 10000,
       reserveRatioBips: 10000,
       delinquencyGracePeriod: 10000,
+      commitmentFeeBips: 1000,
       hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
     });
     archController.addBlacklist(parameters.asset);
@@ -931,6 +936,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
       reserveRatioBips: paramsInput.reserveRatioBips,
       delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      commitmentFeeBips: paramsInput.commitmentFeeBips,
       hooks: paramsInput.marketHooksConfig.toHooksConfig()
     });
 
@@ -979,6 +985,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
       reserveRatioBips: paramsInput.reserveRatioBips,
       delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      commitmentFeeBips: paramsInput.commitmentFeeBips,
       hooks: paramsInput.marketHooksConfig.toHooksConfig()
     });
     _expectEventsDeployHooksInstance(hooksTemplate, context.expectedHooksInstance);
@@ -1045,6 +1052,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
       reserveRatioBips: paramsInput.reserveRatioBips,
       delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      commitmentFeeBips: paramsInput.commitmentFeeBips,
       hooks: paramsInput.marketHooksConfig.toHooksConfig()
     });
     vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
@@ -1074,6 +1082,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
       reserveRatioBips: paramsInput.reserveRatioBips,
       delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      commitmentFeeBips: paramsInput.commitmentFeeBips,
       hooks: EmptyHooksConfig
     });
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
@@ -1123,6 +1132,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: paramsInput.withdrawalBatchDuration,
       reserveRatioBips: paramsInput.reserveRatioBips,
       delinquencyGracePeriod: paramsInput.delinquencyGracePeriod,
+      commitmentFeeBips: paramsInput.commitmentFeeBips,
       hooks: paramsInput.marketHooksConfig.toHooksConfig()
     });
 
@@ -1182,6 +1192,7 @@ contract HooksFactoryTest is Test, Assertions {
       withdrawalBatchDuration: 10000,
       reserveRatioBips: 10000,
       delinquencyGracePeriod: 10000,
+      commitmentFeeBips: 1000,
       hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
     });
     address market0 = hooksFactory.deployMarket(

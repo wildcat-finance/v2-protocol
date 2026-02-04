@@ -90,7 +90,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
@@ -139,7 +140,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
@@ -174,7 +176,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
@@ -237,7 +240,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
     expectedConfig.required.useOnQueueWithdrawal = true;
@@ -264,7 +268,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     StandardHooksConfig memory expectedConfig;
     expectedConfig.hooksAddress = address(hooks);
@@ -1028,7 +1033,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
@@ -1072,7 +1078,8 @@ contract FixedTermLoanHooksTest is Test, Assertions, Prankster {
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
+      useOnSetProtocolFeeBips: false,
+      useOnSetCommitmentFeeBips: false
     });
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     MarketState memory state;
