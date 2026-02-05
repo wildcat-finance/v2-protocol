@@ -23,6 +23,7 @@ struct TmpMarketParameterStorage {
   uint32 withdrawalBatchDuration;
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
+  uint16 commitmentFeeBips;
   bytes32 packedNameWord0;
   bytes32 packedNameWord1;
   bytes32 packedSymbolWord0;
@@ -438,6 +439,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.withdrawalBatchDuration = tmp.withdrawalBatchDuration;
     parameters.reserveRatioBips = tmp.reserveRatioBips;
     parameters.delinquencyGracePeriod = tmp.delinquencyGracePeriod;
+    parameters.commitmentFeeBips = tmp.commitmentFeeBips;
     parameters.archController = _archController;
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
@@ -531,6 +533,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       withdrawalBatchDuration: parameters.withdrawalBatchDuration,
       reserveRatioBips: parameters.reserveRatioBips,
       delinquencyGracePeriod: parameters.delinquencyGracePeriod,
+      commitmentFeeBips: parameters.commitmentFeeBips,
       hooks: parameters.hooks
     });
     {

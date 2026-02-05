@@ -136,7 +136,7 @@ contract WildcatMarketBase is
   function _getMarketParameters() internal view returns (uint256 marketParametersPointer) {
     assembly {
       marketParametersPointer := mload(0x40)
-      mstore(0x40, add(marketParametersPointer, 0x260))
+      mstore(0x40, add(marketParametersPointer, 0x280))
       // Write the selector for IHooksFactory.getMarketParameters
       mstore(0x00, 0x04032dbb)
       // Call `getMarketParameters` and copy the returned struct to the allocated memory
@@ -145,8 +145,8 @@ contract WildcatMarketBase is
       // the factory contract which will only ever return the prepared market parameters.
       if iszero(
         and(
-          eq(returndatasize(), 0x260),
-          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x260)
+          eq(returndatasize(), 0x280),
+          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x280)
         )
       ) {
         revert(0, 0)
