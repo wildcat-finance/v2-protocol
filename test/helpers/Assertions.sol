@@ -17,6 +17,7 @@ contract Assertions is StdAssertions {
     MarketState memory expected,
     string memory key
   ) internal {
+    assertEq(actual.isClosed, expected.isClosed, string.concat(key, '.isClosed'));
     assertEq(actual.maxTotalSupply, expected.maxTotalSupply, string.concat(key, '.maxTotalSupply'));
     assertEq(
       actual.accruedProtocolFees,
@@ -65,6 +66,12 @@ contract Assertions is StdAssertions {
       actual.protocolFeeBips,
       expected.protocolFeeBips,
       string.concat(key, '.protocolFeeBips')
+    );
+    assertEq(actual.drawnAmount, expected.drawnAmount, string.concat(key, '.drawnAmount'));
+    assertEq(
+      actual.commitmentFeeBips,
+      expected.commitmentFeeBips,
+      string.concat(key, '.commitmentFeeBips')
     );
   }
 
