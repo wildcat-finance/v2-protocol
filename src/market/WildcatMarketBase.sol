@@ -621,6 +621,22 @@ contract WildcatMarketBase is
         sstore(add(_state.slot, 3), slot3)
       }
     }
+
+    {
+      uint commitmentFeeBips = state.commitmentFeeBips;
+      uint drawnAmount = state.drawnAmount;
+      assembly {
+        // MarketState Slot 4 Storage Layout:
+        // [14:16] | commitmentFeeBips
+        // [16:32] | drawnAmount
+        let slot4 := or(
+          drawnAmount,
+          shl(0x80, commitmentFeeBips)
+        )
+        sstore(add(_state.slot, 4), slot4)
+      }
+    }
+
     emit_StateUpdated(state.scaleFactor, isDelinquent);
   }
 

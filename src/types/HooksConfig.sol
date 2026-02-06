@@ -44,6 +44,8 @@ uint256 constant Bit_Enabled_SetProtocolFeeBips = 85;
 uint256 constant Bit_Enabled_SetCommitmentFeeBips = 84;
 
 uint256 constant MarketStateSize = 0x0200;
+uint256 constant WordSize = 0x20;
+uint256 constant SelectorSize = 0x04;
 
 function encodeHooksConfig(
   address hooksAddress,
@@ -260,13 +262,16 @@ library LibHooksConfig {
   // ========================================================================== //
 
   uint256 internal constant DepositCalldataSize = 0x24;
-  // Size of lender + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant DepositHook_Base_Size = 0x0244;
   uint256 internal constant DepositHook_ScaledAmount_Offset = 0x20;
   uint256 internal constant DepositHook_State_Offset = 0x40;
-  uint256 internal constant DepositHook_ExtraData_Head_Offset = 0x200;
-  uint256 internal constant DepositHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant DepositHook_ExtraData_TailOffset = 0x0240;
+  uint256 internal constant DepositHook_ExtraData_Head_Offset =
+    DepositHook_State_Offset + MarketStateSize;
+  uint256 internal constant DepositHook_ExtraData_Length_Offset =
+    DepositHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant DepositHook_ExtraData_TailOffset =
+    DepositHook_ExtraData_Length_Offset + WordSize;
+  // Size of lender + scaledAmount + state + extraData.offset + extraData.length
+  uint256 internal constant DepositHook_Base_Size = DepositHook_ExtraData_TailOffset + SelectorSize;
 
   function onDeposit(
     HooksConfig self,
@@ -277,6 +282,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onDepositSelector = uint32(IHooks.onDeposit.selector);
     if (self.useOnDeposit()) {
+      uint256 extraDataHeadOffset = DepositHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = DepositHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = DepositHook_ExtraData_TailOffset;
+      uint256 baseSize = DepositHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), DepositCalldataSize)
         let cdPointer := mload(0x40)
@@ -291,19 +300,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, DepositHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, DepositHook_ExtraData_Head_Offset),
-          DepositHook_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, DepositHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, DepositHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           DepositCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(DepositHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -317,14 +326,18 @@ library LibHooksConfig {
   //                          Hook for queueWithdrawal                          //
   // ========================================================================== //
 
-  // Size of lender + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0264;
   uint256 internal constant QueueWithdrawalHook_Expiry_Offset = 0x20;
   uint256 internal constant QueueWithdrawalHook_ScaledAmount_Offset = 0x40;
   uint256 internal constant QueueWithdrawalHook_State_Offset = 0x60;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Head_Offset = 0x220;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset = 0x0240;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset = 0x0260;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_Head_Offset =
+    QueueWithdrawalHook_State_Offset + MarketStateSize;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset =
+    QueueWithdrawalHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset =
+    QueueWithdrawalHook_ExtraData_Length_Offset + WordSize;
+  // Size of lender + scaledAmount + state + extraData.offset + extraData.length
+  uint256 internal constant QueueWithdrawalHook_Base_Size =
+    QueueWithdrawalHook_ExtraData_TailOffset + SelectorSize;
 
   function onQueueWithdrawal(
     HooksConfig self,
@@ -337,6 +350,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onQueueWithdrawalSelector = uint32(IHooks.onQueueWithdrawal.selector);
     if (self.useOnQueueWithdrawal()) {
+      uint256 extraDataHeadOffset = QueueWithdrawalHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = QueueWithdrawalHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = QueueWithdrawalHook_ExtraData_TailOffset;
+      uint256 baseSize = QueueWithdrawalHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
@@ -353,19 +370,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, QueueWithdrawalHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, QueueWithdrawalHook_ExtraData_Head_Offset),
-          QueueWithdrawalHook_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, QueueWithdrawalHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, QueueWithdrawalHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           baseCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(QueueWithdrawalHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -379,13 +396,17 @@ library LibHooksConfig {
   //                         Hook for executeWithdrawal                         //
   // ========================================================================== //
 
-  // Size of lender + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0244;
   uint256 internal constant ExecuteWithdrawalHook_ScaledAmount_Offset = 0x20;
   uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x40;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0240;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset =
+    ExecuteWithdrawalHook_State_Offset + MarketStateSize;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset =
+    ExecuteWithdrawalHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset =
+    ExecuteWithdrawalHook_ExtraData_Length_Offset + WordSize;
+  // Size of lender + scaledAmount + state + extraData.offset + extraData.length
+  uint256 internal constant ExecuteWithdrawalHook_Base_Size =
+    ExecuteWithdrawalHook_ExtraData_TailOffset + SelectorSize;
 
   function onExecuteWithdrawal(
     HooksConfig self,
@@ -397,6 +418,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onExecuteWithdrawalSelector = uint32(IHooks.onExecuteWithdrawal.selector);
     if (self.useOnExecuteWithdrawal()) {
+      uint256 extraDataHeadOffset = ExecuteWithdrawalHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = ExecuteWithdrawalHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = ExecuteWithdrawalHook_ExtraData_TailOffset;
+      uint256 baseSize = ExecuteWithdrawalHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
@@ -411,19 +436,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, ExecuteWithdrawalHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, ExecuteWithdrawalHook_ExtraData_Head_Offset),
-          ExecuteWithdrawalHook_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, ExecuteWithdrawalHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, ExecuteWithdrawalHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           baseCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(ExecuteWithdrawalHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -437,15 +462,18 @@ library LibHooksConfig {
   //                              Hook for transfer                             //
   // ========================================================================== //
 
-  // Size of caller + from + to + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant TransferHook_Base_Size = 0x0284;
   uint256 internal constant TransferHook_From_Offset = 0x20;
   uint256 internal constant TransferHook_To_Offset = 0x40;
   uint256 internal constant TransferHook_ScaledAmount_Offset = 0x60;
   uint256 internal constant TransferHook_State_Offset = 0x80;
-  uint256 internal constant TransferHook_ExtraData_Head_Offset = 0x240;
-  uint256 internal constant TransferHook_ExtraData_Length_Offset = 0x0260;
-  uint256 internal constant TransferHook_ExtraData_TailOffset = 0x0280;
+  uint256 internal constant TransferHook_ExtraData_Head_Offset =
+    TransferHook_State_Offset + MarketStateSize;
+  uint256 internal constant TransferHook_ExtraData_Length_Offset =
+    TransferHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant TransferHook_ExtraData_TailOffset =
+    TransferHook_ExtraData_Length_Offset + WordSize;
+  // Size of caller + from + to + scaledAmount + state + extraData.offset + extraData.length
+  uint256 internal constant TransferHook_Base_Size = TransferHook_ExtraData_TailOffset + SelectorSize;
 
   function onTransfer(
     HooksConfig self,
@@ -458,6 +486,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onTransferSelector = uint32(IHooks.onTransfer.selector);
     if (self.useOnTransfer()) {
+      uint256 extraDataHeadOffset = TransferHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = TransferHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = TransferHook_ExtraData_TailOffset;
+      uint256 baseSize = TransferHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
@@ -476,19 +508,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, TransferHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, TransferHook_ExtraData_Head_Offset),
-          TransferHook_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, TransferHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, TransferHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           baseCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(TransferHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -503,17 +535,24 @@ library LibHooksConfig {
   // ========================================================================== //
 
   uint256 internal constant BorrowCalldataSize = 0x24;
-  // Size of normalizedAmount + state + extraData.offset + extraData.length
-  uint256 internal constant BorrowHook_Base_Size = 0x0224;
   uint256 internal constant BorrowHook_State_Offset = 0x20;
-  uint256 internal constant BorrowHook_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant BorrowHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant BorrowHook_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant BorrowHook_ExtraData_Head_Offset =
+    BorrowHook_State_Offset + MarketStateSize;
+  uint256 internal constant BorrowHook_ExtraData_Length_Offset =
+    BorrowHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant BorrowHook_ExtraData_TailOffset =
+    BorrowHook_ExtraData_Length_Offset + WordSize;
+  // Size of normalizedAmount + state + extraData.offset + extraData.length
+  uint256 internal constant BorrowHook_Base_Size = BorrowHook_ExtraData_TailOffset + SelectorSize;
 
   function onBorrow(HooksConfig self, uint256 normalizedAmount, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onBorrowSelector = uint32(IHooks.onBorrow.selector);
     if (self.useOnBorrow()) {
+      uint256 extraDataHeadOffset = BorrowHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = BorrowHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = BorrowHook_ExtraData_TailOffset;
+      uint256 baseSize = BorrowHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), BorrowCalldataSize)
         let ptr := mload(0x40)
@@ -526,19 +565,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, BorrowHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, BorrowHook_ExtraData_Head_Offset),
-          BorrowHook_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, BorrowHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, BorrowHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           BorrowCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(RepayHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
         if iszero(call(gas(), target, 0, add(ptr, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
@@ -551,12 +590,15 @@ library LibHooksConfig {
   //                               Hook for repay                               //
   // ========================================================================== //
 
-  // Size of normalizedAmount + state + extraData.offset + extraData.length
-  uint256 internal constant RepayHook_Base_Size = 0x0224;
   uint256 internal constant RepayHook_State_Offset = 0x20;
-  uint256 internal constant RepayHook_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant RepayHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant RepayHook_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant RepayHook_ExtraData_Head_Offset =
+    RepayHook_State_Offset + MarketStateSize;
+  uint256 internal constant RepayHook_ExtraData_Length_Offset =
+    RepayHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant RepayHook_ExtraData_TailOffset =
+    RepayHook_ExtraData_Length_Offset + WordSize;
+  // Size of normalizedAmount + state + extraData.offset + extraData.length
+  uint256 internal constant RepayHook_Base_Size = RepayHook_ExtraData_TailOffset + SelectorSize;
 
   function onRepay(
     HooksConfig self,
@@ -567,6 +609,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onRepaySelector = uint32(IHooks.onRepay.selector);
     if (self.useOnRepay()) {
+      uint256 extraDataHeadOffset = RepayHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = RepayHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = RepayHook_ExtraData_TailOffset;
+      uint256 baseSize = RepayHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let ptr := mload(0x40)
@@ -578,17 +624,17 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(add(headPointer, RepayHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(add(headPointer, RepayHook_ExtraData_Head_Offset), RepayHook_ExtraData_Length_Offset)
+        mstore(add(headPointer, extraDataHeadOffset), extraDataLengthOffset)
         // Write length for `extraData`
-        mstore(add(headPointer, RepayHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, RepayHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           baseCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(RepayHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
         if iszero(call(gas(), target, 0, add(ptr, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
@@ -604,16 +650,22 @@ library LibHooksConfig {
   // Size of calldata to `market.closeMarket`
   uint256 internal constant CloseMarketCalldataSize = 0x04;
 
-  // Base size of calldata for `hooks.onCloseMarket()`
-  uint256 internal constant CloseMarketHook_Base_Size = 0x0204;
   uint256 internal constant CloseMarketHook_ExtraData_Head_Offset = MarketStateSize;
-  uint256 internal constant CloseMarketHook_ExtraData_Length_Offset = 0x01e0;
-  uint256 internal constant CloseMarketHook_ExtraData_TailOffset = 0x0200;
+  uint256 internal constant CloseMarketHook_ExtraData_Length_Offset =
+    CloseMarketHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant CloseMarketHook_ExtraData_TailOffset =
+    CloseMarketHook_ExtraData_Length_Offset + WordSize;
+  // Base size of calldata for `hooks.onCloseMarket()`
+  uint256 internal constant CloseMarketHook_Base_Size =
+    CloseMarketHook_ExtraData_TailOffset + SelectorSize;
 
   function onCloseMarket(HooksConfig self, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onCloseMarketSelector = uint32(IHooks.onCloseMarket.selector);
     if (self.useOnCloseMarket()) {
+      uint256 extraDataLengthOffset = CloseMarketHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = CloseMarketHook_ExtraData_TailOffset;
+      uint256 baseSize = CloseMarketHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), CloseMarketCalldataSize)
         let cdPointer := mload(0x40)
@@ -625,18 +677,18 @@ library LibHooksConfig {
         // Write bytes offset for `extraData`
         mstore(
           add(headPointer, CloseMarketHook_ExtraData_Head_Offset),
-          CloseMarketHook_ExtraData_Length_Offset
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, CloseMarketHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, CloseMarketHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           CloseMarketCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(CloseMarketHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -651,12 +703,16 @@ library LibHooksConfig {
   // ========================================================================== //
 
   uint256 internal constant SetMaxTotalSupplyCalldataSize = 0x24;
-  // Size of maxTotalSupply + state + extraData.offset + extraData.length
-  uint256 internal constant SetMaxTotalSupplyHook_Base_Size = 0x0224;
   uint256 internal constant SetMaxTotalSupplyHook_State_Offset = 0x20;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Head_Offset =
+    SetMaxTotalSupplyHook_State_Offset + MarketStateSize;
+  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Length_Offset =
+    SetMaxTotalSupplyHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_TailOffset =
+    SetMaxTotalSupplyHook_ExtraData_Length_Offset + WordSize;
+  // Size of maxTotalSupply + state + extraData.offset + extraData.length
+  uint256 internal constant SetMaxTotalSupplyHook_Base_Size =
+    SetMaxTotalSupplyHook_ExtraData_TailOffset + SelectorSize;
 
   function onSetMaxTotalSupply(
     HooksConfig self,
@@ -666,6 +722,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onSetMaxTotalSupplySelector = uint32(IHooks.onSetMaxTotalSupply.selector);
     if (self.useOnSetMaxTotalSupply()) {
+      uint256 extraDataHeadOffset = SetMaxTotalSupplyHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = SetMaxTotalSupplyHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = SetMaxTotalSupplyHook_ExtraData_TailOffset;
+      uint256 baseSize = SetMaxTotalSupplyHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), SetMaxTotalSupplyCalldataSize)
         let cdPointer := mload(0x40)
@@ -678,19 +738,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, SetMaxTotalSupplyHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, SetMaxTotalSupplyHook_ExtraData_Head_Offset),
-          SetMaxTotalSupplyHook_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, SetMaxTotalSupplyHook_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, SetMaxTotalSupplyHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           SetMaxTotalSupplyCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(SetMaxTotalSupplyHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -705,14 +765,17 @@ library LibHooksConfig {
   // ========================================================================== //
 
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsCalldataSize = 0x44;
-  // Size of annualInterestBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0244;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBits_Offset = 0x20;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_State_Offset = 0x40;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x0200;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset =
+    SetAnnualInterestAndReserveRatioBipsHook_State_Offset + MarketStateSize;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset =
-    0x0220;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset = 0x0240;
+    SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset =
+    SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset + WordSize;
+  // Size of annualInterestBips + reserveRatioBips + state + extraData.offset + extraData.length
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size =
+    SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset + SelectorSize;
 
   function onSetAnnualInterestAndReserveRatioBips(
     HooksConfig self,
@@ -725,6 +788,11 @@ library LibHooksConfig {
       IHooks.onSetAnnualInterestAndReserveRatioBips.selector
     );
     if (self.useOnSetAnnualInterestAndReserveRatioBips()) {
+      uint256 extraDataHeadOffset = SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset =
+        SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset;
+      uint256 baseSize = SetAnnualInterestAndReserveRatioBipsHook_Base_Size;
       assembly {
         let extraCalldataBytes := sub(
           calldatasize(),
@@ -749,22 +817,19 @@ library LibHooksConfig {
         )
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset),
-          SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset),
-          extraCalldataBytes
-        )
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           SetAnnualInterestAndReserveRatioBipsCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(SetAnnualInterestAndReserveRatioBipsHook_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         // Returndata is expected to have the new values for `annualInterestBips` and `reserveRatioBips`
         if or(
@@ -788,12 +853,16 @@ library LibHooksConfig {
   // ========================================================================== //
 
   uint256 internal constant SetProtocolFeeBipsCalldataSize = 0x24;
-  // Size of protocolFeeBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetProtocolFeeBips_Base_Size = 0x0224;
   uint256 internal constant SetProtocolFeeBips_State_Offset = 0x20;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_Head_Offset =
+    SetProtocolFeeBips_State_Offset + MarketStateSize;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_Length_Offset =
+    SetProtocolFeeBips_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset =
+    SetProtocolFeeBips_ExtraData_Length_Offset + WordSize;
+  // Size of protocolFeeBips + state + extraData.offset + extraData.length
+  uint256 internal constant SetProtocolFeeBips_Base_Size =
+    SetProtocolFeeBips_ExtraData_TailOffset + SelectorSize;
 
   function onSetProtocolFeeBips(
     HooksConfig self,
@@ -803,6 +872,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onSetProtocolFeeBipsSelector = uint32(IHooks.onSetProtocolFeeBips.selector);
     if (self.useOnSetProtocolFeeBips()) {
+      uint256 extraDataHeadOffset = SetProtocolFeeBips_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = SetProtocolFeeBips_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = SetProtocolFeeBips_ExtraData_TailOffset;
+      uint256 baseSize = SetProtocolFeeBips_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), SetProtocolFeeBipsCalldataSize)
         let cdPointer := mload(0x40)
@@ -815,19 +888,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, SetProtocolFeeBips_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, SetProtocolFeeBips_ExtraData_Head_Offset),
-          SetProtocolFeeBips_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, SetProtocolFeeBips_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, SetProtocolFeeBips_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           SetProtocolFeeBipsCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(SetProtocolFeeBips_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -842,12 +915,16 @@ library LibHooksConfig {
   // ========================================================================== //
 
   uint256 internal constant SetCommitmentFeeBipsCalldataSize = 0x24;
-  // Size of commitmentFeeBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetCommitmentFeeBips_Base_Size = 0x0224;
   uint256 internal constant SetCommitmentFeeBips_State_Offset = 0x20;
-  uint256 internal constant SetCommitmentFeeBips_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant SetCommitmentFeeBips_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant SetCommitmentFeeBips_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant SetCommitmentFeeBips_ExtraData_Head_Offset =
+    SetCommitmentFeeBips_State_Offset + MarketStateSize;
+  uint256 internal constant SetCommitmentFeeBips_ExtraData_Length_Offset =
+    SetCommitmentFeeBips_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant SetCommitmentFeeBips_ExtraData_TailOffset =
+    SetCommitmentFeeBips_ExtraData_Length_Offset + WordSize;
+  // Size of commitmentFeeBips + state + extraData.offset + extraData.length
+  uint256 internal constant SetCommitmentFeeBips_Base_Size =
+    SetCommitmentFeeBips_ExtraData_TailOffset + SelectorSize;
 
   function onSetCommitmentFeeBips(
     HooksConfig self,
@@ -857,6 +934,10 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onSetCommitmentFeeBipsSelector = uint32(IHooks.onSetCommitmentFeeBips.selector);
     if (self.useOnSetCommitmentFeeBips()) {
+      uint256 extraDataHeadOffset = SetCommitmentFeeBips_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = SetCommitmentFeeBips_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = SetCommitmentFeeBips_ExtraData_TailOffset;
+      uint256 baseSize = SetCommitmentFeeBips_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), SetCommitmentFeeBipsCalldataSize)
         let cdPointer := mload(0x40)
@@ -869,19 +950,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, SetCommitmentFeeBips_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, SetCommitmentFeeBips_ExtraData_Head_Offset),
-          SetCommitmentFeeBips_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, SetCommitmentFeeBips_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, SetCommitmentFeeBips_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           SetCommitmentFeeBipsCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(SetCommitmentFeeBips_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
@@ -896,17 +977,25 @@ library LibHooksConfig {
   // ========================================================================== //
 
   uint256 internal constant NukeFromOrbitCalldataSize = 0x24;
-  // Size of lender + state + extraData.offset + extraData.length
-  uint256 internal constant NukeFromOrbit_Base_Size = 0x0224;
   uint256 internal constant NukeFromOrbit_State_Offset = 0x20;
-  uint256 internal constant NukeFromOrbit_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant NukeFromOrbit_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant NukeFromOrbit_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant NukeFromOrbit_ExtraData_Head_Offset =
+    NukeFromOrbit_State_Offset + MarketStateSize;
+  uint256 internal constant NukeFromOrbit_ExtraData_Length_Offset =
+    NukeFromOrbit_ExtraData_Head_Offset + WordSize;
+  uint256 internal constant NukeFromOrbit_ExtraData_TailOffset =
+    NukeFromOrbit_ExtraData_Length_Offset + WordSize;
+  // Size of lender + state + extraData.offset + extraData.length
+  uint256 internal constant NukeFromOrbit_Base_Size =
+    NukeFromOrbit_ExtraData_TailOffset + SelectorSize;
 
   function onNukeFromOrbit(HooksConfig self, address lender, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onNukeFromOrbitSelector = uint32(IHooks.onNukeFromOrbit.selector);
     if (self.useOnNukeFromOrbit()) {
+      uint256 extraDataHeadOffset = NukeFromOrbit_ExtraData_Head_Offset;
+      uint256 extraDataLengthOffset = NukeFromOrbit_ExtraData_Length_Offset;
+      uint256 extraDataTailOffset = NukeFromOrbit_ExtraData_TailOffset;
+      uint256 baseSize = NukeFromOrbit_Base_Size;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), NukeFromOrbitCalldataSize)
         let cdPointer := mload(0x40)
@@ -919,19 +1008,19 @@ library LibHooksConfig {
         mcopy(add(headPointer, NukeFromOrbit_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
-          add(headPointer, NukeFromOrbit_ExtraData_Head_Offset),
-          NukeFromOrbit_ExtraData_Length_Offset
+          add(headPointer, extraDataHeadOffset),
+          extraDataLengthOffset
         )
         // Write length for `extraData`
-        mstore(add(headPointer, NukeFromOrbit_ExtraData_Length_Offset), extraCalldataBytes)
+        mstore(add(headPointer, extraDataLengthOffset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
-          add(headPointer, NukeFromOrbit_ExtraData_TailOffset),
+          add(headPointer, extraDataTailOffset),
           NukeFromOrbitCalldataSize,
           extraCalldataBytes
         )
 
-        let size := add(NukeFromOrbit_Base_Size, extraCalldataBytes)
+        let size := add(baseSize, extraCalldataBytes)
 
         if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
