@@ -160,6 +160,7 @@ contract WildcatMarket is
     // Execute borrow hook if enabled
     hooks.onBorrow(amount, state);
 
+    state.drawnAmount = (uint256(state.drawnAmount) + amount).toUint128();
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
     emit_Borrow(amount);
@@ -174,6 +175,8 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, baseCalldataSize);
+
+    state.drawnAmount = uint256(state.drawnAmount).satSub(amount).toUint128();
   }
 
   /**
@@ -197,6 +200,7 @@ contract WildcatMarket is
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
 
+    state.drawnAmount = uint256(state.drawnAmount).satSub(amount).toUint128();
     _writeState(state);
   }
 
@@ -257,6 +261,8 @@ contract WildcatMarket is
     }
     hooks.onCloseMarket(state);
     state.annualInterestBips = 0;
+    state.commitmentFeeBips = 0;
+    state.drawnAmount = 0;
     state.isClosed = true;
     state.reserveRatioBips = 10000;
     // Ensures that delinquency fee doesn't increase scale factor further

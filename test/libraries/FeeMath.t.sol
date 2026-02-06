@@ -70,6 +70,7 @@ contract FeeMathTest is Test {
     state.isDelinquent = true;
     uint256 delinquencyGracePeriod = 0;
     state.annualInterestBips = 1000;
+    state.drawnAmount = 1e18;
     state.scaledTotalSupply = uint104(uint256(1e18).rayDiv(RAY));
     vm.warp(365 days);
     state.scaleFactor = uint112(RAY);
@@ -107,6 +108,50 @@ contract FeeMathTest is Test {
     // assertTrue(didUpdate, 'did not update');
     // assertEq(feesAccrued, 0, 'incorrect feesAccrued');
     // assertEq(state.scaleFactor, 1.1e27, 'incorrect scaleFactor');
+  }
+
+  function test_calculateBaseInterest_ZeroSupply() external {
+    MarketState memory state;
+    state.lastInterestAccruedTimestamp = 100;
+    state.annualInterestBips = 2_000;
+    state.commitmentFeeBips = 500;
+    state.drawnAmount = 1e18;
+    state.scaleFactor = uint112(RAY);
+    state.scaledTotalSupply = 0;
+
+    uint256 result = state.$calculateBaseInterest(100 + 365 days);
+    assertEq(result, 0, 'baseInterestRay should be 0 with zero supply');
+  }
+
+  function test_calculateBaseInterest_CommitmentOnlyWhenUndrawn() external {
+    MarketState memory state;
+    state.lastInterestAccruedTimestamp = 100;
+    state.annualInterestBips = 2_000;
+    state.commitmentFeeBips = 500;
+    state.drawnAmount = 0;
+    state.scaleFactor = uint112(RAY);
+    state.scaledTotalSupply = uint104(uint256(1e18).rayDiv(RAY));
+
+    uint256 expected = FeeMath.calculateLinearInterestFromBips(500, 365 days);
+    uint256 result = state.$calculateBaseInterest(100 + 365 days);
+    assertEq(result, expected, 'baseInterestRay should match commitment rate');
+  }
+
+  function test_calculateBaseInterest_BlendedRateOnUtilization() external {
+    MarketState memory state;
+    state.lastInterestAccruedTimestamp = 100;
+    state.annualInterestBips = 800;
+    state.commitmentFeeBips = 200;
+    state.drawnAmount = 250e18;
+    state.scaleFactor = uint112(RAY);
+    state.scaledTotalSupply = uint104(uint256(1_000e18).rayDiv(RAY));
+
+    uint256 commitmentInterestRay = FeeMath.calculateLinearInterestFromBips(200, 365 days);
+    uint256 annualInterestRay = FeeMath.calculateLinearInterestFromBips(800, 365 days);
+    uint256 expected = commitmentInterestRay + MathUtils.mulDiv(annualInterestRay, 250e18, 1_000e18);
+
+    uint256 result = state.$calculateBaseInterest(100 + 365 days);
+    assertEq(result, expected, 'baseInterestRay should match blended formula');
   }
 
   MarketInputParameters parameters;

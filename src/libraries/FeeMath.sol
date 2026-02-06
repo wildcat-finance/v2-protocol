@@ -31,10 +31,22 @@ library FeeMath {
     MarketState memory state,
     uint256 timestamp
   ) internal pure returns (uint256 baseInterestRay) {
-    baseInterestRay = MathUtils.calculateLinearInterestFromBips(
-      state.annualInterestBips,
-      timestamp - state.lastInterestAccruedTimestamp
-    );
+    uint256 timeDelta = timestamp - state.lastInterestAccruedTimestamp;
+    if (timeDelta == 0 || state.scaledTotalSupply == 0) return 0;
+
+    // Lenders always earn commitment fee on supplied capital.
+    baseInterestRay = MathUtils.calculateLinearInterestFromBips(state.commitmentFeeBips, timeDelta);
+
+    // Borrow rate uplift only applies to utilized capital.
+    if (state.annualInterestBips > 0 && state.drawnAmount > 0) {
+      uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(
+        state.annualInterestBips,
+        timeDelta
+      );
+      uint256 totalSupply = state.totalSupply();
+      uint256 drawnAmount = MathUtils.min(state.drawnAmount, totalSupply);
+      baseInterestRay += MathUtils.mulDiv(annualInterestRay, drawnAmount, totalSupply);
+    }
   }
 
   function applyProtocolFee(

@@ -294,6 +294,9 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // Use an obfuscated constant for the base calldata size to prevent solc
     // function specialization.
     if (repayAmount > 0) hooks.onRepay(repayAmount, state, _runtimeConstant(0x44));
+    if (repayAmount > 0) {
+      state.drawnAmount = uint256(state.drawnAmount).satSub(repayAmount).toUint128();
+    }
 
     // Calculate assets available to process the first batch - will be updated after each batch
     uint256 availableLiquidity = totalAssets() -

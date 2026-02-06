@@ -438,12 +438,14 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     MarketState memory state,
     address accountAddress,
     uint256 normalizedAmount
-  ) internal {
+  ) internal returns (MarketState memory) {
     vm.expectEmit(parameters.asset);
     emit Transfer(accountAddress, address(market), normalizedAmount);
     vm.expectEmit(address(market));
     emit DebtRepaid(accountAddress, normalizedAmount);
     lastTotalAssets += normalizedAmount;
+    state.drawnAmount = uint256(state.drawnAmount).satSub(normalizedAmount).toUint128();
+    return state;
   }
 
   function _trackCloseMarket(MarketState memory state, bool expectEvents) internal {
@@ -451,7 +453,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     uint totalDebts = state.totalDebts();
     if (currentlyHeld < totalDebts) {
       uint256 remainingDebt = totalDebts - currentlyHeld;
-      _trackRepay(state, borrower, remainingDebt);
+      state = _trackRepay(state, borrower, remainingDebt);
       currentlyHeld += remainingDebt;
     } else if (currentlyHeld > totalDebts) {
       uint256 excessDebt = currentlyHeld - totalDebts;
@@ -463,6 +465,8 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     }
 
     state.annualInterestBips = 0;
+    state.commitmentFeeBips = 0;
+    state.drawnAmount = 0;
     state.isClosed = true;
     state.reserveRatioBips = 10000;
     state.timeDelinquent = 0;
@@ -524,12 +528,18 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     updateState(state);
   }
 
-  function _trackBorrow(uint256 normalizedAmount) internal {
+  function _trackBorrow(
+    MarketState memory state,
+    uint256 normalizedAmount
+  ) internal returns (MarketState memory) {
     vm.expectEmit(parameters.asset);
     emit Transfer(address(market), parameters.borrower, normalizedAmount);
     vm.expectEmit(address(market));
     emit Borrow(normalizedAmount);
     lastTotalAssets -= normalizedAmount;
+    state.drawnAmount = (uint256(state.drawnAmount) + normalizedAmount).toUint128();
+    updateState(state);
+    return state;
   }
 
   function _trackProcessUnpaidWithdrawalBatch(

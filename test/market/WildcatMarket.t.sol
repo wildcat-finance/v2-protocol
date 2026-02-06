@@ -40,6 +40,7 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function test_updateState_HasPendingExpiredBatch() external {
     parameters.annualInterestBips = 3650;
+    parameters.commitmentFeeBips = 3650;
     setUp();
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
@@ -47,6 +48,29 @@ contract WildcatMarketTest is BaseMarketTest {
     uint32 expiry = previousState.pendingWithdrawalExpiry;
     fastForward(2 days);
     MarketState memory state = pendingState();
+    vm.expectEmit(address(market));
+    emit InterestAndFeesAccrued(timestamp, expiry, uint256(1e27), 0, 0, 0);
+    vm.expectEmit(address(market));
+    emit WithdrawalBatchExpired(expiry, 1e18, 1e18, 1e18);
+    vm.expectEmit(address(market));
+    emit WithdrawalBatchClosed(expiry);
+    vm.expectEmit(address(market));
+    emit InterestAndFeesAccrued(expiry, expiry + 1 days, uint256(1e27), 0, 0, 0);
+    vm.expectEmit(address(market));
+    emit StateUpdated(uint256(1e27), false);
+    market.updateState();
+  }
+
+  function test_updateState_HasPendingExpiredBatch_WithRemainingSupply() external {
+    parameters.annualInterestBips = 3650;
+    parameters.commitmentFeeBips = 3650;
+    parameters.protocolFeeBips = 0;
+    setUp();
+    _deposit(alice, 2e18);
+    _requestWithdrawal(alice, 1e18);
+    uint32 timestamp = uint32(block.timestamp);
+    uint32 expiry = previousState.pendingWithdrawalExpiry;
+    fastForward(2 days);
     vm.expectEmit(address(market));
     emit InterestAndFeesAccrued(timestamp, expiry, 1.001e27, 1e24, 0, 0);
     vm.expectEmit(address(market));
@@ -70,6 +94,7 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function test_updateState_HasPendingExpiredBatch_SameBlock() external {
     parameters.annualInterestBips = 3650;
+    parameters.commitmentFeeBips = 3650;
     parameters.withdrawalBatchDuration = 0;
     setUpContracts(false);
     setUp();
@@ -83,9 +108,9 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.expectEmit(address(market));
     emit WithdrawalBatchClosed(timestamp);
     vm.expectEmit(address(market));
-    emit InterestAndFeesAccrued(timestamp, timestamp + 1 days, uint256(1.001e27), 1e24, 0, 0);
+    emit InterestAndFeesAccrued(timestamp, timestamp + 1 days, uint256(1e27), 0, 0, 0);
     vm.expectEmit(address(market));
-    emit StateUpdated(uint256(1.001e27), false);
+    emit StateUpdated(uint256(1e27), false);
     market.updateState();
   }
 
@@ -223,6 +248,12 @@ contract WildcatMarketTest is BaseMarketTest {
     market.borrow(40_000e18 + 1);
   }
 
+  function test_borrow_UpdatesDrawnAmount() external {
+    _deposit(alice, 1e18);
+    _borrow(4e17);
+    assertEq(market.previousState().drawnAmount, 4e17, 'drawnAmount should increase on borrow');
+  }
+
   // ===================================================================== //
   //                             closeMarket()                              //
   // ===================================================================== //
@@ -271,7 +302,7 @@ contract WildcatMarketTest is BaseMarketTest {
     MarketState memory state = pendingState();
     asset.mint(borrower, remainingDebt);
     asset.approve(address(market), remainingDebt);
-    _trackRepay(state, borrower, remainingDebt);
+    state = _trackRepay(state, borrower, remainingDebt);
     _applyWithdrawalBatchPayment(
       _getWithdrawalBatch(state.pendingWithdrawalExpiry),
       state,
@@ -281,6 +312,8 @@ contract WildcatMarketTest is BaseMarketTest {
     );
     _trackProcessUnpaidWithdrawalBatch(state);
     state.annualInterestBips = 0;
+    state.commitmentFeeBips = 0;
+    state.drawnAmount = 0;
     state.isClosed = true;
     state.reserveRatioBips = 10000;
     state.timeDelinquent = 0;
@@ -303,9 +336,11 @@ contract WildcatMarketTest is BaseMarketTest {
     MarketState memory state = pendingState();
     asset.mint(borrower, remainingDebt);
     asset.approve(address(market), remainingDebt);
-    _trackRepay(state, borrower, remainingDebt);
+    state = _trackRepay(state, borrower, remainingDebt);
     _trackProcessUnpaidWithdrawalBatch(state);
     state.annualInterestBips = 0;
+    state.commitmentFeeBips = 0;
+    state.drawnAmount = 0;
     state.isClosed = true;
     state.reserveRatioBips = 10000;
     state.timeDelinquent = 0;
@@ -350,6 +385,20 @@ contract WildcatMarketTest is BaseMarketTest {
     asset.approve(address(market), 1e18);
     vm.expectRevert(IMarketEventsAndErrors.RepayToClosedMarket.selector);
     market.repay(1e18);
+  }
+
+  function test_repay_UpdatesDrawnAmountAndSaturates() external {
+    _deposit(alice, 1e18);
+    _borrow(8e17);
+
+    asset.mint(address(this), 2e18);
+    asset.approve(address(market), 2e18);
+
+    market.repay(3e17);
+    assertEq(market.previousState().drawnAmount, 5e17, 'drawnAmount should decrease on repay');
+
+    market.repay(10e17);
+    assertEq(market.previousState().drawnAmount, 0, 'drawnAmount should saturate at 0');
   }
 
   // ========================================================================== //

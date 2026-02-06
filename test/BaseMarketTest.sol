@@ -199,7 +199,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   function _borrow(uint256 amount) internal asAccount(borrower) {
     MarketState memory state = pendingState();
 
-    _trackBorrow(amount);
+    state = _trackBorrow(state, amount);
     market.borrow(amount);
     _checkState(state);
   }
