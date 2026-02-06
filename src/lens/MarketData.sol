@@ -50,6 +50,8 @@ struct MarketData {
   bool isDelinquent;
   uint256 timeDelinquent;
   uint256 lastInterestAccruedTimestamp;
+  uint256 drawnAmount;
+  uint256 commitmentFeeBips;
   uint32[] unpaidWithdrawalBatchExpiries;
   uint256 coverageLiquidity;
 }
@@ -137,6 +139,8 @@ library MarketDataLib {
     data.isDelinquent = state.isDelinquent;
     data.timeDelinquent = state.timeDelinquent;
     data.lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
+    data.drawnAmount = state.drawnAmount;
+    data.commitmentFeeBips = state.commitmentFeeBips;
 
     if (state.pendingWithdrawalExpiry == 0) {
       uint32 expiredBatchExpiry = market.previousState().pendingWithdrawalExpiry;

@@ -273,6 +273,8 @@ contract MarketDataTest is BaseMarketTest {
       state.lastInterestAccruedTimestamp,
       'lastInterestAccruedTimestamp'
     );
+    assertEq(data.drawnAmount, state.drawnAmount, 'drawnAmount');
+    assertEq(data.commitmentFeeBips, state.commitmentFeeBips, 'commitmentFeeBips');
     assertEq(
       data.unpaidWithdrawalBatchExpiries.length,
       _withdrawalData.unpaidBatches.length(),
