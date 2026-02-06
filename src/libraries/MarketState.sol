@@ -36,7 +36,7 @@ struct MarketState {
   uint112 scaleFactor;
   uint32 lastInterestAccruedTimestamp;
   // Assets withdrawn from the market by the borrower
-  uint256 drawnAmount;
+  uint128 drawnAmount;
   // Fee earned by lenders for undrawn capital
   uint16 commitmentFeeBips;
 }

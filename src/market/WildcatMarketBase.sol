@@ -178,6 +178,7 @@ contract WildcatMarketBase is
       uint reserveRatioBips = parameters.reserveRatioBips;
       uint annualInterestBips = parameters.annualInterestBips;
       uint protocolFeeBips = parameters.protocolFeeBips;
+      uint commitmentFeeBips = parameters.commitmentFeeBips;
 
       assembly {
         // MarketState Slot 0 Storage Layout:
@@ -199,8 +200,14 @@ contract WildcatMarketBase is
           or(or(shl(0xc0, timestamp()), shl(0x50, RAY)), shl(0x40, reserveRatioBips)),
           or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
         )
-
         sstore(add(_state.slot, 3), slot3)
+
+        // MarketState Slot 4 Storage Layout:
+        // [14:16] | commitmentFeeBips
+        // [16:32] | drawnAmount
+        // drawnAmount starts at 0, so only set commitmentFeeBips
+        let slot4 := shl(0x80, commitmentFeeBips)
+        sstore(add(_state.slot, 4), slot4)
       }
     }
 
@@ -332,7 +339,7 @@ contract WildcatMarketBase is
     MarketState memory state = _state;
 
     assembly {
-      return(state, 0x1c0)
+      return(state, 0x200)
     }
   }
 
@@ -344,7 +351,7 @@ contract WildcatMarketBase is
   function currentState() external view nonReentrantView returns (MarketState memory state) {
     state = _calculateCurrentStatePointers.asReturnsMarketState()();
     assembly {
-      return(state, 0x1c0)
+      return(state, 0x200)
     }
   }
 
