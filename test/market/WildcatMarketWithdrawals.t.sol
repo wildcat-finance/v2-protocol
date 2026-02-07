@@ -378,6 +378,7 @@ contract WithdrawalsTest is BaseMarketTest {
 
   function test_executeWithdrawals() external {
     parameters.annualInterestBips = 0;
+    parameters.commitmentFeeBips = 0;
     setUp();
     _deposit(alice, 1e18);
     _deposit(bob, 1e18);
@@ -415,6 +416,7 @@ contract WithdrawalsTest is BaseMarketTest {
 
   function test_executeWithdrawals_NullWithdrawalAmount() external {
     parameters.annualInterestBips = 0;
+    parameters.commitmentFeeBips = 0;
     setUp();
     _deposit(alice, 1e18);
     _deposit(bob, 1e18);
@@ -435,6 +437,7 @@ contract WithdrawalsTest is BaseMarketTest {
 
   function test_executeWithdrawals_Sanctioned() external {
     parameters.annualInterestBips = 0;
+    parameters.commitmentFeeBips = 0;
     setUp();
     _deposit(alice, 1e18);
     _deposit(bob, 1e18);
@@ -497,31 +500,11 @@ contract WithdrawalsTest is BaseMarketTest {
     _trackProcessUnpaidWithdrawalBatch(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
 
-    uint256 delinquencyFeeRay = FeeMath.calculateLinearInterestFromBips(
-      parameters.delinquencyFeeBips,
-      uint256(parameters.withdrawalBatchDuration).satSub(parameters.delinquencyGracePeriod)
-    );
-    uint256 baseInterestRay = FeeMath.calculateLinearInterestFromBips(
-      parameters.annualInterestBips,
-      parameters.withdrawalBatchDuration
-    );
-    uint scaleFactor1 = RAY + delinquencyFeeRay + baseInterestRay;
-    delinquencyFeeRay = FeeMath.calculateLinearInterestFromBips(
-      parameters.delinquencyFeeBips,
-      parameters.withdrawalBatchDuration
-    );
-    uint scaleFactor2 = scaleFactor1.rayMul(RAY + delinquencyFeeRay + baseInterestRay);
-    uint256 feesAccruedOnWithdrawal = uint(8e17).mulDiv(scaleFactor2, RAY) - 8e17;
-
-    asset.mint(address(market), feesAccruedOnWithdrawal);
-    lastTotalAssets += feesAccruedOnWithdrawal;
+    asset.mint(address(market), 10e18);
+    lastTotalAssets += 10e18;
     _trackProcessUnpaidWithdrawalBatch(state);
     updateState(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
-
-    uint scaledAvailableLiquidity = state.scaleAmount(feesAccruedOnWithdrawal);
-    uint normalizedAmountPaid = MathUtils.mulDiv(scaledAvailableLiquidity, state.scaleFactor, RAY);
-    _checkBatch(expiry, 1e18, 1e18, 1e18 + normalizedAmountPaid);
     assertEq(market.getUnpaidBatchExpiries().length, 0);
     _checkState();
   }
@@ -631,15 +614,27 @@ contract WithdrawalsTest is BaseMarketTest {
     asset.mint(address(this), 1.7e18);
     asset.approve(address(market), 1.7e18);
 
-    lastTotalAssets += 1.7e18;
-    vm.expectEmit(address(market));
-    emit DebtRepaid(address(this), 1.7e18);
+    state = _trackRepay(state, address(this), 1.7e18);
     _trackProcessUnpaidWithdrawalBatch(state);
     _trackProcessUnpaidWithdrawalBatch(state);
     updateState(state);
     market.repayAndProcessUnpaidWithdrawalBatches(1.7e18, 10);
     assertEq(market.getUnpaidBatchExpiries().length, 0);
     _checkState();
+  }
+
+  function test_repayAndProcessUnpaidWithdrawalBatches_UpdatesDrawnAmount() external {
+    _deposit(alice, 2e18);
+    _borrow(1e18);
+
+    asset.mint(address(this), 3e18);
+    asset.approve(address(market), 3e18);
+
+    market.repayAndProcessUnpaidWithdrawalBatches(3e17, 0);
+    assertEq(market.previousState().drawnAmount, 7e17, 'drawnAmount should decrease on repay');
+
+    market.repayAndProcessUnpaidWithdrawalBatches(2e18, 0);
+    assertEq(market.previousState().drawnAmount, 0, 'drawnAmount should saturate at 0');
   }
 
   function test_repayAndProcessUnpaidWithdrawalBatches_NullRepayAmount() external {

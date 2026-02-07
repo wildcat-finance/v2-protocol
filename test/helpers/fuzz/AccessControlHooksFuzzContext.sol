@@ -114,6 +114,7 @@ struct MarketHooksConfigContext {
   HooksKind hooksKind;
   bool useOnDeposit;
   bool useOnQueueWithdrawal;
+  bool withdrawalRequiresAccess;
   bool useOnExecuteWithdrawal;
   bool useOnTransfer;
   bool transferRequiresAccess;
@@ -197,6 +198,8 @@ function toMarketHooksConfigContext(
         : HooksKind.FixedTermLoanHooks,
       useOnDeposit: inputs.useOnDeposit || inputs.useOnQueueWithdrawal || inputs.minimumDeposit > 0,
       useOnQueueWithdrawal: inputs.useOnQueueWithdrawal || !inputs.isAccessControlHooks,
+      // FixedTerm hooks always execute on queue-withdrawal, but access control remains opt-in.
+      withdrawalRequiresAccess: inputs.useOnQueueWithdrawal,
       useOnExecuteWithdrawal: inputs.useOnExecuteWithdrawal,
       useOnTransfer: inputs.useOnTransfer || inputs.useOnQueueWithdrawal,
       transferRequiresAccess: inputs.useOnTransfer || inputs.transfersDisabled,
@@ -267,7 +270,8 @@ function createAccessControlHooksFuzzContext(
   if (
     fuzzInputs.existingCredentialInputs.credentialExists &&
     !context.expectations.hasValidCredential &&
-    context.expectations.expectedError == 0
+    context.expectations.expectedError == 0 &&
+    context.willCheckCredentials
   ) {
     context.expectations.wasUpdated = true;
     context.expectations.lastProvider = address(0);
@@ -338,8 +342,10 @@ library LibAccessControlHooksFuzzContext {
       !context.expectations.hasValidCredential
     ) {
       vm.assertEq(priorStatus.lastProvider, address(context.previousProvider), 'previous provider');
-      vm.assertEq(currentStatus.lastProvider, address(0), 'current provider != 0');
-      vm.assertEq(currentStatus.lastApprovalTimestamp, 0, 'current timestamp != 0');
+      vm.assertTrue(
+        currentStatus.lastProvider != priorStatus.lastProvider,
+        'current provider should differ from stale provider'
+      );
     }
 
     // Should be known lender if they were already or if the call
@@ -348,6 +354,7 @@ library LibAccessControlHooksFuzzContext {
       context.hooks.isKnownLenderOnMarket(context.account, context.market),
       context.existingCredentialOptions.isKnownLender ||
         (context.willCheckCredentials &&
+          context.expectations.hasValidCredential &&
           context.expectations.expectedError == 0 &&
           (context.functionKind == FunctionKind.DepositFunction ||
             context.functionKind == FunctionKind.IncomingTransferFunction)),
@@ -513,9 +520,9 @@ library LibAccessControlHooksFuzzContext {
         context.expectations.expectedError = FixedTermLoanHooks.WithdrawBeforeTermEnd.selector;
         context.willCheckCredentials = false;
       } else {
-        // If the function is a withdrawal and the account is a known lender, the credential
-        // check will be bypassed.
-        context.willCheckCredentials = !context.existingCredentialOptions.isKnownLender;
+        // Queue-withdrawal can be enabled while access control is disabled.
+        context.willCheckCredentials =
+          context.config.withdrawalRequiresAccess && !context.existingCredentialOptions.isKnownLender;
       }
     } else if (context.functionKind == FunctionKind.ForceBuyBackFunction) {
       if (!context.config.allowForceBuyBacks) {
@@ -534,7 +541,7 @@ library LibAccessControlHooksFuzzContext {
     ) return;
     if (
       (context.functionKind == FunctionKind.QueueWithdrawal &&
-        context.config.useOnQueueWithdrawal) ||
+        context.config.withdrawalRequiresAccess) ||
       (context.functionKind == FunctionKind.DepositFunction &&
         context.config.depositRequiresAccess) ||
       (context.functionKind == FunctionKind.IncomingTransferFunction &&

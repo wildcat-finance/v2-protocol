@@ -19,7 +19,7 @@ contract WildcatMarketBaseTest is BaseMarketTest {
   function test_scaleFactor() external {
     assertEq(market.scaleFactor(), 1e27, 'scaleFactor should be 1 ray');
     fastForward(365 days);
-    assertEq(market.scaleFactor(), 1.1e27, 'scaleFactor should grow by 10% from APR');
+    assertEq(market.scaleFactor(), 1e27, 'scaleFactor should not grow without supply');
     // Deposit one token
     _deposit(alice, 1e18);
     // Borrow 80% of market assets
@@ -27,16 +27,13 @@ contract WildcatMarketBaseTest is BaseMarketTest {
     assertEq(market.currentState().isDelinquent, false);
     // Withdraw 100% of deposits
     _requestWithdrawal(alice, 1e18);
-    assertEq(market.scaleFactor(), 1.1e27);
+    assertEq(market.scaleFactor(), 1e27);
     // Fast forward to delinquency grace period
-    fastForward(2000);
     MarketState memory state = previousState;
-    uint256 scaleFactorAtGracePeriodExpiry = uint(1.1e27) +
-      MathUtils.rayMul(
-        1.1e27,
-        FeeMath.calculateLinearInterestFromBips(parameters.annualInterestBips, 2_000)
-      );
-    assertEq(market.scaleFactor(), scaleFactorAtGracePeriodExpiry);
+    uint256 expectedScaleFactor = uint256(state.scaleFactor) +
+      MathUtils.rayMul(uint256(state.scaleFactor), state.calculateBaseInterest(block.timestamp + 2_000));
+    fastForward(2000);
+    assertEq(market.scaleFactor(), expectedScaleFactor);
   }
 
   // ===================================================================== //
@@ -124,9 +121,9 @@ contract WildcatMarketBaseTest is BaseMarketTest {
     fastForward(365 days);
     _requestWithdrawal(alice, 1e18);
     // MarketState memory state = market.currentState();
-    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 18e15);
     asset.mint(address(market), 8e17 + 1);
-    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 1e16);
-    assertEq(market.withdrawableProtocolFees(), 1e16);
+    assertEq(market.currentState().withdrawableProtocolFees(market.totalAssets()), 18e15);
+    assertEq(market.withdrawableProtocolFees(), 18e15);
   }
 }

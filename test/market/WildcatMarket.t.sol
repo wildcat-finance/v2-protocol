@@ -523,6 +523,7 @@ contract WildcatMarketTest is BaseMarketTest {
 
     // If the caller won't be authorized and no other error is expected, expect NotApprovedLender error
     if (
+      context.config.depositRequiresAccess &&
       !context.expectations.hasValidCredential && context.expectations.expectedError == bytes4(0)
     ) {
       context.expectations.expectedError = IMarketEventsAndErrors.NotApprovedLender.selector;
@@ -632,6 +633,7 @@ contract WildcatMarketTest is BaseMarketTest {
 
     // If the caller won't be authorized and no other error is expected, expect NotApprovedLender error
     if (
+      context.config.withdrawalRequiresAccess &&
       !context.expectations.hasValidCredential && context.expectations.expectedError == bytes4(0)
     ) {
       context.expectations.expectedError = IMarketEventsAndErrors.NotApprovedLender.selector;
