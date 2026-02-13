@@ -7,6 +7,11 @@ import "./TokenData.sol";
 import "./HooksInstanceData.sol";
 import "./HooksDataForBorrower.sol";
 
+struct FactoryScopedHooksTemplateData {
+    address hooksFactory;
+    HooksTemplateData hooksTemplateData;
+}
+
 contract MarketLens {
     WildcatArchController public immutable archController;
     IHooksFactory public immutable hooksFactory;
@@ -90,6 +95,17 @@ contract MarketLens {
         return arr;
     }
 
+    function _shrinkFactoryScopedHooksTemplateArray(FactoryScopedHooksTemplateData[] memory arr, uint256 newLength)
+        internal
+        pure
+        returns (FactoryScopedHooksTemplateData[] memory)
+    {
+        assembly {
+            mstore(arr, newLength)
+        }
+        return arr;
+    }
+
     function _getActiveHooksFactories() internal view returns (address[] memory factories) {
         address[] memory controllers = archController.getRegisteredControllers();
         address[] memory tmp = new address[](controllers.length + 1);
@@ -131,9 +147,9 @@ contract MarketLens {
         }
 
         address[][] memory marketsByFactory = new address[][](numFactories);
-        uint256 totalMarkets;
+        uint256 totalMarkets = 0;
 
-        for (uint256 i; i < numFactories; i++) {
+        for (uint256 i = 0; i < numFactories; i++) {
             try IHooksFactory(factories[i]).getMarketsForHooksTemplate(hooksTemplate) returns (
                 address[] memory factoryMarkets
             ) {
@@ -143,10 +159,10 @@ contract MarketLens {
         }
 
         markets = new address[](totalMarkets);
-        uint256 uniqueCount;
-        for (uint256 i; i < numFactories; i++) {
+        uint256 uniqueCount = 0;
+        for (uint256 i = 0; i < numFactories; i++) {
             address[] memory factoryMarkets = marketsByFactory[i];
-            for (uint256 j; j < factoryMarkets.length; j++) {
+            for (uint256 j = 0; j < factoryMarkets.length; j++) {
                 address marketAddress = factoryMarkets[j];
                 if (!_containsAddress(markets, uniqueCount, marketAddress)) {
                     markets[uniqueCount++] = marketAddress;
@@ -221,7 +237,7 @@ contract MarketLens {
             IHooksFactory factory = IHooksFactory(factories[0]);
             try factory.getHooksInstancesForBorrower(borrower) returns (address[] memory hooksInstances) {
                 arr = new HooksInstanceData[](hooksInstances.length);
-                for (uint256 i; i < hooksInstances.length; i++) {
+                for (uint256 i = 0; i < hooksInstances.length; i++) {
                     arr[i].fill(hooksInstances[i], factory);
                 }
                 return arr;
@@ -231,9 +247,9 @@ contract MarketLens {
         }
 
         address[][] memory hooksInstancesByFactory = new address[][](numFactories);
-        uint256 totalInstances;
+        uint256 totalInstances = 0;
 
-        for (uint256 i; i < numFactories; i++) {
+        for (uint256 i = 0; i < numFactories; i++) {
             try IHooksFactory(factories[i]).getHooksInstancesForBorrower(borrower) returns (
                 address[] memory hooksInstances
             ) {
@@ -243,11 +259,11 @@ contract MarketLens {
         }
 
         arr = new HooksInstanceData[](totalInstances);
-        uint256 uniqueCount;
-        for (uint256 i; i < numFactories; i++) {
+        uint256 uniqueCount = 0;
+        for (uint256 i = 0; i < numFactories; i++) {
             IHooksFactory factory = IHooksFactory(factories[i]);
             address[] memory hooksInstances = hooksInstancesByFactory[i];
-            for (uint256 j; j < hooksInstances.length; j++) {
+            for (uint256 j = 0; j < hooksInstances.length; j++) {
                 address hooksAddress = hooksInstances[j];
                 if (!_containsHooksInstanceAddress(arr, uniqueCount, hooksAddress)) {
                     arr[uniqueCount].fill(hooksAddress, factory);
@@ -329,7 +345,7 @@ contract MarketLens {
             IHooksFactory factory = IHooksFactory(factories[0]);
             try factory.getHooksTemplates() returns (address[] memory hooksTemplates) {
                 data = new HooksTemplateData[](hooksTemplates.length);
-                for (uint256 i; i < hooksTemplates.length; i++) {
+                for (uint256 i = 0; i < hooksTemplates.length; i++) {
                     data[i].fill(factory, hooksTemplates[i], borrower);
                 }
                 return data;
@@ -339,9 +355,9 @@ contract MarketLens {
         }
 
         address[][] memory templatesByFactory = new address[][](numFactories);
-        uint256 totalTemplates;
+        uint256 totalTemplates = 0;
 
-        for (uint256 i; i < numFactories; i++) {
+        for (uint256 i = 0; i < numFactories; i++) {
             try IHooksFactory(factories[i]).getHooksTemplates() returns (address[] memory hooksTemplates) {
                 templatesByFactory[i] = hooksTemplates;
                 totalTemplates += hooksTemplates.length;
@@ -349,11 +365,11 @@ contract MarketLens {
         }
 
         data = new HooksTemplateData[](totalTemplates);
-        uint256 uniqueCount;
-        for (uint256 i; i < numFactories; i++) {
+        uint256 uniqueCount = 0;
+        for (uint256 i = 0; i < numFactories; i++) {
             IHooksFactory factory = IHooksFactory(factories[i]);
             address[] memory hooksTemplates = templatesByFactory[i];
-            for (uint256 j; j < hooksTemplates.length; j++) {
+            for (uint256 j = 0; j < hooksTemplates.length; j++) {
                 address hooksTemplate = hooksTemplates[j];
                 if (!_containsHooksTemplateAddress(data, uniqueCount, hooksTemplate)) {
                     data[uniqueCount].fill(factory, hooksTemplate, borrower);
@@ -363,6 +379,45 @@ contract MarketLens {
         }
 
         return _shrinkHooksTemplateArray(data, uniqueCount);
+    }
+
+    // Returns one row per (factory, hooksTemplate) pair with factory-scoped template data.
+    // Unlike `getAggregatedAllHooksTemplatesForBorrower`, this intentionally does not
+    // dedupe across factories.
+    function getAggregatedHooksTemplatesForBorrowerWithFactory(address borrower)
+        public
+        view
+        returns (FactoryScopedHooksTemplateData[] memory data)
+    {
+        address[] memory factories = _getActiveHooksFactories();
+        uint256 numFactories = factories.length;
+        if (numFactories == 0) {
+            return new FactoryScopedHooksTemplateData[](0);
+        }
+
+        address[][] memory templatesByFactory = new address[][](numFactories);
+        uint256 totalTemplates = 0;
+
+        for (uint256 i = 0; i < numFactories; i++) {
+            try IHooksFactory(factories[i]).getHooksTemplates() returns (address[] memory hooksTemplates) {
+                templatesByFactory[i] = hooksTemplates;
+                totalTemplates += hooksTemplates.length;
+            } catch {}
+        }
+
+        data = new FactoryScopedHooksTemplateData[](totalTemplates);
+        uint256 count = 0;
+        for (uint256 i = 0; i < numFactories; i++) {
+            IHooksFactory factory = IHooksFactory(factories[i]);
+            address[] memory hooksTemplates = templatesByFactory[i];
+            for (uint256 j = 0; j < hooksTemplates.length; j++) {
+                data[count].hooksFactory = factories[i];
+                data[count].hooksTemplateData.fill(factory, hooksTemplates[j], borrower);
+                count++;
+            }
+        }
+
+        return _shrinkFactoryScopedHooksTemplateArray(data, count);
     }
 
     // ========================================================================== //
