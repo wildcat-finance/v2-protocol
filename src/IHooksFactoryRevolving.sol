@@ -5,6 +5,10 @@ import './IHooksFactory.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
 
 interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
+  error InvalidMarketData();
+  error UnsupportedMarketDataVersion();
+  error InvalidCommitmentFeeBips();
+
   function archController() external view returns (address);
 
   function sanctionsSentinel() external view returns (address);
@@ -108,6 +112,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   ///
   ///      `hooksData` is hook-owned data forwarded unchanged to hooks callbacks.
   ///      `marketData` is factory-owned data decoded by this factory.
+  ///      Current expected shape: `abi.encode(uint8 version, uint16 commitmentFeeBips)`.
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
@@ -118,6 +123,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   ) external returns (address market);
 
   /// @dev Deploy hooks for an approved template, then deploy a revolving market.
+  ///      `marketData` uses the same encoding as `deployMarket`.
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksConstructorArgs,
