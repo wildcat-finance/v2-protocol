@@ -36,6 +36,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     address internal revolvingHooksInstance;
 
     uint16 internal constant _COMMITMENT_FEE_BIPS = 321;
+    uint16 internal constant _REVOLVING_TEMPLATE_PROTOCOL_FEE_BIPS = 42;
 
     function _storeRevolvingMarketInitCode() internal returns (address initCodeStorage, uint256 initCodeHash) {
         bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
@@ -61,6 +62,9 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
         );
         hooksFactoryRevolving.addHooksTemplate(
             fixedTermHooksTemplate, "FixedTermLoanHooks", address(0), address(0), 0, 0
+        );
+        hooksFactoryRevolving.updateHooksTemplateFees(
+            hooksTemplate, address(this), address(0), 0, _REVOLVING_TEMPLATE_PROTOCOL_FEE_BIPS
         );
 
         _deployRevolvingMarket();
@@ -118,6 +122,20 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
             if (values[i].hooksTemplate == expected) return true;
         }
         return false;
+    }
+
+    function _getFactoryScopedTemplateData(
+        FactoryScopedHooksTemplateData[] memory values,
+        address factoryAddress,
+        address templateAddress
+    ) internal pure returns (bool found, HooksTemplateData memory templateData) {
+        for (uint256 i; i < values.length; i++) {
+            if (
+                values[i].hooksFactory == factoryAddress && values[i].hooksTemplateData.hooksTemplate == templateAddress
+            ) {
+                return (true, values[i].hooksTemplateData);
+            }
+        }
     }
 
     function test_getMarketDataV2_presenceFlagsForLegacyAndRevolving() external view {
@@ -211,6 +229,38 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
         assertEq(hooksData.isRegisteredBorrower, true, "registered borrower");
         assertEq(hooksData.hooksInstances.length, 2, "aggregated hooksData instances length");
         assertEq(hooksData.hooksTemplates.length, 2, "aggregated hooksData templates length");
+    }
+
+    function test_aggregatedFactoryScopedTemplates_preservePerFactoryData() external view {
+        uint16 legacyProtocolFeeBipsExpected = hooksFactory.getHooksTemplateDetails(hooksTemplate).protocolFeeBips;
+        uint16 revolvingProtocolFeeBipsExpected =
+            hooksFactoryRevolving.getHooksTemplateDetails(hooksTemplate).protocolFeeBips;
+
+        HooksTemplateData[] memory dedupedTemplates = lens.getAggregatedAllHooksTemplatesForBorrower(borrower);
+        assertEq(dedupedTemplates.length, 2, "deduped templates length");
+
+        FactoryScopedHooksTemplateData[] memory factoryScopedTemplates =
+            lens.getAggregatedHooksTemplatesForBorrowerWithFactory(borrower);
+        assertEq(factoryScopedTemplates.length, 4, "factory-scoped templates length");
+
+        (bool foundLegacy, HooksTemplateData memory legacyTemplate) =
+            _getFactoryScopedTemplateData(factoryScopedTemplates, address(hooksFactory), hooksTemplate);
+        assertTrue(foundLegacy, "missing legacy template row");
+        assertEq(legacyTemplate.totalMarkets, 1, "legacy total markets");
+        assertEq(legacyTemplate.fees.protocolFeeBips, legacyProtocolFeeBipsExpected, "legacy protocol fee bips");
+
+        (bool foundRevolving, HooksTemplateData memory revolvingTemplate) =
+            _getFactoryScopedTemplateData(factoryScopedTemplates, address(hooksFactoryRevolving), hooksTemplate);
+        assertTrue(foundRevolving, "missing revolving template row");
+        assertEq(revolvingTemplate.totalMarkets, 1, "revolving total markets");
+        assertEq(
+            legacyTemplate.fees.protocolFeeBips != revolvingTemplate.fees.protocolFeeBips,
+            true,
+            "protocol fee bips should differ across factories"
+        );
+        assertEq(
+            revolvingTemplate.fees.protocolFeeBips, revolvingProtocolFeeBipsExpected, "revolving protocol fee bips"
+        );
     }
 
     function test_aggregatedMarketsDataForTemplate_hasStableOrder() external view {
