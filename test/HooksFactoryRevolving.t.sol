@@ -6,7 +6,7 @@ import 'src/WildcatArchController.sol';
 import 'src/HooksFactoryRevolving.sol';
 import 'src/IHooksFactoryRevolving.sol';
 import 'src/libraries/LibStoredInitCode.sol';
-import 'src/market/WildcatMarket.sol';
+import 'src/market/WildcatMarketRevolving.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import 'src/types/HooksConfig.sol';
 import './helpers/Assertions.sol';
@@ -27,7 +27,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     virtual
     returns (address initCodeStorage, uint256 initCodeHash)
   {
-    bytes memory marketInitCode = type(WildcatMarket).creationCode;
+    bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
     initCodeHash = uint256(keccak256(marketInitCode));
     initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
   }

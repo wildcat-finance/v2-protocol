@@ -108,6 +108,10 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
 
   function getMarketParameters() external view returns (MarketParameters memory parameters);
 
+  /// @dev Temporary deployment data read by `WildcatMarketRevolving` constructor.
+  ///      Only valid during market deployment.
+  function getRevolvingMarketCommitmentFeeBips() external view returns (uint16);
+
   /// @dev Deploy a revolving market with an existing hooks deployment.
   ///
   ///      `hooksData` is hook-owned data forwarded unchanged to hooks callbacks.
