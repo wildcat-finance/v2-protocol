@@ -9,6 +9,26 @@ import "src/libraries/LibStoredInitCode.sol";
 import "src/lens/MarketLens.sol";
 import "src/market/WildcatMarketRevolving.sol";
 
+contract MockNonHooksController {}
+
+contract MockRevertingHooksFactory {
+    function getHooksTemplatesCount() external pure returns (uint256) {
+        return 1;
+    }
+
+    function getHooksInstancesForBorrower(address) external pure returns (address[] memory) {
+        revert("mock-revert");
+    }
+
+    function getHooksTemplates() external pure returns (address[] memory) {
+        revert("mock-revert");
+    }
+
+    function getMarketsForHooksTemplate(address) external pure returns (address[] memory) {
+        revert("mock-revert");
+    }
+}
+
 contract MarketLensMultiFactoryTest is BaseMarketTest {
     MarketLens internal lens;
     IHooksFactoryRevolving internal hooksFactoryRevolving;
@@ -132,6 +152,28 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
         assertEq(revolvingData.drawnAmount.isPresent, true, "drawn presence");
     }
 
+    function test_getMarketDataV2_fallbackWhenDrawnAmountGetterIsMalformed() external {
+        vm.mockCall(
+            address(revolvingMarket), abi.encodeWithSelector(IWildcatMarketRevolving.drawnAmount.selector), hex"01"
+        );
+
+        MarketDataV2 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
+        assertEq(revolvingData.commitmentFeeBips.isPresent, true, "commitment presence");
+        assertEq(revolvingData.drawnAmount.isPresent, false, "malformed drawn presence");
+    }
+
+    function test_getMarketDataV2_fallbackWhenDrawnAmountGetterReverts() external {
+        vm.mockCallRevert(
+            address(revolvingMarket),
+            abi.encodeWithSelector(IWildcatMarketRevolving.drawnAmount.selector),
+            abi.encodeWithSignature("MockFailure()")
+        );
+
+        MarketDataV2 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
+        assertEq(revolvingData.commitmentFeeBips.isPresent, true, "commitment presence");
+        assertEq(revolvingData.drawnAmount.isPresent, false, "reverting drawn presence");
+    }
+
     function test_factoryParameterizedBorrowerAndTemplateReads() external view {
         HooksInstanceData[] memory legacyInstances = lens.getHooksInstancesForBorrower(address(hooksFactory), borrower);
         assertEq(legacyInstances.length, 1, "legacy instances length");
@@ -197,5 +239,81 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
 
         assertTrue(_containsAddress(marketAddresses, address(market)), "contains legacy market");
         assertTrue(_containsAddress(marketAddresses, address(revolvingMarket)), "contains revolving market");
+    }
+
+    function test_aggregatedReads_ignoreNonHooksController() external {
+        MockNonHooksController nonHooksController = new MockNonHooksController();
+        archController.registerControllerFactory(address(this));
+        archController.registerController(address(nonHooksController));
+
+        HooksInstanceData[] memory instances = lens.getAggregatedHooksInstancesForBorrower(borrower);
+        assertEq(instances.length, 2, "instances length");
+        assertTrue(_containsHooksInstance(instances, address(hooks)), "contains legacy hooks instance");
+        assertTrue(_containsHooksInstance(instances, revolvingHooksInstance), "contains revolving hooks instance");
+
+        HooksTemplateData[] memory templates = lens.getAggregatedAllHooksTemplatesForBorrower(borrower);
+        assertEq(templates.length, 2, "templates length");
+        assertTrue(_containsHooksTemplate(templates, hooksTemplate), "contains access-control template");
+        assertTrue(_containsHooksTemplate(templates, fixedTermHooksTemplate), "contains fixed-term template");
+
+        MarketData[] memory marketsData = lens.getAggregatedAllMarketsDataForHooksTemplate(hooksTemplate);
+        assertEq(marketsData.length, 2, "markets length");
+    }
+
+    function test_aggregatedReads_tolerateRevertingHooksFactory() external {
+        MockRevertingHooksFactory revertingFactory = new MockRevertingHooksFactory();
+        archController.registerControllerFactory(address(this));
+        archController.registerController(address(revertingFactory));
+
+        HooksInstanceData[] memory instances = lens.getAggregatedHooksInstancesForBorrower(borrower);
+        assertEq(instances.length, 2, "instances length");
+        assertTrue(_containsHooksInstance(instances, address(hooks)), "contains legacy hooks instance");
+        assertTrue(_containsHooksInstance(instances, revolvingHooksInstance), "contains revolving hooks instance");
+
+        HooksTemplateData[] memory templates = lens.getAggregatedAllHooksTemplatesForBorrower(borrower);
+        assertEq(templates.length, 2, "templates length");
+        assertTrue(_containsHooksTemplate(templates, hooksTemplate), "contains access-control template");
+        assertTrue(_containsHooksTemplate(templates, fixedTermHooksTemplate), "contains fixed-term template");
+
+        MarketData[] memory marketsData = lens.getAggregatedAllMarketsDataForHooksTemplate(hooksTemplate);
+        assertEq(marketsData.length, 2, "markets length");
+    }
+
+    function test_factoryParameterizedV2Reads() external view {
+        MarketDataV2[] memory legacyV2 = lens.getAllMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate);
+        assertEq(legacyV2.length, 1, "legacy length");
+        assertEq(legacyV2[0].market.hooksFactory, address(hooksFactory), "legacy factory");
+        assertEq(legacyV2[0].commitmentFeeBips.isPresent, false, "legacy commitment presence");
+        assertEq(legacyV2[0].drawnAmount.isPresent, false, "legacy drawn presence");
+
+        MarketDataV2[] memory revolvingV2 =
+            lens.getAllMarketsDataV2ForHooksTemplate(address(hooksFactoryRevolving), hooksTemplate);
+        assertEq(revolvingV2.length, 1, "revolving length");
+        assertEq(revolvingV2[0].market.hooksFactory, address(hooksFactoryRevolving), "revolving factory");
+        assertEq(revolvingV2[0].commitmentFeeBips.isPresent, true, "revolving commitment presence");
+        assertEq(revolvingV2[0].drawnAmount.isPresent, true, "revolving drawn presence");
+    }
+
+    function test_paginatedV2Reads() external view {
+        MarketDataV2[] memory legacyPage =
+            lens.getPaginatedMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate, 0, 1);
+        assertEq(legacyPage.length, 1, "legacy page length");
+        assertEq(legacyPage[0].market.marketToken.token, address(market), "legacy market address");
+
+        MarketDataV2[] memory revolvingPage =
+            lens.getPaginatedMarketsDataV2ForHooksTemplate(address(hooksFactoryRevolving), hooksTemplate, 0, 1);
+        assertEq(revolvingPage.length, 1, "revolving page length");
+        assertEq(revolvingPage[0].market.marketToken.token, address(revolvingMarket), "revolving market address");
+        assertEq(revolvingPage[0].commitmentFeeBips.isPresent, true, "revolving commitment presence");
+    }
+
+    function test_defaultFactoryV2EndpointsRemainLegacyScoped() external view {
+        MarketDataV2[] memory allDefault = lens.getAllMarketsDataV2ForHooksTemplate(hooksTemplate);
+        assertEq(allDefault.length, 1, "default all length");
+        assertEq(allDefault[0].market.hooksFactory, address(hooksFactory), "default all factory");
+
+        MarketDataV2[] memory paginatedDefault = lens.getPaginatedMarketsDataV2ForHooksTemplate(hooksTemplate, 0, 1);
+        assertEq(paginatedDefault.length, 1, "default paginated length");
+        assertEq(paginatedDefault[0].market.hooksFactory, address(hooksFactory), "default paginated factory");
     }
 }
