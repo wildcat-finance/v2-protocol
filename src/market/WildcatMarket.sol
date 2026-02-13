@@ -143,7 +143,7 @@ contract WildcatMarket is
    *
    *      Reverts if the market is closed.
    */
-  function borrow(uint256 amount) external onlyBorrower nonReentrant sphereXGuardExternal {
+  function borrow(uint256 amount) external virtual onlyBorrower nonReentrant sphereXGuardExternal {
     // Check if the borrower is flagged as a sanctioned entity on Chainalysis.
     // Uses `isFlaggedByChainalysis` instead of `isSanctioned` to prevent the borrower
     // overriding their sanction status.
@@ -160,12 +160,13 @@ contract WildcatMarket is
     // Execute borrow hook if enabled
     hooks.onBorrow(amount, state);
 
+    _onBorrow(amount);
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
     emit_Borrow(amount);
   }
 
-  function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal {
+  function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal virtual {
     if (amount == 0) revert_NullRepayAmount();
     if (state.isClosed) revert_RepayToClosedMarket();
 
@@ -174,6 +175,7 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, baseCalldataSize);
+    _onRepay(amount);
   }
 
   /**
@@ -185,7 +187,7 @@ contract WildcatMarket is
    *
    *      Reverts if the market is closed or `amount` is 0.
    */
-  function repay(uint256 amount) external nonReentrant sphereXGuardExternal {
+  function repay(uint256 amount) external virtual nonReentrant sphereXGuardExternal {
     if (amount == 0) revert_NullRepayAmount();
 
     asset.safeTransferFrom(msg.sender, address(this), amount);
@@ -196,6 +198,7 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
+    _onRepay(amount);
 
     _writeState(state);
   }
@@ -237,7 +240,7 @@ contract WildcatMarket is
    *      collateralized; otherwise, transfers any assets in excess of
    *      debts to the borrower.
    */
-  function closeMarket() external onlyBorrower nonReentrant sphereXGuardExternal {
+  function closeMarket() external virtual onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_MarketAlreadyClosed();
@@ -316,6 +319,7 @@ contract WildcatMarket is
       revert_CloseMarketWithUnpaidWithdrawals();
     }
 
+    _onCloseMarket();
     _writeState(state);
     emit_MarketClosed(block.timestamp);
   }
