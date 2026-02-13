@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wildcat.finance/schemas/rcf-v2-handoff.schema.json",
+  "title": "RCF V2 Phase 1 Handoff Artifact",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "chain",
+    "addresses",
+    "txHashes",
+    "routing",
+    "abiSurface",
+    "sources"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "chain": {
+      "type": "object",
+      "required": [
+        "id",
+        "network",
+        "canonicalName"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "network": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonicalName": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "addresses": {
+      "type": "object",
+      "required": [
+        "archController",
+        "hooksFactoryLegacy",
+        "hooksFactoryRevolving",
+        "marketLensLatest",
+        "wildcatMarketRevolvingInitCodeStorage"
+      ],
+      "properties": {
+        "archController": {
+          "$ref": "#/$defs/address"
+        },
+        "hooksFactoryLegacy": {
+          "$ref": "#/$defs/address"
+        },
+        "hooksFactoryRevolving": {
+          "$ref": "#/$defs/address"
+        },
+        "marketLensLatest": {
+          "$ref": "#/$defs/address"
+        },
+        "wildcatMarketRevolvingInitCodeStorage": {
+          "$ref": "#/$defs/address"
+        }
+      },
+      "additionalProperties": false
+    },
+    "txHashes": {
+      "type": "object",
+      "required": [
+        "deployHooksFactoryRevolving",
+        "registerControllerFactory",
+        "registerWithArchController",
+        "deployMarketLens"
+      ],
+      "properties": {
+        "deployHooksFactoryRevolving": {
+          "$ref": "#/$defs/nullableTxHash"
+        },
+        "registerControllerFactory": {
+          "$ref": "#/$defs/nullableTxHash"
+        },
+        "registerWithArchController": {
+          "$ref": "#/$defs/nullableTxHash"
+        },
+        "deployMarketLens": {
+          "$ref": "#/$defs/nullableTxHash"
+        }
+      },
+      "additionalProperties": false
+    },
+    "routing": {
+      "type": "object",
+      "required": [
+        "defaultMarketType",
+        "factoryByMarketType",
+        "marketTypeByFactory",
+        "latestLens"
+      ],
+      "properties": {
+        "defaultMarketType": {
+          "const": "legacy"
+        },
+        "factoryByMarketType": {
+          "type": "object",
+          "required": [
+            "legacy",
+            "revolving"
+          ],
+          "properties": {
+            "legacy": {
+              "$ref": "#/$defs/address"
+            },
+            "revolving": {
+              "$ref": "#/$defs/address"
+            }
+          },
+          "additionalProperties": false
+        },
+        "marketTypeByFactory": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "legacy",
+              "revolving"
+            ]
+          }
+        },
+        "latestLens": {
+          "$ref": "#/$defs/address"
+        }
+      },
+      "additionalProperties": false
+    },
+    "abiSurface": {
+      "type": "object",
+      "required": [
+        "artifacts",
+        "selectors",
+        "notes"
+      ],
+      "properties": {
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "selectors": {
+          "type": "object"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "object",
+      "required": [
+        "deploymentsFile",
+        "hooksBroadcast",
+        "lensBroadcast",
+        "hooksScriptName",
+        "lensScriptName"
+      ],
+      "properties": {
+        "deploymentsFile": {
+          "type": "string"
+        },
+        "hooksBroadcast": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lensBroadcast": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooksScriptName": {
+          "type": "string"
+        },
+        "lensScriptName": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "address": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{40}$"
+    },
+    "txHash": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "nullableTxHash": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/txHash"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}
