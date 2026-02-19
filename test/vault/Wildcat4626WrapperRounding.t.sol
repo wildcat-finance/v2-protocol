@@ -427,6 +427,56 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     assertGt(assetsReceived, 0, 'must receive assets');
   }
 
+  /// @notice Fuzz: sweeping market asset only removes stranded balance and preserves share backing
+  function testFuzz_sweepMarketAsset_onlyStrandedBalance(
+    uint256 depositAssets,
+    uint256 donationAssets,
+    uint256 scaleOffset
+  ) external {
+    depositAssets = bound(depositAssets, 1e12, 500e18);
+    uint256 donationMax = 1000e18 - depositAssets;
+    donationAssets = bound(donationAssets, 1e9, donationMax);
+    scaleOffset = bound(scaleOffset, 0, 10 * RAY);
+
+    vm.startPrank(ALICE);
+    uint256 depositedShares = wrapper.deposit(depositAssets, ALICE);
+    market.transfer(address(wrapper), donationAssets);
+    vm.stopPrank();
+
+    market.setScaleFactor(RAY + scaleOffset);
+
+    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
+    uint256 expectedScaled = wrapper.totalSupply();
+    assertGt(scaledBefore, expectedScaled, 'must have stranded balance');
+
+    uint256 strandedScaled = scaledBefore - expectedScaled;
+    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
+    uint256 borrowerBalanceBefore = market.balanceOf(BORROWER);
+
+    vm.prank(BORROWER);
+    uint256 swept = wrapper.sweep(address(market), BORROWER);
+
+    assertEq(swept, expectedSweepAssets, 'sweep assets mismatch');
+    assertEq(
+      market.balanceOf(BORROWER),
+      borrowerBalanceBefore + expectedSweepAssets,
+      'borrower should receive swept assets'
+    );
+    assertEq(
+      market.scaledBalanceOf(address(wrapper)),
+      expectedScaled,
+      'scaled backing should match wrapper totalSupply'
+    );
+
+    vm.prank(ALICE);
+    uint256 redeemedAssets = wrapper.redeem(depositedShares, ALICE, ALICE);
+    assertEq(
+      redeemedAssets,
+      depositedShares.rayMul(market.scaleFactor()),
+      'redeem value should remain fully share-backed'
+    );
+  }
+
   /// @notice Fuzz: Full round-trip deposit→redeem should work at any scale factor
   function testFuzz_depositRedeem_roundTrip(
     uint256 assets,
