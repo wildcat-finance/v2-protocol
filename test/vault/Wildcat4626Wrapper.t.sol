@@ -382,6 +382,78 @@ contract Wildcat4626WrapperTest is Test {
     assertEq(assetsOut, fedShares.rayMul(market.scaleFactor()), 'share-backed value preserved');
   }
 
+  function test_sweepMarketAssetRevertsForSanctionedRecipient() external {
+    vm.prank(FED);
+    market.transfer(address(wrapper), 1e18);
+
+    sanctionsSentinel.sanction(BOB);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    vm.prank(BORROWER);
+    wrapper.sweep(address(market), BOB);
+  }
+
+  function test_sweepMarketAssetRevertsAfterSurplusCleared() external {
+    vm.prank(FED);
+    wrapper.deposit(25e18, FED);
+
+    vm.prank(BOB);
+    market.transfer(address(wrapper), 7e18);
+
+    vm.prank(BORROWER);
+    uint256 swept = wrapper.sweep(address(market), BORROWER);
+    assertEq(swept, 7e18, 'initial stranded sweep');
+
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
+    vm.prank(BORROWER);
+    wrapper.sweep(address(market), BORROWER);
+  }
+
+  function test_sweepMarketAssetPreservesMultipleDepositors() external {
+    uint256 fedDeposit = 20e18;
+    uint256 bobDeposit = 30e18;
+    uint256 donation = 12e18;
+
+    vm.prank(FED);
+    uint256 fedShares = wrapper.deposit(fedDeposit, FED);
+    vm.prank(BOB);
+    uint256 bobShares = wrapper.deposit(bobDeposit, BOB);
+
+    vm.prank(FED);
+    market.transfer(address(wrapper), donation);
+
+    market.setScaleFactor(RAY + (RAY / 4)); // 1.25x
+
+    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
+    uint256 expectedScaled = wrapper.totalSupply();
+    uint256 strandedScaled = scaledBefore - expectedScaled;
+    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
+
+    vm.prank(BORROWER);
+    uint256 swept = wrapper.sweep(address(market), BORROWER);
+    assertEq(swept, expectedSweepAssets, 'swept amount follows current scale factor');
+    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
+
+    vm.prank(FED);
+    uint256 fedAssetsOut = wrapper.redeem(fedShares, FED, FED);
+    vm.prank(BOB);
+    uint256 bobAssetsOut = wrapper.redeem(bobShares, BOB, BOB);
+
+    assertEq(fedAssetsOut, fedShares.rayMul(market.scaleFactor()), 'fed share-backed value');
+    assertEq(bobAssetsOut, bobShares.rayMul(market.scaleFactor()), 'bob share-backed value');
+  }
+
+  function test_sweepRevertsForZeroToken() external {
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    vm.prank(BORROWER);
+    wrapper.sweep(address(0), BORROWER);
+  }
+
+  function test_sweepRevertsForZeroRecipient() external {
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    vm.prank(BORROWER);
+    wrapper.sweep(address(market), address(0));
+  }
+
   function test_sweepSendsBalanceToBorrower() external {
     MockErc20 stray = new MockErc20();
     uint256 strayAmount = 42e18;
