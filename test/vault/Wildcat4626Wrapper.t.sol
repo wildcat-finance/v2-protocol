@@ -298,10 +298,88 @@ contract Wildcat4626WrapperTest is Test {
     wrapper.sweep(address(stray), FED);
   }
 
-  function test_sweepRevertsForMarketAsset() external {
-    vm.expectRevert(Wildcat4626Wrapper.CannotSweepMarketAsset.selector);
+  function test_sweepMarketAssetRevertsWhenNoStrandedBalance() external {
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
     vm.prank(BORROWER);
     wrapper.sweep(address(market), BORROWER);
+  }
+
+  function test_sweepMarketAssetRevertsForNonMarketOwner() external {
+    vm.prank(FED);
+    market.transfer(address(wrapper), 1e18);
+
+    vm.expectRevert(Wildcat4626Wrapper.NotMarketOwner.selector);
+    vm.prank(FED);
+    wrapper.sweep(address(market), FED);
+  }
+
+  function test_sweepMarketAssetSweepsOnlyStrandedBalance() external {
+    uint256 fedDeposit = 30e18;
+    uint256 donation = 8e18;
+
+    vm.prank(FED);
+    uint256 fedShares = wrapper.deposit(fedDeposit, FED);
+    assertEq(fedShares, fedDeposit, 'fed shares');
+
+    vm.prank(BOB);
+    market.transfer(address(wrapper), donation);
+
+    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
+    uint256 expectedScaled = wrapper.totalSupply();
+    assertEq(scaledBefore, expectedScaled + donation, 'scaled includes donation');
+
+    uint256 borrowerBefore = market.balanceOf(BORROWER);
+
+    vm.prank(BORROWER);
+    uint256 swept = wrapper.sweep(address(market), BORROWER);
+
+    assertEq(swept, donation, 'swept only stranded assets');
+    assertEq(market.balanceOf(BORROWER), borrowerBefore + donation, 'borrower receives stranded');
+    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
+    assertEq(
+      wrapper.totalAssets(),
+      wrapper.convertToAssets(wrapper.totalSupply()),
+      'no residual stranded market assets'
+    );
+
+    vm.prank(FED);
+    uint256 assetsOut = wrapper.redeem(fedShares, FED, FED);
+    assertEq(assetsOut, fedDeposit, 'share-backed assets unchanged');
+  }
+
+  function test_sweepMarketAssetAfterScaleFactorIncrease() external {
+    uint256 fedDeposit = 20e18;
+    uint256 donation = 9e18;
+
+    vm.prank(FED);
+    uint256 fedShares = wrapper.deposit(fedDeposit, FED);
+
+    vm.prank(BOB);
+    market.transfer(address(wrapper), donation);
+
+    market.setScaleFactor(RAY + (RAY / 2)); // 1.5x
+
+    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
+    uint256 expectedScaled = wrapper.totalSupply();
+    uint256 strandedScaled = scaledBefore - expectedScaled;
+    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
+
+    uint256 borrowerBefore = market.balanceOf(BORROWER);
+
+    vm.prank(BORROWER);
+    uint256 swept = wrapper.sweep(address(market), BORROWER);
+
+    assertEq(swept, expectedSweepAssets, 'swept amount follows current scale factor');
+    assertEq(
+      market.balanceOf(BORROWER),
+      borrowerBefore + expectedSweepAssets,
+      'borrower receives scaled surplus value'
+    );
+    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
+
+    vm.prank(FED);
+    uint256 assetsOut = wrapper.redeem(fedShares, FED, FED);
+    assertEq(assetsOut, fedShares.rayMul(market.scaleFactor()), 'share-backed value preserved');
   }
 
   function test_sweepSendsBalanceToBorrower() external {
