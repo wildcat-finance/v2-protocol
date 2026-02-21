@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 
-import "../WildcatArchController.sol";
-import "../IHooksFactory.sol";
-import "../market/WildcatMarket.sol";
-import "../types/HooksConfig.sol";
-import "../access/MarketConstraintHooks.sol";
-import "../interfaces/IWildcatMarketRevolving.sol";
-import "./HooksConfigData.sol";
-import "./HooksInstanceData.sol";
-import "./HooksTemplateData.sol";
-import "./LenderAccountData.sol";
-import "./TokenData.sol";
-import "./WithdrawalBatchData.sol";
+import '../WildcatArchController.sol';
+import '../IHooksFactory.sol';
+import '../market/WildcatMarket.sol';
+import '../types/HooksConfig.sol';
+import '../access/MarketConstraintHooks.sol';
+import '../interfaces/IWildcatMarketRevolving.sol';
+import './HooksConfigData.sol';
+import './HooksInstanceData.sol';
+import './HooksTemplateData.sol';
+import './LenderAccountData.sol';
+import './TokenData.sol';
+import './WithdrawalBatchData.sol';
 
 using MarketDataLib for MarketData global;
 using MarketDataLib for MarketDataV2 global;
@@ -145,8 +145,11 @@ library MarketDataLib {
     function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
         address marketAddress = data.marketToken.token;
         address hooksAddress = data.hooks.hooksAddress;
-        (data.originalAnnualInterestBips, data.originalReserveRatioBips, data.temporaryReserveRatioExpiry) =
-            MarketConstraintHooks(hooksAddress).temporaryExcessReserveRatio(marketAddress);
+        (
+            data.originalAnnualInterestBips, 
+            data.originalReserveRatioBips, 
+            data.temporaryReserveRatioExpiry
+        ) = MarketConstraintHooks(hooksAddress).temporaryExcessReserveRatio(marketAddress);
         data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
     }
 
@@ -179,11 +182,15 @@ library MarketDataLib {
                     data.pendingWithdrawalExpiry = expiredBatchExpiry;
                 } else {
                     uint32[] memory unpaidWithdrawalBatchExpiries = data.unpaidWithdrawalBatchExpiries;
-                    data.unpaidWithdrawalBatchExpiries = new uint32[](unpaidWithdrawalBatchExpiries.length + 1);
+                    data.unpaidWithdrawalBatchExpiries = new uint32[](
+                        unpaidWithdrawalBatchExpiries.length + 1
+                    );
                     for (uint256 i; i < unpaidWithdrawalBatchExpiries.length; i++) {
                         data.unpaidWithdrawalBatchExpiries[i] = unpaidWithdrawalBatchExpiries[i];
                     }
-                    data.unpaidWithdrawalBatchExpiries[unpaidWithdrawalBatchExpiries.length] = expiredBatchExpiry;
+                    data.unpaidWithdrawalBatchExpiries[
+                        unpaidWithdrawalBatchExpiries.length
+                    ] = expiredBatchExpiry;
                 }
             }
         }
@@ -191,35 +198,48 @@ library MarketDataLib {
         data.coverageLiquidity = state.liquidityRequired();
     }
 
-    function getUnpaidAndPendingWithdrawalBatches(MarketData memory data)
-        internal
-        view
-        returns (WithdrawalBatchData[] memory unpaidAndPendingWithdrawalBatches)
+    function getUnpaidAndPendingWithdrawalBatches(
+        MarketData memory data
+    ) internal view returns (WithdrawalBatchData[] memory unpaidAndPendingWithdrawalBatches)
     {
         WildcatMarket market = WildcatMarket(data.marketToken.token);
         bool hasPendingWithdrawalBatch = data.pendingWithdrawalExpiry > 0;
         uint256 unpaidExpiriesCount = data.unpaidWithdrawalBatchExpiries.length;
         unpaidAndPendingWithdrawalBatches =
-            new WithdrawalBatchData[](unpaidExpiriesCount + (hasPendingWithdrawalBatch ? 1 : 0));
+            new WithdrawalBatchData[](
+                unpaidExpiriesCount + (hasPendingWithdrawalBatch ? 1 : 0)
+            );
         for (uint256 i; i < unpaidExpiriesCount; i++) {
             unpaidAndPendingWithdrawalBatches[i].fill(market, data.unpaidWithdrawalBatchExpiries[i]);
         }
         if (data.pendingWithdrawalExpiry > 0) {
-            unpaidAndPendingWithdrawalBatches[unpaidExpiriesCount].fill(market, uint32(data.pendingWithdrawalExpiry));
+            unpaidAndPendingWithdrawalBatches[unpaidExpiriesCount].fill(
+            market, 
+            uint32(data.pendingWithdrawalExpiry)
+        );
         }
     }
 
-    function fill(MarketDataWithLenderStatus memory data, WildcatMarket market, address lender) internal view {
+    function fill(
+        MarketDataWithLenderStatus memory data, 
+        WildcatMarket market, 
+        address lender
+    ) internal view {
         data.market.fill(market);
         data.lenderStatus.fill(data.market, lender);
     }
 
-    function fill(LenderAccountQueryResult memory result, LenderAccountQuery memory query) internal view {
+    function fill(
+        LenderAccountQueryResult memory result, 
+        LenderAccountQuery memory query
+    ) internal view {
         WildcatMarket market = WildcatMarket(query.market);
         result.market.fill(market);
         result.lenderStatus.fill(result.market, query.lender);
 
-        result.withdrawalBatches = new WithdrawalBatchDataWithLenderStatus[](query.withdrawalBatchExpiries.length);
+        result.withdrawalBatches = new WithdrawalBatchDataWithLenderStatus[](
+            query.withdrawalBatchExpiries.length
+        );
         for (uint256 i; i < query.withdrawalBatchExpiries.length; i++) {
             result.withdrawalBatches[i].fill(market, query.withdrawalBatchExpiries[i], query.lender);
         }
