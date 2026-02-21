@@ -606,12 +606,8 @@ contract HooksFactoryRevolving is
       revert HooksInstanceNotFound();
     }
 
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams;
-    runtimeParams.hooksTemplate = hooksTemplate;
-    runtimeParams.salt = salt;
-    runtimeParams.originationFeeAsset = originationFeeAsset;
-    runtimeParams.originationFeeAmount = originationFeeAmount;
-    runtimeParams.commitmentFeeBips = commitmentFeeBips;
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams =
+      _buildRuntimeParams(hooksTemplate, salt, originationFeeAsset, originationFeeAmount, commitmentFeeBips);
 
     market = _deployMarket(parameters, hooksData, runtimeParams);
   }
@@ -634,14 +630,24 @@ contract HooksFactoryRevolving is
     DeployMarketInputs memory marketInputs = parameters;
     marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
 
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams;
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams =
+      _buildRuntimeParams(hooksTemplate, salt, originationFeeAsset, originationFeeAmount, commitmentFeeBips);
+
+    market = _deployMarket(marketInputs, hooksData, runtimeParams);
+  }
+
+  function _buildRuntimeParams(
+    address hooksTemplate,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount,
+    uint16 commitmentFeeBips
+  ) internal pure returns (DeployRevolvingMarketRuntimeParameters memory runtimeParams) {
     runtimeParams.hooksTemplate = hooksTemplate;
     runtimeParams.salt = salt;
     runtimeParams.originationFeeAsset = originationFeeAsset;
     runtimeParams.originationFeeAmount = originationFeeAmount;
     runtimeParams.commitmentFeeBips = commitmentFeeBips;
-
-    market = _deployMarket(marketInputs, hooksData, runtimeParams);
   }
 
   function getRevolvingMarketCommitmentFeeBips() external view override returns (uint16) {
