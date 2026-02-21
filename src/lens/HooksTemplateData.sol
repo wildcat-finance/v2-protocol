@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "../HooksFactory.sol";
-import "./TokenData.sol";
+import '../HooksFactory.sol';
+import './TokenData.sol';
 
 using HooksTemplateDataLib for HooksTemplateData global;
 using HooksTemplateDataLib for FeeConfiguration global;
@@ -34,10 +34,12 @@ struct FeeConfiguration {
 }
 
 library HooksTemplateDataLib {
-    function fill(HooksTemplateData memory data, IHooksFactory factory, address hooksTemplate, address borrower)
-        internal
-        view
-    {
+    function fill(
+        HooksTemplateData memory data, 
+        IHooksFactory factory, 
+        address hooksTemplate, 
+        address borrower
+    ) internal view {
         HooksTemplate memory template = factory.getHooksTemplateDetails(hooksTemplate);
         data.hooksTemplate = hooksTemplate;
         data.exists = template.exists;
@@ -48,10 +50,12 @@ library HooksTemplateDataLib {
         data.fees.fill(template, factory, borrower);
     }
 
-    function fill(FeeConfiguration memory data, HooksTemplate memory template, IHooksFactory factory, address borrower)
-        internal
-        view
-    {
+    function fill(
+        FeeConfiguration memory data, 
+        HooksTemplate memory template, 
+        IHooksFactory factory, 
+        address borrower
+    ) internal view {
         data.feeRecipient = template.feeRecipient;
         data.protocolFeeBips = template.protocolFeeBips;
         data.originationFeeAmount = template.originationFeeAmount;
