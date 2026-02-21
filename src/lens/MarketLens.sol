@@ -173,62 +173,27 @@ contract MarketLens {
         return _shrinkAddressArray(markets, uniqueCount);
     }
 
-    // ========================================================================== //
-    //                         All hooks data for borrower                        //
-    // ========================================================================== //
-
-    function getHooksDataForBorrower(address borrower) public view returns (HooksDataForBorrower memory data) {
-        return getHooksDataForBorrower(address(hooksFactory), borrower);
-    }
-
-    function getHooksDataForBorrower(address hooksFactoryAddress, address borrower)
-        public
+    function _collectHooksTemplatesByFactory(address[] memory factories)
+        internal
         view
-        returns (HooksDataForBorrower memory data)
+        returns (address[][] memory templatesByFactory, uint256 totalTemplates)
     {
-        data.fill(archController, _asFactory(hooksFactoryAddress), borrower);
-    }
+        uint256 numFactories = factories.length;
+        templatesByFactory = new address[][](numFactories);
 
-    function getAggregatedHooksDataForBorrower(address borrower)
-        public
-        view
-        returns (HooksDataForBorrower memory data)
-    {
-        data.borrower = borrower;
-        data.isRegisteredBorrower = archController.isRegisteredBorrower(borrower);
-        data.hooksInstances = getAggregatedHooksInstancesForBorrower(borrower);
-        data.hooksTemplates = getAggregatedAllHooksTemplatesForBorrower(borrower);
-    }
-
-    // ========================================================================== //
-    //                        Hooks instances for borrower                        //
-    // ========================================================================== //
-
-    function getHooksInstancesForBorrower(address borrower) public view returns (HooksInstanceData[] memory arr) {
-        return getHooksInstancesForBorrower(address(hooksFactory), borrower);
-    }
-
-    function getHooksInstancesForBorrower(address hooksFactoryAddress, address borrower)
-        public
-        view
-        returns (HooksInstanceData[] memory arr)
-    {
-        IHooksFactory factory = _asFactory(hooksFactoryAddress);
-        address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
-        arr = new HooksInstanceData[](hooksInstances.length);
-        for (uint256 i; i < hooksInstances.length; i++) {
-            arr[i].fill(hooksInstances[i], factory);
+        for (uint256 i = 0; i < numFactories; i++) {
+            try IHooksFactory(factories[i]).getHooksTemplates() returns (address[] memory hooksTemplates) {
+                templatesByFactory[i] = hooksTemplates;
+                totalTemplates += hooksTemplates.length;
+            } catch {}
         }
     }
 
-    // Dedupes by hooks instance address while preserving first-seen order:
-    // controller order from ArchController, then per-factory instance order.
-    function getAggregatedHooksInstancesForBorrower(address borrower)
-        public
+    function _getAggregatedHooksInstancesForBorrowerInternal(address borrower, address[] memory factories)
+        internal
         view
         returns (HooksInstanceData[] memory arr)
     {
-        address[] memory factories = _getActiveHooksFactories();
         uint256 numFactories = factories.length;
         if (numFactories == 0) {
             return new HooksInstanceData[](0);
@@ -273,6 +238,106 @@ contract MarketLens {
         }
 
         return _shrinkHooksInstanceArray(arr, uniqueCount);
+    }
+
+    function _getAggregatedAllHooksTemplatesForBorrowerInternal(address borrower, address[] memory factories)
+        internal
+        view
+        returns (HooksTemplateData[] memory data)
+    {
+        uint256 numFactories = factories.length;
+        if (numFactories == 0) {
+            return new HooksTemplateData[](0);
+        }
+        if (numFactories == 1) {
+            IHooksFactory factory = IHooksFactory(factories[0]);
+            try factory.getHooksTemplates() returns (address[] memory hooksTemplates) {
+                data = new HooksTemplateData[](hooksTemplates.length);
+                for (uint256 i = 0; i < hooksTemplates.length; i++) {
+                    data[i].fill(factory, hooksTemplates[i], borrower);
+                }
+                return data;
+            } catch {
+                return new HooksTemplateData[](0);
+            }
+        }
+
+        (address[][] memory templatesByFactory, uint256 totalTemplates) = _collectHooksTemplatesByFactory(factories);
+
+        data = new HooksTemplateData[](totalTemplates);
+        uint256 uniqueCount = 0;
+        for (uint256 i = 0; i < numFactories; i++) {
+            IHooksFactory factory = IHooksFactory(factories[i]);
+            address[] memory hooksTemplates = templatesByFactory[i];
+            for (uint256 j = 0; j < hooksTemplates.length; j++) {
+                address hooksTemplate = hooksTemplates[j];
+                if (!_containsHooksTemplateAddress(data, uniqueCount, hooksTemplate)) {
+                    data[uniqueCount].fill(factory, hooksTemplate, borrower);
+                    uniqueCount++;
+                }
+            }
+        }
+
+        return _shrinkHooksTemplateArray(data, uniqueCount);
+    }
+
+    // ========================================================================== //
+    //                         All hooks data for borrower                        //
+    // ========================================================================== //
+
+    function getHooksDataForBorrower(address borrower) public view returns (HooksDataForBorrower memory data) {
+        return getHooksDataForBorrower(address(hooksFactory), borrower);
+    }
+
+    function getHooksDataForBorrower(address hooksFactoryAddress, address borrower)
+        public
+        view
+        returns (HooksDataForBorrower memory data)
+    {
+        data.fill(archController, _asFactory(hooksFactoryAddress), borrower);
+    }
+
+    function getAggregatedHooksDataForBorrower(address borrower)
+        public
+        view
+        returns (HooksDataForBorrower memory data)
+    {
+        address[] memory factories = _getActiveHooksFactories();
+        data.borrower = borrower;
+        data.isRegisteredBorrower = archController.isRegisteredBorrower(borrower);
+        data.hooksInstances = _getAggregatedHooksInstancesForBorrowerInternal(borrower, factories);
+        data.hooksTemplates = _getAggregatedAllHooksTemplatesForBorrowerInternal(borrower, factories);
+    }
+
+    // ========================================================================== //
+    //                        Hooks instances for borrower                        //
+    // ========================================================================== //
+
+    function getHooksInstancesForBorrower(address borrower) public view returns (HooksInstanceData[] memory arr) {
+        return getHooksInstancesForBorrower(address(hooksFactory), borrower);
+    }
+
+    function getHooksInstancesForBorrower(address hooksFactoryAddress, address borrower)
+        public
+        view
+        returns (HooksInstanceData[] memory arr)
+    {
+        IHooksFactory factory = _asFactory(hooksFactoryAddress);
+        address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
+        arr = new HooksInstanceData[](hooksInstances.length);
+        for (uint256 i; i < hooksInstances.length; i++) {
+            arr[i].fill(hooksInstances[i], factory);
+        }
+    }
+
+    // Dedupes by hooks instance address while preserving first-seen order:
+    // controller order from ArchController, then per-factory instance order.
+    function getAggregatedHooksInstancesForBorrower(address borrower)
+        public
+        view
+        returns (HooksInstanceData[] memory arr)
+    {
+        return _getAggregatedHooksInstancesForBorrowerInternal(borrower, _getActiveHooksFactories());
     }
 
     // ========================================================================== //
@@ -336,49 +401,7 @@ contract MarketLens {
         view
         returns (HooksTemplateData[] memory data)
     {
-        address[] memory factories = _getActiveHooksFactories();
-        uint256 numFactories = factories.length;
-        if (numFactories == 0) {
-            return new HooksTemplateData[](0);
-        }
-        if (numFactories == 1) {
-            IHooksFactory factory = IHooksFactory(factories[0]);
-            try factory.getHooksTemplates() returns (address[] memory hooksTemplates) {
-                data = new HooksTemplateData[](hooksTemplates.length);
-                for (uint256 i = 0; i < hooksTemplates.length; i++) {
-                    data[i].fill(factory, hooksTemplates[i], borrower);
-                }
-                return data;
-            } catch {
-                return new HooksTemplateData[](0);
-            }
-        }
-
-        address[][] memory templatesByFactory = new address[][](numFactories);
-        uint256 totalTemplates = 0;
-
-        for (uint256 i = 0; i < numFactories; i++) {
-            try IHooksFactory(factories[i]).getHooksTemplates() returns (address[] memory hooksTemplates) {
-                templatesByFactory[i] = hooksTemplates;
-                totalTemplates += hooksTemplates.length;
-            } catch {}
-        }
-
-        data = new HooksTemplateData[](totalTemplates);
-        uint256 uniqueCount = 0;
-        for (uint256 i = 0; i < numFactories; i++) {
-            IHooksFactory factory = IHooksFactory(factories[i]);
-            address[] memory hooksTemplates = templatesByFactory[i];
-            for (uint256 j = 0; j < hooksTemplates.length; j++) {
-                address hooksTemplate = hooksTemplates[j];
-                if (!_containsHooksTemplateAddress(data, uniqueCount, hooksTemplate)) {
-                    data[uniqueCount].fill(factory, hooksTemplate, borrower);
-                    uniqueCount++;
-                }
-            }
-        }
-
-        return _shrinkHooksTemplateArray(data, uniqueCount);
+        return _getAggregatedAllHooksTemplatesForBorrowerInternal(borrower, _getActiveHooksFactories());
     }
 
     // Returns one row per (factory, hooksTemplate) pair with factory-scoped template data.
@@ -395,15 +418,7 @@ contract MarketLens {
             return new FactoryScopedHooksTemplateData[](0);
         }
 
-        address[][] memory templatesByFactory = new address[][](numFactories);
-        uint256 totalTemplates = 0;
-
-        for (uint256 i = 0; i < numFactories; i++) {
-            try IHooksFactory(factories[i]).getHooksTemplates() returns (address[] memory hooksTemplates) {
-                templatesByFactory[i] = hooksTemplates;
-                totalTemplates += hooksTemplates.length;
-            } catch {}
-        }
+        (address[][] memory templatesByFactory, uint256 totalTemplates) = _collectHooksTemplatesByFactory(factories);
 
         data = new FactoryScopedHooksTemplateData[](totalTemplates);
         uint256 count = 0;
