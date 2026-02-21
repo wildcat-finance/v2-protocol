@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./HooksTemplateData.sol";
-import "./HooksInstanceData.sol";
-import "../IHooksFactory.sol";
-import "../WildcatArchController.sol";
+import './HooksTemplateData.sol';
+import './HooksInstanceData.sol';
+import '../IHooksFactory.sol';
+import '../WildcatArchController.sol';
 
 using HooksDataForBorrowerLib for HooksDataForBorrower global;
 
