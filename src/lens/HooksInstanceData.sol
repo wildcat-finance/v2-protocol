@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 
-import "../interfaces/WildcatStructsAndEnums.sol";
-import {AccessControlHooks, HookedMarket as AccessControlHookedMarket} from "../access/AccessControlHooks.sol";
-import {FixedTermLoanHooks, HookedMarket as FixedTermHookedMarket} from "../access/FixedTermLoanHooks.sol";
-import "../access/IHooks.sol";
-import "../HooksFactory.sol";
-import "./HooksConfigData.sol";
-import "./HooksTemplateData.sol";
-import "./RoleProviderData.sol";
+import '../interfaces/WildcatStructsAndEnums.sol';
+import {AccessControlHooks, HookedMarket as AccessControlHookedMarket} from '../access/AccessControlHooks.sol';
+import {FixedTermLoanHooks, HookedMarket as FixedTermHookedMarket} from '../access/FixedTermLoanHooks.sol';
+import '../access/IHooks.sol';
+import '../HooksFactory.sol';
+import './HooksConfigData.sol';
+import './HooksTemplateData.sol';
+import './RoleProviderData.sol';
 
 using HooksInstanceDataLib for HooksInstanceData global;
 
@@ -27,7 +27,11 @@ struct HooksInstanceData {
 library HooksInstanceDataLib {
     using RoleProviderDataLib for *;
 
-    function fill(HooksInstanceData memory data, address hooksAddress, IHooksFactory factory) internal view {
+    function fill(
+        HooksInstanceData memory data, 
+        address hooksAddress, 
+        IHooksFactory factory
+    ) internal view {
         data.hooksAddress = hooksAddress;
 
         data.hooksTemplate = factory.getHooksTemplateForInstance(hooksAddress);
@@ -36,9 +40,9 @@ library HooksInstanceDataLib {
         IHooks hooks = IHooks(hooksAddress);
 
         bytes32 versionHash = keccak256(bytes(data.hooksTemplateName));
-        if (versionHash == keccak256("SingleBorrowerAccessControlHooks")) {
+        if (versionHash == keccak256('SingleBorrowerAccessControlHooks')) {
             data.kind = HooksInstanceKind.AccessControl;
-        } else if (versionHash == keccak256("FixedTermLoanHooks")) {
+        } else if (versionHash == keccak256('FixedTermLoanHooks')) {
             data.kind = HooksInstanceKind.FixedTermLoan;
         }
 
