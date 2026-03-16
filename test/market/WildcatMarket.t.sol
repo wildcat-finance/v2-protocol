@@ -8,6 +8,7 @@ import 'src/libraries/SafeCastLib.sol';
 import 'src/libraries/MarketState.sol';
 import 'src/libraries/LibERC20.sol';
 import 'solady/utils/LibPRNG.sol';
+import { ExistingCredentialFuzzInputs, AccessControlHooksDataFuzzInputs } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
 
 contract WildcatMarketTest is BaseMarketTest {
   using stdStorage for StdStorage;
@@ -46,7 +47,7 @@ contract WildcatMarketTest is BaseMarketTest {
     uint32 timestamp = uint32(block.timestamp);
     uint32 expiry = previousState.pendingWithdrawalExpiry;
     fastForward(2 days);
-    MarketState memory state = pendingState();
+    pendingState();
     vm.expectEmit(address(market));
     emit InterestAndFeesAccrued(timestamp, expiry, 1.001e27, 1e24, 0, 0);
     vm.expectEmit(address(market));
@@ -71,13 +72,12 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_updateState_HasPendingExpiredBatch_SameBlock() external {
     parameters.annualInterestBips = 3650;
     parameters.withdrawalBatchDuration = 0;
-    setUpContracts(false);
     setUp();
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
     uint32 timestamp = uint32(block.timestamp);
     fastForward(1 days);
-    MarketState memory state = pendingState();
+    pendingState();
     vm.expectEmit(address(market));
     emit WithdrawalBatchExpired(timestamp, 1e18, 1e18, 1e18);
     vm.expectEmit(address(market));
@@ -376,7 +376,11 @@ contract WildcatMarketTest is BaseMarketTest {
   //       execute a deposit if it is required.
   function _getKnownLenderStatus(AccessControlHooksFuzzContext memory context) internal {
     MarketState memory state = _toMarketState(context.getKnownLenderInputParameter);
-    uint amount = 1e18;
+
+    uint amount = MathUtils.max(
+      100,
+      MathUtils.max(parameters.maxTotalSupply / 2, parameters.minimumDeposit)
+    );
     address depositor = context.config.useOnDeposit
       ? context.account
       : (context.account == alice ? bob : alice);
@@ -409,42 +413,14 @@ contract WildcatMarketTest is BaseMarketTest {
     startPrank(alice);
     asset.mint(alice, 1e18);
     asset.approve(address(market), 1e18);
-    vm.expectRevert(AccessControlHooks.DepositBelowMinimum.selector);
+    vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
     market.deposit(100);
   }
 
   function test_depositUpTo_FuzzAccess(AccessControlHooksFuzzInputs memory fuzzInputs) external {
-    parameters.allowClosureBeforeTerm = fuzzInputs.configInputs.allowClosureBeforeTerm;
-    parameters.fixedTermEndTime = uint32(
-      fuzzInputs.configInputs.fixedTermDuration + block.timestamp
-    );
-    parameters.allowTermReduction = fuzzInputs.configInputs.allowTermReduction;
-    fuzzInputs.configInputs.minimumDeposit = 1;
-    fuzzInputs.configInputs.transfersDisabled = false;
-    parameters.minimumDeposit = fuzzInputs.configInputs.minimumDeposit;
-    parameters.transfersDisabled = fuzzInputs.configInputs.transfersDisabled;
-    parameters.allowForceBuyBack = fuzzInputs.configInputs.allowForceBuyBacks;
-    parameters.deployMarketHooksData = '';
-    if (!fuzzInputs.configInputs.isAccessControlHooks) {
-      parameters.hooksTemplate = fixedTermHooksTemplate;
-      hooks = AccessControlHooks(address(0));
-    }
-    parameters.hooksConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: fuzzInputs.configInputs.useOnDeposit,
-      useOnQueueWithdrawal: fuzzInputs.configInputs.useOnQueueWithdrawal,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: fuzzInputs.configInputs.useOnTransfer,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
+    fuzzInputs.existingCredentialInputs.isKnownLender = true;
+    applyFuzzedHooksConfig(fuzzInputs.configInputs);
 
-    setUpContracts(false);
     address carol = address(0xca701);
     uint amount = 10e18;
     MarketState memory state = pendingState();
@@ -471,12 +447,6 @@ contract WildcatMarketTest is BaseMarketTest {
     );
     address marketAddress = address(market);
 
-    // If the caller won't be authorized and no other error is expected, expect NotApprovedLender error
-    if (
-      !context.expectations.hasValidCredential && context.expectations.expectedError == bytes4(0)
-    ) {
-      context.expectations.expectedError = IMarketEventsAndErrors.NotApprovedLender.selector;
-    }
     context.registerExpectations(true);
     vm.prank(carol);
     (bool success, bytes memory returnData) = marketAddress.call(data);
@@ -493,10 +463,11 @@ contract WildcatMarketTest is BaseMarketTest {
 
   function test_ft() internal {
     parameters.hooksTemplate = fixedTermHooksTemplate;
-    hooks = AccessControlHooks(address(0));
+    hooks = OpenTermHooks(address(0));
     setUpContracts(false);
-    assertEq(hooks.version(), 'FixedTermLoanHooks');
+    assertEq(hooks.version(), 'FixedTermHooks');
   }
+
   function castRegisterExpectationsAndInput(
     AccessControlHooksFuzzContext memory context
   )
@@ -515,39 +486,10 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_queueWithdrawal_FuzzAccess(
     AccessControlHooksFuzzInputs memory fuzzInputs
   ) external {
-    parameters.allowClosureBeforeTerm = fuzzInputs.configInputs.allowClosureBeforeTerm;
-    parameters.fixedTermEndTime = uint32(
-      fuzzInputs.configInputs.fixedTermDuration + block.timestamp
-    );
-    parameters.allowTermReduction = fuzzInputs.configInputs.allowTermReduction;
     fuzzInputs.configInputs.useOnTransfer = false;
     fuzzInputs.configInputs.minimumDeposit = 1;
     fuzzInputs.configInputs.transfersDisabled = false;
-    parameters.minimumDeposit = fuzzInputs.configInputs.minimumDeposit;
-    parameters.transfersDisabled = fuzzInputs.configInputs.transfersDisabled;
-    parameters.allowForceBuyBack = fuzzInputs.configInputs.allowForceBuyBacks;
-    parameters.deployMarketHooksData = '';
-    if (!fuzzInputs.configInputs.isAccessControlHooks) {
-      parameters.hooksTemplate = fixedTermHooksTemplate;
-      hooks = AccessControlHooks(address(0));
-    }
-
-    parameters.hooksConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: fuzzInputs.configInputs.useOnDeposit,
-      useOnQueueWithdrawal: fuzzInputs.configInputs.useOnQueueWithdrawal,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: fuzzInputs.configInputs.useOnTransfer,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    });
-
-    setUpContracts(false);
+    applyFuzzedHooksConfig(fuzzInputs.configInputs);
     address carol = address(0xca701);
 
     uint amount = 1e18;
@@ -579,13 +521,6 @@ contract WildcatMarketTest is BaseMarketTest {
     );
     address marketAddress = address(market);
 
-    // If the caller won't be authorized and no other error is expected, expect NotApprovedLender error
-    if (
-      !context.expectations.hasValidCredential && context.expectations.expectedError == bytes4(0)
-    ) {
-      context.expectations.expectedError = IMarketEventsAndErrors.NotApprovedLender.selector;
-    }
-    // context.registerExpectations(true);
     vm.prank(carol);
     if (context.expectations.expectedError == bytes4(0)) {
       (
@@ -710,58 +645,31 @@ contract WildcatMarketTest is BaseMarketTest {
     market.transfer(bob, 0.5e18);
     assertEq(market.balanceOf(bob), 1e18, 'bob.balance');
   }
-  
-  /* DEV: test disabled as force buyback has been disabled in initial V2 launch
-
-  // ========================================================================== //
-  //                                Force Buyback                               //
-  // ========================================================================== //
-  
-  function test_forceBuyBack_NotApprovedBorrower() external {
-    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
-    market.forceBuyBack(alice, 0);
-  }
-
-  function test_forceBuyBack_BuyBackOnClosedMarket() external asAccount(borrower) {
-    market.closeMarket();
-    vm.expectRevert(IMarketEventsAndErrors.BuyBackOnClosedMarket.selector);
-    market.forceBuyBack(alice, 1e18);
-  }
-
-  function test_forceBuyBack_BuyBackOnDelinquentMarket() external asAccount(borrower) {
-    _depositBorrowWithdraw(alice, 1e18, 8e17, 3e17);
-    vm.expectRevert(IMarketEventsAndErrors.BuyBackOnDelinquentMarket.selector);
-    market.forceBuyBack(alice, 5e17);
-  }
-
-  
-  function test_forceBuyBack_NullBuyBackAmount() external asAccount(borrower) {
-    vm.expectRevert(IMarketEventsAndErrors.NullBuyBackAmount.selector);
-    market.forceBuyBack(alice, 0);
-  }
-
-  function test_forceBuyBack_ForceBuyBacksDisabled() external asAccount(borrower) {
+  function test_transfer_TransfersDisabled(bool fixedTerm) external {
+    parameters.transfersDisabled = true;
+    if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
+    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.OpenTerm);
     _deposit(alice, 1e18);
-    vm.expectRevert(AccessControlHooks.ForceBuyBacksDisabled.selector);
-    market.forceBuyBack(alice, 1e17);
+    vm.prank(alice);
+    vm.expectRevert(OpenTermHooks.TransfersDisabled.selector);
+    market.transfer(bob, 0.5e18);
   }
 
-  /* DEV: test disabled as force buyback has been disabled in initial V2 launch
-
-  function test_forceBuyBack() external asAccount(borrower) {
-    parameters.allowForceBuyBack = true;
-    parameters.deployMarketHooksData = '';
-    setUpContracts(false);
+  function test_transfer_RecipientNotKnownLender(bool fixedTerm) external {
+    if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
+    resetWithNewHooks(fixedTerm ? HooksKind.FixedTerm : HooksKind.OpenTerm);
     _deposit(alice, 1e18);
-    asset.approve(address(market), 1e17);
-    asset.mint(borrower, 1e17);
-    vm.expectEmit(address(asset));
-    emit IMarketEventsAndErrors.Transfer(borrower, alice, 1e17);
-    vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.Transfer(alice, borrower, 1e17);
-    vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.ForceBuyBack(alice, 1e17, 1e17);
-    market.forceBuyBack(alice, 1e17);
+    vm.prank(alice);
+    market.transfer(bob, 0.5e18);
   }
-  */
+
+  function test_transfer_NotApprovedLender() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);
+    reset();
+    _deposit(alice, 1e18);
+    vm.prank(alice);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    market.transfer(bob, 0.5e18);
+  }
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import '../types/HooksConfig.sol';
@@ -54,15 +54,6 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
-  /* DEV: hook removed as force buyback has been disabled in initial V2 launch
-  function onForceBuyBack(
-    address lender,
-    uint scaledAmount,
-    MarketState calldata intermediateState,
-    bytes calldata extraData
-  ) external virtual;
-  */
- 
   function onExecuteWithdrawal(
     address lender,
     uint128 normalizedAmountWithdrawn,

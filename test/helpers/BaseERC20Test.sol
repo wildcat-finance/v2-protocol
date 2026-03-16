@@ -19,6 +19,8 @@ bytes32 constant PERMIT_TYPEHASH = keccak256(
  * Modified from https://github.com/transmissions11/solmate
  */
 abstract contract BaseERC20Test is StdInvariant, Test {
+  bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
+
   IERC20 token;
   string _name;
   string _symbol;
@@ -127,12 +129,13 @@ abstract contract BaseERC20Test is StdInvariant, Test {
   //     assertEq(token.nonces(owner), 1);
   // }
 
-  function testFailTransferInsufficientBalance() public {
+  function test_transfer_InsufficientBalance() public {
     _mint(address(this), 0.9e18);
+    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
     token.transfer(address(0xBEEF), 1e18);
   }
 
-  function testFailTransferFromInsufficientAllowance() public {
+  function test_transferFrom_InsufficientAllowance() public {
     address from = address(0xABCD);
 
     _mint(from, 1e18);
@@ -140,10 +143,11 @@ abstract contract BaseERC20Test is StdInvariant, Test {
     vm.prank(from);
     token.approve(address(this), 0.9e18);
 
+    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
     token.transferFrom(from, address(0xBEEF), 1e18);
   }
 
-  function testFailTransferFromInsufficientBalance() public {
+  function test_transferFrom_InsufficientBalance() public {
     address from = address(0xABCD);
 
     _mint(from, 0.9e18);
@@ -151,6 +155,7 @@ abstract contract BaseERC20Test is StdInvariant, Test {
     vm.prank(from);
     token.approve(address(this), 1e18);
 
+    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
     token.transferFrom(from, address(0xBEEF), 1e18);
   }
 
@@ -375,7 +380,7 @@ abstract contract BaseERC20Test is StdInvariant, Test {
   //     token.burn(to, burnAmount);
   // }
 
-  function testFailTransferInsufficientBalance(
+  function test_transfer_InsufficientBalance(
     address to,
     uint256 mintAmount,
     uint256 sendAmount
@@ -384,16 +389,17 @@ abstract contract BaseERC20Test is StdInvariant, Test {
     sendAmount = bound(sendAmount, mintAmount + _minAmount(), type(uint256).max);
 
     _mint(address(this), mintAmount);
+    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
     token.transfer(to, sendAmount);
   }
 
-  function testFailTransferFromInsufficientAllowance(
+  function test_transferFrom_InsufficientAllowance(
     address to,
     uint256 approval,
     uint256 amount
   ) public {
-    amount = bound(amount, _minAmount(), _maxAmount());
-    amount = bound(amount, approval + 1, type(uint256).max);
+    approval = bound(approval, _minAmount(), _maxAmount() - 1);
+    amount = bound(amount, approval + 1, _maxAmount());
 
     address from = address(0xABCD);
 
@@ -402,10 +408,11 @@ abstract contract BaseERC20Test is StdInvariant, Test {
     vm.prank(from);
     token.approve(address(this), approval);
 
+    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
     token.transferFrom(from, to, amount);
   }
 
-  function testFailTransferFromInsufficientBalance(
+  function test_transferFrom_InsufficientBalance(
     address to,
     uint256 mintAmount,
     uint256 sendAmount
@@ -420,6 +427,7 @@ abstract contract BaseERC20Test is StdInvariant, Test {
     vm.prank(from);
     token.approve(address(this), sendAmount);
 
+    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
     token.transferFrom(from, to, sendAmount);
   }
 

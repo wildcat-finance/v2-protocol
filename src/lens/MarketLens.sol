@@ -609,16 +609,26 @@ contract MarketLens {
         data.fill(WildcatMarket(market), lender);
     }
 
-    function getLenderAccountData(address lender, address[] memory markets)
-        external
-        view
-        returns (LenderAccountData[] memory arr)
-    {
-        arr = new LenderAccountData[](markets.length);
-        for (uint256 i; i < markets.length; i++) {
-            arr[i].fill(WildcatMarket(markets[i]), lender);
-        }
+  function getLenderAccountData(
+    address lender,
+    address[] memory markets
+  ) external view returns (LenderAccountData[] memory arr) {
+    arr = new LenderAccountData[](markets.length);
+    for (uint256 i; i < markets.length; i++) {
+      arr[i].fill(WildcatMarket(markets[i]), lender);
     }
+  }
+
+  function getLenderAccountsData(
+    address marketAddress,
+    address[] memory lenders
+  ) external view returns (LenderAccountData[] memory data) {
+    data = new LenderAccountData[](lenders.length);
+    WildcatMarket market = WildcatMarket(marketAddress);
+    for (uint256 i; i < lenders.length; i++) {
+      data[i].fill(market, lenders[i]);
+    }
+  }
 
     function queryLenderAccount(LenderAccountQuery memory query)
         external
@@ -639,9 +649,9 @@ contract MarketLens {
         }
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                          Withdrawal batch queries                          */
-    /* -------------------------------------------------------------------------- */
+  // ========================================================================== //
+  //                          Withdrawal batch queries                          //
+  // ========================================================================== //
 
     function getWithdrawalBatchData(address market, uint32 expiry)
         public
@@ -662,9 +672,9 @@ contract MarketLens {
         }
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                    Withdrawal batch queries with account                   */
-    /* -------------------------------------------------------------------------- */
+  // ========================================================================== //
+  //                    Withdrawal batch queries with account                   //
+  // ========================================================================== //
 
     function getWithdrawalBatchesDataWithLenderStatus(address market, uint32[] memory expiries, address lender)
         external

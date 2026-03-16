@@ -608,10 +608,7 @@ contract WildcatMarketBase is
               or(shl(0xc0, lastInterestAccruedTimestamp), shl(0x50, scaleFactor)),
               shl(0x40, reserveRatioBips)
             ),
-            or(
-              shl(0x30, annualInterestBips),
-              shl(0x20, protocolFeeBips)
-            )
+            or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
           ),
           timeDelinquent
         )

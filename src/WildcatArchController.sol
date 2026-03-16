@@ -236,8 +236,6 @@ contract WildcatArchController is SphereXConfig, Ownable {
     return _assetBlacklist.length();
   }
 
-
-
   /* ========================================================================== */
   /*                            Controller Factories                            */
   /* ========================================================================== */

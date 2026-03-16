@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 uint256 constant MaxSupplyExceeded_ErrorSelector = 0x8a164f63;
@@ -232,16 +233,6 @@ uint256 constant RepayToClosedMarket_ErrorSelector = 0x61d1bc8f;
 function revert_RepayToClosedMarket() pure {
   assembly {
     mstore(0, 0x61d1bc8f)
-    revert(0x1c, 0x04)
-  }
-}
-
-uint256 constant BuyBackOnClosedMarket_Selector = 0xf788d279;
-
-/// @dev Equivalent to `revert BuyBackOnClosedMarket()`
-function revert_BuyBackOnClosedMarket() pure {
-  assembly {
-    mstore(0, 0xf788d279)
     revert(0x1c, 0x04)
   }
 }

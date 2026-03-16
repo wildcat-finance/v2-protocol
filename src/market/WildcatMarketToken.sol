@@ -69,7 +69,12 @@ contract WildcatMarketToken is WildcatMarketBase {
     emit_Approval(approver, spender, amount);
   }
 
-  function _transfer(address from, address to, uint256 amount, uint baseCalldataSize) internal virtual {
+  function _transfer(
+    address from,
+    address to,
+    uint256 amount,
+    uint baseCalldataSize
+  ) internal virtual {
     MarketState memory state = _getUpdatedState();
     uint104 scaledAmount = state.scaleAmount(amount).toUint104();
 

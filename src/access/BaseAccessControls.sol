@@ -6,36 +6,15 @@ import '../libraries/MathUtils.sol';
 import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
-import './MarketConstraintHooks.sol';
 import '../libraries/SafeCastLib.sol';
+import './ProviderStructs.sol';
+import './IRoleProviderFactory.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
 using SafeCastLib for uint256;
 
-struct HookedMarket {
-  bool isHooked;
-  bool transferRequiresAccess;
-  bool depositRequiresAccess;
-  uint128 minimumDeposit;
-  bool transfersDisabled;
-  bool allowForceBuyBacks;
-}
-
-/**
- * @title AccessControlHooks
- * @dev Hooks contract for wildcat markets. Restricts access to deposits
- *      to accounts that have credentials from approved role providers, or
- *      which are manually approved by the borrower.
- *
- *      Withdrawals are restricted in the same way for users that have not
- *      made a deposit, while users who have made a deposit at any point (or
- *      received market tokens while having deposit access) will always remain
- *      approved, even if their access is later revoked.
- *
- *      Deposit access may be canceled by the borrower.
- */
-contract AccessControlHooks is MarketConstraintHooks {
+contract BaseAccessControls {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
@@ -43,14 +22,20 @@ contract AccessControlHooks is MarketConstraintHooks {
   event RoleProviderUpdated(
     address indexed providerAddress,
     uint32 timeToLive,
-    uint24 pullProviderIndex
+    uint24 pullProviderIndex,
+    uint24 pushProviderIndex
   );
   event RoleProviderAdded(
     address indexed providerAddress,
     uint32 timeToLive,
-    uint24 pullProviderIndex
+    uint24 pullProviderIndex,
+    uint24 pushProviderIndex
   );
-  event RoleProviderRemoved(address indexed providerAddress, uint24 pullProviderIndex);
+  event RoleProviderRemoved(
+    address indexed providerAddress,
+    uint24 pullProviderIndex,
+    uint24 pushProviderIndex
+  );
   event AccountBlockedFromDeposits(address indexed accountAddress);
   event AccountUnblockedFromDeposits(address indexed accountAddress);
   event AccountAccessGranted(
@@ -60,7 +45,7 @@ contract AccessControlHooks is MarketConstraintHooks {
   );
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
-  event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
+  event NameUpdated(string name);
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -78,29 +63,22 @@ contract AccessControlHooks is MarketConstraintHooks {
   /// @dev Error thrown when a user does not have a valid credential
   error NotApprovedLender();
   error InvalidArrayLength();
-  error NotHookedMarket();
-  error DepositBelowMinimum();
-  error TransfersDisabled();
-  error ForceBuyBacksDisabled();
+  error CreateRoleProviderFailed();
 
   // ========================================================================== //
   //                                    State                                   //
   // ========================================================================== //
 
   address public immutable borrower;
+  // Name of the hooks instance
+  string public name;
   // Credentials by lender address
   mapping(address => LenderStatus) internal _lenderStatus;
   // Whether an account is a known lender for a given market
   mapping(address lender => mapping(address market => bool)) public isKnownLenderOnMarket;
-  // Provider data is duplicated in the array and mapping to allow
-  // push providers to update in a single step and pull providers to
-  // be looped over without having to access the mapping.
   RoleProvider[] internal _pullProviders;
+  RoleProvider[] internal _pushProviders;
   mapping(address => RoleProvider) internal _roleProviders;
-
-  HooksDeploymentConfig public immutable override config;
-
-  mapping(address => HookedMarket) internal _hookedMarkets;
 
   // ========================================================================== //
   //                                  Modifiers                                 //
@@ -115,138 +93,64 @@ contract AccessControlHooks is MarketConstraintHooks {
   //                                 Constructor                                //
   // ========================================================================== //
 
-  /**
-   * @param _deployer Address of the account that called the factory.
-   * @param {} unused extra bytes to match the constructor signature
-   *  restrictedFunctions Configuration specifying which functions to apply
-   *                            access controls to.
-   */
-  constructor(address _deployer, bytes memory /* args */) IHooks() {
-    borrower = _deployer;
+  constructor(address _borrower) {
+    borrower = _borrower;
     // Allow deployer to grant roles with no expiry
-    _roleProviders[_deployer] = encodeRoleProvider(
+    RoleProvider borrowerProvider = encodeRoleProvider(
       type(uint32).max,
-      _deployer,
-      NotPullProviderIndex
+      _borrower,
+      NullProviderIndex,
+      0
     );
-    HooksConfig optionalFlags = encodeHooksConfig({
-      hooksAddress: address(0),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
-    HooksConfig requiredFlags = EmptyHooksConfig.setFlag(
-      Bit_Enabled_SetAnnualInterestAndReserveRatioBips
-    );
-    config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
+    _roleProviders[borrower] = borrowerProvider;
+    _pushProviders.push(borrowerProvider);
   }
 
-  function version() external pure override returns (string memory) {
-    return 'SingleBorrowerAccessControlHooks';
-  }
-
-  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
-    assembly {
-      value := and(calldataload(add(data.offset, offset)), 1)
+  function _initialize(NameAndProviderInputs memory inputs) internal {
+    name = inputs.name;
+    for (uint256 i = 0; i < inputs.existingProviders.length; i++) {
+      ExistingProviderInputs memory provider = inputs.existingProviders[i];
+      _addRoleProvider(provider.providerAddress, provider.timeToLive);
+    }
+    IRoleProviderFactory providerFactory = IRoleProviderFactory(inputs.roleProviderFactory);
+    if (address(providerFactory) != address(0)) {
+      for (uint256 i; i < inputs.newProviderInputs.length; i++) {
+        CreateProviderInputs memory createProviderInputs = inputs.newProviderInputs[i];
+        _createRoleProvider(
+          providerFactory,
+          createProviderInputs.timeToLive,
+          createProviderInputs.providerFactoryCalldata
+        );
+      }
     }
   }
 
-  function _readUint128Cd(bytes calldata data) internal pure returns (uint128 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(data.offset)
-    }
-    return _value.toUint128();
-  }
-
-  /**
-   * @dev Called when market is deployed using this contract as its `hooks`.
-   *
-   *     @param deployer      Address of the account that called the factory - must
-   *                          match the borrower address.
-   *     @param marketAddress Address of the market being deployed.
-   *     @param parameters    Parameters used to deploy the market.
-   *     @param hooksData     Extra data passed to the market deployment function containing
-   *                          the parameters for the hooks.
-   *
-   *     `hooksData` is a tuple of (
-   *        uint128? minimumDeposit,
-   *        bool? transfersDisabled,
-   *        bool? allowForceBuyBacks
-   *     )
-   *     Where none of the parameters are mandatory.
-   *
-   *      Note: Called inside the root `onCreateMarket` in the base contract,
-   *      so no need to verify the caller is the factory.
-   */
-  function _onCreateMarket(
-    address deployer,
-    address marketAddress,
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData
-  ) internal override returns (HooksConfig marketHooksConfig) {
-    // Validate the deploy parameters
-    super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
-    if (deployer != borrower) revert CallerNotBorrower();
-    marketHooksConfig = parameters.hooks;
-
-    // Read `minimumDeposit`, `transfersDisabled`, and `allowForceBuyBacks` from `hooksData`
-    // If the calldata does not contain sufficient bytes for a parameter, it will be read as zero.
-    //
-    // Use the deposit and transfer flags to determine whether those require access control.
-    // These are tracked separately because if the market enables `onQueueWithdrawal`, deposit
-    // and transfer hooks will also be  enabled, but may not require access control.
-    HookedMarket memory hookedMarket = HookedMarket({
-      isHooked: true,
-      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
-      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
-      minimumDeposit: _readUint128Cd(hooksData),
-      transfersDisabled: _readBoolCd(hooksData, 0x20),
-      // DEV: intentionally disabled for initial V2 launch
-      allowForceBuyBacks: false // _readBoolCd(hooksData, 0x40)
-    });
-
-    if (hookedMarket.minimumDeposit > 0) {
-      // If there is a minimum deposit, the deposit hook must be enabled
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
-    }
-    if (hookedMarket.transfersDisabled) {
-      // If transfers are disabled, the transfer hook must be enabled
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
-    }
-
-    if (marketHooksConfig.useOnQueueWithdrawal()) {
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
-        Bit_Enabled_Deposit
-      );
-    }
-    marketHooksConfig = marketHooksConfig.mergeFlags(config);
-    _hookedMarkets[address(marketAddress)] = hookedMarket;
-  }
-
-  // ========================================================================== //
-  //                              Market Management                             //
-  // ========================================================================== //
-
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
-    HookedMarket storage hookedMarket = _hookedMarkets[market];
-    if (!hookedMarket.isHooked) revert NotHookedMarket();
-    hookedMarket.minimumDeposit = newMinimumDeposit;
-    emit MinimumDepositUpdated(market, newMinimumDeposit);
+  function setName(string memory _name) external onlyBorrower {
+    name = _name;
+    emit NameUpdated(_name);
   }
 
   // ========================================================================== //
   //                             Provider management                            //
   // ========================================================================== //
+
+  function createRoleProvider(
+    address providerFactory,
+    uint32 timeToLive,
+    bytes memory data
+  ) external onlyBorrower {
+    _createRoleProvider(IRoleProviderFactory(providerFactory), timeToLive, data);
+  }
+
+  function _createRoleProvider(
+    IRoleProviderFactory providerFactory,
+    uint32 timeToLive,
+    bytes memory data
+  ) internal {
+    address providerAddress = providerFactory.createRoleProvider(data);
+    if (providerAddress == address(0)) revert CreateRoleProviderFailed();
+    _addRoleProvider(providerAddress, timeToLive);
+  }
 
   /**
    * @dev Adds or updates a role provider that is able to grant user access.
@@ -255,28 +159,41 @@ contract AccessControlHooks is MarketConstraintHooks {
    *      If the provider is already approved, only updates `timeToLive`.
    */
   function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyBorrower {
+    _addRoleProvider(providerAddress, timeToLive);
+  }
+
+  function _addRoleProvider(address providerAddress, uint32 timeToLive) internal {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) {
       bool isPullProvider = IRoleProvider(providerAddress).isPullProvider();
+      (uint24 pullProviderIndex, uint24 pushProviderIndex) = isPullProvider
+        ? (uint24(_pullProviders.length), NullProviderIndex)
+        : (NullProviderIndex, uint24(_pushProviders.length));
       // Role providers that are not pull providers have `pullProviderIndex` set to
-      // `NotPullProviderIndex` (max uint24) to indicate they do not refresh credentials.
+      // `NullProviderIndex` (max uint24) to indicate they do not refresh credentials.
       provider = encodeRoleProvider(
         timeToLive,
         providerAddress,
-        isPullProvider ? uint24(_pullProviders.length) : NotPullProviderIndex
+        pullProviderIndex,
+        pushProviderIndex
       );
       if (isPullProvider) {
         _pullProviders.push(provider);
+      } else {
+        _pushProviders.push(provider);
       }
-      emit RoleProviderAdded(providerAddress, timeToLive, provider.pullProviderIndex());
+      emit RoleProviderAdded(providerAddress, timeToLive, pullProviderIndex, pushProviderIndex);
     } else {
       // If provider already exists, the only value that can be updated is the TTL
       provider = provider.setTimeToLive(timeToLive);
       uint24 pullProviderIndex = provider.pullProviderIndex();
-      if (pullProviderIndex != NotPullProviderIndex) {
+      uint24 pushProviderIndex = provider.pushProviderIndex();
+      if (pullProviderIndex != NullProviderIndex) {
         _pullProviders[pullProviderIndex] = provider;
-      } else {}
-      emit RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex);
+      } else {
+        _pushProviders[pushProviderIndex] = provider;
+      }
+      emit RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex, pushProviderIndex);
     }
     // Update the provider in storage
     _roleProviders[providerAddress] = provider;
@@ -291,10 +208,16 @@ contract AccessControlHooks is MarketConstraintHooks {
     if (provider.isNull()) revert ProviderNotFound();
     // Remove the provider from `_roleProviders`
     _roleProviders[providerAddress] = EmptyRoleProvider;
-    emit RoleProviderRemoved(providerAddress, provider.pullProviderIndex());
+    emit RoleProviderRemoved(
+      providerAddress,
+      provider.pullProviderIndex(),
+      provider.pushProviderIndex()
+    );
     // If the provider is a pull provider, remove it from `_pullProviders`
     if (provider.isPullProvider()) {
       _removePullProvider(provider.pullProviderIndex());
+    } else {
+      _removePushProvider(provider.pushProviderIndex());
     }
   }
 
@@ -320,7 +243,42 @@ contract AccessControlHooks is MarketConstraintHooks {
     address lastProviderAddress = lastProvider.providerAddress();
     _roleProviders[lastProviderAddress] = lastProvider;
     // Emit an event to notify that the provider's index has been updated
-    emit RoleProviderUpdated(lastProviderAddress, lastProvider.timeToLive(), indexToRemove);
+    emit RoleProviderUpdated(
+      lastProviderAddress,
+      lastProvider.timeToLive(),
+      indexToRemove,
+      NullProviderIndex
+    );
+  }
+
+  /**
+   * @dev Remove a push provider from the `_pushProviders` array.
+   *      If the provider is not the last in the array, the last provider
+   *      is moved to the index of the provider being removed, so its index
+   *      must also be updated in the `_roleProviders` mapping.
+   */
+  function _removePushProvider(uint24 indexToRemove) internal {
+    // Get the last index in the array
+    uint256 lastIndex = _pushProviders.length - 1;
+    // If the index to remove is the last index, just pop the last element
+    if (indexToRemove == lastIndex) {
+      _pushProviders.pop();
+      return;
+    }
+    // If the index to remove is not the last index, move the last element
+    // to the index of the element being removed
+    RoleProvider lastProvider = _pushProviders[lastIndex].setPushProviderIndex(indexToRemove);
+    _pushProviders[indexToRemove] = lastProvider;
+    _pushProviders.pop();
+    address lastProviderAddress = lastProvider.providerAddress();
+    _roleProviders[lastProviderAddress] = lastProvider;
+    // Emit an event to notify that the provider's index has been updated
+    emit RoleProviderUpdated(
+      lastProviderAddress,
+      lastProvider.timeToLive(),
+      NullProviderIndex,
+      indexToRemove
+    );
   }
 
   // ========================================================================== //
@@ -335,21 +293,8 @@ contract AccessControlHooks is MarketConstraintHooks {
     return _pullProviders;
   }
 
-  // ========================================================================== //
-  //                               Market Queries                               //
-  // ========================================================================== //
-
-  function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
-    return _hookedMarkets[marketAddress];
-  }
-
-  function getHookedMarkets(
-    address[] calldata marketAddresses
-  ) external view returns (HookedMarket[] memory hookedMarkets) {
-    hookedMarkets = new HookedMarket[](marketAddresses.length);
-    for (uint256 i = 0; i < marketAddresses.length; i++) {
-      hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];
-    }
+  function getPushProviders() external view returns (RoleProvider[] memory) {
+    return _pushProviders;
   }
 
   // ========================================================================== //
@@ -482,8 +427,18 @@ contract AccessControlHooks is MarketConstraintHooks {
   }
 
   function revokeRole(address account) external {
+    _revokeRole(account);
+  }
+
+  function revokeRoles(address[] calldata accounts) external {
+    for (uint256 i = 0; i < accounts.length; i++) {
+      _revokeRole(accounts[i]);
+    }
+  }
+
+  function _revokeRole(address account) internal {
     LenderStatus memory status = _lenderStatus[account];
-    if (status.lastProvider != msg.sender) {
+    if (msg.sender != status.lastProvider) {
       revert ProviderCanNotRevokeCredential();
     }
     status.unsetCredential();
@@ -492,6 +447,16 @@ contract AccessControlHooks is MarketConstraintHooks {
   }
 
   function blockFromDeposits(address account) external onlyBorrower {
+    _blockFromDeposits(account);
+  }
+
+  function blockFromDeposits(address[] calldata accounts) external onlyBorrower {
+    for (uint256 i; i < accounts.length; i++) {
+      _blockFromDeposits(accounts[i]);
+    }
+  }
+
+  function _blockFromDeposits(address account) internal {
     LenderStatus memory status = _lenderStatus[account];
     if (status.hasCredential()) {
       status.unsetCredential();
@@ -804,217 +769,4 @@ contract AccessControlHooks is MarketConstraintHooks {
     _lenderStatus[accountAddress] = status;
     emit AccountAccessGranted(provider.providerAddress(), accountAddress, credentialTimestamp);
   }
-
-  // ========================================================================== //
-  //                                    Hooks                                   //
-  // ========================================================================== //
-
-  /**
-   * @dev Called when a lender attempts to deposit.
-   *      Passes the check if the deposit amount is at least the minimum deposit
-   *      amount, the lender is not blocked from depositing, and either the lender
-   *      has a valid credential or the market does not require access for deposits.
-   */
-  function onDeposit(
-    address lender,
-    uint scaledAmount,
-    MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-
-    // Retrieve the lender's status from storage
-    LenderStatus memory status = _lenderStatus[lender];
-
-    // Check that the lender is not blocked
-    if (status.isBlockedFromDeposits) revert NotApprovedLender();
-
-    // Check that the deposit amount is at or above the market's minimum
-    uint normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
-    if (market.minimumDeposit > normalizedAmount) {
-      revert DepositBelowMinimum();
-    }
-
-    // Attempt to validate the lender's access
-    // Uses the inner method here as storage may need to be updated if this
-    // is their first deposit
-    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(
-      status,
-      lender,
-      hooksData
-    );
-
-    if (market.depositRequiresAccess.and(!hasValidCredential)) {
-      revert NotApprovedLender();
-    }
-
-    _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
-  }
-
-  /**
-   * @dev Called when a lender attempts to queue a withdrawal.
-   *      Passes the check if the lender has previously deposited or received
-   *      market tokens while having the ability to deposit, or currently has a
-   *      valid credential from an approved role provider.
-   */
-  function onQueueWithdrawal(
-    address lender,
-    uint32 /* expiry */,
-    uint /* scaledAmount */,
-    MarketState calldata /* state */,
-    bytes calldata hooksData
-  ) external override {
-    LenderStatus memory status = _lenderStatus[lender];
-    if (
-      !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)
-    ) {
-      revert NotApprovedLender();
-    }
-  }
-
-  /**
-   * @dev Hook not implemented for this contract.
-   */
-  function onExecuteWithdrawal(
-    address lender,
-    uint128 /* normalizedAmountWithdrawn */,
-    MarketState calldata /* state */,
-    bytes calldata hooksData
-  ) external override {}
-
-  /**
-   * @dev Called when a lender attempts to transfer market tokens on a market
-   *      that requires credentials for either transfers or withdrawals.
-   *
-   *      Allows the transfer if the recipient:
-   *      - is a known lender OR
-   *      - is not blocked AND
-   *        - has a valid credential OR
-   *        - market does not require a credential for transfers
-   *
-   *    If the recipient is not a known lender but does have a valid
-   *    credential, they will be marked as a known lender.
-   */
-  function onTransfer(
-    address /* caller */,
-    address /* from */,
-    address to,
-    uint /* scaledAmount */,
-    MarketState calldata /* state */,
-    bytes calldata extraData
-  ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-
-    if (!market.isHooked) revert NotHookedMarket();
-
-    if (market.transfersDisabled) {
-      revert TransfersDisabled();
-    }
-
-    // If the recipient is a known lender, skip access control checks.
-    if (!isKnownLenderOnMarket[to][msg.sender]) {
-      LenderStatus memory toStatus = _lenderStatus[to];
-      // Respect `isBlockedFromDeposits` only if the recipient is not a known lender
-      if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
-
-      // Attempt to validate the lender's access even if the market does not require
-      // a credential for transfers, as the recipient may need to be updated to reflect
-      // their new status as a known lender.
-      (bool hasValidCredential, bool wasUpdated) = _tryValidateAccessInner(toStatus, to, extraData);
-
-      // Revert if the recipient does not have a valid credential and the market requires one
-      if (market.transferRequiresAccess.and(!hasValidCredential)) {
-        revert NotApprovedLender();
-      }
-
-      _writeLenderStatus(toStatus, to, hasValidCredential, wasUpdated, true);
-    }
-  }
-
-  /**
-   * @dev Hook not implemented for this contract.
-   */
-  function onBorrow(
-    uint /* normalizedAmount */,
-    MarketState calldata /* state */,
-    bytes calldata /* extraData */
-  ) external override {}
-
-  /**
-   * @dev Hook not implemented for this contract.
-   */
-  function onRepay(
-    uint normalizedAmount,
-    MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {}
-
-  function onCloseMarket(
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
-  function onNukeFromOrbit(
-    address /* lender */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
-  function onSetMaxTotalSupply(
-    uint256 /* maxTotalSupply */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
-  function onSetAnnualInterestAndReserveRatioBips(
-    uint16 annualInterestBips,
-    uint16 reserveRatioBips,
-    MarketState calldata intermediateState,
-    bytes calldata hooksData
-  )
-    public
-    virtual
-    override
-    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
-  {
-    return
-      super.onSetAnnualInterestAndReserveRatioBips(
-        annualInterestBips,
-        reserveRatioBips,
-        intermediateState,
-        hooksData
-      );
-  }
-
-  function onSetProtocolFeeBips(
-    uint16 /* protocolFeeBips */,
-    MarketState memory /* intermediateState */,
-    bytes calldata /* extraData */
-  ) external override {}
-
-  /* DEV: hook removed as force buyback has been disabled in initial V2 launch
-  function onForceBuyBack(
-    address lender,
-    uint scaledAmount,
-    MarketState calldata intermediateState,
-    bytes calldata extraData
-  ) external virtual override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-    if (!market.allowForceBuyBacks) revert ForceBuyBacksDisabled();
-    // If the borrower does not already have a credential, grant them one
-    LenderStatus storage status = _lenderStatus[borrower];
-    if (!status.hasCredential()) {
-      // Give the borrower a self-granted credential with no expiry so they are
-      // able to withdraw the purchased market tokens.
-      _setCredentialAndEmitAccessGranted(
-        status,
-        _roleProviders[borrower],
-        borrower,
-        uint32(block.timestamp)
-      );
-    }
-  }
-  */
 }
