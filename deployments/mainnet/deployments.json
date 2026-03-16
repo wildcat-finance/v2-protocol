@@ -1,4 +1,1 @@
-{
-    "WildcatArchController": "0xfEB516d9D946dD487A9346F6fee11f40C6945eE4",
-    "WildcatSanctionsSentinel": "0x437e0551892C2C9b06d3fFd248fe60572e08CD1A"
-}
+{"FixedTermHooks_initCodeStorage":"0x7e49CabA6FB53CDc70CD98829731A2b8d76dfc36","HooksFactory":"0xdd7dd3b5076Cf89440d05585FF56d246386207BE","MarketLens":"0xC672760757da93B5f3275dc97203D145806dae33","OpenTermHooks_initCodeStorage":"0x4c62B4844C8371f321541E8d564A4B3896cEceC7","WildcatArchController":"0xfEB516d9D946dD487A9346F6fee11f40C6945eE4","WildcatMarket_initCodeStorage":"0xAc3216FA28F81B8FaE150fB5626ca79C7a570DAf","WildcatSanctionsSentinel":"0x437e0551892C2C9b06d3fFd248fe60572e08CD1A"}
