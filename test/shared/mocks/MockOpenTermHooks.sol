@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.20;
 
-import 'src/access/FixedTermLoanHooks.sol';
+import 'src/access/OpenTermHooks.sol';
 
-contract MockFixedTermLoanHooks is FixedTermLoanHooks {
-  constructor(address _deployer) FixedTermLoanHooks(_deployer, '') {}
+contract MockOpenTermHooks is OpenTermHooks {
+  constructor(address _deployer) OpenTermHooks(_deployer, '') {}
 
   function tryValidateAccess(
     address accountAddress,

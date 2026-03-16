@@ -161,6 +161,17 @@ contract MarketLens {
     }
   }
 
+  function getLenderAccountsData(
+    address marketAddress,
+    address[] memory lenders
+  ) external view returns (LenderAccountData[] memory data) {
+    data = new LenderAccountData[](lenders.length);
+    WildcatMarket market = WildcatMarket(marketAddress);
+    for (uint256 i; i < lenders.length; i++) {
+      data[i].fill(market, lenders[i]);
+    }
+  }
+
   function queryLenderAccount(
     LenderAccountQuery memory query
   ) external view returns (LenderAccountQueryResult memory result) {
@@ -176,9 +187,9 @@ contract MarketLens {
     }
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                          Withdrawal batch queries                          */
-  /* -------------------------------------------------------------------------- */
+  // ========================================================================== //
+  //                          Withdrawal batch queries                          //
+  // ========================================================================== //
 
   function getWithdrawalBatchData(
     address market,
@@ -197,9 +208,9 @@ contract MarketLens {
     }
   }
 
-  /* -------------------------------------------------------------------------- */
-  /*                    Withdrawal batch queries with account                   */
-  /* -------------------------------------------------------------------------- */
+  // ========================================================================== //
+  //                    Withdrawal batch queries with account                   //
+  // ========================================================================== //
 
   function getWithdrawalBatchesDataWithLenderStatus(
     address market,

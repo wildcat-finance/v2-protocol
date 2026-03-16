@@ -50,12 +50,6 @@ event OnSetProtocolFeeBipsCalled(
   MarketState intermediateState,
   bytes extraData
 );
-event OnForceBuyBackCalled(
-  address lender,
-  uint scaledAmount,
-  MarketState intermediateState,
-  bytes extraData
-);
 contract MockHooks is IHooks {
   bytes32 public lastCalldataHash;
   address public deployer;
@@ -273,16 +267,6 @@ contract MockHooks is IHooks {
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
     emit OnSetProtocolFeeBipsCalled(protocolFeeBips, intermediateState, extraData);
-  }
-
-  function onForceBuyBack(
-    address lender,
-    uint scaledAmount,
-    MarketState calldata intermediateState,
-    bytes calldata extraData
-  ) external virtual override {
-    lastCalldataHash = keccak256(msg.data);
-    emit OnForceBuyBackCalled(lender, scaledAmount, intermediateState, extraData);
   }
 }
 

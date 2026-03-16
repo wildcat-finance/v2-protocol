@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.20;
 
-import 'src/access/AccessControlHooks.sol';
+import 'src/access/FixedTermHooks.sol';
 
-contract MockAccessControlHooks is AccessControlHooks {
-  constructor(address _deployer) AccessControlHooks(_deployer, '') {}
+contract MockFixedTermHooks is FixedTermHooks {
+  constructor(address _deployer) FixedTermHooks(_deployer, '') {}
 
   function tryValidateAccess(
     address accountAddress,

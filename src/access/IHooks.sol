@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import '../types/HooksConfig.sol';
@@ -49,13 +49,6 @@ abstract contract IHooks {
   function onQueueWithdrawal(
     address lender,
     uint32 expiry,
-    uint scaledAmount,
-    MarketState calldata intermediateState,
-    bytes calldata extraData
-  ) external virtual;
-
-  function onForceBuyBack(
-    address lender,
     uint scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData

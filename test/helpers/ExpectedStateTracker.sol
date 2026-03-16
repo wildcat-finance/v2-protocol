@@ -51,7 +51,6 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
       sphereXEngine: address(0),
       minimumDeposit: 0,
       transfersDisabled: false,
-      allowForceBuyBack: false,
       fixedTermEndTime: 0,
       allowClosureBeforeTerm: true,
       allowTermReduction: true

@@ -34,7 +34,7 @@ contract WildcatMarket is
    *      contract by mistake or otherwise outside of the normal course of
    *      operation.
    */
-  function rescueTokens(address token) external onlyBorrower {
+  function rescueTokens(address token) external nonReentrant onlyBorrower {
     if ((token == asset).or(token == address(this))) {
       revert_BadRescueAsset();
     }
@@ -196,32 +196,6 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
-
-    _writeState(state);
-  }
-
-  function forceBuyBack(address lender, uint256 normalizedAmount) external nonReentrant onlyBorrower {
-    MarketState memory state = _getUpdatedState();
-    if (state.isClosed) revert_BuyBackOnClosedMarket();
-    if (state.isDelinquent) revert_BuyBackOnDelinquentMarket();
-
-    uint104 scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
-    if (scaledAmount == 0) revert_NullBuyBackAmount();
-
-    hooks.onForceBuyBack(lender, scaledAmount, state);
-
-    asset.safeTransferFrom(msg.sender, lender, normalizedAmount);
-
-    Account memory from = _accounts[lender];
-    from.scaledBalance -= scaledAmount;
-    _accounts[lender] = from;
-
-    Account memory to = _accounts[msg.sender];
-    to.scaledBalance += scaledAmount;
-    _accounts[msg.sender] = to;
-
-    emit_Transfer(lender, msg.sender, scaledAmount);
-    emit_ForceBuyBack(lender, scaledAmount, normalizedAmount);
 
     _writeState(state);
   }

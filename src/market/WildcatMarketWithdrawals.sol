@@ -85,7 +85,6 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint normalizedAmount,
     uint baseCalldataSize
   ) internal returns (uint32 expiry) {
-
     // Cache batch expiry on the stack for gas savings
     expiry = state.pendingWithdrawalExpiry;
 

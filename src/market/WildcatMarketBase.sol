@@ -413,11 +413,7 @@ contract WildcatMarketBase is
       uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       if (expiry != lastInterestAccruedTimestamp) {
         (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
-          .updateScaleFactorAndFees(
-            delinquencyFeeBips,
-            delinquencyGracePeriod,
-            expiry
-          );
+          .updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, expiry);
         emit_InterestAndFeesAccrued(
           lastInterestAccruedTimestamp,
           expiry,
@@ -433,11 +429,7 @@ contract WildcatMarketBase is
     // Apply interest and fees accrued since last update (expiry or previous tx)
     if (block.timestamp != lastInterestAccruedTimestamp) {
       (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
-        .updateScaleFactorAndFees(
-          delinquencyFeeBips,
-          delinquencyGracePeriod,
-          block.timestamp
-        );
+        .updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, block.timestamp);
       emit_InterestAndFeesAccrued(
         lastInterestAccruedTimestamp,
         block.timestamp,
@@ -508,11 +500,7 @@ contract WildcatMarketBase is
     }
 
     if (state.lastInterestAccruedTimestamp != block.timestamp) {
-      state.updateScaleFactorAndFees(
-        delinquencyFeeBips,
-        delinquencyGracePeriod,
-        block.timestamp
-      );
+      state.updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, block.timestamp);
     }
 
     // If there is a pending withdrawal batch which is not fully paid off, set aside
@@ -604,10 +592,7 @@ contract WildcatMarketBase is
               or(shl(0xc0, lastInterestAccruedTimestamp), shl(0x50, scaleFactor)),
               shl(0x40, reserveRatioBips)
             ),
-            or(
-              shl(0x30, annualInterestBips),
-              shl(0x20, protocolFeeBips)
-            )
+            or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
           ),
           timeDelinquent
         )

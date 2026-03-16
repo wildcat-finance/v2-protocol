@@ -2,7 +2,7 @@
 pragma solidity >=0.8.20;
 
 import '../WildcatArchController.sol';
-import { AccessControlHooks } from '../access/AccessControlHooks.sol';
+import { OpenTermHooks } from '../access/OpenTermHooks.sol';
 import './TokenData.sol';
 import '../types/HooksConfig.sol';
 import '../types/LenderStatus.sol';
@@ -36,7 +36,7 @@ library LenderAccountDataLib {
     LenderAccountData memory data,
     WildcatMarket market,
     IERC20 underlying,
-    AccessControlHooks hooks,
+    OpenTermHooks hooks,
     address lenderAddress
   ) internal view {
     data.lender = lenderAddress;
@@ -64,7 +64,7 @@ library LenderAccountDataLib {
     address lenderAddress
   ) internal view {
     IERC20 underlying = IERC20(market.asset());
-    AccessControlHooks hooks = AccessControlHooks(market.hooks().hooksAddress());
+    OpenTermHooks hooks = OpenTermHooks(market.hooks().hooksAddress());
     data.fill(market, underlying, hooks, lenderAddress);
   }
 
@@ -76,7 +76,7 @@ library LenderAccountDataLib {
     data.fill(
       WildcatMarket(market.marketToken.token),
       IERC20(market.underlyingToken.token),
-      AccessControlHooks(market.hooksConfig.hooksAddress),
+      OpenTermHooks(market.hooksConfig.hooksAddress),
       lenderAddress
     );
   }

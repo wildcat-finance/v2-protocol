@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 
 import { MarketState } from '../libraries/MarketState.sol';
@@ -49,8 +49,6 @@ interface IMarketEventsAndErrors {
   error DepositToClosedMarket();
 
   error RepayToClosedMarket();
-
-  error BuyBackOnClosedMarket();
 
   error BuyBackOnDelinquentMarket();
 
@@ -163,8 +161,6 @@ interface IMarketEventsAndErrors {
     address indexed account,
     uint256 normalizedAmount
   );
-
-  event ForceBuyBack(address indexed lender, uint256 scaledAmount, uint256 normalizedAmount);
 
   event SanctionedAccountWithdrawalSentToEscrow(
     address indexed account,
