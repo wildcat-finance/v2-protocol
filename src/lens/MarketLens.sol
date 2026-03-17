@@ -2,10 +2,10 @@
 pragma solidity >=0.8.20;
 
 import "../IHooksFactory.sol";
-import "./MarketData.sol";
-import "./TokenData.sol";
-import "./HooksInstanceData.sol";
-import "./HooksDataForBorrower.sol";
+import './MarketData.sol';
+import './TokenData.sol';
+import './HooksInstanceData.sol';
+import './HooksDataForBorrower.sol';
 
 struct FactoryScopedHooksTemplateData {
     address hooksFactory;
@@ -435,28 +435,30 @@ contract MarketLens {
         return _shrinkFactoryScopedHooksTemplateArray(data, count);
     }
 
-    // ========================================================================== //
-    //                                 Token info                                 //
-    // ========================================================================== //
+  // ========================================================================== //
+  //                                 Token info                                 //
+  // ========================================================================== //
 
-    function getTokenInfo(address token) public view returns (TokenMetadata memory info) {
-        info.fill(token);
+  function getTokenInfo(address token) public view returns (TokenMetadata memory info) {
+    info.fill(token);
+  }
+
+  function getTokensInfo(
+    address[] memory tokens
+  ) public view returns (TokenMetadata[] memory info) {
+    info = new TokenMetadata[](tokens.length);
+    for (uint256 i; i < tokens.length; i++) {
+      info[i].fill(tokens[i]);
     }
+  }
 
-    function getTokensInfo(address[] memory tokens) public view returns (TokenMetadata[] memory info) {
-        info = new TokenMetadata[](tokens.length);
-        for (uint256 i; i < tokens.length; i++) {
-            info[i].fill(tokens[i]);
-        }
-    }
+  // ========================================================================== //
+  //                                   Markets                                  //
+  // ========================================================================== //
 
-    // ========================================================================== //
-    //                                   Markets                                  //
-    // ========================================================================== //
-
-    function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256) {
+  function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256) {
         return getMarketsForHooksTemplateCount(address(hooksFactory), hooksTemplate);
-    }
+  }
 
     function getMarketsForHooksTemplateCount(address hooksFactoryAddress, address hooksTemplate)
         public
@@ -470,16 +472,16 @@ contract MarketLens {
         return _getAggregatedMarketsForHooksTemplate(hooksTemplate).length;
     }
 
-    function getMarketData(address market) public view returns (MarketData memory data) {
-        data.fill(WildcatMarket(market));
-    }
+  function getMarketData(address market) public view returns (MarketData memory data) {
+    data.fill(WildcatMarket(market));
+  }
 
-    function getMarketsData(address[] memory markets) public view returns (MarketData[] memory data) {
-        data = new MarketData[](markets.length);
-        for (uint256 i; i < markets.length; i++) {
-            data[i].fill(WildcatMarket(markets[i]));
-        }
+  function getMarketsData(address[] memory markets) public view returns (MarketData[] memory data) {
+    data = new MarketData[](markets.length);
+    for (uint256 i; i < markets.length; i++) {
+      data[i].fill(WildcatMarket(markets[i]));
     }
+  }
 
     function getMarketDataV2(address market) public view returns (MarketDataV2 memory data) {
         data.fill(WildcatMarket(market));
@@ -574,40 +576,37 @@ contract MarketLens {
         return getMarketsDataV2(_getAggregatedMarketsForHooksTemplate(hooksTemplate));
     }
 
-    // ========================================================================== //
-    //                         Markets with lender status                         //
-    // ========================================================================== //
+  // ========================================================================== //
+  //                         Markets with lender status                         //
+  // ========================================================================== //
 
-    function getMarketDataWithLenderStatus(address lender, address market)
-        public
-        view
-        returns (MarketDataWithLenderStatus memory data)
-    {
-        data.fill(WildcatMarket(market), lender);
+  function getMarketDataWithLenderStatus(
+    address lender,
+    address market
+  ) public view returns (MarketDataWithLenderStatus memory data) {
+    data.fill(WildcatMarket(market), lender);
+  }
+
+  function getMarketsDataWithLenderStatus(
+    address lender,
+    address[] memory markets
+  ) public view returns (MarketDataWithLenderStatus[] memory data) {
+    data = new MarketDataWithLenderStatus[](markets.length);
+    for (uint256 i; i < markets.length; i++) {
+      data[i].fill(WildcatMarket(markets[i]), lender);
     }
+  }
 
-    function getMarketsDataWithLenderStatus(address lender, address[] memory markets)
-        public
-        view
-        returns (MarketDataWithLenderStatus[] memory data)
-    {
-        data = new MarketDataWithLenderStatus[](markets.length);
-        for (uint256 i; i < markets.length; i++) {
-            data[i].fill(WildcatMarket(markets[i]), lender);
-        }
-    }
+  // ========================================================================== //
+  //                        Lender status in market only                        //
+  // ========================================================================== //
 
-    // ========================================================================== //
-    //                        Lender status in market only                        //
-    // ========================================================================== //
-
-    function getLenderAccountData(address lender, address market)
-        external
-        view
-        returns (LenderAccountData memory data)
-    {
-        data.fill(WildcatMarket(market), lender);
-    }
+  function getLenderAccountData(
+    address lender,
+    address market
+  ) external view returns (LenderAccountData memory data) {
+    data.fill(WildcatMarket(market), lender);
+  }
 
   function getLenderAccountData(
     address lender,
@@ -630,48 +629,48 @@ contract MarketLens {
     }
   }
 
-    function queryLenderAccount(LenderAccountQuery memory query)
-        external
-        view
-        returns (LenderAccountQueryResult memory result)
-    {
-        result.fill(query);
-    }
+  function queryLenderAccount(
+    LenderAccountQuery memory query
+  ) external view returns (LenderAccountQueryResult memory result) {
+    result.fill(query);
+  }
 
-    function queryLenderAccounts(LenderAccountQuery[] memory queries)
-        external
-        view
-        returns (LenderAccountQueryResult[] memory result)
-    {
-        result = new LenderAccountQueryResult[](queries.length);
-        for (uint256 i; i < queries.length; i++) {
-            result[i].fill(queries[i]);
-        }
+  function queryLenderAccounts(
+    LenderAccountQuery[] memory queries
+  ) external view returns (LenderAccountQueryResult[] memory result) {
+    result = new LenderAccountQueryResult[](queries.length);
+    for (uint256 i; i < queries.length; i++) {
+      result[i].fill(queries[i]);
     }
+  }
 
   // ========================================================================== //
   //                          Withdrawal batch queries                          //
   // ========================================================================== //
+  // ========================================================================== //
+  //                          Withdrawal batch queries                          //
+  // ========================================================================== //
 
-    function getWithdrawalBatchData(address market, uint32 expiry)
-        public
-        view
-        returns (WithdrawalBatchData memory data)
-    {
-        data.fill(WildcatMarket(market), expiry);
+  function getWithdrawalBatchData(
+    address market,
+    uint32 expiry
+  ) public view returns (WithdrawalBatchData memory data) {
+    data.fill(WildcatMarket(market), expiry);
+  }
+
+  function getWithdrawalBatchesData(
+    address market,
+    uint32[] memory expiries
+  ) public view returns (WithdrawalBatchData[] memory data) {
+    data = new WithdrawalBatchData[](expiries.length);
+    for (uint256 i; i < expiries.length; i++) {
+      data[i].fill(WildcatMarket(market), expiries[i]);
     }
+  }
 
-    function getWithdrawalBatchesData(address market, uint32[] memory expiries)
-        public
-        view
-        returns (WithdrawalBatchData[] memory data)
-    {
-        data = new WithdrawalBatchData[](expiries.length);
-        for (uint256 i; i < expiries.length; i++) {
-            data[i].fill(WildcatMarket(market), expiries[i]);
-        }
-    }
-
+  // ========================================================================== //
+  //                    Withdrawal batch queries with account                   //
+  // ========================================================================== //
   // ========================================================================== //
   //                    Withdrawal batch queries with account                   //
   // ========================================================================== //

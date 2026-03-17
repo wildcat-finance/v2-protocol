@@ -504,7 +504,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(constraints.minimumWithdrawalBatchDuration, 0, 'minimumWithdrawalBatchDuration');
     assertEq(
       constraints.maximumWithdrawalBatchDuration,
-      90 days,
+      365 days,
       'maximumWithdrawalBatchDuration'
     );
     assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');

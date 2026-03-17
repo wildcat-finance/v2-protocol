@@ -200,15 +200,13 @@ library MarketDataLib {
 
     function getUnpaidAndPendingWithdrawalBatches(
         MarketData memory data
-    ) internal view returns (WithdrawalBatchData[] memory unpaidAndPendingWithdrawalBatches)
-    {
+    ) internal view returns (WithdrawalBatchData[] memory unpaidAndPendingWithdrawalBatches) {
         WildcatMarket market = WildcatMarket(data.marketToken.token);
         bool hasPendingWithdrawalBatch = data.pendingWithdrawalExpiry > 0;
         uint256 unpaidExpiriesCount = data.unpaidWithdrawalBatchExpiries.length;
-        unpaidAndPendingWithdrawalBatches =
-            new WithdrawalBatchData[](
-                unpaidExpiriesCount + (hasPendingWithdrawalBatch ? 1 : 0)
-            );
+        unpaidAndPendingWithdrawalBatches = new WithdrawalBatchData[](
+            unpaidExpiriesCount + (hasPendingWithdrawalBatch ? 1 : 0)
+        );
         for (uint256 i; i < unpaidExpiriesCount; i++) {
             unpaidAndPendingWithdrawalBatches[i].fill(market, data.unpaidWithdrawalBatchExpiries[i]);
         }
