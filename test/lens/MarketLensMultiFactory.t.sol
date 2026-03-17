@@ -139,12 +139,12 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_getMarketDataV2_presenceFlagsForLegacyAndRevolving() external view {
-        MarketDataV2 memory legacyData = lens.getMarketDataV2(address(market));
+        MarketDataV2_5 memory legacyData = lens.getMarketDataV2(address(market));
         assertEq(legacyData.market.hooksFactory, address(hooksFactory), "legacy hooksFactory");
         assertEq(legacyData.commitmentFeeBips.isPresent, false, "legacy commitment presence");
         assertEq(legacyData.drawnAmount.isPresent, false, "legacy drawn presence");
 
-        MarketDataV2 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
+        MarketDataV2_5 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
         assertEq(revolvingData.market.hooksFactory, address(hooksFactoryRevolving), "revolving hooksFactory");
         assertEq(revolvingData.commitmentFeeBips.isPresent, true, "revolving commitment presence");
         assertEq(revolvingData.commitmentFeeBips.value, _COMMITMENT_FEE_BIPS, "revolving commitment value");
@@ -153,7 +153,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_getMarketDataV2_treatsZeroAsValidWhenPresent() external {
-        MarketDataV2 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
+        MarketDataV2_5 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
         assertEq(revolvingData.drawnAmount.isPresent, true, "drawn presence");
         assertEq(revolvingData.drawnAmount.value, 0, "drawn value should be zero");
     }
@@ -165,7 +165,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
             hex"01"
         );
 
-        MarketDataV2 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
+        MarketDataV2_5 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
         assertEq(revolvingData.commitmentFeeBips.isPresent, false, "malformed commitment presence");
         assertEq(revolvingData.drawnAmount.isPresent, true, "drawn presence");
     }
@@ -175,7 +175,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
             address(revolvingMarket), abi.encodeWithSelector(IWildcatMarketRevolving.drawnAmount.selector), hex"01"
         );
 
-        MarketDataV2 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
+        MarketDataV2_5 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
         assertEq(revolvingData.commitmentFeeBips.isPresent, true, "commitment presence");
         assertEq(revolvingData.drawnAmount.isPresent, false, "malformed drawn presence");
     }
@@ -187,7 +187,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
             abi.encodeWithSignature("MockFailure()")
         );
 
-        MarketDataV2 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
+        MarketDataV2_5 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
         assertEq(revolvingData.commitmentFeeBips.isPresent, true, "commitment presence");
         assertEq(revolvingData.drawnAmount.isPresent, false, "reverting drawn presence");
     }
@@ -271,7 +271,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
         assertEq(marketsData[0].hooksFactory, address(hooksFactory), "first factory");
         assertEq(marketsData[1].hooksFactory, address(hooksFactoryRevolving), "second factory");
 
-        MarketDataV2[] memory marketsDataV2 = lens.getAggregatedAllMarketsDataV2ForHooksTemplate(hooksTemplate);
+        MarketDataV2_5[] memory marketsDataV2 = lens.getAggregatedAllMarketsDataV2ForHooksTemplate(hooksTemplate);
         assertEq(marketsDataV2.length, 2, "aggregated market data v2 length");
         assertEq(marketsDataV2[0].market.hooksFactory, address(hooksFactory), "first v2 factory");
         assertEq(marketsDataV2[1].market.hooksFactory, address(hooksFactoryRevolving), "second v2 factory");
@@ -330,13 +330,13 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_factoryParameterizedV2Reads() external view {
-        MarketDataV2[] memory legacyV2 = lens.getAllMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate);
+        MarketDataV2_5[] memory legacyV2 = lens.getAllMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate);
         assertEq(legacyV2.length, 1, "legacy length");
         assertEq(legacyV2[0].market.hooksFactory, address(hooksFactory), "legacy factory");
         assertEq(legacyV2[0].commitmentFeeBips.isPresent, false, "legacy commitment presence");
         assertEq(legacyV2[0].drawnAmount.isPresent, false, "legacy drawn presence");
 
-        MarketDataV2[] memory revolvingV2 =
+        MarketDataV2_5[] memory revolvingV2 =
             lens.getAllMarketsDataV2ForHooksTemplate(address(hooksFactoryRevolving), hooksTemplate);
         assertEq(revolvingV2.length, 1, "revolving length");
         assertEq(revolvingV2[0].market.hooksFactory, address(hooksFactoryRevolving), "revolving factory");
@@ -345,12 +345,12 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_paginatedV2Reads() external view {
-        MarketDataV2[] memory legacyPage =
+        MarketDataV2_5[] memory legacyPage =
             lens.getPaginatedMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate, 0, 1);
         assertEq(legacyPage.length, 1, "legacy page length");
         assertEq(legacyPage[0].market.marketToken.token, address(market), "legacy market address");
 
-        MarketDataV2[] memory revolvingPage =
+        MarketDataV2_5[] memory revolvingPage =
             lens.getPaginatedMarketsDataV2ForHooksTemplate(address(hooksFactoryRevolving), hooksTemplate, 0, 1);
         assertEq(revolvingPage.length, 1, "revolving page length");
         assertEq(revolvingPage[0].market.marketToken.token, address(revolvingMarket), "revolving market address");
@@ -358,11 +358,11 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_defaultFactoryV2EndpointsRemainLegacyScoped() external view {
-        MarketDataV2[] memory allDefault = lens.getAllMarketsDataV2ForHooksTemplate(hooksTemplate);
+        MarketDataV2_5[] memory allDefault = lens.getAllMarketsDataV2ForHooksTemplate(hooksTemplate);
         assertEq(allDefault.length, 1, "default all length");
         assertEq(allDefault[0].market.hooksFactory, address(hooksFactory), "default all factory");
 
-        MarketDataV2[] memory paginatedDefault = lens.getPaginatedMarketsDataV2ForHooksTemplate(hooksTemplate, 0, 1);
+        MarketDataV2_5[] memory paginatedDefault = lens.getPaginatedMarketsDataV2ForHooksTemplate(hooksTemplate, 0, 1);
         assertEq(paginatedDefault.length, 1, "default paginated length");
         assertEq(paginatedDefault[0].market.hooksFactory, address(hooksFactory), "default paginated factory");
     }

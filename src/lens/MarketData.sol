@@ -15,7 +15,7 @@ import './TokenData.sol';
 import './WithdrawalBatchData.sol';
 
 using MarketDataLib for MarketData global;
-using MarketDataLib for MarketDataV2 global;
+using MarketDataLib for MarketDataV2_5 global;
 using MarketDataLib for MarketDataWithLenderStatus global;
 using MarketDataLib for LenderAccountQueryResult global;
 
@@ -57,15 +57,15 @@ struct MarketData {
     uint256 coverageLiquidity;
 }
 
-struct OptionalUintData {
+struct OptionalUintDataV2_5 {
     bool isPresent;
     uint256 value;
 }
 
-struct MarketDataV2 {
+struct MarketDataV2_5 {
     MarketData market;
-    OptionalUintData commitmentFeeBips;
-    OptionalUintData drawnAmount;
+    OptionalUintDataV2_5 commitmentFeeBips;
+    OptionalUintDataV2_5 drawnAmount;
 }
 
 struct MarketDataWithLenderStatus {
@@ -124,13 +124,13 @@ library MarketDataLib {
         data.hooks.fill(hooksAddress, IHooksFactory(data.hooksFactory));
     }
 
-    function fill(MarketDataV2 memory data, WildcatMarket market) internal view {
+    function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
         data.market.fill(market);
         _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
         _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
     }
 
-    function _tryFillOptionalUint(OptionalUintData memory data, address target, bytes4 selector) internal view {
+    function _tryFillOptionalUint(OptionalUintDataV2_5 memory data, address target, bytes4 selector) internal view {
         (bool success, bytes memory result) = target.staticcall(abi.encodeWithSelector(selector));
         if (!success || result.length < 0x20) {
             return;

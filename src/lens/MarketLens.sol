@@ -483,12 +483,12 @@ contract MarketLens {
     }
   }
 
-    function getMarketDataV2(address market) public view returns (MarketDataV2 memory data) {
+    function getMarketDataV2(address market) public view returns (MarketDataV2_5 memory data) {
         data.fill(WildcatMarket(market));
     }
 
-    function getMarketsDataV2(address[] memory markets) public view returns (MarketDataV2[] memory data) {
-        data = new MarketDataV2[](markets.length);
+    function getMarketsDataV2(address[] memory markets) public view returns (MarketDataV2_5[] memory data) {
+        data = new MarketDataV2_5[](markets.length);
         for (uint256 i; i < markets.length; i++) {
             data[i].fill(WildcatMarket(markets[i]));
         }
@@ -515,7 +515,7 @@ contract MarketLens {
     function getPaginatedMarketsDataV2ForHooksTemplate(address hooksTemplate, uint256 start, uint256 end)
         public
         view
-        returns (MarketDataV2[] memory data)
+        returns (MarketDataV2_5[] memory data)
     {
         return getPaginatedMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate, start, end);
     }
@@ -525,7 +525,7 @@ contract MarketLens {
         address hooksTemplate,
         uint256 start,
         uint256 end
-    ) public view returns (MarketDataV2[] memory data) {
+    ) public view returns (MarketDataV2_5[] memory data) {
         address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate, start, end);
         return getMarketsDataV2(markets);
     }
@@ -546,7 +546,7 @@ contract MarketLens {
     function getAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
         external
         view
-        returns (MarketDataV2[] memory data)
+        returns (MarketDataV2_5[] memory data)
     {
         return getAllMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate);
     }
@@ -554,7 +554,7 @@ contract MarketLens {
     function getAllMarketsDataV2ForHooksTemplate(address hooksFactoryAddress, address hooksTemplate)
         public
         view
-        returns (MarketDataV2[] memory data)
+        returns (MarketDataV2_5[] memory data)
     {
         address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(hooksTemplate);
         return getMarketsDataV2(markets);
@@ -571,7 +571,7 @@ contract MarketLens {
     function getAggregatedAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
         external
         view
-        returns (MarketDataV2[] memory data)
+        returns (MarketDataV2_5[] memory data)
     {
         return getMarketsDataV2(_getAggregatedMarketsForHooksTemplate(hooksTemplate));
     }
