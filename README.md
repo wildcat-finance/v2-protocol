@@ -1,5 +1,7 @@
 # The Wildcat Protocol
 
+[![gitcgr](https://gitcgr.com/badge/wildcat-finance/v2-protocol.svg)](https://gitcgr.com/wildcat-finance/v2-protocol)
+
 Here's the code. Enjoy it.
 
 For other bits and pieces:
