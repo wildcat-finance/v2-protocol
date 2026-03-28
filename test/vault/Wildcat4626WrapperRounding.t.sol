@@ -304,6 +304,94 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     market.approve(address(wrapper), type(uint256).max);
   }
 
+  /// @notice Regression: tiny scale offset should keep maxWithdraw exact and tight.
+  function test_regression_maxWithdraw_tinyScaleOffset() external {
+    uint256 depositAssets = 1e12;
+    uint256 scaleOffset = 13652;
+    market.setScaleFactor(RAY + scaleOffset);
+
+    vm.prank(ALICE);
+    wrapper.deposit(depositAssets, ALICE);
+
+    uint256 maxWithdraw = wrapper.maxWithdraw(ALICE);
+    vm.prank(ALICE);
+    wrapper.withdraw(maxWithdraw, ALICE, ALICE);
+
+    vm.prank(ALICE);
+    vm.expectRevert();
+    wrapper.withdraw(maxWithdraw + 1, ALICE, ALICE);
+  }
+
+  /// @notice Regression: deposit/redeem round-trip near lower asset bounds with non-zero offset.
+  function test_regression_depositRedeem_smallAssets_offset() external {
+    uint256 assets = 1e12;
+    uint256 scaleOffset = 117300739;
+    market.setScaleFactor(RAY + scaleOffset);
+
+    uint256 aliceBalanceBefore = market.balanceOf(ALICE);
+
+    vm.startPrank(ALICE);
+    uint256 shares = wrapper.deposit(assets, ALICE);
+    uint256 assetsBack = wrapper.redeem(shares, ALICE, ALICE);
+    vm.stopPrank();
+
+    assertGt(shares, 0, 'shares should be minted');
+    assertGt(assetsBack, 0, 'assets should be returned');
+    assertLe(aliceBalanceBefore - market.balanceOf(ALICE), 2, 'round-trip loss should remain minimal');
+  }
+
+  /// @notice Regression: mint/withdraw round-trip with tiny offset should remain stable.
+  function test_regression_mintWithdraw_tinyScaleOffset() external {
+    uint256 shares = 1e12;
+    uint256 scaleOffset = 707;
+    market.setScaleFactor(RAY + scaleOffset);
+
+    vm.startPrank(ALICE);
+    wrapper.mint(shares, ALICE);
+    uint256 maxWithdraw = wrapper.maxWithdraw(ALICE);
+    uint256 sharesBurned = wrapper.withdraw(maxWithdraw, ALICE, ALICE);
+    vm.stopPrank();
+
+    assertLe(
+      shares > sharesBurned ? shares - sharesBurned : sharesBurned - shares,
+      1,
+      'round-trip shares variance should be at most 1 wei'
+    );
+  }
+
+  /// @notice Regression: high scale factor sweep should preserve exact stranded scaled accounting.
+  function test_regression_sweepMarketAsset_highScaleOffset() external {
+    uint256 depositAssets = 1e12;
+    uint256 donationAssets = 1000e18 - depositAssets;
+    uint256 scaleOffset = 10 * RAY;
+
+    vm.startPrank(ALICE);
+    uint256 depositedShares = wrapper.deposit(depositAssets, ALICE);
+    market.transfer(address(wrapper), donationAssets);
+    vm.stopPrank();
+
+    market.setScaleFactor(RAY + scaleOffset);
+
+    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
+    uint256 expectedScaled = wrapper.totalSupply();
+    uint256 strandedScaled = scaledBefore - expectedScaled;
+    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
+
+    vm.prank(BORROWER);
+    uint256 swept = wrapper.sweep(address(market), BORROWER);
+
+    assertEq(swept, expectedSweepAssets, 'sweep assets mismatch');
+    assertEq(market.scaledBalanceOf(address(wrapper)), expectedScaled, 'scaled backing should match');
+
+    vm.prank(ALICE);
+    uint256 redeemedAssets = wrapper.redeem(depositedShares, ALICE, ALICE);
+    assertEq(
+      redeemedAssets,
+      depositedShares.rayMul(market.scaleFactor()),
+      'redeem value should remain fully share-backed'
+    );
+  }
+
   /// @notice Fuzz: deposit() should never revert with SharesMismatch for valid inputs
   function testFuzz_deposit_neverSharesMismatch(
     uint256 assets,
@@ -425,6 +513,56 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
       'balance must decrease by redeemed shares'
     );
     assertGt(assetsReceived, 0, 'must receive assets');
+  }
+
+  /// @notice Fuzz: sweeping market asset only removes stranded balance and preserves share backing
+  function testFuzz_sweepMarketAsset_onlyStrandedBalance(
+    uint256 depositAssets,
+    uint256 donationAssets,
+    uint256 scaleOffset
+  ) external {
+    depositAssets = bound(depositAssets, 1e12, 500e18);
+    uint256 donationMax = 1000e18 - depositAssets;
+    donationAssets = bound(donationAssets, 1e9, donationMax);
+    scaleOffset = bound(scaleOffset, 0, 10 * RAY);
+
+    vm.startPrank(ALICE);
+    uint256 depositedShares = wrapper.deposit(depositAssets, ALICE);
+    market.transfer(address(wrapper), donationAssets);
+    vm.stopPrank();
+
+    market.setScaleFactor(RAY + scaleOffset);
+
+    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
+    uint256 expectedScaled = wrapper.totalSupply();
+    assertGt(scaledBefore, expectedScaled, 'must have stranded balance');
+
+    uint256 strandedScaled = scaledBefore - expectedScaled;
+    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
+    uint256 borrowerBalanceBefore = market.balanceOf(BORROWER);
+
+    vm.prank(BORROWER);
+    uint256 swept = wrapper.sweep(address(market), BORROWER);
+
+    assertEq(swept, expectedSweepAssets, 'sweep assets mismatch');
+    assertEq(
+      market.balanceOf(BORROWER),
+      borrowerBalanceBefore + expectedSweepAssets,
+      'borrower should receive swept assets'
+    );
+    assertEq(
+      market.scaledBalanceOf(address(wrapper)),
+      expectedScaled,
+      'scaled backing should match wrapper totalSupply'
+    );
+
+    vm.prank(ALICE);
+    uint256 redeemedAssets = wrapper.redeem(depositedShares, ALICE, ALICE);
+    assertEq(
+      redeemedAssets,
+      depositedShares.rayMul(market.scaleFactor()),
+      'redeem value should remain fully share-backed'
+    );
   }
 
   /// @notice Fuzz: Full round-trip deposit→redeem should work at any scale factor

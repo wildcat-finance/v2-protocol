@@ -35,7 +35,6 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   error CapExceeded();
   error SharesMismatch(uint256 expected, uint256 actual);
   error NotMarketOwner();
-  error CannotSweepMarketAsset();
   error SanctionedAccount(address account);
 
   IWildcatMarketToken public immutable wrappedMarket;
@@ -339,19 +338,35 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
   }
 
-  /// @notice sweep arbitrary erc20 balances (excluding the wrapped market's debt token)
-  /// @dev only the underlying market's borrower may call this. util for any case where
-  ///      non-market tokens somehow accrue to the wrapper
+  /// @notice Sweep arbitrary ERC20 balances and any stranded wrapped market tokens.
+  /// @dev For wrapped market sweeps, only the surplus over total supply is sweepable.
   function sweep(address token, address to) external nonReentrant returns (uint256 amount) {
     if (msg.sender != marketOwner) revert NotMarketOwner();
     if (token == address(0) || to == address(0)) revert ZeroAddress();
-    if (token == address(wrappedMarket)) revert CannotSweepMarketAsset();
     _checkNotSanctioned(to);
 
-    amount = LibERC20.balanceOf(token, address(this));
-    if (amount == 0) revert ZeroAssets();
+    if (token == address(wrappedMarket)) {
+      uint256 scaledBefore = wrappedMarket.scaledBalanceOf(address(this));
+      uint256 expectedScaled = totalSupply();
+      if (scaledBefore <= expectedScaled) revert ZeroAssets();
 
-    token.safeTransfer(to, amount);
+      uint256 strandedScaled = scaledBefore - expectedScaled;
+      uint256 scaleFactor = wrappedMarket.scaleFactor();
+      amount = _convertToAssetsHalfUp(strandedScaled, scaleFactor);
+      if (amount == 0) revert ZeroAssets();
+
+      token.safeTransfer(to, amount);
+
+      uint256 scaledAfter = wrappedMarket.scaledBalanceOf(address(this));
+      uint256 sweptScaled = scaledBefore - scaledAfter;
+      if (sweptScaled != strandedScaled) revert SharesMismatch(strandedScaled, sweptScaled);
+    } else {
+      amount = LibERC20.balanceOf(token, address(this));
+      if (amount == 0) revert ZeroAssets();
+
+      token.safeTransfer(to, amount);
+    }
+
     emit TokensSwept(token, to, amount);
   }
 
