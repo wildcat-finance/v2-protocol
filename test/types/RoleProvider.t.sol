@@ -131,6 +131,7 @@ contract RoleProviderTest is Test, Assertions {
       provider1.eq(provider2),
       input1.providerAddress == input2.providerAddress &&
         input1.pullProviderIndex == input2.pullProviderIndex &&
+        input1.pushProviderIndex == input2.pushProviderIndex &&
         input1.timeToLive == input2.timeToLive
     );
   }

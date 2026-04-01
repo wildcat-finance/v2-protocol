@@ -198,8 +198,8 @@ description: It's dangerous to go alone - learn these.
 
 #### **Vault**
 
-* See [market](Terminology.md#market).
-* If you see this term anywhere, it's a mistake that we should have cleared up!
+* In core Wildcat docs, this has historically been loose shorthand for a [market](Terminology.md#market), and should usually be read that way unless the context explicitly says otherwise.
+* Exception: the ERC-4626 wrapper introduced in [`docs/EIP-4626.md`](./EIP-4626.md) is an actual vault, so "vault" is intentional in that context.
 
 #### **Withdrawal Cycle**
 
@@ -222,5 +222,4 @@ description: It's dangerous to go alone - learn these.
 * An instruction to a [market](Terminology.md#market) to transfer reserves within a market to the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool), to be [claimed](Terminology.md#claim) at the end of a [withdrawal cycle](Terminology.md#withdrawal-cycle).
 * A withdrawal request made of a market with non-zero reserves will burn as many [market tokens](Terminology.md#market-token) as possible 1:1 to fully honour the request.
 * Any amount requested - whether or not it is in excess of the market reserves - is marked as a [pending withdrawal](Terminology.md#pending-withdrawal), either to be fully honoured at the end of the cycle, or marked as [expired](Terminology.md#expired-withdrawal) and added to the [withdrawal queue](Terminology.md#withdrawal-queue), depending on the actions of the [borrower](Terminology.md#borrower) during the cycle.
-
 

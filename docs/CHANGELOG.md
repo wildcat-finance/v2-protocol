@@ -1,5 +1,11 @@
 # V2 Changelog
 
+### ERC-4626 wrapper
+
+- Added `Wildcat4626Wrapper`, a non-rebasing ERC-4626 share token for Wildcat market debt tokens that tracks the market's scaled accounting.
+- Added `Wildcat4626WrapperFactory`, which permissionlessly deploys at most one wrapper per registered market.
+- Wrapper behavior is documented in [`docs/EIP-4626.md`](./EIP-4626.md), including scaling-based conversions, sanctions checks, per-wrapper capacity limits, and handling of direct market-token donations.
+
 ### Lens
 
 Removed the lens contracts from the core protocol repository.
@@ -62,4 +68,3 @@ Replaced most of the remaining ABI decoders/encoders for calls and large structs
 ### Market Control
 
 Market controllers have been removed in favor of borrower-controlled markets with hooks that can impose their own restrictions. By default, the market itself does not restrict basic access to the market.
-
