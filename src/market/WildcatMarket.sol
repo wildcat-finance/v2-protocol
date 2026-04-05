@@ -162,7 +162,7 @@ contract WildcatMarket is
 
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
-    emit_Borrow(amount);
+    emit_Borrow(msg.sender, amount);
   }
 
   function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal {
