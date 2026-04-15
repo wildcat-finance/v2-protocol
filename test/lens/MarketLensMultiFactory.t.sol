@@ -6,7 +6,10 @@ import "src/HooksFactoryRevolving.sol";
 import "src/IHooksFactoryRevolving.sol";
 import "src/interfaces/IWildcatMarketRevolving.sol";
 import "src/libraries/LibStoredInitCode.sol";
+import "src/lens/MarketLensAggregator.sol";
 import "src/lens/MarketLens.sol";
+import "src/lens/MarketLensCore.sol";
+import "src/lens/interfaces/IMarketLensAggregator.sol";
 import "src/market/WildcatMarketRevolving.sol";
 
 contract MockNonHooksController {}
@@ -31,6 +34,8 @@ contract MockRevertingHooksFactory {
 
 contract MarketLensMultiFactoryTest is BaseMarketTest {
     MarketLens internal lens;
+    MarketLensCore internal lensCore;
+    MarketLensAggregator internal lensAggregator;
     IHooksFactoryRevolving internal hooksFactoryRevolving;
     WildcatMarketRevolving internal revolvingMarket;
     address internal revolvingHooksInstance;
@@ -47,7 +52,10 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     function setUp() public override {
         super.setUp();
 
-        lens = new MarketLens(address(archController), address(hooksFactory));
+        lensCore = new MarketLensCore(address(archController), address(hooksFactory));
+        lensAggregator = new MarketLensAggregator(address(archController), address(hooksFactory));
+        lens =
+            new MarketLens(address(archController), address(hooksFactory), address(lensCore), address(lensAggregator));
 
         (address marketTemplate, uint256 marketInitCodeHash) = _storeRevolvingMarketInitCode();
         hooksFactoryRevolving = new HooksFactoryRevolving(
@@ -231,6 +239,104 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
         assertEq(hooksData.hooksTemplates.length, 2, "aggregated hooksData templates length");
     }
 
+    function test_aggregationHelper_parityForBorrowerAndTemplateReads() external view {
+        address[] memory activeFactories = lensAggregator.getActiveHooksFactories();
+        assertEq(activeFactories.length, 2, "active factories length");
+        assertEq(activeFactories[0], address(hooksFactory), "first active factory");
+        assertEq(activeFactories[1], address(hooksFactoryRevolving), "second active factory");
+
+        HooksInstanceData[] memory facadeInstances = lens.getAggregatedHooksInstancesForBorrower(borrower);
+        HooksInstanceData[] memory helperInstances = lensAggregator.getAggregatedHooksInstancesForBorrower(borrower);
+        assertEq(keccak256(abi.encode(helperInstances)), keccak256(abi.encode(facadeInstances)), "instances parity");
+
+        HooksTemplateData[] memory facadeTemplates = lens.getAggregatedAllHooksTemplatesForBorrower(borrower);
+        HooksTemplateData[] memory helperTemplates = lensAggregator.getAggregatedAllHooksTemplatesForBorrower(borrower);
+        assertEq(keccak256(abi.encode(helperTemplates)), keccak256(abi.encode(facadeTemplates)), "templates parity");
+
+        HooksDataForBorrower memory facadeHooksData = lens.getAggregatedHooksDataForBorrower(borrower);
+        HooksDataForBorrower memory helperHooksData = lensAggregator.getAggregatedHooksDataForBorrower(borrower);
+        assertEq(keccak256(abi.encode(helperHooksData)), keccak256(abi.encode(facadeHooksData)), "hooks data parity");
+
+        FactoryScopedHooksTemplateData[] memory facadeFactoryScoped =
+            lens.getAggregatedHooksTemplatesForBorrowerWithFactory(borrower);
+        FactoryScopedHooksTemplateData[] memory helperFactoryScoped =
+            lensAggregator.getAggregatedHooksTemplatesForBorrowerWithFactory(borrower);
+        assertEq(
+            keccak256(abi.encode(helperFactoryScoped)),
+            keccak256(abi.encode(facadeFactoryScoped)),
+            "factory-scoped parity"
+        );
+    }
+
+    function test_aggregationFacadeDelegation_forBorrowerAndTemplateReads() external {
+        vm.expectCall(
+            address(lensAggregator),
+            abi.encodeWithSelector(IMarketLensAggregator.getAggregatedHooksDataForBorrower.selector, borrower)
+        );
+        lens.getAggregatedHooksDataForBorrower(borrower);
+
+        vm.expectCall(
+            address(lensAggregator),
+            abi.encodeWithSelector(IMarketLensAggregator.getAggregatedHooksInstancesForBorrower.selector, borrower)
+        );
+        lens.getAggregatedHooksInstancesForBorrower(borrower);
+
+        vm.expectCall(
+            address(lensAggregator),
+            abi.encodeWithSelector(IMarketLensAggregator.getAggregatedAllHooksTemplatesForBorrower.selector, borrower)
+        );
+        lens.getAggregatedAllHooksTemplatesForBorrower(borrower);
+
+        vm.expectCall(
+            address(lensAggregator),
+            abi.encodeWithSelector(
+                IMarketLensAggregator.getAggregatedHooksTemplatesForBorrowerWithFactory.selector, borrower
+            )
+        );
+        lens.getAggregatedHooksTemplatesForBorrowerWithFactory(borrower);
+    }
+
+    function test_aggregationHelper_parityForAggregatedMarketReads() external view {
+        uint256 facadeCount = lens.getAggregatedMarketsForHooksTemplateCount(hooksTemplate);
+        uint256 helperCount = lensAggregator.getAggregatedMarketsForHooksTemplateCount(hooksTemplate);
+        assertEq(helperCount, facadeCount, "aggregated market count parity");
+
+        MarketData[] memory facadeMarkets = lens.getAggregatedAllMarketsDataForHooksTemplate(hooksTemplate);
+        MarketData[] memory helperMarkets = lensAggregator.getAggregatedAllMarketsDataForHooksTemplate(hooksTemplate);
+        assertEq(keccak256(abi.encode(helperMarkets)), keccak256(abi.encode(facadeMarkets)), "markets parity");
+
+        MarketDataV2_5[] memory facadeMarketsV2 = lens.getAggregatedAllMarketsDataV2ForHooksTemplate(hooksTemplate);
+        MarketDataV2_5[] memory helperMarketsV2 =
+            lensAggregator.getAggregatedAllMarketsDataV2ForHooksTemplate(hooksTemplate);
+        assertEq(keccak256(abi.encode(helperMarketsV2)), keccak256(abi.encode(facadeMarketsV2)), "markets v2 parity");
+    }
+
+    function test_aggregationFacadeDelegation_forAggregatedMarketReads() external {
+        vm.expectCall(
+            address(lensAggregator),
+            abi.encodeWithSelector(
+                IMarketLensAggregator.getAggregatedMarketsForHooksTemplateCount.selector, hooksTemplate
+            )
+        );
+        lens.getAggregatedMarketsForHooksTemplateCount(hooksTemplate);
+
+        vm.expectCall(
+            address(lensAggregator),
+            abi.encodeWithSelector(
+                IMarketLensAggregator.getAggregatedAllMarketsDataForHooksTemplate.selector, hooksTemplate
+            )
+        );
+        lens.getAggregatedAllMarketsDataForHooksTemplate(hooksTemplate);
+
+        vm.expectCall(
+            address(lensAggregator),
+            abi.encodeWithSelector(
+                IMarketLensAggregator.getAggregatedAllMarketsDataV2ForHooksTemplate.selector, hooksTemplate
+            )
+        );
+        lens.getAggregatedAllMarketsDataV2ForHooksTemplate(hooksTemplate);
+    }
+
     function test_aggregatedFactoryScopedTemplates_preservePerFactoryData() external view {
         uint16 legacyProtocolFeeBipsExpected = hooksFactory.getHooksTemplateDetails(hooksTemplate).protocolFeeBips;
         uint16 revolvingProtocolFeeBipsExpected =
@@ -330,7 +436,8 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_factoryParameterizedV2Reads() external view {
-        MarketDataV2_5[] memory legacyV2 = lens.getAllMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate);
+        MarketDataV2_5[] memory legacyV2 =
+            lens.getAllMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate);
         assertEq(legacyV2.length, 1, "legacy length");
         assertEq(legacyV2[0].market.hooksFactory, address(hooksFactory), "legacy factory");
         assertEq(legacyV2[0].commitmentFeeBips.isPresent, false, "legacy commitment presence");
