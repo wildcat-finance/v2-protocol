@@ -12,7 +12,7 @@ import 'src/market/WildcatMarket.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/access/OpenTermHooks.sol';
 import 'src/HooksFactory.sol';
-import './LibDeployment.sol';
+import './common/LibDeployment.sol';
 
 interface IMockERC20Factory {
   function deployMockERC20(string memory name, string memory symbol) external returns (address);

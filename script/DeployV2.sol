@@ -9,7 +9,7 @@ import 'src/market/WildcatMarket.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/access/OpenTermHooks.sol';
 import 'src/HooksFactory.sol';
-import './LibDeployment.sol';
+import './common/LibDeployment.sol';
 import './DeployTypes.sol';
 import './mock/MockERC20Factory.sol';
 import './mock/MockArchControllerOwner.sol';
