@@ -9,7 +9,7 @@ import 'src/market/WildcatMarket.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/access/OpenTermHooks.sol';
 import 'src/HooksFactory.sol';
-import './common/LibDeployment.sol';
+import '../common/LibDeployment.sol';
 
 using LibString for address;
 using LibString for string;

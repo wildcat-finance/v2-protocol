@@ -6,7 +6,7 @@ import {console} from "forge-std/console.sol";
 import {IWildcatArchController} from "src/interfaces/IWildcatArchController.sol";
 import {IHooksFactoryRevolving} from "src/IHooksFactoryRevolving.sol";
 
-import "./common/DeployScriptBase.sol";
+import "../common/DeployScriptBase.sol";
 
 contract DeployHooksFactoryRevolving is DeployScriptBase {
     function run() external {

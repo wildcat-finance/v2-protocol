@@ -3,7 +3,7 @@ pragma solidity >=0.8.20;
 
 import {console} from "forge-std/console.sol";
 
-import "./common/DeployScriptBase.sol";
+import "../common/DeployScriptBase.sol";
 
 contract DeployMarketLens is DeployScriptBase {
     struct LensDeploymentResult {
