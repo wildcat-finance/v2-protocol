@@ -15,12 +15,12 @@ contract DeployMarketLens is DeployScriptBase {
         bool didDeployMarketLens;
     }
 
-    function _deploymentLabel(string memory baseLabel, string memory deploymentTag)
+    function _deploymentLabel(string memory baseLabel, string memory deploymentLabelSuffix)
         internal
         pure
         returns (string memory)
     {
-        return string.concat(baseLabel, "_", deploymentTag);
+        return string.concat(baseLabel, "_", deploymentLabelSuffix);
     }
 
     function _getOrDeployByLabel(
@@ -76,7 +76,7 @@ contract DeployMarketLens is DeployScriptBase {
 
     function _deployMarketLensFacade(
         Deployments memory deployments,
-        string memory deploymentTag,
+        string memory deploymentLabelSuffix,
         address archController,
         address defaultHooksFactory,
         address marketLensCore,
@@ -84,7 +84,7 @@ contract DeployMarketLens is DeployScriptBase {
         bool overrideExisting
     ) internal returns (address marketLens, bool didDeployMarketLens) {
         string memory contractName = "src/lens/MarketLens.sol:MarketLens";
-        string memory deploymentLabel = _deploymentLabel("MarketLens", deploymentTag);
+        string memory deploymentLabel = _deploymentLabel("MarketLens", deploymentLabelSuffix);
         bytes memory creationCode = _getCreationCode(deployments, contractName);
         bytes memory constructorArgs =
             abi.encode(archController, defaultHooksFactory, marketLensCore, marketLensAggregator);
@@ -96,14 +96,14 @@ contract DeployMarketLens is DeployScriptBase {
 
     function _deployLensHelper(
         Deployments memory deployments,
-        string memory deploymentTag,
+        string memory deploymentLabelSuffix,
         string memory baseLabel,
         string memory contractName,
         address archController,
         address defaultHooksFactory,
         bool overrideExisting
     ) internal returns (address helperAddress, bool didDeployHelper) {
-        string memory deploymentLabel = _deploymentLabel(baseLabel, deploymentTag);
+        string memory deploymentLabel = _deploymentLabel(baseLabel, deploymentLabelSuffix);
         bytes memory creationCode = _getCreationCode(deployments, contractName);
         bytes memory constructorArgs = abi.encode(archController, defaultHooksFactory);
 
@@ -114,14 +114,14 @@ contract DeployMarketLens is DeployScriptBase {
 
     function _deployLensSet(
         Deployments memory deployments,
-        string memory deploymentTag,
+        string memory deploymentLabelSuffix,
         address archController,
         address defaultHooksFactory,
         bool overrideExisting
     ) internal returns (LensDeploymentResult memory result) {
         (result.marketLensCore, result.didDeployMarketLensCore) = _deployLensHelper(
             deployments,
-            deploymentTag,
+            deploymentLabelSuffix,
             "MarketLensCore",
             "src/lens/MarketLensCore.sol:MarketLensCore",
             archController,
@@ -131,7 +131,7 @@ contract DeployMarketLens is DeployScriptBase {
 
         (result.marketLensAggregator, result.didDeployMarketLensAggregator) = _deployLensHelper(
             deployments,
-            deploymentTag,
+            deploymentLabelSuffix,
             "MarketLensAggregator",
             "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
             archController,
@@ -141,7 +141,7 @@ contract DeployMarketLens is DeployScriptBase {
 
         (result.marketLens, result.didDeployMarketLens) = _deployMarketLensFacade(
             deployments,
-            deploymentTag,
+            deploymentLabelSuffix,
             archController,
             defaultHooksFactory,
             result.marketLensCore,
@@ -153,16 +153,19 @@ contract DeployMarketLens is DeployScriptBase {
     function run() external {
         (Deployments memory deployments, string memory networkName) = _resolveDeployments();
         bool overrideExisting = vm.envOr("OVERRIDE_EXISTING", false);
-        string memory deploymentTag = vm.envOr("MARKET_LENS_DEPLOYMENT_TAG", string(""));
-        if (bytes(deploymentTag).length == 0) {
-            revert("Missing MARKET_LENS_DEPLOYMENT_TAG");
+        string memory deploymentLabelSuffix = vm.envOr("MARKET_LENS_DEPLOYMENT_LABEL", string(""));
+        if (bytes(deploymentLabelSuffix).length == 0) {
+            deploymentLabelSuffix = vm.envOr("MARKET_LENS_DEPLOYMENT_TAG", string(""));
+        }
+        if (bytes(deploymentLabelSuffix).length == 0) {
+            revert("Missing MARKET_LENS_DEPLOYMENT_LABEL");
         }
 
         address archController = _resolveAddress(deployments, "ARCH_CONTROLLER", "WildcatArchController");
         address defaultHooksFactory = _resolveAddress(deployments, "DEFAULT_HOOKS_FACTORY", "HooksFactory");
 
         LensDeploymentResult memory result =
-            _deployLensSet(deployments, deploymentTag, archController, defaultHooksFactory, overrideExisting);
+            _deployLensSet(deployments, deploymentLabelSuffix, archController, defaultHooksFactory, overrideExisting);
 
         bool didDeployLensSet =
             result.didDeployMarketLensCore || result.didDeployMarketLensAggregator || result.didDeployMarketLens;
@@ -174,8 +177,8 @@ contract DeployMarketLens is DeployScriptBase {
 
         console.log("Deployment complete for network:");
         console.log(networkName);
-        console.log("MarketLens deployment tag:");
-        console.log(deploymentTag);
+        console.log("MarketLens deployment label:");
+        console.log(deploymentLabelSuffix);
         console.log("MarketLens:");
         console.log(result.marketLens);
         console.log("MarketLensCore:");
