@@ -502,18 +502,34 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
         hooksFactoryRevolving.addHooksTemplate(hooksTemplate, "revolving-template-1", nullAddress, nullAddress, 0, 0);
         hooksFactoryRevolving.addHooksTemplate(hooksTemplate2, "revolving-template-2", nullAddress, nullAddress, 0, 0);
 
-        address[] memory slice0 = hooksFactoryRevolving.getHooksTemplates(0, 1);
-        assertEq(slice0.length, 1);
-        assertEq(slice0[0], hooksTemplate);
-
-        address[] memory slice1 = hooksFactoryRevolving.getHooksTemplates(1, 2);
-        assertEq(slice1.length, 1);
-        assertEq(slice1[0], hooksTemplate2);
-
-        address[] memory clamped = hooksFactoryRevolving.getHooksTemplates(0, 10);
-        assertEq(clamped.length, 2);
-        assertEq(clamped[0], hooksTemplate);
-        assertEq(clamped[1], hooksTemplate2);
+        {
+            address[] memory slice0 = hooksFactoryRevolving.getHooksTemplates(0, 1);
+            assertEq(slice0.length, 1);
+            assertEq(slice0[0], hooksTemplate);
+        }
+        {
+            address[] memory slice1 = hooksFactoryRevolving.getHooksTemplates(1, 2);
+            assertEq(slice1.length, 1);
+            assertEq(slice1[0], hooksTemplate2);
+        }
+        {
+            address[] memory clamped = hooksFactoryRevolving.getHooksTemplates(0, 10);
+            assertEq(clamped.length, 2);
+            assertEq(clamped[0], hooksTemplate);
+            assertEq(clamped[1], hooksTemplate2);
+        }
+        {
+            address[] memory emptyAtEnd = hooksFactoryRevolving.getHooksTemplates(2, 2);
+            assertEq(emptyAtEnd.length, 0);
+        }
+        {
+            address[] memory emptyInverted = hooksFactoryRevolving.getHooksTemplates(2, 1);
+            assertEq(emptyInverted.length, 0);
+        }
+        {
+            address[] memory emptyPastEnd = hooksFactoryRevolving.getHooksTemplates(3, 10);
+            assertEq(emptyPastEnd.length, 0);
+        }
     }
 
     function test_getMarketsForHooksTemplateAndInstance_Pagination() external {
@@ -529,31 +545,62 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
             parameters, bytes(""), _defaultMarketData(), bytes32(uint256(2)), nullAddress, 0
         );
 
-        address[] memory templateSlice0 = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 0, 1);
-        assertEq(templateSlice0.length, 1);
-        assertEq(templateSlice0[0], market0);
-
-        address[] memory templateSlice1 = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 1, 2);
-        assertEq(templateSlice1.length, 1);
-        assertEq(templateSlice1[0], market1);
-
-        address[] memory templateClamped = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 0, 10);
-        assertEq(templateClamped.length, 2);
-        assertEq(templateClamped[0], market0);
-        assertEq(templateClamped[1], market1);
-
-        address[] memory instanceSlice0 = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 0, 1);
-        assertEq(instanceSlice0.length, 1);
-        assertEq(instanceSlice0[0], market0);
-
-        address[] memory instanceSlice1 = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 1, 2);
-        assertEq(instanceSlice1.length, 1);
-        assertEq(instanceSlice1[0], market1);
-
-        address[] memory instanceClamped = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 0, 10);
-        assertEq(instanceClamped.length, 2);
-        assertEq(instanceClamped[0], market0);
-        assertEq(instanceClamped[1], market1);
+        {
+            address[] memory templateSlice0 = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 0, 1);
+            assertEq(templateSlice0.length, 1);
+            assertEq(templateSlice0[0], market0);
+        }
+        {
+            address[] memory templateSlice1 = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 1, 2);
+            assertEq(templateSlice1.length, 1);
+            assertEq(templateSlice1[0], market1);
+        }
+        {
+            address[] memory templateClamped = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 0, 10);
+            assertEq(templateClamped.length, 2);
+            assertEq(templateClamped[0], market0);
+            assertEq(templateClamped[1], market1);
+        }
+        {
+            address[] memory templateEmptyAtEnd = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 2, 2);
+            assertEq(templateEmptyAtEnd.length, 0);
+        }
+        {
+            address[] memory templateEmptyInverted = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 2, 1);
+            assertEq(templateEmptyInverted.length, 0);
+        }
+        {
+            address[] memory templateEmptyPastEnd = hooksFactoryRevolving.getMarketsForHooksTemplate(hooksTemplate, 3, 10);
+            assertEq(templateEmptyPastEnd.length, 0);
+        }
+        {
+            address[] memory instanceSlice0 = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 0, 1);
+            assertEq(instanceSlice0.length, 1);
+            assertEq(instanceSlice0[0], market0);
+        }
+        {
+            address[] memory instanceSlice1 = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 1, 2);
+            assertEq(instanceSlice1.length, 1);
+            assertEq(instanceSlice1[0], market1);
+        }
+        {
+            address[] memory instanceClamped = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 0, 10);
+            assertEq(instanceClamped.length, 2);
+            assertEq(instanceClamped[0], market0);
+            assertEq(instanceClamped[1], market1);
+        }
+        {
+            address[] memory instanceEmptyAtEnd = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 2, 2);
+            assertEq(instanceEmptyAtEnd.length, 0);
+        }
+        {
+            address[] memory instanceEmptyInverted = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 2, 1);
+            assertEq(instanceEmptyInverted.length, 0);
+        }
+        {
+            address[] memory instanceEmptyPastEnd = hooksFactoryRevolving.getMarketsForHooksInstance(hooksInstance, 3, 10);
+            assertEq(instanceEmptyPastEnd.length, 0);
+        }
     }
 
     function test_computeMarketAddress_MatchesDeployedAddress() external {

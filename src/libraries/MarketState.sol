@@ -106,7 +106,7 @@ library MarketStateLib {
     MarketState memory state,
     uint256 totalAssets
   ) internal pure returns (uint128) {
-    uint256 totalAvailableAssets = totalAssets - state.normalizedUnclaimedWithdrawals;
+    uint256 totalAvailableAssets = totalAssets.satSub(state.normalizedUnclaimedWithdrawals);
     return uint128(MathUtils.min(totalAvailableAssets, state.accruedProtocolFees));
   }
 

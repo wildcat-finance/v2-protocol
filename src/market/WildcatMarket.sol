@@ -175,7 +175,7 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, baseCalldataSize);
-    _onRepay(amount);
+    _onRepay(state, amount);
   }
 
   /**
@@ -198,7 +198,7 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
-    _onRepay(amount);
+    _onRepay(state, amount);
 
     _writeState(state);
   }
@@ -239,8 +239,9 @@ contract WildcatMarket is
     state.timeDelinquent = 0;
 
     // Still track available liquidity in case of a rounding error
-    uint256 availableLiquidity = currentlyHeld -
-      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+    uint256 availableLiquidity = currentlyHeld.satSub(
+      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
+    );
 
     // If there is a pending withdrawal batch which is not fully paid off, set aside
     // up to the available liquidity for that batch.

@@ -276,7 +276,7 @@ contract WildcatMarketTest is BaseMarketTest {
       _getWithdrawalBatch(state.pendingWithdrawalExpiry),
       state,
       state.pendingWithdrawalExpiry,
-      lastTotalAssets - (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees),
+      lastTotalAssets.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees),
       true
     );
     _trackProcessUnpaidWithdrawalBatch(state);

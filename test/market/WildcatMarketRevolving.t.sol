@@ -90,6 +90,10 @@ contract WildcatMarketRevolvingTest is Test {
         market.depositUpTo(amount);
     }
 
+    function _accruedDebtAboveDrawn() internal view returns (uint256) {
+        return market.totalDebts() - market.totalAssets() - revolvingMarket.drawnAmount();
+    }
+
     function test_commitmentFeeBips_initializesFromMarketData() external view {
         assertEq(revolvingMarket.commitmentFeeBips(), commitmentFeeBips);
         assertEq(revolvingMarket.drawnAmount(), 0);
@@ -112,12 +116,53 @@ contract WildcatMarketRevolvingTest is Test {
         assertEq(revolvingMarket.drawnAmount(), 0);
     }
 
+    function test_repay_interestOnlyDoesNotReduceDrawnAmount() external {
+        _deposit(lender, 1_000e18);
+        market.borrow(500e18);
+
+        vm.warp(block.timestamp + 365 days);
+        uint256 drawnBefore = revolvingMarket.drawnAmount();
+        uint256 accruedDebt = _accruedDebtAboveDrawn();
+        assertGt(accruedDebt, 0);
+
+        market.repay(accruedDebt);
+
+        assertEq(revolvingMarket.drawnAmount(), drawnBefore);
+    }
+
+    function test_repay_reducesDrawnAmountOnlyAfterAccruedDebt() external {
+        _deposit(lender, 1_000e18);
+        market.borrow(500e18);
+
+        vm.warp(block.timestamp + 365 days);
+        uint256 accruedDebt = _accruedDebtAboveDrawn();
+        uint256 principalRepayment = 123e18;
+
+        market.repay(accruedDebt + principalRepayment);
+
+        assertEq(revolvingMarket.drawnAmount(), 500e18 - principalRepayment);
+    }
+
     function test_repayAndProcessUnpaidWithdrawalBatches_updatesDrawnAmount() external {
         _deposit(lender, 1_000e18);
         market.borrow(400e18);
 
         market.repayAndProcessUnpaidWithdrawalBatches(100e18, 0);
         assertEq(revolvingMarket.drawnAmount(), 300e18);
+    }
+
+    function test_repayAndProcessUnpaidWithdrawalBatches_interestOnlyDoesNotReduceDrawnAmount() external {
+        _deposit(lender, 1_000e18);
+        market.borrow(500e18);
+
+        vm.warp(block.timestamp + 365 days);
+        uint256 drawnBefore = revolvingMarket.drawnAmount();
+        uint256 accruedDebt = _accruedDebtAboveDrawn();
+        assertGt(accruedDebt, 0);
+
+        market.repayAndProcessUnpaidWithdrawalBatches(accruedDebt, 0);
+
+        assertEq(revolvingMarket.drawnAmount(), drawnBefore);
     }
 
     function test_closeMarket_resetsDrawnAmount() external {

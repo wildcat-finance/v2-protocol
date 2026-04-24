@@ -408,7 +408,8 @@ contract WildcatMarketBase is
     amount;
   }
 
-  function _onRepay(uint256 amount) internal virtual {
+  function _onRepay(MarketState memory state, uint256 amount) internal virtual {
+    state;
     amount;
   }
 

@@ -32,8 +32,10 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _drawnAmount = (_drawnAmount + amount).toUint128();
   }
 
-  function _onRepay(uint256 amount) internal virtual override {
-    _drawnAmount = uint256(_drawnAmount).satSub(amount).toUint128();
+  function _onRepay(MarketState memory state, uint256 amount) internal virtual override {
+    amount;
+    uint256 outstandingDebt = state.totalDebts().satSub(totalAssets());
+    _drawnAmount = MathUtils.min(uint256(_drawnAmount), outstandingDebt).toUint128();
   }
 
   function _onCloseMarket() internal virtual override {
