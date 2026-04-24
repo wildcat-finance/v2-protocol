@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-04-24T22:01:19.595Z",
+  "chain": {
+    "id": 11155111,
+    "network": "sepolia",
+    "canonicalName": "sepolia"
+  },
+  "addresses": {
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "hooksFactoryLegacy": "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88",
+    "hooksFactoryRevolving": "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5",
+    "marketLensLatest": "0xc556d6142eC8eB4eEb753b958c84C59385bf6eF4",
+    "wildcatMarketRevolvingInitCodeStorage": "0x6Fb02197A8f8bc839C91B4CA4A0DCdCDF85cCc8d"
+  },
+  "txHashes": {
+    "deployHooksFactoryRevolving": null,
+    "registerControllerFactory": null,
+    "registerWithArchController": "0x96967d686e8e554aab2342579e16d7d37c357068214722348e572cf223f0c47f",
+    "deployMarketLens": "0xf460002e33cd5b5a36cb9226a5c90fa8244801191acf9fc7e10978a554998441"
+  },
+  "routing": {
+    "defaultMarketType": "legacy",
+    "factoryByMarketType": {
+      "legacy": "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88",
+      "revolving": "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5"
+    },
+    "marketTypeByFactory": {
+      "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88": "legacy",
+      "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5": "revolving"
+    },
+    "latestLens": "0xc556d6142eC8eB4eEb753b958c84C59385bf6eF4"
+  },
+  "abiSurface": {
+    "artifacts": {
+      "hooksFactoryLegacy": "src/IHooksFactory.sol:IHooksFactory",
+      "hooksFactoryRevolving": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving",
+      "marketLens": "src/lens/MarketLens.sol:MarketLens",
+      "wildcatMarketRevolving": "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving"
+    },
+    "selectors": {
+      "hooksFactoryRevolving": {
+        "deployMarket": "0xcad2a887",
+        "deployMarketAndHooks": "0xad4c77f5"
+      },
+      "marketLens": {
+        "getMarketDataV2": "0x23af4bca",
+        "getMarketsDataV2": "0x74c3c3e9",
+        "getAllMarketsDataV2ForHooksTemplate": "0xf81c9b5c",
+        "getAggregatedAllMarketsDataV2ForHooksTemplate": "0xd6b73a70"
+      },
+      "wildcatMarketRevolving": {
+        "commitmentFeeBips": "0x7b1fbd32",
+        "drawnAmount": "0x9a14f79d"
+      },
+      "events": {
+        "marketDeployedTopic0": "0x6f8c7c94fc16393d1ebec38de9899ba8c6bd860a025aa60063b7cf4c40a16c09"
+      }
+    },
+    "notes": [
+      "Deployment event surface remains legacy MarketDeployed across both factories in this rollout.",
+      "Revolving-only fields are exposed via WildcatMarketRevolving.commitmentFeeBips()/drawnAmount() and MarketLens V2 endpoints."
+    ]
+  },
+  "sources": {
+    "deploymentsFile": "deployments/sepolia/deployments.json",
+    "hooksBroadcast": "broadcast/DeployHooksFactoryRevolving.sol/11155111/run-latest.json",
+    "lensBroadcast": "broadcast/DeployMarketLens.sol/11155111/run-latest.json",
+    "hooksScriptName": "DeployHooksFactoryRevolving.sol",
+    "lensScriptName": "DeployMarketLens.sol"
+  }
+}
