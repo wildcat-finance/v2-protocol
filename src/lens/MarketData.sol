@@ -155,6 +155,7 @@ library MarketDataLib {
 
     function fillState(MarketData memory data) internal view {
         WildcatMarket market = WildcatMarket(data.marketToken.token);
+        data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
         MarketState memory state = market.currentState();
         data.isClosed = state.isClosed;
         data.protocolFeeBips = state.protocolFeeBips;

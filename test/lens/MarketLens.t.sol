@@ -356,6 +356,32 @@ contract MarketDataTest is BaseMarketTest {
         checkHooksInstance(data.hooks, inputs);
     }
 
+    function test_getMarketData_includesStoredUnpaidWithdrawalBatchExpiries() external {
+        _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+        fastForward(parameters.withdrawalBatchDuration + 1);
+        market.updateState();
+        updateState(pendingState());
+
+        uint32[] memory unpaidBatchExpiries = market.getUnpaidBatchExpiries();
+        assertEq(unpaidBatchExpiries.length, 1, "expected unpaid batch");
+
+        MarketData memory data = lens.getMarketData(address(market));
+        assertEq(data.unpaidWithdrawalBatchExpiries.length, unpaidBatchExpiries.length, "unpaid expiry count");
+        assertEq(data.unpaidWithdrawalBatchExpiries[0], unpaidBatchExpiries[0], "unpaid expiry");
+    }
+
+    function test_getMarketData_includesVirtualExpiredPendingWithdrawalBatch() external {
+        _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+        uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+        fastForward(parameters.withdrawalBatchDuration + 1);
+
+        assertEq(market.getUnpaidBatchExpiries().length, 0, "stored unpaid before update");
+
+        MarketData memory data = lens.getMarketData(address(market));
+        assertEq(data.unpaidWithdrawalBatchExpiries.length, 1, "unpaid expiry count");
+        assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry, "unpaid expiry");
+    }
+
     function test_getMarketsData() external view {
         address[] memory markets = new address[](1);
         markets[0] = address(market);
