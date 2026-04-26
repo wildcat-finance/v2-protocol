@@ -34,6 +34,8 @@ const SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE = {
   revolving: "HooksFactoryRevolving",
 };
 const SDK_NON_CANONICAL_FACTORY_MARKET_TYPES_NAME = "NonCanonicalHooksFactoryMarketTypesByChainId";
+const SDK_NON_CANONICAL_FACTORY_CAPABILITIES_NAME =
+  "NonCanonicalHooksFactoryCapabilitiesByChainId";
 
 function printUsage() {
   console.log(`Usage:
@@ -197,7 +199,7 @@ function parseSdkDeployments(constantsPath, chainId) {
 
 function parseSdkNonCanonicalFactoryMarketTypes(constantsPath, chainId) {
   const source = fs.readFileSync(constantsPath, "utf8");
-  const block = extractSdkOptionalObjectBlock(
+  const legacyBlock = extractSdkOptionalObjectBlock(
     source,
     SDK_NON_CANONICAL_FACTORY_MARKET_TYPES_NAME,
     chainId
@@ -205,9 +207,23 @@ function parseSdkNonCanonicalFactoryMarketTypes(constantsPath, chainId) {
   const factoriesByAddress = new Map();
   const entryRegex = /"([^"]+)":\s*"([^"]+)"/g;
   let match;
-  while ((match = entryRegex.exec(block)) !== null) {
+  while ((match = entryRegex.exec(legacyBlock)) !== null) {
     factoriesByAddress.set(addressKey(match[1]), match[2]);
   }
+
+  const capabilitiesBlock = extractSdkOptionalObjectBlock(
+    source,
+    SDK_NON_CANONICAL_FACTORY_CAPABILITIES_NAME,
+    chainId
+  );
+  const capabilityEntryRegex = /"(0x[a-fA-F0-9]{40})"\s*:\s*\{([\s\S]*?)\n\s*\}/g;
+  while ((match = capabilityEntryRegex.exec(capabilitiesBlock)) !== null) {
+    const marketTypeMatch = /\bmarketType:\s*"([^"]+)"/.exec(match[2]);
+    if (marketTypeMatch) {
+      factoriesByAddress.set(addressKey(match[1]), marketTypeMatch[1]);
+    }
+  }
+
   return factoriesByAddress;
 }
 
