@@ -8,10 +8,13 @@ import "src/libraries/SafeCastLib.sol";
 import "src/libraries/MarketState.sol";
 import "src/libraries/LibERC20.sol";
 import "src/lens/interfaces/IMarketLensCore.sol";
+import "src/lens/interfaces/IMarketLensLive.sol";
 import "solady/utils/LibPRNG.sol";
 import "src/lens/MarketData.sol";
+import "src/lens/MarketLiveData.sol";
 import "src/lens/MarketLensAggregator.sol";
 import "src/lens/MarketLensCore.sol";
+import "src/lens/MarketLensLive.sol";
 import "../helpers/fuzz/MarketConfigFuzzInputs.sol";
 import "src/lens/MarketLens.sol";
 
@@ -32,6 +35,7 @@ contract MarketDataTest is BaseMarketTest {
     MarketLens internal lens;
     MarketLensCore internal lensCore;
     MarketLensAggregator internal lensAggregator;
+    MarketLensLive internal lensLive;
     MockERC20 originationFeeAsset = new MockERC20("Origination Fee Asset", "OFA", 18);
 
     function setUp() public override {
@@ -39,8 +43,14 @@ contract MarketDataTest is BaseMarketTest {
 
         lensCore = new MarketLensCore(address(archController), address(hooksFactory));
         lensAggregator = new MarketLensAggregator(address(archController), address(hooksFactory));
-        lens =
-            new MarketLens(address(archController), address(hooksFactory), address(lensCore), address(lensAggregator));
+        lensLive = new MarketLensLive(address(archController), address(hooksFactory));
+        lens = new MarketLens(
+            address(archController),
+            address(hooksFactory),
+            address(lensCore),
+            address(lensAggregator),
+            address(lensLive)
+        );
         originationFeeAsset.mint(address(this), 1e18);
         originationFeeAsset.approve(address(hooksFactory), 1e18);
     }
@@ -50,6 +60,7 @@ contract MarketDataTest is BaseMarketTest {
         assertEq(address(lens.hooksFactory()), address(hooksFactory), "hooksFactory");
         assertEq(address(lens.coreHelper()), address(lensCore), "coreHelper");
         assertEq(address(lens.aggregationHelper()), address(lensAggregator), "aggregationHelper");
+        assertEq(address(lens.liveHelper()), address(lensLive), "liveHelper");
     }
 
     function test_coreDelegation_forTokenAndMarketReads() external {
@@ -81,6 +92,44 @@ contract MarketDataTest is BaseMarketTest {
             address(lensCore), abi.encodeWithSelector(IMarketLensCore.getMarketsDataV2.selector, singleMarket)
         );
         lens.getMarketsDataV2(singleMarket);
+    }
+
+    function test_liveDelegation_forMarketReads() external {
+        address[] memory singleMarket = new address[](1);
+        singleMarket[0] = address(market);
+
+        vm.expectCall(
+            address(lensLive), abi.encodeWithSelector(IMarketLensLive.getMarketsLiveDataV2.selector, singleMarket)
+        );
+        lens.getMarketsLiveDataV2(singleMarket);
+
+        vm.expectCall(
+            address(lensLive),
+            abi.encodeWithSelector(IMarketLensLive.getMarketsLiveDataWithLenderStatusV2.selector, alice, singleMarket)
+        );
+        lens.getMarketsLiveDataWithLenderStatusV2(alice, singleMarket);
+    }
+
+    function test_liveData_matchesMarketDataV2LiveFields() external {
+        _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+
+        address[] memory singleMarket = new address[](1);
+        singleMarket[0] = address(market);
+
+        MarketDataV2_5 memory full = lens.getMarketDataV2(address(market));
+        MarketLiveDataV2_5 memory live = lens.getMarketsLiveDataV2(singleMarket)[0];
+        _assertLiveDataMatches(full, live);
+
+        MarketLiveDataWithLenderStatusV2_5 memory withStatus =
+            lens.getMarketsLiveDataWithLenderStatusV2(alice, singleMarket)[0];
+        LenderAccountData memory lenderStatus = lens.getLenderAccountData(alice, address(market));
+
+        assertEq(withStatus.lenderStatus.lender, lenderStatus.lender, "lender");
+        assertEq(withStatus.lenderStatus.scaledBalance, lenderStatus.scaledBalance, "scaledBalance");
+        assertEq(withStatus.lenderStatus.normalizedBalance, lenderStatus.normalizedBalance, "normalizedBalance");
+        assertEq(withStatus.lenderStatus.underlyingBalance, lenderStatus.underlyingBalance, "underlyingBalance");
+        assertEq(withStatus.lenderStatus.underlyingApproval, lenderStatus.underlyingApproval, "underlyingApproval");
+        assertEq(withStatus.lenderStatus.isKnownLender, lenderStatus.isKnownLender, "isKnownLender");
     }
 
     function test_coreDelegation_forAccountAndWithdrawalReads() external {
@@ -175,6 +224,38 @@ contract MarketDataTest is BaseMarketTest {
         assertEq(data.name, token.name(), string.concat(message, " name"));
         assertEq(data.symbol, token.symbol(), string.concat(message, " symbol"));
         assertEq(data.decimals, token.decimals(), string.concat(message, " decimals"));
+    }
+
+    function _assertLiveDataMatches(MarketDataV2_5 memory full, MarketLiveDataV2_5 memory live) internal pure {
+        MarketData memory fullMarket = full.market;
+        assertEq(live.market, fullMarket.marketToken.token, "market");
+        assertEq(live.isClosed, fullMarket.isClosed, "isClosed");
+        assertEq(live.protocolFeeBips, fullMarket.protocolFeeBips, "protocolFeeBips");
+        assertEq(live.reserveRatioBips, fullMarket.reserveRatioBips, "reserveRatioBips");
+        assertEq(live.annualInterestBips, fullMarket.annualInterestBips, "annualInterestBips");
+        assertEq(live.scaleFactor, fullMarket.scaleFactor, "scaleFactor");
+        assertEq(live.totalSupply, fullMarket.totalSupply, "totalSupply");
+        assertEq(live.maxTotalSupply, fullMarket.maxTotalSupply, "maxTotalSupply");
+        assertEq(live.scaledTotalSupply, fullMarket.scaledTotalSupply, "scaledTotalSupply");
+        assertEq(live.totalAssets, fullMarket.totalAssets, "totalAssets");
+        assertEq(live.lastAccruedProtocolFees, fullMarket.lastAccruedProtocolFees, "lastAccruedProtocolFees");
+        assertEq(
+            live.normalizedUnclaimedWithdrawals,
+            fullMarket.normalizedUnclaimedWithdrawals,
+            "normalizedUnclaimedWithdrawals"
+        );
+        assertEq(live.scaledPendingWithdrawals, fullMarket.scaledPendingWithdrawals, "scaledPendingWithdrawals");
+        assertEq(live.pendingWithdrawalExpiry, fullMarket.pendingWithdrawalExpiry, "pendingWithdrawalExpiry");
+        assertEq(live.isDelinquent, fullMarket.isDelinquent, "isDelinquent");
+        assertEq(live.timeDelinquent, fullMarket.timeDelinquent, "timeDelinquent");
+        assertEq(
+            live.lastInterestAccruedTimestamp, fullMarket.lastInterestAccruedTimestamp, "lastInterestAccruedTimestamp"
+        );
+        assertEq(live.coverageLiquidity, fullMarket.coverageLiquidity, "coverageLiquidity");
+        assertEq(live.commitmentFeeBips.isPresent, full.commitmentFeeBips.isPresent, "commitment presence");
+        assertEq(live.commitmentFeeBips.value, full.commitmentFeeBips.value, "commitment value");
+        assertEq(live.drawnAmount.isPresent, full.drawnAmount.isPresent, "drawn presence");
+        assertEq(live.drawnAmount.value, full.drawnAmount.value, "drawn value");
     }
 
     function checkHooksConfigFlags(HooksConfigData memory actual, HooksConfig expected, string memory labelPrefix)

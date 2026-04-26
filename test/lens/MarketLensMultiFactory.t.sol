@@ -9,6 +9,8 @@ import "src/libraries/LibStoredInitCode.sol";
 import "src/lens/MarketLensAggregator.sol";
 import "src/lens/MarketLens.sol";
 import "src/lens/MarketLensCore.sol";
+import "src/lens/MarketLiveData.sol";
+import "src/lens/MarketLensLive.sol";
 import "src/lens/interfaces/IMarketLensAggregator.sol";
 import "src/market/WildcatMarketRevolving.sol";
 
@@ -36,6 +38,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     MarketLens internal lens;
     MarketLensCore internal lensCore;
     MarketLensAggregator internal lensAggregator;
+    MarketLensLive internal lensLive;
     IHooksFactoryRevolving internal hooksFactoryRevolving;
     WildcatMarketRevolving internal revolvingMarket;
     address internal revolvingHooksInstance;
@@ -54,8 +57,14 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
 
         lensCore = new MarketLensCore(address(archController), address(hooksFactory));
         lensAggregator = new MarketLensAggregator(address(archController), address(hooksFactory));
-        lens =
-            new MarketLens(address(archController), address(hooksFactory), address(lensCore), address(lensAggregator));
+        lensLive = new MarketLensLive(address(archController), address(hooksFactory));
+        lens = new MarketLens(
+            address(archController),
+            address(hooksFactory),
+            address(lensCore),
+            address(lensAggregator),
+            address(lensLive)
+        );
 
         (address marketTemplate, uint256 marketInitCodeHash) = _storeRevolvingMarketInitCode();
         hooksFactoryRevolving = new HooksFactoryRevolving(
@@ -154,6 +163,25 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
 
         MarketDataV2_5 memory revolvingData = lens.getMarketDataV2(address(revolvingMarket));
         assertEq(revolvingData.market.hooksFactory, address(hooksFactoryRevolving), "revolving hooksFactory");
+        assertEq(revolvingData.commitmentFeeBips.isPresent, true, "revolving commitment presence");
+        assertEq(revolvingData.commitmentFeeBips.value, _COMMITMENT_FEE_BIPS, "revolving commitment value");
+        assertEq(revolvingData.drawnAmount.isPresent, true, "revolving drawn presence");
+        assertEq(revolvingData.drawnAmount.value, 0, "revolving drawn value");
+    }
+
+    function test_getMarketsLiveDataV2_presenceFlagsForLegacyAndRevolving() external view {
+        address[] memory markets = new address[](2);
+        markets[0] = address(market);
+        markets[1] = address(revolvingMarket);
+
+        MarketLiveDataV2_5[] memory data = lens.getMarketsLiveDataV2(markets);
+        MarketLiveDataV2_5 memory legacyData = data[0];
+        assertEq(legacyData.market, address(market), "legacy market");
+        assertEq(legacyData.commitmentFeeBips.isPresent, false, "legacy commitment presence");
+        assertEq(legacyData.drawnAmount.isPresent, false, "legacy drawn presence");
+
+        MarketLiveDataV2_5 memory revolvingData = data[1];
+        assertEq(revolvingData.market, address(revolvingMarket), "revolving market");
         assertEq(revolvingData.commitmentFeeBips.isPresent, true, "revolving commitment presence");
         assertEq(revolvingData.commitmentFeeBips.value, _COMMITMENT_FEE_BIPS, "revolving commitment value");
         assertEq(revolvingData.drawnAmount.isPresent, true, "revolving drawn presence");

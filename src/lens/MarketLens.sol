@@ -6,21 +6,31 @@ import "./FactoryScopedHooksTemplateData.sol";
 import "./HooksDataForBorrower.sol";
 import "./HooksInstanceData.sol";
 import "./MarketData.sol";
+import "./MarketLiveData.sol";
 import "./TokenData.sol";
 import "./interfaces/IMarketLensAggregator.sol";
 import "./interfaces/IMarketLensCore.sol";
+import "./interfaces/IMarketLensLive.sol";
 
 contract MarketLens {
     WildcatArchController public immutable archController;
     IHooksFactory public immutable hooksFactory;
     IMarketLensCore public immutable coreHelper;
     IMarketLensAggregator public immutable aggregationHelper;
+    IMarketLensLive public immutable liveHelper;
 
-    constructor(address _archController, address _hooksFactory, address _coreHelper, address _aggregationHelper) {
+    constructor(
+        address _archController,
+        address _hooksFactory,
+        address _coreHelper,
+        address _aggregationHelper,
+        address _liveHelper
+    ) {
         archController = WildcatArchController(_archController);
         hooksFactory = IHooksFactory(_hooksFactory);
         coreHelper = IMarketLensCore(_coreHelper);
         aggregationHelper = IMarketLensAggregator(_aggregationHelper);
+        liveHelper = IMarketLensLive(_liveHelper);
     }
 
     // ========================================================================== //
@@ -46,6 +56,19 @@ contract MarketLens {
 
     function _delegateAggregationHelper() internal view {
         address helper = address(aggregationHelper);
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            calldatacopy(ptr, 0, calldatasize())
+            let success := staticcall(gas(), helper, ptr, calldatasize(), 0, 0)
+            let size := returndatasize()
+            returndatacopy(ptr, 0, size)
+            if iszero(success) { revert(ptr, size) }
+            return(ptr, size)
+        }
+    }
+
+    function _delegateLiveHelper() internal view {
+        address helper = address(liveHelper);
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             calldatacopy(ptr, 0, calldatasize())
@@ -329,6 +352,22 @@ contract MarketLens {
         returns (MarketDataV2_5[] memory data)
     {
         _delegateAggregationHelper();
+    }
+
+    // ========================================================================== //
+    //                              Live market reads                             //
+    // ========================================================================== //
+
+    function getMarketsLiveDataV2(address[] calldata markets) external view returns (MarketLiveDataV2_5[] memory data) {
+        _delegateLiveHelper();
+    }
+
+    function getMarketsLiveDataWithLenderStatusV2(address lender, address[] calldata markets)
+        external
+        view
+        returns (MarketLiveDataWithLenderStatusV2_5[] memory data)
+    {
+        _delegateLiveHelper();
     }
 
     // ========================================================================== //

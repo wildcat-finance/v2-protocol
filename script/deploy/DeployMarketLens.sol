@@ -9,9 +9,11 @@ contract DeployMarketLens is DeployScriptBase {
     struct LensDeploymentResult {
         address marketLensCore;
         address marketLensAggregator;
+        address marketLensLive;
         address marketLens;
         bool didDeployMarketLensCore;
         bool didDeployMarketLensAggregator;
+        bool didDeployMarketLensLive;
         bool didDeployMarketLens;
     }
 
@@ -54,20 +56,24 @@ contract DeployMarketLens is DeployScriptBase {
         Deployments memory deployments,
         address marketLensCore,
         address marketLensAggregator,
+        address marketLensLive,
         address marketLens
     ) internal returns (bool didUpdateCanonicalAliases) {
         bool didUpdateCanonicalMarketLensCore = _setCanonicalAlias(deployments, "MarketLensCore", marketLensCore);
         bool didUpdateCanonicalMarketLensAggregator =
             _setCanonicalAlias(deployments, "MarketLensAggregator", marketLensAggregator);
+        bool didUpdateCanonicalMarketLensLive = _setCanonicalAlias(deployments, "MarketLensLive", marketLensLive);
         bool didUpdateCanonicalMarketLens = _setCanonicalAlias(deployments, "MarketLens", marketLens);
 
-        didUpdateCanonicalAliases =
-            didUpdateCanonicalMarketLensCore || didUpdateCanonicalMarketLensAggregator || didUpdateCanonicalMarketLens;
+        didUpdateCanonicalAliases = didUpdateCanonicalMarketLensCore || didUpdateCanonicalMarketLensAggregator
+            || didUpdateCanonicalMarketLensLive || didUpdateCanonicalMarketLens;
 
         console.log("Did update canonical MarketLensCore alias:");
         console.log(didUpdateCanonicalMarketLensCore);
         console.log("Did update canonical MarketLensAggregator alias:");
         console.log(didUpdateCanonicalMarketLensAggregator);
+        console.log("Did update canonical MarketLensLive alias:");
+        console.log(didUpdateCanonicalMarketLensLive);
         console.log("Did update canonical MarketLens alias:");
         console.log(didUpdateCanonicalMarketLens);
         console.log("Did update any canonical lens alias:");
@@ -81,13 +87,14 @@ contract DeployMarketLens is DeployScriptBase {
         address defaultHooksFactory,
         address marketLensCore,
         address marketLensAggregator,
+        address marketLensLive,
         bool overrideExisting
     ) internal returns (address marketLens, bool didDeployMarketLens) {
         string memory contractName = "src/lens/MarketLens.sol:MarketLens";
         string memory deploymentLabel = _deploymentLabel("MarketLens", deploymentLabelSuffix);
         bytes memory creationCode = _getCreationCode(deployments, contractName);
         bytes memory constructorArgs =
-            abi.encode(archController, defaultHooksFactory, marketLensCore, marketLensAggregator);
+            abi.encode(archController, defaultHooksFactory, marketLensCore, marketLensAggregator, marketLensLive);
 
         return _getOrDeployByLabel(
             deployments, deploymentLabel, contractName, creationCode, constructorArgs, overrideExisting
@@ -139,6 +146,16 @@ contract DeployMarketLens is DeployScriptBase {
             overrideExisting
         );
 
+        (result.marketLensLive, result.didDeployMarketLensLive) = _deployLensHelper(
+            deployments,
+            deploymentLabelSuffix,
+            "MarketLensLive",
+            "src/lens/MarketLensLive.sol:MarketLensLive",
+            archController,
+            defaultHooksFactory,
+            overrideExisting
+        );
+
         (result.marketLens, result.didDeployMarketLens) = _deployMarketLensFacade(
             deployments,
             deploymentLabelSuffix,
@@ -146,6 +163,7 @@ contract DeployMarketLens is DeployScriptBase {
             defaultHooksFactory,
             result.marketLensCore,
             result.marketLensAggregator,
+            result.marketLensLive,
             overrideExisting
         );
     }
@@ -167,10 +185,10 @@ contract DeployMarketLens is DeployScriptBase {
         LensDeploymentResult memory result =
             _deployLensSet(deployments, deploymentLabelSuffix, archController, defaultHooksFactory, overrideExisting);
 
-        bool didDeployLensSet =
-            result.didDeployMarketLensCore || result.didDeployMarketLensAggregator || result.didDeployMarketLens;
+        bool didDeployLensSet = result.didDeployMarketLensCore || result.didDeployMarketLensAggregator
+            || result.didDeployMarketLensLive || result.didDeployMarketLens;
         _updateCanonicalAliases(
-            deployments, result.marketLensCore, result.marketLensAggregator, result.marketLens
+            deployments, result.marketLensCore, result.marketLensAggregator, result.marketLensLive, result.marketLens
         );
 
         deployments.write();
@@ -185,12 +203,16 @@ contract DeployMarketLens is DeployScriptBase {
         console.log(result.marketLensCore);
         console.log("MarketLensAggregator:");
         console.log(result.marketLensAggregator);
+        console.log("MarketLensLive:");
+        console.log(result.marketLensLive);
         console.log("Default hooks factory:");
         console.log(defaultHooksFactory);
         console.log("Did deploy MarketLensCore:");
         console.log(result.didDeployMarketLensCore);
         console.log("Did deploy MarketLensAggregator:");
         console.log(result.didDeployMarketLensAggregator);
+        console.log("Did deploy MarketLensLive:");
+        console.log(result.didDeployMarketLensLive);
         console.log("Did deploy MarketLens:");
         console.log(result.didDeployMarketLens);
         console.log("Did deploy any lens-set component:");
