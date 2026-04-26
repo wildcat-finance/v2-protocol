@@ -22,10 +22,18 @@ const CHAIN_IDS_BY_NETWORK = {
   "plasma-mainnet": 9745,
 };
 
+const SDK_CHAIN_NAMES_BY_CHAIN_ID = {
+  1: "Mainnet",
+  11155111: "Sepolia",
+  9746: "PlasmaTestnet",
+  9745: "PlasmaMainnet",
+};
+
 const SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE = {
   legacy: "HooksFactory",
   revolving: "HooksFactoryRevolving",
 };
+const SDK_NON_CANONICAL_FACTORY_MARKET_TYPES_NAME = "NonCanonicalHooksFactoryMarketTypesByChainId";
 
 function printUsage() {
   console.log(`Usage:
@@ -123,8 +131,29 @@ function getNetworkConfig(subgraphNetworks, network) {
   return networkConfig;
 }
 
+function sdkChainMarker(chainId) {
+  const sdkChainName = SDK_CHAIN_NAMES_BY_CHAIN_ID[chainId];
+  if (!sdkChainName) {
+    throw new Error(`Unsupported SDK chain id: ${chainId}`);
+  }
+  return `[SupportedChainId.${sdkChainName}]`;
+}
+
+function extractObjectBodyAt(source, blockStart, context) {
+  let depth = 0;
+  for (let i = blockStart; i < source.length; i += 1) {
+    const char = source[i];
+    if (char === "{") depth += 1;
+    if (char === "}") depth -= 1;
+    if (depth === 0) {
+      return source.slice(blockStart + 1, i);
+    }
+  }
+  throw new Error(`Unable to find block end for ${context}`);
+}
+
 function extractSdkDeploymentBlock(source, chainId) {
-  const marker = `[SupportedChainId.${chainId === 1 ? "Mainnet" : chainId === 11155111 ? "Sepolia" : chainId === 9746 ? "PlasmaTestnet" : "PlasmaMainnet"}]`;
+  const marker = sdkChainMarker(chainId);
   const markerIndex = source.indexOf(marker);
   if (markerIndex === -1) {
     throw new Error(`SDK constants do not contain deployment block for chain ${chainId}`);
@@ -135,16 +164,23 @@ function extractSdkDeploymentBlock(source, chainId) {
     throw new Error(`Unable to find SDK deployment block start for chain ${chainId}`);
   }
 
-  let depth = 0;
-  for (let i = blockStart; i < source.length; i += 1) {
-    const char = source[i];
-    if (char === "{") depth += 1;
-    if (char === "}") depth -= 1;
-    if (depth === 0) {
-      return source.slice(blockStart + 1, i);
-    }
+  return extractObjectBodyAt(source, blockStart, `SDK deployment block for chain ${chainId}`);
+}
+
+function extractSdkOptionalObjectBlock(source, objectName, chainId) {
+  const objectIndex = source.indexOf(objectName);
+  if (objectIndex === -1) {
+    return "";
   }
-  throw new Error(`Unable to find SDK deployment block end for chain ${chainId}`);
+  const markerIndex = source.indexOf(sdkChainMarker(chainId), objectIndex);
+  if (markerIndex === -1) {
+    return "";
+  }
+  const blockStart = source.indexOf("{", markerIndex);
+  if (blockStart === -1) {
+    return "";
+  }
+  return extractObjectBodyAt(source, blockStart, `${objectName} block for chain ${chainId}`);
 }
 
 function parseSdkDeployments(constantsPath, chainId) {
@@ -157,6 +193,22 @@ function parseSdkDeployments(constantsPath, chainId) {
     deployments[match[1]] = match[2];
   }
   return deployments;
+}
+
+function parseSdkNonCanonicalFactoryMarketTypes(constantsPath, chainId) {
+  const source = fs.readFileSync(constantsPath, "utf8");
+  const block = extractSdkOptionalObjectBlock(
+    source,
+    SDK_NON_CANONICAL_FACTORY_MARKET_TYPES_NAME,
+    chainId
+  );
+  const factoriesByAddress = new Map();
+  const entryRegex = /"([^"]+)":\s*"([^"]+)"/g;
+  let match;
+  while ((match = entryRegex.exec(block)) !== null) {
+    factoriesByAddress.set(addressKey(match[1]), match[2]);
+  }
+  return factoriesByAddress;
 }
 
 function validateInventorySchema(inventory, network, chainId, errors, warnings) {
@@ -244,7 +296,9 @@ function validateSubgraphConfig(inventory, networkConfig, errors) {
   }
 }
 
-function validateSdkConstants(inventory, sdkDeployments, errors) {
+function validateSdkConstants(inventory, sdkDeployments, sdkNonCanonicalFactoryMarketTypes, errors) {
+  const sdkFactoryMarketTypesByAddress = new Map();
+
   for (const [marketType, deploymentName] of Object.entries(SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE)) {
     const canonical = getCanonicalFactory(inventory, marketType);
     if (!canonical) {
@@ -258,6 +312,41 @@ function validateSdkConstants(inventory, sdkDeployments, errors) {
     if (addressKey(sdkAddress) !== addressKey(canonical.address)) {
       errors.push(
         `SDK ${deploymentName} mismatch for canonical ${marketType}: expected ${canonical.address}, got ${sdkAddress}`
+      );
+    }
+    sdkFactoryMarketTypesByAddress.set(addressKey(sdkAddress), marketType);
+  }
+
+  for (const [address, marketType] of sdkNonCanonicalFactoryMarketTypes.entries()) {
+    sdkFactoryMarketTypesByAddress.set(address, marketType);
+    const inventoryFactory = inventory.hooksFactories.find(
+      (entry) => addressKey(entry.address) === address
+    );
+    if (!inventoryFactory) {
+      errors.push(`SDK non-canonical hooks factory ${address} is missing from inventory`);
+      continue;
+    }
+    if (inventoryFactory.canonical === true) {
+      errors.push(`SDK non-canonical hooks factory ${address} points at canonical ${inventoryFactory.label}`);
+    }
+    if (inventoryFactory.marketType !== marketType) {
+      errors.push(
+        `SDK non-canonical hooks factory ${address} marketType mismatch: expected ${inventoryFactory.marketType}, got ${marketType}`
+      );
+    }
+  }
+
+  for (const inventoryFactory of getIndexedFactories(inventory)) {
+    const sdkMarketType = sdkFactoryMarketTypesByAddress.get(addressKey(inventoryFactory.address));
+    if (!sdkMarketType) {
+      errors.push(
+        `SDK does not recognize indexed factory ${inventoryFactory.label} (${inventoryFactory.address}) for marketType resolution`
+      );
+      continue;
+    }
+    if (sdkMarketType !== inventoryFactory.marketType) {
+      errors.push(
+        `SDK indexed factory marketType mismatch for ${inventoryFactory.label}: expected ${inventoryFactory.marketType}, got ${sdkMarketType}`
       );
     }
   }
@@ -345,6 +434,10 @@ function run() {
   const subgraphNetworks = readJson(subgraphNetworksPath);
   const subgraphNetworkConfig = getNetworkConfig(subgraphNetworks, network);
   const sdkDeployments = parseSdkDeployments(sdkConstantsPath, chainId);
+  const sdkNonCanonicalFactoryMarketTypes = parseSdkNonCanonicalFactoryMarketTypes(
+    sdkConstantsPath,
+    chainId
+  );
 
   const errors = [];
   const warnings = [];
@@ -352,7 +445,7 @@ function run() {
   validateInventorySchema(inventory, network, chainId, errors, warnings);
   validateSubgraphConfig(inventory, subgraphNetworkConfig, errors);
   validateCoreDeployments(inventory, deploymentsJson, errors);
-  validateSdkConstants(inventory, sdkDeployments, errors);
+  validateSdkConstants(inventory, sdkDeployments, sdkNonCanonicalFactoryMarketTypes, errors);
   if (rpcUrl) {
     validateRpcRegistration(inventory, deploymentsJson, rpcUrl, castBin, chainId, errors);
   }
