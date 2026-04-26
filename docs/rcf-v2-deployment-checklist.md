@@ -259,10 +259,11 @@ forge script script/deploy/DeployMarketLens.sol:DeployMarketLens \
 Record:
 
 ```bash
-jq '{MarketLens, MarketLensCore, MarketLensAggregator}' deployments/$DEPLOYMENTS_NETWORK/deployments.json
+jq '{MarketLens, MarketLensCore, MarketLensAggregator, MarketLensLive}' \
+  deployments/$DEPLOYMENTS_NETWORK/deployments.json
 ```
 
-`MarketLens` remains the canonical data-access address. The core and aggregator contracts are implementation details behind the facade.
+`MarketLens` remains the canonical data-access address. The core, aggregator, and live contracts are implementation details behind the facade.
 
 ## 8. Validate Inventory and Cross-Stack Metadata
 
@@ -346,7 +347,8 @@ Before app preview:
 - New factory registered as controller.
 - Template sync export/apply/verify completed.
 - Sepolia helper ownership restored if applicable.
-- MarketLens facade deployed and canonical alias updated.
+- MarketLens core, aggregator, live, and facade deployed or reused intentionally.
+- MarketLens canonical alias updated.
 - `deployments/<network>/factory-inventory.json` reflects canonical and indexed factories.
 - `node scripts/validate-factory-inventory.js --network "$DEPLOYMENTS_NETWORK"` passes.
 - RPC registration validation passes for real/forked target where available.

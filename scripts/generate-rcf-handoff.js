@@ -10,7 +10,10 @@ function printUsage() {
   console.log(`Usage:
   node scripts/generate-rcf-handoff.js --network <name> [--chain-id <id>] [--rpc-url <url>]
     [--deployments-file <path>] [--output <path>]
-    [--legacy-factory <address>] [--revolving-factory <address>] [--market-lens <address>] [--arch-controller <address>]
+    [--legacy-factory <address>] [--revolving-factory <address>]
+    [--market-lens <address>] [--market-lens-core <address>]
+    [--market-lens-aggregator <address>] [--market-lens-live <address>]
+    [--arch-controller <address>]
     [--hooks-script <name>] [--lens-script <name>]
 
 Defaults:
@@ -137,6 +140,8 @@ function buildSelectors() {
       getMarketsDataV2: "0x74c3c3e9",
       getAllMarketsDataV2ForHooksTemplate: "0xf81c9b5c",
       getAggregatedAllMarketsDataV2ForHooksTemplate: "0xd6b73a70",
+      getMarketsLiveDataV2: "0xf4991943",
+      getMarketsLiveDataWithLenderStatusV2: "0xf479395d",
     },
     wildcatMarketRevolving: {
       commitmentFeeBips: "0x7b1fbd32",
@@ -214,6 +219,27 @@ async function main() {
       "MarketLens",
       "marketLensLatest"
     ),
+    marketLensCore: resolveAddress(
+      args,
+      deployments,
+      "market-lens-core",
+      "MarketLensCore",
+      "marketLensCore"
+    ),
+    marketLensAggregator: resolveAddress(
+      args,
+      deployments,
+      "market-lens-aggregator",
+      "MarketLensAggregator",
+      "marketLensAggregator"
+    ),
+    marketLensLive: resolveAddress(
+      args,
+      deployments,
+      "market-lens-live",
+      "MarketLensLive",
+      "marketLensLive"
+    ),
     wildcatMarketRevolvingInitCodeStorage: resolveAddress(
       args,
       deployments,
@@ -251,6 +277,18 @@ async function main() {
       hooksTransactions,
       (tx) => tx.function === "registerWithArchController()"
     ),
+    deployMarketLensCore: findTransactionHash(
+      lensTransactions,
+      (tx) => tx.transactionType === "CREATE" && tx.contractName === "MarketLensCore"
+    ),
+    deployMarketLensAggregator: findTransactionHash(
+      lensTransactions,
+      (tx) => tx.transactionType === "CREATE" && tx.contractName === "MarketLensAggregator"
+    ),
+    deployMarketLensLive: findTransactionHash(
+      lensTransactions,
+      (tx) => tx.transactionType === "CREATE" && tx.contractName === "MarketLensLive"
+    ),
     deployMarketLens: findTransactionHash(
       lensTransactions,
       (tx) => tx.transactionType === "CREATE" && tx.contractName === "MarketLens"
@@ -286,12 +324,17 @@ async function main() {
         hooksFactoryLegacy: "src/IHooksFactory.sol:IHooksFactory",
         hooksFactoryRevolving: "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving",
         marketLens: "src/lens/MarketLens.sol:MarketLens",
+        marketLensCore: "src/lens/MarketLensCore.sol:MarketLensCore",
+        marketLensAggregator: "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+        marketLensLive: "src/lens/MarketLensLive.sol:MarketLensLive",
         wildcatMarketRevolving: "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving",
       },
       selectors,
       notes: [
         "Deployment event surface remains legacy MarketDeployed across both factories in this rollout.",
+        "MarketLens remains the canonical data-access API; core, aggregator, and live helpers are immutable implementation contracts behind the facade.",
         "Revolving-only fields are exposed via WildcatMarketRevolving.commitmentFeeBips()/drawnAmount() and MarketLens V2 endpoints.",
+        "Batch live-read selectors are exposed on canonical MarketLens and routed to MarketLensLive.",
       ],
     },
     sources: {

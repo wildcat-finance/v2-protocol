@@ -47,6 +47,60 @@ function isTxHash(value) {
   return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
 }
 
+function isSelector(value) {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{8}$/.test(value);
+}
+
+function validateStringMap(input, pathName, requiredKeys, errors) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    fail(errors, `${pathName} must be an object`);
+    return;
+  }
+  for (const key of requiredKeys) {
+    if (typeof input[key] !== "string" || input[key].length === 0) {
+      fail(errors, `${pathName}.${key} must be a non-empty string`);
+    }
+  }
+}
+
+function validateSelectors(input, errors) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    fail(errors, "abiSurface.selectors must be an object");
+    return;
+  }
+
+  const selectorGroups = {
+    hooksFactoryRevolving: ["deployMarket", "deployMarketAndHooks"],
+    marketLens: [
+      "getMarketDataV2",
+      "getMarketsDataV2",
+      "getAllMarketsDataV2ForHooksTemplate",
+      "getAggregatedAllMarketsDataV2ForHooksTemplate",
+      "getMarketsLiveDataV2",
+      "getMarketsLiveDataWithLenderStatusV2",
+    ],
+    wildcatMarketRevolving: ["commitmentFeeBips", "drawnAmount"],
+  };
+
+  for (const [groupName, keys] of Object.entries(selectorGroups)) {
+    const group = input[groupName];
+    if (!group || typeof group !== "object" || Array.isArray(group)) {
+      fail(errors, `abiSurface.selectors.${groupName} must be an object`);
+      continue;
+    }
+    for (const key of keys) {
+      if (!isSelector(group[key])) {
+        fail(errors, `abiSurface.selectors.${groupName}.${key} must be a selector`);
+      }
+    }
+  }
+
+  const topic0 = input.events?.marketDeployedTopic0;
+  if (typeof topic0 !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(topic0)) {
+    fail(errors, "abiSurface.selectors.events.marketDeployedTopic0 must be a topic");
+  }
+}
+
 function validate(input) {
   const errors = [];
 
@@ -79,6 +133,9 @@ function validate(input) {
     "hooksFactoryLegacy",
     "hooksFactoryRevolving",
     "marketLensLatest",
+    "marketLensCore",
+    "marketLensAggregator",
+    "marketLensLive",
     "wildcatMarketRevolvingInitCodeStorage",
   ];
   if (!input.addresses || typeof input.addresses !== "object") {
@@ -95,6 +152,9 @@ function validate(input) {
     "deployHooksFactoryRevolving",
     "registerControllerFactory",
     "registerWithArchController",
+    "deployMarketLensCore",
+    "deployMarketLensAggregator",
+    "deployMarketLensLive",
     "deployMarketLens",
   ];
   if (!input.txHashes || typeof input.txHashes !== "object") {
@@ -123,6 +183,12 @@ function validate(input) {
     }
     if (!isAddress(input.routing.latestLens)) {
       fail(errors, "routing.latestLens must be a valid address");
+    } else if (
+      input.addresses &&
+      isAddress(input.addresses.marketLensLatest) &&
+      input.routing.latestLens.toLowerCase() !== input.addresses.marketLensLatest.toLowerCase()
+    ) {
+      fail(errors, "routing.latestLens must match addresses.marketLensLatest");
     }
     if (
       !input.routing.marketTypeByFactory ||
@@ -142,9 +208,21 @@ function validate(input) {
   if (!input.abiSurface || typeof input.abiSurface !== "object") {
     fail(errors, "abiSurface is required");
   } else {
-    if (!input.abiSurface.selectors || typeof input.abiSurface.selectors !== "object") {
-      fail(errors, "abiSurface.selectors is required");
-    }
+    validateStringMap(
+      input.abiSurface.artifacts,
+      "abiSurface.artifacts",
+      [
+        "hooksFactoryLegacy",
+        "hooksFactoryRevolving",
+        "marketLens",
+        "marketLensCore",
+        "marketLensAggregator",
+        "marketLensLive",
+        "wildcatMarketRevolving",
+      ],
+      errors
+    );
+    validateSelectors(input.abiSurface.selectors, errors);
     if (!Array.isArray(input.abiSurface.notes)) {
       fail(errors, "abiSurface.notes must be an array");
     }

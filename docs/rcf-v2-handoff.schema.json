@@ -51,6 +51,9 @@
         "hooksFactoryLegacy",
         "hooksFactoryRevolving",
         "marketLensLatest",
+        "marketLensCore",
+        "marketLensAggregator",
+        "marketLensLive",
         "wildcatMarketRevolvingInitCodeStorage"
       ],
       "properties": {
@@ -66,6 +69,15 @@
         "marketLensLatest": {
           "$ref": "#/$defs/address"
         },
+        "marketLensCore": {
+          "$ref": "#/$defs/address"
+        },
+        "marketLensAggregator": {
+          "$ref": "#/$defs/address"
+        },
+        "marketLensLive": {
+          "$ref": "#/$defs/address"
+        },
         "wildcatMarketRevolvingInitCodeStorage": {
           "$ref": "#/$defs/address"
         }
@@ -78,6 +90,9 @@
         "deployHooksFactoryRevolving",
         "registerControllerFactory",
         "registerWithArchController",
+        "deployMarketLensCore",
+        "deployMarketLensAggregator",
+        "deployMarketLensLive",
         "deployMarketLens"
       ],
       "properties": {
@@ -88,6 +103,15 @@
           "$ref": "#/$defs/nullableTxHash"
         },
         "registerWithArchController": {
+          "$ref": "#/$defs/nullableTxHash"
+        },
+        "deployMarketLensCore": {
+          "$ref": "#/$defs/nullableTxHash"
+        },
+        "deployMarketLensAggregator": {
+          "$ref": "#/$defs/nullableTxHash"
+        },
+        "deployMarketLensLive": {
           "$ref": "#/$defs/nullableTxHash"
         },
         "deployMarketLens": {
@@ -149,12 +173,114 @@
       "properties": {
         "artifacts": {
           "type": "object",
+          "required": [
+            "hooksFactoryLegacy",
+            "hooksFactoryRevolving",
+            "marketLens",
+            "marketLensCore",
+            "marketLensAggregator",
+            "marketLensLive",
+            "wildcatMarketRevolving"
+          ],
           "additionalProperties": {
             "type": "string"
           }
         },
         "selectors": {
-          "type": "object"
+          "type": "object",
+          "required": [
+            "hooksFactoryRevolving",
+            "marketLens",
+            "wildcatMarketRevolving",
+            "events"
+          ],
+          "properties": {
+            "hooksFactoryRevolving": {
+              "type": "object",
+              "required": [
+                "deployMarket",
+                "deployMarketAndHooks"
+              ],
+              "properties": {
+                "deployMarket": {
+                  "$ref": "#/$defs/selector"
+                },
+                "deployMarketAndHooks": {
+                  "$ref": "#/$defs/selector"
+                }
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/selector"
+              }
+            },
+            "marketLens": {
+              "type": "object",
+              "required": [
+                "getMarketDataV2",
+                "getMarketsDataV2",
+                "getAllMarketsDataV2ForHooksTemplate",
+                "getAggregatedAllMarketsDataV2ForHooksTemplate",
+                "getMarketsLiveDataV2",
+                "getMarketsLiveDataWithLenderStatusV2"
+              ],
+              "properties": {
+                "getMarketDataV2": {
+                  "$ref": "#/$defs/selector"
+                },
+                "getMarketsDataV2": {
+                  "$ref": "#/$defs/selector"
+                },
+                "getAllMarketsDataV2ForHooksTemplate": {
+                  "$ref": "#/$defs/selector"
+                },
+                "getAggregatedAllMarketsDataV2ForHooksTemplate": {
+                  "$ref": "#/$defs/selector"
+                },
+                "getMarketsLiveDataV2": {
+                  "$ref": "#/$defs/selector"
+                },
+                "getMarketsLiveDataWithLenderStatusV2": {
+                  "$ref": "#/$defs/selector"
+                }
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/selector"
+              }
+            },
+            "wildcatMarketRevolving": {
+              "type": "object",
+              "required": [
+                "commitmentFeeBips",
+                "drawnAmount"
+              ],
+              "properties": {
+                "commitmentFeeBips": {
+                  "$ref": "#/$defs/selector"
+                },
+                "drawnAmount": {
+                  "$ref": "#/$defs/selector"
+                }
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/selector"
+              }
+            },
+            "events": {
+              "type": "object",
+              "required": [
+                "marketDeployedTopic0"
+              ],
+              "properties": {
+                "marketDeployedTopic0": {
+                  "$ref": "#/$defs/topic"
+                }
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/topic"
+              }
+            }
+          },
+          "additionalProperties": true
         },
         "notes": {
           "type": "array",
@@ -207,6 +333,14 @@
       "pattern": "^0x[a-fA-F0-9]{40}$"
     },
     "txHash": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "selector": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{8}$"
+    },
+    "topic": {
       "type": "string",
       "pattern": "^0x[a-fA-F0-9]{64}$"
     },
