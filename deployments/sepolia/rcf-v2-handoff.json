@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "generatedAt": "2026-04-24T22:01:19.595Z",
+  "generatedAt": "2026-04-26T21:00:43.987Z",
   "chain": {
     "id": 11155111,
     "network": "sepolia",
@@ -10,14 +10,20 @@
     "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
     "hooksFactoryLegacy": "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88",
     "hooksFactoryRevolving": "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5",
-    "marketLensLatest": "0xc556d6142eC8eB4eEb753b958c84C59385bf6eF4",
+    "marketLensLatest": "0x96EFd2A3fC5fa5a21AdB38722d1F5F1908FddE0a",
+    "marketLensCore": "0x7fDE2a98BF532c2FCB49F090aA142732e55Df7c6",
+    "marketLensAggregator": "0x2AA724f0950F86e1582Cb667f7fAD51F6e3cd61E",
+    "marketLensLive": "0x93c498a69e8a684e3F71870fF32297bce4751947",
     "wildcatMarketRevolvingInitCodeStorage": "0x6Fb02197A8f8bc839C91B4CA4A0DCdCDF85cCc8d"
   },
   "txHashes": {
     "deployHooksFactoryRevolving": null,
     "registerControllerFactory": null,
     "registerWithArchController": "0x96967d686e8e554aab2342579e16d7d37c357068214722348e572cf223f0c47f",
-    "deployMarketLens": "0xf460002e33cd5b5a36cb9226a5c90fa8244801191acf9fc7e10978a554998441"
+    "deployMarketLensCore": "0xb9bdee2789ee2f04e5890219fbfbc2c7908af9b2d2681f698dd4fe2808e92786",
+    "deployMarketLensAggregator": "0xac69c943e5e4d92c4816f91a158b5afdc0c1c69a48e589f255d1719c017e66ad",
+    "deployMarketLensLive": "0xdf7c216bc90f67b59ae541a42b35f5b4841e12b9ad91b2890b60d1a2ecc5f6ff",
+    "deployMarketLens": "0x727b4aad0506a53cd664a91de858fe37348301e4a2031c835e69135decff56e4"
   },
   "routing": {
     "defaultMarketType": "legacy",
@@ -29,13 +35,16 @@
       "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88": "legacy",
       "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5": "revolving"
     },
-    "latestLens": "0xc556d6142eC8eB4eEb753b958c84C59385bf6eF4"
+    "latestLens": "0x96EFd2A3fC5fa5a21AdB38722d1F5F1908FddE0a"
   },
   "abiSurface": {
     "artifacts": {
       "hooksFactoryLegacy": "src/IHooksFactory.sol:IHooksFactory",
       "hooksFactoryRevolving": "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving",
       "marketLens": "src/lens/MarketLens.sol:MarketLens",
+      "marketLensCore": "src/lens/MarketLensCore.sol:MarketLensCore",
+      "marketLensAggregator": "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+      "marketLensLive": "src/lens/MarketLensLive.sol:MarketLensLive",
       "wildcatMarketRevolving": "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving"
     },
     "selectors": {
@@ -47,7 +56,9 @@
         "getMarketDataV2": "0x23af4bca",
         "getMarketsDataV2": "0x74c3c3e9",
         "getAllMarketsDataV2ForHooksTemplate": "0xf81c9b5c",
-        "getAggregatedAllMarketsDataV2ForHooksTemplate": "0xd6b73a70"
+        "getAggregatedAllMarketsDataV2ForHooksTemplate": "0xd6b73a70",
+        "getMarketsLiveDataV2": "0xf4991943",
+        "getMarketsLiveDataWithLenderStatusV2": "0xf479395d"
       },
       "wildcatMarketRevolving": {
         "commitmentFeeBips": "0x7b1fbd32",
@@ -59,7 +70,9 @@
     },
     "notes": [
       "Deployment event surface remains legacy MarketDeployed across both factories in this rollout.",
-      "Revolving-only fields are exposed via WildcatMarketRevolving.commitmentFeeBips()/drawnAmount() and MarketLens V2 endpoints."
+      "MarketLens remains the canonical data-access API; core, aggregator, and live helpers are immutable implementation contracts behind the facade.",
+      "Revolving-only fields are exposed via WildcatMarketRevolving.commitmentFeeBips()/drawnAmount() and MarketLens V2 endpoints.",
+      "Batch live-read selectors are exposed on canonical MarketLens and routed to MarketLensLive."
     ]
   },
   "sources": {
