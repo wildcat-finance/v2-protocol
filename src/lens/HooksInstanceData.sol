@@ -26,19 +26,19 @@ struct HooksInstanceData {
 }
 
 library HooksInstanceDataLib {
-  using RoleProviderDataLib for *;
+    using RoleProviderDataLib for *;
 
-  function fill(
-    HooksInstanceData memory data,
-    address hooksAddress,
-    HooksFactory factory
-  ) internal view {
-    data.hooksAddress = hooksAddress;
+    function fill(
+        HooksInstanceData memory data, 
+        address hooksAddress, 
+        IHooksFactory factory
+    ) internal view {
+        data.hooksAddress = hooksAddress;
 
     address templateAddress = factory.getHooksTemplateForInstance(hooksAddress);
     data.hooksTemplate.fill(factory, templateAddress, data.borrower);
 
-    IHooks hooks = IHooks(hooksAddress);
+        IHooks hooks = IHooks(hooksAddress);
 
     bytes32 versionHash = keccak256(bytes(data.hooksTemplate.name));
     if (versionHash == keccak256('OpenTermHooks')) {

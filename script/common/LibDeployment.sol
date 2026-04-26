@@ -542,8 +542,9 @@ library JsonUtil {
       let counter := sload(jsonIdSlot)
       sstore(jsonIdSlot, add(counter, 1))
 
-      // Get unique id
-      mstore(0, address())
+      // Foundry scripts reject address(this), so derive a per-run unique id
+      // from chain id and the monotonic counter instead.
+      mstore(0, chainid())
       mstore(32, counter)
       let id := keccak256(0, 64)
 

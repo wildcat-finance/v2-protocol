@@ -157,11 +157,13 @@ contract MarketStateTest is Test {
   ) external {
     accruedProtocolFees = bound(accruedProtocolFees, 0, type(uint128).max);
     normalizedUnclaimedWithdrawals = bound(normalizedUnclaimedWithdrawals, 0, type(uint128).max);
-    totalAssets = bound(totalAssets, normalizedUnclaimedWithdrawals, type(uint128).max);
+    totalAssets = bound(totalAssets, 0, type(uint128).max);
     MarketState memory state;
     state.accruedProtocolFees = uint128(accruedProtocolFees);
     state.normalizedUnclaimedWithdrawals = uint128(normalizedUnclaimedWithdrawals);
-    uint256 availableAssets = totalAssets - normalizedUnclaimedWithdrawals;
+    uint256 availableAssets = totalAssets < normalizedUnclaimedWithdrawals
+      ? 0
+      : totalAssets - normalizedUnclaimedWithdrawals;
     uint256 expectedWithdrawable = accruedProtocolFees > availableAssets
       ? availableAssets
       : accruedProtocolFees;

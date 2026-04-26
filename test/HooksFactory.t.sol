@@ -351,6 +351,181 @@ contract HooksFactoryTest is Test, Assertions {
     assertEq(hooksFactory.getMarketsForHooksTemplateCount(MockHooksTemplate), 2);
   }
 
+  function test_getHooksTemplates_Pagination() external {
+    address hooksTemplate2 = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template-1', nullAddress, nullAddress, 0, 0);
+    hooksFactory.addHooksTemplate(hooksTemplate2, 'template-2', nullAddress, nullAddress, 0, 0);
+
+    {
+      address[] memory slice0 = hooksFactory.getHooksTemplates(0, 1);
+      assertEq(slice0.length, 1);
+      assertEq(slice0[0], MockHooksTemplate);
+    }
+    {
+      address[] memory slice1 = hooksFactory.getHooksTemplates(1, 2);
+      assertEq(slice1.length, 1);
+      assertEq(slice1[0], hooksTemplate2);
+    }
+    {
+      address[] memory clamped = hooksFactory.getHooksTemplates(0, 10);
+      assertEq(clamped.length, 2);
+      assertEq(clamped[0], MockHooksTemplate);
+      assertEq(clamped[1], hooksTemplate2);
+    }
+    {
+      address[] memory emptyAtEnd = hooksFactory.getHooksTemplates(2, 2);
+      assertEq(emptyAtEnd.length, 0);
+    }
+    {
+      address[] memory emptyInverted = hooksFactory.getHooksTemplates(2, 1);
+      assertEq(emptyInverted.length, 0);
+    }
+    {
+      address[] memory emptyPastEnd = hooksFactory.getHooksTemplates(3, 10);
+      assertEq(emptyPastEnd.length, 0);
+    }
+  }
+
+  function test_getMarketsForHooksTemplateAndInstance_Pagination() external {
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, '');
+    bytes memory createMarketHooksData = 'o hey this is my createMarketHooksData do u like it';
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+    address market0 = hooksFactory.deployMarket(
+      parameters,
+      createMarketHooksData,
+      bytes32(uint256(1)),
+      address(0),
+      0
+    );
+    address market1 = hooksFactory.deployMarket(
+      parameters,
+      createMarketHooksData,
+      bytes32(uint256(2)),
+      address(0),
+      0
+    );
+
+    {
+      address[] memory templateSlice0 = hooksFactory.getMarketsForHooksTemplate(
+        MockHooksTemplate,
+        0,
+        1
+      );
+      assertEq(templateSlice0.length, 1);
+      assertEq(templateSlice0[0], market0);
+    }
+    {
+      address[] memory templateSlice1 = hooksFactory.getMarketsForHooksTemplate(
+        MockHooksTemplate,
+        1,
+        2
+      );
+      assertEq(templateSlice1.length, 1);
+      assertEq(templateSlice1[0], market1);
+    }
+    {
+      address[] memory templateClamped = hooksFactory.getMarketsForHooksTemplate(
+        MockHooksTemplate,
+        0,
+        10
+      );
+      assertEq(templateClamped.length, 2);
+      assertEq(templateClamped[0], market0);
+      assertEq(templateClamped[1], market1);
+    }
+    {
+      address[] memory templateEmptyAtEnd = hooksFactory.getMarketsForHooksTemplate(
+        MockHooksTemplate,
+        2,
+        2
+      );
+      assertEq(templateEmptyAtEnd.length, 0);
+    }
+    {
+      address[] memory templateEmptyInverted = hooksFactory.getMarketsForHooksTemplate(
+        MockHooksTemplate,
+        2,
+        1
+      );
+      assertEq(templateEmptyInverted.length, 0);
+    }
+    {
+      address[] memory templateEmptyPastEnd = hooksFactory.getMarketsForHooksTemplate(
+        MockHooksTemplate,
+        3,
+        10
+      );
+      assertEq(templateEmptyPastEnd.length, 0);
+    }
+    {
+      address[] memory instanceSlice0 = hooksFactory.getMarketsForHooksInstance(
+        address(hooksInstance),
+        0,
+        1
+      );
+      assertEq(instanceSlice0.length, 1);
+      assertEq(instanceSlice0[0], market0);
+    }
+    {
+      address[] memory instanceSlice1 = hooksFactory.getMarketsForHooksInstance(
+        address(hooksInstance),
+        1,
+        2
+      );
+      assertEq(instanceSlice1.length, 1);
+      assertEq(instanceSlice1[0], market1);
+    }
+    {
+      address[] memory instanceClamped = hooksFactory.getMarketsForHooksInstance(
+        address(hooksInstance),
+        0,
+        10
+      );
+      assertEq(instanceClamped.length, 2);
+      assertEq(instanceClamped[0], market0);
+      assertEq(instanceClamped[1], market1);
+    }
+    {
+      address[] memory instanceEmptyAtEnd = hooksFactory.getMarketsForHooksInstance(
+        address(hooksInstance),
+        2,
+        2
+      );
+      assertEq(instanceEmptyAtEnd.length, 0);
+    }
+    {
+      address[] memory instanceEmptyInverted = hooksFactory.getMarketsForHooksInstance(
+        address(hooksInstance),
+        2,
+        1
+      );
+      assertEq(instanceEmptyInverted.length, 0);
+    }
+    {
+      address[] memory instanceEmptyPastEnd = hooksFactory.getMarketsForHooksInstance(
+        address(hooksInstance),
+        3,
+        10
+      );
+      assertEq(instanceEmptyPastEnd.length, 0);
+    }
+  }
+
   // ========================================================================== //
   //                            disableHooksTemplate                            //
   // ========================================================================== //

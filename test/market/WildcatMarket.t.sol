@@ -276,7 +276,7 @@ contract WildcatMarketTest is BaseMarketTest {
       _getWithdrawalBatch(state.pendingWithdrawalExpiry),
       state,
       state.pendingWithdrawalExpiry,
-      lastTotalAssets - (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees),
+      lastTotalAssets.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees),
       true
     );
     _trackProcessUnpaidWithdrawalBatch(state);
@@ -645,7 +645,6 @@ contract WildcatMarketTest is BaseMarketTest {
     market.transfer(bob, 0.5e18);
     assertEq(market.balanceOf(bob), 1e18, 'bob.balance');
   }
-
   function test_transfer_TransfersDisabled(bool fixedTerm) external {
     parameters.transfersDisabled = true;
     if (fixedTerm) parameters.fixedTermEndTime = uint32(block.timestamp + 1 days);

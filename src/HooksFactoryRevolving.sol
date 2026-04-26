@@ -8,11 +8,11 @@ import './libraries/MathUtils.sol';
 import './ReentrancyGuard.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
 import './access/IHooks.sol';
-import './IHooksFactory.sol';
+import './IHooksFactoryRevolving.sol';
 import './types/TransientBytesArray.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
 
-struct TmpMarketParameterStorage {
+struct TmpRevolvingMarketParameterStorage {
   address borrower;
   address asset;
   address feeRecipient;
@@ -31,11 +31,40 @@ struct TmpMarketParameterStorage {
   HooksConfig hooks;
 }
 
-contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactory {
+struct TmpRevolvingMarketData {
+  uint16 commitmentFeeBips;
+}
+
+struct DeployRevolvingMarketRuntimeParameters {
+  address hooksTemplate;
+  bytes32 salt;
+  address originationFeeAsset;
+  uint256 originationFeeAmount;
+  uint16 commitmentFeeBips;
+}
+
+contract HooksFactoryRevolving is
+  SphereXProtectedRegisteredBase,
+  ReentrancyGuard,
+  IHooksFactoryRevolving
+{
   using LibERC20 for address;
 
   TransientBytesArray internal constant _tmpMarketParameters =
-    TransientBytesArray.wrap(uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1);
+    TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketParameterStorage')) - 1);
+
+  TransientBytesArray internal constant _tmpRevolvingMarketData =
+    TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketData')) - 1);
+
+  uint256 internal constant _MARKET_DATA_WORD_LENGTH = 0x40;
+
+  uint8 internal constant _MARKET_DATA_VERSION = 1;
+
+  // NOTE(rcf-v2): Commitment fee bounds are enforced here at factory decode-time.
+  // Legacy hook-based min/max constraint plumbing is not reused in this rollout
+  // without widening hook interfaces/config paths. Keep this local bound for now;
+  // if shared bounds are reintroduced later, move to a single shared source.
+  uint16 internal constant _MAX_COMMITMENT_FEE_BIPS = 10_000;
 
   uint256 internal immutable ownCreate2Prefix = LibStoredInitCode.getCreate2Prefix(address(this));
 
@@ -45,22 +74,11 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   address public immutable override sanctionsSentinel;
 
-  /**
-   * @dev Return the contract name "WildcatHooksFactory"
-   */
   function name() external pure override returns (string memory) {
-    // Use yul to avoid duplicate memory allocation and reduce code size
-    // Uses words at 0x20, 0x40, 0x60
-    // 0x20 is overwritten with the ABI offset (32)
-    // 0x40 contains the free pointer which will be 1 byte when this function executes.
-    // The length of the string (19) is written to the last byte of the free pointer word.
-    // 0x60 is the zero slot, so it will not have any dirty bits when this function executes.
-    // It is overwritten with the name bytes in the same operation as the length.
-    assembly {
-      mstore(0x53, 0x1357696c64636174486f6f6b73466163746f7279)
-      mstore(0x20, 0x20)
-      return(0x20, 0x60)
-    }
+    // NOTE(rcf-v2): Legacy `HooksFactory.name()` uses a Yul implementation for
+    // size/gas micro-optimization. Keep this readable Solidity form during
+    // rollout bring-up, then consider parity optimization in a follow-up.
+    return 'WildcatHooksFactoryRevolving';
   }
 
   address[] internal _hooksTemplates;
@@ -81,13 +99,14 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   mapping(address hooksInstance => address[] markets) internal _marketsByHooksInstance;
 
   /**
-   * @dev Mapping from hooks template to its fee configuration and name
+   * @dev Mapping from hooks template to its fee configuration and name.
    */
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
 
   mapping(address hooksInstance => address hooksTemplate)
     public
-    override getHooksTemplateForInstance;
+    override
+    getHooksTemplateForInstance;
 
   constructor(
     address archController_,
@@ -121,22 +140,28 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   //                          Internal Storage Helpers                          //
   // ========================================================================== //
 
-  /**
-   * @dev Get the temporary market parameters from transient storage.
-   */
   function _getTmpMarketParameters()
     internal
     view
-    returns (TmpMarketParameterStorage memory parameters)
+    returns (TmpRevolvingMarketParameterStorage memory parameters)
   {
-    return abi.decode(_tmpMarketParameters.read(), (TmpMarketParameterStorage));
+    return abi.decode(_tmpMarketParameters.read(), (TmpRevolvingMarketParameterStorage));
   }
 
-  /**
-   * @dev Set the temporary market parameters in transient storage.
-   */
-  function _setTmpMarketParameters(TmpMarketParameterStorage memory parameters) internal {
+  function _setTmpMarketParameters(TmpRevolvingMarketParameterStorage memory parameters) internal {
     _tmpMarketParameters.write(abi.encode(parameters));
+  }
+
+  function _setTmpRevolvingMarketData(TmpRevolvingMarketData memory data) internal {
+    _tmpRevolvingMarketData.write(abi.encode(data));
+  }
+
+  function _getTmpRevolvingMarketData()
+    internal
+    view
+    returns (TmpRevolvingMarketData memory data)
+  {
+    return abi.decode(_tmpRevolvingMarketData.read(), (TmpRevolvingMarketData));
   }
 
   // ========================================================================== //
@@ -156,7 +181,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   function addHooksTemplate(
     address hooksTemplate,
-    string calldata name,
+    string calldata name_,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
@@ -168,7 +193,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _validateFees(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
     _templateDetails[hooksTemplate] = HooksTemplate({
       exists: true,
-      name: name,
+      name: name_,
       feeRecipient: feeRecipient,
       originationFeeAsset: originationFeeAsset,
       originationFeeAmount: originationFeeAmount,
@@ -179,7 +204,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _hooksTemplates.push(hooksTemplate);
     emit HooksTemplateAdded(
       hooksTemplate,
-      name,
+      name_,
       feeRecipient,
       originationFeeAsset,
       originationFeeAmount,
@@ -206,10 +231,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
   }
 
-  /// @dev Update the fees for a hooks template
-  /// Note: The new fee structure will apply to all NEW markets created with existing
-  ///       or future instances of the hooks template, and the protocol fee can be pushed
-  ///       to existing markets using `pushProtocolFeeBipsUpdates`.
   function updateHooksTemplateFees(
     address hooksTemplate,
     address feeRecipient,
@@ -240,7 +261,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert HooksTemplateNotFound();
     }
     _templateDetails[hooksTemplate].enabled = false;
-    // Emit an event to indicate that the template has been removed
     emit HooksTemplateDisabled(hooksTemplate);
   }
 
@@ -308,9 +328,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   //                               Hooks Instances                              //
   // ========================================================================== //
 
-  /// @dev Deploy a hooks instance for an approved template with constructor args.
-  ///      Callable by approved borrowers on the arch-controller.
-  ///      May require payment of origination fees.
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
@@ -355,21 +372,14 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       salt := or(shl(96, caller()), numHooksForBorrower)
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(hooksTemplate), 1)
-      // Copy code from target address to memory starting at byte 1
       extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
-      // Write the address of the caller as the first parameter
       mstore(endInitCodePointer, caller())
-      // Write the offset to the encoded constructor args
       mstore(add(endInitCodePointer, 0x20), 0x40)
-      // Write the length of the encoded constructor args
       let constructorArgsSize := constructorArgs.length
       mstore(add(endInitCodePointer, 0x40), constructorArgsSize)
-      // Copy constructor args to initcode after the bytes length
       calldatacopy(add(endInitCodePointer, 0x60), constructorArgs.offset, constructorArgsSize)
-      // Get the full size of the initcode with the constructor args
       let initCodeSizeWithArgs := add(add(initCodeSize, 0x60), constructorArgsSize)
-      // Deploy the contract with the initcode
       hooksInstance := create2(0, initCodePointer, initCodeSizeWithArgs, salt)
       if iszero(hooksInstance) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
@@ -377,7 +387,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       }
     }
     _hooksInstancesByBorrower[msg.sender].push(hooksInstance);
-
     emit HooksInstanceDeployed(hooksInstance, hooksTemplate);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
@@ -413,18 +422,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     return _marketsByHooksInstance[hooksInstance].length;
   }
 
-  /**
-   * @dev Get the temporarily stored market parameters for a market that is
-   *      currently being deployed.
-   */
   function getMarketParameters()
     external
     view
     override
     returns (MarketParameters memory parameters)
   {
-    TmpMarketParameterStorage memory tmp = _getTmpMarketParameters();
-
+    TmpRevolvingMarketParameterStorage memory tmp = _getTmpMarketParameters();
     parameters.asset = tmp.asset;
     parameters.packedNameWord0 = tmp.packedNameWord0;
     parameters.packedNameWord1 = tmp.packedNameWord1;
@@ -450,63 +454,79 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
   }
 
-  /**
-   * @dev Given a string of at most 63 bytes, produces a packed version with two words,
-   *      where the first word contains the length byte and the first 31 bytes of the string,
-   *      and the second word contains the second 32 bytes of the string.
-   */
   function _packString(string memory str) internal pure returns (bytes32 word0, bytes32 word1) {
     assembly {
       let length := mload(str)
-      // Equivalent to:
-      // if (str.length > 63) revert NameOrSymbolTooLong();
       if gt(length, 0x3f) {
         mstore(0, 0x19a65cb6)
         revert(0x1c, 0x04)
       }
-      // Load the length and first 31 bytes of the string into the first word
-      // by reading from 31 bytes after the length pointer.
       word0 := mload(add(str, 0x1f))
-      // If the string is less than 32 bytes, the second word will be zeroed out.
       word1 := mul(mload(add(str, 0x3f)), gt(mload(str), 0x1f))
     }
   }
 
+  function _decodeMarketData(bytes calldata marketData) internal pure returns (uint16 commitmentFeeBips) {
+    // NOTE(rcf-v2): Intentionally using Solidity `abi.decode` for readability.
+    // If needed, this can be replaced with a Yul decoder in a follow-up pass.
+    if (marketData.length != _MARKET_DATA_WORD_LENGTH) {
+      revert InvalidMarketData();
+    }
+
+    (uint8 version, uint16 decodedCommitmentFeeBips) = abi.decode(marketData, (uint8, uint16));
+    if (version != _MARKET_DATA_VERSION) {
+      revert UnsupportedMarketDataVersion();
+    }
+    if (decodedCommitmentFeeBips > _MAX_COMMITMENT_FEE_BIPS) {
+      revert InvalidCommitmentFeeBips();
+    }
+    commitmentFeeBips = decodedCommitmentFeeBips;
+  }
+
   function _deployMarket(
     DeployMarketInputs memory parameters,
-    bytes memory hooksData,
-    address hooksTemplate,
-    HooksTemplate memory templateDetails,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
+    bytes calldata hooksData,
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams
   ) internal returns (address market) {
+    HooksTemplate memory templateDetails = _templateDetails[runtimeParams.hooksTemplate];
+    if (!templateDetails.exists) {
+      revert HooksTemplateNotFound();
+    }
+
     if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
       revert AssetBlacklisted();
     }
     address hooksInstance = parameters.hooks.hooksAddress();
 
-    if (!(address(bytes20(salt)) == msg.sender || bytes20(salt) == bytes20(0))) {
+    if (
+      !(address(bytes20(runtimeParams.salt)) == msg.sender ||
+        bytes20(runtimeParams.salt) == bytes20(0))
+    ) {
       revert SaltDoesNotContainSender();
     }
 
     if (
-      originationFeeAsset != templateDetails.originationFeeAsset ||
-      originationFeeAmount != templateDetails.originationFeeAmount
+      runtimeParams.originationFeeAsset != templateDetails.originationFeeAsset ||
+      runtimeParams.originationFeeAmount != templateDetails.originationFeeAmount
     ) {
       revert FeeMismatch();
     }
 
-    if (originationFeeAsset != address(0)) {
-      originationFeeAsset.safeTransferFrom(
+    if (runtimeParams.originationFeeAsset != address(0)) {
+      runtimeParams.originationFeeAsset.safeTransferFrom(
         msg.sender,
         templateDetails.feeRecipient,
-        originationFeeAmount
+        runtimeParams.originationFeeAmount
       );
     }
 
-    market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+    market = LibStoredInitCode.calculateCreate2Address(
+      ownCreate2Prefix,
+      runtimeParams.salt,
+      marketInitCodeHash
+    );
 
+    // NOTE(rcf-v2): `hooksData` remains hook-owned and is forwarded unchanged.
     parameters.hooks = IHooks(hooksInstance).onCreateMarket(
       msg.sender,
       market,
@@ -518,7 +538,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
     string memory symbol = string.concat(parameters.symbolPrefix, parameters.asset.symbol());
 
-    TmpMarketParameterStorage memory tmp = TmpMarketParameterStorage({
+    TmpRevolvingMarketParameterStorage memory tmp = TmpRevolvingMarketParameterStorage({
       borrower: msg.sender,
       asset: parameters.asset,
       packedNameWord0: bytes32(0),
@@ -542,21 +562,25 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
 
     _setTmpMarketParameters(tmp);
+    _setTmpRevolvingMarketData(
+      TmpRevolvingMarketData({ commitmentFeeBips: runtimeParams.commitmentFeeBips })
+    );
 
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
     }
-    LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, salt);
+    LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt);
 
     IWildcatArchController(_archController).registerMarket(market);
 
     _tmpMarketParameters.setEmpty();
+    _tmpRevolvingMarketData.setEmpty();
 
-    _marketsByHooksTemplate[hooksTemplate].push(market);
+    _marketsByHooksTemplate[runtimeParams.hooksTemplate].push(market);
     _marketsByHooksInstance[hooksInstance].push(market);
 
     emit MarketDeployed(
-      hooksTemplate,
+      runtimeParams.hooksTemplate,
       market,
       name,
       symbol,
@@ -571,9 +595,73 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     );
   }
 
+  function _deployMarketValidated(
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount,
+    uint16 commitmentFeeBips
+  ) internal returns (address market) {
+    address hooksInstance = parameters.hooks.hooksAddress();
+    address hooksTemplate = getHooksTemplateForInstance[hooksInstance];
+    if (hooksTemplate == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams =
+      _buildRuntimeParams(hooksTemplate, salt, originationFeeAsset, originationFeeAmount, commitmentFeeBips);
+
+    market = _deployMarket(parameters, hooksData, runtimeParams);
+  }
+
+  function _deployMarketAndHooksValidated(
+    address hooksTemplate,
+    bytes calldata hooksConstructorArgs,
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount,
+    uint16 commitmentFeeBips
+  ) internal returns (address market, address hooksInstance) {
+    if (!_templateDetails[hooksTemplate].exists) {
+      revert HooksTemplateNotFound();
+    }
+
+    hooksInstance = _deployHooksInstance(hooksTemplate, hooksConstructorArgs);
+    DeployMarketInputs memory marketInputs = parameters;
+    marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
+
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams =
+      _buildRuntimeParams(hooksTemplate, salt, originationFeeAsset, originationFeeAmount, commitmentFeeBips);
+
+    market = _deployMarket(marketInputs, hooksData, runtimeParams);
+  }
+
+  function _buildRuntimeParams(
+    address hooksTemplate,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount,
+    uint16 commitmentFeeBips
+  ) internal pure returns (DeployRevolvingMarketRuntimeParameters memory runtimeParams) {
+    runtimeParams.hooksTemplate = hooksTemplate;
+    runtimeParams.salt = salt;
+    runtimeParams.originationFeeAsset = originationFeeAsset;
+    runtimeParams.originationFeeAmount = originationFeeAmount;
+    runtimeParams.commitmentFeeBips = commitmentFeeBips;
+  }
+
+  function getRevolvingMarketCommitmentFeeBips() external view override returns (uint16) {
+    TmpRevolvingMarketData memory data = _getTmpRevolvingMarketData();
+    return data.commitmentFeeBips;
+  }
+
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
+    bytes calldata marketData,
     bytes32 salt,
     address originationFeeAsset,
     uint256 originationFeeAmount
@@ -581,28 +669,23 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
       revert NotApprovedBorrower();
     }
-    address hooksInstance = parameters.hooks.hooksAddress();
-    address hooksTemplate = getHooksTemplateForInstance[hooksInstance];
-    if (hooksTemplate == address(0)) {
-      revert HooksInstanceNotFound();
-    }
-    HooksTemplate memory templateDetails = _templateDetails[hooksTemplate];
-    market = _deployMarket(
+    uint16 commitmentFeeBips = _decodeMarketData(marketData);
+    market = _deployMarketValidated(
       parameters,
       hooksData,
-      hooksTemplate,
-      templateDetails,
       salt,
       originationFeeAsset,
-      originationFeeAmount
+      originationFeeAmount,
+      commitmentFeeBips
     );
   }
 
   function deployMarketAndHooks(
     address hooksTemplate,
-    bytes calldata hooksTemplateArgs,
-    DeployMarketInputs memory parameters,
+    bytes calldata hooksConstructorArgs,
+    DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
+    bytes calldata marketData,
     bytes32 salt,
     address originationFeeAsset,
     uint256 originationFeeAmount
@@ -610,28 +693,24 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
       revert NotApprovedBorrower();
     }
-    HooksTemplate memory templateDetails = _templateDetails[hooksTemplate];
-    if (!templateDetails.exists) {
-      revert HooksTemplateNotFound();
-    }
-    hooksInstance = _deployHooksInstance(hooksTemplate, hooksTemplateArgs);
-    parameters.hooks = parameters.hooks.setHooksAddress(hooksInstance);
-    market = _deployMarket(
+    uint16 commitmentFeeBips = _decodeMarketData(marketData);
+    (market, hooksInstance) = _deployMarketAndHooksValidated(
+      hooksTemplate,
+      hooksConstructorArgs,
       parameters,
       hooksData,
-      hooksTemplate,
-      templateDetails,
       salt,
       originationFeeAsset,
-      originationFeeAmount
+      originationFeeAmount,
+      commitmentFeeBips
     );
   }
 
   /**
    * @dev Push any changes to the fee configuration of `hooksTemplate` to markets
    *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
-   *      Starts at `marketStartIndex` and ends one before `marketEndIndex`  or markets.length,
-   *      whichever is lowest.
+   *      Starts at `marketStartIndex` and ends one before `marketEndIndex` or markets.length,
+   *      whichever is lower.
    */
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
@@ -647,32 +726,23 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     uint256 setProtocolFeeBipsCalldataPointer;
     uint16 protocolFeeBips = details.protocolFeeBips;
     assembly {
-      // Write the calldata for `market.setProtocolFeeBips(protocolFeeBips)`
-      // this will be reused for every market
       setProtocolFeeBipsCalldataPointer := mload(0x40)
       mstore(0x40, add(setProtocolFeeBipsCalldataPointer, 0x40))
-      // Write selector for `setProtocolFeeBips(uint16)`
-      mstore(setProtocolFeeBipsCalldataPointer, 0xae6ea191)
+      mstore(setProtocolFeeBipsCalldataPointer, 0xae6ea191) // setProtocolFeeBips(uint16)
       mstore(add(setProtocolFeeBipsCalldataPointer, 0x20), protocolFeeBips)
-      // Add 28 bytes to get the exact pointer to the first byte of the selector
       setProtocolFeeBipsCalldataPointer := add(setProtocolFeeBipsCalldataPointer, 0x1c)
     }
     for (uint256 i = 0; i < count; i++) {
       address market = markets[marketStartIndex + i];
       assembly {
         if iszero(call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)) {
-          // Equivalent to `revert SetProtocolFeeBipsFailed()`
-          mstore(0, 0x4484a4a9)
+          mstore(0, 0x4484a4a9) // SetProtocolFeeBipsFailed()
           revert(0x1c, 0x04)
         }
       }
     }
   }
 
-  /**
-   * @dev Push any changes to the fee configuration of `hooksTemplate` to all markets
-   *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
-   */
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external override {
     pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
   }
