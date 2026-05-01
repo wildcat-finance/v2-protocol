@@ -11,3 +11,15 @@ hh-cache
 artifacts
 coverage/
 .env
+docs/agent/
+deployments/*/*-0x*/
+deployments/*/MarketLens_*/
+deployments/*/MarketLensCore_*/
+deployments/*/MarketLensAggregator_*/
+deployments/*/MarketLensLive_*/
+deployments/*/WildcatMarketRevolving-0x*/
+deployments/*/HooksFactoryRevolving-0x*/
+deployments/*/pending-admin-actions/
+deployments/*/rcf-template-sync-*.json
+deployments/*/rcf-v2-handoff*.json
+audits/

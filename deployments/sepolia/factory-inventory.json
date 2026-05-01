@@ -15,6 +15,16 @@
       "deploymentKey": "HooksFactory"
     },
     {
+      "label": "legacy-v2-20240730",
+      "marketType": "legacy",
+      "address": "0x10A64ABa0159720F8a23E1A552800CA4eb21576C",
+      "startBlock": 7124440,
+      "canonical": false,
+      "indexed": true,
+      "registered": true,
+      "notes": "Historical Sepolia legacy hooks factory retained for market visibility; indexed but not canonical for new deployments."
+    },
+    {
       "label": "revolving-sepolia-20260419-233246",
       "marketType": "revolving",
       "address": "0xF4564015E524cf5629828E61F45ed339D998D85f",
