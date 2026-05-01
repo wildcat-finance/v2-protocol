@@ -14,6 +14,7 @@ struct HookedMarket {
   bool transferRequiresAccess;
   bool depositRequiresAccess;
   bool withdrawalRequiresAccess;
+  bool depositHookEnabled;
   uint128 minimumDeposit;
   uint32 periodStart;
   uint32 periodDuration;
@@ -53,7 +54,9 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   error InitialWithdrawalWindowTooFarInFuture();
   error PeriodDurationOutOfBounds();
   error WithdrawalWindowDurationOutOfBounds();
+  error DepositHookNotEnabled();
   error WithdrawOutsideWindow();
+  error NoReducingAprOutsideWithdrawalWindow();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -173,6 +176,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
       withdrawalRequiresAccess: marketHooksConfig.useOnQueueWithdrawal(),
+      depositHookEnabled: false,
       periodStart: periodStart,
       periodDuration: periodDuration,
       withdrawalWindowDuration: withdrawalWindowDuration,
@@ -196,6 +200,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
         Bit_Enabled_Deposit
       );
     }
+    hookedMarket.depositHookEnabled = marketHooksConfig.useOnDeposit();
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
     _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
@@ -207,6 +212,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (newMinimumDeposit > 0 && !hookedMarket.depositHookEnabled) revert DepositHookNotEnabled();
     hookedMarket.minimumDeposit = newMinimumDeposit;
     emit MinimumDepositUpdated(market, newMinimumDeposit);
   }
@@ -424,6 +430,16 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
+    HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (
+      annualInterestBips < intermediateState.annualInterestBips &&
+      !intermediateState.isClosed &&
+      !_isWithdrawalWindowOpen(hookedMarket, block.timestamp)
+    ) {
+      revert NoReducingAprOutsideWithdrawalWindow();
+    }
+
     return
       super.onSetAnnualInterestAndReserveRatioBips(
         annualInterestBips,

@@ -460,6 +460,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     assertEq(market.transferRequiresAccess, useOnTransfer, 'transferRequiresAccess');
     assertEq(market.depositRequiresAccess, useOnDeposit, 'depositRequiresAccess');
     assertEq(market.withdrawalRequiresAccess, useOnQueueWithdrawal, 'withdrawalRequiresAccess');
+    assertEq(market.depositHookEnabled, expectedConfig.useOnDeposit, 'depositHookEnabled');
     assertEq(market.minimumDeposit, minimumDeposit, 'minimumDeposit');
     assertEq(market.periodStart, PeriodStart, 'periodStart');
     assertEq(market.periodDuration, PeriodDuration, 'periodDuration');
@@ -643,6 +644,15 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     assertEq(hooks.getHookedMarket(Market).minimumDeposit, 2e18, 'minimumDeposit');
   }
 
+  function test_setMinimumDeposit_DepositHookNotEnabled() external {
+    _createMarket();
+
+    vm.expectRevert(PeriodicTermHooks.DepositHookNotEnabled.selector);
+    hooks.setMinimumDeposit(Market, 1);
+
+    hooks.setMinimumDeposit(Market, 0);
+  }
+
   function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
     vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.setMinimumDeposit(Market, 1);
@@ -651,5 +661,73 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
   function test_setMinimumDeposit_NotHookedMarket() external {
     vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
     hooks.setMinimumDeposit(Market, 1);
+  }
+
+  // ========================================================================== //
+  //                  setAnnualInterestAndReserveRatioBips                      //
+  // ========================================================================== //
+
+  function test_setAnnualInterestAndReserveRatioBips_ReducingAprOutsideWindow() external {
+    _createMarket();
+
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+
+    vm.prank(Market);
+    vm.expectRevert(PeriodicTermHooks.NoReducingAprOutsideWithdrawalWindow.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_IncreaseOutsideWindow() external {
+    _createMarket();
+
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+
+    vm.prank(Market);
+    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
+      .onSetAnnualInterestAndReserveRatioBips(1_001, 0, state, '');
+
+    assertEq(annualInterestBips, 1_001, 'annualInterestBips');
+    assertEq(reserveRatioBips, 0, 'reserveRatioBips');
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_ReducingAprDuringWindow() external {
+    _createMarket();
+    vm.warp(PeriodStart + PeriodDuration - WithdrawalWindowDuration);
+
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+
+    vm.prank(Market);
+    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
+      .onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
+
+    assertEq(annualInterestBips, 999, 'annualInterestBips');
+    assertEq(reserveRatioBips, 0, 'reserveRatioBips');
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_ReducingAprAfterClose() external {
+    _createMarket();
+
+    MarketState memory state;
+    vm.prank(Market);
+    hooks.onCloseMarket(state, '');
+
+    state.annualInterestBips = 1_000;
+    vm.prank(Market);
+    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
+      .onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
+
+    assertEq(annualInterestBips, 999, 'annualInterestBips');
+    assertEq(reserveRatioBips, 0, 'reserveRatioBips');
+  }
+
+  function test_setAnnualInterestAndReserveRatioBips_NotHookedMarket() external {
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
   }
 }
