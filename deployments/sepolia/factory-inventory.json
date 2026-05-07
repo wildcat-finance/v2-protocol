@@ -1,0 +1,55 @@
+{
+  "schemaVersion": "1.0.0",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "marketTypes": ["legacy", "revolving"],
+  "hooksFactories": [
+    {
+      "label": "legacy-v2",
+      "marketType": "legacy",
+      "address": "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88",
+      "startBlock": 7124440,
+      "canonical": true,
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactory"
+    },
+    {
+      "label": "legacy-v2-20240730",
+      "marketType": "legacy",
+      "address": "0x10A64ABa0159720F8a23E1A552800CA4eb21576C",
+      "startBlock": 7124440,
+      "canonical": false,
+      "indexed": true,
+      "registered": true,
+      "notes": "Historical Sepolia legacy hooks factory retained for market visibility; indexed but not canonical for new deployments."
+    },
+    {
+      "label": "revolving-sepolia-20260419-233246",
+      "marketType": "revolving",
+      "address": "0xF4564015E524cf5629828E61F45ed339D998D85f",
+      "startBlock": 10695521,
+      "canonical": false,
+      "indexed": true,
+      "registered": true,
+      "deployTxHash": "0x841704fa9ee616b203e6655dfc5f50f1afc6c9730ef3564fa1ae37b1214d1721",
+      "registerTxHash": "0x2706b13eecb74f1d4e10bd2b2df596356ad01ef89ddcd97db1872f8a4c2fcd62",
+      "initCodeStorage": "0xAB379345b186c4914d109916c50337D46e72f5E8",
+      "notes": "Historical Sepolia RCF factory retained for market visibility; indexed but not canonical for new deployments."
+    },
+    {
+      "label": "revolving-sepolia-20260424-140119",
+      "marketType": "revolving",
+      "address": "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5",
+      "startBlock": 10725515,
+      "canonical": true,
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactoryRevolving",
+      "deployTxHash": "0x3fcce2f982d16675c8aa86aab75e80b5d5c34429d7514a7ba277cd245a6c0001",
+      "registerTxHash": "0x96967d686e8e554aab2342579e16d7d37c357068214722348e572cf223f0c47f",
+      "initCodeStorage": "0x6Fb02197A8f8bc839C91B4CA4A0DCdCDF85cCc8d",
+      "notes": "Current canonical Sepolia RCF factory for new revolving market deployments."
+    }
+  ]
+}

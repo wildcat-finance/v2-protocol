@@ -539,6 +539,31 @@ contract WithdrawalsTest is BaseMarketTest {
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
+  function test_repayAndProcessUnpaidWithdrawalBatches_PartialRepayAfterExpiredUnpaidBatch()
+    external
+  {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    fastForward(parameters.withdrawalBatchDuration * 2);
+
+    updateState(pendingState(true));
+    market.updateState();
+
+    assertEq(market.getUnpaidBatchExpiries().length, 1);
+
+    asset.mint(address(this), 2e17);
+    asset.approve(address(market), 2e17);
+
+    MarketState memory state = pendingState();
+    _trackRepay(state, address(this), 2e17);
+    _trackProcessUnpaidWithdrawalBatch(state);
+    updateState(state);
+
+    market.repayAndProcessUnpaidWithdrawalBatches(2e17, 1);
+
+    assertEq(market.getUnpaidBatchExpiries().length, 1);
+    _checkState();
+  }
+
   function test_repayAndProcessUnpaidWithdrawalBatches_Single() external {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     fastForward(parameters.withdrawalBatchDuration * 2);

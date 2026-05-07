@@ -464,8 +464,9 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     state.isClosed = true;
     state.reserveRatioBips = 10000;
     state.timeDelinquent = 0;
-    uint256 availableLiquidity = currentlyHeld -
-      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+    uint256 availableLiquidity = currentlyHeld.satSub(
+      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
+    );
 
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 expiry = state.pendingWithdrawalExpiry;
@@ -555,8 +556,9 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
   function _trackProcessUnpaidWithdrawalBatch(
     MarketState memory state
   ) internal returns (uint128 normalizedAmountPaid) {
-    uint256 availableLiquidity = lastTotalAssets -
-      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+    uint256 availableLiquidity = lastTotalAssets.satSub(
+      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
+    );
     return _trackProcessUnpaidWithdrawalBatch(state, availableLiquidity);
   }
 

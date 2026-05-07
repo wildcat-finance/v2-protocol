@@ -9,12 +9,12 @@ import 'src/market/WildcatMarket.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/access/OpenTermHooks.sol';
 import 'src/HooksFactory.sol';
-import './LibDeployment.sol';
-import './DeployTypes.sol';
-import './mock/MockERC20Factory.sol';
-import './mock/MockArchControllerOwner.sol';
-import './mock/UniversalProvider.sol';
-import './Lender.sol';
+import '../common/LibDeployment.sol';
+import '../helpers/DeployTypes.sol';
+import '../mock/MockERC20Factory.sol';
+import '../mock/MockArchControllerOwner.sol';
+import '../mock/UniversalProvider.sol';
+import '../helpers/Lender.sol';
 
 using LibString for address;
 using LibString for string;
