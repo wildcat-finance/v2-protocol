@@ -309,7 +309,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
   ) internal returns (uint104 scaledAmount, uint256 actualNormalizedAmount) {
     actualNormalizedAmount = MathUtils.min(normalizedAmount, state.maximumDeposit());
 
-    scaledAmount = state.scaleAmount(actualNormalizedAmount).toUint104();
+    scaledAmount = state.scaleAmountDown(actualNormalizedAmount).toUint104();
     MarketAccount storage account = _getAccount(accountAddress);
 
     account.scaledBalance += scaledAmount;
@@ -343,7 +343,26 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     function(uint, bool) internal registerHookExpectations,
     uint registerHookExpectationsInput
   ) internal returns (uint32 expiry, uint104 scaledAmount) {
-    scaledAmount = state.scaleAmount(normalizedAmount).toUint104();
+    scaledAmount = state.scaleAmountDown(normalizedAmount).toUint104();
+    return
+      _trackQueueWithdrawalScaled(
+        state,
+        accountAddress,
+        scaledAmount,
+        normalizedAmount,
+        registerHookExpectations,
+        registerHookExpectationsInput
+      );
+  }
+
+  function _trackQueueWithdrawalScaled(
+    MarketState memory state,
+    address accountAddress,
+    uint104 scaledAmount,
+    uint256 normalizedAmount,
+    function(uint, bool) internal registerHookExpectations,
+    uint registerHookExpectationsInput
+  ) internal returns (uint32 expiry, uint104) {
     _getAccount(accountAddress).scaledBalance -= scaledAmount;
 
     if (state.pendingWithdrawalExpiry == 0) {
@@ -375,6 +394,8 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     }
 
     updateState(state);
+
+    return (expiry, scaledAmount);
   }
 
   function _trackExecuteWithdrawal(
@@ -627,12 +648,15 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     uint256 availableLiquidity,
     bool expectEvents
   ) internal returns (uint128 normalizedAmountPaid) {
-    uint104 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity).toUint104();
+    uint104 scaledAvailableLiquidity = state.scaleAmountDown(availableLiquidity).toUint104();
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     if (scaledAmountOwed == 0) {
       return 0;
     }
     uint104 scaledAmountBurned = uint104(MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed));
+    if (scaledAmountBurned == 0) {
+      return 0;
+    }
     normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;

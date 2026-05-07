@@ -136,7 +136,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
     if (scaledAmount == 0) revert_NullBurnAmount();
 
     // Cache account data

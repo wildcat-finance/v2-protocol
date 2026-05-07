@@ -675,8 +675,9 @@ contract WildcatMarketBase is
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return (0, 0);
 
-    uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
+    uint256 scaledAvailableLiquidity = state.scaleAmountDown(availableLiquidity);
     scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
+    if (scaledAmountBurned == 0) return (0, 0);
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
@@ -705,10 +706,11 @@ contract WildcatMarketBase is
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return;
 
-    uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
+    uint256 scaledAvailableLiquidity = state.scaleAmountDown(availableLiquidity);
     uint104 scaledAmountBurned = MathUtils
       .min(scaledAvailableLiquidity, scaledAmountOwed)
       .toUint104();
+    if (scaledAmountBurned == 0) return;
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     uint128 normalizedAmountPaid = MathUtils

@@ -78,6 +78,14 @@ library MarketStateLib {
   }
 
   /**
+   * @dev Scale an amount of normalized tokens using the current scale factor,
+   *      rounding down.
+   */
+  function scaleAmountDown(MarketState memory state, uint256 amount) internal pure returns (uint256) {
+    return (amount * RAY) / state.scaleFactor;
+  }
+
+  /**
    * @dev Collateralization requirement is:
    *      - 100% of all pending (unpaid) withdrawals
    *      - 100% of all unclaimed (paid) withdrawals

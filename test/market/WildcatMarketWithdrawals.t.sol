@@ -473,6 +473,29 @@ contract WithdrawalsTest is BaseMarketTest {
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
+  function test_processUnpaidWithdrawalBatch_RoundsAvailableLiquidityDown() external {
+    parameters.protocolFeeBips = 0;
+    parameters.reserveRatioBips = 0;
+    setUp();
+
+    _depositBorrowWithdraw(alice, 1e18, 1e18, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+    updateState(pendingState());
+    assertEq(market.getUnpaidBatchExpiries().length, 1);
+
+    asset.mint(address(market), 1);
+    lastTotalAssets += 1;
+    MarketState memory state = pendingState();
+    _trackProcessUnpaidWithdrawalBatch(state);
+    market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+
+    _checkBatch(expiry, 1e18, 0, 0);
+    assertEq(market.getUnpaidBatchExpiries().length, 1);
+    _checkState();
+  }
+
   function test_processUnpaidWithdrawalBatch() external {
     // Borrow 80% of deposits then request withdrawal of 100% of deposits
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
@@ -519,7 +542,7 @@ contract WithdrawalsTest is BaseMarketTest {
     updateState(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
 
-    uint scaledAvailableLiquidity = state.scaleAmount(feesAccruedOnWithdrawal);
+    uint scaledAvailableLiquidity = state.scaleAmountDown(feesAccruedOnWithdrawal);
     uint normalizedAmountPaid = MathUtils.mulDiv(scaledAvailableLiquidity, state.scaleFactor, RAY);
     _checkBatch(expiry, 1e18, 1e18, 1e18 + normalizedAmountPaid);
     assertEq(market.getUnpaidBatchExpiries().length, 0);

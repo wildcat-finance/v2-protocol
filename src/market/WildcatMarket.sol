@@ -64,7 +64,7 @@ contract WildcatMarket is
     amount = MathUtils.min(amount, state.maximumDeposit());
 
     // Scale the mint amount
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
     if (scaledAmount == 0) revert_NullMintAmount();
 
     // Cache account data and revert if not authorized to deposit.

@@ -37,6 +37,19 @@ contract MarketStateTest is Test {
     assertEq(actual, expected);
   }
 
+  function test_scaleAmountDown(
+    uint256 scaleFactor,
+    uint256 normalizedAmount
+  ) external returns (uint256) {
+    scaleFactor = bound(scaleFactor, RAY, type(uint112).max);
+    normalizedAmount = bound(normalizedAmount, 0, type(uint128).max);
+    MarketState memory state;
+    state.scaleFactor = uint112(scaleFactor);
+    uint256 expected = (normalizedAmount * RAY) / uint256(scaleFactor);
+    uint256 actual = state.$scaleAmountDown(normalizedAmount);
+    assertEq(actual, expected);
+  }
+
   function test_normalizeAmount(uint256 scaledAmount, uint256 scaleFactor) external {
     scaledAmount = bound(scaledAmount, 0, type(uint104).max);
     scaleFactor = bound(scaleFactor, RAY, type(uint112).max);

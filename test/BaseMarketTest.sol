@@ -128,11 +128,10 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
       currentBalance + state.normalizeAmount(scaledAmount),
       'Resulting balance != old balance + normalize(scale(deposit))'
     );
-    assertApproxEqAbs(
+    assertLe(
       market.balanceOf(from),
-      currentBalance + amount,
-      1,
-      'Resulting balance not within 1 wei of old balance + amount deposited'
+      currentBalance + actualNormalizedAmount,
+      'Resulting balance > old balance + amount deposited'
     );
     assertEq(
       market.scaledBalanceOf(from),
@@ -156,11 +155,11 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     (expiry, scaledAmount) = _trackQueueWithdrawal(state, from, amount);
     market.queueWithdrawal(amount);
     _checkState(state);
-    assertApproxEqAbs(
+    uint256 minimumBalance = amount > currentBalance ? 0 : currentBalance - amount;
+    assertGe(
       market.balanceOf(from),
-      currentBalance - amount,
-      1,
-      unicode'balance after withdrawal (± 1)'
+      minimumBalance,
+      'balance after withdrawal below requested amount'
     );
     assertEq(
       market.balanceOf(from),
@@ -177,7 +176,14 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   function _requestFullWithdrawal(address from) internal asAccount(from) {
     MarketState memory state = pendingState();
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);
-    (, uint104 scaledAmount) = _trackQueueWithdrawal(state, from, currentBalance);
+    _trackQueueWithdrawalScaled(
+      state,
+      from,
+      currentScaledBalance.toUint104(),
+      currentBalance,
+      registerExpectationsStandin,
+      0
+    );
     market.queueFullWithdrawal();
     _checkState(state);
     assertEq(market.balanceOf(from), 0, 'balance after withdrawal (exact)');
