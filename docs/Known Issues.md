@@ -18,9 +18,9 @@ The example given is also an extreme one, in reality it'd much more likely be a 
 
 If any of the hooks that are enabled for a market can revert unexpectedly, the corresponding market function may become permanently disabled. This is considered a known/unfixable issue with respect to the market, but if such an issue is actually discovered in a hooks template we have developed, this is a major vulnerability that should be reported.
 
-**Sanctioned account handling can lead to unexpected behavior on markets with withdrawal restrictions**
+**Sanctioned account handling on existing markets with withdrawal restrictions**
 
-If a market uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, sanctioned account handling may not work correctly as it will attempt to force the lender into a withdrawal, and those withdrawals are treated the same as any other. This could lead to unavoidable interest payments to a sanctioned entity's escrow address (where the funds will go when withdrawals are eventually unrestricted).
+Markets deployed before the CAF-03 remediation route forced sanctions withdrawals through the same withdrawal hooks as ordinary lender withdrawals. If one of those existing markets uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. This could lead to unavoidable interest payments to a sanctioned entity's escrow address, where the funds will go when withdrawals are eventually unrestricted.
 
 **Hooks lack some specificity**
 

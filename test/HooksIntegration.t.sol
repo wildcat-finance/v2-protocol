@@ -154,30 +154,27 @@ contract HooksIntegrationTest is BaseMarketTest {
     }
   }
 
-  function test_onQueueWithdrawal_nukeFromOrbit(
+  function test_onQueueWithdrawal_nukeFromOrbit_bypassesQueueWithdrawalHook(
     StandardHooksConfig memory config,
     bytes memory extraData
   ) external {
+    config.useOnQueueWithdrawal = true;
+    config.useOnNukeFromOrbit = false;
     _setUp(config);
     _deposit(alice, 1e18);
     MockHooks(address(hooks)).reset();
+    MockHooks(address(hooks)).setRevertOnQueueWithdrawal(true);
     sanctionsSentinel.sanction(alice);
     startPrank(alice);
-    MarketState memory state = pendingState();
     bytes memory _calldata = abi.encodePacked(
       abi.encodeWithSelector(market.nukeFromOrbit.selector, alice),
       extraData
     );
     uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
-    state.pendingWithdrawalExpiry = expiry;
-    if (config.useOnQueueWithdrawal) {
-      vm.expectEmit(address(hooks));
-      emit OnQueueWithdrawalCalled(alice, expiry, 1e18, state, '');
-    }
     _callMarket(_calldata, '', 'nukeFromOrbit');
-    if (!config.useOnQueueWithdrawal && !config.useOnNukeFromOrbit) {
-      assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
-    }
+    assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
+    AccountWithdrawalStatus memory status = market.getAccountWithdrawalStatus(alice, expiry);
+    assertEq(status.scaledAmount, 1e18);
   }
 
   // ========================================================================== //
@@ -461,14 +458,8 @@ contract HooksIntegrationTest is BaseMarketTest {
       abi.encodeWithSelector(market.nukeFromOrbit.selector, alice),
       extraData
     );
-    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
-    state.pendingWithdrawalExpiry = expiry;
-    if (config.useOnQueueWithdrawal) {
-      vm.expectEmit(address(hooks));
-      emit OnQueueWithdrawalCalled(alice, expiry, 1e18, state, '');
-    }
     _callMarket(_calldata, '', 'nukeFromOrbit');
-    if (!config.useOnQueueWithdrawal && !config.useOnNukeFromOrbit) {
+    if (!config.useOnNukeFromOrbit) {
       assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
     }
   }
