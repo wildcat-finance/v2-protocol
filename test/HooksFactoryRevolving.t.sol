@@ -474,6 +474,28 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
         assertEq(WildcatMarketRevolving(market1).previousState().protocolFeeBips, 100);
     }
 
+    function test_pushProtocolFeeBipsUpdates_InvalidPaginationRange() external {
+        address feeRecipient = address(0xFEE);
+        hooksFactoryRevolving.addHooksTemplate(hooksTemplate, "revolving-template", feeRecipient, nullAddress, 0, 0);
+        archController.registerBorrower(address(this));
+
+        address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(""));
+        DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+        address market = hooksFactoryRevolving.deployMarket(
+            parameters, bytes(""), _defaultMarketData(), bytes32(uint256(1)), nullAddress, 0
+        );
+
+        hooksFactoryRevolving.updateHooksTemplateFees(hooksTemplate, feeRecipient, nullAddress, 0, 1_000);
+
+        vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 2, 1);
+
+        vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 2, type(uint256).max);
+
+        assertEq(WildcatMarketRevolving(market).previousState().protocolFeeBips, 0);
+    }
+
     function test_pushProtocolFeeBipsUpdates_HooksTemplateNotFound() external {
         vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
         hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate);

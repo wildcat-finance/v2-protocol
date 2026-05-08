@@ -1430,6 +1430,37 @@ contract HooksFactoryTest is Test, Assertions {
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 100);
   }
 
+  function test_pushProtocolFeeBipsUpdates_InvalidPaginationRange() external {
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0xfee), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    MockHooks hooksInstance = _validateDeployHooksInstance(MockHooksTemplate, '');
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(address(hooksInstance))
+    });
+
+    address market = hooksFactory.deployMarket(parameters, '', bytes32(uint(1)), address(0), 0);
+
+    hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 1_000);
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 2, 1);
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 2, type(uint256).max);
+
+    assertEq(WildcatMarket(market).previousState().protocolFeeBips, 0);
+  }
+
   function test_pushProtocolFeeBipsUpdates_HooksTemplateNotFound() external {
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate);

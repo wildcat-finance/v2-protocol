@@ -26,6 +26,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
 
   error NotControllerFactory();
   error NotController();
+  error InvalidPaginationRange();
 
   error BorrowerAlreadyExists();
   error ControllerFactoryAlreadyExists();
@@ -182,6 +183,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   ) external view returns (address[] memory arr) {
     uint256 len = _borrowers.length();
     end = MathUtils.min(end, len);
+    if (start >= end) revert InvalidPaginationRange();
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
@@ -225,6 +227,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   ) external view returns (address[] memory arr) {
     uint256 len = _assetBlacklist.length();
     end = MathUtils.min(end, len);
+    if (start >= end) revert InvalidPaginationRange();
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
@@ -269,6 +272,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   ) external view returns (address[] memory arr) {
     uint256 len = _controllerFactories.length();
     end = MathUtils.min(end, len);
+    if (start >= end) revert InvalidPaginationRange();
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
@@ -320,6 +324,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   ) external view returns (address[] memory arr) {
     uint256 len = _controllers.length();
     end = MathUtils.min(end, len);
+    if (start >= end) revert InvalidPaginationRange();
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
@@ -371,6 +376,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   ) external view returns (address[] memory arr) {
     uint256 len = _markets.length();
     end = MathUtils.min(end, len);
+    if (start >= end) revert InvalidPaginationRange();
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {

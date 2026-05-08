@@ -6,6 +6,8 @@ interface IWildcatArchController {
 
   error NotControllerFactory();
 
+  error InvalidPaginationRange();
+
   function owner() external view returns (address);
 
   // ========================================================================== //

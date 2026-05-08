@@ -125,6 +125,10 @@ contract WildcatArchControllerTest is Test, Prankster {
     controllers = archController.getRegisteredControllers(1, 2);
     assertEq(controllers.length, 1);
     assertEq(controllers[0], controller2);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredControllers(2, 1);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredControllers(2, type(uint256).max);
     assertEq(archController.getRegisteredControllersCount(), 2);
   }
 
@@ -194,6 +198,10 @@ contract WildcatArchControllerTest is Test, Prankster {
     markets = archController.getRegisteredMarkets(1, 2);
     assertEq(markets.length, 1);
     assertEq(markets[0], market2);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredMarkets(2, 1);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredMarkets(2, type(uint256).max);
     assertEq(archController.getRegisteredMarketsCount(), 2);
     archController.removeMarket(market);
     markets = archController.getRegisteredMarkets();
@@ -268,6 +276,10 @@ contract WildcatArchControllerTest is Test, Prankster {
     borrowers = archController.getRegisteredBorrowers(1, 2);
     assertEq(borrowers.length, 1);
     assertEq(borrowers[0], borrower2);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredBorrowers(2, 1);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredBorrowers(2, type(uint256).max);
     assertEq(archController.getRegisteredBorrowersCount(), 2);
 
     archController.removeBorrower(borrower);
@@ -343,6 +355,10 @@ contract WildcatArchControllerTest is Test, Prankster {
     blackListedAssets = archController.getBlacklistedAssets(1, 2);
     assertEq(blackListedAssets.length, 1);
     assertEq(blackListedAssets[0], borrower2);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getBlacklistedAssets(2, 1);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getBlacklistedAssets(2, type(uint256).max);
     assertEq(archController.getBlacklistedAssetsCount(), 2);
 
     archController.removeBlacklist(borrower);
@@ -417,6 +433,10 @@ contract WildcatArchControllerTest is Test, Prankster {
     controllerFactories = archController.getRegisteredControllerFactories(1, 2);
     assertEq(controllerFactories.length, 1);
     assertEq(controllerFactories[0], controllerFactory2);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredControllerFactories(2, 1);
+    vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    archController.getRegisteredControllerFactories(2, type(uint256).max);
     assertEq(archController.getRegisteredControllerFactoriesCount(), 2);
 
     archController.removeControllerFactory(controllerFactory);

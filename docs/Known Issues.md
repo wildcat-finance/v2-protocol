@@ -38,6 +38,10 @@ Markets deployed before the CAF-10 remediation require newly added role provider
 
 Markets deployed before the CAF-11 remediation can query a `hooksData`-selected pull provider again in the later automatic pull-provider loop if the selected provider does not yield a valid credential. New hook deployments skip a pull provider already selected by `hooksData`, but existing hooks retain their deployed access-check behavior.
 
+**Malformed pagination ranges on existing ArchController deployments**
+
+Existing ArchController deployments can revert with arithmetic panic for inverted or out-of-bounds paginated registry queries such as `getRegisteredMarkets(start, end)` when `start >= end` after clamping. New ArchController bytecode reverts with an explicit `InvalidPaginationRange()` error for those ranges, but currently deployed ArchController instances retain their original read-surface behavior.
+
 **Hooks lack some specificity**
 
 While one of the stated objectives of hooks is to enable auxiliary behavior based on the state of the market and one example given is a masterchef-style contract, the hooks do not necessarily provide enough information to replicate the market state 1:1 in real time. Specifically, because payment towards a withdrawal batch does not have its own hook, the hooks instance would need to query additional data and perform additional calculations to precisely track the balance of an account including its pending withdrawals in real time, or to know the exact state of a pending/unpaid withdrawal batch.

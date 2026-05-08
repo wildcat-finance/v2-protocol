@@ -722,6 +722,7 @@ contract HooksFactoryRevolving is
 
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
     marketEndIndex = MathUtils.min(marketEndIndex, markets.length);
+    if (marketStartIndex >= marketEndIndex) revert InvalidPaginationRange();
     uint256 count = marketEndIndex - marketStartIndex;
     uint256 setProtocolFeeBipsCalldataPointer;
     uint16 protocolFeeBips = details.protocolFeeBips;
