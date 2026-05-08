@@ -42,6 +42,10 @@ Markets deployed before the CAF-11 remediation can query a `hooksData`-selected 
 
 Existing ArchController deployments can revert with arithmetic panic for inverted or out-of-bounds paginated registry queries such as `getRegisteredMarkets(start, end)` when `start >= end` after clamping. New ArchController bytecode reverts with an explicit `InvalidPaginationRange()` error for those ranges, but currently deployed ArchController instances retain their original read-surface behavior.
 
+**Closing markets with many unpaid withdrawal batches**
+
+`closeMarket()` processes all unpaid withdrawal batches before the market is closed. If a market has accumulated many unpaid batches, a close transaction can run out of gas. This is accepted operational behavior: callers should process unpaid batches incrementally with `repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)` before calling `closeMarket()` on heavily aged markets.
+
 **Hooks lack some specificity**
 
 While one of the stated objectives of hooks is to enable auxiliary behavior based on the state of the market and one example given is a masterchef-style contract, the hooks do not necessarily provide enough information to replicate the market state 1:1 in real time. Specifically, because payment towards a withdrawal batch does not have its own hook, the hooks instance would need to query additional data and perform additional calculations to precisely track the balance of an account including its pending withdrawals in real time, or to know the exact state of a pending/unpaid withdrawal batch.
