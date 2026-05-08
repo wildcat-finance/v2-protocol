@@ -264,6 +264,8 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {
+    HookedMarket memory market = _hookedMarkets[msg.sender];
+    if (!market.isHooked) revert NotHookedMarket();
     LenderStatus memory status = _lenderStatus[lender];
     if (
       !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)

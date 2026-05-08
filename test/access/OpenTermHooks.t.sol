@@ -426,6 +426,12 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     hooks.onDeposit(address(1), 0, state, '');
   }
 
+  function test_onQueueWithdrawal_NotHookedMarket() external {
+    vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
+    MarketState memory state;
+    hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
+  }
+
   function test_onTransfer_NotHookedMarket() external {
     MarketState memory state;
     vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);
