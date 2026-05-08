@@ -72,14 +72,6 @@
 //     erc20Factory = erc20Factory_;
 //   }
 
-//   function forceBuyBack(
-//     WildcatMarket market,
-//     address lender,
-//     uint256 normalizedAmount
-//   ) external onlyDeployer {
-//     market.forceBuyBack(lender, normalizedAmount);
-//   }
-
 //   // Requires existing hooks factory, hooks template, and mock token factory
 //   function deployMarketAndHooks(
 //     MarketConfig memory config,

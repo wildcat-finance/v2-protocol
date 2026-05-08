@@ -579,9 +579,6 @@ contract DeployV2 is Script {
       deployments.broadcast();
       market.deposit{ gas: 400_000 }(1e18);
       console.log('Did deposit #2');
-
-      deployments.broadcast();
-      console.log('Did force buyback');
     }
 
     HooksFactory factory = HooksFactory(deployments.get('HooksFactory'));
