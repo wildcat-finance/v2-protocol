@@ -157,17 +157,32 @@ contract BaseAccessControls {
   /**
    * @dev Adds or updates a role provider that is able to grant user access.
    *      If it is not already approved, it is added to `_roleProviders` and,
-   *      if the provider can refresh credentials, added to `pullProviders`.
+   *      if the provider can refresh credentials, added to `pullProviders`;
+   *      otherwise, it is added to `pushProviders`.
    *      If the provider is already approved, only updates `timeToLive`.
    */
   function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyBorrower {
     _addRoleProvider(providerAddress, timeToLive);
   }
 
+  function _isPullProvider(address providerAddress) internal view returns (bool isPullProvider) {
+    (bool success, bytes memory data) = providerAddress.staticcall(
+      abi.encodeCall(IRoleProvider.isPullProvider, ())
+    );
+    if (success && data.length >= 0x20) {
+      uint256 result;
+      assembly {
+        result := mload(add(data, 0x20))
+      }
+      // Only a clean boolean true response makes the provider pull-capable.
+      isPullProvider = result == 1;
+    }
+  }
+
   function _addRoleProvider(address providerAddress, uint32 timeToLive) internal {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) {
-      bool isPullProvider = IRoleProvider(providerAddress).isPullProvider();
+      bool isPullProvider = _isPullProvider(providerAddress);
       (uint24 pullProviderIndex, uint24 pushProviderIndex) = isPullProvider
         ? (uint24(_pullProviders.length), NullProviderIndex)
         : (NullProviderIndex, uint24(_pushProviders.length));

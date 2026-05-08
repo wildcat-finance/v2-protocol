@@ -4,25 +4,32 @@ In the access control hooks, the borrower can configure a set of "role providers
 
 Within the hooks contract, the borrower configures each provider with a TTL - the amount of time a credential granted by the provider is valid.
 
-The provider itself defines whether it is a "pull provider", meaning whether the hooks contract can query the role provider to check if a lender has a credential, using only the lender's address.
+A role provider can be a push provider, a pull provider, or a validation provider depending on what it supports.
+All approved role providers can push credentials by calling `grantRole` or `grantRoles`.
+A provider is treated as a pull provider only if it successfully implements `isPullProvider()` and returns true, meaning the hooks contract can query it with `getCredential` to check if a lender has a credential using only the lender's address.
+Providers that do not implement `isPullProvider()` are treated as push-only providers and are not included in automatic pull loops; if explicitly selected through `hooksData`, the hooks contract may still call `validateCredential()`.
 
 ## Role providers
 
-Role providers can "push" credentials to the hooks contract by calling `grantRole`:
+Role providers can "push" credentials to the hooks contract by calling:
 - `grantRole(address account, uint32 roleGrantedTimestamp) external`
+- `grantRoles(address[] accounts, uint32[] roleGrantedTimestamps) external`
 
 The pushed `roleGrantedTimestamp` must be nonzero and no later than the current block timestamp.
 Historical timestamps are allowed so providers can preload credentials that were granted earlier.
 
-There are three functions that the hooks contract can call on role providers:
+There are three functions that the hooks contract can call on role providers that implement them:
 - `isPullProvider() external view returns (bool)`
-  - Defines whether the hooks contract can retrieve credentials using `getCredential`
+  - Defines whether the hooks contract can retrieve credentials using `getCredential`.
 - `getCredential(address account) external view returns (uint32 timestamp)`
   - Looks up a credential for an account using only its address, so it must already be stored somewhere.
 - `validateCredential(address account, bytes calldata data) external returns (uint32 timestamp)`
   - Attempts to validate a credential from some arbitrary data (e.g. ecdsa signature or merkle proof).
 
-Role providers do not *have* to implement any of these functions - a role provider can be an EOA.
+Role providers do not *have* to implement any of these functions to be approved as push providers.
+For example, a role provider can be an EOA, multisig, or smart account that only pushes credentials.
+Pull providers must implement `isPullProvider()` and `getCredential()`.
+Providers used with `hooksData` validation must implement `validateCredential()`.
 
 ## tryValidateAccess(address lender, bytes hooksData)
 

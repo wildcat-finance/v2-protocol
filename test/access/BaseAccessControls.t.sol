@@ -255,10 +255,27 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     baseHooks.addRoleProvider(address(2), 1);
   }
 
-  function test_addRoleProvider_badInterface(uint32 timeToLive) external {
-    vm.expectRevert();
-    baseHooks.addRoleProvider(address(2), timeToLive);
+  function test_addRoleProvider_NonInterfaceProviderIsPushProvider(uint32 timeToLive) external {
+    address pushProvider = address(2);
+    address account = address(3);
+    uint32 timestamp = uint32(block.timestamp);
+    StandardRoleProvider storage provider = _addExpectedProvider(
+      MockRoleProvider(pushProvider),
+      timeToLive,
+      false
+    );
+    _expectRoleProviderAdded(
+      pushProvider,
+      timeToLive,
+      provider.pullProviderIndex,
+      provider.pushProviderIndex
+    );
+    baseHooks.addRoleProvider(pushProvider, timeToLive);
     _validateRoleProviders();
+
+    _expectAccountAccessGranted(pushProvider, account, timestamp);
+    vm.prank(pushProvider);
+    baseHooks.grantRole(account, timestamp);
   }
 
   function test_addRoleProvider_updateTimeToLive(uint32 ttl1, uint32 ttl2) external {
