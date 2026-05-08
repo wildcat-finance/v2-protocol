@@ -122,7 +122,7 @@ library MarketDataLib {
         data.delinquencyFeeBips = market.delinquencyFeeBips();
         data.delinquencyGracePeriod = market.delinquencyGracePeriod();
         address hooksAddress = data.hooksConfig.hooksAddress;
-        data.hooks.fill(hooksAddress, IHooksFactory(data.hooksFactory));
+        data.hooks.fill(hooksAddress, IHooksFactory(data.hooksFactory), data.borrower);
     }
 
     function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {

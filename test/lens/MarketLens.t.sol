@@ -610,19 +610,66 @@ contract MarketDataTest is BaseMarketTest {
         checkHooksTemplateData(data, mockTemplate, "MockHooks", 2);
     }
 
+    function configureBorrowerOriginationFee() internal {
+        originationFeeAsset.mint(borrower, 2e18);
+        vm.prank(borrower);
+        originationFeeAsset.approve(address(hooksFactory), 3e18);
+        hooksFactory.updateHooksTemplateFees(hooksTemplate, address(this), address(originationFeeAsset), 1e18, 1_000);
+        parameters.feeRecipient = address(this);
+    }
+
+    function test_getHooksInstancesForBorrower_includesBorrowerFeeData() external {
+        configureBorrowerOriginationFee();
+
+        HooksInstanceData[] memory data = lens.getHooksInstancesForBorrower(borrower);
+
+        assertEq(data.length, 1, "hooks instances length");
+        checkFeeConfiguration(data[0].hooksTemplate.fees, borrower);
+    }
+
+    function test_getHooksDataForBorrower_includesBorrowerFeeData() external {
+        configureBorrowerOriginationFee();
+
+        HooksDataForBorrower memory data = lens.getHooksDataForBorrower(borrower);
+
+        assertEq(data.hooksInstances.length, 1, "hooks instances length");
+        checkFeeConfiguration(data.hooksInstances[0].hooksTemplate.fees, borrower);
+    }
+
+    function test_getAggregatedHooksInstancesForBorrower_includesBorrowerFeeData() external {
+        configureBorrowerOriginationFee();
+
+        HooksInstanceData[] memory data = lens.getAggregatedHooksInstancesForBorrower(borrower);
+
+        assertEq(data.length, 1, "hooks instances length");
+        checkFeeConfiguration(data[0].hooksTemplate.fees, borrower);
+    }
+
+    function test_getMarketData_includesBorrowerFeeDataForHooksInstance() external {
+        configureBorrowerOriginationFee();
+
+        MarketData memory data = lens.getMarketData(address(market));
+
+        checkFeeConfiguration(data.hooks.hooksTemplate.fees, borrower);
+    }
+
     function checkFeeConfiguration(FeeConfiguration memory config) internal view {
+        checkFeeConfiguration(config, address(this));
+    }
+
+    function checkFeeConfiguration(FeeConfiguration memory config, address account) internal view {
         assertEq(config.feeRecipient, parameters.feeRecipient, "feeRecipient");
         assertEq(config.protocolFeeBips, parameters.protocolFeeBips, "protocolFeeBips");
         assertEq(config.originationFeeToken.token, address(originationFeeAsset), "originationFeeToken");
         assertEq(config.originationFeeAmount, 1e18, "originationFeeAmount");
         assertEq(
             config.borrowerOriginationFeeBalance,
-            originationFeeAsset.balanceOf(address(this)),
+            originationFeeAsset.balanceOf(account),
             "borrowerOriginationFeeBalance"
         );
         assertEq(
             config.borrowerOriginationFeeApproval,
-            originationFeeAsset.allowance(address(this), address(hooksFactory)),
+            originationFeeAsset.allowance(account, address(hooksFactory)),
             "borrowerOriginationFeeApproval"
         );
     }

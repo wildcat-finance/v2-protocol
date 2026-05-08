@@ -135,7 +135,7 @@ contract MarketLens {
         address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
         arr = new HooksInstanceData[](hooksInstances.length);
         for (uint256 i; i < hooksInstances.length; i++) {
-            arr[i].fill(hooksInstances[i], factory);
+            arr[i].fill(hooksInstances[i], factory, borrower);
         }
     }
 

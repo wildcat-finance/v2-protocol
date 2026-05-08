@@ -145,7 +145,7 @@ contract MarketLensAggregator {
             try factory.getHooksInstancesForBorrower(borrower) returns (address[] memory hooksInstances) {
                 arr = new HooksInstanceData[](hooksInstances.length);
                 for (uint256 i; i < hooksInstances.length; i++) {
-                    arr[i].fill(hooksInstances[i], factory);
+                    arr[i].fill(hooksInstances[i], factory, borrower);
                 }
                 return arr;
             } catch {
@@ -173,7 +173,7 @@ contract MarketLensAggregator {
             for (uint256 j; j < hooksInstances.length; j++) {
                 address hooksAddress = hooksInstances[j];
                 if (!_containsHooksInstanceAddress(arr, uniqueCount, hooksAddress)) {
-                    arr[uniqueCount].fill(hooksAddress, factory);
+                    arr[uniqueCount].fill(hooksAddress, factory, borrower);
                     uniqueCount++;
                 }
             }

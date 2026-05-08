@@ -146,6 +146,16 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
         return false;
     }
 
+    function _getHooksInstance(HooksInstanceData[] memory values, address expected)
+        internal
+        pure
+        returns (bool found, HooksInstanceData memory instance)
+    {
+        for (uint256 i; i < values.length; i++) {
+            if (values[i].hooksAddress == expected) return (true, values[i]);
+        }
+    }
+
     function _containsHooksTemplate(HooksTemplateData[] memory values, address expected) internal pure returns (bool) {
         for (uint256 i; i < values.length; i++) {
             if (values[i].hooksTemplate == expected) return true;
@@ -249,6 +259,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
             lens.getHooksInstancesForBorrower(address(hooksFactoryRevolving), borrower);
         assertEq(revolvingInstances.length, 1, "revolving instances length");
         assertEq(revolvingInstances[0].hooksAddress, revolvingHooksInstance, "revolving hooks address");
+        assertEq(uint256(revolvingInstances[0].kind), uint256(HooksInstanceKind.OpenTerm), "revolving hooks kind");
 
         HooksTemplateData memory templateData =
             lens.getHooksTemplateForBorrower(address(hooksFactoryRevolving), borrower, hooksTemplate);
@@ -277,6 +288,49 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
         assertEq(hooksData.isRegisteredBorrower, true, "registered borrower");
         assertEq(hooksData.hooksInstances.length, 2, "aggregated hooksData instances length");
         assertEq(hooksData.hooksTemplates.length, 2, "aggregated hooksData templates length");
+    }
+
+    function test_aggregatedHooksInstances_includeBorrowerFeeData() external {
+        asset.mint(borrower, 5e18);
+        vm.startPrank(borrower);
+        asset.approve(address(hooksFactory), 3e18);
+        asset.approve(address(hooksFactoryRevolving), 4e18);
+        vm.stopPrank();
+
+        hooksFactory.updateHooksTemplateFees(hooksTemplate, address(this), address(asset), 1e18, 1_000);
+        hooksFactoryRevolving.updateHooksTemplateFees(
+            hooksTemplate, address(this), address(asset), 2e18, _REVOLVING_TEMPLATE_PROTOCOL_FEE_BIPS
+        );
+
+        HooksInstanceData[] memory instances = lens.getAggregatedHooksInstancesForBorrower(borrower);
+        (bool foundLegacy, HooksInstanceData memory legacyInstance) = _getHooksInstance(instances, address(hooks));
+        (bool foundRevolving, HooksInstanceData memory revolvingInstance) =
+            _getHooksInstance(instances, revolvingHooksInstance);
+
+        assertTrue(foundLegacy, "missing legacy hooks instance");
+        assertTrue(foundRevolving, "missing revolving hooks instance");
+        assertEq(uint256(legacyInstance.kind), uint256(HooksInstanceKind.OpenTerm), "legacy hooks kind");
+        assertEq(uint256(revolvingInstance.kind), uint256(HooksInstanceKind.OpenTerm), "revolving hooks kind");
+        assertEq(
+            legacyInstance.hooksTemplate.fees.borrowerOriginationFeeBalance,
+            asset.balanceOf(borrower),
+            "legacy borrower fee balance"
+        );
+        assertEq(
+            legacyInstance.hooksTemplate.fees.borrowerOriginationFeeApproval,
+            asset.allowance(borrower, address(hooksFactory)),
+            "legacy borrower fee approval"
+        );
+        assertEq(
+            revolvingInstance.hooksTemplate.fees.borrowerOriginationFeeBalance,
+            asset.balanceOf(borrower),
+            "revolving borrower fee balance"
+        );
+        assertEq(
+            revolvingInstance.hooksTemplate.fees.borrowerOriginationFeeApproval,
+            asset.allowance(borrower, address(hooksFactoryRevolving)),
+            "revolving borrower fee approval"
+        );
     }
 
     function test_aggregationHelper_parityForBorrowerAndTemplateReads() external view {
