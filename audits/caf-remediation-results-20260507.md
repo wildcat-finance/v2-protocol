@@ -5,6 +5,35 @@ Date started: 2026-05-07
 This document tracks remediation decisions for the consolidated audit findings in
 `audits/consolidated-audit-summary-20260501.md`.
 
+## CAF Summary
+
+| ID | Issue | Status |
+| --- | --- | --- |
+| CAF-01 | Scale-factor rounding consistency | Fixed |
+| CAF-02 | Nonstandard deposit token accounting | Accepted |
+| CAF-03 | Sanctions quarantine hook bypass | Fixed / documented |
+| CAF-04 | Open-entry / gated-withdrawal configuration trap | Fixed / documented |
+| CAF-05 | Future-dated push credentials | Fixed / documented |
+| CAF-06 | Disabled-template lifecycle behavior | Accepted |
+| CAF-07 | RCF commitment fee immutability | Accepted |
+| CAF-08 | MarketLens optional hook-extension reads | Fixed |
+| CAF-09 | Reentrant live-state protocol-fee getter | Fixed |
+| CAF-10 | Push-only role provider registration | Fixed / documented |
+| CAF-11 | Duplicate pull-provider credential query | Fixed / documented |
+| CAF-12 | Invariant coverage gap | Fixed / documented |
+| CAF-13 | Pagination and range underflow behavior | Fixed / documented |
+| CAF-14 | Atomic close with large unpaid queues | Accepted / documented |
+| CAF-15 | Token metadata and zero-transfer assumptions | Accepted / documented |
+| CAF-16 | Privileged registry misconfiguration hardening | Fixed / documented |
+| CAF-17 | EIP-1153 deployment gating | Fixed / documented |
+| CAF-18 | Stale force-buyback surfaces | Fixed |
+| CAF-19 | OpenTerm queue-withdrawal API hardening | Fixed / documented |
+| CAF-20 | Lens borrower-scoped hook fee hydration | Fixed / documented |
+| CAF-21 | RCF utilization-interest dust threshold | Known issue / accepted |
+| CAF-22 | Sanctions and repayment documentation clarity | Fixed / documented |
+
+## Resolution Details
+
 | ID | Status | Resolution | Verification | Notes |
 | --- | --- | --- | --- | --- |
 | CAF-01 | Fixed | Updated scaled-accounting rounding for the RCF v2.5 stack while preserving legacy deployed-market compatibility downstream. | Protocol, SDK, and subgraph targeted checks passed. | Full subgraph Matchstick suite remains locally blocked by existing Apple Silicon / test-harness issues. |
