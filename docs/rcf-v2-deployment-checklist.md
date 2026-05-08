@@ -146,6 +146,14 @@ Owner mode behavior:
 - `emit`: script writes a pending admin action artifact when owner registration cannot be performed inline.
 - `require-direct`: script fails fast unless the broadcaster is the direct owner when owner registration is required.
 
+Before executing the owner-gated registration, confirm the deployed factory reports the target ArchController:
+
+```bash
+cast call "$HOOKS_FACTORY_REVOLVING" "archController()(address)" --rpc-url "$RPC_URL"
+```
+
+For new ArchController bytecode, `registerControllerFactory(factory)` rejects non-contract factories and factories whose `archController()` does not match the registering ArchController.
+
 Pending artifact path:
 
 ```text
@@ -343,6 +351,7 @@ Before app preview:
 ## Final Checklist
 
 - New factory deployed or reused intentionally.
+- New factory `archController()` matches the target ArchController.
 - New factory registered as controller factory.
 - New factory registered as controller.
 - Template sync export/apply/verify completed.
