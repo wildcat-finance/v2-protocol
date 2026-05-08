@@ -132,6 +132,18 @@ contract MarketDataTest is BaseMarketTest {
         assertEq(withStatus.lenderStatus.isKnownLender, lenderStatus.isKnownLender, "isKnownLender");
     }
 
+    function test_getMarketDataV2_treatsMissingTemporaryReserveRatioGetterAsInactive() external {
+        resetWithMockHooks();
+
+        MarketDataV2_5 memory data = lens.getMarketDataV2(address(market));
+
+        assertEq(data.market.marketToken.token, address(market), "market");
+        assertEq(data.market.temporaryReserveRatio, false, "temporaryReserveRatio");
+        assertEq(data.market.originalAnnualInterestBips, 0, "originalAnnualInterestBips");
+        assertEq(data.market.originalReserveRatioBips, 0, "originalReserveRatioBips");
+        assertEq(data.market.temporaryReserveRatioExpiry, 0, "temporaryReserveRatioExpiry");
+    }
+
     function test_coreDelegation_forAccountAndWithdrawalReads() external {
         _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
 

@@ -5,7 +5,6 @@ import '../WildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../market/WildcatMarket.sol';
 import '../types/HooksConfig.sol';
-import '../access/MarketConstraintHooks.sol';
 import '../interfaces/IWildcatMarketRevolving.sol';
 import './HooksConfigData.sol';
 import './HooksInstanceData.sol';
@@ -92,6 +91,8 @@ library MarketDataLib {
 
     bytes4 internal constant _COMMITMENT_FEE_BIPS_SELECTOR = IWildcatMarketRevolving.commitmentFeeBips.selector;
     bytes4 internal constant _DRAWN_AMOUNT_SELECTOR = IWildcatMarketRevolving.drawnAmount.selector;
+    bytes4 internal constant _TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR =
+        bytes4(keccak256("temporaryExcessReserveRatio(address)"));
 
     function fill(MarketData memory data, WildcatMarket market) internal view {
         data.marketToken.fill(address(market));
@@ -145,11 +146,17 @@ library MarketDataLib {
     function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
         address marketAddress = data.marketToken.token;
         address hooksAddress = data.hooks.hooksAddress;
+        (bool success, bytes memory result) = hooksAddress.staticcall(
+            abi.encodeWithSelector(_TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR, marketAddress)
+        );
+        if (!success || result.length < 0x60) {
+            return;
+        }
         (
             data.originalAnnualInterestBips, 
             data.originalReserveRatioBips, 
             data.temporaryReserveRatioExpiry
-        ) = MarketConstraintHooks(hooksAddress).temporaryExcessReserveRatio(marketAddress);
+        ) = abi.decode(result, (uint256, uint256, uint256));
         data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
     }
 
