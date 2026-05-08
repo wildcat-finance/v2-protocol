@@ -220,6 +220,12 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     } else {
       inputs.fixedTermDuration = uint16(bound(inputs.fixedTermDuration, 1, type(uint16).max));
     }
+    if (inputs.useOnQueueWithdrawal) {
+      inputs.useOnDeposit = true;
+      if (!inputs.transfersDisabled) {
+        inputs.useOnTransfer = true;
+      }
+    }
 
     parameters.hooksTemplate = inputs.isOpenTermHooks ? hooksTemplate : fixedTermHooksTemplate;
     parameters.deployMarketHooksData = '';

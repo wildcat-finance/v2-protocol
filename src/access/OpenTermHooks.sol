@@ -42,6 +42,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
 
   error NotHookedMarket();
   error DepositBelowMinimum();
+  error InvalidAccessConfiguration();
   error TransfersDisabled();
 
   // ========================================================================== //
@@ -148,6 +149,13 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
       minimumDeposit: _readUint128Cd(hooksData),
       transfersDisabled: _readBoolCd(hooksData, 0x20)
     });
+
+    if (marketHooksConfig.useOnQueueWithdrawal()) {
+      if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
+      if (!hookedMarket.transfersDisabled && !hookedMarket.transferRequiresAccess) {
+        revert InvalidAccessConfiguration();
+      }
+    }
 
     if (hookedMarket.minimumDeposit > 0) {
       // If there is a minimum deposit, the deposit hook must be enabled

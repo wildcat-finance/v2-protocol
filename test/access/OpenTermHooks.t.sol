@@ -159,9 +159,11 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
   function test_onCreateMarket_ForceEnableDepositTransferHooks() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, '');
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
@@ -180,8 +182,25 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
     assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.transferRequiresAccess, true, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, true, 'depositRequiresAccess');
+  }
+
+  function test_onCreateMarket_InvalidAccessConfiguration() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
+      address(hooks)
+    );
+    vm.expectRevert(OpenTermHooks.InvalidAccessConfiguration.selector);
+    hooks.onCreateMarket(address(this), address(1), inputs, '');
+
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setHooksAddress(address(hooks));
+    vm.expectRevert(OpenTermHooks.InvalidAccessConfiguration.selector);
+    hooks.onCreateMarket(address(this), address(2), inputs, '');
   }
 
   function test_onCreateMarket_setMinimumDeposit() external {
@@ -214,9 +233,11 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
   function test_onCreateMarket_setMinimumDeposit_Zero() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0));
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
@@ -235,17 +256,18 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
     assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.transferRequiresAccess, true, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, true, 'depositRequiresAccess');
     assertEq(market.minimumDeposit, 0, 'minimumDeposit');
   }
 
   function test_onCreateMarket_disableTransfers() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -270,7 +292,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     assertEq(config, expectedConfig, 'config');
     assertEq(market.isHooked, true, 'isHooked');
     assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.depositRequiresAccess, true, 'depositRequiresAccess');
     assertEq(market.minimumDeposit, 0, 'minimumDeposit');
     assertEq(market.transfersDisabled, true, 'transfersDisabled');
     assertTrue(config.useOnTransfer(), 'useOnTransfer');
@@ -278,9 +300,10 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
 
   function test_onTransfer_TransfersDisabled() external {
     DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setHooksAddress(address(hooks));
     hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18, true));
     vm.expectRevert(OpenTermHooks.TransfersDisabled.selector);
     MarketState memory state;
@@ -291,9 +314,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
   function test_onCreateMarket_MinimumDepositOverflow() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
     HooksConfig config = hooks.onCreateMarket(
       address(this),
@@ -356,16 +377,14 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
   function test_setMinimumDeposit() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(1e18));
     HooksConfig expectedConfig = encodeHooksConfig({
       hooksAddress: address(hooks),
       useOnDeposit: true,
-      useOnQueueWithdrawal: true,
+      useOnQueueWithdrawal: false,
       useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
+      useOnTransfer: false,
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: false,

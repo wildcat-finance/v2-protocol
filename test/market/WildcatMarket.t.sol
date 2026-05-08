@@ -513,8 +513,15 @@ contract WildcatMarketTest is BaseMarketTest {
     MarketAccount storage _carol = _getAccount(carol);
     _alice.scaledBalance -= scaledAmount;
     _carol.scaledBalance += scaledAmount;
+    if (transferRequiresAccess) {
+      _authorizeLender(carol);
+      fuzzInputs.existingCredentialInputs.isKnownLender = true;
+    }
     vm.prank(alice);
     market.transfer(carol, amount);
+    if (transferRequiresAccess) {
+      _deauthorizeLender(carol);
+    }
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
       address(market),
@@ -637,6 +644,8 @@ contract WildcatMarketTest is BaseMarketTest {
   }
 
   function test_transfer_GrantsKnownLender() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    reset();
     _deposit(alice, 1e18);
     _authorizeLender(bob);
     vm.prank(alice);
@@ -646,6 +655,8 @@ contract WildcatMarketTest is BaseMarketTest {
   }
 
   function test_transfer_ToBlockedKnownLender() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    reset();
     _deposit(alice, 1e18);
     _authorizeLender(bob);
     vm.prank(alice);

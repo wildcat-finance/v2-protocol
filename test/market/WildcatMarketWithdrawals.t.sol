@@ -24,6 +24,7 @@ contract WithdrawalsTest is BaseMarketTest {
   /* -------------------------------------------------------------------------- */
 
   function test_queueWithdrawal_NotApprovedLender() external {
+    if (!withdrawalRequiresAccess) return;
     _deposit(alice, 1e18);
     vm.prank(alice);
     market.transfer(bob, 1e18);
@@ -166,6 +167,7 @@ contract WithdrawalsTest is BaseMarketTest {
   /* -------------------------------------------------------------------------- */
 
   function test_queueFullWithdrawal_NotApprovedLender() external {
+    if (!withdrawalRequiresAccess) return;
     _deposit(alice, 1e18);
     vm.prank(alice);
     market.transfer(bob, 1e18);

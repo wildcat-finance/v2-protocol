@@ -22,6 +22,10 @@ If any of the hooks that are enabled for a market can revert unexpectedly, the c
 
 Markets deployed before the CAF-03 remediation route forced sanctions withdrawals through the same withdrawal hooks as ordinary lender withdrawals. If one of those existing markets uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. This could lead to unavoidable interest payments to a sanctioned entity's escrow address, where the funds will go when withdrawals are eventually unrestricted.
 
+**Open entry with restricted withdrawals on existing markets**
+
+Markets deployed before the CAF-04 remediation could combine open deposits or open transfers with credential-gated withdrawals. An uncredentialed holder who entered through those open paths might not be recorded as a known lender, so queueing a withdrawal can still require credentialed or manually approved access. New hook deployments reject this configuration, but existing markets retain their deployed behavior.
+
 **Hooks lack some specificity**
 
 While one of the stated objectives of hooks is to enable auxiliary behavior based on the state of the market and one example given is a masterchef-style contract, the hooks do not necessarily provide enough information to replicate the market state 1:1 in real time. Specifically, because payment towards a withdrawal batch does not have its own hook, the hooks instance would need to query additional data and perform additional calculations to precisely track the balance of an account including its pending withdrawals in real time, or to know the exact state of a pending/unpaid withdrawal batch.
