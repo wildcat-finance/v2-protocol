@@ -34,6 +34,10 @@ Markets deployed before the CAF-05 remediation allow approved push role provider
 
 Markets deployed before the CAF-10 remediation require newly added role providers to implement `isPullProvider()`, even if the address is only meant to push credentials with `grantRole` or `grantRoles`. New hook deployments treat addresses that do not return `true` from `isPullProvider()` as push-only providers, but existing hooks retain their deployed provider-registration behavior.
 
+**Repeated hooksData provider queries on existing hooks**
+
+Markets deployed before the CAF-11 remediation can query a `hooksData`-selected pull provider again in the later automatic pull-provider loop if the selected provider does not yield a valid credential. New hook deployments skip a pull provider already selected by `hooksData`, but existing hooks retain their deployed access-check behavior.
+
 **Hooks lack some specificity**
 
 While one of the stated objectives of hooks is to enable auxiliary behavior based on the state of the market and one example given is a masterchef-style contract, the hooks do not necessarily provide enough information to replicate the market state 1:1 in real time. Specifically, because payment towards a withdrawal batch does not have its own hook, the hooks instance would need to query additional data and perform additional calculations to precisely track the balance of an account including its pending withdrawals in real time, or to know the exact state of a pending/unpaid withdrawal batch.

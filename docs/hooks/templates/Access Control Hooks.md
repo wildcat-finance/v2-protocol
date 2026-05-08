@@ -40,7 +40,7 @@ When a restricted function is called, the access control contract will attempt t
     - If it returns a valid credential, go to step 5
 3. If the lender has an expired credential from a pull provider that is still supported, try to refresh their credential with `getCredential` (see: [tryPullCredential](#tryPullCredentialaddress-provider-address-lender))
    - If it returns a valid credential, go to step 5
-4. Loop over every pull provider in `pullProviders` (other than the existing provider and provider in `hooksData`, if they exist)
+4. Loop over every pull provider in `pullProviders`, excluding any existing provider or `hooksData` provider already checked
     - Run [tryPullCredential](#tryPullCredentialaddress-provider-address-lender) on each provider.
     - If any returns a valid credential, break the loop and go to step 5
 5. If any provider yielded a valid credential, update the lender's status in storage with the new credential and return.
@@ -109,6 +109,8 @@ flowchart TD
 6. Add the returned timestamp to the provider's TTL to calculate the expiry
 7. If it is expired, return false
 8. Return true
+
+If `hooksData` selects a pull provider and does not yield a valid credential, that provider is skipped during the later automatic pull-provider loop in `tryValidateAccess`.
   
 ```mermaid
 flowchart TD

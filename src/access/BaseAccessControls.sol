@@ -340,7 +340,7 @@ contract BaseAccessControls {
   ) external view returns (LenderStatus memory status) {
     status = _lenderStatus[accountAddress];
 
-    uint256 pullProviderIndexToSkip = type(uint256).max;
+    uint256 previousPullProviderIndexToSkip = type(uint256).max;
 
     // Check if user has an existing credential
     if (status.lastApprovalTimestamp > 0) {
@@ -357,7 +357,7 @@ contract BaseAccessControls {
             return status;
           }
           // If refresh fails, provider should be skipped in the query loop
-          pullProviderIndexToSkip = provider.pullProviderIndex();
+          previousPullProviderIndexToSkip = provider.pullProviderIndex();
         }
       }
       // If credential could not be refreshed or the provider is no longer
@@ -366,7 +366,14 @@ contract BaseAccessControls {
     }
 
     // Loop over all pull providers to find a valid role for the lender
-    if (_loopTryGetCredential(status, accountAddress, pullProviderIndexToSkip)) {
+    if (
+      _loopTryGetCredential(
+        status,
+        accountAddress,
+        previousPullProviderIndexToSkip,
+        type(uint256).max
+      )
+    ) {
       return status;
     }
   }
@@ -619,15 +626,16 @@ contract BaseAccessControls {
     }
   }
 
-  /// @dev Loops over all pull providers to find a valid credential for the lender.
+  /// @dev Loops over pull providers to find a valid credential, skipping providers already tried.
   function _loopTryGetCredential(
     LenderStatus memory status,
     address accountAddress,
-    uint256 pullProviderIndexToSkip
+    uint256 previousPullProviderIndexToSkip,
+    uint256 hooksDataPullProviderIndexToSkip
   ) internal view returns (bool foundCredential) {
     uint256 providerCount = _pullProviders.length;
     for (uint256 i = 0; i < providerCount; i++) {
-      if (i == pullProviderIndexToSkip) continue;
+      if (i == previousPullProviderIndexToSkip || i == hooksDataPullProviderIndexToSkip) continue;
       RoleProvider provider = _pullProviders[i];
       if (_tryGetCredential(status, provider, accountAddress)) return (true);
     }
@@ -648,12 +656,15 @@ contract BaseAccessControls {
    * @param status Current lender status object, updated in memory if a credential is found
    * @param accountAddress Address of the lender
    * @param hooksData Bytes passed to the contract for provider selection
+   * @return validCredential True if hooks data produced a valid credential
+   * @return pullProviderIndexToSkip Pull provider index selected by hooks data, if any
    */
   function _handleHooksData(
     LenderStatus memory status,
     address accountAddress,
     bytes calldata hooksData
-  ) internal returns (bool validCredential) {
+  ) internal returns (bool validCredential, uint256 pullProviderIndexToSkip) {
+    pullProviderIndexToSkip = type(uint256).max;
     // Check if the hooks data only contains a provider address
     if (hooksData.length == 20) {
       // If the data contains only an address, attempt to query a credential from that provider
@@ -661,12 +672,18 @@ contract BaseAccessControls {
       address providerAddress = _readAddress(hooksData);
       RoleProvider provider = _roleProviders[providerAddress];
       if (!provider.isNull() && provider.isPullProvider()) {
-        return _tryGetCredential(status, provider, accountAddress);
+        pullProviderIndexToSkip = provider.pullProviderIndex();
+        validCredential = _tryGetCredential(status, provider, accountAddress);
       }
     } else if (hooksData.length > 20) {
       // If the data contains both an address and additional bytes, attempt to
       // validate a credential from that provider
-      return _tryValidateCredential(status, accountAddress, hooksData);
+      address providerAddress = _readAddress(hooksData);
+      RoleProvider provider = _roleProviders[providerAddress];
+      if (!provider.isNull() && provider.isPullProvider()) {
+        pullProviderIndexToSkip = provider.pullProviderIndex();
+      }
+      validCredential = _tryValidateCredential(status, accountAddress, hooksData);
     }
   }
 
@@ -680,8 +697,8 @@ contract BaseAccessControls {
    *         - If it contains only an address, call `getCredential` on that provider.
    *         - If it contains an address and bytes, call `validateCredential` on that provider.
    *       3. If lender has an existing expired credential, attempt to refresh it.
-   *       4. Loop over all pull providers to find a valid credential, excluding the last provider
-   *          if it failed to refresh.
+   *       4. Loop over all pull providers to find a valid credential, excluding providers
+   *          already checked during hooks data handling or expired credential refresh.
    *
    * note: Does not update storage or emit an event, but is stateful because it can invoke
    *       `validateCredential` on a provider.
@@ -702,11 +719,16 @@ contract BaseAccessControls {
     }
 
     // Handle the calldata suffix, if any
-    if (_handleHooksData(status, accountAddress, hooksData)) {
+    (
+      bool validCredential,
+      uint256 hooksDataPullProviderIndexToSkip
+    ) = _handleHooksData(status, accountAddress, hooksData);
+
+    if (validCredential) {
       return (true, true);
     }
 
-    uint256 pullProviderIndexToSkip = type(uint256).max;
+    uint256 previousPullProviderIndexToSkip = type(uint256).max;
 
     // If lender has an expired credential from a pull provider, attempt to refresh it
     if (!lastProvider.isNull() && status.canRefresh) {
@@ -714,11 +736,18 @@ contract BaseAccessControls {
         return (true, true);
       }
       // If refresh fails, provider should be skipped in the query loop
-      pullProviderIndexToSkip = lastProvider.pullProviderIndex();
+      previousPullProviderIndexToSkip = lastProvider.pullProviderIndex();
     }
 
     // Loop over all pull providers to find a valid role for the lender
-    if (_loopTryGetCredential(status, accountAddress, pullProviderIndexToSkip)) {
+    if (
+      _loopTryGetCredential(
+        status,
+        accountAddress,
+        previousPullProviderIndexToSkip,
+        hooksDataPullProviderIndexToSkip
+      )
+    ) {
       return (true, true);
     }
 

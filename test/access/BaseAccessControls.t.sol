@@ -3,6 +3,7 @@ pragma solidity >=0.8.20;
 
 import 'forge-std/Test.sol';
 import 'src/access/BaseAccessControls.sol';
+import 'src/access/IRoleProvider.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import '../shared/mocks/MockRoleProvider.sol';
 import '../shared/mocks/MockRoleProviderFactory.sol';
@@ -736,7 +737,56 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     assertFalse(wasUpdated, 'wasUpdated');
   }
 
-  function test_tryValidateAccess_validateCredential(address account) external {}
+  function test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedPull() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+
+    bytes memory hooksData = abi.encodePacked(address(mockProvider1));
+
+    vm.expectCall(
+      address(mockProvider1),
+      abi.encodeWithSelector(IRoleProvider.getCredential.selector, account),
+      1
+    );
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
+
+    assertFalse(hasValidCredential, 'hasValidCredential');
+    assertFalse(wasUpdated, 'wasUpdated');
+  }
+
+  function test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedValidation() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+
+    bytes memory credentialData = hex'aabbcc';
+    bytes memory hooksData = abi.encodePacked(address(mockProvider1), credentialData);
+    bytes memory validateCredentialCalldata = abi.encodePacked(
+      IRoleProvider.validateCredential.selector,
+      bytes32(uint256(uint160(account))),
+      bytes32(uint256(0x40)),
+      bytes32(credentialData.length),
+      credentialData
+    );
+
+    vm.expectCall(
+      address(mockProvider1),
+      validateCredentialCalldata,
+      1
+    );
+    vm.expectCall(
+      address(mockProvider1),
+      abi.encodeWithSelector(IRoleProvider.getCredential.selector, account),
+      0
+    );
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
+
+    assertFalse(hasValidCredential, 'hasValidCredential');
+    assertFalse(wasUpdated, 'wasUpdated');
+  }
 
   // ========================================================================== //
   //                                 grantRoles                                 //
