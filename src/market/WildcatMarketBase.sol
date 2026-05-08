@@ -379,7 +379,7 @@ contract WildcatMarketBase is
    * @dev Returns the amount of protocol fees that are currently
    *      withdrawable by the fee recipient.
    */
-  function withdrawableProtocolFees() external view returns (uint128) {
+  function withdrawableProtocolFees() external view nonReentrantView returns (uint128) {
     return
       _calculateCurrentStatePointers.asReturnsMarketState()().withdrawableProtocolFees(
         totalAssets()
