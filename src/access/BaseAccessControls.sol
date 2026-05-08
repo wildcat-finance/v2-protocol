@@ -55,6 +55,8 @@ contract BaseAccessControls {
   error ProviderNotFound();
   error ProviderCanNotReplaceCredential();
   error ProviderCanNotRevokeCredential();
+  /// @dev Error thrown when a provider grants a credential with a null or future timestamp.
+  error InvalidCredentialTimestamp();
   /// @dev Error thrown when a provider grants a credential that is already expired.
   error GrantedCredentialExpired();
   /// @dev Error thrown when a provider is called to validate a credential and the
@@ -401,6 +403,10 @@ contract BaseAccessControls {
     uint32 roleGrantedTimestamp
   ) internal {
     LenderStatus memory status = _lenderStatus[account];
+
+    if (roleGrantedTimestamp == 0 || roleGrantedTimestamp > block.timestamp) {
+      revert InvalidCredentialTimestamp();
+    }
 
     uint256 newExpiry = callingProvider.calculateExpiry(roleGrantedTimestamp);
 

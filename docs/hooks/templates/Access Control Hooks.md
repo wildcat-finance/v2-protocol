@@ -11,6 +11,9 @@ The provider itself defines whether it is a "pull provider", meaning whether the
 Role providers can "push" credentials to the hooks contract by calling `grantRole`:
 - `grantRole(address account, uint32 roleGrantedTimestamp) external`
 
+The pushed `roleGrantedTimestamp` must be nonzero and no later than the current block timestamp.
+Historical timestamps are allowed so providers can preload credentials that were granted earlier.
+
 There are three functions that the hooks contract can call on role providers:
 - `isPullProvider() external view returns (bool)`
   - Defines whether the hooks contract can retrieve credentials using `getCredential`
