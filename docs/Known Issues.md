@@ -46,6 +46,10 @@ Existing ArchController deployments can revert with arithmetic panic for inverte
 
 Existing ArchController deployments allow privileged callers to register arbitrary addresses as controller factories, controllers, or markets. A misconfigured owner, controller factory, or controller can therefore add EOAs or nonconforming contracts to the registry, polluting registry, lens, subgraph, or SphereX allowed-sender surfaces. New ArchController bytecode rejects non-contract and wrong-arch factory/controller/market registrations and requires registered markets to report the registering controller as their factory, but currently deployed ArchController instances retain their original privileged-registry behavior.
 
+**Deployment targets must support EIP-1153**
+
+Wildcat V2 bytecode uses transient storage for reentrancy protection and factory deployment scratch space. Deployment targets that do not support `TSTORE` / `TLOAD` can deploy bytecode that later fails when those paths execute. Active deployment scripts probe the target RPC before deployment, but manual or third-party deployments must still restrict targets to Cancun-compatible chains.
+
 **Closing markets with many unpaid withdrawal batches**
 
 `closeMarket()` processes all unpaid withdrawal batches before the market is closed. If a market has accumulated many unpaid batches, a close transaction can run out of gas. This is accepted operational behavior: callers should process unpaid batches incrementally with `repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)` before calling `closeMarket()` on heavily aged markets.

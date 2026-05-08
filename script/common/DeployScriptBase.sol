@@ -2,6 +2,7 @@
 pragma solidity >=0.8.20;
 
 import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
 
 import "solady/utils/LibString.sol";
 
@@ -10,6 +11,27 @@ import "./LibDeployment.sol";
 abstract contract DeployScriptBase is Script {
     using LibDeployment for Deployments;
     using LibString for string;
+
+    function _assertEip1153Supported() internal {
+        if (vm.envOr("SKIP_EIP1153_CHECK", false)) {
+            console.log("Skipping EIP-1153 transient storage probe because SKIP_EIP1153_CHECK=true");
+            return;
+        }
+
+        string memory rpcUrl = vm.envOr("RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) {
+            revert("Missing RPC_URL for EIP-1153 transient storage probe");
+        }
+
+        string[] memory args = new string[](5);
+        args[0] = "node";
+        args[1] = "scripts/check-eip1153.js";
+        args[2] = "--rpc-url";
+        args[3] = rpcUrl;
+        args[4] = "--quiet";
+        vm.ffi(args);
+        console.log("EIP-1153 transient storage probe passed");
+    }
 
     function _resolveDeployments() internal returns (Deployments memory deployments, string memory networkName) {
         networkName = vm.envOr("DEPLOYMENTS_NETWORK", string(""));

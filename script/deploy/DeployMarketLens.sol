@@ -169,6 +169,8 @@ contract DeployMarketLens is DeployScriptBase {
     }
 
     function run() external {
+        _assertEip1153Supported();
+
         (Deployments memory deployments, string memory networkName) = _resolveDeployments();
         bool overrideExisting = vm.envOr("OVERRIDE_EXISTING", false);
         string memory deploymentLabelSuffix = vm.envOr("MARKET_LENS_DEPLOYMENT_LABEL", string(""));

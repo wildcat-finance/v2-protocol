@@ -67,6 +67,14 @@ export SANCTIONS_SENTINEL="${SANCTIONS_SENTINEL:-$(jq -r '.WildcatSanctionsSenti
 export DEFAULT_HOOKS_FACTORY="${DEFAULT_HOOKS_FACTORY:-$(jq -r '.HooksFactory' deployments/$DEPLOYMENTS_NETWORK/deployments.json)}"
 ```
 
+Validate the target RPC supports EIP-1153 transient storage:
+
+```bash
+node scripts/check-eip1153.js --rpc-url "$RPC_URL"
+```
+
+The active Forge deployment scripts run the same probe inline and fail before deployment if the target VM does not support `TSTORE` / `TLOAD`. Only set `SKIP_EIP1153_CHECK=true` for an explicitly reviewed RPC/provider issue; do not use it to deploy to a non-Cancun chain.
+
 Optional deployment controls:
 
 ```bash
@@ -350,6 +358,7 @@ Before app preview:
 
 ## Final Checklist
 
+- EIP-1153 transient storage probe passes for the target RPC.
 - New factory deployed or reused intentionally.
 - New factory `archController()` matches the target ArchController.
 - New factory registered as controller factory.
