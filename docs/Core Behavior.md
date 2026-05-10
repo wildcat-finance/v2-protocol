@@ -85,11 +85,13 @@ If, at the start of the transaction, the current pending withdrawal batch has ex
 
 Withdrawal batches group together withdrawal requests from multiple lenders over a period of time (the `withdrawalBatchDuration` parameter) to ensure a fair distribution of available assets when a market is insufficiently liquid to fully honor all withdrawals in a batch.
 
-When a lender requests a withdrawal, they will be entered into the current withdrawal batch if one exists; otherwise, a new one will be created. 
+When a lender requests a withdrawal, they will be entered into the current withdrawal batch if one exists; otherwise, a new one will be created.
 
 From the time a withdrawal batch is created until the time it expires, new lenders may enter the batch by creating a withdrawal request. At the time of the request, the lender is credited for the scaled token amount their withdrawal is equivalent to, giving them pro-rata ownership of the batch according to that scaled amount. These scaled tokens are removed from the lender's balance, but the total supply is [only reduced upon payment](#withdrawal-payment).
 
-Withdrawal *execution*, or the claiming of paid withdrawals, is only possible after expiry. 
+Because batch ownership is based on scaled amounts, two equal normalized withdrawal requests added to the same batch at different scale factors may receive slightly different final normalized amounts. This reflects the interest accrued by the batch between queue events; it is not based on the order in which paid withdrawals are later executed.
+
+Withdrawal *execution*, or the claiming of paid withdrawals, is only possible after expiry.
 
 Withdrawal batches can be in one of three states:
 - Current: The batch represented by `state.pendingWithdrawalExpiry`. Can be added to by lenders until it expires.
@@ -120,19 +122,6 @@ As assets become available, they can be paid to the withdrawal batch. A check fo
 - during the state update at the start of a transaction (for the current batch but not for unpaid (already expired) batches),
 - upon a call to `repayAndProcessUnpaidWithdrawalBatches` (for unpaid batches).
 
+Plain `repay` calls transfer assets into the market and update state, but they do not iterate through expired unpaid withdrawal batches. If a caller wants newly available liquidity to be routed through the unpaid queue in the same transaction, they must call `repayAndProcessUnpaidWithdrawalBatches`.
+
 Once an amount of underlying assets is paid to the batch, the corresponding scaled amount is actually burned: it is removed from the market's total supply, stops accruing interest and becomes available for withdrawal execution by lenders in the batch. These paid-for withdrawals are then moved into the pool of *unclaimed withdrawals* (`state.normalizedUnclaimedWithdrawals`) representing the amount of underlying assets that are still in the market but which can not be borrowed against and can not be counted toward the reserve ratio, protocol fees or new withdrawal payments.
-
-
-sf = 1
-wd 100
-liquidity: 100
-
-sf = 2
-wd 200
-scaledAmount = 100
-liquidity: 200
-
-scaledPaid = 200
-normalizedPaid = 300
-scaledTotal = 200
-lender 2 gets: 1/2 of 300: 150

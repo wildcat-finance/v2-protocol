@@ -26,21 +26,30 @@ struct HooksInstanceData {
 }
 
 library HooksInstanceDataLib {
-  using RoleProviderDataLib for *;
+    using RoleProviderDataLib for *;
 
-  function fill(
-    HooksInstanceData memory data,
-    address hooksAddress,
-    HooksFactory factory
-  ) internal view {
-    data.hooksAddress = hooksAddress;
+    function fill(
+        HooksInstanceData memory data, 
+        address hooksAddress, 
+        IHooksFactory factory
+    ) internal view {
+        fill(data, hooksAddress, factory, address(0));
+    }
 
-    address templateAddress = factory.getHooksTemplateForInstance(hooksAddress);
-    data.hooksTemplate.fill(factory, templateAddress, data.borrower);
+    function fill(
+        HooksInstanceData memory data,
+        address hooksAddress,
+        IHooksFactory factory,
+        address borrower
+    ) internal view {
+        data.hooksAddress = hooksAddress;
+        if (borrower != address(0)) {
+            data.borrower = borrower;
+        }
 
-    IHooks hooks = IHooks(hooksAddress);
+        IHooks hooks = IHooks(hooksAddress);
 
-    bytes32 versionHash = keccak256(bytes(data.hooksTemplate.name));
+    bytes32 versionHash = keccak256(bytes(hooks.version()));
     if (versionHash == keccak256('OpenTermHooks')) {
       data.kind = HooksInstanceKind.OpenTerm;
     } else if (versionHash == keccak256('FixedTermHooks')) {
@@ -57,6 +66,9 @@ library HooksInstanceDataLib {
       data.constraints = hooks.getParameterConstraints();
       data.name = hooks.name();
     }
+
+    address templateAddress = factory.getHooksTemplateForInstance(hooksAddress);
+    data.hooksTemplate.fill(factory, templateAddress, data.borrower);
     data.deploymentFlags.fill(hooks.config());
     data.totalMarkets = factory.getMarketsForHooksInstanceCount(hooksAddress);
   }

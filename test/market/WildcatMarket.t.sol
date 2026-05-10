@@ -104,6 +104,17 @@ contract WildcatMarketTest is BaseMarketTest {
     market.depositUpTo(amount);
   }
 
+  function test_depositUpTo_RoundsScaledMintDown() external {
+    _deposit(alice, 1e18);
+    fastForward(1 days);
+    vm.startPrank(alice);
+    asset.mint(alice, 1);
+    asset.approve(address(market), 1);
+    vm.expectRevert(IMarketEventsAndErrors.NullMintAmount.selector);
+    market.depositUpTo(1);
+    vm.stopPrank();
+  }
+
   function test_depositUpTo_ApprovedOnController() public asAccount(bob) {
     _authorizeLender(bob);
     // @todo
@@ -276,7 +287,7 @@ contract WildcatMarketTest is BaseMarketTest {
       _getWithdrawalBatch(state.pendingWithdrawalExpiry),
       state,
       state.pendingWithdrawalExpiry,
-      lastTotalAssets - (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees),
+      lastTotalAssets.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees),
       true
     );
     _trackProcessUnpaidWithdrawalBatch(state);
@@ -396,11 +407,12 @@ contract WildcatMarketTest is BaseMarketTest {
     uint256 actualNormalizedAmount = market.depositUpTo(amount);
     assertEq(actualNormalizedAmount, expectedNormalizedAmount, 'Actual amount deposited');
     _checkState(state);
-    assertEq(market.balanceOf(depositor), currentBalance + amount);
+    assertEq(market.balanceOf(depositor), currentBalance + state.normalizeAmount(scaledAmount));
     assertEq(market.scaledBalanceOf(depositor), currentScaledBalance + scaledAmount);
     if (!context.config.useOnDeposit) {
-      _getAccount(depositor).scaledBalance -= uint104(amount);
-      _getAccount(context.account).scaledBalance += uint104(amount);
+      uint104 scaledTransferAmount = state.scaleAmountDown(amount).toUint104();
+      _getAccount(depositor).scaledBalance -= scaledTransferAmount;
+      _getAccount(context.account).scaledBalance += scaledTransferAmount;
       market.transfer(context.account, amount);
     }
     safeStopPrank();
@@ -455,7 +467,7 @@ contract WildcatMarketTest is BaseMarketTest {
       uint256 actualNormalizedAmount = abi.decode(returnData, (uint256));
       assertEq(actualNormalizedAmount, expectedNormalizedAmount, 'Actual amount deposited');
       _checkState();
-      assertApproxEqAbs(market.balanceOf(carol), currentBalance + amount, 1);
+      assertEq(market.balanceOf(carol), currentBalance + state.normalizeAmount(scaledAmount));
       assertEq(market.scaledBalanceOf(carol), currentScaledBalance + scaledAmount);
     }
     context.validate();
@@ -496,13 +508,20 @@ contract WildcatMarketTest is BaseMarketTest {
     _deposit(alice, amount);
     MarketState memory state = pendingState();
     updateState(state);
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
     MarketAccount storage _alice = _getAccount(alice);
     MarketAccount storage _carol = _getAccount(carol);
     _alice.scaledBalance -= scaledAmount;
     _carol.scaledBalance += scaledAmount;
+    if (transferRequiresAccess) {
+      _authorizeLender(carol);
+      fuzzInputs.existingCredentialInputs.isKnownLender = true;
+    }
     vm.prank(alice);
     market.transfer(carol, amount);
+    if (transferRequiresAccess) {
+      _deauthorizeLender(carol);
+    }
     AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
       fuzzInputs,
       address(market),
@@ -625,6 +644,8 @@ contract WildcatMarketTest is BaseMarketTest {
   }
 
   function test_transfer_GrantsKnownLender() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    reset();
     _deposit(alice, 1e18);
     _authorizeLender(bob);
     vm.prank(alice);
@@ -634,6 +655,8 @@ contract WildcatMarketTest is BaseMarketTest {
   }
 
   function test_transfer_ToBlockedKnownLender() external {
+    parameters.hooksConfig = parameters.hooksConfig.setFlag(Bit_Enabled_Transfer);
+    reset();
     _deposit(alice, 1e18);
     _authorizeLender(bob);
     vm.prank(alice);
@@ -644,6 +667,19 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.prank(alice);
     market.transfer(bob, 0.5e18);
     assertEq(market.balanceOf(bob), 1e18, 'bob.balance');
+  }
+
+  function test_transferFrom_RoundsScaledAmountDownForAllowance() external {
+    address carol = address(0xca701);
+    _deposit(alice, 1e18);
+    fastForward(1 days);
+    vm.prank(alice);
+    market.approve(bob, 1);
+    vm.prank(bob);
+    vm.expectRevert(IMarketEventsAndErrors.NullTransferAmount.selector);
+    market.transferFrom(alice, carol, 1);
+    assertEq(market.allowance(alice, bob), 1);
+    assertEq(market.scaledBalanceOf(carol), 0);
   }
 
   function test_transfer_TransfersDisabled(bool fixedTerm) external {

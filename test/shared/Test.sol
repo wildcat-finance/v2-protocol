@@ -316,12 +316,15 @@ contract Test is ForgeTest, Prankster, Assertions {
     }
     if (emptyConfig) {
       HooksDeploymentConfig _config = hooksInstance.config();
-      // Enable all hooks by default, other than transfer
-      HooksConfig config = _config
-        .optionalFlags()
-        .setHooksAddress(address(hooksInstance))
-        .mergeAllFlags(_config.requiredFlags())
-        .clearFlag(Bit_Enabled_Transfer);
+      HooksConfig config = _config.optionalFlags().setHooksAddress(address(hooksInstance));
+      if (parameters.hooksTemplate == hooksTemplate) {
+        config = config.clearFlag(Bit_Enabled_QueueWithdrawal).clearFlag(Bit_Enabled_Transfer);
+      } else if (parameters.hooksTemplate == fixedTermHooksTemplate) {
+        config = config.clearFlag(Bit_Enabled_Transfer);
+      } else {
+        // Enable all hooks by default, other than transfer
+        config = config.mergeAllFlags(_config.requiredFlags()).clearFlag(Bit_Enabled_Transfer);
+      }
       parameters.hooksConfig = config;
     }
     if (authorizeAll) {
@@ -419,6 +422,7 @@ contract Test is ForgeTest, Prankster, Assertions {
           expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
         }
       }
+      expectedConfig = expectedConfig.mergeFlags(IHooks(expectedConfig.hooksAddress()).config());
     }
     {
       string memory expectedName = string.concat(
@@ -515,6 +519,7 @@ contract Test is ForgeTest, Prankster, Assertions {
       if (parameters.minimumDeposit > 0) {
         expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
       }
+      expectedConfig = expectedConfig.mergeFlags(IHooks(expectedConfig.hooksAddress()).config());
     } else if (expectedHooksVersion == keccak256('FixedTermHooks')) {
       transferRequiresAccess = expectedConfig.useOnTransfer();
       depositRequiresAccess = expectedConfig.useOnDeposit();
@@ -530,6 +535,7 @@ contract Test is ForgeTest, Prankster, Assertions {
       if (parameters.minimumDeposit > 0) {
         expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit);
       }
+      expectedConfig = expectedConfig.mergeFlags(IHooks(expectedConfig.hooksAddress()).config());
     }
     assertEq(market.asset(), parameters.asset, 'asset');
     assertEq(market.hooks(), expectedConfig, 'hooks');

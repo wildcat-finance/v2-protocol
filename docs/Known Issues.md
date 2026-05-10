@@ -18,9 +18,45 @@ The example given is also an extreme one, in reality it'd much more likely be a 
 
 If any of the hooks that are enabled for a market can revert unexpectedly, the corresponding market function may become permanently disabled. This is considered a known/unfixable issue with respect to the market, but if such an issue is actually discovered in a hooks template we have developed, this is a major vulnerability that should be reported.
 
-**Sanctioned account handling can lead to unexpected behavior on markets with withdrawal restrictions**
+**Sanctioned account handling on existing markets with withdrawal restrictions**
 
-If a market uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, sanctioned account handling may not work correctly as it will attempt to force the lender into a withdrawal, and those withdrawals are treated the same as any other. This could lead to unavoidable interest payments to a sanctioned entity's escrow address (where the funds will go when withdrawals are eventually unrestricted).
+Markets deployed before the CAF-03 remediation route forced sanctions withdrawals through the same withdrawal hooks as ordinary lender withdrawals. If one of those existing markets uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. This could lead to unavoidable interest payments to a sanctioned entity's escrow address, where the funds will go when withdrawals are eventually unrestricted.
+
+**Open entry with restricted withdrawals on existing markets**
+
+Markets deployed before the CAF-04 remediation could combine open deposits or open transfers with credential-gated withdrawals. An uncredentialed holder who entered through those open paths might not be recorded as a known lender, so queueing a withdrawal can still require credentialed or manually approved access. New hook deployments reject this configuration, but existing markets retain their deployed behavior.
+
+**Future-dated push credentials on existing hooks**
+
+Markets deployed before the CAF-05 remediation allow approved push role providers to call `grantRole` or `grantRoles` with future credential timestamps. Those credentials are usable immediately and expire from the future timestamp, effectively extending the configured provider TTL. New hook deployments reject null or future push credential timestamps, but existing hooks retain their deployed behavior.
+
+**Non-interface push providers on existing hooks**
+
+Markets deployed before the CAF-10 remediation require newly added role providers to implement `isPullProvider()`, even if the address is only meant to push credentials with `grantRole` or `grantRoles`. New hook deployments treat addresses that do not return `true` from `isPullProvider()` as push-only providers, but existing hooks retain their deployed provider-registration behavior.
+
+**Repeated hooksData provider queries on existing hooks**
+
+Markets deployed before the CAF-11 remediation can query a `hooksData`-selected pull provider again in the later automatic pull-provider loop if the selected provider does not yield a valid credential. New hook deployments skip a pull provider already selected by `hooksData`, but existing hooks retain their deployed access-check behavior.
+
+**Malformed pagination ranges on existing ArchController deployments**
+
+Existing ArchController deployments can revert with arithmetic panic for inverted or out-of-bounds paginated registry queries such as `getRegisteredMarkets(start, end)` when `start >= end` after clamping. New ArchController bytecode reverts with an explicit `InvalidPaginationRange()` error for those ranges, but currently deployed ArchController instances retain their original read-surface behavior.
+
+**Raw registry addresses on existing ArchController deployments**
+
+Existing ArchController deployments allow privileged callers to register arbitrary addresses as controller factories, controllers, or markets. A misconfigured owner, controller factory, or controller can therefore add EOAs or nonconforming contracts to the registry, polluting registry, lens, subgraph, or SphereX allowed-sender surfaces. New ArchController bytecode rejects non-contract and wrong-arch factory/controller/market registrations and requires registered markets to report the registering controller as their factory, but currently deployed ArchController instances retain their original privileged-registry behavior.
+
+**Deployment targets must support EIP-1153**
+
+Wildcat V2 bytecode uses transient storage for reentrancy protection and factory deployment scratch space. Deployment targets that do not support `TSTORE` / `TLOAD` can deploy bytecode that later fails when those paths execute. Active deployment scripts probe the target RPC before deployment, but manual or third-party deployments must still restrict targets to Cancun-compatible chains.
+
+**Closing markets with many unpaid withdrawal batches**
+
+`closeMarket()` processes all unpaid withdrawal batches before the market is closed. If a market has accumulated many unpaid batches, a close transaction can run out of gas. This is accepted operational behavior: callers should process unpaid batches incrementally with `repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)` before calling `closeMarket()` on heavily aged markets.
+
+**Nonstandard token metadata on listed assets**
+
+Wildcat assumes listed assets expose stable standard ERC20 metadata and standard transfer semantics. Market deployment reads asset `name()`, `symbol()`, and `decimals()` and packs the derived market name and symbol by byte length. Empty, malformed, excessively long, or confusing display metadata, including names that rely on invisible unicode characters, can block deployment or produce misleading offchain display text. Zero-amount transfer reverts can also break fee paths that otherwise amount to no economic transfer. This is accepted as an asset-listing boundary: asset review must reject or explicitly approve such tokens before listing.
 
 **Hooks lack some specificity**
 

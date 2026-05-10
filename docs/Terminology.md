@@ -69,8 +69,9 @@ description: It's dangerous to go alone - learn these.
 #### **Escrow Contract**
 
 * An auxiliary smart contract that is deployed in the event that the [sentinel](Terminology.md#sentinel) detects that a [lender](Terminology.md#lender) address has been added to a sanctioned list such as the OFAC SDN: this check is performed through the [**Chainalysis oracle**](https://go.chainalysis.com/chainalysis-oracle-docs.html).
-* Used to transfer the debt (for the [lender](Terminology.md#lender)) and obligation to repay (for the [borrower](Terminology.md#borrower)) away from the [market](Terminology.md#market) contract to avoid wider contamination through interaction. Interest ceases to accrue upon creation and transfer.
-* Any [assets](Terminology.md#underlying-asset) relating to an attempted claim by the affected lender as well as any market tokens tied to their remaining [deposit](Terminology.md#deposit) are automatically transferred to the escrow contract when blocked (either through an attempt to withdraw or via a call to a 'nuke from orbit' function found within the market).
+* Used to hold [underlying assets](Terminology.md#underlying-asset) owed to a sanctioned lender outside of the [market](Terminology.md#market) until they can be released.
+* In V2, a call to `nukeFromOrbit` queues the sanctioned account's remaining market-token balance into withdrawal processing rather than transferring those market tokens directly to escrow. The queued amount follows normal withdrawal-batch accounting until the batch is paid.
+* When a paid withdrawal is executed for an account that is still sanctioned, the underlying assets owed to that account are transferred to the escrow contract instead of to the account. Interest ceases to accrue on those assets once they have been reserved for the paid withdrawal batch.
 * Assets can only be released to the lender in the event that a) they are no longer tagged as sanctioned by the Chainalysis oracle, or b) the borrower specifically overrides the sanction.
 
 #### Expired Withdrawal
@@ -178,7 +179,7 @@ description: It's dangerous to go alone - learn these.
 
 * Current amount of [underlying asset](Terminology.md#underlying-asset) [deposited](Terminology.md#deposit) in a [market](Terminology.md#market).
 * Tied 1:1 with the supply of [market tokens](Terminology.md#market-token) (rate of growth APR dependent).
-* Can only be reduced by burning market tokens as part of a [withdrawal request](Terminology.md#withdrawal-request) or [claim](Terminology.md#claim).
+* Can only be reduced by burning market tokens, including when liquidity is reserved to pay a [withdrawal request](Terminology.md#withdrawal-request).
 * [Reserve ratios](Terminology.md#reserve-ratio) are enforced against the supply of a market, _not_ its [capacity](Terminology.md#capacity).
 * [Capacity](Terminology.md#capacity) can be reduced below current supply by a [borrower](Terminology.md#borrower), but this only prevents the further deposit of assets until the supply is once again below capacity.
 
@@ -187,7 +188,7 @@ description: It's dangerous to go alone - learn these.
 #### **Unclaimed Withdrawals Pool**
 
 * A sequestered pool of [underlying assets](Terminology.md#underlying-asset) which are pending their [claim](Terminology.md#claim) by [lenders](Terminology.md#lender) following a [withdrawal request](Terminology.md#withdrawal-request).
-* Assets are moved from market reserves to the unclaimed withdrawals pool by burning [market tokens](Terminology.md#market-token) at a 1:1 ratio (reducing the [supply](Terminology.md#supply) of the market).
+* Assets are moved from market reserves to the unclaimed withdrawals pool when a withdrawal batch is paid. The corresponding scaled [market tokens](Terminology.md#market-token) are burned at that time, reducing the [supply](Terminology.md#supply) of the market.
 * Assets within the unclaimed withdrawals pool do not accrue interest, but similarly cannot be [borrowed](Terminology.md#borrow) by the [borrower](Terminology.md#borrower) - they are considered out of reach.
 
 #### **Underlying Asset**
@@ -206,7 +207,8 @@ description: It's dangerous to go alone - learn these.
 * Parameter required of [borrower](Terminology.md#borrower) when creating a new [market](Terminology.md#market).
 * Period of time that must elapse between the first [withdrawal request](Terminology.md#withdrawal-request) of a 'wave' of withdrawals and [assets](Terminology.md#underlying-asset) in the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool) being made available to [claim](Terminology.md#claim).
 * Withdrawal cycles do not work on a rolling basis - at the end of one withdrawal cycle, the next cycle will not start until the next withdrawal request.
-* In the event that the amount being claimed in the same cycle across all lenders is in excess of the reserves currently within a market, all [lenders](Terminology.md#lender) requests within that cycle will be honoured _pro rata_ depending on overall amount requested.
+* In the event that the amount being claimed in the same cycle across all lenders is in excess of the reserves currently within a market, all [lenders](Terminology.md#lender) requests within that cycle will be honoured _pro rata_ according to each lender's scaled ownership of the withdrawal batch.
+* Because withdrawal requests are credited as scaled amounts at the scale factor in effect when each request is queued, equal normalized requests added to the same batch at different times may receive slightly different final normalized amounts.
 * Intended to prevent a run on a given market (mass withdrawal requests) leading to slower lenders receiving nothing.
 * Can have a value of zero, in which case each withdrawal request is processed - and potentially added to the [withdrawal queue](Terminology.md#withdrawal-queue) - as a standalone batch.
 
@@ -215,11 +217,13 @@ description: It's dangerous to go alone - learn these.
 * Internal data structure of a [market](Terminology.md#market).
 * All [withdrawal requests](Terminology.md#withdrawal-request) that could not be fully honoured at the end of their [withdrawal cycle](Terminology.md#withdrawal-cycle) are batched together, marked as [expired](Terminology.md#expired-withdrawal) and added to the withdrawal queue.
 * Tracks the order and amounts of [lender](Terminology.md#lender) [claims](Terminology.md#claim).
-* FIFO (First-In-First-Out): when [assets](day-to-day-usage/lenders.md) are returned to a market which has a non-zero withdrawal queue, assets are immediately routed to the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool) and can subsequently be claimed by lenders with the oldest expired withdrawals first.
+* FIFO (First-In-First-Out): expired unpaid batches are paid oldest first when the unpaid queue is processed.
+* A plain borrower `repay` returns assets to the market and updates state, but does not iterate through expired unpaid withdrawal batches. To immediately route available liquidity through the unpaid queue, callers must use `repayAndProcessUnpaidWithdrawalBatches`.
 
 #### Withdrawal Request
 
-* An instruction to a [market](Terminology.md#market) to transfer reserves within a market to the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool), to be [claimed](Terminology.md#claim) at the end of a [withdrawal cycle](Terminology.md#withdrawal-cycle).
-* A withdrawal request made of a market with non-zero reserves will burn as many [market tokens](Terminology.md#market-token) as possible 1:1 to fully honour the request.
+* An instruction to a [market](Terminology.md#market) to move a lender's market-token balance into the current withdrawal batch.
+* The request is recorded as a scaled amount. Those scaled tokens are removed from the lender's balance immediately, but remain in the market's total supply until liquidity is reserved to pay the batch.
+* When liquidity is reserved for a batch, the corresponding scaled [market tokens](Terminology.md#market-token) are burned and the underlying assets are moved to the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool), to be [claimed](Terminology.md#claim) after expiry.
 * Any amount requested - whether or not it is in excess of the market reserves - is marked as a [pending withdrawal](Terminology.md#pending-withdrawal), either to be fully honoured at the end of the cycle, or marked as [expired](Terminology.md#expired-withdrawal) and added to the [withdrawal queue](Terminology.md#withdrawal-queue), depending on the actions of the [borrower](Terminology.md#borrower) during the cycle.
 

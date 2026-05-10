@@ -41,6 +41,7 @@ interface IHooksFactoryEventsAndErrors {
   error NameOrSymbolTooLong();
   error AssetBlacklisted();
   error SetProtocolFeeBipsFailed();
+  error InvalidPaginationRange();
 
   event HooksInstanceDeployed(address hooksInstance, address hooksTemplate);
   event HooksTemplateAdded(

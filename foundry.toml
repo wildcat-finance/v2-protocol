@@ -28,8 +28,8 @@ evm_version = 'cancun'
 ignored_warnings_from = ["src/", "test/"]
 bytecode_hash = 'none'
 
-[profile.coverage]
-fuzz_runs = 10000
+[profile.coverage.fuzz]
+runs = 10000
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
 
@@ -53,6 +53,9 @@ extra_output_files=["irOptimized", "ir"]
 
 [profile.default.fuzz]
 runs = 1000
+
+[lint]
+lint_on_build = false
 
 [invariant]
 runs = 2000

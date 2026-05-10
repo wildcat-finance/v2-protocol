@@ -83,7 +83,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     address accountAddress,
     uint104 scaledAmount,
     uint normalizedAmount,
-    uint baseCalldataSize
+    uint baseCalldataSize,
+    bool callHook
   ) internal returns (uint32 expiry) {
     // Cache batch expiry on the stack for gas savings
     expiry = state.pendingWithdrawalExpiry;
@@ -97,8 +98,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       state.pendingWithdrawalExpiry = expiry;
     }
 
-    // Execute queueWithdrawal hook if enabled
-    hooks.onQueueWithdrawal(accountAddress, expiry, scaledAmount, state, baseCalldataSize);
+    // Execute queueWithdrawal hook if requested and enabled
+    if (callHook) {
+      hooks.onQueueWithdrawal(accountAddress, expiry, scaledAmount, state, baseCalldataSize);
+    }
 
     // Reduce account's balance and emit transfer event
     account.scaledBalance -= scaledAmount;
@@ -136,14 +139,22 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
     if (scaledAmount == 0) revert_NullBurnAmount();
 
     // Cache account data
     Account memory account = _getAccount(msg.sender);
 
     return
-      _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, _runtimeConstant(0x24));
+      _queueWithdrawal(
+        state,
+        account,
+        msg.sender,
+        scaledAmount,
+        amount,
+        _runtimeConstant(0x24),
+        true
+      );
   }
 
   /**
@@ -172,7 +183,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
         msg.sender,
         scaledAmount,
         normalizedAmount,
-        _runtimeConstant(0x04)
+        _runtimeConstant(0x04),
+        true
       );
   }
 
@@ -279,7 +291,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   function repayAndProcessUnpaidWithdrawalBatches(
     uint256 repayAmount,
     uint256 maxBatches
-  ) public nonReentrant sphereXGuardExternal {
+  ) public virtual nonReentrant sphereXGuardExternal {
     // Repay before updating state to ensure the paid amount is counted towards
     // any pending or unpaid withdrawals.
     if (repayAmount > 0) {
@@ -293,10 +305,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // Use an obfuscated constant for the base calldata size to prevent solc
     // function specialization.
     if (repayAmount > 0) hooks.onRepay(repayAmount, state, _runtimeConstant(0x44));
+    if (repayAmount > 0) _onRepay(state, repayAmount);
 
     // Calculate assets available to process the first batch - will be updated after each batch
-    uint256 availableLiquidity = totalAssets() -
-      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+    uint256 availableLiquidity = totalAssets().satSub(
+      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
+    );
 
     // Get the maximum number of batches to process
     uint256 numBatches = MathUtils.min(maxBatches, _withdrawalData.unpaidBatches.length());

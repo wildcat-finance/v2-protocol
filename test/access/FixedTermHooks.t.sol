@@ -165,9 +165,11 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
   function test_onCreateMarket_ForceEnableDepositTransferHooks() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setHooksAddress(address(hooks));
     vm.expectEmit(address(hooks));
     emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 365 days));
     HooksConfig config = hooks.onCreateMarket(
@@ -193,17 +195,45 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(config, expectedConfig, 'config');
     assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.transferRequiresAccess, true, 'transferRequiresAccess');
+    assertEq(market.depositRequiresAccess, true, 'depositRequiresAccess');
     assertEq(market.withdrawalRequiresAccess, true, 'withdrawalRequiresAccess');
   }
 
-  function test_onCreateMarket_InvalidFixedTerm() external {
+  function test_onCreateMarket_InvalidAccessConfiguration() external {
     DeployMarketInputs memory inputs;
 
     inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
       address(hooks)
     );
+    vm.expectRevert(FixedTermHooks.InvalidAccessConfiguration.selector);
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + (365 days))
+    );
+
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setHooksAddress(address(hooks));
+    vm.expectRevert(FixedTermHooks.InvalidAccessConfiguration.selector);
+    hooks.onCreateMarket(
+      address(this),
+      address(2),
+      inputs,
+      abi.encode(block.timestamp + (365 days))
+    );
+  }
+
+  function test_onCreateMarket_InvalidFixedTerm() external {
+    DeployMarketInputs memory inputs;
+
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setHooksAddress(address(hooks));
     vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
     hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(0));
     vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
@@ -251,9 +281,10 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
   function test_onCreateMarket_disableTransfers() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -278,7 +309,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(config, expectedConfig, 'config');
     assertEq(market.isHooked, true, 'isHooked');
     assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
+    assertEq(market.depositRequiresAccess, true, 'depositRequiresAccess');
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
     assertEq(market.transfersDisabled, true, 'transfersDisabled');
@@ -287,9 +318,10 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
   function test_onTransfer_TransfersDisabled() external {
     DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setHooksAddress(address(hooks));
     hooks.onCreateMarket(
       address(this),
       address(1),
@@ -372,6 +404,17 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal || minimumDeposit > 0;
     expectedConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
 
+    if (useOnQueueWithdrawal && !(useOnDeposit && useOnTransfer)) {
+      vm.expectRevert(FixedTermHooks.InvalidAccessConfiguration.selector);
+      hooks.onCreateMarket(
+        address(this),
+        address(1),
+        inputs,
+        abi.encode(block.timestamp + 365 days, minimumDeposit)
+      );
+      return;
+    }
+
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -407,9 +450,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
   function test_setFixedTermEndTime_IncreaseFixedTerm() external {
     DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     hooks.onCreateMarket(
       address(this),
       address(1),
@@ -422,9 +463,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
   function test_setFixedTermEndTime() external {
     DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     hooks.onCreateMarket(
       address(this),
       address(1),
@@ -440,9 +479,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
   function test_setFixedTermEndTime_ReductionDisabled() external {
     DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     hooks.onCreateMarket(
       address(this),
       address(1),
@@ -518,9 +555,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
   function test_setMinimumDeposit() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -532,7 +567,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       useOnDeposit: true,
       useOnQueueWithdrawal: true,
       useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
+      useOnTransfer: false,
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: true,
@@ -571,9 +606,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
   function test_setAnnualInterestAndReserveRatioBips_ReducingAprDuringFixedTerm() external {
     DeployMarketInputs memory inputs;
 
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -585,7 +618,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       useOnDeposit: true,
       useOnQueueWithdrawal: true,
       useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
+      useOnTransfer: false,
       useOnBorrow: false,
       useOnRepay: false,
       useOnCloseMarket: true,
@@ -611,9 +644,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
   function test_closeMarket() external {
     DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     hooks.onCreateMarket(
       address(this),
       address(1),
@@ -631,9 +662,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
   function test_closeMarket_ClosureDisabledBeforeTerm() external {
     DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     hooks.onCreateMarket(
       address(this),
       address(1),

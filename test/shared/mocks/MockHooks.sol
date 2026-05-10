@@ -80,6 +80,7 @@ contract MockHooks is IHooks {
   uint16 public annualInterestBipsToReturn;
   uint16 public reserveRatioBipsToReturn;
   bytes public lastExtraData;
+  bool public revertOnQueueWithdrawal;
 
   function reset() external {
     lastCalldataHash = 0;
@@ -116,6 +117,10 @@ contract MockHooks is IHooks {
 
   function setConfig(HooksDeploymentConfig _config) external {
     config = _config;
+  }
+
+  function setRevertOnQueueWithdrawal(bool _revertOnQueueWithdrawal) external {
+    revertOnQueueWithdrawal = _revertOnQueueWithdrawal;
   }
 
   event RoleProviderAdded(
@@ -167,6 +172,7 @@ contract MockHooks is IHooks {
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual override {
+    if (revertOnQueueWithdrawal) revert('onQueueWithdrawal');
     lastCalldataHash = keccak256(msg.data);
     emit OnQueueWithdrawalCalled(lender, expiry, scaledAmount, intermediateState, extraData);
   }

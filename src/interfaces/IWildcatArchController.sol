@@ -6,6 +6,14 @@ interface IWildcatArchController {
 
   error NotControllerFactory();
 
+  error NotContract();
+
+  error InvalidArchController();
+
+  error InvalidMarketFactory();
+
+  error InvalidPaginationRange();
+
   function owner() external view returns (address);
 
   // ========================================================================== //
