@@ -16,17 +16,26 @@ struct HookedMarket {
   bool withdrawalRequiresAccess;
   bool depositHookEnabled;
   uint128 minimumDeposit;
-  uint32 periodStart;
+  uint32 firstWithdrawalWindowStart;
   uint32 periodDuration;
   uint32 withdrawalWindowDuration;
   bool transfersDisabled;
   bool isClosed;
 }
 
+struct PendingAprChange {
+  uint16 annualInterestBips;
+  uint32 proposalTimestamp;
+}
+
+interface IMarketApr {
+  function annualInterestBips() external view returns (uint256);
+}
+
 /**
  * @title PeriodicTermHooks
  * @dev Hooks contract for markets where withdrawals may only be queued during
- *      a recurring end-of-period window. Withdrawal batches still expire using
+ *      a recurring scheduled window. Withdrawal batches still expire using
  *      the market's immutable `withdrawalBatchDuration`.
  */
 contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
@@ -37,11 +46,18 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
   event PeriodicTermUpdated(
     address market,
-    uint32 periodStart,
+    uint32 firstWithdrawalWindowStart,
     uint32 periodDuration,
     uint32 withdrawalWindowDuration
   );
   event PeriodicTermClosed(address market);
+  event AnnualInterestBipsReductionProposed(
+    address indexed market,
+    uint16 annualInterestBips,
+    uint32 proposalTimestamp,
+    uint32 responseWindowStart,
+    uint32 responseWindowEnd
+  );
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -56,7 +72,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   error WithdrawalWindowDurationOutOfBounds();
   error DepositHookNotEnabled();
   error WithdrawOutsideWindow();
-  error NoReducingAprOutsideWithdrawalWindow();
+  error AprReductionProposalDuringWithdrawalWindow();
+  error AprReductionProposalNotReduction();
+  error NoPendingAprChange();
+  error AprChangeDoesNotMatchProposal();
+  error AprChangeNotReady();
+  error UnpaidWithdrawalsExist();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -70,6 +91,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   uint32 public constant MaximumInitialWithdrawalWindowDelay = MaximumPeriodDuration;
 
   mapping(address => HookedMarket) internal _hookedMarkets;
+  mapping(address => PendingAprChange) public pendingAprChanges;
 
   // ========================================================================== //
   //                                 Constructor                                //
@@ -140,15 +162,15 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
    * @dev Called when market is deployed using this contract as its `hooks`.
    *
    *     `hooksData` is a tuple of (
-   *        uint32 periodStart,
+   *        uint32 firstWithdrawalWindowStart,
    *        uint32 periodDuration,
    *        uint32 withdrawalWindowDuration,
    *        uint128? minimumDeposit,
    *        bool? transfersDisabled
    *     )
    *
-   *      The withdrawal window is always the final `withdrawalWindowDuration`
-   *      seconds of each `periodDuration`.
+   *      Withdrawal windows begin at `firstWithdrawalWindowStart` and recur
+   *      every `periodDuration` seconds.
    *
    *      Note: Called inside the root `onCreateMarket` in the base contract,
    *      so no need to verify the caller is the factory.
@@ -165,11 +187,11 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
 
     marketHooksConfig = parameters.hooks;
 
-    uint32 periodStart = _readUint32Cd(hooksData, 0);
+    uint32 firstWithdrawalWindowStart = _readUint32Cd(hooksData, 0);
     uint32 periodDuration = _readUint32Cd(hooksData, 0x20);
     uint32 withdrawalWindowDuration = _readUint32Cd(hooksData, 0x40);
 
-    _validatePeriodicTerm(periodStart, periodDuration, withdrawalWindowDuration, block.timestamp);
+    _validatePeriodicTerm(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration, block.timestamp);
 
     HookedMarket memory hookedMarket = HookedMarket({
       isHooked: true,
@@ -177,7 +199,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
       withdrawalRequiresAccess: marketHooksConfig.useOnQueueWithdrawal(),
       depositHookEnabled: false,
-      periodStart: periodStart,
+      firstWithdrawalWindowStart: firstWithdrawalWindowStart,
       periodDuration: periodDuration,
       withdrawalWindowDuration: withdrawalWindowDuration,
       minimumDeposit: _readUint128Cd(hooksData, 0x60),
@@ -185,7 +207,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       isClosed: false
     });
 
-    emit PeriodicTermUpdated(marketAddress, periodStart, periodDuration, withdrawalWindowDuration);
+    emit PeriodicTermUpdated(
+      marketAddress,
+      firstWithdrawalWindowStart,
+      periodDuration,
+      withdrawalWindowDuration
+    );
 
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
@@ -217,6 +244,44 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     emit MinimumDepositUpdated(market, newMinimumDeposit);
   }
 
+  function proposeAnnualInterestBips(address market, uint16 annualInterestBips) external onlyBorrower {
+    HookedMarket memory hookedMarket = _hookedMarkets[market];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (_isWithdrawalWindowOpen(hookedMarket, block.timestamp)) {
+      revert AprReductionProposalDuringWithdrawalWindow();
+    }
+    assertValueInRange(
+      annualInterestBips,
+      MinimumAnnualInterestBips,
+      MaximumAnnualInterestBips,
+      AnnualInterestBipsOutOfBounds.selector
+    );
+
+    if (annualInterestBips >= IMarketApr(market).annualInterestBips()) {
+      revert AprReductionProposalNotReduction();
+    }
+
+    uint32 proposalTimestamp = block.timestamp.toUint32();
+    uint32 responseWindowStart = _getNextWithdrawalWindowStart(
+      hookedMarket,
+      proposalTimestamp
+    ).toUint32();
+    uint32 responseWindowEnd = responseWindowStart + hookedMarket.withdrawalWindowDuration;
+
+    pendingAprChanges[market] = PendingAprChange({
+      annualInterestBips: annualInterestBips,
+      proposalTimestamp: proposalTimestamp
+    });
+
+    emit AnnualInterestBipsReductionProposed(
+      market,
+      annualInterestBips,
+      proposalTimestamp,
+      responseWindowStart,
+      responseWindowEnd
+    );
+  }
+
   // ========================================================================== //
   //                               Market Queries                               //
   // ========================================================================== //
@@ -240,19 +305,70 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     return _isWithdrawalWindowOpen(market, block.timestamp);
   }
 
+  function getPendingAprChange(
+    address marketAddress
+  )
+    external
+    view
+    returns (
+      PendingAprChange memory pendingAprChange,
+      uint32 responseWindowStart,
+      uint32 responseWindowEnd
+    )
+  {
+    HookedMarket memory market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+
+    pendingAprChange = pendingAprChanges[marketAddress];
+    if (pendingAprChange.proposalTimestamp != 0) {
+      responseWindowStart = _getNextWithdrawalWindowStart(
+        market,
+        pendingAprChange.proposalTimestamp
+      ).toUint32();
+      responseWindowEnd = responseWindowStart + market.withdrawalWindowDuration;
+    }
+  }
+
   function _isWithdrawalWindowOpen(
     HookedMarket memory market,
     uint256 timestamp
   ) internal pure returns (bool) {
     if (market.isClosed) return true;
-    if (timestamp < market.periodStart) return false;
+    if (timestamp < market.firstWithdrawalWindowStart) return false;
 
-    uint256 timeInPeriod = (timestamp - market.periodStart) % market.periodDuration;
-    return timeInPeriod >= market.periodDuration - market.withdrawalWindowDuration;
+    uint256 timeInPeriod = (timestamp - market.firstWithdrawalWindowStart) % market.periodDuration;
+    return timeInPeriod < market.withdrawalWindowDuration;
+  }
+
+  function _getCurrentOrNextWithdrawalWindowStart(
+    uint32 firstWithdrawalWindowStart,
+    uint32 periodDuration,
+    uint32 withdrawalWindowDuration,
+    uint256 timestamp
+  ) internal pure returns (uint256 windowStart) {
+    if (timestamp < firstWithdrawalWindowStart) return firstWithdrawalWindowStart;
+
+    uint256 timeInPeriod = (timestamp - firstWithdrawalWindowStart) % periodDuration;
+    windowStart = timestamp - timeInPeriod;
+    if (timeInPeriod >= withdrawalWindowDuration) {
+      windowStart += periodDuration;
+    }
+  }
+
+  function _getNextWithdrawalWindowStart(
+    HookedMarket memory market,
+    uint256 timestamp
+  ) internal pure returns (uint256 windowStart) {
+    if (timestamp < market.firstWithdrawalWindowStart) {
+      return market.firstWithdrawalWindowStart;
+    }
+
+    uint256 periodsElapsed = (timestamp - market.firstWithdrawalWindowStart) / market.periodDuration;
+    return market.firstWithdrawalWindowStart + ((periodsElapsed + 1) * market.periodDuration);
   }
 
   function _validatePeriodicTerm(
-    uint32 periodStart,
+    uint32 firstWithdrawalWindowStart,
     uint32 periodDuration,
     uint32 withdrawalWindowDuration,
     uint256 currentTimestamp
@@ -267,8 +383,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       revert WithdrawalWindowDurationOutOfBounds();
     }
 
-    uint256 firstWindowStart = uint256(periodStart) + periodDuration - withdrawalWindowDuration;
-    if (firstWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
+    uint256 nextWindowStart = _getCurrentOrNextWithdrawalWindowStart(
+      firstWithdrawalWindowStart,
+      periodDuration,
+      withdrawalWindowDuration,
+      currentTimestamp
+    );
+    if (nextWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
       revert InitialWithdrawalWindowTooFarInFuture();
     }
   }
@@ -432,12 +553,31 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   {
     HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (
-      annualInterestBips < intermediateState.annualInterestBips &&
-      !intermediateState.isClosed &&
-      !_isWithdrawalWindowOpen(hookedMarket, block.timestamp)
-    ) {
-      revert NoReducingAprOutsideWithdrawalWindow();
+    assertValueInRange(
+      annualInterestBips,
+      MinimumAnnualInterestBips,
+      MaximumAnnualInterestBips,
+      AnnualInterestBipsOutOfBounds.selector
+    );
+
+    if (annualInterestBips > intermediateState.annualInterestBips) {
+      delete pendingAprChanges[msg.sender];
+    } else if (annualInterestBips < intermediateState.annualInterestBips) {
+      PendingAprChange memory pendingAprChange = pendingAprChanges[msg.sender];
+      if (pendingAprChange.proposalTimestamp == 0) revert NoPendingAprChange();
+      if (pendingAprChange.annualInterestBips != annualInterestBips) {
+        revert AprChangeDoesNotMatchProposal();
+      }
+
+      uint256 responseWindowEnd = _getNextWithdrawalWindowStart(
+        hookedMarket,
+        pendingAprChange.proposalTimestamp
+      ) + hookedMarket.withdrawalWindowDuration;
+      if (block.timestamp < responseWindowEnd) revert AprChangeNotReady();
+      if (intermediateState.scaledPendingWithdrawals != 0) revert UnpaidWithdrawalsExist();
+
+      delete pendingAprChanges[msg.sender];
+      return (annualInterestBips, intermediateState.reserveRatioBips);
     }
 
     return
