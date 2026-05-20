@@ -33,7 +33,7 @@ contract MarketLens {
     address borrower
   ) public view returns (HooksInstanceData[] memory arr) {
     address[] memory hooksInstances = hooksFactory.getHooksInstancesForBorrower(borrower);
-    arr = new HooksInstanceData[](arr.length);
+    arr = new HooksInstanceData[](hooksInstances.length);
     for (uint i; i < hooksInstances.length; i++) {
       arr[i].fill(hooksInstances[i], hooksFactory);
     }

@@ -5,12 +5,14 @@ import '../types/HooksConfig.sol';
 import '../access/IHooks.sol';
 import { HookedMarket as OpenTermHookedMarket, OpenTermHooks } from '../access/OpenTermHooks.sol';
 import { HookedMarket as FixedTermHookedMarket, FixedTermHooks } from '../access/FixedTermHooks.sol';
+import { HookedMarket as PeriodicTermHookedMarket, PeriodicTermHooks } from '../access/PeriodicTermHooks.sol';
 import { WildcatMarket } from '../market/WildcatMarket.sol';
 
 enum HooksInstanceKind {
   Unknown,
   OpenTerm,
-  FixedTermLoan
+  FixedTermLoan,
+  PeriodicTerm
 }
 
 using HooksConfigDataLib for HooksConfigData global;
@@ -50,6 +52,11 @@ struct MarketHooksData {
   uint32 fixedTermEndTime;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
+  // Periodic term flags
+  uint32 firstWithdrawalWindowStart;
+  uint32 periodDuration;
+  uint32 withdrawalWindowDuration;
+  bool periodicTermClosed;
 }
 
 library HooksConfigDataLib {
@@ -82,6 +89,19 @@ library HooksConfigDataLib {
       data.transfersDisabled = hookedMarket.transfersDisabled;
       data.allowClosureBeforeTerm = hookedMarket.allowClosureBeforeTerm;
       data.allowTermReduction = hookedMarket.allowTermReduction;
+    } else if (versionHash == keccak256(bytes('PeriodicTermHooks'))) {
+      data.kind = HooksInstanceKind.PeriodicTerm;
+      PeriodicTermHooks hooks = PeriodicTermHooks(data.hooksAddress);
+      PeriodicTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
+      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
+      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
+      data.withdrawalRequiresAccess = hookedMarket.withdrawalRequiresAccess;
+      data.minimumDeposit = hookedMarket.minimumDeposit;
+      data.transfersDisabled = hookedMarket.transfersDisabled;
+      data.firstWithdrawalWindowStart = hookedMarket.firstWithdrawalWindowStart;
+      data.periodDuration = hookedMarket.periodDuration;
+      data.withdrawalWindowDuration = hookedMarket.withdrawalWindowDuration;
+      data.periodicTermClosed = hookedMarket.isClosed;
     }
   }
 
