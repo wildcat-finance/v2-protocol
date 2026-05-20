@@ -50,7 +50,7 @@ Companion summary: `audit/final-summary.md`
 | Command | Result |
 | --- | --- |
 | `forge build src/access/PeriodicTermHooks.sol --deny never` | Pass; one expected timestamp lint warning. |
-| `forge test --match-path test/access/PeriodicTermHooks.t.sol --summary` | 108 passed, 0 failed. |
+| `forge test --match-path test/access/PeriodicTermHooks.t.sol -vvv` | 109 passed, 0 failed; known SphereX parser warning still prints. |
 | `forge test --match-path test/market/FixedTermEquivalenceTests.t.sol --summary` | Fixed-term equivalence suites passed. |
 | `forge test --match-path test/lens/MarketLens.t.sol -vvv` | 12 passed, 0 failed; known SphereX parser warning still prints. |
 | `forge test --match-path test/HooksFactory.t.sol -vvv` | 31 passed, 0 failed; known SphereX parser warning still prints. |

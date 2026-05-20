@@ -60,7 +60,7 @@ interest.
 ## Verification
 
 - `forge build src/access/PeriodicTermHooks.sol --deny never`: pass; one expected timestamp lint warning.
-- `forge test --match-path test/access/PeriodicTermHooks.t.sol --summary`: 108 passed, 0 failed.
+- `forge test --match-path test/access/PeriodicTermHooks.t.sol -vvv`: 109 passed, 0 failed.
 - `forge test --match-path test/market/FixedTermEquivalenceTests.t.sol --summary`: fixed-term equivalence suites passed.
 - `forge test --summary`: 903 passed, 2 failed; both failures are inherited ERC4626 `testFail*` methods.
 - `forge test --no-match-path test/vault/Wildcat4626WrapperStandard.t.sol --summary`: all displayed suites passed with 0 failures.

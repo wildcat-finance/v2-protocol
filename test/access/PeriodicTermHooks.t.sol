@@ -314,6 +314,25 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         );
     }
 
+    function test_onCreateMarket_SepoliaSizedWindow() external {
+        DeployMarketInputs memory inputs;
+        uint32 periodDuration = 6 minutes;
+        uint32 withdrawalWindowDuration = 1 minutes;
+        uint32 firstWithdrawalWindowStart = PeriodStart + periodDuration - withdrawalWindowDuration;
+
+        hooks.onCreateMarket(
+            address(this),
+            Market,
+            inputs,
+            abi.encode(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration)
+        );
+
+        HookedMarket memory market = hooks.getHookedMarket(Market);
+        assertEq(market.firstWithdrawalWindowStart, firstWithdrawalWindowStart, "firstWithdrawalWindowStart");
+        assertEq(market.periodDuration, periodDuration, "periodDuration");
+        assertEq(market.withdrawalWindowDuration, withdrawalWindowDuration, "withdrawalWindowDuration");
+    }
+
     function test_onCreateMarket_setMinimumDeposit() external {
         DeployMarketInputs memory inputs;
         inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));

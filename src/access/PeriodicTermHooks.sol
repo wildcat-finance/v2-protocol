@@ -85,9 +85,9 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
 
   HooksDeploymentConfig public immutable override config;
 
-  uint32 public constant MinimumPeriodDuration = 1 days;
+  uint32 public constant MinimumPeriodDuration = 6 minutes;
   uint32 public constant MaximumPeriodDuration = 365 days;
-  uint32 public constant MinimumWithdrawalWindowDuration = 1 hours;
+  uint32 public constant MinimumWithdrawalWindowDuration = 1 minutes;
   uint32 public constant MaximumInitialWithdrawalWindowDelay = MaximumPeriodDuration;
 
   mapping(address => HookedMarket) internal _hookedMarkets;
