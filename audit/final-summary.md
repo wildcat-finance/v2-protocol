@@ -18,7 +18,7 @@ cross-branch dispositions: findings marked fixed in
 `audit/previous/caf-remediation-results-20260507.md` can still be present on this
 branch until those fixes are merged or imported.
 
-Current triage count after the `M-03` policy decision and `L-02`/`L-03` fixes:
+Current triage count after the `M-03` policy decision and `L-02`/`L-03`/`HARD-01` fixes:
 
 - 0 substantive new findings remain open.
 - 2 substantive new findings were fixed on this branch: `L-02`, `L-03`.
@@ -26,9 +26,9 @@ Current triage count after the `M-03` policy decision and `L-02`/`L-03` fixes:
   imported: `M-05`, `L-01`.
 - 4 valid documentation, monitoring, known-behavior, or operational items hold up:
   `M-03`, `DOC-01`, `MON-01`, `SUP-01`.
-- 7 items are CAF duplicates, accepted policy decisions, out of scope, known tooling
-  gaps, or hardening-only notes: `H-01`, `M-01`, `M-02`, `M-04`, `QA-01`, `TOOL-01`,
-  `HARD-01`.
+- 1 hardening item was fixed on this branch: `HARD-01`.
+- 6 items are CAF duplicates, accepted policy decisions, out of scope, or known tooling
+  gaps: `H-01`, `M-01`, `M-02`, `M-04`, `QA-01`, `TOOL-01`.
 
 The new `PeriodicTermHooks` windowing design is otherwise internally consistent
 with the existing hook model: queue-withdrawal, close-market, and APR/reserve-ratio
@@ -55,7 +55,7 @@ interest.
 | MON-01 | Low | Deferred to coordinated hook-template refresh | Periodic hook market events follow the existing open/fixed pattern and do not index `market`, reducing off-chain monitoring ergonomics. |
 | TOOL-01 | Low | Known tooling gap | Full Slither/MCP and Forge coverage are blocked by parser/tooling limitations; targeted analysis was used instead. |
 | SUP-01 | Informational | Valid operational hardening item | Semgrep found one deployment-script `curl | bash` pattern. This is not a Solidity runtime issue. |
-| HARD-01 | Informational | Hardening/no exploit found | `HooksFactory._deployMarket` ignores the returned CREATE2 address; current logic appears safe but noisy. |
+| HARD-01 | Informational | Fixed on this branch | `HooksFactory._deployMarket` ignored the returned CREATE2 address instead of asserting it matched the precomputed market address. |
 
 ## Verification
 
@@ -65,6 +65,7 @@ interest.
 - `forge test --summary`: 903 passed, 2 failed; both failures are inherited ERC4626 `testFail*` methods.
 - `forge test --no-match-path test/vault/Wildcat4626WrapperStandard.t.sol --summary`: all displayed suites passed with 0 failures.
 - `forge test --match-path test/lens/MarketLens.t.sol -vvv`: 12 passed, 0 failed.
+- `forge test --match-path test/HooksFactory.t.sol -vvv`: 31 passed, 0 failed.
 - Semgrep auto scan: one low-signal script finding, no Solidity runtime findings.
 - Slither full repository run: blocked by dynamic library-function casts. Targeted Slither runs completed for periodic hooks, base access controls, hooks factory, and wrapper.
 - X-ray coverage: blocked first by the SphereX `locals` parser issue, then by a Yul stack-depth failure under `--ir-minimum`.
@@ -96,10 +97,11 @@ Use this queue for follow-up work on this branch.
    decoding.
 8. Replace or harden the deployment-script `curl | bash` pattern if that script is
    part of the supported operational path.
+9. `HARD-01` is fixed on this branch with an explicit CREATE2 return-address
+   assertion and a stale-init-code-hash regression test.
 
 ### No immediate action from this pass
 
-9. Defer `H-01`, `M-01`, `M-02`, and `M-04` to their CAF dispositions.
-10. Leave `QA-01` and `TOOL-01` out of scope for this branch unless the team chooses
+10. Defer `H-01`, `M-01`, `M-02`, and `M-04` to their CAF dispositions.
+11. Leave `QA-01` and `TOOL-01` out of scope for this branch unless the team chooses
     to clean up inherited tests or audit tooling separately.
-11. Treat `HARD-01` as optional hardening only; no exploit path was confirmed.

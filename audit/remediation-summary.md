@@ -20,7 +20,8 @@ Companion summary: `audit/final-summary.md`
 | Substantive new findings fixed on this branch | 2 | `L-02`, `L-03` |
 | Substantive new findings still open | 0 | None |
 | Known CAF fixes still to import/defer | 2 | `M-05`, `L-01` |
-| Accepted or documented behavior | 3 | `M-03`, `M-04`, `HARD-01` |
+| Accepted or documented behavior | 2 | `M-03`, `M-04` |
+| Hardening items fixed on this branch | 1 | `HARD-01` |
 | Out of scope or tooling-only | 2 | `QA-01`, `TOOL-01` |
 | Operational/docs follow-up | 3 | `DOC-01`, `MON-01`, `SUP-01` |
 
@@ -42,7 +43,7 @@ Companion summary: `audit/final-summary.md`
 | `M-04` | Medium | Accepted behavior | Disabled templates block new hook instances only; existing hook instances can still deploy markets. | Matches Wildcat's immutable deployed-instance model. |
 | `QA-01` | Low | Out of scope | Full test summary still reports inherited third-party ERC4626 `testFail*` failures. | Third-party test issue; no local remediation. |
 | `TOOL-01` | Low | Tooling gap | Full Slither/MCP and coverage workflows remain blocked by known parser/tooling limitations. | Targeted analysis was used instead. |
-| `HARD-01` | Informational | Optional hardening | `HooksFactory._deployMarket` ignores the returned CREATE2 address; no exploit path confirmed. | Optional cleanup only. |
+| `HARD-01` | Informational | Fixed | `HooksFactory._deployMarket` now asserts the returned CREATE2 deployment address matches the precomputed market address. | Added stale-init-code-hash regression coverage. |
 
 ## Verification
 
@@ -52,6 +53,7 @@ Companion summary: `audit/final-summary.md`
 | `forge test --match-path test/access/PeriodicTermHooks.t.sol --summary` | 108 passed, 0 failed. |
 | `forge test --match-path test/market/FixedTermEquivalenceTests.t.sol --summary` | Fixed-term equivalence suites passed. |
 | `forge test --match-path test/lens/MarketLens.t.sol -vvv` | 12 passed, 0 failed; known SphereX parser warning still prints. |
+| `forge test --match-path test/HooksFactory.t.sol -vvv` | 31 passed, 0 failed; known SphereX parser warning still prints. |
 | `forge test --no-match-path test/vault/Wildcat4626WrapperStandard.t.sol --summary` | Displayed suites passed with 0 failures. |
 | `forge test --summary` | 903 passed, 2 failed; both failures are inherited ERC4626 `testFail*` methods. |
 
