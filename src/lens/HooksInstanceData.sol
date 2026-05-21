@@ -45,6 +45,8 @@ library HooksInstanceDataLib {
       data.kind = HooksInstanceKind.OpenTerm;
     } else if (versionHash == keccak256('FixedTermHooks')) {
       data.kind = HooksInstanceKind.FixedTermLoan;
+    } else if (versionHash == keccak256('PeriodicTermHooks')) {
+      data.kind = HooksInstanceKind.PeriodicTerm;
     }
 
     if (data.kind != HooksInstanceKind.Unknown) {
