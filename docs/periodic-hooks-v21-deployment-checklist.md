@@ -6,8 +6,12 @@ Primary script:
 
 - `script/DeployPeriodicTermHooksV21.sol`
 
+Cleanup script:
+
+- `script/DisableHooksTemplate.sol`
+
 This rollout deploys a new `PeriodicTermHooks` init-code storage contract,
-registers it on the existing v2.1 `HooksFactory`, and deploys a new
+registers it on the target `HooksFactory`, and deploys a new
 `MarketLens`. It does not deploy a new hooks factory or new market bytecode.
 
 ## Target Matrix
@@ -75,6 +79,18 @@ Optional address overrides:
 export ARCH_CONTROLLER="${ARCH_CONTROLLER:-$(jq -r '.WildcatArchController' deployments/$DEPLOYMENTS_NETWORK/deployments.json)}"
 export HOOKS_FACTORY="${HOOKS_FACTORY:-$(jq -r '.HooksFactory' deployments/$DEPLOYMENTS_NETWORK/deployments.json)}"
 ```
+
+For the current Sepolia subgraph deployment, explicitly target the factory the
+subgraph already indexes:
+
+```bash
+export HOOKS_FACTORY="0x10A64ABa0159720F8a23E1A552800CA4eb21576C"
+```
+
+Do not rely on `deployments/sepolia/deployments.json` for this Sepolia rollout
+unless it has been reconciled with the subgraph manifest. That file may point at
+the alternate legacy factory `0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88`,
+which is not the single `HooksFactory` indexed by the clean subgraph branch.
 
 Optional deployment controls:
 
@@ -287,11 +303,72 @@ For mainnet, do not assume a deployer EOA is the owner. Use
 through the approved owner/multisig process, then rerun the script to finalize
 the local rollout summary.
 
-## 5. Verify Registration
+## 5. Disable A Mistargeted Registration
+
+If `PeriodicTermHooks` was registered on the wrong `HooksFactory`, disable that
+template. The factory does not delete templates: `isHooksTemplate(...)` remains
+true, while `getHooksTemplateDetails(...).enabled` becomes false.
+
+For the Sepolia registration that targeted the alternate factory:
+
+```bash
+export DEPLOYMENTS_NETWORK="sepolia"
+export RPC_URL="${RPC_URL:-https://eth-sep.hinterlight.net}"
+export DISABLE_HOOKS_FACTORY="0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88"
+export DISABLE_HOOKS_TEMPLATE="$(jq -r '.PeriodicTermHooks_initCodeStorage' deployments/$DEPLOYMENTS_NETWORK/deployments.json)"
+export DISABLE_TEMPLATE_MODE="emit" # auto | direct | emit | skip
+
+forge script script/DisableHooksTemplate.sol:DisableHooksTemplate \
+  --rpc-url "$RPC_URL" \
+  --broadcast \
+  --non-interactive
+```
+
+The generated action artifact is:
+
+```text
+deployments/<network>/pending-admin-actions/PeriodicTermHooks-disable-template.json
+```
+
+Execute it with the same owner path used for registration. For the Sepolia helper
+flow after direct ownership has been reclaimed:
+
+```bash
+export ACTION="deployments/$DEPLOYMENTS_NETWORK/pending-admin-actions/PeriodicTermHooks-disable-template.json"
+export TARGET="$(jq -r '.target' "$ACTION")"
+export DATA="$(jq -r '.data' "$ACTION")"
+
+cast send "$TARGET" "$DATA" \
+  --rpc-url "$RPC_URL" \
+  --private-key "$HELPER_OPERATOR_KEY"
+```
+
+Verify the bad-target template is disabled:
+
+```bash
+cast call "$DISABLE_HOOKS_FACTORY" \
+  'isHooksTemplate(address)(bool)' \
+  "$DISABLE_HOOKS_TEMPLATE" \
+  --rpc-url "$RPC_URL"
+
+cast call "$DISABLE_HOOKS_FACTORY" \
+  'getHooksTemplateDetails(address)((address,uint80,uint16,bool,bool,uint24,address,string))' \
+  "$DISABLE_HOOKS_TEMPLATE" \
+  --rpc-url "$RPC_URL"
+```
+
+Expected cleanup result:
+
+- `isHooksTemplate(...) == true`
+- `name == "PeriodicTermHooks"`
+- `exists == true`
+- `enabled == false`
+
+## 6. Verify Registration
 
 ```bash
 export TEMPLATE="$(jq -r '.PeriodicTermHooks_initCodeStorage' deployments/$DEPLOYMENTS_NETWORK/deployments.json)"
-export HOOKS_FACTORY="$(jq -r '.HooksFactory' deployments/$DEPLOYMENTS_NETWORK/deployments.json)"
+export HOOKS_FACTORY="${HOOKS_FACTORY:-$(jq -r '.HooksFactory' deployments/$DEPLOYMENTS_NETWORK/deployments.json)}"
 
 cast call "$HOOKS_FACTORY" \
   'isHooksTemplate(address)(bool)' \
@@ -312,7 +389,7 @@ Expected Sepolia fork rehearsal result:
 - `enabled == true`
 - `protocolFeeBips == 500`
 
-## 6. Rerun Script For Final Artifacts
+## 7. Rerun Script For Final Artifacts
 
 After owner registration, rerun the deployment script:
 
@@ -343,19 +420,21 @@ The final `deployments.json` should include `PeriodicTermHooks_MarketLens`.
 That rollout marker lets future reruns reuse the periodic-aware lens instead of
 falling back to the pre-periodic canonical lens.
 
-## 7. Final Checklist
+## 8. Final Checklist
 
 - `FOUNDRY_PROFILE=deploy` was used.
 - Contract sizes are under EIP-170.
+- Sepolia `HOOKS_FACTORY`, if applicable, was explicitly set to the subgraph-indexed factory.
 - `PeriodicTermHooks_initCodeStorage` has code on the target chain.
 - `MarketLens` has code on the target chain.
 - `PeriodicTermHooks_MarketLens` is present in `deployments.json`.
-- `MarketLens.archController()` matches `WildcatArchController`.
-- `MarketLens.hooksFactory()` matches `HooksFactory`.
+- `MarketLens.archController()` matches `ARCH_CONTROLLER`.
+- `MarketLens.hooksFactory()` matches `HOOKS_FACTORY`.
 - Generated owner-action artifact was reviewed.
 - `HooksFactory.isHooksTemplate(PeriodicTermHooks_initCodeStorage)` is true.
 - `getHooksTemplateDetails(...).name` is `PeriodicTermHooks`.
 - `getHooksTemplateDetails(...).enabled` is true.
+- Any known bad-target `PeriodicTermHooks` registration has been disabled.
 - Sepolia helper ownership was returned if the helper reclaim flow was used.
 - Final script rerun is idempotent and broadcasts no transactions.
 - `periodic-hooks-v21-rollout.json` is saved for handoff.
