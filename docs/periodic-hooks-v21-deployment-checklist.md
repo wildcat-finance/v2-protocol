@@ -166,6 +166,11 @@ script has been rerun:
 `HooksFactory.addHooksTemplate(...)` must be called by the current
 `WildcatArchController.owner()`.
 
+Register the template with the exact name `PeriodicTermHooks`. The periodic-aware
+`MarketLens` classifies hook instances from the factory template name, so changing
+the registration name can make instance data report `Unknown` even when market
+data still recognizes the hook bytecode.
+
 Check the current owner:
 
 ```bash

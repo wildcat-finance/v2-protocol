@@ -62,14 +62,25 @@ struct MarketHooksData {
 library HooksConfigDataLib {
   using HooksConfigDataLib for *;
 
+  function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
+    bytes32 versionHash = keccak256(bytes(version));
+    if (versionHash == keccak256(bytes('OpenTermHooks'))) {
+      return HooksInstanceKind.OpenTerm;
+    } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
+      return HooksInstanceKind.FixedTermLoan;
+    } else if (versionHash == keccak256(bytes('PeriodicTermHooks'))) {
+      return HooksInstanceKind.PeriodicTerm;
+    }
+    return HooksInstanceKind.Unknown;
+  }
+
   function fill(MarketHooksData memory data, address marketAddress) internal view {
     WildcatMarket market = WildcatMarket(marketAddress);
     HooksConfig encodedHooksConfig = market.hooks();
     data.hooksAddress = encodedHooksConfig.hooksAddress();
     data.flags.fill(encodedHooksConfig);
-    bytes32 versionHash = keccak256(bytes(IHooks(encodedHooksConfig.hooksAddress()).version()));
-    if (versionHash == keccak256(bytes('OpenTermHooks'))) {
-      data.kind = HooksInstanceKind.OpenTerm;
+    data.kind = kindForVersion(IHooks(encodedHooksConfig.hooksAddress()).version());
+    if (data.kind == HooksInstanceKind.OpenTerm) {
       OpenTermHooks hooks = OpenTermHooks(data.hooksAddress);
       OpenTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
@@ -77,8 +88,7 @@ library HooksConfigDataLib {
       data.withdrawalRequiresAccess = encodedHooksConfig.useOnQueueWithdrawal();
       data.minimumDeposit = hookedMarket.minimumDeposit;
       data.transfersDisabled = hookedMarket.transfersDisabled;
-    } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
-      data.kind = HooksInstanceKind.FixedTermLoan;
+    } else if (data.kind == HooksInstanceKind.FixedTermLoan) {
       FixedTermHooks hooks = FixedTermHooks(data.hooksAddress);
       FixedTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
@@ -89,8 +99,7 @@ library HooksConfigDataLib {
       data.transfersDisabled = hookedMarket.transfersDisabled;
       data.allowClosureBeforeTerm = hookedMarket.allowClosureBeforeTerm;
       data.allowTermReduction = hookedMarket.allowTermReduction;
-    } else if (versionHash == keccak256(bytes('PeriodicTermHooks'))) {
-      data.kind = HooksInstanceKind.PeriodicTerm;
+    } else if (data.kind == HooksInstanceKind.PeriodicTerm) {
       PeriodicTermHooks hooks = PeriodicTermHooks(data.hooksAddress);
       PeriodicTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;

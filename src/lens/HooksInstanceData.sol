@@ -40,14 +40,7 @@ library HooksInstanceDataLib {
 
     IHooks hooks = IHooks(hooksAddress);
 
-    bytes32 versionHash = keccak256(bytes(data.hooksTemplate.name));
-    if (versionHash == keccak256('OpenTermHooks')) {
-      data.kind = HooksInstanceKind.OpenTerm;
-    } else if (versionHash == keccak256('FixedTermHooks')) {
-      data.kind = HooksInstanceKind.FixedTermLoan;
-    } else if (versionHash == keccak256('PeriodicTermHooks')) {
-      data.kind = HooksInstanceKind.PeriodicTerm;
-    }
+    data.kind = HooksConfigDataLib.kindForVersion(data.hooksTemplate.name);
 
     if (data.kind != HooksInstanceKind.Unknown) {
       OpenTermHooks hooks = OpenTermHooks(hooksAddress);
