@@ -199,8 +199,8 @@ description: It's dangerous to go alone - learn these.
 
 #### **Vault**
 
-* See [market](Terminology.md#market).
-* If you see this term anywhere, it's a mistake that we should have cleared up!
+* In core Wildcat docs, this has historically been loose shorthand for a [market](Terminology.md#market), and should usually be read that way unless the context explicitly says otherwise.
+* Exception: the ERC-4626 wrapper introduced in [`docs/EIP-4626.md`](./EIP-4626.md) is an actual vault, so "vault" is intentional in that context.
 
 #### **Withdrawal Cycle**
 

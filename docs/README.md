@@ -5,6 +5,7 @@
 - [Terminology](./Terminology.md)
 - [Known issues](./Known%20Issues.md) - list of some things we know are issues or which might seem like issues but are intentional
 - [V2 Changelog](./CHANGELOG.md) - changes between V1 and V2
+- [EIP-4626 Wrapper](./EIP-4626.md) - ERC-4626 wrapper for Wildcat market tokens
 - [Hooks](./hooks/Hooks.md)
     - [How hooks work](./hooks/How%20Hooks%20Work.md)
     - templates/
