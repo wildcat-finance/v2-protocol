@@ -444,6 +444,9 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         bool useOnTransfer,
         uint128 minimumDeposit
     ) external {
+        // minimumDeposit storage is uint96 (single-slot HookedMarket); values
+        // above that revert in the checked downcast at creation.
+        minimumDeposit = uint128(bound(minimumDeposit, 0, type(uint96).max));
         DeployMarketInputs memory inputs;
         inputs.hooks = encodeHooksConfig({
             hooksAddress: address(hooks),

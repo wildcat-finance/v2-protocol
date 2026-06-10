@@ -9,13 +9,22 @@ using BoolUtils for bool;
 using MathUtils for uint256;
 using SafeCastLib for uint256;
 
+/**
+ * @dev Sized to fit one storage slot (31 bytes): the hot hooks (deposit,
+ *      transfer, queueWithdrawal) load the whole struct on every call, and the
+ *      open/fixed templates' equivalents are single-slot. `minimumDeposit` is
+ *      uint96 (max ~7.9e28) rather than uint128 to stay under 32 bytes; the
+ *      external `setMinimumDeposit(address,uint128)` signature and the
+ *      `MinimumDepositUpdated(address,uint128)` event are unchanged, with a
+ *      checked downcast at the boundary.
+ */
 struct HookedMarket {
   bool isHooked;
   bool transferRequiresAccess;
   bool depositRequiresAccess;
   bool withdrawalRequiresAccess;
   bool depositHookEnabled;
-  uint128 minimumDeposit;
+  uint96 minimumDeposit;
   uint32 firstWithdrawalWindowStart;
   uint32 periodDuration;
   uint32 withdrawalWindowDuration;
@@ -196,15 +205,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     return _value.toUint32();
   }
 
-  function _readUint128Cd(
-    bytes calldata data,
-    uint256 offset
-  ) internal pure returns (uint128 value) {
+  function _readUint96Cd(bytes calldata data, uint256 offset) internal pure returns (uint96 value) {
     uint256 _value;
     assembly {
       _value := calldataload(add(data.offset, offset))
     }
-    return _value.toUint128();
+    return _value.toUint96();
   }
 
   /**
@@ -256,7 +262,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       firstWithdrawalWindowStart: firstWithdrawalWindowStart,
       periodDuration: periodDuration,
       withdrawalWindowDuration: withdrawalWindowDuration,
-      minimumDeposit: _readUint128Cd(hooksData, 0x60),
+      minimumDeposit: _readUint96Cd(hooksData, 0x60),
       transfersDisabled: _readBoolCd(hooksData, 0x80),
       isClosed: false
     });
@@ -294,7 +300,8 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (newMinimumDeposit > 0 && !hookedMarket.depositHookEnabled) revert DepositHookNotEnabled();
-    hookedMarket.minimumDeposit = newMinimumDeposit;
+    // External signature kept as uint128 for ABI stability; storage is uint96.
+    hookedMarket.minimumDeposit = uint256(newMinimumDeposit).toUint96();
     emit MinimumDepositUpdated(market, newMinimumDeposit);
   }
 
@@ -475,9 +482,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
 
     if (status.isBlockedFromDeposits) revert NotApprovedLender();
 
-    uint256 normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
-    if (market.minimumDeposit > normalizedAmount) {
-      revert DepositBelowMinimum();
+    // Skip normalization when no minimum is set (deposit hook enabled for
+    // access control only) — the comparison against zero cannot fail.
+    if (market.minimumDeposit > 0) {
+      uint256 normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
+      if (market.minimumDeposit > normalizedAmount) {
+        revert DepositBelowMinimum();
+      }
     }
 
     (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(
@@ -635,9 +646,9 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
 
     if (annualInterestBips > intermediateState.annualInterestBips) {
       if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
+        delete _pendingAprChanges[msg.sender];
         emit AnnualInterestBipsReductionProposalCancelled(msg.sender);
       }
-      delete _pendingAprChanges[msg.sender];
     } else if (annualInterestBips < intermediateState.annualInterestBips) {
       PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
       if (pendingAprChange.proposalTimestamp == 0) revert NoPendingAprChange();
