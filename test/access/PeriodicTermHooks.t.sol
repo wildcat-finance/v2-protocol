@@ -444,6 +444,9 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         bool useOnTransfer,
         uint128 minimumDeposit
     ) external {
+        // minimumDeposit storage is uint96 (single-slot HookedMarket); values
+        // above that revert in the checked downcast at creation.
+        minimumDeposit = uint128(bound(minimumDeposit, 0, type(uint96).max));
         DeployMarketInputs memory inputs;
         inputs.hooks = encodeHooksConfig({
             hooksAddress: address(hooks),
@@ -1167,5 +1170,185 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
 
         vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
         hooks.onSetAnnualInterestAndReserveRatioBips(999, 0, state, "");
+    }
+
+    // ========================================================================== //
+    //                       proposal lifecycle events                            //
+    // ========================================================================== //
+
+    function test_proposeAnnualInterestBips_OverwriteEmitsProposalCancelled() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        vm.expectEmit(address(hooks));
+        emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(address(market));
+        vm.expectEmit(address(hooks));
+        emit PeriodicTermHooks.AnnualInterestBipsReductionProposed(
+            address(market),
+            800,
+            PeriodStart,
+            FirstWithdrawalWindowStart,
+            FirstWithdrawalWindowStart + WithdrawalWindowDuration
+        );
+        hooks.proposeAnnualInterestBips(address(market), 800);
+    }
+
+    function test_proposeAnnualInterestBips_FirstProposalEmitsNoCancelled() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+
+        vm.recordLogs();
+        hooks.proposeAnnualInterestBips(address(market), 900);
+        _assertNoCancelledEventRecorded();
+    }
+
+    function test_setAnnualInterestAndReserveRatioBips_IncreaseEmitsProposalCancelled() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+
+        vm.prank(address(market));
+        vm.expectEmit(address(hooks));
+        emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(address(market));
+        hooks.onSetAnnualInterestAndReserveRatioBips(1_001, 0, state, "");
+    }
+
+    function test_setAnnualInterestAndReserveRatioBips_IncreaseWithoutProposalEmitsNoCancelled() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+
+        vm.recordLogs();
+        vm.prank(address(market));
+        hooks.onSetAnnualInterestAndReserveRatioBips(1_001, 0, state, "");
+        _assertNoCancelledEventRecorded();
+    }
+
+    function test_setAnnualInterestAndReserveRatioBips_ReductionEmitsExecuted() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+        state.reserveRatioBips = 1_000;
+
+        vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+        vm.prank(address(market));
+        vm.expectEmit(address(hooks));
+        emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(address(market), 900);
+        hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, "");
+
+        _assertNoPendingAprChange(address(market));
+    }
+
+    // ========================================================================== //
+    //                  template v2: expiry, closed markets, version              //
+    // ========================================================================== //
+
+    function test_templateVersion() external {
+        assertEq(hooks.templateVersion(), 2, "templateVersion");
+    }
+
+    function test_proposeAnnualInterestBips_MarketClosed() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+
+        MarketState memory state;
+        vm.prank(address(market));
+        hooks.onCloseMarket(state, "");
+
+        vm.expectRevert(PeriodicTermHooks.AprReductionProposalOnClosedMarket.selector);
+        hooks.proposeAnnualInterestBips(address(market), 900);
+    }
+
+    function test_onCloseMarket_CancelsPendingProposal() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        vm.prank(address(market));
+        vm.expectEmit(address(hooks));
+        emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(address(market));
+        hooks.onCloseMarket(state, "");
+
+        _assertNoPendingAprChange(address(market));
+    }
+
+    function test_onCloseMarket_WithoutProposalEmitsNoCancelled() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+
+        MarketState memory state;
+        vm.recordLogs();
+        vm.prank(address(market));
+        hooks.onCloseMarket(state, "");
+        _assertNoCancelledEventRecorded();
+    }
+
+    function test_setAnnualInterestAndReserveRatioBips_ReductionExpired() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+
+        uint256 responseWindowEnd = FirstWithdrawalWindowStart + WithdrawalWindowDuration;
+        uint256 expiry = responseWindowEnd +
+            uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
+
+        vm.warp(expiry);
+        vm.prank(address(market));
+        vm.expectRevert(PeriodicTermHooks.AprReductionProposalExpired.selector);
+        hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, "");
+
+        // proposal survives an expired execution attempt; replacing it works
+        _assertPendingAprChange(
+            address(market),
+            900,
+            PeriodStart,
+            FirstWithdrawalWindowStart,
+            FirstWithdrawalWindowStart + WithdrawalWindowDuration
+        );
+    }
+
+    function test_setAnnualInterestAndReserveRatioBips_ReductionJustBeforeExpiry() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+        state.reserveRatioBips = 1_000;
+
+        uint256 responseWindowEnd = FirstWithdrawalWindowStart + WithdrawalWindowDuration;
+        uint256 expiry = responseWindowEnd +
+            uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
+
+        vm.warp(expiry - 1);
+        vm.prank(address(market));
+        (uint16 annualInterestBips, uint16 reserveRatioBips) =
+            hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, "");
+
+        assertEq(annualInterestBips, 900, "annualInterestBips");
+        assertEq(reserveRatioBips, 1_000, "reserveRatioBips");
+        _assertNoPendingAprChange(address(market));
+    }
+
+    function _assertNoCancelledEventRecorded() internal {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 cancelledTopic = keccak256("AnnualInterestBipsReductionProposalCancelled(address)");
+        for (uint256 i; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != cancelledTopic, "unexpected ProposalCancelled event");
+        }
     }
 }
