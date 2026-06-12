@@ -496,6 +496,67 @@ contract MarketDataTest is BaseMarketTest {
     checkWithdrawalBatchData(lens.getWithdrawalBatchData(address(market), expiry), expiry);
   }
 
+  /* -------------------------------------------------------------------------- */
+  /*                        unpaidWithdrawalBatchExpiries                       */
+  /* -------------------------------------------------------------------------- */
+
+  // Batch in the stored unpaid FIFO: state was written after the batch expired,
+  // so it is only visible through `getUnpaidBatchExpiries()`.
+  function test_getMarketData_unpaidBatchInStoredFifo() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.pendingWithdrawalExpiry, 0, 'pendingWithdrawalExpiry');
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 1, 'unpaid expiries length');
+    assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry, 'unpaid expiry');
+  }
+
+  // Batch expired since the last state write: not in the stored FIFO yet, only
+  // detectable from the previousState/currentState comparison.
+  function test_getMarketData_unpaidBatchExpiredSinceLastUpdate() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.pendingWithdrawalExpiry, 0, 'pendingWithdrawalExpiry');
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 1, 'unpaid expiries length');
+    assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry, 'unpaid expiry');
+  }
+
+  // One batch in the stored FIFO and a second expired since the last write:
+  // both reported, in FIFO order.
+  function test_getMarketData_unpaidBatchesStoredAndExpired() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 5e17);
+    uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    // State write: moves the first batch into the stored unpaid FIFO and opens
+    // a second batch with no liquidity available to pay it.
+    uint32 expiry2 = _requestWithdrawal(alice, 5e17);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.pendingWithdrawalExpiry, 0, 'pendingWithdrawalExpiry');
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 2, 'unpaid expiries length');
+    assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry1, 'stored FIFO expiry first');
+    assertEq(data.unpaidWithdrawalBatchExpiries[1], expiry2, 'expired pending batch last');
+  }
+
+  // A fully paid batch that expired since the last write is claimable, not
+  // unpaid: reported via pendingWithdrawalExpiry.
+  function test_getMarketData_expiredFullyPaidBatchNotUnpaid() external {
+    _deposit(alice, 1e18);
+    uint32 expiry = _requestWithdrawal(alice, 5e17);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 0, 'unpaid expiries length');
+    assertEq(data.pendingWithdrawalExpiry, expiry, 'pendingWithdrawalExpiry');
+  }
+
   function checkWithdrawalBatchLenderStatus(
     WithdrawalBatchLenderStatus memory data,
     uint32 expiry,
