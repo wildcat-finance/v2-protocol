@@ -38,13 +38,13 @@ Markets deployed before the CAF-10 remediation require newly added role provider
 
 Markets deployed before the CAF-11 remediation can query a `hooksData`-selected pull provider again in the later automatic pull-provider loop if the selected provider does not yield a valid credential. New hook deployments skip a pull provider already selected by `hooksData`, but existing hooks retain their deployed access-check behavior.
 
-**Malformed pagination ranges on existing ArchController deployments**
+**CAF-13: Malformed pagination ranges on the ArchController singleton**
 
-Existing ArchController deployments can revert with arithmetic panic for inverted or out-of-bounds paginated registry queries such as `getRegisteredMarkets(start, end)` when `start >= end` after clamping. New ArchController bytecode reverts with an explicit `InvalidPaginationRange()` error for those ranges, but currently deployed ArchController instances retain their original read-surface behavior.
+The deployed ArchController singleton can revert with arithmetic panic for inverted or out-of-bounds paginated registry queries such as `getRegisteredMarkets(start, end)` when `start >= end` after clamping. The CAF-13 remediation is to explicitly reject malformed ranges before subtraction. RCF V2 is not redeploying the ArchController, so the repository keeps the singleton behavior and documents the remediation in comments instead of changing the active ArchController code.
 
-**Raw registry addresses on existing ArchController deployments**
+**CAF-16: Raw registry addresses on the ArchController singleton**
 
-Existing ArchController deployments allow privileged callers to register arbitrary addresses as controller factories, controllers, or markets. A misconfigured owner, controller factory, or controller can therefore add EOAs or nonconforming contracts to the registry, polluting registry, lens, subgraph, or SphereX allowed-sender surfaces. New ArchController bytecode rejects non-contract and wrong-arch factory/controller/market registrations and requires registered markets to report the registering controller as their factory, but currently deployed ArchController instances retain their original privileged-registry behavior.
+The deployed ArchController singleton allows privileged callers to register arbitrary addresses as controller factories, controllers, or markets. A misconfigured owner, controller factory, or controller can therefore add EOAs or nonconforming contracts to the registry, polluting registry, lens, subgraph, or SphereX allowed-sender surfaces. The CAF-16 remediation is to reject non-contract and wrong-arch factory/controller/market registrations and require registered markets to report the registering controller as their factory. RCF V2 is not redeploying the ArchController, so operator validation remains the control for singleton registrations.
 
 **Deployment targets must support EIP-1153**
 

@@ -14,21 +14,9 @@ import "src/lens/MarketLensLive.sol";
 import "src/lens/interfaces/IMarketLensAggregator.sol";
 import "src/market/WildcatMarketRevolving.sol";
 
-contract MockNonHooksController {
-    address public immutable archController;
-
-    constructor(address archController_) {
-        archController = archController_;
-    }
-}
+contract MockNonHooksController {}
 
 contract MockRevertingHooksFactory {
-    address public immutable archController;
-
-    constructor(address archController_) {
-        archController = archController_;
-    }
-
     function getHooksTemplatesCount() external pure returns (uint256) {
         return 1;
     }
@@ -492,8 +480,8 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_aggregatedReads_ignoreNonHooksController() external {
-        MockNonHooksController nonHooksController = new MockNonHooksController(address(archController));
-        vm.prank(address(hooksFactory));
+        MockNonHooksController nonHooksController = new MockNonHooksController();
+        archController.registerControllerFactory(address(this));
         archController.registerController(address(nonHooksController));
 
         HooksInstanceData[] memory instances = lens.getAggregatedHooksInstancesForBorrower(borrower);
@@ -511,8 +499,8 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     }
 
     function test_aggregatedReads_tolerateRevertingHooksFactory() external {
-        MockRevertingHooksFactory revertingFactory = new MockRevertingHooksFactory(address(archController));
-        vm.prank(address(hooksFactory));
+        MockRevertingHooksFactory revertingFactory = new MockRevertingHooksFactory();
+        archController.registerControllerFactory(address(this));
         archController.registerController(address(revertingFactory));
 
         HooksInstanceData[] memory instances = lens.getAggregatedHooksInstancesForBorrower(borrower);

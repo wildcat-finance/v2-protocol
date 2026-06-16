@@ -160,7 +160,7 @@ Before executing the owner-gated registration, confirm the deployed factory repo
 cast call "$HOOKS_FACTORY_REVOLVING" "archController()(address)" --rpc-url "$RPC_URL"
 ```
 
-For new ArchController bytecode, `registerControllerFactory(factory)` rejects non-contract factories and factories whose `archController()` does not match the registering ArchController.
+The deployed ArchController singleton does not enforce this check. Treat the call above as a required operator validation before submitting `registerControllerFactory(factory)`.
 
 Pending artifact path:
 

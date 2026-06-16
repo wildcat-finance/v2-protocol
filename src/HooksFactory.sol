@@ -643,6 +643,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
     marketEndIndex = MathUtils.min(marketEndIndex, markets.length);
+    // CAF-13 fix: new factory deployments explicitly reject malformed ranges.
     if (marketStartIndex >= marketEndIndex) revert InvalidPaginationRange();
     uint256 count = marketEndIndex - marketStartIndex;
     uint256 setProtocolFeeBipsCalldataPointer;
