@@ -92,6 +92,22 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     market.nukeFromOrbit(alice);
   }
 
+  function test_nukeFromOrbit_FixedTermBeforeTermEnd() external {
+    parameters.hooksTemplate = fixedTermHooksTemplate;
+    parameters.deployMarketHooksData = '';
+    parameters.fixedTermEndTime = uint32(block.timestamp + 365 days);
+    hooks = OpenTermHooks(address(0));
+    parameters.hooksConfig = parameters.hooksConfig.setHooksAddress(address(0));
+    setUpContracts(false);
+
+    _deposit(alice, 1e18);
+    sanctionsSentinel.sanction(alice);
+
+    // caf-03 bypassed this hook, forcing fixed-term withdrawals before maturity.
+    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    market.nukeFromOrbit(alice);
+  }
+
   function test_nukeFromOrbit_BadLaunchCode(address _account) external {
     vm.expectRevert(IMarketEventsAndErrors.BadLaunchCode.selector);
     market.nukeFromOrbit(_account);

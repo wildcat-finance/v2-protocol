@@ -18,9 +18,9 @@ The example given is also an extreme one, in reality it'd much more likely be a 
 
 If any of the hooks that are enabled for a market can revert unexpectedly, the corresponding market function may become permanently disabled. This is considered a known/unfixable issue with respect to the market, but if such an issue is actually discovered in a hooks template we have developed, this is a major vulnerability that should be reported.
 
-**Sanctioned account handling on existing markets with withdrawal restrictions**
+**CAF-03: Sanctioned account handling with withdrawal restrictions**
 
-Markets deployed before the CAF-03 remediation route forced sanctions withdrawals through the same withdrawal hooks as ordinary lender withdrawals. If one of those existing markets uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. This could lead to unavoidable interest payments to a sanctioned entity's escrow address, where the funds will go when withdrawals are eventually unrestricted.
+`nukeFromOrbit` queues a sanctioned lender's balance through the same withdrawal hooks as ordinary lender withdrawals. If a market uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. The CAF-03 remediation bypassed `onQueueWithdrawal`, but that also bypassed fixed-term and other withdrawal restrictions, so RCF V2 keeps the ordinary withdrawal path and treats the sanctions liveness limitation as accepted behavior.
 
 **Open entry with restricted withdrawals on existing markets**
 

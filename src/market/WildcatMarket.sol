@@ -307,14 +307,16 @@ contract WildcatMarket is
 
       uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
+      // caf-03 attempted to bypass `onQueueWithdrawal` here so sanctions withdrawals
+      // could not be vetoed. That bypass also skips fixed-term withdrawal restrictions,
+      // so `nukeFromOrbit` intentionally uses the ordinary withdrawal path.
       uint32 expiry = _queueWithdrawal(
         state,
         account,
         accountAddress,
         scaledAmount,
         normalizedAmount,
-        msg.data.length,
-        false
+        msg.data.length
       );
 
       emit_SanctionedAccountAssetsQueuedForWithdrawal(

@@ -83,8 +83,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     address accountAddress,
     uint104 scaledAmount,
     uint normalizedAmount,
-    uint baseCalldataSize,
-    bool callHook
+    uint baseCalldataSize
   ) internal returns (uint32 expiry) {
     // Cache batch expiry on the stack for gas savings
     expiry = state.pendingWithdrawalExpiry;
@@ -98,10 +97,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       state.pendingWithdrawalExpiry = expiry;
     }
 
-    // Execute queueWithdrawal hook if requested and enabled
-    if (callHook) {
-      hooks.onQueueWithdrawal(accountAddress, expiry, scaledAmount, state, baseCalldataSize);
-    }
+    // Execute queueWithdrawal hook if enabled
+    hooks.onQueueWithdrawal(accountAddress, expiry, scaledAmount, state, baseCalldataSize);
 
     // Reduce account's balance and emit transfer event
     account.scaledBalance -= scaledAmount;
@@ -146,15 +143,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     Account memory account = _getAccount(msg.sender);
 
     return
-      _queueWithdrawal(
-        state,
-        account,
-        msg.sender,
-        scaledAmount,
-        amount,
-        _runtimeConstant(0x24),
-        true
-      );
+      _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, _runtimeConstant(0x24));
   }
 
   /**
@@ -183,8 +172,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
         msg.sender,
         scaledAmount,
         normalizedAmount,
-        _runtimeConstant(0x04),
-        true
+        _runtimeConstant(0x04)
       );
   }
 
