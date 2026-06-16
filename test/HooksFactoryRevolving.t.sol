@@ -474,6 +474,20 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
         assertEq(WildcatMarketRevolving(market1).previousState().protocolFeeBips, 100);
     }
 
+    function test_pushProtocolFeeBipsUpdates_EmptyTemplateNoop() external {
+        address feeRecipient = address(0xFEE);
+        hooksFactoryRevolving.addHooksTemplate(hooksTemplate, "revolving-template", feeRecipient, nullAddress, 0, 0);
+
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate);
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
+
+        vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 0, 0);
+
+        vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 1, type(uint256).max);
+    }
+
     function test_pushProtocolFeeBipsUpdates_InvalidPaginationRange() external {
         address feeRecipient = address(0xFEE);
         hooksFactoryRevolving.addHooksTemplate(hooksTemplate, "revolving-template", feeRecipient, nullAddress, 0, 0);

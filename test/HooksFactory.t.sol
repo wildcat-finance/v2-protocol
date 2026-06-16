@@ -1430,6 +1430,19 @@ contract HooksFactoryTest is Test, Assertions {
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 100);
   }
 
+  function test_pushProtocolFeeBipsUpdates_EmptyTemplateNoop() external {
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0xfee), address(0), 0, 0);
+
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 0, type(uint256).max);
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 0, 0);
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 1, type(uint256).max);
+  }
+
   function test_pushProtocolFeeBipsUpdates_InvalidPaginationRange() external {
     hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0xfee), address(0), 0, 0);
     archController.registerBorrower(address(this));
