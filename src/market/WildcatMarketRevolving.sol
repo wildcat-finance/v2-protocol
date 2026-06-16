@@ -47,7 +47,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     uint256 timestamp
   ) internal view returns (uint256 baseInterestRay) {
     uint256 timeDelta = timestamp - state.lastInterestAccruedTimestamp;
-    if (timeDelta == 0 || state.scaledTotalSupply == 0) {
+    if (timeDelta == 0 || state.scaledTotalSupply == 0 || state.isClosed) {
       return 0;
     }
 

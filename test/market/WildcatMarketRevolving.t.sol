@@ -334,6 +334,24 @@ contract WildcatMarketRevolvingTest is Test {
         assertTrue(market.isClosed());
     }
 
+    function test_closeMarket_stopsCommitmentFeeAccrual() external {
+        _deposit(lender, 1_000e18);
+        market.borrow(400e18);
+
+        uint256 owed = market.totalDebts() - market.totalAssets();
+        underlying.mint(borrower, owed);
+        market.closeMarket();
+
+        uint256 scaleFactorAfterClose = market.scaleFactor();
+        uint256 totalDebtsAfterClose = market.totalDebts();
+
+        vm.warp(block.timestamp + 365 days);
+        market.updateState();
+
+        assertEq(market.scaleFactor(), scaleFactorAfterClose, "scale factor after close");
+        assertEq(market.totalDebts(), totalDebtsAfterClose, "total debts after close");
+    }
+
     function test_updateState_usesCommitmentFeeAtZeroUtilization() external {
         _deposit(lender, 1_000e18);
 
