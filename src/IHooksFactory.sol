@@ -217,7 +217,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   function getMarketsForHooksInstance(
     address hooksInstance,
     uint256 start,
-    uint256 len
+    uint256 end
   ) external view returns (address[] memory arr);
 
   function getMarketsForHooksInstanceCount(address hooksInstance) external view returns (uint256);

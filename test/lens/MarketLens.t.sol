@@ -422,11 +422,13 @@ contract MarketDataTest is BaseMarketTest {
         FuzzConditions condition = FuzzConditions(bound(conditions, 0, 3));
         if (condition != FuzzConditions.Default) {
             inputs.maxTotalSupply = 100e18;
+            // Keep non-default lens scenarios away from min/cap boundary behavior.
+            inputs.minimumDeposit = uint128(bound(inputs.minimumDeposit, 0, 90e18));
         }
         applyFuzzInputs(inputs);
         if (condition != FuzzConditions.Default) {
             uint256 depositAmount =
-                parameters.minimumDeposit > 0 ? MathUtils.max(1e19, parameters.minimumDeposit) + 1 : 1e19;
+                parameters.minimumDeposit > 0 ? MathUtils.max(1e19, parameters.minimumDeposit + 1e18) : 1e19;
             if (condition == FuzzConditions.DepositOnly) {
                 _deposit(alice, depositAmount);
             } else if (condition == FuzzConditions.DepositBorrow) {
@@ -447,7 +449,6 @@ contract MarketDataTest is BaseMarketTest {
                 }
             }
         }
-        console2.log("Got past deposit/borrow/withdraw");
         MarketData memory data = lens.getMarketData(address(market));
 
         checkToken(data.marketToken, IERC20(address(market)), "marketToken");
