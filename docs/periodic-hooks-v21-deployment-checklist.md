@@ -313,7 +313,7 @@ For the Sepolia registration that targeted the alternate factory:
 
 ```bash
 export DEPLOYMENTS_NETWORK="sepolia"
-export RPC_URL="${RPC_URL:-https://eth-sep.hinterlight.net}"
+export RPC_URL="${RPC_URL:?Set RPC_URL to a Sepolia RPC endpoint}"
 export DISABLE_HOOKS_FACTORY="0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88"
 export DISABLE_HOOKS_TEMPLATE="$(jq -r '.PeriodicTermHooks_initCodeStorage' deployments/$DEPLOYMENTS_NETWORK/deployments.json)"
 export DISABLE_TEMPLATE_MODE="emit" # auto | direct | emit | skip
