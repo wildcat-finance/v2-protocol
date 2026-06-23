@@ -42,15 +42,11 @@ interface IMarketEventsAndErrors {
 
   error NullRepayAmount();
 
-  error NullBuyBackAmount();
-
   error MarketAlreadyClosed();
 
   error DepositToClosedMarket();
 
   error RepayToClosedMarket();
-
-  error BuyBackOnDelinquentMarket();
 
   error BorrowWhileSanctioned();
 

@@ -28,6 +28,12 @@ library MarketStateLibExternal {
     return MarketStateLib.scaleAmount(state, amount);
   }
 
+  /// @dev Scale an amount of normalized tokens using the current scale factor,
+  /// rounding down.
+  function $scaleAmountDown(MarketState memory state, uint256 amount) external pure returns (uint256) {
+    return MarketStateLib.scaleAmountDown(state, amount);
+  }
+
   /// Collateralization requires all pending withdrawals be covered
   /// and reserve ratio for remaining liquidity.
   function $liquidityRequired(

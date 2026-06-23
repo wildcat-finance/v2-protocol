@@ -180,6 +180,9 @@ contract WildcatArchController is SphereXConfig, Ownable {
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr) {
+    // CAF-13 known issue: malformed ranges can panic after `end` is clamped.
+    // The singleton keeps deployed behavior; new registries should reject
+    // `start >= end` explicitly before subtracting.
     uint256 len = _borrowers.length();
     end = MathUtils.min(end, len);
     uint256 count = end - start;
@@ -223,6 +226,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr) {
+    // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _assetBlacklist.length();
     end = MathUtils.min(end, len);
     uint256 count = end - start;
@@ -241,6 +245,9 @@ contract WildcatArchController is SphereXConfig, Ownable {
   /* ========================================================================== */
 
   function registerControllerFactory(address factory) external onlyOwner {
+    // CAF-16 known issue: the singleton does not validate that `factory` is a
+    // contract or reports this ArchController. Operators must validate before
+    // registration; new registry bytecode should enforce it.
     if (!_controllerFactories.add(factory)) {
       revert ControllerFactoryAlreadyExists();
     }
@@ -267,6 +274,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr) {
+    // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _controllerFactories.length();
     end = MathUtils.min(end, len);
     uint256 count = end - start;
@@ -292,6 +300,8 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   function registerController(address controller) external onlyControllerFactory {
+    // CAF-16: registered controller addresses are trusted privileged input on
+    // the singleton. Validate offchain before registration.
     if (!_controllers.add(controller)) {
       revert ControllerAlreadyExists();
     }
@@ -318,6 +328,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr) {
+    // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _controllers.length();
     end = MathUtils.min(end, len);
     uint256 count = end - start;
@@ -343,6 +354,8 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   function registerMarket(address market) external onlyController {
+    // CAF-16: the singleton does not validate market code, archController(),
+    // or factory(). Controllers must only register conforming markets.
     if (!_markets.add(market)) {
       revert MarketAlreadyExists();
     }
@@ -369,6 +382,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr) {
+    // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _markets.length();
     end = MathUtils.min(end, len);
     uint256 count = end - start;

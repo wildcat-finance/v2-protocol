@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "network": "mainnet",
+  "chainId": 1,
+  "marketTypes": ["legacy", "revolving"],
+  "hooksFactories": [
+    {
+      "label": "legacy-v2",
+      "marketType": "legacy",
+      "address": "0xdd7dd3b5076Cf89440d05585FF56d246386207BE",
+      "startBlock": 21788182,
+      "canonical": true,
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactory",
+      "notes": "Current canonical mainnet V2 legacy factory. Mainnet RCF factories should be added as separate revolving entries when deployed."
+    }
+  ]
+}

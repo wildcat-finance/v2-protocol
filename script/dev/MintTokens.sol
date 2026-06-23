@@ -4,15 +4,15 @@ pragma solidity >=0.8.19;
 // import 'src/WildcatMarketControllerFactory.sol';
 import 'src/WildcatSanctionsSentinel.sol';
 import 'src/WildcatArchController.sol';
-import './mock/MockERC20Factory.sol';
-import './mock/MockArchControllerOwner.sol';
+import '../mock/MockERC20Factory.sol';
+import '../mock/MockArchControllerOwner.sol';
 // import './mock/MockChainalysis.sol';
 import 'forge-std/Script.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/access/OpenTermHooks.sol';
 import 'src/HooksFactory.sol';
-import './LibDeployment.sol';
+import '../common/LibDeployment.sol';
 
 interface IMockERC20Factory {
   function deployMockERC20(string memory name, string memory symbol) external returns (address);

@@ -264,6 +264,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   ) external view override returns (address[] memory arr) {
     uint256 len = _hooksTemplates.length;
     end = MathUtils.min(end, len);
+    if (start >= end) return new address[](0);
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
@@ -289,6 +290,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
     uint256 len = markets.length;
     end = MathUtils.min(end, len);
+    if (start >= end) return new address[](0);
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
@@ -397,6 +399,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   ) external view override returns (address[] memory arr) {
     address[] storage markets = _marketsByHooksInstance[hooksInstance];
     end = MathUtils.min(end, markets.length);
+    if (start >= end) return new address[](0);
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
@@ -641,7 +644,11 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     if (!details.exists) revert HooksTemplateNotFound();
 
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
-    marketEndIndex = MathUtils.min(marketEndIndex, markets.length);
+    uint256 marketCount = markets.length;
+    if (marketCount == 0 && marketStartIndex == 0 && marketEndIndex == type(uint256).max) return;
+    marketEndIndex = MathUtils.min(marketEndIndex, marketCount);
+    // CAF-13 fix: new factory deployments explicitly reject malformed ranges.
+    if (marketStartIndex >= marketEndIndex) revert InvalidPaginationRange();
     uint256 count = marketEndIndex - marketStartIndex;
     uint256 setProtocolFeeBipsCalldataPointer;
     uint16 protocolFeeBips = details.protocolFeeBips;

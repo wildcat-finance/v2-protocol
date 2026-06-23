@@ -206,7 +206,7 @@ function toMarketHooksConfigContext(
         inputs.useOnQueueWithdrawal,
       transferRequiresAccess: inputs.useOnTransfer || inputs.transfersDisabled,
       depositRequiresAccess: inputs.useOnDeposit,
-      withdrawalRequiresAccess: !inputs.isOpenTermHooks && inputs.useOnQueueWithdrawal,
+      withdrawalRequiresAccess: inputs.useOnQueueWithdrawal,
       minimumDeposit: inputs.minimumDeposit,
       transfersDisabled: inputs.transfersDisabled,
       fixedTermEndTime: uint32(block.timestamp + inputs.fixedTermDuration),

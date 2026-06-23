@@ -51,6 +51,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   error NotHookedMarket();
   error DepositBelowMinimum();
   error FixedTermNotProvided();
+  error InvalidAccessConfiguration();
   error InvalidFixedTerm();
   error IncreaseFixedTerm();
   error WithdrawBeforeTermEnd();
@@ -196,6 +197,13 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
       allowClosureBeforeTerm: _readBoolCd(hooksData, 0x60),
       allowTermReduction: _readBoolCd(hooksData, 0x80)
     });
+    if (hookedMarket.withdrawalRequiresAccess) {
+      if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
+      if (!hookedMarket.transfersDisabled && !hookedMarket.transferRequiresAccess) {
+        revert InvalidAccessConfiguration();
+      }
+    }
+
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
       emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);

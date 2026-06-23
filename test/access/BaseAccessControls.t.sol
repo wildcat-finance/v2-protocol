@@ -3,6 +3,7 @@ pragma solidity >=0.8.20;
 
 import 'forge-std/Test.sol';
 import 'src/access/BaseAccessControls.sol';
+import 'src/access/IRoleProvider.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import '../shared/mocks/MockRoleProvider.sol';
 import '../shared/mocks/MockRoleProviderFactory.sol';
@@ -163,6 +164,12 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     );
   }
 
+  function _validTimestamp(uint32 timestamp, uint256 timeToLive) internal view returns (uint32) {
+    uint256 minTimestamp = block.timestamp.satSub(timeToLive);
+    if (minTimestamp == 0) minTimestamp = 1;
+    return uint32(bound(timestamp, minTimestamp, block.timestamp));
+  }
+
   // ========================================================================== //
   //                                   setName                                  //
   // ========================================================================== //
@@ -249,10 +256,27 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     baseHooks.addRoleProvider(address(2), 1);
   }
 
-  function test_addRoleProvider_badInterface(uint32 timeToLive) external {
-    vm.expectRevert();
-    baseHooks.addRoleProvider(address(2), timeToLive);
+  function test_addRoleProvider_NonInterfaceProviderIsPushProvider(uint32 timeToLive) external {
+    address pushProvider = address(2);
+    address account = address(3);
+    uint32 timestamp = uint32(block.timestamp);
+    StandardRoleProvider storage provider = _addExpectedProvider(
+      MockRoleProvider(pushProvider),
+      timeToLive,
+      false
+    );
+    _expectRoleProviderAdded(
+      pushProvider,
+      timeToLive,
+      provider.pullProviderIndex,
+      provider.pushProviderIndex
+    );
+    baseHooks.addRoleProvider(pushProvider, timeToLive);
     _validateRoleProviders();
+
+    _expectAccountAccessGranted(pushProvider, account, timestamp);
+    vm.prank(pushProvider);
+    baseHooks.grantRole(account, timestamp);
   }
 
   function test_addRoleProvider_updateTimeToLive(uint32 ttl1, uint32 ttl2) external {
@@ -472,8 +496,8 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     uint32 timestamp
   ) external {
     uint256 maxExpiry = block.timestamp - 1;
-    timeToLive = uint32(bound(timeToLive, 0, maxExpiry));
-    timestamp = uint32(bound(timestamp, 0, maxExpiry - timeToLive));
+    timeToLive = uint32(bound(timeToLive, 0, maxExpiry - 1));
+    timestamp = uint32(bound(timestamp, 1, maxExpiry - timeToLive));
     StandardRoleProvider storage provider = _addExpectedProvider(
       mockProvider1,
       timeToLive,
@@ -486,13 +510,39 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     baseHooks.grantRole(account, timestamp);
   }
 
+  function test_grantRole_InvalidCredentialTimestamp_Zero(
+    address account,
+    bool isPullProvider,
+    uint32 timeToLive
+  ) external {
+    _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
+    baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
+
+    vm.prank(address(mockProvider1));
+    vm.expectRevert(BaseAccessControls.InvalidCredentialTimestamp.selector);
+    baseHooks.grantRole(account, 0);
+  }
+
+  function test_grantRole_InvalidCredentialTimestamp_Future(
+    address account,
+    bool isPullProvider,
+    uint32 timeToLive
+  ) external {
+    _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
+    baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
+
+    vm.prank(address(mockProvider1));
+    vm.expectRevert(BaseAccessControls.InvalidCredentialTimestamp.selector);
+    baseHooks.grantRole(account, uint32(block.timestamp + 1));
+  }
+
   function test_grantRole(
     address account,
     bool isPullProvider,
     uint32 timeToLive,
     uint32 timestamp
   ) external {
-    timestamp = uint32(bound(timestamp, block.timestamp.satSub(timeToLive), type(uint32).max));
+    timestamp = _validTimestamp(timestamp, timeToLive);
     _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
     _expectAccountAccessGranted(address(mockProvider1), account, timestamp);
@@ -507,14 +557,18 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     uint32 timeToLive2,
     uint32 timestamp
   ) external {
-    timeToLive1 = uint32(bound(timeToLive1, 0, type(uint32).max - 1));
+    timeToLive1 = uint32(bound(timeToLive1, 0, type(uint32).max - 2));
     timeToLive2 = uint32(bound(timeToLive2, timeToLive1 + 1, type(uint32).max));
     // Make sure the timestamp will result in provider 1 granting expiry that will expire (not max uint32)
+    uint256 minTimestamp = block.timestamp.satSub(timeToLive1);
+    if (minTimestamp == 0) minTimestamp = 1;
+    uint256 maxTimestamp = uint(type(uint32).max).satSub(timeToLive1) - 1;
+    if (maxTimestamp > block.timestamp) maxTimestamp = block.timestamp;
     timestamp = uint32(
       bound(
         timestamp,
-        block.timestamp.satSub(timeToLive1),
-        uint(type(uint32).max).satSub(timeToLive1) - 1
+        minTimestamp,
+        maxTimestamp
       )
     );
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive1);
@@ -538,14 +592,18 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   ) external {
     // Make sure the second TTL is less than the first so that we know the reason it works isn't that
     // the expiry is newer.
-    timeToLive2 = uint32(bound(timeToLive2, 0, type(uint32).max - 1));
+    timeToLive2 = uint32(bound(timeToLive2, 0, type(uint32).max - 2));
     timeToLive1 = uint32(bound(timeToLive1, timeToLive2 + 1, type(uint32).max));
     // Make sure the timestamp won't result in an expired credential
+    uint256 minTimestamp = block.timestamp.satSub(timeToLive2);
+    if (minTimestamp == 0) minTimestamp = 1;
+    uint256 maxTimestamp = uint(type(uint32).max).satSub(timeToLive2) - 1;
+    if (maxTimestamp > block.timestamp) maxTimestamp = block.timestamp;
     timestamp = uint32(
       bound(
         timestamp,
-        block.timestamp.satSub(timeToLive2),
-        uint(type(uint32).max).satSub(timeToLive2) - 1
+        minTimestamp,
+        maxTimestamp
       )
     );
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive1);
@@ -574,14 +632,9 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   ) external {
     timeToLive1 = uint32(bound(timeToLive1, 0, type(uint32).max - 1));
     timeToLive2 = uint32(bound(timeToLive2, timeToLive1 + 1, type(uint32).max));
-    // Make sure the timestamp will result in provider 1 granting expiry that will expire (not max uint32)
-    timestamp = uint32(
-      bound(
-        timestamp,
-        block.timestamp.satSub(timeToLive1) + 1,
-        uint(type(uint32).max).satSub(timeToLive1)
-      )
-    );
+    uint256 minTimestamp = block.timestamp.satSub(timeToLive1);
+    if (minTimestamp == 0) minTimestamp = 1;
+    timestamp = uint32(bound(timestamp, minTimestamp, block.timestamp));
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive2);
     baseHooks.addRoleProvider(address(mockProvider2), timeToLive1);
 
@@ -684,7 +737,56 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     assertFalse(wasUpdated, 'wasUpdated');
   }
 
-  function test_tryValidateAccess_validateCredential(address account) external {}
+  function test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedPull() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+
+    bytes memory hooksData = abi.encodePacked(address(mockProvider1));
+
+    vm.expectCall(
+      address(mockProvider1),
+      abi.encodeWithSelector(IRoleProvider.getCredential.selector, account),
+      1
+    );
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
+
+    assertFalse(hasValidCredential, 'hasValidCredential');
+    assertFalse(wasUpdated, 'wasUpdated');
+  }
+
+  function test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedValidation() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+
+    bytes memory credentialData = hex'aabbcc';
+    bytes memory hooksData = abi.encodePacked(address(mockProvider1), credentialData);
+    bytes memory validateCredentialCalldata = abi.encodePacked(
+      IRoleProvider.validateCredential.selector,
+      bytes32(uint256(uint160(account))),
+      bytes32(uint256(0x40)),
+      bytes32(credentialData.length),
+      credentialData
+    );
+
+    vm.expectCall(
+      address(mockProvider1),
+      validateCredentialCalldata,
+      1
+    );
+    vm.expectCall(
+      address(mockProvider1),
+      abi.encodeWithSelector(IRoleProvider.getCredential.selector, account),
+      0
+    );
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
+
+    assertFalse(hasValidCredential, 'hasValidCredential');
+    assertFalse(wasUpdated, 'wasUpdated');
+  }
 
   // ========================================================================== //
   //                                 grantRoles                                 //
@@ -695,7 +797,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     for (uint160 i; i < accounts.length; i++) {
       accounts[i] = address(i);
     }
-    uint32 timestamp = uint32(block.timestamp + 1);
+    uint32 timestamp = uint32(block.timestamp);
     baseHooks.addRoleProvider(address(mockProvider1), 1);
 
     uint32[] memory timestamps = new uint32[](accounts.length);
@@ -705,6 +807,20 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider1));
     baseHooks.grantRoles(accounts, timestamps);
     vm.prank(address(mockProvider1));
+    baseHooks.grantRoles(accounts, timestamps);
+  }
+
+  function test_grantRoles_InvalidCredentialTimestamp() external {
+    address[] memory accounts = new address[](2);
+    accounts[0] = address(1);
+    accounts[1] = address(2);
+    uint32[] memory timestamps = new uint32[](2);
+    timestamps[0] = uint32(block.timestamp);
+    timestamps[1] = uint32(block.timestamp + 1);
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+
+    vm.prank(address(mockProvider1));
+    vm.expectRevert(BaseAccessControls.InvalidCredentialTimestamp.selector);
     baseHooks.grantRoles(accounts, timestamps);
   }
 

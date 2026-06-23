@@ -379,7 +379,7 @@ contract WildcatMarketBase is
    * @dev Returns the amount of protocol fees that are currently
    *      withdrawable by the fee recipient.
    */
-  function withdrawableProtocolFees() external view returns (uint128) {
+  function withdrawableProtocolFees() external view nonReentrantView returns (uint128) {
     return
       _calculateCurrentStatePointers.asReturnsMarketState()().withdrawableProtocolFees(
         totalAssets()
@@ -391,6 +391,29 @@ contract WildcatMarketBase is
   // //////////////////////////////////////////////////////////////*/
 
   function _blockAccount(MarketState memory state, address accountAddress) internal virtual {}
+
+  function _updateScaleFactorAndFees(
+    MarketState memory state,
+    uint256 timestamp
+  ) internal view virtual returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) {
+    return
+      state.updateScaleFactorAndFees(
+        delinquencyFeeBips,
+        delinquencyGracePeriod,
+        timestamp
+      );
+  }
+
+  function _onBorrow(uint256 amount) internal virtual {
+    amount;
+  }
+
+  function _onRepay(MarketState memory state, uint256 amount) internal virtual {
+    state;
+    amount;
+  }
+
+  function _onCloseMarket() internal virtual {}
 
   /**
    * @dev Returns cached MarketState after accruing interest and delinquency / protocol fees
@@ -412,8 +435,7 @@ contract WildcatMarketBase is
       // This will only be false if withdrawalBatchDuration is 0.
       uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       if (expiry != lastInterestAccruedTimestamp) {
-        (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
-          .updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, expiry);
+        (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = _updateScaleFactorAndFees(state, expiry);
         emit_InterestAndFeesAccrued(
           lastInterestAccruedTimestamp,
           expiry,
@@ -428,8 +450,7 @@ contract WildcatMarketBase is
     uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
     // Apply interest and fees accrued since last update (expiry or previous tx)
     if (block.timestamp != lastInterestAccruedTimestamp) {
-      (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
-        .updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, block.timestamp);
+      (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = _updateScaleFactorAndFees(state, block.timestamp);
       emit_InterestAndFeesAccrued(
         lastInterestAccruedTimestamp,
         block.timestamp,
@@ -481,11 +502,7 @@ contract WildcatMarketBase is
       // Only accrue interest if time has passed since last update.
       // This will only be false if withdrawalBatchDuration is 0.
       if (pendingBatchExpiry != state.lastInterestAccruedTimestamp) {
-        state.updateScaleFactorAndFees(
-          delinquencyFeeBips,
-          delinquencyGracePeriod,
-          pendingBatchExpiry
-        );
+        _updateScaleFactorAndFees(state, pendingBatchExpiry);
       }
 
       pendingBatch = _withdrawalData.batches[pendingBatchExpiry];
@@ -500,7 +517,7 @@ contract WildcatMarketBase is
     }
 
     if (state.lastInterestAccruedTimestamp != block.timestamp) {
-      state.updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, block.timestamp);
+      _updateScaleFactorAndFees(state, block.timestamp);
     }
 
     // If there is a pending withdrawal batch which is not fully paid off, set aside
@@ -658,8 +675,9 @@ contract WildcatMarketBase is
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return (0, 0);
 
-    uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
+    uint256 scaledAvailableLiquidity = state.scaleAmountDown(availableLiquidity);
     scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
+    if (scaledAmountBurned == 0) return (0, 0);
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
@@ -688,10 +706,11 @@ contract WildcatMarketBase is
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return;
 
-    uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
+    uint256 scaledAvailableLiquidity = state.scaleAmountDown(availableLiquidity);
     uint104 scaledAmountBurned = MathUtils
       .min(scaledAvailableLiquidity, scaledAmountOwed)
       .toUint104();
+    if (scaledAmountBurned == 0) return;
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     uint128 normalizedAmountPaid = MathUtils

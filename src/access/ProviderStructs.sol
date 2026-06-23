@@ -16,7 +16,7 @@ struct CreateProviderInputs {
 }
 
 /**
- * @dev Input parameters to add a role provider that has already been deployed.
+ * @dev Input parameters to add an existing role provider address.
  * @param providerAddress Address of the role provider.
  * @param timeToLive Time to live for the provider.
  */

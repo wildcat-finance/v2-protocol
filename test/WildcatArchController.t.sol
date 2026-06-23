@@ -5,6 +5,26 @@ import 'forge-std/Test.sol';
 import 'sol-utils/test/Prankster.sol';
 import 'src/WildcatArchController.sol';
 
+// CAF-16 remediation test helpers, intentionally disabled while the
+// ArchController remains a singleton with deployed registry semantics.
+// contract MockRegisteredContract {
+//   address public immutable archController;
+//
+//   constructor(address archController_) {
+//     archController = archController_;
+//   }
+// }
+//
+// contract MockRegisteredMarket is MockRegisteredContract {
+//   address public immutable factory;
+//
+//   constructor(address archController_, address factory_) MockRegisteredContract(archController_) {
+//     factory = factory_;
+//   }
+// }
+//
+// contract MockUnregisteredContract {}
+
 contract WildcatArchControllerTest is Test, Prankster {
   event MarketAdded(address indexed controller, address market);
   event MarketRemoved(address market);
@@ -70,6 +90,33 @@ contract WildcatArchControllerTest is Test, Prankster {
     archController.registerController(controller);
   }
 
+  // CAF-16 known issue: the deployed singleton accepts arbitrary controller
+  // addresses from registered controller factories. These tests document the
+  // remediation that would reject non-contract or wrong-arch controllers.
+  //
+  // function test_registerController_NotContract() external {
+  //   archController.registerControllerFactory(controllerFactory);
+  //   vm.expectRevert(WildcatArchController.NotContract.selector);
+  //   vm.prank(controllerFactory);
+  //   archController.registerController(address(2));
+  // }
+  //
+  // function test_registerController_InvalidArchController() external {
+  //   archController.registerControllerFactory(controllerFactory);
+  //   address invalidController = address(new MockRegisteredContract(address(1)));
+  //   vm.expectRevert(WildcatArchController.InvalidArchController.selector);
+  //   vm.prank(controllerFactory);
+  //   archController.registerController(invalidController);
+  // }
+  //
+  // function test_registerController_MissingArchController() external {
+  //   archController.registerControllerFactory(controllerFactory);
+  //   address invalidController = address(new MockUnregisteredContract());
+  //   vm.expectRevert(WildcatArchController.InvalidArchController.selector);
+  //   vm.prank(controllerFactory);
+  //   archController.registerController(invalidController);
+  // }
+
   function test_registerController_NotControllerFactory(address controller) external {
     vm.expectRevert(WildcatArchController.NotControllerFactory.selector);
     archController.registerController(controller);
@@ -125,6 +172,11 @@ contract WildcatArchControllerTest is Test, Prankster {
     controllers = archController.getRegisteredControllers(1, 2);
     assertEq(controllers.length, 1);
     assertEq(controllers[0], controller2);
+    // CAF-13 remediation test, disabled to match singleton behavior:
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredControllers(2, 1);
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredControllers(2, type(uint256).max);
     assertEq(archController.getRegisteredControllersCount(), 2);
   }
 
@@ -141,6 +193,41 @@ contract WildcatArchControllerTest is Test, Prankster {
     vm.prank(controller);
     archController.registerMarket(market);
   }
+
+  // CAF-16 known issue: the deployed singleton accepts arbitrary market
+  // addresses from registered controllers. These tests document the remediation
+  // that would reject non-contract, wrong-arch, or wrong-factory markets.
+  //
+  // function test_registerMarket_NotContract() external {
+  //   _registerController(controllerFactory, controller);
+  //   vm.expectRevert(WildcatArchController.NotContract.selector);
+  //   vm.prank(controller);
+  //   archController.registerMarket(address(4));
+  // }
+  //
+  // function test_registerMarket_InvalidArchController() external {
+  //   _registerController(controllerFactory, controller);
+  //   address invalidMarket = address(new MockRegisteredMarket(address(1), controller));
+  //   vm.expectRevert(WildcatArchController.InvalidArchController.selector);
+  //   vm.prank(controller);
+  //   archController.registerMarket(invalidMarket);
+  // }
+  //
+  // function test_registerMarket_InvalidMarketFactory() external {
+  //   _registerController(controllerFactory, controller);
+  //   address invalidMarket = address(new MockRegisteredMarket(address(archController), controller2));
+  //   vm.expectRevert(WildcatArchController.InvalidMarketFactory.selector);
+  //   vm.prank(controller);
+  //   archController.registerMarket(invalidMarket);
+  // }
+  //
+  // function test_registerMarket_MissingFactory() external {
+  //   _registerController(controllerFactory, controller);
+  //   address invalidMarket = address(new MockRegisteredContract(address(archController)));
+  //   vm.expectRevert(WildcatArchController.InvalidMarketFactory.selector);
+  //   vm.prank(controller);
+  //   archController.registerMarket(invalidMarket);
+  // }
 
   function test_registerMarket_NotController(address controller) external {
     vm.expectRevert(WildcatArchController.NotController.selector);
@@ -194,6 +281,11 @@ contract WildcatArchControllerTest is Test, Prankster {
     markets = archController.getRegisteredMarkets(1, 2);
     assertEq(markets.length, 1);
     assertEq(markets[0], market2);
+    // CAF-13 remediation test, disabled to match singleton behavior:
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredMarkets(2, 1);
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredMarkets(2, type(uint256).max);
     assertEq(archController.getRegisteredMarketsCount(), 2);
     archController.removeMarket(market);
     markets = archController.getRegisteredMarkets();
@@ -268,6 +360,11 @@ contract WildcatArchControllerTest is Test, Prankster {
     borrowers = archController.getRegisteredBorrowers(1, 2);
     assertEq(borrowers.length, 1);
     assertEq(borrowers[0], borrower2);
+    // CAF-13 remediation test, disabled to match singleton behavior:
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredBorrowers(2, 1);
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredBorrowers(2, type(uint256).max);
     assertEq(archController.getRegisteredBorrowersCount(), 2);
 
     archController.removeBorrower(borrower);
@@ -343,6 +440,11 @@ contract WildcatArchControllerTest is Test, Prankster {
     blackListedAssets = archController.getBlacklistedAssets(1, 2);
     assertEq(blackListedAssets.length, 1);
     assertEq(blackListedAssets[0], borrower2);
+    // CAF-13 remediation test, disabled to match singleton behavior:
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getBlacklistedAssets(2, 1);
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getBlacklistedAssets(2, type(uint256).max);
     assertEq(archController.getBlacklistedAssetsCount(), 2);
 
     archController.removeBlacklist(borrower);
@@ -361,6 +463,27 @@ contract WildcatArchControllerTest is Test, Prankster {
 
     archController.registerControllerFactory(controllerFactory);
   }
+
+  // CAF-16 known issue: the deployed singleton accepts arbitrary controller
+  // factory addresses from the owner. These tests document the remediation that
+  // would reject non-contract or wrong-arch factories.
+  //
+  // function test_registerControllerFactory_NotContract() external {
+  //   vm.expectRevert(WildcatArchController.NotContract.selector);
+  //   archController.registerControllerFactory(address(1));
+  // }
+  //
+  // function test_registerControllerFactory_InvalidArchController() external {
+  //   address invalidFactory = address(new MockRegisteredContract(address(1)));
+  //   vm.expectRevert(WildcatArchController.InvalidArchController.selector);
+  //   archController.registerControllerFactory(invalidFactory);
+  // }
+  //
+  // function test_registerControllerFactory_MissingArchController() external {
+  //   address invalidFactory = address(new MockUnregisteredContract());
+  //   vm.expectRevert(WildcatArchController.InvalidArchController.selector);
+  //   archController.registerControllerFactory(invalidFactory);
+  // }
 
   function test_registerControllerFactory_Unauthorized() external {
     vm.expectRevert(Ownable.Unauthorized.selector);
@@ -417,6 +540,11 @@ contract WildcatArchControllerTest is Test, Prankster {
     controllerFactories = archController.getRegisteredControllerFactories(1, 2);
     assertEq(controllerFactories.length, 1);
     assertEq(controllerFactories[0], controllerFactory2);
+    // CAF-13 remediation test, disabled to match singleton behavior:
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredControllerFactories(2, 1);
+    // vm.expectRevert(WildcatArchController.InvalidPaginationRange.selector);
+    // archController.getRegisteredControllerFactories(2, type(uint256).max);
     assertEq(archController.getRegisteredControllerFactoriesCount(), 2);
 
     archController.removeControllerFactory(controllerFactory);

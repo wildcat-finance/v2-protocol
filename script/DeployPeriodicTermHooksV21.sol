@@ -10,7 +10,7 @@ import {IWildcatArchController} from "src/interfaces/IWildcatArchController.sol"
 import {MarketLens} from "src/lens/MarketLens.sol";
 import {PeriodicTermHooks} from "src/access/PeriodicTermHooks.sol";
 
-import "./LibDeployment.sol";
+import "./common/LibDeployment.sol";
 
 using LibDeployment for Deployments;
 using LibString for address;

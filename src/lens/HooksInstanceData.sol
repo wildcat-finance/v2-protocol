@@ -5,7 +5,7 @@ import '../interfaces/WildcatStructsAndEnums.sol';
 import { OpenTermHooks, HookedMarket as OpenTermHookedMarket } from '../access/OpenTermHooks.sol';
 import { FixedTermHooks, HookedMarket as FixedTermHookedMarket } from '../access/FixedTermHooks.sol';
 import '../access/IHooks.sol';
-import '../HooksFactory.sol';
+import '../IHooksFactory.sol';
 import './HooksConfigData.sol';
 import './HooksTemplateData.sol';
 import './RoleProviderData.sol';
@@ -31,16 +31,24 @@ library HooksInstanceDataLib {
   function fill(
     HooksInstanceData memory data,
     address hooksAddress,
-    HooksFactory factory
+    IHooksFactory factory
+  ) internal view {
+    fill(data, hooksAddress, factory, address(0));
+  }
+
+  function fill(
+    HooksInstanceData memory data,
+    address hooksAddress,
+    IHooksFactory factory,
+    address borrower
   ) internal view {
     data.hooksAddress = hooksAddress;
-
-    address templateAddress = factory.getHooksTemplateForInstance(hooksAddress);
-    data.hooksTemplate.fill(factory, templateAddress, data.borrower);
+    if (borrower != address(0)) {
+      data.borrower = borrower;
+    }
 
     IHooks hooks = IHooks(hooksAddress);
-
-    data.kind = HooksConfigDataLib.kindForVersion(data.hooksTemplate.name);
+    data.kind = HooksConfigDataLib.kindForVersion(hooks.version());
 
     if (data.kind != HooksInstanceKind.Unknown) {
       OpenTermHooks hooks = OpenTermHooks(hooksAddress);
@@ -52,6 +60,9 @@ library HooksInstanceDataLib {
       data.constraints = hooks.getParameterConstraints();
       data.name = hooks.name();
     }
+
+    address templateAddress = factory.getHooksTemplateForInstance(hooksAddress);
+    data.hooksTemplate.fill(factory, templateAddress, data.borrower);
     data.deploymentFlags.fill(hooks.config());
     data.totalMarkets = factory.getMarketsForHooksInstanceCount(hooksAddress);
   }

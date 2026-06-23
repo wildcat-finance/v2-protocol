@@ -8,7 +8,7 @@ import "solady/utils/LibString.sol";
 import "src/IHooksFactory.sol";
 import {IWildcatArchController} from "src/interfaces/IWildcatArchController.sol";
 
-import "./LibDeployment.sol";
+import "./common/LibDeployment.sol";
 
 using LibDeployment for Deployments;
 using LibString for address;
