@@ -569,7 +569,9 @@ contract HooksFactoryRevolving is
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
     }
-    LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt);
+    if (LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) != market) {
+      revert MarketDeploymentAddressMismatch();
+    }
 
     IWildcatArchController(_archController).registerMarket(market);
 

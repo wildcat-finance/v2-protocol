@@ -269,6 +269,27 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
         assertEq(observedHooksData, hooksData);
     }
 
+    function test_deployMarket_MarketDeploymentAddressMismatch() external {
+        bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
+        address marketTemplate = LibStoredInitCode.deployInitCode(marketInitCode);
+        IHooksFactoryRevolving badFactory = new HooksFactoryRevolving(
+            address(archController),
+            sanctionsSentinel,
+            marketTemplate,
+            uint256(keccak256("stale revolving market init code hash"))
+        );
+        archController.registerControllerFactory(address(badFactory));
+        badFactory.registerWithArchController();
+        badFactory.addHooksTemplate(hooksTemplate, "revolving-template", nullAddress, nullAddress, 0, 0);
+        archController.registerBorrower(address(this));
+
+        address hooksInstance = badFactory.deployHooksInstance(hooksTemplate, bytes(""));
+        DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+
+        vm.expectRevert(IHooksFactoryEventsAndErrors.MarketDeploymentAddressMismatch.selector);
+        badFactory.deployMarket(parameters, bytes(""), _defaultMarketData(), bytes32(uint256(1)), nullAddress, 0);
+    }
+
     function test_deployMarket_NotApprovedBorrower() external {
         hooksFactoryRevolving.addHooksTemplate(hooksTemplate, "revolving-template", nullAddress, nullAddress, 0, 0);
         address hooksInstance = address(0xBEEF);
