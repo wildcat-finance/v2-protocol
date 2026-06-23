@@ -138,6 +138,10 @@ library MarketDataLib {
     data.timeDelinquent = state.timeDelinquent;
     data.lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
 
+    // Batches already in the stored unpaid FIFO; a batch that expired since the
+    // last state write is not in it yet and is appended below.
+    data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
+
     if (state.pendingWithdrawalExpiry == 0) {
       uint32 expiredBatchExpiry = market.previousState().pendingWithdrawalExpiry;
       if (expiredBatchExpiry > 0) {

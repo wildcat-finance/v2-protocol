@@ -10,6 +10,7 @@ fs_permissions = [
   { access = "read-write", path = "./deployments/"},
   { access = "read-write", path = "./out/"},
   { access = "read-write", path = "./ir-out/"},
+  { access = "read-write", path = "./deploy-out/"},
   { access = "read-write", path = "./deployments-old.json"}
 ]
 
@@ -39,6 +40,15 @@ out='ir-out'
 cache_path='ir-cache'
 # optimizer_runs=4_294_967_295
 optimizer_runs=50_000
+optimizer=true
+extra_output_files=["irOptimized", "ir"]
+bytecode_hash = 'none'
+
+[profile.deploy]
+via_ir=true
+out='deploy-out'
+cache_path='deploy-cache'
+optimizer_runs=200
 optimizer=true
 extra_output_files=["irOptimized", "ir"]
 bytecode_hash = 'none'

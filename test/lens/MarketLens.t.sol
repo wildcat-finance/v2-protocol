@@ -11,12 +11,24 @@ import 'solady/utils/LibPRNG.sol';
 import 'src/lens/MarketData.sol';
 import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
 import 'src/lens/MarketLens.sol';
+import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 
 enum FuzzConditions {
   Default,
   DepositOnly,
   DepositBorrow,
   DepositBorrowWithdraw
+}
+
+struct PeriodicTermLensFixture {
+  WildcatMarket market;
+  PeriodicTermHooks hooks;
+  address template;
+  uint32 firstWithdrawalWindowStart;
+  uint32 periodDuration;
+  uint32 withdrawalWindowDuration;
+  uint128 minimumDeposit;
+  bool transfersDisabled;
 }
 
 contract MarketDataTest is BaseMarketTest {
@@ -185,6 +197,60 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(data.totalMarkets, 1, 'totalMarkets');
   }
 
+  function deployPeriodicTermMarket()
+    internal
+    returns (PeriodicTermLensFixture memory fixture)
+  {
+    fixture.template = LibStoredInitCode.deployInitCode(type(PeriodicTermHooks).creationCode);
+    hooksFactory.addHooksTemplate(
+      fixture.template,
+      'PeriodicTermHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+
+    startPrank(borrower);
+    fixture.hooks = PeriodicTermHooks(hooksFactory.deployHooksInstance(fixture.template, ''));
+    HooksDeploymentConfig deploymentConfig = fixture.hooks.config();
+    HooksConfig hooksConfig = deploymentConfig
+      .optionalFlags()
+      .setHooksAddress(address(fixture.hooks))
+      .mergeAllFlags(deploymentConfig.requiredFlags());
+
+    fixture.firstWithdrawalWindowStart = uint32(block.timestamp + 25 days);
+    fixture.periodDuration = 30 days;
+    fixture.withdrawalWindowDuration = 7 days;
+    fixture.minimumDeposit = 2e18;
+    fixture.transfersDisabled = true;
+
+    DeployMarketInputs memory deployInputs = DeployMarketInputs({
+      asset: address(asset),
+      namePrefix: parameters.namePrefix,
+      symbolPrefix: parameters.symbolPrefix,
+      maxTotalSupply: parameters.maxTotalSupply,
+      annualInterestBips: parameters.annualInterestBips,
+      delinquencyFeeBips: parameters.delinquencyFeeBips,
+      withdrawalBatchDuration: parameters.withdrawalBatchDuration,
+      reserveRatioBips: parameters.reserveRatioBips,
+      delinquencyGracePeriod: parameters.delinquencyGracePeriod,
+      hooks: hooksConfig
+    });
+
+    bytes memory hooksData = abi.encode(
+      fixture.firstWithdrawalWindowStart,
+      fixture.periodDuration,
+      fixture.withdrawalWindowDuration,
+      fixture.minimumDeposit,
+      fixture.transfersDisabled
+    );
+    fixture.market = WildcatMarket(
+      hooksFactory.deployMarket(deployInputs, hooksData, _nextSalt(borrower), address(0), 0)
+    );
+    stopPrank();
+  }
+
   function test_getMarketData(MarketConfigFuzzInputs memory inputs, uint8 conditions) external {
     FuzzConditions condition = FuzzConditions(bound(conditions, 0, 3));
     if (condition != FuzzConditions.Default) {
@@ -315,6 +381,79 @@ contract MarketDataTest is BaseMarketTest {
     );
   }
 
+  function test_getHooksInstancesForBorrower() external view {
+    HooksInstanceData[] memory data = lens.getHooksInstancesForBorrower(borrower);
+    assertEq(data.length, 1, 'length');
+    assertEq(data[0].hooksAddress, address(hooks), 'hooksAddress');
+    assertEq(data[0].borrower, borrower, 'borrower');
+  }
+
+  function test_getMarketData_supportsPeriodicTermHooks() external {
+    PeriodicTermLensFixture memory fixture = deployPeriodicTermMarket();
+
+    MarketData memory data = lens.getMarketData(address(fixture.market));
+
+    assertEq(
+      uint256(data.hooksConfig.kind),
+      uint256(HooksInstanceKind.PeriodicTerm),
+      'hooksConfig kind'
+    );
+    assertEq(
+      uint256(data.hooks.kind),
+      uint256(HooksInstanceKind.PeriodicTerm),
+      'hooks kind'
+    );
+    assertEq(data.hooks.hooksAddress, address(fixture.hooks), 'hooks instance address');
+    assertEq(data.hooks.borrower, borrower, 'hooks borrower');
+    assertEq(data.hooks.totalMarkets, 1, 'hooks totalMarkets');
+    assertEq(
+      data.hooksConfig.firstWithdrawalWindowStart,
+      fixture.firstWithdrawalWindowStart,
+      'firstWithdrawalWindowStart'
+    );
+    assertEq(data.hooksConfig.periodDuration, fixture.periodDuration, 'periodDuration');
+    assertEq(
+      data.hooksConfig.withdrawalWindowDuration,
+      fixture.withdrawalWindowDuration,
+      'withdrawalWindowDuration'
+    );
+    assertEq(data.hooksConfig.minimumDeposit, fixture.minimumDeposit, 'minimumDeposit');
+    assertEq(data.hooksConfig.transfersDisabled, fixture.transfersDisabled, 'transfersDisabled');
+    assertEq(data.hooksConfig.transferRequiresAccess, true, 'transferRequiresAccess');
+    assertEq(data.hooksConfig.depositRequiresAccess, true, 'depositRequiresAccess');
+    assertEq(data.hooksConfig.withdrawalRequiresAccess, true, 'withdrawalRequiresAccess');
+    assertEq(data.hooksConfig.periodicTermClosed, false, 'periodicTermClosed');
+
+    vm.prank(borrower);
+    fixture.market.closeMarket();
+    data = lens.getMarketData(address(fixture.market));
+    assertEq(data.hooksConfig.periodicTermClosed, true, 'periodicTermClosed after close');
+  }
+
+  function test_getHooksInstancesForBorrower_supportsPeriodicTermHooks() external {
+    PeriodicTermLensFixture memory fixture = deployPeriodicTermMarket();
+
+    HooksInstanceData[] memory data = lens.getHooksInstancesForBorrower(borrower);
+    assertEq(data.length, 2, 'length');
+
+    bool found;
+    for (uint256 i; i < data.length; i++) {
+      if (data[i].hooksAddress == address(fixture.hooks)) {
+        found = true;
+        assertEq(
+          uint256(data[i].kind),
+          uint256(HooksInstanceKind.PeriodicTerm),
+          'periodic kind'
+        );
+        assertEq(data[i].borrower, borrower, 'periodic borrower');
+        assertEq(data[i].hooksTemplate.hooksTemplate, fixture.template, 'periodic template');
+        assertEq(data[i].hooksTemplate.name, 'PeriodicTermHooks', 'periodic template name');
+        assertEq(data[i].totalMarkets, 1, 'periodic totalMarkets');
+      }
+    }
+    assertTrue(found, 'periodic hooks instance not found');
+  }
+
   function checkWithdrawalBatchData(WithdrawalBatchData memory data, uint32 expiry) internal view {
     WithdrawalBatch memory batch = market.getWithdrawalBatch(expiry);
     assertEq(data.expiry, expiry, 'expiry');
@@ -355,6 +494,67 @@ contract MarketDataTest is BaseMarketTest {
     asset.mint(address(market), 1e18);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
     checkWithdrawalBatchData(lens.getWithdrawalBatchData(address(market), expiry), expiry);
+  }
+
+  /* -------------------------------------------------------------------------- */
+  /*                        unpaidWithdrawalBatchExpiries                       */
+  /* -------------------------------------------------------------------------- */
+
+  // Batch in the stored unpaid FIFO: state was written after the batch expired,
+  // so it is only visible through `getUnpaidBatchExpiries()`.
+  function test_getMarketData_unpaidBatchInStoredFifo() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.pendingWithdrawalExpiry, 0, 'pendingWithdrawalExpiry');
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 1, 'unpaid expiries length');
+    assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry, 'unpaid expiry');
+  }
+
+  // Batch expired since the last state write: not in the stored FIFO yet, only
+  // detectable from the previousState/currentState comparison.
+  function test_getMarketData_unpaidBatchExpiredSinceLastUpdate() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.pendingWithdrawalExpiry, 0, 'pendingWithdrawalExpiry');
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 1, 'unpaid expiries length');
+    assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry, 'unpaid expiry');
+  }
+
+  // One batch in the stored FIFO and a second expired since the last write:
+  // both reported, in FIFO order.
+  function test_getMarketData_unpaidBatchesStoredAndExpired() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 5e17);
+    uint32 expiry1 = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    // State write: moves the first batch into the stored unpaid FIFO and opens
+    // a second batch with no liquidity available to pay it.
+    uint32 expiry2 = _requestWithdrawal(alice, 5e17);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.pendingWithdrawalExpiry, 0, 'pendingWithdrawalExpiry');
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 2, 'unpaid expiries length');
+    assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry1, 'stored FIFO expiry first');
+    assertEq(data.unpaidWithdrawalBatchExpiries[1], expiry2, 'expired pending batch last');
+  }
+
+  // A fully paid batch that expired since the last write is claimable, not
+  // unpaid: reported via pendingWithdrawalExpiry.
+  function test_getMarketData_expiredFullyPaidBatchNotUnpaid() external {
+    _deposit(alice, 1e18);
+    uint32 expiry = _requestWithdrawal(alice, 5e17);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 0, 'unpaid expiries length');
+    assertEq(data.pendingWithdrawalExpiry, expiry, 'pendingWithdrawalExpiry');
   }
 
   function checkWithdrawalBatchLenderStatus(

@@ -11,3 +11,4 @@ hh-cache
 artifacts
 coverage/
 .env
+deploy-out/

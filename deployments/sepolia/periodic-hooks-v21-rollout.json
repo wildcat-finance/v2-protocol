@@ -1,0 +1,21 @@
+{
+  "MarketLens": "0xCb7839D03EBC1e628295b2FdE3b73Fc53412e87F",
+  "PeriodicTermHooks_initCodeStorage": "0x271EC1C852Bf7BF7E7eDdBf47B35E2ecdF3b328B",
+  "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+  "archControllerOwner": "0xa476920af80B587f696734430227869795E2Ea78",
+  "broadcaster": "0xca732651410E915090d7A7D889A1E44eF4575fcE",
+  "chainId": 11155111,
+  "didDeployMarketLens": true,
+  "didDeployPeriodicTemplate": false,
+  "didRegisterTemplate": false,
+  "feeRecipient": "0xca732651410E915090d7A7D889A1E44eF4575fcE",
+  "hooksFactory": "0x10A64ABa0159720F8a23E1A552800CA4eb21576C",
+  "isTemplateRegistered": true,
+  "network": "sepolia",
+  "originationFeeAmount": 0,
+  "originationFeeAsset": "0x0000000000000000000000000000000000000000",
+  "protocolFeeBips": 500,
+  "registrationActionPath": "deployments/sepolia/pending-admin-actions/PeriodicTermHooks-add-template.json",
+  "registrationMode": "emit",
+  "wasTemplateRegistered": true
+}

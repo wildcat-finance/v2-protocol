@@ -894,6 +894,38 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory.deployMarket(parameters, createMarketHooksData, bytes32(uint(1)), address(0), 0);
   }
 
+  function test_deployMarket_MarketDeploymentAddressMismatch() external {
+    bytes memory marketInitCode = type(WildcatMarket).creationCode;
+    address marketTemplate = LibStoredInitCode.deployInitCode(marketInitCode);
+    IHooksFactory badFactory = new HooksFactory(
+      address(archController),
+      sanctionsSentinel,
+      marketTemplate,
+      uint256(keccak256('stale market init code hash'))
+    );
+    archController.registerControllerFactory(address(badFactory));
+    badFactory.registerWithArchController();
+    badFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+
+    address hooksInstance = badFactory.deployHooksInstance(MockHooksTemplate, '');
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'name',
+      symbolPrefix: 'symbol',
+      maxTotalSupply: type(uint128).max,
+      annualInterestBips: 1000,
+      delinquencyFeeBips: 1000,
+      withdrawalBatchDuration: 10000,
+      reserveRatioBips: 10000,
+      delinquencyGracePeriod: 10000,
+      hooks: EmptyHooksConfig.setHooksAddress(hooksInstance)
+    });
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.MarketDeploymentAddressMismatch.selector);
+    badFactory.deployMarket(parameters, '', bytes32(uint(1)), address(0), 0);
+  }
+
   function test_deployMarket_AssetBlacklisted() external {
     hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
     archController.registerBorrower(address(this));

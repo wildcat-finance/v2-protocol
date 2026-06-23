@@ -543,7 +543,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
     }
-    LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, salt);
+    if (LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, salt) != market) {
+      revert MarketDeploymentAddressMismatch();
+    }
 
     IWildcatArchController(_archController).registerMarket(market);
 

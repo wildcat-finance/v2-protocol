@@ -37,6 +37,7 @@ interface IHooksFactoryEventsAndErrors {
   error InvalidFeeConfiguration();
   error SaltDoesNotContainSender();
   error MarketAlreadyExists();
+  error MarketDeploymentAddressMismatch();
   error HooksInstanceAlreadyExists();
   error NameOrSymbolTooLong();
   error AssetBlacklisted();
