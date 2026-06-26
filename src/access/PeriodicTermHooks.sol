@@ -119,13 +119,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   uint32 public constant MaximumInitialWithdrawalWindowDelay = MaximumPeriodDuration;
 
   /**
-   * @dev Number of full periods after the response window ends during which a
-   *      proposed APR reduction remains executable. Bounds how stale a proposal
-   *      can be when executed (lenders who responded did so against a recent
-   *      market state) while leaving slack for unpaid-batch settlement before
-   *      execution. Provisional value pending team feedback.
+   * @dev Number of periods after the response window starts during which a
+   *      proposed APR reduction remains executable. A value of one means the
+   *      proposal can be executed after the response window ends until the next
+   *      withdrawal window starts.
    */
-  uint32 public constant AprReductionProposalValidityPeriods = 2;
+  uint32 public constant AprReductionProposalValidityPeriods = 1;
 
   mapping(address => HookedMarket) internal _hookedMarkets;
   mapping(address => PendingAprChangeStorage) internal _pendingAprChanges;
@@ -660,7 +659,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       if (block.timestamp < responseWindowEnd) revert AprChangeNotReady();
       if (
         block.timestamp >=
-        responseWindowEnd +
+        pendingAprChange.responseWindowStart +
           uint256(hookedMarket.periodDuration) *
           AprReductionProposalValidityPeriods
       ) {

@@ -80,6 +80,13 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         return FirstWithdrawalWindowStart + ((periodsElapsed + 1) * PeriodDuration);
     }
 
+    function _aprReductionProposalExpiry(
+        uint32 responseWindowStart,
+        uint32 periodDuration
+    ) internal view returns (uint256) {
+        return responseWindowStart + uint256(periodDuration) * hooks.AprReductionProposalValidityPeriods();
+    }
+
     function _assertPendingAprChange(
         address market,
         uint16 annualInterestBips,
@@ -1302,9 +1309,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         MarketState memory state;
         state.annualInterestBips = 1_000;
 
-        uint256 responseWindowEnd = FirstWithdrawalWindowStart + WithdrawalWindowDuration;
-        uint256 expiry = responseWindowEnd +
-            uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
+        uint256 expiry = _aprReductionProposalExpiry(FirstWithdrawalWindowStart, PeriodDuration);
 
         vm.warp(expiry);
         vm.prank(address(market));
@@ -1321,6 +1326,37 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         );
     }
 
+    function test_setAnnualInterestAndReserveRatioBips_ReductionExpiredAtOffsetWindowStart() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        uint32 firstWithdrawalWindowStart = PeriodStart + 11 days;
+        uint32 periodDuration = 30 days;
+        uint32 withdrawalWindowDuration = 4 days;
+        _createMarket(
+            address(market),
+            EmptyHooksConfig,
+            abi.encode(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration)
+        );
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+
+        uint256 expiry = _aprReductionProposalExpiry(firstWithdrawalWindowStart, periodDuration);
+
+        vm.warp(expiry);
+        vm.prank(address(market));
+        vm.expectRevert(PeriodicTermHooks.AprReductionProposalExpired.selector);
+        hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, "");
+
+        _assertPendingAprChange(
+            address(market),
+            900,
+            PeriodStart,
+            firstWithdrawalWindowStart,
+            firstWithdrawalWindowStart + withdrawalWindowDuration
+        );
+    }
+
     function test_setAnnualInterestAndReserveRatioBips_ReductionJustBeforeExpiry() external {
         MockAprMarket market = new MockAprMarket(1_000);
         _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
@@ -1330,9 +1366,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         state.annualInterestBips = 1_000;
         state.reserveRatioBips = 1_000;
 
-        uint256 responseWindowEnd = FirstWithdrawalWindowStart + WithdrawalWindowDuration;
-        uint256 expiry = responseWindowEnd +
-            uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
+        uint256 expiry = _aprReductionProposalExpiry(FirstWithdrawalWindowStart, PeriodDuration);
 
         vm.warp(expiry - 1);
         vm.prank(address(market));
