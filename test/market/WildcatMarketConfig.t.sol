@@ -2,10 +2,55 @@
 pragma solidity >=0.8.20;
 
 import 'src/interfaces/IMarketEventsAndErrors.sol';
+import 'src/libraries/LibStoredInitCode.sol';
 import '../BaseMarketTest.sol';
+import '../shared/mocks/MockHooks.sol';
+
+contract MockPendingAprReductionHooks is MockHooks {
+  uint16 public pendingAnnualInterestBipsReduction;
+  uint16 public lastIntermediateAnnualInterestBips;
+  uint16 public lastIntermediateReserveRatioBips;
+
+  constructor(address _caller, bytes memory _constructorArgs) MockHooks(_caller, _constructorArgs) {}
+
+  function setPendingAnnualInterestBipsReduction(uint16 annualInterestBips) external {
+    pendingAnnualInterestBipsReduction = annualInterestBips;
+  }
+
+  function executePendingAnnualInterestBipsReduction(
+    MarketState calldata intermediateState
+  ) external returns (uint16 annualInterestBips) {
+    lastCalldataHash = keccak256(msg.data);
+    lastIntermediateAnnualInterestBips = intermediateState.annualInterestBips;
+    lastIntermediateReserveRatioBips = intermediateState.reserveRatioBips;
+    annualInterestBips = pendingAnnualInterestBipsReduction;
+  }
+}
 
 contract WildcatMarketConfigTest is BaseMarketTest {
   using MathUtils for uint;
+
+  MockPendingAprReductionHooks internal aprReductionHooks;
+
+  function resetWithMockPendingAprReductionHooks() internal asSelf {
+    parameters.hooksTemplate = LibStoredInitCode.deployInitCode(
+      type(MockPendingAprReductionHooks).creationCode
+    );
+    hooksFactory.addHooksTemplate(
+      parameters.hooksTemplate,
+      'MockPendingAprReductionHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+    parameters.deployHooksConstructorArgs = '';
+    parameters.deployMarketHooksData = '';
+    parameters.hooksConfig = EmptyHooksConfig;
+    hooks = OpenTermHooks(address(0));
+    setUpContracts(false);
+    aprReductionHooks = MockPendingAprReductionHooks(parameters.hooksConfig.hooksAddress());
+  }
 
   function test_maximumDeposit(uint256 _depositAmount) external returns (uint256) {
     assertEq(market.maximumDeposit(), parameters.maxTotalSupply, 'maximumDeposit');
@@ -449,6 +494,57 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     market.setAnnualInterestAndReserveRatioBips(DefaultInterest + 1, 0);
 
     _checkTemporaryReserveRatioAndMarketBips(DefaultInterest + 1, 0, DefaultReserveRatio, 0, 0);
+  }
+
+  // ========================================================================== //
+  //                 executePendingAnnualInterestBipsReduction                  //
+  // ========================================================================== //
+
+  function test_executePendingAnnualInterestBipsReduction_PublicCallable() external {
+    resetWithMockPendingAprReductionHooks();
+    uint16 newAnnualInterestBips = DefaultInterest - 1;
+    aprReductionHooks.setPendingAnnualInterestBipsReduction(newAnnualInterestBips);
+
+    vm.expectEmit(address(market));
+    emit IMarketEventsAndErrors.AnnualInterestBipsUpdated(newAnnualInterestBips);
+    vm.expectEmit(address(market));
+    emit IMarketEventsAndErrors.ReserveRatioBipsUpdated(DefaultReserveRatio);
+    vm.prank(alice);
+    market.executePendingAnnualInterestBipsReduction();
+
+    assertEq(market.annualInterestBips(), newAnnualInterestBips, 'annualInterestBips');
+    assertEq(market.reserveRatioBips(), DefaultReserveRatio, 'reserveRatioBips');
+    assertEq(
+      aprReductionHooks.lastIntermediateAnnualInterestBips(),
+      DefaultInterest,
+      'intermediate annualInterestBips'
+    );
+    assertEq(
+      aprReductionHooks.lastIntermediateReserveRatioBips(),
+      DefaultReserveRatio,
+      'intermediate reserveRatioBips'
+    );
+  }
+
+  function test_executePendingAnnualInterestBipsReduction_NotReduction() external {
+    resetWithMockPendingAprReductionHooks();
+    aprReductionHooks.setPendingAnnualInterestBipsReduction(DefaultInterest);
+
+    vm.expectRevert(IMarketEventsAndErrors.AprReductionNotReduction.selector);
+    market.executePendingAnnualInterestBipsReduction();
+  }
+
+  function test_executePendingAnnualInterestBipsReduction_InsufficientReservesForOldLiquidityRatio()
+    external
+  {
+    resetWithMockPendingAprReductionHooks();
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    aprReductionHooks.setPendingAnnualInterestBipsReduction(DefaultInterest - 1);
+
+    assertTrue(market.currentState().isDelinquent, 'market should be delinquent');
+
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForOldLiquidityRatio.selector);
+    market.executePendingAnnualInterestBipsReduction();
   }
 
   function test_setAnnualInterestAndReserveRatioBips_Increase_Undercollateralized() public {

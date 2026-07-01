@@ -1256,6 +1256,59 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         _assertNoPendingAprChange(address(market));
     }
 
+    function test_executePendingAnnualInterestBipsReduction() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+        state.reserveRatioBips = 1_000;
+
+        vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+        vm.prank(address(market));
+        vm.expectEmit(address(hooks));
+        emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(address(market), 900);
+        uint16 annualInterestBips = hooks.executePendingAnnualInterestBipsReduction(state);
+
+        assertEq(annualInterestBips, 900, "annualInterestBips");
+        _assertNoPendingAprChange(address(market));
+    }
+
+    function test_executePendingAnnualInterestBipsReduction_NotHookedMarket() external {
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+
+        vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+        hooks.executePendingAnnualInterestBipsReduction(state);
+    }
+
+    function test_executePendingAnnualInterestBipsReduction_NoPendingProposal() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+
+        vm.prank(address(market));
+        vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
+        hooks.executePendingAnnualInterestBipsReduction(state);
+    }
+
+    function test_executePendingAnnualInterestBipsReduction_BeforeWindowCloses() external {
+        MockAprMarket market = new MockAprMarket(1_000);
+        _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+        hooks.proposeAnnualInterestBips(address(market), 900);
+
+        MarketState memory state;
+        state.annualInterestBips = 1_000;
+
+        vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
+        vm.prank(address(market));
+        vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
+        hooks.executePendingAnnualInterestBipsReduction(state);
+    }
+
     // ========================================================================== //
     //                  template v2: expiry, closed markets, version              //
     // ========================================================================== //
