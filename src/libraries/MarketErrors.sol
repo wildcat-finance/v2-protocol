@@ -31,6 +31,16 @@ function revert_AprChangeOnClosedMarket() pure {
   }
 }
 
+uint256 constant AprReductionNotReduction_ErrorSelector = 0x116a7bf1;
+
+/// @dev Equivalent to `revert AprReductionNotReduction()`
+function revert_AprReductionNotReduction() pure {
+  assembly {
+    mstore(0, 0x116a7bf1)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant MarketAlreadyClosed_ErrorSelector = 0x449e5f50;
 
 /// @dev Equivalent to `revert MarketAlreadyClosed()`

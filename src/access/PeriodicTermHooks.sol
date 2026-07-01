@@ -620,6 +620,57 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     bytes calldata /* hooksData */
   ) external override {}
 
+  function _executePendingAnnualInterestBipsReduction(
+    HookedMarket memory hookedMarket,
+    MarketState calldata intermediateState,
+    uint16 annualInterestBips,
+    PendingAprChangeStorage memory pendingAprChange
+  ) internal returns (uint16 updatedAnnualInterestBips) {
+    if (pendingAprChange.proposalTimestamp == 0) revert NoPendingAprChange();
+    if (pendingAprChange.annualInterestBips != annualInterestBips) {
+      revert AprChangeDoesNotMatchProposal();
+    }
+    if (annualInterestBips >= intermediateState.annualInterestBips) {
+      revert AprReductionProposalNotReduction();
+    }
+    assertValueInRange(
+      annualInterestBips,
+      MinimumAnnualInterestBips,
+      MaximumAnnualInterestBips,
+      AnnualInterestBipsOutOfBounds.selector
+    );
+
+    uint256 responseWindowEnd = pendingAprChange.responseWindowEnd;
+    if (block.timestamp < responseWindowEnd) revert AprChangeNotReady();
+    if (
+      block.timestamp >=
+      pendingAprChange.responseWindowStart +
+        uint256(hookedMarket.periodDuration) *
+        AprReductionProposalValidityPeriods
+    ) {
+      revert AprReductionProposalExpired();
+    }
+    if (intermediateState.scaledPendingWithdrawals != 0) revert UnpaidWithdrawalsExist();
+
+    delete _pendingAprChanges[msg.sender];
+    emit AnnualInterestBipsReductionExecuted(msg.sender, annualInterestBips);
+    updatedAnnualInterestBips = annualInterestBips;
+  }
+
+  function executePendingAnnualInterestBipsReduction(
+    MarketState calldata intermediateState
+  ) external returns (uint16 annualInterestBips) {
+    HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
+    annualInterestBips = _executePendingAnnualInterestBipsReduction(
+      hookedMarket,
+      intermediateState,
+      pendingAprChange.annualInterestBips,
+      pendingAprChange
+    );
+  }
+
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
@@ -650,25 +701,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       }
     } else if (annualInterestBips < intermediateState.annualInterestBips) {
       PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
-      if (pendingAprChange.proposalTimestamp == 0) revert NoPendingAprChange();
-      if (pendingAprChange.annualInterestBips != annualInterestBips) {
-        revert AprChangeDoesNotMatchProposal();
-      }
-
-      uint256 responseWindowEnd = pendingAprChange.responseWindowEnd;
-      if (block.timestamp < responseWindowEnd) revert AprChangeNotReady();
-      if (
-        block.timestamp >=
-        pendingAprChange.responseWindowStart +
-          uint256(hookedMarket.periodDuration) *
-          AprReductionProposalValidityPeriods
-      ) {
-        revert AprReductionProposalExpired();
-      }
-      if (intermediateState.scaledPendingWithdrawals != 0) revert UnpaidWithdrawalsExist();
-
-      delete _pendingAprChanges[msg.sender];
-      emit AnnualInterestBipsReductionExecuted(msg.sender, annualInterestBips);
+      annualInterestBips = _executePendingAnnualInterestBipsReduction(
+        hookedMarket,
+        intermediateState,
+        annualInterestBips,
+        pendingAprChange
+      );
       return (annualInterestBips, intermediateState.reserveRatioBips);
     }
 
