@@ -5,6 +5,12 @@ import './WildcatMarketBase.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/SafeCastLib.sol';
 
+interface IPeriodicTermAprReductionHooks {
+  function executePendingAnnualInterestBipsReduction(
+    MarketState calldata intermediateState
+  ) external returns (uint16 annualInterestBips);
+}
+
 contract WildcatMarketConfig is WildcatMarketBase {
   using SafeCastLib for uint256;
   using FunctionTypeCasts for *;
@@ -110,6 +116,38 @@ contract WildcatMarketConfig is WildcatMarketBase {
     emit_MaxTotalSupplyUpdated(_maxTotalSupply);
   }
 
+  function _applyAnnualInterestAndReserveRatioBips(
+    MarketState memory state,
+    uint16 _annualInterestBips,
+    uint16 _reserveRatioBips,
+    uint256 initialReserveRatioBips
+  ) internal {
+    if (_annualInterestBips > BIP) {
+      revert_AnnualInterestBipsTooHigh();
+    }
+
+    if (_reserveRatioBips > BIP) {
+      revert_ReserveRatioBipsTooHigh();
+    }
+
+    if (_reserveRatioBips <= initialReserveRatioBips) {
+      if (state.liquidityRequired() > totalAssets()) {
+        revert_InsufficientReservesForOldLiquidityRatio();
+      }
+    }
+    state.reserveRatioBips = _reserveRatioBips;
+    state.annualInterestBips = _annualInterestBips;
+    if (_reserveRatioBips > initialReserveRatioBips) {
+      if (state.liquidityRequired() > totalAssets()) {
+        revert_InsufficientReservesForNewLiquidityRatio();
+      }
+    }
+
+    _writeState(state);
+    emit_AnnualInterestBipsUpdated(_annualInterestBips);
+    emit_ReserveRatioBipsUpdated(_reserveRatioBips);
+  }
+
   /**
    * @dev Sets the annual interest rate earned by lenders in bips.
    *
@@ -135,30 +173,43 @@ contract WildcatMarketConfig is WildcatMarketBase {
       state
     );
 
-    if (_annualInterestBips > BIP) {
-      revert_AnnualInterestBipsTooHigh();
+    _applyAnnualInterestAndReserveRatioBips(
+      state,
+      _annualInterestBips,
+      _reserveRatioBips,
+      initialReserveRatioBips
+    );
+  }
+
+  /**
+   * @dev Permissionlessly applies an already-proposed periodic-term APR reduction.
+   *
+   *      This does not let the caller choose a new APR or reserve ratio. The
+   *      borrower must have proposed the reduction through PeriodicTermHooks,
+   *      the response withdrawal window must have elapsed, the proposal must not
+   *      have expired, and all outstanding withdrawal obligations must be paid.
+   *      Non-periodic markets revert because their hooks do not implement the
+   *      periodic-term execution hook.
+   */
+  function executePendingAnnualInterestBipsReduction() external nonReentrant sphereXGuardExternal {
+    MarketState memory state = _getUpdatedState();
+    if (state.isClosed) revert_AprChangeOnClosedMarket();
+
+    uint16 currentAnnualInterestBips = state.annualInterestBips;
+    uint16 _annualInterestBips = IPeriodicTermAprReductionHooks(hooks.hooksAddress())
+      .executePendingAnnualInterestBipsReduction(state);
+
+    if (_annualInterestBips >= currentAnnualInterestBips) {
+      revert_AprReductionNotReduction();
     }
 
-    if (_reserveRatioBips > BIP) {
-      revert_ReserveRatioBipsTooHigh();
-    }
-
-    if (_reserveRatioBips <= initialReserveRatioBips) {
-      if (state.liquidityRequired() > totalAssets()) {
-        revert_InsufficientReservesForOldLiquidityRatio();
-      }
-    }
-    state.reserveRatioBips = _reserveRatioBips;
-    state.annualInterestBips = _annualInterestBips;
-    if (_reserveRatioBips > initialReserveRatioBips) {
-      if (state.liquidityRequired() > totalAssets()) {
-        revert_InsufficientReservesForNewLiquidityRatio();
-      }
-    }
-
-    _writeState(state);
-    emit_AnnualInterestBipsUpdated(_annualInterestBips);
-    emit_ReserveRatioBipsUpdated(_reserveRatioBips);
+    uint16 currentReserveRatioBips = state.reserveRatioBips;
+    _applyAnnualInterestAndReserveRatioBips(
+      state,
+      _annualInterestBips,
+      currentReserveRatioBips,
+      currentReserveRatioBips
+    );
   }
 
   function setProtocolFeeBips(uint16 _protocolFeeBips) external nonReentrant sphereXGuardExternal {
