@@ -7,6 +7,38 @@ contract WithdrawalsTest is BaseMarketTest {
   using MathUtils for uint256;
   using FeeMath for uint256;
 
+  function _setUpWithdrawalRequiresAccessMarket() internal {
+    if (withdrawalRequiresAccess) return;
+
+    bool isFixedTerm = parameters.hooksTemplate == fixedTermHooksTemplate;
+    parameters.hooksTemplate = isFixedTerm ? fixedTermHooksTemplate : hooksTemplate;
+    parameters.deployMarketHooksData = '';
+    parameters.minimumDeposit = 0;
+    parameters.transfersDisabled = false;
+    parameters.fixedTermEndTime = isFixedTerm ? uint32(block.timestamp) : 0;
+    parameters.allowClosureBeforeTerm = true;
+    parameters.allowTermReduction = true;
+    parameters.hooksConfig = encodeHooksConfig({
+      hooksAddress: address(0),
+      useOnDeposit: true,
+      useOnQueueWithdrawal: true,
+      useOnExecuteWithdrawal: false,
+      useOnTransfer: true,
+      useOnBorrow: false,
+      useOnRepay: false,
+      useOnCloseMarket: false,
+      useOnNukeFromOrbit: false,
+      useOnSetMaxTotalSupply: false,
+      useOnSetAnnualInterestAndReserveRatioBips: true,
+      useOnSetProtocolFeeBips: false
+    });
+    hooks = OpenTermHooks(address(0));
+    setUpContracts(false);
+
+    assertTrue(withdrawalRequiresAccess, 'withdrawal access required');
+    assertTrue(market.hooks().useOnQueueWithdrawal(), 'queue withdrawal hook enabled');
+  }
+
   function _checkBatch(
     uint32 expiry,
     uint256 scaledTotalAmount,
@@ -23,22 +55,17 @@ contract WithdrawalsTest is BaseMarketTest {
   /*                              queueWithdrawal()                             */
   /* -------------------------------------------------------------------------- */
 
-  function test_queueWithdrawal_NotApprovedLender() external {
-    if (!withdrawalRequiresAccess) return;
-    _deposit(alice, 1e18);
-    vm.prank(alice);
-    market.transfer(bob, 1e18);
-    vm.startPrank(bob);
-    vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
-    market.queueWithdrawal(1e18);
-  }
-
-  function test_queueWithdrawal_AuthorizedWithdrawOnly() public asAccount(bob) {
+  function test_queueWithdrawal_KnownLenderCanWithdrawAfterAccessRevoked() external {
+    _setUpWithdrawalRequiresAccessMarket();
+    assertFalse(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob already known');
     _deposit(bob, 1e18);
-    // startPrank(address(controller));
-    // market.updateAccountAuthorization(bob, false);
+    assertTrue(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob known lender');
     _deauthorizeLender(bob);
-    stopPrank();
+    assertEq(
+      hooks.getPreviousLenderStatus(bob).lastApprovalTimestamp,
+      0,
+      'bob credential revoked'
+    );
     _requestWithdrawal(bob, 1e18);
   }
 
@@ -166,20 +193,17 @@ contract WithdrawalsTest is BaseMarketTest {
   /*                              queueFullWithdrawal()                             */
   /* -------------------------------------------------------------------------- */
 
-  function test_queueFullWithdrawal_NotApprovedLender() external {
-    if (!withdrawalRequiresAccess) return;
-    _deposit(alice, 1e18);
-    vm.prank(alice);
-    market.transfer(bob, 1e18);
-    vm.startPrank(bob);
-    vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
-    market.queueFullWithdrawal();
-  }
-
-  function test_queueFullWithdrawal_AuthorizedWithdrawOnly() public asAccount(bob) {
+  function test_queueFullWithdrawal_KnownLenderCanWithdrawAfterAccessRevoked() external {
+    _setUpWithdrawalRequiresAccessMarket();
+    assertFalse(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob already known');
     _deposit(bob, 1e18);
+    assertTrue(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob known lender');
     _deauthorizeLender(bob);
-    stopPrank();
+    assertEq(
+      hooks.getPreviousLenderStatus(bob).lastApprovalTimestamp,
+      0,
+      'bob credential revoked'
+    );
     _requestFullWithdrawal(bob);
   }
 

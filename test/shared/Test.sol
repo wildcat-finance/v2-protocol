@@ -510,6 +510,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     if (expectedHooksVersion == keccak256('OpenTermHooks')) {
       depositRequiresAccess = expectedConfig.useOnDeposit();
       transferRequiresAccess = expectedConfig.useOnTransfer();
+      withdrawalRequiresAccess = expectedConfig.useOnQueueWithdrawal();
       if (expectedConfig.useOnQueueWithdrawal()) {
         expectedConfig = expectedConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
       }
