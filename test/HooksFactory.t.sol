@@ -1467,9 +1467,8 @@ contract HooksFactoryTest is Test, Assertions {
 
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 0, type(uint256).max);
-
-    vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 0, 0);
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 0, 25);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 1, type(uint256).max);
@@ -1496,6 +1495,8 @@ contract HooksFactoryTest is Test, Assertions {
     address market = hooksFactory.deployMarket(parameters, '', bytes32(uint(1)), address(0), 0);
 
     hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 1_000);
+
+    hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 1, type(uint256).max);
 
     vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 2, 1);

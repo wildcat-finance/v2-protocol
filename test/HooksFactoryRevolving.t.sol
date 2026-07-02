@@ -501,9 +501,8 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
 
         hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate);
         hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
-
-        vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
         hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 0, 0);
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 0, 25);
 
         vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
         hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 1, type(uint256).max);
@@ -521,6 +520,8 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
         );
 
         hooksFactoryRevolving.updateHooksTemplateFees(hooksTemplate, feeRecipient, nullAddress, 0, 1_000);
+
+        hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 1, type(uint256).max);
 
         vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidPaginationRange.selector);
         hooksFactoryRevolving.pushProtocolFeeBipsUpdates(hooksTemplate, 2, 1);
