@@ -273,6 +273,17 @@ contract WildcatMarketRevolvingTest is Test {
         assertEq(revolvingMarket.drawnAmount(), 0);
     }
 
+    function test_borrow_afterOverRepay_clampsDrawnAmountToOutstandingDebt() external {
+        _deposit(lender, 1_000e18);
+        market.borrow(400e18);
+
+        market.repay(600e18);
+        assertEq(revolvingMarket.drawnAmount(), 0);
+
+        market.borrow(400e18);
+        assertEq(revolvingMarket.drawnAmount(), 200e18);
+    }
+
     function test_repay_interestOnlyDoesNotReduceDrawnAmount() external {
         _deposit(lender, 1_000e18);
         market.borrow(500e18);

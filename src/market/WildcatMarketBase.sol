@@ -404,7 +404,8 @@ contract WildcatMarketBase is
       );
   }
 
-  function _onBorrow(uint256 amount) internal virtual {
+  function _onBorrow(MarketState memory state, uint256 amount) internal virtual {
+    state;
     amount;
   }
 

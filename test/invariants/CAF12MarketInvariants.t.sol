@@ -585,13 +585,13 @@ contract CAF12RevolvingDrawnAmountHandler is ForgeTest {
     if (borrowable == 0) return;
 
     amount = bound(amount, 1, MathUtils.min(borrowable, 50_000e18));
-    uint256 drawnBefore = revolvingMarket.drawnAmount();
+    uint256 expectedDrawn = _expectedDrawnAfterBorrow(amount);
     (bool success, ) = _callAs(
       borrower,
       address(market),
       abi.encodeCall(WildcatMarket.borrow, (amount))
     );
-    if (success && revolvingMarket.drawnAmount() != drawnBefore + amount) {
+    if (success && revolvingMarket.drawnAmount() != expectedDrawn) {
       drawnFailureCount++;
     }
   }
@@ -600,9 +600,8 @@ contract CAF12RevolvingDrawnAmountHandler is ForgeTest {
     if (market.isClosed()) return;
 
     uint256 outstandingDebt = market.totalDebts().satSub(market.totalAssets());
-    if (outstandingDebt == 0) return;
 
-    amount = bound(amount, 1, MathUtils.min(outstandingDebt, 50_000e18));
+    amount = bound(amount, 1, _maxRepayWithSurplus(outstandingDebt));
     uint256 expectedDrawn = _expectedDrawnAfterRepay(amount);
 
     asset.mint(borrower, amount);
@@ -623,9 +622,8 @@ contract CAF12RevolvingDrawnAmountHandler is ForgeTest {
     if (market.isClosed()) return;
 
     uint256 outstandingDebt = market.totalDebts().satSub(market.totalAssets());
-    if (outstandingDebt == 0) return;
 
-    amount = bound(amount, 0, MathUtils.min(outstandingDebt, 50_000e18));
+    amount = bound(amount, 0, _maxRepayWithSurplus(outstandingDebt));
     uint256 expectedDrawn = amount == 0
       ? revolvingMarket.drawnAmount()
       : _expectedDrawnAfterRepay(amount);
@@ -700,6 +698,17 @@ contract CAF12RevolvingDrawnAmountHandler is ForgeTest {
     uint256 drawnBefore = revolvingMarket.drawnAmount();
     uint256 outstandingDebtBefore = market.totalDebts().satSub(market.totalAssets());
     return MathUtils.min(drawnBefore, outstandingDebtBefore.satSub(amount));
+  }
+
+  function _expectedDrawnAfterBorrow(uint256 amount) internal view returns (uint256) {
+    uint256 drawnBefore = revolvingMarket.drawnAmount();
+    uint256 assetsAfterBorrow = market.totalAssets().satSub(amount);
+    uint256 outstandingDebtAfterBorrow = market.currentState().totalDebts().satSub(assetsAfterBorrow);
+    return MathUtils.min(drawnBefore + amount, outstandingDebtAfterBorrow);
+  }
+
+  function _maxRepayWithSurplus(uint256 outstandingDebt) internal pure returns (uint256) {
+    return MathUtils.min(outstandingDebt, 49_000e18) + 1_000e18;
   }
 
   function _expectedScaleFactorAfterUpdate(

@@ -160,7 +160,7 @@ contract WildcatMarket is
     // Execute borrow hook if enabled
     hooks.onBorrow(amount, state);
 
-    _onBorrow(amount);
+    _onBorrow(state, amount);
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
     emit_Borrow(amount);
