@@ -212,6 +212,11 @@ contract Assertions is StdAssertions {
       expected.useOnSetProtocolFeeBips(),
       string.concat(labelPrefix, 'useOnSetProtocolFeeBips')
     );
+    assertEq(
+      actual.useOnExecutePendingAnnualInterestBipsReduction(),
+      expected.useOnExecutePendingAnnualInterestBipsReduction(),
+      string.concat(labelPrefix, 'useOnExecutePendingAnnualInterestBipsReduction')
+    );
   }
 
   function assertEq(HooksConfig actual, HooksConfig expected) internal {

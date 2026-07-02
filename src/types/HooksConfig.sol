@@ -41,6 +41,7 @@ uint256 constant Bit_Enabled_NukeFromOrbit = 88;
 uint256 constant Bit_Enabled_SetMaxTotalSupply = 87;
 uint256 constant Bit_Enabled_SetAnnualInterestAndReserveRatioBips = 86;
 uint256 constant Bit_Enabled_SetProtocolFeeBips = 85;
+uint256 constant Bit_Enabled_ExecutePendingAnnualInterestBipsReduction = 84;
 
 uint256 constant MarketStateSize = 0x01c0;
 
@@ -245,6 +246,13 @@ library LibHooksConfig {
   /// @dev Whether to call hook contract for setProtocolFeeBips
   function useOnSetProtocolFeeBips(HooksConfig hooks) internal pure returns (bool) {
     return hooks.readFlag(Bit_Enabled_SetProtocolFeeBips);
+  }
+
+  /// @dev Whether the market may call the dedicated periodic APR reduction executor.
+  function useOnExecutePendingAnnualInterestBipsReduction(
+    HooksConfig hooks
+  ) internal pure returns (bool) {
+    return hooks.readFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
   }
 
   // ========================================================================== //

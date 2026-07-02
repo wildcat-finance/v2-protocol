@@ -188,12 +188,15 @@ contract WildcatMarketConfig is WildcatMarketBase {
    *      borrower must have proposed the reduction through PeriodicTermHooks,
    *      the response withdrawal window must have elapsed, the proposal must not
    *      have expired, and all outstanding withdrawal obligations must be paid.
-   *      Non-periodic markets revert because their hooks do not implement the
-   *      periodic-term execution hook.
+   *      Non-periodic markets revert because their hooks config does not enable
+   *      the periodic-term execution hook.
    */
   function executePendingAnnualInterestBipsReduction() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_AprChangeOnClosedMarket();
+    if (!hooks.useOnExecutePendingAnnualInterestBipsReduction()) {
+      revert_ExecutePendingAprReductionNotEnabled();
+    }
 
     uint16 currentAnnualInterestBips = state.annualInterestBips;
     uint16 _annualInterestBips = IPeriodicTermAprReductionHooks(hooks.hooksAddress())

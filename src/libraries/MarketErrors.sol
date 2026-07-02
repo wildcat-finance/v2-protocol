@@ -41,6 +41,16 @@ function revert_AprReductionNotReduction() pure {
   }
 }
 
+uint256 constant ExecutePendingAprReductionNotEnabled_ErrorSelector = 0x52025ce9;
+
+/// @dev Equivalent to `revert ExecutePendingAprReductionNotEnabled()`
+function revert_ExecutePendingAprReductionNotEnabled() pure {
+  assembly {
+    mstore(0, 0x52025ce9)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant MarketAlreadyClosed_ErrorSelector = 0x449e5f50;
 
 /// @dev Equivalent to `revert MarketAlreadyClosed()`

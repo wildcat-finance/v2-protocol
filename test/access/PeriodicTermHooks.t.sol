@@ -365,7 +365,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
             useOnSetMaxTotalSupply: false,
             useOnSetAnnualInterestAndReserveRatioBips: true,
             useOnSetProtocolFeeBips: false
-        });
+        }).setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
         HookedMarket memory market = hooks.getHookedMarket(Market);
         assertEq(config, expectedConfig, "config");
         assertEq(market.isHooked, true, "isHooked");
@@ -393,7 +393,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
             useOnSetMaxTotalSupply: false,
             useOnSetAnnualInterestAndReserveRatioBips: true,
             useOnSetProtocolFeeBips: false
-        });
+        }).setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
         HookedMarket memory market = hooks.getHookedMarket(Market);
         assertEq(config, expectedConfig, "config");
         assertEq(market.transfersDisabled, true, "transfersDisabled");
@@ -447,8 +447,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     }
 
     function test_config() external {
-        StandardHooksDeploymentConfig memory expectedConfig;
-        expectedConfig.optional = StandardHooksConfig({
+        HooksConfig optionalFlags = StandardHooksConfig({
             hooksAddress: address(0),
             useOnDeposit: true,
             useOnQueueWithdrawal: false,
@@ -461,10 +460,13 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
             useOnSetMaxTotalSupply: false,
             useOnSetAnnualInterestAndReserveRatioBips: false,
             useOnSetProtocolFeeBips: false
-        });
-        expectedConfig.required.useOnSetAnnualInterestAndReserveRatioBips = true;
-        expectedConfig.required.useOnQueueWithdrawal = true;
-        expectedConfig.required.useOnCloseMarket = true;
+        }).toHooksConfig();
+        HooksConfig requiredFlags = EmptyHooksConfig
+            .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+            .setFlag(Bit_Enabled_QueueWithdrawal)
+            .setFlag(Bit_Enabled_CloseMarket)
+            .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
+        HooksDeploymentConfig expectedConfig = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
         assertEq(hooks.config(), expectedConfig, "config.");
     }
 
@@ -492,13 +494,13 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
             useOnSetAnnualInterestAndReserveRatioBips: false,
             useOnSetProtocolFeeBips: false
         });
-        StandardHooksConfig memory expectedConfig;
-        expectedConfig.hooksAddress = address(hooks);
-        expectedConfig.useOnQueueWithdrawal = true;
-        expectedConfig.useOnCloseMarket = true;
-        expectedConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
-        expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal || minimumDeposit > 0;
-        expectedConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
+        StandardHooksConfig memory expectedStandardConfig;
+        expectedStandardConfig.hooksAddress = address(hooks);
+        expectedStandardConfig.useOnQueueWithdrawal = true;
+        expectedStandardConfig.useOnCloseMarket = true;
+        expectedStandardConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
+        expectedStandardConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal || minimumDeposit > 0;
+        expectedStandardConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
 
         if (useOnQueueWithdrawal && !(useOnDeposit && useOnTransfer)) {
             vm.expectRevert(PeriodicTermHooks.InvalidAccessConfiguration.selector);
@@ -507,13 +509,16 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         }
 
         HooksConfig config = hooks.onCreateMarket(address(this), Market, inputs, _encodeHooksData(minimumDeposit));
+        HooksConfig expectedConfig = expectedStandardConfig.toHooksConfig().setFlag(
+            Bit_Enabled_ExecutePendingAnnualInterestBipsReduction
+        );
         assertEq(config, expectedConfig, "config");
         HookedMarket memory market = hooks.getHookedMarket(Market);
         assertEq(market.isHooked, true, "isHooked");
         assertEq(market.transferRequiresAccess, useOnTransfer, "transferRequiresAccess");
         assertEq(market.depositRequiresAccess, useOnDeposit, "depositRequiresAccess");
         assertEq(market.withdrawalRequiresAccess, useOnQueueWithdrawal, "withdrawalRequiresAccess");
-        assertEq(market.depositHookEnabled, expectedConfig.useOnDeposit, "depositHookEnabled");
+        assertEq(market.depositHookEnabled, expectedStandardConfig.useOnDeposit, "depositHookEnabled");
         assertEq(market.minimumDeposit, minimumDeposit, "minimumDeposit");
         assertEq(market.firstWithdrawalWindowStart, FirstWithdrawalWindowStart, "firstWithdrawalWindowStart");
         assertEq(market.periodDuration, PeriodDuration, "periodDuration");

@@ -11,7 +11,14 @@ contract MockPendingAprReductionHooks is MockHooks {
   uint16 public lastIntermediateAnnualInterestBips;
   uint16 public lastIntermediateReserveRatioBips;
 
-  constructor(address _caller, bytes memory _constructorArgs) MockHooks(_caller, _constructorArgs) {}
+  constructor(address _caller, bytes memory _constructorArgs) MockHooks(_caller, _constructorArgs) {
+    config = encodeHooksDeploymentConfig({
+      optionalFlags: config.optionalFlags(),
+      requiredFlags: config.requiredFlags().setFlag(
+        Bit_Enabled_ExecutePendingAnnualInterestBipsReduction
+      )
+    });
+  }
 
   function setPendingAnnualInterestBipsReduction(uint16 annualInterestBips) external {
     pendingAnnualInterestBipsReduction = annualInterestBips;
@@ -524,6 +531,11 @@ contract WildcatMarketConfigTest is BaseMarketTest {
       DefaultReserveRatio,
       'intermediate reserveRatioBips'
     );
+  }
+
+  function test_executePendingAnnualInterestBipsReduction_NotEnabled() external {
+    vm.expectRevert(IMarketEventsAndErrors.ExecutePendingAprReductionNotEnabled.selector);
+    market.executePendingAnnualInterestBipsReduction();
   }
 
   function test_executePendingAnnualInterestBipsReduction_NotReduction() external {

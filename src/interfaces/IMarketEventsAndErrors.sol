@@ -60,6 +60,8 @@ interface IMarketEventsAndErrors {
 
   error AprReductionNotReduction();
 
+  error ExecutePendingAprReductionNotEnabled();
+
   error CloseMarketWithUnpaidWithdrawals();
 
   error AnnualInterestBipsTooHigh();

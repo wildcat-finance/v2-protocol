@@ -157,7 +157,8 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     HooksConfig requiredFlags = EmptyHooksConfig
       .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
       .setFlag(Bit_Enabled_QueueWithdrawal)
-      .setFlag(Bit_Enabled_CloseMarket);
+      .setFlag(Bit_Enabled_CloseMarket)
+      .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
     config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
 
     if (args.length > 0) {
