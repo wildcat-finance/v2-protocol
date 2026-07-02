@@ -54,7 +54,7 @@ library MarketLiveDataLib {
         data.maxTotalSupply = state.maxTotalSupply;
         data.scaledTotalSupply = state.scaledTotalSupply;
         data.totalAssets = market.totalAssets();
-        data.lastAccruedProtocolFees = market.accruedProtocolFees();
+        data.lastAccruedProtocolFees = state.accruedProtocolFees;
         data.normalizedUnclaimedWithdrawals = state.normalizedUnclaimedWithdrawals;
         data.scaledPendingWithdrawals = state.scaledPendingWithdrawals;
         data.pendingWithdrawalExpiry = state.pendingWithdrawalExpiry;
