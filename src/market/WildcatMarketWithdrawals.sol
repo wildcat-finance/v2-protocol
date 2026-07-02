@@ -292,11 +292,16 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // Use an obfuscated constant for the base calldata size to prevent solc
     // function specialization.
-    if (repayAmount > 0) hooks.onRepay(repayAmount, state, _runtimeConstant(0x44));
-    if (repayAmount > 0) _onRepay(state, repayAmount);
+    uint256 currentTotalAssets;
+    if (repayAmount > 0) {
+      hooks.onRepay(repayAmount, state, _runtimeConstant(0x44));
+      currentTotalAssets = _onRepayAndGetTotalAssets(state, repayAmount);
+    } else {
+      currentTotalAssets = totalAssets();
+    }
 
     // Calculate assets available to process the first batch - will be updated after each batch
-    uint256 availableLiquidity = totalAssets().satSub(
+    uint256 availableLiquidity = currentTotalAssets.satSub(
       state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
     );
 

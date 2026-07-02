@@ -414,6 +414,14 @@ contract WildcatMarketBase is
     amount;
   }
 
+  function _onRepayAndGetTotalAssets(
+    MarketState memory state,
+    uint256 amount
+  ) internal virtual returns (uint256 currentTotalAssets) {
+    _onRepay(state, amount);
+    currentTotalAssets = totalAssets();
+  }
+
   function _onCloseMarket() internal virtual {}
 
   /**
