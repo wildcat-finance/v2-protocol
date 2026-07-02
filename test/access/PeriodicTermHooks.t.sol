@@ -400,6 +400,29 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         assertTrue(config.useOnTransfer(), "useOnTransfer");
     }
 
+    function test_onCreateMarket_InvalidAccessConfiguration() external {
+        DeployMarketInputs memory inputs;
+
+        inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(address(hooks));
+        vm.expectRevert(PeriodicTermHooks.InvalidAccessConfiguration.selector);
+        hooks.onCreateMarket(address(this), address(1), inputs, _encodeHooksData());
+
+        inputs.hooks = EmptyHooksConfig
+            .setFlag(Bit_Enabled_QueueWithdrawal)
+            .setFlag(Bit_Enabled_Deposit)
+            .setHooksAddress(address(hooks));
+        vm.expectRevert(PeriodicTermHooks.InvalidAccessConfiguration.selector);
+        hooks.onCreateMarket(address(this), address(2), inputs, _encodeHooksData());
+
+        HooksConfig config = hooks.onCreateMarket(address(this), address(3), inputs, _encodeHooksData(0, true));
+        HookedMarket memory market = hooks.getHookedMarket(address(3));
+        assertTrue(config.useOnTransfer(), "useOnTransfer");
+        assertEq(market.depositRequiresAccess, true, "depositRequiresAccess");
+        assertEq(market.transferRequiresAccess, false, "transferRequiresAccess");
+        assertEq(market.withdrawalRequiresAccess, true, "withdrawalRequiresAccess");
+        assertEq(market.transfersDisabled, true, "transfersDisabled");
+    }
+
     function test_onTransfer_TransfersDisabled() external {
         _createMarket(EmptyHooksConfig, _encodeHooksData(1e18, true));
         vm.expectRevert(PeriodicTermHooks.TransfersDisabled.selector);
@@ -476,6 +499,12 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
         expectedConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
         expectedConfig.useOnDeposit = useOnDeposit || useOnQueueWithdrawal || minimumDeposit > 0;
         expectedConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
+
+        if (useOnQueueWithdrawal && !(useOnDeposit && useOnTransfer)) {
+            vm.expectRevert(PeriodicTermHooks.InvalidAccessConfiguration.selector);
+            hooks.onCreateMarket(address(this), Market, inputs, _encodeHooksData(minimumDeposit));
+            return;
+        }
 
         HooksConfig config = hooks.onCreateMarket(address(this), Market, inputs, _encodeHooksData(minimumDeposit));
         assertEq(config, expectedConfig, "config");
@@ -613,7 +642,12 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     }
 
     function test_onQueueWithdrawal_WithdrawalRequiresAccess() external {
-        _createMarket(EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal), _encodeHooksData());
+        _createMarket(
+            EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setFlag(Bit_Enabled_Deposit).setFlag(
+                Bit_Enabled_Transfer
+            ),
+            _encodeHooksData()
+        );
         vm.warp(FirstWithdrawalWindowStart);
         MarketState memory state;
 

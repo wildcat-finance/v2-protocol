@@ -92,6 +92,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   error NotHookedMarket();
   error DepositBelowMinimum();
   error TransfersDisabled();
+  error InvalidAccessConfiguration();
   error PeriodicWindowNotProvided();
   error InitialWithdrawalWindowTooFarInFuture();
   error PeriodDurationOutOfBounds();
@@ -272,6 +273,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       periodDuration,
       withdrawalWindowDuration
     );
+
+    if (hookedMarket.withdrawalRequiresAccess) {
+      if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
+      if (!hookedMarket.transfersDisabled && !hookedMarket.transferRequiresAccess) {
+        revert InvalidAccessConfiguration();
+      }
+    }
 
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
