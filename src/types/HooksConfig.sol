@@ -248,7 +248,7 @@ library LibHooksConfig {
     return hooks.readFlag(Bit_Enabled_SetProtocolFeeBips);
   }
 
-  /// @dev Whether the market may call the dedicated periodic APR reduction executor.
+  /// @dev Whether to call hook contract for executePendingAnnualInterestBipsReduction
   function useOnExecutePendingAnnualInterestBipsReduction(
     HooksConfig hooks
   ) internal pure returns (bool) {

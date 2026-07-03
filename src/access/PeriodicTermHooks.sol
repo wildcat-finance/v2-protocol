@@ -10,13 +10,13 @@ using MathUtils for uint256;
 using SafeCastLib for uint256;
 
 /**
- * @dev Sized to fit one storage slot (31 bytes): the hot hooks (deposit,
- *      transfer, queueWithdrawal) load the whole struct on every call, and the
- *      open/fixed templates' equivalents are single-slot. `minimumDeposit` is
- *      uint96 (max ~7.9e28) rather than uint128 to stay under 32 bytes; the
- *      external `setMinimumDeposit(address,uint128)` signature and the
- *      `MinimumDepositUpdated(address,uint128)` event are unchanged, with a
- *      checked downcast at the boundary.
+ * @dev sized to fit one storage slot (31 bytes)
+ *      hooks (deposit, transfer, queueWithdrawal) load the whole struct
+ *      open/fixed templates' equivalents are single-slot.
+ *      `minimumDeposit` is uint96 (max ~7.9e28) to stay under 32 bytes
+ *      external `setMinimumDeposit(address,uint128)` signature unchanged
+ *      `MinimumDepositUpdated(address,uint128)` event unchanged
+ *      checked downcast at the boundary
  */
 struct HookedMarket {
   bool isHooked;
@@ -38,12 +38,11 @@ struct PendingAprChange {
 }
 
 /**
- * @dev Storage layout for pending APR reduction proposals. The response window
- *      is stored at proposal time rather than recomputed at execution so the
- *      proposal is self-contained and would survive any future change to term
- *      mutability. Kept separate from `PendingAprChange` so the external ABI of
+ * @dev Storage layout for pending APR reduction proposals. Fits one slot.
+ *      Response window bounds are fixed at proposal time.
+ *      Kept separate from `PendingAprChange` so the external ABI of
  *      `pendingAprChanges` and `getPendingAprChange` is unchanged from the
- *      first template version. Fits one storage slot.
+ *      first template version.
  */
 struct PendingAprChangeStorage {
   uint16 annualInterestBips;
@@ -61,6 +60,11 @@ interface IMarketApr {
  * @dev Hooks contract for markets where withdrawals may only be queued during
  *      a recurring scheduled window. Withdrawal batches still expire using
  *      the market's immutable `withdrawalBatchDuration`.
+ *
+ *      APR reductions must be proposed in advance: lenders have the next
+ *      withdrawal window to exit in response, and the reduction is only
+ *      applied after that window ends, before the proposal expires and with
+ *      no unpaid withdrawal batches outstanding.
  */
 contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   // ========================================================================== //
@@ -172,19 +176,15 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   }
 
   /**
-   * @dev Discriminates template revisions. `version()` is pinned to
-   *      'PeriodicTermHooks' because the subgraph matches templates and
-   *      instances by that exact string; this constant identifies which
-   *      revision of the template an instance was deployed from.
+   * @dev Template revision. `version()` stays 'PeriodicTermHooks' because
+   *      the subgraph matches templates by that exact string.
    */
   function templateVersion() external pure returns (uint256) {
     return 2;
   }
 
-  /**
-   * @dev ABI-compatible replacement for the public-mapping getter from the
-   *      first template version (same selector and return shape).
-   */
+  /// @dev Same selector and return shape as the public-mapping getter
+  ///      from the first template version.
   function pendingAprChanges(
     address market
   ) external view returns (uint16 annualInterestBips, uint32 proposalTimestamp) {
@@ -192,22 +192,22 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     return (pendingAprChange.annualInterestBips, pendingAprChange.proposalTimestamp);
   }
 
-  function _readBoolCd(bytes calldata data, uint256 offset) internal pure returns (bool value) {
+  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
     assembly {
       value := and(calldataload(add(data.offset, offset)), 1)
     }
   }
 
-  function _readUint32Cd(bytes calldata data, uint256 offset) internal pure returns (uint32 value) {
-    uint256 _value;
+  function _readUint32Cd(bytes calldata data, uint offset) internal pure returns (uint32 value) {
+    uint _value;
     assembly {
       _value := calldataload(add(data.offset, offset))
     }
     return _value.toUint32();
   }
 
-  function _readUint96Cd(bytes calldata data, uint256 offset) internal pure returns (uint96 value) {
-    uint256 _value;
+  function _readUint96Cd(bytes calldata data, uint offset) internal pure returns (uint96 value) {
+    uint _value;
     assembly {
       _value := calldataload(add(data.offset, offset))
     }
@@ -217,6 +217,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   /**
    * @dev Called when market is deployed using this contract as its `hooks`.
    *
+   *     @param deployer      Address of the account that called the factory - must
+   *                          match the borrower address.
+   *     @param marketAddress Address of the market being deployed.
+   *     @param parameters    Parameters used to deploy the market.
+   *     @param hooksData     Extra data passed to the market deployment function containing
+   *                          the parameters for the hooks.
+   *
    *     `hooksData` is a tuple of (
    *        uint32 firstWithdrawalWindowStart,
    *        uint32 periodDuration,
@@ -224,6 +231,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
    *        uint128? minimumDeposit,
    *        bool? transfersDisabled
    *     )
+   *     Where only the first three parameters are mandatory.
    *
    *      Withdrawal windows begin at `firstWithdrawalWindowStart` and recur
    *      every `periodDuration` seconds.
@@ -253,7 +261,19 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       withdrawalWindowDuration,
       block.timestamp
     );
+    emit PeriodicTermUpdated(
+      marketAddress,
+      firstWithdrawalWindowStart,
+      periodDuration,
+      withdrawalWindowDuration
+    );
 
+    // Use the deposit and transfer flags to determine whether those require
+    // access control. These are tracked separately because if the market
+    // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
+    // enabled, but may not require access control.
+    // If the calldata does not contain sufficient bytes for an optional
+    // parameter, it will be read as zero.
     HookedMarket memory hookedMarket = HookedMarket({
       isHooked: true,
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
@@ -267,14 +287,6 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       transfersDisabled: _readBoolCd(hooksData, 0x80),
       isClosed: false
     });
-
-    emit PeriodicTermUpdated(
-      marketAddress,
-      firstWithdrawalWindowStart,
-      periodDuration,
-      withdrawalWindowDuration
-    );
-
     if (hookedMarket.withdrawalRequiresAccess) {
       if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
       if (!hookedMarket.transfersDisabled && !hookedMarket.transferRequiresAccess) {
@@ -418,21 +430,6 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     return timeInPeriod < market.withdrawalWindowDuration;
   }
 
-  function _getCurrentOrNextWithdrawalWindowStart(
-    uint32 firstWithdrawalWindowStart,
-    uint32 periodDuration,
-    uint32 withdrawalWindowDuration,
-    uint256 timestamp
-  ) internal pure returns (uint256 windowStart) {
-    if (timestamp < firstWithdrawalWindowStart) return firstWithdrawalWindowStart;
-
-    uint256 timeInPeriod = (timestamp - firstWithdrawalWindowStart) % periodDuration;
-    windowStart = timestamp - timeInPeriod;
-    if (timeInPeriod >= withdrawalWindowDuration) {
-      windowStart += periodDuration;
-    }
-  }
-
   function _getNextWithdrawalWindowStart(
     HookedMarket memory market,
     uint256 timestamp
@@ -462,13 +459,10 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       revert WithdrawalWindowDurationOutOfBounds();
     }
 
-    uint256 nextWindowStart = _getCurrentOrNextWithdrawalWindowStart(
-      firstWithdrawalWindowStart,
-      periodDuration,
-      withdrawalWindowDuration,
-      currentTimestamp
-    );
-    if (nextWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
+    // Once the schedule has started a window always begins within one period,
+    // and periods are capped at the maximum delay, so only a future
+    // `firstWithdrawalWindowStart` can push the first window too far out.
+    if (firstWithdrawalWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
       revert InitialWithdrawalWindowTooFarInFuture();
     }
   }
@@ -477,28 +471,40 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                                    Hooks                                   //
   // ========================================================================== //
 
+  /**
+   * @dev Called when a lender attempts to deposit.
+   *      Passes the check if the deposit amount is at least the minimum deposit
+   *      amount, the lender is not blocked from depositing, and either the lender
+   *      has a valid credential or the market does not require access for deposits.
+   */
   function onDeposit(
     address lender,
-    uint256 scaledAmount,
+    uint scaledAmount,
     MarketState calldata state,
     bytes calldata hooksData
   ) external override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
 
+    // Retrieve the lender's status from storage
     LenderStatus memory status = _lenderStatus[lender];
 
+    // Check that the lender is not blocked
     if (status.isBlockedFromDeposits) revert NotApprovedLender();
 
-    // Skip normalization when no minimum is set (deposit hook enabled for
-    // access control only) — the comparison against zero cannot fail.
+    // Check that the deposit amount is at or above the market's minimum.
+    // Skips the normalization mul when no minimum is set (deposit hook
+    // enabled for access control only).
     if (market.minimumDeposit > 0) {
-      uint256 normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
+      uint normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
       if (market.minimumDeposit > normalizedAmount) {
         revert DepositBelowMinimum();
       }
     }
 
+    // Attempt to validate the lender's access
+    // Uses the inner method here as storage may need to be updated if this
+    // is their first deposit
     (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(
       status,
       lender,
@@ -512,19 +518,25 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
   }
 
+  /**
+   * @dev Called when a lender attempts to queue a withdrawal.
+   *      Reverts if the market is open and no withdrawal window is active.
+   *      If the market requires access for withdrawals, passes the check if
+   *      the lender is a known lender or has a valid credential from an
+   *      approved role provider.
+   */
   function onQueueWithdrawal(
     address lender,
-    uint32,
-    /* expiry */
-    uint256,
-    /* scaledAmount */
+    uint32 /* expiry */,
+    uint /* scaledAmount */,
     MarketState calldata state,
     bytes calldata hooksData
   ) external override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
-    if (!state.isClosed && !_isWithdrawalWindowOpen(market, block.timestamp))
+    if (!state.isClosed && !_isWithdrawalWindowOpen(market, block.timestamp)) {
       revert WithdrawOutsideWindow();
+    }
 
     if (market.withdrawalRequiresAccess) {
       LenderStatus memory status = _lenderStatus[lender];
@@ -536,26 +548,35 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     }
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onExecuteWithdrawal(
-    address,
-    /* lender */
-    uint128,
-    /* normalizedAmountWithdrawn */
-    MarketState calldata,
-    /* state */
+    address /* lender */,
+    uint128 /* normalizedAmountWithdrawn */,
+    MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Called when a lender attempts to transfer market tokens on a market
+   *      that requires credentials for either transfers or withdrawals.
+   *
+   *      Allows the transfer if the recipient:
+   *      - is a known lender OR
+   *      - is not blocked AND
+   *        - has a valid credential OR
+   *        - market does not require a credential for transfers
+   *
+   *    If the recipient is not a known lender but does have a valid
+   *    credential, they will be marked as a known lender.
+   */
   function onTransfer(
-    address,
-    /* caller */
-    address,
-    /* from */
+    address /* caller */,
+    address /* from */,
     address to,
-    uint256,
-    /* scaledAmount */
-    MarketState calldata,
-    /* state */
+    uint /* scaledAmount */,
+    MarketState calldata /* state */,
     bytes calldata extraData
   ) external override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
@@ -566,12 +587,18 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       revert TransfersDisabled();
     }
 
+    // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {
       LenderStatus memory toStatus = _lenderStatus[to];
+      // Respect `isBlockedFromDeposits` only if the recipient is not a known lender
       if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
 
+      // Attempt to validate the lender's access even if the market does not require
+      // a credential for transfers, as the recipient may need to be updated to reflect
+      // their new status as a known lender.
       (bool hasValidCredential, bool wasUpdated) = _tryValidateAccessInner(toStatus, to, extraData);
 
+      // Revert if the recipient does not have a valid credential and the market requires one
       if (market.transferRequiresAccess.and(!hasValidCredential)) {
         revert NotApprovedLender();
       }
@@ -580,32 +607,33 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     }
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onBorrow(
-    uint256,
-    /* normalizedAmount */
-    MarketState calldata,
-    /* state */
+    uint /* normalizedAmount */,
+    MarketState calldata /* state */,
     bytes calldata /* extraData */
   ) external override {}
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onRepay(
-    uint256,
-    /* normalizedAmount */
-    MarketState calldata,
-    /* state */
+    uint /* normalizedAmount */,
+    MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
   function onCloseMarket(
-    MarketState calldata,
-    /* state */
+    MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {
     HookedMarket storage market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
     market.isClosed = true;
-    // A closed market can never execute an APR change, so a pending reduction
-    // proposal would otherwise linger in storage (and indexed state) forever.
+    // A closed market can never execute an APR change, so cancel any pending
+    // reduction proposal rather than leave it in storage forever.
     if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
       delete _pendingAprChanges[msg.sender];
       emit AnnualInterestBipsReductionProposalCancelled(msg.sender);
@@ -613,22 +641,30 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     emit PeriodicTermClosed(msg.sender);
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onNukeFromOrbit(
-    address,
-    /* lender */
-    MarketState calldata,
-    /* state */
+    address /* lender */,
+    MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onSetMaxTotalSupply(
-    uint256,
-    /* maxTotalSupply */
-    MarketState calldata,
-    /* state */
+    uint256 /* maxTotalSupply */,
+    MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Applies a pending APR reduction proposal for the market (msg.sender).
+   *      Reverts unless `annualInterestBips` matches the proposal, the response
+   *      window has ended, the proposal has not expired and there are no
+   *      unpaid withdrawal batches.
+   */
   function _executePendingAnnualInterestBipsReduction(
     HookedMarket memory hookedMarket,
     MarketState calldata intermediateState,
@@ -666,6 +702,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     updatedAnnualInterestBips = annualInterestBips;
   }
 
+  /**
+   * @dev Called when the market's permissionless
+   *      `executePendingAnnualInterestBipsReduction` is invoked, letting
+   *      anyone apply a matured reduction proposal without the borrower
+   *      calling `setAnnualInterestAndReserveRatioBips`.
+   */
   function executePendingAnnualInterestBipsReduction(
     MarketState calldata intermediateState
   ) external returns (uint16 annualInterestBips) {
@@ -680,6 +722,11 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     );
   }
 
+  /**
+   * @dev Called when the borrower changes the market's APR or reserve ratio.
+   *      An increase cancels any pending reduction proposal; a reduction must
+   *      execute a matured proposal; an unchanged APR defers to the parent.
+   */
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
@@ -693,16 +740,9 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   {
     HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
-    // Note: this duplicates the range assert in the parent hook for the
-    // increase/equal paths, but it is the only live range check on the
-    // reduction path below, which returns before reaching the parent.
-    assertValueInRange(
-      annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
-      AnnualInterestBipsOutOfBounds.selector
-    );
 
+    // Range checks: increase/equal paths assert in the parent hook,
+    // the reduction path asserts in the execution function.
     if (annualInterestBips > intermediateState.annualInterestBips) {
       if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
         delete _pendingAprChanges[msg.sender];
@@ -728,11 +768,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
       );
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onSetProtocolFeeBips(
-    uint16,
-    /* protocolFeeBips */
-    MarketState memory,
-    /* intermediateState */
+    uint16 /* protocolFeeBips */,
+    MarketState memory /* intermediateState */,
     bytes calldata /* extraData */
   ) external override {}
 }
