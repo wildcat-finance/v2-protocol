@@ -51,7 +51,9 @@ contract HooksFactoryRevolving is
   using LibERC20 for address;
 
   TransientBytesArray internal constant _tmpMarketParameters =
-    TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketParameterStorage')) - 1);
+    TransientBytesArray.wrap(
+      uint256(keccak256('Transient:TmpRevolvingMarketParameterStorage')) - 1
+    );
 
   TransientBytesArray internal constant _tmpRevolvingMarketData =
     TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketData')) - 1);
@@ -663,13 +665,14 @@ contract HooksFactoryRevolving is
     if (hooksTemplate == address(0)) {
       revert HooksInstanceNotFound();
     }
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
-      hooksTemplate: hooksTemplate,
-      salt: salt,
-      originationFeeAsset: originationFeeAsset,
-      originationFeeAmount: originationFeeAmount,
-      commitmentFeeBips: commitmentFeeBips
-    });
+    DeployRevolvingMarketRuntimeParameters
+      memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
+        hooksTemplate: hooksTemplate,
+        salt: salt,
+        originationFeeAsset: originationFeeAsset,
+        originationFeeAmount: originationFeeAmount,
+        commitmentFeeBips: commitmentFeeBips
+      });
     market = _deployMarket(parameters, hooksData, runtimeParams);
   }
 
@@ -686,13 +689,14 @@ contract HooksFactoryRevolving is
     if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
       revert NotApprovedBorrower();
     }
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
-      hooksTemplate: hooksTemplate,
-      salt: salt,
-      originationFeeAsset: originationFeeAsset,
-      originationFeeAmount: originationFeeAmount,
-      commitmentFeeBips: _decodeMarketData(marketData)
-    });
+    DeployRevolvingMarketRuntimeParameters
+      memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
+        hooksTemplate: hooksTemplate,
+        salt: salt,
+        originationFeeAsset: originationFeeAsset,
+        originationFeeAmount: originationFeeAmount,
+        commitmentFeeBips: _decodeMarketData(marketData)
+      });
     // `_deployHooksInstance` reverts if the template does not exist or is disabled.
     hooksInstance = _deployHooksInstance(hooksTemplate, hooksConstructorArgs);
     DeployMarketInputs memory marketInputs = parameters;
