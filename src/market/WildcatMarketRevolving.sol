@@ -5,6 +5,12 @@ import '../IHooksFactoryRevolving.sol';
 import '../interfaces/IWildcatMarketRevolving.sol';
 import './WildcatMarket.sol';
 
+/**
+ * @title WildcatMarketRevolving
+ * @dev Market for revolving credit facilities. Tracks the amount the borrower
+ *      has drawn and accrues the commitment fee on the full supply plus the
+ *      market APR on the drawn portion only.
+ */
 contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   using MathUtils for uint256;
   using SafeCastLib for uint256;
@@ -14,9 +20,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   uint128 internal _drawnAmount;
 
   constructor() {
-    // NOTE(rcf-v2): Using a direct Solidity interface call for constructor-time
-    // deployment metadata retrieval. This can be replaced with a Yul staticcall
-    // in a follow-up optimization pass if necessary.
+    // Read the commitment fee from the factory's transient deployment data.
     _commitmentFeeBips = IHooksFactoryRevolving(msg.sender).getRevolvingMarketCommitmentFeeBips();
   }
 
@@ -28,6 +32,12 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     return _drawnAmount;
   }
 
+  /**
+   * @dev Cap the drawn amount at the market's outstanding debt so that
+   *      borrowing against assets the borrower provided themselves (e.g.
+   *      an earlier over-repayment) does not accrue lender interest.
+   *      `totalAssets()` has not yet been reduced by the borrowed amount.
+   */
   function _onBorrow(MarketState memory state, uint256 amount) internal virtual override {
     uint256 assetsAfterBorrow = totalAssets().satSub(amount);
     uint256 outstandingDebt = state.totalDebts().satSub(assetsAfterBorrow);
@@ -48,6 +58,8 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _updateDrawnAmountAfterRepay(state, currentTotalAssets);
   }
 
+  /// @dev Repayments reduce the drawn amount to at most the remaining
+  ///      outstanding debt. `currentTotalAssets` includes the repaid amount.
   function _updateDrawnAmountAfterRepay(
     MarketState memory state,
     uint256 currentTotalAssets
@@ -60,6 +72,15 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _drawnAmount = 0;
   }
 
+  /**
+   * @dev Base interest rate for a revolving market:
+   *
+   *      commitmentFee + annualInterest * min(drawnAmount, totalSupply) / totalSupply
+   *
+   *      Unlike the standard market, no interest accrues while the market is
+   *      closed or has no supply, as the commitment fee would otherwise
+   *      accrue with no lenders to owe it to.
+   */
   function _calculateRevolvingBaseInterest(
     MarketState memory state,
     uint256 timestamp
@@ -83,6 +104,8 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     }
   }
 
+  /// @dev Identical to `FeeMath.updateScaleFactorAndFees` except that the
+  ///      base interest rate uses the revolving calculation above.
   function _updateScaleFactorAndFees(
     MarketState memory state,
     uint256 timestamp

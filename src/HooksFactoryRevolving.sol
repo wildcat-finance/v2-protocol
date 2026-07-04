@@ -31,10 +31,10 @@ struct TmpRevolvingMarketParameterStorage {
   HooksConfig hooks;
 }
 
-struct TmpRevolvingMarketData {
-  uint16 commitmentFeeBips;
-}
-
+/**
+ * @dev Deployment parameters that are not part of `DeployMarketInputs`,
+ *      bundled to avoid stack-too-deep in `_deployMarket`.
+ */
 struct DeployRevolvingMarketRuntimeParameters {
   address hooksTemplate;
   bytes32 salt;
@@ -56,14 +56,11 @@ contract HooksFactoryRevolving is
   TransientBytesArray internal constant _tmpRevolvingMarketData =
     TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketData')) - 1);
 
-  uint256 internal constant _MARKET_DATA_WORD_LENGTH = 0x40;
+  /// @dev Length of `abi.encode(uint8 version, uint16 commitmentFeeBips)`
+  uint256 internal constant _MARKET_DATA_LENGTH = 0x40;
 
   uint8 internal constant _MARKET_DATA_VERSION = 1;
 
-  // NOTE(rcf-v2): Commitment fee bounds are enforced here at factory decode-time.
-  // Legacy hook-based min/max constraint plumbing is not reused in this rollout
-  // without widening hook interfaces/config paths. Keep this local bound for now;
-  // if shared bounds are reintroduced later, move to a single shared source.
   uint16 internal constant _MAX_COMMITMENT_FEE_BIPS = 10_000;
 
   uint256 internal immutable ownCreate2Prefix = LibStoredInitCode.getCreate2Prefix(address(this));
@@ -74,10 +71,10 @@ contract HooksFactoryRevolving is
 
   address public immutable override sanctionsSentinel;
 
+  /**
+   * @dev Return the contract name "WildcatHooksFactoryRevolving"
+   */
   function name() external pure override returns (string memory) {
-    // NOTE(rcf-v2): Legacy `HooksFactory.name()` uses a Yul implementation for
-    // size/gas micro-optimization. Keep this readable Solidity form during
-    // rollout bring-up, then consider parity optimization in a follow-up.
     return 'WildcatHooksFactoryRevolving';
   }
 
@@ -105,8 +102,7 @@ contract HooksFactoryRevolving is
 
   mapping(address hooksInstance => address hooksTemplate)
     public
-    override
-    getHooksTemplateForInstance;
+    override getHooksTemplateForInstance;
 
   constructor(
     address archController_,
@@ -140,6 +136,9 @@ contract HooksFactoryRevolving is
   //                          Internal Storage Helpers                          //
   // ========================================================================== //
 
+  /**
+   * @dev Get the temporary market parameters from transient storage.
+   */
   function _getTmpMarketParameters()
     internal
     view
@@ -148,20 +147,25 @@ contract HooksFactoryRevolving is
     return abi.decode(_tmpMarketParameters.read(), (TmpRevolvingMarketParameterStorage));
   }
 
+  /**
+   * @dev Set the temporary market parameters in transient storage.
+   */
   function _setTmpMarketParameters(TmpRevolvingMarketParameterStorage memory parameters) internal {
     _tmpMarketParameters.write(abi.encode(parameters));
   }
 
-  function _setTmpRevolvingMarketData(TmpRevolvingMarketData memory data) internal {
-    _tmpRevolvingMarketData.write(abi.encode(data));
+  /**
+   * @dev Set the temporary commitment fee in transient storage.
+   */
+  function _setTmpCommitmentFeeBips(uint16 commitmentFeeBips) internal {
+    _tmpRevolvingMarketData.write(abi.encode(commitmentFeeBips));
   }
 
-  function _getTmpRevolvingMarketData()
-    internal
-    view
-    returns (TmpRevolvingMarketData memory data)
-  {
-    return abi.decode(_tmpRevolvingMarketData.read(), (TmpRevolvingMarketData));
+  /**
+   * @dev Get the temporary commitment fee from transient storage.
+   */
+  function _getTmpCommitmentFeeBips() internal view returns (uint16 commitmentFeeBips) {
+    return abi.decode(_tmpRevolvingMarketData.read(), (uint16));
   }
 
   // ========================================================================== //
@@ -231,6 +235,10 @@ contract HooksFactoryRevolving is
     }
   }
 
+  /// @dev Update the fees for a hooks template
+  /// Note: The new fee structure will apply to all NEW markets created with existing
+  ///       or future instances of the hooks template, and the protocol fee can be pushed
+  ///       to existing markets using `pushProtocolFeeBipsUpdates`.
   function updateHooksTemplateFees(
     address hooksTemplate,
     address feeRecipient,
@@ -260,6 +268,8 @@ contract HooksFactoryRevolving is
     if (!_templateDetails[hooksTemplate].exists) {
       revert HooksTemplateNotFound();
     }
+    // The template is only disabled, not removed: `exists` stays true, so it
+    // can not be re-added and there is no re-enable path.
     _templateDetails[hooksTemplate].enabled = false;
     emit HooksTemplateDisabled(hooksTemplate);
   }
@@ -328,6 +338,10 @@ contract HooksFactoryRevolving is
   //                               Hooks Instances                              //
   // ========================================================================== //
 
+  /// @dev Deploy a hooks instance for an approved template with constructor args.
+  ///      Callable by approved borrowers on the arch-controller.
+  ///      Origination fees are not charged here; they are paid when a market
+  ///      is deployed with the instance.
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
@@ -372,14 +386,21 @@ contract HooksFactoryRevolving is
       salt := or(shl(96, caller()), numHooksForBorrower)
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(hooksTemplate), 1)
+      // Copy code from target address to memory starting at byte 1
       extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
+      // Write the address of the caller as the first parameter
       mstore(endInitCodePointer, caller())
+      // Write the offset to the encoded constructor args
       mstore(add(endInitCodePointer, 0x20), 0x40)
+      // Write the length of the encoded constructor args
       let constructorArgsSize := constructorArgs.length
       mstore(add(endInitCodePointer, 0x40), constructorArgsSize)
+      // Copy constructor args to initcode after the bytes length
       calldatacopy(add(endInitCodePointer, 0x60), constructorArgs.offset, constructorArgsSize)
+      // Get the full size of the initcode with the constructor args
       let initCodeSizeWithArgs := add(add(initCodeSize, 0x60), constructorArgsSize)
+      // Deploy the contract with the initcode
       hooksInstance := create2(0, initCodePointer, initCodeSizeWithArgs, salt)
       if iszero(hooksInstance) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
@@ -387,6 +408,7 @@ contract HooksFactoryRevolving is
       }
     }
     _hooksInstancesByBorrower[msg.sender].push(hooksInstance);
+
     emit HooksInstanceDeployed(hooksInstance, hooksTemplate);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
@@ -422,6 +444,10 @@ contract HooksFactoryRevolving is
     return _marketsByHooksInstance[hooksInstance].length;
   }
 
+  /**
+   * @dev Get the temporarily stored market parameters for a market that is
+   *      currently being deployed.
+   */
   function getMarketParameters()
     external
     view
@@ -429,6 +455,7 @@ contract HooksFactoryRevolving is
     returns (MarketParameters memory parameters)
   {
     TmpRevolvingMarketParameterStorage memory tmp = _getTmpMarketParameters();
+
     parameters.asset = tmp.asset;
     parameters.packedNameWord0 = tmp.packedNameWord0;
     parameters.packedNameWord1 = tmp.packedNameWord1;
@@ -454,22 +481,36 @@ contract HooksFactoryRevolving is
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
   }
 
+  /**
+   * @dev Given a string of at most 63 bytes, produces a packed version with two words,
+   *      where the first word contains the length byte and the first 31 bytes of the string,
+   *      and the second word contains the second 32 bytes of the string.
+   */
   function _packString(string memory str) internal pure returns (bytes32 word0, bytes32 word1) {
     assembly {
       let length := mload(str)
+      // Equivalent to:
+      // if (str.length > 63) revert NameOrSymbolTooLong();
       if gt(length, 0x3f) {
         mstore(0, 0x19a65cb6)
         revert(0x1c, 0x04)
       }
+      // Load the length and first 31 bytes of the string into the first word
+      // by reading from 31 bytes after the length pointer.
       word0 := mload(add(str, 0x1f))
+      // If the string is less than 32 bytes, the second word will be zeroed out.
       word1 := mul(mload(add(str, 0x3f)), gt(mload(str), 0x1f))
     }
   }
 
-  function _decodeMarketData(bytes calldata marketData) internal pure returns (uint16 commitmentFeeBips) {
-    // NOTE(rcf-v2): Intentionally using Solidity `abi.decode` for readability.
-    // If needed, this can be replaced with a Yul decoder in a follow-up pass.
-    if (marketData.length != _MARKET_DATA_WORD_LENGTH) {
+  /**
+   * @dev Decode the factory-owned `marketData` provided to the deployment
+   *      functions, currently `abi.encode(uint8 version, uint16 commitmentFeeBips)`.
+   */
+  function _decodeMarketData(
+    bytes calldata marketData
+  ) internal pure returns (uint16 commitmentFeeBips) {
+    if (marketData.length != _MARKET_DATA_LENGTH) {
       revert InvalidMarketData();
     }
 
@@ -526,7 +567,6 @@ contract HooksFactoryRevolving is
       marketInitCodeHash
     );
 
-    // NOTE(rcf-v2): `hooksData` remains hook-owned and is forwarded unchanged.
     parameters.hooks = IHooks(hooksInstance).onCreateMarket(
       msg.sender,
       market,
@@ -562,14 +602,15 @@ contract HooksFactoryRevolving is
     }
 
     _setTmpMarketParameters(tmp);
-    _setTmpRevolvingMarketData(
-      TmpRevolvingMarketData({ commitmentFeeBips: runtimeParams.commitmentFeeBips })
-    );
+    _setTmpCommitmentFeeBips(runtimeParams.commitmentFeeBips);
 
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
     }
-    if (LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) != market) {
+    if (
+      LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) !=
+      market
+    ) {
       revert MarketDeploymentAddressMismatch();
     }
 
@@ -597,67 +638,13 @@ contract HooksFactoryRevolving is
     );
   }
 
-  function _deployMarketValidated(
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount,
-    uint16 commitmentFeeBips
-  ) internal returns (address market) {
-    address hooksInstance = parameters.hooks.hooksAddress();
-    address hooksTemplate = getHooksTemplateForInstance[hooksInstance];
-    if (hooksTemplate == address(0)) {
-      revert HooksInstanceNotFound();
-    }
-
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams =
-      _buildRuntimeParams(hooksTemplate, salt, originationFeeAsset, originationFeeAmount, commitmentFeeBips);
-
-    market = _deployMarket(parameters, hooksData, runtimeParams);
-  }
-
-  function _deployMarketAndHooksValidated(
-    address hooksTemplate,
-    bytes calldata hooksConstructorArgs,
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount,
-    uint16 commitmentFeeBips
-  ) internal returns (address market, address hooksInstance) {
-    if (!_templateDetails[hooksTemplate].exists) {
-      revert HooksTemplateNotFound();
-    }
-
-    hooksInstance = _deployHooksInstance(hooksTemplate, hooksConstructorArgs);
-    DeployMarketInputs memory marketInputs = parameters;
-    marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
-
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams =
-      _buildRuntimeParams(hooksTemplate, salt, originationFeeAsset, originationFeeAmount, commitmentFeeBips);
-
-    market = _deployMarket(marketInputs, hooksData, runtimeParams);
-  }
-
-  function _buildRuntimeParams(
-    address hooksTemplate,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount,
-    uint16 commitmentFeeBips
-  ) internal pure returns (DeployRevolvingMarketRuntimeParameters memory runtimeParams) {
-    runtimeParams.hooksTemplate = hooksTemplate;
-    runtimeParams.salt = salt;
-    runtimeParams.originationFeeAsset = originationFeeAsset;
-    runtimeParams.originationFeeAmount = originationFeeAmount;
-    runtimeParams.commitmentFeeBips = commitmentFeeBips;
-  }
-
+  /**
+   * @dev Commitment fee for the revolving market currently being deployed.
+   *      Read by the `WildcatMarketRevolving` constructor; only valid during
+   *      market deployment.
+   */
   function getRevolvingMarketCommitmentFeeBips() external view override returns (uint16) {
-    TmpRevolvingMarketData memory data = _getTmpRevolvingMarketData();
-    return data.commitmentFeeBips;
+    return _getTmpCommitmentFeeBips();
   }
 
   function deployMarket(
@@ -672,14 +659,18 @@ contract HooksFactoryRevolving is
       revert NotApprovedBorrower();
     }
     uint16 commitmentFeeBips = _decodeMarketData(marketData);
-    market = _deployMarketValidated(
-      parameters,
-      hooksData,
-      salt,
-      originationFeeAsset,
-      originationFeeAmount,
-      commitmentFeeBips
-    );
+    address hooksTemplate = getHooksTemplateForInstance[parameters.hooks.hooksAddress()];
+    if (hooksTemplate == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
+      hooksTemplate: hooksTemplate,
+      salt: salt,
+      originationFeeAsset: originationFeeAsset,
+      originationFeeAmount: originationFeeAmount,
+      commitmentFeeBips: commitmentFeeBips
+    });
+    market = _deployMarket(parameters, hooksData, runtimeParams);
   }
 
   function deployMarketAndHooks(
@@ -695,17 +686,18 @@ contract HooksFactoryRevolving is
     if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
       revert NotApprovedBorrower();
     }
-    uint16 commitmentFeeBips = _decodeMarketData(marketData);
-    (market, hooksInstance) = _deployMarketAndHooksValidated(
-      hooksTemplate,
-      hooksConstructorArgs,
-      parameters,
-      hooksData,
-      salt,
-      originationFeeAsset,
-      originationFeeAmount,
-      commitmentFeeBips
-    );
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
+      hooksTemplate: hooksTemplate,
+      salt: salt,
+      originationFeeAsset: originationFeeAsset,
+      originationFeeAmount: originationFeeAmount,
+      commitmentFeeBips: _decodeMarketData(marketData)
+    });
+    // `_deployHooksInstance` reverts if the template does not exist or is disabled.
+    hooksInstance = _deployHooksInstance(hooksTemplate, hooksConstructorArgs);
+    DeployMarketInputs memory marketInputs = parameters;
+    marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
+    market = _deployMarket(marketInputs, hooksData, runtimeParams);
   }
 
   /**
@@ -733,23 +725,32 @@ contract HooksFactoryRevolving is
     uint256 setProtocolFeeBipsCalldataPointer;
     uint16 protocolFeeBips = details.protocolFeeBips;
     assembly {
+      // Write the calldata for `market.setProtocolFeeBips(protocolFeeBips)`
+      // this will be reused for every market
       setProtocolFeeBipsCalldataPointer := mload(0x40)
       mstore(0x40, add(setProtocolFeeBipsCalldataPointer, 0x40))
-      mstore(setProtocolFeeBipsCalldataPointer, 0xae6ea191) // setProtocolFeeBips(uint16)
+      // Write selector for `setProtocolFeeBips(uint16)`
+      mstore(setProtocolFeeBipsCalldataPointer, 0xae6ea191)
       mstore(add(setProtocolFeeBipsCalldataPointer, 0x20), protocolFeeBips)
+      // Add 28 bytes to get the exact pointer to the first byte of the selector
       setProtocolFeeBipsCalldataPointer := add(setProtocolFeeBipsCalldataPointer, 0x1c)
     }
     for (uint256 i = 0; i < count; i++) {
       address market = markets[marketStartIndex + i];
       assembly {
         if iszero(call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)) {
-          mstore(0, 0x4484a4a9) // SetProtocolFeeBipsFailed()
+          // Equivalent to `revert SetProtocolFeeBipsFailed()`
+          mstore(0, 0x4484a4a9)
           revert(0x1c, 0x04)
         }
       }
     }
   }
 
+  /**
+   * @dev Push any changes to the fee configuration of `hooksTemplate` to all markets
+   *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
+   */
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external override {
     pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
   }
