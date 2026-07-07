@@ -426,6 +426,47 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(market.transfersDisabled, false, 'transfersDisabled');
   }
 
+  function test_getHookedMarkets() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      address(2),
+      inputs,
+      abi.encode(block.timestamp + 180 days, 2e18)
+    );
+
+    address[] memory markets = new address[](3);
+    markets[0] = address(1);
+    markets[1] = address(2);
+    markets[2] = address(3);
+
+    HookedMarket[] memory hookedMarkets = hooks.getHookedMarkets(markets);
+    assertEq(hookedMarkets.length, markets.length, 'length');
+    assertEq(
+      keccak256(abi.encode(hookedMarkets[0])),
+      keccak256(abi.encode(hooks.getHookedMarket(markets[0]))),
+      'market 0'
+    );
+    assertEq(
+      keccak256(abi.encode(hookedMarkets[1])),
+      keccak256(abi.encode(hooks.getHookedMarket(markets[1]))),
+      'market 1'
+    );
+    assertEq(
+      keccak256(abi.encode(hookedMarkets[2])),
+      keccak256(abi.encode(hooks.getHookedMarket(markets[2]))),
+      'unknown market'
+    );
+    assertFalse(hookedMarkets[2].isHooked, 'unknown market isHooked');
+  }
+
   function test_onDeposit_NotHookedMarket() external {
     MarketState memory state;
     vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);

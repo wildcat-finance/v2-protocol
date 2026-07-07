@@ -1051,6 +1051,21 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     );
 
     {
+      address[] memory instanceMarkets = hooksFactoryRevolving.getMarketsForHooksInstance(
+        hooksInstance
+      );
+      assertEq(instanceMarkets.length, 2);
+      assertEq(instanceMarkets[0], market0);
+      assertEq(instanceMarkets[1], market1);
+    }
+    {
+      address[] memory unknownInstanceMarkets = hooksFactoryRevolving.getMarketsForHooksInstance(
+        address(3)
+      );
+      assertEq(unknownInstanceMarkets.length, 0);
+    }
+
+    {
       address[] memory templateSlice0 = hooksFactoryRevolving.getMarketsForHooksTemplate(
         hooksTemplate,
         0,

@@ -1,5 +1,9 @@
 [profile.default]
 src = 'src'
+# The vendored a16z erc4626-tests suite defines `testFail_*` tests, which newer
+# foundry rejects outright. They are re-expressed with explicit revert
+# expectations in test/vault/Wildcat4626WrapperStandard.t.sol.
+no_match_test = 'testFail'
 out = 'out'
 libs = ['lib']
 gas_reports = ["WildcatMarket"]

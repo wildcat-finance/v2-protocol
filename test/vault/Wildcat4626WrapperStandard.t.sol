@@ -167,4 +167,36 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     uint256 shares = vault_convertToShares(balance);
     return shares > type(uint104).max ? type(uint104).max : shares;
   }
+
+  // Replacements for the inherited `testFail_withdraw` / `testFail_redeem`
+  // property tests, which newer foundry rejects by name (excluded via
+  // `no_match_test` in foundry.toml): a caller with no allowance cannot
+  // withdraw or redeem an owner's assets.
+  function test_RevertWhen_WithdrawWithoutAllowance(Init memory init, uint assets) public {
+    setUpVault(init);
+    address caller = init.user[0];
+    address receiver = init.user[1];
+    address owner = init.user[2];
+    assets = bound(assets, 0, _max_withdraw(owner));
+    vm.assume(caller != owner);
+    vm.assume(assets > 0);
+    _approve(_vault_, owner, caller, 0);
+    vm.prank(caller);
+    vm.expectRevert();
+    IERC4626(_vault_).withdraw(assets, receiver, owner);
+  }
+
+  function test_RevertWhen_RedeemWithoutAllowance(Init memory init, uint shares) public {
+    setUpVault(init);
+    address caller = init.user[0];
+    address receiver = init.user[1];
+    address owner = init.user[2];
+    shares = bound(shares, 0, _max_redeem(owner));
+    vm.assume(caller != owner);
+    vm.assume(shares > 0);
+    _approve(_vault_, owner, caller, 0);
+    vm.prank(caller);
+    vm.expectRevert();
+    IERC4626(_vault_).redeem(shares, receiver, owner);
+  }
 }

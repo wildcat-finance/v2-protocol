@@ -651,6 +651,36 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     assertEq(market.transfersDisabled, false, 'transfersDisabled');
   }
 
+  function test_getHookedMarkets() external {
+    address otherMarket = address(2);
+    _createMarket(Market, EmptyHooksConfig, _encodeHooksData(1e18));
+    _createMarket(otherMarket, EmptyHooksConfig, _encodeHooksData(2e18, true));
+
+    address[] memory markets = new address[](3);
+    markets[0] = Market;
+    markets[1] = otherMarket;
+    markets[2] = address(3);
+
+    HookedMarket[] memory hookedMarkets = hooks.getHookedMarkets(markets);
+    assertEq(hookedMarkets.length, markets.length, 'length');
+    assertEq(
+      keccak256(abi.encode(hookedMarkets[0])),
+      keccak256(abi.encode(hooks.getHookedMarket(markets[0]))),
+      'market 0'
+    );
+    assertEq(
+      keccak256(abi.encode(hookedMarkets[1])),
+      keccak256(abi.encode(hooks.getHookedMarket(markets[1]))),
+      'market 1'
+    );
+    assertEq(
+      keccak256(abi.encode(hookedMarkets[2])),
+      keccak256(abi.encode(hooks.getHookedMarket(markets[2]))),
+      'unknown market'
+    );
+    assertFalse(hookedMarkets[2].isHooked, 'unknown market isHooked');
+  }
+
   // ========================================================================== //
   //                              Withdrawal Window                             //
   // ========================================================================== //
@@ -944,6 +974,35 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     ) = hooks.getPendingAprChange(address(market));
     assertEq(pendingAprChange.annualInterestBips, 900, 'annualInterestBips');
     assertEq(pendingAprChange.proposalTimestamp, PeriodStart, 'proposalTimestamp');
+    assertEq(responseWindowStart, FirstWithdrawalWindowStart, 'responseWindowStart');
+    assertEq(
+      responseWindowEnd,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration,
+      'responseWindowEnd'
+    );
+  }
+
+  function test_pendingAprChanges() external {
+    MockAprMarket market = new MockAprMarket(1_000);
+    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+
+    (uint16 getterAnnualInterestBips, uint32 getterProposalTimestamp) = hooks.pendingAprChanges(
+      address(market)
+    );
+    assertEq(getterAnnualInterestBips, 0, 'initial getter annualInterestBips');
+    assertEq(getterProposalTimestamp, 0, 'initial getter proposalTimestamp');
+
+    hooks.proposeAnnualInterestBips(address(market), 900);
+
+    (
+      PendingAprChange memory pendingAprChange,
+      uint32 responseWindowStart,
+      uint32 responseWindowEnd
+    ) = hooks.getPendingAprChange(address(market));
+    (getterAnnualInterestBips, getterProposalTimestamp) = hooks.pendingAprChanges(address(market));
+
+    assertEq(getterAnnualInterestBips, pendingAprChange.annualInterestBips, 'annualInterestBips');
+    assertEq(getterProposalTimestamp, pendingAprChange.proposalTimestamp, 'proposalTimestamp');
     assertEq(responseWindowStart, FirstWithdrawalWindowStart, 'responseWindowStart');
     assertEq(
       responseWindowEnd,

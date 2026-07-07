@@ -98,6 +98,7 @@ contract HooksFactoryTest is Test, Assertions {
     // hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
     archController.registerControllerFactory(address(hooksFactory));
     hooksFactory.registerWithArchController();
+    assertEq(hooksFactory.name(), 'WildcatHooksFactory');
     assertEq(hooksFactory.archController(), address(archController));
   }
 
@@ -419,6 +420,19 @@ contract HooksFactoryTest is Test, Assertions {
       address(0),
       0
     );
+
+    {
+      address[] memory instanceMarkets = hooksFactory.getMarketsForHooksInstance(
+        address(hooksInstance)
+      );
+      assertEq(instanceMarkets.length, 2);
+      assertEq(instanceMarkets[0], market0);
+      assertEq(instanceMarkets[1], market1);
+    }
+    {
+      address[] memory unknownInstanceMarkets = hooksFactory.getMarketsForHooksInstance(address(3));
+      assertEq(unknownInstanceMarkets.length, 0);
+    }
 
     {
       address[] memory templateSlice0 = hooksFactory.getMarketsForHooksTemplate(

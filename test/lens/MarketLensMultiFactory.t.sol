@@ -344,6 +344,109 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     assertEq(hooksData.hooksTemplates.length, 2, 'aggregated hooksData templates length');
   }
 
+  function test_aggregatedWithFactories_emptyFactoryArray() external view {
+    address[] memory factories = new address[](0);
+
+    HooksInstanceData[] memory instances = lensAggregator
+      .getAggregatedHooksInstancesForBorrowerWithFactories(borrower, factories);
+    assertEq(instances.length, 0, 'instances length');
+
+    HooksTemplateData[] memory templates = lensAggregator
+      .getAggregatedAllHooksTemplatesForBorrowerWithFactories(borrower, factories);
+    assertEq(templates.length, 0, 'templates length');
+  }
+
+  function test_aggregatedWithFactories_singleFactory() external view {
+    address[] memory factories = new address[](1);
+    factories[0] = address(hooksFactory);
+
+    HooksInstanceData[] memory instances = lensAggregator
+      .getAggregatedHooksInstancesForBorrowerWithFactories(borrower, factories);
+    assertEq(instances.length, 1, 'instances length');
+    assertEq(instances[0].hooksAddress, address(hooks), 'hooks address');
+
+    HooksTemplateData[] memory templates = lensAggregator
+      .getAggregatedAllHooksTemplatesForBorrowerWithFactories(borrower, factories);
+    assertEq(templates.length, 2, 'templates length');
+    assertTrue(
+      _containsHooksTemplate(templates, hooksTemplate),
+      'contains access-control template'
+    );
+    assertTrue(
+      _containsHooksTemplate(templates, fixedTermHooksTemplate),
+      'contains fixed-term template'
+    );
+  }
+
+  function test_aggregatedWithFactories_deduplicatesSharedTemplatesAndInstances() external view {
+    address[] memory sharedTemplateFactories = new address[](2);
+    sharedTemplateFactories[0] = address(hooksFactory);
+    sharedTemplateFactories[1] = address(hooksFactoryRevolving);
+
+    HooksTemplateData[] memory templates = lensAggregator
+      .getAggregatedAllHooksTemplatesForBorrowerWithFactories(borrower, sharedTemplateFactories);
+    assertEq(templates.length, 2, 'templates length');
+    assertTrue(
+      _containsHooksTemplate(templates, hooksTemplate),
+      'contains access-control template'
+    );
+    assertTrue(
+      _containsHooksTemplate(templates, fixedTermHooksTemplate),
+      'contains fixed-term template'
+    );
+
+    address[] memory duplicateInstanceFactories = new address[](2);
+    duplicateInstanceFactories[0] = address(hooksFactory);
+    duplicateInstanceFactories[1] = address(hooksFactory);
+
+    HooksInstanceData[] memory instances = lensAggregator
+      .getAggregatedHooksInstancesForBorrowerWithFactories(borrower, duplicateInstanceFactories);
+    assertEq(instances.length, 1, 'instances length');
+    assertEq(instances[0].hooksAddress, address(hooks), 'hooks address');
+  }
+
+  function test_aggregatedWithFactories_toleratesRevertingFactory() external {
+    MockRevertingHooksFactory revertingFactory = new MockRevertingHooksFactory();
+    address[] memory factories = new address[](3);
+    factories[0] = address(hooksFactory);
+    factories[1] = address(revertingFactory);
+    factories[2] = address(hooksFactoryRevolving);
+
+    HooksInstanceData[] memory instances = lensAggregator
+      .getAggregatedHooksInstancesForBorrowerWithFactories(borrower, factories);
+    assertEq(instances.length, 2, 'instances length');
+    assertTrue(_containsHooksInstance(instances, address(hooks)), 'contains legacy hooks instance');
+    assertTrue(
+      _containsHooksInstance(instances, revolvingHooksInstance),
+      'contains revolving hooks instance'
+    );
+
+    HooksTemplateData[] memory templates = lensAggregator
+      .getAggregatedAllHooksTemplatesForBorrowerWithFactories(borrower, factories);
+    assertEq(templates.length, 2, 'templates length');
+    assertTrue(
+      _containsHooksTemplate(templates, hooksTemplate),
+      'contains access-control template'
+    );
+    assertTrue(
+      _containsHooksTemplate(templates, fixedTermHooksTemplate),
+      'contains fixed-term template'
+    );
+
+    address[] memory onlyRevertingFactory = new address[](1);
+    onlyRevertingFactory[0] = address(revertingFactory);
+    instances = lensAggregator.getAggregatedHooksInstancesForBorrowerWithFactories(
+      borrower,
+      onlyRevertingFactory
+    );
+    assertEq(instances.length, 0, 'reverting instances length');
+    templates = lensAggregator.getAggregatedAllHooksTemplatesForBorrowerWithFactories(
+      borrower,
+      onlyRevertingFactory
+    );
+    assertEq(templates.length, 0, 'reverting templates length');
+  }
+
   function test_aggregatedHooksInstances_includeBorrowerFeeData() external {
     asset.mint(borrower, 5e18);
     vm.startPrank(borrower);
