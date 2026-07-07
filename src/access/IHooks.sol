@@ -22,6 +22,9 @@ abstract contract IHooks {
   ///      of optional and required hooks that this contract implements.
   function config() external view virtual returns (HooksDeploymentConfig);
 
+  /// @dev Factory-only hook called before deploying a market with this hooks contract.
+  ///      Reverts if caller is not the factory.
+  ///      Returns the hooks config to store on the market.
   function onCreateMarket(
     address deployer,
     address marketAddress,
@@ -39,6 +42,7 @@ abstract contract IHooks {
     bytes calldata extraData
   ) internal virtual returns (HooksConfig);
 
+  /// @dev Market hook called before accepting a lender deposit.
   function onDeposit(
     address lender,
     uint256 scaledAmount,
@@ -46,6 +50,7 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before queueing a lender withdrawal.
   function onQueueWithdrawal(
     address lender,
     uint32 expiry,
@@ -54,6 +59,7 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before executing a lender withdrawal.
   function onExecuteWithdrawal(
     address lender,
     uint128 normalizedAmountWithdrawn,
@@ -61,6 +67,7 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before transferring market tokens.
   function onTransfer(
     address caller,
     address from,
@@ -70,35 +77,42 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before the borrower withdraws assets.
   function onBorrow(
     uint normalizedAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called after repayment assets are received.
   function onRepay(
     uint normalizedAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before closing the market.
   function onCloseMarket(
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before queueing a sanctioned lender's balance for withdrawal.
   function onNukeFromOrbit(
     address lender,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before updating max total supply.
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual;
 
+  /// @dev Market hook called before updating APR and reserve ratio.
+  ///      Returns the values the market should apply.
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
@@ -106,6 +120,7 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips);
 
+  /// @dev Market hook called before updating protocol fee bips.
   function onSetProtocolFeeBips(
     uint16 protocolFeeBips,
     MarketState memory intermediateState,

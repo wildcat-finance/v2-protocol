@@ -10,7 +10,10 @@ contract ProtocolFeeReadOnDepositHooks is MockHooks {
   uint128 public protocolFeeReadValue;
   bytes4 public protocolFeeReadRevertSelector;
 
-  constructor(address _caller, bytes memory _constructorArgs) MockHooks(_caller, _constructorArgs) {}
+  constructor(
+    address _caller,
+    bytes memory _constructorArgs
+  ) MockHooks(_caller, _constructorArgs) {}
 
   function onDeposit(
     address lender,
@@ -182,8 +185,9 @@ contract WildcatMarketBaseTest is BaseMarketTest {
     parameters.hooksConfig = EmptyHooksConfig;
     setUpContracts(false);
 
-    ProtocolFeeReadOnDepositHooks testHooks =
-      ProtocolFeeReadOnDepositHooks(parameters.hooksConfig.hooksAddress());
+    ProtocolFeeReadOnDepositHooks testHooks = ProtocolFeeReadOnDepositHooks(
+      parameters.hooksConfig.hooksAddress()
+    );
     _deposit(alice, 1e18);
 
     assertEq(testHooks.protocolFeeReadSucceeded(), false);

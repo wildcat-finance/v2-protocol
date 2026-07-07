@@ -230,7 +230,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///
   ///      On success:
   ///      - Pays the origination fee (if applicable).
-  ///      - Calls `onDeployMarket` on the hooks contract.
+  ///      - Calls `onCreateMarket` on the hooks contract.
   ///      - Deploys a new market with the given parameters.
   ///      - Emits `MarketDeployed`.
   ///
@@ -239,7 +239,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///      - The hooks instance does not exist.
   ///      - Payment of origination fee fails.
   ///      - The deployment fails.
-  ///      - The call to `onDeployMarket` fails.
+  ///      - The call to `onCreateMarket` fails.
   ///      - `originationFeeAsset` does not match the hook template's
   ///      - `originationFeeAmount` does not match the hook template's
   function deployMarket(
@@ -263,13 +263,17 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
+  /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.
   function computeMarketAddress(bytes32 salt) external view returns (address);
 
+  /// @dev Push a template's current protocol fee bips to a market index range.
+  ///      Reverts if the template is unknown, range is invalid or a market update fails.
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
     uint marketStartIndex,
     uint marketEndIndex
   ) external;
 
+  /// @dev Push a template's current protocol fee bips to all markets using it.
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external;
 }

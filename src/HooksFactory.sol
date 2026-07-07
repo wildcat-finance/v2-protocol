@@ -154,6 +154,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   //                               Hooks Templates                              //
   // ========================================================================== //
 
+  /// @dev Arch-controller-owner-only registration for a hooks template and fee config.
+  ///      Reverts if the template exists or fee configuration is invalid.
   function addHooksTemplate(
     address hooksTemplate,
     string calldata name,
@@ -235,12 +237,15 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     );
   }
 
+  /// @dev Arch-controller-owner-only disable for an existing hooks template.
+  ///      Reverts if the template does not exist.
   function disableHooksTemplate(address hooksTemplate) external override onlyArchControllerOwner {
     if (!_templateDetails[hooksTemplate].exists) {
       revert HooksTemplateNotFound();
     }
+    // The template is only disabled, not removed: `exists` stays true, so it
+    // can not be re-added and there is no re-enable path.
     _templateDetails[hooksTemplate].enabled = false;
-    // Emit an event to indicate that the template has been removed
     emit HooksTemplateDisabled(hooksTemplate);
   }
 
@@ -310,7 +315,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   /// @dev Deploy a hooks instance for an approved template with constructor args.
   ///      Callable by approved borrowers on the arch-controller.
-  ///      May require payment of origination fees.
+  ///      Origination fees are not charged here; they are paid when a market
+  ///      is deployed with the instance.
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
@@ -446,6 +452,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.hooks = tmp.hooks;
   }
 
+  /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.
   function computeMarketAddress(bytes32 salt) external view override returns (address) {
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
   }
@@ -573,6 +580,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     );
   }
 
+  /// @dev Deploy a market for an approved borrower using an existing hooks instance.
+  ///      Reverts if borrower, hooks instance, fees, asset or deployment checks fail.
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
@@ -600,6 +609,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     );
   }
 
+  /// @dev Deploy a hooks instance, then deploy a market for an approved borrower.
+  ///      Reverts if borrower, template, fees, asset or deployment checks fail.
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksTemplateArgs,

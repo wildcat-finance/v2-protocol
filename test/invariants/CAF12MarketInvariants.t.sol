@@ -230,7 +230,11 @@ contract CAF12MarketAccountingHandler is ForgeTest {
     if (balance == 0) return;
 
     amount = bound(amount, 1, balance);
-    _callAs(from, address(market), abi.encodeWithSignature('transfer(address,uint256)', to, amount));
+    _callAs(
+      from,
+      address(market),
+      abi.encodeWithSignature('transfer(address,uint256)', to, amount)
+    );
     _observeScaleFactor();
   }
 
@@ -703,7 +707,9 @@ contract CAF12RevolvingDrawnAmountHandler is ForgeTest {
   function _expectedDrawnAfterBorrow(uint256 amount) internal view returns (uint256) {
     uint256 drawnBefore = revolvingMarket.drawnAmount();
     uint256 assetsAfterBorrow = market.totalAssets().satSub(amount);
-    uint256 outstandingDebtAfterBorrow = market.currentState().totalDebts().satSub(assetsAfterBorrow);
+    uint256 outstandingDebtAfterBorrow = market.currentState().totalDebts().satSub(
+      assetsAfterBorrow
+    );
     return MathUtils.min(drawnBefore + amount, outstandingDebtAfterBorrow);
   }
 

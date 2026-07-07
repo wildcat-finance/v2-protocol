@@ -90,12 +90,6 @@ interface IMarketEventsAndErrors {
 
   event ReserveRatioBipsUpdated(uint256 reserveRatioBipsUpdated);
 
-  event SanctionedAccountAssetsSentToEscrow(
-    address indexed account,
-    address escrow,
-    uint256 amount
-  );
-
   event SanctionedAccountAssetsQueuedForWithdrawal(
     address indexed account,
     uint256 expiry,

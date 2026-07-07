@@ -51,9 +51,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     mockProvider2.setIsPullProvider(isPullProvider2);
     _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
     _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
-    hooks = MockOpenTermHooks(
-      address(new OpenTermHooks(address(this), abi.encode(inputs)))
-    );
+    hooks = MockOpenTermHooks(address(new OpenTermHooks(address(this), abi.encode(inputs))));
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
     assertEq(hooks.name(), inputs.name, 'name');
@@ -89,9 +87,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
       ttl2,
       isPullProvider2
     );
-    hooks = MockOpenTermHooks(
-      address(new OpenTermHooks(address(this), abi.encode(inputs)))
-    );
+    hooks = MockOpenTermHooks(address(new OpenTermHooks(address(this), abi.encode(inputs))));
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
     assertEq(hooks.name(), inputs.name, 'name');
@@ -120,9 +116,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
       ttl2,
       isPullProvider2
     );
-    hooks = MockOpenTermHooks(
-      address(new OpenTermHooks(address(this), abi.encode(inputs)))
-    );
+    hooks = MockOpenTermHooks(address(new OpenTermHooks(address(this), abi.encode(inputs))));
     baseHooks = MockBaseAccessControls(address(hooks));
     _validateRoleProviders();
     assertEq(hooks.name(), inputs.name, 'name');

@@ -72,7 +72,7 @@ abstract contract MarketConstraintHooks is IHooks {
    * @dev Enforce constraints on market parameters, ensuring that
    *      `annualInterestBips`, `delinquencyFeeBips`, `withdrawalBatchDuration`,
    *      `reserveRatioBips` and `delinquencyGracePeriod` are within the
-   *      allowed ranges and that `namePrefix` and `symbolPrefix` are not null.
+   *      allowed ranges.
    */
   function enforceParameterConstraints(
     uint16 annualInterestBips,

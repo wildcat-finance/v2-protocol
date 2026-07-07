@@ -253,25 +253,25 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (assets == 0 || shares > _convertToSharesHalfUp(assets, scaleFactor)) {
       revert CapExceeded();
     }
-  
+
     //  minimum assets for half-up rounding to yield `shares`
     uint256 numerator = shares * scaleFactor;
     uint256 halfSf = scaleFactor / 2;
     if (numerator <= halfSf) revert ZeroAssets();
     assets = (numerator - halfSf + RAY - 1) / RAY; // ceiling
-  
+
     // Verify the formula produced the correct result
     uint256 expectedShares = _convertToSharesHalfUp(assets, scaleFactor);
     if (expectedShares != shares) revert SharesMismatch(shares, expectedShares);
-  
+
     address assetAddress = address(wrappedMarket);
     uint256 scaledBefore = wrappedMarket.scaledBalanceOf(address(this));
     assetAddress.safeTransferFrom(msg.sender, address(this), assets);
     uint256 scaledAfter = wrappedMarket.scaledBalanceOf(address(this));
-  
+
     uint256 mintedShares = scaledAfter - scaledBefore;
     if (mintedShares != shares) revert SharesMismatch(shares, mintedShares);
-  
+
     _mint(receiver, shares);
     emit Deposit(msg.sender, receiver, assets, shares);
   }

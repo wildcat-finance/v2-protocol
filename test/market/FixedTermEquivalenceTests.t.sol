@@ -15,10 +15,7 @@ contract FixedTermWildcatMarketTest is WildcatMarketTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermHooks(address(hooks)).setFixedTermEndTime(
-      address(market),
-      uint32(block.timestamp)
-    );
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(address(market), uint32(block.timestamp));
     safeStopPrank();
   }
 }
@@ -30,10 +27,7 @@ contract FixedTermWithdrawalsTest is WithdrawalsTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermHooks(address(hooks)).setFixedTermEndTime(
-      address(market),
-      uint32(block.timestamp)
-    );
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(address(market), uint32(block.timestamp));
     safeStopPrank();
   }
 }
@@ -45,10 +39,7 @@ contract FixedTermWildcatMarketBaseTest is WildcatMarketBaseTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermHooks(address(hooks)).setFixedTermEndTime(
-      address(market),
-      uint32(block.timestamp)
-    );
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(address(market), uint32(block.timestamp));
     safeStopPrank();
   }
 }
@@ -60,10 +51,7 @@ contract FixedTermWildcatMarketConfigTest is WildcatMarketConfigTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermHooks(address(hooks)).setFixedTermEndTime(
-      address(market),
-      uint32(block.timestamp)
-    );
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(address(market), uint32(block.timestamp));
     safeStopPrank();
   }
 }
@@ -75,10 +63,7 @@ contract FixedTermWildcatMarketTokenTest is WildcatMarketTokenTest {
     parameters.allowTermReduction = true;
     super.setUp();
     safeStartPrank(borrower);
-    FixedTermHooks(address(hooks)).setFixedTermEndTime(
-      address(market),
-      uint32(block.timestamp)
-    );
+    FixedTermHooks(address(hooks)).setFixedTermEndTime(address(market), uint32(block.timestamp));
     safeStopPrank();
   }
 }

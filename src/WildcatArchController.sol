@@ -154,6 +154,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   /*                                  Borrowers                                 */
   /* ========================================================================== */
 
+  /// @dev Owner-only borrower registration. Reverts if already registered.
   function registerBorrower(address borrower) external onlyOwner {
     if (!_borrowers.add(borrower)) {
       revert BorrowerAlreadyExists();
@@ -161,6 +162,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     emit BorrowerAdded(borrower);
   }
 
+  /// @dev Owner-only borrower removal. Reverts if not registered.
   function removeBorrower(address borrower) external onlyOwner {
     if (!_borrowers.remove(borrower)) {
       revert BorrowerDoesNotExist();
@@ -200,6 +202,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   //                          Asset Blacklist Registry                          //
   // ========================================================================== //
 
+  /// @dev Owner-only asset blacklist insertion. Reverts if already blacklisted.
   function addBlacklist(address asset) external onlyOwner {
     if (!_assetBlacklist.add(asset)) {
       revert AssetAlreadyBlacklisted();
@@ -207,6 +210,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     emit AssetBlacklisted(asset);
   }
 
+  /// @dev Owner-only asset blacklist removal. Reverts if not blacklisted.
   function removeBlacklist(address asset) external onlyOwner {
     if (!_assetBlacklist.remove(asset)) {
       revert AssetNotBlacklisted();
@@ -244,6 +248,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   /*                            Controller Factories                            */
   /* ========================================================================== */
 
+  /// @dev Owner-only controller factory registration. Reverts if already registered.
   function registerControllerFactory(address factory) external onlyOwner {
     // CAF-16 known issue: the singleton does not validate that `factory` is a
     // contract or reports this ArchController. Operators must validate before
@@ -255,6 +260,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     emit ControllerFactoryAdded(factory);
   }
 
+  /// @dev Owner-only controller factory removal. Reverts if not registered.
   function removeControllerFactory(address factory) external onlyOwner {
     if (!_controllerFactories.remove(factory)) {
       revert ControllerFactoryDoesNotExist();
@@ -299,6 +305,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     _;
   }
 
+  /// @dev Registered-factory-only controller registration. Reverts if already registered.
   function registerController(address controller) external onlyControllerFactory {
     // CAF-16: registered controller addresses are trusted privileged input on
     // the singleton. Validate offchain before registration.
@@ -309,6 +316,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     emit ControllerAdded(msg.sender, controller);
   }
 
+  /// @dev Owner-only controller removal. Reverts if not registered.
   function removeController(address controller) external onlyOwner {
     if (!_controllers.remove(controller)) {
       revert ControllerDoesNotExist();
@@ -353,6 +361,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     _;
   }
 
+  /// @dev Registered-controller-only market registration. Reverts if already registered.
   function registerMarket(address market) external onlyController {
     // CAF-16: the singleton does not validate market code, archController(),
     // or factory(). Controllers must only register conforming markets.
@@ -363,6 +372,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
     emit MarketAdded(msg.sender, market);
   }
 
+  /// @dev Owner-only market removal. Reverts if not registered.
   function removeMarket(address market) external onlyOwner {
     if (!_markets.remove(market)) {
       revert MarketDoesNotExist();

@@ -5,7 +5,7 @@ import 'src/interfaces/IERC20.sol';
 import 'src/libraries/MathUtils.sol';
 import { Test } from 'forge-std/Test.sol';
 // import { DSInvariantTest } from 'solmate/test/utils/DSInvariantTest.sol';
-import {StdInvariant} from "forge-std/StdInvariant.sol";
+import { StdInvariant } from 'forge-std/StdInvariant.sol';
 
 bytes32 constant PERMIT_TYPEHASH = keccak256(
   'Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)'

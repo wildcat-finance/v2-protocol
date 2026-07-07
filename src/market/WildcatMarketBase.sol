@@ -4,7 +4,6 @@ pragma solidity >=0.8.20;
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
-import '../interfaces/IERC20.sol';
 import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/MarketErrors.sol';
@@ -395,13 +394,13 @@ contract WildcatMarketBase is
   function _updateScaleFactorAndFees(
     MarketState memory state,
     uint256 timestamp
-  ) internal view virtual returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) {
-    return
-      state.updateScaleFactorAndFees(
-        delinquencyFeeBips,
-        delinquencyGracePeriod,
-        timestamp
-      );
+  )
+    internal
+    view
+    virtual
+    returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
+  {
+    return state.updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, timestamp);
   }
 
   function _onBorrow(MarketState memory state, uint256 amount) internal virtual {
@@ -444,7 +443,11 @@ contract WildcatMarketBase is
       // This will only be false if withdrawalBatchDuration is 0.
       uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       if (expiry != lastInterestAccruedTimestamp) {
-        (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = _updateScaleFactorAndFees(state, expiry);
+        (
+          uint256 baseInterestRay,
+          uint256 delinquencyFeeRay,
+          uint256 protocolFee
+        ) = _updateScaleFactorAndFees(state, expiry);
         emit_InterestAndFeesAccrued(
           lastInterestAccruedTimestamp,
           expiry,
@@ -459,7 +462,11 @@ contract WildcatMarketBase is
     uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
     // Apply interest and fees accrued since last update (expiry or previous tx)
     if (block.timestamp != lastInterestAccruedTimestamp) {
-      (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = _updateScaleFactorAndFees(state, block.timestamp);
+      (
+        uint256 baseInterestRay,
+        uint256 delinquencyFeeRay,
+        uint256 protocolFee
+      ) = _updateScaleFactorAndFees(state, block.timestamp);
       emit_InterestAndFeesAccrued(
         lastInterestAccruedTimestamp,
         block.timestamp,

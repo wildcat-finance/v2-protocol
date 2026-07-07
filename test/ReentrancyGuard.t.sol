@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Test.sol";
-import "src/ReentrancyGuard.sol";
+import 'forge-std/Test.sol';
+import 'src/ReentrancyGuard.sol';
 
 contract Reentrant is ReentrancyGuard {
   uint private i;
+
   function callSelfWithGuard(bool _stateful) external nonReentrant returns (uint) {
     if (_stateful) {
       return this.increment();

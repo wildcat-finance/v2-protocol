@@ -109,7 +109,7 @@ errors: -48 runtime, -48 initcode
 */
 uint256 constant AnnualInterestBipsTooHigh_ErrorSelector = 0xcf1f916f;
 
-/// @dev Equivalent to `revert ReserveRatioBipsTooHigh()`
+/// @dev Equivalent to `revert AnnualInterestBipsTooHigh()`
 function revert_AnnualInterestBipsTooHigh() pure {
   assembly {
     mstore(0, 0xcf1f916f)

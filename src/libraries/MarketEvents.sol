@@ -56,14 +56,6 @@ function emit_ReserveRatioBipsUpdated(uint256 reserveRatioBipsUpdated) {
   }
 }
 
-function emit_SanctionedAccountAssetsSentToEscrow(address account, address escrow, uint256 amount) {
-  assembly {
-    mstore(0, escrow)
-    mstore(0x20, amount)
-    log2(0, 0x40, 0x571e706c2f09ae0632313e5f3ae89fffdedfc370a2ea59a07fb0d8091147645b, account)
-  }
-}
-
 function emit_SanctionedAccountAssetsQueuedForWithdrawal(
   address account,
   uint32 expiry,

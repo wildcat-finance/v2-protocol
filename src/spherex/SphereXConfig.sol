@@ -108,7 +108,7 @@ abstract contract SphereXConfig {
   // ========================================================================== //
 
   /**
-   * @dev Set pending admin to `newAdmin`, allowing it to call 
+   * @dev Set pending admin to `newAdmin`, allowing it to call
    *      `acceptSphereXAdminRole()` to receive the admin role.
    */
   function transferSphereXAdminRole(address newAdmin) public virtual onlySphereXAdmin {

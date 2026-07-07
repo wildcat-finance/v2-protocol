@@ -61,11 +61,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _deposit(bob, 1e18);
     assertTrue(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob known lender');
     _deauthorizeLender(bob);
-    assertEq(
-      hooks.getPreviousLenderStatus(bob).lastApprovalTimestamp,
-      0,
-      'bob credential revoked'
-    );
+    assertEq(hooks.getPreviousLenderStatus(bob).lastApprovalTimestamp, 0, 'bob credential revoked');
     _requestWithdrawal(bob, 1e18);
   }
 
@@ -199,11 +195,7 @@ contract WithdrawalsTest is BaseMarketTest {
     _deposit(bob, 1e18);
     assertTrue(hooks.isKnownLenderOnMarket(bob, address(market)), 'bob known lender');
     _deauthorizeLender(bob);
-    assertEq(
-      hooks.getPreviousLenderStatus(bob).lastApprovalTimestamp,
-      0,
-      'bob credential revoked'
-    );
+    assertEq(hooks.getPreviousLenderStatus(bob).lastApprovalTimestamp, 0, 'bob credential revoked');
     _requestFullWithdrawal(bob);
   }
 

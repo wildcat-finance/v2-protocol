@@ -5,7 +5,6 @@ import './WildcatMarketBase.sol';
 import './WildcatMarketConfig.sol';
 import './WildcatMarketToken.sol';
 import './WildcatMarketWithdrawals.sol';
-import '../WildcatSanctionsSentinel.sol';
 
 contract WildcatMarket is
   WildcatMarketBase,
@@ -60,7 +59,7 @@ contract WildcatMarket is
 
     if (state.isClosed) revert_DepositToClosedMarket();
 
-    // Reduce amount if it would exceed totalSupply
+    // Reduce amount if it would exceed the maximum deposit (maxTotalSupply - totalSupply)
     amount = MathUtils.min(amount, state.maximumDeposit());
 
     // Scale the mint amount
@@ -166,7 +165,11 @@ contract WildcatMarket is
     emit_Borrow(amount);
   }
 
-  function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal virtual {
+  function _repay(
+    MarketState memory state,
+    uint256 amount,
+    uint256 baseCalldataSize
+  ) internal virtual {
     if (amount == 0) revert_NullRepayAmount();
     if (state.isClosed) revert_RepayToClosedMarket();
 
@@ -206,7 +209,8 @@ contract WildcatMarket is
   /**
    * @dev Sets the market APR to 0% and marks market as closed.
    *
-   *      Can not be called if there are any unpaid withdrawal batches.
+   *      Reverts if any withdrawal batches remain unpaid after applying
+   *      the market's available liquidity.
    *
    *      Transfers remaining debts from borrower if market is not fully
    *      collateralized; otherwise, transfers any assets in excess of

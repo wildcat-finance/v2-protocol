@@ -30,6 +30,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   //                                ERC20 Actions                               //
   // ========================================================================== //
 
+  /// @notice Sets `spender`'s allowance over caller's market tokens.
   function approve(
     address spender,
     uint256 amount
@@ -38,6 +39,8 @@ contract WildcatMarketToken is WildcatMarketBase {
     return true;
   }
 
+  /// @notice Transfers market tokens from the caller to `to`.
+  /// @dev Reverts if `amount` scales to zero or the transfer hook rejects the transfer.
   function transfer(
     address to,
     uint256 amount
@@ -46,6 +49,9 @@ contract WildcatMarketToken is WildcatMarketBase {
     return true;
   }
 
+  /// @notice Transfers market tokens from `from` to `to` using caller's allowance.
+  /// @dev Does not decrement infinite allowances. Reverts on insufficient allowance,
+  ///      a zero scaled amount or transfer hook rejection.
   function transferFrom(
     address from,
     address to,

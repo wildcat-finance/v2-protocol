@@ -267,10 +267,7 @@ contract HooksConfigTest is Test, Assertions {
     HooksConfig config = configInput.toHooksConfig();
     mockHookCaller.setConfig(config);
     bytes memory _calldata = abi.encodePacked(
-      abi.encodeWithSelector(
-        mockHookCaller.nukeFromOrbit.selector,
-        lender
-      ),
+      abi.encodeWithSelector(mockHookCaller.nukeFromOrbit.selector, lender),
       extraData
     );
     if (config.useOnNukeFromOrbit()) {

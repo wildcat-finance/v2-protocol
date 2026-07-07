@@ -211,6 +211,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
   function _approve(address from, address to, uint256 amount) internal asAccount(from) {
     asset.approve(to, amount);
   }
+
   function applyFuzzedHooksConfig(MarketHooksConfigFuzzInputs memory inputs) internal {
     inputs.minimumDeposit = uint128(bound(inputs.minimumDeposit, 0, parameters.maxTotalSupply));
     if (inputs.isOpenTermHooks) {

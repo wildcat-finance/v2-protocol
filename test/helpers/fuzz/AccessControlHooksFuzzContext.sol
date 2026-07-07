@@ -195,9 +195,7 @@ function toMarketHooksConfigContext(
 ) view returns (MarketHooksConfigContext memory) {
   return
     MarketHooksConfigContext({
-      hooksKind: inputs.isOpenTermHooks
-        ? HooksKind.OpenTerm
-        : HooksKind.FixedTerm,
+      hooksKind: inputs.isOpenTermHooks ? HooksKind.OpenTerm : HooksKind.FixedTerm,
       useOnDeposit: inputs.useOnDeposit || inputs.useOnQueueWithdrawal || inputs.minimumDeposit > 0,
       useOnQueueWithdrawal: inputs.useOnQueueWithdrawal || !inputs.isOpenTermHooks,
       useOnExecuteWithdrawal: inputs.useOnExecuteWithdrawal,

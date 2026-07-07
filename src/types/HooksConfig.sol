@@ -112,7 +112,7 @@ library LibHooksConfig {
   }
 
   /**
-   * @dev Create a merged HooksConfig with the shared flags of `a` and `b`
+   * @dev Create a merged HooksConfig with all flags of `a` or `b`
    *      and the address of `a`.
    */
   function mergeAllFlags(HooksConfig a, HooksConfig b) internal pure returns (HooksConfig merged) {
@@ -379,9 +379,9 @@ library LibHooksConfig {
   //                         Hook for executeWithdrawal                         //
   // ========================================================================== //
 
-  // Size of lender + scaledAmount + state + extraData.offset + extraData.length
+  // Size of lender + normalizedAmountWithdrawn + state + extraData.offset + extraData.length
   uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0244;
-  uint256 internal constant ExecuteWithdrawalHook_ScaledAmount_Offset = 0x20;
+  uint256 internal constant ExecuteWithdrawalHook_NormalizedAmount_Offset = 0x20;
   uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x40;
   uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0200;
   uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0220;
@@ -390,7 +390,7 @@ library LibHooksConfig {
   function onExecuteWithdrawal(
     HooksConfig self,
     address lender,
-    uint256 scaledAmount,
+    uint256 normalizedAmountWithdrawn,
     MarketState memory state,
     uint256 baseCalldataSize
   ) internal {
@@ -405,8 +405,11 @@ library LibHooksConfig {
         mstore(cdPointer, onExecuteWithdrawalSelector)
         // Write `lender` to hook calldata
         mstore(headPointer, lender)
-        // Write `scaledAmount` to hook calldata
-        mstore(add(headPointer, ExecuteWithdrawalHook_ScaledAmount_Offset), scaledAmount)
+        // Write `normalizedAmountWithdrawn` to hook calldata
+        mstore(
+          add(headPointer, ExecuteWithdrawalHook_NormalizedAmount_Offset),
+          normalizedAmountWithdrawn
+        )
         // Copy market state to hook calldata
         mcopy(add(headPointer, ExecuteWithdrawalHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
@@ -538,7 +541,7 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(RepayHook_Base_Size, extraCalldataBytes)
+        let size := add(BorrowHook_Base_Size, extraCalldataBytes)
         if iszero(call(gas(), target, 0, add(ptr, 0x1c), size, 0, 0)) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
@@ -701,13 +704,13 @@ library LibHooksConfig {
   }
 
   // ========================================================================== //
-  //                       Hook for setAnnualInterestBips                       //
+  //                Hook for setAnnualInterestAndReserveRatioBips               //
   // ========================================================================== //
 
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsCalldataSize = 0x44;
-  // Size of annualInterestBips + state + extraData.offset + extraData.length
+  // Size of annualInterestBips + reserveRatioBips + state + extraData.offset + extraData.length
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0244;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBits_Offset = 0x20;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset = 0x20;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_State_Offset = 0x40;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x0200;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset =
@@ -732,13 +735,13 @@ library LibHooksConfig {
         )
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
-        // Write selector for `onSetAnnualInterestBips`
+        // Write selector for `onSetAnnualInterestAndReserveRatioBips`
         mstore(cdPointer, onSetAnnualInterestBipsSelector)
         // Write `annualInterestBips` to hook calldata
         mstore(headPointer, annualInterestBips)
         // Write `reserveRatioBips` to hook calldata
         mstore(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBits_Offset),
+          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset),
           reserveRatioBips
         )
         // Copy market state to hook calldata
@@ -838,7 +841,7 @@ library LibHooksConfig {
   }
 
   // ========================================================================== //
-  //                       Hook for assets sent to escrow                       //
+  //                            Hook for nukeFromOrbit                           //
   // ========================================================================== //
 
   uint256 internal constant NukeFromOrbitCalldataSize = 0x24;

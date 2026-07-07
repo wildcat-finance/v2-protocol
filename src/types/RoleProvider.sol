@@ -41,7 +41,8 @@ library LibRoleProvider {
     return timestamp.satAdd(provider.timeToLive(), type(uint32).max);
   }
 
-  /// @dev Extract `timeToLive, providerAddress, pullProviderIndex` from a RoleProvider
+  /// @dev Extract `timeToLive, providerAddress, pullProviderIndex, pushProviderIndex`
+  ///      from a RoleProvider
   function decodeRoleProvider(
     RoleProvider provider
   )

@@ -2,17 +2,13 @@
 pragma solidity ^0.8.20;
 
 import '../libraries/BoolUtils.sol';
-import '../libraries/MathUtils.sol';
 import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
-import '../libraries/SafeCastLib.sol';
 import './ProviderStructs.sol';
 import './IRoleProviderFactory.sol';
 
 using BoolUtils for bool;
-using MathUtils for uint256;
-using SafeCastLib for uint256;
 
 contract BaseAccessControls {
   // ========================================================================== //
@@ -127,6 +123,7 @@ contract BaseAccessControls {
     }
   }
 
+  /// @dev Borrower-only setter for this hooks instance name.
   function setName(string memory _name) external onlyBorrower {
     name = _name;
     emit NameUpdated(_name);
@@ -136,6 +133,10 @@ contract BaseAccessControls {
   //                             Provider management                            //
   // ========================================================================== //
 
+  /**
+   * @dev Borrower-only helper that creates a role provider through `providerFactory`
+   *      and adds it with the supplied TTL. Reverts if creation returns address(0).
+   */
   function createRoleProvider(
     address providerFactory,
     uint32 timeToLive,
@@ -302,14 +303,17 @@ contract BaseAccessControls {
   //                              Provider queries                              //
   // ========================================================================== //
 
+  /// @dev Returns encoded role provider settings for `providerAddress`.
   function getRoleProvider(address providerAddress) external view returns (RoleProvider) {
     return _roleProviders[providerAddress];
   }
 
+  /// @dev Returns all providers that can be queried for credentials.
   function getPullProviders() external view returns (RoleProvider[] memory) {
     return _pullProviders;
   }
 
+  /// @dev Returns all providers that grant credentials by calling this contract.
   function getPushProviders() external view returns (RoleProvider[] memory) {
     return _pushProviders;
   }
@@ -318,6 +322,7 @@ contract BaseAccessControls {
   //                                Role queries                                //
   // ========================================================================== //
 
+  /// @dev Returns stored lender status without refreshing credentials.
   function getPreviousLenderStatus(
     address accountAddress
   ) external view returns (LenderStatus memory status) {
@@ -454,10 +459,12 @@ contract BaseAccessControls {
     _setCredentialAndEmitAccessGranted(status, callingProvider, account, roleGrantedTimestamp);
   }
 
+  /// @dev Revokes `account`'s credential. Reverts unless caller granted it.
   function revokeRole(address account) external {
     _revokeRole(account);
   }
 
+  /// @dev Revokes credentials for each account; caller must have granted each one.
   function revokeRoles(address[] calldata accounts) external {
     for (uint256 i = 0; i < accounts.length; i++) {
       _revokeRole(accounts[i]);
@@ -474,10 +481,12 @@ contract BaseAccessControls {
     emit AccountAccessRevoked(account);
   }
 
+  /// @dev Borrower-only block that clears any credential and prevents future deposits.
   function blockFromDeposits(address account) external onlyBorrower {
     _blockFromDeposits(account);
   }
 
+  /// @dev Borrower-only batch version of `blockFromDeposits`.
   function blockFromDeposits(address[] calldata accounts) external onlyBorrower {
     for (uint256 i; i < accounts.length; i++) {
       _blockFromDeposits(accounts[i]);
@@ -495,6 +504,7 @@ contract BaseAccessControls {
     emit AccountBlockedFromDeposits(account);
   }
 
+  /// @dev Borrower-only unblock that lets the account deposit if otherwise approved.
   function unblockFromDeposits(address account) external onlyBorrower {
     LenderStatus memory status = _lenderStatus[account];
     status.isBlockedFromDeposits = false;
@@ -537,7 +547,7 @@ contract BaseAccessControls {
 
     // If credential is still valid, update credential
     if (provider.calculateExpiry(credentialTimestamp) >= block.timestamp) {
-      // User is approved, update status with new expiry and last provider
+      // User is approved, update status with the new approval timestamp and provider
       status.setCredential(provider, credentialTimestamp);
       return true;
     }
@@ -719,10 +729,11 @@ contract BaseAccessControls {
     }
 
     // Handle the calldata suffix, if any
-    (
-      bool validCredential,
-      uint256 hooksDataPullProviderIndexToSkip
-    ) = _handleHooksData(status, accountAddress, hooksData);
+    (bool validCredential, uint256 hooksDataPullProviderIndexToSkip) = _handleHooksData(
+      status,
+      accountAddress,
+      hooksData
+    );
 
     if (validCredential) {
       return (true, true);

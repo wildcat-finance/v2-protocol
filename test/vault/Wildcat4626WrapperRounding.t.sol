@@ -337,7 +337,11 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
 
     assertGt(shares, 0, 'shares should be minted');
     assertGt(assetsBack, 0, 'assets should be returned');
-    assertLe(aliceBalanceBefore - market.balanceOf(ALICE), 2, 'round-trip loss should remain minimal');
+    assertLe(
+      aliceBalanceBefore - market.balanceOf(ALICE),
+      2,
+      'round-trip loss should remain minimal'
+    );
   }
 
   /// @notice Regression: mint/withdraw round-trip with tiny offset should remain stable.
@@ -381,7 +385,11 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     uint256 swept = wrapper.sweep(address(market), BORROWER);
 
     assertEq(swept, expectedSweepAssets, 'sweep assets mismatch');
-    assertEq(market.scaledBalanceOf(address(wrapper)), expectedScaled, 'scaled backing should match');
+    assertEq(
+      market.scaledBalanceOf(address(wrapper)),
+      expectedScaled,
+      'scaled backing should match'
+    );
 
     vm.prank(ALICE);
     uint256 redeemedAssets = wrapper.redeem(depositedShares, ALICE, ALICE);
@@ -393,10 +401,7 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
   }
 
   /// @notice Fuzz: deposit() should never revert with SharesMismatch for valid inputs
-  function testFuzz_deposit_neverSharesMismatch(
-    uint256 assets,
-    uint256 scaleOffset
-  ) external {
+  function testFuzz_deposit_neverSharesMismatch(uint256 assets, uint256 scaleOffset) external {
     assets = bound(assets, 1e9, 100e18); // min 1 gwei to avoid ZeroShares
     scaleOffset = bound(scaleOffset, 0, RAY); // 1x to 2x scale factor
     market.setScaleFactor(RAY + scaleOffset);
@@ -409,10 +414,7 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
   }
 
   /// @notice Fuzz: mint() should never revert with SharesMismatch for valid inputs
-  function testFuzz_mint_neverSharesMismatch(
-    uint256 shares,
-    uint256 scaleOffset
-  ) external {
+  function testFuzz_mint_neverSharesMismatch(uint256 shares, uint256 scaleOffset) external {
     shares = bound(shares, 1e9, 100e18); // min 1 gwei
     scaleOffset = bound(scaleOffset, 0, RAY); // 1x to 2x scale factor
     market.setScaleFactor(RAY + scaleOffset);
@@ -566,10 +568,7 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
   }
 
   /// @notice Fuzz: Full round-trip deposit→redeem should work at any scale factor
-  function testFuzz_depositRedeem_roundTrip(
-    uint256 assets,
-    uint256 scaleOffset
-  ) external {
+  function testFuzz_depositRedeem_roundTrip(uint256 assets, uint256 scaleOffset) external {
     assets = bound(assets, 1e12, 100e18);
     scaleOffset = bound(scaleOffset, 0, RAY);
     market.setScaleFactor(RAY + scaleOffset);
@@ -587,10 +586,7 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
   }
 
   /// @notice Fuzz: Full round-trip mint→withdraw should work at any scale factor
-  function testFuzz_mintWithdraw_roundTrip(
-    uint256 shares,
-    uint256 scaleOffset
-  ) external {
+  function testFuzz_mintWithdraw_roundTrip(uint256 shares, uint256 scaleOffset) external {
     shares = bound(shares, 1e12, 100e18);
     scaleOffset = bound(scaleOffset, 0, RAY);
     market.setScaleFactor(RAY + scaleOffset);

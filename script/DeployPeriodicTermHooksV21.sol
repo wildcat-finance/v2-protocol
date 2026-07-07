@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 
+// DEPRECATED: v2.1 rollout script, not used for the v2.5 release. It predates
+// the five-argument MarketLens constructor and will fail if run. Kept for
+// deployment-history reference until the v2.5 deployment scripts replace it.
+// See docs/BACKLOG.md.
+
 import "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 import "solady/utils/LibString.sol";

@@ -7,6 +7,7 @@ import '../helpers/PRNG.sol';
 
 contract TransientBytesArrayTest is Test {
   TransientBytesArray internal array = TransientBytesArray.wrap(0);
+
   function test_smallBytes(uint seed, uint length) external {
     length = bound(length, 0, 31);
     PRNG prng = seedPRNG(seed);

@@ -23,6 +23,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     return _withdrawalData.unpaidBatches.values();
   }
 
+  /**
+   * @dev Returns a withdrawal batch by expiry.
+   *      If it is pending, returns the freshly calculated pending batch.
+   */
   function getWithdrawalBatch(
     uint32 expiry
   ) external view nonReentrantView returns (WithdrawalBatch memory batch) {
@@ -48,6 +52,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     status.normalizedAmountWithdrawn = _status.normalizedAmountWithdrawn;
   }
 
+  /**
+   * @dev Returns the amount currently withdrawable by `accountAddress` from a paid batch.
+   *      Reverts if the batch has not expired.
+   */
   function getAvailableWithdrawalAmount(
     address accountAddress,
     uint32 expiry
@@ -183,7 +191,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
    *      `accountAddress` which has not already been withdrawn.
    *
    *      If `accountAddress` is sanctioned, transfers the owed amount to
-   *      an escrow contract specific to the account and blocks the account.
+   *      an escrow contract specific to the account.
    *
    *      Reverts if:
    *      - `expiry >= block.timestamp`
@@ -208,6 +216,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     return normalizedAmountWithdrawn;
   }
 
+  /**
+   * @dev Executes multiple expired withdrawal batches and returns amounts withdrawn.
+   *      Reverts if array lengths differ or any individual withdrawal cannot execute.
+   */
   function executeWithdrawals(
     address[] calldata accountAddresses,
     uint32[] calldata expiries
@@ -276,6 +288,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     return normalizedAmountWithdrawn;
   }
 
+  /**
+   * @dev Repays debt from caller and processes up to `maxBatches` unpaid batches.
+   *      Reverts if the market is closed or the repay transfer or hook call fails.
+   */
   function repayAndProcessUnpaidWithdrawalBatches(
     uint256 repayAmount,
     uint256 maxBatches

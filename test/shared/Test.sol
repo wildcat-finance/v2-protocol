@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
+import 'src/interfaces/IERC20.sol';
 import { console, console2, StdAssertions, StdChains, StdCheats, stdError, StdInvariant, stdJson, stdMath, StdStorage, stdStorage, StdUtils, Vm, StdStyle, Test as ForgeTest } from 'forge-std/Test.sol';
 import { VmSafe } from 'forge-std/Vm.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
@@ -130,9 +131,7 @@ contract Test is ForgeTest, Prankster, Assertions {
       hooksTemplate = _getHooksTemplate();
     }
     if (fixedTermHooksTemplate == address(0)) {
-      fixedTermHooksTemplate = LibStoredInitCode.deployInitCode(
-        type(FixedTermHooks).creationCode
-      );
+      fixedTermHooksTemplate = LibStoredInitCode.deployInitCode(type(FixedTermHooks).creationCode);
     }
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
@@ -143,14 +142,7 @@ contract Test is ForgeTest, Prankster, Assertions {
       0,
       0
     );
-    hooksFactory.addHooksTemplate(
-      hooksTemplate,
-      'OpenTermHooks',
-      address(0),
-      address(0),
-      0,
-      0
-    );
+    hooksFactory.addHooksTemplate(hooksTemplate, 'OpenTermHooks', address(0), address(0), 0, 0);
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       fixedTermHooksTemplate,

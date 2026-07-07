@@ -180,6 +180,10 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                              Market Management                             //
   // ========================================================================== //
 
+  /**
+   * @dev Borrower-only setter for a hooked market's minimum deposit.
+   *      Reverts if `market` was not created with this hooks instance.
+   */
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
@@ -351,23 +355,36 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
     bytes calldata hooksData
   ) external override {}
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onCloseMarket(
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onNukeFromOrbit(
     address /* lender */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onSetMaxTotalSupply(
     uint256 /* maxTotalSupply */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Defers APR changes to the parent market constraint hook.
+   *      The parent hook validates APR bounds and returns the values to apply.
+   */
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
@@ -388,6 +405,9 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
       );
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onSetProtocolFeeBips(
     uint16 /* protocolFeeBips */,
     MarketState memory /* intermediateState */,

@@ -283,25 +283,6 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
   /*                               Action Trackers                              */
   /* -------------------------------------------------------------------------- */
 
-  function _trackBlockAccount(MarketState memory state, address accountAddress) internal {
-    vm.expectEmit(address(market));
-    emit AccountSanctioned(accountAddress);
-
-    MarketAccount storage account = _getAccount(accountAddress);
-
-    uint104 scaledBalance = account.scaledBalance;
-    if (scaledBalance > 0) {
-      uint256 normalizedBalance = state.normalizeAmount(scaledBalance);
-      account.scaledBalance = 0;
-      address escrowAddress = calculateEscrowAddress(accountAddress, address(market));
-      _getAccount(escrowAddress).scaledBalance += scaledBalance;
-      vm.expectEmit(address(market));
-      emit Transfer(accountAddress, escrowAddress, normalizedBalance);
-      vm.expectEmit(address(market));
-      emit SanctionedAccountAssetsSentToEscrow(accountAddress, escrowAddress, normalizedBalance);
-    }
-  }
-
   function _trackDeposit(
     MarketState memory state,
     address accountAddress,

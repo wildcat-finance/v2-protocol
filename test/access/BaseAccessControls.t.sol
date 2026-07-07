@@ -564,13 +564,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     if (minTimestamp == 0) minTimestamp = 1;
     uint256 maxTimestamp = uint(type(uint32).max).satSub(timeToLive1) - 1;
     if (maxTimestamp > block.timestamp) maxTimestamp = block.timestamp;
-    timestamp = uint32(
-      bound(
-        timestamp,
-        minTimestamp,
-        maxTimestamp
-      )
-    );
+    timestamp = uint32(bound(timestamp, minTimestamp, maxTimestamp));
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive1);
     baseHooks.addRoleProvider(address(mockProvider2), timeToLive2);
 
@@ -599,13 +593,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     if (minTimestamp == 0) minTimestamp = 1;
     uint256 maxTimestamp = uint(type(uint32).max).satSub(timeToLive2) - 1;
     if (maxTimestamp > block.timestamp) maxTimestamp = block.timestamp;
-    timestamp = uint32(
-      bound(
-        timestamp,
-        minTimestamp,
-        maxTimestamp
-      )
-    );
+    timestamp = uint32(bound(timestamp, minTimestamp, maxTimestamp));
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive1);
     baseHooks.addRoleProvider(address(mockProvider2), timeToLive2);
 
@@ -771,11 +759,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
       credentialData
     );
 
-    vm.expectCall(
-      address(mockProvider1),
-      validateCredentialCalldata,
-      1
-    );
+    vm.expectCall(address(mockProvider1), validateCredentialCalldata, 1);
     vm.expectCall(
       address(mockProvider1),
       abi.encodeWithSelector(IRoleProvider.getCredential.selector, account),

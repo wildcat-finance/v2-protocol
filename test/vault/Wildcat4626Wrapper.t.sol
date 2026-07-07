@@ -335,7 +335,11 @@ contract Wildcat4626WrapperTest is Test {
 
     assertEq(swept, donation, 'swept only stranded assets');
     assertEq(market.balanceOf(BORROWER), borrowerBefore + donation, 'borrower receives stranded');
-    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
+    assertEq(
+      market.scaledBalanceOf(address(wrapper)),
+      wrapper.totalSupply(),
+      'scaled backing restored'
+    );
     assertEq(
       wrapper.totalAssets(),
       wrapper.convertToAssets(wrapper.totalSupply()),
@@ -375,7 +379,11 @@ contract Wildcat4626WrapperTest is Test {
       borrowerBefore + expectedSweepAssets,
       'borrower receives scaled surplus value'
     );
-    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
+    assertEq(
+      market.scaledBalanceOf(address(wrapper)),
+      wrapper.totalSupply(),
+      'scaled backing restored'
+    );
 
     vm.prank(FED);
     uint256 assetsOut = wrapper.redeem(fedShares, FED, FED);
@@ -431,7 +439,11 @@ contract Wildcat4626WrapperTest is Test {
     vm.prank(BORROWER);
     uint256 swept = wrapper.sweep(address(market), BORROWER);
     assertEq(swept, expectedSweepAssets, 'swept amount follows current scale factor');
-    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
+    assertEq(
+      market.scaledBalanceOf(address(wrapper)),
+      wrapper.totalSupply(),
+      'scaled backing restored'
+    );
 
     vm.prank(FED);
     uint256 fedAssetsOut = wrapper.redeem(fedShares, FED, FED);
@@ -592,7 +604,7 @@ contract Wildcat4626WrapperTest is Test {
     vm.prank(FED);
     uint256 sharesBurned = wrapper.withdraw(assets, FED, FED);
 
-    assertEq(sharesBurned, expectedSharesBurned, "shares burned match half-up");
+    assertEq(sharesBurned, expectedSharesBurned, 'shares burned match half-up');
     assertEq(
       wrapper.balanceOf(FED),
       fedSharesBefore - expectedSharesBurned,

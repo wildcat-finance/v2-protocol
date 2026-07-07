@@ -57,7 +57,7 @@ library LibLenderStatus {
     RoleProvider provider,
     uint256 timestamp
   ) internal pure {
-    // User is approved, update status with new expiry and last provider
+    // User is approved, update status with the new approval timestamp and provider
     status.lastApprovalTimestamp = uint32(timestamp);
     status.lastProvider = provider.providerAddress();
     status.canRefresh = provider.isPullProvider();

@@ -47,7 +47,6 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
 
   /**
    * @dev Derive create2 salt for an escrow given the borrower, account and asset.
-   *      name prefix and symbol prefix.
    */
   function _deriveSalt(
     address borrower,

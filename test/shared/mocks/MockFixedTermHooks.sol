@@ -28,7 +28,11 @@ contract MockFixedTermHooks is FixedTermHooks {
     }
   }
 
-  function setIsKnownLender(address accountAddress, address marketAddress, bool isKnownLender) external {
+  function setIsKnownLender(
+    address accountAddress,
+    address marketAddress,
+    bool isKnownLender
+  ) external {
     isKnownLenderOnMarket[accountAddress][marketAddress] = isKnownLender;
   }
 }

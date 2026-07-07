@@ -225,6 +225,10 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                              Market Management                             //
   // ========================================================================== //
 
+  /**
+   * @dev Borrower-only setter for a hooked market's minimum deposit.
+   *      Reverts if `market` was not created with this hooks instance.
+   */
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
@@ -232,6 +236,10 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     emit MinimumDepositUpdated(market, newMinimumDeposit);
   }
 
+  /**
+   * @dev Borrower-only setter for a hooked market's fixed-term end time.
+   *      Reverts if the market is unknown, term reduction is disabled or term is extended.
+   */
   function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyBorrower {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
@@ -265,8 +273,9 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
 
   /**
    * @dev Called when a lender attempts to deposit.
-   *      Passes the check if the lender is not blocked from deposits
-   *      and has a valid credential from an approved role provider.
+   *      Passes the check if the deposit amount is at least the minimum deposit
+   *      amount, the lender is not blocked from depositing, and either the lender
+   *      has a valid credential or the market does not require access for deposits.
    */
   function onDeposit(
     address lender,
@@ -307,6 +316,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
 
   /**
    * @dev Called when a lender attempts to queue a withdrawal.
+   *      Reverts if the fixed term has not elapsed.
    *      Passes the check if the lender has previously deposited or received
    *      market tokens while having the ability to deposit, or currently has a
    *      valid credential from an approved role provider.
@@ -410,6 +420,11 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     bytes calldata hooksData
   ) external override {}
 
+  /**
+   * @dev Called before a fixed-term market is closed.
+   *      Reverts if the market is unknown or closing before the term is not allowed.
+   *      If closing before term end is allowed, sets the term end to now.
+   */
   function onCloseMarket(
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
@@ -418,25 +433,35 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     if (!market.isHooked) revert NotHookedMarket();
     if (block.timestamp < market.fixedTermEndTime) {
       if (!(market.allowTermReduction || market.allowClosureBeforeTerm)) {
-        revert ClosureDisabledBeforeTerm();  
+        revert ClosureDisabledBeforeTerm();
       }
       market.fixedTermEndTime = uint32(block.timestamp);
       emit FixedTermUpdated(msg.sender, market.fixedTermEndTime);
     }
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onNukeFromOrbit(
     address /* lender */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onSetMaxTotalSupply(
     uint256 /* maxTotalSupply */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /**
+   * @dev Applies fixed-term APR limits, then defers to the parent constraint hook.
+   *      Reverts if APR is reduced before the fixed term ends.
+   */
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
@@ -467,6 +492,9 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
       );
   }
 
+  /**
+   * @dev Hook not implemented for this contract.
+   */
   function onSetProtocolFeeBips(
     uint16 /* protocolFeeBips */,
     MarketState memory /* intermediateState */,

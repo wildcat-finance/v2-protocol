@@ -116,7 +116,6 @@ contract RoleProviderTest is Test, Assertions {
     assertEq(provider.pullProviderIndex(), type(uint24).max);
     assertEq(provider.pushProviderIndex(), 1_000);
     assertEq(provider.timeToLive(), type(uint32).max);
-
   }
 
   function test_eq(

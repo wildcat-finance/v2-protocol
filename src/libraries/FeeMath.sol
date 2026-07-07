@@ -82,7 +82,7 @@ library FeeMath {
    * @param state Encoded state parameters
    * @param delinquencyGracePeriod Seconds in delinquency before penalties apply
    * @param timeDelta Seconds since the last update
-   * @param `timeWithPenalty` Number of seconds since the last update where
+   * @return `timeWithPenalty` Number of seconds since the last update where
    *        the market was in delinquency outside of the grace period.
    */
   function updateTimeDelinquentAndGetPenaltyTime(

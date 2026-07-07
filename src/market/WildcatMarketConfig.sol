@@ -2,7 +2,6 @@
 pragma solidity >=0.8.20;
 
 import './WildcatMarketBase.sol';
-import '../libraries/FeeMath.sol';
 import '../libraries/SafeCastLib.sol';
 
 interface IPeriodicTermAprReductionHooks {
@@ -215,6 +214,11 @@ contract WildcatMarketConfig is WildcatMarketBase {
     );
   }
 
+  /**
+   * @dev Updates protocol fee bips from the factory.
+   *      Reverts if caller is not factory, fee is above 1,000 bips, market is closed,
+   *      or the hooks contract rejects the change.
+   */
   function setProtocolFeeBips(uint16 _protocolFeeBips) external nonReentrant sphereXGuardExternal {
     if (msg.sender != factory) revert_NotFactory();
     if (_protocolFeeBips > 1_000) revert_ProtocolFeeTooHigh();

@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 interface IRoleProvider {
   function isPullProvider() external view returns (bool);
 
+  /// @dev Returns a credential grant timestamp for `account`, or zero if none is available.
   function getCredential(address account) external view returns (uint32 timestamp);
 
   /**

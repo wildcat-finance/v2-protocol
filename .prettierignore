@@ -3,3 +3,5 @@ out
 cache
 coverage
 lib
+# Uses file-level events (solidity 0.8.22+), which prettier-plugin-solidity 1.1.3 cannot parse
+test/shared/mocks/MockHooks.sol

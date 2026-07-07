@@ -61,11 +61,11 @@ contract StubMarketToken is IWildcatMarketToken {
 }
 
 contract StubArchController {
-    mapping(address => bool) public isRegisteredMarket;
+  mapping(address => bool) public isRegisteredMarket;
 
-    function registerMarket(address market) external returns (bool) {
-        isRegisteredMarket[market] = true;
-    }
+  function registerMarket(address market) external returns (bool) {
+    isRegisteredMarket[market] = true;
+  }
 }
 
 contract Wildcat4626WrapperFactoryTest is Test {
