@@ -4,6 +4,10 @@ pragma solidity >=0.8.20;
 import {console} from "forge-std/console.sol";
 
 import "../common/DeployScriptBase.sol";
+import {MarketLens} from "src/lens/MarketLens.sol";
+import {MarketLensAggregator} from "src/lens/MarketLensAggregator.sol";
+import {MarketLensCore} from "src/lens/MarketLensCore.sol";
+import {MarketLensLive} from "src/lens/MarketLensLive.sol";
 
 contract DeployMarketLens is DeployScriptBase {
     struct LensDeploymentResult {
@@ -168,6 +172,40 @@ contract DeployMarketLens is DeployScriptBase {
         );
     }
 
+    /// Default-factory overloads resolve against the HELPERS' immutables, not
+    /// the facade's, and `_getOrDeployByLabel` can reuse a previously deployed
+    /// helper without checking its constructor args. Require that the whole
+    /// lens set shares one wiring so a stale helper cannot silently answer
+    /// queries against the wrong factory or arch-controller.
+    function _validateLensSet(
+        LensDeploymentResult memory result,
+        address archController,
+        address defaultHooksFactory
+    ) internal view {
+        MarketLens lens = MarketLens(result.marketLens);
+        require(address(lens.archController()) == archController, "MarketLens: archController mismatch");
+        require(address(lens.hooksFactory()) == defaultHooksFactory, "MarketLens: hooksFactory mismatch");
+        require(address(lens.coreHelper()) == result.marketLensCore, "MarketLens: coreHelper mismatch");
+        require(
+            address(lens.aggregationHelper()) == result.marketLensAggregator, "MarketLens: aggregationHelper mismatch"
+        );
+        require(address(lens.liveHelper()) == result.marketLensLive, "MarketLens: liveHelper mismatch");
+
+        MarketLensCore core = MarketLensCore(result.marketLensCore);
+        require(address(core.archController()) == archController, "MarketLensCore: archController mismatch");
+        require(address(core.hooksFactory()) == defaultHooksFactory, "MarketLensCore: hooksFactory mismatch");
+
+        MarketLensAggregator aggregator = MarketLensAggregator(result.marketLensAggregator);
+        require(address(aggregator.archController()) == archController, "MarketLensAggregator: archController mismatch");
+        require(
+            address(aggregator.hooksFactory()) == defaultHooksFactory, "MarketLensAggregator: hooksFactory mismatch"
+        );
+
+        MarketLensLive live = MarketLensLive(result.marketLensLive);
+        require(address(live.archController()) == archController, "MarketLensLive: archController mismatch");
+        require(address(live.hooksFactory()) == defaultHooksFactory, "MarketLensLive: hooksFactory mismatch");
+    }
+
     function run() external {
         _assertEip1153Supported();
 
@@ -186,6 +224,8 @@ contract DeployMarketLens is DeployScriptBase {
 
         LensDeploymentResult memory result =
             _deployLensSet(deployments, deploymentLabelSuffix, archController, defaultHooksFactory, overrideExisting);
+
+        _validateLensSet(result, archController, defaultHooksFactory);
 
         bool didDeployLensSet = result.didDeployMarketLensCore || result.didDeployMarketLensAggregator
             || result.didDeployMarketLensLive || result.didDeployMarketLens;

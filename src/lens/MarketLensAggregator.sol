@@ -9,13 +9,21 @@ import './HooksTemplateData.sol';
 import './MarketData.sol';
 import './interfaces/IMarketLensAggregator.sol';
 
-contract MarketLensAggregator {
+contract MarketLensAggregator is IMarketLensAggregator {
   WildcatArchController public immutable archController;
   IHooksFactory public immutable hooksFactory;
 
   constructor(address _archController, address _hooksFactory) {
     archController = WildcatArchController(_archController);
     hooksFactory = IHooksFactory(_hooksFactory);
+  }
+
+  // ========================================================================== //
+  //                              Internal helpers                              //
+  // ========================================================================== //
+
+  function _asFactory(address hooksFactoryAddress) internal pure returns (IHooksFactory) {
+    return IHooksFactory(hooksFactoryAddress);
   }
 
   function _containsAddress(
@@ -114,6 +122,183 @@ contract MarketLensAggregator {
       } catch {}
     }
   }
+
+  // ========================================================================== //
+  //                       Direct queries (single factory)                      //
+  // ========================================================================== //
+
+  function getHooksDataForBorrower(
+    address borrower
+  ) public view returns (HooksDataForBorrower memory data) {
+    return getHooksDataForBorrower(address(hooksFactory), borrower);
+  }
+
+  function getHooksDataForBorrower(
+    address hooksFactoryAddress,
+    address borrower
+  ) public view returns (HooksDataForBorrower memory data) {
+    data.fill(archController, _asFactory(hooksFactoryAddress), borrower);
+  }
+
+  function getHooksInstancesForBorrower(
+    address borrower
+  ) public view returns (HooksInstanceData[] memory arr) {
+    return getHooksInstancesForBorrower(address(hooksFactory), borrower);
+  }
+
+  function getHooksInstancesForBorrower(
+    address hooksFactoryAddress,
+    address borrower
+  ) public view returns (HooksInstanceData[] memory arr) {
+    IHooksFactory factory = _asFactory(hooksFactoryAddress);
+    address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
+    arr = new HooksInstanceData[](hooksInstances.length);
+    for (uint256 i; i < hooksInstances.length; i++) {
+      arr[i].fill(hooksInstances[i], factory, borrower);
+    }
+  }
+
+  function getHooksTemplateForBorrower(
+    address borrower,
+    address hooksTemplate
+  ) public view returns (HooksTemplateData memory data) {
+    return getHooksTemplateForBorrower(address(hooksFactory), borrower, hooksTemplate);
+  }
+
+  function getHooksTemplateForBorrower(
+    address hooksFactoryAddress,
+    address borrower,
+    address hooksTemplate
+  ) public view returns (HooksTemplateData memory data) {
+    data.fill(_asFactory(hooksFactoryAddress), hooksTemplate, borrower);
+  }
+
+  function getHooksTemplatesForBorrower(
+    address borrower,
+    address[] memory hooksTemplates
+  ) public view returns (HooksTemplateData[] memory data) {
+    return getHooksTemplatesForBorrower(address(hooksFactory), borrower, hooksTemplates);
+  }
+
+  function getHooksTemplatesForBorrower(
+    address hooksFactoryAddress,
+    address borrower,
+    address[] memory hooksTemplates
+  ) public view returns (HooksTemplateData[] memory data) {
+    IHooksFactory factory = _asFactory(hooksFactoryAddress);
+    data = new HooksTemplateData[](hooksTemplates.length);
+    for (uint256 i; i < hooksTemplates.length; i++) {
+      data[i].fill(factory, hooksTemplates[i], borrower);
+    }
+  }
+
+  function getAllHooksTemplatesForBorrower(
+    address borrower
+  ) public view returns (HooksTemplateData[] memory data) {
+    return getAllHooksTemplatesForBorrower(address(hooksFactory), borrower);
+  }
+
+  function getAllHooksTemplatesForBorrower(
+    address hooksFactoryAddress,
+    address borrower
+  ) public view returns (HooksTemplateData[] memory data) {
+    IHooksFactory factory = _asFactory(hooksFactoryAddress);
+    address[] memory hooksTemplates = factory.getHooksTemplates();
+    return getHooksTemplatesForBorrower(hooksFactoryAddress, borrower, hooksTemplates);
+  }
+
+  function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256) {
+    return getMarketsForHooksTemplateCount(address(hooksFactory), hooksTemplate);
+  }
+
+  function getMarketsForHooksTemplateCount(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  ) public view returns (uint256) {
+    return _asFactory(hooksFactoryAddress).getMarketsForHooksTemplateCount(hooksTemplate);
+  }
+
+  function getPaginatedMarketsDataForHooksTemplate(
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) public view returns (MarketData[] memory data) {
+    return
+      getPaginatedMarketsDataForHooksTemplate(address(hooksFactory), hooksTemplate, start, end);
+  }
+
+  function getPaginatedMarketsDataForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) public view returns (MarketData[] memory data) {
+    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(
+      hooksTemplate,
+      start,
+      end
+    );
+    return MarketDataLib.fillMarketsData(markets);
+  }
+
+  function getPaginatedMarketsDataV2ForHooksTemplate(
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) public view returns (MarketDataV2_5[] memory data) {
+    return
+      getPaginatedMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate, start, end);
+  }
+
+  function getPaginatedMarketsDataV2ForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) public view returns (MarketDataV2_5[] memory data) {
+    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(
+      hooksTemplate,
+      start,
+      end
+    );
+    return MarketDataLib.fillMarketsDataV2(markets);
+  }
+
+  function getAllMarketsDataForHooksTemplate(
+    address hooksTemplate
+  ) external view returns (MarketData[] memory data) {
+    return getAllMarketsDataForHooksTemplate(address(hooksFactory), hooksTemplate);
+  }
+
+  function getAllMarketsDataForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  ) public view returns (MarketData[] memory data) {
+    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(
+      hooksTemplate
+    );
+    return MarketDataLib.fillMarketsData(markets);
+  }
+
+  function getAllMarketsDataV2ForHooksTemplate(
+    address hooksTemplate
+  ) external view returns (MarketDataV2_5[] memory data) {
+    return getAllMarketsDataV2ForHooksTemplate(address(hooksFactory), hooksTemplate);
+  }
+
+  function getAllMarketsDataV2ForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  ) public view returns (MarketDataV2_5[] memory data) {
+    address[] memory markets = _asFactory(hooksFactoryAddress).getMarketsForHooksTemplate(
+      hooksTemplate
+    );
+    return MarketDataLib.fillMarketsDataV2(markets);
+  }
+
+  // ========================================================================== //
+  //                     Aggregated queries (all factories)                     //
+  // ========================================================================== //
 
   function getActiveHooksFactories() public view returns (address[] memory factories) {
     address[] memory controllers = archController.getRegisteredControllers();

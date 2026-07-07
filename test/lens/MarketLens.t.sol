@@ -75,6 +75,67 @@ contract MarketDataTest is BaseMarketTest {
         assertEq(address(lens.liveHelper()), address(lensLive), "liveHelper");
     }
 
+    /// Every function in the aggregator section of the facade must forward to
+    /// the aggregation helper with an exact selector match. Calls each endpoint
+    /// on the facade and on the helper directly and requires identical results,
+    /// so a mis-routed stub or signature drift fails here rather than in prod.
+    function test_aggregatorDelegation_facadeParityForAllEndpoints() external {
+        address factory_ = address(hooksFactory);
+        address template_ = hooksTemplate;
+        address[] memory templates = new address[](1);
+        templates[0] = template_;
+
+        bytes[] memory calls = new bytes[](27);
+        calls[0] = abi.encodeWithSignature("getHooksDataForBorrower(address)", borrower);
+        calls[1] = abi.encodeWithSignature("getHooksDataForBorrower(address,address)", factory_, borrower);
+        calls[2] = abi.encodeWithSignature("getHooksInstancesForBorrower(address)", borrower);
+        calls[3] = abi.encodeWithSignature("getHooksInstancesForBorrower(address,address)", factory_, borrower);
+        calls[4] = abi.encodeWithSignature("getHooksTemplateForBorrower(address,address)", borrower, template_);
+        calls[5] =
+            abi.encodeWithSignature("getHooksTemplateForBorrower(address,address,address)", factory_, borrower, template_);
+        calls[6] = abi.encodeWithSignature("getHooksTemplatesForBorrower(address,address[])", borrower, templates);
+        calls[7] = abi.encodeWithSignature(
+            "getHooksTemplatesForBorrower(address,address,address[])", factory_, borrower, templates
+        );
+        calls[8] = abi.encodeWithSignature("getAllHooksTemplatesForBorrower(address)", borrower);
+        calls[9] = abi.encodeWithSignature("getAllHooksTemplatesForBorrower(address,address)", factory_, borrower);
+        calls[10] = abi.encodeWithSignature("getMarketsForHooksTemplateCount(address)", template_);
+        calls[11] = abi.encodeWithSignature("getMarketsForHooksTemplateCount(address,address)", factory_, template_);
+        calls[12] = abi.encodeWithSignature(
+            "getPaginatedMarketsDataForHooksTemplate(address,uint256,uint256)", template_, 0, 10
+        );
+        calls[13] = abi.encodeWithSignature(
+            "getPaginatedMarketsDataForHooksTemplate(address,address,uint256,uint256)", factory_, template_, 0, 10
+        );
+        calls[14] = abi.encodeWithSignature(
+            "getPaginatedMarketsDataV2ForHooksTemplate(address,uint256,uint256)", template_, 0, 10
+        );
+        calls[15] = abi.encodeWithSignature(
+            "getPaginatedMarketsDataV2ForHooksTemplate(address,address,uint256,uint256)", factory_, template_, 0, 10
+        );
+        calls[16] = abi.encodeWithSignature("getAllMarketsDataForHooksTemplate(address)", template_);
+        calls[17] = abi.encodeWithSignature("getAllMarketsDataForHooksTemplate(address,address)", factory_, template_);
+        calls[18] = abi.encodeWithSignature("getAllMarketsDataV2ForHooksTemplate(address)", template_);
+        calls[19] = abi.encodeWithSignature("getAllMarketsDataV2ForHooksTemplate(address,address)", factory_, template_);
+        calls[20] = abi.encodeWithSignature("getAggregatedHooksDataForBorrower(address)", borrower);
+        calls[21] = abi.encodeWithSignature("getAggregatedHooksInstancesForBorrower(address)", borrower);
+        calls[22] = abi.encodeWithSignature("getAggregatedAllHooksTemplatesForBorrower(address)", borrower);
+        calls[23] = abi.encodeWithSignature("getAggregatedHooksTemplatesForBorrowerWithFactory(address)", borrower);
+        calls[24] = abi.encodeWithSignature("getAggregatedMarketsForHooksTemplateCount(address)", template_);
+        calls[25] = abi.encodeWithSignature("getAggregatedAllMarketsDataForHooksTemplate(address)", template_);
+        calls[26] = abi.encodeWithSignature("getAggregatedAllMarketsDataV2ForHooksTemplate(address)", template_);
+
+        for (uint256 i; i < calls.length; i++) {
+            (bool facadeOk, bytes memory facadeResult) = address(lens).staticcall(calls[i]);
+            (bool helperOk, bytes memory helperResult) = address(lensAggregator).staticcall(calls[i]);
+            assertTrue(facadeOk, string.concat("facade call failed: ", vm.toString(i)));
+            assertTrue(helperOk, string.concat("helper call failed: ", vm.toString(i)));
+            assertEq(
+                keccak256(facadeResult), keccak256(helperResult), string.concat("facade/helper mismatch: ", vm.toString(i))
+            );
+        }
+    }
+
     function test_coreDelegation_forTokenAndMarketReads() external {
         address[] memory singleToken = new address[](1);
         singleToken[0] = address(asset);
