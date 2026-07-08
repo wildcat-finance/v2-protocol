@@ -24,6 +24,10 @@ interface IWildcatMarketToken is IERC20Metadata {
  * @title Wildcat4626Wrapper
  * @notice Wraps a debt token with an erc-4626 non-rebasing share token.
  *  Shares mirror the market's scaled balance.
+ * @dev Only compatible with markets whose transfers round scaled amounts
+ *      down (v2.5+). Earlier markets round half-up, which trips the
+ *      SharesMismatch guards; pair wrappers with markets through
+ *      Wildcat4626WrapperFactory, which enforces the market generation.
  */
 contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   using MathUtils for uint256;
@@ -140,7 +144,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 marketCap = wrappedMarket.maxTotalSupply();
     uint256 held = totalAssets();
     if (held >= marketCap) return 0;
-    return marketCap - held;
+    uint256 capacity = marketCap - held;
+    // A capacity worth less than one scaled token would mint zero shares and
+    // revert; per spec, maxDeposit must be executable.
+    uint256 scaleFactor = wrappedMarket.scaleFactor();
+    if (_convertToSharesDown(capacity, scaleFactor) == 0) return 0;
+    return capacity;
   }
 
   /// @notice Shares minted for depositing `assets`, rounded down per spec.
@@ -154,7 +163,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 capAssets = maxDeposit(receiver);
     if (capAssets == 0) return 0;
     uint256 scaleFactor = wrappedMarket.scaleFactor();
-    return _convertToSharesHalfUp(capAssets, scaleFactor);
+    // Max shares obtainable from the remaining capacity under floor scaling;
+    // matches the cap check in `mint`.
+    return _convertToSharesDown(capAssets, scaleFactor);
   }
 
   /// @notice Assets required to mint `shares`, rounded up (ceiling) per ERC4626
@@ -171,8 +182,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 shares = balanceOf(owner_);
     if (shares == 0) return 0;
     uint256 scaleFactor = wrappedMarket.scaleFactor();
-    // Inverse of half-up rounding used by withdraw: largest assets that still round to <= shares.
-    return (shares * scaleFactor + (scaleFactor - 1) / 2) / RAY;
+    // Largest amount whose floor-rounded scaling burns no more than `shares`:
+    // one below the smallest amount that would need `shares + 1`. Guaranteed
+    // executable: it burns exactly `shares` (>= 1).
+    return MathUtils.mulDivUp(shares + 1, scaleFactor, RAY) - 1;
   }
 
   /// @notice Shares that would be burned to withdraw `assets`, rounded up (ceiling) per ERC-4626
@@ -212,6 +225,23 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // Mutating Interface
   // -------------------------------------------------------------------------
 
+  // Rounding contract for all execution paths: the market's transfer moves
+  // floor(amount * RAY / scaleFactor) scaled tokens (`scaleAmountDown`, since
+  // the v2.5 rounding hardening; earlier markets rounded half-up). Each path
+  // converts to hold its SharesMismatch identity exactly against that floor:
+  // inbound amounts convert down, outbound amounts convert up -- the smallest
+  // normalized amount that moves exactly `shares` scaled tokens. The ceil
+  // round-trip, floor(ceil(s * sf / RAY) * RAY / sf) == s, requires
+  // scaleFactor >= RAY, which the market guarantees (the scale factor starts
+  // at RAY and only grows). Previews keep their ERC-4626 rounding directions
+  // and are bounded by these executions in the directions the spec requires.
+  //
+  // Note for integrators: normalized amounts are labels over exact scaled
+  // accounting. The `assets` returned by redeem (and passed to withdraw) can
+  // exceed the receiver's `balanceOf` delta by up to one scaled token's value,
+  // because the market's rebasing balance view rounds independently of its
+  // transfer. Reconcile against `scaledBalanceOf` deltas, not `balanceOf`.
+
   /// @notice Pull `assets` from the caller and mint the resulting shares to `receiver`.
   function deposit(
     uint256 assets,
@@ -224,7 +254,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (assets > limit) revert CapExceeded();
 
     uint256 scaleFactor = wrappedMarket.scaleFactor();
-    uint256 expectedShares = _convertToSharesHalfUp(assets, scaleFactor);
+    // The market transfer credits floor-scaled tokens; expect exactly that.
+    uint256 expectedShares = _convertToSharesDown(assets, scaleFactor);
     if (expectedShares == 0) revert ZeroShares();
 
     address assetAddress = address(wrappedMarket);
@@ -233,7 +264,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 scaledAfter = wrappedMarket.scaledBalanceOf(address(this));
 
     shares = scaledAfter - scaledBefore;
-    if (shares < expectedShares) revert SharesMismatch(expectedShares, shares);
+    if (shares != expectedShares) revert SharesMismatch(expectedShares, shares);
 
     _mint(receiver, shares);
     emit Deposit(msg.sender, receiver, assets, shares);
@@ -250,18 +281,16 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 scaleFactor = wrappedMarket.scaleFactor();
     // Reuse the `assets` return variable to hold remaining capacity for the cap check.
     assets = _remainingCapacityAssets();
-    if (assets == 0 || shares > _convertToSharesHalfUp(assets, scaleFactor)) {
+    if (assets == 0 || shares > _convertToSharesDown(assets, scaleFactor)) {
       revert CapExceeded();
     }
 
-    //  minimum assets for half-up rounding to yield `shares`
-    uint256 numerator = shares * scaleFactor;
-    uint256 halfSf = scaleFactor / 2;
-    if (numerator <= halfSf) revert ZeroAssets();
-    assets = (numerator - halfSf + RAY - 1) / RAY; // ceiling
+    // Minimum assets whose floor-rounded scaling in the market's transfer
+    // moves exactly `shares` scaled tokens.
+    assets = _convertToAssetsUp(shares, scaleFactor);
 
     // Verify the formula produced the correct result
-    uint256 expectedShares = _convertToSharesHalfUp(assets, scaleFactor);
+    uint256 expectedShares = _convertToSharesDown(assets, scaleFactor);
     if (expectedShares != shares) revert SharesMismatch(shares, expectedShares);
 
     address assetAddress = address(wrappedMarket);
@@ -276,7 +305,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     emit Deposit(msg.sender, receiver, assets, shares);
   }
 
-  /// @notice Withdraw `assets` to `receiver`, burning shares from `owner_` using half-up rounding
+  /// @notice Withdraw `assets` to `receiver`, burning from `owner_` exactly the
+  ///         shares the market's floor-rounded transfer moves
   function withdraw(
     uint256 assets,
     address receiver,
@@ -287,7 +317,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (assets == 0) revert ZeroAssets();
 
     uint256 scaleFactor = wrappedMarket.scaleFactor();
-    shares = _convertToSharesHalfUp(assets, scaleFactor);
+    // Exactly the scaled amount the market's floor-rounded transfer will burn.
+    shares = _convertToSharesDown(assets, scaleFactor);
     if (shares == 0) revert ZeroShares();
 
     if (msg.sender != owner_) {
@@ -306,8 +337,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
   }
 
-  /// @notice Redeem exactly `shares` from `owner_` and send the corresponding assets to `receiver` half-up rounding
-  /// @dev Uses half-up rounding for assets to match the market behavior
+  /// @notice Redeem exactly `shares` from `owner_` and send the corresponding assets to `receiver`
+  /// @dev Rounds assets up: the smallest normalized amount whose floor-rounded
+  ///      scaling in the market's transfer moves exactly `shares`
   function redeem(
     uint256 shares,
     address receiver,
@@ -322,7 +354,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     }
 
     uint256 scaleFactor = wrappedMarket.scaleFactor();
-    assets = _convertToAssetsHalfUp(shares, scaleFactor);
+    // Smallest normalized amount whose floor-rounded transfer moves `shares`.
+    assets = _convertToAssetsUp(shares, scaleFactor);
     if (assets == 0) revert ZeroAssets();
 
     uint256 scaledBefore = wrappedMarket.scaledBalanceOf(address(this));
@@ -352,7 +385,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
       uint256 strandedScaled = scaledBefore - expectedScaled;
       uint256 scaleFactor = wrappedMarket.scaleFactor();
-      amount = _convertToAssetsHalfUp(strandedScaled, scaleFactor);
+      // Smallest normalized amount that sweeps exactly the stranded scaled
+      // tokens without touching the backing for outstanding shares.
+      amount = _convertToAssetsUp(strandedScaled, scaleFactor);
       if (amount == 0) revert ZeroAssets();
 
       token.safeTransfer(to, amount);
@@ -391,28 +426,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return MathUtils.mulDiv(assets, RAY, scaleFactor);
   }
 
-  /// @dev half-up rounding to match the market's rayDiv behavior in transfers
-  function _convertToSharesHalfUp(
-    uint256 assets,
-    uint256 scaleFactor
-  ) internal pure returns (uint256) {
-    return (assets * RAY + scaleFactor / 2) / scaleFactor;
-  }
-
   /// @dev floor rounding for spec-compliant previews.
   function _convertToAssetsDown(
     uint256 shares,
     uint256 scaleFactor
   ) internal pure returns (uint256) {
     return MathUtils.mulDiv(shares, scaleFactor, RAY);
-  }
-
-  /// @dev half-up rounding to match the market's rayMul behavior in transfers
-  function _convertToAssetsHalfUp(
-    uint256 shares,
-    uint256 scaleFactor
-  ) internal pure returns (uint256) {
-    return (shares * scaleFactor + RAY / 2) / RAY;
   }
 
   /// @dev ceiling rounding for ERC-4626 compliant previews (previewMint).

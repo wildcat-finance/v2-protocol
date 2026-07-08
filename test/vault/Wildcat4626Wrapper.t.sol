@@ -92,8 +92,9 @@ contract MockMarketToken is IWildcatMarketToken {
     scaleFactor = newScaleFactor;
   }
 
+  // Mirrors the real market's floor-rounded deposit scaling (scaleAmountDown).
   function mint(address to, uint256 assets) external {
-    uint256 scaled = assets.rayDiv(scaleFactor);
+    uint256 scaled = MathUtils.mulDiv(assets, RAY, scaleFactor);
     require(scaled != 0, 'SCALED_ZERO');
     _scaledBalances[to] += scaled;
     _scaledTotalSupply += scaled;
@@ -119,9 +120,12 @@ contract MockMarketToken is IWildcatMarketToken {
     return true;
   }
 
+  // Mirrors WildcatMarketToken._transfer: floor-rounded scaling with a
+  // uint104 bound, per the v2.5 rounding hardening.
   function _transfer(address from, address to, uint256 amount) internal {
-    uint256 scaled = amount.rayDiv(scaleFactor);
+    uint256 scaled = MathUtils.mulDiv(amount, RAY, scaleFactor);
     require(scaled != 0, 'SCALED_ZERO');
+    require(scaled <= type(uint104).max, 'UINT104');
     uint256 fromBalance = _scaledBalances[from];
     require(fromBalance >= scaled, 'BALANCE');
     unchecked {
@@ -572,12 +576,12 @@ contract Wildcat4626WrapperTest is Test {
 
     uint256 assets = 10e18;
 
-    uint256 expectedShares = (assets * RAY + scaleFactor / 2) / scaleFactor;
+    uint256 expectedShares = MathUtils.mulDiv(assets, RAY, scaleFactor);
 
     vm.prank(FED);
     uint256 shares = wrapper.deposit(assets, FED);
 
-    assertEq(shares, expectedShares, 'shares match half-up');
+    assertEq(shares, expectedShares, 'shares match floor scaling');
     assertEq(wrapper.balanceOf(FED), expectedShares, 'wrapper balance correct');
   }
 
@@ -598,13 +602,13 @@ contract Wildcat4626WrapperTest is Test {
     market.setScaleFactor(scaleFactor);
 
     uint256 assets = 10e18;
-    uint256 expectedSharesBurned = (assets * RAY + scaleFactor / 2) / scaleFactor;
+    uint256 expectedSharesBurned = MathUtils.mulDiv(assets, RAY, scaleFactor);
     uint256 fedSharesBefore = wrapper.balanceOf(FED);
 
     vm.prank(FED);
     uint256 sharesBurned = wrapper.withdraw(assets, FED, FED);
 
-    assertEq(sharesBurned, expectedSharesBurned, 'shares burned match half-up');
+    assertEq(sharesBurned, expectedSharesBurned, 'shares burned match floor scaling');
     assertEq(
       wrapper.balanceOf(FED),
       fedSharesBefore - expectedSharesBurned,

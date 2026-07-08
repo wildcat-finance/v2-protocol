@@ -28,15 +28,32 @@ contract WildcatMarketBase is
   // ==================================================================== //
 
   /**
-   * @dev Return the contract version string "2".
+   * @dev Return the contract version string "2.5".
+   *
+   *      Bumped from "2" for the v2.5 release: transfer and deposit scaling
+   *      changed from half-up to floor rounding, so v2.5 markets must be
+   *      distinguishable from earlier deployments. Consumers that only check
+   *      the major version read the first byte, which remains '2'.
    */
   function version() external pure returns (string memory) {
     assembly {
       mstore(0x40, 0)
-      mstore(0x41, 0x0132)
+      // Length byte (3) at 0x5f followed by '2.5' at 0x60-0x62.
+      mstore(0x43, 0x03322e35)
       mstore(0x20, 0x20)
       return(0x20, 0x60)
     }
+  }
+
+  /**
+   * @dev Rounding convention for scaled amounts in transfers and deposits
+   *      (`MarketState.scaleAmountDown`). Rounding-sensitive integrations,
+   *      e.g. the 4626 wrapper factory, key on this rather than on version
+   *      strings. Markets predating v2.5 lack this function and round
+   *      half-up.
+   */
+  function scaledTransferRounding() external pure returns (bytes32) {
+    return keccak256('scaleAmountDown');
   }
 
   HooksConfig public immutable hooks;

@@ -53,8 +53,10 @@ contract MockMarketToken is IWildcatMarketToken {
     scaleFactor = newScaleFactor;
   }
 
+  // Mirrors the real market's deposit scaling, including the null-mint revert.
   function mint(address to, uint256 assets) external {
-    uint256 scaled = assets.rayDiv(scaleFactor);
+    uint256 scaled = MathUtils.mulDiv(assets, RAY, scaleFactor);
+    require(scaled != 0, 'SCALED_ZERO');
     _scaledBalances[to] += scaled;
   }
 
@@ -78,9 +80,13 @@ contract MockMarketToken is IWildcatMarketToken {
     return true;
   }
 
+  // Mirrors WildcatMarketToken._transfer: scaled amount rounds DOWN
+  // (MarketState.scaleAmountDown) and is bounded to uint104, as of the v2.5
+  // rounding hardening.
   function _transfer(address from, address to, uint256 amount) internal {
-    uint256 scaled = amount.rayDiv(scaleFactor);
+    uint256 scaled = MathUtils.mulDiv(amount, RAY, scaleFactor);
     require(scaled != 0, 'SCALED_ZERO');
+    require(scaled <= type(uint104).max, 'UINT104');
     uint256 fromBalance = _scaledBalances[from];
     require(fromBalance >= scaled, 'BALANCE');
     unchecked {
@@ -126,7 +132,7 @@ contract Wildcat4626WrapperRoundingTest is Test {
     uint256 expectedAssets = 50e18;
     uint256 assets = wrapper.previewMint(shares);
     assertEq(assets, expectedAssets, 'previewMint should round up to ensure sufficient assets');
-    uint256 resultingShares = MathUtils.rayDiv(assets, market.scaleFactor());
+    uint256 resultingShares = MathUtils.mulDiv(assets, RAY, market.scaleFactor());
     assertGe(resultingShares, shares, 'returned assets must yield at least requested shares');
   }
 
@@ -379,7 +385,7 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
     uint256 expectedScaled = wrapper.totalSupply();
     uint256 strandedScaled = scaledBefore - expectedScaled;
-    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
+    uint256 expectedSweepAssets = MathUtils.mulDivUp(strandedScaled, market.scaleFactor(), RAY);
 
     vm.prank(BORROWER);
     uint256 swept = wrapper.sweep(address(market), BORROWER);
@@ -395,7 +401,7 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     uint256 redeemedAssets = wrapper.redeem(depositedShares, ALICE, ALICE);
     assertEq(
       redeemedAssets,
-      depositedShares.rayMul(market.scaleFactor()),
+      MathUtils.mulDivUp(depositedShares, market.scaleFactor(), RAY),
       'redeem value should remain fully share-backed'
     );
   }
@@ -444,9 +450,8 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     uint256 maxWithdraw = wrapper.maxWithdraw(ALICE);
     withdrawAssets = bound(withdrawAssets, 1e9, maxWithdraw);
 
-    // Skip if would result in zero shares burned
-    uint256 scaleFactor = market.scaleFactor();
-    uint256 expectedSharesBurn = (withdrawAssets * RAY + scaleFactor / 2) / scaleFactor;
+    // Skip if would result in zero shares burned (floor scaling, as withdraw uses)
+    uint256 expectedSharesBurn = MathUtils.mulDiv(withdrawAssets, RAY, market.scaleFactor());
     vm.assume(expectedSharesBurn > 0);
 
     vm.prank(ALICE);
@@ -477,11 +482,35 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     wrapper.withdraw(maxWithdraw, ALICE, ALICE);
     vm.revertToAndDelete(snapshot);
 
-    if (maxWithdraw < type(uint256).max) {
-      vm.prank(ALICE);
-      vm.expectRevert();
-      wrapper.withdraw(maxWithdraw + 1, ALICE, ALICE);
-    }
+    // Under floor-rounded transfers, extra normalized wei do not burn extra
+    // shares until the next scaled boundary: the smallest reverting amount is
+    // the one whose floor-rounded scaling needs `shares + 1`.
+    uint256 shares = wrapper.balanceOf(ALICE);
+    uint256 minRevertingWithdrawal = MathUtils.mulDivUp(shares + 1, market.scaleFactor(), RAY);
+    assertEq(maxWithdraw, minRevertingWithdrawal - 1, 'maxWithdraw is not tight');
+    vm.prank(ALICE);
+    vm.expectRevert();
+    wrapper.withdraw(minRevertingWithdrawal, ALICE, ALICE);
+  }
+
+  /// @notice Regression: a dust position (1 share at a fractional scale factor)
+  ///         must still honor maxWithdraw/maxRedeem executability. The pre-fix
+  ///         half-up maxWithdraw returned an amount whose withdrawal reverted
+  ///         ZeroShares for these positions.
+  function test_maxWithdraw_dustPositionIsExecutable() external {
+    market.setScaleFactor(RAY + RAY / 5); // 1.2e27: sf/RAY in (1, 4/3)
+    uint256 assets = wrapper.previewMint(1);
+    market.mint(ALICE, assets * 2);
+    vm.startPrank(ALICE);
+    market.approve(address(wrapper), type(uint256).max);
+    wrapper.mint(1, ALICE);
+
+    uint256 maxWithdraw = wrapper.maxWithdraw(ALICE);
+    assertGt(maxWithdraw, 0, 'dust position has no withdrawable assets');
+    uint256 burned = wrapper.withdraw(maxWithdraw, ALICE, ALICE);
+    vm.stopPrank();
+    assertEq(burned, 1, 'dust withdrawal should burn the single share');
+    assertEq(wrapper.balanceOf(ALICE), 0, 'share not burned');
   }
 
   /// @notice Fuzz: redeem() should never revert with SharesMismatch for valid inputs
@@ -500,11 +529,6 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
 
     // Bound redeem shares to what ALICE has
     redeemShares = bound(redeemShares, 1, depositedShares);
-
-    // Skip if would result in zero assets
-    uint256 scaleFactor = market.scaleFactor();
-    uint256 expectedAssets = (redeemShares * scaleFactor) / RAY;
-    vm.assume(expectedAssets > 0);
 
     vm.prank(ALICE);
     uint256 assetsReceived = wrapper.redeem(redeemShares, ALICE, ALICE);
@@ -540,17 +564,17 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     assertGt(scaledBefore, expectedScaled, 'must have stranded balance');
 
     uint256 strandedScaled = scaledBefore - expectedScaled;
-    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
-    uint256 borrowerBalanceBefore = market.balanceOf(BORROWER);
+    uint256 expectedSweepAssets = MathUtils.mulDivUp(strandedScaled, market.scaleFactor(), RAY);
+    uint256 borrowerScaledBefore = market.scaledBalanceOf(BORROWER);
 
     vm.prank(BORROWER);
     uint256 swept = wrapper.sweep(address(market), BORROWER);
 
     assertEq(swept, expectedSweepAssets, 'sweep assets mismatch');
     assertEq(
-      market.balanceOf(BORROWER),
-      borrowerBalanceBefore + expectedSweepAssets,
-      'borrower should receive swept assets'
+      market.scaledBalanceOf(BORROWER),
+      borrowerScaledBefore + strandedScaled,
+      'borrower should receive the stranded scaled balance'
     );
     assertEq(
       market.scaledBalanceOf(address(wrapper)),
@@ -562,7 +586,7 @@ contract Wildcat4626WrapperExecutionFuzzTest is Test {
     uint256 redeemedAssets = wrapper.redeem(depositedShares, ALICE, ALICE);
     assertEq(
       redeemedAssets,
-      depositedShares.rayMul(market.scaleFactor()),
+      MathUtils.mulDivUp(depositedShares, market.scaleFactor(), RAY),
       'redeem value should remain fully share-backed'
     );
   }
