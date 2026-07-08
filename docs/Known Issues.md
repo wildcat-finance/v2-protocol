@@ -22,6 +22,8 @@ If any of the hooks that are enabled for a market can revert unexpectedly, the c
 
 `nukeFromOrbit` queues a sanctioned lender's balance through the same withdrawal hooks as ordinary lender withdrawals. If a market uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. The CAF-03 remediation bypassed `onQueueWithdrawal`, but that also bypassed fixed-term and other withdrawal restrictions, so RCF V2 keeps the ordinary withdrawal path and treats the sanctions liveness limitation as accepted behavior.
 
+On the periodic-term template this deferral recurs every period rather than ending at a fixed date: a lender sanctioned just after a withdrawal window closes cannot be quarantined until the next window opens (up to `periodDuration`, bounded by 365 days), and their balance continues to accrue interest and remains transferable in the interim. This was reviewed and accepted as the same trade-off, consistent with a long fixed term.
+
 **Open entry with restricted withdrawals on existing markets**
 
 Markets deployed before the CAF-04 remediation could combine open deposits or open transfers with credential-gated withdrawals. An uncredentialed holder who entered through those open paths might not be recorded as a known lender, so queueing a withdrawal can still require credentialed or manually approved access. New hook deployments reject this configuration, but existing markets retain their deployed behavior.

@@ -493,11 +493,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
     if (status.isBlockedFromDeposits) revert NotApprovedLender();
 
     // Check that the deposit amount is at or above the market's minimum.
-    // Skips the normalization mul when no minimum is set (deposit hook
-    // enabled for access control only).
+    // The market floors the scaled amount (v2.5), so an exact-minimum tender
+    // can round-trip below the minimum; compare in scaled units, flooring
+    // both sides identically. Tolerance is at most one scaled token. Skips
+    // the conversion when no minimum is set (deposit hook enabled for access
+    // control only).
     if (market.minimumDeposit > 0) {
-      uint normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
-      if (market.minimumDeposit > normalizedAmount) {
+      if (MathUtils.mulDiv(market.minimumDeposit, RAY, state.scaleFactor) > scaledAmount) {
         revert DepositBelowMinimum();
       }
     }

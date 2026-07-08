@@ -491,7 +491,13 @@ contract WithdrawalsTest is BaseMarketTest {
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
   }
 
-  function test_processUnpaidWithdrawalBatch_RoundsAvailableLiquidityDown() external {
+  /// @dev With 1 wei of liquidity at a scale factor above RAY, the batch
+  ///      settles exactly the scaled amount that wei can buy at the floor
+  ///      price: one scaled token paying one wei, never more than available.
+  ///      (Before the `maxScaledSettleableAmount` fix, the floor capacity
+  ///      burned zero here, which could strand the final scaled token of a
+  ///      batch on closed markets.)
+  function test_processUnpaidWithdrawalBatch_SettlesMaxScaledWithinLiquidity() external {
     parameters.protocolFeeBips = 0;
     parameters.reserveRatioBips = 0;
     setUp();
@@ -509,8 +515,9 @@ contract WithdrawalsTest is BaseMarketTest {
     _trackProcessUnpaidWithdrawalBatch(state);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
 
-    _checkBatch(expiry, 1e18, 0, 0);
+    _checkBatch(expiry, 1e18, 1, 1);
     assertEq(market.getUnpaidBatchExpiries().length, 1);
+    updateState(state);
     _checkState();
   }
 

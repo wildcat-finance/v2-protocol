@@ -233,10 +233,15 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
     // Check that the lender is not blocked
     if (status.isBlockedFromDeposits) revert NotApprovedLender();
 
-    // Check that the deposit amount is at or above the market's minimum
-    uint normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
-    if (market.minimumDeposit > normalizedAmount) {
-      revert DepositBelowMinimum();
+    // Check that the deposit amount is at or above the market's minimum.
+    // The market floors the scaled amount (v2.5), so an exact-minimum tender
+    // can round-trip below the minimum; compare in scaled units, flooring
+    // both sides identically. Tolerance is at most one scaled token. Skips
+    // the conversion when no minimum is set.
+    if (market.minimumDeposit > 0) {
+      if (MathUtils.mulDiv(market.minimumDeposit, RAY, state.scaleFactor) > scaledAmount) {
+        revert DepositBelowMinimum();
+      }
     }
 
     // Attempt to validate the lender's access

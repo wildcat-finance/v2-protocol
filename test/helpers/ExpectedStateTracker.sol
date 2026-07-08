@@ -629,12 +629,17 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     uint256 availableLiquidity,
     bool expectEvents
   ) internal returns (uint128 normalizedAmountPaid) {
-    uint104 scaledAvailableLiquidity = state.scaleAmountDown(availableLiquidity).toUint104();
+    // Mirrors the market: max scaled amount settleable at floor pricing,
+    // cast only after the min against scaled owed (a uint104), as the market
+    // does — capacity itself may exceed uint104 for large liquidity.
+    uint256 scaledAvailableLiquidity = state.maxScaledSettleableAmount(availableLiquidity);
     uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     if (scaledAmountOwed == 0) {
       return 0;
     }
-    uint104 scaledAmountBurned = uint104(MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed));
+    uint104 scaledAmountBurned = MathUtils
+      .min(scaledAvailableLiquidity, scaledAmountOwed)
+      .toUint104();
     if (scaledAmountBurned == 0) {
       return 0;
     }

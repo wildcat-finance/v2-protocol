@@ -78,6 +78,24 @@ library MarketStateLib {
   }
 
   /**
+   * @dev Maximum scaled amount that `normalizedAmount` can settle when scaled
+   *      tokens are priced with the floor rounding used for batch payments
+   *      (`mulDiv(scaled, scaleFactor, RAY)`): the largest `k` with
+   *      floor(k * scaleFactor / RAY) <= normalizedAmount.
+   *
+   *      `scaleAmountDown` can understate this by one scaled token, which
+   *      strands an unpayable batch remainder on closed markets, where
+   *      repayment is impossible. Settling that final token pays it at the
+   *      floor price, so the payment never exceeds `normalizedAmount`.
+   */
+  function maxScaledSettleableAmount(
+    MarketState memory state,
+    uint256 normalizedAmount
+  ) internal pure returns (uint256) {
+    return MathUtils.mulDivUp(normalizedAmount + 1, RAY, state.scaleFactor) - 1;
+  }
+
+  /**
    * @dev Scale an amount of normalized tokens using the current scale factor,
    *      rounding down.
    */

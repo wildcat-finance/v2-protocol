@@ -61,6 +61,23 @@ regex matters (an unanchored `lib` also excludes `src/libraries`). Consider
 wiring this procedure into the `coverage` script in package.json, and remove
 the patch if a future foundry release fixes the analyzer.
 
+## Minimum-deposit check consolidation
+
+The scaled-space minimum-deposit check is triplicated across the three hook
+templates (with a shared comment block). All three inherit
+MarketConstraintHooks, which could host a single helper so the next rounding
+adjustment cannot be applied to one template and missed in the others.
+Deferred because hoisting moves the `DepositBelowMinimum` declaration and
+touches test error references late in the release cycle.
+
+## Dead half-up scaleAmount removal
+
+`MarketState.scaleAmount` (half-up) has no callers in src/ since the v2.5
+floor-rounding change; `test/libraries/MarketState.t.sol` still tests it.
+Remove both — a future dev reaching for `scaleAmount` instead of
+`scaleAmountDown` would recreate the 4626-wrapper bug class inside the
+protocol. Deferred to keep the pre-audit fix diff minimal.
+
 ## Lens
 
 - `MarketLensCore` and `MarketLensLive` store `archController` / `hooksFactory`
