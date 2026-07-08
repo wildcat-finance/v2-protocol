@@ -1,4 +1,49 @@
-# V2 Changelog
+# Changelog
+
+## V2.5 Changelog
+
+Changes between deployed V2 and the V2.5 release. The full pre-audit change
+inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delta.md).
+
+### Revolving credit markets
+
+- Added `WildcatMarketRevolving`, a market type for revolving credit facilities: tracks the borrower's drawn amount and accrues `commitmentFee + APR * min(drawn, supply) / supply` instead of APR on the full supply. No interest accrues while the market is closed or empty. Drawn amount is clamped to outstanding debt so self-supplied assets (e.g. an over-repayment) never accrue lender interest.
+- Added `HooksFactoryRevolving`, deploying revolving markets with factory-owned `marketData` (`abi.encode(uint8 version, uint16 commitmentFeeBips)`).
+- Extension seams (`_onBorrow`, `_onRepay`, `_onRepayAndGetTotalAssets`, `_onCloseMarket`, `_updateScaleFactorAndFees`) added to the base market as virtual functions; the standard market's behavior is unchanged.
+
+### Periodic-term hooks
+
+- Added `PeriodicTermHooks`: withdrawals may only be queued during a recurring scheduled window (closed markets bypass the window). See [Periodic Term Hooks](./hooks/templates/Periodic%20Term%20Hooks.md).
+- APR reductions on periodic markets must be proposed in advance: lenders get the next withdrawal window to exit, then the reduction is executable — including **permissionlessly** through the market's new `executePendingAnnualInterestBipsReduction`, gated by a new hook flag. Increases and market closure cancel pending proposals; proposals expire after a validity period.
+
+### Scaled-amount rounding (all markets)
+
+- Transfers, deposits, and withdrawal queueing now scale normalized amounts **down** (`scaleAmountDown`) instead of half-up: the scaled amount credited, moved, or queued is never rounded up. Markets declare this via the new `scaledTransferRounding()` marker; `version()` is now `'2.5'` (first byte remains `'2'` for major-version checks).
+- Withdrawal batch payments settle up to the exact floor-priced capacity (`maxScaledSettleableAmount`), so fully-funded closes always settle their batches and nothing strands on closed markets.
+- Hook minimum-deposit checks compare in scaled units, so depositing exactly the advertised minimum succeeds at any scale factor.
+- The half-up `MarketState.scaleAmount` was removed; rounding directions are documented in [Scale Factor](./Scale%20Factor.md#rounding).
+
+### ERC-4626 wrapper
+
+- Wrapper execution paths converted to floor-consistent arithmetic matching v2.5 market transfers (previews keep their spec rounding); `maxDeposit`/`maxMint`/`maxWithdraw` are exact and executable whenever nonzero.
+- `Wildcat4626WrapperFactory` is now a permanent generation facade: it wraps floor-rounding (v2.5+) markets locally, forwards pre-v2.5 markets to the previously deployed v1 factory for creation and discovery, and rejects unknown future rounding markers. See [EIP-4626](./EIP-4626.md).
+
+### Lens
+
+- Reintroduced as a facade (`MarketLens`, ABI unchanged) forwarding to helper contracts (`MarketLensCore`, `MarketLensAggregator`, `MarketLensLive`) to stay under the contract size limit; the aggregator serves both direct and multi-factory aggregated queries.
+
+### Factories and access control
+
+- Factory hardening: CREATE2 address verification on market deployment, pagination bounds validation (`InvalidPaginationRange`), empty-page handling.
+- `BaseAccessControls`: push credentials must have nonzero, non-future timestamps; `isPullProvider()` is probed defensively (non-implementing providers become push-only); providers already consulted via `hooksData` are skipped in the fallback pull loop.
+- All three hook templates reject inconsistent access configurations (withdrawal access without deposit access, or without transfer access/disablement) at market creation.
+
+### Misc
+
+- Removed the unemittable `SanctionedAccountAssetsSentToEscrow` event and other dead code.
+- Deployed singletons (`WildcatArchController`, `WildcatSanctionsSentinel`, `WildcatSanctionsEscrow`) are unchanged; documentation-only annotations added.
+
+## V2 Changelog
 
 ### ERC-4626 wrapper
 

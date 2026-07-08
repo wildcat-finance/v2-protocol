@@ -4,9 +4,11 @@
 - [Core behavior](./Core%20Behavior.md) - most important aspects of how the protocol operates
 - [Terminology](./Terminology.md)
 - [Known issues](./Known%20Issues.md) - list of some things we know are issues or which might seem like issues but are intentional
-- [V2 Changelog](./CHANGELOG.md) - changes between V1 and V2
+- [Changelog](./CHANGELOG.md) - changes between V1, V2, and V2.5
+- [V2.5 Audit Delta](./v2.5-audit-delta.md) - consolidated pre-audit change inventory, findings, and coverage appendix for the V2.5 release
 - [EIP-4626 Wrapper](./EIP-4626.md) - ERC-4626 wrapper for Wildcat market tokens
 - [Hooks](./hooks/Hooks.md)
     - [How hooks work](./hooks/How%20Hooks%20Work.md)
     - templates/
         - [Access Control Hooks](./hooks/templates/Access%20Control%20Hooks.md)
+        - [Periodic Term Hooks](./hooks/templates/Periodic%20Term%20Hooks.md)

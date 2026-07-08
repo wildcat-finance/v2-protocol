@@ -10,11 +10,21 @@ This page is fairly long as we get a lot of questions about the scaling mechanic
 - All the standard market functions (`balanceOf`, `totalSupply`, `transfer`, `deposit`, `withdraw`, etc.) use _market token amounts_.
 - The scaled query functions (`scaledBalanceOf`, `scaledTotalSupply`) return _scaled token amounts_, equivalent to market shares.
 
+### Rounding
+
+As of v2.5, rounding directions are deliberate and asymmetric:
+
+- Converting normalized amounts **into** scaled units — deposits, transfers, withdrawal queueing — rounds **down** (`scaleAmountDown`): the scaled amount credited, moved, or queued is never rounded up, so the market never over-credits.
+- Converting scaled amounts **out** to normalized labels — balances, debt totals (`normalizeAmount`) — rounds **half-up**, as does scale-factor compounding itself. This matches deployed V2.
+- Withdrawal batch payments settle the largest scaled amount whose floor-priced cost fits in available liquidity (`maxScaledSettleableAmount`), which guarantees fully-funded closed markets can always finish their batches.
+
+Markets before v2.5 rounded transfers half-up. v2.5+ markets declare their convention via `scaledTransferRounding()`, which rounding-sensitive integrations (e.g. the ERC-4626 wrapper factory) key on.
+
 ### Relevant Code
 
 In the codebase, the scale factor is stored as a ray value, meaning it has a base unit of 1e27, so 1.1e27 is 1.1.
 
-The [MathUtils](../../src/libraries/MathUtils.sol) library contains the math functions for dividing / multiplying ray values.
+The [MathUtils](../src/libraries/MathUtils.sol) library contains the math functions for dividing / multiplying ray values.
 
 ## Scaled Tokens
 

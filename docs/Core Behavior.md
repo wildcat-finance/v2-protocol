@@ -24,6 +24,17 @@ Markets are configured with the following values:
 - `sphereXEngine` - Engine for SphereX integration which does security checks on transactions.
 - `hooks` - The market's hooks policy and the address of the hooks instance.
 
+## Market Types
+
+V2.5 has two market implementations sharing the behavior described here:
+
+- **Standard markets** (`WildcatMarket`): interest accrues on the full supply at `annualInterestBips`.
+- **Revolving markets** (`WildcatMarketRevolving`): for revolving credit facilities. Lenders earn a commitment fee (fixed at deployment) on the full supply plus the APR on only the drawn portion: `commitmentFee + annualInterestBips * min(drawnAmount, totalSupply) / totalSupply`. The drawn amount rises with borrows (clamped to outstanding debt, so borrowing back self-supplied assets accrues nothing) and falls with repayments. No interest accrues while a revolving market is closed or empty.
+
+Everything else — collateral obligations, delinquency, withdrawals, closure — is identical between the two.
+
+Conversions between scaled and normalized amounts follow deliberate rounding directions as of v2.5; see [Scale Factor — Rounding](./Scale%20Factor.md#rounding).
+
 ## Basic Market Behavior
 
 
