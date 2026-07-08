@@ -23,11 +23,6 @@ library MarketStateLibExternal {
     return MarketStateLib.normalizeAmount(state, amount);
   }
 
-  /// @dev Scale an amount of normalized tokens using the current scale factor.
-  function $scaleAmount(MarketState memory state, uint256 amount) external pure returns (uint256) {
-    return MarketStateLib.scaleAmount(state, amount);
-  }
-
   /// @dev Scale an amount of normalized tokens using the current scale factor,
   /// rounding down.
   function $scaleAmountDown(

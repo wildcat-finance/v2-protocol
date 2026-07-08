@@ -74,14 +74,6 @@ adjustment cannot be applied to one template and missed in the others.
 Deferred because hoisting moves the `DepositBelowMinimum` declaration and
 touches test error references late in the release cycle.
 
-## Dead half-up scaleAmount removal
-
-`MarketState.scaleAmount` (half-up) has no callers in src/ since the v2.5
-floor-rounding change; `test/libraries/MarketState.t.sol` still tests it.
-Remove both — a future dev reaching for `scaleAmount` instead of
-`scaleAmountDown` would recreate the 4626-wrapper bug class inside the
-protocol. Deferred to keep the pre-audit fix diff minimal.
-
 ## Lens
 
 - `MarketLensCore` and `MarketLensLive` store `archController` / `hooksFactory`

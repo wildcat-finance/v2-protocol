@@ -60,6 +60,15 @@ library MarketStateLib {
     return uint256(state.maxTotalSupply).satSub(state.totalSupply());
   }
 
+  // Rounding directions are deliberate and asymmetric as of v2.5: converting
+  // normalized amounts INTO scaled units always rounds down (the acting party
+  // eats the wei), while converting scaled amounts OUT to normalized labels
+  // rounds half-up (`normalizeAmount`). The half-up scaler (`scaleAmount`)
+  // was removed: no market accounting path may round scaled credits up, and
+  // reintroducing it invites the rounding-mismatch bugs fixed pre-release.
+  // Anything that genuinely needs half-up division should use
+  // `MathUtils.rayDiv` explicitly, not add a scaler here.
+
   /**
    * @dev Normalize an amount of scaled tokens using the current scale factor.
    */
@@ -68,13 +77,6 @@ library MarketStateLib {
     uint256 amount
   ) internal pure returns (uint256) {
     return amount.rayMul(state.scaleFactor);
-  }
-
-  /**
-   * @dev Scale an amount of normalized tokens using the current scale factor.
-   */
-  function scaleAmount(MarketState memory state, uint256 amount) internal pure returns (uint256) {
-    return amount.rayDiv(state.scaleFactor);
   }
 
   /**
