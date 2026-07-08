@@ -32,13 +32,17 @@ for `test/shared/mocks/MockHooks.sol`.
   npm incident window.
 - Remove the `MockHooks.sol` entry from `.prettierignore` afterward.
 
-## Wildcat4626Wrapper branch-coverage test pass
+## Wildcat4626Wrapper branch-coverage test pass — DONE
 
-The wrapper sits at ~26/41 branch coverage: the vendored a16z ERC4626 property
-suite does not exercise Wildcat-specific limit logic (`maxDeposit`/`maxMint`/
-`maxRedeem`, `decimals`, `assetsPerShareRay`/`sharesPerAssetRay`, virtual-share
-paths). The wrapper is in the EIP-4626 audit scope, so this deserves a careful
-dedicated pass rather than a quick fill.
+Completed in `test/vault/Wildcat4626WrapperGuards.t.sol` (50 tests): 37/41
+branches. The four residuals are accounted for: three revert guards proven
+unreachable for `scaleFactor >= RAY` (mint round-trip at Wildcat4626Wrapper
+~L294, redeem ceil-to-zero ~L359, sweep ceil-to-zero ~L391 — each pinned
+positively instead), and one forge-coverage attribution artifact on
+`_beforeTokenTransfer`'s zero-amount early return, whose both behaviors are
+directly asserted by passing tests. `_useVirtualShares`/`_underlyingDecimals`
+are structurally required base-class overrides with no reachable call path
+(all conversion entry points are overridden).
 
 ### Running coverage
 
