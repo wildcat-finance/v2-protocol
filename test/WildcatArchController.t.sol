@@ -25,6 +25,14 @@ import 'src/WildcatArchController.sol';
 //
 // contract MockUnregisteredContract {}
 
+contract RevertingRegisteredContract {
+  error ChangeSphereXEngineBlocked();
+
+  function changeSphereXEngine(address) external pure {
+    revert ChangeSphereXEngineBlocked();
+  }
+}
+
 contract WildcatArchControllerTest is Test, Prankster {
   event MarketAdded(address indexed controller, address market);
   event MarketRemoved(address market);
@@ -552,5 +560,19 @@ contract WildcatArchControllerTest is Test, Prankster {
     assertEq(controllerFactories.length, 1);
     assertEq(controllerFactories[0], controllerFactory2);
     assertEq(archController.getRegisteredControllerFactoriesCount(), 1);
+  }
+
+  function test_updateSphereXEngineOnRegisteredContracts_BubblesRegisteredContractRevert()
+    external
+  {
+    RevertingRegisteredContract revertingController = new RevertingRegisteredContract();
+    _registerController(controllerFactory, address(revertingController));
+
+    address[] memory empty;
+    address[] memory controllers = new address[](1);
+    controllers[0] = address(revertingController);
+
+    vm.expectRevert(RevertingRegisteredContract.ChangeSphereXEngineBlocked.selector);
+    archController.updateSphereXEngineOnRegisteredContracts(empty, controllers, empty);
   }
 }

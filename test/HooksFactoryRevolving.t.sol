@@ -12,6 +12,14 @@ import 'src/types/HooksConfig.sol';
 import './helpers/Assertions.sol';
 import './shared/mocks/MockHooks.sol';
 
+contract BrokenHooksTemplate {
+  constructor() {
+    assembly {
+      revert(0, 0)
+    }
+  }
+}
+
 contract HooksFactoryRevolvingTest is Test, Assertions {
   WildcatArchController archController;
   IHooksFactoryRevolving hooksFactoryRevolving;
@@ -376,6 +384,22 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     assertEq(hooksFactoryRevolving.getHooksInstancesCountForBorrower(address(this)), 1);
   }
 
+  function test_deployHooksInstance_DeploymentFailed() external {
+    address template = LibStoredInitCode.deployInitCode(type(BrokenHooksTemplate).creationCode);
+    hooksFactoryRevolving.addHooksTemplate(
+      template,
+      'broken-template',
+      nullAddress,
+      nullAddress,
+      0,
+      0
+    );
+    archController.registerBorrower(address(this));
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.DeploymentFailed.selector);
+    hooksFactoryRevolving.deployHooksInstance(template, bytes(''));
+  }
+
   function test_deployHooksInstance_HooksTemplateNotAvailableWhenDisabled() external {
     hooksFactoryRevolving.addHooksTemplate(
       hooksTemplate,
@@ -448,6 +472,45 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
 
     bytes memory observedHooksData = MockHooks(hooksInstance).lastCreateMarketHooksData();
     assertEq(observedHooksData, hooksData);
+  }
+
+  function test_deployMarket_NameOrSymbolTooLong() external {
+    hooksFactoryRevolving.addHooksTemplate(
+      hooksTemplate,
+      'revolving-template',
+      nullAddress,
+      nullAddress,
+      0,
+      0
+    );
+    archController.registerBorrower(address(this));
+
+    address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
+    DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+    parameters.namePrefix = 'name is way too long to fit into 63 bytes sheesh this is too much';
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
+    hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      bytes32(uint256(1)),
+      nullAddress,
+      0
+    );
+
+    parameters.namePrefix = '';
+    parameters.symbolPrefix = 'symbol is way too long to fit into 63 bytes sheesh this is too much';
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
+    hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      bytes32(uint256(1)),
+      nullAddress,
+      0
+    );
   }
 
   function test_deployMarket_MarketDeploymentAddressMismatch() external {
@@ -548,6 +611,35 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     );
   }
 
+  function test_deployMarket_PaysOriginationFee() external {
+    address feeRecipient = address(0xFEE);
+    uint80 feeAmount = 123;
+    hooksFactoryRevolving.addHooksTemplate(
+      hooksTemplate,
+      'revolving-template',
+      feeRecipient,
+      address(underlying),
+      feeAmount,
+      0
+    );
+    archController.registerBorrower(address(this));
+    address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
+    DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+    underlying.mint(address(this), feeAmount);
+    underlying.approve(address(hooksFactoryRevolving), feeAmount);
+
+    hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      bytes32(uint256(1)),
+      address(underlying),
+      feeAmount
+    );
+
+    assertEq(underlying.balanceOf(feeRecipient), feeAmount, 'fee recipient balance');
+  }
+
   function test_deployMarket_FeeMismatch() external {
     address feeRecipient = address(0xFEE);
     hooksFactoryRevolving.addHooksTemplate(
@@ -593,6 +685,40 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       bytes(''),
       _defaultMarketData(),
       bytes32(uint256(1)),
+      nullAddress,
+      0
+    );
+  }
+
+  function test_deployMarket_MarketAlreadyExists() external {
+    hooksFactoryRevolving.addHooksTemplate(
+      hooksTemplate,
+      'revolving-template',
+      nullAddress,
+      nullAddress,
+      0,
+      0
+    );
+    archController.registerBorrower(address(this));
+    address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
+    DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+    bytes32 salt = bytes32(uint256(1));
+
+    hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      salt,
+      nullAddress,
+      0
+    );
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.MarketAlreadyExists.selector);
+    hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      salt,
       nullAddress,
       0
     );

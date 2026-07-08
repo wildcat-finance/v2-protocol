@@ -49,6 +49,22 @@ contract LibStoredInitCodeExternal {
   ) external returns (address deployment) {
     return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt, value);
   }
+
+  function create2WithStoredInitCode(
+    address initCodeStorage,
+    bytes32 salt,
+    bytes memory constructorArgs
+  ) external returns (address deployment) {
+    return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt, constructorArgs);
+  }
+
+  function create2WithStoredInitCodeCD(
+    address initCodeStorage,
+    bytes32 salt,
+    bytes calldata constructorArgs
+  ) external returns (address deployment) {
+    return LibStoredInitCode.create2WithStoredInitCodeCD(initCodeStorage, salt, constructorArgs);
+  }
 }
 
 interface ITestDeployer {

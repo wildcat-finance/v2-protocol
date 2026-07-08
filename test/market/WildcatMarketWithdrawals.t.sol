@@ -51,6 +51,16 @@ contract WithdrawalsTest is BaseMarketTest {
     assertEq(batch.normalizedAmountPaid, normalizedAmountPaid, 'normalizedAmountPaid');
   }
 
+  function _assertNoWithdrawalBatchPaymentRecorded(Vm.Log[] memory logs) internal pure {
+    bytes32 eventSignature = keccak256('WithdrawalBatchPayment(uint256,uint256,uint256)');
+    for (uint256 i; i < logs.length; i++) {
+      assertFalse(
+        logs[i].topics.length > 0 && logs[i].topics[0] == eventSignature,
+        'unexpected WithdrawalBatchPayment'
+      );
+    }
+  }
+
   /* -------------------------------------------------------------------------- */
   /*                              queueWithdrawal()                             */
   /* -------------------------------------------------------------------------- */
@@ -521,6 +531,29 @@ contract WithdrawalsTest is BaseMarketTest {
     _checkState();
   }
 
+  function test_processUnpaidWithdrawalBatch_ZeroScaledBurnEmitsNoPayment() external {
+    parameters.protocolFeeBips = 0;
+    parameters.reserveRatioBips = 0;
+    parameters.annualInterestBips = 10_000;
+    parameters.delinquencyFeeBips = 0;
+    setUp();
+
+    _depositBorrowWithdraw(alice, 1e18, 1e18, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+
+    fastForward(730 days);
+    asset.mint(address(market), 1);
+
+    vm.recordLogs();
+    market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+
+    _checkBatch(expiry, 1e18, 0, 0);
+    assertEq(market.getUnpaidBatchExpiries().length, 1, 'unpaid batch count');
+    _assertNoWithdrawalBatchPaymentRecorded(vm.getRecordedLogs());
+  }
+
   function test_processUnpaidWithdrawalBatch() external {
     // Borrow 80% of deposits then request withdrawal of 100% of deposits
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
@@ -770,6 +803,28 @@ contract WithdrawalsTest is BaseMarketTest {
     uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
     asset.mint(address(market), 8e17);
     _checkBatch(expiry, 1e18, 1e18, 1e18);
+  }
+
+  function test_getWithdrawalBatch_ViewZeroScaledBurnLeavesPendingBatchUnpaid() external {
+    parameters.protocolFeeBips = 0;
+    parameters.reserveRatioBips = 0;
+    parameters.annualInterestBips = 10_000;
+    parameters.delinquencyFeeBips = 0;
+    parameters.withdrawalBatchDuration = 365 days;
+    setUp();
+
+    _depositBorrowWithdraw(alice, 1e18, 1e18, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    asset.mint(address(market), 1);
+    fastForward(parameters.withdrawalBatchDuration);
+
+    MarketState memory state = market.currentState();
+    WithdrawalBatch memory batch = market.getWithdrawalBatch(expiry);
+
+    assertEq(state.scaledPendingWithdrawals, 1e18, 'scaledPendingWithdrawals');
+    assertEq(batch.scaledTotalAmount, 1e18, 'scaledTotalAmount');
+    assertEq(batch.scaledAmountBurned, 0, 'scaledAmountBurned');
+    assertEq(batch.normalizedAmountPaid, 0, 'normalizedAmountPaid');
   }
 
   /* -------------------------------------------------------------------------- */

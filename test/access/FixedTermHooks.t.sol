@@ -555,6 +555,65 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
   }
 
+  function test_onQueueWithdrawal_KnownLenderSkipsAccessCheckAfterCredentialRevoked() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setHooksAddress(address(hooks));
+    uint32 fixedTermEndTime = uint32(block.timestamp + 365 days);
+    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(fixedTermEndTime, 0));
+
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+    hooks.grantRole(address(2), uint32(block.timestamp));
+
+    vm.prank(address(1));
+    hooks.onDeposit(address(2), 1, state, '');
+    assertTrue(hooks.isKnownLenderOnMarket(address(2), address(1)), 'known lender');
+
+    hooks.revokeRole(address(2));
+    assertEq(hooks.getPreviousLenderStatus(address(2)).lastApprovalTimestamp, 0, 'revoked');
+
+    vm.warp(fixedTermEndTime);
+    vm.prank(address(1));
+    hooks.onQueueWithdrawal(address(2), 0, 1, state, '');
+  }
+
+  function test_onQueueWithdrawal_UnknownLenderWithValidHooksData() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setHooksAddress(address(hooks));
+    uint32 fixedTermEndTime = uint32(block.timestamp + 365 days);
+    hooks.onCreateMarket(address(this), address(1), inputs, abi.encode(fixedTermEndTime, 0));
+
+    mockProvider1.setIsPullProvider(true);
+    hooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+    bytes memory credentialData = abi.encode('fixed-term-queue-withdrawal');
+    uint32 credentialTimestamp = uint32(block.timestamp);
+    mockProvider1.approveCredentialData(keccak256(credentialData), credentialTimestamp);
+
+    MarketState memory state;
+    vm.warp(fixedTermEndTime);
+    vm.prank(address(1));
+    hooks.onQueueWithdrawal(
+      address(2),
+      0,
+      1,
+      state,
+      abi.encodePacked(address(mockProvider1), credentialData)
+    );
+
+    LenderStatus memory status = hooks.getPreviousLenderStatus(address(2));
+    assertEq(status.lastProvider, address(mockProvider1), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, credentialTimestamp, 'lastApprovalTimestamp');
+    assertFalse(hooks.isKnownLenderOnMarket(address(2), address(1)), 'known lender');
+  }
+
   function test_onQueueWithdrawal_NotHookedMarket() external {
     vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
     MarketState memory state;
@@ -673,6 +732,28 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     hooks.onSetAnnualInterestAndReserveRatioBips(100, 1000, state, '');
   }
 
+  function test_setAnnualInterestAndReserveRatioBips_IncreaseDuringFixedTerm() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
+    hooks.onCreateMarket(
+      address(this),
+      address(1),
+      inputs,
+      abi.encode(block.timestamp + 365 days, 1e18)
+    );
+
+    MarketState memory state;
+    state.annualInterestBips = 100;
+    state.reserveRatioBips = 1000;
+
+    vm.prank(address(1));
+    (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips) = hooks
+      .onSetAnnualInterestAndReserveRatioBips(101, 500, state, '');
+
+    assertEq(updatedAnnualInterestBips, 101, 'annualInterestBips');
+    assertEq(updatedReserveRatioBips, 1000, 'reserveRatioBips');
+  }
+
   // ========================================================================== //
   //                                 closeMarket                                //
   // ========================================================================== //
@@ -695,6 +776,12 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(market.fixedTermEndTime, uint32(block.timestamp), 'fixedTermEndTime');
   }
 
+  function test_closeMarket_NotHookedMarket() external {
+    MarketState memory state;
+    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
+    hooks.onCloseMarket(state, '');
+  }
+
   function test_closeMarket_ClosureDisabledBeforeTerm() external {
     DeployMarketInputs memory inputs;
     inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
@@ -708,5 +795,11 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     vm.expectRevert(FixedTermHooks.ClosureDisabledBeforeTerm.selector);
     MarketState memory state;
     hooks.onCloseMarket(state, '');
+  }
+
+  function test_onTransfer_NotHookedMarket() external {
+    MarketState memory state;
+    vm.expectRevert(FixedTermHooks.NotHookedMarket.selector);
+    hooks.onTransfer(address(1), address(1), address(1), 0, state, '');
   }
 }

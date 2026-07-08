@@ -670,6 +670,24 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
   }
 
+  function test_getLenderStatus_RefreshesExpiredPullProviderCredential() external {
+    address bob = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(bob, uint32(block.timestamp));
+
+    fastForward(2);
+    uint32 newTimestamp = uint32(getTimestamp());
+    mockProvider1.setCredential(bob, newTimestamp);
+
+    LenderStatus memory status = baseHooks.getLenderStatus(bob);
+    assertEq(status.lastProvider, address(mockProvider1), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, newTimestamp, 'lastApprovalTimestamp');
+    assertEq(status.canRefresh, true, 'canRefresh');
+    assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
+  }
+
   // ========================================================================== //
   //                           getOrValidateCredential                          //
   // ========================================================================== //
@@ -770,6 +788,49 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
 
     assertFalse(hasValidCredential, 'hasValidCredential');
     assertFalse(wasUpdated, 'wasUpdated');
+  }
+
+  function test_tryValidateAccess_HooksDataValidCredentialUpdatesStatus() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+
+    bytes memory credentialData = hex'aabbcc';
+    uint32 credentialTimestamp = uint32(block.timestamp);
+    mockProvider1.approveCredentialData(keccak256(credentialData), credentialTimestamp);
+    bytes memory hooksData = abi.encodePacked(address(mockProvider1), credentialData);
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
+
+    assertTrue(hasValidCredential, 'hasValidCredential');
+    assertTrue(wasUpdated, 'wasUpdated');
+    LenderStatus memory status = baseHooks.getPreviousLenderStatus(account);
+    assertEq(status.lastProvider, address(mockProvider1), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, credentialTimestamp, 'lastApprovalTimestamp');
+    assertEq(status.canRefresh, true, 'canRefresh');
+    assertFalse(status.isBlockedFromDeposits, 'isBlockedFromDeposits');
+  }
+
+  function test_tryValidateAccess_RefreshesExpiredCredentialFromLastProvider() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(account, uint32(block.timestamp));
+
+    fastForward(2);
+    uint32 newTimestamp = uint32(getTimestamp());
+    mockProvider1.setCredential(account, newTimestamp);
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, '');
+
+    assertTrue(hasValidCredential, 'hasValidCredential');
+    assertTrue(wasUpdated, 'wasUpdated');
+    LenderStatus memory status = baseHooks.getPreviousLenderStatus(account);
+    assertEq(status.lastProvider, address(mockProvider1), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, newTimestamp, 'lastApprovalTimestamp');
+    assertEq(status.canRefresh, true, 'canRefresh');
+    assertFalse(status.isBlockedFromDeposits, 'isBlockedFromDeposits');
   }
 
   // ========================================================================== //

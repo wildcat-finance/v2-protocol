@@ -426,6 +426,60 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     hooks.onQueueWithdrawal(address(1), 0, 1, state, '');
   }
 
+  function test_onQueueWithdrawal_KnownLenderSkipsAccessCheckAfterCredentialRevoked() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setHooksAddress(address(hooks));
+    hooks.onCreateMarket(address(this), address(1), inputs, '');
+
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+    hooks.grantRole(address(2), uint32(block.timestamp));
+
+    vm.prank(address(1));
+    hooks.onDeposit(address(2), 1, state, '');
+    assertTrue(hooks.isKnownLenderOnMarket(address(2), address(1)), 'known lender');
+
+    hooks.revokeRole(address(2));
+    assertEq(hooks.getPreviousLenderStatus(address(2)).lastApprovalTimestamp, 0, 'revoked');
+
+    vm.prank(address(1));
+    hooks.onQueueWithdrawal(address(2), 0, 1, state, '');
+  }
+
+  function test_onQueueWithdrawal_UnknownLenderWithValidHooksData() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setHooksAddress(address(hooks));
+    hooks.onCreateMarket(address(this), address(1), inputs, '');
+
+    mockProvider1.setIsPullProvider(true);
+    hooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+    bytes memory credentialData = abi.encode('queue-withdrawal');
+    mockProvider1.approveCredentialData(keccak256(credentialData), uint32(block.timestamp));
+
+    MarketState memory state;
+    vm.prank(address(1));
+    hooks.onQueueWithdrawal(
+      address(2),
+      0,
+      1,
+      state,
+      abi.encodePacked(address(mockProvider1), credentialData)
+    );
+
+    LenderStatus memory status = hooks.getPreviousLenderStatus(address(2));
+    assertEq(status.lastProvider, address(mockProvider1), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, uint32(block.timestamp), 'lastApprovalTimestamp');
+    assertFalse(hooks.isKnownLenderOnMarket(address(2), address(1)), 'known lender');
+  }
+
   function test_onTransfer_NotHookedMarket() external {
     MarketState memory state;
     vm.expectRevert(OpenTermHooks.NotHookedMarket.selector);

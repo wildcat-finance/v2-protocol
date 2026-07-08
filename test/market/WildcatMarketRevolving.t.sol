@@ -9,6 +9,8 @@ import 'src/market/WildcatMarket.sol';
 import 'src/market/WildcatMarketRevolving.sol';
 import 'src/interfaces/IWildcatMarketRevolving.sol';
 import 'src/libraries/MathUtils.sol';
+import 'src/libraries/FeeMath.sol';
+import 'src/libraries/MarketState.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import '../shared/mocks/MockHooks.sol';
 import { MockSanctionsSentinel } from '../shared/mocks/MockSanctionsSentinel.sol';
@@ -16,6 +18,7 @@ import { deployMockChainalysis } from '../shared/mocks/MockChainalysis.sol';
 
 contract WildcatMarketRevolvingTest is Test {
   using MathUtils for uint256;
+  using FeeMath for MarketState;
 
   WildcatArchController internal archController;
   HooksFactoryRevolving internal hooksFactoryRevolving;
@@ -429,6 +432,46 @@ contract WildcatMarketRevolvingTest is Test {
 
     uint256 expectedScaleFactor = RAY + commitmentInterestRay + utilizationInterestRay;
     assertEq(market.scaleFactor(), expectedScaleFactor);
+  }
+
+  function test_updateState_accruesProtocolFeesOnRevolvingBaseInterest() external {
+    uint16 protocolFeeBips = 500;
+    hooksFactoryRevolving.updateHooksTemplateFees(
+      hooksTemplate,
+      address(0xFEE),
+      address(0),
+      0,
+      protocolFeeBips
+    );
+    MockERC20 targetUnderlying = new MockERC20('Protocol Fee Underlying', 'PFU', 18);
+    (
+      WildcatMarket targetMarket,
+      IWildcatMarketRevolving targetRevolvingMarket
+    ) = _deployRevolvingMarket(targetUnderlying, 1_000e18, annualInterestBips, commitmentFeeBips);
+
+    _deposit(targetMarket, targetUnderlying, lender, 1_000e18);
+    targetMarket.borrow(500e18);
+
+    uint256 elapsed = 365 days;
+    vm.warp(block.timestamp + elapsed);
+    MarketState memory state = targetMarket.previousState();
+    uint256 commitmentInterestRay = MathUtils.calculateLinearInterestFromBips(
+      commitmentFeeBips,
+      elapsed
+    );
+    uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(
+      annualInterestBips,
+      elapsed
+    );
+    uint256 utilizationInterestRay = MathUtils.mulDiv(annualInterestRay, 500e18, 1_000e18);
+    uint256 expectedBaseInterestRay = commitmentInterestRay + utilizationInterestRay;
+    uint256 expectedProtocolFees = state.applyProtocolFee(expectedBaseInterestRay);
+
+    targetMarket.updateState();
+
+    assertEq(targetMarket.previousState().protocolFeeBips, protocolFeeBips, 'protocolFeeBips');
+    assertEq(targetMarket.previousState().accruedProtocolFees, expectedProtocolFees, 'fees');
+    assertEq(targetRevolvingMarket.drawnAmount(), 500e18, 'drawnAmount');
   }
 
   function test_updateState_utilizationDustThresholds_matchObservedAndStressBallpark() external {

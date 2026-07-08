@@ -2,6 +2,7 @@
 pragma solidity >=0.8.20;
 
 import 'src/spherex/SphereXConfig.sol';
+import 'src/spherex/SphereXProtectedRegisteredBase.sol';
 import 'forge-std/Test.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
 
@@ -32,6 +33,19 @@ contract MockConfig is SphereXConfig {
 
   function addSender(address sender) external spherexOnlyOperatorOrAdmin {
     _addAllowedSenderOnChain(sender);
+  }
+}
+
+contract MockRegisteredProtected is SphereXProtectedRegisteredBase {
+  uint256 public value;
+
+  constructor(address archController, address engine) {
+    _archController = archController;
+    __SphereXProtectedRegisteredBase_init(engine);
+  }
+
+  function setValue(uint256 newValue) external sphereXGuardExternal {
+    value = newValue;
   }
 }
 
@@ -173,6 +187,14 @@ contract SphereXConfigTest is Test, Prankster {
     config.changeSphereXEngine(address(badEngine));
   }
 
+  function test_changeSphereXEngine_SphereXOperatorRequired(address caller) external {
+    vm.assume(caller != operator);
+
+    vm.expectRevert(SphereXOperatorRequired.selector);
+    vm.prank(caller);
+    config.changeSphereXEngine(address(0));
+  }
+
   function test_changeSphereXEngine_GoodEngine() external {
     GoodEngine newEngine = new GoodEngine();
     vm.expectEmit(address(config));
@@ -201,6 +223,29 @@ contract SphereXConfigTest is Test, Prankster {
 
     vm.prank(admin);
     config.addSender(sender);
+  }
+
+  function test_registeredChangeSphereXEngine_SphereXOperatorRequired(address caller) external {
+    vm.assume(caller != address(this));
+    MockRegisteredProtected protectedContract = new MockRegisteredProtected(
+      address(this),
+      address(0)
+    );
+
+    vm.expectRevert(SphereXOperatorRequired.selector);
+    vm.prank(caller);
+    protectedContract.changeSphereXEngine(address(0));
+  }
+
+  function test_registeredGuard_AllowsCallWhenEngineDisabled() external {
+    MockRegisteredProtected protectedContract = new MockRegisteredProtected(
+      address(this),
+      address(0)
+    );
+
+    protectedContract.setValue(123);
+
+    assertEq(protectedContract.value(), 123, 'value');
   }
 
   function toAddr(bytes memory label) internal pure returns (address addr) {

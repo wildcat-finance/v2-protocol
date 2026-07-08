@@ -18,6 +18,7 @@ import 'src/lens/MarketLensLive.sol';
 import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
 import 'src/lens/MarketLens.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import 'src/IHooksFactory.sol';
 
 enum FuzzConditions {
   Default,
@@ -35,6 +36,30 @@ struct PeriodicTermLensFixture {
   uint32 withdrawalWindowDuration;
   uint128 minimumDeposit;
   bool transfersDisabled;
+}
+
+contract MockV1MarketLike {
+  address public immutable asset;
+  string public constant name = 'Wildcat V1';
+  string public constant symbol = 'WCV1';
+  uint8 public constant decimals = 18;
+
+  constructor(address asset_) {
+    asset = asset_;
+  }
+
+  function version() external pure returns (string memory) {
+    return '1.0.0';
+  }
+}
+
+contract HooksInstanceDataHarness {
+  function fill(
+    address hooksAddress,
+    IHooksFactory factory
+  ) external view returns (HooksInstanceData memory data) {
+    data.fill(hooksAddress, factory);
+  }
 }
 
 contract MarketDataTest is BaseMarketTest {
@@ -73,6 +98,13 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(address(lens.coreHelper()), address(lensCore), 'coreHelper');
     assertEq(address(lens.aggregationHelper()), address(lensAggregator), 'aggregationHelper');
     assertEq(address(lens.liveHelper()), address(lensLive), 'liveHelper');
+  }
+
+  function test_getMarketData_bubblesNotV2MarketRevert() external {
+    MockV1MarketLike v1Market = new MockV1MarketLike(address(asset));
+
+    vm.expectRevert(MarketLens.NotV2Market.selector);
+    lens.getMarketData(address(v1Market));
   }
 
   /// Every function in the aggregator section of the facade must forward to
@@ -843,6 +875,31 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(data.unpaidWithdrawalBatchExpiries[0], expiry, 'unpaid expiry');
   }
 
+  function test_getMarketData_treatsFullyPaidExpiredPendingWithdrawalBatchAsPending() external {
+    _deposit(alice, 1e18);
+    uint32 expiry = _requestWithdrawal(alice, 1e18);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    assertEq(data.pendingWithdrawalExpiry, expiry, 'pending expiry');
+    assertEq(data.unpaidWithdrawalBatchExpiries.length, 0, 'unpaid expiry count');
+
+    address[] memory markets = new address[](1);
+    markets[0] = address(market);
+    MarketLiveDataV2_5 memory liveData = lens.getMarketsLiveDataV2(markets)[0];
+    assertEq(liveData.pendingWithdrawalExpiry, expiry, 'live pending expiry');
+  }
+
+  function test_getMarketsLiveDataV2_ignoresUnpaidExpiredPendingWithdrawalBatch() external {
+    _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    address[] memory markets = new address[](1);
+    markets[0] = address(market);
+    MarketLiveDataV2_5 memory liveData = lens.getMarketsLiveDataV2(markets)[0];
+    assertEq(liveData.pendingWithdrawalExpiry, 0, 'live pending expiry');
+  }
+
   function test_getMarketData_supportsPeriodicTermHooks() external {
     PeriodicTermLensFixture memory fixture = deployPeriodicTermMarket();
 
@@ -901,6 +958,15 @@ contract MarketDataTest is BaseMarketTest {
     assertTrue(found, 'periodic hooks instance not found');
   }
 
+  function test_HooksInstanceDataFill_readsBorrowerWhenNotProvided() external {
+    HooksInstanceDataHarness harness = new HooksInstanceDataHarness();
+
+    HooksInstanceData memory data = harness.fill(address(hooks), hooksFactory);
+
+    assertEq(data.hooksAddress, address(hooks), 'hooksAddress');
+    assertEq(data.borrower, borrower, 'borrower');
+  }
+
   function test_getMarketsData() external view {
     address[] memory markets = new address[](1);
     markets[0] = address(market);
@@ -921,6 +987,18 @@ contract MarketDataTest is BaseMarketTest {
       keccak256(abi.encode(lens.getMarketData(address(market)))),
       'markets'
     );
+  }
+
+  function test_getUnpaidAndPendingWithdrawalBatches_includesPendingBatch() external {
+    _deposit(alice, 1e18);
+    uint32 expiry = _requestWithdrawal(alice, 1e18);
+
+    MarketData memory data = lens.getMarketData(address(market));
+    WithdrawalBatchData[] memory batches = data.getUnpaidAndPendingWithdrawalBatches();
+
+    assertEq(batches.length, 1, 'batch count');
+    assertEq(batches[0].expiry, expiry, 'expiry');
+    assertEq(uint256(batches[0].status), uint256(BatchStatus.Pending), 'status');
   }
 
   function checkWithdrawalBatchData(WithdrawalBatchData memory data, uint32 expiry) internal view {
@@ -963,6 +1041,16 @@ contract MarketDataTest is BaseMarketTest {
     asset.mint(address(market), 1e18);
     market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
     checkWithdrawalBatchData(lens.getWithdrawalBatchData(address(market), expiry), expiry);
+  }
+
+  function test_getWithdrawalBatchData_StatusExpiredBeforeStateUpdate() external {
+    _deposit(alice, 1e18);
+    uint32 expiry = _requestWithdrawal(alice, 1e18);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+
+    WithdrawalBatchData memory data = lens.getWithdrawalBatchData(address(market), expiry);
+
+    assertEq(uint256(data.status), uint256(BatchStatus.Expired), 'status');
   }
 
   function checkWithdrawalBatchLenderStatus(

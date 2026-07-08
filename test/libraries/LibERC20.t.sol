@@ -15,6 +15,14 @@ contract LibERC20External {
     token.safeTransferFrom(from, to, amount);
   }
 
+  function safeTransferAll(address token, address to) external returns (uint256) {
+    return token.safeTransferAll(to);
+  }
+
+  function balanceOf(address token, address account) external view returns (uint256) {
+    return token.balanceOf(account);
+  }
+
   function decimals(address token) external view returns (uint8) {
     return token.decimals();
   }
@@ -65,6 +73,24 @@ contract LibERC20FalseReturnToken {
   }
 }
 
+contract LibERC20NoBalanceReturnToken {
+  function balanceOf(address) external pure {}
+
+  function transfer(address, uint256) external pure returns (bool) {
+    return true;
+  }
+}
+
+contract LibERC20BalanceFalseTransferToken {
+  function balanceOf(address) external pure returns (uint256) {
+    return 123;
+  }
+
+  function transfer(address, uint256) external pure returns (bool) {
+    return false;
+  }
+}
+
 contract LibERC20MissingDecimalsToken {}
 
 contract LibERC20Test is Test {
@@ -111,6 +137,27 @@ contract LibERC20Test is Test {
 
     vm.expectRevert(LibERC20.TransferFromFailed.selector);
     wrapper.safeTransferFrom(address(token), address(0xA11CE), address(0xB0B), 1);
+  }
+
+  function test_safeTransferAll_BalanceOfNoReturnReverts() external {
+    LibERC20NoBalanceReturnToken token = new LibERC20NoBalanceReturnToken();
+
+    vm.expectRevert(LibERC20.TransferFailed.selector);
+    wrapper.safeTransferAll(address(token), address(0xB0B));
+  }
+
+  function test_safeTransferAll_TransferReturningFalseReverts() external {
+    LibERC20BalanceFalseTransferToken token = new LibERC20BalanceFalseTransferToken();
+
+    vm.expectRevert(LibERC20.TransferFailed.selector);
+    wrapper.safeTransferAll(address(token), address(0xB0B));
+  }
+
+  function test_balanceOf_NoReturnReverts() external {
+    LibERC20NoBalanceReturnToken token = new LibERC20NoBalanceReturnToken();
+
+    vm.expectRevert(LibERC20.BalanceOfFailed.selector);
+    wrapper.balanceOf(address(token), address(this));
   }
 
   function test_decimals_MissingDecimalsReverts() external {

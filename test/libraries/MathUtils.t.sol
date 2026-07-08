@@ -67,6 +67,23 @@ contract MathUtilsExternalTest is Test {
     }
   }
 
+  function test_rayDiv() external {
+    assertEq(MathUtilsExternal.rayDiv(RAY, RAY), RAY);
+    assertEq(MathUtilsExternal.rayDiv(1, 2), 5e26);
+  }
+
+  function test_rayDiv_RevertsOnZeroDenominator() external {
+    vm.expectRevert(ArithmeticError);
+    MathUtilsExternal.rayDiv(1, 0);
+  }
+
+  function test_rayDiv_RevertsOnOverflow() external {
+    uint256 overflowingNumerator = (type(uint256).max / RAY) + 1;
+
+    vm.expectRevert(ArithmeticError);
+    MathUtilsExternal.rayDiv(overflowingNumerator, 1);
+  }
+
   function test_bipToRay() external {
     assertEq(MathUtilsExternal.bipToRay(BIP), RAY);
     vm.expectRevert(ArithmeticError);

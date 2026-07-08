@@ -18,6 +18,18 @@ The example given is also an extreme one, in reality it'd much more likely be a 
 
 If any of the hooks that are enabled for a market can revert unexpectedly, the corresponding market function may become permanently disabled. This is considered a known/unfixable issue with respect to the market, but if such an issue is actually discovered in a hooks template we have developed, this is a major vulnerability that should be reported.
 
+**External dependency: Chainalysis sanctions oracle liveness**
+
+Markets consult the Chainalysis sanctions list (through the sanctions
+sentinel) inside `borrow`, `executeWithdrawal`, and `nukeFromOrbit`. The
+oracle is an external contract outside protocol control: if it ever reverts
+or returns malformed data, those market functions revert until it recovers
+(the assembly call sites deliberately bubble the failure rather than
+defaulting open or closed). Deposits, transfers, and withdrawal queueing do
+not consult the oracle and remain live. This is an accepted external
+dependency; the revert-bubbling branches are intentionally untestable
+without a hostile sentinel mock and are documented rather than covered.
+
 **CAF-03: Sanctioned account handling with withdrawal restrictions**
 
 `nukeFromOrbit` queues a sanctioned lender's balance through the same withdrawal hooks as ordinary lender withdrawals. If a market uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. The CAF-03 remediation bypassed `onQueueWithdrawal`, but that also bypassed fixed-term and other withdrawal restrictions, so RCF V2 keeps the ordinary withdrawal path and treats the sanctions liveness limitation as accepted behavior.

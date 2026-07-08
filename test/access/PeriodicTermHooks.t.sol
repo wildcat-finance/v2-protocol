@@ -887,10 +887,70 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     hooks.onDeposit(Lender, 1e18 - 1, state, '');
   }
 
+  function test_onDeposit_BlockedFromDeposits() external {
+    _createMarket();
+    hooks.blockFromDeposits(Lender);
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+
+    vm.prank(Market);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onDeposit(Lender, 1e18, state, '');
+  }
+
+  function test_onDeposit_DepositRequiresAccessWithoutCredential() external {
+    _createMarket(EmptyHooksConfig.setFlag(Bit_Enabled_Deposit), _encodeHooksData());
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+
+    vm.prank(Market);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onDeposit(Lender, 1e18, state, '');
+  }
+
   function test_onDeposit_NotHookedMarket() external {
     MarketState memory state;
     vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
     hooks.onDeposit(Lender, 0, state, '');
+  }
+
+  // ========================================================================== //
+  //                                  Transfers                                 //
+  // ========================================================================== //
+
+  function test_onTransfer_NotHookedMarket() external {
+    MarketState memory state;
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
+  }
+
+  function test_onTransfer_KnownLenderSkipsAccessChecks() external {
+    _createMarket(EmptyHooksConfig.setFlag(Bit_Enabled_Transfer), _encodeHooksData());
+    hooks.setIsKnownLender(Lender, Market, true);
+    hooks.blockFromDeposits(Lender);
+
+    MarketState memory state;
+    vm.prank(Market);
+    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
+  }
+
+  function test_onTransfer_BlockedRecipient() external {
+    _createMarket();
+    hooks.blockFromDeposits(Lender);
+
+    MarketState memory state;
+    vm.prank(Market);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
+  }
+
+  function test_onTransfer_TransferRequiresAccessWithoutCredential() external {
+    _createMarket(EmptyHooksConfig.setFlag(Bit_Enabled_Transfer), _encodeHooksData());
+
+    MarketState memory state;
+    vm.prank(Market);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
   }
 
   // ========================================================================== //
@@ -1564,6 +1624,20 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
 
     assertEq(annualInterestBips, 900, 'annualInterestBips');
     _assertNoPendingAprChange(address(market));
+  }
+
+  function test_executePendingAnnualInterestBipsReduction_NotReduction() external {
+    MockAprMarket market = new MockAprMarket(1_000);
+    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+    hooks.proposeAnnualInterestBips(address(market), 900);
+
+    MarketState memory state;
+    state.annualInterestBips = 900;
+
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+    vm.prank(address(market));
+    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+    hooks.executePendingAnnualInterestBipsReduction(state);
   }
 
   function test_executePendingAnnualInterestBipsReduction_NotHookedMarket() external {

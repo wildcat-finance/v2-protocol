@@ -6,6 +6,7 @@ import 'src/HooksFactoryRevolving.sol';
 import 'src/IHooksFactoryRevolving.sol';
 import 'src/interfaces/IWildcatMarketRevolving.sol';
 import 'src/libraries/LibStoredInitCode.sol';
+import 'src/WildcatArchController.sol';
 import 'src/lens/MarketLensAggregator.sol';
 import 'src/lens/MarketLens.sol';
 import 'src/lens/MarketLensCore.sol';
@@ -553,6 +554,88 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
       keccak256(abi.encode(helperFactoryScoped)),
       keccak256(abi.encode(facadeFactoryScoped)),
       'factory-scoped parity'
+    );
+  }
+
+  function test_getActiveHooksFactories_ignoresNonFactoryDefault() external {
+    MockNonHooksController nonFactoryDefault = new MockNonHooksController();
+    MarketLensAggregator aggregator = new MarketLensAggregator(
+      address(archController),
+      address(nonFactoryDefault)
+    );
+
+    address[] memory activeFactories = aggregator.getActiveHooksFactories();
+
+    assertEq(activeFactories.length, 2, 'active factories length');
+    assertEq(activeFactories[0], address(hooksFactory), 'first active factory');
+    assertEq(activeFactories[1], address(hooksFactoryRevolving), 'second active factory');
+  }
+
+  /// @dev The fallback append arm: a genuine hooks factory configured as the
+  ///      aggregator's default but NOT registered as a controller must still
+  ///      surface through getActiveHooksFactories. This is the recovery path
+  ///      for a default factory whose arch-controller registration is missing.
+  function test_getActiveHooksFactories_appendsUnregisteredDefaultFactory() external {
+    // A real factory, deliberately never registered with the arch controller.
+    (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
+    HooksFactory unregistered = new HooksFactory(
+      address(archController),
+      address(sanctionsSentinel),
+      marketTemplate,
+      marketInitCodeHash
+    );
+    MarketLensAggregator aggregator = new MarketLensAggregator(
+      address(archController),
+      address(unregistered)
+    );
+
+    address[] memory activeFactories = aggregator.getActiveHooksFactories();
+
+    assertEq(activeFactories.length, 3, 'active factories length');
+    assertEq(activeFactories[0], address(hooksFactory), 'first active factory');
+    assertEq(activeFactories[1], address(hooksFactoryRevolving), 'second active factory');
+    assertEq(activeFactories[2], address(unregistered), 'appended default factory');
+  }
+
+  function test_aggregatedReads_returnEmptyWithNoFactoriesAndNonFactoryDefault() external {
+    WildcatArchController emptyArchController = new WildcatArchController();
+    MockNonHooksController nonFactoryDefault = new MockNonHooksController();
+    MarketLensAggregator aggregator = new MarketLensAggregator(
+      address(emptyArchController),
+      address(nonFactoryDefault)
+    );
+
+    address[] memory activeFactories = aggregator.getActiveHooksFactories();
+    assertEq(activeFactories.length, 0, 'active factories length');
+
+    FactoryScopedHooksTemplateData[] memory scopedTemplates = aggregator
+      .getAggregatedHooksTemplatesForBorrowerWithFactory(borrower);
+    assertEq(scopedTemplates.length, 0, 'scoped templates length');
+    assertEq(
+      aggregator.getAggregatedMarketsForHooksTemplateCount(hooksTemplate),
+      0,
+      'aggregated market count'
+    );
+  }
+
+  function test_aggregatedMarketsForTemplate_toleratesSingleRevertingFactory() external {
+    WildcatArchController singleFactoryArchController = new WildcatArchController();
+    MockRevertingHooksFactory revertingFactory = new MockRevertingHooksFactory();
+    MockNonHooksController nonFactoryDefault = new MockNonHooksController();
+    singleFactoryArchController.registerControllerFactory(address(this));
+    singleFactoryArchController.registerController(address(revertingFactory));
+    MarketLensAggregator aggregator = new MarketLensAggregator(
+      address(singleFactoryArchController),
+      address(nonFactoryDefault)
+    );
+
+    address[] memory activeFactories = aggregator.getActiveHooksFactories();
+    assertEq(activeFactories.length, 1, 'active factories length');
+    assertEq(activeFactories[0], address(revertingFactory), 'active factory');
+    assertEq(
+      aggregator.getAggregatedMarketsForHooksTemplateCount(hooksTemplate),
+      0,
+      'aggregated market count'
     );
   }
 

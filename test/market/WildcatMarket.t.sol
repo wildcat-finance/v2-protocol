@@ -7,8 +7,10 @@ import 'src/libraries/MathUtils.sol';
 import 'src/libraries/SafeCastLib.sol';
 import 'src/libraries/MarketState.sol';
 import 'src/libraries/LibERC20.sol';
+import 'src/libraries/LibStoredInitCode.sol';
 import 'solady/utils/LibPRNG.sol';
 import { ExistingCredentialFuzzInputs, AccessControlHooksDataFuzzInputs } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
+import '../shared/mocks/RevertingHooks.sol';
 
 contract WildcatMarketTest is BaseMarketTest {
   using stdStorage for StdStorage;
@@ -16,6 +18,26 @@ contract WildcatMarketTest is BaseMarketTest {
   using MathUtils for uint256;
   using SafeCastLib for uint256;
   using LibPRNG for LibPRNG.PRNG;
+
+  function _resetWithRevertingHooks(
+    HooksConfig hooksConfig
+  ) internal asSelf returns (RevertingHooks revertingHooks) {
+    parameters.hooksTemplate = LibStoredInitCode.deployInitCode(type(RevertingHooks).creationCode);
+    hooksFactory.addHooksTemplate(
+      parameters.hooksTemplate,
+      'RevertingHooks',
+      address(0),
+      address(0),
+      0,
+      0
+    );
+    hooks = OpenTermHooks(address(0));
+    parameters.deployHooksConstructorArgs = abi.encode(address(this), '');
+    parameters.deployMarketHooksData = '';
+    parameters.hooksConfig = hooksConfig;
+    setUpContracts(false);
+    revertingHooks = RevertingHooks(parameters.hooksConfig.hooksAddress());
+  }
 
   // ===================================================================== //
   //                             updateState()                             //
@@ -171,6 +193,15 @@ contract WildcatMarketTest is BaseMarketTest {
     market.deposit(amount);
   }
 
+  function test_deposit_DepositToClosedMarket() external {
+    vm.prank(borrower);
+    market.closeMarket();
+
+    vm.prank(alice);
+    vm.expectRevert(IMarketEventsAndErrors.DepositToClosedMarket.selector);
+    market.deposit(1e18);
+  }
+
   function testDeposit_NotApprovedLender() public asAccount(bob) {
     vm.expectRevert(IMarketEventsAndErrors.NotApprovedLender.selector);
     market.deposit(1e18);
@@ -234,6 +265,15 @@ contract WildcatMarketTest is BaseMarketTest {
     market.borrow(40_000e18 + 1);
   }
 
+  function test_borrow_BorrowFromClosedMarket() external {
+    vm.prank(borrower);
+    market.closeMarket();
+
+    vm.prank(borrower);
+    vm.expectRevert(IMarketEventsAndErrors.BorrowFromClosedMarket.selector);
+    market.borrow(1);
+  }
+
   // ===================================================================== //
   //                             closeMarket()                              //
   // ===================================================================== //
@@ -268,6 +308,40 @@ contract WildcatMarketTest is BaseMarketTest {
   function test_closeMarket_NotApprovedBorrower() external {
     vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
     market.closeMarket();
+  }
+
+  function test_closeMarket_MarketAlreadyClosed() external {
+    vm.startPrank(borrower);
+    market.closeMarket();
+    vm.expectRevert(IMarketEventsAndErrors.MarketAlreadyClosed.selector);
+    market.closeMarket();
+    vm.stopPrank();
+  }
+
+  function test_closeMarket_CreatesSentinelBatchAtExactExpiry() external {
+    _deposit(alice, 1e18);
+    _requestWithdrawal(alice, 1e18);
+    uint32 expiry = previousState.pendingWithdrawalExpiry;
+
+    vm.warp(expiry);
+    vm.recordLogs();
+    vm.prank(borrower);
+    market.closeMarket();
+
+    bool foundSentinelBatch;
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    bytes32 eventSignature = keccak256('WithdrawalBatchCreated(uint256)');
+    for (uint256 i; i < logs.length; i++) {
+      if (
+        logs[i].topics.length == 2 &&
+        logs[i].topics[0] == eventSignature &&
+        logs[i].topics[1] == bytes32(uint256(expiry + 1))
+      ) {
+        foundSentinelBatch = true;
+      }
+    }
+    assertTrue(foundSentinelBatch, 'sentinel WithdrawalBatchCreated');
+    assertEq(market.previousState().pendingWithdrawalExpiry, expiry + 1, 'sentinel expiry');
   }
 
   function test_closeMarket_repayUnpaidAndPendingWithdrawals() external asAccount(borrower) {
@@ -361,6 +435,113 @@ contract WildcatMarketTest is BaseMarketTest {
     asset.approve(address(market), 1e18);
     vm.expectRevert(IMarketEventsAndErrors.RepayToClosedMarket.selector);
     market.repay(1e18);
+  }
+
+  function test_hooks_onDeposit_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
+    );
+    revertingHooks.setShouldRevert(true);
+
+    vm.prank(alice);
+    vm.expectRevert(RevertingHooks.OnDepositReverted.selector);
+    market.depositUpTo(1e18);
+  }
+
+  function test_hooks_onExecuteWithdrawal_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_ExecuteWithdrawal)
+    );
+    _deposit(alice, 1e18);
+    uint32 expiry = _requestWithdrawal(alice, 1e18);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    revertingHooks.setShouldRevert(true);
+
+    vm.prank(alice);
+    vm.expectRevert(RevertingHooks.OnExecuteWithdrawalReverted.selector);
+    market.executeWithdrawal(alice, expiry);
+  }
+
+  function test_hooks_onBorrow_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_Borrow)
+    );
+    _deposit(alice, 1e18);
+    revertingHooks.setShouldRevert(true);
+
+    vm.prank(borrower);
+    vm.expectRevert(RevertingHooks.OnBorrowReverted.selector);
+    market.borrow(1);
+  }
+
+  function test_hooks_onRepay_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_Repay)
+    );
+    _deposit(alice, 1e18);
+    _borrow(5e17);
+    asset.mint(address(this), 1e17);
+    asset.approve(address(market), 1e17);
+    revertingHooks.setShouldRevert(true);
+
+    vm.expectRevert(RevertingHooks.OnRepayReverted.selector);
+    market.repay(1e17);
+  }
+
+  function test_hooks_onCloseMarket_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_CloseMarket)
+    );
+    revertingHooks.setShouldRevert(true);
+
+    vm.prank(borrower);
+    vm.expectRevert(RevertingHooks.OnCloseMarketReverted.selector);
+    market.closeMarket();
+  }
+
+  function test_hooks_onNukeFromOrbit_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_NukeFromOrbit)
+    );
+    _deposit(alice, 1e18);
+    sanctionsSentinel.sanction(alice);
+    revertingHooks.setShouldRevert(true);
+
+    vm.expectRevert(RevertingHooks.OnNukeFromOrbitReverted.selector);
+    market.nukeFromOrbit(alice);
+  }
+
+  function test_hooks_onSetMaxTotalSupply_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_SetMaxTotalSupply)
+    );
+    revertingHooks.setShouldRevert(true);
+
+    vm.prank(borrower);
+    vm.expectRevert(RevertingHooks.OnSetMaxTotalSupplyReverted.selector);
+    market.setMaxTotalSupply(parameters.maxTotalSupply - 1);
+  }
+
+  function test_hooks_onSetAnnualInterestAndReserveRatioBips_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+    );
+    revertingHooks.setShouldRevert(true);
+
+    vm.prank(borrower);
+    vm.expectRevert(RevertingHooks.OnSetAnnualInterestAndReserveRatioBipsReverted.selector);
+    market.setAnnualInterestAndReserveRatioBips(DefaultInterest + 1, DefaultReserveRatio);
+  }
+
+  function test_hooks_onSetProtocolFeeBips_revertBubbles() external {
+    RevertingHooks revertingHooks = _resetWithRevertingHooks(
+      EmptyHooksConfig.setFlag(Bit_Enabled_SetProtocolFeeBips)
+    );
+    revertingHooks.setShouldRevert(true);
+
+    vm.prank(address(hooksFactory));
+    vm.expectRevert(RevertingHooks.OnSetProtocolFeeBipsReverted.selector);
+    market.setProtocolFeeBips(parameters.protocolFeeBips - 1);
   }
 
   // ========================================================================== //

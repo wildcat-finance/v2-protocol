@@ -5,8 +5,21 @@ import 'src/types/TransientBytesArray.sol';
 import 'forge-std/Test.sol';
 import '../helpers/PRNG.sol';
 
+contract TransientBytesArrayExternal {
+  TransientBytesArray internal array = TransientBytesArray.wrap(0);
+
+  function readInvalidShortEncoding() external returns (bytes memory) {
+    assembly {
+      tstore(0, 64)
+    }
+    return array.read();
+  }
+}
+
 contract TransientBytesArrayTest is Test {
   TransientBytesArray internal array = TransientBytesArray.wrap(0);
+  bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
+  uint256 internal constant Panic_InvalidStorageByteArray = 0x22;
 
   function test_smallBytes(uint seed, uint length) external {
     length = bound(length, 0, 31);
@@ -41,6 +54,13 @@ contract TransientBytesArrayTest is Test {
     assertEq(array.read(), data, 'bad read value for large bytes');
     array.setEmpty();
     assertEq(array.read().length, 0, 'bad read value after emptying');
+  }
+
+  function test_read_InvalidShortEncodingLengthReverts() external {
+    TransientBytesArrayExternal externalArray = new TransientBytesArrayExternal();
+
+    vm.expectRevert(abi.encodeWithSelector(Panic_ErrorSelector, Panic_InvalidStorageByteArray));
+    externalArray.readInvalidShortEncoding();
   }
 
   function test_nextBytes(uint seed, uint length) external {

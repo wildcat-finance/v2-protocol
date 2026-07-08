@@ -198,6 +198,12 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     assertEq(market.maxTotalSupply(), _maxTotalSupply, 'maxTotalSupply should be _maxTotalSupply');
   }
 
+  function test_setMaxTotalSupply_CapacityChangeOnClosedMarket() external asAccount(borrower) {
+    market.closeMarket();
+    vm.expectRevert(IMarketEventsAndErrors.CapacityChangeOnClosedMarket.selector);
+    market.setMaxTotalSupply(parameters.maxTotalSupply - 1);
+  }
+
   // ========================================================================== //
   //                    setAnnualInterestAndReserveRatioBips                    //
   // ========================================================================== //
@@ -535,6 +541,14 @@ contract WildcatMarketConfigTest is BaseMarketTest {
 
   function test_executePendingAnnualInterestBipsReduction_NotEnabled() external {
     vm.expectRevert(IMarketEventsAndErrors.ExecutePendingAprReductionNotEnabled.selector);
+    market.executePendingAnnualInterestBipsReduction();
+  }
+
+  function test_executePendingAnnualInterestBipsReduction_AprChangeOnClosedMarket() external {
+    vm.prank(borrower);
+    market.closeMarket();
+
+    vm.expectRevert(IMarketEventsAndErrors.AprChangeOnClosedMarket.selector);
     market.executePendingAnnualInterestBipsReduction();
   }
 

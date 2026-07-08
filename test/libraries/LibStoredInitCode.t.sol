@@ -156,4 +156,12 @@ contract LibStoredInitCodeTest is Test {
       )
     );
   }
+
+  function test_create2WithStoredInitCodeCD_DeploymentFailed(bytes32 salt) external {
+    address initCodeStorage = lib.deployInitCode(type(TestContract).creationCode);
+
+    lib.create2WithStoredInitCodeCD(initCodeStorage, salt, '');
+    vm.expectRevert(LibStoredInitCode.DeploymentFailed.selector);
+    lib.create2WithStoredInitCodeCD(initCodeStorage, salt, '');
+  }
 }
