@@ -1,28 +1,37 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "network": "sepolia",
   "chainId": 11155111,
-  "marketTypes": ["legacy", "revolving"],
+  "marketTypes": [
+    "legacy",
+    "revolving"
+  ],
+  "recordCount": 8,
   "hooksFactories": [
     {
       "label": "legacy-v2",
       "marketType": "legacy",
       "address": "0xE3e4B7C9E0Ab4ccbC70e0583Dca7B4Db9B4CFD88",
-      "startBlock": 7124440,
-      "canonical": true,
+      "startBlock": 6973842,
+      "canonical": false,
+      "lifecycle": "live",
       "indexed": true,
       "registered": true,
-      "deploymentKey": "HooksFactory"
+      "deploymentKey": "HooksFactory",
+      "deployTxHash": "0x55650cd2689de0ebea6c3dfae588896b64bbaa4210863c0863e00d11f48332de",
+      "notes": "Superseded as standard canonical by the v2.1 factory (0x10A6..., adopted for the PTH v2.1 rollout); still indexed, still serving attached markets."
     },
     {
-      "label": "legacy-v2-20240730",
+      "label": "standard-v2-1",
       "marketType": "legacy",
       "address": "0x10A64ABa0159720F8a23E1A552800CA4eb21576C",
       "startBlock": 7124440,
-      "canonical": false,
+      "canonical": true,
+      "lifecycle": "canonical",
       "indexed": true,
       "registered": true,
-      "notes": "Historical Sepolia legacy hooks factory retained for market visibility; indexed but not canonical for new deployments."
+      "deployTxHash": "0x33dc2335b0915dc7bc5f773a5154cb6e894e50f8402684a5255c5d9b6bd85f18",
+      "notes": "Historical Sepolia legacy hooks factory retained for market visibility; indexed but not canonical for new deployments. The v2.1 standard HooksFactory (per periodic-hooks-v21-rollout artifacts); canonical for new standard markets until the v2.5 rollout."
     },
     {
       "label": "revolving-sepolia-20260419-233246",
@@ -30,19 +39,21 @@
       "address": "0xF4564015E524cf5629828E61F45ed339D998D85f",
       "startBlock": 10695521,
       "canonical": false,
-      "indexed": true,
+      "lifecycle": "retired",
+      "indexed": false,
       "registered": true,
       "deployTxHash": "0x841704fa9ee616b203e6655dfc5f50f1afc6c9730ef3564fa1ae37b1214d1721",
       "registerTxHash": "0x2706b13eecb74f1d4e10bd2b2df596356ad01ef89ddcd97db1872f8a4c2fcd62",
       "initCodeStorage": "0xAB379345b186c4914d109916c50337D46e72f5E8",
-      "notes": "Historical Sepolia RCF factory retained for market visibility; indexed but not canonical for new deployments."
+      "notes": "Retired abandoned Sepolia RCF test rollout; it remains registered on-chain but is intentionally not indexed."
     },
     {
       "label": "revolving-sepolia-20260424-140119",
       "marketType": "revolving",
       "address": "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5",
-      "startBlock": 10725515,
+      "startBlock": 10725492,
       "canonical": true,
+      "lifecycle": "canonical",
       "indexed": true,
       "registered": true,
       "deploymentKey": "HooksFactoryRevolving",
@@ -50,6 +61,54 @@
       "registerTxHash": "0x96967d686e8e554aab2342579e16d7d37c357068214722348e572cf223f0c47f",
       "initCodeStorage": "0x6Fb02197A8f8bc839C91B4CA4A0DCdCDF85cCc8d",
       "notes": "Current canonical Sepolia RCF factory for new revolving market deployments."
+    },
+    {
+      "label": "legacy-test-2024-08-05",
+      "marketType": "legacy",
+      "address": "0x6Cb3512b541733d340Aa520b63105586588BD600",
+      "startBlock": 6443857,
+      "canonical": false,
+      "lifecycle": "retired",
+      "indexed": false,
+      "registered": true,
+      "deployTxHash": "0x2e7c92b3d9e178f28b8ce5ac63dd0cda88c92d2e96180933f957af9cd2197729",
+      "notes": "Backfilled registered Sepolia test generation; retired and intentionally not indexed."
+    },
+    {
+      "label": "legacy-test-2024-09-23",
+      "marketType": "legacy",
+      "address": "0xE1d14E8176d27415c204A4F9Ef58E107964CA12C",
+      "startBlock": 6746262,
+      "canonical": false,
+      "lifecycle": "retired",
+      "indexed": false,
+      "registered": true,
+      "deployTxHash": "0x0e0c84d3a2bc8df7e90933befc7870f7f40e7ac590d2736bc0882bb04700f7dc",
+      "notes": "Backfilled registered Sepolia test generation; retired and intentionally not indexed."
+    },
+    {
+      "label": "legacy-test-2024-11-21",
+      "marketType": "legacy",
+      "address": "0xCf872Ac862d2ba97F99804ed25f0dB5F2352933a",
+      "startBlock": 7123486,
+      "canonical": false,
+      "lifecycle": "retired",
+      "indexed": false,
+      "registered": true,
+      "deployTxHash": "0xb7a83d452532c9dd8c5e4f51def060c424651611ebb58c9660426bd08596c58a",
+      "notes": "Backfilled registered Sepolia test generation; retired and intentionally not indexed."
+    }
+  ],
+  "wrapperFactories": [
+    {
+      "label": "wrapper-v1",
+      "address": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+      "startBlock": 10534112,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "deployTxHash": "0xdfd481ee8a43495d1fc86a9bef5ec726f5556e1f87908f7ebee08be61c3ee37e",
+      "v1Factory": null,
+      "notes": "Legacy 4626 wrapper factory for pre-v2.5 markets; configuration-backed and not enumerable from the ArchController."
     }
   ]
 }

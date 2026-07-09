@@ -7,13 +7,19 @@ const {
   getCanonicalFactory,
   getIndexedFactories,
   inventoryPathForNetwork,
+  migrateInventory,
   readInventory,
   readJson,
   validateInventory,
 } = require("./factory-inventory");
 
-const DEFAULT_SUBGRAPH_NETWORKS_PATH = path.join("..", "subgraph", "networks.json");
-const DEFAULT_SDK_CONSTANTS_PATH = path.join("..", "wildcat.ts", "src", "constants.ts");
+const DEFAULT_SDK_CONSTANTS_PATH = path.join(
+  "..",
+  "wildcat.ts",
+  "src",
+  "constants.ts"
+);
+const DEFAULT_FIXTURES_DIR = path.join("scripts", "__fixtures__");
 
 const CHAIN_IDS_BY_NETWORK = {
   mainnet: 1,
@@ -33,24 +39,26 @@ const SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE = {
   legacy: "HooksFactory",
   revolving: "HooksFactoryRevolving",
 };
-const SDK_NON_CANONICAL_FACTORY_MARKET_TYPES_NAME = "NonCanonicalHooksFactoryMarketTypesByChainId";
+const SDK_NON_CANONICAL_FACTORY_MARKET_TYPES_NAME =
+  "NonCanonicalHooksFactoryMarketTypesByChainId";
 const SDK_NON_CANONICAL_FACTORY_CAPABILITIES_NAME =
   "NonCanonicalHooksFactoryCapabilitiesByChainId";
 
 function printUsage() {
   console.log(`Usage:
-  node scripts/validate-factory-inventory.js --network <name>
+  node scripts/validate-factory-inventory.js --network <name> --subgraph-dir <path>
     [--inventory <path>]
-    [--subgraph-networks <path>]
     [--sdk-constants <path>]
     [--rpc-url <url>] [--cast-bin <path-or-name>]
+  node scripts/validate-factory-inventory.js --fixtures [--fixtures-dir <path>]
 
 Defaults:
   --inventory         deployments/<network>/factory-inventory.json
-  --subgraph-networks ../subgraph/networks.json
+  --subgraph-dir      required; networks.json is read from this directory
   --sdk-constants     ../wildcat.ts/src/constants.ts
   --rpc-url           omitted; RPC registration checks are opt-in
   --cast-bin          cast
+  --fixtures-dir      scripts/__fixtures__
 `);
 }
 
@@ -100,12 +108,21 @@ function runCast(castBin, args) {
     }).trim();
   } catch (error) {
     const stderr = error.stderr ? error.stderr.toString().trim() : "";
-    throw new Error(`cast ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
+    throw new Error(
+      `cast ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`
+    );
   }
 }
 
 function castCall(castBin, rpcUrl, target, signature, callArgs = []) {
-  return runCast(castBin, ["call", target, signature, ...callArgs, "--rpc-url", rpcUrl]);
+  return runCast(castBin, [
+    "call",
+    target,
+    signature,
+    ...callArgs,
+    "--rpc-url",
+    rpcUrl,
+  ]);
 }
 
 function castBool(castBin, rpcUrl, target, signature, callArgs = []) {
@@ -116,9 +133,13 @@ function castBool(castBin, rpcUrl, target, signature, callArgs = []) {
 }
 
 function validateRpcChainId(castBin, rpcUrl, chainId, errors) {
-  const rpcChainId = Number(runCast(castBin, ["chain-id", "--rpc-url", rpcUrl]));
+  const rpcChainId = Number(
+    runCast(castBin, ["chain-id", "--rpc-url", rpcUrl])
+  );
   if (rpcChainId !== chainId) {
-    errors.push(`RPC chain id mismatch: expected ${chainId}, got ${rpcChainId}`);
+    errors.push(
+      `RPC chain id mismatch: expected ${chainId}, got ${rpcChainId}`
+    );
   }
 }
 
@@ -158,15 +179,23 @@ function extractSdkDeploymentBlock(source, chainId) {
   const marker = sdkChainMarker(chainId);
   const markerIndex = source.indexOf(marker);
   if (markerIndex === -1) {
-    throw new Error(`SDK constants do not contain deployment block for chain ${chainId}`);
+    throw new Error(
+      `SDK constants do not contain deployment block for chain ${chainId}`
+    );
   }
 
   const blockStart = source.indexOf("{", markerIndex);
   if (blockStart === -1) {
-    throw new Error(`Unable to find SDK deployment block start for chain ${chainId}`);
+    throw new Error(
+      `Unable to find SDK deployment block start for chain ${chainId}`
+    );
   }
 
-  return extractObjectBodyAt(source, blockStart, `SDK deployment block for chain ${chainId}`);
+  return extractObjectBodyAt(
+    source,
+    blockStart,
+    `SDK deployment block for chain ${chainId}`
+  );
 }
 
 function extractSdkOptionalObjectBlock(source, objectName, chainId) {
@@ -182,7 +211,11 @@ function extractSdkOptionalObjectBlock(source, objectName, chainId) {
   if (blockStart === -1) {
     return "";
   }
-  return extractObjectBodyAt(source, blockStart, `${objectName} block for chain ${chainId}`);
+  return extractObjectBodyAt(
+    source,
+    blockStart,
+    `${objectName} block for chain ${chainId}`
+  );
 }
 
 function parseSdkDeployments(constantsPath, chainId) {
@@ -216,7 +249,8 @@ function parseSdkNonCanonicalFactoryMarketTypes(constantsPath, chainId) {
     SDK_NON_CANONICAL_FACTORY_CAPABILITIES_NAME,
     chainId
   );
-  const capabilityEntryRegex = /"(0x[a-fA-F0-9]{40})"\s*:\s*\{([\s\S]*?)\n\s*\}/g;
+  const capabilityEntryRegex =
+    /"(0x[a-fA-F0-9]{40})"\s*:\s*\{([\s\S]*?)\n\s*\}/g;
   while ((match = capabilityEntryRegex.exec(capabilitiesBlock)) !== null) {
     const marketTypeMatch = /\bmarketType:\s*"([^"]+)"/.exec(match[2]);
     if (marketTypeMatch) {
@@ -227,7 +261,13 @@ function parseSdkNonCanonicalFactoryMarketTypes(constantsPath, chainId) {
   return factoriesByAddress;
 }
 
-function validateInventorySchema(inventory, network, chainId, errors, warnings) {
+function validateInventorySchema(
+  inventory,
+  network,
+  chainId,
+  errors,
+  warnings
+) {
   const result = validateInventory(inventory, { network, chainId });
   errors.push(...result.errors);
   warnings.push(...result.warnings);
@@ -258,7 +298,9 @@ function validateSubgraphConfig(inventory, networkConfig, errors) {
   }
 
   for (const inventoryFactory of getIndexedFactories(inventory)) {
-    const subgraphFactory = subgraphFactoriesByAddress.get(addressKey(inventoryFactory.address));
+    const subgraphFactory = subgraphFactoriesByAddress.get(
+      addressKey(inventoryFactory.address)
+    );
     if (!subgraphFactory) {
       errors.push(
         `indexed inventory factory ${inventoryFactory.label} (${inventoryFactory.address}) is missing from subgraph hooksFactories[]`
@@ -279,7 +321,8 @@ function validateSubgraphConfig(inventory, networkConfig, errors) {
 
   for (const subgraphFactory of subgraphFactoriesByAddress.values()) {
     const inventoryFactory = inventory.hooksFactories.find(
-      (entry) => addressKey(entry.address) === addressKey(subgraphFactory.address)
+      (entry) =>
+        addressKey(entry.address) === addressKey(subgraphFactory.address)
     );
     if (!inventoryFactory) {
       errors.push(
@@ -292,19 +335,27 @@ function validateSubgraphConfig(inventory, networkConfig, errors) {
     }
   }
 
-  for (const [marketType, deploymentName] of Object.entries(SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE)) {
+  for (const [marketType, deploymentName] of Object.entries(
+    SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE
+  )) {
     const canonical = getCanonicalFactory(inventory, marketType);
     if (!canonical) {
       continue;
     }
     const subgraphSingleton = networkConfig.contracts?.[deploymentName];
-    if (subgraphSingleton && addressKey(subgraphSingleton.address) !== addressKey(canonical.address)) {
+    if (
+      subgraphSingleton &&
+      addressKey(subgraphSingleton.address) !== addressKey(canonical.address)
+    ) {
       errors.push(
         `subgraph contracts.${deploymentName} does not match canonical ${marketType}: expected ${canonical.address}, got ${subgraphSingleton.address}`
       );
     }
     const namedFactory = subgraphFactoriesByName.get(deploymentName);
-    if (namedFactory && addressKey(namedFactory.address) !== addressKey(canonical.address)) {
+    if (
+      namedFactory &&
+      addressKey(namedFactory.address) !== addressKey(canonical.address)
+    ) {
       errors.push(
         `subgraph hooksFactories name ${deploymentName} does not match canonical ${marketType}: expected ${canonical.address}, got ${namedFactory.address}`
       );
@@ -312,17 +363,26 @@ function validateSubgraphConfig(inventory, networkConfig, errors) {
   }
 }
 
-function validateSdkConstants(inventory, sdkDeployments, sdkNonCanonicalFactoryMarketTypes, errors) {
+function validateSdkConstants(
+  inventory,
+  sdkDeployments,
+  sdkNonCanonicalFactoryMarketTypes,
+  errors
+) {
   const sdkFactoryMarketTypesByAddress = new Map();
 
-  for (const [marketType, deploymentName] of Object.entries(SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE)) {
+  for (const [marketType, deploymentName] of Object.entries(
+    SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE
+  )) {
     const canonical = getCanonicalFactory(inventory, marketType);
     if (!canonical) {
       continue;
     }
     const sdkAddress = sdkDeployments[deploymentName];
     if (!sdkAddress) {
-      errors.push(`SDK constants missing ${deploymentName} for canonical ${marketType} factory`);
+      errors.push(
+        `SDK constants missing ${deploymentName} for canonical ${marketType} factory`
+      );
       continue;
     }
     if (addressKey(sdkAddress) !== addressKey(canonical.address)) {
@@ -333,17 +393,24 @@ function validateSdkConstants(inventory, sdkDeployments, sdkNonCanonicalFactoryM
     sdkFactoryMarketTypesByAddress.set(addressKey(sdkAddress), marketType);
   }
 
-  for (const [address, marketType] of sdkNonCanonicalFactoryMarketTypes.entries()) {
+  for (const [
+    address,
+    marketType,
+  ] of sdkNonCanonicalFactoryMarketTypes.entries()) {
     sdkFactoryMarketTypesByAddress.set(address, marketType);
     const inventoryFactory = inventory.hooksFactories.find(
       (entry) => addressKey(entry.address) === address
     );
     if (!inventoryFactory) {
-      errors.push(`SDK non-canonical hooks factory ${address} is missing from inventory`);
+      errors.push(
+        `SDK non-canonical hooks factory ${address} is missing from inventory`
+      );
       continue;
     }
     if (inventoryFactory.canonical === true) {
-      errors.push(`SDK non-canonical hooks factory ${address} points at canonical ${inventoryFactory.label}`);
+      errors.push(
+        `SDK non-canonical hooks factory ${address} points at canonical ${inventoryFactory.label}`
+      );
     }
     if (inventoryFactory.marketType !== marketType) {
       errors.push(
@@ -353,7 +420,9 @@ function validateSdkConstants(inventory, sdkDeployments, sdkNonCanonicalFactoryM
   }
 
   for (const inventoryFactory of getIndexedFactories(inventory)) {
-    const sdkMarketType = sdkFactoryMarketTypesByAddress.get(addressKey(inventoryFactory.address));
+    const sdkMarketType = sdkFactoryMarketTypesByAddress.get(
+      addressKey(inventoryFactory.address)
+    );
     if (!sdkMarketType) {
       errors.push(
         `SDK does not recognize indexed factory ${inventoryFactory.label} (${inventoryFactory.address}) for marketType resolution`
@@ -369,14 +438,18 @@ function validateSdkConstants(inventory, sdkDeployments, sdkNonCanonicalFactoryM
 }
 
 function validateCoreDeployments(inventory, deploymentsJson, errors) {
-  for (const [marketType, deploymentName] of Object.entries(SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE)) {
+  for (const [marketType, deploymentName] of Object.entries(
+    SDK_DEPLOYMENT_NAMES_BY_MARKET_TYPE
+  )) {
     const canonical = getCanonicalFactory(inventory, marketType);
     if (!canonical) {
       continue;
     }
     const deploymentAddress = deploymentsJson[deploymentName];
     if (!deploymentAddress) {
-      errors.push(`deployments.json missing ${deploymentName} for canonical ${marketType} factory`);
+      errors.push(
+        `deployments.json missing ${deploymentName} for canonical ${marketType} factory`
+      );
       continue;
     }
     if (addressKey(deploymentAddress) !== addressKey(canonical.address)) {
@@ -387,12 +460,21 @@ function validateCoreDeployments(inventory, deploymentsJson, errors) {
   }
 }
 
-function validateRpcRegistration(inventory, deploymentsJson, rpcUrl, castBin, chainId, errors) {
+function validateRpcRegistration(
+  inventory,
+  deploymentsJson,
+  rpcUrl,
+  castBin,
+  chainId,
+  errors
+) {
   validateRpcChainId(castBin, rpcUrl, chainId, errors);
 
   const archController = deploymentsJson.WildcatArchController;
   if (!archController) {
-    errors.push("deployments.json missing WildcatArchController for RPC registration validation");
+    errors.push(
+      "deployments.json missing WildcatArchController for RPC registration validation"
+    );
     return;
   }
 
@@ -425,9 +507,100 @@ function validateRpcRegistration(inventory, deploymentsJson, rpcUrl, castBin, ch
   }
 }
 
+function runFixtures(fixturesDir) {
+  const validCases = [
+    "factory-inventory-valid-1-0.json",
+    "factory-inventory-valid-1-1.json",
+  ];
+  const invalidCases = [
+    {
+      file: "factory-inventory-invalid-two-canonicals.json",
+      expected: "must have exactly one canonical lifecycle; found 2",
+    },
+    {
+      file: "factory-inventory-invalid-retired-indexed.json",
+      expected: "is retired but indexed is not false",
+    },
+    {
+      file: "factory-inventory-invalid-deleted-record.json",
+      expected: "recordCount must equal total inventory records",
+    },
+    {
+      file: "factory-inventory-invalid-dotted-label.json",
+      expected: "label must not contain dots",
+    },
+  ];
+  const failures = [];
+
+  for (const fileName of validCases) {
+    const inventory = readInventory(path.join(fixturesDir, fileName));
+    const result = validateInventory(inventory);
+    if (!result.ok) {
+      failures.push(`${fileName} should be valid: ${result.errors.join("; ")}`);
+    } else {
+      console.log(`Fixture valid: ${fileName}`);
+    }
+  }
+
+  for (const fixture of invalidCases) {
+    const inventory = readInventory(path.join(fixturesDir, fixture.file));
+    const result = validateInventory(inventory);
+    const matchingError = result.errors.find((error) =>
+      error.includes(fixture.expected)
+    );
+    if (result.ok || !matchingError) {
+      failures.push(
+        `${fixture.file} should fail with ${JSON.stringify(
+          fixture.expected
+        )}; got ${result.errors.join("; ") || "no errors"}`
+      );
+    } else {
+      console.log(
+        `Fixture rejected as expected: ${fixture.file}: ${matchingError}`
+      );
+    }
+  }
+
+  const legacy = readInventory(
+    path.join(fixturesDir, "factory-inventory-valid-1-0.json")
+  );
+  const expectedMigration = readInventory(
+    path.join(fixturesDir, "factory-inventory-valid-1-1.json")
+  );
+  const actualMigration = migrateInventory(legacy);
+  if (JSON.stringify(actualMigration) !== JSON.stringify(expectedMigration)) {
+    failures.push(
+      "1.0 fixture migration does not match factory-inventory-valid-1-1.json"
+    );
+  } else {
+    console.log("Fixture migration deterministic: 1.0 -> 1.1");
+  }
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Fixture validation failed:\n${failures
+        .map((failure) => `- ${failure}`)
+        .join("\n")}`
+    );
+  }
+  console.log(
+    `Factory inventory fixture validation passed (${
+      validCases.length + invalidCases.length
+    } cases)`
+  );
+}
+
 function run() {
   const args = parseArgs(process.argv.slice(2));
-  const network = optionalStringArg(args, "network") || process.env.DEPLOYMENTS_NETWORK;
+  if (args.fixtures === true) {
+    const fixturesDir =
+      optionalStringArg(args, "fixtures-dir") || DEFAULT_FIXTURES_DIR;
+    runFixtures(fixturesDir);
+    return;
+  }
+
+  const network =
+    optionalStringArg(args, "network") || process.env.DEPLOYMENTS_NETWORK;
   if (!network) {
     throw new Error("Missing --network or DEPLOYMENTS_NETWORK");
   }
@@ -436,12 +609,18 @@ function run() {
     throw new Error(`Unsupported network for offline validation: ${network}`);
   }
 
-  const inventoryPath = optionalStringArg(args, "inventory") || inventoryPathForNetwork(network);
+  const inventoryPath =
+    optionalStringArg(args, "inventory") || inventoryPathForNetwork(network);
   const deploymentsPath =
-    optionalStringArg(args, "deployments") || path.join("deployments", network, "deployments.json");
-  const subgraphNetworksPath =
-    optionalStringArg(args, "subgraph-networks") || DEFAULT_SUBGRAPH_NETWORKS_PATH;
-  const sdkConstantsPath = optionalStringArg(args, "sdk-constants") || DEFAULT_SDK_CONSTANTS_PATH;
+    optionalStringArg(args, "deployments") ||
+    path.join("deployments", network, "deployments.json");
+  const subgraphDir = optionalStringArg(args, "subgraph-dir");
+  if (!subgraphDir) {
+    throw new Error("Missing required --subgraph-dir");
+  }
+  const subgraphNetworksPath = path.join(subgraphDir, "networks.json");
+  const sdkConstantsPath =
+    optionalStringArg(args, "sdk-constants") || DEFAULT_SDK_CONSTANTS_PATH;
   const rpcUrl = optionalStringArg(args, "rpc-url") || process.env.RPC_URL;
   const castBin = optionalStringArg(args, "cast-bin") || "cast";
 
@@ -450,10 +629,8 @@ function run() {
   const subgraphNetworks = readJson(subgraphNetworksPath);
   const subgraphNetworkConfig = getNetworkConfig(subgraphNetworks, network);
   const sdkDeployments = parseSdkDeployments(sdkConstantsPath, chainId);
-  const sdkNonCanonicalFactoryMarketTypes = parseSdkNonCanonicalFactoryMarketTypes(
-    sdkConstantsPath,
-    chainId
-  );
+  const sdkNonCanonicalFactoryMarketTypes =
+    parseSdkNonCanonicalFactoryMarketTypes(sdkConstantsPath, chainId);
 
   const errors = [];
   const warnings = [];
@@ -461,9 +638,21 @@ function run() {
   validateInventorySchema(inventory, network, chainId, errors, warnings);
   validateSubgraphConfig(inventory, subgraphNetworkConfig, errors);
   validateCoreDeployments(inventory, deploymentsJson, errors);
-  validateSdkConstants(inventory, sdkDeployments, sdkNonCanonicalFactoryMarketTypes, errors);
+  validateSdkConstants(
+    inventory,
+    sdkDeployments,
+    sdkNonCanonicalFactoryMarketTypes,
+    errors
+  );
   if (rpcUrl) {
-    validateRpcRegistration(inventory, deploymentsJson, rpcUrl, castBin, chainId, errors);
+    validateRpcRegistration(
+      inventory,
+      deploymentsJson,
+      rpcUrl,
+      castBin,
+      chainId,
+      errors
+    );
   }
 
   for (const warning of warnings) {
@@ -479,7 +668,7 @@ function run() {
 
   console.log(`Factory inventory offline validation passed for ${network}`);
   console.log(`Inventory: ${inventoryPath}`);
-  console.log(`Subgraph networks: ${subgraphNetworksPath}`);
+  console.log(`Subgraph directory: ${subgraphDir}`);
   console.log(`SDK constants: ${sdkConstantsPath}`);
   if (rpcUrl) {
     console.log(`RPC registration checks: enabled`);
