@@ -2,6 +2,26 @@
 
 If the borrower closes the market while still in penalized delinquency, they will not have to pay out the remaining time worth of penalized delinquency fees as the timer will be set to zero.
 
+**Finite `uint112` scale-factor lifetime**
+
+`MarketState.scaleFactor` is stored as a `uint112` and grows monotonically while
+interest or delinquency fees accrue. The checked casts in `FeeMath` and
+`WildcatMarketRevolving` intentionally revert rather than truncate if the next
+scale factor exceeds `uint112.max`. Because market operations accrue interest
+before applying their own state transitions, a market that reaches this limit
+cannot use the ordinary close, rate-change, transfer, or withdrawal paths.
+
+This finite lifetime is a known and accepted limitation. Under the theoretical
+code maximum of 100% APR plus a 100% delinquency fee, maximally frequent updates
+reach the limit after approximately 7.7 years. At a 28% cumulative rate the
+horizon exceeds 55 years, and at typical 10-15% cumulative rates it exceeds 100
+years. Markets are expected to close or reduce their rates long before reaching
+the representation limit.
+
+Reports that only restate this finite `uint112` horizon are duplicates of this
+known issue. A path that reaches the limit materially earlier, bypasses the
+checked cast, or causes a distinct loss should still be reported.
+
 **Malicious or delinquent borrowers can lead to loss of funds**
 
 This one is fairly obvious but worth stating - if a borrower fails to repay their debt for any reason, lenders will inevitably lose funds.

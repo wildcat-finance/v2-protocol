@@ -133,6 +133,8 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     uint256 prevScaleFactor = state.scaleFactor;
     uint256 scaleFactorDelta = prevScaleFactor.rayMul(baseInterestRay + delinquencyFeeRay);
 
+    // The checked cast deliberately reverts at the accepted finite uint112
+    // scale-factor horizon rather than truncating. See MarketState and Known Issues.
     state.scaleFactor = (prevScaleFactor + scaleFactorDelta).toUint112();
     state.lastInterestAccruedTimestamp = uint32(timestamp);
   }

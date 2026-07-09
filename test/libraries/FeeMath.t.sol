@@ -23,6 +23,7 @@ contract FeeMathTest is Test {
 
   function test_updateScaleFactorAndFees_WithFees() external {
     MarketState memory state;
+    state.protocolFeeBips = 1000;
     state.timeDelinquent = 1000;
     state.isDelinquent = true;
     uint256 delinquencyGracePeriod = 0;
@@ -30,16 +31,20 @@ contract FeeMathTest is Test {
     state.scaledTotalSupply = uint104(uint256(1e18).rayDiv(RAY));
     vm.warp(365 days);
     state.scaleFactor = uint112(RAY);
-    // @todo fix
-    // (uint256 feesAccrued, bool didUpdate) = state.calculateInterestAndFees(
-    // 	1000,
-    // 	0,
-    // 	delinquencyGracePeriod
-    // );
-    // assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
-    // assertTrue(didUpdate, 'did not update');
-    // assertEq(feesAccrued, 1e16, 'incorrect feesAccrued');
-    // assertEq(state.scaleFactor, 1.09e27, 'incorrect scaleFactor');
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      0,
+      delinquencyGracePeriod,
+      block.timestamp
+    );
+
+    assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
+    assertEq(protocolFee, 1e16, 'incorrect protocolFee');
+    assertEq(state.scaleFactor, 1.1e27, 'incorrect scaleFactor');
+    assertEq(baseInterestRay, 1e26, 'incorrect baseInterestRay');
+    assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
   }
 
   function test_updateScaleFactorAndFees_WithoutFeesWithPenalties() external {
@@ -51,16 +56,20 @@ contract FeeMathTest is Test {
     state.scaledTotalSupply = uint104(uint256(1e18).rayDiv(RAY));
     vm.warp(365 days);
     state.scaleFactor = uint112(RAY);
-    // @todo fix
-    // (uint256 feesAccrued, bool didUpdate) = state.calculateInterestAndFees(
-    // 	0,
-    // 	1000,
-    // 	delinquencyGracePeriod
-    // );
-    // assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
-    // assertTrue(didUpdate, 'did not update');
-    // assertEq(feesAccrued, 0, 'incorrect feesAccrued');
-    // assertEq(state.scaleFactor, 1.2e27, 'incorrect scaleFactor');
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      1000,
+      delinquencyGracePeriod,
+      block.timestamp
+    );
+
+    assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
+    assertEq(protocolFee, 0, 'incorrect protocolFee');
+    assertEq(state.scaleFactor, 1.2e27, 'incorrect scaleFactor');
+    assertEq(baseInterestRay, 1e26, 'incorrect baseInterestRay');
+    assertEq(delinquencyFeeRay, 1e26, 'incorrect delinquencyFeeRay');
   }
 
   function test_updateScaleFactorAndFees_WithFeesAndPenalties() external {
@@ -98,15 +107,55 @@ contract FeeMathTest is Test {
     state.scaledTotalSupply = uint104(uint256(1e18).rayDiv(RAY));
     vm.warp(365 days);
     state.scaleFactor = uint112(RAY);
-    // (uint256 feesAccrued, bool didUpdate) = state.calculateInterestAndFees(
-    // 	0,
-    // 	0,
-    // 	delinquencyGracePeriod
-    // );
-    // assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
-    // assertTrue(didUpdate, 'did not update');
-    // assertEq(feesAccrued, 0, 'incorrect feesAccrued');
-    // assertEq(state.scaleFactor, 1.1e27, 'incorrect scaleFactor');
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      0,
+      delinquencyGracePeriod,
+      block.timestamp
+    );
+
+    assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
+    assertEq(protocolFee, 0, 'incorrect protocolFee');
+    assertEq(state.scaleFactor, 1.1e27, 'incorrect scaleFactor');
+    assertEq(baseInterestRay, 1e26, 'incorrect baseInterestRay');
+    assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
+  }
+
+  function test_updateScaleFactorAndFees_AcceptedUint112LimitReverts() external {
+    MarketState memory state;
+    // Exact last-safe value after 2,829 daily updates at 100% APR plus a
+    // 100% delinquency fee. The next daily update exceeds uint112.
+    state.scaleFactor = 5_173_473_415_954_182_535_546_019_067_317_983;
+    state.annualInterestBips = 10_000;
+    state.lastInterestAccruedTimestamp = 1;
+    state.isDelinquent = true;
+    state.timeDelinquent = 1;
+
+    vm.expectRevert(stdError.arithmeticError);
+    state.$updateScaleFactorAndFees(10_000, 0, 1 days + 1);
+  }
+
+  function test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate() external {
+    MarketState memory state;
+    state.scaleFactor = type(uint112).max;
+    state.lastInterestAccruedTimestamp = 1;
+
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      0,
+      0,
+      1 days + 1
+    );
+
+    assertEq(state.scaleFactor, type(uint112).max, 'incorrect scaleFactor');
+    assertEq(state.lastInterestAccruedTimestamp, 1 days + 1);
+    assertEq(baseInterestRay, 0, 'incorrect baseInterestRay');
+    assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
+    assertEq(protocolFee, 0, 'incorrect protocolFee');
   }
 
   MarketInputParameters parameters;

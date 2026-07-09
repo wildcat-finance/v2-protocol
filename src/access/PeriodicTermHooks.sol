@@ -118,6 +118,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
 
   HooksDeploymentConfig public immutable override config;
 
+  // TODO: Set mainnet minimum period and withdrawal window durations after team review.
   uint32 public constant MinimumPeriodDuration = 6 minutes;
   uint32 public constant MaximumPeriodDuration = 365 days;
   uint32 public constant MinimumWithdrawalWindowDuration = 1 minutes;

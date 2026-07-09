@@ -32,7 +32,13 @@ struct MarketState {
   uint16 annualInterestBips;
   // Percentage of outstanding balance that must be held in liquid reserves
   uint16 reserveRatioBips;
-  // Ratio between internal balances and underlying token amounts
+  // Ratio between internal balances and underlying token amounts.
+  //
+  // Known accepted limitation: the scale factor has a finite uint112 lifetime.
+  // At the theoretical maximum 100% APR plus 100% delinquency fee, the
+  // representation limit is reached after about 7.7 years under maximally
+  // frequent updates. At 28% cumulative the horizon exceeds 55 years, and at
+  // typical 10-15% cumulative rates it exceeds 100 years. See Known Issues.
   uint112 scaleFactor;
   uint32 lastInterestAccruedTimestamp;
 }
