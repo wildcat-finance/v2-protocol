@@ -1,0 +1,1619 @@
+#!/usr/bin/env node
+
+const fs = require("fs");
+const path = require("path");
+const readline = require("readline/promises");
+const {
+  AbiCoder,
+  Interface,
+  Wallet,
+  getAddress,
+  keccak256,
+} = require("ethers");
+
+const PLAN_SCHEMA_VERSION = "1.0.0";
+const SCHEMA_PATH = path.resolve(
+  __dirname,
+  "../deployments/deployment-plan.schema-1-0.json"
+);
+const REPO_ROOT = path.resolve(__dirname, "..");
+const OUT_DIR = path.join(REPO_ROOT, "out");
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
+const SAFE_ID_REGEX = /^[^.]+$/;
+const HEX_DATA_REGEX = /^0x(?:[a-fA-F0-9]{2})*$/;
+const NETWORK_CHAIN_IDS = {
+  mainnet: 1,
+  sepolia: 11155111,
+  anvil: 31337,
+};
+
+function printUsage() {
+  console.log(`Usage:
+  node scripts/plan.js assemble --network <name> --release <tag>
+  node scripts/plan.js validate --plan <path>
+  node scripts/plan.js execute --plan <path> --rpc <url>
+    [--private-key <key> | --impersonate <address>] [--yes]
+  node scripts/plan.js verify --plan <path> --run-state <path> --rpc <url>
+  node scripts/plan.js render-safe --plan <path>
+
+assemble reads deployments/<network>/plan-entries/*.json and writes
+deployments/<network>/plan-<release>.json.
+`);
+}
+
+const KNOWN_FLAGS = {
+  assemble: ["network", "release"],
+  validate: ["plan"],
+  execute: ["plan", "rpc", "private-key", "impersonate", "yes"],
+  verify: ["plan", "run-state", "rpc"],
+  "render-safe": ["plan"],
+};
+
+function assertKnownFlags(command, args) {
+  const known = KNOWN_FLAGS[command];
+  if (!known) return;
+  for (const key of Object.keys(args)) {
+    if (!known.includes(key)) {
+      throw new Error(
+        `Unknown flag --${key} for ${command}. Known: ${known
+          .map((flag) => `--${flag}`)
+          .join(", ")}`
+      );
+    }
+  }
+}
+
+function parseArgs(argv) {
+  const args = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith("--")) {
+      throw new Error(`Unexpected argument: ${token}`);
+    }
+    const key = token.slice(2);
+    const next = argv[index + 1];
+    if (!next || next.startsWith("--")) {
+      args[key] = true;
+      continue;
+    }
+    args[key] = next;
+    index += 1;
+  }
+  return args;
+}
+
+function requiredArg(args, name) {
+  const value = args[name];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Missing --${name}.`);
+  }
+  return value;
+}
+
+function readJson(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    throw new Error(`Could not read JSON ${filePath}: ${error.message}`);
+  }
+}
+
+function ensureDirForFile(filePath) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
+
+function writeJson(filePath, value) {
+  ensureDirForFile(filePath);
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function writeJsonAtomic(filePath, value) {
+  ensureDirForFile(filePath);
+  const temporaryPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(
+    temporaryPath,
+    `${JSON.stringify(value, null, 2)}\n`,
+    "utf8"
+  );
+  fs.renameSync(temporaryPath, filePath);
+}
+
+function jsonEqual(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function schemaTypeMatches(value, expectedType) {
+  if (expectedType === "null") return value === null;
+  if (expectedType === "array") return Array.isArray(value);
+  if (expectedType === "object") {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+  if (expectedType === "integer") return Number.isInteger(value);
+  return typeof value === expectedType;
+}
+
+function resolveSchemaReference(rootSchema, reference) {
+  if (!reference.startsWith("#/")) {
+    throw new Error(`Unsupported schema reference: ${reference}`);
+  }
+  return reference
+    .slice(2)
+    .split("/")
+    .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
+    .reduce((value, part) => value?.[part], rootSchema);
+}
+
+function validateJsonSchema(
+  value,
+  schema,
+  rootSchema,
+  valuePath = "$",
+  errors = []
+) {
+  if (!schema || typeof schema !== "object") return errors;
+
+  if (schema.$ref) {
+    const referencedSchema = resolveSchemaReference(rootSchema, schema.$ref);
+    if (!referencedSchema) {
+      errors.push(`${valuePath}: unresolved schema reference ${schema.$ref}`);
+      return errors;
+    }
+    validateJsonSchema(value, referencedSchema, rootSchema, valuePath, errors);
+  }
+
+  if (schema.allOf) {
+    for (const part of schema.allOf) {
+      validateJsonSchema(value, part, rootSchema, valuePath, errors);
+    }
+  }
+
+  if (schema.anyOf) {
+    const matched = schema.anyOf.some((part) => {
+      const branchErrors = [];
+      validateJsonSchema(value, part, rootSchema, valuePath, branchErrors);
+      return branchErrors.length === 0;
+    });
+    if (!matched)
+      errors.push(`${valuePath}: must match at least one allowed schema`);
+  }
+
+  if (schema.oneOf) {
+    const matchCount = schema.oneOf.filter((part) => {
+      const branchErrors = [];
+      validateJsonSchema(value, part, rootSchema, valuePath, branchErrors);
+      return branchErrors.length === 0;
+    }).length;
+    if (matchCount !== 1) {
+      errors.push(`${valuePath}: must match exactly one allowed schema`);
+    }
+  }
+
+  if (schema.if) {
+    const conditionErrors = [];
+    validateJsonSchema(
+      value,
+      schema.if,
+      rootSchema,
+      valuePath,
+      conditionErrors
+    );
+    if (conditionErrors.length === 0 && schema.then) {
+      validateJsonSchema(value, schema.then, rootSchema, valuePath, errors);
+    } else if (conditionErrors.length > 0 && schema.else) {
+      validateJsonSchema(value, schema.else, rootSchema, valuePath, errors);
+    }
+  }
+
+  if (schema.const !== undefined && !jsonEqual(value, schema.const)) {
+    errors.push(`${valuePath}: must equal ${JSON.stringify(schema.const)}`);
+  }
+  if (schema.enum && !schema.enum.some((entry) => jsonEqual(value, entry))) {
+    errors.push(`${valuePath}: must be one of ${schema.enum.join(", ")}`);
+  }
+
+  if (schema.type) {
+    const expectedTypes = Array.isArray(schema.type)
+      ? schema.type
+      : [schema.type];
+    if (!expectedTypes.some((type) => schemaTypeMatches(value, type))) {
+      errors.push(`${valuePath}: must be ${expectedTypes.join(" or ")}`);
+      return errors;
+    }
+  }
+
+  if (typeof value === "string") {
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+      errors.push(`${valuePath}: must have length >= ${schema.minLength}`);
+    }
+    if (schema.pattern && !new RegExp(schema.pattern).test(value)) {
+      errors.push(`${valuePath}: must match pattern ${schema.pattern}`);
+    }
+  }
+
+  if (typeof value === "number") {
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      errors.push(`${valuePath}: must be >= ${schema.minimum}`);
+    }
+  }
+
+  if (Array.isArray(value)) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      errors.push(
+        `${valuePath}: must contain at least ${schema.minItems} item(s)`
+      );
+    }
+    if (schema.uniqueItems) {
+      const keys = value.map((entry) => JSON.stringify(entry));
+      if (new Set(keys).size !== keys.length) {
+        errors.push(`${valuePath}: items must be unique`);
+      }
+    }
+    if (schema.items) {
+      value.forEach((entry, index) => {
+        validateJsonSchema(
+          entry,
+          schema.items,
+          rootSchema,
+          `${valuePath}[${index}]`,
+          errors
+        );
+      });
+    }
+  }
+
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    if (schema.required) {
+      for (const key of schema.required) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) {
+          errors.push(`${valuePath}: missing required property ${key}`);
+        }
+      }
+    }
+    if (schema.properties) {
+      for (const [key, propertySchema] of Object.entries(schema.properties)) {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          validateJsonSchema(
+            value[key],
+            propertySchema,
+            rootSchema,
+            `${valuePath}.${key}`,
+            errors
+          );
+        }
+      }
+    }
+    if (schema.additionalProperties !== undefined) {
+      const knownProperties = new Set(Object.keys(schema.properties || {}));
+      for (const [key, entry] of Object.entries(value)) {
+        if (knownProperties.has(key)) continue;
+        if (schema.additionalProperties === false) {
+          errors.push(`${valuePath}: unexpected property ${key}`);
+        } else if (typeof schema.additionalProperties === "object") {
+          validateJsonSchema(
+            entry,
+            schema.additionalProperties,
+            rootSchema,
+            `${valuePath}.${key}`,
+            errors
+          );
+        }
+      }
+    }
+  }
+
+  return errors;
+}
+
+function isReference(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 1 &&
+    typeof value.$ref === "string"
+  );
+}
+
+function collectReferences(value, references = []) {
+  if (isReference(value)) {
+    references.push(value.$ref);
+    return references;
+  }
+  if (Array.isArray(value)) {
+    for (const entry of value) collectReferences(entry, references);
+    return references;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const entry of Object.values(value))
+      collectReferences(entry, references);
+  }
+  return references;
+}
+
+function validateReferenceObjects(value, valuePath, errors) {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) =>
+      validateReferenceObjects(entry, `${valuePath}[${index}]`, errors)
+    );
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+  if (Object.prototype.hasOwnProperty.call(value, "$ref")) {
+    if (!isReference(value)) {
+      errors.push(`${valuePath}: a $ref object may contain only $ref`);
+    } else if (!SAFE_ID_REGEX.test(value.$ref)) {
+      errors.push(`${valuePath}.$ref: reference ids must not contain dots`);
+    }
+    return;
+  }
+  for (const [key, entry] of Object.entries(value)) {
+    validateReferenceObjects(entry, `${valuePath}.${key}`, errors);
+  }
+}
+
+function resolveReferences(value, outputs) {
+  if (isReference(value)) {
+    if (!outputs.has(value.$ref)) {
+      throw new Error(`Unresolved output reference: ${value.$ref}`);
+    }
+    return outputs.get(value.$ref);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => resolveReferences(entry, outputs));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        resolveReferences(entry, outputs),
+      ])
+    );
+  }
+  return value;
+}
+
+function replaceReferencesWithZero(value) {
+  if (isReference(value)) return ZERO_ADDRESS;
+  if (Array.isArray(value)) return value.map(replaceReferencesWithZero);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        replaceReferencesWithZero(entry),
+      ])
+    );
+  }
+  return value;
+}
+
+let artifactFiles;
+
+function listArtifactFiles(directory) {
+  if (!fs.existsSync(directory)) return [];
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listArtifactFiles(entryPath));
+    } else if (entry.name.endsWith(".json")) {
+      files.push(entryPath);
+    }
+  }
+  return files;
+}
+
+function artifactIdentity(artifact) {
+  const compilationTarget =
+    artifact.metadata?.settings?.compilationTarget || {};
+  const entries = Object.entries(compilationTarget);
+  if (entries.length !== 1) return null;
+  return { sourceName: entries[0][0], contractName: entries[0][1] };
+}
+
+function loadArtifact(artifactName) {
+  const separator = artifactName.lastIndexOf(":");
+  const requestedSource =
+    separator === -1 ? null : artifactName.slice(0, separator);
+  const requestedContract =
+    separator === -1 ? artifactName : artifactName.slice(separator + 1);
+  if (!requestedContract)
+    throw new Error(`Invalid artifact name: ${artifactName}`);
+
+  artifactFiles ||= listArtifactFiles(OUT_DIR);
+  const candidates = [];
+  for (const filePath of artifactFiles) {
+    if (path.basename(filePath) !== `${requestedContract}.json`) continue;
+    let artifact;
+    try {
+      artifact = readJson(filePath);
+    } catch (_error) {
+      continue;
+    }
+    const identity = artifactIdentity(artifact);
+    if (!identity || identity.contractName !== requestedContract) continue;
+    if (requestedSource && identity.sourceName !== requestedSource) continue;
+    candidates.push({ artifact, filePath, ...identity });
+  }
+
+  if (candidates.length === 0) {
+    throw new Error(`Artifact "${artifactName}" was not found in out/`);
+  }
+
+  if (!requestedSource) {
+    const conventionalPath = path.join(
+      OUT_DIR,
+      `${requestedContract}.sol`,
+      `${requestedContract}.json`
+    );
+    const conventional = candidates.find(
+      (candidate) => path.resolve(candidate.filePath) === conventionalPath
+    );
+    if (conventional) return conventional;
+  }
+
+  if (candidates.length > 1) {
+    const names = candidates
+      .map((candidate) => candidate.sourceName)
+      .join(", ");
+    throw new Error(
+      `Artifact "${artifactName}" is ambiguous; use source.sol:ContractName (${names})`
+    );
+  }
+  return candidates[0];
+}
+
+function assertArtifactFresh(loadedArtifact) {
+  const { artifact, filePath } = loadedArtifact;
+  if (typeof artifact.rawMetadata !== "string") {
+    throw new Error(
+      `Artifact lacks rawMetadata: ${path.relative(REPO_ROOT, filePath)}`
+    );
+  }
+  let rawMetadata;
+  try {
+    rawMetadata = JSON.parse(artifact.rawMetadata);
+  } catch (error) {
+    throw new Error(
+      `Artifact rawMetadata is invalid in ${path.relative(
+        REPO_ROOT,
+        filePath
+      )}: ${error.message}`
+    );
+  }
+
+  for (const [sourceName, sourceMetadata] of Object.entries(
+    rawMetadata.sources || {}
+  )) {
+    const sourcePath = path.resolve(REPO_ROOT, sourceName);
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(
+        `Artifact is stale: source ${sourceName} recorded by ${path.relative(
+          REPO_ROOT,
+          filePath
+        )} is missing`
+      );
+    }
+    const actualHash = keccak256(fs.readFileSync(sourcePath));
+    if (actualHash.toLowerCase() !== sourceMetadata.keccak256?.toLowerCase()) {
+      throw new Error(
+        `Artifact is stale: source hash changed for ${sourceName}; run forge build`
+      );
+    }
+  }
+}
+
+function artifactInitCode(loadedArtifact) {
+  const bytecode = loadedArtifact.artifact.bytecode?.object;
+  if (!HEX_DATA_REGEX.test(bytecode || "")) {
+    throw new Error(
+      `Artifact has missing, invalid, or unlinked bytecode: ${path.relative(
+        REPO_ROOT,
+        loadedArtifact.filePath
+      )}`
+    );
+  }
+  const linkReferences = loadedArtifact.artifact.bytecode?.linkReferences || {};
+  const unresolvedLinks = Object.values(linkReferences).some((contracts) =>
+    Object.values(contracts).some((locations) => locations.length > 0)
+  );
+  if (unresolvedLinks) {
+    throw new Error(
+      `Artifact bytecode has unresolved library links: ${path.relative(
+        REPO_ROOT,
+        loadedArtifact.filePath
+      )}`
+    );
+  }
+  return bytecode;
+}
+
+function constructorInputs(loadedArtifact) {
+  const contractInterface = new Interface(loadedArtifact.artifact.abi || []);
+  return contractInterface.deploy.inputs;
+}
+
+function encodeConstructorArgs(loadedArtifact, decodedArgs, outputs = null) {
+  const args = outputs
+    ? resolveReferences(decodedArgs, outputs)
+    : replaceReferencesWithZero(decodedArgs);
+  const inputs = constructorInputs(loadedArtifact);
+  if (inputs.length !== decodedArgs.length) {
+    throw new Error(
+      `constructor expects ${inputs.length} argument(s), got ${decodedArgs.length}`
+    );
+  }
+  return AbiCoder.defaultAbiCoder().encode(inputs, args);
+}
+
+function functionInterface(signature) {
+  const declaration = signature.trim().startsWith("function ")
+    ? signature.trim()
+    : `function ${signature.trim()}`;
+  const contractInterface = new Interface([declaration]);
+  const fragment = contractInterface.fragments.find(
+    (entry) => entry.type === "function"
+  );
+  if (!fragment) throw new Error(`Invalid function signature: ${signature}`);
+  return { contractInterface, fragment };
+}
+
+function encodeFunctionCall(signature, args, outputs = null) {
+  const resolvedArgs = outputs
+    ? resolveReferences(args, outputs)
+    : replaceReferencesWithZero(args);
+  const { contractInterface, fragment } = functionInterface(signature);
+  return contractInterface.encodeFunctionData(fragment, resolvedArgs);
+}
+
+function transactionReferenceFields(transaction) {
+  const values = [transaction.envelope?.to];
+  if (transaction.kind === "deploy") {
+    values.push(transaction.constructorArgs?.decoded);
+  } else if (transaction.kind === "call") {
+    values.push(transaction.to, transaction.args);
+  }
+  return values;
+}
+
+function predicateReferenceFields(transaction) {
+  const values = [transaction.predicate?.target];
+  if (transaction.predicate?.type === "callEq") {
+    values.push(transaction.predicate.call?.args, transaction.predicate.expect);
+  }
+  return values;
+}
+
+function validateEnvelope(plan, transaction, index, errors) {
+  const valuePath = `$.transactions[${index}].envelope`;
+  const envelope = transaction.envelope;
+  if (!envelope || typeof envelope !== "object") return;
+  if (envelope.chainId !== plan.chainId) {
+    errors.push(
+      `${valuePath}.chainId: must equal plan chainId ${plan.chainId}`
+    );
+  }
+  if (
+    typeof envelope.expectedExecutor === "string" &&
+    typeof plan.expectedExecutor === "string" &&
+    envelope.expectedExecutor.toLowerCase() !==
+      plan.expectedExecutor.toLowerCase()
+  ) {
+    errors.push(
+      `${valuePath}.expectedExecutor: must equal plan expectedExecutor`
+    );
+  }
+  const expectedTo = transaction.kind === "deploy" ? null : transaction.to;
+  if (!jsonEqual(envelope.to, expectedTo)) {
+    errors.push(`${valuePath}.to: must match the transaction destination`);
+  }
+  const expectedData =
+    transaction.kind === "deploy"
+      ? "initCode+constructorArgs"
+      : "functionSignature+args";
+  if (envelope.data !== expectedData) {
+    errors.push(`${valuePath}.data: must equal ${expectedData}`);
+  }
+  try {
+    parseQuantity(envelope.value, `${valuePath}.value`);
+  } catch (error) {
+    errors.push(error.message);
+  }
+}
+
+function validatePlan(plan, options = {}) {
+  const errors = [];
+  const schema = readJson(SCHEMA_PATH);
+  validateJsonSchema(plan, schema, schema, "$", errors);
+  validateReferenceObjects(plan, "$", errors);
+
+  if (!Array.isArray(plan.transactions)) {
+    const uniqueErrors = [...new Set(errors)];
+    return { ok: false, errors: uniqueErrors };
+  }
+
+  const ids = new Set();
+  const availableOutputs = new Set();
+  for (let index = 0; index < plan.transactions.length; index += 1) {
+    const transaction = plan.transactions[index];
+    const transactionPath = `$.transactions[${index}]`;
+    if (!transaction || typeof transaction !== "object") continue;
+
+    if (ids.has(transaction.id)) {
+      errors.push(
+        `${transactionPath}.id: duplicate transaction id ${transaction.id}`
+      );
+    }
+    ids.add(transaction.id);
+
+    for (const value of transactionReferenceFields(transaction)) {
+      for (const reference of collectReferences(value)) {
+        if (!availableOutputs.has(reference)) {
+          errors.push(
+            `${transactionPath}: references output "${reference}" before it is available`
+          );
+        }
+      }
+    }
+
+    validateEnvelope(plan, transaction, index, errors);
+
+    if (transaction.kind === "deploy") {
+      for (const callOnlyField of [
+        "to",
+        "functionSignature",
+        "args",
+        "calldata",
+      ]) {
+        if (Object.prototype.hasOwnProperty.call(transaction, callOnlyField)) {
+          errors.push(
+            `${transactionPath}: deploy must not contain ${callOnlyField}`
+          );
+        }
+      }
+      if (availableOutputs.has(transaction.output)) {
+        errors.push(
+          `${transactionPath}.output: duplicate output id ${transaction.output}`
+        );
+      }
+      if (typeof transaction.output === "string") {
+        availableOutputs.add(transaction.output);
+      }
+      if (
+        options.checkArtifacts !== false &&
+        typeof transaction.artifactName === "string"
+      ) {
+        try {
+          const loadedArtifact = loadArtifact(transaction.artifactName);
+          assertArtifactFresh(loadedArtifact);
+          const expectedInitCode = artifactInitCode(loadedArtifact);
+          if (
+            typeof transaction.initCode === "string" &&
+            transaction.initCode.toLowerCase() !==
+              expectedInitCode.toLowerCase()
+          ) {
+            errors.push(
+              `${transactionPath}.initCode: does not match current ${transaction.artifactName} artifact`
+            );
+          }
+          if (Array.isArray(transaction.constructorArgs?.decoded)) {
+            const expectedEncoding = encodeConstructorArgs(
+              loadedArtifact,
+              transaction.constructorArgs.decoded
+            );
+            if (
+              typeof transaction.constructorArgs.encoded === "string" &&
+              transaction.constructorArgs.encoded.toLowerCase() !==
+                expectedEncoding.toLowerCase()
+            ) {
+              errors.push(
+                `${transactionPath}.constructorArgs.encoded: does not match decoded arguments`
+              );
+            }
+          }
+        } catch (error) {
+          errors.push(`${transactionPath}.artifactName: ${error.message}`);
+        }
+      }
+    } else if (transaction.kind === "call") {
+      for (const deployOnlyField of [
+        "artifactName",
+        "initCode",
+        "constructorArgs",
+        "output",
+      ]) {
+        if (
+          Object.prototype.hasOwnProperty.call(transaction, deployOnlyField)
+        ) {
+          errors.push(
+            `${transactionPath}: call must not contain ${deployOnlyField}`
+          );
+        }
+      }
+      if (
+        typeof transaction.functionSignature === "string" &&
+        Array.isArray(transaction.args)
+      ) {
+        try {
+          const expectedCalldata = encodeFunctionCall(
+            transaction.functionSignature,
+            transaction.args
+          );
+          if (
+            typeof transaction.calldata === "string" &&
+            transaction.calldata.toLowerCase() !==
+              expectedCalldata.toLowerCase()
+          ) {
+            errors.push(
+              `${transactionPath}.calldata: does not match functionSignature and args`
+            );
+          }
+        } catch (error) {
+          errors.push(`${transactionPath}.functionSignature: ${error.message}`);
+        }
+      }
+    }
+
+    // A deployment predicate is evaluated after its receipt, so it may refer
+    // to that transaction's own output. Transaction inputs remain prior-only.
+    for (const value of predicateReferenceFields(transaction)) {
+      for (const reference of collectReferences(value)) {
+        if (!availableOutputs.has(reference)) {
+          errors.push(
+            `${transactionPath}.predicate: references output "${reference}" before it is available`
+          );
+        }
+      }
+    }
+
+    if (transaction.predicate?.type === "codePresent") {
+      if (Object.prototype.hasOwnProperty.call(transaction.predicate, "call")) {
+        errors.push(
+          `${transactionPath}.predicate: codePresent must not contain call`
+        );
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(transaction.predicate, "expect")
+      ) {
+        errors.push(
+          `${transactionPath}.predicate: codePresent must not contain expect`
+        );
+      }
+    } else if (
+      transaction.predicate?.type === "callEq" &&
+      typeof transaction.predicate.call?.sig === "string" &&
+      Array.isArray(transaction.predicate.call?.args)
+    ) {
+      try {
+        const { fragment } = functionInterface(transaction.predicate.call.sig);
+        encodeFunctionCall(
+          transaction.predicate.call.sig,
+          transaction.predicate.call.args
+        );
+        if (fragment.outputs.length === 0) {
+          errors.push(
+            `${transactionPath}.predicate.call.sig: callEq requires output types`
+          );
+        }
+      } catch (error) {
+        errors.push(`${transactionPath}.predicate.call.sig: ${error.message}`);
+      }
+    }
+  }
+
+  const uniqueErrors = [...new Set(errors)];
+  return { ok: uniqueErrors.length === 0, errors: uniqueErrors };
+}
+
+function assertValidPlan(plan) {
+  const result = validatePlan(plan);
+  if (!result.ok) {
+    throw new Error(
+      `Invalid deployment plan:\n${result.errors
+        .map((error) => `- ${error}`)
+        .join("\n")}`
+    );
+  }
+  return plan;
+}
+
+function normalizeAfter(after, entryPath) {
+  if (after === undefined) return [];
+  if (typeof after === "string") return [after];
+  if (
+    Array.isArray(after) &&
+    after.every((entry) => typeof entry === "string")
+  ) {
+    return after;
+  }
+  throw new Error(
+    `${entryPath}: after must be a transaction id or array of ids`
+  );
+}
+
+function orderEntries(entries) {
+  const byId = new Map();
+  for (const entry of entries) {
+    if (typeof entry.transaction.id !== "string") {
+      throw new Error(`${entry.filePath}: missing transaction id`);
+    }
+    if (byId.has(entry.transaction.id)) {
+      throw new Error(`Duplicate plan entry id: ${entry.transaction.id}`);
+    }
+    byId.set(entry.transaction.id, entry);
+  }
+  for (const entry of entries) {
+    for (const dependency of entry.after) {
+      if (!byId.has(dependency)) {
+        throw new Error(
+          `${entry.filePath}: unknown after dependency ${dependency}`
+        );
+      }
+    }
+  }
+
+  const ordered = [];
+  const emitted = new Set();
+  while (ordered.length < entries.length) {
+    const next = entries.find(
+      (entry) =>
+        !emitted.has(entry.transaction.id) &&
+        entry.after.every((dependency) => emitted.has(dependency))
+    );
+    if (!next) {
+      const remaining = entries
+        .filter((entry) => !emitted.has(entry.transaction.id))
+        .map((entry) => entry.transaction.id)
+        .join(", ");
+      throw new Error(`Plan entry dependency cycle involving: ${remaining}`);
+    }
+    ordered.push(next.transaction);
+    emitted.add(next.transaction.id);
+  }
+  return ordered;
+}
+
+function uniqueEnvelopeValue(transactions, field) {
+  const values = [
+    ...new Set(
+      transactions
+        .map((transaction) => transaction.envelope?.[field])
+        .filter((value) => value !== undefined)
+        .map((value) =>
+          typeof value === "string"
+            ? value.toLowerCase()
+            : JSON.stringify(value)
+        )
+    ),
+  ];
+  if (values.length > 1) {
+    throw new Error(`Plan entries disagree on envelope.${field}`);
+  }
+  return transactions.find(
+    (transaction) => transaction.envelope?.[field] !== undefined
+  )?.envelope[field];
+}
+
+function assemblePlan(args) {
+  const network = requiredArg(args, "network");
+  const release = requiredArg(args, "release");
+  if (!SAFE_ID_REGEX.test(network) || !SAFE_ID_REGEX.test(release)) {
+    throw new Error("Network and release must not contain dots.");
+  }
+  const entriesDirectory = path.join(
+    REPO_ROOT,
+    "deployments",
+    network,
+    "plan-entries"
+  );
+  if (!fs.existsSync(entriesDirectory)) {
+    throw new Error(`Plan entries directory not found: ${entriesDirectory}`);
+  }
+  const entryFiles = fs
+    .readdirSync(entriesDirectory)
+    .filter((fileName) => fileName.endsWith(".json"))
+    .sort((left, right) => left.localeCompare(right));
+  if (entryFiles.length === 0) {
+    throw new Error(`No JSON plan entries found in ${entriesDirectory}`);
+  }
+  const entries = entryFiles.map((fileName) => {
+    const filePath = path.join(entriesDirectory, fileName);
+    const transaction = readJson(filePath);
+    const after = normalizeAfter(transaction.after, filePath);
+    delete transaction.after;
+    return { filePath, transaction, after };
+  });
+  const transactions = orderEntries(entries);
+  const chainId =
+    uniqueEnvelopeValue(transactions, "chainId") || NETWORK_CHAIN_IDS[network];
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    throw new Error(
+      `Could not infer chain id for ${network}; include envelope.chainId in an entry`
+    );
+  }
+  const expectedExecutor = uniqueEnvelopeValue(
+    transactions,
+    "expectedExecutor"
+  );
+  if (!ADDRESS_REGEX.test(expectedExecutor || "")) {
+    throw new Error(
+      "Could not infer expected executor; include envelope.expectedExecutor in an entry"
+    );
+  }
+
+  for (const transaction of transactions) {
+    if (transaction.kind === "deploy") {
+      const loadedArtifact = loadArtifact(transaction.artifactName);
+      assertArtifactFresh(loadedArtifact);
+      transaction.initCode = artifactInitCode(loadedArtifact);
+      transaction.constructorArgs ||= { decoded: [] };
+      transaction.constructorArgs.encoded = encodeConstructorArgs(
+        loadedArtifact,
+        transaction.constructorArgs.decoded || []
+      );
+    } else if (transaction.kind === "call") {
+      transaction.calldata = encodeFunctionCall(
+        transaction.functionSignature,
+        transaction.args || []
+      );
+    }
+    const existingEnvelope = transaction.envelope || {};
+    transaction.envelope = {
+      chainId,
+      expectedExecutor: getAddress(expectedExecutor),
+      to: transaction.kind === "deploy" ? null : transaction.to,
+      value: existingEnvelope.value ?? "0",
+      data:
+        transaction.kind === "deploy"
+          ? "initCode+constructorArgs"
+          : "functionSignature+args",
+      gasLimitPolicy: existingEnvelope.gasLimitPolicy ?? "estimate*1.3",
+      nonceCheck: "display-and-confirm",
+    };
+  }
+
+  const plan = {
+    schemaVersion: PLAN_SCHEMA_VERSION,
+    network,
+    chainId,
+    release,
+    expectedExecutor: getAddress(expectedExecutor),
+    onFailure: "halt",
+    resume: "re-verify all prior predicates before continuing",
+    transactions,
+  };
+  assertValidPlan(plan);
+  const outputPath = path.join(
+    REPO_ROOT,
+    "deployments",
+    network,
+    `plan-${release}.json`
+  );
+  writeJson(outputPath, plan);
+  console.log(
+    `Deployment plan assembled: ${path.relative(REPO_ROOT, outputPath)}`
+  );
+  console.log(`Transactions: ${transactions.length}`);
+}
+
+function parseQuantity(value, context) {
+  if (
+    typeof value !== "string" ||
+    !/^(?:0|[1-9][0-9]*|0x[0-9a-fA-F]+)$/.test(value)
+  ) {
+    throw new Error(`${context}: invalid non-negative integer quantity`);
+  }
+  return BigInt(value);
+}
+
+function rpcQuantity(value) {
+  return `0x${BigInt(value).toString(16)}`;
+}
+
+function createRpcClient(rpcUrl) {
+  let requestId = 0;
+  return async function rpc(method, params = []) {
+    requestId += 1;
+    const response = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: requestId, method, params }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new Error(`${method} HTTP ${response.status}`);
+    const payload = await response.json();
+    if (payload.error) {
+      const detail = payload.error.data
+        ? ` (${JSON.stringify(payload.error.data)})`
+        : "";
+      throw new Error(
+        `${method} RPC ${payload.error.code}: ${payload.error.message}${detail}`
+      );
+    }
+    return payload.result;
+  };
+}
+
+function canonicalValue(value) {
+  if (typeof value === "bigint" || typeof value === "number") {
+    return value.toString();
+  }
+  if (typeof value === "string") {
+    if (ADDRESS_REGEX.test(value) || /^0x[a-fA-F0-9]*$/.test(value)) {
+      return value.toLowerCase();
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !/^\d+$/.test(key))
+        .map(([key, entry]) => [key, canonicalValue(entry)])
+    );
+  }
+  return value;
+}
+
+async function codePresent(rpc, address) {
+  const code = await rpc("eth_getCode", [address, "latest"]);
+  const ok = typeof code === "string" && !/^0x0*$/.test(code);
+  return {
+    ok,
+    detail: ok ? `code present at ${address}` : `no code at ${address}`,
+  };
+}
+
+async function callEq(rpc, target, signature, args, expected) {
+  const { contractInterface, fragment } = functionInterface(signature);
+  const data = contractInterface.encodeFunctionData(fragment, args);
+  const encodedResult = await rpc("eth_call", [{ to: target, data }, "latest"]);
+  const decodedResult = contractInterface.decodeFunctionResult(
+    fragment,
+    encodedResult
+  );
+  const actual =
+    fragment.outputs.length === 1
+      ? canonicalValue(decodedResult[0])
+      : canonicalValue(Array.from(decodedResult));
+  const normalizedExpected = canonicalValue(expected);
+  const ok = jsonEqual(actual, normalizedExpected);
+  return {
+    ok,
+    detail: ok
+      ? `${signature} returned ${JSON.stringify(actual)}`
+      : `${signature} expected ${JSON.stringify(
+          normalizedExpected
+        )}, got ${JSON.stringify(actual)}`,
+  };
+}
+
+async function checkPredicate(rpc, predicate, outputs) {
+  const target = resolveReferences(predicate.target, outputs);
+  if (!ADDRESS_REGEX.test(target || "")) {
+    throw new Error(`Predicate resolved to invalid target: ${target}`);
+  }
+  if (predicate.type === "codePresent") {
+    return codePresent(rpc, target);
+  }
+  if (predicate.type === "callEq") {
+    const args = resolveReferences(predicate.call.args, outputs);
+    const expected = resolveReferences(predicate.expect, outputs);
+    return callEq(rpc, target, predicate.call.sig, args, expected);
+  }
+  throw new Error(`Unsupported predicate type: ${predicate.type}`);
+}
+
+function outputsFromRunState(plan, runState) {
+  const outputs = new Map();
+  for (const transaction of plan.transactions) {
+    if (transaction.kind !== "deploy") continue;
+    const resolvedAddress = runState[transaction.id]?.resolvedAddress;
+    if (resolvedAddress) outputs.set(transaction.output, resolvedAddress);
+  }
+  return outputs;
+}
+
+function runStatePath(plan) {
+  return path.join(
+    REPO_ROOT,
+    "deployments",
+    plan.network,
+    `run-state-${plan.release}.json`
+  );
+}
+
+function readRunState(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  const state = readJson(filePath);
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    throw new Error(`Run state must be an object: ${filePath}`);
+  }
+  return state;
+}
+
+function transactionPayload(transaction, outputs) {
+  const value = parseQuantity(
+    transaction.envelope.value,
+    `${transaction.id}.envelope.value`
+  );
+  if (transaction.kind === "deploy") {
+    const loadedArtifact = loadArtifact(transaction.artifactName);
+    const encodedArgs = encodeConstructorArgs(
+      loadedArtifact,
+      transaction.constructorArgs.decoded,
+      outputs
+    );
+    return {
+      to: null,
+      data: `${transaction.initCode}${encodedArgs.slice(2)}`,
+      value,
+    };
+  }
+  const to = resolveReferences(transaction.to, outputs);
+  if (!ADDRESS_REGEX.test(to || "")) {
+    throw new Error(`${transaction.id}: resolved invalid destination ${to}`);
+  }
+  return {
+    to,
+    data: encodeFunctionCall(
+      transaction.functionSignature,
+      transaction.args,
+      outputs
+    ),
+    value,
+  };
+}
+
+async function gasLimitForTransaction(rpc, transaction, executor, payload) {
+  const policy = transaction.envelope.gasLimitPolicy;
+  if (policy !== "estimate*1.3") {
+    return parseQuantity(
+      policy.gasLimit,
+      `${transaction.id}.envelope.gasLimitPolicy.gasLimit`
+    );
+  }
+  const request = {
+    from: executor,
+    data: payload.data,
+    value: rpcQuantity(payload.value),
+  };
+  if (payload.to) request.to = payload.to;
+  const estimate = BigInt(await rpc("eth_estimateGas", [request]));
+  return (estimate * 13n + 9n) / 10n;
+}
+
+async function confirmNonce(transaction, executor, nonce, autoConfirm) {
+  console.log(
+    `[${transaction.id}] Expected executor ${executor}; current pending nonce ${nonce}.`
+  );
+  if (autoConfirm) {
+    console.log(`[${transaction.id}] Nonce confirmed (--yes).`);
+    return;
+  }
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error(
+      "Nonce confirmation requires an interactive terminal; pass --yes for an attended automated rehearsal"
+    );
+  }
+  const prompt = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  const answer = await prompt.question(
+    `[${transaction.id}] Confirm this executor nonce? [y/N] `
+  );
+  prompt.close();
+  if (!/^y(?:es)?$/i.test(answer.trim())) {
+    throw new Error(`Nonce was not confirmed for ${transaction.id}`);
+  }
+}
+
+async function sendTransaction({
+  rpc,
+  wallet,
+  executor,
+  chainId,
+  nonce,
+  gasLimit,
+  payload,
+}) {
+  if (wallet) {
+    const gasPrice = BigInt(await rpc("eth_gasPrice"));
+    const unsignedTransaction = {
+      chainId,
+      nonce,
+      gasLimit,
+      gasPrice,
+      data: payload.data,
+      value: payload.value,
+    };
+    if (payload.to) unsignedTransaction.to = payload.to;
+    const signedTransaction = await wallet.signTransaction(unsignedTransaction);
+    return rpc("eth_sendRawTransaction", [signedTransaction]);
+  }
+  const request = {
+    from: executor,
+    data: payload.data,
+    value: rpcQuantity(payload.value),
+    gas: rpcQuantity(gasLimit),
+  };
+  if (payload.to) request.to = payload.to;
+  return rpc("eth_sendTransaction", [request]);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForReceipt(rpc, transactionHash) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const receipt = await rpc("eth_getTransactionReceipt", [transactionHash]);
+    if (receipt) return receipt;
+    await delay(1_000);
+  }
+  throw new Error(`Timed out waiting for receipt ${transactionHash}`);
+}
+
+function receiptBlockNumber(receipt) {
+  const blockNumber = Number(BigInt(receipt.blockNumber));
+  return Number.isSafeInteger(blockNumber)
+    ? blockNumber
+    : BigInt(receipt.blockNumber).toString();
+}
+
+async function executePlan(args) {
+  const planPath = requiredArg(args, "plan");
+  const rpcUrl = requiredArg(args, "rpc");
+  const privateKey = args["private-key"];
+  const impersonatedAddress = args.impersonate;
+  if ((privateKey ? 1 : 0) + (impersonatedAddress ? 1 : 0) !== 1) {
+    throw new Error("Choose exactly one of --private-key or --impersonate.");
+  }
+  const plan = assertValidPlan(readJson(planPath));
+  const rpc = createRpcClient(rpcUrl);
+  const actualChainId = Number(BigInt(await rpc("eth_chainId")));
+  if (actualChainId !== plan.chainId) {
+    throw new Error(
+      `RPC chain id mismatch: plan=${plan.chainId}, rpc=${actualChainId}`
+    );
+  }
+
+  const wallet = privateKey ? new Wallet(privateKey) : null;
+  const executor = wallet ? wallet.address : getAddress(impersonatedAddress);
+  if (executor.toLowerCase() !== plan.expectedExecutor.toLowerCase()) {
+    throw new Error(
+      `Executor mismatch: plan expects ${plan.expectedExecutor}, selected ${executor}`
+    );
+  }
+
+  const statePath = runStatePath(plan);
+  const runState = readRunState(statePath);
+  const transactionIds = new Set(
+    plan.transactions.map((transaction) => transaction.id)
+  );
+  for (const transactionId of Object.keys(runState)) {
+    if (!transactionIds.has(transactionId)) {
+      throw new Error(
+        `Run state contains unknown transaction id: ${transactionId}`
+      );
+    }
+  }
+  const outputs = outputsFromRunState(plan, runState);
+
+  let impersonating = false;
+  try {
+    if (impersonatedAddress) {
+      await rpc("anvil_impersonateAccount", [executor]);
+      impersonating = true;
+    }
+
+    let foundIncomplete = false;
+    for (const transaction of plan.transactions) {
+      const existing = runState[transaction.id];
+      if (existing?.status === "verified") {
+        if (foundIncomplete) {
+          throw new Error(
+            `Run state is non-contiguous: ${transaction.id} is verified after an incomplete entry`
+          );
+        }
+        const predicate = await checkPredicate(
+          rpc,
+          transaction.predicate,
+          outputs
+        );
+        if (!predicate.ok) {
+          throw new Error(
+            `Resume halted: prior predicate failed for ${transaction.id}: ${
+              predicate.detail
+            }. If this is a fresh fork or new rehearsal, the run state is from a previous chain instance — delete ${path.relative(
+              REPO_ROOT,
+              statePath
+            )} and re-run.`
+          );
+        }
+        console.log(
+          `[${transaction.id}] Prior predicate re-verified: ${predicate.detail}`
+        );
+        continue;
+      }
+
+      foundIncomplete = true;
+      if (existing?.txHash) {
+        const receipt = await rpc("eth_getTransactionReceipt", [
+          existing.txHash,
+        ]);
+        if (!receipt || receipt.status !== "0x1") {
+          throw new Error(
+            `Resume halted: stored transaction ${transaction.id} is not successfully mined`
+          );
+        }
+        const predicate = await checkPredicate(
+          rpc,
+          transaction.predicate,
+          outputs
+        );
+        if (!predicate.ok) {
+          throw new Error(
+            `Resume halted: mined transaction ${transaction.id} still fails its predicate: ${predicate.detail}`
+          );
+        }
+        runState[transaction.id].status = "verified";
+        writeJsonAtomic(statePath, runState);
+        console.log(
+          `[${transaction.id}] Mined transaction predicate now verifies; no resend: ${predicate.detail}`
+        );
+        continue;
+      }
+
+      const payload = transactionPayload(transaction, outputs);
+      const nonce = BigInt(
+        await rpc("eth_getTransactionCount", [executor, "pending"])
+      );
+      await confirmNonce(transaction, executor, nonce, args.yes === true);
+      const gasLimit = await gasLimitForTransaction(
+        rpc,
+        transaction,
+        executor,
+        payload
+      );
+      console.log(
+        `[${transaction.id}] Gas limit ${gasLimit} (${JSON.stringify(
+          transaction.envelope.gasLimitPolicy
+        )}).`
+      );
+      const txHash = await sendTransaction({
+        rpc,
+        wallet,
+        executor,
+        chainId: plan.chainId,
+        nonce,
+        gasLimit,
+        payload,
+      });
+      const receipt = await waitForReceipt(rpc, txHash);
+      const stateEntry = {
+        txHash,
+        blockNumber: receiptBlockNumber(receipt),
+        status: receipt.status === "0x1" ? "mined" : "reverted",
+      };
+      if (transaction.kind === "deploy" && receipt.contractAddress) {
+        stateEntry.resolvedAddress = getAddress(receipt.contractAddress);
+        outputs.set(transaction.output, stateEntry.resolvedAddress);
+      }
+      runState[transaction.id] = stateEntry;
+      writeJsonAtomic(statePath, runState);
+      console.log(
+        `[${transaction.id}] Mined ${txHash} in block ${stateEntry.blockNumber}.`
+      );
+
+      if (receipt.status !== "0x1") {
+        throw new Error(`Transaction reverted: ${transaction.id}`);
+      }
+      if (transaction.kind === "deploy" && !stateEntry.resolvedAddress) {
+        stateEntry.status = "predicate-failed";
+        writeJsonAtomic(statePath, runState);
+        throw new Error(
+          `Deployment receipt lacks contractAddress: ${transaction.id}`
+        );
+      }
+
+      let predicate;
+      try {
+        predicate = await checkPredicate(rpc, transaction.predicate, outputs);
+      } catch (error) {
+        stateEntry.status = "predicate-failed";
+        writeJsonAtomic(statePath, runState);
+        throw new Error(
+          `Predicate error for ${transaction.id}: ${error.message}`
+        );
+      }
+      if (!predicate.ok) {
+        stateEntry.status = "predicate-failed";
+        writeJsonAtomic(statePath, runState);
+        throw new Error(
+          `Predicate failed for ${transaction.id}: ${predicate.detail}`
+        );
+      }
+      stateEntry.status = "verified";
+      writeJsonAtomic(statePath, runState);
+      console.log(
+        `[${transaction.id}] Predicate verified: ${predicate.detail}`
+      );
+    }
+  } finally {
+    if (impersonating) {
+      try {
+        await rpc("anvil_stopImpersonatingAccount", [executor]);
+      } catch (_error) {
+        // The executor result is already durable; cleanup failure must not mask it.
+      }
+    }
+  }
+
+  console.log(
+    `Execution complete. Run state: ${path.relative(REPO_ROOT, statePath)}`
+  );
+}
+
+async function verifyPlan(args) {
+  const planPath = requiredArg(args, "plan");
+  const statePath = requiredArg(args, "run-state");
+  const rpcUrl = requiredArg(args, "rpc");
+  const plan = assertValidPlan(readJson(planPath));
+  if (!fs.existsSync(statePath)) {
+    throw new Error(`Run state not found: ${statePath}`);
+  }
+  const runState = readRunState(statePath);
+  const rpc = createRpcClient(rpcUrl);
+  const actualChainId = Number(BigInt(await rpc("eth_chainId")));
+  if (actualChainId !== plan.chainId) {
+    throw new Error(
+      `RPC chain id mismatch: plan=${plan.chainId}, rpc=${actualChainId}`
+    );
+  }
+  const outputs = outputsFromRunState(plan, runState);
+  let failed = 0;
+  for (const transaction of plan.transactions) {
+    try {
+      const result = await checkPredicate(rpc, transaction.predicate, outputs);
+      if (result.ok) {
+        console.log(`VERIFIED ${transaction.id}: ${result.detail}`);
+      } else {
+        failed += 1;
+        console.error(`FAILED ${transaction.id}: ${result.detail}`);
+      }
+    } catch (error) {
+      failed += 1;
+      console.error(`FAILED ${transaction.id}: ${error.message}`);
+    }
+  }
+  if (failed > 0) {
+    console.error(
+      `Verification failed: ${failed} predicate(s) did not verify.`
+    );
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Verification passed: ${plan.transactions.length} predicate(s).`);
+}
+
+function safeInputValue(value) {
+  if (isReference(value)) return `$ref:${value.$ref}`;
+  if (Array.isArray(value) || (value !== null && typeof value === "object")) {
+    return JSON.stringify(value, (_key, entry) =>
+      isReference(entry) ? `$ref:${entry.$ref}` : entry
+    );
+  }
+  return String(value);
+}
+
+function renderSafe(args) {
+  const plan = assertValidPlan(readJson(requiredArg(args, "plan")));
+
+  // Secondary output only: deployments are intentionally excluded because
+  // Safe Transaction Builder MultiSend entries cannot express contract
+  // creation. Later call targets created by the plan are also unresolved, so
+  // refs use the zero address plus explicit metadata and must be resolved
+  // before importing or signing.
+  const transactions = plan.transactions
+    .filter((transaction) => transaction.kind === "call")
+    .map((transaction) => {
+      const { fragment } = functionInterface(transaction.functionSignature);
+      const unresolvedReferences = [];
+      for (const value of [transaction.to, transaction.args]) {
+        collectReferences(value, unresolvedReferences);
+      }
+      const names = new Set();
+      const inputs = fragment.inputs.map((input, index) => {
+        let name = input.name || `arg${index}`;
+        while (names.has(name)) name = `${name}_${index}`;
+        names.add(name);
+        return { internalType: input.type, name, type: input.type };
+      });
+      const contractInputsValues = Object.fromEntries(
+        inputs.map((input, index) => [
+          input.name,
+          safeInputValue(transaction.args[index]),
+        ])
+      );
+      return {
+        to: isReference(transaction.to) ? ZERO_ADDRESS : transaction.to,
+        value: parseQuantity(
+          transaction.envelope.value,
+          `${transaction.id}.envelope.value`
+        ).toString(),
+        data: transaction.calldata,
+        contractMethod: {
+          inputs,
+          name: fragment.name,
+          payable: fragment.stateMutability === "payable",
+        },
+        contractInputsValues,
+        description: `[${transaction.id}] ${transaction.description}`,
+        unresolvedReferences: [...new Set(unresolvedReferences)],
+      };
+    });
+
+  const output = {
+    version: "1.0",
+    chainId: String(plan.chainId),
+    createdAt: Date.now(),
+    meta: {
+      name: `Wildcat ${plan.release} owner calls (secondary rendering)`,
+      description:
+        "Secondary call-only rendering. Resolve every unresolvedReferences entry before importing into Safe.",
+      txBuilderVersion: "1.18.0",
+      createdFromSafeAddress: plan.expectedExecutor,
+      createdFromOwnerAddress: "",
+      checksum: "",
+    },
+    transactions,
+  };
+  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+}
+
+function runValidate(args) {
+  const planPath = requiredArg(args, "plan");
+  const result = validatePlan(readJson(planPath));
+  if (!result.ok) {
+    for (const error of result.errors) console.error(`Error: ${error}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Deployment plan valid: ${planPath}`);
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
+    printUsage();
+    return;
+  }
+  const command = argv[0];
+  const args = parseArgs(argv.slice(1));
+  assertKnownFlags(command, args);
+  if (command === "assemble") return assemblePlan(args);
+  if (command === "validate") return runValidate(args);
+  if (command === "execute") return executePlan(args);
+  if (command === "verify") return verifyPlan(args);
+  if (command === "render-safe") return renderSafe(args);
+  throw new Error(`Unknown command: ${command}`);
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  PLAN_SCHEMA_VERSION,
+  callEq,
+  checkPredicate,
+  codePresent,
+  encodeConstructorArgs,
+  encodeFunctionCall,
+  validatePlan,
+};

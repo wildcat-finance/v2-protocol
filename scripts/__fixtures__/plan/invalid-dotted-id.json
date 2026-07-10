@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0.0",
+  "network": "anvil",
+  "chainId": 31337,
+  "release": "invalid-dotted-id",
+  "expectedExecutor": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "onFailure": "halt",
+  "resume": "re-verify all prior predicates before continuing",
+  "transactions": [
+    {
+      "id": "dotted.id",
+      "kind": "call",
+      "description": "Exercise a fixture call entry.",
+      "to": "0x0000000000000000000000000000000000000000",
+      "functionSignature": "noop()",
+      "args": [],
+      "calldata": "0x5dfc2e4a",
+      "envelope": {
+        "chainId": 31337,
+        "expectedExecutor": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": "0x0000000000000000000000000000000000000000",
+        "value": "0",
+        "data": "functionSignature+args",
+        "gasLimitPolicy": "estimate*1.3",
+        "nonceCheck": "display-and-confirm"
+      },
+      "predicate": {
+        "type": "codePresent",
+        "target": "0x0000000000000000000000000000000000000000"
+      }
+    }
+  ]
+}

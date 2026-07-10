@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0.0",
+  "network": "anvil",
+  "chainId": 31337,
+  "release": "invalid-unknown-artifact",
+  "expectedExecutor": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "onFailure": "halt",
+  "resume": "re-verify all prior predicates before continuing",
+  "transactions": [
+    {
+      "id": "unknown-artifact",
+      "kind": "deploy",
+      "description": "Attempt to deploy an unavailable fixture artifact.",
+      "artifactName": "UnknownFixtureArtifact",
+      "initCode": "0x00",
+      "constructorArgs": {
+        "decoded": [],
+        "encoded": "0x"
+      },
+      "output": "unknown-output",
+      "envelope": {
+        "chainId": 31337,
+        "expectedExecutor": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "to": null,
+        "value": "0",
+        "data": "initCode+constructorArgs",
+        "gasLimitPolicy": "estimate*1.3",
+        "nonceCheck": "display-and-confirm"
+      },
+      "predicate": {
+        "type": "codePresent",
+        "target": {
+          "$ref": "unknown-output"
+        }
+      }
+    }
+  ]
+}
