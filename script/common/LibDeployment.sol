@@ -111,7 +111,7 @@ function getDeployments() returns (Deployments memory deployments) {
 ///
 ///
 /// ===================================================================================
-///                                   Private Key                             
+///                                   Private Key
 /// ===================================================================================
 ///  By default, it will attempt to use the private key at environment variable
 ///  `PVT_KEY_<NETWORK NAME>`. If none exists, it will use whatever key is configured
@@ -576,6 +576,9 @@ library JsonUtil {
   }
 
   function has(Json memory self, string memory key) internal view returns (bool) {
+    // A freshly created Json has an empty `serialized` until the first set;
+    // vm.keyExists cannot parse an empty string.
+    if (bytes(self.serialized).length == 0) return false;
     return forgeVm.keyExists(self.serialized, string.concat('.', key));
   }
 

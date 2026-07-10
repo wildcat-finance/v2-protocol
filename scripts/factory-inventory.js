@@ -69,6 +69,8 @@ function printUsage() {
     [--deployments <path>] [--handoff <path>] [--allowlist <path>]
   node scripts/factory-inventory.js reconcile --network <name> [--rpc-url <url>]
     [--input <path>] [--deployments <path>] [--handoff <path>] [--output <path>]
+  node scripts/factory-inventory.js apply-run --network <name> --run-state <path>
+    [--plan <path>] [--rpc-url <url>] [--input <path>] [--deployments <path>]
 
 Defaults:
   --input deployments/<network>/factory-inventory.json
@@ -124,6 +126,17 @@ function readJson(filePath) {
 function writeJson(filePath, value) {
   ensureDirForFile(filePath);
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function writeJsonAtomic(filePath, value) {
+  ensureDirForFile(filePath);
+  const temporaryPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(
+    temporaryPath,
+    `${JSON.stringify(value, null, 2)}\n`,
+    "utf8"
+  );
+  fs.renameSync(temporaryPath, filePath);
 }
 
 function readInventory(filePath) {
@@ -1388,11 +1401,15 @@ async function reconcileIndexedRecords({ rpc, inventory, errors }) {
 async function runReconcile(args) {
   const network = args.network || process.env.DEPLOYMENTS_NETWORK;
   if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
-  const expectedChainId = networkNameToChainId(network);
-  if (!expectedChainId)
-    throw new Error(`Unsupported reconcile network: ${network}`);
 
   const inventoryPath = resolveInputPath(args);
+  const rawInventory = readInventory(inventoryPath);
+  const expectedChainId = networkNameToChainId(network) || rawInventory.chainId;
+  if (!Number.isSafeInteger(expectedChainId) || expectedChainId <= 0) {
+    throw new Error(
+      `Could not determine reconcile chain id for network ${network}`
+    );
+  }
   const deploymentsPath =
     optionalArg(args, "deployments") ||
     path.join("deployments", network, "deployments.json");
@@ -1402,7 +1419,7 @@ async function runReconcile(args) {
   const outputPath =
     optionalArg(args, "output") ||
     path.join("deployments", network, "reconcile-report.json");
-  const inventory = assertValidInventory(readInventory(inventoryPath), {
+  const inventory = assertValidInventory(rawInventory, {
     network,
     chainId: expectedChainId,
   });
@@ -1490,6 +1507,294 @@ async function runReconcile(args) {
   console.log(`Reconcile ${report.status.toUpperCase()} for ${network}`);
   console.log(`Report: ${outputPath}`);
   if (errors.length > 0) process.exit(1);
+}
+
+function isRunStateReference(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 1 &&
+    typeof value.$ref === "string"
+  );
+}
+
+function resolveRunStateReferences(value, outputs) {
+  if (isRunStateReference(value)) {
+    const resolved = outputs.get(value.$ref);
+    if (!resolved) {
+      throw new Error(`Unresolved pending record $ref: ${value.$ref}`);
+    }
+    return resolved;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => resolveRunStateReferences(entry, outputs));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        resolveRunStateReferences(entry, outputs),
+      ])
+    );
+  }
+  return value;
+}
+
+function inferPlanPath(network, runStatePath, explicitPlanPath) {
+  if (explicitPlanPath) return explicitPlanPath;
+  const match = /^run-state-(.+)\.json$/.exec(path.basename(runStatePath));
+  if (!match) {
+    throw new Error(
+      "Could not infer release from --run-state; provide --plan explicitly"
+    );
+  }
+  return path.join("deployments", network, `plan-${match[1]}.json`);
+}
+
+function assertVerifiedRunState(plan, runState) {
+  const planIds = new Set(
+    plan.transactions.map((transaction) => transaction.id)
+  );
+  for (const transactionId of Object.keys(runState)) {
+    if (!planIds.has(transactionId)) {
+      throw new Error(
+        `Run state contains unknown transaction id ${transactionId}`
+      );
+    }
+  }
+  for (const transaction of plan.transactions) {
+    const state = runState[transaction.id];
+    if (state?.status !== "verified") {
+      throw new Error(`Run state entry ${transaction.id} is not verified`);
+    }
+    if (!isBytes32(state.txHash)) {
+      throw new Error(`Run state entry ${transaction.id} has invalid txHash`);
+    }
+    if (!Number.isSafeInteger(state.blockNumber) || state.blockNumber <= 0) {
+      throw new Error(
+        `Run state entry ${transaction.id} has invalid blockNumber`
+      );
+    }
+    if (transaction.kind === "deploy" && !isAddress(state.resolvedAddress)) {
+      throw new Error(
+        `Run state deployment ${transaction.id} has invalid resolvedAddress`
+      );
+    }
+  }
+}
+
+function deploymentOutputsFromRunState(plan, runState) {
+  const outputs = new Map();
+  for (const transaction of plan.transactions) {
+    if (transaction.kind === "deploy") {
+      outputs.set(transaction.output, runState[transaction.id].resolvedAddress);
+    }
+  }
+  return outputs;
+}
+
+function deploymentStateForPendingRecord(plan, runState, rawRecord, filePath) {
+  if (!isRunStateReference(rawRecord.address)) {
+    throw new Error(`${filePath}: pending address must be a plan $ref`);
+  }
+  const transaction = plan.transactions.find(
+    (entry) =>
+      entry.kind === "deploy" && entry.output === rawRecord.address.$ref
+  );
+  if (!transaction) {
+    throw new Error(
+      `${filePath}: no deployment transaction produces ${rawRecord.address.$ref}`
+    );
+  }
+  return runState[transaction.id];
+}
+
+function assertNewInventoryRecord(inventory, collectionName, entry) {
+  const existing = inventory[collectionName].find(
+    (record) =>
+      record.label === entry.label ||
+      (isAddress(record.address) &&
+        addressKey(record.address) === addressKey(entry.address))
+  );
+  if (existing) {
+    throw new Error(
+      `Append-only violation: ${collectionName} already contains ${entry.label} or ${entry.address}`
+    );
+  }
+}
+
+async function runApplyRun(args) {
+  const network = args.network || process.env.DEPLOYMENTS_NETWORK;
+  if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
+  const runStatePath = requireArg(args, "run-state");
+  const planPath = inferPlanPath(
+    network,
+    runStatePath,
+    optionalArg(args, "plan")
+  );
+  const inventoryPath = resolveInputPath(args);
+  const deploymentsPath =
+    optionalArg(args, "deployments") ||
+    path.join("deployments", network, "deployments.json");
+  const pendingDirectory = path.join(
+    "deployments",
+    network,
+    "inventory-pending"
+  );
+  if (!fs.existsSync(pendingDirectory)) {
+    throw new Error(
+      `Pending inventory directory not found: ${pendingDirectory}`
+    );
+  }
+
+  const plan = readJson(planPath);
+  if (!Array.isArray(plan.transactions) || plan.network !== network) {
+    throw new Error(`Plan ${planPath} does not belong to network ${network}`);
+  }
+  const runState = readJson(runStatePath);
+  assertVerifiedRunState(plan, runState);
+  const outputs = deploymentOutputsFromRunState(plan, runState);
+  const pendingFiles = fs
+    .readdirSync(pendingDirectory)
+    .filter((fileName) => fileName.endsWith(".json"))
+    .sort((left, right) => left.localeCompare(right));
+  if (pendingFiles.length === 0) {
+    throw new Error(
+      `No pending inventory records found in ${pendingDirectory}`
+    );
+  }
+
+  let inventory = assertValidInventory(readInventory(inventoryPath), {
+    network,
+  });
+  const originalRecordCount = inventory.recordCount;
+  const deployments = readJson(deploymentsPath);
+  let addedRecords = 0;
+  let standardFactory = null;
+  let revolvingFactory = null;
+  let wrapperFactory = null;
+  let marketLens = null;
+
+  for (const fileName of pendingFiles) {
+    const filePath = path.join(pendingDirectory, fileName);
+    const rawRecord = readJson(filePath);
+    if (
+      rawRecord.network !== network ||
+      rawRecord.chainId !== inventory.chainId
+    ) {
+      throw new Error(`${filePath}: network or chainId mismatch`);
+    }
+    const deployState = deploymentStateForPendingRecord(
+      plan,
+      runState,
+      rawRecord,
+      filePath
+    );
+    const record = resolveRunStateReferences(rawRecord, outputs);
+    if (!isAddress(record.address)) {
+      throw new Error(`${filePath}: resolved address is invalid`);
+    }
+    if (
+      typeof record.deploymentKey !== "string" ||
+      record.deploymentKey === ""
+    ) {
+      throw new Error(`${filePath}: deploymentKey is required`);
+    }
+    deployments[record.deploymentKey] = record.address;
+
+    if (record.recordType === "hooksFactory") {
+      const registerState = runState[record.registerEntryId];
+      if (
+        registerState?.status !== "verified" ||
+        !isBytes32(registerState.txHash)
+      ) {
+        throw new Error(`${filePath}: registerEntryId is not verified`);
+      }
+      const entry = removeUndefinedFields({
+        label: record.deploymentKey,
+        marketType: record.marketType,
+        address: record.address,
+        startBlock: deployState.blockNumber,
+        canonical: record.canonicalIntent === true,
+        lifecycle: record.canonicalIntent === true ? "canonical" : "live",
+        indexed: true,
+        registered: true,
+        deploymentKey: record.deploymentKey,
+        deployTxHash: deployState.txHash,
+        registerTxHash: registerState.txHash,
+        initCodeStorage: record.initCodeStorage,
+        initCodeHash: record.initCodeHash,
+      });
+      assertNewInventoryRecord(inventory, "hooksFactories", entry);
+      inventory = upsertFactory(inventory, entry);
+      addedRecords += 1;
+      if (entry.marketType === "legacy") standardFactory = entry.address;
+      if (entry.marketType === "revolving") revolvingFactory = entry.address;
+      continue;
+    }
+
+    if (record.recordType === "wrapperFactory") {
+      const entry = {
+        label: record.deploymentKey,
+        address: record.address,
+        startBlock: deployState.blockNumber,
+        lifecycle: record.canonicalIntent === true ? "canonical" : "live",
+        indexed: true,
+        deployTxHash: deployState.txHash,
+        v1Factory: record.v1Factory,
+      };
+      assertNewInventoryRecord(inventory, "wrapperFactories", entry);
+      inventory = upsertWrapperFactory(inventory, entry);
+      addedRecords += 1;
+      wrapperFactory = entry.address;
+      continue;
+    }
+
+    if (record.recordType === "deployment" && record.role === "facade") {
+      marketLens = record.address;
+    }
+  }
+
+  if (!standardFactory || !revolvingFactory || !wrapperFactory || !marketLens) {
+    throw new Error(
+      "Pending records must resolve standard/revolving hooks factories, wrapper factory, and MarketLens"
+    );
+  }
+  if (addedRecords !== 3) {
+    throw new Error(
+      `Expected three append-only factory records, got ${addedRecords}`
+    );
+  }
+  if (inventory.recordCount !== originalRecordCount + addedRecords) {
+    throw new Error(
+      `recordCount must grow from ${originalRecordCount} to ${
+        originalRecordCount + addedRecords
+      }; got ${inventory.recordCount}`
+    );
+  }
+
+  deployments.HooksFactory = standardFactory;
+  deployments.HooksFactoryRevolving = revolvingFactory;
+  deployments.MarketLens = marketLens;
+  deployments.Wildcat4626WrapperFactory = wrapperFactory;
+  writeInventory(inventoryPath, inventory);
+  writeJsonAtomic(deploymentsPath, deployments);
+  console.log(
+    `Applied ${addedRecords} append-only factory records; recordCount ${originalRecordCount} -> ${inventory.recordCount}`
+  );
+  console.log(`Canonical aliases updated: ${deploymentsPath}`);
+
+  await runReconcile({
+    network,
+    input: inventoryPath,
+    deployments: deploymentsPath,
+    handoff: optionalArg(args, "handoff"),
+    output:
+      optionalArg(args, "output") ||
+      path.join("deployments", network, "reconcile-report.json"),
+    "rpc-url": optionalArg(args, "rpc-url"),
+  });
 }
 
 function runLint(args) {
@@ -1704,6 +2009,10 @@ async function main() {
   }
   if (command === "reconcile") {
     await runReconcile(args);
+    return;
+  }
+  if (command === "apply-run") {
+    await runApplyRun(args);
     return;
   }
 

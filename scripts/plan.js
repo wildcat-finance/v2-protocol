@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 const readline = require("readline/promises");
 const {
   AbiCoder,
@@ -17,7 +18,13 @@ const SCHEMA_PATH = path.resolve(
   "../deployments/deployment-plan.schema-1-0.json"
 );
 const REPO_ROOT = path.resolve(__dirname, "..");
-const OUT_DIR = path.join(REPO_ROOT, "out");
+const FOUNDRY_CONFIG = JSON.parse(
+  execFileSync("forge", ["config", "--basic", "--json"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  })
+);
+const OUT_DIR = path.resolve(REPO_ROOT, FOUNDRY_CONFIG.out);
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SAFE_ID_REGEX = /^[^.]+$/;
