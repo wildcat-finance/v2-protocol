@@ -43,6 +43,12 @@ function printUsage() {
     [--private-key <key> | --impersonate <address>] [--yes]
   node scripts/plan.js verify --plan <path> --run-state <path> --rpc <url>
   node scripts/plan.js render-safe --plan <path>
+  node scripts/plan.js bundle --plan <path> --safe <address>
+    [--max-gas <n>] [--out-dir <dir>]
+  node scripts/plan.js bundle-simulate --plan <path> --bundles <dir>
+    --rpc <fork-url> --safe <address> [--private-key <key>]
+  node scripts/plan.js bundle-verify --plan <path> --bundles <dir>
+    --rpc <url> [--tx-hashes <json>]
 
 assemble reads deployments/<network>/plan-entries/*.json and writes
 deployments/<network>/plan-<release>.json.
@@ -55,6 +61,9 @@ const KNOWN_FLAGS = {
   execute: ["plan", "rpc", "private-key", "impersonate", "yes"],
   verify: ["plan", "run-state", "rpc"],
   "render-safe": ["plan"],
+  bundle: ["plan", "safe", "max-gas", "out-dir"],
+  "bundle-simulate": ["plan", "bundles", "rpc", "safe", "private-key"],
+  "bundle-verify": ["plan", "bundles", "rpc", "tx-hashes"],
 };
 
 function assertKnownFlags(command, args) {
@@ -1591,6 +1600,25 @@ function runValidate(args) {
   console.log(`Deployment plan valid: ${planPath}`);
 }
 
+function bundleCommands() {
+  return require("./plan-bundle")({
+    REPO_ROOT,
+    assertValidPlan,
+    checkPredicate,
+    createRpcClient,
+    loadArtifact,
+    readJson,
+    receiptBlockNumber,
+    resolveReferences,
+    runStatePath,
+    transactionPayload,
+    validateJsonSchema,
+    waitForReceipt,
+    writeJson,
+    writeJsonAtomic,
+  });
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
@@ -1605,6 +1633,13 @@ async function main() {
   if (command === "execute") return executePlan(args);
   if (command === "verify") return verifyPlan(args);
   if (command === "render-safe") return renderSafe(args);
+  if (command === "bundle") return bundleCommands().bundlePlan(args);
+  if (command === "bundle-simulate") {
+    return bundleCommands().simulateBundles(args);
+  }
+  if (command === "bundle-verify") {
+    return bundleCommands().verifyBundles(args);
+  }
   throw new Error(`Unknown command: ${command}`);
 }
 
