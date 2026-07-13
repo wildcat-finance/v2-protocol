@@ -21,6 +21,10 @@ contract SettableSentinel {
   function unsanction(address account) external {
     sanctioned[account] = false;
   }
+
+  function getEscrowAddress(address, address, address) external pure returns (address) {
+    return address(0xE5C0);
+  }
 }
 
 contract PlainMockERC20 {

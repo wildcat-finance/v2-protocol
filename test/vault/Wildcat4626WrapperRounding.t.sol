@@ -12,6 +12,10 @@ contract MockSanctionsSentinel {
   function isSanctioned(address, address account) external view returns (bool) {
     return sanctioned[account];
   }
+
+  function getEscrowAddress(address, address, address) external pure returns (address) {
+    return address(0xE5C0);
+  }
 }
 
 contract MockMarketToken is IWildcatMarketToken {

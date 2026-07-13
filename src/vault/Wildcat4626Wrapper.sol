@@ -40,6 +40,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   error SharesMismatch(uint256 expected, uint256 actual);
   error NotMarketOwner();
   error SanctionedAccount(address account);
+  error AccountNotSanctioned(address account);
+  error CannotNukeWrapper();
+  error InsolventWrapper(uint256 scaledBacking, uint256 shareSupply);
 
   IWildcatMarketToken public immutable wrappedMarket;
   address public immutable marketOwner;
@@ -104,6 +107,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
   event TokensSwept(address indexed token, address indexed to, uint256 amount);
 
+  event SanctionedAccountSharesSentToEscrow(
+    address indexed account,
+    address indexed escrow,
+    uint256 shares
+  );
+
   // -------------------------------------------------------------------------
   // ERC4626 View Interface
   // -------------------------------------------------------------------------
@@ -140,7 +149,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice Remaining normalized assets the wrapper can accept before hitting the market's maxTotalSupply
   /// @dev Returns 0 for sanctioned receivers per erc4626 (deposit would revert)
   function maxDeposit(address receiver) public view override returns (uint256) {
-    if (_isSanctioned(receiver)) return 0;
+    if (_isSanctioned(receiver) || !_isOperational()) return 0;
     uint256 marketCap = wrappedMarket.maxTotalSupply();
     uint256 held = totalAssets();
     if (held >= marketCap) return 0;
@@ -178,7 +187,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice Maximum assets `owner_` can pull via `withdraw`, using half-up rounding
   /// @dev Returns 0 for sanctioned owners per erc 4626 (withdraw would revert)
   function maxWithdraw(address owner_) public view override returns (uint256) {
-    if (_isSanctioned(owner_)) return 0;
+    if (_isSanctioned(owner_) || !_isOperational()) return 0;
     uint256 shares = balanceOf(owner_);
     if (shares == 0) return 0;
     uint256 scaleFactor = wrappedMarket.scaleFactor();
@@ -198,7 +207,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice All shares `owner_` currently holds.
   /// @dev Returns 0 for sanctioned owners per ERC-4626 (redeem would revert)
   function maxRedeem(address owner_) public view override returns (uint256) {
-    if (_isSanctioned(owner_)) return 0;
+    if (_isSanctioned(owner_) || !_isOperational()) return 0;
     return balanceOf(owner_);
   }
 
@@ -248,6 +257,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address receiver
   ) public override nonReentrant returns (uint256 shares) {
     _checkNotSanctioned(msg.sender);
+    _requireOperational();
     if (assets == 0) revert ZeroAssets();
 
     uint256 limit = _remainingCapacityAssets();
@@ -267,6 +277,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (shares != expectedShares) revert SharesMismatch(expectedShares, shares);
 
     _mint(receiver, shares);
+    _requireSolvent();
     emit Deposit(msg.sender, receiver, assets, shares);
     return shares;
   }
@@ -277,6 +288,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address receiver
   ) public override nonReentrant returns (uint256 assets) {
     _checkNotSanctioned(msg.sender);
+    _requireOperational();
     if (shares == 0) revert ZeroShares();
     uint256 scaleFactor = wrappedMarket.scaleFactor();
     // Reuse the `assets` return variable to hold remaining capacity for the cap check.
@@ -302,6 +314,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (mintedShares != shares) revert SharesMismatch(shares, mintedShares);
 
     _mint(receiver, shares);
+    _requireSolvent();
     emit Deposit(msg.sender, receiver, assets, shares);
   }
 
@@ -314,6 +327,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ) public override nonReentrant returns (uint256 shares) {
     _checkNotSanctioned(msg.sender);
     _checkNotSanctioned(receiver);
+    _requireOperational();
     if (assets == 0) revert ZeroAssets();
 
     uint256 scaleFactor = wrappedMarket.scaleFactor();
@@ -334,6 +348,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
     uint256 burnedShares = scaledBefore - scaledAfter;
     if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
+    _requireSolvent();
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
   }
 
@@ -347,6 +362,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ) public override nonReentrant returns (uint256 assets) {
     _checkNotSanctioned(msg.sender);
     _checkNotSanctioned(receiver);
+    _requireOperational();
     if (shares == 0) revert ZeroShares();
 
     if (msg.sender != owner_) {
@@ -367,8 +383,34 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
     uint256 burnedShares = scaledBefore - scaledAfter;
     if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
+    _requireSolvent();
 
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
+  }
+
+  /// @notice Quarantine a sanctioned holder's direct market position and wrapper shares.
+  /// @dev The optional wrapper coordinates into the already-deployed market and forwards any
+  ///      trailing hook data, so the market never depends on wrapper deployment.
+  function nukeFromOrbit(address account) external nonReentrant {
+    if (account == address(this)) revert CannotNukeWrapper();
+    if (!_isSanctioned(account)) revert AccountNotSanctioned(account);
+
+    address marketAddress = address(wrappedMarket);
+    assembly {
+      let freeMemoryPointer := mload(0x40)
+      calldatacopy(freeMemoryPointer, 0, calldatasize())
+      if iszero(call(gas(), marketAddress, 0, freeMemoryPointer, calldatasize(), 0, 0)) {
+        returndatacopy(freeMemoryPointer, 0, returndatasize())
+        revert(freeMemoryPointer, returndatasize())
+      }
+    }
+
+    uint256 shares = balanceOf(account);
+    if (shares == 0) return;
+
+    address escrow = sanctionsSentinel.createEscrow(marketOwner, account, address(this));
+    _transfer(account, escrow, shares);
+    emit SanctionedAccountSharesSentToEscrow(account, escrow, shares);
   }
 
   /// @notice Sweep arbitrary ERC20 balances and any stranded wrapped market tokens.
@@ -448,6 +490,26 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return account != address(0) && sanctionsSentinel.isSanctioned(marketOwner, account);
   }
 
+  function _isSolvent() internal view returns (bool) {
+    return wrappedMarket.scaledBalanceOf(address(this)) >= totalSupply();
+  }
+
+  function _isOperational() internal view returns (bool) {
+    return !_isSanctioned(address(this)) && _isSolvent();
+  }
+
+  function _requireSolvent() internal view {
+    uint256 scaledBacking = wrappedMarket.scaledBalanceOf(address(this));
+    uint256 shareSupply = totalSupply();
+    // New deposits must not recapitalize claims held by the existing shareholders.
+    if (scaledBacking < shareSupply) revert InsolventWrapper(scaledBacking, shareSupply);
+  }
+
+  function _requireOperational() internal view {
+    _checkNotSanctioned(address(this));
+    _requireSolvent();
+  }
+
   function _checkNotSanctioned(address account) internal view {
     if (_isSanctioned(account)) {
       revert SanctionedAccount(account);
@@ -455,7 +517,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-    _checkNotSanctioned(from);
+    if (_isSanctioned(from)) {
+      address escrow = sanctionsSentinel.getEscrowAddress(marketOwner, from, address(this));
+      if (to != escrow) revert SanctionedAccount(from);
+    } else {
+      _requireOperational();
+    }
     _checkNotSanctioned(to);
     if (amount == 0) {
       return;

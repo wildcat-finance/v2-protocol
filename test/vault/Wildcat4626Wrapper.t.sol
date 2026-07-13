@@ -21,6 +21,10 @@ contract MockSanctionsSentinel {
   function unsanction(address account) external {
     sanctioned[account] = false;
   }
+
+  function getEscrowAddress(address, address, address) external pure returns (address) {
+    return address(0xE5C0);
+  }
 }
 
 contract MockErc20 {
@@ -63,6 +67,7 @@ contract MockMarketToken is IWildcatMarketToken {
   mapping(address => uint256) internal _scaledBalances;
   mapping(address => mapping(address => uint256)) public override allowance;
   uint256 internal _scaledTotalSupply;
+  bytes32 public lastNukeCalldataHash;
 
   constructor(uint8 tokenDecimals, address borrower_, address sentinel_) {
     decimals = tokenDecimals;
@@ -90,6 +95,10 @@ contract MockMarketToken is IWildcatMarketToken {
   function setScaleFactor(uint256 newScaleFactor) external {
     require(newScaleFactor != 0, 'ZERO_FACTOR');
     scaleFactor = newScaleFactor;
+  }
+
+  function nukeFromOrbit(address) external {
+    lastNukeCalldataHash = keccak256(msg.data);
   }
 
   // Mirrors the real market's floor-rounded deposit scaling (scaleAmountDown).
@@ -166,6 +175,19 @@ contract Wildcat4626WrapperTest is Test {
   function test_metadataDerivedFromMarketSymbol() external view {
     assertEq(wrapper.name(), 'friesUSDC [4626 Vault Shares]');
     assertEq(wrapper.symbol(), 'v-friesUSDC');
+  }
+
+  function test_nukeFromOrbitForwardsTrailingHookData() external {
+    sanctionsSentinel.sanction(FED);
+    bytes memory callData = abi.encodePacked(
+      abi.encodeWithSelector(wrapper.nukeFromOrbit.selector, FED),
+      hex'01020304'
+    );
+
+    (bool success, bytes memory returnData) = address(wrapper).call(callData);
+
+    assertTrue(success, string(returnData));
+    assertEq(market.lastNukeCalldataHash(), keccak256(callData));
   }
 
   function test_depositMintsScaledShares() external {
