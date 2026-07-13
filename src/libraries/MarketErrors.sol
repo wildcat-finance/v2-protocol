@@ -167,6 +167,16 @@ function revert_WithdrawalBatchNotExpired() pure {
   }
 }
 
+uint256 constant WithdrawalBatchKeyAlreadyExists_ErrorSelector = 0x7867bc7e;
+
+/// @dev Equivalent to `revert WithdrawalBatchKeyAlreadyExists()`
+function revert_WithdrawalBatchKeyAlreadyExists() pure {
+  assembly {
+    mstore(0, 0x7867bc7e)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant NullMintAmount_ErrorSelector = 0xe4aa5055;
 
 /// @dev Equivalent to `revert NullMintAmount()`

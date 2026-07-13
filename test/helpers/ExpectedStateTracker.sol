@@ -347,9 +347,13 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     _getAccount(accountAddress).scaledBalance -= scaledAmount;
 
     if (state.pendingWithdrawalExpiry == 0) {
-      state.pendingWithdrawalExpiry = uint32(
+      expiry = uint32(
         block.timestamp + (state.isClosed ? 0 : parameters.withdrawalBatchDuration)
       );
+      if (state.isClosed && _getWithdrawalBatch(expiry).scaledTotalAmount != 0) {
+        expiry += 1;
+      }
+      state.pendingWithdrawalExpiry = expiry;
       vm.expectEmit(address(market));
       emit WithdrawalBatchCreated(state.pendingWithdrawalExpiry);
     }

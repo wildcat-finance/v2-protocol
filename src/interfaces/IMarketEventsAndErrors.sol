@@ -30,6 +30,8 @@ interface IMarketEventsAndErrors {
 
   error WithdrawalBatchNotExpired();
 
+  error WithdrawalBatchKeyAlreadyExists();
+
   error NullMintAmount();
 
   error NullBurnAmount();

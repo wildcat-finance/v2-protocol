@@ -97,10 +97,20 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     expiry = state.pendingWithdrawalExpiry;
 
     // If there is no pending withdrawal batch, create a new one.
-    if (state.pendingWithdrawalExpiry == 0) {
+    if (expiry == 0) {
       // If the market is closed, use zero for withdrawal batch duration.
       uint duration = state.isClosed.ternary(0, withdrawalBatchDuration);
       expiry = uint32(block.timestamp + duration);
+
+      // Reopening a processed batch mixes pre- and post-close accounting,
+      // shifting value between withdrawers.
+      if (state.isClosed && _withdrawalData.batches[expiry].scaledTotalAmount != 0) {
+        expiry += 1;
+        if (_withdrawalData.batches[expiry].scaledTotalAmount != 0) {
+          revert_WithdrawalBatchKeyAlreadyExists();
+        }
+      }
+
       emit_WithdrawalBatchCreated(expiry);
       state.pendingWithdrawalExpiry = expiry;
     }

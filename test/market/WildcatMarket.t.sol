@@ -6,6 +6,7 @@ import 'src/interfaces/IMarketEventsAndErrors.sol';
 import 'src/libraries/MathUtils.sol';
 import 'src/libraries/SafeCastLib.sol';
 import 'src/libraries/MarketState.sol';
+import { WithdrawalBatch, AccountWithdrawalStatus } from 'src/libraries/Withdrawal.sol';
 import 'src/libraries/LibERC20.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'solady/utils/LibPRNG.sol';
@@ -342,6 +343,119 @@ contract WildcatMarketTest is BaseMarketTest {
     }
     assertTrue(foundSentinelBatch, 'sentinel WithdrawalBatchCreated');
     assertEq(market.previousState().pendingWithdrawalExpiry, expiry + 1, 'sentinel expiry');
+  }
+
+  function test_closeMarket_BeforeFutureExpiryUsesFreshBatchKey() external {
+    _deposit(alice, 1e18);
+    _deposit(bob, 1e18);
+    uint32 oldExpiry = _requestWithdrawal(alice, 1e18);
+
+    fastForward(parameters.withdrawalBatchDuration - 1 hours);
+    _closeMarket();
+
+    uint256 oldPayment = market.executeWithdrawal(alice, oldExpiry);
+    WithdrawalBatch memory oldBatchBefore = market.getWithdrawalBatch(oldExpiry);
+    AccountWithdrawalStatus memory oldStatusBefore = market.getAccountWithdrawalStatus(
+      alice,
+      oldExpiry
+    );
+    uint256 bobClaim = market.balanceOf(bob);
+
+    vm.warp(oldExpiry);
+    vm.prank(bob);
+    uint32 newExpiry = market.queueFullWithdrawal();
+
+    assertEq(newExpiry, oldExpiry + 1, 'fresh batch expiry');
+    assertEq(market.previousState().pendingWithdrawalExpiry, newExpiry, 'pending fresh batch');
+    assertEq(
+      keccak256(abi.encode(market.getWithdrawalBatch(oldExpiry))),
+      keccak256(abi.encode(oldBatchBefore)),
+      'old batch mutated'
+    );
+    assertEq(
+      keccak256(abi.encode(market.getAccountWithdrawalStatus(alice, oldExpiry))),
+      keccak256(abi.encode(oldStatusBefore)),
+      'old status mutated'
+    );
+
+    WithdrawalBatch memory newBatch = market.getWithdrawalBatch(newExpiry);
+    assertEq(newBatch.scaledTotalAmount, 1e18, 'new batch scaled total');
+    assertApproxEqAbs(newBatch.normalizedAmountPaid, bobClaim, 1, 'new batch payment');
+
+    vm.warp(uint256(newExpiry) + 1);
+    vm.expectRevert(IMarketEventsAndErrors.NullWithdrawalAmount.selector);
+    market.executeWithdrawal(alice, oldExpiry);
+    assertApproxEqAbs(market.executeWithdrawal(bob, newExpiry), bobClaim, 1, 'bob payout');
+    assertEq(asset.balanceOf(alice), type(uint128).max + oldPayment, 'alice payout changed');
+  }
+
+  function test_closeMarket_FallbackBatchKeyCollisionReverts() external {
+    _deposit(alice, 1e18);
+    _deposit(bob, 1e18);
+    uint32 oldExpiry = _requestWithdrawal(alice, 1e18);
+
+    fastForward(parameters.withdrawalBatchDuration - 1 hours);
+    _closeMarket();
+    market.executeWithdrawal(alice, oldExpiry);
+
+    uint32 fallbackExpiry = oldExpiry + 1;
+    vm.warp(oldExpiry);
+    stdstore
+      .target(address(market))
+      .sig(market.getWithdrawalBatch.selector)
+      .with_key(uint256(fallbackExpiry))
+      .depth(0)
+      .enable_packed_slots()
+      .checked_write(uint256(1));
+
+    bytes32 stateHash = keccak256(abi.encode(market.previousState()));
+    bytes32 oldBatchHash = keccak256(abi.encode(market.getWithdrawalBatch(oldExpiry)));
+    bytes32 fallbackBatchHash = keccak256(
+      abi.encode(market.getWithdrawalBatch(fallbackExpiry))
+    );
+    uint256 bobScaledBalance = market.scaledBalanceOf(bob);
+
+    vm.expectRevert(IMarketEventsAndErrors.WithdrawalBatchKeyAlreadyExists.selector);
+    vm.prank(bob);
+    market.queueFullWithdrawal();
+
+    assertEq(keccak256(abi.encode(market.previousState())), stateHash, 'state mutated');
+    assertEq(market.scaledBalanceOf(bob), bobScaledBalance, 'balance mutated');
+    assertEq(
+      keccak256(abi.encode(market.getWithdrawalBatch(oldExpiry))),
+      oldBatchHash,
+      'old batch mutated'
+    );
+    assertEq(
+      keccak256(abi.encode(market.getWithdrawalBatch(fallbackExpiry))),
+      fallbackBatchHash,
+      'fallback batch mutated'
+    );
+  }
+
+  function test_closeMarket_FallbackBatchKeyOverflowReverts() external {
+    _deposit(bob, 1e18);
+    _closeMarket();
+
+    uint32 maxExpiry = type(uint32).max;
+    stdstore
+      .target(address(market))
+      .sig(market.getWithdrawalBatch.selector)
+      .with_key(uint256(maxExpiry))
+      .depth(0)
+      .enable_packed_slots()
+      .checked_write(uint256(1));
+
+    vm.warp(maxExpiry);
+    bytes32 stateHash = keccak256(abi.encode(market.previousState()));
+    uint256 bobScaledBalance = market.scaledBalanceOf(bob);
+
+    vm.expectRevert(stdError.arithmeticError);
+    vm.prank(bob);
+    market.queueFullWithdrawal();
+
+    assertEq(keccak256(abi.encode(market.previousState())), stateHash, 'state mutated');
+    assertEq(market.scaledBalanceOf(bob), bobScaledBalance, 'balance mutated');
   }
 
   function test_closeMarket_repayUnpaidAndPendingWithdrawals() external asAccount(borrower) {
