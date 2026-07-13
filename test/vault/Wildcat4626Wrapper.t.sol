@@ -190,6 +190,28 @@ contract Wildcat4626WrapperTest is Test {
     assertEq(market.lastNukeCalldataHash(), keccak256(callData));
   }
 
+  function test_nukeFromOrbitRevertsForUnsanctionedAccount() external {
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.AccountNotSanctioned.selector, FED)
+    );
+    wrapper.nukeFromOrbit(FED);
+  }
+
+  function test_nukeFromOrbitBubblesMarketRevertWithoutMovingShares() external {
+    vm.prank(FED);
+    wrapper.deposit(50e18, FED);
+    sanctionsSentinel.sanction(FED);
+
+    bytes memory callData = abi.encodeWithSelector(wrapper.nukeFromOrbit.selector, FED);
+    bytes memory revertData = abi.encodeWithSignature('Error(string)', 'MARKET_NUKE_REVERT');
+    vm.mockCallRevert(address(market), callData, revertData);
+
+    vm.expectRevert(revertData);
+    wrapper.nukeFromOrbit(FED);
+
+    assertEq(wrapper.balanceOf(FED), 50e18, 'wrapper shares moved after market revert');
+  }
+
   function test_depositMintsScaledShares() external {
     vm.prank(FED);
     uint256 shares = wrapper.deposit(50e18, FED);
