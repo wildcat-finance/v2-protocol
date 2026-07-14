@@ -67,7 +67,7 @@ contract WildcatMarketTest is BaseMarketTest {
     setUp();
     _deposit(alice, 1e18);
     _requestWithdrawal(alice, 1e18);
-    uint32 timestamp = uint32(block.timestamp);
+    uint32 timestamp = uint32(getTimestamp());
     uint32 expiry = previousState.pendingWithdrawalExpiry;
     fastForward(2 days);
     pendingState();
