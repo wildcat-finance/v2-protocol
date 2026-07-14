@@ -1,18 +1,14 @@
 import {
-  encodeAbiParameters,
-  encodeFunctionData,
   getAddress,
-  isAddress,
-  parseAbiItem,
-  parseAbiParameters,
-  type AbiFunction,
   type Address,
   type Hex,
 } from 'viem'
-import { evaluatePredicate, isReference, resolveReferences } from './predicates'
+import { evaluatePredicate } from './predicates'
+import { buildPlanPayload } from './planEncoding'
 import {
   assertRunStateIds,
   outputsFromRunState,
+  receiptBlockNumber,
   stateEntryFromReceipt,
   type ProgressStore,
   type RunState,
@@ -21,104 +17,13 @@ import type {
   DeploymentPlan,
   ExecutionTransport,
   PlanTransaction,
-  PlanValue,
 } from './types'
-
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
 export class CeremonyHaltError extends Error {
   constructor(message: string, readonly transactionId?: string) {
     super(message)
     this.name = 'CeremonyHaltError'
   }
-}
-
-interface InferredValue {
-  type: string
-  value: unknown
-}
-
-function inferValue(value: PlanValue): InferredValue {
-  if (isReference(value)) return { type: 'address', value: ZERO_ADDRESS }
-  if (typeof value === 'boolean') return { type: 'bool', value }
-  if (typeof value === 'number') {
-    return value < 0
-      ? { type: 'int256', value: BigInt(value) }
-      : { type: 'uint256', value: BigInt(value) }
-  }
-  if (typeof value === 'string') {
-    if (isAddress(value)) return { type: 'address', value: getAddress(value) }
-    if (/^-?[0-9]+$/.test(value)) {
-      return value.startsWith('-')
-        ? { type: 'int256', value: BigInt(value) }
-        : { type: 'uint256', value: BigInt(value) }
-    }
-    if (/^0x(?:[a-fA-F0-9]{2})*$/.test(value)) return { type: 'bytes', value }
-    return { type: 'string', value }
-  }
-  if (value === null) throw new Error('Cannot infer an ABI type for null.')
-  if (Array.isArray(value)) {
-    if (value.length === 0) throw new Error('Cannot infer an ABI type for an empty array.')
-    const entries = value.map(inferValue)
-    if (!entries.every((entry) => entry.type === entries[0].type)) {
-      throw new Error('Cannot infer one ABI type for a heterogeneous array.')
-    }
-    return { type: `${entries[0].type}[]`, value: entries.map((entry) => entry.value) }
-  }
-  const entries = Object.values(value).map(inferValue)
-  return {
-    type: `(${entries.map((entry) => entry.type).join(',')})`,
-    value: entries.map((entry) => entry.value),
-  }
-}
-
-function inferredEncoding(values: PlanValue[]): { types: string[]; encoded: Hex } {
-  const inferred = values.map(inferValue)
-  const parameters = parseAbiParameters(inferred.map((entry) => entry.type).join(','))
-  return {
-    types: inferred.map((entry) => entry.type),
-    encoded: encodeAbiParameters(
-      parameters,
-      inferred.map((entry) => entry.value),
-    ),
-  }
-}
-
-function normalizeForAbi(value: PlanValue, parameter: { type: string; components?: readonly any[] }): unknown {
-  if (parameter.type.endsWith(']')) {
-    if (!Array.isArray(value)) throw new Error(`Expected array for ${parameter.type}.`)
-    const itemType = parameter.type.replace(/\[[0-9]*\]$/, '')
-    return value.map((entry) => normalizeForAbi(entry, { ...parameter, type: itemType }))
-  }
-  if (parameter.type === 'tuple') {
-    if (value === null || typeof value !== 'object') throw new Error('Expected tuple value.')
-    const values = Array.isArray(value) ? value : Object.values(value)
-    return (parameter.components ?? []).map((component, index) =>
-      normalizeForAbi(values[index] as PlanValue, component),
-    )
-  }
-  if (/^u?int[0-9]*$/.test(parameter.type)) return BigInt(value as string | number)
-  return value
-}
-
-function callAbi(signature: string): AbiFunction {
-  const declaration = signature.trim().startsWith('function ')
-    ? signature.trim()
-    : `function ${signature.trim()}`
-  const item = parseAbiItem(declaration)
-  if (item.type !== 'function') throw new Error(`Invalid function signature: ${signature}`)
-  return item
-}
-
-function replaceReferencesWithZero(value: PlanValue): PlanValue {
-  if (isReference(value)) return ZERO_ADDRESS
-  if (Array.isArray(value)) return value.map(replaceReferencesWithZero)
-  if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, replaceReferencesWithZero(entry)]),
-    )
-  }
-  return value
 }
 
 export interface PreparedTransaction {
@@ -168,11 +73,83 @@ export class PlanExecutor {
     return getAddress(account)
   }
 
+  private async recoverCompensatingTransactions(
+    state: RunState,
+    outputs: Map<string, Address>,
+  ): Promise<void> {
+    const transactions = new Map(
+      this.plan.transactions.map((transaction) => [transaction.id, transaction]),
+    )
+    for (const transaction of this.plan.transactions) {
+      if (!transaction.reverifyUntil) continue
+      const compensation = transactions.get(transaction.reverifyUntil)
+      if (!compensation) continue
+      const existing = state[compensation.id]
+      if (!existing?.txHash || existing.status === 'verified') continue
+
+      const receipt = await this.transport.getReceipt(existing.txHash)
+      if (!receipt) {
+        throw new CeremonyHaltError(
+          `Resume halted: compensating transaction ${compensation.id} has no receipt yet; do not resend it.`,
+          compensation.id,
+        )
+      }
+      existing.blockNumber = receiptBlockNumber(receipt.blockNumber)
+      existing.status = receipt.status === 'success' ? 'mined' : 'reverted'
+      if (receipt.status !== 'success') {
+        this.store.save(state)
+        throw new CeremonyHaltError(
+          `Resume halted: compensating transaction ${compensation.id} reverted.`,
+          compensation.id,
+        )
+      }
+      if (compensation.kind === 'deploy') {
+        if (!receipt.contractAddress) {
+          existing.status = 'predicate-failed'
+          this.store.save(state)
+          throw new CeremonyHaltError(
+            `Deployment receipt lacks contractAddress: ${compensation.id}`,
+            compensation.id,
+          )
+        }
+        const resolvedAddress = getAddress(receipt.contractAddress)
+        if (
+          existing.resolvedAddress &&
+          existing.resolvedAddress.toLowerCase() !== resolvedAddress.toLowerCase()
+        ) {
+          throw new CeremonyHaltError(
+            `Stored deployment address for ${compensation.id} does not match its receipt.`,
+            compensation.id,
+          )
+        }
+        existing.resolvedAddress = resolvedAddress
+        outputs.set(compensation.output, resolvedAddress)
+      }
+      this.store.save(state)
+      const predicate = await evaluatePredicate(
+        this.transport,
+        compensation.predicate,
+        outputs,
+      )
+      if (!predicate.ok) {
+        existing.status = 'predicate-failed'
+        this.store.save(state)
+        throw new CeremonyHaltError(
+          `Resume halted: compensating transaction ${compensation.id} fails its predicate: ${predicate.detail}`,
+          compensation.id,
+        )
+      }
+      existing.status = 'verified'
+      this.store.save(state)
+    }
+  }
+
   async resume(): Promise<number> {
     await this.assertContext()
     const state = this.store.load()
     assertRunStateIds(this.plan, state)
     const outputs = outputsFromRunState(this.plan, state)
+    await this.recoverCompensatingTransactions(state, outputs)
     let sawIncomplete = false
     for (const transaction of this.plan.transactions) {
       const verified = state[transaction.id]?.status === 'verified'
@@ -195,6 +172,12 @@ export class PlanExecutor {
             transaction.id,
           )
         }
+        if (
+          transaction.reverifyUntil &&
+          state[transaction.reverifyUntil]?.status === 'verified'
+        ) {
+          continue
+        }
         const predicate = await evaluatePredicate(this.transport, transaction.predicate, outputs)
         if (!predicate.ok) {
           throw new CeremonyHaltError(
@@ -208,22 +191,42 @@ export class PlanExecutor {
       foundIncomplete = true
       if (!existing?.txHash) return index
       const receipt = await this.transport.getReceipt(existing.txHash)
-      if (!receipt || receipt.status !== 'success') {
+      if (!receipt) {
         throw new CeremonyHaltError(
-          `Resume halted: stored transaction ${transaction.id} is not successfully mined.`,
+          `Resume halted: submitted transaction ${transaction.id} has no receipt yet; do not resend it.`,
           transaction.id,
         )
       }
-      if (transaction.kind === 'deploy' && !existing.resolvedAddress) {
+      existing.blockNumber = receiptBlockNumber(receipt.blockNumber)
+      existing.status = receipt.status === 'success' ? 'mined' : 'reverted'
+      if (receipt.status !== 'success') {
+        this.store.save(state)
+        throw new CeremonyHaltError(
+          `Resume halted: stored transaction ${transaction.id} reverted.`,
+          transaction.id,
+        )
+      }
+      if (transaction.kind === 'deploy') {
         if (!receipt.contractAddress) {
           throw new CeremonyHaltError(
             `Deployment receipt lacks contractAddress: ${transaction.id}`,
             transaction.id,
           )
         }
-        existing.resolvedAddress = getAddress(receipt.contractAddress)
+        const resolvedAddress = getAddress(receipt.contractAddress)
+        if (
+          existing.resolvedAddress &&
+          existing.resolvedAddress.toLowerCase() !== resolvedAddress.toLowerCase()
+        ) {
+          throw new CeremonyHaltError(
+            `Stored deployment address for ${transaction.id} does not match its receipt.`,
+            transaction.id,
+          )
+        }
+        existing.resolvedAddress = resolvedAddress
         outputs.set(transaction.output, existing.resolvedAddress)
       }
+      this.store.save(state)
       const predicate = await evaluatePredicate(this.transport, transaction.predicate, outputs)
       if (!predicate.ok) {
         throw new CeremonyHaltError(
@@ -238,45 +241,10 @@ export class PlanExecutor {
   }
 
   private payload(transaction: PlanTransaction, outputs: ReadonlyMap<string, Address>) {
-    const value = BigInt(transaction.envelope.value)
-    if (transaction.kind === 'deploy') {
-      const unresolved = inferredEncoding(transaction.constructorArgs.decoded)
-      if (unresolved.encoded.toLowerCase() !== transaction.constructorArgs.encoded.toLowerCase()) {
-        throw new CeremonyHaltError(
-          `${transaction.id}: constructor ABI inference does not reproduce the reviewed encoded arguments.`,
-          transaction.id,
-        )
-      }
-      const resolved = resolveReferences(transaction.constructorArgs.decoded, outputs)
-      const encoded = inferredEncoding(resolved).encoded
-      return { data: `${transaction.initCode}${encoded.slice(2)}` as Hex, value }
-    }
-
-    const abi = callAbi(transaction.functionSignature)
-    const unresolvedArgs = transaction.args.map((arg, index) =>
-      normalizeForAbi(
-        replaceReferencesWithZero(arg),
-        abi.inputs[index] as { type: string; components?: readonly any[] },
-      ),
-    )
-    const unresolvedData = encodeFunctionData({ abi: [abi], args: unresolvedArgs })
-    if (unresolvedData.toLowerCase() !== transaction.calldata.toLowerCase()) {
-      throw new CeremonyHaltError(
-        `${transaction.id}: function signature and arguments do not reproduce the reviewed calldata.`,
-        transaction.id,
-      )
-    }
-    const resolvedArgs = resolveReferences(transaction.args, outputs).map((arg, index) =>
-      normalizeForAbi(arg, abi.inputs[index] as { type: string; components?: readonly any[] }),
-    )
-    const toValue = resolveReferences(transaction.to, outputs)
-    if (typeof toValue !== 'string' || !isAddress(toValue)) {
-      throw new CeremonyHaltError(`${transaction.id}: resolved invalid destination ${String(toValue)}`)
-    }
-    return {
-      to: getAddress(toValue),
-      data: encodeFunctionData({ abi: [abi], args: resolvedArgs }),
-      value,
+    try {
+      return buildPlanPayload(transaction, outputs)
+    } catch (error) {
+      throw new CeremonyHaltError((error as Error).message, transaction.id)
     }
   }
 
@@ -331,7 +299,18 @@ export class PlanExecutor {
       gas: prepared.gasLimit,
       nonce: prepared.nonce,
     })
-    const receipt = await this.transport.waitForReceipt(txHash)
+    state[prepared.transaction.id] = { txHash, status: 'submitted' }
+    this.store.save(state)
+
+    let receipt
+    try {
+      receipt = await this.transport.waitForReceipt(txHash)
+    } catch (error) {
+      throw new CeremonyHaltError(
+        `${prepared.transaction.id} was submitted as ${txHash}, but receipt waiting failed: ${(error as Error).message}. Resume instead of resending.`,
+        prepared.transaction.id,
+      )
+    }
     const resolvedAddress =
       prepared.transaction.kind === 'deploy' && receipt.contractAddress
         ? getAddress(receipt.contractAddress)

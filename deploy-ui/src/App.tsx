@@ -4,12 +4,14 @@ import SafeApiKit from '@safe-global/api-kit'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import type { Address, Hex } from 'viem'
 import {
+  assertCeremonyPackage,
   assertExpectedAddresses,
   assertManifest,
   assertPlan,
   fetchArtifact,
   readFile,
   type HashedArtifact,
+  type LoadedCeremonyPackage,
 } from './artifacts'
 import { CeremonyHaltError, PlanExecutor, type PreparedTransaction } from './engine/planExecutor'
 import { LocalStorageProgressStore, type RunState } from './engine/runState'
@@ -22,8 +24,21 @@ import type {
 } from './engine/types'
 import { browserExecutionTransport, injectedProvider } from './walletTransport'
 import { SAFE_1_4_1_FORK_NETWORKS } from './safeContracts'
+import './App.css'
 
 type Mode = 'eoa' | 'safe'
+
+const embeddedRelease: { value: LoadedCeremonyPackage | null; error: string } = (() => {
+  if (__CEREMONY_PACKAGE__ === null) return { value: null, error: '' }
+  try {
+    return { value: assertCeremonyPackage(__CEREMONY_PACKAGE__), error: '' }
+  } catch (error) {
+    return {
+      value: null,
+      error: `Embedded release package is invalid: ${error instanceof Error ? error.message : String(error)}`,
+    }
+  }
+})()
 
 function short(value: string): string {
   return value.length > 18 ? `${value.slice(0, 10)}…${value.slice(-6)}` : value
@@ -66,12 +81,18 @@ export default function App() {
   const { address, chainId, isConnected } = useAccount()
   const { connectors, connect, isPending: connecting } = useConnect()
   const { disconnect } = useDisconnect()
-  const [mode, setMode] = useState<Mode>('eoa')
-  const [planArtifact, setPlanArtifact] = useState<HashedArtifact<DeploymentPlan> | null>(null)
-  const [manifestArtifacts, setManifestArtifacts] = useState<HashedArtifact<BundleManifest>[]>([])
-  const [expectedArtifact, setExpectedArtifact] = useState<HashedArtifact<ExpectedAddresses> | null>(null)
+  const [mode, setMode] = useState<Mode>(embeddedRelease.value?.mode ?? 'eoa')
+  const [planArtifact, setPlanArtifact] = useState<HashedArtifact<DeploymentPlan> | null>(
+    embeddedRelease.value?.plan ?? null,
+  )
+  const [manifestArtifacts, setManifestArtifacts] = useState<HashedArtifact<BundleManifest>[]>(
+    embeddedRelease.value?.manifests ?? [],
+  )
+  const [expectedArtifact, setExpectedArtifact] = useState<HashedArtifact<ExpectedAddresses> | null>(
+    embeddedRelease.value?.expectedAddresses ?? null,
+  )
   const [message, setMessage] = useState<string>('')
-  const [fatal, setFatal] = useState<string>('')
+  const [fatal, setFatal] = useState<string>(embeddedRelease.error)
   const [busy, setBusy] = useState(false)
   const [runState, setRunState] = useState<RunState>({})
   const [prepared, setPrepared] = useState<PreparedTransaction | null>(null)
@@ -79,6 +100,7 @@ export default function App() {
   const [safeEngine, setSafeEngine] = useState<SafeCeremony | null>(null)
   const [safeIndex, setSafeIndex] = useState(0)
   const [progress, setProgress] = useState<SignatureProgress | null>(null)
+  const embeddedPackage = embeddedRelease.value
 
   const plan = planArtifact?.value ?? null
   const chainMismatch = Boolean(isConnected && plan && chainId !== plan.chainId)
@@ -91,7 +113,8 @@ export default function App() {
     const text = errorMessage(error)
     if (
       error instanceof CeremonyHaltError &&
-      (/predicate/i.test(text) || /resume halted|reverted|non-contiguous/i.test(text))
+      (/predicate/i.test(text) ||
+        /resume halted|reverted|non-contiguous|nonce mismatch|Safe (?:hash|version) mismatch|transaction service .*?(?:does not match|malformed|unexpected|executed without)|threshold .*does not match|confirmation from non-owner|unexpected Safe/i.test(text))
     ) {
       setFatal(text)
     } else {
@@ -100,6 +123,7 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (__CEREMONY_PACKAGE__ !== null) return
     const parameters = new URLSearchParams(window.location.search)
     const planUrl = parameters.get('plan')
     const manifestUrls = parameters.getAll('manifest')
@@ -134,7 +158,7 @@ export default function App() {
     setSafeEngine(null)
     setProgress(null)
     if (!planArtifact || !address || !isConnected || chainMismatch || fatal) return
-    const store = new LocalStorageProgressStore(planArtifact.hash)
+    const store = new LocalStorageProgressStore(embeddedPackage?.digest ?? planArtifact.hash)
     const transport = browserExecutionTransport(address)
 
     if (mode === 'eoa') {
@@ -192,13 +216,23 @@ export default function App() {
         handleError(error)
       }
     })()
-  }, [address, chainMismatch, expectedArtifact, fatal, isConnected, manifests, mode, planArtifact])
+  }, [
+    address,
+    chainMismatch,
+    embeddedPackage,
+    expectedArtifact,
+    fatal,
+    isConnected,
+    manifests,
+    mode,
+    planArtifact,
+  ])
 
   useEffect(() => {
     if (!safeEngine || !progress || progress.executed || safeIndex >= manifests.length) return
     const poll = window.setInterval(() => {
       void safeEngine
-        .getProgressByHash(progress.safeTxHash)
+        .getProgressByHash(safeIndex, progress.safeTxHash)
         .then(async (next) => {
           if (!next) return
           setProgress(next)
@@ -301,12 +335,23 @@ export default function App() {
   }
 
   if (fatal) {
+    const compensation = plan?.transactions.find((transaction) =>
+      plan.transactions.some((candidate) => candidate.reverifyUntil === transaction.id),
+    )
+    const compensationPending = compensation && runState[compensation.id]?.status !== 'verified'
     return (
       <main className="fatal-screen">
         <p className="eyebrow">CEREMONY HALTED</p>
         <h1>Do not continue.</h1>
         <pre>{fatal}</pre>
         <p>Preserve the loaded files and run state. There is intentionally no skip button.</p>
+        {compensationPending && (
+          <p>
+            Temporary ownership may still be held by the deployment EOA. Before ending the
+            session, use the reviewed recovery procedure to execute{' '}
+            <code>{compensation.id}</code> and confirm its predicate.
+          </p>
+        )}
       </main>
     )
   }
@@ -337,7 +382,17 @@ export default function App() {
         </div>
       </header>
 
-      <section className="loader panel">
+      {!embeddedPackage && <section className="loader panel">
+        <p className="loader-help">
+          <strong>Testnet dev run (EOA):</strong> load only the deployment plan
+          (<code>plan-&lt;release&gt;.json</code> from step 07) — the page walks every
+          transaction as a card your wallet signs. Bundles do not apply to an EOA.
+          <br />
+          <strong>Mainnet Safe ceremony:</strong> load the plan <em>and</em> the bundle
+          output directory (<code>bundle-N.manifest.json</code> +{' '}
+          <code>expected-addresses.json</code> from <code>plan.js bundle</code>) — the
+          page switches to Safe mode and shows one card per bundle.
+        </p>
         <div>
           <label htmlFor="plan-file">Deployment plan</label>
           <input
@@ -358,7 +413,7 @@ export default function App() {
             onChange={(event) => event.target.files && void loadBundles(event.target.files)}
           />
         </div>
-      </section>
+      </section>}
 
       {message && <div className="notice" role="status">{message}</div>}
       {chainMismatch && plan && (
@@ -378,6 +433,18 @@ export default function App() {
               <p>Expected executor: <code>{planArtifact.value.expectedExecutor}</code></p>
             </div>
             <div className="hashes">
+              {embeddedPackage && (
+                <div className="hash-line package-digest">
+                  <span>Call fingerprint</span>
+                  <strong>{embeddedPackage.fingerprint}</strong>
+                </div>
+              )}
+              {embeddedPackage && (
+                <div className="hash-line">
+                  <span>Ceremony digest</span>
+                  <code title={embeddedPackage.digest}>{embeddedPackage.digest}</code>
+                </div>
+              )}
               <HashLine label="Plan file hash" artifact={planArtifact} />
               {manifestArtifacts.map((artifact) => (
                 <HashLine key={artifact.name} label={artifact.name} artifact={artifact} />
@@ -386,14 +453,14 @@ export default function App() {
             </div>
           </section>
 
-          <nav className="mode-switch" aria-label="Executor mode">
+          {!embeddedPackage && <nav className="mode-switch" aria-label="Executor mode">
             <button className={mode === 'eoa' ? 'selected' : ''} onClick={() => setMode('eoa')}>
               EOA testnet
             </button>
             <button className={mode === 'safe' ? 'selected' : ''} onClick={() => setMode('safe')}>
               Safe ceremony
             </button>
-          </nav>
+          </nav>}
 
           {mode === 'eoa' ? (
             <section className="sequence">
@@ -472,7 +539,12 @@ export default function App() {
                       </div>
                       <StatusPill status={complete ? 'verified' : active ? 'current' : undefined} />
                     </div>
-                    <p>Simulated gas: <strong>{manifest.bundle.simulatedGas ?? 'not recorded'}</strong> · ceiling {manifest.bundle.maxGas}</p>
+                    <p>
+                      Safe nonce: <strong>{manifest.bundle.safeNonce}</strong> · simulated gas:{' '}
+                      <strong>{manifest.bundle.simulatedGas ?? 'not recorded'}</strong> · ceiling{' '}
+                      {manifest.bundle.maxGas}
+                    </p>
+                    <p>Expected Safe transaction hash: <code>{manifest.safeTransaction.safeTxHash}</code></p>
                     <ol className="inner-list">
                       {manifest.innerTransactions.map((entry) => (
                         <li key={entry.planId}>
@@ -493,10 +565,22 @@ export default function App() {
                           {progress?.safeTxHash && <code>{progress.safeTxHash}</code>}
                         </div>
                         <div className="button-row">
-                          <button onClick={() => void safeAction('propose')} disabled={busy || chainMismatch}>
-                            Propose
+                          <button
+                            onClick={() => void safeAction('propose')}
+                            disabled={busy || chainMismatch || (progress?.confirmations ?? 0) > 0}
+                          >
+                            Propose &amp; sign
                           </button>
-                          <button onClick={() => void safeAction('sign')} disabled={busy || chainMismatch}>
+                          <button
+                            onClick={() => void safeAction('sign')}
+                            disabled={
+                              busy ||
+                              chainMismatch ||
+                              !progress ||
+                              progress.confirmations === 0 ||
+                              progress.confirmations >= progress.threshold
+                            }
+                          >
                             Sign
                           </button>
                           <button

@@ -36,6 +36,7 @@ export interface TransactionEnvelope {
 interface PlanTransactionBase {
   id: string
   description: string
+  reverifyUntil?: string
   envelope: TransactionEnvelope
   predicate: Predicate
 }
@@ -44,7 +45,7 @@ export interface DeployTransaction extends PlanTransactionBase {
   kind: 'deploy'
   artifactName: string
   initCode: Hex
-  constructorArgs: { decoded: PlanValue[]; encoded: Hex }
+  constructorArgs: { types: string[]; decoded: PlanValue[]; encoded: Hex }
   output: string
 }
 
@@ -59,7 +60,8 @@ export interface CallTransaction extends PlanTransactionBase {
 export type PlanTransaction = DeployTransaction | CallTransaction
 
 export interface DeploymentPlan {
-  schemaVersion: '1.0.0'
+  schemaVersion: '1.1.0'
+  foundryProfile: 'deploy'
   network: string
   chainId: number
   release: string
@@ -89,7 +91,7 @@ export interface SafeInnerTransaction {
 }
 
 export interface BundleManifest {
-  schemaVersion: '1.0.0'
+  schemaVersion: '1.1.0'
   plan: {
     release: string
     network: string
@@ -99,6 +101,7 @@ export interface BundleManifest {
   safe: { address: Address; version: '1.4.1' }
   bundle: {
     number: number
+    safeNonce: string
     maxGas: string
     staticGasEstimate: string
     simulatedGas: string | null
@@ -108,6 +111,13 @@ export interface BundleManifest {
     value: string
     data: Hex
     operation: 1
+    safeTxGas: '0'
+    baseGas: '0'
+    gasPrice: '0'
+    gasToken: Address
+    refundReceiver: Address
+    nonce: string
+    safeTxHash: Hex
   }
   innerTransactions: SafeInnerTransaction[]
 }

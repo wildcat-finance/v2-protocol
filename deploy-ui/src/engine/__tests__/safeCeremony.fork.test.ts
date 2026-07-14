@@ -94,6 +94,8 @@ describe('SafeCeremony on a live Anvil mainnet fork', () => {
         planPath,
         '--safe',
         safeAddress,
+        '--start-nonce',
+        '0',
         '--max-gas',
         '20000000',
         '--out-dir',

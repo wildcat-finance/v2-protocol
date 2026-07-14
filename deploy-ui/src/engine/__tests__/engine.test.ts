@@ -7,6 +7,7 @@ import {
   type Hex,
 } from 'viem'
 import miniPlanJson from '../../../../scripts/__fixtures__/plan/mini-plan.json'
+import { buildPlanPayload } from '../planEncoding'
 import { evaluatePredicate, resolveReferences } from '../predicates'
 import { PlanExecutor } from '../planExecutor'
 import {
@@ -17,6 +18,7 @@ import {
 } from '../runState'
 import type {
   DeploymentPlan,
+  DeployTransaction,
   ExecutionTransport,
   Predicate,
   ReceiptLike,
@@ -30,6 +32,8 @@ class FakeTransport implements ExecutionTransport {
   account = executor
   code = new Map<string, Hex>()
   callResult: Hex = '0x'
+  waitFailure: Error | null = null
+  storedReceipt: ReceiptLike | null = null
 
   async getChainId() {
     return this.chainId
@@ -50,6 +54,7 @@ class FakeTransport implements ExecutionTransport {
     return `0x${'12'.repeat(32)}` as Hex
   }
   async waitForReceipt(): Promise<ReceiptLike> {
+    if (this.waitFailure) throw this.waitFailure
     return {
       transactionHash: `0x${'12'.repeat(32)}`,
       blockNumber: 9n,
@@ -58,7 +63,7 @@ class FakeTransport implements ExecutionTransport {
     }
   }
   async getReceipt() {
-    return null
+    return this.storedReceipt
   }
   async ethCall() {
     return this.callResult
@@ -87,6 +92,165 @@ describe('fixture-driven engine semantics', () => {
     expect(prepared?.data.startsWith(plan.transactions[0].kind === 'deploy'
       ? plan.transactions[0].initCode
       : 'never')).toBe(true)
+  })
+
+  it('uses reviewed constructor ABI types instead of guessing bytes32 as bytes', () => {
+    const domainSeparator = `0x${'ab'.repeat(32)}` as Hex
+    const encoded = encodeAbiParameters(parseAbiParameters('address,bytes32'), [
+      executor,
+      domainSeparator,
+    ])
+    const transaction: DeployTransaction = {
+      id: 'deploy-typed-constructor',
+      kind: 'deploy',
+      description: 'Deploy a contract with a bytes32 constructor argument.',
+      artifactName: 'TypedFixture',
+      initCode: '0x60',
+      constructorArgs: {
+        types: ['address', 'bytes32'],
+        decoded: [executor, domainSeparator],
+        encoded,
+      },
+      output: 'typed-fixture',
+      envelope: {
+        chainId: plan.chainId,
+        expectedExecutor: executor,
+        to: null,
+        value: '0',
+        data: 'initCode+constructorArgs',
+        gasLimitPolicy: 'estimate*1.3',
+        nonceCheck: 'display-and-confirm',
+      },
+      predicate: { type: 'codePresent', target: { $ref: 'typed-fixture' } },
+    }
+
+    expect(buildPlanPayload(transaction, new Map()).data).toBe(
+      `0x60${encoded.slice(2)}`,
+    )
+  })
+
+  it('persists the transaction hash before waiting for a receipt', async () => {
+    const transport = new FakeTransport()
+    transport.waitFailure = new Error('temporary RPC outage')
+    const store = new MemoryProgressStore()
+    const engine = new PlanExecutor(plan, transport, store)
+    const prepared = await engine.prepareNext()
+    if (!prepared) throw new Error('Expected the first transaction to be prepared.')
+
+    await expect(engine.execute(prepared)).rejects.toThrow('Resume instead of resending')
+    expect(store.load()['deploy-token']).toEqual({
+      txHash: `0x${'12'.repeat(32)}`,
+      status: 'submitted',
+    })
+  })
+
+  it('resumes a submitted deployment from its receipt without resending', async () => {
+    const txHash = `0x${'12'.repeat(32)}` as Hex
+    const deployed = getAddress('0x1000000000000000000000000000000000000001')
+    const transport = new FakeTransport()
+    transport.storedReceipt = {
+      transactionHash: txHash,
+      blockNumber: 9n,
+      status: 'success',
+      contractAddress: deployed,
+    }
+    transport.code.set(deployed.toLowerCase(), '0x6000')
+    const store = new MemoryProgressStore({
+      'deploy-token': { txHash, status: 'submitted' },
+    })
+    const engine = new PlanExecutor(plan, transport, store)
+
+    expect(await engine.resume()).toBe(1)
+    expect(store.load()['deploy-token']).toEqual({
+      txHash,
+      blockNumber: 9,
+      status: 'verified',
+      resolvedAddress: deployed,
+    })
+  })
+
+  it('recovers a mined compensating transaction before rechecking its transient predicate', async () => {
+    const archController = getAddress('0x2000000000000000000000000000000000000002')
+    const helper = getAddress('0x3000000000000000000000000000000000000003')
+    const reclaimHash = `0x${'34'.repeat(32)}` as Hex
+    const restoreHash = `0x${'56'.repeat(32)}` as Hex
+    const ownershipPlan: DeploymentPlan = {
+      ...plan,
+      transactions: [
+        {
+          id: 'reclaim-owner',
+          kind: 'call',
+          description: 'Temporarily reclaim ownership.',
+          reverifyUntil: 'restore-owner',
+          to: helper,
+          functionSignature: 'returnOwnership()',
+          args: [],
+          calldata: '0x',
+          envelope: {
+            chainId: plan.chainId,
+            expectedExecutor: executor,
+            to: helper,
+            value: '0',
+            data: 'functionSignature+args',
+            gasLimitPolicy: 'estimate*1.3',
+            nonceCheck: 'display-and-confirm',
+          },
+          predicate: {
+            type: 'callEq',
+            target: archController,
+            call: { sig: 'owner() view returns (address)', args: [] },
+            expect: executor,
+          },
+        },
+        {
+          id: 'restore-owner',
+          kind: 'call',
+          description: 'Restore helper ownership.',
+          to: archController,
+          functionSignature: 'transferOwnership(address)',
+          args: [helper],
+          calldata: '0x',
+          envelope: {
+            chainId: plan.chainId,
+            expectedExecutor: executor,
+            to: archController,
+            value: '0',
+            data: 'functionSignature+args',
+            gasLimitPolicy: 'estimate*1.3',
+            nonceCheck: 'display-and-confirm',
+          },
+          predicate: {
+            type: 'callEq',
+            target: archController,
+            call: { sig: 'owner() view returns (address)', args: [] },
+            expect: helper,
+          },
+        },
+      ],
+    }
+    const transport = new FakeTransport()
+    transport.storedReceipt = {
+      transactionHash: restoreHash,
+      blockNumber: 10n,
+      status: 'success',
+    }
+    transport.callResult = encodeAbiParameters(parseAbiParameters('address'), [helper])
+    const store = new MemoryProgressStore({
+      'reclaim-owner': {
+        txHash: reclaimHash,
+        blockNumber: 9,
+        status: 'verified',
+      },
+      'restore-owner': { txHash: restoreHash, status: 'submitted' },
+    })
+    const engine = new PlanExecutor(ownershipPlan, transport, store)
+
+    expect(await engine.resume()).toBe(2)
+    expect(store.load()['restore-owner']).toEqual({
+      txHash: restoreHash,
+      blockNumber: 10,
+      status: 'verified',
+    })
   })
 
   it('evaluates codePresent and callEq exactly like plan.js', async () => {

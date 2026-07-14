@@ -1,5 +1,6 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
+  "foundryProfile": "deploy",
   "network": "anvil",
   "chainId": 31337,
   "release": "invalid-unknown-artifact",
@@ -14,6 +15,7 @@
       "artifactName": "UnknownFixtureArtifact",
       "initCode": "0x00",
       "constructorArgs": {
+        "types": [],
         "decoded": [],
         "encoded": "0x"
       },

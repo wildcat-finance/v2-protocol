@@ -15,7 +15,7 @@ Use one executor mode per target:
 | Network                                  | Executor                                                                            | Owner mode         |
 | ---------------------------------------- | ----------------------------------------------------------------------------------- | ------------------ |
 | Ethereum mainnet, Plasma mainnet         | Foundation through the disposable deployment frontend, with the team on a live call | `plan`             |
-| Sepolia, Plasma testnet, future testnets | Dev EOA, with `MockArchControllerOwner` ownership reclaimed while owner calls run   | `direct`           |
+| Sepolia, Plasma testnet, future testnets | Dev EOA, with temporary helper ownership represented in the plan                   | `plan`             |
 | Anvil forks                              | Impersonated owner of the forked ArchController                                     | `plan` or `direct` |
 
 `DeployScriptBase` enforces an explicit `OWNER_MODE` on Ethereum mainnet and
@@ -24,8 +24,8 @@ Plasma mainnet. It defaults to `direct` elsewhere. `plan.js` currently maps only
 assembling a plan. Plasma owner-mode handling exists in Solidity, but plan
 assembly has no Plasma chain-ID mapping.
 
-For the Foundation ceremony, generate one ordered plan artifact. Build a fresh,
-disposable frontend that renders that artifact. Have the Foundation execute it
+For each public-network ceremony, generate one ordered plan and one embedded
+ceremony package. Build a fresh disposable frontend from that package. Have the Foundation execute it
 while the deployment team verifies the chain, executor, nonce, receipt, and
 predicate on a live call. Treat the plan schema, not the frontend, as the durable
 interface.
@@ -80,10 +80,11 @@ node scripts/generate-handoff.js --help
   canonical pointers — use the **plan pipeline on every network**: generate
   01–06 with `OWNER_MODE=plan`, assemble (07), execute the plan
   (`plan.js execute --private-key` with a dev EOA on testnets; the Foundation
-  ceremony on mainnet), finalize (08), handoff. One artifact, one executor,
-  two signers. Only this flow reaches step 08: `apply-run` requires the
+  ceremony on mainnet), finalize (08), handoff. Only this flow reaches step
+  08: `apply-run` requires the
   run-state's receipt provenance (tx hashes, receipt blocks for
-  `startBlock`s), which only `plan.js execute` records.
+  `startBlock`s), which only the plan ceremony records. One artifact, one
+  expected executor, and one receipt-proven execution trail.
 - **Component maintenance** — redeploying a replaceable component (lens,
   provider) between releases — uses the scripts' inline
   `OWNER_MODE=direct` broadcast: one script, one command, no plan assembly.
@@ -229,8 +230,9 @@ node scripts/plan.js execute \
   --private-key "$PVT_KEY_SEPOLIA"
 ```
 
-Review the summary before execution. The current v2.5 scripts produce 21
-transactions: 12 deployments and 9 calls. `execute` writes
+Review the summary before execution. Mainnet produces 21 transactions: 12
+deployments and 9 calls. Sepolia's ceremony config wraps those in reclaim and
+restore calls for 23 total cards. `execute` writes
 `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
 
 ### 08 — finalize inventory
@@ -339,17 +341,9 @@ forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
 bash script/deploy/v2-5/07-generate-plan.sh
 ```
 
-Hand these inputs to the disposable frontend build:
-
-- `deployments/mainnet/plan-v2-5.json`;
-- the `deploy-out` artifacts named by every deploy transaction's
-  `artifactName`;
-- the contract and interface ABIs listed by `abiArtifactName` in
-  `scripts/generate-handoff.js`'s `RELEASE_CONTRACTS` data;
-- the run-state field contract used by `plan.js`: transaction ID → `txHash`,
-  `blockNumber`, `status`, and `resolvedAddress` for deployments.
-
-Do not hand over a private key. The Safe executes every transaction.
+The release build embeds a generated ceremony package; Foundation operators do
+not select or load any files. Do not hand over a private key. The Safe executes
+every transaction.
 
 ### Bundle the plan (the ceremony format)
 
@@ -358,12 +352,16 @@ compiles the plan into a minimal set of atomic Safe transactions (3 for
 v2-5), each a `MultiSend` **delegatecall** whose deployments run through the
 canonical `CreateCall` library as CREATE2 — every address is precomputed at
 bundle time from `(safe, salt, initCodeHash)`, all `$ref`s resolve
-statically, and nothing depends on nonces or mid-ceremony state.
+statically. CREATE2 addresses do not depend on nonces or mid-ceremony state;
+the Safe envelopes deliberately pin consecutive Safe nonces so the reviewed
+EIP-712 hashes cannot drift.
 
 ```bash
+SAFE_NONCE='<current on-chain Safe nonce at the fork snapshot>'
 node scripts/plan.js bundle \
   --plan deployments/mainnet/plan-v2-5.json \
-  --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
+  --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae \
+  --start-nonce "$SAFE_NONCE"
 # outputs: deployments/mainnet/bundles-v2-5/
 #   bundle-N.txbuilder.json   (review-only import; see warning below)
 #   bundle-N.manifest.json    (the frontend's data source)
@@ -374,6 +372,24 @@ node scripts/plan.js bundle \
 Rehearse before signing: `plan.js bundle-simulate` executes every bundle
 through the real Safe on an anvil mainnet fork and reports per-bundle gas
 (v2-5: ~15.8M / 17.3M / 9.8M against a 20M ceiling) and all predicates.
+The fork Safe nonce must equal the pinned starting nonce. Any intervening Safe
+execution requires regeneration and a fresh simulation.
+
+After simulation, produce the only input to the release-specific site and build
+it in:
+
+```bash
+node scripts/plan.js ceremony-package \
+  --plan deployments/mainnet/plan-v2-5.json \
+  --mode safe \
+  --bundles deployments/mainnet/bundles-v2-5
+
+cd deploy-ui
+CEREMONY_PACKAGE=../deployments/mainnet/ceremony-v2-5-safe.json npm run build
+```
+
+Record the printed full digest and short fingerprint in the independent signer
+review channel before hosting `dist/`.
 
 **Safe Transaction Builder cannot propose these.** Its import model drops
 the transaction's `operation`; an imported row submits as CALL and the
@@ -383,13 +399,13 @@ review only.
 
 ### Live-call ceremony (deploy-ui, Safe mode)
 
-Host `deploy-ui/dist` statically (see `deploy-ui/README.md`), load the plan
-and bundle manifests, and confirm on the call: chain ID `1`, Safe address
-and version, threshold, **plan and bundle hashes against the review sheet**
-(everyone must be looking at identical bytes), and the per-bundle gas
-figures from simulation.
+Host the release-specific `deploy-ui/dist` statically (see
+`deploy-ui/README.md`). The page opens with the package already loaded and its
+mode locked. Confirm on the call: the published fingerprint and full digest,
+chain ID `1`, Safe address and version, threshold, pinned Safe nonce/hash per
+bundle, and the per-bundle gas figures from simulation.
 
-Per bundle (3 total):
+Per generated bundle (the rehearsed v2-5 plan produced 3):
 
 1. The operator proposes through the page (Safe SDK, `operation: 1`); the
    page shows signature progress against the threshold.
@@ -400,8 +416,8 @@ Per bundle (3 total):
    before advancing. A predicate failure is a full stop; bundles are atomic,
    so there is no partial-bundle state to recover.
 
-Signer click budget for the whole rollout: connect, review, three
-signatures. After bundle 3: export the run-state from the page (or derive
+Signer click budget for the rehearsed three-bundle rollout: connect, review,
+three signatures. After the final bundle, export the run-state from the page (or derive
 it with `plan.js bundle-verify`) and proceed to 08.
 
 ### Finalize, verify, and hand off
@@ -515,33 +531,29 @@ operator's concurrent broadcast directory.
 
 Do not add a deployment framework. Extend the numbered release pattern.
 
-## 7. Sepolia direct-owner flow
+## 7. Sepolia temporary-owner flow
 
-Use the existing `MockArchControllerOwner` reclaim → act → return sequence. Keep
-ownership until every owner-gated step is complete.
+`deployments/sepolia/ceremony-config.json` makes the existing
+`MockArchControllerOwner` reclaim → act → return sequence part of the generated
+plan. Do not reclaim ownership before opening the release site. The first card
+calls `returnOwnership()`, and the last card calls
+`transferOwnership(helper)`. Resume rechecks the temporary-owner predicate
+until that compensating final card is verified, then treats it as historical.
 
-Resolve the helper and operator key:
+Before starting, resolve the helper and operator key and confirm the EOA is
+authorized by the helper:
 
 ```bash
 export HELPER_OPERATOR_KEY="${HELPER_OPERATOR_KEY:-$PVT_KEY_SEPOLIA}"
 export ARCH_CONTROLLER="${ARCH_CONTROLLER:-$(jq -r '.WildcatArchController' deployments/$DEPLOYMENTS_NETWORK/deployments.json)}"
 export HELPER_OWNER="$(cast call "$ARCH_CONTROLLER" "owner()(address)" --rpc-url "$RPC_URL")"
+cast call "$HELPER_OWNER" "authorizedAccounts(address)(bool)" \
+  "$EXPECTED_EXECUTOR" --rpc-url "$RPC_URL"
 ```
 
-Reclaim ownership using the checklist's command:
-
-```bash
-cast send "$HELPER_OWNER" \
-  "returnOwnership()" \
-  --rpc-url "$RPC_URL" \
-  --private-key "$HELPER_OPERATOR_KEY"
-```
-
-Confirm that the EOA is now `owner()`. Generate and execute steps 01→07 as in
-section 3. Steps 05 and 06 are the owner-gated actions. Finalize 08 while the
-resolved run-state is intact.
-
-Return ownership using the checklist's command:
+If the ceremony halts after reclaim and before the final compensation, preserve
+the run-state and return ownership with the reviewed recovery command before
+ending the session:
 
 ```bash
 cast send "$ARCH_CONTROLLER" \

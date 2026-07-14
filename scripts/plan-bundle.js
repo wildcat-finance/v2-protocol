@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const {
   Interface,
+  TypedDataEncoder,
   Wallet,
   concat,
   dataLength,
@@ -62,6 +63,17 @@ function parsePositiveGas(value, context) {
     throw new Error(`${context}: expected a positive integer gas quantity`);
   }
   return BigInt(value);
+}
+
+function parseNonce(value, context) {
+  if (typeof value !== "string" || !/^(?:0|[1-9][0-9]*)$/.test(value)) {
+    throw new Error(`${context}: expected a non-negative decimal Safe nonce`);
+  }
+  const nonce = BigInt(value);
+  if (nonce > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(`${context}: nonce exceeds JavaScript's safe integer range`);
+  }
+  return nonce;
 }
 
 function rpcQuantity(value) {
@@ -129,6 +141,11 @@ function compilePlanEntries(plan, safe, dependencies) {
   const entries = [];
 
   for (const [index, transaction] of plan.transactions.entries()) {
+    if (transaction.reverifyUntil) {
+      throw new Error(
+        `${transaction.id}: Safe bundling does not support transient predicates; use the EOA ceremony path for temporary ownership steps.`
+      );
+    }
     const payload = dependencies.transactionPayload(transaction, outputs);
     if (transaction.kind === "deploy") {
       const salt = keccak256(toUtf8Bytes(`${plan.release}:${transaction.id}`));
@@ -234,15 +251,40 @@ function safeTransactionForEntries(entries) {
   };
 }
 
+const SAFE_TX_TYPES = {
+  SafeTx: [
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "data", type: "bytes" },
+    { name: "operation", type: "uint8" },
+    { name: "safeTxGas", type: "uint256" },
+    { name: "baseGas", type: "uint256" },
+    { name: "gasPrice", type: "uint256" },
+    { name: "gasToken", type: "address" },
+    { name: "refundReceiver", type: "address" },
+    { name: "nonce", type: "uint256" },
+  ],
+};
+
+function safeTransactionHash(chainId, safe, safeTransaction, nonce) {
+  return TypedDataEncoder.hash(
+    { chainId, verifyingContract: safe },
+    SAFE_TX_TYPES,
+    safeTxFields(safeTransaction, nonce)
+  );
+}
+
 function serializeJsonValue(value) {
   if (Array.isArray(value)) {
     return `[${value.map((entry) => serializeJsonValue(entry)).join(",")}]`;
   }
   if (value !== null && typeof value === "object") {
     const keys = Object.keys(value).sort();
-    let result = `{${JSON.stringify(keys)}`;
-    for (const key of keys) result += `${serializeJsonValue(value[key])},`;
-    return `${result}}`;
+    return `{${keys
+      .map(
+        (key) => `${JSON.stringify(key)}:${serializeJsonValue(value[key])}`
+      )
+      .join(",")}}`;
   }
   return JSON.stringify(value);
 }
@@ -325,12 +367,14 @@ function manifestFile(
   planHash,
   maxGas,
   bundleNumber,
+  safeNonce,
   entries,
   actualGas
 ) {
   const safeTransaction = safeTransactionForEntries(entries);
+  const fields = safeTxFields(safeTransaction, safeNonce);
   return {
-    schemaVersion: "1.0.0",
+    schemaVersion: "1.1.0",
     plan: {
       release: plan.release,
       network: plan.network,
@@ -340,6 +384,7 @@ function manifestFile(
     safe: { address: safe, version: SAFE_VERSION },
     bundle: {
       number: bundleNumber,
+      safeNonce: safeNonce.toString(),
       maxGas: maxGas.toString(),
       staticGasEstimate: (
         STATIC_BUNDLE_OVERHEAD +
@@ -352,6 +397,18 @@ function manifestFile(
       value: safeTransaction.value,
       data: safeTransaction.data,
       operation: safeTransaction.operation,
+      safeTxGas: fields.safeTxGas.toString(),
+      baseGas: fields.baseGas.toString(),
+      gasPrice: fields.gasPrice.toString(),
+      gasToken: fields.gasToken,
+      refundReceiver: fields.refundReceiver,
+      nonce: fields.nonce.toString(),
+      safeTxHash: safeTransactionHash(
+        plan.chainId,
+        safe,
+        safeTransaction,
+        safeNonce
+      ),
     },
     innerTransactions: entries.map(jsonSafeEntry),
   };
@@ -361,13 +418,21 @@ function oneLine(value) {
   return String(value).replace(/\s+/g, " ").replace(/\|/g, "\\|").trim();
 }
 
-function reviewMarkdown(plan, safe, maxGas, bundles, actualGasByBundle) {
+function reviewMarkdown(
+  plan,
+  safe,
+  startNonce,
+  maxGas,
+  bundles,
+  actualGasByBundle
+) {
   const lines = [
     `# ${plan.release} Safe bundle review`,
     "",
     `- Network: ${plan.network} (chain ID ${plan.chainId})`,
     `- Safe: ${safe}`,
     `- Safe version: ${SAFE_VERSION}`,
+    `- Starting Safe nonce: ${startNonce}`,
     `- MultiSend: ${MULTI_SEND}`,
     `- CreateCall: ${CREATE_CALL}`,
     `- Gas ceiling per bundle: ${maxGas}`,
@@ -378,11 +443,23 @@ function reviewMarkdown(plan, safe, maxGas, bundles, actualGasByBundle) {
   ];
 
   bundles.forEach((entries, index) => {
+    const nonce = startNonce + BigInt(index);
+    const safeTransaction = safeTransactionForEntries(entries);
+    const safeTxHash = safeTransactionHash(
+      plan.chainId,
+      safe,
+      safeTransaction,
+      nonce
+    );
     const actualGas = actualGasByBundle[index] ?? null;
     const staticGas =
       STATIC_BUNDLE_OVERHEAD +
       entries.reduce((total, entry) => total + entry.staticGasEstimate, 0n);
     lines.push(`## Bundle ${index + 1}`);
+    lines.push("");
+    lines.push(`Safe nonce: ${nonce}`);
+    lines.push("");
+    lines.push(`Safe transaction hash: \`${safeTxHash}\``);
     lines.push("");
     lines.push(
       `Gas: ${
@@ -430,6 +507,12 @@ function validateTxBuilderFile(value, dependencies) {
   if (value.transactions?.length !== 1) {
     errors.push("$.transactions: must contain exactly one transaction");
   }
+  if (
+    value.meta?.checksum &&
+    value.meta.checksum.toLowerCase() !== txBuilderChecksum(value).toLowerCase()
+  ) {
+    errors.push("$.meta.checksum: does not match the Transaction Builder payload");
+  }
   if (errors.length > 0) {
     throw new Error(
       `Generated Transaction Builder file failed schema validation:\n${errors
@@ -444,6 +527,7 @@ function writeBundleArtifacts(context, dependencies) {
     plan,
     safe,
     planHash,
+    startNonce,
     maxGas,
     outDir,
     expectedAddresses,
@@ -465,6 +549,7 @@ function writeBundleArtifacts(context, dependencies) {
       planHash,
       maxGas,
       bundleNumber,
+      startNonce + BigInt(index),
       entries,
       actualGasByBundle[index] ?? null
     );
@@ -478,6 +563,8 @@ function writeBundleArtifacts(context, dependencies) {
       manifest: manifestName,
       planIds: entries.map((entry) => entry.id),
       safeTransaction: manifest.safeTransaction,
+      safeNonce: manifest.bundle.safeNonce,
+      safeTxHash: manifest.safeTransaction.safeTxHash,
       simulatedGas: manifest.bundle.simulatedGas,
     });
   });
@@ -487,13 +574,14 @@ function writeBundleArtifacts(context, dependencies) {
     expectedAddresses
   );
   dependencies.writeJson(path.join(outDir, "bundle-index.json"), {
-    schemaVersion: "1.0.0",
+    schemaVersion: "1.1.0",
     planHash,
     release: plan.release,
     network: plan.network,
     chainId: plan.chainId,
     safe,
     safeVersion: SAFE_VERSION,
+    startNonce: startNonce.toString(),
     multiSend: MULTI_SEND,
     createCall: CREATE_CALL,
     maxGas: maxGas.toString(),
@@ -501,7 +589,14 @@ function writeBundleArtifacts(context, dependencies) {
   });
   fs.writeFileSync(
     path.join(outDir, `review-${plan.release}.md`),
-    reviewMarkdown(plan, safe, maxGas, bundles, actualGasByBundle),
+    reviewMarkdown(
+      plan,
+      safe,
+      startNonce,
+      maxGas,
+      bundles,
+      actualGasByBundle
+    ),
     "utf8"
   );
 }
@@ -523,6 +618,10 @@ function loadBundleContext(args, dependencies) {
   const safe = getAddress(requiredArg(args, "safe"));
   assertSafeMatchesPlan(plan, safe);
   const maxGas = parsePositiveGas(args["max-gas"], "--max-gas");
+  const startNonce = parseNonce(
+    requiredArg(args, "start-nonce"),
+    "--start-nonce"
+  );
   const outDir = args["out-dir"]
     ? resolvePath(dependencies.REPO_ROOT, args["out-dir"])
     : path.join(
@@ -538,6 +637,7 @@ function loadBundleContext(args, dependencies) {
     plan,
     safe,
     maxGas,
+    startNonce,
     outDir,
     ...compiled,
   };
@@ -886,11 +986,17 @@ function loadExistingBundleContext(args, dependencies) {
     throw new Error(`Bundle index not found: ${indexPath}`);
   }
   const index = dependencies.readJson(indexPath);
+  if (index.schemaVersion !== "1.1.0") {
+    throw new Error(
+      `Unsupported bundle index schema ${index.schemaVersion}; expected 1.1.0.`
+    );
+  }
   const context = loadBundleContext(
     {
       plan: requiredArg(args, "plan"),
       safe: requiredArg(args, "safe"),
       "max-gas": String(index.maxGas),
+      "start-nonce": String(index.startNonce),
       "out-dir": bundlesDir,
     },
     dependencies
@@ -960,6 +1066,17 @@ async function simulateBundles(args, dependencies) {
   const rpc = dependencies.createRpcClient(requiredArg(args, "rpc"));
   await assertRpcChain(rpc, context.plan.chainId);
   await assertBundleContracts(rpc, context.safe);
+  const [onChainNonce] = await callFunction(
+    rpc,
+    context.safe,
+    safeInterface,
+    "nonce"
+  );
+  if (onChainNonce !== context.startNonce) {
+    throw new Error(
+      `Safe nonce mismatch before simulation: artifacts start at ${context.startNonce}, fork Safe is at ${onChainNonce}`
+    );
+  }
   const simulation = await prepareSafeSimulation(
     rpc,
     context.plan.chainId,
@@ -1083,6 +1200,11 @@ function loadAndValidateBundles(args, dependencies) {
     throw new Error(`Bundle index not found: ${indexPath}`);
   }
   const index = dependencies.readJson(indexPath);
+  if (index.schemaVersion !== "1.1.0") {
+    throw new Error(
+      `Unsupported bundle index schema ${index.schemaVersion}; expected 1.1.0.`
+    );
+  }
   const planPath = resolvePath(
     dependencies.REPO_ROOT,
     requiredArg(args, "plan")
@@ -1092,6 +1214,7 @@ function loadAndValidateBundles(args, dependencies) {
       plan: planPath,
       safe: index.safe,
       "max-gas": String(index.maxGas),
+      "start-nonce": String(index.startNonce),
       "out-dir": bundlesDir,
     },
     dependencies
@@ -1099,6 +1222,11 @@ function loadAndValidateBundles(args, dependencies) {
   if (context.planHash !== index.planHash) {
     throw new Error(
       `Bundle plan hash mismatch: index=${index.planHash}, plan=${context.planHash}`
+    );
+  }
+  if (String(context.startNonce) !== String(index.startNonce)) {
+    throw new Error(
+      `Bundle start nonce mismatch: index=${index.startNonce}, compiled=${context.startNonce}`
     );
   }
   const records = [];
@@ -1118,12 +1246,61 @@ function loadAndValidateBundles(args, dependencies) {
       return entry;
     });
     const safeTransaction = safeTransactionForEntries(entries);
+    const expectedBundleNumber = records.length + 1;
+    if (indexedBundle.bundle !== expectedBundleNumber) {
+      throw new Error(
+        `Bundle index numbers must be contiguous from 1; found ${indexedBundle.bundle}.`
+      );
+    }
     const expectedSafeTransaction = {
       to: safeTransaction.to,
       value: safeTransaction.value,
       data: safeTransaction.data,
       operation: safeTransaction.operation,
+      safeTxGas: "0",
+      baseGas: "0",
+      gasPrice: "0",
+      gasToken: ZERO_ADDRESS,
+      refundReceiver: ZERO_ADDRESS,
+      nonce: (context.startNonce + BigInt(records.length)).toString(),
+      safeTxHash: safeTransactionHash(
+        context.plan.chainId,
+        context.safe,
+        safeTransaction,
+        context.startNonce + BigInt(records.length)
+      ),
     };
+    if (
+      manifest.schemaVersion !== "1.1.0" ||
+      manifest.bundle.number !== expectedBundleNumber ||
+      manifest.bundle.safeNonce !== expectedSafeTransaction.nonce
+    ) {
+      throw new Error(
+        `Bundle ${indexedBundle.bundle} manifest does not pin the expected Safe nonce ${expectedSafeTransaction.nonce}.`
+      );
+    }
+    if (
+      manifest.plan.release !== context.plan.release ||
+      manifest.plan.network !== context.plan.network ||
+      manifest.plan.chainId !== context.plan.chainId ||
+      manifest.plan.fileHash !== context.planHash ||
+      manifest.safe.address.toLowerCase() !== context.safe.toLowerCase() ||
+      manifest.safe.version !== SAFE_VERSION ||
+      manifest.bundle.maxGas !== context.maxGas.toString()
+    ) {
+      throw new Error(
+        `Bundle ${indexedBundle.bundle} manifest identity does not match the bundle index and plan.`
+      );
+    }
+    if (
+      indexedBundle.safeNonce !== expectedSafeTransaction.nonce ||
+      indexedBundle.safeTxHash?.toLowerCase() !==
+        expectedSafeTransaction.safeTxHash.toLowerCase()
+    ) {
+      throw new Error(
+        `Bundle ${indexedBundle.bundle} index nonce/hash does not match the compiled Safe transaction.`
+      );
+    }
     if (!jsonEqual(manifest.safeTransaction, expectedSafeTransaction)) {
       throw new Error(
         `Bundle ${indexedBundle.bundle} manifest Safe transaction does not match the plan.`
@@ -1131,13 +1308,41 @@ function loadAndValidateBundles(args, dependencies) {
     }
     const imported = txBuilder.transactions[0];
     if (
+      txBuilder.chainId !== String(context.plan.chainId) ||
+      txBuilder.meta.createdFromSafeAddress.toLowerCase() !==
+        context.safe.toLowerCase() ||
       imported.to.toLowerCase() !== safeTransaction.to.toLowerCase() ||
       imported.value !== safeTransaction.value ||
-      imported.data.toLowerCase() !== safeTransaction.data.toLowerCase()
+      imported.data.toLowerCase() !== safeTransaction.data.toLowerCase() ||
+      imported.contractInputsValues.transactions.toLowerCase() !==
+        safeTransaction.packedTransactions.toLowerCase()
     ) {
       throw new Error(
         `Bundle ${indexedBundle.bundle} Transaction Builder payload does not match the manifest.`
       );
+    }
+    const expectedStaticGas = (
+      STATIC_BUNDLE_OVERHEAD +
+      entries.reduce((total, entry) => total + entry.staticGasEstimate, 0n)
+    ).toString();
+    if (
+      manifest.bundle.staticGasEstimate !== expectedStaticGas ||
+      manifest.bundle.simulatedGas !== indexedBundle.simulatedGas
+    ) {
+      throw new Error(
+        `Bundle ${indexedBundle.bundle} gas metadata does not match the compiled bundle index.`
+      );
+    }
+    if (manifest.bundle.simulatedGas !== null) {
+      const simulatedGas = parsePositiveGas(
+        manifest.bundle.simulatedGas,
+        `Bundle ${indexedBundle.bundle} simulatedGas`
+      );
+      if (simulatedGas > context.maxGas) {
+        throw new Error(
+          `Bundle ${indexedBundle.bundle} simulated gas exceeds its ceiling.`
+        );
+      }
     }
     if (
       !jsonEqual(
@@ -1147,6 +1352,51 @@ function loadAndValidateBundles(args, dependencies) {
     ) {
       throw new Error(
         `Bundle ${indexedBundle.bundle} manifest plan ids do not match its index.`
+      );
+    }
+    const manifestFields = [
+      "planIndex",
+      "planId",
+      "kind",
+      "description",
+      "operation",
+      "to",
+      "logicalTarget",
+      "value",
+      "data",
+      "decodedArgs",
+      "predicate",
+      "precomputedAddress",
+      "salt",
+      "initCodeHash",
+      "staticGasEstimate",
+    ];
+    manifest.innerTransactions.forEach((manifestEntry, entryIndex) => {
+      const expectedEntry = jsonSafeEntry(entries[entryIndex]);
+      for (const field of manifestFields) {
+        if (!jsonEqual(manifestEntry[field], expectedEntry[field])) {
+          throw new Error(
+            `Bundle ${indexedBundle.bundle} ${manifestEntry.planId}.${field} does not match the compiled plan.`
+          );
+        }
+      }
+      if (
+        context.plan.chainId === 1 &&
+        (manifestEntry.simulatedGas === null ||
+          !/^[1-9][0-9]*$/.test(manifestEntry.simulatedGas))
+      ) {
+        throw new Error(
+          `Bundle ${indexedBundle.bundle} ${manifestEntry.planId} lacks mainnet-fork simulated gas.`
+        );
+      }
+    });
+    if (
+      context.plan.chainId === 1 &&
+      (manifest.bundle.simulatedGas === null ||
+        !/^[1-9][0-9]*$/.test(manifest.bundle.simulatedGas))
+    ) {
+      throw new Error(
+        `Bundle ${indexedBundle.bundle} lacks mainnet-fork simulated gas.`
       );
     }
     seenPlanIds.push(...indexedBundle.planIds);
@@ -1199,12 +1449,13 @@ function matchingExecTransaction(transaction, safe, record) {
   );
 }
 
-function hasSafeExecutionSuccess(receipt, safe) {
+function hasSafeExecutionSuccess(receipt, safe, safeTxHash) {
   const successTopic = id("ExecutionSuccess(bytes32,uint256)").toLowerCase();
   return (receipt.logs || []).some(
     (log) =>
       log.address?.toLowerCase() === safe.toLowerCase() &&
-      log.topics?.[0]?.toLowerCase() === successTopic
+      log.topics?.[0]?.toLowerCase() === successTopic &&
+      log.topics?.[1]?.toLowerCase() === safeTxHash.toLowerCase()
   );
 }
 
@@ -1262,8 +1513,16 @@ async function resolveBundleReceipts(rpc, context, mapping) {
         `${record.name} receipt transaction does not execute the expected Safe payload.`
       );
     }
-    if (!hasSafeExecutionSuccess(receipt, context.safe)) {
-      throw new Error(`${record.name} receipt lacks Safe ExecutionSuccess.`);
+    if (
+      !hasSafeExecutionSuccess(
+        receipt,
+        context.safe,
+        record.safeTransaction.safeTxHash
+      )
+    ) {
+      throw new Error(
+        `${record.name} receipt lacks ExecutionSuccess for ${record.safeTransaction.safeTxHash}.`
+      );
     }
     receipts.set(record.name, { txHash, receipt });
   }
@@ -1317,10 +1576,109 @@ async function verifyBundles(args, dependencies) {
   );
 }
 
+function packageArtifact(filePath) {
+  const json = fs.readFileSync(filePath, "utf8");
+  JSON.parse(json);
+  return {
+    name: path.basename(filePath),
+    hash: keccak256(Buffer.from(json, "utf8")),
+    json,
+  };
+}
+
+function ceremonyFingerprint(digest) {
+  return digest
+    .slice(2, 14)
+    .toUpperCase()
+    .match(/.{1,4}/g)
+    .join("-");
+}
+
+function writeCeremonyPackage(args, dependencies) {
+  const mode = requiredArg(args, "mode");
+  if (mode !== "eoa" && mode !== "safe") {
+    throw new Error(`--mode must be eoa or safe; received ${mode}`);
+  }
+  const planPath = resolvePath(
+    dependencies.REPO_ROOT,
+    requiredArg(args, "plan")
+  );
+  const plan = dependencies.assertValidPlan(dependencies.readJson(planPath));
+  if (mode === "eoa" && plan.chainId === 1) {
+    throw new Error("Ethereum mainnet ceremony packages must use Safe mode.");
+  }
+  if (mode === "eoa" && args.bundles !== undefined) {
+    throw new Error("--bundles is not valid for an EOA ceremony package.");
+  }
+
+  let manifests = [];
+  let expectedAddresses = null;
+  if (mode === "safe") {
+    const context = loadAndValidateBundles(
+      { plan: planPath, bundles: requiredArg(args, "bundles") },
+      dependencies
+    );
+    manifests = context.records.map((record) =>
+      packageArtifact(path.join(context.outDir, record.manifestName))
+    );
+    expectedAddresses = packageArtifact(
+      path.join(context.outDir, "expected-addresses.json")
+    );
+  }
+
+  const payload = {
+    mode,
+    release: plan.release,
+    network: plan.network,
+    chainId: plan.chainId,
+    artifacts: {
+      plan: packageArtifact(planPath),
+      manifests,
+      expectedAddresses,
+    },
+  };
+  const digest = keccak256(toUtf8Bytes(serializeJsonValue(payload)));
+  const ceremonyPackage = {
+    schemaVersion: "1.0.0",
+    digest,
+    payload,
+  };
+  const schemaPath = path.join(
+    dependencies.REPO_ROOT,
+    "deployments/ceremony-package.schema-1-0.json"
+  );
+  const schema = dependencies.readJson(schemaPath);
+  const errors = dependencies.validateJsonSchema(
+    ceremonyPackage,
+    schema,
+    schema
+  );
+  if (errors.length > 0) {
+    throw new Error(
+      `Ceremony package failed schema validation:\n${errors
+        .map((error) => `- ${error}`)
+        .join("\n")}`
+    );
+  }
+  const outPath = args.out
+    ? resolvePath(dependencies.REPO_ROOT, args.out)
+    : path.join(
+        dependencies.REPO_ROOT,
+        "deployments",
+        plan.network,
+        `ceremony-${plan.release}-${mode}.json`
+      );
+  dependencies.writeJson(outPath, ceremonyPackage);
+  console.log(`Ceremony package written: ${outPath}`);
+  console.log(`Ceremony digest: ${digest}`);
+  console.log(`Call-time fingerprint: ${ceremonyFingerprint(digest)}`);
+}
+
 module.exports = function createBundleCommands(dependencies) {
   return {
     bundlePlan: (args) => bundlePlan(args, dependencies),
     simulateBundles: (args) => simulateBundles(args, dependencies),
     verifyBundles: (args) => verifyBundles(args, dependencies),
+    writeCeremonyPackage: (args) => writeCeremonyPackage(args, dependencies),
   };
 };

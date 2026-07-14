@@ -12,10 +12,11 @@ const {
   keccak256,
 } = require("ethers");
 
-const PLAN_SCHEMA_VERSION = "1.0.0";
+const PLAN_SCHEMA_VERSION = "1.1.0";
+const REQUIRED_FOUNDRY_PROFILE = "deploy";
 const SCHEMA_PATH = path.resolve(
   __dirname,
-  "../deployments/deployment-plan.schema-1-0.json"
+  "../deployments/deployment-plan.schema-1-1.json"
 );
 const REPO_ROOT = path.resolve(__dirname, "..");
 const FOUNDRY_CONFIG = JSON.parse(
@@ -44,11 +45,13 @@ function printUsage() {
   node scripts/plan.js verify --plan <path> --run-state <path> --rpc <url>
   node scripts/plan.js render-safe --plan <path>
   node scripts/plan.js bundle --plan <path> --safe <address>
-    [--max-gas <n>] [--out-dir <dir>]
+    --start-nonce <n> [--max-gas <n>] [--out-dir <dir>]
   node scripts/plan.js bundle-simulate --plan <path> --bundles <dir>
     --rpc <fork-url> --safe <address> [--private-key <key>]
   node scripts/plan.js bundle-verify --plan <path> --bundles <dir>
     --rpc <url> [--tx-hashes <json>]
+  node scripts/plan.js ceremony-package --plan <path> --mode <eoa|safe>
+    [--bundles <dir>] [--out <path>]
 
 assemble reads deployments/<network>/plan-entries/*.json and writes
 deployments/<network>/plan-<release>.json.
@@ -61,9 +64,10 @@ const KNOWN_FLAGS = {
   execute: ["plan", "rpc", "private-key", "impersonate", "yes"],
   verify: ["plan", "run-state", "rpc"],
   "render-safe": ["plan"],
-  bundle: ["plan", "safe", "max-gas", "out-dir"],
+  bundle: ["plan", "safe", "start-nonce", "max-gas", "out-dir"],
   "bundle-simulate": ["plan", "bundles", "rpc", "safe", "private-key"],
   "bundle-verify": ["plan", "bundles", "rpc", "tx-hashes"],
+  "ceremony-package": ["plan", "mode", "bundles", "out"],
 };
 
 function assertKnownFlags(command, args) {
@@ -405,6 +409,15 @@ function replaceReferencesWithZero(value) {
 
 let artifactFiles;
 
+function assertDeployProfile() {
+  const profile = process.env.FOUNDRY_PROFILE || "default";
+  if (profile !== REQUIRED_FOUNDRY_PROFILE) {
+    throw new Error(
+      `Deployment artifacts require FOUNDRY_PROFILE=${REQUIRED_FOUNDRY_PROFILE}; current profile is ${profile}`
+    );
+  }
+}
+
 function listArtifactFiles(directory) {
   if (!fs.existsSync(directory)) return [];
   const files = [];
@@ -428,6 +441,7 @@ function artifactIdentity(artifact) {
 }
 
 function loadArtifact(artifactName) {
+  assertDeployProfile();
   const separator = artifactName.lastIndexOf(":");
   const requestedSource =
     separator === -1 ? null : artifactName.slice(0, separator);
@@ -549,17 +563,30 @@ function constructorInputs(loadedArtifact) {
   return contractInterface.deploy.inputs;
 }
 
-function encodeConstructorArgs(loadedArtifact, decodedArgs, outputs = null) {
+function constructorTypes(loadedArtifact) {
+  return constructorInputs(loadedArtifact).map((input) =>
+    input.format("sighash")
+  );
+}
+
+function encodeTypedConstructorArgs(types, decodedArgs, outputs = null) {
   const args = outputs
     ? resolveReferences(decodedArgs, outputs)
     : replaceReferencesWithZero(decodedArgs);
-  const inputs = constructorInputs(loadedArtifact);
-  if (inputs.length !== decodedArgs.length) {
+  if (types.length !== decodedArgs.length) {
     throw new Error(
-      `constructor expects ${inputs.length} argument(s), got ${decodedArgs.length}`
+      `constructor expects ${types.length} argument(s), got ${decodedArgs.length}`
     );
   }
-  return AbiCoder.defaultAbiCoder().encode(inputs, args);
+  return AbiCoder.defaultAbiCoder().encode(types, args);
+}
+
+function encodeConstructorArgs(loadedArtifact, decodedArgs, outputs = null) {
+  return encodeTypedConstructorArgs(
+    constructorTypes(loadedArtifact),
+    decodedArgs,
+    outputs
+  );
 }
 
 function functionInterface(signature) {
@@ -702,6 +729,12 @@ function validatePlan(plan, options = {}) {
         try {
           const loadedArtifact = loadArtifact(transaction.artifactName);
           assertArtifactFresh(loadedArtifact);
+          const expectedTypes = constructorTypes(loadedArtifact);
+          if (!jsonEqual(transaction.constructorArgs?.types, expectedTypes)) {
+            errors.push(
+              `${transactionPath}.constructorArgs.types: does not match current ${transaction.artifactName} artifact`
+            );
+          }
           const expectedInitCode = artifactInitCode(loadedArtifact);
           if (
             typeof transaction.initCode === "string" &&
@@ -713,8 +746,8 @@ function validatePlan(plan, options = {}) {
             );
           }
           if (Array.isArray(transaction.constructorArgs?.decoded)) {
-            const expectedEncoding = encodeConstructorArgs(
-              loadedArtifact,
+            const expectedEncoding = encodeTypedConstructorArgs(
+              transaction.constructorArgs.types,
               transaction.constructorArgs.decoded
             );
             if (
@@ -817,6 +850,23 @@ function validatePlan(plan, options = {}) {
     }
   }
 
+  const transactionPositions = new Map(
+    plan.transactions.map((transaction, index) => [transaction.id, index])
+  );
+  plan.transactions.forEach((transaction, index) => {
+    if (transaction.reverifyUntil === undefined) return;
+    const untilIndex = transactionPositions.get(transaction.reverifyUntil);
+    if (untilIndex === undefined) {
+      errors.push(
+        `$.transactions[${index}].reverifyUntil: unknown transaction id ${transaction.reverifyUntil}`
+      );
+    } else if (untilIndex <= index) {
+      errors.push(
+        `$.transactions[${index}].reverifyUntil: compensating transaction must come later in the plan`
+      );
+    }
+  });
+
   const uniqueErrors = [...new Set(errors)];
   return { ok: uniqueErrors.length === 0, errors: uniqueErrors };
 }
@@ -910,6 +960,95 @@ function uniqueEnvelopeValue(transactions, field) {
   )?.envelope[field];
 }
 
+function temporaryOwnerTransactions(
+  transactions,
+  expectedExecutor,
+  archController,
+  helperOwner
+) {
+  const executor = getAddress(expectedExecutor);
+  const arch = getAddress(archController);
+  const helper = getAddress(helperOwner);
+  return [
+    {
+      id: "reclaim-arch-controller-ownership",
+      kind: "call",
+      to: helper,
+      functionSignature: "returnOwnership()",
+      args: [],
+      description:
+        "Temporarily reclaim ArchController ownership from the Sepolia helper for this deployment.",
+      reverifyUntil: "restore-arch-controller-ownership",
+      predicate: {
+        type: "callEq",
+        target: arch,
+        call: { sig: "owner() view returns (address)", args: [] },
+        expect: executor,
+      },
+    },
+    ...transactions,
+    {
+      id: "restore-arch-controller-ownership",
+      kind: "call",
+      to: arch,
+      functionSignature: "transferOwnership(address)",
+      args: [helper],
+      description:
+        "Return ArchController ownership to the Sepolia helper after every deployment action is verified.",
+      predicate: {
+        type: "callEq",
+        target: arch,
+        call: { sig: "owner() view returns (address)", args: [] },
+        expect: helper,
+      },
+    },
+  ];
+}
+
+function applyCeremonyConfig(network, transactions, expectedExecutor) {
+  const configPath = path.join(
+    REPO_ROOT,
+    "deployments",
+    network,
+    "ceremony-config.json"
+  );
+  if (!fs.existsSync(configPath)) return transactions;
+  const config = readJson(configPath);
+  if (
+    config.schemaVersion !== "1.0.0" ||
+    config.ownership?.type !== "temporary-mock-owner" ||
+    typeof config.ownership.archControllerKey !== "string" ||
+    typeof config.ownership.helperOwnerKey !== "string"
+  ) {
+    throw new Error(`Invalid temporary-owner ceremony config: ${configPath}`);
+  }
+  const deploymentsPath = path.join(
+    REPO_ROOT,
+    "deployments",
+    network,
+    "deployments.json"
+  );
+  const deployments = readJson(deploymentsPath);
+  const archController = deployments[config.ownership.archControllerKey];
+  const helperOwner = deployments[config.ownership.helperOwnerKey];
+  if (!ADDRESS_REGEX.test(archController || "")) {
+    throw new Error(
+      `${configPath}: missing deployment address ${config.ownership.archControllerKey}`
+    );
+  }
+  if (!ADDRESS_REGEX.test(helperOwner || "")) {
+    throw new Error(
+      `${configPath}: missing deployment address ${config.ownership.helperOwnerKey}`
+    );
+  }
+  return temporaryOwnerTransactions(
+    transactions,
+    expectedExecutor,
+    archController,
+    helperOwner
+  );
+}
+
 function assemblePlan(args) {
   const network = requiredArg(args, "network");
   const release = requiredArg(args, "release");
@@ -939,7 +1078,7 @@ function assemblePlan(args) {
     delete transaction.after;
     return { filePath, transaction, after };
   });
-  const transactions = orderEntries(entries);
+  let transactions = orderEntries(entries);
   const chainId =
     uniqueEnvelopeValue(transactions, "chainId") || NETWORK_CHAIN_IDS[network];
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
@@ -956,6 +1095,7 @@ function assemblePlan(args) {
       "Could not infer expected executor; include envelope.expectedExecutor in an entry"
     );
   }
+  transactions = applyCeremonyConfig(network, transactions, expectedExecutor);
 
   for (const transaction of transactions) {
     if (transaction.kind === "deploy") {
@@ -963,8 +1103,9 @@ function assemblePlan(args) {
       assertArtifactFresh(loadedArtifact);
       transaction.initCode = artifactInitCode(loadedArtifact);
       transaction.constructorArgs ||= { decoded: [] };
-      transaction.constructorArgs.encoded = encodeConstructorArgs(
-        loadedArtifact,
+      transaction.constructorArgs.types = constructorTypes(loadedArtifact);
+      transaction.constructorArgs.encoded = encodeTypedConstructorArgs(
+        transaction.constructorArgs.types,
         transaction.constructorArgs.decoded || []
       );
     } else if (transaction.kind === "call") {
@@ -990,6 +1131,7 @@ function assemblePlan(args) {
 
   const plan = {
     schemaVersion: PLAN_SCHEMA_VERSION,
+    foundryProfile: REQUIRED_FOUNDRY_PROFILE,
     network,
     chainId,
     release,
@@ -1154,9 +1296,8 @@ function transactionPayload(transaction, outputs) {
     `${transaction.id}.envelope.value`
   );
   if (transaction.kind === "deploy") {
-    const loadedArtifact = loadArtifact(transaction.artifactName);
-    const encodedArgs = encodeConstructorArgs(
-      loadedArtifact,
+    const encodedArgs = encodeTypedConstructorArgs(
+      transaction.constructorArgs.types,
       transaction.constructorArgs.decoded,
       outputs
     );
@@ -1278,6 +1419,84 @@ function receiptBlockNumber(receipt) {
     : BigInt(receipt.blockNumber).toString();
 }
 
+async function recoverCompensatingTransactions(
+  rpc,
+  plan,
+  runState,
+  outputs,
+  statePath
+) {
+  const transactions = new Map(
+    plan.transactions.map((transaction) => [transaction.id, transaction])
+  );
+  for (const transaction of plan.transactions) {
+    if (!transaction.reverifyUntil) continue;
+    const compensation = transactions.get(transaction.reverifyUntil);
+    if (!compensation) continue;
+    const existing = runState[compensation.id];
+    if (!existing?.txHash || existing.status === "verified") continue;
+
+    const receipt = await rpc("eth_getTransactionReceipt", [existing.txHash]);
+    if (!receipt) {
+      throw new Error(
+        `Resume halted: compensating transaction ${compensation.id} has no receipt yet; do not resend it`
+      );
+    }
+    existing.blockNumber = receiptBlockNumber(receipt);
+    existing.status = receipt.status === "0x1" ? "mined" : "reverted";
+    if (receipt.status !== "0x1") {
+      writeJsonAtomic(statePath, runState);
+      throw new Error(
+        `Resume halted: compensating transaction ${compensation.id} reverted`
+      );
+    }
+    if (compensation.kind === "deploy") {
+      if (!receipt.contractAddress) {
+        existing.status = "predicate-failed";
+        writeJsonAtomic(statePath, runState);
+        throw new Error(
+          `Deployment receipt lacks contractAddress: ${compensation.id}`
+        );
+      }
+      const resolvedAddress = getAddress(receipt.contractAddress);
+      if (
+        existing.resolvedAddress &&
+        existing.resolvedAddress.toLowerCase() !== resolvedAddress.toLowerCase()
+      ) {
+        throw new Error(
+          `Stored deployment address for ${compensation.id} does not match its receipt`
+        );
+      }
+      existing.resolvedAddress = resolvedAddress;
+      outputs.set(compensation.output, resolvedAddress);
+    }
+    writeJsonAtomic(statePath, runState);
+
+    let predicate;
+    try {
+      predicate = await checkPredicate(rpc, compensation.predicate, outputs);
+    } catch (error) {
+      existing.status = "predicate-failed";
+      writeJsonAtomic(statePath, runState);
+      throw new Error(
+        `Predicate error for compensating transaction ${compensation.id}: ${error.message}`
+      );
+    }
+    if (!predicate.ok) {
+      existing.status = "predicate-failed";
+      writeJsonAtomic(statePath, runState);
+      throw new Error(
+        `Resume halted: compensating transaction ${compensation.id} fails its predicate: ${predicate.detail}`
+      );
+    }
+    existing.status = "verified";
+    writeJsonAtomic(statePath, runState);
+    console.log(
+      `[${compensation.id}] Compensating transaction recovered and verified before prior predicate checks: ${predicate.detail}`
+    );
+  }
+}
+
 async function executePlan(args) {
   const planPath = requiredArg(args, "plan");
   const rpcUrl = requiredArg(args, "rpc");
@@ -1324,6 +1543,14 @@ async function executePlan(args) {
       impersonating = true;
     }
 
+    await recoverCompensatingTransactions(
+      rpc,
+      plan,
+      runState,
+      outputs,
+      statePath
+    );
+
     let foundIncomplete = false;
     for (const transaction of plan.transactions) {
       const existing = runState[transaction.id];
@@ -1333,11 +1560,16 @@ async function executePlan(args) {
             `Run state is non-contiguous: ${transaction.id} is verified after an incomplete entry`
           );
         }
-        const predicate = await checkPredicate(
-          rpc,
-          transaction.predicate,
-          outputs
-        );
+        if (
+          transaction.reverifyUntil &&
+          runState[transaction.reverifyUntil]?.status === "verified"
+        ) {
+          console.log(
+            `[${transaction.id}] Prior predicate retired after verified compensation ${transaction.reverifyUntil}.`
+          );
+          continue;
+        }
+        const predicate = await checkPredicate(rpc, transaction.predicate, outputs);
         if (!predicate.ok) {
           throw new Error(
             `Resume halted: prior predicate failed for ${transaction.id}: ${
@@ -1359,11 +1591,41 @@ async function executePlan(args) {
         const receipt = await rpc("eth_getTransactionReceipt", [
           existing.txHash,
         ]);
-        if (!receipt || receipt.status !== "0x1") {
+        if (!receipt) {
           throw new Error(
-            `Resume halted: stored transaction ${transaction.id} is not successfully mined`
+            `Resume halted: submitted transaction ${transaction.id} has no receipt yet; do not resend it`
           );
         }
+        existing.blockNumber = receiptBlockNumber(receipt);
+        existing.status = receipt.status === "0x1" ? "mined" : "reverted";
+        if (receipt.status !== "0x1") {
+          writeJsonAtomic(statePath, runState);
+          throw new Error(
+            `Resume halted: stored transaction ${transaction.id} reverted`
+          );
+        }
+        if (transaction.kind === "deploy") {
+          if (!receipt.contractAddress) {
+            existing.status = "predicate-failed";
+            writeJsonAtomic(statePath, runState);
+            throw new Error(
+              `Deployment receipt lacks contractAddress: ${transaction.id}`
+            );
+          }
+          const resolvedAddress = getAddress(receipt.contractAddress);
+          if (
+            existing.resolvedAddress &&
+            existing.resolvedAddress.toLowerCase() !==
+              resolvedAddress.toLowerCase()
+          ) {
+            throw new Error(
+              `Stored deployment address for ${transaction.id} does not match its receipt`
+            );
+          }
+          existing.resolvedAddress = resolvedAddress;
+          outputs.set(transaction.output, existing.resolvedAddress);
+        }
+        writeJsonAtomic(statePath, runState);
         const predicate = await checkPredicate(
           rpc,
           transaction.predicate,
@@ -1407,7 +1669,17 @@ async function executePlan(args) {
         gasLimit,
         payload,
       });
-      const receipt = await waitForReceipt(rpc, txHash);
+      runState[transaction.id] = { txHash, status: "submitted" };
+      writeJsonAtomic(statePath, runState);
+
+      let receipt;
+      try {
+        receipt = await waitForReceipt(rpc, txHash);
+      } catch (error) {
+        throw new Error(
+          `${transaction.id} was submitted as ${txHash}, but receipt waiting failed: ${error.message}. Resume instead of resending.`
+        );
+      }
       const stateEntry = {
         txHash,
         blockNumber: receiptBlockNumber(receipt),
@@ -1491,6 +1763,15 @@ async function verifyPlan(args) {
   const outputs = outputsFromRunState(plan, runState);
   let failed = 0;
   for (const transaction of plan.transactions) {
+    if (
+      transaction.reverifyUntil &&
+      runState[transaction.reverifyUntil]?.status === "verified"
+    ) {
+      console.log(
+        `HISTORICAL ${transaction.id}: superseded by verified compensation ${transaction.reverifyUntil}`
+      );
+      continue;
+    }
     try {
       const result = await checkPredicate(rpc, transaction.predicate, outputs);
       if (result.ok) {
@@ -1640,6 +1921,9 @@ async function main() {
   if (command === "bundle-verify") {
     return bundleCommands().verifyBundles(args);
   }
+  if (command === "ceremony-package") {
+    return bundleCommands().writeCeremonyPackage(args);
+  }
   throw new Error(`Unknown command: ${command}`);
 }
 
@@ -1658,4 +1942,5 @@ module.exports = {
   encodeConstructorArgs,
   encodeFunctionCall,
   validatePlan,
+  temporaryOwnerTransactions,
 };

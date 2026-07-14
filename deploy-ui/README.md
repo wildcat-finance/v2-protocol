@@ -29,21 +29,36 @@ npm test
 npm run test:fork
 ```
 
-## Inputs and modes
+## Release package and modes
 
-Load `plan-<release>.json` in both modes. EOA mode sends one plan transaction at
-a time, persists progress by exact plan-file hash, re-verifies completed
-predicates on resume, and halts on any failure.
+Production builds embed one `ceremony-<release>-<mode>.json` file. The package
+contains the exact plan bytes and, for Safe mode, all manifests and expected
+addresses. The browser recomputes every artifact hash and the package digest,
+locks the mode, and displays a short call-time fingerprint. There is no file
+picker or mode switch in an embedded build.
+
+EOA mode sends one plan transaction at a time, persists progress by exact
+plan-file hash, re-verifies completed predicates on resume, and halts on any
+failure. The Sepolia plan includes the helper-owner reclaim and compensating
+ownership return as its first and last cards. Plan schema 1.1 records the
+mandatory `deploy` Foundry profile and exact ABI constructor types; the browser
+does not infer ABI types from JSON values.
 
 Safe mode also loads every `bundle-N.manifest.json` plus
-`expected-addresses.json`. It submits the manifest's raw MultiSend transaction
-as `DELEGATECALL (1)` through Protocol Kit; it never uses the Transaction Builder
-import row. On supported public chains, API Kit proposes and polls signatures.
-On chain `31337`, or with `VITE_SAFE_LOCAL_ONLY=true`, a 1-of-1 Safe signs EIP-712
-and calls `execTransaction` directly. A service failure can fall back only when
-the on-chain threshold is exactly one; a production multi-owner Safe halts.
+`expected-addresses.json`. Before wallet interaction, it independently rebuilds
+every constructor/call payload, CREATE2 address, CreateCall operation, and
+MultiSend transaction from the plan and rejects any manifest mismatch. Protocol
+Kit receives the rebuilt `DELEGATECALL (1)` transaction, never untrusted manifest
+calldata or the Transaction Builder import row. Every bundle pins its Safe nonce
+and full EIP-712 Safe transaction hash. On supported public chains, API Kit
+proposes and polls signatures while thresholds and confirming owners are checked
+against the Safe itself. On chain `31337`, or with
+`VITE_SAFE_LOCAL_ONLY=true`, a 1-of-1 Safe signs EIP-712 and calls
+`execTransaction` directly. A service failure can fall back only when the
+on-chain threshold is exactly one; a production multi-owner Safe halts.
 
-Optional build-time defaults are `VITE_MAINNET_RPC_URL`,
+Without `CEREMONY_PACKAGE`, local development retains the file/URL loaders and
+mode switch for debugging. Optional build-time defaults are `VITE_MAINNET_RPC_URL`,
 `VITE_SEPOLIA_RPC_URL`, `VITE_ANVIL_RPC_URL`, `VITE_SAFE_TX_SERVICE_URL`, and
 `VITE_SAFE_API_KEY`. Files can also be loaded from static, CORS-enabled URLs:
 
@@ -51,15 +66,29 @@ Optional build-time defaults are `VITE_MAINNET_RPC_URL`,
 /?plan=<url>&manifest=<url>&manifest=<url>&expectedAddresses=<url>
 ```
 
-## Static hosting and handoff
+## Build the release-specific site
 
 ```bash
-npm run build
+export FOUNDRY_PROFILE=deploy
+
+# EOA / Sepolia
+node ../scripts/plan.js ceremony-package \
+  --plan deployments/sepolia/plan-v2-5.json \
+  --mode eoa
+CEREMONY_PACKAGE=../deployments/sepolia/ceremony-v2-5-eoa.json npm run build
+
+# Safe / mainnet, after bundle-simulate has rewritten the manifests
+node ../scripts/plan.js ceremony-package \
+  --plan deployments/mainnet/plan-v2-5.json \
+  --mode safe \
+  --bundles deployments/mainnet/bundles-v2-5
+CEREMONY_PACKAGE=../deployments/mainnet/ceremony-v2-5-safe.json npm run build
 ```
 
 Serve or upload `deploy-ui/dist/` as ordinary static files. Relative asset URLs
-allow hosting at any path. After all predicates are green, export
-`run-state-<release>.json` and pass it unchanged to step 08:
+allow hosting at any path. Publish the full ceremony digest and short fingerprint
+through the release's independent review channel. After all predicates are green,
+export `run-state-<release>.json` and pass it unchanged to step 08:
 
 ```bash
 export RUN_STATE=/path/to/run-state-v2-5.json

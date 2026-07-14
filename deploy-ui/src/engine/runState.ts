@@ -3,8 +3,8 @@ import type { DeploymentPlan, ReceiptLike } from './types'
 
 export interface RunStateEntry {
   txHash: Hex
-  blockNumber: number | string
-  status: 'mined' | 'reverted' | 'predicate-failed' | 'verified'
+  blockNumber?: number | string
+  status: 'submitted' | 'mined' | 'reverted' | 'predicate-failed' | 'verified'
   resolvedAddress?: Address
 }
 

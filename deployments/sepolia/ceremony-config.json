@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "1.0.0",
+  "ownership": {
+    "type": "temporary-mock-owner",
+    "archControllerKey": "WildcatArchController",
+    "helperOwnerKey": "MockArchControllerOwner"
+  }
+}

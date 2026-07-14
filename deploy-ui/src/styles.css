@@ -48,6 +48,7 @@ h2, h3 { margin: 0; }
 .hash-line { display: grid; grid-template-columns: 150px 1fr; gap: 0.7rem; align-items: baseline; }
 .hash-line span { color: #63716c; font-size: 0.78rem; font-weight: 750; }
 .hash-line code { font-size: 0.72rem; }
+.package-digest strong { color: #0d4d3e; font-family: "SFMono-Regular", Consolas, monospace; letter-spacing: 0.08em; }
 .mode-switch { display: inline-flex; margin: 1.25rem 0 2.5rem; border: 1px solid #9aa9a3; border-radius: 8px; overflow: hidden; }
 .mode-switch button { border-radius: 0; background: transparent; color: #345048; }
 .mode-switch button.selected { background: #173b31; color: white; }
