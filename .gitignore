@@ -4,6 +4,10 @@ ir-out/
 cache/
 ir-cache/
 deploy-out/
+deploy-cache/
+unoptimized-ir-out/
+unoptimized-ir-cache/
+foundry.lock
 key.txt
 node_modules/
 vaultabi.json
@@ -23,4 +27,6 @@ deployments/*/HooksFactoryRevolving-0x*/
 deployments/*/pending-admin-actions/
 deployments/*/rcf-template-sync-*.json
 deployments/*/rcf-v2-handoff*.json
+deployments/anvil/
+deployments/*/reconcile-report.json
 audits/
