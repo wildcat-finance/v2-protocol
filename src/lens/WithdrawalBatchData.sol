@@ -79,6 +79,8 @@ library WithdrawalBatchDataLib {
     address lender
   ) internal view {
     data.lender = lender;
+    // Unknown expiries return an empty batch, so there is no lender share to calculate.
+    if (batch.scaledTotalAmount == 0) return;
     AccountWithdrawalStatus memory status = market.getAccountWithdrawalStatus(lender, batch.expiry);
     data.scaledAmount = status.scaledAmount;
     data.normalizedAmountWithdrawn = status.normalizedAmountWithdrawn;

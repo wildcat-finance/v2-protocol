@@ -1149,6 +1149,45 @@ contract MarketDataTest is BaseMarketTest {
     checkWithdrawalBatchLenderStatus(data.lenderStatus, expiry, data.lenderStatus.lender);
   }
 
+  function checkEmptyWithdrawalBatchLenderStatus(
+    WithdrawalBatchLenderStatus memory data,
+    address lender
+  ) internal pure {
+    assertEq(data.lender, lender, 'lender');
+    assertEq(data.scaledAmount, 0, 'scaledAmount');
+    assertEq(data.normalizedAmountWithdrawn, 0, 'normalizedAmountWithdrawn');
+    assertEq(data.normalizedAmountOwed, 0, 'normalizedAmountOwed');
+    assertEq(data.availableWithdrawalAmount, 0, 'availableWithdrawalAmount');
+  }
+
+  function test_getLenderWithdrawalStatusForNonexistentBatch() external view {
+    uint32 unknownExpiry = type(uint32).max;
+    WithdrawalBatchDataWithLenderStatus memory data = lens
+      .getWithdrawalBatchDataWithLenderStatus(address(market), unknownExpiry, alice);
+    checkWithdrawalBatchData(data.batch, unknownExpiry);
+    checkEmptyWithdrawalBatchLenderStatus(data.lenderStatus, alice);
+
+    uint32[] memory expiries = new uint32[](2);
+    expiries[0] = 0;
+    expiries[1] = unknownExpiry;
+    WithdrawalBatchDataWithLenderStatus[] memory batches = lens
+      .getWithdrawalBatchesDataWithLenderStatus(address(market), expiries, alice);
+    for (uint256 i; i < expiries.length; i++) {
+      checkWithdrawalBatchData(batches[i].batch, expiries[i]);
+      checkEmptyWithdrawalBatchLenderStatus(batches[i].lenderStatus, alice);
+    }
+
+    address[] memory lenders = new address[](2);
+    lenders[0] = alice;
+    lenders[1] = bob;
+    (WithdrawalBatchData memory batch, WithdrawalBatchLenderStatus[] memory statuses) = lens
+      .getWithdrawalBatchDataWithLendersStatus(address(market), unknownExpiry, lenders);
+    checkWithdrawalBatchData(batch, unknownExpiry);
+    for (uint256 i; i < lenders.length; i++) {
+      checkEmptyWithdrawalBatchLenderStatus(statuses[i], lenders[i]);
+    }
+  }
+
   function test_getLenderWithdrawalStatus() external {
     _depositBorrowWithdraw(alice, 1e18, 8e17, 1e18);
     uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
