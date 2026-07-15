@@ -122,6 +122,10 @@ The deployed ArchController singleton can revert with arithmetic panic for inver
 
 The deployed ArchController singleton allows privileged callers to register arbitrary addresses as controller factories, controllers, or markets. A misconfigured owner, controller factory, or controller can therefore add EOAs or nonconforming contracts to the registry, polluting registry, lens, subgraph, or SphereX allowed-sender surfaces. The CAF-16 remediation is to reject non-contract and wrong-arch factory/controller/market registrations and require registered markets to report the registering controller as their factory. RCF V2 is not redeploying the ArchController, so operator validation remains the control for singleton registrations.
 
+**SphereX engine rotations require an atomic controller cutover**
+
+SphereX-protected contracts cache their engine address. If the ArchController switches engines before the market-deploying controllers (`HooksFactory` and `HooksFactoryRevolving`) are updated, a borrower can deploy a market that uses the controller's old engine even though the ArchController registers and allowlists it on the new engine. V2.5 does not rotate the SphereX engine, so this does not affect the release deployment. For any future rotation, keep the old engine operational and atomically update the ArchController and all market-deploying controllers before new markets can be created; existing markets can then be migrated in gas-bounded batches and checked against the ArchController's engine.
+
 **Deployment targets must support EIP-1153**
 
 Wildcat V2 bytecode uses transient storage for reentrancy protection and factory deployment scratch space. Deployment targets that do not support `TSTORE` / `TLOAD` can deploy bytecode that later fails when those paths execute. Active deployment scripts probe the target RPC before deployment, but manual or third-party deployments must still restrict targets to Cancun-compatible chains.
