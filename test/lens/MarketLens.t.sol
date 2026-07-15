@@ -1332,4 +1332,15 @@ contract MarketDataTest is BaseMarketTest {
     LenderAccountData memory data = lens.getLenderAccountData(alice, address(market));
     checkLenderStatus(data);
   }
+
+  function test_getLenderAccountData_BlockedFromDepositsWithoutProvider() external {
+    _blockLender(alice);
+
+    LenderStatus memory status = hooks.getLenderStatus(alice);
+    assertTrue(status.isBlockedFromDeposits, 'hooks status is not blocked');
+    assertEq(status.lastProvider, address(0), 'hooks status has provider');
+
+    LenderAccountData memory data = lens.getLenderAccountData(alice, address(market));
+    checkLenderStatus(data);
+  }
 }

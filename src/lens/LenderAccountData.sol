@@ -48,8 +48,8 @@ library LenderAccountDataLib {
     data.underlyingApproval = underlying.allowance(lenderAddress, address(market));
     if (address(hooks) != address(0)) {
       LenderStatus memory status = hooks.getLenderStatus(lenderAddress);
+      data.isBlockedFromDeposits = status.isBlockedFromDeposits;
       if (status.lastProvider != address(0)) {
-        data.isBlockedFromDeposits = status.isBlockedFromDeposits;
         data.lastProvider.fill(hooks.getRoleProvider(status.lastProvider));
         data.canRefresh = status.canRefresh;
         data.lastApprovalTimestamp = status.lastApprovalTimestamp;
