@@ -34,6 +34,10 @@ This one is intentional but may initially seem erroneous. If Alice creates a wit
 
 The example given is also an extreme one, in reality it'd much more likely be a fraction of a percent.
 
+**Partial withdrawal-batch payments round down independently**
+
+Each partial payment to a withdrawal batch is rounded down independently, which can result in a rounding loss of less than one atomic unit of the underlying asset per payment. This is accepted because the Foundation controls which assets are listed and can exclude assets for which one atomic unit has material value.
+
 **Bad hooks implementations**
 
 If any of the hooks that are enabled for a market can revert unexpectedly, the corresponding market function may become permanently disabled. This is considered a known/unfixable issue with respect to the market, but if such an issue is actually discovered in a hooks template we have developed, this is a major vulnerability that should be reported.
