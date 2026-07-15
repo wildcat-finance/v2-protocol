@@ -2,7 +2,9 @@
 pragma solidity >=0.8.20;
 
 import { Wildcat4626Wrapper } from './Wildcat4626Wrapper.sol';
+import { IMarketTransferPolicy } from '../access/IMarketTransferPolicy.sol';
 import { IWildcatArchController } from '../interfaces/IWildcatArchController.sol';
+import { HooksConfig } from '../types/HooksConfig.sol';
 
 interface IMarketRounding {
   function scaledTransferRounding() external view returns (bytes32);
@@ -10,6 +12,8 @@ interface IMarketRounding {
 
 interface IWrapperAwareMarket {
   function registerWrapper(address wrapper) external;
+
+  function hooks() external view returns (HooksConfig);
 }
 
 interface IWildcat4626WrapperFactoryV1 {
@@ -39,6 +43,8 @@ contract Wildcat4626WrapperFactory {
   error NotRegisteredMarket(address market);
   error LegacyMarketsNotSupported(address market);
   error UnsupportedMarketRounding(address market, bytes32 rounding);
+  error UnsupportedMarketTransferPolicy(address market, address hooks);
+  error MarketTransfersDisabled(address market);
   error InvalidV1Factory(address v1Factory);
 
   event WrapperDeployed(address indexed market, address indexed wrapper);
@@ -93,6 +99,18 @@ contract Wildcat4626WrapperFactory {
     return declared && rounding == FloorRounding;
   }
 
+  function _isMarketTransferDisabled(address market) internal view returns (bool) {
+    HooksConfig marketHooks = IWrapperAwareMarket(market).hooks();
+    address hooksAddress = marketHooks.hooksAddress();
+    try IMarketTransferPolicy(hooksAddress).isMarketTransferDisabled(market) returns (
+      bool transfersDisabled
+    ) {
+      return transfersDisabled;
+    } catch {
+      revert UnsupportedMarketTransferPolicy(market, hooksAddress);
+    }
+  }
+
   /// @notice Wrapper for `market`, whichever factory generation deployed it.
   ///         Locally recorded wrappers always resolve, regardless of what the
   ///         market's rounding probe answers later. Markets declaring any
@@ -128,6 +146,7 @@ contract Wildcat4626WrapperFactory {
     if (rounding != FloorRounding) revert UnsupportedMarketRounding(market, rounding);
 
     if (!archController.isRegisteredMarket(market)) revert NotRegisteredMarket(market);
+    if (_isMarketTransferDisabled(market)) revert MarketTransfersDisabled(market);
 
     wrapper = address(new Wildcat4626Wrapper(market));
     _wrapperForMarket[market] = wrapper;

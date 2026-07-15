@@ -222,6 +222,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
     assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
+    assertFalse(hooks.isMarketTransferDisabled(address(1)), 'transfer policy');
   }
 
   function test_onCreateMarket_setMinimumDeposit_Zero() external {
@@ -290,6 +291,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     assertEq(market.minimumDeposit, 0, 'minimumDeposit');
     assertEq(market.transfersDisabled, true, 'transfersDisabled');
     assertTrue(config.useOnTransfer(), 'useOnTransfer');
+    assertTrue(hooks.isMarketTransferDisabled(address(1)), 'transfer policy');
   }
 
   function test_onTransfer_TransfersDisabled() external {

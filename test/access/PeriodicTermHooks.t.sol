@@ -466,6 +466,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     );
     assertEq(market.periodDuration, PeriodDuration, 'periodDuration');
     assertEq(market.withdrawalWindowDuration, WithdrawalWindowDuration, 'withdrawalWindowDuration');
+    assertFalse(hooks.isMarketTransferDisabled(Market), 'transfer policy');
   }
 
   function test_onCreateMarket_disableTransfers() external {
@@ -496,6 +497,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     assertEq(config, expectedConfig, 'config');
     assertEq(market.transfersDisabled, true, 'transfersDisabled');
     assertTrue(config.useOnTransfer(), 'useOnTransfer');
+    assertTrue(hooks.isMarketTransferDisabled(Market), 'transfer policy');
   }
 
   function test_onCreateMarket_InvalidAccessConfiguration() external {

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import './MarketConstraintHooks.sol';
+import './IMarketTransferPolicy.sol';
 import '../libraries/SafeCastLib.sol';
 import './BaseAccessControls.sol';
 
@@ -66,7 +67,7 @@ interface IMarketApr {
  *      applied after that window ends, before the proposal expires and with
  *      no unpaid withdrawal batches outstanding.
  */
-contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
+contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
@@ -387,6 +388,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   // ========================================================================== //
   //                               Market Queries                               //
   // ========================================================================== //
+
+  function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return market.transfersDisabled;
+  }
 
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
     return _hookedMarkets[marketAddress];

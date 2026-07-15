@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import './MarketConstraintHooks.sol';
+import './IMarketTransferPolicy.sol';
 import '../libraries/SafeCastLib.sol';
 import './BaseAccessControls.sol';
 
@@ -30,7 +31,7 @@ struct HookedMarket {
  *
  *      Deposit access may be canceled by the borrower.
  */
-contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
+contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
@@ -204,6 +205,12 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
   // ========================================================================== //
   //                               Market Queries                               //
   // ========================================================================== //
+
+  function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return market.transfersDisabled;
+  }
 
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
     return _hookedMarkets[marketAddress];

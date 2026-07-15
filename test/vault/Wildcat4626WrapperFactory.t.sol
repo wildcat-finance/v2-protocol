@@ -6,6 +6,7 @@ import 'forge-std/Test.sol';
 import { Wildcat4626Wrapper, IWildcatMarketToken } from 'src/vault/Wildcat4626Wrapper.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
+import { HooksConfig, EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 
 contract StubSanctionsSentinel {
   function isSanctioned(address, address) external pure returns (bool) {
@@ -23,6 +24,8 @@ contract StubMarketToken is IWildcatMarketToken {
   address public immutable override sentinel;
   address public immutable override wrapperFactory;
   address public registeredWrapper;
+  address public hooksAddress;
+  bool public transfersDisabled;
   bool internal immutable _declaresFloorRounding;
 
   mapping(address => uint256) internal _balances;
@@ -38,6 +41,24 @@ contract StubMarketToken is IWildcatMarketToken {
     sentinel = sentinel_;
     _declaresFloorRounding = declaresFloorRounding_;
     wrapperFactory = wrapperFactory_;
+    hooksAddress = address(this);
+  }
+
+  function hooks() external view returns (HooksConfig) {
+    return EmptyHooksConfig.setHooksAddress(hooksAddress);
+  }
+
+  function setHooksAddress(address hooksAddress_) external {
+    hooksAddress = hooksAddress_;
+  }
+
+  function setTransfersDisabled(bool transfersDisabled_) external {
+    transfersDisabled = transfersDisabled_;
+  }
+
+  function isMarketTransferDisabled(address market) external view returns (bool) {
+    require(market == address(this), 'UNKNOWN_MARKET');
+    return transfersDisabled;
   }
 
   function registerWrapper(address wrapper) external {
@@ -296,6 +317,35 @@ contract Wildcat4626WrapperFactoryTest is Test {
     assertEq(factory.wrapperForMarket(address(market)), wrapperAddr, 'wrapper recorded');
     assertEq(market.registeredWrapper(), wrapperAddr, 'wrapper not registered in market');
     assertEq(Wildcat4626Wrapper(wrapperAddr).asset(), address(market), 'wrapper asset');
+  }
+
+  function test_createWrapperRejectsTransferDisabledMarket() external {
+    market.setTransfersDisabled(true);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626WrapperFactory.MarketTransfersDisabled.selector,
+        address(market)
+      )
+    );
+    factory.createWrapper(address(market));
+    assertEq(factory.wrapperForMarket(address(market)), address(0), 'wrapper recorded');
+    assertEq(market.registeredWrapper(), address(0), 'wrapper registered');
+  }
+
+  function test_createWrapperRejectsUnsupportedTransferPolicy() external {
+    market.setHooksAddress(address(sanctionsSentinel));
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626WrapperFactory.UnsupportedMarketTransferPolicy.selector,
+        address(market),
+        address(sanctionsSentinel)
+      )
+    );
+    factory.createWrapper(address(market));
+    assertEq(factory.wrapperForMarket(address(market)), address(0), 'wrapper recorded');
+    assertEq(market.registeredWrapper(), address(0), 'wrapper registered');
   }
 
   function test_wrapperCannotBeDeployedOutsideCanonicalFactory() external {

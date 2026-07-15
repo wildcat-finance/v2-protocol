@@ -27,6 +27,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 - Wrapper execution paths converted to floor-consistent arithmetic matching v2.5 market transfers (previews keep their spec rounding); `maxDeposit`/`maxMint`/`maxWithdraw` are exact and executable whenever nonzero.
 - `Wildcat4626WrapperFactory` is now a permanent generation facade: it wraps floor-rounding (v2.5+) markets locally, forwards pre-v2.5 markets to the previously deployed v1 factory for creation and discovery, and rejects unknown future rounding markers. See [EIP-4626](./EIP-4626.md).
+- Canonical wrapper creation fails closed unless a v2.5 market's hooks expose the generic transfer-policy capability, and rejects markets whose transfers are permanently disabled.
 
 ### Lens
 

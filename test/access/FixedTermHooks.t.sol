@@ -270,6 +270,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(market.depositRequiresAccess, false, 'depositRequiresAccess');
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
+    assertFalse(hooks.isMarketTransferDisabled(address(1)), 'transfer policy');
   }
 
   function test_onCreateMarket_disableTransfers() external {
@@ -308,6 +309,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 365 days), 'fixedTermEndTime');
     assertEq(market.transfersDisabled, true, 'transfersDisabled');
     assertTrue(config.useOnTransfer(), 'useOnTransfer');
+    assertTrue(hooks.isMarketTransferDisabled(address(1)), 'transfer policy');
   }
 
   function test_onTransfer_TransfersDisabled() external {
