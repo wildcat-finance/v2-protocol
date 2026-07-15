@@ -55,10 +55,9 @@ library WithdrawalBatchDataLib {
     data.scaledTotalAmount = batch.scaledTotalAmount;
     data.scaledAmountBurned = batch.scaledAmountBurned;
     data.normalizedAmountPaid = batch.normalizedAmountPaid;
-    if (expiry >= block.timestamp) {
-      data.status = BatchStatus.Pending;
-    } else if (expiry > market.previousState().lastInterestAccruedTimestamp) {
-      data.status = BatchStatus.Expired;
+    bool isPendingBatch = expiry != 0 && expiry == market.previousState().pendingWithdrawalExpiry;
+    if (isPendingBatch) {
+      data.status = expiry >= block.timestamp ? BatchStatus.Pending : BatchStatus.Expired;
     } else {
       data.status = data.scaledAmountBurned == data.scaledTotalAmount
         ? BatchStatus.Complete

@@ -1003,13 +1003,14 @@ contract MarketDataTest is BaseMarketTest {
 
   function checkWithdrawalBatchData(WithdrawalBatchData memory data, uint32 expiry) internal view {
     WithdrawalBatch memory batch = market.getWithdrawalBatch(expiry);
+    bool isPendingBatch = expiry != 0 && expiry == market.previousState().pendingWithdrawalExpiry;
     assertEq(data.expiry, expiry, 'expiry');
 
     assertEq(
       uint256(data.status),
       uint256(
-        expiry > block.timestamp
-          ? BatchStatus.Pending
+        isPendingBatch
+          ? expiry >= block.timestamp ? BatchStatus.Pending : BatchStatus.Expired
           : batch.scaledTotalAmount == batch.scaledAmountBurned
           ? BatchStatus.Complete
           : BatchStatus.Unpaid
@@ -1051,6 +1052,33 @@ contract MarketDataTest is BaseMarketTest {
     WithdrawalBatchData memory data = lens.getWithdrawalBatchData(address(market), expiry);
 
     assertEq(uint256(data.status), uint256(BatchStatus.Expired), 'status');
+  }
+
+  function test_getWithdrawalBatchData_StatusCompleteWhenClosedBeforeExpiry() external {
+    _deposit(alice, 1e18);
+    uint32 expiry = _requestWithdrawal(alice, 1e18);
+    assertGt(expiry, block.timestamp, 'batch is not future-dated');
+
+    _closeMarket();
+    assertEq(market.previousState().pendingWithdrawalExpiry, 0, 'batch is still pending');
+
+    WithdrawalBatchData memory data = lens.getWithdrawalBatchData(address(market), expiry);
+    assertEq(uint256(data.status), uint256(BatchStatus.Complete), 'status');
+
+    vm.prank(alice);
+    assertEq(market.executeWithdrawal(alice, expiry), data.normalizedAmountPaid, 'withdrawal');
+  }
+
+  function test_getWithdrawalBatchData_StatusPendingForNewClosedMarketBatch() external {
+    _deposit(alice, 1e18);
+    _closeMarket();
+
+    vm.prank(alice);
+    uint32 expiry = market.queueFullWithdrawal();
+    assertEq(expiry, uint32(block.timestamp), 'batch expiry');
+
+    WithdrawalBatchData memory data = lens.getWithdrawalBatchData(address(market), expiry);
+    assertEq(uint256(data.status), uint256(BatchStatus.Pending), 'status');
   }
 
   function checkWithdrawalBatchLenderStatus(
