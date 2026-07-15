@@ -31,6 +31,7 @@ struct HooksConfigData {
   bool useOnSetMaxTotalSupply;
   bool useOnSetAnnualInterestAndReserveRatioBips;
   bool useOnSetProtocolFeeBips;
+  bool useOnExecutePendingAnnualInterestBipsReduction;
 }
 
 struct HooksDeploymentFlags {
@@ -127,6 +128,8 @@ library HooksConfigDataLib {
     data.useOnSetAnnualInterestAndReserveRatioBips = hooksConfig
       .useOnSetAnnualInterestAndReserveRatioBips();
     data.useOnSetProtocolFeeBips = hooksConfig.useOnSetProtocolFeeBips();
+    data.useOnExecutePendingAnnualInterestBipsReduction = hooksConfig
+      .useOnExecutePendingAnnualInterestBipsReduction();
   }
 
   function fill(HooksDeploymentFlags memory data, HooksDeploymentConfig config) internal pure {

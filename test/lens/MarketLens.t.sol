@@ -600,6 +600,21 @@ contract MarketDataTest is BaseMarketTest {
       actual.useOnSetProtocolFeeBips,
       string.concat(labelPrefix, 'useOnSetProtocolFeeBips')
     );
+    assertEq(
+      expected.useOnExecutePendingAnnualInterestBipsReduction(),
+      actual.useOnExecutePendingAnnualInterestBipsReduction,
+      string.concat(labelPrefix, 'useOnExecutePendingAnnualInterestBipsReduction')
+    );
+  }
+
+  function test_HooksConfigDataFill_IncludesExecutePendingAprReductionFlag() external pure {
+    HooksConfigData memory data;
+    data.fill(EmptyHooksConfig.setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction));
+    assertEq(abi.encode(data).length, 12 * 32, 'encoded flag count');
+    assertTrue(
+      data.useOnExecutePendingAnnualInterestBipsReduction,
+      'execute pending APR reduction flag'
+    );
   }
 
   function applyFuzzInputs(MarketConfigFuzzInputs memory inputs) internal {
@@ -904,6 +919,7 @@ contract MarketDataTest is BaseMarketTest {
     PeriodicTermLensFixture memory fixture = deployPeriodicTermMarket();
 
     MarketData memory data = lens.getMarketData(address(fixture.market));
+    checkHooksConfigFlags(data.hooksConfig.flags, fixture.market.hooks(), 'periodic market ');
 
     assertEq(
       uint256(data.hooksConfig.kind),
@@ -952,6 +968,17 @@ contract MarketDataTest is BaseMarketTest {
         assertEq(data[i].borrower, borrower, 'periodic borrower');
         assertEq(data[i].hooksTemplate.hooksTemplate, fixture.template, 'periodic template');
         assertEq(data[i].hooksTemplate.name, 'PeriodicTermHooks', 'periodic template name');
+        HooksDeploymentConfig deploymentConfig = fixture.hooks.config();
+        checkHooksConfigFlags(
+          data[i].deploymentFlags.optional,
+          deploymentConfig.optionalFlags(),
+          'periodic optional '
+        );
+        checkHooksConfigFlags(
+          data[i].deploymentFlags.required,
+          deploymentConfig.requiredFlags(),
+          'periodic required '
+        );
         assertEq(data[i].totalMarkets, 1, 'periodic totalMarkets');
       }
     }
