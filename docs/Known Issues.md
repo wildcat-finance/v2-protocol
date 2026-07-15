@@ -10,13 +10,24 @@ interest or delinquency fees accrue. The checked casts in `FeeMath` and
 scale factor exceeds `uint112.max`. Because market operations accrue interest
 before applying their own state transitions, a market that reaches this limit
 cannot use the ordinary close, rate-change, transfer, or withdrawal paths.
+The failed transaction leaves the previous state unchanged, so accounting does
+not wrap or truncate, but this is fail-closed liveness rather than a recovery
+path.
 
-This finite lifetime is a known and accepted limitation. Under the theoretical
-code maximum of 100% APR plus a 100% delinquency fee, maximally frequent updates
-reach the limit after approximately 7.7 years. At a 28% cumulative rate the
-horizon exceeds 55 years, and at typical 10-15% cumulative rates it exceeds 100
-years. Markets are expected to close or reduce their rates long before reaching
-the representation limit.
+This finite lifetime is a known and accepted limitation. For standard
+(non-revolving) markets, the theoretical code maximum of 100% APR plus a 100%
+delinquency fee reaches the limit after approximately 7.7 years under maximally
+frequent updates.
+
+For a fully drawn revolving (RCF) market, the theoretical code maximum of a
+100% commitment fee, 100% APR, and 100% delinquency fee reaches the limit after
+approximately 5.15 years under maximally frequent updates.
+
+A 100% setting for any of these rate components is already economically
+impractical. At a 28% cumulative rate the horizon exceeds 55 years, and at
+typical 10-15% cumulative rates it exceeds 100 years. Markets are expected to
+close, reduce their rates, or provide a replacement market for lenders to
+migrate to long before reaching the representation limit.
 
 Reports that only restate this finite `uint112` horizon are duplicates of this
 known issue. A path that reaches the limit materially earlier, bypasses the
