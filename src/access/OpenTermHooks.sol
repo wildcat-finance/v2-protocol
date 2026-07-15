@@ -42,6 +42,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
 
   error NotHookedMarket();
   error DepositBelowMinimum();
+  error DepositHookNotEnabled();
   error InvalidAccessConfiguration();
   error TransfersDisabled();
 
@@ -52,6 +53,8 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
   HooksDeploymentConfig public immutable override config;
 
   mapping(address => HookedMarket) internal _hookedMarkets;
+  // Tracks immutable deposit-hook dispatch without changing the public HookedMarket ABI.
+  mapping(address => bool) internal _depositHookEnabled;
 
   // ========================================================================== //
   //                                 Constructor                                //
@@ -173,6 +176,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
       );
     }
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
+    _depositHookEnabled[marketAddress] = marketHooksConfig.useOnDeposit();
     _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
 
@@ -181,12 +185,18 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks {
   // ========================================================================== //
 
   /**
-   * @dev Borrower-only setter for a hooked market's minimum deposit.
+   * @notice Sets the minimum deposit for a market created by this hooks instance.
+   * @dev Market hook dispatch flags are immutable after deployment. A positive
+   *      minimum is enforceable only if `onDeposit` was enabled when the market
+   *      was created. A positive initial minimum enables it automatically. A
+   *      market created with a zero minimum and `onDeposit` disabled cannot
+   *      later adopt a positive minimum.
    *      Reverts if `market` was not created with this hooks instance.
    */
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
     hookedMarket.minimumDeposit = newMinimumDeposit;
     emit MinimumDepositUpdated(market, newMinimumDeposit);
   }

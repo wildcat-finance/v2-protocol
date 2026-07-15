@@ -400,6 +400,18 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
   }
 
+  function test_setMinimumDeposit_DepositHookNotEnabled() external {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
+    HooksConfig config = hooks.onCreateMarket(address(this), address(1), inputs, '');
+    assertEq(config.useOnDeposit(), false, 'useOnDeposit');
+
+    vm.expectRevert(OpenTermHooks.DepositHookNotEnabled.selector);
+    hooks.setMinimumDeposit(address(1), 1);
+
+    hooks.setMinimumDeposit(address(1), 0);
+  }
+
   function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
     vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
     hooks.setMinimumDeposit(address(1), 1);

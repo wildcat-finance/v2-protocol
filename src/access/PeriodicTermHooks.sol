@@ -320,6 +320,15 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                              Market Management                             //
   // ========================================================================== //
 
+  /**
+   * @notice Sets the minimum deposit for a market created by this hooks instance.
+   * @dev Market hook dispatch flags are immutable after deployment. A positive
+   *      minimum is enforceable only if `onDeposit` was enabled when the market
+   *      was created. A positive initial minimum enables it automatically. A
+   *      market created with a zero minimum and `onDeposit` disabled cannot
+   *      later adopt a positive minimum.
+   *      Reverts if `market` was not created with this hooks instance.
+   */
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();

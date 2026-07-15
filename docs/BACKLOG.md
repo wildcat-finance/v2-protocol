@@ -74,6 +74,32 @@ adjustment cannot be applied to one template and missed in the others.
 Deferred because hoisting moves the `DepositBelowMinimum` declaration and
 touches test error references late in the release cycle.
 
+## Minimum-deposit deployment documentation
+
+Document the creation-time deposit-hook constraint in the SDK, app deployment
+flow, and user-facing market configuration guidance. A positive initial
+minimum enables `onDeposit` automatically. If a market starts with a zero
+minimum but may need a positive minimum later, `onDeposit` must still be
+enabled at creation because the market's hook dispatch flags cannot be changed
+after deployment.
+
+## Hooked-market ABI unification
+
+OpenTermHooks and FixedTermHooks currently track whether deposit-hook dispatch
+is enabled in a private `_depositHookEnabled` mapping, preserving their
+historical `HookedMarket` getter ABIs. PeriodicTermHooks stores the equivalent
+`depositHookEnabled` value in its public `HookedMarket` struct. This is an
+intentional v2.5 compatibility choice, not the desired long-term precedent for
+each new hooks type.
+
+Before the next hooks-template release, review the current lens, SDK,
+subgraphs, app, and historical deployed hooks together and choose a versioned
+ABI strategy. In particular, evaluate adding `templateVersion()` to OpenTerm
+and FixedTerm, supporting both legacy and revised tuples in the lens, and
+normalizing shared hooked-market fields across hook types. The review must
+also cover the dynamic-array getter encoding and direct SDK/subgraph reads;
+checking only the single-market lens path is insufficient.
+
 ## Lens
 
 - `MarketLensCore` and `MarketLensLive` store `archController` / `hooksFactory`
