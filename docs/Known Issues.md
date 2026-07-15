@@ -38,6 +38,10 @@ The example given is also an extreme one, in reality it'd much more likely be a 
 
 Each partial payment to a withdrawal batch is rounded down independently, which can result in a rounding loss of less than one atomic unit of the underlying asset per payment. This is accepted because the Foundation controls which assets are listed and can exclude assets for which one atomic unit has material value.
 
+**Protocol fees round independently on each accrual**
+
+Each state update rounds protocol fees independently to the nearest atomic unit without carrying fractional remainders. Frequent updates can therefore reduce aggregate protocol fees, including rounding an interval below half an atomic unit to zero; lender interest is unaffected. This is accepted because the Foundation controls which assets are listed and can exclude assets for which one atomic unit has material value.
+
 **Bad hooks implementations**
 
 If any of the hooks that are enabled for a market can revert unexpectedly, the corresponding market function may become permanently disabled. This is considered a known/unfixable issue with respect to the market, but if such an issue is actually discovered in a hooks template we have developed, this is a major vulnerability that should be reported.
