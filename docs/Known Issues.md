@@ -53,6 +53,10 @@ Each partial payment to a withdrawal batch is rounded down independently, which 
 
 Each state update rounds protocol fees independently to the nearest atomic unit without carrying fractional remainders. Frequent updates can therefore reduce aggregate protocol fees, including rounding an interval below half an atomic unit to zero; lender interest is unaffected. This is accepted because the Foundation controls which assets are listed and can exclude assets for which one atomic unit has material value.
 
+**Fee-recipient updates apply only to new markets**
+
+A market's fee recipient is immutable. Updating template fees changes the recipient for subsequently deployed markets, while pushing protocol fee bips to existing markets changes only their rate; this is expected behavior. Markets may intentionally be deployed with a zero rate and zero recipient, but operators must not later push a positive rate to such a market because accrued fees would be reserved but could not be collected.
+
 **Bad hooks implementations**
 
 If any of the hooks that are enabled for a market can revert unexpectedly, the corresponding market function may become permanently disabled. This is considered a known/unfixable issue with respect to the market, but if such an issue is actually discovered in a hooks template we have developed, this is a major vulnerability that should be reported.
