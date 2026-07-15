@@ -18,6 +18,8 @@ interface IWildcatMarketToken is IERC20Metadata {
   function maxTotalSupply() external view returns (uint256);
 
   function sentinel() external view returns (address);
+
+  function wrapperFactory() external view returns (address);
 }
 
 /**
@@ -42,6 +44,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   error SanctionedAccount(address account);
   error AccountNotSanctioned(address account);
   error CannotNukeWrapper();
+  error NotWrapperFactory();
   error InsolventWrapper(uint256 scaledBacking, uint256 shareSupply);
 
   IWildcatMarketToken public immutable wrappedMarket;
@@ -59,6 +62,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (marketAddress == address(0)) revert ZeroAddress();
 
     wrappedMarket = IWildcatMarketToken(marketAddress);
+    if (msg.sender != wrappedMarket.wrapperFactory()) revert NotWrapperFactory();
     address owner = wrappedMarket.borrower();
     if (owner == address(0)) revert ZeroAddress();
     address sentinel = wrappedMarket.sentinel();

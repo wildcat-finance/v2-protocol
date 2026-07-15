@@ -3,6 +3,36 @@ pragma solidity ^0.8.20;
 
 uint256 constant MaxSupplyExceeded_ErrorSelector = 0x8a164f63;
 
+uint256 constant NotWrapperFactory_ErrorSelector = 0x3780ab27;
+
+/// @dev Equivalent to `revert NotWrapperFactory()`
+function revert_NotWrapperFactory() pure {
+  assembly {
+    mstore(0, 0x3780ab27)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant WrapperAlreadyRegistered_ErrorSelector = 0xbcfd1f3a;
+
+/// @dev Equivalent to `revert WrapperAlreadyRegistered()`
+function revert_WrapperAlreadyRegistered() pure {
+  assembly {
+    mstore(0, 0xbcfd1f3a)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant CannotNukeWrapper_ErrorSelector = 0x812ab045;
+
+/// @dev Equivalent to `revert CannotNukeWrapper()`
+function revert_CannotNukeWrapper() pure {
+  assembly {
+    mstore(0, 0x812ab045)
+    revert(0x1c, 0x04)
+  }
+}
+
 /// @dev Equivalent to `revert MaxSupplyExceeded()`
 function revert_MaxSupplyExceeded() pure {
   assembly {

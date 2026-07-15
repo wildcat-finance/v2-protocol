@@ -4,15 +4,15 @@ pragma solidity >=0.8.20;
 /**
  * Environment:
  * - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
- *   ARCH_CONTROLLER, and SKIP_EIP1153_CHECK. Script 01 must precede this script.
+ *   ARCH_CONTROLLER, and SKIP_EIP1153_CHECK. Script 02 must precede this script.
  * - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
  *   PVT_KEY_<NETWORK> (unless Foundry already has a configured sender).
  * - Plan: OWNER_MODE=plan and EXPECTED_EXECUTOR; no private key is required.
  *
  * Direct example:
- *   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/03-deploy-market-lens.s.sol:DeployMarketLensV25 --rpc-url $RPC_URL --broadcast
+ *   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25 --rpc-url $RPC_URL --broadcast
  * Plan example:
- *   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/03-deploy-market-lens.s.sol:DeployMarketLensV25
+ *   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25
  */
 
 import { console } from 'forge-std/console.sol';
@@ -87,7 +87,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
   function _writePlanEntries(Deployments memory deployments, address archController) internal {
     _writeHelperPlanEntry(
       deployments,
-      5,
+      6,
       CORE_ENTRY_ID,
       CORE_ARTIFACT,
       CORE_OUTPUT,
@@ -97,7 +97,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     );
     _writeHelperPlanEntry(
       deployments,
-      6,
+      7,
       AGGREGATOR_ENTRY_ID,
       AGGREGATOR_ARTIFACT,
       AGGREGATOR_OUTPUT,
@@ -107,7 +107,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     );
     _writeHelperPlanEntry(
       deployments,
-      7,
+      8,
       LIVE_ENTRY_ID,
       LIVE_ARTIFACT,
       LIVE_OUTPUT,
@@ -119,7 +119,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string[] memory facadeAfter = new string[](1);
     facadeAfter[0] = LIVE_ENTRY_ID;
     DeployPlanEntry memory facadeEntry;
-    facadeEntry.sequence = 8;
+    facadeEntry.sequence = 9;
     facadeEntry.id = FACADE_ENTRY_ID;
     facadeEntry.artifactName = FACADE_ARTIFACT;
     facadeEntry.decodedConstructorArgs = string.concat(
@@ -284,17 +284,17 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string memory networkName,
     LensSet memory lens
   ) internal {
-    _writeInventoryRecord(deployments, networkName, 5, 'MarketLensCore', 'core', lens.core);
+    _writeInventoryRecord(deployments, networkName, 6, 'MarketLensCore', 'core', lens.core);
     _writeInventoryRecord(
       deployments,
       networkName,
-      6,
+      7,
       'MarketLensAggregator',
       'aggregator',
       lens.aggregator
     );
-    _writeInventoryRecord(deployments, networkName, 7, 'MarketLensLive', 'live', lens.live);
-    _writeInventoryRecord(deployments, networkName, 8, 'MarketLens', 'facade', lens.facade);
+    _writeInventoryRecord(deployments, networkName, 8, 'MarketLensLive', 'live', lens.live);
+    _writeInventoryRecord(deployments, networkName, 9, 'MarketLens', 'facade', lens.facade);
   }
 
   function _writePlanInventoryRecord(
@@ -326,17 +326,17 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     Deployments memory deployments,
     string memory networkName
   ) internal {
-    _writePlanInventoryRecord(deployments, networkName, 5, 'MarketLensCore', 'core', CORE_OUTPUT);
+    _writePlanInventoryRecord(deployments, networkName, 6, 'MarketLensCore', 'core', CORE_OUTPUT);
     _writePlanInventoryRecord(
       deployments,
       networkName,
-      6,
+      7,
       'MarketLensAggregator',
       'aggregator',
       AGGREGATOR_OUTPUT
     );
-    _writePlanInventoryRecord(deployments, networkName, 7, 'MarketLensLive', 'live', LIVE_OUTPUT);
-    _writePlanInventoryRecord(deployments, networkName, 8, 'MarketLens', 'facade', FACADE_OUTPUT);
+    _writePlanInventoryRecord(deployments, networkName, 8, 'MarketLensLive', 'live', LIVE_OUTPUT);
+    _writePlanInventoryRecord(deployments, networkName, 9, 'MarketLens', 'facade', FACADE_OUTPUT);
   }
 
   function run() external {
@@ -357,7 +357,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     _assertEip1153Supported();
     string memory factoryLabel = _label('HooksFactory');
     if (!deployments.has(factoryLabel)) {
-      revert(string.concat('Missing ', factoryLabel, '; run deployment script 01 first'));
+      revert(string.concat('Missing ', factoryLabel, '; run deployment script 02 first'));
     }
     address hooksFactory = deployments.get(factoryLabel);
     _requireCode(hooksFactory, factoryLabel);

@@ -58,6 +58,7 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
     HooksFactory hooksFactory = new HooksFactory(
       address(archController),
       address(sanctionsSentinel),
+      address(this),
       marketTemplate,
       marketInitCodeHash
     );
@@ -110,6 +111,7 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
     HooksFactoryRevolving hooksFactory = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
+      address(this),
       marketTemplate,
       marketInitCodeHash
     );

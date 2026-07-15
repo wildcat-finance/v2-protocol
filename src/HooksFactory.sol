@@ -45,6 +45,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   address public immutable override sanctionsSentinel;
 
+  address public immutable override wrapperFactory;
+
   /**
    * @dev Return the contract name "WildcatHooksFactory"
    */
@@ -92,6 +94,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   constructor(
     address archController_,
     address _sanctionsSentinel,
+    address _wrapperFactory,
     address _marketInitCodeStorage,
     uint256 _marketInitCodeHash
   ) {
@@ -99,6 +102,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     marketInitCodeHash = _marketInitCodeHash;
     _archController = archController_;
     sanctionsSentinel = _sanctionsSentinel;
+    wrapperFactory = _wrapperFactory;
     __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
   }
 
@@ -440,6 +444,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.borrower = tmp.borrower;
     parameters.feeRecipient = tmp.feeRecipient;
     parameters.sentinel = sanctionsSentinel;
+    parameters.wrapperFactory = wrapperFactory;
     parameters.maxTotalSupply = tmp.maxTotalSupply;
     parameters.protocolFeeBips = tmp.protocolFeeBips;
     parameters.annualInterestBips = tmp.annualInterestBips;

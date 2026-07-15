@@ -83,6 +83,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   function sanctionsSentinel() external view returns (address);
 
+  function wrapperFactory() external view returns (address);
+
   function marketInitCodeStorage() external view returns (address);
 
   function marketInitCodeHash() external view returns (uint256);

@@ -5,6 +5,7 @@ import './MarketConfigMatrix.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.sol';
+import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
 import { MockChainalysis } from '../shared/mocks/MockChainalysis.sol';
 
 contract WrapperSanctionsScenariosTest is MarketConfigMatrix {
@@ -20,14 +21,8 @@ contract WrapperSanctionsScenariosTest is MarketConfigMatrix {
     return wrapper;
   }
 
-  function _deployLateWrapper(
-    DeployedCell memory d
-  ) internal returns (Wildcat4626Wrapper wrapper) {
-    Wildcat4626WrapperFactory lateFactory = new Wildcat4626WrapperFactory(
-      address(archController),
-      address(0)
-    );
-    wrapper = Wildcat4626Wrapper(lateFactory.createWrapper(address(d.market)));
+  function _deployLateWrapper(DeployedCell memory d) internal returns (Wildcat4626Wrapper wrapper) {
+    wrapper = Wildcat4626Wrapper(wrapperFactory.createWrapper(address(d.market)));
     return _configureWrapper(d, wrapper);
   }
 
@@ -46,6 +41,22 @@ contract WrapperSanctionsScenariosTest is MarketConfigMatrix {
 
   function _clearChainalysisSanction(address account) internal {
     MockChainalysis(sanctionsSentinel.chainalysisSanctionsList()).unsanction(account);
+  }
+
+  function test_wrapperRegistrationIsFactoryOnlyAndOneTime() external {
+    DeployedCell memory d = deployCell(
+      defaultCell(MatrixHooksKind.OpenTerm, MatrixMarketKind.Standard)
+    );
+
+    vm.expectRevert(IMarketEventsAndErrors.NotWrapperFactory.selector);
+    d.market.registerWrapper(address(0xBEEF));
+
+    Wildcat4626Wrapper wrapper = _deployLateWrapper(d);
+    assertEq(d.market.registeredWrapper(), address(wrapper), 'canonical wrapper not registered');
+
+    vm.prank(address(wrapperFactory));
+    vm.expectRevert(IMarketEventsAndErrors.WrapperAlreadyRegistered.selector);
+    d.market.registerWrapper(address(0xBEEF));
   }
 
   function test_lateDeployedWrapperCoordinatesDirectAndShareQuarantine() external {
@@ -98,9 +109,7 @@ contract WrapperSanctionsScenariosTest is MarketConfigMatrix {
     assertEq(wrapper.balanceOf(alice), DEPOSIT, 'market call moved wrapper shares');
 
     startPrank(alice);
-    vm.expectRevert(
-      abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, alice)
-    );
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, alice));
     wrapper.transfer(bob, DEPOSIT);
     stopPrank();
 
@@ -237,7 +246,7 @@ contract WrapperSanctionsScenariosTest is MarketConfigMatrix {
     assertEq(wrapper.balanceOf(escrow), DEPOSIT, 'revolving escrow balance mismatch');
   }
 
-  function test_directMarketNukeCannotRecapitalizeInsolventWrapper() external {
+  function test_directMarketNukeCannotRemoveWrapperBacking() external {
     DeployedCell memory d = deployCell(
       defaultCell(MatrixHooksKind.OpenTerm, MatrixMarketKind.Standard)
     );
@@ -245,29 +254,16 @@ contract WrapperSanctionsScenariosTest is MarketConfigMatrix {
     _wrap(d, wrapper, alice, DEPOSIT);
 
     sanctionsSentinel.sanction(address(wrapper));
+    vm.expectRevert(Wildcat4626Wrapper.CannotNukeWrapper.selector);
     d.market.nukeFromOrbit(address(wrapper));
-    assertEq(d.market.scaledBalanceOf(address(wrapper)), 0, 'backing not removed');
-    assertEq(wrapper.totalSupply(), DEPOSIT, 'shares unexpectedly burned');
-
-    _clearChainalysisSanction(address(wrapper));
-    _depositAs(d, bob, DEPOSIT);
-    startPrank(bob);
-    d.market.approve(address(wrapper), DEPOSIT);
-    vm.expectRevert(
-      abi.encodeWithSelector(Wildcat4626Wrapper.InsolventWrapper.selector, 0, DEPOSIT)
-    );
-    wrapper.deposit(DEPOSIT, bob);
-
-    // Recapitalization must be explicit: direct market-token backing restores
-    // the original holders instead of minting new claims against old losses.
-    d.market.transfer(address(wrapper), DEPOSIT);
-    stopPrank();
 
     assertEq(
       d.market.scaledBalanceOf(address(wrapper)),
       wrapper.totalSupply(),
-      'direct recapitalization did not restore solvency'
+      'market nuke changed wrapper backing'
     );
+
+    _clearChainalysisSanction(address(wrapper));
     vm.prank(alice);
     wrapper.redeem(DEPOSIT, alice, alice);
   }

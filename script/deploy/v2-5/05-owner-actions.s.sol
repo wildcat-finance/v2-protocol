@@ -37,7 +37,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
 
   string internal constant STANDARD_FACTORY_OUTPUT = 'hooks-factory-standard';
   string internal constant REVOLVING_FACTORY_OUTPUT = 'hooks-factory-revolving';
-  string internal constant WRAPPER_ENTRY_ID = 'deploy-wildcat-4626-wrapper-factory';
+  string internal constant DEPLOYMENTS_COMPLETE_ENTRY_ID = 'deploy-market-lens';
 
   string internal constant OPEN_STORAGE_ENTRY_ID = 'deploy-open-term-hooks-init-code-storage';
   string internal constant OPEN_STORAGE_OUTPUT = 'open-term-hooks-init-code-storage';
@@ -264,7 +264,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       10,
       OPEN_STORAGE_ENTRY_ID,
       OPEN_STORAGE_OUTPUT,
-      WRAPPER_ENTRY_ID
+      DEPLOYMENTS_COMPLETE_ENTRY_ID
     );
     _writeTemplateStoragePlanEntry(
       deployments,
@@ -486,7 +486,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     string memory standardFactoryLabel = _label('HooksFactory');
     string memory revolvingFactoryLabel = _label('HooksFactoryRevolving');
     if (!deployments.has(standardFactoryLabel) || !deployments.has(revolvingFactoryLabel)) {
-      revert('Missing v2.5 factories; run scripts 01 and 02 first');
+      revert('Missing v2.5 factories; run scripts 02 and 03 first');
     }
     address standardFactory = deployments.get(standardFactoryLabel);
     address revolvingFactory = deployments.get(revolvingFactoryLabel);

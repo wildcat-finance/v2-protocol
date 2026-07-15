@@ -60,6 +60,15 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //                                  Sanctions                                 //
   // ========================================================================== //
 
+  /// @dev Register the optional canonical ERC-4626 wrapper. The wrapper factory
+  ///      calls this atomically during permissionless wrapper deployment.
+  function registerWrapper(address wrapper) external {
+    if (msg.sender != wrapperFactory) revert_NotWrapperFactory();
+    if (registeredWrapper() != address(0)) revert_WrapperAlreadyRegistered();
+    _setAddress(REGISTERED_WRAPPER_STORAGE_SLOT, wrapper);
+    emit WrapperRegistered(wrapper);
+  }
+
   /// @dev Block a sanctioned account from interacting with the market
   ///      and transfer its balance to an escrow contract.
   // ******************************************************************
@@ -85,6 +94,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //   /\     * 💰/\ 💰  * 💰/\ 💰  *    _____.,-#%&$@%#&#~,._____   *
   // ******************************************************************
   function nukeFromOrbit(address accountAddress) external nonReentrant sphereXGuardExternal {
+    if (accountAddress != address(0) && accountAddress == registeredWrapper()) {
+      revert_CannotNukeWrapper();
+    }
     if (!_isSanctioned(accountAddress)) revert_BadLaunchCode();
     MarketState memory state = _getUpdatedState();
     hooks.onNukeFromOrbit(accountAddress, state);

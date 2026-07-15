@@ -15,6 +15,7 @@ struct MarketParameters {
   address borrower;
   address feeRecipient;
   address sentinel;
+  address wrapperFactory;
   uint128 maxTotalSupply;
   uint16 protocolFeeBips;
   uint16 annualInterestBips;

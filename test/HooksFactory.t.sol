@@ -92,6 +92,7 @@ contract HooksFactoryTest is Test, Assertions {
     hooksFactory = new HooksFactory(
       address(archController),
       sanctionsSentinel,
+      address(this),
       marketTemplate,
       marketInitCodeHash
     );
@@ -1089,6 +1090,7 @@ contract HooksFactoryTest is Test, Assertions {
     IHooksFactory badFactory = new HooksFactory(
       address(archController),
       sanctionsSentinel,
+      address(this),
       marketTemplate,
       uint256(keccak256('stale market init code hash'))
     );

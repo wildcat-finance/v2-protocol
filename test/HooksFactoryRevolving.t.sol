@@ -47,6 +47,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     hooksFactoryRevolving = new HooksFactoryRevolving(
       address(archController),
       sanctionsSentinel,
+      address(this),
       marketTemplate,
       marketInitCodeHash
     );
@@ -519,6 +520,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     IHooksFactoryRevolving badFactory = new HooksFactoryRevolving(
       address(archController),
       sanctionsSentinel,
+      address(this),
       marketTemplate,
       uint256(keccak256('stale revolving market init code hash'))
     );

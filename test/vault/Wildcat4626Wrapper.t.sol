@@ -63,6 +63,7 @@ contract MockMarketToken is IWildcatMarketToken {
   uint256 public override scaleFactor;
   address public immutable override borrower;
   address public immutable override sentinel;
+  address public immutable override wrapperFactory;
 
   mapping(address => uint256) internal _scaledBalances;
   mapping(address => mapping(address => uint256)) public override allowance;
@@ -74,6 +75,7 @@ contract MockMarketToken is IWildcatMarketToken {
     scaleFactor = RAY;
     borrower = borrower_;
     sentinel = sentinel_;
+    wrapperFactory = msg.sender;
   }
 
   function balanceOf(address account) public view override returns (uint256) {
@@ -191,9 +193,7 @@ contract Wildcat4626WrapperTest is Test {
   }
 
   function test_nukeFromOrbitRevertsForUnsanctionedAccount() external {
-    vm.expectRevert(
-      abi.encodeWithSelector(Wildcat4626Wrapper.AccountNotSanctioned.selector, FED)
-    );
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.AccountNotSanctioned.selector, FED));
     wrapper.nukeFromOrbit(FED);
   }
 

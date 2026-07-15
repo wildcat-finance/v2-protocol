@@ -15,6 +15,7 @@ import { deployMockChainalysis } from './mocks/MockChainalysis.sol';
 import { AlwaysAuthorizedRoleProvider } from './mocks/AlwaysAuthorizedRoleProvider.sol';
 import { MockRoleProvider } from './mocks/MockRoleProvider.sol';
 import { HooksFactory, IHooksFactoryEventsAndErrors } from 'src/HooksFactory.sol';
+import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { MockHooks } from './mocks/MockHooks.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
@@ -50,6 +51,7 @@ struct MarketInputParameters {
 
 contract Test is ForgeTest, Prankster, Assertions {
   HooksFactory internal hooksFactory;
+  Wildcat4626WrapperFactory internal wrapperFactory;
   WildcatArchController internal archController;
   OpenTermHooks internal hooks;
   WildcatMarket internal market;
@@ -105,11 +107,13 @@ contract Test is ForgeTest, Prankster, Assertions {
     // Update the SphereXOperator and SphereXEngine on the ArchController
     updateArchControllerEngine();
     sanctionsSentinel = new MockSanctionsSentinel(address(archController));
+    wrapperFactory = new Wildcat4626WrapperFactory(address(archController), address(0));
 
     (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
     hooksFactory = new HooksFactory(
       address(archController),
       address(sanctionsSentinel),
+      address(wrapperFactory),
       marketTemplate,
       marketInitCodeHash
     );

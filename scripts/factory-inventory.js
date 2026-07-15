@@ -22,6 +22,7 @@ const HOOK_FACTORY_FIELDS = new Set([
   "deploymentKey",
   "deployTxHash",
   "registerTxHash",
+  "wrapperFactory",
   "initCodeStorage",
   "initCodeHash",
   "notes",
@@ -59,7 +60,8 @@ function printUsage() {
     --market-type <type> --address <address> --canonical <true|false>
     --indexed <true|false> --registered <true|false> [--start-block <block>]
     [--lifecycle <canonical|live|retired>]
-    [--deployment-key <key>] [--init-code-storage <address>] [--init-code-hash <bytes32>]
+    [--deployment-key <key>] [--wrapper-factory <address>] [--init-code-storage <address>]
+    [--init-code-hash <bytes32>]
     [--input <path>] [--output <path>] [--create] [--preserve-start-block]
   node scripts/factory-inventory.js upsert-wrapper --network <name> --chain-id <id>
     --label <label> --address <address> --lifecycle <canonical|live|retired>
@@ -463,6 +465,12 @@ function validateFactoryEntry(entry, index, marketTypes, schemaVersion) {
   if (hasOwn(entry, "initCodeStorage") && !isAddress(entry.initCodeStorage)) {
     errors.push(
       `${prefix}.initCodeStorage must be a valid EVM address when present`
+    );
+  }
+
+  if (hasOwn(entry, "wrapperFactory") && !isAddress(entry.wrapperFactory)) {
+    errors.push(
+      `${prefix}.wrapperFactory must be a valid EVM address when present`
     );
   }
 
@@ -1005,6 +1013,7 @@ function buildFactoryEntryFromArgs(args) {
     deploymentKey: optionalArg(args, "deployment-key"),
     deployTxHash: optionalArg(args, "deploy-tx-hash"),
     registerTxHash: optionalArg(args, "register-tx-hash"),
+    wrapperFactory: optionalArg(args, "wrapper-factory"),
     initCodeStorage: optionalArg(args, "init-code-storage"),
     initCodeHash: optionalArg(args, "init-code-hash"),
     notes: optionalArg(args, "notes"),
@@ -1723,6 +1732,7 @@ async function runApplyRun(args) {
         deploymentKey: record.deploymentKey,
         deployTxHash: deployState.txHash,
         registerTxHash: registerState.txHash,
+        wrapperFactory: record.wrapperFactory,
         initCodeStorage: record.initCodeStorage,
         initCodeHash: record.initCodeHash,
       });

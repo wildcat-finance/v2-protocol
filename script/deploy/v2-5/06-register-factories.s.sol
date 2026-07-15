@@ -97,7 +97,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
     string memory standardFactoryLabel = _label('HooksFactory');
     string memory revolvingFactoryLabel = _label('HooksFactoryRevolving');
     if (!deployments.has(standardFactoryLabel) || !deployments.has(revolvingFactoryLabel)) {
-      revert('Missing v2.5 factories; run scripts 01 and 02 first');
+      revert('Missing v2.5 factories; run scripts 02 and 03 first');
     }
     address standardFactory = deployments.get(standardFactoryLabel);
     address revolvingFactory = deployments.get(revolvingFactoryLabel);

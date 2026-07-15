@@ -11,9 +11,9 @@ pragma solidity >=0.8.20;
  * - Plan: OWNER_MODE=plan and EXPECTED_EXECUTOR; no private key is required.
  *
  * Direct example:
- *   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/04-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 --rpc-url $RPC_URL --broadcast
+ *   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 --rpc-url $RPC_URL --broadcast
  * Plan example:
- *   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/04-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
+ *   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
  */
 
 import { console } from 'forge-std/console.sol';
@@ -23,7 +23,6 @@ import '../../common/DeployScriptBase.sol';
 contract DeployWrapperFactoryV25 is V25DeployScriptBase {
   string internal constant FACTORY_ARTIFACT =
     'src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory';
-  string internal constant LENS_ENTRY_ID = 'deploy-market-lens';
   string internal constant FACTORY_ENTRY_ID = 'deploy-wildcat-4626-wrapper-factory';
   string internal constant FACTORY_OUTPUT = 'wildcat-4626-wrapper-factory';
 
@@ -54,10 +53,8 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
     address archController,
     address v1Factory
   ) internal {
-    string[] memory afterEntries = new string[](1);
-    afterEntries[0] = LENS_ENTRY_ID;
     DeployPlanEntry memory entry;
-    entry.sequence = 9;
+    entry.sequence = 1;
     entry.id = FACTORY_ENTRY_ID;
     entry.artifactName = FACTORY_ARTIFACT;
     entry.decodedConstructorArgs = string.concat(
@@ -75,7 +72,7 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
       '[]',
       _quoted(vm.toString(v1Factory))
     );
-    entry.afterEntries = afterEntries;
+    entry.afterEntries = new string[](0);
     _planEntry(deployments, entry);
   }
 
@@ -102,7 +99,7 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
       v1FactoryJson,
       ',"canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 9, label, recordJson);
+    _inventoryRecord(deployments, 1, label, recordJson);
   }
 
   function _writePlanInventoryRecord(
@@ -127,7 +124,7 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
       v1FactoryJson,
       ',"canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 9, label, recordJson);
+    _inventoryRecord(deployments, 1, label, recordJson);
   }
 
   function run() external {

@@ -74,6 +74,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     hooksFactoryRevolving = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
+      address(this),
       marketTemplate,
       marketInitCodeHash
     );
@@ -581,6 +582,7 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
     HooksFactory unregistered = new HooksFactory(
       address(archController),
       address(sanctionsSentinel),
+      address(this),
       marketTemplate,
       marketInitCodeHash
     );

@@ -249,6 +249,7 @@ contract MarketConfigMatrix is BaseMarketTest {
     revolvingFactory = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
+      address(wrapperFactory),
       revolvingMarketInitCodeStorage,
       revolvingMarketInitCodeHash
     );

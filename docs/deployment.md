@@ -151,48 +151,48 @@ node scripts/factory-inventory.js reconcile \
   --rpc-url "$RPC_URL"
 ```
 
-### 01 — standard hooks factory
+### 01 — 4626 wrapper facade
 
 Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG` (default `v2-5`), `ARCH_CONTROLLER`,
-`SANCTIONS_SENTINEL`, and `SKIP_EIP1153_CHECK`. No private key is required while
-generating.
+and `SKIP_EIP1153_CHECK`. Ensure the network inventory has exactly one v1
+wrapper record, or an explicit empty `wrapperFactories` array for a chain with
+no v1. No private key is required while generating.
 
 ```bash
 forge script \
-  script/deploy/v2-5/01-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
+  script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
 ```
 
-### 02 — revolving hooks factory
+### 02 — standard hooks factory
 
-Use the same environment as 01.
+Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
+`EXPECTED_EXECUTOR`. Accept `RELEASE_TAG`, `ARCH_CONTROLLER`,
+`SANCTIONS_SENTINEL`, `WRAPPER_FACTORY`, and `SKIP_EIP1153_CHECK`. Run 01 first.
 
 ```bash
 forge script \
-  script/deploy/v2-5/02-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
+  script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
 ```
 
-### 03 — MarketLens set
+### 03 — revolving hooks factory
+
+Use the same environment as 02. Run 01 and 02 first.
+
+```bash
+forge script \
+  script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
+```
+
+### 04 — MarketLens set
 
 Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG`, `ARCH_CONTROLLER`, and
-`SKIP_EIP1153_CHECK`. Run 01 first.
+`SKIP_EIP1153_CHECK`. Run 02 first.
 
 ```bash
 forge script \
-  script/deploy/v2-5/03-deploy-market-lens.s.sol:DeployMarketLensV25
-```
-
-### 04 — 4626 wrapper facade
-
-Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
-`EXPECTED_EXECUTOR`. Accept `RELEASE_TAG`, `ARCH_CONTROLLER`, and
-`SKIP_EIP1153_CHECK`. Ensure the network inventory has exactly one v1 wrapper
-record, or an explicit empty `wrapperFactories` array for a chain with no v1.
-
-```bash
-forge script \
-  script/deploy/v2-5/04-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
+  script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25
 ```
 
 ### 05 — owner actions and templates
@@ -332,10 +332,10 @@ export OWNER_MODE=plan
 export RPC_URL='<mainnet RPC URL>'
 export EXPECTED_EXECUTOR=0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
 
-forge script script/deploy/v2-5/01-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
-forge script script/deploy/v2-5/02-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
-forge script script/deploy/v2-5/03-deploy-market-lens.s.sol:DeployMarketLensV25
-forge script script/deploy/v2-5/04-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
+forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
+forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
+forge script script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
+forge script script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25
 forge script script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25
 forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
 bash script/deploy/v2-5/07-generate-plan.sh

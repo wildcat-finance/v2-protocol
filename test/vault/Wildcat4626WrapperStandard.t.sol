@@ -3,6 +3,7 @@ pragma solidity >=0.8.20;
 
 import 'erc4626-tests/ERC4626.test.sol';
 import 'src/vault/Wildcat4626Wrapper.sol';
+import 'src/vault/Wildcat4626WrapperFactory.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { HooksFactory } from 'src/HooksFactory.sol';
@@ -20,6 +21,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
   WildcatArchController internal archController;
   HooksFactory internal hooksFactory;
   WildcatSanctionsSentinel internal sanctionsSentinel;
+  Wildcat4626WrapperFactory internal wrapperFactory;
   WildcatMarket internal market;
   OpenTermHooks internal hooks;
 
@@ -31,6 +33,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     archController = new WildcatArchController();
     MockChainalysis chainalysis = new MockChainalysis();
     sanctionsSentinel = new WildcatSanctionsSentinel(address(archController), address(chainalysis));
+    wrapperFactory = new Wildcat4626WrapperFactory(address(archController), address(0));
 
     bytes memory marketInitCode = type(WildcatMarket).creationCode;
     uint256 initCodeHash = uint256(keccak256(marketInitCode));
@@ -39,6 +42,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     hooksFactory = new HooksFactory(
       address(archController),
       address(sanctionsSentinel),
+      address(wrapperFactory),
       initCodeStorage,
       initCodeHash
     );
@@ -86,7 +90,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     vm.stopPrank();
 
     // Deploy Wrapper
-    Wildcat4626Wrapper wrapper = new Wildcat4626Wrapper(address(market));
+    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(wrapperFactory.createWrapper(address(market)));
 
     // Configure ERC4626Test variables
     _underlying_ = address(market);

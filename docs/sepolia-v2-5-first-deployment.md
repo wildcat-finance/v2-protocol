@@ -162,16 +162,16 @@ transaction.
 
   ```bash
   forge script \
-    script/deploy/v2-5/01-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
+    script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
 
   forge script \
-    script/deploy/v2-5/02-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
+    script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
 
   forge script \
-    script/deploy/v2-5/03-deploy-market-lens.s.sol:DeployMarketLensV25
+    script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
 
   forge script \
-    script/deploy/v2-5/04-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
+    script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25
 
   forge script \
     script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25

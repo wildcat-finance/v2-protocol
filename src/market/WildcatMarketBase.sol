@@ -70,6 +70,14 @@ contract WildcatMarketBase is
   /// @dev Account that receives protocol fees.
   address public immutable feeRecipient;
 
+  /// @dev Canonical factory allowed to register this market's optional ERC-4626 wrapper.
+  address public immutable wrapperFactory;
+
+  /// @dev Namespaced slot for the optional canonical wrapper. Using an
+  ///      unstructured slot preserves the established market storage layout.
+  bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT =
+    bytes32(uint256(keccak256('wildcat.market.registeredWrapper')) - 1);
+
   /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
   uint public immutable delinquencyFeeBips;
 
@@ -143,6 +151,11 @@ contract WildcatMarketBase is
 
   mapping(address => Account) internal _accounts;
 
+  /// @notice Canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
+  function registeredWrapper() public view returns (address) {
+    return _getAddress(REGISTERED_WRAPPER_STORAGE_SLOT);
+  }
+
   WithdrawalData internal _withdrawalData;
 
   // ===================================================================== //
@@ -152,7 +165,7 @@ contract WildcatMarketBase is
   function _getMarketParameters() internal view returns (uint256 marketParametersPointer) {
     assembly {
       marketParametersPointer := mload(0x40)
-      mstore(0x40, add(marketParametersPointer, 0x260))
+      mstore(0x40, add(marketParametersPointer, 0x280))
       // Write the selector for IHooksFactory.getMarketParameters
       mstore(0x00, 0x04032dbb)
       // Call `getMarketParameters` and copy the returned struct to the allocated memory
@@ -161,8 +174,8 @@ contract WildcatMarketBase is
       // the factory contract which will only ever return the prepared market parameters.
       if iszero(
         and(
-          eq(returndatasize(), 0x260),
-          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x260)
+          eq(returndatasize(), 0x280),
+          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x280)
         )
       ) {
         revert(0, 0)
@@ -224,6 +237,7 @@ contract WildcatMarketBase is
     sentinel = parameters.sentinel;
     borrower = parameters.borrower;
     feeRecipient = parameters.feeRecipient;
+    wrapperFactory = parameters.wrapperFactory;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
     delinquencyGracePeriod = parameters.delinquencyGracePeriod;
     withdrawalBatchDuration = parameters.withdrawalBatchDuration;

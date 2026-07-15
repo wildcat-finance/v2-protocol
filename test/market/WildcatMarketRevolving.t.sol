@@ -56,6 +56,7 @@ contract WildcatMarketRevolvingTest is Test {
     hooksFactoryRevolving = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
+      address(this),
       marketTemplate,
       marketInitCodeHash
     );

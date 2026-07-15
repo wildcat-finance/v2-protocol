@@ -8,6 +8,10 @@ interface IMarketRounding {
   function scaledTransferRounding() external view returns (bytes32);
 }
 
+interface IWrapperAwareMarket {
+  function registerWrapper(address wrapper) external;
+}
+
 interface IWildcat4626WrapperFactoryV1 {
   function createWrapper(address market) external returns (address wrapper);
 
@@ -127,6 +131,7 @@ contract Wildcat4626WrapperFactory {
 
     wrapper = address(new Wildcat4626Wrapper(market));
     _wrapperForMarket[market] = wrapper;
+    IWrapperAwareMarket(market).registerWrapper(wrapper);
 
     emit WrapperDeployed(market, wrapper);
   }

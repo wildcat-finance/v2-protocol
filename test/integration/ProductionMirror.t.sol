@@ -175,7 +175,9 @@ contract ProductionMirrorTest is MarketConfigMatrix {
   ///      is itself a lender: transfers into it hit the transfer hook and it
   ///      must be credentialed before deposits can flow.
   function _runWrapperLayer(DeployedCell memory d) internal {
-    Wildcat4626Wrapper wrapper = new Wildcat4626Wrapper(address(d.market));
+    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(
+      wrapperFactory.createWrapper(address(d.market))
+    );
     uint256 wrapAmount = 30_000_000e18;
 
     startPrank(alice);

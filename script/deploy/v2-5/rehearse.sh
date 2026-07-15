@@ -83,8 +83,8 @@ else
 fi
 
 export EXPECTED_EXECUTOR="$EXECUTOR" OWNER_MODE=plan
-for s in 01-deploy-hooks-factory-standard 02-deploy-hooks-factory-revolving \
-         03-deploy-market-lens 04-deploy-wrapper-factory 05-owner-actions \
+for s in 01-deploy-wrapper-factory 02-deploy-hooks-factory-standard \
+         03-deploy-hooks-factory-revolving 04-deploy-market-lens 05-owner-actions \
          06-register-factories; do
   echo "== generate: ${s}"
   forge script "script/deploy/v2-5/${s}.s.sol" --rpc-url "$RPC" >/dev/null

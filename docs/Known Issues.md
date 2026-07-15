@@ -50,6 +50,25 @@ not consult the oracle and remain live. This is an accepted external
 dependency; the revert-bubbling branches are intentionally untestable
 without a hostile sentinel mock and are documented rather than covered.
 
+**Canonical ERC-4626 wrappers on legacy V2 markets require a sanctions override**
+
+Markets deployed before v2.5 do not record their canonical ERC-4626 wrapper.
+The wrapper contract is therefore treated as an ordinary lender account by the
+market. If the wrapper contract address itself becomes flagged by the external
+sanctions oracle and the borrower has not overridden that flag, market-level
+sanctions handling can move the wrapper's pooled market-token backing while its
+ERC-4626 share supply remains outstanding. The wrapper shares would then be
+under-backed.
+
+Borrowers whose legacy market has a canonical wrapper should proactively call
+`overrideSanction(canonicalWrapper)` on the sanctions sentinel and retain that
+override while the wrapper is in use. This borrower-specific override exempts
+only the pooled wrapper contract at the market boundary; it does not exempt
+wrapper shareholders from the wrapper's own sanctions checks. V2.5 markets
+instead register the canonical wrapper atomically during permissionless wrapper
+deployment and reject market-level sanctions handling for that registered
+address.
+
 **CAF-03: Sanctioned account handling with withdrawal restrictions**
 
 `nukeFromOrbit` queues a sanctioned lender's balance through the same withdrawal hooks as ordinary lender withdrawals. If a market uses a hook with a withdrawal restriction, e.g. to prevent withdrawals before a specified date, `nukeFromOrbit` may be blocked until ordinary withdrawals are allowed. The CAF-03 remediation bypassed `onQueueWithdrawal`, but that also bypassed fixed-term and other withdrawal restrictions, so RCF V2 keeps the ordinary withdrawal path and treats the sanctions liveness limitation as accepted behavior.

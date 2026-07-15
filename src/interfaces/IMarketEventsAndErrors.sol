@@ -16,6 +16,16 @@ interface IMarketEventsAndErrors {
   /// @notice Error thrown when caller other than factory tries changing protocol fee
   error NotFactory();
 
+  /// @notice Error thrown when caller other than the canonical wrapper factory
+  ///         tries to register a wrapper.
+  error NotWrapperFactory();
+
+  /// @notice Error thrown when the canonical wrapper has already been registered.
+  error WrapperAlreadyRegistered();
+
+  /// @notice Error thrown when attempting to nuke the market's canonical wrapper.
+  error CannotNukeWrapper();
+
   /// @notice Error thrown when non-sentinel tries to use nukeFromOrbit
   error BadLaunchCode();
 
@@ -121,6 +131,8 @@ interface IMarketEventsAndErrors {
   );
 
   event AccountSanctioned(address indexed account);
+
+  event WrapperRegistered(address indexed wrapper);
 
   // =====================================================================//
   //                          Withdrawl Events                            //

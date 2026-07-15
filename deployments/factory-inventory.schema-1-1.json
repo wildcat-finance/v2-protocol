@@ -116,6 +116,9 @@
         "registerTxHash": {
           "$ref": "#/$defs/bytes32"
         },
+        "wrapperFactory": {
+          "$ref": "#/$defs/address"
+        },
         "initCodeStorage": {
           "$ref": "#/$defs/address"
         },

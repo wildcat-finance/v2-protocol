@@ -4,39 +4,41 @@ pragma solidity >=0.8.20;
 /**
  * Environment:
  * - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
- *   ARCH_CONTROLLER, SANCTIONS_SENTINEL, and SKIP_EIP1153_CHECK.
+ *   ARCH_CONTROLLER, SANCTIONS_SENTINEL, WRAPPER_FACTORY, and
+ *   SKIP_EIP1153_CHECK. Script 01 must precede this script.
  * - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
  *   PVT_KEY_<NETWORK> (unless Foundry already has a configured sender).
  * - Plan: OWNER_MODE=plan and EXPECTED_EXECUTOR; no private key is required.
  *
  * Direct example:
- *   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/02-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25 --rpc-url $RPC_URL --broadcast
+ *   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 --rpc-url $RPC_URL --broadcast
  * Plan example:
- *   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/02-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
+ *   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
  */
 
 import { console } from 'forge-std/console.sol';
 
-import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';
+import { IHooksFactory } from 'src/IHooksFactory.sol';
 
 import '../../common/DeployScriptBase.sol';
 
-contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
-  string internal constant MARKET_ARTIFACT =
-    'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving';
-  string internal constant FACTORY_ARTIFACT = 'src/HooksFactoryRevolving.sol:HooksFactoryRevolving';
+contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
+  string internal constant MARKET_ARTIFACT = 'src/market/WildcatMarket.sol:WildcatMarket';
+  string internal constant FACTORY_ARTIFACT = 'src/HooksFactory.sol:HooksFactory';
   string internal constant INIT_CODE_STORAGE_ARTIFACT =
     'script/common/DeployScriptBase.sol:InitCodeStorage';
 
-  string internal constant STANDARD_FACTORY_ENTRY_ID = 'deploy-hooks-factory-standard';
-  string internal constant STORAGE_ENTRY_ID = 'deploy-wildcat-market-revolving-init-code-storage';
-  string internal constant STORAGE_OUTPUT = 'wildcat-market-revolving-init-code-storage';
-  string internal constant FACTORY_ENTRY_ID = 'deploy-hooks-factory-revolving';
-  string internal constant FACTORY_OUTPUT = 'hooks-factory-revolving';
+  string internal constant WRAPPER_ENTRY_ID = 'deploy-wildcat-4626-wrapper-factory';
+  string internal constant WRAPPER_OUTPUT = 'wildcat-4626-wrapper-factory';
+  string internal constant STORAGE_ENTRY_ID = 'deploy-wildcat-market-init-code-storage';
+  string internal constant STORAGE_OUTPUT = 'wildcat-market-init-code-storage';
+  string internal constant FACTORY_ENTRY_ID = 'deploy-hooks-factory-standard';
+  string internal constant FACTORY_OUTPUT = 'hooks-factory-standard';
 
   struct DeploymentInputs {
     address archController;
     address sanctionsSentinel;
+    address wrapperFactory;
     bytes marketCreationCode;
     uint256 initCodeHash;
   }
@@ -46,6 +48,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     string memory label,
     address archController,
     address sanctionsSentinel,
+    address wrapperFactory,
     address initCodeStorage,
     uint256 initCodeHash
   ) internal view {
@@ -53,28 +56,35 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       factory,
       label,
       'archController',
-      abi.encodeWithSelector(IHooksFactoryRevolving.archController.selector),
+      abi.encodeWithSelector(IHooksFactory.archController.selector),
       archController
     );
     _verifyAddressCall(
       factory,
       label,
       'sanctionsSentinel',
-      abi.encodeWithSelector(IHooksFactoryRevolving.sanctionsSentinel.selector),
+      abi.encodeWithSelector(IHooksFactory.sanctionsSentinel.selector),
       sanctionsSentinel
     );
     _verifyAddressCall(
       factory,
       label,
+      'wrapperFactory',
+      abi.encodeWithSelector(IHooksFactory.wrapperFactory.selector),
+      wrapperFactory
+    );
+    _verifyAddressCall(
+      factory,
+      label,
       'marketInitCodeStorage',
-      abi.encodeWithSelector(IHooksFactoryRevolving.marketInitCodeStorage.selector),
+      abi.encodeWithSelector(IHooksFactory.marketInitCodeStorage.selector),
       initCodeStorage
     );
     _verifyUintCall(
       factory,
       label,
       'marketInitCodeHash',
-      abi.encodeWithSelector(IHooksFactoryRevolving.marketInitCodeHash.selector),
+      abi.encodeWithSelector(IHooksFactory.marketInitCodeHash.selector),
       initCodeHash
     );
   }
@@ -84,9 +94,9 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     DeploymentInputs memory inputs
   ) internal {
     string[] memory storageAfter = new string[](1);
-    storageAfter[0] = STANDARD_FACTORY_ENTRY_ID;
+    storageAfter[0] = WRAPPER_ENTRY_ID;
     DeployPlanEntry memory storageEntry;
-    storageEntry.sequence = 3;
+    storageEntry.sequence = 2;
     storageEntry.id = STORAGE_ENTRY_ID;
     storageEntry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
     storageEntry.decodedConstructorArgs = string.concat(
@@ -95,7 +105,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       ']'
     );
     storageEntry.output = STORAGE_OUTPUT;
-    storageEntry.description = 'Deploy the v2.5 WildcatMarketRevolving init-code storage contract.';
+    storageEntry.description = 'Deploy the v2.5 WildcatMarket init-code storage contract.';
     storageEntry.predicate = _planCodePresentPredicate(STORAGE_OUTPUT);
     storageEntry.afterEntries = storageAfter;
     _planEntry(deployments, storageEntry);
@@ -103,7 +113,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     string[] memory factoryAfter = new string[](1);
     factoryAfter[0] = STORAGE_ENTRY_ID;
     DeployPlanEntry memory factoryEntry;
-    factoryEntry.sequence = 4;
+    factoryEntry.sequence = 3;
     factoryEntry.id = FACTORY_ENTRY_ID;
     factoryEntry.artifactName = FACTORY_ARTIFACT;
     factoryEntry.decodedConstructorArgs = string.concat(
@@ -112,13 +122,15 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       ',',
       _quoted(vm.toString(inputs.sanctionsSentinel)),
       ',',
+      _ref(WRAPPER_OUTPUT),
+      ',',
       _ref(STORAGE_OUTPUT),
       ',',
       _quoted(vm.toString(bytes32(inputs.initCodeHash))),
       ']'
     );
     factoryEntry.output = FACTORY_OUTPUT;
-    factoryEntry.description = 'Deploy the v2.5 revolving hooks factory.';
+    factoryEntry.description = 'Deploy the v2.5 standard hooks factory.';
     factoryEntry.predicate = _planCallEqPredicate(
       FACTORY_OUTPUT,
       'marketInitCodeStorage() view returns (address)',
@@ -136,6 +148,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     address initCodeStorage,
     string memory factoryLabel,
     address factory,
+    address wrapperFactory,
     uint256 initCodeHash
   ) internal {
     string memory storageRecord = string.concat(
@@ -151,24 +164,26 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       '}'
     );
-    _inventoryRecord(deployments, 3, storageLabel, storageRecord);
+    _inventoryRecord(deployments, 2, storageLabel, storageRecord);
 
     string memory factoryRecord = string.concat(
       '{"recordType":"hooksFactory","network":',
       _quoted(networkName),
       ',"chainId":',
       vm.toString(block.chainid),
-      ',"marketType":"revolving","deploymentKey":',
+      ',"marketType":"legacy","deploymentKey":',
       _quoted(factoryLabel),
       ',"address":',
       _quoted(vm.toString(factory)),
+      ',"wrapperFactory":',
+      _quoted(vm.toString(wrapperFactory)),
       ',"initCodeStorage":',
       _quoted(vm.toString(initCodeStorage)),
       ',"initCodeHash":',
       _quoted(vm.toString(bytes32(initCodeHash))),
       ',"canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 4, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 3, factoryLabel, factoryRecord);
   }
 
   function _writePlanInventoryRecords(
@@ -176,7 +191,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     string memory networkName,
     uint256 initCodeHash
   ) internal {
-    string memory storageLabel = _label('WildcatMarketRevolving_initCodeStorage');
+    string memory storageLabel = _label('WildcatMarket_initCodeStorage');
     string memory storageRecord = string.concat(
       '{"recordType":"initCodeStorage","network":',
       _quoted(networkName),
@@ -190,25 +205,27 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       '}'
     );
-    _inventoryRecord(deployments, 3, storageLabel, storageRecord);
+    _inventoryRecord(deployments, 2, storageLabel, storageRecord);
 
-    string memory factoryLabel = _label('HooksFactoryRevolving');
+    string memory factoryLabel = _label('HooksFactory');
     string memory factoryRecord = string.concat(
       '{"recordType":"hooksFactory","network":',
       _quoted(networkName),
       ',"chainId":',
       vm.toString(block.chainid),
-      ',"marketType":"revolving","deploymentKey":',
+      ',"marketType":"legacy","deploymentKey":',
       _quoted(factoryLabel),
       ',"address":',
       _ref(FACTORY_OUTPUT),
+      ',"wrapperFactory":',
+      _ref(WRAPPER_OUTPUT),
       ',"initCodeStorage":',
       _ref(STORAGE_OUTPUT),
       ',"initCodeHash":',
       _quoted(vm.toString(bytes32(initCodeHash))),
-      ',"registerEntryId":"register-hooks-factory-revolving","canonicalIntent":true}'
+      ',"registerEntryId":"register-hooks-factory-standard","canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 4, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 3, factoryLabel, factoryRecord);
   }
 
   function _runDirect(
@@ -217,8 +234,8 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     DeploymentInputs memory inputs
   ) internal {
     _assertEip1153Supported();
-    string memory storageLabel = _label('WildcatMarketRevolving_initCodeStorage');
-    string memory factoryLabel = _label('HooksFactoryRevolving');
+    string memory storageLabel = _label('WildcatMarket_initCodeStorage');
+    string memory factoryLabel = _label('HooksFactory');
     (address initCodeStorage, bool didDeployStorage) = _getOrDeployInitCodeStorageByLabel(
       deployments,
       storageLabel,
@@ -228,6 +245,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     bytes memory constructorArgs = abi.encode(
       inputs.archController,
       inputs.sanctionsSentinel,
+      inputs.wrapperFactory,
       initCodeStorage,
       inputs.initCodeHash
     );
@@ -244,6 +262,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       factoryLabel,
       inputs.archController,
       inputs.sanctionsSentinel,
+      inputs.wrapperFactory,
       initCodeStorage,
       inputs.initCodeHash
     );
@@ -257,11 +276,12 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       initCodeStorage,
       factoryLabel,
       factory,
+      inputs.wrapperFactory,
       inputs.initCodeHash
     );
 
-    console.log('Did deploy WildcatMarketRevolving init-code storage:', didDeployStorage);
-    console.log('Did deploy HooksFactoryRevolving:', didDeployFactory);
+    console.log('Did deploy WildcatMarket init-code storage:', didDeployStorage);
+    console.log('Did deploy HooksFactory:', didDeployFactory);
   }
 
   function run() external {
@@ -287,6 +307,11 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       return;
     }
 
+    inputs.wrapperFactory = _resolveExisting(
+      deployments,
+      _label('Wildcat4626WrapperFactory'),
+      'WRAPPER_FACTORY'
+    );
     _runDirect(deployments, networkName, inputs);
   }
 }

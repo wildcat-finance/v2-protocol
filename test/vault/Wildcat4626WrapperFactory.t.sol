@@ -21,15 +21,29 @@ contract StubMarketToken is IWildcatMarketToken {
   uint256 public override scaleFactor = RAY;
   address public immutable override borrower;
   address public immutable override sentinel;
+  address public immutable override wrapperFactory;
+  address public registeredWrapper;
   bool internal immutable _declaresFloorRounding;
 
   mapping(address => uint256) internal _balances;
   mapping(address => mapping(address => uint256)) public override allowance;
 
-  constructor(address borrower_, address sentinel_, bool declaresFloorRounding_) {
+  constructor(
+    address borrower_,
+    address sentinel_,
+    bool declaresFloorRounding_,
+    address wrapperFactory_
+  ) {
     borrower = borrower_;
     sentinel = sentinel_;
     _declaresFloorRounding = declaresFloorRounding_;
+    wrapperFactory = wrapperFactory_;
+  }
+
+  function registerWrapper(address wrapper) external {
+    require(msg.sender == wrapperFactory, 'NOT_WRAPPER_FACTORY');
+    require(registeredWrapper == address(0), 'WRAPPER_ALREADY_REGISTERED');
+    registeredWrapper = wrapper;
   }
 
   /// @dev v2.5+ markets declare their transfer rounding; legacy markets lack
@@ -134,7 +148,7 @@ contract Wildcat4626WrapperFactoryTest is Test {
     v1Factory = new StubV1WrapperFactory();
     factory = new Wildcat4626WrapperFactory(address(archController), address(v1Factory));
     sanctionsSentinel = new StubSanctionsSentinel();
-    market = new StubMarketToken(BORROWER, address(sanctionsSentinel), true);
+    market = new StubMarketToken(BORROWER, address(sanctionsSentinel), true, address(factory));
     archController.registerMarket(address(market));
   }
 
@@ -142,7 +156,12 @@ contract Wildcat4626WrapperFactoryTest is Test {
   ///      creation and discovery (the equality against v1's own record proves
   ///      discovery reads through rather than resolving locally).
   function test_legacyMarketForwardsToV1Factory() external {
-    StubMarketToken legacy = new StubMarketToken(BORROWER, address(sanctionsSentinel), false);
+    StubMarketToken legacy = new StubMarketToken(
+      BORROWER,
+      address(sanctionsSentinel),
+      false,
+      address(factory)
+    );
     archController.registerMarket(address(legacy));
 
     address wrapper = factory.createWrapper(address(legacy));
@@ -162,7 +181,12 @@ contract Wildcat4626WrapperFactoryTest is Test {
       address(archController),
       address(0)
     );
-    StubMarketToken legacy = new StubMarketToken(BORROWER, address(sanctionsSentinel), false);
+    StubMarketToken legacy = new StubMarketToken(
+      BORROWER,
+      address(sanctionsSentinel),
+      false,
+      address(lonely)
+    );
     archController.registerMarket(address(legacy));
 
     vm.expectRevert(
@@ -174,8 +198,15 @@ contract Wildcat4626WrapperFactoryTest is Test {
     lonely.createWrapper(address(legacy));
     assertEq(lonely.wrapperForMarket(address(legacy)), address(0), 'no wrapper expected');
 
-    address wrapper = lonely.createWrapper(address(market));
-    assertEq(lonely.wrapperForMarket(address(market)), wrapper, 'floor path should work');
+    StubMarketToken lonelyMarket = new StubMarketToken(
+      BORROWER,
+      address(sanctionsSentinel),
+      true,
+      address(lonely)
+    );
+    archController.registerMarket(address(lonelyMarket));
+    address wrapper = lonely.createWrapper(address(lonelyMarket));
+    assertEq(lonely.wrapperForMarket(address(lonelyMarket)), wrapper, 'floor path should work');
   }
 
   /// @dev A future market generation declaring an unknown rounding must be
@@ -220,7 +251,12 @@ contract Wildcat4626WrapperFactoryTest is Test {
 
   function test_isFloorRoundingMarket() external {
     assertTrue(factory.isFloorRoundingMarket(address(market)), 'floor market not detected');
-    StubMarketToken legacy = new StubMarketToken(BORROWER, address(sanctionsSentinel), false);
+    StubMarketToken legacy = new StubMarketToken(
+      BORROWER,
+      address(sanctionsSentinel),
+      false,
+      address(factory)
+    );
     assertFalse(factory.isFloorRoundingMarket(address(legacy)), 'legacy market misdetected');
     assertFalse(factory.isFloorRoundingMarket(address(0xE0A0)), 'EOA misdetected');
     assertFalse(
@@ -239,7 +275,12 @@ contract Wildcat4626WrapperFactoryTest is Test {
 
   /// @dev Duplicate creates on the legacy path surface v1's own revert.
   function test_legacyDuplicateBubblesV1Revert() external {
-    StubMarketToken legacy = new StubMarketToken(BORROWER, address(sanctionsSentinel), false);
+    StubMarketToken legacy = new StubMarketToken(
+      BORROWER,
+      address(sanctionsSentinel),
+      false,
+      address(factory)
+    );
     archController.registerMarket(address(legacy));
     factory.createWrapper(address(legacy));
 
@@ -253,7 +294,13 @@ contract Wildcat4626WrapperFactoryTest is Test {
     address wrapperAddr = factory.createWrapper(address(market));
 
     assertEq(factory.wrapperForMarket(address(market)), wrapperAddr, 'wrapper recorded');
+    assertEq(market.registeredWrapper(), wrapperAddr, 'wrapper not registered in market');
     assertEq(Wildcat4626Wrapper(wrapperAddr).asset(), address(market), 'wrapper asset');
+  }
+
+  function test_wrapperCannotBeDeployedOutsideCanonicalFactory() external {
+    vm.expectRevert(Wildcat4626Wrapper.NotWrapperFactory.selector);
+    new Wildcat4626Wrapper(address(market));
   }
 
   function test_createWrapperRevertsIfExists() external {
@@ -269,7 +316,7 @@ contract Wildcat4626WrapperFactoryTest is Test {
   }
 
   function test_createWrapperRevertsIfNotRegisteredMarket() external {
-    market = new StubMarketToken(BORROWER, address(sanctionsSentinel), true);
+    market = new StubMarketToken(BORROWER, address(sanctionsSentinel), true, address(factory));
 
     vm.expectRevert(
       abi.encodeWithSelector(
