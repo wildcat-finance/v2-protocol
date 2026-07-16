@@ -102,14 +102,14 @@ the point of step 08.
 
 The script headers define these environments:
 
-| Step | Both modes                                                                                                                                  | Inline `direct`                                                                                                | `plan` generation                              |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| 01   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG` (default `v2-5`), `ARCH_CONTROLLER`, `SANCTIONS_SENTINEL`, `SKIP_EIP1153_CHECK`               | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `EXPECTED_EXECUTOR`; no key |
+| Step | Both modes                                                                                                                                  | Inline `direct`                                                                                                | `plan` generation                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 01   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG` (default `v2-5`), `ARCH_CONTROLLER`, `SANCTIONS_SENTINEL`, `SKIP_EIP1153_CHECK`               | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
 | 02   | Same as 01                                                                                                                                  | Same as 01                                                                                                     | Same as 01                                     |
-| 03   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `SKIP_EIP1153_CHECK`; 01 first                                            | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `EXPECTED_EXECUTOR`; no key |
-| 04   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `SKIP_EIP1153_CHECK`; inventory v1 wrapper record or explicit empty array | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `EXPECTED_EXECUTOR`; no key |
-| 05   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `TEMPLATE_FEE_SOURCE_FACTORY`, `TEMPLATE_FEE_RECIPIENT`; 01–04 first      | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>`; broadcaster is ArchController owner | `OWNER_MODE=plan`, `EXPECTED_EXECUTOR`; no key |
-| 06   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`; 05 first                                                                  | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>`                                      | `OWNER_MODE=plan`, `EXPECTED_EXECUTOR`; no key |
+| 03   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `SKIP_EIP1153_CHECK`; 01 first                                            | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
+| 04   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `SKIP_EIP1153_CHECK`; inventory v1 wrapper record or explicit empty array | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
+| 05   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `TEMPLATE_FEE_SOURCE_FACTORY`, `TEMPLATE_FEE_RECIPIENT`; 01–04 first      | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>`; broadcaster is ArchController owner | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
+| 06   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`; 05 first                                                                  | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>`                                      | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
 
 The inline commands add `--rpc-url "$RPC_URL" --broadcast` to the Forge
 invocations below. They deploy and perform owner calls immediately, but stop at
@@ -161,7 +161,8 @@ no v1. No private key is required while generating.
 
 ```bash
 forge script \
-  script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
+  script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 \
+  --rpc-url "$RPC_URL"
 ```
 
 ### 02 — standard hooks factory
@@ -172,7 +173,8 @@ Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 
 ```bash
 forge script \
-  script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
+  script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 \
+  --rpc-url "$RPC_URL"
 ```
 
 ### 03 — revolving hooks factory
@@ -181,7 +183,8 @@ Use the same environment as 02. Run 01 and 02 first.
 
 ```bash
 forge script \
-  script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
+  script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25 \
+  --rpc-url "$RPC_URL"
 ```
 
 ### 04 — MarketLens set
@@ -192,7 +195,8 @@ Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 
 ```bash
 forge script \
-  script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25
+  script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25 \
+  --rpc-url "$RPC_URL"
 ```
 
 ### 05 — owner actions and templates
@@ -204,7 +208,8 @@ Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 
 ```bash
 forge script \
-  script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25
+  script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25 \
+  --rpc-url "$RPC_URL"
 ```
 
 ### 06 — register both factories as controllers
@@ -214,7 +219,8 @@ Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 
 ```bash
 forge script \
-  script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
+  script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25 \
+  --rpc-url "$RPC_URL"
 ```
 
 ### 07 — assemble and execute
@@ -332,12 +338,12 @@ export OWNER_MODE=plan
 export RPC_URL='<mainnet RPC URL>'
 export EXPECTED_EXECUTOR=0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
 
-forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
-forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
-forge script script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
-forge script script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25
-forge script script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25
-forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
+forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 --rpc-url "$RPC_URL"
+forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 --rpc-url "$RPC_URL"
+forge script script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25 --rpc-url "$RPC_URL"
+forge script script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25 --rpc-url "$RPC_URL"
+forge script script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25 --rpc-url "$RPC_URL"
+forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25 --rpc-url "$RPC_URL"
 bash script/deploy/v2-5/07-generate-plan.sh
 ```
 

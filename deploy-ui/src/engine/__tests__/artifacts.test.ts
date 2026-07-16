@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { encodeFunctionData, keccak256, parseAbi, stringToHex } from 'viem'
 import miniPlanJson from '../../../../scripts/__fixtures__/plan/mini-plan.json'
-import { assertCeremonyPackage } from '../../artifacts'
+import { assertCeremonyPackage, assertPlan } from '../../artifacts'
 
 const ROOT = resolve(import.meta.dirname, '../../../..')
 
@@ -53,6 +53,12 @@ describe('embedded ceremony packages', () => {
     value.payload.artifacts.plan.json += ' '
     value.digest = keccak256(stringToHex(canonicalJson(value.payload)))
     expect(() => assertCeremonyPackage(value)).toThrow('packaged bytes do not match artifact hash')
+  })
+
+  it('rejects a known network paired with the wrong chain ID', () => {
+    const plan = structuredClone(miniPlanJson)
+    plan.network = 'sepolia'
+    expect(() => assertPlan(plan)).toThrow('network sepolia requires chain ID 11155111')
   })
 
   it('accepts a package emitted by the Node release compiler', () => {

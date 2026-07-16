@@ -1,6 +1,6 @@
 # v2.5 Deployment Tooling — Status
 
-As of 2026-07-12. Companion to [deployment.md](./deployment.md) (the process
+As of 2026-07-15. Companion to [deployment.md](./deployment.md) (the process
 runbook). This records what is built, what is proven, and what remains.
 
 ## Built and verified
@@ -19,7 +19,9 @@ transactions with plain-English descriptions, decoded args, `$ref`
 placeholders for not-yet-deployed addresses, execution envelopes, and an
 on-chain verification predicate per transaction. Subcommands: assemble /
 validate / execute (with halt-on-predicate-failure and verified resume) /
-verify / render-safe.
+verify / render-safe. Known network names are rejected if their plan chain ID
+does not match, preventing a plan generated without the target RPC from being
+assembled as a release artifact.
 
 **Numbered scripts** (committed): `script/deploy/v2-5/01–09`. Dual-mode:
 `OWNER_MODE=plan` generates plan entries (no key, no broadcast);
@@ -60,10 +62,11 @@ startBlocks, routing prose, the v2.5 ABI-delta list.
 
 ## Proven by rehearsal (anvil forks, not checked in)
 
-- Sepolia fork, full pipeline: 21-transaction plan generated, executed as
-  the impersonated helper-owner, 21/21 predicates, inventory finalized
-  (recordCount 8→11, canonicals moved), reconcile green, canary markets
-  (standard + revolving) deployed/exercised/closed.
+- Sepolia fork, current full pipeline: 23-transaction plan generated and
+  executed through the temporary helper-owner flow as a dev EOA, including
+  ownership reclaim and restoration; 23/23 predicates verified, inventory
+  finalized, and reconcile green. An earlier direct-owner rehearsal also
+  deployed, exercised, and closed the standard and revolving canary markets.
 - Mainnet fork, same pipeline as the impersonated Foundation Safe
   (`0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, v1.4.1, threshold 3).
 - Mainnet fork, bundle ceremony: 3 bundles at ~15.8M / 17.3M / 9.8M gas

@@ -670,6 +670,13 @@ function validatePlan(plan, options = {}) {
   validateJsonSchema(plan, schema, schema, "$", errors);
   validateReferenceObjects(plan, "$", errors);
 
+  const configuredChainId = NETWORK_CHAIN_IDS[plan?.network];
+  if (configuredChainId !== undefined && plan.chainId !== configuredChainId) {
+    errors.push(
+      `$.chainId: network ${plan.network} requires chain ID ${configuredChainId}, got ${plan.chainId}`
+    );
+  }
+
   if (!Array.isArray(plan.transactions)) {
     const uniqueErrors = [...new Set(errors)];
     return { ok: false, errors: uniqueErrors };

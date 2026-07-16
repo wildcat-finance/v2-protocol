@@ -9,7 +9,7 @@ pragma solidity >=0.8.20;
  *   ARCH_CONTROLLER. Script 05 must precede this script.
  * - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
  *   PVT_KEY_<NETWORK>.
- * - Plan: OWNER_MODE=plan and EXPECTED_EXECUTOR; no private key is required.
+ * - Plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
  */
 
 import { IHooksFactory } from 'src/IHooksFactory.sol';

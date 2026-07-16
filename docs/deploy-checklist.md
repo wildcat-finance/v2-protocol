@@ -37,8 +37,9 @@ walkthrough for the live run; the bullets below are only a condensed index.
 - [ ] Env: `DEPLOYMENTS_NETWORK=sepolia RELEASE_TAG=v2-5 OWNER_MODE=plan
       EXPECTED_EXECUTOR=0xca732651410E915090d7A7D889A1E44eF4575fcE
       RPC_URL=<sepolia rpc>`
-- [ ] Generate: run steps 01–06 (`forge script script/deploy/v2-5/NN-*.s.sol`),
-      then `bash script/deploy/v2-5/07-generate-plan.sh`
+- [ ] Generate: run steps 01–06 (`forge script
+      script/deploy/v2-5/NN-*.s.sol --rpc-url "$RPC_URL"`), then `bash
+      script/deploy/v2-5/07-generate-plan.sh`
 - [ ] Confirm the dev EOA is authorized in `MockArchControllerOwner`; the
       generated plan has 23 cards, including reclaim first and restore last
 - [ ] Package and build: `plan.js ceremony-package --mode eoa`, then build

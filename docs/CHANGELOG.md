@@ -31,7 +31,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 ### Lens
 
-- Reintroduced as a facade (`MarketLens`, ABI unchanged) forwarding to helper contracts (`MarketLensCore`, `MarketLensAggregator`, `MarketLensLive`) to stay under the contract size limit; the aggregator serves both direct and multi-factory aggregated queries.
+- Reintroduced as a facade (`MarketLens`) forwarding to helper contracts (`MarketLensCore`, `MarketLensAggregator`, `MarketLensLive`) to stay under the contract size limit; the aggregator serves both direct and multi-factory aggregated queries. The function-selector surface is preserved, but returned `HooksConfigData` tuples append `useOnExecutePendingAnnualInterestBipsReduction`, so consumers must use the v2.5 ABI.
 
 ### Factories and access control
 

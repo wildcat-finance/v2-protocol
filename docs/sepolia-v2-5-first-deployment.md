@@ -9,22 +9,31 @@ The recommended first run is a local production build served from
 avoids adding Git/Vercel state to the first live run. The Vercel alternative is
 documented below.
 
+Sections 1–5 are the safe test-drive boundary: they compile, generate, validate,
+package, and display the ceremony, but do not sign or broadcast anything. Stop
+after section 5 if you only want to inspect the operator experience. Section 6
+starts the live deployment when card 1 is sent; after that point, either finish
+the ceremony or use the documented emergency ownership return.
+
+The generated plan entries, pending inventory, assembled plan, ceremony package,
+and eventual run-state are local release outputs. They do not need to be staged
+or committed to perform the local test drive.
+
 ## Fixed deployment identity
 
 | Role | Expected value |
 | --- | --- |
 | Network | Sepolia, chain ID `11155111` |
 | Executing EOA | `0xca732651410E915090d7A7D889A1E44eF4575fcE` |
+| Template fee recipient | `0xca732651410E915090d7A7D889A1E44eF4575fcE` |
 | ArchController | `0xC003f20F2642c76B81e5e1620c6D8cdEE826408f` |
 | Mock owner helper | `0xa476920af80B587f696734430227869795E2Ea78` |
 | Release | `v2-5` |
 | Foundry profile | `deploy` |
 | Expected ceremony length | 23 transactions |
 
-Read-only checks on 2026-07-14 confirmed that the ArchController was owned by
-the helper, the executing EOA was authorized in that helper, and the EOA held
-`0.748931269721935951` Sepolia ETH. Those are observations, not durable
-guarantees; repeat every preflight below immediately before deploying.
+Do not rely on an earlier balance, nonce, authorization, or ownership check.
+Repeat every live preflight below immediately before deploying.
 
 ## Stop conditions
 
@@ -55,6 +64,7 @@ export OWNER_MODE=plan
 export RPC_URL='<your Sepolia RPC URL>'
 
 export EXPECTED_EXECUTOR=0xca732651410E915090d7A7D889A1E44eF4575fcE
+export TEMPLATE_FEE_RECIPIENT=0xca732651410E915090d7A7D889A1E44eF4575fcE
 export ARCH_CONTROLLER=0xC003f20F2642c76B81e5e1620c6D8cdEE826408f
 export EXPECTED_HELPER_OWNER=0xa476920af80B587f696734430227869795E2Ea78
 
@@ -85,11 +95,36 @@ browser wallet signs the live transactions later.
   jq --version
   ```
 
-- [ ] If any prior `plan-v2-5.json`, `ceremony-v2-5-eoa.json`,
-  `run-state-v2-5.json`, or v2.5 plan-entry files already exist, stop and
-  determine whether they are the reviewed release artifacts. Do not merge a
-  new generation with stale files or blindly delete evidence from a partial
-  run.
+- [ ] Start this test drive from a fresh generation. First prove there is no
+  run-state from a partial live ceremony:
+
+  ```bash
+  test ! -e "$RUN_STATE"
+  ```
+
+  If that command fails, stop. Do not regenerate or overwrite anything until
+  the partial run has been reconciled. If it succeeds, preserve any earlier
+  generation-only outputs outside the repository before continuing:
+
+  ```bash
+  export ARTIFACT_BACKUP="${TMPDIR:-/tmp}/wildcat-v2-5-sepolia-$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir -p "$ARTIFACT_BACKUP"
+  for artifact in \
+    deployments/sepolia/plan-entries \
+    deployments/sepolia/inventory-pending \
+    "$PLAN" \
+    "$PACKAGE"
+  do
+    if [[ -e "$artifact" ]]; then
+      mv "$artifact" "$ARTIFACT_BACKUP"/
+    fi
+  done
+  echo "$ARTIFACT_BACKUP"
+  ```
+
+  This avoids mixing stale entries into the new plan without deleting the
+  previous output. Do not run `plan.js execute`, add `--broadcast`, or export a
+  private key for this walkthrough; the browser is the executor in section 6.
 
 ## 2. Run the live preflight
 
@@ -146,12 +181,15 @@ browser wallet signs the live transactions later.
 - [ ] Compile once with the mandatory deploy profile:
 
   ```bash
-  forge build --sizes
+  forge build --sizes src script/common script/deploy/v2-5
   ```
 
   A cold build can take roughly ten minutes. Do not fall back to the default
   profile: `HooksFactoryRevolving` exceeds EIP-170 there, and the resulting
-  creation code would not be the reviewed deployment artifact.
+  creation code would not be the reviewed deployment artifact. The command is
+  scoped to production contracts and the v2.5 deployment scripts because
+  several test harnesses intentionally exceed EIP-3860 initcode limits and are
+  never deployed by the release ceremony.
 
 ## 3. Generate plan entries without broadcasting
 
@@ -162,23 +200,33 @@ transaction.
 
   ```bash
   forge script \
-    script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25
+    script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 \
+    --rpc-url "$RPC_URL"
 
   forge script \
-    script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25
+    script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 \
+    --rpc-url "$RPC_URL"
 
   forge script \
-    script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25
+    script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25 \
+    --rpc-url "$RPC_URL"
 
   forge script \
-    script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25
+    script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25 \
+    --rpc-url "$RPC_URL"
 
   forge script \
-    script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25
+    script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25 \
+    --rpc-url "$RPC_URL"
 
   forge script \
-    script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
+    script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25 \
+    --rpc-url "$RPC_URL"
   ```
+
+  Plan mode does not broadcast or require a private key, but it still requires
+  the target RPC so each entry records the correct chain ID and read-only source
+  configuration is resolved from the intended network.
 
 - [ ] Inspect the generated file set before assembly:
 
@@ -224,6 +272,29 @@ transaction.
   - last ID `restore-arch-controller-ownership`, calling
     `transferOwnership(address)` on the ArchController with the helper as its
     argument.
+
+- [ ] Review the five template-registration calls separately:
+
+  ```bash
+  jq '[
+    .transactions[]
+    | select(.functionSignature == "addHooksTemplate(address,string,address,address,uint80,uint16)")
+    | {
+        id,
+        feeRecipient: .args[2],
+        originationFeeAsset: .args[3],
+        originationFeeAmount: .args[4],
+        protocolFeeBips: .args[5]
+      }
+  ]' "$PLAN"
+  ```
+
+  It must print exactly five rows. For this Sepolia pass, every fee recipient
+  must be the configured developer EOA, every origination fee asset must be the
+  zero address, every origination fee amount must be `0`, and every protocol
+  fee must be `500` bips. The fee-recipient role is independent of the
+  transaction-executor role even though both deliberately use the same address
+  here.
 
 ## 4. Package the exact EOA ceremony
 
@@ -289,34 +360,25 @@ switch; the production build below embeds one exact package and removes both.
   After the ceremony, you can instead stop the preview with `Ctrl-C`, run
   `cd ..`, and keep using the original shell and its exports.
 
-## 5B. Optional: host this exact build through Vercel
+  Building and serving locally does not require any generated deployment file
+  to be tracked by Git. The package bytes are embedded into `deploy-ui/dist/`
+  during the build.
 
-Use this path only if testing from another machine is worth the additional Git
-and hosting state. The generated ceremony package and current frontend must be
-present in the reviewed release commit/branch that Vercel builds.
+## 5B. Optional: host the already built site through Vercel
 
-Configure the Vercel project as follows:
-
-| Setting | Value |
-| --- | --- |
-| Root Directory | repository root; do not select `deploy-ui` |
-| Framework Preset | Other |
-| Install Command | `npm --prefix deploy-ui ci` |
-| Build Command | `CEREMONY_PACKAGE=../deployments/sepolia/ceremony-v2-5-eoa.json npm --prefix deploy-ui run build` |
-| Output Directory | `deploy-ui/dist` |
-
-Vercel confines builds to the configured root directory. Keeping the project
-at repository root lets Vite, whose process runs in `deploy-ui`, resolve the
-package at `../deployments/...`. Selecting `deploy-ui` as the project root can
-make that package inaccessible. See Vercel's
-[build configuration](https://vercel.com/docs/builds/configure-a-build) and
-[monorepo](https://vercel.com/docs/monorepos) documentation.
+For this uncommitted test drive, do not connect a Git branch and ask Vercel to
+rebuild the source: that build would not contain the intentionally untracked
+ceremony package. Complete section 5A locally, then upload only the finished
+`deploy-ui/dist/` directory as a static site through
+[Vercel Drop](https://vercel.com/drop). The directory already contains the
+locked package; Vercel must serve it as-is with no build step.
 
 - [ ] Do not add `PVT_KEY_SEPOLIA`, wallet credentials, or other signing
-  material to Vercel. This static Sepolia build needs none.
-- [ ] After deployment, use the unique URL for that exact deployment, record
-  its Git revision, and compare the displayed ceremony digest and fingerprint
-  with the independently recorded values.
+  material to the hosted site. This static Sepolia build needs none.
+- [ ] After upload, use the unique URL for that exact static deployment. Record
+  the source revision and local diff used to build it, then compare the
+  displayed ceremony digest and fingerprint with the independently recorded
+  values.
 - [ ] Use the same origin for the whole run because progress is stored in
   origin-scoped browser storage. Do not switch between a Vercel deployment
   URL, project alias, and localhost mid-ceremony.
@@ -325,11 +387,15 @@ make that package inaccessible. See Vercel's
   before sharing the URL. Confirm its behavior on the production domain for
   the selected Vercel plan.
 
-Do not point Vercel at a branch that will auto-rebuild while the ceremony is in
-progress. A rebuild can change the exact deployment URL or replace the package
-served by an alias even if the source change appears harmless.
+Do not connect this one-off project to a branch or replace the hosted files
+while the ceremony is in progress. Use the exact recorded deployment URL for
+the whole run.
 
 ## 6. Walk the live 23-card EOA ceremony
+
+This is the live boundary. Nothing in sections 1–5 changed Sepolia. Clicking
+**Send transaction 1** below temporarily moves ArchController ownership from
+the helper to the developer EOA.
 
 - [ ] Open the locked site and confirm, before connecting:
 
@@ -477,10 +543,12 @@ Return to the repository root before running these commands.
     --check
   ```
 
-- [ ] Review the final repository diff. It should contain the intentional plan,
-  package, run-state, finalized inventory/deployment aliases, reconcile report,
-  verification inputs, and handoff—not credentials, RPC URLs, browser state, or
-  unrelated generated files.
+- [ ] Review the final repository diff and generated outputs separately. The
+  plan, package, pending inventory, and run-state remain untracked local release
+  artifacts unless the team deliberately chooses to preserve them after the
+  successful run. The finalized tracked inventory/deployment aliases and
+  handoff are durable repository changes. Never bulk-stage credentials, RPC
+  URLs, browser state, ignored reconcile reports, or unrelated generated files.
 
 ## 8. Explorer verification and canary gate
 

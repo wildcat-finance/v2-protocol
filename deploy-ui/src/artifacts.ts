@@ -47,6 +47,12 @@ export interface LoadedCeremonyPackage {
   expectedAddresses: HashedArtifact<ExpectedAddresses> | null
 }
 
+const NETWORK_CHAIN_IDS: Readonly<Record<string, number>> = {
+  mainnet: 1,
+  sepolia: 11155111,
+  anvil: 31337,
+}
+
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
   if (value !== null && typeof value === 'object') {
@@ -184,6 +190,12 @@ export function assertPlan(value: unknown): DeploymentPlan {
     plan.transactions.length === 0
   ) {
     throw new Error('Plan does not satisfy the deployment plan 1.1 identity and safety fields.')
+  }
+  const configuredChainId = NETWORK_CHAIN_IDS[plan.network]
+  if (configuredChainId !== undefined && plan.chainId !== configuredChainId) {
+    throw new Error(
+      `Plan network ${plan.network} requires chain ID ${configuredChainId}, got ${plan.chainId}.`,
+    )
   }
   getAddress(plan.expectedExecutor)
   const ids = new Set<string>()

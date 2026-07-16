@@ -151,6 +151,42 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
   },
   {
+    component: "Access-control hook templates",
+    artifactNames: [
+      "src/access/OpenTermHooks.sol:OpenTermHooks",
+      "src/access/FixedTermHooks.sol:FixedTermHooks",
+      "src/access/PeriodicTermHooks.sol:PeriodicTermHooks",
+    ],
+    changed: [],
+    added: [
+      "isMarketTransferDisabled(address) reports the immutable per-market transfer policy.",
+      "DepositHookNotEnabled error.",
+    ],
+  },
+  {
+    component: "MarketLens",
+    artifactNames: [
+      "src/lens/MarketLens.sol:MarketLens",
+      "src/lens/MarketLensCore.sol:MarketLensCore",
+      "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+    ],
+    changed: [
+      "HooksConfigData return tuples append useOnExecutePendingAnnualInterestBipsReduction; consumers must regenerate ABI tuple decoders.",
+    ],
+    added: [],
+  },
+  {
+    component: "Wildcat4626WrapperFactory",
+    artifactNames: [
+      "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory",
+    ],
+    changed: [],
+    added: [
+      "MarketTransfersDisabled(address) error.",
+      "UnsupportedMarketTransferPolicy(address,address) error.",
+    ],
+  },
+  {
     component: "WildcatMarketRevolving",
     artifactNames: [
       "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving",
