@@ -21,7 +21,7 @@ import '../../common/DeployScriptBase.sol';
 contract RegisterFactoriesV25 is V25DeployScriptBase {
   string internal constant STANDARD_FACTORY_OUTPUT = 'hooks-factory-standard';
   string internal constant REVOLVING_FACTORY_OUTPUT = 'hooks-factory-revolving';
-  string internal constant AFTER_OWNER_ACTIONS = 'add-revolving-fixed-term-template';
+  string internal constant AFTER_OWNER_ACTIONS = 'add-revolving-periodic-term-template';
   string internal constant REGISTER_STANDARD_ENTRY_ID = 'register-hooks-factory-standard';
   string internal constant REGISTER_REVOLVING_ENTRY_ID = 'register-hooks-factory-revolving';
 
@@ -76,7 +76,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
       _writePlanEntry(
         deployments,
         archControllerAddress,
-        20,
+        21,
         REGISTER_STANDARD_ENTRY_ID,
         STANDARD_FACTORY_OUTPUT,
         AFTER_OWNER_ACTIONS,
@@ -85,7 +85,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
       _writePlanEntry(
         deployments,
         archControllerAddress,
-        21,
+        22,
         REGISTER_REVOLVING_ENTRY_ID,
         REVOLVING_FACTORY_OUTPUT,
         REGISTER_STANDARD_ENTRY_ID,

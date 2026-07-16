@@ -62,15 +62,19 @@ startBlocks, routing prose, the v2.5 ABI-delta list.
 
 ## Proven by rehearsal (anvil forks, not checked in)
 
-- Sepolia fork, current full pipeline: 23-transaction plan generated and
+- Sepolia fork, current full pipeline: 24-transaction plan generated and
   executed through the temporary helper-owner flow as a dev EOA, including
-  ownership reclaim and restoration; 23/23 predicates verified, inventory
+  ownership reclaim and restoration; 24/24 predicates verified, inventory
   finalized, and reconcile green. An earlier direct-owner rehearsal also
   deployed, exercised, and closed the standard and revolving canary markets.
-- Mainnet fork, same pipeline as the impersonated Foundation Safe
-  (`0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, v1.4.1, threshold 3).
-- Mainnet fork, bundle ceremony: 3 bundles at ~15.8M / 17.3M / 9.8M gas
-  (20M ceiling, 60M block limit), all predicates, 08 + reconcile green.
+- Mainnet fork, current 22-transaction base pipeline executed as the
+  impersonated Foundation Safe
+  (`0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, v1.4.1, threshold 3); 22/22
+  predicates verified, inventory finalized, and reconcile green.
+- The earlier five-registration mainnet bundle ceremony used 3 bundles at
+  ~15.8M / 17.3M / 9.8M gas. Those bundle artifacts and gas figures are stale;
+  regenerate and re-simulate the corrected six-registration plan before
+  mainnet signing.
 - Sepolia fork, true signing path: fresh 1-of-1 Safe via canonical v1.4.1
   ProxyFactory, real EIP-712 signature, all bundles and predicates green.
 - Frontend engines: headless fork tests for both modes, including the actual
@@ -80,9 +84,8 @@ startBlocks, routing prose, the v2.5 ABI-delta list.
 
 Mainnet: host the package-specific `deploy-ui/dist`, confirm its fingerprint on
 the call, then per bundle: operator proposes, signers review the card and sign
-(3 signatures × 3 bundles), operator executes, predicate board goes green.
-Signer click budget for the whole protocol: connect, review, three
-signatures. Export run-state → step 08 → reconcile → handoff.
+(three threshold signatures per generated bundle), operator executes, predicate
+board goes green. Export run-state → step 08 → reconcile → handoff.
 
 Testnets: same page in locked EOA mode with a dev key. Sepolia's first and last
 cards perform the helper-owner reclaim and return; each card signs immediately.
@@ -96,8 +99,9 @@ cards perform the helper-owner reclaim and return; each card signs immediately.
 2. **Legacy sweep** (after the live rehearsal): old deploy scripts →
    `script/legacy/`, retire superseded env conventions, supersede the RCF
    checklist.
-3. **Mainnet ceremony** when the release is blessed: same artifacts, Safe
-   mode, Foundation signers on a call.
+3. **Mainnet ceremony** when the release is blessed: generate and simulate the
+   corrected Safe bundles, then use the resulting package with Foundation
+   signers on a call.
 4. Deferred: Plasma explorer verification config (`VERIFIER_URL`) when
    those chains onboard; subgraph/SDK/app updates consume the generated
    handoff.

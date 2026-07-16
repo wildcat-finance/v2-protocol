@@ -41,13 +41,13 @@ walkthrough for the live run; the bullets below are only a condensed index.
       script/deploy/v2-5/NN-*.s.sol --rpc-url "$RPC_URL"`), then `bash
       script/deploy/v2-5/07-generate-plan.sh`
 - [ ] Confirm the dev EOA is authorized in `MockArchControllerOwner`; the
-      generated plan has 23 cards, including reclaim first and restore last
+      generated plan has 24 cards, including reclaim first and restore last
 - [ ] Package and build: `plan.js ceremony-package --mode eoa`, then build
       deploy-ui with `CEREMONY_PACKAGE=../deployments/sepolia/ceremony-v2-5-eoa.json`
 - [ ] Drive the embedded EOA ceremony with the exact dev EOA in the browser wallet
       (or headless: `node scripts/plan.js execute --plan
       deployments/sepolia/plan-v2-5.json --rpc <rpc> --private-key <pk>`)
-- [ ] All 23 cards complete; the final ownership predicate is green;
+- [ ] All 24 cards complete; the final ownership predicate is green;
       export/collect run-state
 - [ ] Finalize: `RUN_STATE=deployments/sepolia/run-state-v2-5.json
       RPC_URL=<rpc> bash script/deploy/v2-5/08-finalize-inventory.sh`
@@ -89,7 +89,9 @@ After Sepolia is proven and the release is blessed.
 
 - Foundation Safe: `0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae` (v1.4.1,
   threshold 3) — mainnet ArchController owner
-- Bundle gas (mainnet fork): ~15.8M / 17.3M / 9.8M vs 20M ceiling
+- Historical pre-sixth-registration bundle gas: ~15.8M / 17.3M / 9.8M. Do not
+  reuse it; regenerate and re-simulate the current mainnet bundles against the
+  20M ceiling.
 - `FOUNDRY_PROFILE=deploy` is mandatory (HooksFactoryRevolving exceeds
   EIP-170 on the default profile)
 - Canonical Safe libs (both networks): MultiSend

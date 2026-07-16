@@ -56,6 +56,8 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant ADD_STANDARD_PERIODIC_ENTRY_ID = 'add-standard-periodic-term-template';
   string internal constant ADD_REVOLVING_OPEN_ENTRY_ID = 'add-revolving-open-term-template';
   string internal constant ADD_REVOLVING_FIXED_ENTRY_ID = 'add-revolving-fixed-term-template';
+  string internal constant ADD_REVOLVING_PERIODIC_ENTRY_ID =
+    'add-revolving-periodic-term-template';
 
   struct TemplateFeeParameters {
     address originationFeeAsset;
@@ -362,6 +364,17 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       ADD_REVOLVING_OPEN_ENTRY_ID,
       'Add the v2.5 FixedTermHooks template to the revolving factory.'
     );
+    _writeAddTemplatePlanEntry(
+      deployments,
+      periodicTerm,
+      periodicFeeRecipient,
+      20,
+      ADD_REVOLVING_PERIODIC_ENTRY_ID,
+      REVOLVING_FACTORY_OUTPUT,
+      PERIODIC_STORAGE_OUTPUT,
+      ADD_REVOLVING_FIXED_ENTRY_ID,
+      'Add the v2.5 PeriodicTermHooks template to the revolving factory.'
+    );
   }
 
   function _deployTemplateStorage(
@@ -498,5 +511,6 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     _addTemplate(deployments, standardFactory, periodicTerm);
     _addTemplate(deployments, revolvingFactory, openTerm);
     _addTemplate(deployments, revolvingFactory, fixedTerm);
+    _addTemplate(deployments, revolvingFactory, periodicTerm);
   }
 }

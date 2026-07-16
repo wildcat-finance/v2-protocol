@@ -236,9 +236,9 @@ node scripts/plan.js execute \
   --private-key "$PVT_KEY_SEPOLIA"
 ```
 
-Review the summary before execution. Mainnet produces 21 transactions: 12
-deployments and 9 calls. Sepolia's ceremony config wraps those in reclaim and
-restore calls for 23 total cards. `execute` writes
+Review the summary before execution. Mainnet produces 22 transactions: 12
+deployments and 10 calls. Sepolia's ceremony config wraps those in reclaim and
+restore calls for 24 total cards. `execute` writes
 `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
 
 ### 08 — finalize inventory
@@ -353,9 +353,9 @@ every transaction.
 
 ### Bundle the plan (the ceremony format)
 
-The ceremony does not execute 21 transactions one by one. `plan.js bundle`
-compiles the plan into a minimal set of atomic Safe transactions (3 for
-v2-5), each a `MultiSend` **delegatecall** whose deployments run through the
+The ceremony does not execute 22 transactions one by one. `plan.js bundle`
+compiles the plan into a minimal set of atomic Safe transactions, each a
+`MultiSend` **delegatecall** whose deployments run through the
 canonical `CreateCall` library as CREATE2 — every address is precomputed at
 bundle time from `(safe, salt, initCodeHash)`, all `$ref`s resolve
 statically. CREATE2 addresses do not depend on nonces or mid-ceremony state;
@@ -376,10 +376,11 @@ node scripts/plan.js bundle \
 ```
 
 Rehearse before signing: `plan.js bundle-simulate` executes every bundle
-through the real Safe on an anvil mainnet fork and reports per-bundle gas
-(v2-5: ~15.8M / 17.3M / 9.8M against a 20M ceiling) and all predicates.
-The fork Safe nonce must equal the pinned starting nonce. Any intervening Safe
-execution requires regeneration and a fresh simulation.
+through the real Safe on an anvil mainnet fork and reports per-bundle gas and
+all predicates. Every bundle must remain below the 20M ceiling. The fork Safe
+nonce must equal the pinned starting nonce. Any plan change or intervening Safe
+execution requires regeneration and a fresh simulation; do not reuse the
+historical three-bundle gas figures from the earlier five-registration plan.
 
 After simulation, produce the only input to the release-specific site and build
 it in:
@@ -446,11 +447,12 @@ node scripts/generate-handoff.js --network mainnet --release v2-5 --check
 Deliver `handoff-v2-5.json` and `handoff-v2-5.md` with the verified ABIs to the
 subgraph and SDK owners.
 
-Operator-reported rehearsal record: both the Sepolia fork and mainnet fork
-completed end to end with a 21-transaction plan, all predicates passing,
-reconcile green, and both canary markets closed. No checked-in plan, run-state,
-or canary receipt currently proves that historical result; retain the rehearsal
-logs with the live rollout artifacts.
+Current local rehearsal record: the corrected six-registration plan completed
+end to end on both forks—24 transactions and 24/24 predicates on Sepolia, 22
+transactions and 22/22 predicates on mainnet—with inventory finalization and
+reconciliation green. Earlier rehearsals also closed both canary markets. These
+generated plans, run states, and receipts are not checked in; retain the exact
+rehearsal logs with the live rollout artifacts.
 
 ## 5. Fork rehearsal
 
