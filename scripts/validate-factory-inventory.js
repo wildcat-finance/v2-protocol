@@ -4,12 +4,15 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const {
+  assertFactoryDeactivationPlan,
   getCanonicalFactory,
+  getFactoryDeactivationTargets,
   getIndexedFactories,
   inventoryPathForNetwork,
   migrateInventory,
   readInventory,
   readJson,
+  recordFactoryDeactivations,
   validateInventory,
 } = require("./factory-inventory");
 
@@ -574,6 +577,137 @@ function runFixtures(fixturesDir) {
     );
   } else {
     console.log("Fixture migration deterministic: 1.0 -> 1.1");
+  }
+
+  const deactivationTargets = getFactoryDeactivationTargets(expectedMigration);
+  const excludedTargets = getFactoryDeactivationTargets(expectedMigration, [
+    "0x1111111111111111111111111111111111111111",
+  ]);
+  if (
+    deactivationTargets.length !== 3 ||
+    excludedTargets.length !== 2 ||
+    deactivationTargets.some(
+      (target) =>
+        target.factory === "0x3333333333333333333333333333333333333333"
+    )
+  ) {
+    failures.push(
+      "factory deactivation targets must include every registered factory, ignore lifecycle/indexing, and honor exclusions"
+    );
+  } else {
+    console.log("Fixture factory deactivation targets selected correctly");
+  }
+
+  const deactivatedInventory = JSON.parse(JSON.stringify(expectedMigration));
+  const factoryMetadataBefore = new Map(
+    deactivatedInventory.hooksFactories.map((entry) => [
+      entry.address.toLowerCase(),
+      { indexed: entry.indexed, lifecycle: entry.lifecycle },
+    ])
+  );
+  recordFactoryDeactivations(deactivatedInventory, deactivationTargets);
+  const metadataChanged = deactivatedInventory.hooksFactories.some((entry) => {
+    const before = factoryMetadataBefore.get(entry.address.toLowerCase());
+    return (
+      before.indexed !== entry.indexed || before.lifecycle !== entry.lifecycle
+    );
+  });
+  const targetStillRegistered = deactivatedInventory.hooksFactories.some(
+    (entry) =>
+      deactivationTargets.some(
+        (target) => target.factory.toLowerCase() === entry.address.toLowerCase()
+      ) && entry.registered
+  );
+  if (metadataChanged || targetStillRegistered) {
+    failures.push(
+      "recording factory deactivation must only clear registered state"
+    );
+  } else {
+    console.log(
+      "Fixture factory deactivation preserves lifecycle and indexing"
+    );
+  }
+
+  const archController = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const transactions = [
+    { id: "register-hooks-factory-standard" },
+    { id: "register-hooks-factory-revolving" },
+    ...deactivationTargets.flatMap((target, index) => [
+      {
+        id: `remove-controller-factory-${index}`,
+        to: archController,
+        functionSignature: "removeControllerFactory(address)",
+        args: [target.factory],
+        predicate: {
+          type: "callEq",
+          target: archController,
+          call: {
+            sig: "isRegisteredControllerFactory(address) view returns (bool)",
+            args: [target.factory],
+          },
+          expect: false,
+        },
+      },
+      {
+        id: `remove-controller-${index}`,
+        to: archController,
+        functionSignature: "removeController(address)",
+        args: [target.factory],
+        predicate: {
+          type: "callEq",
+          target: archController,
+          call: {
+            sig: "isRegisteredController(address) view returns (bool)",
+            args: [target.factory],
+          },
+          expect: false,
+        },
+      },
+    ]),
+  ];
+  try {
+    assertFactoryDeactivationPlan(
+      { transactions },
+      deactivationTargets,
+      archController
+    );
+    console.log("Fixture factory deactivation plan validated");
+  } catch (error) {
+    failures.push(`valid factory deactivation plan rejected: ${error.message}`);
+  }
+
+  const unsafeTransactions = [...transactions];
+  [unsafeTransactions[2], unsafeTransactions[3]] = [
+    unsafeTransactions[3],
+    unsafeTransactions[2],
+  ];
+  try {
+    assertFactoryDeactivationPlan(
+      { transactions: unsafeTransactions },
+      deactivationTargets,
+      archController
+    );
+    failures.push(
+      "unsafe controller-before-controller-factory removal was accepted"
+    );
+  } catch (_error) {
+    console.log("Fixture unsafe factory deactivation order rejected");
+  }
+
+  try {
+    assertFactoryDeactivationPlan(
+      {
+        transactions: [
+          ...transactions,
+          { functionSignature: "removeMarket(address)" },
+        ],
+      },
+      deactivationTargets,
+      archController
+    );
+    failures.push("factory deactivation plan accepted a market removal");
+  } catch (_error) {
+    console.log("Fixture factory deactivation plan rejects market removal");
   }
 
   if (failures.length > 0) {

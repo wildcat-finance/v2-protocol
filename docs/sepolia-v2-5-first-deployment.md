@@ -30,7 +30,7 @@ or committed to perform the local test drive.
 | Mock owner helper | `0xa476920af80B587f696734430227869795E2Ea78` |
 | Release | `v2-5` |
 | Foundry profile | `deploy` |
-| Expected ceremony length | 24 transactions |
+| Expected ceremony length | 38 transactions |
 
 Do not rely on an earlier balance, nonce, authorization, or ownership check.
 Repeat every live preflight below immediately before deploying.
@@ -44,7 +44,7 @@ Do not start or continue the ceremony if any of these is true:
 - The helper does not own the ArchController before card 1.
 - `authorizedAccounts(executing EOA)` is not `true` on the helper.
 - inventory reconciliation is not green.
-- the generated plan is not profile `deploy`, executor-matched, and exactly 24
+- the generated plan is not profile `deploy`, executor-matched, and exactly 38
   cards with reclaim first and restore last.
 - there is an unresolved pending transaction from the executing EOA.
 - the UI reports a fatal halt, a reverted receipt, or a failed predicate.
@@ -163,7 +163,7 @@ browser wallet signs the live transactions later.
 
   The two nonces must match before opening the ceremony. If they differ, wait
   for or resolve the pending transaction first. Do not use this EOA for any
-  unrelated transaction until all 24 cards are complete.
+  unrelated transaction until all 38 cards are complete.
 
 - [ ] Validate the local inventory and reconcile it against Sepolia. The last
   command must print `Reconcile GREEN for sepolia`:
@@ -243,7 +243,9 @@ transaction.
   node scripts/plan.js validate --plan "$PLAN"
   ```
 
-  The wrapper should report `24 tx (12 deploy, 12 call)` for Sepolia.
+  The wrapper should report `38 tx (12 deploy, 26 call)` for the currently
+  reconciled Sepolia inventory: 22 base rollout transactions, 14 factory-role
+  removals, and two temporary-ownership calls.
 
 - [ ] Review the plan identity:
 
@@ -266,7 +268,7 @@ transaction.
   - schema `1.1.0`, profile `deploy`, network `sepolia`, chain `11155111`, and
     release `v2-5`;
   - expected executor `0xca732651410E915090d7A7D889A1E44eF4575fcE`;
-  - 24 transactions;
+  - 38 transactions;
   - first ID `reclaim-arch-controller-ownership`, calling
     `returnOwnership()` on the mock owner helper; and
   - last ID `restore-arch-controller-ownership`, calling
@@ -295,6 +297,29 @@ transaction.
   fee must be `500` bips. The fee-recipient role is independent of the
   transaction-executor role even though both deliberately use the same address
   here.
+
+- [ ] Review the superseded-factory deactivation matrix:
+
+  ```bash
+  node scripts/factory-inventory.js deactivation-targets \
+    --network sepolia | jq .
+
+  jq '[
+    .transactions[]
+    | select(
+        .functionSignature == "removeControllerFactory(address)" or
+        .functionSignature == "removeController(address)"
+      )
+    | {id, functionSignature, factory: .args[0], expect: .predicate.expect}
+  ]' "$PLAN"
+  ```
+
+  The inventory command must print the seven factories confirmed by the live
+  reconciliation. The plan must print exactly 14 rows: for each address,
+  `removeControllerFactory(address)` first and `removeController(address)`
+  second, both expecting `false`. There must be no `removeMarket(address)`
+  call. Disabling factory authority does not deregister existing markets, and
+  finalization must preserve each old factory's `indexed` flag.
 
 ## 4. Package the exact EOA ceremony
 
@@ -391,7 +416,7 @@ Do not connect this one-off project to a branch or replace the hosted files
 while the ceremony is in progress. Use the exact recorded deployment URL for
 the whole run.
 
-## 6. Walk the live 24-card EOA ceremony
+## 6. Walk the live 38-card EOA ceremony
 
 This is the live boundary. Nothing in sections 1–5 changed Sepolia. Clicking
 **Send transaction 1** below temporarily moves ArchController ownership from
@@ -400,7 +425,7 @@ the helper to the developer EOA.
 - [ ] Open the locked site and confirm, before connecting:
 
   - release `v2-5`, network `sepolia`, chain `11155111`;
-  - exactly 24 transactions;
+  - exactly 38 transactions;
   - expected executor `0xca732651410E915090d7A7D889A1E44eF4575fcE`;
   - the recorded digest and fingerprint;
   - EOA mode; and
@@ -438,7 +463,7 @@ the helper to the developer EOA.
   transaction. Reopen the exact same site origin, reconnect the same account,
   and let the page recover the stored transaction hash and receipt.
 
-- [ ] Review card 24. It must call
+- [ ] Review card 38. It must call
   `ArchController.transferOwnership(helper)` with
   `0xa476920af80B587f696734430227869795E2Ea78`. Send it and wait for its
   predicate to become `verified`.
@@ -458,7 +483,7 @@ the helper to the developer EOA.
 ## Emergency ownership return
 
 This is an abort procedure, not a way to continue past a failed card. Use it
-only if the ceremony has halted after card 1 and before card 24.
+only if the ceremony has halted after card 1 and before card 38.
 
 1. Stop normal execution and preserve the exact URL/build, browser profile,
    browser storage, exported run-state, last transaction hash, and error text.
@@ -499,10 +524,10 @@ Return to the repository root before running these commands.
   jq 'length' "$RUN_STATE"
   ```
 
-  It must print `24`.
+  It must print `38`.
 
 - [ ] Independently re-run every on-chain predicate. The final line must be
-  `Verification passed: 24 predicate(s).`:
+  `Verification passed: 38 predicate(s).`:
 
   ```bash
   node scripts/plan.js verify \
@@ -574,10 +599,10 @@ complete.
 - [ ] Do not run `09-canary-market.sh` until both unresolved operator inputs are
   deliberately selected: a registered `BORROWER` and the Sepolia
   `CANARY_ASSET`. The canary is a separate direct-broadcast phase, not one of
-  the 24 ceremony cards. Once those values are reviewed, follow
+  the 38 ceremony cards. Once those values are reviewed, follow
   [deployment.md](./deployment.md#09--canary-markets).
 
-The deployment ceremony is complete when all 24 predicates verify, ownership
+The deployment ceremony is complete when all 38 predicates verify, ownership
 is back with the helper, step 08 has finalized the inventory, and reconciliation
 is green. The Sepolia release is ready to bless for mainnet only after explorer
 verification, the canary run, and downstream handoff review are also complete.

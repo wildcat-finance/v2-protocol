@@ -212,10 +212,15 @@ forge script \
   --rpc-url "$RPC_URL"
 ```
 
-### 06 — register both factories as controllers
+### 06 — register new factories and disable superseded factories
 
 Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG` and `ARCH_CONTROLLER`. Run 05 first.
+The script reads the reconciled factory inventory, registers both v2.5
+factories, then removes every previously registered hooks factory from the
+ArchController's controller-factory registry followed by its controller
+registry. It does not remove any market. Inventory `indexed` state is
+independent and is preserved during finalization.
 
 ```bash
 forge script \
@@ -236,9 +241,11 @@ node scripts/plan.js execute \
   --private-key "$PVT_KEY_SEPOLIA"
 ```
 
-Review the summary before execution. Mainnet produces 22 transactions: 12
-deployments and 10 calls. Sepolia's ceremony config wraps those in reclaim and
-restore calls for 24 total cards. `execute` writes
+Review the summary before execution. The base rollout has 22 transactions: 12
+deployments and 10 calls. Step 06 adds two calls for every registered
+superseded hooks factory. Sepolia's ceremony config adds ownership reclaim and
+restore calls. With the currently reconciled inventories, mainnet produces 24
+transactions and Sepolia produces 38. `execute` writes
 `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
 
 ### 08 — finalize inventory
@@ -246,7 +253,9 @@ restore calls for 24 total cards. `execute` writes
 Environment: require `DEPLOYMENTS_NETWORK` and `RUN_STATE`; accept `RPC_URL`.
 The wrapper exports `FOUNDRY_PROFILE=deploy` itself. It rejects any missing,
 unknown, non-verified, or malformed run-state entry; appends exactly two hooks
-factories and one wrapper factory; moves canonical aliases; then reconciles.
+factories and one wrapper factory; moves canonical aliases; records every
+superseded factory as `registered: false` without changing its `indexed` flag;
+then reconciles.
 
 ```bash
 export RUN_STATE="deployments/$DEPLOYMENTS_NETWORK/run-state-$RELEASE_TAG.json"
@@ -353,7 +362,7 @@ every transaction.
 
 ### Bundle the plan (the ceremony format)
 
-The ceremony does not execute 22 transactions one by one. `plan.js bundle`
+The ceremony does not execute every plan transaction one by one. `plan.js bundle`
 compiles the plan into a minimal set of atomic Safe transactions, each a
 `MultiSend` **delegatecall** whose deployments run through the
 canonical `CreateCall` library as CREATE2 — every address is precomputed at
@@ -447,12 +456,16 @@ node scripts/generate-handoff.js --network mainnet --release v2-5 --check
 Deliver `handoff-v2-5.json` and `handoff-v2-5.md` with the verified ABIs to the
 subgraph and SDK owners.
 
-Current local rehearsal record: the corrected six-registration plan completed
-end to end on both forks—24 transactions and 24/24 predicates on Sepolia, 22
-transactions and 22/22 predicates on mainnet—with inventory finalization and
-reconciliation green. Earlier rehearsals also closed both canary markets. These
-generated plans, run states, and receipts are not checked in; retain the exact
-rehearsal logs with the live rollout artifacts.
+Current local rehearsal record: the corrected six-registration and
+superseded-factory deactivation plan completed end to end on both forks—38
+transactions and 38/38 predicates on Sepolia, 24 transactions and 24/24
+predicates on mainnet—with inventory finalization and reconciliation green.
+The finalized fork inventories retained historical `indexed` flags, marked all
+superseded factories unregistered, and the plans contained no market-removal
+calls. Earlier rehearsals also closed both canary markets. These generated
+plans, run states,
+and receipts are not checked in; retain the exact rehearsal logs with the live
+rollout artifacts.
 
 ## 5. Fork rehearsal
 

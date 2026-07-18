@@ -41,13 +41,14 @@ walkthrough for the live run; the bullets below are only a condensed index.
       script/deploy/v2-5/NN-*.s.sol --rpc-url "$RPC_URL"`), then `bash
       script/deploy/v2-5/07-generate-plan.sh`
 - [ ] Confirm the dev EOA is authorized in `MockArchControllerOwner`; the
-      generated plan has 24 cards, including reclaim first and restore last
+      generated plan has 38 cards, including reclaim first, 14 removals for
+      the seven reconciled superseded factories, and restore last
 - [ ] Package and build: `plan.js ceremony-package --mode eoa`, then build
       deploy-ui with `CEREMONY_PACKAGE=../deployments/sepolia/ceremony-v2-5-eoa.json`
 - [ ] Drive the embedded EOA ceremony with the exact dev EOA in the browser wallet
       (or headless: `node scripts/plan.js execute --plan
       deployments/sepolia/plan-v2-5.json --rpc <rpc> --private-key <pk>`)
-- [ ] All 24 cards complete; the final ownership predicate is green;
+- [ ] All 38 cards complete; the final ownership predicate is green;
       export/collect run-state
 - [ ] Finalize: `RUN_STATE=deployments/sepolia/run-state-v2-5.json
       RPC_URL=<rpc> bash script/deploy/v2-5/08-finalize-inventory.sh`
@@ -67,6 +68,9 @@ After Sepolia is proven and the release is blessed.
 - [ ] Preflight: reconcile GREEN on mainnet; team on the call; signers ready
 - [ ] Generate 01–06 + 07 with `DEPLOYMENTS_NETWORK=mainnet
       EXPECTED_EXECUTOR=0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`
+- [ ] Confirm the generated plan has 24 transactions, including paired
+      controller-factory/controller removals for the one reconciled
+      superseded hooks factory
 - [ ] Read and freeze the current Safe nonce; bundle with `--start-nonce`:
       `node scripts/plan.js bundle --plan deployments/mainnet/plan-v2-5.json
       --safe 0xC15b…D9Ae --start-nonce <nonce>` → expected 2–4 bundles

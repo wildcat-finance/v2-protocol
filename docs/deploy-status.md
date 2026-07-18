@@ -1,6 +1,6 @@
 # v2.5 Deployment Tooling — Status
 
-As of 2026-07-15. Companion to [deployment.md](./deployment.md) (the process
+As of 2026-07-17. Companion to [deployment.md](./deployment.md) (the process
 runbook). This records what is built, what is proven, and what remains.
 
 ## Built and verified
@@ -11,7 +11,11 @@ with the v1 link; `lint` and two-half `reconcile` (registry-backed hooks
 factories via the ArchController, configuration-backed wrapper factories);
 the one-time repair of both networks' inventories (Sepolia canonical
 history corrected against on-chain creation blocks; mainnet backfilled from
-chain enumeration). Reconcile is green against live Sepolia and mainnet.
+chain enumeration). The rollout selects every hooks factory whose reconciled
+inventory state is `registered: true`, removes its controller-factory role
+before its controller role, and finalization records it unregistered without
+changing historical indexing. Reconcile is green against live Sepolia and
+mainnet.
 
 **Plan engine** (committed): `scripts/plan.js` — a deployment release
 compiles to a single plan artifact (`plan-<release>.json`): ordered
@@ -28,7 +32,9 @@ assembled as a release artifact.
 `OWNER_MODE=direct` broadcasts inline for component maintenance. Two-flow
 rule (see deployment.md §3): generational rollouts go through the plan
 pipeline on every network; inline direct is for between-release maintenance
-and deliberately cannot reach step 08.
+and deliberately cannot reach step 08. Step 06 registers the two new factories
+and disables every superseded inventory factory in both ArchController roles;
+it never removes markets.
 
 **Bundle mode** (staged): `scripts/plan-bundle.js` — compiles a plan into a
 minimal set of atomic Safe transactions (3 for v2-5): `MultiSend`
@@ -62,15 +68,19 @@ startBlocks, routing prose, the v2.5 ABI-delta list.
 
 ## Proven by rehearsal (anvil forks, not checked in)
 
-- Sepolia fork, current full pipeline: 24-transaction plan generated and
+- Sepolia fork, current full pipeline: 38-transaction plan generated and
   executed through the temporary helper-owner flow as a dev EOA, including
-  ownership reclaim and restoration; 24/24 predicates verified, inventory
-  finalized, and reconcile green. An earlier direct-owner rehearsal also
-  deployed, exercised, and closed the standard and revolving canary markets.
-- Mainnet fork, current 22-transaction base pipeline executed as the
+  ownership reclaim and restoration plus paired removal of all seven
+  superseded hooks factories; 38/38 predicates verified, inventory finalized
+  with historical `indexed` flags preserved, and reconcile green. An earlier
+  direct-owner rehearsal also deployed, exercised, and closed the standard and
+  revolving canary markets.
+- Mainnet fork, current 24-transaction pipeline executed as the
   impersonated Foundation Safe
-  (`0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, v1.4.1, threshold 3); 22/22
-  predicates verified, inventory finalized, and reconcile green.
+  (`0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, v1.4.1, threshold 3), including
+  paired removal of the one superseded hooks factory; 24/24 predicates
+  verified, historical indexing preserved, inventory finalized, and reconcile
+  green.
 - The earlier five-registration mainnet bundle ceremony used 3 bundles at
   ~15.8M / 17.3M / 9.8M gas. Those bundle artifacts and gas figures are stale;
   regenerate and re-simulate the corrected six-registration plan before

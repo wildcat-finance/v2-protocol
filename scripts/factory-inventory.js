@@ -71,6 +71,8 @@ function printUsage() {
     [--deployments <path>] [--handoff <path>] [--allowlist <path>]
   node scripts/factory-inventory.js reconcile --network <name> [--rpc-url <url>]
     [--input <path>] [--deployments <path>] [--handoff <path>] [--output <path>]
+  node scripts/factory-inventory.js deactivation-targets --network <name>
+    [--input <path>] [--exclude <address,address>]
   node scripts/factory-inventory.js apply-run --network <name> --run-state <path>
     [--plan <path>] [--rpc-url <url>] [--input <path>] [--deployments <path>]
 
@@ -287,6 +289,146 @@ function addressKey(address) {
     throw new Error(`Invalid address: ${address}`);
   }
   return address.toLowerCase();
+}
+
+function getFactoryDeactivationTargets(inventory, excludedAddresses = []) {
+  const excluded = new Set(excludedAddresses.map(addressKey));
+  return inventory.hooksFactories
+    .filter(
+      (entry) =>
+        entry.registered === true && !excluded.has(addressKey(entry.address))
+    )
+    .map((entry) => ({ factory: entry.address, label: entry.label }));
+}
+
+function recordFactoryDeactivations(inventory, targets) {
+  for (const target of targets) {
+    const entry = inventory.hooksFactories.find(
+      (candidate) =>
+        addressKey(candidate.address) === addressKey(target.factory)
+    );
+    if (!entry) {
+      throw new Error(
+        `Factory deactivation target disappeared from inventory: ${target.label} (${target.factory})`
+      );
+    }
+    entry.registered = false;
+  }
+}
+
+function assertFactoryDeactivationPlan(plan, targets, archController) {
+  if (!isAddress(archController)) {
+    throw new Error(
+      "Missing valid ArchController for factory deactivation plan"
+    );
+  }
+  const controllerFactorySignature = "removeControllerFactory(address)";
+  const controllerSignature = "removeController(address)";
+  const controllerFactoryPredicate =
+    "isRegisteredControllerFactory(address) view returns (bool)";
+  const controllerPredicate =
+    "isRegisteredController(address) view returns (bool)";
+  const controllerFactoryCalls = plan.transactions.filter(
+    (transaction) =>
+      transaction.functionSignature === controllerFactorySignature
+  );
+  const controllerCalls = plan.transactions.filter(
+    (transaction) => transaction.functionSignature === controllerSignature
+  );
+
+  if (
+    plan.transactions.some(
+      (transaction) => transaction.functionSignature === "removeMarket(address)"
+    )
+  ) {
+    throw new Error(
+      "Factory deactivation plan must not remove existing markets"
+    );
+  }
+
+  if (
+    controllerFactoryCalls.length !== targets.length ||
+    controllerCalls.length !== targets.length
+  ) {
+    throw new Error(
+      `Expected ${targets.length} controller-factory and controller removals; found ${controllerFactoryCalls.length} and ${controllerCalls.length}`
+    );
+  }
+
+  const standardRegistrationIndex = plan.transactions.findIndex(
+    (transaction) => transaction.id === "register-hooks-factory-standard"
+  );
+  const revolvingRegistrationIndex = plan.transactions.findIndex(
+    (transaction) => transaction.id === "register-hooks-factory-revolving"
+  );
+  if (
+    standardRegistrationIndex === -1 ||
+    revolvingRegistrationIndex === -1 ||
+    standardRegistrationIndex >= revolvingRegistrationIndex
+  ) {
+    throw new Error(
+      "Plan must register the standard and revolving factories in order before deactivation"
+    );
+  }
+
+  function assertRemoval(target, signature, predicateSignature) {
+    const matches = plan.transactions
+      .map((transaction, index) => ({ transaction, index }))
+      .filter(
+        ({ transaction }) =>
+          transaction.functionSignature === signature &&
+          Array.isArray(transaction.args) &&
+          transaction.args.length === 1 &&
+          isAddress(transaction.args[0]) &&
+          addressKey(transaction.args[0]) === addressKey(target.factory)
+      );
+    if (matches.length !== 1) {
+      throw new Error(
+        `Expected exactly one ${signature} call for ${target.label} (${target.factory}); found ${matches.length}`
+      );
+    }
+    const { transaction, index } = matches[0];
+    const predicate = transaction.predicate;
+    if (
+      !isAddress(transaction.to) ||
+      addressKey(transaction.to) !== addressKey(archController) ||
+      predicate?.type !== "callEq" ||
+      !isAddress(predicate.target) ||
+      addressKey(predicate.target) !== addressKey(archController) ||
+      predicate.call?.sig !== predicateSignature ||
+      !Array.isArray(predicate.call?.args) ||
+      predicate.call.args.length !== 1 ||
+      !isAddress(predicate.call.args[0]) ||
+      addressKey(predicate.call.args[0]) !== addressKey(target.factory) ||
+      predicate.expect !== false
+    ) {
+      throw new Error(
+        `Invalid ${signature} destination or predicate for ${target.label} (${target.factory})`
+      );
+    }
+    return index;
+  }
+
+  for (const target of targets) {
+    const controllerFactoryIndex = assertRemoval(
+      target,
+      controllerFactorySignature,
+      controllerFactoryPredicate
+    );
+    const controllerIndex = assertRemoval(
+      target,
+      controllerSignature,
+      controllerPredicate
+    );
+    if (
+      controllerFactoryIndex <= revolvingRegistrationIndex ||
+      controllerIndex <= controllerFactoryIndex
+    ) {
+      throw new Error(
+        `Unsafe factory deactivation order for ${target.label} (${target.factory})`
+      );
+    }
+  }
 }
 
 function removeUndefinedFields(value) {
@@ -1407,6 +1549,27 @@ async function reconcileIndexedRecords({ rpc, inventory, errors }) {
   return results;
 }
 
+function runDeactivationTargets(args) {
+  const network = args.network || process.env.DEPLOYMENTS_NETWORK;
+  if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
+  const inventory = assertValidInventory(
+    readInventory(resolveInputPath(args)),
+    {
+      network,
+    }
+  );
+  const excludeValue = optionalArg(args, "exclude");
+  const excludedAddresses = excludeValue ? excludeValue.split(",") : [];
+  for (const address of excludedAddresses) {
+    if (!isAddress(address)) {
+      throw new Error(`Invalid excluded factory address: ${address}`);
+    }
+  }
+  process.stdout.write(
+    JSON.stringify(getFactoryDeactivationTargets(inventory, excludedAddresses))
+  );
+}
+
 async function runReconcile(args) {
   const network = args.network || process.env.DEPLOYMENTS_NETWORK;
   if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
@@ -1677,8 +1840,14 @@ async function runApplyRun(args) {
   let inventory = assertValidInventory(readInventory(inventoryPath), {
     network,
   });
-  const originalRecordCount = inventory.recordCount;
   const deployments = readJson(deploymentsPath);
+  const deactivationTargets = getFactoryDeactivationTargets(inventory);
+  assertFactoryDeactivationPlan(
+    plan,
+    deactivationTargets,
+    deployments.WildcatArchController
+  );
+  const originalRecordCount = inventory.recordCount;
   let addedRecords = 0;
   let standardFactory = null;
   let revolvingFactory = null;
@@ -1784,6 +1953,8 @@ async function runApplyRun(args) {
     );
   }
 
+  recordFactoryDeactivations(inventory, deactivationTargets);
+
   deployments.HooksFactory = standardFactory;
   deployments.HooksFactoryRevolving = revolvingFactory;
   deployments.MarketLens = marketLens;
@@ -1792,6 +1963,9 @@ async function runApplyRun(args) {
   writeJsonAtomic(deploymentsPath, deployments);
   console.log(
     `Applied ${addedRecords} append-only factory records; recordCount ${originalRecordCount} -> ${inventory.recordCount}`
+  );
+  console.log(
+    `Recorded ${deactivationTargets.length} superseded hooks factories as unregistered`
   );
   console.log(`Canonical aliases updated: ${deploymentsPath}`);
 
@@ -2021,6 +2195,10 @@ async function main() {
     await runReconcile(args);
     return;
   }
+  if (command === "deactivation-targets") {
+    runDeactivationTargets(args);
+    return;
+  }
   if (command === "apply-run") {
     await runApplyRun(args);
     return;
@@ -2044,14 +2222,17 @@ module.exports = {
   createInventory,
   getCanonicalFactory,
   getCanonicalWrapperFactory,
+  getFactoryDeactivationTargets,
   getIndexedFactories,
   inventoryPathForNetwork,
   migrateInventory,
   lintDeployments,
+  assertFactoryDeactivationPlan,
   reconcileCanonicalAliases,
   readInventory,
   readInventoryOrCreate,
   readJson,
+  recordFactoryDeactivations,
   upsertFactory,
   upsertWrapperFactory,
   validateAppendOnly,
