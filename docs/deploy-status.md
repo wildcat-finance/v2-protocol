@@ -1,7 +1,10 @@
 # v2.5 Deployment Tooling — Status
 
-As of 2026-07-17. Companion to [deployment.md](./deployment.md) (the process
-runbook). This records what is built, what is proven, and what remains.
+As of 2026-07-21. Companion to [deployment.md](./deployment.md) (the process
+runbook) and
+[anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) (the current pre-Sepolia
+acceptance run). This records what is built, what prior rehearsals proved, and
+what must still be repeated from current source.
 
 ## Built and verified
 
@@ -36,7 +39,7 @@ and deliberately cannot reach step 08. Step 06 registers the two new factories
 and disables every superseded inventory factory in both ArchController roles;
 it never removes markets.
 
-**Bundle mode** (staged): `scripts/plan-bundle.js` — compiles a plan into a
+**Bundle mode** (committed): `scripts/plan-bundle.js` — compiles a plan into a
 minimal set of atomic Safe transactions (3 for v2-5): `MultiSend`
 delegatecall, deployments via the canonical `CreateCall` as CREATE2, every
 address precomputed at bundle time, all `$ref`s resolved statically.
@@ -46,7 +49,7 @@ the Safe SDK), a frontend manifest, expected addresses, and one combined
 review sheet. `bundle-simulate` executes through the real Safe on a fork;
 `bundle-verify` derives the run-state that step 08 consumes unchanged.
 
-**Frontend** (staged): `deploy-ui/` — self-contained static SPA
+**Frontend** (committed): `deploy-ui/` — self-contained static SPA
 (vite/react/viem/wagmi/Safe SDK; own dependency tree, root untouched). Two
 modes: EOA card-walk for testnets (mirrors `plan.js execute`, localStorage
 resume, run-state export) and Safe bundle ceremony for mainnet (propose
@@ -59,14 +62,21 @@ the exact calldata from the plan. Engine modules are React-free and
 fork-tested headlessly; EOA run-state is verified byte-compatible with
 `plan.js verify`.
 
-**Docs** (staged): `deployment.md` — the runbook for both flows, the fork
-rehearsal recipe (every friction from real rehearsals), the bundle
-ceremony, the guided Sepolia helper-owner compensation, "adding a market type".
+**Docs** (current): `deployment.md` — the runbook for both flows, the bundle
+ceremony, the guided Sepolia helper-owner compensation, and "adding a market
+type". `anvil-v2-5-rehearsal.md` is the command-by-command clean rebuild,
+locked-UI rehearsal; `sepolia-v2-5-first-deployment.md` is the live EOA
+walkthrough.
 `generate-handoff.js` — the subgraph/SDK touch-point document generated
 from inventory: all factory generations with index-all flags and
 startBlocks, routing prose, the v2.5 ABI-delta list.
 
-## Proven by rehearsal (anvil forks, not checked in)
+## Historical rehearsal evidence (Anvil forks, not checked in)
+
+The following runs proved the machinery at their then-current revisions. They
+do not replace the fresh locked-UI run required by
+`anvil-v2-5-rehearsal.md`, especially after source, template-matrix, or
+factory-deactivation changes.
 
 - Sepolia fork, current full pipeline: 38-transaction plan generated and
   executed through the temporary helper-owner flow as a dev EOA, including
@@ -102,16 +112,19 @@ cards perform the helper-owner reclaim and return; each card signs immediately.
 
 ## Remaining
 
-1. **Live Sepolia rollout through deploy-ui (EOA mode)** — the real test
+1. **Fresh Sepolia-fork rehearsal through the locked deploy-ui (EOA mode)** —
+   rebuild from current protocol source, regenerate all plan artifacts, execute
+   all 38 cards, finalize/reconcile, and complete canary plus handoff checks.
+2. **Live Sepolia rollout through deploy-ui (EOA mode)** — the real test
    drive: mints the v2.5 canonical generation on Sepolia, exercises the
    page against a live network, produces the first real handoff. Gates the
    legacy sweep.
-2. **Legacy sweep** (after the live rehearsal): old deploy scripts →
+3. **Legacy sweep** (after the live rehearsal): old deploy scripts →
    `script/legacy/`, retire superseded env conventions, supersede the RCF
    checklist.
-3. **Mainnet ceremony** when the release is blessed: generate and simulate the
+4. **Mainnet ceremony** when the release is blessed: generate and simulate the
    corrected Safe bundles, then use the resulting package with Foundation
    signers on a call.
-4. Deferred: Plasma explorer verification config (`VERIFIER_URL`) when
+5. Deferred: Plasma explorer verification config (`VERIFIER_URL`) when
    those chains onboard; subgraph/SDK/app updates consume the generated
    handoff.

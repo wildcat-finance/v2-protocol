@@ -7,22 +7,35 @@ Condensed operator checklists. The full runbook with explanations is
 
 ## A. Fork test drive (frontend, EOA mode)
 
-The "kick the tires" loop. No live network is touched.
+The required pre-Sepolia gate. No public-network state is mutated. Use the full
+operator procedure in
+[anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md); these bullets are only a
+condensed index.
 
-- [ ] `FORK_NETWORK=sepolia bash script/deploy/v2-5/rehearse.sh`
-      (set `FORK_RPC_URL` to your archive node; add `--full` instead for the
-      headless end-to-end run with no frontend)
-- [ ] `cd deploy-ui && npm install && npm run dev` → open the printed URL
-- [ ] Wallet: add network `http://127.0.0.1:8547`, chainId `31337`; import
-      the executor key the script prints (the rehearsal authorizes it in the
-      helper; the first and last cards reclaim and restore ownership)
-- [ ] Load `deployments/anvil/plan-v2-5.json` in the page — EOA mode, plan
-      only, no bundles
-- [ ] Walk the cards; every predicate must go green; try a reload mid-way to
-      see resume
-- [ ] Export run-state → run step 08 (command printed by the script);
-      reconcile must be GREEN
-- [ ] Clean up: kill anvil, `rm -rf deployments/anvil`
+- [ ] Record the reviewed source revision and preserve any existing
+      `deployments/anvil/`; the setup script deletes that directory and kills
+      an Anvil process matching the selected port
+- [ ] Cold gate: `FOUNDRY_PROFILE=ir forge test`, then
+      `FOUNDRY_PROFILE=deploy forge build --sizes src script/common
+      script/deploy/v2-5`
+- [ ] UI gate: `cd deploy-ui && npm ci && npm test`
+- [ ] RPC gate: `FORK_RPC_URL=https://eth-sep.hinterlight.net`; upstream chain
+      ID must be `11155111`
+- [ ] Generate a fresh fork plan with `FORK_NETWORK=sepolia ANVIL_PORT=8547
+      bash script/deploy/v2-5/rehearse.sh` (without `--full`)
+- [ ] Confirm 38 cards: 12 deploys, 26 calls, six template registrations,
+      seven paired factory-role deactivations, reclaim first, restore last,
+      and no market removal
+- [ ] Generate the EOA ceremony package and serve a production `vite preview`
+      build with `CEREMONY_PACKAGE` embedded; do not use the raw-plan
+      development loader for this acceptance run
+- [ ] Walk all 38 cards with Anvil account 1; every predicate must turn green;
+      export checkpoints and prove reload/resume after card 13
+- [ ] Save the final unedited run-state; `plan.js verify`, step 08,
+      inventory validate/lint/reconcile, both canaries, and handoff `--check`
+      must pass
+- [ ] Confirm ownership is back with the helper; preserve the artifact/log
+      directory, then kill only the captured Anvil PID
 
 ## B. Live Sepolia rollout (the real test deploy)
 

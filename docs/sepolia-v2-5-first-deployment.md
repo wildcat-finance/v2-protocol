@@ -4,6 +4,13 @@ This is the operator walkthrough for the first real v2.5 deployment. It uses
 the same generated plan and locked release-site shape intended for mainnet, but
 executes each card from the Sepolia developer EOA instead of a Safe.
 
+Before beginning this public-network walkthrough, complete the current-source
+locked-UI rehearsal in
+[`anvil-v2-5-rehearsal.md`](./anvil-v2-5-rehearsal.md). That rehearsal must
+pass all 38 predicates, reload/resume, independent run-state verification,
+inventory finalization/reconciliation, canaries, and handoff `--check`. An
+older headless or pre-refactor fork run is not sufficient release evidence.
+
 The recommended first run is a local production build served from
 `deploy-ui/dist/`. That exercises the embedded, immutable ceremony package and
 avoids adding Git/Vercel state to the first live run. The Vercel alternative is

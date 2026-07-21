@@ -1,6 +1,11 @@
 # RCF V2 Deployment Checklist
 
-Status: operator checklist for current `feat/rcf-v2` deployment scripts
+Status: historical checklist for the superseded `feat/rcf-v2` deployment
+scripts. Commands and paths below are not maintained and some referenced tools
+no longer exist. Do not execute this as a V2.5 runbook; use
+`docs/deployment.md`, `docs/anvil-v2-5-rehearsal.md`, and
+`docs/sepolia-v2-5-first-deployment.md`.
+
 Primary scripts:
 - `script/deploy/DeployHooksFactoryRevolving.sol`
 - `script/deploy/DeployMarketLens.sol`

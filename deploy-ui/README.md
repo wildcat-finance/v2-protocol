@@ -6,9 +6,14 @@ accepts editable calldata.
 
 ## Run locally or on a fork
 
+For the release-acceptance path, follow
+[`../docs/anvil-v2-5-rehearsal.md`](../docs/anvil-v2-5-rehearsal.md). It uses an
+embedded package and production preview. The file loader below is retained for
+development/debugging only.
+
 ```bash
 cd deploy-ui
-npm install
+npm ci
 npm run dev
 ```
 
@@ -68,21 +73,28 @@ mode switch for debugging. Optional build-time defaults are `VITE_MAINNET_RPC_UR
 
 ## Build the release-specific site
 
+Run these examples from the `v2-protocol` root so plan/package paths have one
+unambiguous base:
+
 ```bash
 export FOUNDRY_PROFILE=deploy
+export REPO_ROOT="$(pwd -P)"
 
 # EOA / Sepolia
-node ../scripts/plan.js ceremony-package \
-  --plan deployments/sepolia/plan-v2-5.json \
-  --mode eoa
-CEREMONY_PACKAGE=../deployments/sepolia/ceremony-v2-5-eoa.json npm run build
+export PLAN="$REPO_ROOT/deployments/sepolia/plan-v2-5.json"
+export PACKAGE="$REPO_ROOT/deployments/sepolia/ceremony-v2-5-eoa.json"
+node scripts/plan.js ceremony-package --plan "$PLAN" --mode eoa --out "$PACKAGE"
+(cd deploy-ui && CEREMONY_PACKAGE="$PACKAGE" npm run build)
 
 # Safe / mainnet, after bundle-simulate has rewritten the manifests
-node ../scripts/plan.js ceremony-package \
-  --plan deployments/mainnet/plan-v2-5.json \
+export PLAN="$REPO_ROOT/deployments/mainnet/plan-v2-5.json"
+export PACKAGE="$REPO_ROOT/deployments/mainnet/ceremony-v2-5-safe.json"
+node scripts/plan.js ceremony-package \
+  --plan "$PLAN" \
   --mode safe \
-  --bundles deployments/mainnet/bundles-v2-5
-CEREMONY_PACKAGE=../deployments/mainnet/ceremony-v2-5-safe.json npm run build
+  --bundles "$REPO_ROOT/deployments/mainnet/bundles-v2-5" \
+  --out "$PACKAGE"
+(cd deploy-ui && CEREMONY_PACKAGE="$PACKAGE" npm run build)
 ```
 
 Serve or upload `deploy-ui/dist/` as ordinary static files. Relative asset URLs

@@ -4,6 +4,11 @@
 > `docs/rcf-v2-deployment-checklist.md`; keep the old checklist as historical
 > reference.
 
+For the mandatory clean Sepolia-fork rehearsal, use
+[`anvil-v2-5-rehearsal.md`](./anvil-v2-5-rehearsal.md). For the first live
+Sepolia run, use
+[`sepolia-v2-5-first-deployment.md`](./sepolia-v2-5-first-deployment.md).
+
 ## 1. Overview
 
 Create a fresh numbered script set for every release. For v2.5, run
@@ -16,7 +21,7 @@ Use one executor mode per target:
 | ---------------------------------------- | ----------------------------------------------------------------------------------- | ------------------ |
 | Ethereum mainnet, Plasma mainnet         | Foundation through the disposable deployment frontend, with the team on a live call | `plan`             |
 | Sepolia, Plasma testnet, future testnets | Dev EOA, with temporary helper ownership represented in the plan                   | `plan`             |
-| Anvil forks                              | Impersonated owner of the forked ArchController                                     | `plan` or `direct` |
+| Anvil forks                              | Test EOA for the Sepolia-shaped UI rehearsal; impersonated owner for headless/direct maintenance | `plan` or `direct` |
 
 `DeployScriptBase` enforces an explicit `OWNER_MODE` on Ethereum mainnet and
 Plasma mainnet. It defaults to `direct` elsewhere. `plan.js` currently maps only
@@ -72,7 +77,7 @@ node scripts/plan.js --help
 node scripts/generate-handoff.js --help
 ```
 
-## 3. Full rollout: testnet, direct executor
+## 3. Full rollout: testnet plan ceremony
 
 ### The two flows, and which one to use
 
@@ -469,65 +474,35 @@ rollout artifacts.
 
 ## 5. Fork rehearsal
 
-These are setup requirements, not optional cleanup:
+The canonical Sepolia-shaped EOA procedure is
+[`anvil-v2-5-rehearsal.md`](./anvil-v2-5-rehearsal.md). It deliberately uses
+`rehearse.sh` only for fork setup and plan generation, then packages the fresh
+plan into the same locked production UI shape used for the live ceremony.
 
-- Seed `deployments/anvil/` from the forked network: `cp deployments.json` AND
-  `factory-inventory.json`, then rewrite the seeded inventory's
-  `network` → `anvil`, `chainId` → `31337` (`apply-run` enforces identity).
-- Start Anvil with `--auto-impersonate`; fund the impersonated owner through
-  `anvil_setBalance` before executing. The Sepolia owner is the
-  `MockArchControllerOwner` contract; the mainnet owner is the Foundation Safe.
-  Both work as impersonated senders on Anvil.
-- Set `EXPECTED_EXECUTOR` to `archController.owner()` read off the fork.
-- Satisfy canary prerequisites: call `registerBorrower` through the impersonated
-  owner. On mainnet forks, also deploy a `MockERC20` and pass `CANARY_ASSET`;
-  mainnet `deployments.json` has no mock token.
-- Clean up `deployments/anvil/` and the rehearsal's `broadcast`/`deploy-cache`
-  artifacts afterward.
+`rehearse.sh --full` remains a useful headless engine check, but it does not
+exercise wallet connection, package fingerprint review, card UX, checkpoint
+export, or browser resume. It is therefore supplementary, not a replacement
+for the locked-UI release gate.
 
-Seed and rewrite:
+Every fork rehearsal must preserve these invariants:
 
-```bash
-export FORK_NETWORK=sepolia # or mainnet
-mkdir -p deployments/anvil
-cp "deployments/$FORK_NETWORK/deployments.json" deployments/anvil/deployments.json
-cp "deployments/$FORK_NETWORK/factory-inventory.json" deployments/anvil/factory-inventory.json
-jq '.network = "anvil" | .chainId = 31337' \
-  deployments/anvil/factory-inventory.json \
-  > deployments/anvil/factory-inventory.json.tmp
-mv deployments/anvil/factory-inventory.json.tmp deployments/anvil/factory-inventory.json
-```
+- seed both `deployments.json` and `factory-inventory.json`, then rewrite only
+  the copied inventory identity to network `anvil`, chain ID `31337`;
+- generate the plan from the source revision under review with
+  `FOUNDRY_PROFILE=deploy` rather than reusing generated output;
+- for the Sepolia-shaped UI path, authorize a disposable Anvil EOA in the
+  helper and keep reclaim/restore as cards 1 and 38;
+- require six template registrations, paired removal of both roles for all
+  seven reconciled superseded factories, and no market removal;
+- finalize only from the unedited, independently verified run-state;
+- keep historical indexing flags while marking superseded factories
+  unregistered; and
+- preserve exact logs/artifacts and kill only the Anvil PID owned by the run.
 
-Start the fork:
-
-```bash
-anvil --fork-url "$FORK_RPC_URL" --auto-impersonate
-```
-
-Read and fund the executor:
-
-```bash
-export ARCH_CONTROLLER="$(jq -r '.WildcatArchController' deployments/anvil/deployments.json)"
-export EXPECTED_EXECUTOR="$(cast call "$ARCH_CONTROLLER" 'owner()(address)' --rpc-url "$RPC_URL")"
-cast rpc anvil_setBalance "$EXPECTED_EXECUTOR" 0x3635C9ADC5DEA00000 --rpc-url "$RPC_URL"
-```
-
-Register the canary borrower:
-
-```bash
-cast send "$ARCH_CONTROLLER" \
-  'registerBorrower(address)' \
-  "$BORROWER" \
-  --from "$EXPECTED_EXECUTOR" \
-  --unlocked \
-  --rpc-url "$RPC_URL"
-```
-
-For a mainnet fork, deploy `script/mock/MockERC20.sol:MockERC20` from a funded,
-unlocked account and export the returned address as `CANARY_ASSET` before step 09.
-
-Remove only artifacts created by the rehearsal. Do not remove another
-operator's concurrent broadcast directory.
+For a mainnet fork, the Foundation Safe/bundle path has separate nonce,
+CREATE2, delegatecall, signature, and gas-ceiling requirements in section 4.
+On mainnet forks, deploy a mock asset before the canary because mainnet
+`deployments.json` has no mock token.
 
 ## 6. Adding a market type
 
