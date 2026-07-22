@@ -578,10 +578,19 @@ Preserve the complete Anvil artifact directory outside the repository instead
 of deleting it immediately:
 
 ```bash
-export ANVIL_RESULT_DIR="${TMPDIR:-/tmp}/wildcat-v2-5-anvil-result-$(date -u +%Y%m%dT%H%M%SZ)"
-mv deployments/anvil "$ANVIL_RESULT_DIR"
-echo "Rehearsal evidence: $ANVIL_RESULT_DIR"
+ANVIL_EVIDENCE_ROOT="${TMPDIR:-/tmp}"
+export ANVIL_RESULT_DIR="${ANVIL_EVIDENCE_ROOT%/}/wildcat-v2-5-anvil-result-$(date -u +%Y%m%dT%H%M%SZ)"
+test ! -e "$ANVIL_RESULT_DIR" &&
+  mv deployments/anvil "$ANVIL_RESULT_DIR" &&
+  test -d "$ANVIL_RESULT_DIR" &&
+  test ! -e deployments/anvil &&
+  echo "Rehearsal evidence: $ANVIL_RESULT_DIR"
 ```
+
+`mv` is silent on success. The chained checks ensure the success message is
+printed only after the result directory exists and the repository copy no
+longer does. `${ANVIL_EVIDENCE_ROOT%/}` also removes the trailing slash that
+macOS normally includes in `TMPDIR`.
 
 Stop the Vite preview with `Ctrl-C` in its terminal. Stop only the Anvil PID
 captured above:
