@@ -64,7 +64,7 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value)
 }
 
-function fingerprint(digest: Hex): string {
+export function fingerprint(digest: Hex): string {
   return digest.slice(2, 14).toUpperCase().match(/.{1,4}/g)?.join('-') ?? digest
 }
 
