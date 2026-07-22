@@ -21,7 +21,7 @@ export function withCurrentFixtureBytecode(
 ): DeploymentPlan {
   const plan = structuredClone(fixture)
   const artifacts: Record<string, string> = {
-    'deploy-token': join(root, 'deploy-out/MockERC20.sol/MockERC20.json'),
+    'deploy-token': join(root, 'deploy-out/mock/MockERC20.sol/MockERC20.json'),
     'deploy-market': join(root, 'deploy-out/MarketLens.t.sol/MockV1MarketLike.json'),
   }
   for (const transaction of plan.transactions) {

@@ -533,6 +533,13 @@ switch; the production build below embeds one exact package and removes both.
   to be tracked by Git. The package bytes are embedded into `deploy-ui/dist/`
   during the build.
 
+  If this origin already has progress for the exact package digest, the page
+  must label it **not verified** and show zero green checks until the connected
+  wallet re-verifies the receipts and predicates on Sepolia. A live-network
+  package does not expose the Anvil-only **Start new rehearsal** control. Stop
+  and reconcile the stored state with the prior attempt rather than clearing
+  it casually.
+
 ## 5B. Optional: host the already built site through Vercel
 
 For this uncommitted test drive, do not connect a Git branch and ask Vercel to
@@ -608,6 +615,12 @@ the helper to the developer EOA.
   3. Confirm the wallet transaction is from the expected EOA on Sepolia.
   4. Wait for the receipt and a `verified` predicate before continuing.
 
+  Clicking another rail row pins that transaction for review; the page shows
+  which transaction the ceremony is actually waiting at. Use **Return to
+  current** to follow execution again. After a successful transaction, the
+  pane must advance to the next active card automatically. On desktop, the
+  divider beside the rail can be dragged or adjusted with the arrow keys.
+
   Use the rehearsal-proven checkpoints below:
 
   | After card | Expected state | Evidence action |
@@ -625,8 +638,10 @@ the helper to the developer EOA.
   incident evidence and an additional backup.
 
 - [ ] If the browser or RPC disconnects after submission, do not resend the
-  transaction. Reopen the exact same site origin, reconnect the same account,
-  and let the page recover the stored transaction hash and receipt.
+  transaction. The page must identify the RPC outage explicitly and disable
+  further preparation. Restore the endpoint, use **Retry RPC**, or reopen the
+  exact same site origin; reconnect the same account and let the page recover
+  the stored transaction hash and receipt.
 
   If a fatal halt occurs, use **Export run state** on the halt screen when it
   is enabled before changing anything. Preserve that export alongside the

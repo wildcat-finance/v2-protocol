@@ -3,6 +3,7 @@
 #
 #   FORK_NETWORK=sepolia bash script/deploy/v2-5/rehearse.sh
 #   FORK_NETWORK=mainnet bash script/deploy/v2-5/rehearse.sh --full
+#   FORK_NETWORK=sepolia bash script/deploy/v2-5/rehearse.sh --resume
 #
 # Default: fork the network, seed deployments/anvil/, generate the plan
 # (steps 01-07), then leave anvil RUNNING and print how to drive the plan
@@ -11,27 +12,165 @@
 # --full: additionally execute the plan (impersonated owner), finalize
 # inventory (08), and verify — the headless end-to-end rehearsal.
 #
+# --resume: restart a crashed Anvil process from the periodically persisted
+# state without reseeding deployments/anvil or regenerating the plan.
+#
 # Env:
 #   FORK_NETWORK   sepolia | mainnet (required)
 #   FORK_RPC_URL   archive RPC to fork from (default: public endpoint; use
 #                  your own archive node for speed)
+#   FORK_FALLBACK_RPC_URL  second archive RPC (default: public endpoint when
+#                          FORK_RPC_URL is different)
+#   FORK_BLOCK_NUMBER      block to pin (default: lowest current provider head)
 #   ANVIL_PORT     default 8547
+#   ANVIL_STATE_FILE       periodic state snapshot path
+#   ANVIL_STATE_INTERVAL   snapshot interval in seconds (default: 1)
 #   RELEASE_TAG    default v2-5
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
 
 : "${FORK_NETWORK:?FORK_NETWORK is required (sepolia|mainnet)}"
+RUN_MODE="${1:-}"
+case "$RUN_MODE" in
+  ""|--full|--resume) ;;
+  *) echo "usage: rehearse.sh [--full|--resume]" >&2; exit 1 ;;
+esac
 ANVIL_PORT="${ANVIL_PORT:-8547}"
 RPC="http://127.0.0.1:${ANVIL_PORT}"
 case "$FORK_NETWORK" in
-  sepolia) DEFAULT_FORK_RPC=https://ethereum-sepolia-rpc.publicnode.com ;;
-  mainnet) DEFAULT_FORK_RPC=https://ethereum-rpc.publicnode.com ;;
+  sepolia)
+    EXPECTED_FORK_CHAIN_ID=11155111
+    DEFAULT_FORK_RPC=https://ethereum-sepolia-rpc.publicnode.com
+    ;;
+  mainnet)
+    EXPECTED_FORK_CHAIN_ID=1
+    DEFAULT_FORK_RPC=https://ethereum-rpc.publicnode.com
+    ;;
   *) echo "FORK_NETWORK must be sepolia or mainnet" >&2; exit 1 ;;
 esac
 FORK_RPC_URL="${FORK_RPC_URL:-$DEFAULT_FORK_RPC}"
+FORK_FALLBACK_RPC_URL="${FORK_FALLBACK_RPC_URL:-$DEFAULT_FORK_RPC}"
+if [[ "$FORK_FALLBACK_RPC_URL" == "$FORK_RPC_URL" ]]; then
+  FORK_FALLBACK_RPC_URL=""
+fi
+ANVIL_STATE_INTERVAL="${ANVIL_STATE_INTERVAL:-1}"
+ANVIL_FORK_RETRIES="${ANVIL_FORK_RETRIES:-10}"
+ANVIL_FORK_RETRY_BACKOFF="${ANVIL_FORK_RETRY_BACKOFF:-1000}"
 
 export FOUNDRY_PROFILE=deploy DEPLOYMENTS_NETWORK=anvil SKIP_EIP1153_CHECK=1
 export RELEASE_TAG="${RELEASE_TAG:-v2-5}"
+
+ANVIL_DIR="$PWD/deployments/anvil"
+ANVIL_STATE_FILE="${ANVIL_STATE_FILE:-$ANVIL_DIR/anvil-state.json}"
+ANVIL_LOG_FILE="${ANVIL_LOG_FILE:-$ANVIL_DIR/anvil.log}"
+ANVIL_PID_FILE="$ANVIL_DIR/anvil.pid"
+FORK_BLOCK_FILE="$ANVIL_DIR/anvil-fork-block"
+
+preflight_rpc() {
+  local label="$1" url="$2" chain_id
+  chain_id="$(cast chain-id --rpc-url "$url")"
+  if [[ "$chain_id" != "$EXPECTED_FORK_CHAIN_ID" ]]; then
+    echo "$label RPC chain ID $chain_id; expected $EXPECTED_FORK_CHAIN_ID" >&2
+    exit 1
+  fi
+  cast block "$FORK_BLOCK_NUMBER" --rpc-url "$url" >/dev/null
+}
+
+if [[ "$RUN_MODE" == "--resume" ]]; then
+  test -f "$ANVIL_STATE_FILE" || {
+    echo "Cannot resume: missing Anvil state snapshot $ANVIL_STATE_FILE" >&2
+    exit 1
+  }
+  test -f "$FORK_BLOCK_FILE" || {
+    echo "Cannot resume: missing pinned fork block $FORK_BLOCK_FILE" >&2
+    exit 1
+  }
+  test -f "$ANVIL_DIR/plan-${RELEASE_TAG}.json" || {
+    echo "Cannot resume: missing existing plan $ANVIL_DIR/plan-${RELEASE_TAG}.json" >&2
+    exit 1
+  }
+  SAVED_FORK_BLOCK="$(<"$FORK_BLOCK_FILE")"
+  if [[ -n "${FORK_BLOCK_NUMBER:-}" && "$FORK_BLOCK_NUMBER" != "$SAVED_FORK_BLOCK" ]]; then
+    echo "Cannot resume: requested fork block $FORK_BLOCK_NUMBER differs from saved $SAVED_FORK_BLOCK" >&2
+    exit 1
+  fi
+  FORK_BLOCK_NUMBER="$SAVED_FORK_BLOCK"
+else
+  PRIMARY_HEAD="$(cast block-number --rpc-url "$FORK_RPC_URL")"
+  if [[ -z "${FORK_BLOCK_NUMBER:-}" ]]; then
+    FORK_BLOCK_NUMBER="$PRIMARY_HEAD"
+    if [[ -n "$FORK_FALLBACK_RPC_URL" ]]; then
+      FALLBACK_HEAD="$(cast block-number --rpc-url "$FORK_FALLBACK_RPC_URL")"
+      if (( FALLBACK_HEAD < FORK_BLOCK_NUMBER )); then
+        FORK_BLOCK_NUMBER="$FALLBACK_HEAD"
+      fi
+    fi
+  fi
+fi
+
+preflight_rpc "primary" "$FORK_RPC_URL"
+if [[ -n "$FORK_FALLBACK_RPC_URL" ]]; then
+  preflight_rpc "fallback" "$FORK_FALLBACK_RPC_URL"
+fi
+
+assert_anvil_alive() {
+  if ! kill -0 "$ANVIL_PID" 2>/dev/null; then
+    echo "Anvil exited. Last log lines:" >&2
+    tail -40 "$ANVIL_LOG_FILE" >&2
+    exit 1
+  fi
+  test "$(cast chain-id --rpc-url "$RPC")" = "31337"
+}
+
+start_anvil() {
+  local state_mode="$1"
+  local -a args=(
+    --fork-url "$FORK_RPC_URL"
+    --fork-block-number "$FORK_BLOCK_NUMBER"
+    --fork-retry-backoff "$ANVIL_FORK_RETRY_BACKOFF"
+    --retries "$ANVIL_FORK_RETRIES"
+    --chain-id 31337
+    --port "$ANVIL_PORT"
+    --auto-impersonate
+    --silent
+    --state-interval "$ANVIL_STATE_INTERVAL"
+  )
+  if [[ -n "$FORK_FALLBACK_RPC_URL" ]]; then
+    args+=(--fork-url "$FORK_FALLBACK_RPC_URL")
+  fi
+  if [[ "$state_mode" == "resume" ]]; then
+    args+=(--state "$ANVIL_STATE_FILE")
+  else
+    args+=(--dump-state "$ANVIL_STATE_FILE")
+  fi
+
+  pkill -f "anvil.*--port ${ANVIL_PORT}" 2>/dev/null || true
+  sleep 1
+  touch "$ANVIL_LOG_FILE"
+  anvil "${args[@]}" > >(tee -a "$ANVIL_LOG_FILE") 2>&1 &
+  ANVIL_PID=$!
+  printf '%s\n' "$ANVIL_PID" > "$ANVIL_PID_FILE"
+  sleep 8
+  assert_anvil_alive
+}
+
+if [[ "$RUN_MODE" == "--resume" ]]; then
+  echo "== Restoring anvil at pinned ${FORK_NETWORK} block ${FORK_BLOCK_NUMBER}"
+  start_anvil resume
+  cat <<RESUMED
+
+================================================================
+Anvil state restored (pid ${ANVIL_PID}) at fork block ${FORK_BLOCK_NUMBER}.
+Existing plan and browser progress were not changed.
+State snapshot: ${ANVIL_STATE_FILE}
+Anvil log: ${ANVIL_LOG_FILE}
+
+In deploy-ui choose "Resume same Anvil fork". The page must re-verify every
+stored receipt and predicate before it enables another transaction.
+================================================================
+RESUMED
+  exit 0
+fi
 
 echo "== Seeding deployments/anvil/ from deployments/${FORK_NETWORK}/"
 rm -rf deployments/anvil && mkdir -p deployments/anvil
@@ -47,11 +186,10 @@ d = json.load(open(p)); d['network'] = 'anvil'; d['chainId'] = 31337
 json.dump(d, open(p, 'w'), indent=2)
 PY
 
-echo "== Starting anvil fork of ${FORK_NETWORK} on port ${ANVIL_PORT}"
-pkill -f "anvil.*--port ${ANVIL_PORT}" 2>/dev/null || true; sleep 1
-anvil --fork-url "$FORK_RPC_URL" --chain-id 31337 --port "$ANVIL_PORT" \
-  --auto-impersonate --silent & ANVIL_PID=$!
-sleep 8
+printf '%s\n' "$FORK_BLOCK_NUMBER" > "$FORK_BLOCK_FILE"
+
+echo "== Starting anvil fork of ${FORK_NETWORK} block ${FORK_BLOCK_NUMBER} on port ${ANVIL_PORT}"
+start_anvil fresh
 
 AC=$(python3 -c "import json;print(json.load(open('deployments/anvil/deployments.json'))['WildcatArchController'])")
 OWNER=$(cast call "$AC" 'owner()(address)' --rpc-url "$RPC")
@@ -59,7 +197,7 @@ cast rpc anvil_setBalance "$OWNER" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/nul
 echo "== ArchController: ${AC}"
 echo "== Current owner: ${OWNER}"
 
-if [[ "${1:-}" == "--full" && "$FORK_NETWORK" == "mainnet" ]]; then
+if [[ "$RUN_MODE" == "--full" && "$FORK_NETWORK" == "mainnet" ]]; then
   # Headless mode executes as the impersonated real owner.
   EXECUTOR="$OWNER"
 else
@@ -88,12 +226,15 @@ for s in 01-deploy-wrapper-factory 02-deploy-hooks-factory-standard \
          06-register-factories; do
   echo "== generate: ${s}"
   forge script "script/deploy/v2-5/${s}.s.sol" --rpc-url "$RPC" >/dev/null
+  assert_anvil_alive
 done
 bash script/deploy/v2-5/07-generate-plan.sh
+assert_anvil_alive
 
 PLAN="deployments/anvil/plan-${RELEASE_TAG}.json"
+PACKAGE="$PWD/deployments/anvil/ceremony-${RELEASE_TAG}-eoa.json"
 
-if [[ "${1:-}" == "--full" ]]; then
+if [[ "$RUN_MODE" == "--full" ]]; then
   echo "== --full: executing plan as impersonated owner"
   node scripts/plan.js execute --plan "$PLAN" --rpc "$RPC" \
     --impersonate "$EXECUTOR" --yes | tail -2
@@ -102,6 +243,7 @@ if [[ "${1:-}" == "--full" ]]; then
   node scripts/plan.js verify --plan "$PLAN" \
     --run-state "deployments/anvil/run-state-${RELEASE_TAG}.json" --rpc "$RPC" | tail -1
   kill "$ANVIL_PID" 2>/dev/null || true
+  wait "$ANVIL_PID" 2>/dev/null || true
   echo "== Full rehearsal complete. Clean up with: rm -rf deployments/anvil"
   exit 0
 fi
@@ -117,18 +259,24 @@ cat <<NEXT
 ================================================================
 Fork is RUNNING (pid ${ANVIL_PID}).  Plan: ${PLAN}
 Plan executor: ${EXECUTOR}
+Pinned fork block: ${FORK_BLOCK_NUMBER}
+State snapshot: ${ANVIL_STATE_FILE}
+Anvil log: ${ANVIL_LOG_FILE}
 
 Drive it from the frontend (EOA mode):
-  1. cd deploy-ui && npm run dev
-  2. Wallet: add network  RPC ${RPC}  chainId 31337
+  1. node scripts/plan.js ceremony-package --plan ${PLAN} --mode eoa --out ${PACKAGE}
+  2. (cd deploy-ui && CEREMONY_PACKAGE=${PACKAGE} npm run build)
+     Then serve deploy-ui/dist with the reviewed production-preview command.
+  3. Wallet: add network  RPC ${RPC}  chainId 31337
      Import the executor key ${KEY_NOTE}:
        ${FUNDED_KEY}
-  3. Load ${PLAN} in the page (EOA mode), walk the cards.
-  4. Export run-state, then:
+  4. Open the locked page, choose fresh or resume if prompted, and walk the cards.
+  5. Export run-state, then:
        RUN_STATE=<exported file> RPC_URL=${RPC} \\
          bash script/deploy/v2-5/08-finalize-inventory.sh
 
 Or headless: rerun with --full.
+After an Anvil crash: rerun with --resume; do not run fresh setup first.
 Stop fork: kill ${ANVIL_PID}    Clean up: rm -rf deployments/anvil
 ================================================================
 NEXT

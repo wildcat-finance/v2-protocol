@@ -54,6 +54,10 @@ export class LocalStorageProgressStore implements ProgressStore {
   save(state: RunState): void {
     this.storage.setItem(this.key, serializeRunState(state))
   }
+
+  clear(): void {
+    this.storage.removeItem(this.key)
+  }
 }
 
 export function receiptBlockNumber(blockNumber: bigint): number | string {

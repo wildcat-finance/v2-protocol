@@ -1,6 +1,6 @@
 # v2.5 Deployment Tooling — Status
 
-As of 2026-07-21. Companion to [deployment.md](./deployment.md) (the process
+As of 2026-07-22. Companion to [deployment.md](./deployment.md) (the process
 runbook) and
 [anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) (the current pre-Sepolia
 acceptance run). This records what is built, what prior rehearsals proved, and
@@ -60,7 +60,16 @@ chainId hard-check, package/plan hash display for call-time byte verification, p
 editable or manifest-trusted calldata; the browser independently reconstructs
 the exact calldata from the plan. Engine modules are React-free and
 fork-tested headlessly; EOA run-state is verified byte-compatible with
-`plan.js verify`.
+`plan.js verify`. Stored browser progress is visually withheld until the
+connected chain re-verifies it; Anvil packages require an explicit same-fork
+resume or exact-key new-rehearsal reset. The desktop rail is resizable, manual
+history review has a return-to-current control, and transport failures surface
+as a signing stop rather than an unknown RPC error.
+
+**Fork launcher** (committed): `rehearse.sh` pins one fork block across primary
+and fallback RPCs, retries remote reads, periodically persists Anvil state and
+logs, and exposes a guarded `--resume` mode that restores the saved fork without
+reseeding deployments or regenerating the plan.
 
 **Docs** (current): `deployment.md` — the runbook for both flows, the bundle
 ceremony, the guided Sepolia helper-owner compensation, and "adding a market

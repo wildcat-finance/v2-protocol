@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import Safe from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
@@ -28,6 +37,16 @@ import type {
 } from './engine/types'
 import { browserExecutionTransport, injectedProvider } from './walletTransport'
 import { SAFE_1_4_1_FORK_NETWORKS } from './safeContracts'
+import {
+  clampRailWidth,
+  DEFAULT_RAIL_WIDTH,
+  errorText,
+  isRpcUnavailableError,
+  MAX_RAIL_WIDTH,
+  MIN_RAIL_WIDTH,
+  needsAnvilResumeDecision,
+  runStateForDisplay,
+} from './uiState'
 
 export type Mode = 'eoa' | 'safe'
 
@@ -221,10 +240,6 @@ function saveJson(name: string, state: RunState): void {
   link.download = name
   link.click()
   URL.revokeObjectURL(link.href)
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 export function ExecutionIdentity({
@@ -745,9 +760,18 @@ export default function App() {
   const [progress, setProgress] = useState<SignatureProgress | null>(null)
   const [safeThreshold, setSafeThreshold] = useState<number | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
+  const [storageReady, setStorageReady] = useState(false)
+  const [progressVerified, setProgressVerified] = useState(false)
+  const [anvilDecisionPending, setAnvilDecisionPending] = useState(false)
+  const [rpcUnavailable, setRpcUnavailable] = useState('')
+  const [rpcRetry, setRpcRetry] = useState(0)
+  const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH)
+  const railResize = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null)
   const embeddedPackage = embeddedRelease.value
 
   const plan = planArtifact?.value ?? null
+  const storageKey = embeddedPackage?.digest ?? planArtifact?.hash ?? null
+  const isAnvilPlan = plan?.network === 'anvil' && plan.chainId === 31337
   const chainMismatch = Boolean(isConnected && plan && chainId !== plan.chainId)
   const manifests = useMemo(
     () => manifestArtifacts.map((artifact) => artifact.value),
@@ -755,20 +779,32 @@ export default function App() {
   )
 
   function handleError(error: unknown): void {
-    const text = errorMessage(error)
-    if (error instanceof CeremonyHaltError && planArtifact) {
+    const text = errorText(error)
+    let storedActionCount = Object.keys(runState).length
+    if (planArtifact) {
       try {
         const latest =
           mode === 'eoa'
             ? planEngine?.getRunState()
             : safeEngine?.getRunState()
-        setRunState(
+        const stored =
           latest ??
-            new LocalStorageProgressStore(embeddedPackage?.digest ?? planArtifact.hash).load(),
-        )
+          new LocalStorageProgressStore(embeddedPackage?.digest ?? planArtifact.hash).load()
+        setRunState(stored)
+        storedActionCount = Object.keys(stored).length
       } catch {
         // Keep the last React snapshot if the stored evidence itself cannot be decoded.
       }
+    }
+    if (isRpcUnavailableError(error)) {
+      setPrepared(null)
+      setPlanEngine(null)
+      setSafeEngine(null)
+      setProgressVerified(false)
+      setAnvilDecisionPending(needsAnvilResumeDecision(isAnvilPlan, storedActionCount))
+      setMessage('')
+      setRpcUnavailable(text)
+      return
     }
     if (
       error instanceof CeremonyHaltError &&
@@ -812,11 +848,70 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('wildcat-deploy:rail-width'))
+      if (Number.isFinite(saved) && saved > 0) {
+        setRailWidth(clampRailWidth(saved, window.innerWidth))
+      }
+    } catch {
+      // Resizing still works for this page view when browser storage is unavailable.
+    }
+  }, [])
+
+  useEffect(() => {
+    const constrain = () => {
+      setRailWidth((width) => clampRailWidth(width, window.innerWidth))
+    }
+    window.addEventListener('resize', constrain)
+    return () => window.removeEventListener('resize', constrain)
+  }, [])
+
+  useEffect(() => {
+    setStorageReady(false)
+    setProgressVerified(false)
+    setAnvilDecisionPending(false)
+    setRpcUnavailable('')
+    setRunState({})
+    if (!storageKey) {
+      setStorageReady(true)
+      return
+    }
+    try {
+      const stored = new LocalStorageProgressStore(storageKey).load()
+      setRunState(stored)
+      setAnvilDecisionPending(
+        needsAnvilResumeDecision(isAnvilPlan, Object.keys(stored).length),
+      )
+    } catch (error) {
+      setFatal(`Stored run state is invalid: ${errorText(error)}`)
+    } finally {
+      setStorageReady(true)
+    }
+  }, [isAnvilPlan, storageKey])
+
+  useEffect(() => {
+    if (!isConnected) {
+      setProgressVerified(false)
+      setAnvilDecisionPending(
+        needsAnvilResumeDecision(isAnvilPlan, Object.keys(runState).length),
+      )
+    }
+  }, [isAnvilPlan, isConnected, runState])
+
+  useEffect(() => {
     setPrepared(null)
     setPlanEngine(null)
     setSafeEngine(null)
     setProgress(null)
-    if (!planArtifact || !address || !isConnected || chainMismatch || fatal) return
+    if (
+      !planArtifact ||
+      !storageReady ||
+      !address ||
+      !isConnected ||
+      chainMismatch ||
+      fatal ||
+      anvilDecisionPending
+    ) return
     const store = new LocalStorageProgressStore(embeddedPackage?.digest ?? planArtifact.hash)
     const transport = browserExecutionTransport(address)
 
@@ -826,8 +921,11 @@ export default function App() {
       void engine
         .prepareNext()
         .then((next) => {
-          setRunState(engine.getRunState())
+          const current = engine.getRunState()
+          setRunState(current)
           setPrepared(next)
+          setProgressVerified(true)
+          setRpcUnavailable('')
         })
         .catch(handleError)
       return
@@ -869,8 +967,11 @@ export default function App() {
         const index = await engine.resume()
         setSafeEngine(engine)
         setSafeIndex(index)
-        setRunState(store.load())
+        const current = store.load()
+        setRunState(current)
         if (index < manifests.length) setProgress(await engine.getProgress(index))
+        setProgressVerified(true)
+        setRpcUnavailable('')
       } catch (error) {
         handleError(error)
       }
@@ -882,9 +983,13 @@ export default function App() {
     expectedArtifact,
     fatal,
     isConnected,
+    isAnvilPlan,
     manifests,
     mode,
     planArtifact,
+    rpcRetry,
+    storageReady,
+    anvilDecisionPending,
   ])
 
   useEffect(() => {
@@ -897,26 +1002,19 @@ export default function App() {
           setProgress(next)
           if (next.executed) {
             await safeEngine.syncExecuted(safeIndex, next.safeTxHash)
-            setRunState(safeEngine.getRunState())
+            const current = safeEngine.getRunState()
+            setRunState(current)
+            setSelected(null)
             const index = await safeEngine.resume()
             setSafeIndex(index)
             setProgress(index < manifests.length ? await safeEngine.getProgress(index) : null)
+            setProgressVerified(true)
           }
         })
         .catch(handleError)
     }, 5_000)
     return () => window.clearInterval(poll)
   }, [manifests.length, progress, runState, safeEngine, safeIndex])
-
-  // Surface locally stored progress before a wallet connects; engines replace it once live.
-  useEffect(() => {
-    if (!planArtifact || planEngine || safeEngine) return
-    try {
-      setRunState(new LocalStorageProgressStore(embeddedPackage?.digest ?? planArtifact.hash).load())
-    } catch {
-      /* corrupted local progress surfaces as a halt once an engine loads */
-    }
-  }, [embeddedPackage, planArtifact, planEngine, safeEngine])
 
   useEffect(() => {
     setSelected(null)
@@ -962,6 +1060,97 @@ export default function App() {
     }
   }
 
+  function startNewAnvilRehearsal(): void {
+    if (!storageKey || !isAnvilPlan) return
+    const confirmed = window.confirm(
+      'Start a new Anvil rehearsal? This removes only this package\'s browser run state. Export it first if it is evidence you need to keep.',
+    )
+    if (!confirmed) return
+    new LocalStorageProgressStore(storageKey).clear()
+    window.location.reload()
+  }
+
+  function resumeAnvilRehearsal(): void {
+    setRpcUnavailable('')
+    setMessage(
+      isConnected
+        ? 'Re-verifying stored progress against this Anvil fork…'
+        : 'Resume selected. Connect the wallet to re-verify this Anvil fork.',
+    )
+    setAnvilDecisionPending(false)
+    setRpcRetry((value) => value + 1)
+  }
+
+  function retryRpcConnection(): void {
+    setRpcUnavailable('')
+    setMessage('Reconnecting and re-verifying on-chain state…')
+    setRpcRetry((value) => value + 1)
+  }
+
+  function persistRailWidth(width: number): void {
+    try {
+      window.localStorage.setItem('wildcat-deploy:rail-width', String(width))
+    } catch {
+      // The current page still keeps the selected width.
+    }
+  }
+
+  function beginRailResize(event: ReactPointerEvent<HTMLDivElement>): void {
+    const target = event.currentTarget
+    railResize.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: railWidth,
+    }
+    target.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }
+
+  function moveRailResize(event: ReactPointerEvent<HTMLDivElement>): void {
+    const drag = railResize.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    setRailWidth(clampRailWidth(drag.startWidth + event.clientX - drag.startX, window.innerWidth))
+  }
+
+  function endRailResize(event: ReactPointerEvent<HTMLDivElement>): void {
+    const drag = railResize.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const width = clampRailWidth(drag.startWidth + event.clientX - drag.startX, window.innerWidth)
+    railResize.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    setRailWidth(width)
+    persistRailWidth(width)
+  }
+
+  function cancelRailResize(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (railResize.current?.pointerId !== event.pointerId) return
+    railResize.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  function resizeRailWithKeyboard(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    let next = railWidth
+    if (event.key === 'ArrowLeft') next -= 16
+    else if (event.key === 'ArrowRight') next += 16
+    else if (event.key === 'Home') next = MIN_RAIL_WIDTH
+    else if (event.key === 'End') next = MAX_RAIL_WIDTH
+    else return
+    event.preventDefault()
+    const constrained = clampRailWidth(next, window.innerWidth)
+    setRailWidth(constrained)
+    persistRailWidth(constrained)
+  }
+
+  function resetRailWidth(): void {
+    const width = clampRailWidth(DEFAULT_RAIL_WIDTH, window.innerWidth)
+    setRailWidth(width)
+    persistRailWidth(width)
+  }
+
   async function executeEoa(): Promise<void> {
     if (!planEngine || !prepared) return
     setBusy(true)
@@ -970,6 +1159,7 @@ export default function App() {
       const result = await planEngine.execute(prepared)
       setRunState(result.runState)
       setMessage(`${prepared.transaction.id}: ${result.predicateDetail}`)
+      setSelected(null)
       setPrepared(await planEngine.prepareNext())
     } catch (error) {
       handleError(error)
@@ -1001,6 +1191,7 @@ export default function App() {
             : `Bundle ${safeIndex + 1} executed and all predicates passed.`,
       )
       if (result.progress.executed) {
+        setSelected(null)
         const next = await safeEngine.resume()
         setSafeIndex(next)
         setProgress(next < manifests.length ? await safeEngine.getProgress(next) : null)
@@ -1012,6 +1203,8 @@ export default function App() {
     }
   }
 
+  const displayedRunState = runStateForDisplay(runState, progressVerified)
+
   const outputs = useMemo(() => {
     if (!plan) return new Map<string, Address>()
     if (mode === 'safe' && expectedArtifact) {
@@ -1020,11 +1213,11 @@ export default function App() {
     const resolved = new Map<string, Address>()
     for (const transaction of plan.transactions) {
       if (transaction.kind !== 'deploy') continue
-      const entryAddress = runState[transaction.id]?.resolvedAddress
+      const entryAddress = displayedRunState[transaction.id]?.resolvedAddress
       if (entryAddress) resolved.set(transaction.output, entryAddress)
     }
     return resolved
-  }, [expectedArtifact, mode, plan, runState])
+  }, [displayedRunState, expectedArtifact, mode, plan])
 
   const xrefs = useMemo(
     () => (plan ? buildKeccakXrefs(plan) : { blobHash: new Map(), hashUse: new Map() }),
@@ -1041,17 +1234,27 @@ export default function App() {
 
   const totalSteps = plan?.transactions.length ?? 0
   const verifiedCount = plan
-    ? plan.transactions.filter((transaction) => runState[transaction.id]?.status === 'verified').length
+    ? plan.transactions.filter(
+        (transaction) => displayedRunState[transaction.id]?.status === 'verified',
+      ).length
     : 0
   const firstUnverified = plan
-    ? plan.transactions.findIndex((transaction) => runState[transaction.id]?.status !== 'verified')
+    ? plan.transactions.findIndex(
+        (transaction) => displayedRunState[transaction.id]?.status !== 'verified',
+      )
     : -1
   const eoaActiveIndex = prepared?.index ?? (firstUnverified === -1 ? totalSteps : firstUnverified)
-  const eoaComplete = plan !== null && firstUnverified === -1 && Object.keys(runState).length > 0
+  const eoaComplete =
+    progressVerified &&
+    plan !== null &&
+    firstUnverified === -1 &&
+    Object.keys(displayedRunState).length > 0
   const completedBundles = manifests.filter((manifest) =>
-    manifest.innerTransactions.every((entry) => runState[entry.planId]?.status === 'verified'),
+    manifest.innerTransactions.every(
+      (entry) => displayedRunState[entry.planId]?.status === 'verified',
+    ),
   ).length
-  const safeComplete = manifests.length > 0 && safeIndex >= manifests.length
+  const safeComplete = progressVerified && manifests.length > 0 && safeIndex >= manifests.length
   const callFingerprint = embeddedPackage
     ? embeddedPackage.fingerprint
     : planArtifact
@@ -1061,6 +1264,10 @@ export default function App() {
   const selectionLimit = mode === 'eoa' ? totalSteps : manifests.length
   const activeSelection = mode === 'eoa' ? Math.min(eoaActiveIndex, totalSteps - 1) : Math.min(safeIndex, manifests.length - 1)
   const displayIndex = selected ?? Math.max(activeSelection, 0)
+  const storedProgressCount = Object.keys(runState).length
+  const reviewingSelection =
+    selected !== null && activeSelection >= 0 && selected !== activeSelection
+  const frameStyle = { '--rail-width': `${railWidth}px` } as CSSProperties
 
   useEffect(() => {
     function onKey(event: KeyboardEvent): void {
@@ -1134,7 +1341,7 @@ export default function App() {
               .slice(group.start, group.start + group.count)
               .map((transaction, offset) => {
                 const index = group.start + offset
-                const status = runState[transaction.id]?.status
+                const status = displayedRunState[transaction.id]?.status
                 return {
                   key: transaction.id,
                   number: index + 1,
@@ -1156,7 +1363,7 @@ export default function App() {
             title: `Bundle ${manifest.bundle.number} · nonce ${manifest.bundle.safeNonce}`,
             detail: bundleIndex === safeIndex && !safeComplete ? '· current' : undefined,
             rows: manifest.innerTransactions.map((entry) => {
-              const status = runState[entry.planId]?.status
+              const status = displayedRunState[entry.planId]?.status
               return {
                 key: entry.planId,
                 number: entry.planIndex + 1,
@@ -1282,6 +1489,50 @@ export default function App() {
         </div>
       ) : null}
 
+      {plan && storageReady && storedProgressCount > 0 && !progressVerified ? (
+        <div className="stored-progress" role="alert">
+          <div>
+            <strong>Stored progress is not verified against the connected chain.</strong>{' '}
+            This browser has {storedProgressCount} saved action
+            {storedProgressCount === 1 ? '' : 's'} for this exact package.
+            {isAnvilPlan
+              ? anvilDecisionPending
+                ? ' Choose whether this is the same Anvil process or a fresh fork before connecting.'
+                : ' Resume is selected; connect the wallet and wait for every saved receipt and predicate to be checked.'
+              : ' Connect the expected signer and wait for receipt and predicate verification before continuing.'}
+          </div>
+          {isAnvilPlan && anvilDecisionPending ? (
+            <div className="stored-actions">
+              <button className="ghost" onClick={resumeAnvilRehearsal}>
+                Resume same Anvil fork
+              </button>
+              <button className="danger-ghost" onClick={startNewAnvilRehearsal}>
+                Start new rehearsal
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {plan && rpcUnavailable ? (
+        <div className="rpc-unavailable" role="alert">
+          <div>
+            <strong>{isAnvilPlan ? 'Local Anvil RPC is unavailable.' : 'Wallet RPC is unavailable.'}</strong>{' '}
+            Stop signing. Do not resend a submitted transaction. Restore the endpoint, then re-verify
+            stored progress before continuing.
+          </div>
+          {!isAnvilPlan || storedProgressCount === 0 ? (
+            <button className="ghost" onClick={retryRpcConnection}>
+              Retry RPC
+            </button>
+          ) : null}
+          <details>
+            <summary>RPC error details</summary>
+            <pre>{rpcUnavailable}</pre>
+          </details>
+        </div>
+      ) : null}
+
       {!planArtifact ? (
         <div className="loader-wrap">
           <div className="loader">
@@ -1316,14 +1567,41 @@ export default function App() {
           </div>
         </div>
       ) : (
-        <div className="frame">
+        <div className="frame" style={frameStyle}>
           <Rail
             groups={railGroups}
             selectedIndex={displayIndex}
             onSelect={(index) => setSelected(index)}
             footer={railFooter}
           />
+          <div
+            className="rail-resizer"
+            role="separator"
+            aria-label="Resize ceremony steps panel"
+            aria-orientation="vertical"
+            aria-valuemin={MIN_RAIL_WIDTH}
+            aria-valuemax={MAX_RAIL_WIDTH}
+            aria-valuenow={railWidth}
+            tabIndex={0}
+            title="Drag to resize · double-click to reset"
+            onPointerDown={beginRailResize}
+            onPointerMove={moveRailResize}
+            onPointerUp={endRailResize}
+            onPointerCancel={cancelRailResize}
+            onKeyDown={resizeRailWithKeyboard}
+            onDoubleClick={resetRailWidth}
+          />
           <section className="pane">
+            {reviewingSelection ? (
+              <div className="review-notice" role="status">
+                Reviewing {mode === 'eoa' ? 'transaction' : 'bundle'} {displayIndex + 1}; the
+                ceremony is waiting at {mode === 'eoa' ? 'transaction' : 'bundle'}{' '}
+                {activeSelection + 1}.
+                <button className="mini" onClick={() => setSelected(null)}>
+                  Return to current
+                </button>
+              </div>
+            ) : null}
             {message && (
               <div className="notice" role="status">
                 {message}
@@ -1352,7 +1630,7 @@ export default function App() {
                   plan={plan}
                   index={Math.min(displayIndex, totalSteps - 1)}
                   groups={groups}
-                  runState={runState}
+                  runState={displayedRunState}
                   prepared={prepared}
                   activeIndex={eoaActiveIndex}
                   outputs={outputs}
@@ -1392,7 +1670,7 @@ export default function App() {
                 bundleIndex={Math.min(displayIndex, manifests.length - 1)}
                 bundleCount={manifests.length}
                 isActive={Math.min(displayIndex, manifests.length - 1) === safeIndex && !safeComplete}
-                runState={runState}
+                runState={displayedRunState}
                 progress={progress}
                 outputs={outputs}
                 busy={busy}

@@ -36,6 +36,8 @@ The rehearsal passes only when all of the following are true:
 - the full protocol test suite passes from a clean IR build;
 - the deploy-profile release source builds from a clean deploy cache;
 - the generated Anvil plan validates and has the reviewed 38-card shape;
+- Anvil is pinned to one recorded Sepolia block, has two fork providers, and
+  writes a periodic recovery snapshot;
 - the locked UI accepts the embedded package and all 38 predicates turn green;
 - a page reload resumes from verified on-chain state;
 - the exported run-state passes independent CLI verification;
@@ -76,6 +78,7 @@ export REPO_ROOT="$(pwd -P)"
 export FOUNDRY_PROFILE=deploy
 export FORK_NETWORK=sepolia
 export FORK_RPC_URL=https://eth-sep.hinterlight.net
+export FORK_FALLBACK_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 export ANVIL_PORT=8547
 export RPC_URL="http://127.0.0.1:${ANVIL_PORT}"
 export DEPLOYMENTS_NETWORK=anvil
@@ -172,18 +175,27 @@ bash -n script/deploy/v2-5/09-canary-market.sh
 
 ## 4. Preflight the upstream RPC
 
-Confirm the supplied endpoint is Sepolia and record its current head:
+Confirm both supplied endpoints are Sepolia. Pin the rehearsal to the lower of
+their current heads, then prove both can serve that exact block:
 
 ```bash
 test "$(cast chain-id --rpc-url "$FORK_RPC_URL")" = "11155111"
-export UPSTREAM_BLOCK="$(cast block-number --rpc-url "$FORK_RPC_URL")"
-echo "Upstream Sepolia head before fork: $UPSTREAM_BLOCK"
+test "$(cast chain-id --rpc-url "$FORK_FALLBACK_RPC_URL")" = "11155111"
+
+export PRIMARY_HEAD="$(cast block-number --rpc-url "$FORK_RPC_URL")"
+export FALLBACK_HEAD="$(cast block-number --rpc-url "$FORK_FALLBACK_RPC_URL")"
+export FORK_BLOCK_NUMBER="$PRIMARY_HEAD"
+if (( FALLBACK_HEAD < FORK_BLOCK_NUMBER )); then
+  export FORK_BLOCK_NUMBER="$FALLBACK_HEAD"
+fi
+cast block "$FORK_BLOCK_NUMBER" --rpc-url "$FORK_RPC_URL" >/dev/null
+cast block "$FORK_BLOCK_NUMBER" --rpc-url "$FORK_FALLBACK_RPC_URL" >/dev/null
+echo "Pinned Sepolia fork block: $FORK_BLOCK_NUMBER"
 ```
 
-This walkthrough forks current head rather than a pinned block because
-`rehearse.sh` does not currently expose `--fork-block-number`. Record the
-actual local fork block after startup. For a byte-for-byte rerun, add explicit
-fork-block support to the script and review that change before relying on it.
+The launcher also chooses and pins the lowest available provider head if
+`FORK_BLOCK_NUMBER` is omitted. This walkthrough exports the block explicitly
+so the operator records it before any local state is created.
 
 ## 5. Start the fork and generate a fresh plan
 
@@ -193,6 +205,8 @@ executor for this rehearsal:
 ```bash
 FORK_NETWORK="$FORK_NETWORK" \
 FORK_RPC_URL="$FORK_RPC_URL" \
+FORK_FALLBACK_RPC_URL="$FORK_FALLBACK_RPC_URL" \
+FORK_BLOCK_NUMBER="$FORK_BLOCK_NUMBER" \
 ANVIL_PORT="$ANVIL_PORT" \
 RELEASE_TAG="$RELEASE_TAG" \
   bash script/deploy/v2-5/rehearse.sh
@@ -202,22 +216,26 @@ The script does the following:
 
 1. seeds `deployments/anvil/` from the current Sepolia deployment files;
 2. rewrites the seeded inventory identity to Anvil chain `31337`;
-3. starts Anvil with `--auto-impersonate`;
-4. funds the helper owner and Anvil account 1;
-5. authorizes Anvil account 1 in the forked helper storage; and
-6. regenerates steps 01-07 and assembles a fresh plan.
+3. starts Anvil at the pinned block with both providers, ten retries, and
+   `--auto-impersonate`;
+4. writes `anvil-state.json` every second plus `anvil.log`, `anvil.pid`, and
+   `anvil-fork-block` recovery metadata;
+5. funds the helper owner and Anvil account 1;
+6. authorizes Anvil account 1 in the forked helper storage; and
+7. regenerates steps 01-07 and assembles a fresh plan.
 
-Ignore the script footer's raw-plan development-UI shortcut. Continue below
-with an embedded ceremony package and a production build, which is the shape
-that matters for Sepolia.
+The script footer now points to the same embedded ceremony package and
+production build used below. Continue with the explicit commands in this
+walkthrough so the recorded digest and fingerprint remain part of the evidence.
 
 Capture and verify the exact listener process so cleanup does not rely on
 another pattern match:
 
 ```bash
-export ANVIL_PID="$(lsof -tiTCP:"$ANVIL_PORT" -sTCP:LISTEN)"
+export ANVIL_PID="$(cat deployments/anvil/anvil.pid)"
 test -n "$ANVIL_PID"
 ps -p "$ANVIL_PID" -o pid=,command=
+test "$ANVIL_PID" = "$(lsof -tiTCP:"$ANVIL_PORT" -sTCP:LISTEN)"
 ```
 
 Re-export the execution context because environment changes inside the script
@@ -232,14 +250,28 @@ export RPC_URL="http://127.0.0.1:${ANVIL_PORT}"
 export EXPECTED_EXECUTOR="$(jq -r '.expectedExecutor' "$PLAN")"
 export ARCH_CONTROLLER="$(jq -r '.WildcatArchController' deployments/anvil/deployments.json)"
 export HELPER_OWNER="$(jq -r '.MockArchControllerOwner' deployments/anvil/deployments.json)"
-export FORK_BLOCK="$(cast block-number --rpc-url "$RPC_URL")"
+export FORK_BLOCK="$(cat deployments/anvil/anvil-fork-block)"
+test "$FORK_BLOCK" = "$FORK_BLOCK_NUMBER"
+test "$FORK_BLOCK" = "$(cast rpc anvil_nodeInfo --rpc-url "$RPC_URL" | jq -r '.forkConfig.forkBlockNumber')"
 
 echo "Anvil pid: $ANVIL_PID"
 echo "Fork block: $FORK_BLOCK"
 echo "Plan executor: $EXPECTED_EXECUTOR"
 echo "ArchController: $ARCH_CONTROLLER"
 echo "Helper owner: $HELPER_OWNER"
+test -s deployments/anvil/anvil-state.json
+test -f deployments/anvil/anvil.log
 ```
+
+Optionally keep the Anvil log visible in another terminal during the ceremony:
+
+```bash
+cd /Users/kethcode/wildcat/mono/v2-protocol
+tail -F deployments/anvil/anvil.log
+```
+
+The browser also blocks preparation and presents a dedicated local-RPC error
+if the process stops responding.
 
 Expected executor: `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`.
 
@@ -353,6 +385,13 @@ Open `http://127.0.0.1:4173/`. The page must open directly in locked EOA mode;
 there must be no plan picker or mode switch. Confirm the displayed package
 digest/fingerprint matches the output recorded above.
 
+If the browser has stored progress for the same deterministic package digest,
+the page must label it **not verified** and keep every card non-green. Because
+this is a newly created fork, export the old browser state first if it is still
+needed as evidence, then click **Start new rehearsal**. Do not choose **Resume
+same Anvil fork** unless this page is reconnecting to the process identified by
+the current `ANVIL_PID` or a recovery of its `anvil-state.json`.
+
 ## 8. Connect the disposable Anvil executor
 
 Configure the browser wallet for:
@@ -385,6 +424,12 @@ It must resolve to:
 
 This is a universally known Anvil key. Use it only on the disposable local
 fork; never fund it or use it on a public network.
+
+If this is a fresh attempt after a prior chain-31337 process failed, clear the
+wallet's local activity/nonce cache for this disposable account and local
+network before connecting. Do not do that for `--resume`: a restored snapshot
+continues the same fork and the page must reconcile its existing transaction
+hashes.
 
 Before connecting, confirm the account has no pending/local nonce divergence:
 
@@ -431,12 +476,55 @@ with their card number so they do not overwrite or obscure the final export.
 
 The reload after card 13 is part of acceptance. The page must re-read prior
 receipts/predicates and resume at card 14 without asking for a different plan.
+On that intentional reload, choose **Resume same Anvil fork**; completion and
+green card state must remain withheld until re-verification finishes.
+
+Clicking a completed or queued rail row pins the pane for review. The banner
+must say which transaction the ceremony is actually waiting at; use **Return
+to current** to follow it again. A successfully verified transaction must
+return the pane to the next active card automatically.
 
 Checkpoint exports remain operationally important. If a fatal halt occurs,
 use **Export run state** on the halt screen when it is enabled, preserve that
 export with the most recent checkpoint, capture the displayed error and
 browser console, and leave Anvil running. Do not clear local storage or rebuild
 the site before diagnosis.
+
+### Recover a crashed Anvil process
+
+If the Anvil process exits, stop using the page immediately. The UI must show a
+specific local-RPC error and disable further preparation instead of presenting
+an unknown RPC error. Preserve the UI error, last green card, browser state,
+and `deployments/anvil/anvil.log`.
+
+If `deployments/anvil/anvil-state.json` exists, restore the exact pinned fork
+without reseeding or regenerating anything:
+
+```bash
+test -s deployments/anvil/anvil-state.json
+test -s deployments/anvil/anvil-fork-block
+
+FORK_NETWORK="$FORK_NETWORK" \
+FORK_RPC_URL="$FORK_RPC_URL" \
+FORK_FALLBACK_RPC_URL="$FORK_FALLBACK_RPC_URL" \
+ANVIL_PORT="$ANVIL_PORT" \
+RELEASE_TAG="$RELEASE_TAG" \
+  bash script/deploy/v2-5/rehearse.sh --resume
+
+export ANVIL_PID="$(cat deployments/anvil/anvil.pid)"
+test "$ANVIL_PID" = "$(lsof -tiTCP:"$ANVIL_PORT" -sTCP:LISTEN)"
+```
+
+Then click **Resume same Anvil fork**. The page must recover every stored
+receipt, re-run every applicable predicate, and prepare exactly the first
+unverified card. Independently recheck the ArchController owner and executor
+nonce before signing again.
+
+`--resume` deliberately refuses to run without the saved state, fork block,
+and plan. If restoration fails, a saved transaction has no receipt, or a
+predicate differs, this attempt fails. Preserve it, move `deployments/anvil/`
+aside, and begin a new attempt at section 5; never use **Start new rehearsal**
+to continue against a partially restored fork.
 
 ## 10. Save and independently verify the final run-state
 
@@ -594,8 +682,8 @@ printed only after the result directory exists and the repository copy no
 longer does. `${ANVIL_EVIDENCE_ROOT%/}` also removes the trailing slash that
 macOS normally includes in `TMPDIR`.
 
-Stop the Vite preview with `Ctrl-C` in its terminal. Stop only the Anvil PID
-captured above:
+Stop the Vite preview and any optional `tail -F` with `Ctrl-C` in their
+terminals. Stop only the Anvil PID captured above:
 
 ```bash
 kill "$ANVIL_PID"

@@ -487,6 +487,11 @@ for the locked-UI release gate.
 
 Every fork rehearsal must preserve these invariants:
 
+- pin one explicit fork block and confirm both the primary and fallback archive
+  RPC can serve it before deleting or creating local rehearsal state;
+- persist Anvil state at a short interval, retain its log/PID/fork-block
+  metadata, and use `rehearse.sh --resume` rather than reseeding after a
+  recoverable node crash;
 - seed both `deployments.json` and `factory-inventory.json`, then rewrite only
   the copied inventory identity to network `anvil`, chain ID `31337`;
 - generate the plan from the source revision under review with
@@ -496,6 +501,9 @@ Every fork rehearsal must preserve these invariants:
 - require six template registrations, paired removal of both roles for all
   seven reconciled superseded factories, and no market removal;
 - finalize only from the unedited, independently verified run-state;
+- treat browser progress as stored but unverified until the connected chain
+  rechecks receipts and predicates; only Anvil packages expose the destructive
+  new-rehearsal reset;
 - keep historical indexing flags while marking superseded factories
   unregistered; and
 - preserve exact logs/artifacts and kill only the Anvil PID owned by the run.

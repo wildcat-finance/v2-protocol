@@ -3,6 +3,7 @@ import {
   createWalletClient,
   custom,
   getAddress,
+  TransactionReceiptNotFoundError,
   type Address,
   type EIP1193Provider,
   type Hex,
@@ -47,8 +48,9 @@ export function browserExecutionTransport(account: Address): ExecutionTransport 
     getReceipt: async (hash) => {
       try {
         return receipt(await publicClient.getTransactionReceipt({ hash }))
-      } catch {
-        return null
+      } catch (error) {
+        if (error instanceof TransactionReceiptNotFoundError) return null
+        throw error
       }
     },
     ethCall: async (to, data) => {

@@ -19,10 +19,12 @@ condensed index.
       `FOUNDRY_PROFILE=deploy forge build --sizes src script/common
       script/deploy/v2-5`
 - [ ] UI gate: `cd deploy-ui && npm ci && npm test`
-- [ ] RPC gate: `FORK_RPC_URL=https://eth-sep.hinterlight.net`; upstream chain
-      ID must be `11155111`
+- [ ] RPC gate: use `https://eth-sep.hinterlight.net` as primary and
+      `https://ethereum-sepolia-rpc.publicnode.com` as fallback; both chain IDs
+      must be `11155111` and both must serve the selected pinned block
 - [ ] Generate a fresh fork plan with `FORK_NETWORK=sepolia ANVIL_PORT=8547
-      bash script/deploy/v2-5/rehearse.sh` (without `--full`)
+      bash script/deploy/v2-5/rehearse.sh` (without `--full`); record the pinned
+      block and confirm the Anvil state snapshot/log/PID files exist
 - [ ] Confirm 38 cards: 12 deploys, 26 calls, six template registrations,
       seven paired factory-role deactivations, reclaim first, restore last,
       and no market removal
@@ -30,7 +32,8 @@ condensed index.
       build with `CEREMONY_PACKAGE` embedded; do not use the raw-plan
       development loader for this acceptance run
 - [ ] Walk all 38 cards with Anvil account 1; every predicate must turn green;
-      export checkpoints and prove reload/resume after card 13
+      export checkpoints and prove explicit same-fork reload/resume after card
+      13; cached state must not appear green before chain verification
 - [ ] Save the final unedited run-state; `plan.js verify`, step 08,
       inventory validate/lint/reconcile, both canaries, and handoff `--check`
       must pass
