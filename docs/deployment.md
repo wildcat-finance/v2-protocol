@@ -430,8 +430,9 @@ Per generated bundle (the rehearsed v2-5 plan produced 3):
 
 1. The operator proposes through the page (Safe SDK, `operation: 1`); the
    page shows signature progress against the threshold.
-2. Signers review the bundle card — plain-English inner transactions,
-   precomputed addresses — and sign from their own Safe apps (or in-page).
+2. Signers review the bundle card and its plain-English inner transactions,
+   expand **Technical Details** to compare precomputed addresses and exact
+   checks, then sign from their own Safe apps (or in-page).
 3. At threshold, the operator executes. The page verifies every inner
    predicate against the precomputed addresses and shows the green board
    before advancing. A predicate failure is a full stop; bundles are atomic,

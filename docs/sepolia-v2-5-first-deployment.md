@@ -601,8 +601,9 @@ the helper to the developer EOA.
 
 - [ ] Walk cards 2–37 in order. For every card:
 
-  1. Review the description, target/artifact, decoded arguments, pending nonce,
-     estimated gas, and gas limit shown by the page.
+  1. Review the plain-language change and expected result. Expand
+     **Technical Details** to review the target/artifact, decoded arguments,
+     pending nonce, estimated gas, and gas limit shown by the page.
   2. Click the single active **Send transaction N** button.
   3. Confirm the wallet transaction is from the expected EOA on Sepolia.
   4. Wait for the receipt and a `verified` predicate before continuing.
@@ -627,10 +628,11 @@ the helper to the developer EOA.
   transaction. Reopen the exact same site origin, reconnect the same account,
   and let the page recover the stored transaction hash and receipt.
 
-  The current fatal screen does not expose the export button. If a fatal halt
-  occurs, preserve the newest checkpoint, exact site build and origin, browser
-  storage, displayed error, wallet transaction hash, and browser console. Do
-  not clear storage, rebuild the site, switch origins, or skip the failed card.
+  If a fatal halt occurs, use **Export run state** on the halt screen when it
+  is enabled before changing anything. Preserve that export alongside the
+  newest checkpoint, exact site build and origin, browser storage, displayed
+  error, wallet transaction hash, and browser console. Do not clear storage,
+  rebuild the site, switch origins, or skip the failed card.
 
 - [ ] Review card 38. It must call
   `ArchController.transferOwnership(helper)` with

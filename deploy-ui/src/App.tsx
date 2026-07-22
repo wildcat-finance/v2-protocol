@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import Safe from '@safe-global/protocol-kit'
 import SafeApiKit from '@safe-global/api-kit'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
-import { keccak256 } from 'viem'
+import { formatEther, keccak256 } from 'viem'
 import type { Address, Hex } from 'viem'
 import {
   assertCeremonyPackage,
@@ -29,7 +29,7 @@ import type {
 import { browserExecutionTransport, injectedProvider } from './walletTransport'
 import { SAFE_1_4_1_FORK_NETWORKS } from './safeContracts'
 
-type Mode = 'eoa' | 'safe'
+export type Mode = 'eoa' | 'safe'
 
 const embeddedRelease: { value: LoadedCeremonyPackage | null; error: string } = (() => {
   if (__CEREMONY_PACKAGE__ === null) return { value: null, error: '' }
@@ -53,15 +53,76 @@ function contractName(artifactName: string): string {
   return artifactName.split(':').pop() ?? artifactName
 }
 
-function friendlyLabel(description: string): string {
+function retirementAddress(description: string): string | null {
+  return description.match(/0x[0-9a-fA-F]{40}/)?.[0] ?? null
+}
+
+export function friendlyLabel(description: string, planId?: string): string {
+  const address = retirementAddress(description)
+  if (address && planId?.startsWith('remove-superseded-controller-factory-')) {
+    return `Block factory ${short(address)}`
+  }
+  if (address && planId?.startsWith('remove-superseded-controller-')) {
+    return `Block new markets ${short(address)}`
+  }
   return description
     .replace(' the v2.5 ', ' ')
     .replace(' for this deployment', '')
     .replace(/\.$/, '')
 }
 
+function plainDescription(description: string, planId: string): string {
+  if (planId.startsWith('remove-superseded-controller-factory-')) {
+    return 'Prevent this superseded hooks factory from re-registering as a controller'
+  }
+  if (planId.startsWith('remove-superseded-controller-')) {
+    return 'Prevent this superseded hooks factory from registering new markets'
+  }
+  return description.replace(' the v2.5 ', ' ').replace(/\.$/, '')
+}
+
 function functionName(signature: string): string {
   return signature.split('(')[0]
+}
+
+export function transactionValueLabel(value: string): string {
+  const wei = BigInt(value)
+  return wei === 0n ? '0 ETH' : `${formatEther(wei)} ETH`
+}
+
+function plainPredicateResult(predicate: Predicate): string {
+  if (predicate.type === 'codePresent') {
+    return 'The new contract must be present at its recorded address.'
+  }
+  const call = functionName(predicate.call.sig)
+  const expected = predicate.expect
+  if (call === 'owner') return 'Ownership must match the reviewed destination.'
+  if (call === 'v1Factory') return 'The wrapper must point to the reviewed V1 factory.'
+  if (call === 'marketInitCodeStorage') {
+    return 'The factory must point to the newly deployed market code.'
+  }
+  if (call === 'hooksFactory') {
+    return 'The lens component must point to the newly deployed standard hooks factory.'
+  }
+  if (call === 'aggregationHelper') {
+    return 'The lens facade must point to its newly deployed aggregation helper.'
+  }
+  if (call === 'isHooksTemplate') {
+    return expected === true
+      ? 'The hooks template must be registered with the reviewed factory.'
+      : 'The hooks template must not be registered with the reviewed factory.'
+  }
+  if (call === 'isRegisteredControllerFactory') {
+    return expected === true
+      ? 'The factory must be authorized to register controllers.'
+      : 'The superseded factory must no longer be authorized to register controllers.'
+  }
+  if (call === 'isRegisteredController') {
+    return expected === true
+      ? 'The hooks factory must be authorized to register markets.'
+      : 'The superseded factory must no longer be authorized to register markets.'
+  }
+  return 'The resulting on-chain state must match the reviewed release plan.'
 }
 
 function isReference(value: PlanValue | undefined): value is { $ref: string } {
@@ -166,12 +227,163 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+export function ExecutionIdentity({
+  mode,
+  actionCount,
+  bundleCount,
+  expectedExecutor,
+  safeVersion,
+}: {
+  mode: Mode
+  actionCount: number
+  bundleCount: number
+  expectedExecutor: Address
+  safeVersion?: string
+}) {
+  const summary =
+    mode === 'eoa'
+      ? `${actionCount} individual transactions`
+      : `${bundleCount} bundle${bundleCount === 1 ? '' : 's'} · ${actionCount} actions`
+  const authority =
+    mode === 'eoa' ? 'Expected EOA' : `Expected Safe${safeVersion ? ` v${safeVersion}` : ''}`
+  return (
+    <span
+      className={`chip execution ${mode}`}
+      title={`${authority}: ${expectedExecutor}`}
+      role="group"
+      aria-label={`${mode === 'eoa' ? 'EOA' : 'Safe'} execution: ${summary}; ${authority} ${expectedExecutor}`}
+    >
+      <strong>{mode === 'eoa' ? 'EOA' : 'SAFE'}</strong>
+      <span className="lt">· {summary}</span>
+      <code>
+        · {mode === 'safe' && safeVersion ? `v${safeVersion} · ` : ''}
+        {short(expectedExecutor)}
+      </code>
+    </span>
+  )
+}
+
+export function CeremonyProgress({
+  mode,
+  activeEoaIndex,
+  actionCount,
+  verifiedActions,
+  bundleCount,
+  completedBundles,
+  signatureProgress,
+  safeThreshold,
+}: {
+  mode: Mode
+  activeEoaIndex: number
+  actionCount: number
+  verifiedActions: number
+  bundleCount: number
+  completedBundles: number
+  signatureProgress: SignatureProgress | null
+  safeThreshold: number | null
+}) {
+  if (mode === 'safe' && bundleCount === 0) {
+    return (
+      <span className="meter" role="status" aria-label="Safe bundles are not loaded">
+        <span className="metric-key">BUNDLES</span> <b>not loaded</b>
+      </span>
+    )
+  }
+  const current =
+    mode === 'eoa'
+      ? Math.min(activeEoaIndex + 1, actionCount)
+      : Math.min(completedBundles + 1, bundleCount)
+  const complete = mode === 'eoa' ? verifiedActions === actionCount : completedBundles === bundleCount
+  const unitCount = mode === 'eoa' ? actionCount : bundleCount
+  const completedUnits = mode === 'eoa' ? verifiedActions : completedBundles
+  const threshold = signatureProgress?.threshold ?? safeThreshold
+  const signatureLabel = complete
+    ? `executed${threshold ? ` · threshold ${threshold}` : ''}`
+    : signatureProgress
+      ? `${signatureProgress.confirmations}/${signatureProgress.threshold} signatures`
+      : threshold
+        ? `threshold ${threshold}`
+        : 'threshold —'
+  const label =
+    mode === 'eoa'
+      ? `Transaction ${current} of ${actionCount}; ${verifiedActions} of ${actionCount} checks passed`
+      : `Bundle ${current} of ${bundleCount}; ${signatureLabel}; ${verifiedActions} of ${actionCount} checks passed`
+  return (
+    <span className="meter" role="status" aria-live="polite" aria-label={label} title={label}>
+      <span className="meter-copy">
+        <span>
+          <span className="metric-key">{mode === 'eoa' ? 'TX' : 'BUNDLE'}</span>{' '}
+          <b>{complete ? unitCount : current}</b>/{unitCount}
+        </span>
+        <span className="metric-sub">
+          · {mode === 'safe' ? `${signatureLabel} · ` : ''}
+          {verifiedActions}/{actionCount} checks
+        </span>
+      </span>
+      <span className="track" aria-hidden="true">
+        <i style={{ width: `${unitCount ? (completedUnits / unitCount) * 100 : 0}%` }}></i>
+      </span>
+    </span>
+  )
+}
+
+export function CeremonyHaltScreen({
+  message,
+  plan,
+  mode,
+  callFingerprint,
+  runState,
+  compensationId,
+}: {
+  message: string
+  plan: DeploymentPlan | null
+  mode: Mode
+  callFingerprint: string | null
+  runState: RunState
+  compensationId?: string
+}) {
+  const canExport = plan !== null && Object.keys(runState).length > 0
+  return (
+    <main className="fatal-screen">
+      <p className="eyebrow">CEREMONY HALTED</p>
+      {plan ? (
+        <p className="fatal-identity">
+          {plan.release} · {plan.network} · {mode.toUpperCase()}
+          {callFingerprint ? ` · FP ${callFingerprint}` : ''}
+        </p>
+      ) : null}
+      <h1>Do not continue.</h1>
+      <pre>{message}</pre>
+      <p>Preserve the loaded package, this error, and the run state. There is no skip button.</p>
+      <div className="fatal-actions">
+        <button
+          className="fatal-export"
+          onClick={() => plan && saveJson(`run-state-${plan.release}.json`, runState)}
+          disabled={!canExport}
+        >
+          Export run state
+        </button>
+        {!canExport ? <span>No completed transaction state is available yet.</span> : null}
+      </div>
+      {compensationId ? (
+        <p>
+          Temporary ownership may still be held by the ceremony executor. Before ending the
+          session, use the reviewed recovery procedure to execute <code>{compensationId}</code> and
+          confirm its predicate.
+        </p>
+      ) : null}
+    </main>
+  )
+}
+
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <button
+      type="button"
       className="copy"
       title="Copy full value"
+      aria-label="Copy full value"
       onClick={() => {
         void navigator.clipboard?.writeText(value)
         setCopied(true)
@@ -531,6 +743,7 @@ export default function App() {
   const [safeEngine, setSafeEngine] = useState<SafeCeremony | null>(null)
   const [safeIndex, setSafeIndex] = useState(0)
   const [progress, setProgress] = useState<SignatureProgress | null>(null)
+  const [safeThreshold, setSafeThreshold] = useState<number | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
   const embeddedPackage = embeddedRelease.value
 
@@ -543,6 +756,20 @@ export default function App() {
 
   function handleError(error: unknown): void {
     const text = errorMessage(error)
+    if (error instanceof CeremonyHaltError && planArtifact) {
+      try {
+        const latest =
+          mode === 'eoa'
+            ? planEngine?.getRunState()
+            : safeEngine?.getRunState()
+        setRunState(
+          latest ??
+            new LocalStorageProgressStore(embeddedPackage?.digest ?? planArtifact.hash).load(),
+        )
+      } catch {
+        // Keep the last React snapshot if the stored evidence itself cannot be decoded.
+      }
+    }
     if (
       error instanceof CeremonyHaltError &&
       (/predicate/i.test(text) ||
@@ -693,7 +920,12 @@ export default function App() {
 
   useEffect(() => {
     setSelected(null)
+    setSafeThreshold(null)
   }, [mode, planArtifact])
+
+  useEffect(() => {
+    if (progress) setSafeThreshold(progress.threshold)
+  }, [progress])
 
   async function loadPlan(file: File): Promise<void> {
     try {
@@ -816,6 +1048,9 @@ export default function App() {
     : -1
   const eoaActiveIndex = prepared?.index ?? (firstUnverified === -1 ? totalSteps : firstUnverified)
   const eoaComplete = plan !== null && firstUnverified === -1 && Object.keys(runState).length > 0
+  const completedBundles = manifests.filter((manifest) =>
+    manifest.innerTransactions.every((entry) => runState[entry.planId]?.status === 'verified'),
+  ).length
   const safeComplete = manifests.length > 0 && safeIndex >= manifests.length
   const callFingerprint = embeddedPackage
     ? embeddedPackage.fingerprint
@@ -842,30 +1077,34 @@ export default function App() {
   }, [displayIndex, selectionLimit])
 
   if (fatal) {
-    const compensation = plan?.transactions.find((transaction) =>
-      plan.transactions.some((candidate) => candidate.reverifyUntil === transaction.id),
+    const opener = plan?.transactions.find((transaction) => transaction.reverifyUntil)
+    const compensation = opener
+      ? plan?.transactions.find((transaction) => transaction.id === opener.reverifyUntil)
+      : undefined
+    const compensationPending = Boolean(
+      opener &&
+        runState[opener.id]?.txHash &&
+        compensation &&
+        runState[compensation.id]?.status !== 'verified',
     )
-    const compensationPending = compensation && runState[compensation.id]?.status !== 'verified'
     return (
-      <main className="fatal-screen">
-        <p className="eyebrow">CEREMONY HALTED</p>
-        <h1>Do not continue.</h1>
-        <pre>{fatal}</pre>
-        <p>Preserve the loaded files and run state. There is intentionally no skip button.</p>
-        {compensationPending && (
-          <p>
-            Temporary ownership may still be held by the deployment EOA. Before ending the
-            session, use the reviewed recovery procedure to execute{' '}
-            <code>{compensation.id}</code> and confirm its predicate.
-          </p>
-        )}
-      </main>
+      <CeremonyHaltScreen
+        message={fatal}
+        plan={plan}
+        mode={mode}
+        callFingerprint={callFingerprint}
+        runState={runState}
+        compensationId={compensationPending ? compensation?.id : undefined}
+      />
     )
   }
 
   const railFooter = plan ? (
     <>
-      on failure: halt — resume re-verifies all prior predicates
+      <span className="rail-rule">Any failed check halts. Resume rechecks completed actions.</span>
+      <br />
+      {mode === 'eoa' ? 'expected EOA' : 'expected Safe'}{' '}
+      <AddressValue value={plan.expectedExecutor} />
       <br />
       {planArtifact?.name ?? 'plan'} · hash{' '}
       <code title={planArtifact?.hash}>{short(planArtifact?.hash ?? '')}</code>
@@ -899,7 +1138,7 @@ export default function App() {
                 return {
                   key: transaction.id,
                   number: index + 1,
-                  label: friendlyLabel(transaction.description),
+                  label: friendlyLabel(transaction.description, transaction.id),
                   title: transaction.id,
                   status:
                     status === 'verified'
@@ -921,7 +1160,7 @@ export default function App() {
               return {
                 key: entry.planId,
                 number: entry.planIndex + 1,
-                label: friendlyLabel(entry.description),
+                label: friendlyLabel(entry.description, entry.planId),
                 title: entry.planId,
                 status: status === 'verified' ? 'done' : 'todo',
                 selectIndex: bundleIndex,
@@ -941,6 +1180,13 @@ export default function App() {
             <span className="chip">
               {plan.network} <span className="lt">· {plan.chainId}</span>
             </span>
+            <ExecutionIdentity
+              mode={mode}
+              actionCount={totalSteps}
+              bundleCount={manifests.length}
+              expectedExecutor={plan.expectedExecutor}
+              safeVersion={manifests[0]?.safe.version}
+            />
           </>
         ) : null}
         {callFingerprint ? (
@@ -963,12 +1209,16 @@ export default function App() {
           </span>
         ) : null}
         {plan ? (
-          <span className="meter">
-            <b>{verifiedCount}</b>/{totalSteps}
-            <span className="track">
-              <i style={{ width: `${totalSteps ? (verifiedCount / totalSteps) * 100 : 0}%` }}></i>
-            </span>
-          </span>
+          <CeremonyProgress
+            mode={mode}
+            activeEoaIndex={eoaActiveIndex}
+            actionCount={totalSteps}
+            verifiedActions={verifiedCount}
+            bundleCount={manifests.length}
+            completedBundles={completedBundles}
+            signatureProgress={progress}
+            safeThreshold={safeThreshold}
+          />
         ) : null}
         {isConnected && address ? (
           <span
@@ -978,20 +1228,30 @@ export default function App() {
                 ? address.toLowerCase() === plan.expectedExecutor.toLowerCase()
                   ? 'Connected wallet matches the plan’s expected executor'
                   : 'Connected wallet is NOT the plan’s expected executor'
-                : 'Connected wallet'
+                : safeEngine
+                  ? 'Connected signer is a verified owner of the expected Safe'
+                  : 'Connected signer ownership has not been verified'
             }
           >
             <span
               className={`dot${
-                mode === 'eoa' && plan && address.toLowerCase() !== plan.expectedExecutor.toLowerCase()
+                (mode === 'eoa' &&
+                  plan &&
+                  address.toLowerCase() !== plan.expectedExecutor.toLowerCase()) ||
+                (mode === 'safe' && !safeEngine)
                   ? ' off'
                   : ''
               }`}
             ></span>
+            {mode === 'safe' ? (safeEngine ? 'owner ' : 'signer ') : 'executor '}
             {short(address)}
             {mode === 'eoa' && plan && address.toLowerCase() === plan.expectedExecutor.toLowerCase()
               ? ' ✓'
-              : ''}
+              : mode === 'safe'
+                ? safeEngine
+                  ? ' ✓'
+                  : ' · owner unverified'
+                : ''}
             <button onClick={() => disconnect()}>disconnect</button>
           </span>
         ) : (
@@ -1011,6 +1271,16 @@ export default function App() {
           Export run state
         </button>
       </header>
+
+      {plan ? (
+        <div className={`ceremony-guidance${embeddedPackage ? '' : ' dev'}`} role="note">
+          <strong>{embeddedPackage ? 'Reviewed package.' : 'Development mode.'}</strong>{' '}
+          {embeddedPackage
+            ? 'Confirm the fingerprint before signing. '
+            : 'Loaded artifacts are not locked. '}
+          Any failed on-chain check halts the ceremony; resuming rechecks completed actions.
+        </div>
+      ) : null}
 
       {!planArtifact ? (
         <div className="loader-wrap">
@@ -1088,7 +1358,6 @@ export default function App() {
                   outputs={outputs}
                   xrefs={xrefs}
                   reverifyClosers={reverifyClosers}
-                  callFingerprint={callFingerprint}
                   isConnected={isConnected}
                   busy={busy}
                   chainMismatch={chainMismatch}
@@ -1126,7 +1395,6 @@ export default function App() {
                 runState={runState}
                 progress={progress}
                 outputs={outputs}
-                callFingerprint={callFingerprint}
                 busy={busy}
                 chainMismatch={chainMismatch}
                 engineReady={safeEngine !== null}
@@ -1150,7 +1418,6 @@ function EoaStepPane({
   outputs,
   xrefs,
   reverifyClosers,
-  callFingerprint,
   isConnected,
   busy,
   chainMismatch,
@@ -1165,7 +1432,6 @@ function EoaStepPane({
   outputs: Map<string, Address>
   xrefs: KeccakXrefs
   reverifyClosers: Map<string, number>
-  callFingerprint: string | null
   isConnected: boolean
   busy: boolean
   chainMismatch: boolean
@@ -1186,7 +1452,7 @@ function EoaStepPane({
     <>
       <div className="pane-in">
         <div className="crumb">
-          step {String(index + 1).padStart(2, '0')} / {total}
+          transaction {String(index + 1).padStart(2, '0')} / {total}
           {group ? (
             <>
               {' · '}
@@ -1194,7 +1460,7 @@ function EoaStepPane({
             </>
           ) : null}
         </div>
-        <h2 className="ptitle">{transaction.description}</h2>
+        <h2 className="ptitle">{plainDescription(transaction.description, transaction.id)}</h2>
         <StateStrip
           entry={entry}
           isActive={isActive}
@@ -1202,55 +1468,28 @@ function EoaStepPane({
           ready={prepared !== null}
           queuedBehind={index > activeIndex ? index - activeIndex : null}
         />
+        {reverifyTargetIndex >= 0 ? (
+          <div className="operator-note">
+            Temporary ownership remains an open checkpoint until transaction{' '}
+            {reverifyTargetIndex + 1} returns it.
+          </div>
+        ) : closesIndex !== undefined ? (
+          <div className="operator-note">
+            This transaction closes the temporary ownership window opened at transaction{' '}
+            {closesIndex + 1}.
+          </div>
+        ) : null}
         <div className="sect">
-          <div className="sect-h">what this step does</div>
+          <div className="sect-h">expected result</div>
           <p className="plain">
-            {transaction.kind === 'deploy' ? (
-              <>
-                It creates one new contract on {plan.network} — <b>{contractName(transaction.artifactName)}</b>{' '}
-                — and records its address as “{transaction.output.replace(/-/g, ' ')}” so later
-                steps can refer to it.
-              </>
-            ) : (
-              <>
-                It sends a single instruction, <b>{functionName(transaction.functionSignature)}</b>, to{' '}
-                {isReference(transaction.to) ? (
-                  <>the new {transaction.to.$ref.replace(/-/g, ' ')}</>
-                ) : (
-                  <>
-                    the contract at <code title={transaction.to}>{short(transaction.to)}</code>
-                  </>
-                )}
-                .
-              </>
-            )}
-            {reverifyTargetIndex >= 0 ? (
-              <> Its check stays enforced until step {reverifyTargetIndex + 1} completes.</>
-            ) : null}
-            {closesIndex !== undefined ? (
-              <> Closes the window opened in step {closesIndex + 1}.</>
-            ) : null}
+            {plainPredicateResult(transaction.predicate)}{' '}
+            {verified
+              ? 'The on-chain check has passed.'
+              : 'The page checks this automatically after the transaction mines.'}
           </p>
-          {isActive && !verified && callFingerprint ? (
-            <p className="plain">
-              Everything on this page was compiled from the reviewed release plan — nothing can be
-              edited or improvised here. Before sending, confirm the fingerprint in the top bar (
-              <b>{callFingerprint}</b>) reads the same on every screen on the call.
-            </p>
-          ) : null}
-        </div>
-        <div className="sect">
-          <div className="sect-h">automatic safety check</div>
-          <p className="plain">
-            After the transaction mines, the page immediately re-checks the result on-chain
-            {verified ? ' — this check has already passed' : ''}. If a check ever fails, the
-            ceremony <b>halts on the spot</b>: no further transaction can be sent, and there is
-            deliberately no skip button.
-          </p>
-          <CheckAssertion predicate={transaction.predicate} outputs={outputs} verified={verified} />
         </div>
         <details className="tech">
-          <summary>technical detail</summary>
+          <summary>technical details</summary>
           <div className="tech-in">
             <div className="sect">
               <div className="sect-h">transaction</div>
@@ -1282,11 +1521,10 @@ function EoaStepPane({
                 </span>
                 <span className="k">value</span>
                 <span className="v">
-                  <code>
-                    {transaction.envelope.value === '0'
-                      ? '0 ETH'
-                      : `${transaction.envelope.value} wei`}
-                  </code>
+                  <code>{transactionValueLabel(transaction.envelope.value)}</code>
+                  {transaction.envelope.value !== '0' ? (
+                    <span className="dim"> · {transaction.envelope.value} wei</span>
+                  ) : null}
                 </span>
                 <span className="k">gas policy</span>
                 <span className="v">
@@ -1374,7 +1612,7 @@ function EoaStepPane({
           <span className="sub">
             {busy
               ? 'transaction submitted — waiting for the receipt and the on-chain check'
-              : 'your wallet will open — it should show 0 ETH being sent'}
+              : `your wallet will open — it should show ${transactionValueLabel(transaction.envelope.value)} being sent`}
           </span>
         </div>
       ) : null}
@@ -1391,7 +1629,6 @@ function SafeBundlePane({
   runState,
   progress,
   outputs,
-  callFingerprint,
   busy,
   chainMismatch,
   engineReady,
@@ -1405,7 +1642,6 @@ function SafeBundlePane({
   runState: RunState
   progress: SignatureProgress | null
   outputs: Map<string, Address>
-  callFingerprint: string | null
   busy: boolean
   chainMismatch: boolean
   engineReady: boolean
@@ -1469,13 +1705,6 @@ function SafeBundlePane({
             {bundleProgress ? bundleProgress.threshold : 'its configured number of'} owner
             signatures before it can run, at Safe nonce {manifest.bundle.safeNonce}.
           </p>
-          {isActive && !complete && callFingerprint ? (
-            <p className="plain">
-              Everything here was compiled from the reviewed release plan — nothing can be edited or
-              improvised. Before signing, confirm the fingerprint in the top bar (
-              <b>{callFingerprint}</b>) reads the same on every screen on the call.
-            </p>
-          ) : null}
           <div className="safehash">
             <span className="sh-label">compare before you approve</span>
             <code>{manifest.safeTransaction.safeTxHash}</code>
@@ -1493,16 +1722,7 @@ function SafeBundlePane({
               <li key={entry.planId}>
                 <span className="in">{String(entry.planIndex + 1).padStart(2, '0')}</span>
                 <span className="id-desc">
-                  {entry.description}
-                  <span className="id-sub">
-                    {entry.kind} · <code title={entry.logicalTarget}>{short(entry.logicalTarget)}</code>
-                    {entry.precomputedAddress ? (
-                      <>
-                        {' · precomputed '}
-                        <code title={entry.precomputedAddress}>{short(entry.precomputedAddress)}</code>
-                      </>
-                    ) : null}
-                  </span>
+                  {plainDescription(entry.description, entry.planId)}
                 </span>
                 <StatusPill status={runState[entry.planId]?.status} />
               </li>
@@ -1510,19 +1730,22 @@ function SafeBundlePane({
           </ol>
         </div>
         <div className="sect">
-          <div className="sect-h">automatic safety check</div>
+          <div className="sect-h">expected result</div>
           <p className="plain">
-            After execution, the page verifies every action’s on-chain check
-            {complete ? ' — all of them have passed' : ''}. If any check fails, the ceremony{' '}
-            <b>halts on the spot</b>; there is deliberately no skip button.
+            Every action above must pass its reviewed on-chain check after the bundle executes.
+            {complete ? ' All checks have passed.' : ' The page runs those checks automatically.'}
           </p>
         </div>
         <details className="tech">
-          <summary>technical detail</summary>
+          <summary>technical details</summary>
           <div className="tech-in">
             <div className="sect">
               <div className="sect-h">safe transaction</div>
               <div className="facts">
+                <span className="k">Safe</span>
+                <span className="v">
+                  <AddressValue value={manifest.safe.address} /> · <code>v{manifest.safe.version}</code>
+                </span>
                 <span className="k">to</span>
                 <span className="v">
                   <AddressValue value={manifest.safeTransaction.to} />{' '}
@@ -1534,11 +1757,10 @@ function SafeBundlePane({
                 </span>
                 <span className="k">value</span>
                 <span className="v">
-                  <code>
-                    {manifest.safeTransaction.value === '0'
-                      ? '0 ETH'
-                      : `${manifest.safeTransaction.value} wei`}
-                  </code>
+                  <code>{transactionValueLabel(manifest.safeTransaction.value)}</code>
+                  {manifest.safeTransaction.value !== '0' ? (
+                    <span className="dim"> · {manifest.safeTransaction.value} wei</span>
+                  ) : null}
                 </span>
                 <span className="k">safe nonce</span>
                 <span className="v">
@@ -1571,7 +1793,29 @@ function SafeBundlePane({
             <div className="sect">
               <div className="sect-h">per-action checks</div>
               {manifest.innerTransactions.map((entry) => (
-                <div key={entry.planId} style={{ marginBottom: '6px' }}>
+                <div className="safe-action-detail" key={entry.planId}>
+                  <div className="safe-action-title">
+                    {String(entry.planIndex + 1).padStart(2, '0')} · {entry.description}
+                  </div>
+                  <div className="facts safe-action-facts">
+                    <span className="k">kind / target</span>
+                    <span className="v">
+                      {entry.kind} · <AddressValue value={entry.logicalTarget} />
+                    </span>
+                    {entry.precomputedAddress ? (
+                      <>
+                        <span className="k">precomputed</span>
+                        <span className="v">
+                          <AddressValue value={entry.precomputedAddress} />
+                        </span>
+                      </>
+                    ) : null}
+                    <span className="k">gas</span>
+                    <span className="v">
+                      static <code>{entry.staticGasEstimate}</code> · simulated{' '}
+                      <code>{entry.simulatedGas ?? 'not recorded'}</code>
+                    </span>
+                  </div>
                   <CheckAssertion
                     predicate={entry.predicate}
                     outputs={outputs}

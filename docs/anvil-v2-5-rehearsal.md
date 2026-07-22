@@ -408,7 +408,9 @@ Connect the exact executor and confirm the UI shows:
 
 Then execute one card at a time. For every card:
 
-1. read the description, target, value, decoded arguments, and predicate;
+1. read the plain-language change and expected result, then expand
+   **Technical Details** to review the target, value, decoded arguments, and
+   predicate;
 2. confirm the wallet is still on chain `31337` with the expected executor;
 3. send exactly the UI-prepared transaction;
 4. wait for the receipt; and
@@ -430,11 +432,11 @@ with their card number so they do not overwrite or obscure the final export.
 The reload after card 13 is part of acceptance. The page must re-read prior
 receipts/predicates and resume at card 14 without asking for a different plan.
 
-The current fatal screen does not expose the export button. That makes the
-checkpoint exports operationally important. If a fatal halt occurs, preserve
-the most recent checkpoint, capture the displayed error and browser console,
-and leave Anvil running. Do not clear local storage or rebuild the site before
-diagnosis.
+Checkpoint exports remain operationally important. If a fatal halt occurs,
+use **Export run state** on the halt screen when it is enabled, preserve that
+export with the most recent checkpoint, capture the displayed error and
+browser console, and leave Anvil running. Do not clear local storage or rebuild
+the site before diagnosis.
 
 ## 10. Save and independently verify the final run-state
 
