@@ -36,8 +36,8 @@ The rehearsal passes only when all of the following are true:
 - the full protocol test suite passes from a clean IR build;
 - the deploy-profile release source builds from a clean deploy cache;
 - the generated Anvil plan validates and has the reviewed 38-card shape;
-- Anvil is pinned to one recorded Sepolia block, has two fork providers, and
-  writes a periodic recovery snapshot;
+- Anvil is pinned to one recorded Sepolia block, uses only the explicitly
+  selected archive endpoint, and writes a periodic recovery snapshot;
 - the locked UI accepts the embedded package and all 38 predicates turn green;
 - a page reload resumes from verified on-chain state;
 - the exported run-state passes independent CLI verification;
@@ -78,8 +78,9 @@ export REPO_ROOT="$(pwd -P)"
 export FOUNDRY_PROFILE=deploy
 export FORK_NETWORK=sepolia
 export FORK_RPC_URL=https://eth-sep.hinterlight.net
-export FORK_FALLBACK_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+unset FORK_FALLBACK_RPC_URL
 export ANVIL_PORT=8547
+export ANVIL_STARTUP_TIMEOUT=120
 export RPC_URL="http://127.0.0.1:${ANVIL_PORT}"
 export DEPLOYMENTS_NETWORK=anvil
 export RELEASE_TAG=v2-5
@@ -175,27 +176,27 @@ bash -n script/deploy/v2-5/09-canary-market.sh
 
 ## 4. Preflight the upstream RPC
 
-Confirm both supplied endpoints are Sepolia. Pin the rehearsal to the lower of
-their current heads, then prove both can serve that exact block:
+Confirm the explicitly selected endpoint is Sepolia, pin the rehearsal to its
+current head, and prove it can serve historical contract storage:
 
 ```bash
 test "$(cast chain-id --rpc-url "$FORK_RPC_URL")" = "11155111"
-test "$(cast chain-id --rpc-url "$FORK_FALLBACK_RPC_URL")" = "11155111"
-
-export PRIMARY_HEAD="$(cast block-number --rpc-url "$FORK_RPC_URL")"
-export FALLBACK_HEAD="$(cast block-number --rpc-url "$FORK_FALLBACK_RPC_URL")"
-export FORK_BLOCK_NUMBER="$PRIMARY_HEAD"
-if (( FALLBACK_HEAD < FORK_BLOCK_NUMBER )); then
-  export FORK_BLOCK_NUMBER="$FALLBACK_HEAD"
-fi
+export FORK_BLOCK_NUMBER="$(cast block-number --rpc-url "$FORK_RPC_URL")"
+export ARCHIVE_PROBE_BLOCK="$((FORK_BLOCK_NUMBER - 1024))"
+export ARCHIVE_PROBE_ADDRESS="$(jq -er '.WildcatArchController' \
+  deployments/sepolia/deployments.json)"
 cast block "$FORK_BLOCK_NUMBER" --rpc-url "$FORK_RPC_URL" >/dev/null
-cast block "$FORK_BLOCK_NUMBER" --rpc-url "$FORK_FALLBACK_RPC_URL" >/dev/null
+cast storage "$ARCHIVE_PROBE_ADDRESS" 0 --block "$ARCHIVE_PROBE_BLOCK" \
+  --rpc-url "$FORK_RPC_URL" >/dev/null
 echo "Pinned Sepolia fork block: $FORK_BLOCK_NUMBER"
 ```
 
-The launcher also chooses and pins the lowest available provider head if
-`FORK_BLOCK_NUMBER` is omitted. This walkthrough exports the block explicitly
-so the operator records it before any local state is created.
+`eth-sep.hinterlight.net` owns its own upstream failover. Do not add an Anvil
+secondary URL to this rehearsal. Anvil actively round-robins across repeated
+`--fork-url` arguments; they are not passive fallback endpoints. The launcher
+has no implicit provider and rejects an endpoint that fails its historical
+storage probe. This walkthrough exports the block explicitly so the operator
+records it before any local state is created.
 
 ## 5. Start the fork and generate a fresh plan
 
@@ -205,9 +206,9 @@ executor for this rehearsal:
 ```bash
 FORK_NETWORK="$FORK_NETWORK" \
 FORK_RPC_URL="$FORK_RPC_URL" \
-FORK_FALLBACK_RPC_URL="$FORK_FALLBACK_RPC_URL" \
 FORK_BLOCK_NUMBER="$FORK_BLOCK_NUMBER" \
 ANVIL_PORT="$ANVIL_PORT" \
+ANVIL_STARTUP_TIMEOUT="$ANVIL_STARTUP_TIMEOUT" \
 RELEASE_TAG="$RELEASE_TAG" \
   bash script/deploy/v2-5/rehearse.sh
 ```
@@ -216,8 +217,9 @@ The script does the following:
 
 1. seeds `deployments/anvil/` from the current Sepolia deployment files;
 2. rewrites the seeded inventory identity to Anvil chain `31337`;
-3. starts Anvil at the pinned block with both providers, ten retries, and
-   `--auto-impersonate`;
+3. starts Anvil at the pinned block against the selected archive endpoint with
+   ten retries and `--auto-impersonate`, then polls until chain `31337` is
+   actually serving or the bounded startup timeout expires;
 4. writes `anvil-state.json` every second plus `anvil.log`, `anvil.pid`, and
    `anvil-fork-block` recovery metadata;
 5. funds the helper owner and Anvil account 1;
@@ -227,6 +229,8 @@ The script does the following:
 The script footer now points to the same embedded ceremony package and
 production build used below. Continue with the explicit commands in this
 walkthrough so the recorded digest and fingerprint remain part of the evidence.
+Do not proceed until the launcher prints `Anvil RPC ready`; a bounded startup
+timeout terminates the process started by that invocation and returns nonzero.
 
 Capture and verify the exact listener process so cleanup does not rely on
 another pattern match:
@@ -506,8 +510,8 @@ test -s deployments/anvil/anvil-fork-block
 
 FORK_NETWORK="$FORK_NETWORK" \
 FORK_RPC_URL="$FORK_RPC_URL" \
-FORK_FALLBACK_RPC_URL="$FORK_FALLBACK_RPC_URL" \
 ANVIL_PORT="$ANVIL_PORT" \
+ANVIL_STARTUP_TIMEOUT="$ANVIL_STARTUP_TIMEOUT" \
 RELEASE_TAG="$RELEASE_TAG" \
   bash script/deploy/v2-5/rehearse.sh --resume
 

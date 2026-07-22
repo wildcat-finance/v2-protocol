@@ -19,12 +19,15 @@ condensed index.
       `FOUNDRY_PROFILE=deploy forge build --sizes src script/common
       script/deploy/v2-5`
 - [ ] UI gate: `cd deploy-ui && npm ci && npm test`
-- [ ] RPC gate: use `https://eth-sep.hinterlight.net` as primary and
-      `https://ethereum-sepolia-rpc.publicnode.com` as fallback; both chain IDs
-      must be `11155111` and both must serve the selected pinned block
-- [ ] Generate a fresh fork plan with `FORK_NETWORK=sepolia ANVIL_PORT=8547
-      bash script/deploy/v2-5/rehearse.sh` (without `--full`); record the pinned
-      block and confirm the Anvil state snapshot/log/PID files exist
+- [ ] RPC gate: use only the explicitly selected archive endpoint
+      `https://eth-sep.hinterlight.net`; its chain ID must be `11155111`, and it
+      must pass a historical storage read at least 1,024 blocks behind the
+      selected head
+- [ ] Generate a fresh fork plan with `FORK_NETWORK=sepolia
+      FORK_RPC_URL=https://eth-sep.hinterlight.net ANVIL_PORT=8547 bash
+      script/deploy/v2-5/rehearse.sh` (without `--full`); wait for the positive
+      RPC-ready message, record the pinned block, and confirm the Anvil state
+      snapshot/log/PID files exist
 - [ ] Confirm 38 cards: 12 deploys, 26 calls, six template registrations,
       seven paired factory-role deactivations, reclaim first, restore last,
       and no market removal

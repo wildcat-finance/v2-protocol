@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # One-command fork rehearsal setup for the v2.5 release.
 #
-#   FORK_NETWORK=sepolia bash script/deploy/v2-5/rehearse.sh
-#   FORK_NETWORK=mainnet bash script/deploy/v2-5/rehearse.sh --full
-#   FORK_NETWORK=sepolia bash script/deploy/v2-5/rehearse.sh --resume
+#   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
+#     bash script/deploy/v2-5/rehearse.sh
+#   FORK_NETWORK=mainnet FORK_RPC_URL="$MAINNET_ARCHIVE_RPC_URL" \
+#     bash script/deploy/v2-5/rehearse.sh --full
+#   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
+#     bash script/deploy/v2-5/rehearse.sh --resume
 #
 # Default: fork the network, seed deployments/anvil/, generate the plan
 # (steps 01-07), then leave anvil RUNNING and print how to drive the plan
@@ -17,14 +20,17 @@
 #
 # Env:
 #   FORK_NETWORK   sepolia | mainnet (required)
-#   FORK_RPC_URL   archive RPC to fork from (default: public endpoint; use
-#                  your own archive node for speed)
-#   FORK_FALLBACK_RPC_URL  second archive RPC (default: public endpoint when
-#                          FORK_RPC_URL is different)
+#   FORK_RPC_URL   archive RPC to fork from (required; no implicit provider)
+#   FORK_FALLBACK_RPC_URL  optional second archive RPC. Anvil actively
+#                          round-robins across every supplied URL; this is not
+#                          passive failover and has no default.
 #   FORK_BLOCK_NUMBER      block to pin (default: lowest current provider head)
 #   ANVIL_PORT     default 8547
 #   ANVIL_STATE_FILE       periodic state snapshot path
+#   ANVIL_LOG_FILE         Anvil output log path
+#   ANVIL_PID_FILE         Anvil PID record path
 #   ANVIL_STATE_INTERVAL   snapshot interval in seconds (default: 1)
+#   ANVIL_STARTUP_TIMEOUT  seconds to wait for the RPC after launch (default: 120)
 #   RELEASE_TAG    default v2-5
 set -euo pipefail
 cd "$(dirname "$0")/../../.."
@@ -40,22 +46,28 @@ RPC="http://127.0.0.1:${ANVIL_PORT}"
 case "$FORK_NETWORK" in
   sepolia)
     EXPECTED_FORK_CHAIN_ID=11155111
-    DEFAULT_FORK_RPC=https://ethereum-sepolia-rpc.publicnode.com
     ;;
   mainnet)
     EXPECTED_FORK_CHAIN_ID=1
-    DEFAULT_FORK_RPC=https://ethereum-rpc.publicnode.com
     ;;
   *) echo "FORK_NETWORK must be sepolia or mainnet" >&2; exit 1 ;;
 esac
-FORK_RPC_URL="${FORK_RPC_URL:-$DEFAULT_FORK_RPC}"
-FORK_FALLBACK_RPC_URL="${FORK_FALLBACK_RPC_URL:-$DEFAULT_FORK_RPC}"
+: "${FORK_RPC_URL:?FORK_RPC_URL is required and must be archive-capable}"
+FORK_FALLBACK_RPC_URL="${FORK_FALLBACK_RPC_URL:-}"
 if [[ "$FORK_FALLBACK_RPC_URL" == "$FORK_RPC_URL" ]]; then
   FORK_FALLBACK_RPC_URL=""
 fi
+if [[ -n "$FORK_FALLBACK_RPC_URL" ]]; then
+  echo "WARNING: Anvil will actively round-robin fork reads across both explicitly supplied RPC URLs; both must be archive-capable." >&2
+fi
 ANVIL_STATE_INTERVAL="${ANVIL_STATE_INTERVAL:-1}"
+ANVIL_STARTUP_TIMEOUT="${ANVIL_STARTUP_TIMEOUT:-120}"
 ANVIL_FORK_RETRIES="${ANVIL_FORK_RETRIES:-10}"
 ANVIL_FORK_RETRY_BACKOFF="${ANVIL_FORK_RETRY_BACKOFF:-1000}"
+if [[ ! "$ANVIL_STARTUP_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "ANVIL_STARTUP_TIMEOUT must be a positive integer" >&2
+  exit 1
+fi
 
 export FOUNDRY_PROFILE=deploy DEPLOYMENTS_NETWORK=anvil SKIP_EIP1153_CHECK=1
 export RELEASE_TAG="${RELEASE_TAG:-v2-5}"
@@ -63,8 +75,9 @@ export RELEASE_TAG="${RELEASE_TAG:-v2-5}"
 ANVIL_DIR="$PWD/deployments/anvil"
 ANVIL_STATE_FILE="${ANVIL_STATE_FILE:-$ANVIL_DIR/anvil-state.json}"
 ANVIL_LOG_FILE="${ANVIL_LOG_FILE:-$ANVIL_DIR/anvil.log}"
-ANVIL_PID_FILE="$ANVIL_DIR/anvil.pid"
+ANVIL_PID_FILE="${ANVIL_PID_FILE:-$ANVIL_DIR/anvil.pid}"
 FORK_BLOCK_FILE="$ANVIL_DIR/anvil-fork-block"
+ARCHIVE_PROBE_ADDRESS="$(jq -er '.WildcatArchController' "deployments/${FORK_NETWORK}/deployments.json")"
 
 preflight_rpc() {
   local label="$1" url="$2" chain_id
@@ -74,6 +87,11 @@ preflight_rpc() {
     exit 1
   fi
   cast block "$FORK_BLOCK_NUMBER" --rpc-url "$url" >/dev/null
+  if ! cast storage "$ARCHIVE_PROBE_ADDRESS" 0 \
+    --block "$ARCHIVE_PROBE_BLOCK" --rpc-url "$url" >/dev/null; then
+    echo "$label RPC failed a historical storage read at block $ARCHIVE_PROBE_BLOCK; an archive-capable endpoint is required" >&2
+    exit 1
+  fi
 }
 
 if [[ "$RUN_MODE" == "--resume" ]]; then
@@ -108,18 +126,55 @@ else
   fi
 fi
 
+# A block-header lookup does not prove archive-state access. Probe far enough
+# behind the selected head to reject endpoints that only expose current state.
+ARCHIVE_PROBE_BLOCK=$((FORK_BLOCK_NUMBER > 1024 ? FORK_BLOCK_NUMBER - 1024 : 0))
 preflight_rpc "primary" "$FORK_RPC_URL"
 if [[ -n "$FORK_FALLBACK_RPC_URL" ]]; then
   preflight_rpc "fallback" "$FORK_FALLBACK_RPC_URL"
 fi
 
 assert_anvil_alive() {
+  local chain_id
   if ! kill -0 "$ANVIL_PID" 2>/dev/null; then
     echo "Anvil exited. Last log lines:" >&2
     tail -40 "$ANVIL_LOG_FILE" >&2
     exit 1
   fi
-  test "$(cast chain-id --rpc-url "$RPC")" = "31337"
+  if ! chain_id="$(cast chain-id --rpc-url "$RPC" --rpc-timeout 2 2>/dev/null)" || [[ "$chain_id" != "31337" ]]; then
+    echo "Anvil process $ANVIL_PID is not serving chain 31337 at $RPC. Last log lines:" >&2
+    tail -40 "$ANVIL_LOG_FILE" >&2
+    exit 1
+  fi
+}
+
+wait_for_anvil() {
+  local started_at="$SECONDS" deadline=$((SECONDS + ANVIL_STARTUP_TIMEOUT)) chain_id
+  echo "== Waiting up to ${ANVIL_STARTUP_TIMEOUT}s for Anvil RPC readiness"
+  while (( SECONDS < deadline )); do
+    if ! kill -0 "$ANVIL_PID" 2>/dev/null; then
+      echo "Anvil exited during startup. Last log lines:" >&2
+      tail -40 "$ANVIL_LOG_FILE" >&2
+      return 1
+    fi
+    if chain_id="$(cast chain-id --rpc-url "$RPC" --rpc-timeout 2 2>/dev/null)"; then
+      if [[ "$chain_id" == "31337" ]]; then
+        echo "== Anvil RPC ready after $((SECONDS - started_at))s"
+        return 0
+      fi
+      echo "Anvil RPC reported chain ID $chain_id; expected 31337" >&2
+      kill "$ANVIL_PID" 2>/dev/null || true
+      wait "$ANVIL_PID" 2>/dev/null || true
+      return 1
+    fi
+    sleep 1
+  done
+
+  echo "Anvil did not become ready within ${ANVIL_STARTUP_TIMEOUT}s. Last log lines:" >&2
+  tail -40 "$ANVIL_LOG_FILE" >&2
+  kill "$ANVIL_PID" 2>/dev/null || true
+  wait "$ANVIL_PID" 2>/dev/null || true
+  return 1
 }
 
 start_anvil() {
@@ -150,8 +205,7 @@ start_anvil() {
   anvil "${args[@]}" > >(tee -a "$ANVIL_LOG_FILE") 2>&1 &
   ANVIL_PID=$!
   printf '%s\n' "$ANVIL_PID" > "$ANVIL_PID_FILE"
-  sleep 8
-  assert_anvil_alive
+  wait_for_anvil
 }
 
 if [[ "$RUN_MODE" == "--resume" ]]; then

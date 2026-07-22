@@ -66,10 +66,13 @@ resume or exact-key new-rehearsal reset. The desktop rail is resizable, manual
 history review has a return-to-current control, and transport failures surface
 as a signing stop rather than an unknown RPC error.
 
-**Fork launcher** (committed): `rehearse.sh` pins one fork block across primary
-and fallback RPCs, retries remote reads, periodically persists Anvil state and
-logs, and exposes a guarded `--resume` mode that restores the saved fork without
-reseeding deployments or regenerating the plan.
+**Fork launcher** (committed): `rehearse.sh` requires one explicit archive RPC,
+pins one fork block, probes historical storage, retries remote reads,
+periodically persists Anvil state and logs, and polls RPC readiness before it
+reports success. It exposes a guarded `--resume` mode that restores the saved
+fork without reseeding deployments or regenerating the plan. No external RPC is
+introduced implicitly; an explicitly supplied second URL is active
+round-robin, not passive failover.
 
 **Docs** (current): `deployment.md` — the runbook for both flows, the bundle
 ceremony, the guided Sepolia helper-owner compensation, and "adding a market

@@ -487,8 +487,13 @@ for the locked-UI release gate.
 
 Every fork rehearsal must preserve these invariants:
 
-- pin one explicit fork block and confirm both the primary and fallback archive
-  RPC can serve it before deleting or creating local rehearsal state;
+- require one explicitly selected archive RPC, pin one fork block, and prove
+  the endpoint can serve historical storage before deleting or creating local
+  rehearsal state; never introduce an external RPC implicitly, and treat any
+  explicitly supplied second URL as active round-robin rather than failover;
+- poll the local RPC until it actually serves chain `31337`; on bounded startup
+  timeout, terminate the launcher-owned process instead of reporting an
+  ambiguous failure while it continues starting in the background;
 - persist Anvil state at a short interval, retain its log/PID/fork-block
   metadata, and use `rehearse.sh --resume` rather than reseeding after a
   recoverable node crash;
