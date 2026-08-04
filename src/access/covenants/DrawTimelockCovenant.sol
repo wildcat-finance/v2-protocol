@@ -30,6 +30,19 @@ abstract contract DrawTimelockCovenant is CovenantBase, ICovenantEvents {
   /// @dev Host requirement: the borrower this instance is bound to.
   function _timelockBorrower() internal view virtual returns (address);
 
+  /// @dev Host requirement: the earliest timestamp by which a lender who
+  ///      learns of an announcement at `from` is guaranteed to be able to
+  ///      complete an exit. Open-term hosts return `from`, since a delay of
+  ///      at least the batch duration already covers it. Hosts with scheduled
+  ///      exit (periodic windows) return the end of the first full window
+  ///      after `from` plus the batch duration, so even a lender who needs
+  ///      the whole window to react is out before the draw can execute.
+  function _timelockExitFloor(
+    address market,
+    uint256 from,
+    uint32 batchDuration
+  ) internal view virtual returns (uint256);
+
   mapping(address => TimelockConfig) internal _timelockConfig;
   mapping(address => TimelockState) internal _timelockState;
   mapping(address => mapping(uint256 => Announcement)) internal _announcements;
@@ -56,18 +69,39 @@ abstract contract DrawTimelockCovenant is CovenantBase, ICovenantEvents {
   ///         the market's delay, for the length of its grace window.
   function announceDraw(address market, uint128 amount) external returns (uint256 nonce) {
     if (msg.sender != _timelockBorrower()) revert CallerNotCovenantBorrower();
-    return DrawTimelockLib.announce(_timelockConfig, _timelockState, _announcements, market, amount);
+    uint256 exitFloor = _timelockExitFloor(
+      market,
+      block.timestamp,
+      _timelockConfig[market].batchDuration
+    );
+    return
+      DrawTimelockLib.announce(
+        _timelockConfig,
+        _timelockState,
+        _announcements,
+        market,
+        amount,
+        exitFloor
+      );
   }
 
-  /// @dev Called from `onBorrow` with the predicted drawn transition.
+  /// @dev Called from `onBorrow` with the predicted drawn transition. The
+  ///      baseline exit floor keeps the unannounced-headroom window honest on
+  ///      scheduled-exit hosts; see `checkOnBorrow` in the library.
   function _drawTimelockOnBorrow(uint256 drawnBefore, uint256 drawnAfter) internal {
+    uint256 baselineExitFloor = _timelockExitFloor(
+      msg.sender,
+      _timelockState[msg.sender].baselineTime,
+      _timelockConfig[msg.sender].batchDuration
+    );
     DrawTimelockLib.checkOnBorrow(
       _timelockConfig,
       _timelockState,
       _announcements,
       msg.sender,
       drawnBefore,
-      drawnAfter
+      drawnAfter,
+      baselineExitFloor
     );
   }
 

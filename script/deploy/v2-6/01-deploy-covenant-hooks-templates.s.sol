@@ -38,6 +38,8 @@ import { CommitmentScheduleLib } from 'src/access/covenants/lib/CommitmentSchedu
 import { DrawTimelockLib } from 'src/access/covenants/lib/DrawTimelockLib.sol';
 import { RevolvingScheduleHooks } from 'src/access/RevolvingScheduleHooks.sol';
 import { RevolvingTimelockHooks } from 'src/access/RevolvingTimelockHooks.sol';
+import { FixedTermScheduleHooks } from 'src/access/FixedTermScheduleHooks.sol';
+import { PeriodicTimelockHooks } from 'src/access/PeriodicTimelockHooks.sol';
 import { CREATE2_DEPLOYER, CROSS_MARKET_GATE_LIB, CLEAN_DOWN_LIB, COMMITMENT_SCHEDULE_LIB, DRAW_TIMELOCK_LIB, CROSS_MARKET_GATE_LIB_SALT, CLEAN_DOWN_LIB_SALT, COMMITMENT_SCHEDULE_LIB_SALT, DRAW_TIMELOCK_LIB_SALT } from 'src/access/covenants/lib/CovenantLibraries.sol';
 import '../../common/DeployScriptBase.sol';
 

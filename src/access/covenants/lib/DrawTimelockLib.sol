@@ -7,6 +7,7 @@ struct TimelockConfig {
   uint128 threshold; // unannounced drawn-increase headroom per window
   uint32 delay; // announce-to-executable, seconds; 0 disables
   uint32 grace; // executable window length
+  uint32 batchDuration; // market's withdrawal batch duration, for exit floors
 }
 
 struct TimelockState {
@@ -64,7 +65,12 @@ library DrawTimelockLib {
     if (delay_ < withdrawalBatchDuration || grace == 0 || threshold == 0) {
       revert ICovenantEvents.InvalidTimelockConfiguration();
     }
-    configs[market] = TimelockConfig({ threshold: threshold, delay: delay_, grace: grace });
+    configs[market] = TimelockConfig({
+      threshold: threshold,
+      delay: delay_,
+      grace: grace,
+      batchDuration: withdrawalBatchDuration
+    });
     states[market] = TimelockState({
       baselineTime: uint40(block.timestamp),
       drawnBaseline: 0,
@@ -78,7 +84,8 @@ library DrawTimelockLib {
     mapping(address => TimelockState) storage states,
     mapping(address => mapping(uint256 => Announcement)) storage announcements,
     address market,
-    uint128 amount
+    uint128 amount,
+    uint256 exitFloor
   ) public returns (uint256 nonce) {
     TimelockConfig storage cfg = configs[market];
     if (cfg.delay == 0) revert ICovenantEvents.InvalidTimelockConfiguration();
@@ -91,7 +98,11 @@ library DrawTimelockLib {
       }
     }
     nonce = st.nextNonce++;
-    uint40 executableAt = uint40(block.timestamp + cfg.delay);
+    // the delay guarantees exit on open-term hosts; the floor extends that
+    // guarantee to hosts where exit opportunity is scheduled rather than
+    // continuous (see `_timelockExitFloor` on the covenant)
+    uint256 byDelay = block.timestamp + cfg.delay;
+    uint40 executableAt = uint40(byDelay > exitFloor ? byDelay : exitFloor);
     uint40 expiresAt = executableAt + cfg.grace;
     announcements[market][nonce] = Announcement({
       amount: amount,
@@ -110,15 +121,24 @@ library DrawTimelockLib {
     mapping(address => mapping(uint256 => Announcement)) storage announcements,
     address market,
     uint256 drawnBefore,
-    uint256 drawnAfter
+    uint256 drawnAfter,
+    uint256 baselineExitFloor
   ) public {
     TimelockConfig storage cfg = configs[market];
     if (cfg.delay == 0) return;
     if (drawnAfter <= drawnBefore) return; // over-repayment reclaim, never gated
 
     TimelockState storage st = states[market];
-    // roll the unannounced-headroom window forward
-    if (block.timestamp >= uint256(st.baselineTime) + cfg.delay) {
+    // Roll the unannounced-headroom window forward, but only once lenders as
+    // of the current baseline have had a full exit opportunity. On open-term
+    // hosts the floor is the baseline itself, so this reduces to the delay;
+    // on scheduled-exit hosts the floor is the end of the first full window
+    // after the baseline plus a batch duration. Rolling on the delay alone
+    // would let a borrower dribble `threshold` per delay-period between
+    // windows, extracting a multiple of the headroom while nobody can leave.
+    uint256 rollByDelay = uint256(st.baselineTime) + cfg.delay;
+    uint256 rollAfter = rollByDelay > baselineExitFloor ? rollByDelay : baselineExitFloor;
+    if (block.timestamp >= rollAfter) {
       st.baselineTime = uint40(block.timestamp);
       st.drawnBaseline = uint128(drawnBefore);
     }

@@ -83,17 +83,37 @@ revolving primitives introduced in v2.5 (`WildcatMarketRevolving`,
 | src/access/covenants/DrawTimelockCovenant.sol | 50 |
 | src/access/covenants/lib/DrawTimelockLib.sol | 134 |
 | src/access/RevolvingScheduleHooks.sol | 38 |
-| src/access/RevolvingTimelockHooks.sol | 42 |
+| src/access/RevolvingTimelockHooks.sol | 52 |
+| src/access/covenants/FixedTermHost.sol | 31 |
+| src/access/covenants/PeriodicTermHost.sol | 84 |
+| src/access/FixedTermScheduleHooks.sol | 57 |
+| src/access/PeriodicTimelockHooks.sol | 70 |
 | src/libraries/RevolvingDrawnMath.sol | 25 |
-| **Total** | **930** |
+| **Total** | **1,192** |
 
-All four concrete templates are in scope and registered by the same deploy
-script. `CovenantHooksCore` changed in this revision: `_initCovenants` now
+All six concrete templates are in scope and registered by the same deploy
+script. Two host-behaviour mixins (`FixedTermHost`, `PeriodicTermHost`) carry
+term structure the way covenants carry conditions: no libraries, errors
+declared on the mixin (editing `ICovenantEvents` would move every covenant
+library's CREATE2 address), wired through a `_beforeQueueWithdrawal` seam
+whose open-term default is a no-op. `PeriodicTermHost`'s window arithmetic is
+a line-for-line mirror of `PeriodicTermHooks` and must stay one: the
+timelock's exit floor is computed from it. `DrawTimelockLib` changed in this
+revision (announcements take a host-supplied exit floor; `TimelockConfig`
+stores the batch duration), so its CREATE2 address regenerated; the other
+three libraries are untouched and their addresses stand. `CovenantHooksCore` changed in this revision: `_initCovenants` now
 receives `DeployMarketInputs` (the timelock's delay floor is checked against
-`withdrawalBatchDuration` at creation), and an offset overload of
-`_readUint128Cd` was added beside the existing `uint32` reader. Both existing
-templates were updated for the widened seam; behaviour is otherwise
-unchanged.
+`withdrawalBatchDuration` at creation), an offset overload of
+`_readUint128Cd` was added beside the existing `uint32` reader, and a
+defaulted `_beforeQueueWithdrawal` seam now lets term hosts gate withdrawals
+without touching the open-term templates. Host-behaviour mixins
+(`FixedTermHost`, `PeriodicTermHost`) mirror the withdrawal gating of the
+standard term templates; the periodic window arithmetic is a line-for-line
+mirror of `PeriodicTermHooks` and has to stay one, since the timelock's exit
+guarantee is computed from it. `DrawTimelockLib.checkOnBorrow` gained a
+`baselineExitFloor` parameter so the unannounced-headroom window respects
+scheduled exits; `test_onBorrow_HeadroomDoesNotRollBetweenWindows` is
+mutation-checked against the delay-only roll.
 
 ### Novel surface
 
@@ -105,7 +125,7 @@ constructor check. Anyone who has already audited `OpenTermHooks` should diff th
 read the file cold.
 
 Excluding that inherited body, the genuinely new logic is approximately
-**680 nSLOC**:
+**940 nSLOC**:
 
 | Component | nSLOC | Notes |
 | --- | --- | --- |

@@ -28,6 +28,16 @@ contract RevolvingTimelockHooks is CovenantHooksCore, DrawTimelockCovenant {
     return borrower;
   }
 
+  /// @dev Open-term: exit is continuous and the delay floor (at least one
+  ///      batch duration, enforced at creation) already guarantees it.
+  function _timelockExitFloor(
+    address,
+    uint256 from,
+    uint32
+  ) internal view override returns (uint256) {
+    return from;
+  }
+
   function _requiredCovenantFlags() internal pure override returns (HooksConfig) {
     return EmptyHooksConfig.setFlag(Bit_Enabled_Borrow);
   }

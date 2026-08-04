@@ -281,15 +281,23 @@ abstract contract CovenantHooksCore is
   }
 
   /// @dev Identical to `OpenTermHooks.onQueueWithdrawal`.
+  /// @dev Term-behaviour seam. Host mixins (fixed-term, periodic) override
+  ///      this to gate withdrawal queueing; the open-term default is a no-op.
+  function _beforeQueueWithdrawal(
+    address market,
+    MarketState calldata state
+  ) internal view virtual {}
+
   function onQueueWithdrawal(
     address lender,
     uint32 /* expiry */,
     uint /* scaledAmount */,
-    MarketState calldata /* state */,
+    MarketState calldata state,
     bytes calldata hooksData
   ) external override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
+    _beforeQueueWithdrawal(msg.sender, state);
     LenderStatus memory status = _lenderStatus[lender];
     if (
       !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)

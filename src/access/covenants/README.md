@@ -9,6 +9,8 @@ which is a gap you notice the moment a credit desk asks what the covenants
 are. These contracts add four covenants that are computable from chain state
 alone, plus the architecture to add more: a cross-market delinquency gate, a
 clean-down requirement, a commitment-reduction schedule, and a draw timelock.
+They ship across six templates spanning all three term structures, so a
+covenant-bearing market can be open-term, fixed-term, or windowed.
 
 Three of the four are **drawstops**. Breach one and new draws are blocked, and
 that's it: no acceleration, no forced repayment, nobody adjudicating. Lender
@@ -23,6 +25,12 @@ fully out before it executes. Same spirit, no adjudicator, but the remedy is
 the exit right itself rather than a block, and the covenant map below explains
 why that's the right shape for this covenant in particular.
 
+Covenants compose with term behaviour too. Alongside the open-term host, two
+host mixins gate withdrawals the way the standard term templates do:
+`FixedTermHost` locks lenders until a term end, and `PeriodicTermHost` opens
+recurring exit windows. That's what makes a fixed-term amortising revolver and
+a window-aware timelock buildable, and both ship as templates.
+
 ## Contents
 
 | File | Role |
@@ -33,19 +41,29 @@ why that's the right shape for this covenant in particular.
 | `CleanDownCovenant.sol` + `lib/CleanDownLib.sol` | Clean-down covenant: mixin surface plus library bodies |
 | `CommitmentScheduleCovenant.sol` + `lib/CommitmentScheduleLib.sol` | Commitment-reduction schedule: mixin surface plus library bodies |
 | `DrawTimelockCovenant.sol` + `lib/DrawTimelockLib.sol` | Draw timelock: mixin surface, announcement queue, library bodies |
+| `FixedTermHost.sol` | Host-behaviour mixin: withdrawals blocked before a fixed term end |
+| `PeriodicTermHost.sol` | Host-behaviour mixin: withdrawals only inside recurring windows |
+| `FixedTermHost.sol` | Host mixin: withdrawals blocked until a fixed term end |
+| `PeriodicTermHost.sol` | Host mixin: withdrawals only inside recurring windows; the timelock's exit floor reads this schedule |
 | `lib/CovenantEvents.sol` | Events and errors shared between every mixin and its library |
 | `lib/CovenantLibraries.sol` | Deterministic library addresses and salts |
 | `../RevolvingCovenantHooks.sol` | Deployable template: gate and clean-down |
 | `../RevolvingCleanDownHooks.sol` | Deployable template: clean-down only |
 | `../RevolvingScheduleHooks.sol` | Deployable template: commitment schedule only |
 | `../RevolvingTimelockHooks.sol` | Deployable template: draw timelock only |
+| `../FixedTermScheduleHooks.sol` | Deployable template: fixed term plus commitment schedule |
+| `../PeriodicTimelockHooks.sol` | Deployable template: periodic windows plus window-aware timelock |
+| `../FixedTermScheduleHooks.sol` | Deployable template: fixed term plus commitment schedule |
+| `../PeriodicTimelockHooks.sol` | Deployable template: periodic windows plus window-aware timelock |
 | `../../libraries/RevolvingDrawnMath.sol` | Pure drawn-amount transitions |
 | `../../lens/CovenantLens.sol` | Read-only view surface |
 
 Tests live at `test/access/RevolvingCovenantHooks.t.sol` (17),
 `test/access/RevolvingCleanDownHooks.t.sol` (4),
 `test/access/RevolvingScheduleHooks.t.sol` (5),
-`test/access/RevolvingTimelockHooks.t.sol` (9) and
+`test/access/RevolvingTimelockHooks.t.sol` (9),
+`test/access/FixedTermScheduleHooks.t.sol` (5),
+`test/access/PeriodicTimelockHooks.t.sol` (6) and
 `test/access/covenants/CovenantBase.t.sol` (5).
 
 ---
@@ -68,6 +86,17 @@ What that gives you:
 
 - A template inherits only the covenants it wants. Whatever it doesn't inherit
   costs it nothing in ABI or borrow-path work.
+- Term behaviour composes the same way. `FixedTermHost` and `PeriodicTermHost`
+  are host mixins rather than covenants: no library, storage and errors of
+  their own, wired into a defaulted `_beforeQueueWithdrawal` seam on the core.
+  An open-term template pays nothing for their existence.
+- Term structure composes the same way. `FixedTermHost` and `PeriodicTermHost`
+  are host-behaviour mixins, not covenants: no library, a few words of storage,
+  and a `_beforeQueueWithdrawal` seam on the core that they override to gate
+  withdrawal queueing. An open-term template pays nothing for either.
+  `PeriodicTermHost` mirrors the window arithmetic of `PeriodicTermHooks`
+  line for line, and has to keep doing so: the timelock's exit guarantee is
+  computed from that schedule.
 - Hook dispatch flags are derived per template. A template that never needs to
   observe repayments doesn't require `onRepay`, and pays nothing for it.
 - Past what the borrower sets at market creation, nothing is configurable after
@@ -100,7 +129,9 @@ Measured under `FOUNDRY_PROFILE=deploy`:
 | RevolvingCovenantHooks | ~21,400 | ~3,100 |
 | RevolvingCleanDownHooks | ~19,900 | ~4,600 |
 | RevolvingScheduleHooks | ~20,100 | ~4,400 |
-| RevolvingTimelockHooks | ~20,000 | ~4,500 |
+| RevolvingTimelockHooks | ~20,100 | ~4,400 |
+| FixedTermScheduleHooks | ~20,600 | ~3,900 |
+| PeriodicTimelockHooks | ~21,400 | ~3,100 |
 
 The saving is per covenant, which is what made the third and fourth cheap and
 keeps a fifth and sixth affordable. Each body stays at its own address and the
@@ -166,10 +197,58 @@ into an empty address trips the `extcodesize` check. See
 
 # What's implemented
 
-Four covenants ship today, each behind its own single-covenant template, with
-the gate and clean-down also available together in a combined one. What
-follows is the behaviour a market actually gets; the covenant map further down
-carries the scoring and the reasoning about what to build next.
+Four covenants ship today across six templates: each covenant behind its own
+open-term single-covenant template, the gate and clean-down together in a
+combined one, and two term-structured templates carrying the covenants that
+earn their keep there, a fixed-term schedule and a periodic window-aware
+timelock. What follows is the behaviour a market actually gets; the covenant
+map further down carries the scoring and the reasoning about what to build
+next.
+
+## Term hosts
+
+Fixed-term and periodic markets are where several covenants earn their full
+value, because lenders who can't leave whenever they like are the ones who
+need mechanical protection. Two host-behaviour mixins provide the term
+structures:
+
+- **`FixedTermHost`** blocks withdrawal queueing before a per-market term end
+  (at most 365 days out, validated at creation). Closed markets always pass:
+  closure settles the facility, and holding lenders past it protects nobody.
+  Term reduction and early-closure switches are left out on purpose; each is
+  an owner surface, and covenant hosts ship with as few of those as possible.
+- **`PeriodicTermHost`** allows withdrawal queueing only inside recurring
+  windows defined by a first window start, a period, and a window duration,
+  with the same bounds as `PeriodicTermHooks` and the same arithmetic. It
+  also exposes the next-window query the window-aware timelock is built on.
+
+Both wire into a `_beforeQueueWithdrawal` seam on the core whose open-term
+default is a no-op, so they compose with covenants exactly the way covenants
+compose with each other. Both are also smaller than the templates they
+mirror: the fixed host drops term reduction and early-closure switches, the
+periodic host drops the APR-proposal machinery. Each of those is an owner
+surface, and covenant hosts ship with as few of those as possible; add one
+back if a borrower asks, as a decision rather than a default.
+
+Two properties matter for anyone touching them. The periodic window
+arithmetic is a line-for-line mirror of `PeriodicTermHooks` and has to stay
+one, because the timelock's exit guarantee is computed from this schedule and
+a drifted copy would let draws execute before objecting lenders could leave.
+And their errors and events are declared locally, not in `ICovenantEvents`,
+on purpose: editing that shared file shifts the metadata hash of every
+covenant library importing it, which moves all their CREATE2 addresses at
+once. Host behaviour has no library, so it has no reason to pay that cost.
+
+The timelock changes meaning across hosts, and the machinery knows it. Every
+deadline in the covenant, an announcement's `executableAt` and the roll of
+the unannounced-headroom baseline alike, is the later of the constant delay
+and a host-supplied exit floor: on open-term hosts the floor is now (the
+delay, at least one batch duration, already guarantees exit), and on periodic
+hosts it's the end of the first full window after the moment in question plus
+one batch duration. Flooring the baseline matters as much as flooring
+announcements; the draw timelock section below has the attack that fails
+without it. `FixedTermHost` deliberately has no timelock template: giving
+notice to lenders who can't leave protects nobody.
 
 ## Clean-down
 
@@ -271,10 +350,21 @@ stayed.
 - **Pending announcements are capped at 16** so consumption stays bounded on
   the borrow path, and a delay of zero disables the covenant entirely.
 
-Open-term markets only, and that's structural rather than cautious: on a
-periodic market a fixed delay in seconds no longer implies exit opportunity,
-and on a fixed-term market a timelock giving notice to lenders who can't leave
-protects nobody. The covenant map entry below carries the full scoping.
+The delay is only half the guarantee. Every deadline in the covenant, both an
+announcement's `executableAt` and the roll of the unannounced-headroom
+baseline, is floored by a host-supplied exit floor: the earliest moment a
+lender who learned something at time `from` is guaranteed to be fully out. On
+the open-term host the floor is `from` itself, so the delay does all the work
+and behaviour is exactly as above. On the periodic host it's the end of the
+first full withdrawal window after `from`, plus one batch duration. Flooring
+the baseline roll matters as much as flooring announcements: roll on the delay
+alone and a borrower dribbles `threshold` per delay-period between windows,
+extracting a multiple of the headroom while nobody can leave.
+`test_onBorrow_HeadroomDoesNotRollBetweenWindows` pins it, mutation-checked.
+
+Fixed-term markets are excluded entirely, and that's structural rather than
+cautious: a timelock giving notice to lenders who can't leave protects
+nobody. The covenant map entry below carries the full scoping.
 
 ## Configuration
 
@@ -310,11 +400,27 @@ for its own fields, and empty arrays disable the covenant.
 | `0x60` | `uint32` | `delay`; 0 disables; floor is the withdrawal batch duration |
 | `0x80` | `uint32` | `grace`; execution window length, has to be nonzero |
 
+`FixedTermScheduleHooks` extends the schedule template's ABI encoding with the
+term as a third head:
+`abi.encode(uint128 minimumDeposit, bool transfersDisabled,
+uint32 fixedTermEndTime, uint40[] steps, uint128[] ceilings)`. The term is
+mandatory; empty arrays disable the schedule, which gives a plain
+fixed-term revolver.
+
+`PeriodicTimelockHooks` extends the timelock words with the window schedule:
+
+| Offset | Type | Meaning |
+| --- | --- | --- |
+| `0xa0` | `uint32` | `firstWithdrawalWindowStart` |
+| `0xc0` | `uint32` | `periodDuration`; 6 minutes to 365 days |
+| `0xe0` | `uint32` | `withdrawalWindowDuration`; at least 1 minute, below the period |
 
 Inconsistent configuration reverts at market creation instead of deploying
 inert config: a clean-down interval without a duration or that doesn't exceed
 its duration, `gateOnPenaltyOnly` without the gate, a malformed schedule, and
-a timelock delay below the batch duration or with zero grace or threshold.
+a timelock delay below the batch duration or with zero grace or threshold, a
+fixed term in the past or beyond 365 days, and a periodic schedule outside
+its bounds.
 
 All covenant templates are revolving-only, because the covenants read
 `drawnAmount()` and standard markets don't implement it. `CovenantHooksCore`'s
@@ -349,7 +455,12 @@ through the standard hooks factory.
    floor against `withdrawalBatchDuration` is the existing example.
 
 Don't add covenant state or logic to `CovenantHooksCore`. The whole reason the
-split exists is that a template should only pay for what it inherits.
+split exists is that a template should only pay for what it inherits. Term
+behaviour follows the same rule from the other side: if you're adding a term
+structure rather than a covenant, mirror `FixedTermHost`, declare your errors
+on the mixin rather than in `ICovenantEvents` (editing that shared file moves
+every covenant library's CREATE2 address at once), and wire in through
+`_beforeQueueWithdrawal`.
 
 **Measure the result.** Creation code has to stay under 24,576 bytes, and the
 combined template is already using most of its budget. Check with
@@ -394,11 +505,13 @@ against, which is why several universally loved covenants score poorly here. On
 fixed-term markets the exit right is suspended and on periodic markets it's
 windowed, so a covenant doesn't have one value: it has a value per market type.
 
-**The covenant host is open-term only.** `CovenantHooksCore` carries
-`OpenTermHooks`-equivalent behaviour. No fixed-term or periodic covenant host
-exists yet, so any covenant whose value concentrates on locked lenders is gated
-on infrastructure before it's gated on engineering. Building a fixed-term
-covenant host outranks building most of the covenants that need one.
+**Covenant value concentrates where lenders are locked.** The core's default
+behaviour is open-term, and `FixedTermHost` and `PeriodicTermHost` supply the
+other two term structures as mixins. That's where several covenants earn their
+keep: a de-risking schedule matters most to a lender who can't leave, and a
+timelock means something different when exit is windowed. Scores below are
+still stated net of the open-term exit right, since that's the baseline; the
+term hosts are what let the higher-value configurations actually deploy.
 
 **The commitment fee punishes permanent drawstops.** The fee accrues on full
 supply, drawn or not. A *curable* drawstop plus fee is coherent: the borrower
@@ -488,9 +601,9 @@ expectations, and it's still open. It doesn't block the covenant, but a
 facility marketed as amortising wants an answer to it before launch.
 
 Two caveats keep the score below the first pair. Its full value is on
-fixed-term and periodic markets, where lenders actually need a de-risking
-path, and no covenant host exists for those yet, so the shipped template is
-the open-term version. And the expiry case inherits the fee problem: drawn to
+fixed-term markets, where lenders actually need a de-risking path, and
+`FixedTermScheduleHooks` now ships exactly that pairing alongside the
+open-term version. And the expiry case inherits the fee problem: drawn to
 zero with the commitment untouched leaves the borrower paying for capacity
 they can no longer draw, which is why the fee question above stops being
 optional at the terminal step.
@@ -515,19 +628,25 @@ constant delay of at least the withdrawal batch duration guarantees an
 objecting lender is out before the money moves. No window mathematics needed on
 the open-term host.
 
-The shipped template is open-term, per the scoping below:
+Two templates ship, scoped per host:
 
-- **Open-term:** constant delay of at least the withdrawal batch duration,
-  which is what ships. The floor is enforced at market creation.
-- **Periodic:** the delay has to be window-aware, since a fixed delay in
+- **Open-term** (`RevolvingTimelockHooks`): constant delay of at least the
+  withdrawal batch duration, enforced at market creation.
+- **Periodic** (`PeriodicTimelockHooks`): window-aware, since a fixed delay in
   seconds no longer implies exit opportunity when `queueWithdrawal` only works
-  inside scheduled windows. That needs a periodic covenant host and a host
-  requirement like `_nextWithdrawalWindowStart(market, from)`. Don't ship a
-  constant delay onto a periodic market: it emits announcement events, enforces
-  delays, and protects nobody, which is worse than omitting the covenant
-  because integrators will assume the property holds.
-- **Fixed-term:** exclude it entirely. A timelock giving you time to exit when
-  you can't exit protects nobody.
+  inside scheduled windows. Each announcement's `executableAt` is floored at
+  the end of the first full window after it plus one batch duration, via a
+  host requirement the covenant declares and each template implements. A
+  constant delay on a periodic market would emit announcement events, enforce
+  delays, and protect nobody, which is worse than omitting the covenant
+  because integrators would assume the property holds; the host requirement is
+  what makes that mistake unrepresentable here. The same floor governs the
+  roll of the unannounced-headroom baseline, without which the anti-split
+  property collapses between windows: a borrower would dribble the threshold
+  per delay-period while nobody could leave. Mutation-checked in
+  `test_onBorrow_HeadroomDoesNotRollBetweenWindows`.
+- **Fixed-term:** excluded entirely, on purpose. A timelock giving you time to
+  exit when you can't exit protects nobody.
 
 Four implementation traps regardless of host. A per-draw threshold is
 splittable, which is why the shipped covenant gates cumulative unannounced
@@ -590,10 +709,10 @@ borrower, and drawstop.
 Change of control is universal in loan documents so it reads well, but the
 on-chain version is doubly narrowed. It only detects anything for smart-account
 borrowers, since an EOA handing over a key is invisible, and its value
-concentrates on term markets where lenders can't leave on the news, which means
-it wants the fixed-term host before it's worth much. On open-term markets the
-exit right already is the change-of-control remedy. Useful eventually, easy to
-oversell now.
+concentrates on term markets where lenders can't leave on the news, and the
+fixed-term host now exists to carry it. On open-term markets the exit right
+already is the change-of-control remedy. The host was the blocker; the
+smart-account fidelity ceiling is what remains.
 
 ### 4. Sweep-before-draw (62/100)
 
@@ -675,11 +794,11 @@ adding protection.
 | --- | --- | --- | --- |
 |   | Cross-market delinquency gate | 86 | Implemented |
 |   | Clean-down | 84 | Implemented |
-|   | Commitment-reduction schedule (incl. expiry) | 82 | Implemented, open-term; fee step-down is a market question |
-|   | Draw timelock | 74 | Implemented, open-term; periodic needs host; never fixed-term |
+|   | Commitment-reduction schedule (incl. expiry) | 82 | Implemented, open-term and fixed-term; fee step-down is a market question |
+|   | Draw timelock | 74 | Implemented, open-term and periodic (window-aware); never fixed-term |
 | 1 | Borrowing base, on-chain collateral | 79 | Conditional on tokenised collateral |
 | 2 | Cross-market aggregate exposure cap | 65 | Watch-list completeness caveat |
-| 3 | On-chain control change | 64 | Smart-account borrowers; wants fixed-term host |
+| 3 | On-chain control change | 64 | Smart-account borrowers; fixed-term host now available |
 | 4 | Sweep-before-draw | 62 | Pair with destination constraints |
 | 5 | Destination-constrained draws | 59 | Blocked on borrow path |
 | 6 | Excess-availability springing | 58 | Mostly native already; one pre-breach tier survives |
@@ -695,11 +814,11 @@ deadline is just a commitment schedule that steps to zero. It ships as the
 terminal case of the schedule covenant. Universality in TradFi measures how
 locked-in TradFi lenders are, not how valuable the covenant is here.
 
-**What's left is mostly a host question.** The schedule and timelock earn
-their full value on fixed-term and periodic markets, where lenders actually
-need a de-risking path, and candidate 3 barely matters without one. No such
-covenant host exists yet, so building one outranks building most of candidates
-2 through 7, and that's the unglamorous next move this map keeps pointing at.
+**The host question is answered.** Fixed-term and periodic covenant hosts
+now exist as mixins, which is what let the schedule ship where it matters most
+and the timelock ship window-aware. What that unblocks next is candidate 3,
+whose value concentrates on locked lenders, and any future pairing a borrower
+asks for: a term-structured template is now a composition, not a project.
 
 **The timelock is the native covenant.** It's the one entry that treats the
 exit right as the protection to amplify rather than a gap to paper over, and
