@@ -78,11 +78,22 @@ revolving primitives introduced in v2.5 (`WildcatMarketRevolving`,
 | src/access/RevolvingCovenantHooks.sol | 54 |
 | src/access/covenants/CovenantBase.sol | 35 |
 | src/access/RevolvingCleanDownHooks.sol | 33 |
+| src/access/covenants/CommitmentScheduleCovenant.sol | 26 |
+| src/access/covenants/lib/CommitmentScheduleLib.sol | 59 |
+| src/access/covenants/DrawTimelockCovenant.sol | 50 |
+| src/access/covenants/lib/DrawTimelockLib.sol | 134 |
+| src/access/RevolvingScheduleHooks.sol | 38 |
+| src/access/RevolvingTimelockHooks.sol | 42 |
 | src/libraries/RevolvingDrawnMath.sol | 25 |
-| **Total** | **581** |
+| **Total** | **930** |
 
-Both concrete templates are in scope: `RevolvingCleanDownHooks` is a shipping
-deployable, registered by the same deploy script.
+All four concrete templates are in scope and registered by the same deploy
+script. `CovenantHooksCore` changed in this revision: `_initCovenants` now
+receives `DeployMarketInputs` (the timelock's delay floor is checked against
+`withdrawalBatchDuration` at creation), and an offset overload of
+`_readUint128Cd` was added beside the existing `uint32` reader. Both existing
+templates were updated for the widened seam; behaviour is otherwise
+unchanged.
 
 ### Novel surface
 
@@ -94,14 +105,20 @@ constructor check. Anyone who has already audited `OpenTermHooks` should diff th
 read the file cold.
 
 Excluding that inherited body, the genuinely new logic is approximately
-**330 nSLOC**:
+**680 nSLOC**:
 
 | Component | nSLOC | Notes |
 | --- | --- | --- |
-| Covenant mixins | 183 | The substance: streak accounting, gate iteration |
-| Concrete templates | 87 | Wiring only: flags, config parsing, hook bodies |
+| Covenant mixins and libraries | 452 | The substance: streak accounting, gate iteration, schedule validation, timelock windowing and announcement queue |
+| Concrete templates | 167 | Wiring only: flags, config parsing, hook bodies |
 | Covenant base | 35 | Interfaces plus two drawn-amount predictions |
 | Drawn-amount library | 25 | Pure arithmetic, mirrors the market |
+
+The draw timelock library (134) is the densest single file: a rolling
+cumulative-headroom baseline plus a nonce-ordered announcement queue with
+expiry skipping. `test_onBorrow_SplitDrawsShareHeadroom` pins the anti-split
+property the baseline exists for, and is the test to break first if the
+windowing logic is touched.
 
 ### Deployed size
 

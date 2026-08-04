@@ -34,7 +34,11 @@ import { RevolvingCovenantHooks } from 'src/access/RevolvingCovenantHooks.sol';
 import { RevolvingCleanDownHooks } from 'src/access/RevolvingCleanDownHooks.sol';
 import { CrossMarketGateLib } from 'src/access/covenants/lib/CrossMarketGateLib.sol';
 import { CleanDownLib } from 'src/access/covenants/lib/CleanDownLib.sol';
-import { CREATE2_DEPLOYER, CROSS_MARKET_GATE_LIB, CLEAN_DOWN_LIB, CROSS_MARKET_GATE_LIB_SALT, CLEAN_DOWN_LIB_SALT } from 'src/access/covenants/lib/CovenantLibraries.sol';
+import { CommitmentScheduleLib } from 'src/access/covenants/lib/CommitmentScheduleLib.sol';
+import { DrawTimelockLib } from 'src/access/covenants/lib/DrawTimelockLib.sol';
+import { RevolvingScheduleHooks } from 'src/access/RevolvingScheduleHooks.sol';
+import { RevolvingTimelockHooks } from 'src/access/RevolvingTimelockHooks.sol';
+import { CREATE2_DEPLOYER, CROSS_MARKET_GATE_LIB, CLEAN_DOWN_LIB, COMMITMENT_SCHEDULE_LIB, DRAW_TIMELOCK_LIB, CROSS_MARKET_GATE_LIB_SALT, CLEAN_DOWN_LIB_SALT, COMMITMENT_SCHEDULE_LIB_SALT, DRAW_TIMELOCK_LIB_SALT } from 'src/access/covenants/lib/CovenantLibraries.sol';
 import '../../common/DeployScriptBase.sol';
 
 contract DeployCovenantHooksTemplatesV26 is V25DeployScriptBase {
@@ -163,6 +167,20 @@ contract DeployCovenantHooksTemplatesV26 is V25DeployScriptBase {
       CLEAN_DOWN_LIB,
       CLEAN_DOWN_LIB_SALT,
       type(CleanDownLib).creationCode
+    );
+    _ensureLibrary(
+      planMode,
+      'CommitmentScheduleLib',
+      COMMITMENT_SCHEDULE_LIB,
+      COMMITMENT_SCHEDULE_LIB_SALT,
+      type(CommitmentScheduleLib).creationCode
+    );
+    _ensureLibrary(
+      planMode,
+      'DrawTimelockLib',
+      DRAW_TIMELOCK_LIB,
+      DRAW_TIMELOCK_LIB_SALT,
+      type(DrawTimelockLib).creationCode
     );
   }
 

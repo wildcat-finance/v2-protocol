@@ -109,7 +109,11 @@ abstract contract CovenantHooksCore is
   /// @dev Initialise inherited covenants for a market being deployed.
   ///      Covenant configuration words begin at offset `0x40` of `hooksData`;
   ///      the first two words are `minimumDeposit` and `transfersDisabled`.
-  function _initCovenants(address marketAddress, bytes calldata hooksData) internal virtual;
+  function _initCovenants(
+    address marketAddress,
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData
+  ) internal virtual;
 
   // ========================================================================== //
   //                              Calldata readers                              //
@@ -127,6 +131,17 @@ abstract contract CovenantHooksCore is
       _value := calldataload(data.offset)
     }
     return _value.toUint128();
+  }
+
+  function _readUint128Cd(
+    bytes calldata data,
+    uint offset
+  ) internal pure returns (uint128 value) {
+    if (data.length >= offset + 0x20) {
+      assembly {
+        value := calldataload(add(data.offset, offset))
+      }
+    }
   }
 
   function _readUint32Cd(bytes calldata data, uint offset) internal pure returns (uint32 value) {
@@ -175,7 +190,7 @@ abstract contract CovenantHooksCore is
       }
     }
 
-    _initCovenants(marketAddress, hooksData);
+    _initCovenants(marketAddress, parameters, hooksData);
 
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);

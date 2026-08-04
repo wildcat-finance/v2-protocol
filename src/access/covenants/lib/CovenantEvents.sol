@@ -22,4 +22,23 @@ interface ICovenantEvents {
   error MarketNotClosed();
   error WatchListFull();
   error InvalidGateConfiguration();
+
+  event CommitmentScheduleSet(address indexed market, uint40[] steps, uint128[] ceilings);
+  error InvalidCommitmentSchedule();
+  error DrawnCeilingExceeded(uint256 drawnAfter, uint256 ceiling);
+
+  event DrawAnnounced(
+    address indexed market,
+    uint256 indexed nonce,
+    uint256 amount,
+    uint256 executableAt,
+    uint256 expiresAt
+  );
+  event AnnouncedDrawConsumed(address indexed market, uint256 indexed nonce);
+  error DrawRequiresAnnouncement(uint256 threshold);
+  error AnnouncementNotFound();
+  error AnnouncementNotRipe(uint256 executableAt);
+  error AnnouncementExpired(uint256 expiredAt);
+  error InvalidTimelockConfiguration();
+  error CallerNotCovenantBorrower();
 }

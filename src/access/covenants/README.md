@@ -26,15 +26,23 @@ party to invoke it, and it can't be waived by inattention.
 | `CrossMarketDelinquencyCovenant.sol` | Cross-market delinquency gate. Storage and external surface |
 | `lib/CleanDownLib.sol` | Clean-down bodies, external library |
 | `lib/CrossMarketGateLib.sol` | Gate bodies, external library |
+| `CommitmentScheduleCovenant.sol` | Commitment-reduction schedule. Storage and external surface |
+| `DrawTimelockCovenant.sol` | Draw timelock. Storage, announcements, external surface |
+| `lib/CommitmentScheduleLib.sol` | Schedule bodies, external library |
+| `lib/DrawTimelockLib.sol` | Timelock bodies, external library |
 | `lib/CovenantEvents.sol` | Events and errors shared between each mixin and its library |
 | `lib/CovenantLibraries.sol` | Deterministic library addresses and salts |
-| `../RevolvingCovenantHooks.sol` | Deployable template: both covenants |
+| `../RevolvingCovenantHooks.sol` | Deployable template: gate and clean-down |
 | `../RevolvingCleanDownHooks.sol` | Deployable template: clean-down only |
+| `../RevolvingScheduleHooks.sol` | Deployable template: commitment schedule only |
+| `../RevolvingTimelockHooks.sol` | Deployable template: draw timelock only |
 | `../../libraries/RevolvingDrawnMath.sol` | Pure drawn-amount transitions |
 | `../../lens/CovenantLens.sol` | Read-only view surface |
 
 Tests live at `test/access/RevolvingCovenantHooks.t.sol` (17),
-`test/access/RevolvingCleanDownHooks.t.sol` (4) and
+`test/access/RevolvingCleanDownHooks.t.sol` (4),
+`test/access/RevolvingScheduleHooks.t.sol` (5),
+`test/access/RevolvingTimelockHooks.t.sol` (9) and
 `test/access/covenants/CovenantBase.t.sol` (5).
 
 ---
@@ -87,6 +95,8 @@ Measured under `FOUNDRY_PROFILE=deploy`:
 | --- | --- | --- |
 | RevolvingCovenantHooks | ~21,400 | ~3,100 |
 | RevolvingCleanDownHooks | ~19,900 | ~4,600 |
+| RevolvingScheduleHooks | ~20,100 | ~4,400 |
+| RevolvingTimelockHooks | ~20,000 | ~4,500 |
 
 The saving is per covenant, which is the property that makes a fourth, fifth and
 sixth affordable. Each body stays at its own address and the template carries
@@ -193,6 +203,65 @@ through the `intermediateState` handed to the hook, never through its own
 lock, so querying it would revert every draw.
 `test_onBorrow_HealthySelfDoesNotBlock` guards the regression.
 
+## Commitment-reduction schedule
+
+A piecewise-constant ceiling on the drawn amount that declines on a pre-agreed
+schedule, enforced when the borrower draws. A final ceiling of zero is
+availability-period expiry: after that date the facility can be repaid and
+exited but not drawn.
+
+The behaviours worth knowing before you read the code:
+
+- **Enforcement is on drawn, deliberately.** Breach is curable by repaying
+  below the schedule, which keeps the drawstop-plus-fee interaction coherent
+  and never forces lender capital out. Whether the commitment itself (and so
+  the fee base) steps down alongside the drawn ceiling is a market design
+  question, left to `setMaxTotalSupply` on purpose.
+- **Draws that don't increase the drawn amount are never gated**, so
+  reclaiming an over-repayment works even past expiry.
+- **Before the first step the ceiling is unlimited.** A schedule is a promise
+  about the future, and a market that hasn't reached it isn't constrained by
+  it.
+
+Schedules are validated at market creation: steps strictly increasing,
+ceilings strictly decreasing, the first step in the future, at most 24 steps,
+and equal-length arrays. Empty arrays disable the covenant. Getting any of
+that wrong reverts the deployment rather than shipping a market with a
+schedule nobody intended.
+
+## Draw timelock
+
+Draws above a headroom threshold have to be announced at least `delay` seconds
+in advance, and `delay` is required at market creation to be no shorter than
+the market's withdrawal batch duration, so any lender who dislikes an
+announced draw can be fully out before it executes. No approver exists and
+nothing is compellable: the draw proceeds against whatever capital voluntarily
+stayed.
+
+- **The headroom is cumulative per rolling window, not per draw.** A per-draw
+  threshold is splittable: twenty sub-threshold draws in one block extract the
+  same amount a single announced draw would have delayed. The covenant tracks
+  a drawn baseline that rolls forward once per `delay` period and gates any
+  draw taking the drawn amount more than `threshold` above it, so within any
+  window of that length, unannounced net new drawing can't exceed the
+  threshold.
+- **Announcements are borrower-only**, keyed by market and nonce, and consumed
+  in nonce order with expired ones skipped and deleted along the way. Each is
+  executable only inside `[executableAt, executableAt + grace]`: without
+  expiry, a borrower could pre-position ripe announcements indefinitely and
+  the delay would protect nobody.
+- **One announcement covers one draw, up to its amount, consumed whole.**
+  Partial cover would let unannounced volume ride along with announced volume.
+  After a consumed draw the window resets at the new drawn level, since
+  lenders had their notice.
+- **Pending announcements are capped at 16** so consumption stays bounded on
+  the borrow path, and a delay of zero disables the covenant entirely.
+
+Open-term markets only, and that's structural rather than cautious: on a
+periodic market a fixed delay in seconds no longer implies exit opportunity,
+and on a fixed-term market a timelock giving notice to lenders who can't exit
+protects nobody. The covenant map entry below carries the full scoping.
+
 ## Configuration
 
 Covenant words get appended to the standard `hooksData` tuple. Trailing words
@@ -211,10 +280,27 @@ all-zero covenant words deploy a market with open-term behaviour.
 | `0xa0` | `bool` | `gateOnPenaltyOnly`; requires the gate |
 
 `RevolvingCleanDownHooks` uses `0x00` to `0x60` only.
+`RevolvingScheduleHooks` takes standard ABI encoding rather than fixed words,
+because schedules are arrays:
+`abi.encode(uint128 minimumDeposit, bool transfersDisabled, uint40[] steps,
+uint128[] ceilings)`. The two fixed heads land at the offsets the core reads
+for its own fields, and empty arrays disable the covenant.
 
-Three inconsistent combinations revert at market creation instead of deploying
-inert config: an interval without a duration, an interval that doesn't exceed
-its duration, and `gateOnPenaltyOnly` without the gate.
+`RevolvingTimelockHooks`:
+
+| Offset | Type | Meaning |
+| --- | --- | --- |
+| `0x00` | `uint128` | `minimumDeposit` |
+| `0x20` | `bool` | `transfersDisabled` |
+| `0x40` | `uint128` | `threshold`; cumulative unannounced headroom per window |
+| `0x60` | `uint32` | `delay`; 0 disables; floor is the withdrawal batch duration |
+| `0x80` | `uint32` | `grace`; execution window length, has to be nonzero |
+
+
+Inconsistent configuration reverts at market creation instead of deploying
+inert config: a clean-down interval without a duration or that doesn't exceed
+its duration, `gateOnPenaltyOnly` without the gate, a malformed schedule, and
+a timelock delay below the batch duration or with zero grace or threshold.
 
 All covenant templates are revolving-only, because the covenants read
 `drawnAmount()` and standard markets don't implement it. `CovenantHooksCore`'s
@@ -358,14 +444,14 @@ drawstopped for another reason during the window where the borrower needs to
 clean down, you can wedge them. Worth re-checking whenever a new covenant
 lands.
 
-## Candidates
+### Commitment-reduction schedule (82/100)
 
-### 1. Commitment-reduction schedule (82/100)
-
-A ceiling on the drawn amount that declines on a schedule, enforced in
-`onBorrow`. Implements amortising revolvers, scheduled commitment reductions,
-and, as its terminal case, availability-period expiry: a schedule that steps to
-zero ends drawing on a date, which is what an availability period is.
+`CommitmentScheduleCovenant`, shipped in `RevolvingScheduleHooks`. A
+piecewise-constant ceiling on the drawn amount that declines on a schedule,
+enforced in `onBorrow`. Implements amortising revolvers, scheduled commitment
+reductions, and, as its terminal case, availability-period expiry: a final
+ceiling of zero ends drawing on a date, which is what an availability period
+is.
 
 *Lender value 24 · legibility 19 · cheapness 15 · fidelity 12 · composition 12*
 
@@ -381,14 +467,65 @@ coherent and sidesteps the question of forcing lender capital out. Whether the
 design question involving `setMaxTotalSupply` and lender expectations. Decide it
 before building, and don't let the covenant half wait on the fee half.
 
-Two caveats hold it below the built pair. Its full value is on fixed-term and
-periodic markets, where lenders actually need a de-risking path, and no
-covenant host exists for those yet. And the expiry case inherits the fee
+Two caveats keep the score below the first pair. Its full value is on
+fixed-term and periodic markets, where lenders actually need a de-risking path,
+and no covenant host exists for those yet, so the shipped template is the
+open-term version. And the expiry case inherits the fee
 problem: drawn-to-zero with the commitment untouched leaves the borrower paying
 for undrawable capacity, which is why the fee question above isn't optional at
 the terminal step.
 
-### 2. Borrowing base over on-chain collateral (79/100)
+### Draw timelock (74/100)
+
+`DrawTimelockCovenant`, shipped in `RevolvingTimelockHooks`. Announce a draw
+above a cumulative headroom threshold; it executes after a delay long enough
+for any lender who dislikes it to exit first.
+
+*Lender value 25 · legibility 13 · cheapness 15 · fidelity 11 · composition 10*
+
+The honest translation of a material adverse change clause. A MAC converts
+lender discomfort into a right to refuse funding; this converts it into a right
+to not be there when it funds. No approver exists, so nothing is compellable,
+and the draw proceeds against whatever capital voluntarily stayed.
+
+It ranks here because it's the one covenant *native* to the host that actually
+exists. On an open-term market the exit right is the protection, and the
+timelock is the only candidate that amplifies it instead of duplicating it: a
+constant delay of at least the withdrawal batch duration guarantees an
+objecting lender is out before the money moves. No window mathematics needed on
+the open-term host.
+
+The shipped template is open-term, per the scoping below:
+
+- **Open-term:** constant delay of at least the withdrawal batch duration,
+  which is what ships. The floor is enforced at market creation.
+- **Periodic:** the delay has to be window-aware, since a fixed delay in
+  seconds no longer implies exit opportunity when `queueWithdrawal` only works
+  inside scheduled windows. That needs a periodic covenant host and a host
+  requirement like `_nextWithdrawalWindowStart(market, from)`. Don't ship a
+  constant delay onto a periodic market: it emits announcement events, enforces
+  delays, and protects nobody, which is worse than omitting the covenant
+  because integrators will assume the property holds.
+- **Fixed-term:** exclude it entirely. A timelock giving you time to exit when
+  you can't exit protects nobody.
+
+Four implementation traps regardless of host. A per-draw threshold is
+splittable: twenty sub-threshold draws in one block extract the same amount a
+single announced draw would have delayed, so the shipped covenant gates
+cumulative unannounced drawing per rolling delay-window against a baseline
+that advances once per period, and `test_onBorrow_SplitDrawsShareHeadroom`
+pins the property. Stale announcements are
+pre-positioned instant draws, so give each a tight execution window
+`[executableAt, executableAt + grace]`. Exits during the delay reduce available
+liquidity, so decide explicitly between `min(announced, available)` and
+revert-and-reannounce, since one lets a small exit shave a draw and the other
+lets a small exit reset the clock. And key announcements by `(market, nonce)`,
+or a pending large draw locks out the sub-threshold working-capital dribbles a
+revolver exists to provide.
+
+## Candidates
+
+### 1. Borrowing base over on-chain collateral (79/100)
 
 Availability capped at eligible collateral times an advance rate, minus
 reserves.
@@ -407,48 +544,7 @@ collateral and its valuation are both on-chain. Off-chain collateral makes it an
 attested covenant and it moves to the section below. If tokenised collateral
 turns up in a live market, move this to the top immediately.
 
-### 3. Draw timelock (74/100)
-
-Announce a draw above a threshold; it executes after a delay long enough for
-any lender who dislikes it to exit first.
-
-*Lender value 25 · legibility 13 · cheapness 15 · fidelity 11 · composition 10*
-
-The honest translation of a material adverse change clause. A MAC converts
-lender discomfort into a right to refuse funding; this converts it into a right
-to not be there when it funds. No approver exists, so nothing is compellable,
-and the draw proceeds against whatever capital voluntarily stayed.
-
-It ranks here because it's the one covenant *native* to the host that actually
-exists. On an open-term market the exit right is the protection, and the
-timelock is the only candidate that amplifies it instead of duplicating it: a
-constant delay of at least the withdrawal batch duration guarantees an
-objecting lender is out before the money moves. No window mathematics needed on
-the open-term host.
-
-Scope it deliberately:
-
-- **Open-term:** constant delay ≥ withdrawal batch duration. Ship this.
-- **Periodic:** the delay has to be window-aware, since a fixed delay in
-  seconds no longer implies exit opportunity when `queueWithdrawal` only works
-  inside scheduled windows. That needs a periodic covenant host and a host
-  requirement like `_nextWithdrawalWindowStart(market, from)`. Don't ship a
-  constant delay onto a periodic market: it emits announcement events, enforces
-  delays, and protects nobody, which is worse than omitting the covenant
-  because integrators will assume the property holds.
-- **Fixed-term:** exclude it entirely. A timelock giving you time to exit when
-  you can't exit protects nobody.
-
-Three implementation traps regardless of host. Stale announcements are
-pre-positioned instant draws, so give each a tight execution window
-`[executableAt, executableAt + grace]`. Exits during the delay reduce available
-liquidity, so decide explicitly between `min(announced, available)` and
-revert-and-reannounce, since one lets a small exit shave a draw and the other
-lets a small exit reset the clock. And key announcements by `(market, nonce)`,
-or a pending large draw locks out the sub-threshold working-capital dribbles a
-revolver exists to provide.
-
-### 4. Cross-market aggregate exposure cap (65/100)
+### 2. Cross-market aggregate exposure cap (65/100)
 
 A ceiling on total drawn across all of a borrower's markets, not just this
 one.
@@ -465,7 +561,7 @@ and it caps Wildcat debt rather than debt in any case. Describe it as limiting
 concentration within the protocol, never as limiting leverage, and treat the
 number as a floor on exposure rather than a ceiling.
 
-### 5. On-chain control change (64/100)
+### 3. On-chain control change (64/100)
 
 Detect a change in the controlling address or signer set of a smart-account
 borrower, and drawstop.
@@ -480,7 +576,7 @@ it wants the fixed-term host before it's worth much. On open-term markets the
 exit right already is the change-of-control remedy. Useful eventually, easy to
 oversell now.
 
-### 6. Sweep-before-draw (62/100)
+### 4. Sweep-before-draw (62/100)
 
 Where borrower inflows are observable on-chain, require application to the
 drawn balance before the next draw is permitted.
@@ -496,7 +592,7 @@ it lands here just as hard. Real value arrives only paired with destination
 constraints or a borrower operating account the market can watch by
 construction, so build it then, as a pair.
 
-### 7. Destination-constrained draws (59/100)
+### 5. Destination-constrained draws (59/100)
 
 Draws only to addresses on a per-market allow-list.
 
@@ -518,7 +614,7 @@ transfer. It needs the borrower drawing through a contract whose own outbound
 payments are constrained, or a change to the market's borrow path. Settle that
 first.
 
-### 8. Excess-availability springing regime (58/100)
+### 6. Excess-availability springing regime (58/100)
 
 When undrawn availability drops below a threshold, spring a stricter state.
 
@@ -533,7 +629,7 @@ reserve ratio, giving lenders a buffer before the base machinery engages. Real
 but marginal, and it carries the worst wedge risk on the list, since a spring
 that fires into a clean-down window blocks the cure.
 
-### 9. On-chain negative pledge (55/100)
+### 7. On-chain negative pledge (55/100)
 
 Detect a competing lien or transfer over collateral held in an observable
 vault, and drawstop.
@@ -560,34 +656,36 @@ adding protection.
 | --- | --- | --- | --- |
 |   | Cross-market delinquency gate | 86 | Implemented |
 |   | Clean-down | 84 | Implemented |
-| 1 | Commitment-reduction schedule (incl. expiry) | 82 | Fee design first; full value needs fixed-term host |
-| 2 | Borrowing base, on-chain collateral | 79 | Conditional on tokenised collateral |
-| 3 | Draw timelock | 74 | Open-term now; periodic needs host; never fixed-term |
-| 4 | Cross-market aggregate exposure cap | 65 | Watch-list completeness caveat |
-| 5 | On-chain control change | 64 | Smart-account borrowers; wants fixed-term host |
-| 6 | Sweep-before-draw | 62 | Pair with destination constraints |
-| 7 | Destination-constrained draws | 59 | Blocked on borrow path |
-| 8 | Excess-availability springing | 58 | Mostly native already; one pre-breach tier survives |
-| 9 | On-chain negative pledge | 55 | Dominated by borrowing base |
+|   | Commitment-reduction schedule (incl. expiry) | 82 | Implemented, open-term; fee step-down is a market question |
+|   | Draw timelock | 74 | Implemented, open-term; periodic needs host; never fixed-term |
+| 1 | Borrowing base, on-chain collateral | 79 | Conditional on tokenised collateral |
+| 2 | Cross-market aggregate exposure cap | 65 | Watch-list completeness caveat |
+| 3 | On-chain control change | 64 | Smart-account borrowers; wants fixed-term host |
+| 4 | Sweep-before-draw | 62 | Pair with destination constraints |
+| 5 | Destination-constrained draws | 59 | Blocked on borrow path |
+| 6 | Excess-availability springing | 58 | Mostly native already; one pre-breach tier survives |
+| 7 | On-chain negative pledge | 55 | Dominated by borrowing base |
 
 Three conclusions worth keeping visible.
 
-**Availability-period expiry isn't on the list, and its absence is the point.**
-It looked like the obvious first covenant right up until it was checked against
-the exit right: on open-term markets, lenders who can leave whenever they like
-don't need a drawdown deadline, and on term markets the deadline is just a
-commitment schedule that steps to zero. It survives as the terminal case of
-entry one. Universality in TradFi measures how locked-in TradFi lenders are,
-not how valuable the covenant is here.
+**Availability-period expiry isn't a covenant here, and its absence is the
+point.** It looked like the obvious first covenant right up until it was
+checked against the exit right: on open-term markets, lenders who can leave
+whenever they like don't need a drawdown deadline, and on term markets the
+deadline is just a commitment schedule that steps to zero. It ships as the
+terminal case of the schedule covenant. Universality in TradFi measures how
+locked-in TradFi lenders are, not how valuable the covenant is here.
 
-**The build order is mostly a host question.** Entries 1, 5 and much of 3 are
-waiting on a fixed-term or periodic covenant host, not on covenant engineering.
-Building that host outranks building covenants 4 through 9.
+**What's left is mostly a host question.** The schedule and timelock earn
+their full value on fixed-term and periodic markets, where lenders actually
+need a de-risking path, and candidate 3 barely matters without one. No
+fixed-term or periodic covenant host exists yet, so building one outranks
+building most of candidates 2 through 7.
 
-**The timelock is the native covenant.** It's the only candidate that treats
-the exit right as the protection to amplify rather than a gap to paper over,
-and on the host that exists today it's a constant delay with no window
-mathematics. Funny outcome: the exotic-looking one turns out to be the one that fits.
+**The timelock is the native covenant.** It's the one entry that treats the
+exit right as the protection to amplify rather than a gap to paper over, and
+on the open-term host it's a constant delay with no window mathematics. Funny
+outcome: the exotic-looking one turned out to be one of the first two built.
 
 ---
 

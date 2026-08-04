@@ -29,7 +29,11 @@ contract RevolvingCleanDownHooks is CovenantHooksCore, CleanDownCovenant {
     return EmptyHooksConfig.setFlag(Bit_Enabled_Borrow).setFlag(Bit_Enabled_Repay);
   }
 
-  function _initCovenants(address marketAddress, bytes calldata hooksData) internal override {
+  function _initCovenants(
+    address marketAddress,
+    DeployMarketInputs calldata,
+    bytes calldata hooksData
+  ) internal override {
     _initCleanDownCovenant(
       marketAddress,
       _readUint32Cd(hooksData, 0x40),
