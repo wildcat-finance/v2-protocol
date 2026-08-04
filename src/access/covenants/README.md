@@ -4,7 +4,9 @@ Composable conditions-precedent for revolving Wildcat markets.
 
 Every revolving credit facility in traditional finance gates each drawing on
 conditions: no default continuing, representations repeated, clean-down
-observed. Wildcat's shipped hooks templates have no analogue for any of that.
+observed. Wildcat's shipped hooks templates have no analogue for any of that,
+which is a gap you notice the moment a credit desk asks what the covenants
+are.
 These contracts add two covenants that are computable from chain state alone,
 plus the architecture to add more.
 
@@ -42,8 +44,8 @@ Tests live at `test/access/RevolvingCovenantHooks.t.sol` (17),
 ## One hooks address per market
 
 A Wildcat market stores exactly one hooks address, so covenants can't be
-separate deployed contracts sitting side by side. That single constraint shapes
-everything else here.
+separate deployed contracts sitting side by side. That single constraint shapes everything else here, so it's worth sitting with
+for a second.
 
 The obvious alternative is one dispatcher hook holding a mutable list of
 covenant module addresses, which buys runtime composability. It also means a
@@ -60,7 +62,7 @@ What that gives you:
 - Past what the borrower sets at market creation, nothing is configurable after
   deployment. No registry, no owner, no upgrade path.
 
-`RevolvingCleanDownHooks` exists partly to keep that claim tested rather than
+`RevolvingCleanDownHooks` exists partly so that claim stays tested instead of
 merely asserted: `test_getWatchedMarkets_AbsentFromTemplate` checks the gate's
 entire ABI is missing from a template that doesn't inherit it.
 
@@ -90,9 +92,9 @@ The saving is per covenant, which is the property that makes a fourth, fifth and
 sixth affordable. Each body stays at its own address and the template carries
 only the dispatch.
 
-Costs, stated honestly: roughly 2,600 gas cold per library call on the borrow
+The costs, so nobody's surprised later: roughly 2,600 gas cold per library call on the borrow
 path, paid by the borrower on every draw; a wider audit surface, since template
-behaviour now depends on contracts at addresses rather than inlined code; and a
+behaviour now depends on contracts at addresses instead of inlined code; and a
 compile-time link, handled below.
 
 ## Events, errors and the ABI trap
@@ -104,7 +106,7 @@ Selectors and topic hashes are unchanged either way.
 
 Skip that inheritance and the errors quietly vanish from the ABI while still
 reverting on-chain, so anything decoding against the template's interface breaks
-while everything on-chain looks fine. Easy mistake to make.
+while everything on-chain looks fine. Easy mistake to make; the inheritance line in each mixin is load-bearing.
 
 ## Linking
 
@@ -134,7 +136,7 @@ get rid of: change one, change both, same commit.
 
 Those addresses come out of the compiled library bytecode, so they move if the
 compiler version or optimizer settings change. The deploy script recomputes each
-one and asserts it matches, so drift fails the run rather than registering
+one and asserts it matches, so drift fails the run instead of quietly registering
 templates linked to an empty address. If you see an address-drift error,
 regenerate both values together. `CovenantLibraries.sol` carries the recipe.
 
@@ -160,10 +162,9 @@ Three behaviours are deliberate and worth knowing before you read the code:
 
 - **Idle time counts from market creation.** A market that has never drawn
   doesn't arrive at its first deadline already in breach.
-- **A matured streak is credited at the moment of the next draw**, rather than
-  by a keeper. A streak that matured a second ago gets banked inside the
-  transaction that consumes it, so there's no sentinel and no liveness
-  dependency.
+- **A matured streak is credited at the moment of the next draw.** A streak
+  that matured a second ago gets banked inside the transaction that consumes
+  it, so there's no keeper and no liveness dependency.
 - **Reclaiming an over-repayment isn't credit.** A draw that leaves the drawn
   amount at zero neither trips the covenant nor breaks a running streak.
 
@@ -186,7 +187,7 @@ actually accruing penalty APR, and it's the better default: strict delinquency
 will drawstop on transient reserve dips that cure themselves inside grace
 anyway.
 
-One trap worth flagging for anyone modifying this. The calling market is checked
+One trap worth flagging before you modify anything here. The calling market is checked
 through the `intermediateState` handed to the hook, never through its own
 `currentState()`. That view is reentrancy-guarded and the borrow path holds the
 lock, so querying it would revert every draw.
@@ -211,7 +212,7 @@ all-zero covenant words deploy a market with open-term behaviour.
 
 `RevolvingCleanDownHooks` uses `0x00` to `0x60` only.
 
-Three inconsistent combinations revert at market creation rather than deploying
+Three inconsistent combinations revert at market creation instead of deploying
 inert config: an interval without a duration, an interval that doesn't exceed
 its duration, and `gateOnPenaltyOnly` without the gate.
 
@@ -253,8 +254,8 @@ artifact. Don't reach for `forge build --sizes`, which reports runtime size and
 will tell you everything's fine when it isn't.
 
 Practically: **a template carrying three covenants won't fit.** Treat templates
-as configurations rather than a feature-complete superset, and ship the
-combinations borrowers actually ask for.
+as configurations, and ship the combinations borrowers actually ask for. A
+feature-complete superset isn't on the menu.
 
 ---
 
@@ -273,25 +274,59 @@ The distinction that matters:
   implementable, but each introduces a party who can be leaned on, so they're
   listed separately and treated differently.
 
+## Four facts that drive the ranking
+
+Scoring covenants by TradFi universality gets the order wrong, because TradFi
+lenders are always locked in and Wildcat lenders mostly aren't. Four structural
+facts about this protocol do the real sorting, and each candidate below is
+scored against them.
+
+**The lender exit right is the master variable.** On an open-term market, a
+lender who dislikes anything queues a withdrawal and is out within a batch
+duration. That exit right substitutes for most of what TradFi covenants protect
+against, which is why several universally loved covenants score poorly here. On
+fixed-term markets the exit right is suspended and on periodic markets it's
+windowed, so a covenant doesn't have one value: it has a value per market type.
+
+**The covenant host is open-term only.** `CovenantHooksCore` carries
+`OpenTermHooks`-equivalent behaviour. No fixed-term or periodic covenant host
+exists yet, so any covenant whose value concentrates on locked lenders is gated
+on infrastructure before it's gated on engineering. Building a fixed-term
+covenant host outranks building most of the covenants that need one.
+
+**The commitment fee punishes permanent drawstops.** The fee accrues on full
+supply, drawn or not. A *curable* drawstop plus fee is coherent: the borrower
+pays for capacity they can unlock by curing, which is an incentive. A
+*permanent* drawstop plus fee is charging for a service that no longer exists,
+so any covenant that ends drawing forever has to shrink the commitment with it
+or it ships a billing bug.
+
+**The base protocol already carries the ABL cushion.** The reserve ratio is a
+hard liquidity floor enforced on the borrow path, and breaching it through
+withdrawals makes the market delinquent and springs penalty APR after grace.
+That is excess-availability protection with a springing consequence, native to
+every market. Covenants that reinvent it are double-counting.
+
 ## How the scores work
 
 Each endogenous candidate gets a mark out of 100:
 
 | Component | Weight | What it measures |
 | --- | --- | --- |
-| Lender value | 30 | How much protection it actually buys, not how impressive it sounds |
+| Lender value | 30 | How much protection it adds *net of the exit right and the reserve ratio* |
 | Desk legibility | 20 | Whether a credit person recognises it without a lecture |
-| Cheapness to build | 20 | Bytecode, storage, hook surface, test burden. Higher is cheaper |
+| Cheapness to build | 20 | Bytecode, storage, hook surface, test burden, and whether it needs a host that doesn't exist. Higher is cheaper |
 | Fidelity | 15 | How close the on-chain version gets to the thing it's translating |
 | Composition safety | 15 | How little it interferes with the other covenants |
 
 The weights are a judgement call and reasonable people would move them. Lender
 value is heaviest because a covenant nobody's protected by is theatre however
-elegant it is. Composition safety is in there because a covenant can be
-individually correct and still dangerous sitting next to another one, and the
-draw timelock below is exactly that case.
+elegant it is, and it's measured net: protection the exit right or the reserve
+ratio already provides doesn't count twice. Composition safety is in there
+because a covenant can be individually correct and still dangerous sitting next
+to another one.
 
-Scores are calibrated against each other rather than against anything absolute.
+Scores are calibrated against each other, never against anything absolute.
 The ordering is more defensible than the individual numbers.
 
 ## Implemented
@@ -302,68 +337,58 @@ The ordering is more defensible than the individual numbers.
 
 The strongest endogenous covenant available, because default status genuinely is
 on-chain state. Cross-default is the covenant credit desks lean on hardest, and
-here you get it structurally rather than contractually. Marked down on cheapness
-for the watch-list loop and its gas ceiling, and on composition because the
-watch-list is shared mutable state.
+here you get it structurally rather than contractually. It also survives the
+exit-right test cleanly: it works on every market type, and it's a curable
+drawstop, so the fee interaction is an incentive rather than a bug. Marked down
+on cheapness for the watch-list loop and its gas ceiling, and on composition
+because the watch-list is shared mutable state.
 
 ### Clean-down (84/100)
 
 *Lender value 22 · legibility 20 · cheapness 17 · fidelity 15 · composition 10*
 
-Near-universal in TradFi, so a treasurer nods at it immediately. Loses a little
-on composition because it interacts with anything else that gates drawing: if
-the facility is drawstopped for another reason during the window where the
-borrower needs to clean down, you can wedge them. Worth re-checking whenever a
-new covenant lands.
+Near-universal in TradFi, so a treasurer nods at it immediately, and it earns
+its score here on the merits too: the exit right doesn't substitute for it,
+because a lender exiting tells you nothing about whether the facility is really
+revolving. If anything it's worth more on term markets, where lenders can't
+vote with their feet and the covenant is the only thing evidencing revolver
+behaviour. Curable, so the fee stays coherent. Loses a little on composition
+because it interacts with anything else that gates drawing: if the facility is
+drawstopped for another reason during the window where the borrower needs to
+clean down, you can wedge them. Worth re-checking whenever a new covenant
+lands.
 
 ## Candidates
 
-### 1. Availability-period expiry (90/100)
+### 1. Commitment-reduction schedule (82/100)
 
-A hard drawdown deadline. After it, borrowing reverts while repayment and
-withdrawal carry on as normal.
+A ceiling on the drawn amount that declines on a schedule, enforced in
+`onBorrow`. Implements amortising revolvers, scheduled commitment reductions,
+and, as its terminal case, availability-period expiry: a schedule that steps to
+zero ends drawing on a date, which is what an availability period is.
 
-*Lender value 20 · legibility 20 · cheapness 20 · fidelity 15 · composition 15*
+*Lender value 24 · legibility 19 · cheapness 15 · fidelity 12 · composition 12*
 
-Top of the list not because it's clever but because the ratio is absurd. Every
-facility in existence has an availability period, every credit person expects
-one, and it's a timestamp comparison in `onBorrow`. Nothing else touches it.
-Lender value is only moderate on its own, but it's the cheapest protection
-you'll ever ship and it makes a facility look finished.
+Top of the list because it's the one covenant that gives locked lenders a
+de-risking *path* rather than a snapshot. In a syndicated deal the equivalent
+depends on the agent tracking dates and the borrower not over-drawing, and it
+gets disputed; here it's a cap that can't be exceeded.
 
-### 2. Commitment-reduction schedule (88/100)
+Enforce it on **drawn**, not on supply. A drawn-ceiling breach is curable by
+repaying below the schedule, which keeps the drawstop-plus-fee interaction
+coherent and sidesteps the question of forcing lender capital out. Whether the
+*commitment* (and so the fee base) should step down alongside it is a market
+design question involving `setMaxTotalSupply` and lender expectations. Decide it
+before building, and don't let the covenant half wait on the fee half.
 
-A monotonically declining ceiling, enforced on `onBorrow` and
-`onSetMaxTotalSupply`. Implements scheduled commitment reductions and amortising
-revolvers.
+Two caveats hold it below the built pair. Its full value is on fixed-term and
+periodic markets, where lenders actually need a de-risking path, and no
+covenant host exists for those yet. And the expiry case inherits the fee
+problem: drawn-to-zero with the commitment untouched leaves the borrower paying
+for undrawable capacity, which is why the fee question above isn't optional at
+the terminal step.
 
-*Lender value 24 · legibility 19 · cheapness 17 · fidelity 15 · composition 13*
-
-In a syndicated deal this depends on the agent tracking dates and the borrower
-not over-drawing, and it gets disputed. Here it's a cap that can't be exceeded,
-full stop.
-
-Decide before building: what happens when the ceiling drops below current
-supply. Hard stop on new deposits, soft stop, or forced return of capital are
-all defensible, and the choice affects lenders more than the borrower.
-
-### 3. Excess-availability springing regime (82/100)
-
-When undrawn availability drops below a threshold, spring a stricter state:
-freeze new draws, force a clean-down, or tighten another covenant.
-
-*Lender value 26 · legibility 17 · cheapness 14 · fidelity 14 · composition 11*
-
-Lifted from asset-based lending, where springing controls keyed to availability
-do most of the protective work in place of maintenance ratios. Fidelity actually
-beats the original, since an ABL agent recomputes availability from a monthly
-certificate whereas here it's exact and continuous.
-
-Costs more because you're building a state machine rather than a check, and
-composition needs care: a spring that fires into a clean-down window is exactly
-the wedge described above.
-
-### 4. Borrowing base over on-chain collateral (79/100)
+### 2. Borrowing base over on-chain collateral (79/100)
 
 Availability capped at eligible collateral times an advance rate, minus
 reserves.
@@ -372,157 +397,162 @@ reserves.
 
 Highest lender value on the board and the widest commercial unlock, since it
 opens asset-based lending and receivables finance, both of which dwarf leveraged
-lending. Sits at four rather than one purely on cost: eligibility rules, advance
-rates, reserves and rounding are a real engine rather than a check.
+lending. It's also genuinely additive: the exit right tells a lender nothing
+about collateral coverage, so nothing here is double-counted. Sits at two
+instead of one purely on cost: eligibility rules, advance rates, reserves and
+rounding add up to a real engine, not a check.
 
 Conditional in a way the others aren't. It's endogenous **only** where the
 collateral and its valuation are both on-chain. Off-chain collateral makes it an
 attested covenant and it moves to the section below. If tokenised collateral
-turns up in a live market, move this to the top of the list immediately.
+turns up in a live market, move this to the top immediately.
 
-### 5. Sweep-before-draw (78/100)
+### 3. Draw timelock (74/100)
 
-Where borrower inflows are observable on-chain, require application to the drawn
-balance before the next draw is permitted.
+Announce a draw above a threshold; it executes after a delay long enough for
+any lender who dislikes it to exit first.
 
-*Lender value 24 · legibility 18 · cheapness 12 · fidelity 12 · composition 12*
+*Lender value 25 · legibility 13 · cheapness 15 · fidelity 11 · composition 10*
 
-The mandatory-prepayment analogue, and another case where on-chain beats the
-original. A TradFi cash sweep depends on the borrower actually remitting and on
-the agent's excess-cash-flow calculation, and both leak. Making repayment a
-precondition of the next draw can't be dodged. Fidelity capped because it only
-ever sees on-chain flows.
+The honest translation of a material adverse change clause. A MAC converts
+lender discomfort into a right to refuse funding; this converts it into a right
+to not be there when it funds. No approver exists, so nothing is compellable,
+and the draw proceeds against whatever capital voluntarily stayed.
 
-### 6. Cross-market aggregate exposure cap (78/100)
+It ranks here because it's the one covenant *native* to the host that actually
+exists. On an open-term market the exit right is the protection, and the
+timelock is the only candidate that amplifies it instead of duplicating it: a
+constant delay of at least the withdrawal batch duration guarantees an
+objecting lender is out before the money moves. No window mathematics needed on
+the open-term host.
 
-A ceiling on total drawn across all of a borrower's markets rather than just
-this one.
+Scope it deliberately:
 
-*Lender value 22 · legibility 16 · cheapness 16 · fidelity 11 · composition 13*
+- **Open-term:** constant delay ≥ withdrawal batch duration. Ship this.
+- **Periodic:** the delay has to be window-aware, since a fixed delay in
+  seconds no longer implies exit opportunity when `queueWithdrawal` only works
+  inside scheduled windows. That needs a periodic covenant host and a host
+  requirement like `_nextWithdrawalWindowStart(market, from)`. Don't ship a
+  constant delay onto a periodic market: it emits announcement events, enforces
+  delays, and protects nobody, which is worse than omitting the covenant
+  because integrators will assume the property holds.
+- **Fixed-term:** exclude it entirely. A timelock giving you time to exit when
+  you can't exit protects nobody.
+
+Three implementation traps regardless of host. Stale announcements are
+pre-positioned instant draws, so give each a tight execution window
+`[executableAt, executableAt + grace]`. Exits during the delay reduce available
+liquidity, so decide explicitly between `min(announced, available)` and
+revert-and-reannounce, since one lets a small exit shave a draw and the other
+lets a small exit reset the clock. And key announcements by `(market, nonce)`,
+or a pending large draw locks out the sub-threshold working-capital dribbles a
+revolver exists to provide.
+
+### 4. Cross-market aggregate exposure cap (65/100)
+
+A ceiling on total drawn across all of a borrower's markets, not just this
+one.
+
+*Lender value 17 · legibility 16 · cheapness 15 · fidelity 6 · composition 11*
 
 The incurrence-test analogue, and cheap because it reuses the watch-list the
-delinquency gate already maintains. Fidelity is the weak spot: it caps Wildcat
-debt, not debt, so a borrower can lever up freely anywhere else. Describe it as
-limiting concentration within the protocol, never as limiting leverage.
+delinquency gate already maintains. But it inherits that list's incompleteness
+asymmetrically. The gate only gets *stronger* as markets are watched, and a
+missing market just means one fewer tripwire. The cap is *understated* by every
+unwatched market, the list is bounded at 30, and nothing on-chain enumerates a
+borrower's markets exhaustively. A cap that undercounts is a cap that lies,
+and it caps Wildcat debt rather than debt in any case. Describe it as limiting
+concentration within the protocol, never as limiting leverage, and treat the
+number as a floor on exposure rather than a ceiling.
 
-### 7. Utilisation-triggered springing (76/100)
-
-Extra constraints spring when drawn-to-supply crosses a threshold.
-
-*Lender value 14 · legibility 18 · cheapness 18 · fidelity 14 · composition 12*
-
-This is the cov-lite mechanic where a maintenance test springs only once the
-revolver is drawn past a point, so it reads instantly to anyone from that
-market. Scored low on value because it overlaps heavily with excess-availability
-springing. Build one or the other, not both, and excess-availability is the more
-useful framing.
-
-### 8. On-chain control change (71/100)
+### 5. On-chain control change (64/100)
 
 Detect a change in the controlling address or signer set of a smart-account
 borrower, and drawstop.
 
-*Lender value 18 · legibility 17 · cheapness 15 · fidelity 7 · composition 14*
+*Lender value 15 · legibility 17 · cheapness 12 · fidelity 6 · composition 14*
 
-Change of control is universal in loan documents so it reads well, but fidelity
-is poor and it's worth saying so out loud: this catches the borrower's *wallet*
-changing hands. The borrower's *company* is a different matter entirely, and it
-happens in a share register nobody on-chain can see. Useful, but easy to
-oversell.
+Change of control is universal in loan documents so it reads well, but the
+on-chain version is doubly narrowed. It only detects anything for smart-account
+borrowers, since an EOA handing over a key is invisible, and its value
+concentrates on term markets where lenders can't leave on the news, which means
+it wants the fixed-term host before it's worth much. On open-term markets the
+exit right already is the change-of-control remedy. Useful eventually, easy to
+oversell now.
 
-### 9. Draw timelock (68/100)
+### 6. Sweep-before-draw (62/100)
 
-Announce a draw above a threshold, execute it after a delay long enough for any
-lender who dislikes it to exit first.
+Where borrower inflows are observable on-chain, require application to the
+drawn balance before the next draw is permitted.
 
-*Lender value 25 · legibility 13 · cheapness 12 · fidelity 10 · composition 8*
+*Lender value 16 · legibility 18 · cheapness 12 · fidelity 8 · composition 12*
 
-Genuinely valuable, and the honest translation of a material adverse change
-clause. A MAC clause converts a lender's discomfort into a right to refuse
-funding; this converts it into a right to not be there when it funds. No
-approver exists, so nothing is compellable, and the draw proceeds against
-whatever capital voluntarily stayed.
+The mandatory-prepayment analogue, and mechanically sound: making repayment a
+precondition of the next draw can't be dodged for the flows it sees. The
+problem is what it sees. Without a constrained-flow pattern, the borrower
+chooses which addresses are observable, so revenue routes around the sweep at
+the cost of one hop. That's the same critique destination constraints get, and
+it lands here just as hard. Real value arrives only paired with destination
+constraints or a borrower operating account the market can watch by
+construction, so build it then, as a pair.
 
-It still scores badly, and the reasons are worth keeping visible. Legibility is
-low because no credit person has heard of it. Fidelity is low because it isn't a
-drawstop at all, it's an exit right, and those buy you different things.
-Composition is the worst on the board.
-
-Four traps, since anyone building this will hit them:
-
-**Periodic markets break the naive version.** On `PeriodicTermHooks`,
-`queueWithdrawal` only succeeds inside scheduled windows, so a fixed delay in
-seconds no longer implies exit opportunity. If the next window opens after the
-delay expires, the draw executes before any lender could queue. The deadline has
-to be window-aware:
-
-```
-executableAt = nextWindowStartAfter(announceTime)
-             + withdrawalWindowDuration
-             + withdrawalBatchDuration
-```
-
-Ship a constant delay onto a periodic market and it emits announcement events,
-enforces delays, and protects nobody. That's worse than leaving the covenant out
-entirely, because integrators and lenders will assume the property holds.
-**Shipping this without window-awareness is a bug, not a limitation.**
-
-**Stale announcements are pre-positioned instant draws.** If announcements never
-expire, a borrower announces routinely, sits on the ripe ones, and draws
-instantly the moment trouble appears. They need a tight execution window
-`[executableAt, executableAt + grace]`.
-
-**Exits during the delay reduce available liquidity**, so an announced draw may
-be partly or wholly unfundable by execution. That ordering is correct, since
-exits should take priority. But decide explicitly between `min(announced,
-available)` and revert-and-reannounce: partial-fill lets one small exit shave a
-draw, revert-and-reannounce lets one small exit reset the clock. Both are
-griefable, in opposite directions.
-
-**A single pending slot is a self-DoS.** Key announcements by `(market, nonce)`,
-or a pending large draw locks out the sub-threshold working-capital dribbles a
-revolver exists to provide.
-
-There's also a structural dependency. Window-awareness means reading the
-schedule from `PeriodicTermHooks`, which is a concrete template deriving from
-`BaseAccessControls` rather than a mixin, and `CovenantHooksCore` is
-`OpenTermHooks`-equivalent, so no template is currently both periodic and
-covenant-bearing. Either refactor the window logic into a mixin and build a
-periodic covenant core, or have the covenant declare a host requirement
-`_nextWithdrawalWindowStart(market, from)` implemented per template, returning
-`from` on open-term hosts. The second is cheaper and leaves `PeriodicTermHooks`
-alone.
-
-### 10. Destination-constrained draws (59/100)
+### 7. Destination-constrained draws (59/100)
 
 Draws only to addresses on a per-market allow-list.
 
 *Lender value 10 · legibility 15 · cheapness 13 · fidelity 8 · composition 13*
 
-Lowest lender value on the list and the score stays honest about that. A
-determined absconder moves funds one hop later, so on its own this prevents
+Lowest standalone lender value on the list and the score stays honest about
+that. A determined absconder moves funds one hop later, so alone this prevents
 nothing. The value is forensic: breaking the disclosed flow is visible and
 timestamped, which matters for later proceedings and for compliance teams who
 need a funds-flow answer they can't currently get. Price it as evidence. Never
 as prevention.
 
-Blocked on a design question too. `WildcatMarket.borrow` transfers to
-`msg.sender`, always the borrower, so a hook can't enforce a destination by
-inspecting the transfer. It needs the borrower calling through a contract whose
-own outbound payments are constrained, or a change to the market's borrow path.
-Settle that before writing anything.
+It's also the enabling half of the sweep pairing above, which is the stronger
+argument for eventually building it than anything it does alone.
 
-### 11. On-chain negative pledge (59/100)
+Blocked on a design question. `WildcatMarket.borrow` transfers to `msg.sender`,
+always the borrower, so a hook can't enforce a destination by inspecting the
+transfer. It needs the borrower drawing through a contract whose own outbound
+payments are constrained, or a change to the market's borrow path. Settle that
+first.
 
-Detect a competing lien or transfer over collateral held in an observable vault,
-and drawstop.
+### 8. Excess-availability springing regime (58/100)
 
-*Lender value 14 · legibility 16 · cheapness 11 · fidelity 6 · composition 12*
+When undrawn availability drops below a threshold, spring a stricter state.
 
-Same shape of problem as control change: the covenant is universal, the
-on-chain version sees a sliver of what it's meant to. Only worth building if a
-market appears where the collateral genuinely is on-chain, and at that point the
-borrowing base is a better use of the same effort.
+*Lender value 10 · legibility 14 · cheapness 12 · fidelity 12 · composition 10*
+
+Scored against what the protocol already does, most of this is double-counting.
+The reserve ratio is a hard availability floor on the borrow path; breach it
+through withdrawals and the market goes delinquent and springs penalty APR
+after grace. That's the ABL springing mechanic, native, on every market. What a
+covenant can add is one pre-breach tier: a drawstop that fires *above* the
+reserve ratio, giving lenders a buffer before the base machinery engages. Real
+but marginal, and it carries the worst wedge risk on the list, since a spring
+that fires into a clean-down window blocks the cure.
+
+### 9. On-chain negative pledge (55/100)
+
+Detect a competing lien or transfer over collateral held in an observable
+vault, and drawstop.
+
+*Lender value 12 · legibility 16 · cheapness 10 · fidelity 5 · composition 12*
+
+The covenant is universal; the on-chain version sees a sliver of what it's
+meant to. And it's dominated: any market where the collateral genuinely is
+on-chain should spend the same effort on the borrowing base, which subsumes
+this by construction, since encumbered collateral falls out of eligibility.
+
+### Not listed: utilisation-triggered springing
+
+Deliberately absent, because it isn't a covenant. "Spring when drawn-to-supply
+crosses a threshold" is a *trigger condition*, and the excess-availability
+entry above is the same trigger stated from the other side, since undrawn
+availability is supply minus drawn. Any covenant here can take a utilisation
+trigger as a parameter. Listing triggers as covenants inflates the map without
+adding protection.
 
 ## Summary
 
@@ -530,29 +560,34 @@ borrowing base is a better use of the same effort.
 | --- | --- | --- | --- |
 |   | Cross-market delinquency gate | 86 | Implemented |
 |   | Clean-down | 84 | Implemented |
-| 1 | Availability-period expiry | 90 | |
-| 2 | Commitment-reduction schedule | 88 | |
-| 3 | Excess-availability springing | 82 | |
-| 4 | Borrowing base, on-chain collateral | 79 | Conditional |
-| 5 | Sweep-before-draw | 78 | |
-| 6 | Cross-market aggregate exposure cap | 78 | |
-| 7 | Utilisation-triggered springing | 76 | Overlaps 3 |
-| 8 | On-chain control change | 71 | |
-| 9 | Draw timelock | 68 | Needs window-awareness |
-| 10 | Destination-constrained draws | 59 | Blocked on borrow path |
-| 11 | On-chain negative pledge | 59 | |
+| 1 | Commitment-reduction schedule (incl. expiry) | 82 | Fee design first; full value needs fixed-term host |
+| 2 | Borrowing base, on-chain collateral | 79 | Conditional on tokenised collateral |
+| 3 | Draw timelock | 74 | Open-term now; periodic needs host; never fixed-term |
+| 4 | Cross-market aggregate exposure cap | 65 | Watch-list completeness caveat |
+| 5 | On-chain control change | 64 | Smart-account borrowers; wants fixed-term host |
+| 6 | Sweep-before-draw | 62 | Pair with destination constraints |
+| 7 | Destination-constrained draws | 59 | Blocked on borrow path |
+| 8 | Excess-availability springing | 58 | Mostly native already; one pre-breach tier survives |
+| 9 | On-chain negative pledge | 55 | Dominated by borrowing base |
 
-Two things the scores say that intuition doesn't.
+Three conclusions worth keeping visible.
 
-**The draw timelock ranks lower than it feels.** It's the most intellectually
-satisfying covenant on the list and it comes ninth, mostly on composition risk
-plus the fact that it's an exit right rather than a drawstop.
+**Availability-period expiry isn't on the list, and its absence is the point.**
+It looked like the obvious first covenant right up until it was checked against
+the exit right: on open-term markets, lenders who can leave whenever they like
+don't need a drawdown deadline, and on term markets the deadline is just a
+commitment schedule that steps to zero. It survives as the terminal case of
+entry one. Universality in TradFi measures how locked-in TradFi lenders are,
+not how valuable the covenant is here.
 
-**The boring ones win.** Availability expiry and commitment reduction are
-unglamorous and they're the two highest-scoring items, because they're near-free,
-universally understood and interact with nothing. A facility carrying those two
-plus what's already implemented reads as complete to a credit desk in a way one
-exotic covenant never will.
+**The build order is mostly a host question.** Entries 1, 5 and much of 3 are
+waiting on a fixed-term or periodic covenant host, not on covenant engineering.
+Building that host outranks building covenants 4 through 9.
+
+**The timelock is the native covenant.** It's the only candidate that treats
+the exit right as the protection to amplify rather than a gap to paper over,
+and on the host that exists today it's a constant delay with no window
+mathematics. Funny outcome: the exotic-looking one turns out to be the one that fits.
 
 ---
 
@@ -602,8 +637,8 @@ covenant, because it pays someone to disrupt the issuer.
 structure than five through five, because one order or one outage stops
 everything. The interesting question isn't which covenants you can express, it's
 how many distinct parties a facility depends on and what happens when each is
-leaned on. Make that a deliberate topology decision rather than an accident of
-which covenants the borrower's counsel asked for.
+leaned on. Make that a deliberate topology decision. Don't let it fall out of whichever
+covenants the borrower's counsel happened to ask for.
 
 ## Why gating beats obligating
 
@@ -620,7 +655,8 @@ unable to exercise discretion is an advantage.
 
 ## Where credentials beat the original
 
-Two properties are worth designing around rather than treating as bonuses.
+Two properties are worth designing around from the start, not treating as
+bonuses.
 
 **Breach-triggered disclosure.** A credential's trigger can be any predicate
 evaluable on-chain, and that includes the covenant machinery's own state.
@@ -629,7 +665,7 @@ facility already computes all of these, so a credential can be bound to fire on
 them. That gives disclosure contingent on breach, which is how information
 rights work in practice anyway. Performing borrowers don't open their books; an
 event of default switches on rights that lay dormant. Here the asymmetry is
-mechanical rather than negotiated, and a borrower never has to trade
+mechanical instead of negotiated, and a borrower never has to trade
 confidentiality for covenant protection. They keep it exactly as long as they're
 performing, and the disclosure they concede is contingent on something within
 their power to avoid.
