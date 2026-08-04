@@ -6,15 +6,22 @@ Every revolving credit facility in traditional finance gates each drawing on
 conditions: no default continuing, representations repeated, clean-down
 observed. Wildcat's shipped hooks templates have no analogue for any of that,
 which is a gap you notice the moment a credit desk asks what the covenants
-are.
-These contracts add two covenants that are computable from chain state alone,
-plus the architecture to add more.
+are. These contracts add four covenants that are computable from chain state
+alone, plus the architecture to add more: a cross-market delinquency gate, a
+clean-down requirement, a commitment-reduction schedule, and a draw timelock.
 
-Both are **drawstops**. Breach one and new draws are blocked, and that's it: no
-acceleration, no forced repayment, nobody adjudicating. Lender exit rights stay
-untouched, and drawing resumes once the condition clears. That's a deliberate
-choice. A drawstop is the proportionate remedy for a revolver, it needs no third
-party to invoke it, and it can't be waived by inattention.
+Three of the four are **drawstops**. Breach one and new draws are blocked, and
+that's it: no acceleration, no forced repayment, nobody adjudicating. Lender
+exit rights stay untouched, and drawing resumes once the condition clears.
+That's a deliberate choice. A drawstop is the proportionate remedy for a
+revolver, it needs no third party to invoke it, and it can't be waived by
+inattention.
+
+The fourth works the other way round. The draw timelock doesn't stop anything;
+it makes large draws wait long enough that any lender who dislikes one can be
+fully out before it executes. Same spirit, no adjudicator, but the remedy is
+the exit right itself rather than a block, and the covenant map below explains
+why that's the right shape for this covenant in particular.
 
 ## Contents
 
@@ -22,15 +29,11 @@ party to invoke it, and it can't be waived by inattention.
 | --- | --- |
 | `CovenantBase.sol` | Market and registry interfaces, plus drawn-amount prediction shared by all covenants |
 | `CovenantHooksCore.sol` | Abstract host: `OpenTermHooks`-equivalent access control, market registry, hook scaffolding |
-| `CleanDownCovenant.sol` | Clean-down covenant. Storage and external surface |
-| `CrossMarketDelinquencyCovenant.sol` | Cross-market delinquency gate. Storage and external surface |
-| `lib/CleanDownLib.sol` | Clean-down bodies, external library |
-| `lib/CrossMarketGateLib.sol` | Gate bodies, external library |
-| `CommitmentScheduleCovenant.sol` | Commitment-reduction schedule. Storage and external surface |
-| `DrawTimelockCovenant.sol` | Draw timelock. Storage, announcements, external surface |
-| `lib/CommitmentScheduleLib.sol` | Schedule bodies, external library |
-| `lib/DrawTimelockLib.sol` | Timelock bodies, external library |
-| `lib/CovenantEvents.sol` | Events and errors shared between each mixin and its library |
+| `CrossMarketDelinquencyCovenant.sol` + `lib/CrossMarketGateLib.sol` | Cross-market delinquency gate: mixin surface plus library bodies |
+| `CleanDownCovenant.sol` + `lib/CleanDownLib.sol` | Clean-down covenant: mixin surface plus library bodies |
+| `CommitmentScheduleCovenant.sol` + `lib/CommitmentScheduleLib.sol` | Commitment-reduction schedule: mixin surface plus library bodies |
+| `DrawTimelockCovenant.sol` + `lib/DrawTimelockLib.sol` | Draw timelock: mixin surface, announcement queue, library bodies |
+| `lib/CovenantEvents.sol` | Events and errors shared between every mixin and its library |
 | `lib/CovenantLibraries.sol` | Deterministic library addresses and salts |
 | `../RevolvingCovenantHooks.sol` | Deployable template: gate and clean-down |
 | `../RevolvingCleanDownHooks.sol` | Deployable template: clean-down only |
@@ -76,9 +79,10 @@ entire ABI is missing from a template that doesn't inherit it.
 
 ## Why the bodies live in external libraries
 
-Inheritance flattens. A template inheriting two covenants compiles both into one
-deployed contract, so mixins give you source separation and the option to leave
-a covenant out, but once you've inherited one you're carrying its bytecode.
+Inheritance flattens. A template compiles every covenant it inherits into one
+deployed contract, so mixins give you source separation and the option to
+leave a covenant out, but once you've inherited one you're carrying its
+bytecode.
 
 Templates are stored as init code, so each one's creation code has to stay under
 EIP-170's 24,576 bytes. That's a hard ceiling: go over and the template simply
@@ -98,9 +102,9 @@ Measured under `FOUNDRY_PROFILE=deploy`:
 | RevolvingScheduleHooks | ~20,100 | ~4,400 |
 | RevolvingTimelockHooks | ~20,000 | ~4,500 |
 
-The saving is per covenant, which is the property that makes a fourth, fifth and
-sixth affordable. Each body stays at its own address and the template carries
-only the dispatch.
+The saving is per covenant, which is what made the third and fourth cheap and
+keeps a fifth and sixth affordable. Each body stays at its own address and the
+template carries only the dispatch.
 
 The costs, so nobody's surprised later: roughly 2,600 gas cold per library call on the borrow
 path, paid by the borrower on every draw; a wider audit surface, since template
@@ -135,7 +139,9 @@ addresses up front and deployment stays single-phase.
 ```toml
 libraries = [
   'src/access/covenants/lib/CrossMarketGateLib.sol:CrossMarketGateLib:0x...',
-  'src/access/covenants/lib/CleanDownLib.sol:CleanDownLib:0x...'
+  'src/access/covenants/lib/CleanDownLib.sol:CleanDownLib:0x...',
+  'src/access/covenants/lib/CommitmentScheduleLib.sol:CommitmentScheduleLib:0x...',
+  'src/access/covenants/lib/DrawTimelockLib.sol:DrawTimelockLib:0x...'
 ]
 ```
 
@@ -147,8 +153,9 @@ get rid of: change one, change both, same commit.
 Those addresses come out of the compiled library bytecode, so they move if the
 compiler version or optimizer settings change. The deploy script recomputes each
 one and asserts it matches, so drift fails the run instead of quietly registering
-templates linked to an empty address. If you see an address-drift error,
-regenerate both values together. `CovenantLibraries.sol` carries the recipe.
+templates linked to an empty address. If you see an address-drift error, regenerate the whole set together, all
+four in one commit alongside `foundry.toml`. `CovenantLibraries.sol` carries
+the recipe, and the install script does it automatically.
 
 Tests need the library runtime code placed at the linked addresses before they
 touch a template, since a fresh test EVM has nothing there and a library call
@@ -158,6 +165,11 @@ into an empty address trips the `extcodesize` check. See
 ---
 
 # What's implemented
+
+Four covenants ship today, each behind its own single-covenant template, with
+the gate and clean-down also available together in a combined one. What
+follows is the behaviour a market actually gets; the covenant map further down
+carries the scoring and the reasoning about what to build next.
 
 ## Clean-down
 
@@ -210,9 +222,10 @@ schedule, enforced when the borrower draws. A final ceiling of zero is
 availability-period expiry: after that date the facility can be repaid and
 exited but not drawn.
 
-The behaviours worth knowing before you read the code:
+Three behaviours are deliberate here too, and they mirror the clean-down
+list above:
 
-- **Enforcement is on drawn, deliberately.** Breach is curable by repaying
+- **Enforcement is on drawn.** Breach is curable by repaying
   below the schedule, which keeps the drawstop-plus-fee interaction coherent
   and never forces lender capital out. Whether the commitment itself (and so
   the fee base) steps down alongside the drawn ceiling is a market design
@@ -220,14 +233,14 @@ The behaviours worth knowing before you read the code:
 - **Draws that don't increase the drawn amount are never gated**, so
   reclaiming an over-repayment works even past expiry.
 - **Before the first step the ceiling is unlimited.** A schedule is a promise
-  about the future, and a market that hasn't reached it isn't constrained by
-  it.
+  about the future, and a market that hasn't got there yet isn't constrained
+  by it.
 
 Schedules are validated at market creation: steps strictly increasing,
 ceilings strictly decreasing, the first step in the future, at most 24 steps,
-and equal-length arrays. Empty arrays disable the covenant. Getting any of
-that wrong reverts the deployment rather than shipping a market with a
-schedule nobody intended.
+and equal-length arrays. Empty arrays disable the covenant. Get any of that
+wrong and the deployment reverts, which beats shipping a market with a
+schedule nobody intended and finding out at the first gated draw.
 
 ## Draw timelock
 
@@ -238,13 +251,14 @@ announced draw can be fully out before it executes. No approver exists and
 nothing is compellable: the draw proceeds against whatever capital voluntarily
 stayed.
 
-- **The headroom is cumulative per rolling window, not per draw.** A per-draw
-  threshold is splittable: twenty sub-threshold draws in one block extract the
-  same amount a single announced draw would have delayed. The covenant tracks
-  a drawn baseline that rolls forward once per `delay` period and gates any
-  draw taking the drawn amount more than `threshold` above it, so within any
-  window of that length, unannounced net new drawing can't exceed the
-  threshold.
+- **The headroom is cumulative per rolling window, not per draw.** This is
+  the design decision that matters, so here's the attack it closes: a per-draw
+  threshold is splittable, and twenty sub-threshold draws in one block extract
+  the same amount a single announced draw would have delayed. The covenant
+  instead tracks a drawn baseline that rolls forward once per `delay` period
+  and gates any draw taking the drawn amount more than `threshold` above it.
+  Within any window of that length, unannounced net new drawing can't exceed
+  the threshold, however finely it's sliced.
 - **Announcements are borrower-only**, keyed by market and nonce, and consumed
   in nonce order with expired ones skipped and deleted along the way. Each is
   executable only inside `[executableAt, executableAt + grace]`: without
@@ -259,7 +273,7 @@ stayed.
 
 Open-term markets only, and that's structural rather than cautious: on a
 periodic market a fixed delay in seconds no longer implies exit opportunity,
-and on a fixed-term market a timelock giving notice to lenders who can't exit
+and on a fixed-term market a timelock giving notice to lenders who can't leave
 protects nobody. The covenant map entry below carries the full scoping.
 
 ## Configuration
@@ -323,12 +337,16 @@ through the standard hooks factory.
    `_initYourCovenant(market, ...)` called at creation, one enforcement function
    per hook you care about, and external views.
 4. Declare host requirements as abstract functions **on your covenant**, not on
-   `CovenantBase`. That way a template inheriting only some covenants implements
-   only their requirements. `CrossMarketDelinquencyCovenant` does this with
-   `_covenantBorrower()` and `_covenantArchController()`.
+   `CovenantBase`. That way a template inheriting only some covenants
+   implements only their requirements. `CrossMarketDelinquencyCovenant` does
+   this with `_covenantBorrower()` and `_covenantArchController()`, and
+   `DrawTimelockCovenant` with `_timelockBorrower()`.
 5. Write a concrete template inheriting `CovenantHooksCore` plus your covenant,
-   implementing `version()`, `_requiredCovenantFlags()`, `_initCovenants()`, and
-   the hook bodies that call your enforcement functions.
+   implementing `version()`, `_requiredCovenantFlags()`, `_initCovenants()`,
+   and the hook bodies that call your enforcement functions. `_initCovenants`
+   receives the full `DeployMarketInputs` alongside `hooksData`, so covenants
+   can validate against market parameters at creation; the timelock's delay
+   floor against `withdrawalBatchDuration` is the existing example.
 
 Don't add covenant state or logic to `CovenantHooksCore`. The whole reason the
 split exists is that a template should only pay for what it inherits.
@@ -339,9 +357,11 @@ combined template is already using most of its budget. Check with
 artifact. Don't reach for `forge build --sizes`, which reports runtime size and
 will tell you everything's fine when it isn't.
 
-Practically: **a template carrying three covenants won't fit.** Treat templates
-as configurations, and ship the combinations borrowers actually ask for. A
-feature-complete superset isn't on the menu.
+Practically: **a template carrying three covenants won't fit**, and the
+combined gate-plus-clean-down template already runs closest to the ceiling.
+Treat templates as configurations, and ship the combinations borrowers
+actually ask for. A feature-complete superset isn't on the menu, which is why
+four covenants ship across four templates rather than one.
 
 ---
 
@@ -460,20 +480,20 @@ de-risking *path* rather than a snapshot. In a syndicated deal the equivalent
 depends on the agent tracking dates and the borrower not over-drawing, and it
 gets disputed; here it's a cap that can't be exceeded.
 
-Enforce it on **drawn**, not on supply. A drawn-ceiling breach is curable by
-repaying below the schedule, which keeps the drawstop-plus-fee interaction
-coherent and sidesteps the question of forcing lender capital out. Whether the
-*commitment* (and so the fee base) should step down alongside it is a market
-design question involving `setMaxTotalSupply` and lender expectations. Decide it
-before building, and don't let the covenant half wait on the fee half.
+Enforcement is on **drawn**, not on supply, and the behaviour section above
+covers why. What the score has to price is the half that isn't built: whether
+the *commitment* (and so the fee base) should step down alongside the drawn
+ceiling is a market design question involving `setMaxTotalSupply` and lender
+expectations, and it's still open. It doesn't block the covenant, but a
+facility marketed as amortising wants an answer to it before launch.
 
 Two caveats keep the score below the first pair. Its full value is on
-fixed-term and periodic markets, where lenders actually need a de-risking path,
-and no covenant host exists for those yet, so the shipped template is the
-open-term version. And the expiry case inherits the fee
-problem: drawn-to-zero with the commitment untouched leaves the borrower paying
-for undrawable capacity, which is why the fee question above isn't optional at
-the terminal step.
+fixed-term and periodic markets, where lenders actually need a de-risking
+path, and no covenant host exists for those yet, so the shipped template is
+the open-term version. And the expiry case inherits the fee problem: drawn to
+zero with the commitment untouched leaves the borrower paying for capacity
+they can no longer draw, which is why the fee question above stops being
+optional at the terminal step.
 
 ### Draw timelock (74/100)
 
@@ -510,11 +530,10 @@ The shipped template is open-term, per the scoping below:
   you can't exit protects nobody.
 
 Four implementation traps regardless of host. A per-draw threshold is
-splittable: twenty sub-threshold draws in one block extract the same amount a
-single announced draw would have delayed, so the shipped covenant gates
-cumulative unannounced drawing per rolling delay-window against a baseline
-that advances once per period, and `test_onBorrow_SplitDrawsShareHeadroom`
-pins the property. Stale announcements are
+splittable, which is why the shipped covenant gates cumulative unannounced
+drawing per rolling delay-window; the behaviour section above has the full
+mechanism and `test_onBorrow_SplitDrawsShareHeadroom` pins the property. Stale
+announcements are
 pre-positioned instant draws, so give each a tight execution window
 `[executableAt, executableAt + grace]`. Exits during the delay reduce available
 liquidity, so decide explicitly between `min(announced, available)` and
@@ -666,7 +685,7 @@ adding protection.
 | 6 | Excess-availability springing | 58 | Mostly native already; one pre-breach tier survives |
 | 7 | On-chain negative pledge | 55 | Dominated by borrowing base |
 
-Three conclusions worth keeping visible.
+Three conclusions to keep visible.
 
 **Availability-period expiry isn't a covenant here, and its absence is the
 point.** It looked like the obvious first covenant right up until it was
@@ -678,9 +697,9 @@ locked-in TradFi lenders are, not how valuable the covenant is here.
 
 **What's left is mostly a host question.** The schedule and timelock earn
 their full value on fixed-term and periodic markets, where lenders actually
-need a de-risking path, and candidate 3 barely matters without one. No
-fixed-term or periodic covenant host exists yet, so building one outranks
-building most of candidates 2 through 7.
+need a de-risking path, and candidate 3 barely matters without one. No such
+covenant host exists yet, so building one outranks building most of candidates
+2 through 7, and that's the unglamorous next move this map keeps pointing at.
 
 **The timelock is the native covenant.** It's the one entry that treats the
 exit right as the protection to amplify rather than a gap to paper over, and
@@ -735,7 +754,7 @@ covenant, because it pays someone to disrupt the issuer.
 structure than five through five, because one order or one outage stops
 everything. The interesting question isn't which covenants you can express, it's
 how many distinct parties a facility depends on and what happens when each is
-leaned on. Make that a deliberate topology decision. Don't let it fall out of whichever
+leaned on. Choose that topology on purpose. Don't let it fall out of whichever
 covenants the borrower's counsel happened to ask for.
 
 ## Why gating beats obligating
@@ -753,8 +772,8 @@ unable to exercise discretion is an advantage.
 
 ## Where credentials beat the original
 
-Two properties are worth designing around from the start, not treating as
-bonuses.
+Two properties deserve to be designed around from the start instead of
+discovered as bonuses.
 
 **Breach-triggered disclosure.** A credential's trigger can be any predicate
 evaluable on-chain, and that includes the covenant machinery's own state.
@@ -825,10 +844,10 @@ power.
 - **Watch-list cap.** 30 markets is a real limit for a borrower with a lot of
   facilities. The alternative is a push model where markets report delinquency
   rather than a pull loop, and that costs you the permissionless property.
-- **Gas.** Each covenant owns its own storage slot, so a template inheriting two
-  pays one extra cold `SLOAD` on the borrow path relative to a single packed
-  struct, on top of a delegatecall into each library. Negligible against a
-  borrow, but it's the price of the split.
+- **Gas.** Each covenant owns its own storage, so a template pays a cold
+  `SLOAD` per inherited covenant on the borrow path relative to a single
+  packed struct, on top of a delegatecall into each library. Negligible
+  against a borrow, but it's the price of the split.
 - **No `CovenantLens` test.** It compiles and is read-only, but a fixture-based
   suite would be better than nothing.
 
