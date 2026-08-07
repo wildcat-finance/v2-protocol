@@ -1,4 +1,12 @@
 [profile.default]
+libraries = [
+  'src/access/covenants/lib/CrossMarketGateLib.sol:CrossMarketGateLib:0x1c6f2EbF304E87AA8AB9e3f8E916360d00C6F404',
+  'src/access/covenants/lib/CleanDownLib.sol:CleanDownLib:0xEfE248377801886F5EB1eD8Fa3511f2Be4f975eD',
+  'src/access/covenants/lib/CommitmentScheduleLib.sol:CommitmentScheduleLib:0x06AE339781C3bb2edd0039a8A66Ea75e74dFB9Eb',
+  'src/access/covenants/lib/DrawTimelockLib.sol:DrawTimelockLib:0xb290005F652E8989c8341709c24387bc2B0b60a7',
+  'src/access/covenants/lib/BorrowingBaseLib.sol:BorrowingBaseLib:0x0534D8c7B743e7bF9C9D319A567D77FA0880aE21',
+  'src/access/covenants/lib/CrossMarketCapLib.sol:CrossMarketCapLib:0xA8ccf7e3241a86920A0Dea46274c95E7369c998c'
+]
 src = 'src'
 # The vendored a16z erc4626-tests suite defines `testFail_*` tests, which newer
 # foundry rejects outright. They are re-expressed with explicit revert
@@ -42,6 +50,14 @@ lint_on_build = false
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
 
 [profile.ir]
+libraries = [
+  'src/access/covenants/lib/CrossMarketGateLib.sol:CrossMarketGateLib:0x1c6f2EbF304E87AA8AB9e3f8E916360d00C6F404',
+  'src/access/covenants/lib/CleanDownLib.sol:CleanDownLib:0xEfE248377801886F5EB1eD8Fa3511f2Be4f975eD',
+  'src/access/covenants/lib/CommitmentScheduleLib.sol:CommitmentScheduleLib:0x06AE339781C3bb2edd0039a8A66Ea75e74dFB9Eb',
+  'src/access/covenants/lib/DrawTimelockLib.sol:DrawTimelockLib:0xb290005F652E8989c8341709c24387bc2B0b60a7',
+  'src/access/covenants/lib/BorrowingBaseLib.sol:BorrowingBaseLib:0x0534D8c7B743e7bF9C9D319A567D77FA0880aE21',
+  'src/access/covenants/lib/CrossMarketCapLib.sol:CrossMarketCapLib:0xA8ccf7e3241a86920A0Dea46274c95E7369c998c'
+]
 via_ir=true
 out='ir-out'
 cache_path='ir-cache'
@@ -52,6 +68,14 @@ extra_output_files=["irOptimized", "ir"]
 bytecode_hash = 'none'
 
 [profile.deploy]
+libraries = [
+  'src/access/covenants/lib/CrossMarketGateLib.sol:CrossMarketGateLib:0x1c6f2EbF304E87AA8AB9e3f8E916360d00C6F404',
+  'src/access/covenants/lib/CleanDownLib.sol:CleanDownLib:0xEfE248377801886F5EB1eD8Fa3511f2Be4f975eD',
+  'src/access/covenants/lib/CommitmentScheduleLib.sol:CommitmentScheduleLib:0x06AE339781C3bb2edd0039a8A66Ea75e74dFB9Eb',
+  'src/access/covenants/lib/DrawTimelockLib.sol:DrawTimelockLib:0xb290005F652E8989c8341709c24387bc2B0b60a7',
+  'src/access/covenants/lib/BorrowingBaseLib.sol:BorrowingBaseLib:0x0534D8c7B743e7bF9C9D319A567D77FA0880aE21',
+  'src/access/covenants/lib/CrossMarketCapLib.sol:CrossMarketCapLib:0xA8ccf7e3241a86920A0Dea46274c95E7369c998c'
+]
 via_ir=true
 out='deploy-out'
 cache_path='deploy-cache'
