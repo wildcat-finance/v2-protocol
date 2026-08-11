@@ -132,7 +132,7 @@ This is mandatory. A targeted default-profile size build reports
 `HooksFactoryRevolving` at 24,767 runtime bytes, 191 bytes above EIP-170; a full
 default-profile build also encounters `Stack too deep`. The `deploy` profile
 uses via-IR and optimizer runs `200`, produces the creation code consumed by the
-plan, and reports `HooksFactoryRevolving` at 14,609 runtime bytes. Do not
+plan, and reports `HooksFactoryRevolving` at 14,989 runtime bytes. Do not
 substitute the default or high-run IR profile.
 
 Set the testnet execution context:
@@ -246,11 +246,11 @@ node scripts/plan.js execute \
   --private-key "$PVT_KEY_SEPOLIA"
 ```
 
-Review the summary before execution. The base rollout has 22 transactions: 12
+Review the summary before execution. The base rollout has 23 transactions: 13
 deployments and 10 calls. Step 06 adds two calls for every registered
 superseded hooks factory. Sepolia's ceremony config adds ownership reclaim and
-restore calls. With the currently reconciled inventories, mainnet produces 24
-transactions and Sepolia produces 38. `execute` writes
+restore calls. With the currently reconciled inventories, mainnet produces 25
+transactions and Sepolia produces 39. `execute` writes
 `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
 
 ### 08 — finalize inventory
@@ -462,10 +462,12 @@ node scripts/generate-handoff.js --network mainnet --release v2-5 --check
 Deliver `handoff-v2-5.json` and `handoff-v2-5.md` with the verified ABIs to the
 subgraph and SDK owners.
 
-Current local rehearsal record: the corrected six-registration and
-superseded-factory deactivation plan completed end to end on both forks—38
-transactions and 38/38 predicates on Sepolia, 24 transactions and 24/24
-predicates on mainnet—with inventory finalization and reconciliation green.
+Previous local rehearsal record: before the borrower identity registry was
+added to the plan, the corrected six-registration and superseded-factory
+deactivation plan completed end to end on both forks—38 transactions and 38/38
+predicates on Sepolia, 24 transactions and 24/24 predicates on mainnet—with
+inventory finalization and reconciliation green. The current 39/25-transaction
+plans still need a fresh rehearsal.
 The finalized fork inventories retained historical `indexed` flags, marked all
 superseded factories unregistered, and the plans contained no market-removal
 calls. Earlier rehearsals also closed both canary markets. These generated
@@ -502,7 +504,7 @@ Every fork rehearsal must preserve these invariants:
 - generate the plan from the source revision under review with
   `FOUNDRY_PROFILE=deploy` rather than reusing generated output;
 - for the Sepolia-shaped UI path, authorize a disposable Anvil EOA in the
-  helper and keep reclaim/restore as cards 1 and 38;
+  helper and keep reclaim/restore as the first and final cards;
 - require six template registrations, paired removal of both roles for all
   seven reconciled superseded factories, and no market removal;
 - finalize only from the unedited, independently verified run-state;

@@ -263,7 +263,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       networkName,
       openTerm,
-      10,
+      11,
       OPEN_STORAGE_ENTRY_ID,
       OPEN_STORAGE_OUTPUT,
       DEPLOYMENTS_COMPLETE_ENTRY_ID
@@ -272,7 +272,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       networkName,
       fixedTerm,
-      11,
+      12,
       FIXED_STORAGE_ENTRY_ID,
       FIXED_STORAGE_OUTPUT,
       OPEN_STORAGE_ENTRY_ID
@@ -281,7 +281,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       networkName,
       periodicTerm,
-      12,
+      13,
       PERIODIC_STORAGE_ENTRY_ID,
       PERIODIC_STORAGE_OUTPUT,
       FIXED_STORAGE_ENTRY_ID
@@ -290,7 +290,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     _writeRegisterControllerFactoryPlanEntry(
       deployments,
       archController,
-      13,
+      14,
       REGISTER_STANDARD_FACTORY_ENTRY_ID,
       STANDARD_FACTORY_OUTPUT,
       PERIODIC_STORAGE_ENTRY_ID,
@@ -299,7 +299,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     _writeRegisterControllerFactoryPlanEntry(
       deployments,
       archController,
-      14,
+      15,
       REGISTER_REVOLVING_FACTORY_ENTRY_ID,
       REVOLVING_FACTORY_OUTPUT,
       REGISTER_STANDARD_FACTORY_ENTRY_ID,
@@ -313,7 +313,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       openTerm,
       openFeeRecipient,
-      15,
+      16,
       ADD_STANDARD_OPEN_ENTRY_ID,
       STANDARD_FACTORY_OUTPUT,
       OPEN_STORAGE_OUTPUT,
@@ -324,7 +324,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       fixedTerm,
       fixedFeeRecipient,
-      16,
+      17,
       ADD_STANDARD_FIXED_ENTRY_ID,
       STANDARD_FACTORY_OUTPUT,
       FIXED_STORAGE_OUTPUT,
@@ -335,7 +335,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       periodicTerm,
       periodicFeeRecipient,
-      17,
+      18,
       ADD_STANDARD_PERIODIC_ENTRY_ID,
       STANDARD_FACTORY_OUTPUT,
       PERIODIC_STORAGE_OUTPUT,
@@ -346,7 +346,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       openTerm,
       openFeeRecipient,
-      18,
+      19,
       ADD_REVOLVING_OPEN_ENTRY_ID,
       REVOLVING_FACTORY_OUTPUT,
       OPEN_STORAGE_OUTPUT,
@@ -357,7 +357,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       fixedTerm,
       fixedFeeRecipient,
-      19,
+      20,
       ADD_REVOLVING_FIXED_ENTRY_ID,
       REVOLVING_FACTORY_OUTPUT,
       FIXED_STORAGE_OUTPUT,
@@ -368,7 +368,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       deployments,
       periodicTerm,
       periodicFeeRecipient,
-      20,
+      21,
       ADD_REVOLVING_PERIODIC_ENTRY_ID,
       REVOLVING_FACTORY_OUTPUT,
       PERIODIC_STORAGE_OUTPUT,
@@ -491,9 +491,9 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       return;
     }
 
-    openTerm = _deployTemplateStorage(deployments, networkName, openTerm, 10);
-    fixedTerm = _deployTemplateStorage(deployments, networkName, fixedTerm, 11);
-    periodicTerm = _deployTemplateStorage(deployments, networkName, periodicTerm, 12);
+    openTerm = _deployTemplateStorage(deployments, networkName, openTerm, 11);
+    fixedTerm = _deployTemplateStorage(deployments, networkName, fixedTerm, 12);
+    periodicTerm = _deployTemplateStorage(deployments, networkName, periodicTerm, 13);
     deployments.write();
 
     string memory standardFactoryLabel = _label('HooksFactory');

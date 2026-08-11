@@ -3,6 +3,7 @@ pragma solidity >=0.8.19;
 
 import 'forge-std/Test.sol';
 import 'src/WildcatArchController.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 import 'src/HooksFactory.sol';
 import 'src/IHooksFactory.sol';
 import 'src/libraries/LibStoredInitCode.sol';
@@ -47,6 +48,7 @@ contract BrokenHooksTemplate {
 
 contract HooksFactoryTest is Test, Assertions {
   WildcatArchController archController;
+  WildcatBorrowerIdentityRegistry borrowerIdentityRegistry;
   IHooksFactory hooksFactory;
   address internal immutable MockHooksTemplate =
     LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
@@ -87,6 +89,7 @@ contract HooksFactoryTest is Test, Assertions {
 
   function setUp() public {
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
 
     (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
     hooksFactory = new HooksFactory(
@@ -94,13 +97,15 @@ contract HooksFactoryTest is Test, Assertions {
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     // hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
     archController.registerControllerFactory(address(hooksFactory));
     hooksFactory.registerWithArchController();
     assertEq(hooksFactory.name(), 'WildcatHooksFactory');
     assertEq(hooksFactory.archController(), address(archController));
+    assertEq(hooksFactory.borrowerIdentityRegistry(), address(borrowerIdentityRegistry));
   }
 
   // ========================================================================== //
@@ -1092,7 +1097,8 @@ contract HooksFactoryTest is Test, Assertions {
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      uint256(keccak256('stale market init code hash'))
+      uint256(keccak256('stale market init code hash')),
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(badFactory));
     badFactory.registerWithArchController();

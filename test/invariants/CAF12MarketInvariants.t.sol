@@ -7,6 +7,7 @@ import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
+import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -52,6 +53,9 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
     deployMockChainalysis();
 
     WildcatArchController archController = new WildcatArchController();
+    WildcatBorrowerIdentityRegistry borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(
+      address(archController)
+    );
     sanctionsSentinel = new MockSanctionsSentinel(address(archController));
     (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode(false);
 
@@ -60,7 +64,8 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(hooksFactory));
     hooksFactory.registerWithArchController();
@@ -105,6 +110,9 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
     deployMockChainalysis();
 
     WildcatArchController archController = new WildcatArchController();
+    WildcatBorrowerIdentityRegistry borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(
+      address(archController)
+    );
     MockSanctionsSentinel sanctionsSentinel = new MockSanctionsSentinel(address(archController));
     (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode(true);
 
@@ -113,7 +121,8 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(hooksFactory));
     hooksFactory.registerWithArchController();

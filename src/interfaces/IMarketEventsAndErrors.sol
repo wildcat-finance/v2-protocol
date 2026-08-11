@@ -82,6 +82,22 @@ interface IMarketEventsAndErrors {
 
   error ProtocolFeeTooHigh();
 
+  error InvalidBorrowerIdentityRegistry();
+
+  error InvalidBorrowerTransferTarget();
+
+  error NoPendingBorrowerTransfer();
+
+  error NotPendingBorrower();
+
+  error BorrowerIdentityNotFound();
+
+  error BorrowerPrincipalNotRegistered();
+
+  error AmbiguousBorrowerIdentity();
+
+  error BorrowerTransferWhileSanctioned(address account);
+
   /// @dev Error thrown when reserve ratio is set to a value
   ///      that would make the market delinquent.
   error InsufficientReservesForNewLiquidityRatio();
@@ -133,6 +149,27 @@ interface IMarketEventsAndErrors {
   event AccountSanctioned(address indexed account);
 
   event WrapperRegistered(address indexed wrapper);
+
+  event BorrowerTransferRequested(
+    address indexed borrower,
+    address indexed previousPendingBorrower,
+    address indexed pendingBorrower,
+    address borrowerPrincipal,
+    address pendingBorrowerPrincipal
+  );
+
+  event BorrowerTransferCancelled(
+    address indexed borrower,
+    address indexed cancelledPendingBorrower,
+    address borrowerPrincipal
+  );
+
+  event BorrowerTransferred(
+    address indexed previousBorrower,
+    address indexed newBorrower,
+    address previousBorrowerPrincipal,
+    address indexed newBorrowerPrincipal
+  );
 
   // =====================================================================//
   //                          Withdrawl Events                            //

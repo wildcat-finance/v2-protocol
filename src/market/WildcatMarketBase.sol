@@ -4,6 +4,8 @@ pragma solidity >=0.8.20;
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
+import '../interfaces/IBorrowerIdentityRegistry.sol';
+import '../interfaces/IWildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/MarketErrors.sol';
@@ -70,6 +72,9 @@ contract WildcatMarketBase is
   /// @dev Canonical factory allowed to register this market's optional ERC-4626 wrapper.
   address public immutable wrapperFactory;
 
+  /// @dev Registry that resolves borrower accounts to registered principals.
+  address public immutable borrowerIdentityRegistry;
+
   /// @dev Namespaced slot for the operational borrower. This keeps borrower
   ///      transfers from shifting the existing market storage layout.
   bytes32 internal constant BORROWER_STORAGE_SLOT =
@@ -79,13 +84,17 @@ contract WildcatMarketBase is
   bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT =
     bytes32(uint256(keccak256('wildcat.market.borrowerPrincipal')) - 1);
 
+  /// @dev Namespaced slot for the pending borrower.
+  bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT =
+    bytes32(uint256(keccak256('wildcat.market.pendingBorrower')) - 1);
+
   /// @dev Namespaced slot for the optional canonical wrapper. Using an
   ///      unstructured slot preserves the established market storage layout.
   bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT =
     bytes32(uint256(keccak256('wildcat.market.registeredWrapper')) - 1);
 
-  /// @dev ABI-encoded size of `MarketParameters`, which has 21 static fields.
-  uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2a0;
+  /// @dev ABI-encoded size of `MarketParameters`, which has 22 static fields.
+  uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2c0;
 
   /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
   uint public immutable delinquencyFeeBips;
@@ -168,6 +177,11 @@ contract WildcatMarketBase is
   /// @notice Current registered principal for the market.
   function borrowerPrincipal() public view returns (address) {
     return _getAddress(BORROWER_PRINCIPAL_STORAGE_SLOT);
+  }
+
+  /// @notice Address that can accept the pending borrower transfer.
+  function pendingBorrower() public view returns (address) {
+    return _getAddress(PENDING_BORROWER_STORAGE_SLOT);
   }
 
   /// @notice Canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
@@ -265,10 +279,24 @@ contract WildcatMarketBase is
     _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, parameters.borrowerPrincipal);
     feeRecipient = parameters.feeRecipient;
     wrapperFactory = parameters.wrapperFactory;
+    borrowerIdentityRegistry = parameters.borrowerIdentityRegistry;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
     delinquencyGracePeriod = parameters.delinquencyGracePeriod;
     withdrawalBatchDuration = parameters.withdrawalBatchDuration;
     _archController = parameters.archController;
+    (bool registryCallSucceeded, bytes memory registryResult) = borrowerIdentityRegistry.staticcall(
+      abi.encodeCall(IBorrowerIdentityRegistry.archController, ())
+    );
+    if (
+      !registryCallSucceeded ||
+      registryResult.length != 0x20 ||
+      abi.decode(registryResult, (address)) != _archController
+    ) {
+      revert InvalidBorrowerIdentityRegistry();
+    }
+    if (!IWildcatArchController(_archController).isRegisteredBorrower(parameters.borrowerPrincipal)) {
+      revert BorrowerPrincipalNotRegistered();
+    }
     __SphereXProtectedRegisteredBase_init(parameters.sphereXEngine);
   }
 
@@ -287,6 +315,82 @@ contract WildcatMarketBase is
       }
     }
     _;
+  }
+
+  // ===================================================================== //
+  //                         Borrower Transfer                             //
+  // ===================================================================== //
+
+  function _validateBorrowerTransferTarget(
+    address newBorrower
+  ) internal view returns (address newBorrowerPrincipal) {
+    address currentBorrower = borrower();
+    if (newBorrower == address(0) || newBorrower == currentBorrower) {
+      revert InvalidBorrowerTransferTarget();
+    }
+
+    newBorrowerPrincipal = IBorrowerIdentityRegistry(borrowerIdentityRegistry).resolveBorrower(
+      newBorrower
+    );
+
+    address currentBorrowerPrincipal = borrowerPrincipal();
+    if (_isFlaggedByChainalysis(currentBorrower)) {
+      revert BorrowerTransferWhileSanctioned(currentBorrower);
+    }
+    if (
+      currentBorrowerPrincipal != currentBorrower &&
+      _isFlaggedByChainalysis(currentBorrowerPrincipal)
+    ) {
+      revert BorrowerTransferWhileSanctioned(currentBorrowerPrincipal);
+    }
+    if (_isFlaggedByChainalysis(newBorrower)) {
+      revert BorrowerTransferWhileSanctioned(newBorrower);
+    }
+    if (newBorrowerPrincipal != newBorrower && _isFlaggedByChainalysis(newBorrowerPrincipal)) {
+      revert BorrowerTransferWhileSanctioned(newBorrowerPrincipal);
+    }
+  }
+
+  function requestBorrowerTransfer(
+    address newBorrower
+  ) external onlyBorrower nonReentrant sphereXGuardExternal {
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower);
+    address previousPendingBorrower = pendingBorrower();
+    _setAddress(PENDING_BORROWER_STORAGE_SLOT, newBorrower);
+    emit BorrowerTransferRequested(
+      msg.sender,
+      previousPendingBorrower,
+      newBorrower,
+      borrowerPrincipal(),
+      newBorrowerPrincipal
+    );
+  }
+
+  function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
+    address cancelledPendingBorrower = pendingBorrower();
+    if (cancelledPendingBorrower == address(0)) revert NoPendingBorrowerTransfer();
+    _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
+    emit BorrowerTransferCancelled(msg.sender, cancelledPendingBorrower, borrowerPrincipal());
+  }
+
+  function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
+    address newBorrower = pendingBorrower();
+    if (msg.sender != newBorrower) revert NotPendingBorrower();
+
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower);
+    address previousBorrower = borrower();
+    address previousBorrowerPrincipal = borrowerPrincipal();
+
+    _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
+    _setAddress(BORROWER_STORAGE_SLOT, newBorrower);
+    _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
+
+    emit BorrowerTransferred(
+      previousBorrower,
+      newBorrower,
+      previousBorrowerPrincipal,
+      newBorrowerPrincipal
+    );
   }
 
   // ===================================================================== //

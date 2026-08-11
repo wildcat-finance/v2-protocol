@@ -28,6 +28,7 @@ struct MarketParameters {
   HooksConfig hooks;
   // Appended so the existing 20 parameter offsets remain unchanged.
   address borrowerPrincipal;
+  address borrowerIdentityRegistry;
 }
 
 struct DeployMarketInputs {

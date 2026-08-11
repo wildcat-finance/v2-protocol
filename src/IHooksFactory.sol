@@ -85,6 +85,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   function wrapperFactory() external view returns (address);
 
+  function borrowerIdentityRegistry() external view returns (address);
+
   function marketInitCodeStorage() external view returns (address);
 
   function marketInitCodeHash() external view returns (uint256);

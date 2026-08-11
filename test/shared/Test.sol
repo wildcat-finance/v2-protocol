@@ -7,6 +7,7 @@ import { VmSafe } from 'forge-std/Vm.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
 
 import 'src/WildcatArchController.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 import '../helpers/VmUtils.sol' as VmUtils;
 import '../helpers/Assertions.sol';
 import { MockEngine } from './mocks/MockEngine.sol';
@@ -53,6 +54,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   HooksFactory internal hooksFactory;
   Wildcat4626WrapperFactory internal wrapperFactory;
   WildcatArchController internal archController;
+  WildcatBorrowerIdentityRegistry internal borrowerIdentityRegistry;
   OpenTermHooks internal hooks;
   WildcatMarket internal market;
   MockSanctionsSentinel internal sanctionsSentinel;
@@ -99,6 +101,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   function deployBaseContracts(bool withEngine) internal asSelf {
     deployMockChainalysis();
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
     if (withEngine) {
       deploySphereXEngine();
     } else {
@@ -115,7 +118,8 @@ contract Test is ForgeTest, Prankster, Assertions {
       address(sanctionsSentinel),
       address(wrapperFactory),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
 
     // Register the hooks factory as a controller factory so it can register
@@ -541,6 +545,12 @@ contract Test is ForgeTest, Prankster, Assertions {
     assertEq(market.reserveRatioBips(), parameters.reserveRatioBips, 'reserveRatioBips');
     assertEq(market.borrower(), parameters.borrower, 'borrower');
     assertEq(market.borrowerPrincipal(), parameters.borrower, 'borrowerPrincipal');
+    assertEq(market.pendingBorrower(), address(0), 'pendingBorrower');
+    assertEq(
+      market.borrowerIdentityRegistry(),
+      address(borrowerIdentityRegistry),
+      'borrowerIdentityRegistry'
+    );
     assertEq(market.archController(), address(archController), 'archController');
     assertEq(market.feeRecipient(), parameters.feeRecipient, 'feeRecipient');
     assertEq(market.factory(), address(hooksFactory), 'factory');

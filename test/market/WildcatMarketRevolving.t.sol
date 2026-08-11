@@ -3,6 +3,7 @@ pragma solidity >=0.8.19;
 
 import 'forge-std/Test.sol';
 import 'src/WildcatArchController.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 import 'src/HooksFactoryRevolving.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
@@ -22,6 +23,7 @@ contract WildcatMarketRevolvingTest is Test {
   using FeeMath for MarketState;
 
   WildcatArchController internal archController;
+  WildcatBorrowerIdentityRegistry internal borrowerIdentityRegistry;
   HooksFactoryRevolving internal hooksFactoryRevolving;
   MockSanctionsSentinel internal sanctionsSentinel;
   MockERC20 internal underlying;
@@ -52,6 +54,7 @@ contract WildcatMarketRevolvingTest is Test {
     borrower = address(this);
     deployMockChainalysis();
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
     sanctionsSentinel = new MockSanctionsSentinel(address(archController));
     (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
     hooksFactoryRevolving = new HooksFactoryRevolving(
@@ -59,7 +62,8 @@ contract WildcatMarketRevolvingTest is Test {
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(hooksFactoryRevolving));
     hooksFactoryRevolving.registerWithArchController();
@@ -294,6 +298,27 @@ contract WildcatMarketRevolvingTest is Test {
 
   function test_borrowerPrincipal_initializesToBorrower() external view {
     assertEq(market.borrowerPrincipal(), borrower);
+  }
+
+  function test_borrowerTransfer_preservesDrawnAmountAndStorageSlot() external {
+    _deposit(lender, 1_000e18);
+    market.borrow(400e18);
+    uint256 drawnAmountSlot = stdstore
+      .target(address(revolvingMarket))
+      .sig(IWildcatMarketRevolving.drawnAmount.selector)
+      .find();
+    bytes32 drawnAmountSlotBefore = vm.load(address(market), bytes32(drawnAmountSlot));
+    address newBorrower = address(0xB0B);
+    archController.registerBorrower(newBorrower);
+
+    market.requestBorrowerTransfer(newBorrower);
+    vm.prank(newBorrower);
+    market.acceptBorrowerTransfer();
+
+    assertEq(market.borrower(), newBorrower);
+    assertEq(market.borrowerPrincipal(), newBorrower);
+    assertEq(revolvingMarket.drawnAmount(), 400e18);
+    assertEq(vm.load(address(market), bytes32(drawnAmountSlot)), drawnAmountSlotBefore);
   }
 
   function test_borrow_updatesDrawnAmount() external {

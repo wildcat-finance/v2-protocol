@@ -1853,6 +1853,7 @@ async function runApplyRun(args) {
   let revolvingFactory = null;
   let wrapperFactory = null;
   let marketLens = null;
+  let borrowerIdentityRegistry = null;
 
   for (const fileName of pendingFiles) {
     const filePath = path.join(pendingDirectory, fileName);
@@ -1933,11 +1934,23 @@ async function runApplyRun(args) {
     if (record.recordType === "deployment" && record.role === "facade") {
       marketLens = record.address;
     }
+    if (
+      record.recordType === "deployment" &&
+      record.role === "identityRegistry"
+    ) {
+      borrowerIdentityRegistry = record.address;
+    }
   }
 
-  if (!standardFactory || !revolvingFactory || !wrapperFactory || !marketLens) {
+  if (
+    !standardFactory ||
+    !revolvingFactory ||
+    !wrapperFactory ||
+    !marketLens ||
+    !borrowerIdentityRegistry
+  ) {
     throw new Error(
-      "Pending records must resolve standard/revolving hooks factories, wrapper factory, and MarketLens"
+      "Pending records must resolve standard/revolving hooks factories, wrapper factory, borrower identity registry, and MarketLens"
     );
   }
   if (addedRecords !== 3) {
@@ -1959,6 +1972,7 @@ async function runApplyRun(args) {
   deployments.HooksFactoryRevolving = revolvingFactory;
   deployments.MarketLens = marketLens;
   deployments.Wildcat4626WrapperFactory = wrapperFactory;
+  deployments.WildcatBorrowerIdentityRegistry = borrowerIdentityRegistry;
   writeInventory(inventoryPath, inventory);
   writeJsonAtomic(deploymentsPath, deployments);
   console.log(

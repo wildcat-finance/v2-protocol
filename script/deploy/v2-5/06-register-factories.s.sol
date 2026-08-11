@@ -139,7 +139,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
         deployments,
         archController,
         targets[i],
-        23 + i * 2,
+        24 + i * 2,
         removeFactoryEntryId,
         afterEntry,
         true
@@ -149,7 +149,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
         deployments,
         archController,
         targets[i],
-        24 + i * 2,
+        25 + i * 2,
         removeControllerEntryId,
         removeFactoryEntryId,
         false
@@ -217,7 +217,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
       _writePlanEntry(
         deployments,
         archControllerAddress,
-        21,
+        22,
         REGISTER_STANDARD_ENTRY_ID,
         STANDARD_FACTORY_OUTPUT,
         AFTER_OWNER_ACTIONS,
@@ -226,7 +226,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
       _writePlanEntry(
         deployments,
         archControllerAddress,
-        22,
+        23,
         REGISTER_REVOLVING_ENTRY_ID,
         REVOLVING_FACTORY_OUTPUT,
         REGISTER_STANDARD_ENTRY_ID,

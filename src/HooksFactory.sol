@@ -47,6 +47,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   address public immutable override wrapperFactory;
 
+  address public immutable override borrowerIdentityRegistry;
+
   /**
    * @dev Return the contract name "WildcatHooksFactory"
    */
@@ -96,13 +98,15 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address _sanctionsSentinel,
     address _wrapperFactory,
     address _marketInitCodeStorage,
-    uint256 _marketInitCodeHash
+    uint256 _marketInitCodeHash,
+    address _borrowerIdentityRegistry
   ) {
     marketInitCodeStorage = _marketInitCodeStorage;
     marketInitCodeHash = _marketInitCodeHash;
     _archController = archController_;
     sanctionsSentinel = _sanctionsSentinel;
     wrapperFactory = _wrapperFactory;
+    borrowerIdentityRegistry = _borrowerIdentityRegistry;
     __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
   }
 
@@ -456,6 +460,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
     parameters.borrowerPrincipal = tmp.borrower;
+    parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
   }
 
   /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.

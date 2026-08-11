@@ -75,6 +75,8 @@ contract HooksFactoryRevolving is
 
   address public immutable override wrapperFactory;
 
+  address public immutable override borrowerIdentityRegistry;
+
   /**
    * @dev Return the contract name "WildcatHooksFactoryRevolving"
    */
@@ -113,13 +115,15 @@ contract HooksFactoryRevolving is
     address _sanctionsSentinel,
     address _wrapperFactory,
     address _marketInitCodeStorage,
-    uint256 _marketInitCodeHash
+    uint256 _marketInitCodeHash,
+    address _borrowerIdentityRegistry
   ) {
     marketInitCodeStorage = _marketInitCodeStorage;
     marketInitCodeHash = _marketInitCodeHash;
     _archController = archController_;
     sanctionsSentinel = _sanctionsSentinel;
     wrapperFactory = _wrapperFactory;
+    borrowerIdentityRegistry = _borrowerIdentityRegistry;
     __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
   }
 
@@ -483,6 +487,7 @@ contract HooksFactoryRevolving is
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
     parameters.borrowerPrincipal = tmp.borrower;
+    parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
   }
 
   function computeMarketAddress(bytes32 salt) external view override returns (address) {

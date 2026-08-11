@@ -6,6 +6,7 @@ import 'src/vault/Wildcat4626Wrapper.sol';
 import 'src/vault/Wildcat4626WrapperFactory.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
+import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
@@ -19,6 +20,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
   using HooksConfigLib for HooksConfig;
 
   WildcatArchController internal archController;
+  WildcatBorrowerIdentityRegistry internal borrowerIdentityRegistry;
   HooksFactory internal hooksFactory;
   WildcatSanctionsSentinel internal sanctionsSentinel;
   Wildcat4626WrapperFactory internal wrapperFactory;
@@ -31,6 +33,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
 
   function setUp() public override {
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
     MockChainalysis chainalysis = new MockChainalysis();
     sanctionsSentinel = new WildcatSanctionsSentinel(address(archController), address(chainalysis));
     wrapperFactory = new Wildcat4626WrapperFactory(address(archController), address(0));
@@ -44,7 +47,8 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
       address(sanctionsSentinel),
       address(wrapperFactory),
       initCodeStorage,
-      initCodeHash
+      initCodeHash,
+      address(borrowerIdentityRegistry)
     );
 
     archController.registerControllerFactory(address(hooksFactory));

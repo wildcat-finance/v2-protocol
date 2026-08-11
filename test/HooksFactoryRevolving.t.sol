@@ -3,6 +3,7 @@ pragma solidity >=0.8.19;
 
 import 'forge-std/Test.sol';
 import 'src/WildcatArchController.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 import 'src/HooksFactoryRevolving.sol';
 import 'src/IHooksFactoryRevolving.sol';
 import 'src/libraries/LibStoredInitCode.sol';
@@ -22,6 +23,7 @@ contract BrokenHooksTemplate {
 
 contract HooksFactoryRevolvingTest is Test, Assertions {
   WildcatArchController archController;
+  WildcatBorrowerIdentityRegistry borrowerIdentityRegistry;
   IHooksFactoryRevolving hooksFactoryRevolving;
   address hooksTemplate;
   MockERC20 underlying = new MockERC20('Underlying', 'UND', 18);
@@ -42,6 +44,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
 
   function setUp() public {
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
 
     (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
     hooksFactoryRevolving = new HooksFactoryRevolving(
@@ -49,7 +52,8 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
     archController.registerControllerFactory(address(hooksFactoryRevolving));
@@ -81,6 +85,10 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
   function test_nameAndRegistrationWiring() external view {
     assertEq(hooksFactoryRevolving.name(), 'WildcatHooksFactoryRevolving');
     assertEq(hooksFactoryRevolving.archController(), address(archController));
+    assertEq(
+      hooksFactoryRevolving.borrowerIdentityRegistry(),
+      address(borrowerIdentityRegistry)
+    );
     assertTrue(archController.isRegisteredControllerFactory(address(hooksFactoryRevolving)));
     assertTrue(archController.isRegisteredController(address(hooksFactoryRevolving)));
   }
@@ -522,7 +530,8 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      uint256(keccak256('stale revolving market init code hash'))
+      uint256(keccak256('stale revolving market init code hash')),
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(badFactory));
     badFactory.registerWithArchController();

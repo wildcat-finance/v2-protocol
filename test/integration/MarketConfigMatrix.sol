@@ -251,7 +251,8 @@ contract MarketConfigMatrix is BaseMarketTest {
       address(sanctionsSentinel),
       address(wrapperFactory),
       revolvingMarketInitCodeStorage,
-      revolvingMarketInitCodeHash
+      revolvingMarketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(revolvingFactory));
     revolvingFactory.registerWithArchController();

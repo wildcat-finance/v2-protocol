@@ -2,7 +2,7 @@
 
 This is the canonical from-scratch rehearsal for the v2.5 Sepolia EOA
 ceremony. It rebuilds the protocol and deployment artifacts, forks current
-Sepolia state, regenerates the 38-card plan, executes it through a
+Sepolia state, regenerates the 39-card plan, executes it through a
 digest-locked production build of `deploy-ui`, finalizes the local inventory,
 and exercises the canary and handoff paths.
 
@@ -14,16 +14,18 @@ any existing `deployments/anvil/` directory and kills an Anvil process matching
 the selected port before it starts. Preserve anything valuable and use an
 otherwise-unused port.
 
-At the time this walkthrough was written, the reviewed protocol source was
-`v2-protocol@bcab762` and the expected Sepolia-shaped plan was:
+The last completed fork rehearsal used `v2-protocol@bcab762` and a 38-card
+plan. The borrower identity registry adds one deployment before the markets, so
+the current Sepolia-shaped plan must have:
 
-- 38 transactions: 12 deployments and 26 calls;
+- 39 transactions: 13 deployments and 26 calls;
 - card 1: helper `returnOwnership()`;
-- cards 16-21: OpenTerm, FixedTerm, and PeriodicTerm registered on both the
+- card 3: borrower identity registry deployment;
+- cards 17-22: OpenTerm, FixedTerm, and PeriodicTerm registered on both the
   standard and revolving factories;
-- cards 24-37: paired controller-factory/controller removal for seven
+- cards 25-38: paired controller-factory/controller removal for seven
   superseded factories;
-- card 38: `transferOwnership(helper)`; and
+- card 39: `transferOwnership(helper)`; and
 - no market-removal call.
 
 Do not reuse those facts as a substitute for inspecting the newly generated
@@ -35,10 +37,10 @@ The rehearsal passes only when all of the following are true:
 
 - the full protocol test suite passes from a clean IR build;
 - the deploy-profile release source builds from a clean deploy cache;
-- the generated Anvil plan validates and has the reviewed 38-card shape;
+- the generated Anvil plan validates and has the reviewed 39-card shape;
 - Anvil is pinned to one recorded Sepolia block, uses only the explicitly
   selected archive endpoint, and writes a periodic recovery snapshot;
-- the locked UI accepts the embedded package and all 38 predicates turn green;
+- the locked UI accepts the embedded package and all 39 predicates turn green;
 - a page reload resumes from verified on-chain state;
 - the exported run-state passes independent CLI verification;
 - inventory finalization, validation, lint, and reconciliation are green;
@@ -60,7 +62,7 @@ Stop and preserve the fork if any of these occurs:
 - the connected wallet is not the exact plan executor;
 - a transaction reverts or a predicate remains red;
 - the UI reports a package/hash mismatch or a fatal halt;
-- ownership is not back with the helper after card 38; or
+- ownership is not back with the helper after card 39; or
 - independent run-state verification fails.
 
 Do not skip a card, edit the plan/package/run-state, clear browser storage, or
@@ -313,8 +315,8 @@ jq -e '
   .network == "anvil" and
   .chainId == 31337 and
   .release == "v2-5" and
-  (.transactions | length) == 38 and
-  ([.transactions[] | select(.kind == "deploy")] | length) == 12 and
+  (.transactions | length) == 39 and
+  ([.transactions[] | select(.kind == "deploy")] | length) == 13 and
   ([.transactions[] | select(.kind == "call")] | length) == 26 and
   .transactions[0].id == "reclaim-arch-controller-ownership" and
   .transactions[0].functionSignature == "returnOwnership()" and
@@ -445,7 +447,7 @@ cast nonce "$EXPECTED_EXECUTOR" --block pending --rpc-url "$RPC_URL"
 The values must match. Do not send unrelated wallet transactions during the
 ceremony.
 
-## 9. Walk all 38 cards
+## 9. Walk all 39 cards
 
 Connect the exact executor and confirm the UI shows:
 
@@ -453,7 +455,7 @@ Connect the exact executor and confirm the UI shows:
 - network `anvil`, chain `31337`;
 - release `v2-5`;
 - the recorded package fingerprint; and
-- 38 plan transactions.
+- 39 plan transactions.
 
 Then execute one card at a time. For every card:
 
@@ -470,16 +472,16 @@ Use these checkpoints:
 | After card | Expected state | Operator action |
 | --- | --- | --- |
 | 1 | Executor temporarily owns ArchController | Export and rename a checkpoint run-state. |
-| 13 | All 12 release contracts deployed | Export, rename, then reload the page and prove resume. |
-| 23 | Six templates added and both new factories registered | Export and rename a checkpoint. |
-| 37 | Seven superseded factories removed from both roles | Export before the compensating ownership return. |
-| 38 | Helper owns ArchController again | Export the final run-state. |
+| 14 | All 13 release contracts deployed | Export, rename, then reload the page and prove resume. |
+| 24 | Six templates added and both new factories registered | Export and rename a checkpoint. |
+| 38 | Seven superseded factories removed from both roles | Export before the compensating ownership return. |
+| 39 | Helper owns ArchController again | Export the final run-state. |
 
 The browser always downloads `run-state-v2-5.json`; rename intermediate files
 with their card number so they do not overwrite or obscure the final export.
 
-The reload after card 13 is part of acceptance. The page must re-read prior
-receipts/predicates and resume at card 14 without asking for a different plan.
+The reload after card 14 is part of acceptance. The page must re-read prior
+receipts/predicates and resume at card 15 without asking for a different plan.
 On that intentional reload, choose **Resume same Anvil fork**; completion and
 green card state must remain withheld until re-verification finishes.
 
@@ -543,7 +545,7 @@ cp /absolute/path/to/downloaded/run-state-v2-5.json "$RUN_STATE"
 Verify cardinality and receipt provenance through the independent CLI:
 
 ```bash
-test "$(jq 'length' "$RUN_STATE")" = "38"
+test "$(jq 'length' "$RUN_STATE")" = "39"
 
 node scripts/plan.js verify \
   --plan "$PLAN" \
@@ -586,7 +588,7 @@ the seven superseded factories must be unregistered but their historical
 
 ## 12. Run the standard and revolving canaries
 
-This phase is separate from the 38-card ceremony. It uses direct mode only
+This phase is separate from the 39-card ceremony. It uses direct mode only
 after inventory finalization.
 
 Use the disposable executor as the borrower and the seeded Sepolia mock token
