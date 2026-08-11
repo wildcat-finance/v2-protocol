@@ -1,0 +1,194 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
+pragma solidity >=0.8.20;
+
+import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSet.sol';
+import './interfaces/IBorrowerIdentityRegistry.sol';
+import './interfaces/IWildcatArchController.sol';
+
+/**
+ * @dev Resolves borrower accounts to registered principals. The current ArchController
+ *      owner may approve factories, but no association can be changed or removed.
+ */
+contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
+  using EnumerableSet for EnumerableSet.AddressSet;
+
+  address internal immutable _archController;
+
+  EnumerableSet.AddressSet internal _accountFactories;
+
+  mapping(address account => address principal) public override principalOf;
+  mapping(address account => address accountFactory) public override accountFactoryOf;
+  mapping(address principal => address[] accounts) internal _borrowerAccounts;
+  mapping(address accountFactory => address[] accounts) internal _borrowerAccountsForFactory;
+
+  constructor(address archController_) {
+    if (archController_ == address(0) || archController_.code.length == 0) {
+      revert InvalidArchController();
+    }
+    _archController = archController_;
+  }
+
+  function archController() external view override returns (address) {
+    return _archController;
+  }
+
+  modifier onlyArchControllerOwner() {
+    if (msg.sender != IWildcatArchController(_archController).owner()) {
+      revert CallerNotArchControllerOwner();
+    }
+    _;
+  }
+
+  modifier onlyAccountFactory() {
+    if (!_accountFactories.contains(msg.sender)) {
+      revert CallerNotAccountFactory();
+    }
+    _;
+  }
+
+  function addAccountFactory(
+    address accountFactory
+  ) external override onlyArchControllerOwner {
+    if (accountFactory == address(0) || accountFactory.code.length == 0) {
+      revert InvalidAccountFactory();
+    }
+    if (!_accountFactories.add(accountFactory)) {
+      revert AccountFactoryAlreadyExists();
+    }
+    emit AccountFactoryAdded(accountFactory);
+  }
+
+  function removeAccountFactory(
+    address accountFactory
+  ) external override onlyArchControllerOwner {
+    if (!_accountFactories.remove(accountFactory)) {
+      revert AccountFactoryDoesNotExist();
+    }
+    emit AccountFactoryRemoved(accountFactory);
+  }
+
+  function isAccountFactory(address accountFactory) external view override returns (bool) {
+    return _accountFactories.contains(accountFactory);
+  }
+
+  function getAccountFactories() external view override returns (address[] memory) {
+    return _accountFactories.values();
+  }
+
+  function getAccountFactories(
+    uint256 start,
+    uint256 end
+  ) external view override returns (address[] memory arr) {
+    if (start > end) revert InvalidPaginationRange();
+    uint256 length = _accountFactories.length();
+    if (end > length) end = length;
+    if (start >= end) return new address[](0);
+    uint256 count = end - start;
+    arr = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      arr[i] = _accountFactories.at(start + i);
+    }
+  }
+
+  function getAccountFactoriesCount() external view override returns (uint256) {
+    return _accountFactories.length();
+  }
+
+  function registerBorrowerAccount(
+    address account,
+    address principal
+  ) external override onlyAccountFactory {
+    if (principal == address(0)) revert BorrowerPrincipalNotRegistered();
+    if (account == address(0) || account == principal || account.code.length == 0) {
+      revert InvalidBorrowerAccount();
+    }
+    if (principalOf[account] != address(0)) {
+      revert BorrowerAccountAlreadyRegistered();
+    }
+
+    IWildcatArchController controller = IWildcatArchController(_archController);
+    if (controller.isRegisteredBorrower(account) || principalOf[principal] != address(0)) {
+      revert AmbiguousBorrowerIdentity();
+    }
+    if (!controller.isRegisteredBorrower(principal)) {
+      revert BorrowerPrincipalNotRegistered();
+    }
+
+    principalOf[account] = principal;
+    accountFactoryOf[account] = msg.sender;
+    _borrowerAccounts[principal].push(account);
+    _borrowerAccountsForFactory[msg.sender].push(account);
+
+    emit BorrowerAccountRegistered(account, principal, msg.sender);
+  }
+
+  function resolveBorrower(address borrower) external view override returns (address principal) {
+    if (borrower == address(0)) revert BorrowerIdentityNotFound();
+
+    principal = principalOf[borrower];
+    IWildcatArchController controller = IWildcatArchController(_archController);
+    if (controller.isRegisteredBorrower(borrower)) {
+      if (principal != address(0)) revert AmbiguousBorrowerIdentity();
+      return borrower;
+    }
+    if (principal == address(0)) revert BorrowerIdentityNotFound();
+    if (principalOf[principal] != address(0)) revert AmbiguousBorrowerIdentity();
+    if (!controller.isRegisteredBorrower(principal)) {
+      revert BorrowerPrincipalNotRegistered();
+    }
+  }
+
+  function getBorrowerAccounts(
+    address principal
+  ) external view override returns (address[] memory) {
+    return _borrowerAccounts[principal];
+  }
+
+  function getBorrowerAccounts(
+    address principal,
+    uint256 start,
+    uint256 end
+  ) external view override returns (address[] memory) {
+    return _getAddressSlice(_borrowerAccounts[principal], start, end);
+  }
+
+  function getBorrowerAccountsCount(address principal) external view override returns (uint256) {
+    return _borrowerAccounts[principal].length;
+  }
+
+  function getBorrowerAccountsForFactory(
+    address accountFactory
+  ) external view override returns (address[] memory) {
+    return _borrowerAccountsForFactory[accountFactory];
+  }
+
+  function getBorrowerAccountsForFactory(
+    address accountFactory,
+    uint256 start,
+    uint256 end
+  ) external view override returns (address[] memory) {
+    return _getAddressSlice(_borrowerAccountsForFactory[accountFactory], start, end);
+  }
+
+  function getBorrowerAccountsForFactoryCount(
+    address accountFactory
+  ) external view override returns (uint256) {
+    return _borrowerAccountsForFactory[accountFactory].length;
+  }
+
+  function _getAddressSlice(
+    address[] storage values,
+    uint256 start,
+    uint256 end
+  ) internal view returns (address[] memory arr) {
+    if (start > end) revert InvalidPaginationRange();
+    uint256 length = values.length;
+    if (end > length) end = length;
+    if (start >= end) return new address[](0);
+    uint256 count = end - start;
+    arr = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      arr[i] = values[start + i];
+    }
+  }
+}
