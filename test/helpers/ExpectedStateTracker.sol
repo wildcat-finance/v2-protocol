@@ -69,7 +69,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
               abi.encodePacked(
                 bytes1(0xff),
                 parameters.sentinel,
-                keccak256(abi.encode(parameters.borrower, accountAddress, asset)),
+                keccak256(abi.encode(market.borrowerPrincipal(), accountAddress, asset)),
                 WildcatSanctionsEscrowInitcodeHash
               )
             )
@@ -434,7 +434,10 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
 
     uint128 normalizedAmountWithdrawn = newTotalWithdrawn - status.normalizedAmountWithdrawn;
     MarketAccount storage account = _getAccount(accountAddress);
-    bool isSanctioned = sanctionsSentinel.isSanctioned(borrower, accountAddress);
+    bool isSanctioned = sanctionsSentinel.isSanctioned(
+      market.borrowerPrincipal(),
+      accountAddress
+    );
     _trackExecuteWithdrawal(state, expiry, accountAddress, normalizedAmountWithdrawn, isSanctioned);
   }
 

@@ -27,6 +27,7 @@ contract MockMarketToken is IWildcatMarketToken {
 
   uint256 public override scaleFactor = RAY;
   address public immutable override borrower;
+  address public immutable override borrowerPrincipal;
   address public immutable override sentinel;
   address public immutable override wrapperFactory;
 
@@ -35,6 +36,7 @@ contract MockMarketToken is IWildcatMarketToken {
 
   constructor(address borrower_, address sentinel_) {
     borrower = borrower_;
+    borrowerPrincipal = borrower_;
     sentinel = sentinel_;
     wrapperFactory = msg.sender;
   }

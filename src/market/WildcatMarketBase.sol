@@ -409,18 +409,18 @@ contract WildcatMarketBase is
 
   /**
    * @dev Checks if `account` is flagged as a sanctioned entity by Chainalysis.
-   *      If an account is flagged mistakenly, the borrower can override their
+   *      If an account is flagged mistakenly, the principal can override their
    *      status on the sentinel and allow them to interact with the market.
    */
   function _isSanctioned(address account) internal view returns (bool result) {
-    address _borrower = borrower();
+    address _borrowerPrincipal = borrowerPrincipal();
     address _sentinel = address(sentinel);
     assembly {
       let freeMemoryPointer := mload(0x40)
       mstore(0, 0x06e74444)
-      mstore(0x20, _borrower)
+      mstore(0x20, _borrowerPrincipal)
       mstore(0x40, account)
-      // Call `sentinel.isSanctioned(borrower, account)` and revert if the call fails
+      // Call `sentinel.isSanctioned(principal, account)` and revert if the call fails
       // or does not return 32 bytes.
       if iszero(
         and(eq(returndatasize(), 0x20), staticcall(gas(), _sentinel, 0x1c, 0x44, 0, 0x20))
@@ -952,13 +952,13 @@ contract WildcatMarketBase is
     address accountAddress
   ) internal returns (address escrow) {
     address tokenAddress = address(asset);
-    address borrowerAddress = borrower();
+    address principalAddress = borrowerPrincipal();
     address sentinelAddress = address(sentinel);
 
     assembly {
       let freeMemoryPointer := mload(0x40)
       mstore(0, 0xa1054f6b)
-      mstore(0x20, borrowerAddress)
+      mstore(0x20, principalAddress)
       mstore(0x40, accountAddress)
       mstore(0x60, tokenAddress)
       if iszero(

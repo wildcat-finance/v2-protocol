@@ -54,6 +54,7 @@ contract GuardMockMarket is IWildcatMarketToken {
 
   uint256 public override scaleFactor = RAY;
   address public immutable override borrower;
+  address public immutable override borrowerPrincipal;
   address public immutable override sentinel;
   address public immutable override wrapperFactory;
   uint256 internal _maxTotalSupply = type(uint128).max;
@@ -66,6 +67,7 @@ contract GuardMockMarket is IWildcatMarketToken {
   constructor(uint8 decimals_, address borrower_, address sentinel_) {
     decimals = decimals_;
     borrower = borrower_;
+    borrowerPrincipal = borrower_;
     sentinel = sentinel_;
     wrapperFactory = msg.sender;
   }

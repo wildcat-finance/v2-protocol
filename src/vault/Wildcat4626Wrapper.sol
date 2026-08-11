@@ -15,6 +15,8 @@ interface IWildcatMarketToken is IERC20Metadata {
 
   function borrower() external view returns (address);
 
+  function borrowerPrincipal() external view returns (address);
+
   function maxTotalSupply() external view returns (uint256);
 
   function sentinel() external view returns (address);
@@ -48,7 +50,6 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   error InsolventWrapper(uint256 scaledBacking, uint256 shareSupply);
 
   IWildcatMarketToken public immutable wrappedMarket;
-  address public immutable marketOwner;
   IWildcatSanctionsSentinel public immutable sanctionsSentinel;
 
   uint8 private immutable _decimals;
@@ -63,11 +64,11 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
     wrappedMarket = IWildcatMarketToken(marketAddress);
     if (msg.sender != wrappedMarket.wrapperFactory()) revert NotWrapperFactory();
-    address owner = wrappedMarket.borrower();
-    if (owner == address(0)) revert ZeroAddress();
+    address currentBorrower = wrappedMarket.borrower();
+    if (currentBorrower == address(0)) revert ZeroAddress();
+    if (wrappedMarket.borrowerPrincipal() == address(0)) revert ZeroAddress();
     address sentinel = wrappedMarket.sentinel();
     if (sentinel == address(0)) revert ZeroAddress();
-    marketOwner = owner;
     sanctionsSentinel = IWildcatSanctionsSentinel(sentinel);
     _decimals = wrappedMarket.decimals();
 
@@ -124,6 +125,11 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice Address of the wrapped Wildcat market token.
   function market() public view returns (address) {
     return address(wrappedMarket);
+  }
+
+  /// @notice Current operational borrower of the wrapped market.
+  function marketOwner() public view returns (address) {
+    return wrappedMarket.borrower();
   }
 
   /// @notice Alias for the wrapped market so integrators can treat it as the ERC-4626 asset.
@@ -412,7 +418,11 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 shares = balanceOf(account);
     if (shares == 0) return;
 
-    address escrow = sanctionsSentinel.createEscrow(marketOwner, account, address(this));
+    address escrow = sanctionsSentinel.createEscrow(
+      wrappedMarket.borrowerPrincipal(),
+      account,
+      address(this)
+    );
     _transfer(account, escrow, shares);
     emit SanctionedAccountSharesSentToEscrow(account, escrow, shares);
   }
@@ -420,7 +430,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @notice Sweep arbitrary ERC20 balances and any stranded wrapped market tokens.
   /// @dev For wrapped market sweeps, only the surplus over total supply is sweepable.
   function sweep(address token, address to) external nonReentrant returns (uint256 amount) {
-    if (msg.sender != marketOwner) revert NotMarketOwner();
+    if (msg.sender != wrappedMarket.borrower()) revert NotMarketOwner();
     if (token == address(0) || to == address(0)) revert ZeroAddress();
     _checkNotSanctioned(to);
 
@@ -491,7 +501,23 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   function _isSanctioned(address account) internal view returns (bool) {
-    return account != address(0) && sanctionsSentinel.isSanctioned(marketOwner, account);
+    return
+      account != address(0) &&
+      sanctionsSentinel.isSanctioned(wrappedMarket.borrowerPrincipal(), account);
+  }
+
+  /// @dev Checks `from` against the canonical escrow for `account` under its original principal.
+  function _isEscrowRelease(address from, address account) internal view returns (bool) {
+    address escrowPrincipal;
+    assembly {
+      mstore(0, 0x7df1f1b9) // borrower()
+      if and(eq(returndatasize(), 0x20), staticcall(gas(), from, 0x1c, 0x04, 0, 0x20)) {
+        escrowPrincipal := and(mload(0), 0xffffffffffffffffffffffffffffffffffffffff)
+      }
+    }
+    return
+      escrowPrincipal != address(0) &&
+      sanctionsSentinel.getEscrowAddress(escrowPrincipal, account, address(this)) == from;
   }
 
   function _isSolvent() internal view returns (bool) {
@@ -521,13 +547,23 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-    if (_isSanctioned(from)) {
-      address escrow = sanctionsSentinel.getEscrowAddress(marketOwner, from, address(this));
-      if (to != escrow) revert SanctionedAccount(from);
-    } else {
+    bool fromIsSanctioned = _isSanctioned(from);
+    bool toIsSanctioned = _isSanctioned(to);
+    if ((fromIsSanctioned || toIsSanctioned) && _isEscrowRelease(from, to)) {
       _requireOperational();
+    } else {
+      if (fromIsSanctioned) {
+        address escrow = sanctionsSentinel.getEscrowAddress(
+          wrappedMarket.borrowerPrincipal(),
+          from,
+          address(this)
+        );
+        if (to != escrow) revert SanctionedAccount(from);
+      } else {
+        _requireOperational();
+      }
+      if (toIsSanctioned) revert SanctionedAccount(to);
     }
-    _checkNotSanctioned(to);
     if (amount == 0) {
       return;
     }

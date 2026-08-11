@@ -21,6 +21,7 @@ contract StubMarketToken is IWildcatMarketToken {
 
   uint256 public override scaleFactor = RAY;
   address public immutable override borrower;
+  address public immutable override borrowerPrincipal;
   address public immutable override sentinel;
   address public immutable override wrapperFactory;
   address public registeredWrapper;
@@ -38,6 +39,7 @@ contract StubMarketToken is IWildcatMarketToken {
     address wrapperFactory_
   ) {
     borrower = borrower_;
+    borrowerPrincipal = borrower_;
     sentinel = sentinel_;
     _declaresFloorRounding = declaresFloorRounding_;
     wrapperFactory = wrapperFactory_;

@@ -143,10 +143,14 @@ contract WildcatMarket is
    *      Reverts if the market is closed.
    */
   function borrow(uint256 amount) external virtual onlyBorrower nonReentrant sphereXGuardExternal {
-    // Check if the borrower is flagged as a sanctioned entity on Chainalysis.
-    // Uses `isFlaggedByChainalysis` instead of `isSanctioned` to prevent the borrower
-    // overriding their sanction status.
-    if (_isFlaggedByChainalysis(borrower())) {
+    // Check the raw Chainalysis status of both borrower identities. Sentinel overrides
+    // must not let either identity draw while flagged.
+    address currentBorrower = borrower();
+    address currentPrincipal = borrowerPrincipal();
+    if (
+      _isFlaggedByChainalysis(currentBorrower) ||
+      (currentPrincipal != currentBorrower && _isFlaggedByChainalysis(currentPrincipal))
+    ) {
       revert_BorrowWhileSanctioned();
     }
 
