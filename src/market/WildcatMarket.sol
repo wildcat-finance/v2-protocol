@@ -146,7 +146,7 @@ contract WildcatMarket is
     // Check if the borrower is flagged as a sanctioned entity on Chainalysis.
     // Uses `isFlaggedByChainalysis` instead of `isSanctioned` to prevent the borrower
     // overriding their sanction status.
-    if (_isFlaggedByChainalysis(borrower)) {
+    if (_isFlaggedByChainalysis(borrower())) {
       revert_BorrowWhileSanctioned();
     }
 
@@ -231,7 +231,7 @@ contract WildcatMarket is
     } else if (currentlyHeld > totalDebts) {
       uint256 excessDebt = currentlyHeld - totalDebts;
       // Transfer excess assets to borrower
-      asset.safeTransfer(borrower, excessDebt);
+      asset.safeTransfer(borrower(), excessDebt);
       currentlyHeld -= excessDebt;
     }
     hooks.onCloseMarket(state);

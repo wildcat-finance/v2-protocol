@@ -24,7 +24,7 @@ contract WildcatMarketBase is
   using LibERC20 for address;
 
   // ==================================================================== //
-  //                       Market Config (immutable)                       //
+  //                            Market Config                             //
   // ==================================================================== //
 
   /**
@@ -61,9 +61,6 @@ contract WildcatMarketBase is
   /// @dev Account with blacklist control, used for blocking sanctioned addresses.
   address public immutable sentinel;
 
-  /// @dev Account with authority to borrow assets from the market.
-  address public immutable borrower;
-
   /// @dev Factory that deployed the market. Has the ability to update the protocol fee.
   address public immutable factory;
 
@@ -72,6 +69,11 @@ contract WildcatMarketBase is
 
   /// @dev Canonical factory allowed to register this market's optional ERC-4626 wrapper.
   address public immutable wrapperFactory;
+
+  /// @dev Namespaced slot for the operational borrower. This keeps borrower
+  ///      transfers from shifting the existing market storage layout.
+  bytes32 internal constant BORROWER_STORAGE_SLOT =
+    bytes32(uint256(keccak256('wildcat.market.borrower')) - 1);
 
   /// @dev Namespaced slot for the optional canonical wrapper. Using an
   ///      unstructured slot preserves the established market storage layout.
@@ -150,6 +152,11 @@ contract WildcatMarketBase is
   MarketState internal _state;
 
   mapping(address => Account) internal _accounts;
+
+  /// @notice Current operational borrower.
+  function borrower() public view returns (address) {
+    return _getAddress(BORROWER_STORAGE_SLOT);
+  }
 
   /// @notice Canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
   function registeredWrapper() public view returns (address) {
@@ -235,7 +242,7 @@ contract WildcatMarketBase is
 
     hooks = parameters.hooks;
     sentinel = parameters.sentinel;
-    borrower = parameters.borrower;
+    _setAddress(BORROWER_STORAGE_SLOT, parameters.borrower);
     feeRecipient = parameters.feeRecipient;
     wrapperFactory = parameters.wrapperFactory;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
@@ -250,7 +257,7 @@ contract WildcatMarketBase is
   // ===================================================================== //
 
   modifier onlyBorrower() {
-    address _borrower = borrower;
+    address _borrower = borrower();
     assembly {
       // Equivalent to
       // if (msg.sender != borrower) revert NotApprovedBorrower();
@@ -282,7 +289,7 @@ contract WildcatMarketBase is
    *      status on the sentinel and allow them to interact with the market.
    */
   function _isSanctioned(address account) internal view returns (bool result) {
-    address _borrower = borrower;
+    address _borrower = borrower();
     address _sentinel = address(sentinel);
     assembly {
       let freeMemoryPointer := mload(0x40)
@@ -821,7 +828,7 @@ contract WildcatMarketBase is
     address accountAddress
   ) internal returns (address escrow) {
     address tokenAddress = address(asset);
-    address borrowerAddress = borrower;
+    address borrowerAddress = borrower();
     address sentinelAddress = address(sentinel);
 
     assembly {

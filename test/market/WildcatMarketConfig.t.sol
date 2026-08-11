@@ -37,6 +37,9 @@ contract MockPendingAprReductionHooks is MockHooks {
 contract WildcatMarketConfigTest is BaseMarketTest {
   using MathUtils for uint;
 
+  bytes32 internal constant BORROWER_STORAGE_SLOT =
+    bytes32(uint256(keccak256('wildcat.market.borrower')) - 1);
+
   MockPendingAprReductionHooks internal aprReductionHooks;
 
   function resetWithMockPendingAprReductionHooks() internal asSelf {
@@ -87,6 +90,31 @@ contract WildcatMarketConfigTest is BaseMarketTest {
 
   function test_reserveRatioBips() external asAccount(borrower) {
     assertEq(market.reserveRatioBips(), parameters.reserveRatioBips);
+  }
+
+  function test_borrowerReadsFromNamespacedStorage() external {
+    assertEq(
+      address(uint160(uint256(vm.load(address(market), BORROWER_STORAGE_SLOT)))),
+      borrower,
+      'stored borrower'
+    );
+
+    address newBorrower = address(0xB0B);
+    vm.store(
+      address(market),
+      BORROWER_STORAGE_SLOT,
+      bytes32(uint256(uint160(newBorrower)))
+    );
+
+    assertEq(market.borrower(), newBorrower, 'borrower getter');
+
+    vm.prank(borrower);
+    vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+    market.setMaxTotalSupply(1);
+
+    vm.prank(newBorrower);
+    market.setMaxTotalSupply(1);
+    assertEq(market.maxTotalSupply(), 1, 'new borrower authority');
   }
 
   // ========================================================================== //

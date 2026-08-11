@@ -17,6 +17,7 @@ import { MockSanctionsSentinel } from '../shared/mocks/MockSanctionsSentinel.sol
 import { deployMockChainalysis } from '../shared/mocks/MockChainalysis.sol';
 
 contract WildcatMarketRevolvingTest is Test {
+  using stdStorage for StdStorage;
   using MathUtils for uint256;
   using FeeMath for MarketState;
 
@@ -538,7 +539,11 @@ contract WildcatMarketRevolvingTest is Test {
     _deposit(lender, 1_000e18);
 
     // Force drawnAmount > totalSupply so utilization is clamped to 100%.
-    vm.store(address(market), bytes32(uint256(10)), bytes32(uint256(2_000e18)));
+    uint256 drawnAmountSlot = stdstore
+      .target(address(revolvingMarket))
+      .sig(IWildcatMarketRevolving.drawnAmount.selector)
+      .find();
+    vm.store(address(market), bytes32(drawnAmountSlot), bytes32(uint256(2_000e18)));
 
     vm.warp(block.timestamp + 365 days);
     market.updateState();
