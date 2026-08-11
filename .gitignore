@@ -27,6 +27,12 @@ deployments/*/HooksFactoryRevolving-0x*/
 deployments/*/pending-admin-actions/
 deployments/*/rcf-template-sync-*.json
 deployments/*/rcf-v2-handoff*.json
+deployments/*/ceremony-evidence/
+deployments/*/ceremony-v2-5-*.json
+deployments/*/inventory-pending/
+deployments/*/plan-entries/
+deployments/*/plan-v2-5.json
+deployments/*/run-state-checkpoints/
 deployments/anvil/
 deployments/*/reconcile-report.json
 audits/
