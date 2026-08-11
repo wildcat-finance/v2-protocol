@@ -63,6 +63,9 @@ struct OptionalUintDataV2_5 {
 
 struct MarketDataV2_5 {
   MarketData market;
+  address borrowerPrincipal;
+  address pendingBorrower;
+  address borrowerIdentityRegistry;
   OptionalUintDataV2_5 commitmentFeeBips;
   OptionalUintDataV2_5 drawnAmount;
 }
@@ -123,11 +126,14 @@ library MarketDataLib {
     data.delinquencyFeeBips = market.delinquencyFeeBips();
     data.delinquencyGracePeriod = market.delinquencyGracePeriod();
     address hooksAddress = data.hooksConfig.hooksAddress;
-    data.hooks.fill(hooksAddress, IHooksFactory(data.hooksFactory), data.borrower);
+    data.hooks.fill(hooksAddress, IHooksFactory(data.hooksFactory));
   }
 
   function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
     data.market.fill(market);
+    data.borrowerPrincipal = market.borrowerPrincipal();
+    data.pendingBorrower = market.pendingBorrower();
+    data.borrowerIdentityRegistry = market.borrowerIdentityRegistry();
     _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
     _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
   }

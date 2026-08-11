@@ -229,6 +229,7 @@ contract WildcatMarketBase is
     // a `MarketParameters` object without creating a duplicate allocation or unnecessarily
     // zeroing out the memory buffer.
     MarketParameters memory parameters = _getMarketParameters.asReturnsMarketParameters()();
+    if (parameters.borrower == address(0)) revert InvalidBorrower();
 
     // Set asset metadata
     asset = parameters.asset;
@@ -294,7 +295,10 @@ contract WildcatMarketBase is
     ) {
       revert InvalidBorrowerIdentityRegistry();
     }
-    if (!IWildcatArchController(_archController).isRegisteredBorrower(parameters.borrowerPrincipal)) {
+    if (
+      parameters.borrowerPrincipal == address(0) ||
+      !IWildcatArchController(_archController).isRegisteredBorrower(parameters.borrowerPrincipal)
+    ) {
       revert BorrowerPrincipalNotRegistered();
     }
     __SphereXProtectedRegisteredBase_init(parameters.sphereXEngine);

@@ -166,6 +166,21 @@ contract WildcatMarketBaseTest is BaseMarketTest {
     parameterFactory.deployMarket(constructorParameters);
   }
 
+  function test_constructorRejectsZeroOperationalBorrower() external {
+    address principal = address(0xA11CE);
+    archController.registerBorrower(principal);
+    MarketParameters memory constructorParameters = _getConstructorParameters(
+      address(0),
+      principal,
+      address(borrowerIdentityRegistry),
+      EmptyHooksConfig
+    );
+    MockMarketParametersFactory parameterFactory = new MockMarketParametersFactory();
+
+    vm.expectRevert(IMarketEventsAndErrors.InvalidBorrower.selector);
+    parameterFactory.deployMarket(constructorParameters);
+  }
+
   function test_constructorRejectsUnregisteredBorrowerPrincipal() external {
     MarketParameters memory constructorParameters = _getConstructorParameters(
       address(0xD00D),
@@ -174,6 +189,12 @@ contract WildcatMarketBaseTest is BaseMarketTest {
       EmptyHooksConfig
     );
     MockMarketParametersFactory parameterFactory = new MockMarketParametersFactory();
+
+    vm.expectRevert(IMarketEventsAndErrors.BorrowerPrincipalNotRegistered.selector);
+    parameterFactory.deployMarket(constructorParameters);
+
+    archController.registerBorrower(address(0));
+    constructorParameters.borrowerPrincipal = address(0);
 
     vm.expectRevert(IMarketEventsAndErrors.BorrowerPrincipalNotRegistered.selector);
     parameterFactory.deployMarket(constructorParameters);

@@ -19,6 +19,7 @@ import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
 import 'src/lens/MarketLens.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import 'src/IHooksFactory.sol';
+import 'src/interfaces/IBorrowerIdentityRegistry.sol';
 
 enum FuzzConditions {
   Default,
@@ -59,6 +60,21 @@ contract HooksInstanceDataHarness {
     IHooksFactory factory
   ) external view returns (HooksInstanceData memory data) {
     data.fill(hooksAddress, factory);
+  }
+}
+
+contract MarketLensBorrowerAccount {}
+
+contract MarketLensBorrowerAccountFactory {
+  IBorrowerIdentityRegistry public immutable registry;
+
+  constructor(address registry_) {
+    registry = IBorrowerIdentityRegistry(registry_);
+  }
+
+  function deployAccount(address principal) external returns (address account) {
+    account = address(new MarketLensBorrowerAccount());
+    registry.registerBorrowerAccount(account, principal);
   }
 }
 
@@ -349,6 +365,42 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(data.market.originalAnnualInterestBips, 0, 'originalAnnualInterestBips');
     assertEq(data.market.originalReserveRatioBips, 0, 'originalReserveRatioBips');
     assertEq(data.market.temporaryReserveRatioExpiry, 0, 'temporaryReserveRatioExpiry');
+  }
+
+  function test_getMarketDataV2_tracksBorrowerTransferWithoutRelabelingHooks() external {
+    MarketLensBorrowerAccountFactory accountFactory = new MarketLensBorrowerAccountFactory(
+      address(borrowerIdentityRegistry)
+    );
+    borrowerIdentityRegistry.addAccountFactory(address(accountFactory));
+    address nextBorrower = accountFactory.deployAccount(borrower);
+
+    vm.prank(borrower);
+    market.requestBorrowerTransfer(nextBorrower);
+
+    MarketDataV2_5 memory pendingData = lens.getMarketDataV2(address(market));
+    assertEq(pendingData.market.borrower, borrower, 'pending market borrower');
+    assertEq(pendingData.borrowerPrincipal, borrower, 'pending market principal');
+    assertEq(pendingData.pendingBorrower, nextBorrower, 'pending borrower');
+    assertEq(
+      pendingData.borrowerIdentityRegistry,
+      address(borrowerIdentityRegistry),
+      'identity registry'
+    );
+    assertEq(pendingData.market.hooks.borrower, borrower, 'pending hook administrator');
+
+    vm.prank(nextBorrower);
+    market.acceptBorrowerTransfer();
+
+    MarketDataV2_5 memory acceptedData = lens.getMarketDataV2(address(market));
+    assertEq(acceptedData.market.borrower, nextBorrower, 'accepted market borrower');
+    assertEq(acceptedData.borrowerPrincipal, borrower, 'accepted market principal');
+    assertEq(acceptedData.pendingBorrower, address(0), 'accepted pending borrower');
+    assertEq(
+      acceptedData.borrowerIdentityRegistry,
+      address(borrowerIdentityRegistry),
+      'accepted identity registry'
+    );
+    assertEq(acceptedData.market.hooks.borrower, borrower, 'accepted hook administrator');
   }
 
   function test_coreDelegation_forAccountAndWithdrawalReads() external {

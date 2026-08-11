@@ -82,6 +82,8 @@ interface IMarketEventsAndErrors {
 
   error ProtocolFeeTooHigh();
 
+  error InvalidBorrower();
+
   error InvalidBorrowerIdentityRegistry();
 
   error InvalidBorrowerTransferTarget();
