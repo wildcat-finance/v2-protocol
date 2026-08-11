@@ -292,6 +292,10 @@ contract WildcatMarketRevolvingTest is Test {
     assertEq(revolvingMarket.drawnAmount(), 0);
   }
 
+  function test_borrowerPrincipal_initializesToBorrower() external view {
+    assertEq(market.borrowerPrincipal(), borrower);
+  }
+
   function test_borrow_updatesDrawnAmount() external {
     _deposit(lender, 1_000e18);
     market.borrow(400e18);

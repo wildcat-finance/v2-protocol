@@ -75,10 +75,17 @@ contract WildcatMarketBase is
   bytes32 internal constant BORROWER_STORAGE_SLOT =
     bytes32(uint256(keccak256('wildcat.market.borrower')) - 1);
 
+  /// @dev Namespaced slot for the market's registered principal.
+  bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT =
+    bytes32(uint256(keccak256('wildcat.market.borrowerPrincipal')) - 1);
+
   /// @dev Namespaced slot for the optional canonical wrapper. Using an
   ///      unstructured slot preserves the established market storage layout.
   bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT =
     bytes32(uint256(keccak256('wildcat.market.registeredWrapper')) - 1);
+
+  /// @dev ABI-encoded size of `MarketParameters`, which has 21 static fields.
+  uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2a0;
 
   /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
   uint public immutable delinquencyFeeBips;
@@ -158,6 +165,11 @@ contract WildcatMarketBase is
     return _getAddress(BORROWER_STORAGE_SLOT);
   }
 
+  /// @notice Current registered principal for the market.
+  function borrowerPrincipal() public view returns (address) {
+    return _getAddress(BORROWER_PRINCIPAL_STORAGE_SLOT);
+  }
+
   /// @notice Canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
   function registeredWrapper() public view returns (address) {
     return _getAddress(REGISTERED_WRAPPER_STORAGE_SLOT);
@@ -172,7 +184,7 @@ contract WildcatMarketBase is
   function _getMarketParameters() internal view returns (uint256 marketParametersPointer) {
     assembly {
       marketParametersPointer := mload(0x40)
-      mstore(0x40, add(marketParametersPointer, 0x280))
+      mstore(0x40, add(marketParametersPointer, _MARKET_PARAMETERS_SIZE))
       // Write the selector for IHooksFactory.getMarketParameters
       mstore(0x00, 0x04032dbb)
       // Call `getMarketParameters` and copy the returned struct to the allocated memory
@@ -181,8 +193,15 @@ contract WildcatMarketBase is
       // the factory contract which will only ever return the prepared market parameters.
       if iszero(
         and(
-          eq(returndatasize(), 0x280),
-          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x280)
+          eq(returndatasize(), _MARKET_PARAMETERS_SIZE),
+          staticcall(
+            gas(),
+            caller(),
+            0x1c,
+            0x04,
+            marketParametersPointer,
+            _MARKET_PARAMETERS_SIZE
+          )
         )
       ) {
         revert(0, 0)
@@ -243,6 +262,7 @@ contract WildcatMarketBase is
     hooks = parameters.hooks;
     sentinel = parameters.sentinel;
     _setAddress(BORROWER_STORAGE_SLOT, parameters.borrower);
+    _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, parameters.borrowerPrincipal);
     feeRecipient = parameters.feeRecipient;
     wrapperFactory = parameters.wrapperFactory;
     delinquencyFeeBips = parameters.delinquencyFeeBips;

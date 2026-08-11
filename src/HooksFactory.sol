@@ -455,6 +455,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.archController = _archController;
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
+    parameters.borrowerPrincipal = tmp.borrower;
   }
 
   /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.

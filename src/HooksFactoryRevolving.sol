@@ -482,6 +482,7 @@ contract HooksFactoryRevolving is
     parameters.archController = _archController;
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
+    parameters.borrowerPrincipal = tmp.borrower;
   }
 
   function computeMarketAddress(bytes32 salt) external view override returns (address) {

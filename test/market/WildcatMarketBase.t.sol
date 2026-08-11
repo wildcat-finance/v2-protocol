@@ -41,7 +41,78 @@ contract ProtocolFeeReadOnDepositHooks is MockHooks {
   }
 }
 
+contract MockMarketParametersFactory {
+  MarketParameters internal _parameters;
+
+  function deployMarket(
+    MarketParameters memory parameters
+  ) external returns (WildcatMarket market) {
+    _parameters = parameters;
+    market = new WildcatMarket();
+  }
+
+  function getMarketParameters() external view returns (MarketParameters memory) {
+    return _parameters;
+  }
+}
+
 contract WildcatMarketBaseTest is BaseMarketTest {
+  function test_constructorSupportsDistinctBorrowerAndPrincipal() external {
+    address operationalBorrower = address(0xD00D);
+    address principal = address(0xA11CE);
+    HooksConfig hooksConfig = HooksConfig.wrap((uint256(0xBEEF) << 96) | 0xA5);
+    archController.registerBorrower(principal);
+
+    MarketParameters memory constructorParameters = MarketParameters({
+      asset: address(asset),
+      decimals: 18,
+      packedNameWord0: bytes32(0),
+      packedNameWord1: bytes32(0),
+      packedSymbolWord0: bytes32(0),
+      packedSymbolWord1: bytes32(0),
+      borrower: operationalBorrower,
+      feeRecipient: feeRecipient,
+      sentinel: address(sanctionsSentinel),
+      wrapperFactory: address(wrapperFactory),
+      maxTotalSupply: uint128(DefaultMaximumSupply),
+      protocolFeeBips: DefaultProtocolFeeBips,
+      annualInterestBips: DefaultInterest,
+      delinquencyFeeBips: DefaultDelinquencyFee,
+      withdrawalBatchDuration: DefaultWithdrawalBatchDuration,
+      reserveRatioBips: DefaultReserveRatio,
+      delinquencyGracePeriod: DefaultGracePeriod,
+      archController: address(archController),
+      sphereXEngine: address(0),
+      hooks: hooksConfig,
+      borrowerPrincipal: principal
+    });
+
+    MockMarketParametersFactory parameterFactory = new MockMarketParametersFactory();
+    WildcatMarket distinctIdentityMarket = parameterFactory.deployMarket(constructorParameters);
+
+    assertEq(distinctIdentityMarket.borrower(), operationalBorrower, 'borrower');
+    assertEq(distinctIdentityMarket.borrowerPrincipal(), principal, 'borrowerPrincipal');
+    assertEq(distinctIdentityMarket.factory(), address(parameterFactory), 'factory');
+    assertFalse(archController.isRegisteredBorrower(operationalBorrower));
+    assertTrue(archController.isRegisteredBorrower(principal));
+
+    (bool success, bytes memory encodedParameters) = address(parameterFactory).staticcall(
+      abi.encodeCall(MockMarketParametersFactory.getMarketParameters, ())
+    );
+    assertTrue(success);
+    assertEq(encodedParameters.length, 0x2a0, 'encoded parameters length');
+
+    uint256 encodedHooks;
+    address encodedPrincipal;
+    assembly {
+      // `hooks` stays at word 19; `borrowerPrincipal` is appended at word 20.
+      encodedHooks := mload(add(encodedParameters, 0x280))
+      encodedPrincipal := mload(add(encodedParameters, 0x2a0))
+    }
+    assertEq(encodedHooks, HooksConfig.unwrap(hooksConfig), 'hooks word');
+    assertEq(encodedPrincipal, principal, 'borrowerPrincipal word');
+  }
+
   // ===================================================================== //
   //                          coverageLiquidity()                          //
   // ===================================================================== //
