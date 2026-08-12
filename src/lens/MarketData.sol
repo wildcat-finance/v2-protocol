@@ -65,6 +65,7 @@ struct MarketDataV2_5 {
   MarketData market;
   address borrowerPrincipal;
   address pendingBorrower;
+  address pendingBorrowerPrincipal;
   address borrowerIdentityRegistry;
   OptionalUintDataV2_5 commitmentFeeBips;
   OptionalUintDataV2_5 drawnAmount;
@@ -133,6 +134,7 @@ library MarketDataLib {
     data.market.fill(market);
     data.borrowerPrincipal = market.borrowerPrincipal();
     data.pendingBorrower = market.pendingBorrower();
+    data.pendingBorrowerPrincipal = market.pendingBorrowerPrincipal();
     data.borrowerIdentityRegistry = market.borrowerIdentityRegistry();
     _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
     _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);

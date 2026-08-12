@@ -10,9 +10,14 @@ interface IBorrowerIdentityRegistry {
   error AccountFactoryDoesNotExist();
   error InvalidBorrowerAccount();
   error BorrowerAccountAlreadyRegistered();
+  error BorrowerAccountNotRegistered();
   error BorrowerPrincipalNotRegistered();
   error BorrowerIdentityNotFound();
   error AmbiguousBorrowerIdentity();
+  error CallerNotBorrowerAccountPrincipal();
+  error CallerNotPendingBorrowerAccountPrincipal();
+  error InvalidBorrowerAccountPrincipalTransferTarget();
+  error NoPendingBorrowerAccountPrincipalTransfer();
   error InvalidPaginationRange();
 
   event AccountFactoryAdded(address indexed accountFactory);
@@ -22,11 +27,30 @@ interface IBorrowerIdentityRegistry {
     address indexed principal,
     address indexed accountFactory
   );
+  event BorrowerAccountPrincipalTransferRequested(
+    address indexed account,
+    address indexed currentPrincipal,
+    address previousPendingPrincipal,
+    address indexed pendingPrincipal
+  );
+  event BorrowerAccountPrincipalTransferCancelled(
+    address indexed account,
+    address indexed currentPrincipal,
+    address indexed cancelledPendingPrincipal
+  );
+  event BorrowerAccountPrincipalTransferred(
+    address indexed account,
+    address indexed previousPrincipal,
+    address indexed newPrincipal
+  );
 
   function archController() external view returns (address);
 
-  /// @notice Permanent principal associated with `account`, or zero if it is unknown.
+  /// @notice Current principal associated with `account`, or zero if it is unknown.
   function principalOf(address account) external view returns (address);
+
+  /// @notice Principal that can accept a pending transfer for `account`.
+  function pendingPrincipalOf(address account) external view returns (address);
 
   /// @notice Factory that registered `account`, or zero if it is unknown.
   function accountFactoryOf(address account) external view returns (address);
@@ -49,8 +73,14 @@ interface IBorrowerIdentityRegistry {
 
   function getAccountFactoriesCount() external view returns (uint256);
 
-  /// @notice Permanently associates a deployed borrower account with a registered principal.
+  /// @notice Associates a deployed borrower account with its initial registered principal.
   function registerBorrowerAccount(address account, address principal) external;
+
+  function requestBorrowerAccountPrincipalTransfer(address account, address newPrincipal) external;
+
+  function cancelBorrowerAccountPrincipalTransfer(address account) external;
+
+  function acceptBorrowerAccountPrincipalTransfer(address account) external;
 
   function getBorrowerAccounts(address principal) external view returns (address[] memory);
 

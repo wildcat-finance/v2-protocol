@@ -546,6 +546,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     assertEq(market.borrower(), parameters.borrower, 'borrower');
     assertEq(market.borrowerPrincipal(), parameters.borrower, 'borrowerPrincipal');
     assertEq(market.pendingBorrower(), address(0), 'pendingBorrower');
+    assertEq(market.pendingBorrowerPrincipal(), address(0), 'pendingBorrowerPrincipal');
     assertEq(
       market.borrowerIdentityRegistry(),
       address(borrowerIdentityRegistry),

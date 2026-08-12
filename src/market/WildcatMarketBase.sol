@@ -88,6 +88,10 @@ contract WildcatMarketBase is
   bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT =
     bytes32(uint256(keccak256('wildcat.market.pendingBorrower')) - 1);
 
+  /// @dev Namespaced slot for the principal resolved when a transfer is requested.
+  bytes32 internal constant PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT =
+    bytes32(uint256(keccak256('wildcat.market.pendingBorrowerPrincipal')) - 1);
+
   /// @dev Namespaced slot for the optional canonical wrapper. Using an
   ///      unstructured slot preserves the established market storage layout.
   bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT =
@@ -182,6 +186,11 @@ contract WildcatMarketBase is
   /// @notice Address that can accept the pending borrower transfer.
   function pendingBorrower() public view returns (address) {
     return _getAddress(PENDING_BORROWER_STORAGE_SLOT);
+  }
+
+  /// @notice Principal resolved for the pending borrower when the transfer was requested.
+  function pendingBorrowerPrincipal() public view returns (address) {
+    return _getAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT);
   }
 
   /// @notice Canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
@@ -326,18 +335,25 @@ contract WildcatMarketBase is
   // ===================================================================== //
 
   function _validateBorrowerTransferTarget(
-    address newBorrower
+    address newBorrower,
+    address expectedPrincipal
   ) internal view returns (address newBorrowerPrincipal) {
     address currentBorrower = borrower();
-    if (newBorrower == address(0) || newBorrower == currentBorrower) {
-      revert InvalidBorrowerTransferTarget();
-    }
+    if (newBorrower == address(0)) revert InvalidBorrowerTransferTarget();
 
     newBorrowerPrincipal = IBorrowerIdentityRegistry(borrowerIdentityRegistry).resolveBorrower(
       newBorrower
     );
 
     address currentBorrowerPrincipal = borrowerPrincipal();
+    if (expectedPrincipal != address(0) && newBorrowerPrincipal != expectedPrincipal) {
+      revert PendingBorrowerPrincipalChanged(expectedPrincipal, newBorrowerPrincipal);
+    }
+    if (
+      newBorrower == currentBorrower && newBorrowerPrincipal == currentBorrowerPrincipal
+    ) {
+      revert InvalidBorrowerTransferTarget();
+    }
     if (_isFlaggedByChainalysis(currentBorrower)) {
       revert BorrowerTransferWhileSanctioned(currentBorrower);
     }
@@ -358,14 +374,17 @@ contract WildcatMarketBase is
   function requestBorrowerTransfer(
     address newBorrower
   ) external onlyBorrower nonReentrant sphereXGuardExternal {
-    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower);
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower, address(0));
     address previousPendingBorrower = pendingBorrower();
+    address previousPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, newBorrower);
+    _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
     emit BorrowerTransferRequested(
       msg.sender,
       previousPendingBorrower,
       newBorrower,
       borrowerPrincipal(),
+      previousPendingBorrowerPrincipal,
       newBorrowerPrincipal
     );
   }
@@ -373,19 +392,31 @@ contract WildcatMarketBase is
   function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
     address cancelledPendingBorrower = pendingBorrower();
     if (cancelledPendingBorrower == address(0)) revert NoPendingBorrowerTransfer();
+    address cancelledPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
-    emit BorrowerTransferCancelled(msg.sender, cancelledPendingBorrower, borrowerPrincipal());
+    _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
+    emit BorrowerTransferCancelled(
+      msg.sender,
+      cancelledPendingBorrower,
+      borrowerPrincipal(),
+      cancelledPendingBorrowerPrincipal
+    );
   }
 
   function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
     address newBorrower = pendingBorrower();
     if (msg.sender != newBorrower) revert NotPendingBorrower();
 
-    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower);
+    address expectedPrincipal = pendingBorrowerPrincipal();
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(
+      newBorrower,
+      expectedPrincipal
+    );
     address previousBorrower = borrower();
     address previousBorrowerPrincipal = borrowerPrincipal();
 
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
+    _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
     _setAddress(BORROWER_STORAGE_SLOT, newBorrower);
     _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
 

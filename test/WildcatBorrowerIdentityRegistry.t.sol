@@ -226,7 +226,7 @@ contract WildcatBorrowerIdentityRegistryTest is Test {
     assertEq(registry.accountFactoryOf(account), address(accountFactory));
   }
 
-  function testFuzz_registerBorrowerAccount_AssociationIsImmutable(
+  function testFuzz_registerBorrowerAccount_CannotRegisterSameAccountTwice(
     address replacementPrincipal
   ) external {
     vm.assume(replacementPrincipal != address(0));
@@ -238,6 +238,270 @@ contract WildcatBorrowerIdentityRegistryTest is Test {
     accountFactory.registerAccount(account, replacementPrincipal);
 
     assertEq(registry.principalOf(account), principal);
+  }
+
+  function test_requestBorrowerAccountPrincipalTransfer() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+
+    vm.expectEmit(address(registry));
+    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferRequested(
+      account,
+      principal,
+      address(0),
+      secondPrincipal
+    );
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+
+    assertEq(registry.principalOf(account), principal);
+    assertEq(registry.pendingPrincipalOf(account), secondPrincipal);
+    assertEq(registry.resolveBorrower(account), principal);
+  }
+
+  function test_requestBorrowerAccountPrincipalTransfer_ReplacesPendingPrincipal() external {
+    address account = accountFactory.deployAccount(principal);
+    address thirdPrincipal = address(0xCAFE);
+    archController.registerBorrower(secondPrincipal);
+    archController.registerBorrower(thirdPrincipal);
+
+    vm.startPrank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+    vm.expectEmit(address(registry));
+    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferRequested(
+      account,
+      principal,
+      secondPrincipal,
+      thirdPrincipal
+    );
+    registry.requestBorrowerAccountPrincipalTransfer(account, thirdPrincipal);
+    vm.stopPrank();
+
+    assertEq(registry.pendingPrincipalOf(account), thirdPrincipal);
+    vm.prank(secondPrincipal);
+    vm.expectRevert(
+      IBorrowerIdentityRegistry.CallerNotPendingBorrowerAccountPrincipal.selector
+    );
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+  }
+
+  function test_requestBorrowerAccountPrincipalTransfer_Authorization() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+
+    vm.prank(secondPrincipal);
+    vm.expectRevert(IBorrowerIdentityRegistry.CallerNotBorrowerAccountPrincipal.selector);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+
+    vm.expectRevert(IBorrowerIdentityRegistry.BorrowerAccountNotRegistered.selector);
+    registry.requestBorrowerAccountPrincipalTransfer(address(0xBAD), secondPrincipal);
+  }
+
+  function test_requestBorrowerAccountPrincipalTransfer_InvalidTargets() external {
+    address account = accountFactory.deployAccount(principal);
+    vm.startPrank(principal);
+
+    vm.expectRevert(
+      IBorrowerIdentityRegistry.InvalidBorrowerAccountPrincipalTransferTarget.selector
+    );
+    registry.requestBorrowerAccountPrincipalTransfer(account, address(0));
+
+    vm.expectRevert(
+      IBorrowerIdentityRegistry.InvalidBorrowerAccountPrincipalTransferTarget.selector
+    );
+    registry.requestBorrowerAccountPrincipalTransfer(account, principal);
+
+    vm.expectRevert(
+      IBorrowerIdentityRegistry.InvalidBorrowerAccountPrincipalTransferTarget.selector
+    );
+    registry.requestBorrowerAccountPrincipalTransfer(account, account);
+
+    vm.expectRevert(IBorrowerIdentityRegistry.BorrowerPrincipalNotRegistered.selector);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+    vm.stopPrank();
+  }
+
+  function test_requestBorrowerAccountPrincipalTransfer_RejectsAccountAsPrincipal() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    address secondAccount = accountFactory.deployAccount(secondPrincipal);
+
+    vm.prank(principal);
+    vm.expectRevert(IBorrowerIdentityRegistry.AmbiguousBorrowerIdentity.selector);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondAccount);
+  }
+
+  function test_requestBorrowerAccountPrincipalTransfer_RejectsAmbiguousAccount() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    archController.registerBorrower(account);
+
+    vm.prank(principal);
+    vm.expectRevert(IBorrowerIdentityRegistry.AmbiguousBorrowerIdentity.selector);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+  }
+
+  function test_cancelBorrowerAccountPrincipalTransfer() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+
+    vm.expectEmit(address(registry));
+    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferCancelled(
+      account,
+      principal,
+      secondPrincipal
+    );
+    vm.prank(principal);
+    registry.cancelBorrowerAccountPrincipalTransfer(account);
+
+    assertEq(registry.principalOf(account), principal);
+    assertEq(registry.pendingPrincipalOf(account), address(0));
+  }
+
+  function test_cancelBorrowerAccountPrincipalTransfer_Authorization() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+
+    vm.prank(secondPrincipal);
+    vm.expectRevert(IBorrowerIdentityRegistry.CallerNotBorrowerAccountPrincipal.selector);
+    registry.cancelBorrowerAccountPrincipalTransfer(account);
+
+    vm.prank(principal);
+    registry.cancelBorrowerAccountPrincipalTransfer(account);
+    vm.prank(principal);
+    vm.expectRevert(
+      IBorrowerIdentityRegistry.NoPendingBorrowerAccountPrincipalTransfer.selector
+    );
+    registry.cancelBorrowerAccountPrincipalTransfer(account);
+  }
+
+  function test_acceptBorrowerAccountPrincipalTransfer() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+
+    vm.expectEmit(address(registry));
+    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferred(
+      account,
+      principal,
+      secondPrincipal
+    );
+    vm.prank(secondPrincipal);
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+
+    assertEq(registry.principalOf(account), secondPrincipal);
+    assertEq(registry.pendingPrincipalOf(account), address(0));
+    assertEq(registry.resolveBorrower(account), secondPrincipal);
+    assertEq(registry.getBorrowerAccountsCount(principal), 0);
+    assertEq(registry.getBorrowerAccountsCount(secondPrincipal), 1);
+    assertEq(registry.getBorrowerAccounts(secondPrincipal)[0], account);
+    assertEq(registry.accountFactoryOf(account), address(accountFactory));
+    assertEq(registry.getBorrowerAccountsForFactory(address(accountFactory))[0], account);
+  }
+
+  function test_acceptBorrowerAccountPrincipalTransfer_UpdatesAuthority() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+    vm.prank(secondPrincipal);
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+
+    vm.prank(principal);
+    vm.expectRevert(IBorrowerIdentityRegistry.CallerNotBorrowerAccountPrincipal.selector);
+    registry.requestBorrowerAccountPrincipalTransfer(account, principal);
+
+    vm.prank(secondPrincipal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, principal);
+    vm.prank(principal);
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+
+    assertEq(registry.principalOf(account), principal);
+  }
+
+  function test_acceptBorrowerAccountPrincipalTransfer_SurvivesFactoryRemoval() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    registry.removeAccountFactory(address(accountFactory));
+
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+    vm.prank(secondPrincipal);
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+
+    assertEq(registry.resolveBorrower(account), secondPrincipal);
+  }
+
+  function test_acceptBorrowerAccountPrincipalTransfer_AfterCurrentPrincipalRemoval() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    archController.removeBorrower(principal);
+
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+    vm.prank(secondPrincipal);
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+
+    assertEq(registry.resolveBorrower(account), secondPrincipal);
+  }
+
+  function test_acceptBorrowerAccountPrincipalTransfer_RevalidatesRegistration() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+    archController.removeBorrower(secondPrincipal);
+
+    vm.prank(secondPrincipal);
+    vm.expectRevert(IBorrowerIdentityRegistry.BorrowerPrincipalNotRegistered.selector);
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+
+    assertEq(registry.principalOf(account), principal);
+    assertEq(registry.pendingPrincipalOf(account), secondPrincipal);
+  }
+
+  function test_acceptBorrowerAccountPrincipalTransfer_RevalidatesAccountIdentity() external {
+    address account = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(account, secondPrincipal);
+    archController.registerBorrower(account);
+
+    vm.prank(secondPrincipal);
+    vm.expectRevert(IBorrowerIdentityRegistry.AmbiguousBorrowerIdentity.selector);
+    registry.acceptBorrowerAccountPrincipalTransfer(account);
+
+    assertEq(registry.principalOf(account), principal);
+    assertEq(registry.pendingPrincipalOf(account), secondPrincipal);
+  }
+
+  function test_acceptBorrowerAccountPrincipalTransfer_MovesCurrentEnumeration() external {
+    address firstAccount = accountFactory.deployAccount(principal);
+    address secondAccount = accountFactory.deployAccount(principal);
+    archController.registerBorrower(secondPrincipal);
+    vm.prank(principal);
+    registry.requestBorrowerAccountPrincipalTransfer(firstAccount, secondPrincipal);
+    vm.prank(secondPrincipal);
+    registry.acceptBorrowerAccountPrincipalTransfer(firstAccount);
+
+    address[] memory principalAccounts = registry.getBorrowerAccounts(principal);
+    address[] memory secondPrincipalAccounts = registry.getBorrowerAccounts(secondPrincipal);
+    assertEq(principalAccounts.length, 1);
+    assertEq(principalAccounts[0], secondAccount);
+    assertEq(secondPrincipalAccounts.length, 1);
+    assertEq(secondPrincipalAccounts[0], firstAccount);
+
+    address[] memory factoryAccounts = registry.getBorrowerAccountsForFactory(
+      address(accountFactory)
+    );
+    assertEq(factoryAccounts.length, 2);
+    assertEq(factoryAccounts[0], firstAccount);
+    assertEq(factoryAccounts[1], secondAccount);
   }
 
   function test_resolveBorrower_DirectPrincipal() external view {

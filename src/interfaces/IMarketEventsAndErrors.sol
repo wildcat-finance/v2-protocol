@@ -92,6 +92,8 @@ interface IMarketEventsAndErrors {
 
   error NotPendingBorrower();
 
+  error PendingBorrowerPrincipalChanged(address expectedPrincipal, address actualPrincipal);
+
   error BorrowerIdentityNotFound();
 
   error BorrowerPrincipalNotRegistered();
@@ -157,13 +159,15 @@ interface IMarketEventsAndErrors {
     address indexed previousPendingBorrower,
     address indexed pendingBorrower,
     address borrowerPrincipal,
+    address previousPendingBorrowerPrincipal,
     address pendingBorrowerPrincipal
   );
 
   event BorrowerTransferCancelled(
     address indexed borrower,
     address indexed cancelledPendingBorrower,
-    address borrowerPrincipal
+    address borrowerPrincipal,
+    address cancelledPendingBorrowerPrincipal
   );
 
   event BorrowerTransferred(

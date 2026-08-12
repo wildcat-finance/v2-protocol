@@ -61,6 +61,18 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
     _acceptTransfer(newBorrower);
   }
 
+  function _transferAccountPrincipal(
+    address account,
+    address currentPrincipal,
+    address newPrincipal
+  ) internal {
+    _registerPrincipal(newPrincipal);
+    vm.prank(currentPrincipal);
+    borrowerIdentityRegistry.requestBorrowerAccountPrincipalTransfer(account, newPrincipal);
+    vm.prank(newPrincipal);
+    borrowerIdentityRegistry.acceptBorrowerAccountPrincipalTransfer(account);
+  }
+
   function _clearSanction(address account) internal {
     MockChainalysis(sanctionsSentinel.chainalysisSanctionsList()).unsanction(account);
   }
@@ -111,6 +123,7 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
       address(0),
       secondPrincipal,
       borrower,
+      address(0),
       secondPrincipal
     );
     _requestTransfer(borrower, secondPrincipal);
@@ -118,6 +131,7 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
     assertEq(market.borrower(), borrower);
     assertEq(market.borrowerPrincipal(), borrower);
     assertEq(market.pendingBorrower(), secondPrincipal);
+    assertEq(market.pendingBorrowerPrincipal(), secondPrincipal);
     assertEq(_marketStateHash(), stateHash, 'sequential market state changed');
 
     vm.prank(secondPrincipal);
@@ -136,11 +150,13 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
       secondPrincipal,
       thirdPrincipal,
       borrower,
+      secondPrincipal,
       thirdPrincipal
     );
     _requestTransfer(borrower, thirdPrincipal);
 
     assertEq(market.pendingBorrower(), thirdPrincipal);
+    assertEq(market.pendingBorrowerPrincipal(), thirdPrincipal);
     vm.prank(secondPrincipal);
     vm.expectRevert(IMarketEventsAndErrors.NotPendingBorrower.selector);
     market.acceptBorrowerTransfer();
@@ -151,11 +167,12 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
     _requestTransfer(borrower, secondPrincipal);
 
     vm.expectEmit(address(market));
-    emit BorrowerTransferCancelled(borrower, secondPrincipal, borrower);
+    emit BorrowerTransferCancelled(borrower, secondPrincipal, borrower, secondPrincipal);
     vm.prank(borrower);
     market.cancelBorrowerTransfer();
 
     assertEq(market.pendingBorrower(), address(0));
+    assertEq(market.pendingBorrowerPrincipal(), address(0));
     vm.prank(secondPrincipal);
     vm.expectRevert(IMarketEventsAndErrors.NotPendingBorrower.selector);
     market.acceptBorrowerTransfer();
@@ -170,6 +187,7 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
     market.cancelBorrowerTransfer();
 
     assertEq(market.pendingBorrower(), address(0));
+    assertEq(market.pendingBorrowerPrincipal(), address(0));
   }
 
   function test_cancelBorrowerTransfer_NoPendingTransfer() external {
@@ -219,6 +237,7 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
     assertEq(market.borrower(), secondPrincipal);
     assertEq(market.borrowerPrincipal(), secondPrincipal);
     assertEq(market.pendingBorrower(), address(0));
+    assertEq(market.pendingBorrowerPrincipal(), address(0));
     assertEq(_marketStateHash(), stateHash, 'sequential market state changed');
 
     _registerPrincipal(thirdPrincipal);
@@ -251,6 +270,89 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
 
     assertEq(market.borrower(), secondAccount);
     assertEq(market.borrowerPrincipal(), borrower);
+  }
+
+  function test_acceptBorrowerTransfer_SameAccountPrincipalMigration() external {
+    address account = _deployAccount(borrower);
+    _transferBorrower(borrower, account);
+    bytes32 stateHash = _marketStateHash();
+
+    _transferAccountPrincipal(account, borrower, secondPrincipal);
+
+    assertEq(market.borrower(), account);
+    assertEq(market.borrowerPrincipal(), borrower);
+
+    vm.expectEmit(address(market));
+    emit BorrowerTransferRequested(
+      account,
+      address(0),
+      account,
+      borrower,
+      address(0),
+      secondPrincipal
+    );
+    _requestTransfer(account, account);
+
+    assertEq(market.pendingBorrower(), account);
+    assertEq(market.pendingBorrowerPrincipal(), secondPrincipal);
+    vm.expectEmit(address(market));
+    emit BorrowerTransferred(account, account, borrower, secondPrincipal);
+    _acceptTransfer(account);
+
+    assertEq(market.borrower(), account);
+    assertEq(market.borrowerPrincipal(), secondPrincipal);
+    assertEq(market.pendingBorrower(), address(0));
+    assertEq(market.pendingBorrowerPrincipal(), address(0));
+    assertEq(_marketStateHash(), stateHash, 'sequential market state changed');
+  }
+
+  function test_acceptBorrowerTransfer_BindsPendingAccountPrincipal() external {
+    address account = _deployAccount(borrower);
+    _transferBorrower(borrower, account);
+    _transferAccountPrincipal(account, borrower, secondPrincipal);
+    _requestTransfer(account, account);
+
+    _transferAccountPrincipal(account, secondPrincipal, thirdPrincipal);
+
+    vm.prank(account);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IMarketEventsAndErrors.PendingBorrowerPrincipalChanged.selector,
+        secondPrincipal,
+        thirdPrincipal
+      )
+    );
+    market.acceptBorrowerTransfer();
+
+    assertEq(market.borrower(), account);
+    assertEq(market.borrowerPrincipal(), borrower);
+    assertEq(market.pendingBorrower(), account);
+    assertEq(market.pendingBorrowerPrincipal(), secondPrincipal);
+
+    vm.startPrank(account);
+    market.cancelBorrowerTransfer();
+    market.requestBorrowerTransfer(account);
+    market.acceptBorrowerTransfer();
+    vm.stopPrank();
+
+    assertEq(market.borrower(), account);
+    assertEq(market.borrowerPrincipal(), thirdPrincipal);
+  }
+
+  function test_requestBorrowerTransfer_SameAccountRejectsSanctionedPreviousPrincipal() external {
+    address account = _deployAccount(borrower);
+    _transferBorrower(borrower, account);
+    _transferAccountPrincipal(account, borrower, secondPrincipal);
+    sanctionsSentinel.sanction(borrower);
+
+    vm.prank(account);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector,
+        borrower
+      )
+    );
+    market.requestBorrowerTransfer(account);
   }
 
   function test_acceptBorrowerTransfer_AccountToDirectPrincipal() external {

@@ -381,6 +381,7 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(pendingData.market.borrower, borrower, 'pending market borrower');
     assertEq(pendingData.borrowerPrincipal, borrower, 'pending market principal');
     assertEq(pendingData.pendingBorrower, nextBorrower, 'pending borrower');
+    assertEq(pendingData.pendingBorrowerPrincipal, borrower, 'pending borrower principal');
     assertEq(
       pendingData.borrowerIdentityRegistry,
       address(borrowerIdentityRegistry),
@@ -396,11 +397,57 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(acceptedData.borrowerPrincipal, borrower, 'accepted market principal');
     assertEq(acceptedData.pendingBorrower, address(0), 'accepted pending borrower');
     assertEq(
+      acceptedData.pendingBorrowerPrincipal,
+      address(0),
+      'accepted pending borrower principal'
+    );
+    assertEq(
       acceptedData.borrowerIdentityRegistry,
       address(borrowerIdentityRegistry),
       'accepted identity registry'
     );
     assertEq(acceptedData.market.hooks.borrower, borrower, 'accepted hook administrator');
+  }
+
+  function test_getMarketDataV2_tracksSameAccountPrincipalMigration() external {
+    MarketLensBorrowerAccountFactory accountFactory = new MarketLensBorrowerAccountFactory(
+      address(borrowerIdentityRegistry)
+    );
+    borrowerIdentityRegistry.addAccountFactory(address(accountFactory));
+    address account = accountFactory.deployAccount(borrower);
+    address newPrincipal = address(0xB0B);
+    archController.registerBorrower(newPrincipal);
+
+    vm.prank(borrower);
+    market.requestBorrowerTransfer(account);
+    vm.prank(account);
+    market.acceptBorrowerTransfer();
+
+    vm.prank(borrower);
+    borrowerIdentityRegistry.requestBorrowerAccountPrincipalTransfer(account, newPrincipal);
+    vm.prank(newPrincipal);
+    borrowerIdentityRegistry.acceptBorrowerAccountPrincipalTransfer(account);
+    vm.prank(account);
+    market.requestBorrowerTransfer(account);
+
+    MarketDataV2_5 memory pendingData = lens.getMarketDataV2(address(market));
+    assertEq(pendingData.market.borrower, account, 'pending market borrower');
+    assertEq(pendingData.borrowerPrincipal, borrower, 'pending market principal');
+    assertEq(pendingData.pendingBorrower, account, 'pending borrower');
+    assertEq(pendingData.pendingBorrowerPrincipal, newPrincipal, 'pending borrower principal');
+
+    vm.prank(account);
+    market.acceptBorrowerTransfer();
+
+    MarketDataV2_5 memory acceptedData = lens.getMarketDataV2(address(market));
+    assertEq(acceptedData.market.borrower, account, 'accepted market borrower');
+    assertEq(acceptedData.borrowerPrincipal, newPrincipal, 'accepted market principal');
+    assertEq(acceptedData.pendingBorrower, address(0), 'accepted pending borrower');
+    assertEq(
+      acceptedData.pendingBorrowerPrincipal,
+      address(0),
+      'accepted pending borrower principal'
+    );
   }
 
   function test_coreDelegation_forAccountAndWithdrawalReads() external {

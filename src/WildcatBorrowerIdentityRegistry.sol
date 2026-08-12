@@ -7,7 +7,7 @@ import './interfaces/IWildcatArchController.sol';
 
 /**
  * @dev Resolves borrower accounts to registered principals. The current ArchController
- *      owner may approve factories, but no association can be changed or removed.
+ *      owner may approve factories, but account principals manage their own transfers.
  */
 contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
   using EnumerableSet for EnumerableSet.AddressSet;
@@ -17,8 +17,9 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
   EnumerableSet.AddressSet internal _accountFactories;
 
   mapping(address account => address principal) public override principalOf;
+  mapping(address account => address pendingPrincipal) public override pendingPrincipalOf;
   mapping(address account => address accountFactory) public override accountFactoryOf;
-  mapping(address principal => address[] accounts) internal _borrowerAccounts;
+  mapping(address principal => EnumerableSet.AddressSet accounts) internal _borrowerAccounts;
   mapping(address accountFactory => address[] accounts) internal _borrowerAccountsForFactory;
 
   constructor(address archController_) {
@@ -116,10 +117,59 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
 
     principalOf[account] = principal;
     accountFactoryOf[account] = msg.sender;
-    _borrowerAccounts[principal].push(account);
+    _borrowerAccounts[principal].add(account);
     _borrowerAccountsForFactory[msg.sender].push(account);
 
     emit BorrowerAccountRegistered(account, principal, msg.sender);
+  }
+
+  function requestBorrowerAccountPrincipalTransfer(
+    address account,
+    address newPrincipal
+  ) external override {
+    address currentPrincipal = _getAccountPrincipal(account);
+    if (msg.sender != currentPrincipal) revert CallerNotBorrowerAccountPrincipal();
+    _validatePrincipalTransferTarget(account, currentPrincipal, newPrincipal);
+
+    address previousPendingPrincipal = pendingPrincipalOf[account];
+    pendingPrincipalOf[account] = newPrincipal;
+    emit BorrowerAccountPrincipalTransferRequested(
+      account,
+      currentPrincipal,
+      previousPendingPrincipal,
+      newPrincipal
+    );
+  }
+
+  function cancelBorrowerAccountPrincipalTransfer(address account) external override {
+    address currentPrincipal = _getAccountPrincipal(account);
+    if (msg.sender != currentPrincipal) revert CallerNotBorrowerAccountPrincipal();
+
+    address cancelledPendingPrincipal = pendingPrincipalOf[account];
+    if (cancelledPendingPrincipal == address(0)) {
+      revert NoPendingBorrowerAccountPrincipalTransfer();
+    }
+    delete pendingPrincipalOf[account];
+    emit BorrowerAccountPrincipalTransferCancelled(
+      account,
+      currentPrincipal,
+      cancelledPendingPrincipal
+    );
+  }
+
+  function acceptBorrowerAccountPrincipalTransfer(address account) external override {
+    address newPrincipal = pendingPrincipalOf[account];
+    if (msg.sender != newPrincipal) revert CallerNotPendingBorrowerAccountPrincipal();
+
+    address previousPrincipal = _getAccountPrincipal(account);
+    _validatePrincipalTransferTarget(account, previousPrincipal, newPrincipal);
+
+    delete pendingPrincipalOf[account];
+    _borrowerAccounts[previousPrincipal].remove(account);
+    _borrowerAccounts[newPrincipal].add(account);
+    principalOf[account] = newPrincipal;
+
+    emit BorrowerAccountPrincipalTransferred(account, previousPrincipal, newPrincipal);
   }
 
   function resolveBorrower(address borrower) external view override returns (address principal) {
@@ -141,7 +191,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
   function getBorrowerAccounts(
     address principal
   ) external view override returns (address[] memory) {
-    return _borrowerAccounts[principal];
+    return _borrowerAccounts[principal].values();
   }
 
   function getBorrowerAccounts(
@@ -149,11 +199,11 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     uint256 start,
     uint256 end
   ) external view override returns (address[] memory) {
-    return _getAddressSlice(_borrowerAccounts[principal], start, end);
+    return _getAddressSetSlice(_borrowerAccounts[principal], start, end);
   }
 
   function getBorrowerAccountsCount(address principal) external view override returns (uint256) {
-    return _borrowerAccounts[principal].length;
+    return _borrowerAccounts[principal].length();
   }
 
   function getBorrowerAccountsForFactory(
@@ -189,6 +239,49 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
       arr[i] = values[start + i];
+    }
+  }
+
+  function _getAccountPrincipal(address account) internal view returns (address principal) {
+    principal = principalOf[account];
+    if (principal == address(0)) revert BorrowerAccountNotRegistered();
+  }
+
+  function _validatePrincipalTransferTarget(
+    address account,
+    address currentPrincipal,
+    address newPrincipal
+  ) internal view {
+    if (
+      newPrincipal == address(0) ||
+      newPrincipal == account ||
+      newPrincipal == currentPrincipal
+    ) {
+      revert InvalidBorrowerAccountPrincipalTransferTarget();
+    }
+
+    IWildcatArchController controller = IWildcatArchController(_archController);
+    if (controller.isRegisteredBorrower(account) || principalOf[newPrincipal] != address(0)) {
+      revert AmbiguousBorrowerIdentity();
+    }
+    if (!controller.isRegisteredBorrower(newPrincipal)) {
+      revert BorrowerPrincipalNotRegistered();
+    }
+  }
+
+  function _getAddressSetSlice(
+    EnumerableSet.AddressSet storage values,
+    uint256 start,
+    uint256 end
+  ) internal view returns (address[] memory arr) {
+    if (start > end) revert InvalidPaginationRange();
+    uint256 length = values.length();
+    if (end > length) end = length;
+    if (start >= end) return new address[](0);
+    uint256 count = end - start;
+    arr = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      arr[i] = values.at(start + i);
     }
   }
 }

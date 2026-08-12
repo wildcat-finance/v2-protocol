@@ -25,7 +25,7 @@ description: It's dangerous to go alone - learn these.
 
 #### **Borrower Account**
 
-* A contract account permanently associated with one [borrower principal](Terminology.md#borrower-principal) through the borrower identity registry.
+* A contract account associated with one current [borrower principal](Terminology.md#borrower-principal) through the borrower identity registry. The principal may change through a two-step transfer.
 * May be the [operational borrower](Terminology.md#operational-borrower) for one or more markets.
 * A principal may have several accounts. Delegate policy belongs to the account, not to the market or identity registry.
 
