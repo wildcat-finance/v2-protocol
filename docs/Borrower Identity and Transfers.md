@@ -140,6 +140,10 @@ A market transfer does not transfer its hooks or role providers. Hooks may be sh
 
 This separation is intentional. A market must not seize a shared hook or credential list merely because its borrower changed.
 
+Hook administration belongs to the principal and uses a separate two-step transfer. Acceptance updates the creating factory's administrator index, but it does not rewrite provider configuration, lender status, hook-local blocks, known-lender state, or hooked-market configuration.
+
+The v2.5 `AccessListRoleProvider` also has an independent two-step administrator transfer. Moving its administration preserves the provider address, membership, and every hook attachment. Other role providers are not assumed to implement that interface.
+
 ## Batching and atomicity
 
 Each market acceptance is atomic for that market. There is no protocol transfer manager and no Wildcat-controlled coordinator.

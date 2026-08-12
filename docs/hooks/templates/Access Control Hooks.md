@@ -1,8 +1,10 @@
 # Access Control Hooks
 
-In the access control hooks, the borrower can configure a set of "role providers" - accounts which grant credentials to lenders.
+The hook administrator configures a set of role providers that issue or validate lender credentials. The hook decides which providers it trusts and which market actions require access. It does not own the provider's credential list.
 
-Within the hooks contract, the borrower configures each provider with a TTL - the amount of time a credential granted by the provider is valid.
+Hook administration does not confer credential authority. A new hook does not add its administrator as a provider automatically. The administrator may attach an existing provider or create one through a compatible provider factory.
+
+The hook administrator configures each provider with a TTL, which controls how long the hook may use a credential without consulting the provider again.
 
 A role provider can be a push provider, a pull provider, or a validation provider depending on what it supports.
 All approved role providers can push credentials by calling `grantRole` or `grantRoles`.
@@ -31,11 +33,33 @@ For example, a role provider can be an EOA, multisig, or smart account that only
 Pull providers must implement `isPullProvider()` and `getCredential()`.
 Providers used with `hooksData` validation must implement `validateCredential()`.
 
+Role-provider administration is optional and separate from hook administration. `IRoleProvider` does not define an owner. A third-party, immutable, or ownerless provider remains valid if the hook administrator chooses to trust it.
+
+## Access-list role provider
+
+`AccessListRoleProvider` is the managed pull provider included with v2.5. One instance owns one reusable address list, and the same instance can be attached to several hooks. A borrower can deploy separate instances when two markets should not share a list.
+
+The current provider administrator may add or remove one member or an explicitly supplied batch. Members are enumerable, but removal uses swap-and-pop, so enumeration order is not stable. Each membership event identifies the administrator that made the change. The provider has no hook callbacks, market authority, token functions, or list of attached hooks.
+
+Provider administration uses its own two-step transfer. The pending administrator has no authority before acceptance. Acceptance changes only the provider administrator; the provider address, membership, and every hook attachment stay unchanged. There is no ArchController or Foundation registration check for providers or their administrators.
+
+`AccessListRoleProviderFactory` can deploy a provider directly or through the hook's generic `createRoleProvider` helper. Generic factory calldata is `abi.encode(AccessListRoleProviderFactoryInputs)`, where the struct contains `administrator`, `initialMembers`, and `salt`. The intended administrator is explicit because the factory caller may be a hook rather than the borrower. CREATE2 salts are namespaced by the caller, and the factory keeps no authority over the provider after deployment.
+
+The provider returns the current block timestamp for a listed account and zero for an unlisted account. It does not store a credential timestamp because membership remains valid until the administrator removes it.
+
+### TTL and removal behavior
+
+TTL `0` on a pull provider means no cache. The hook queries the provider on every credential-gated interaction, including another interaction in the same block. Removing an access-list member therefore affects the next gated check immediately.
+
+A positive TTL is an explicit cache window. If a hook queried the provider at timestamp `T`, the cached credential remains valid through `T + TTL`; membership removal takes effect for that hook after the cached credential expires. Different hooks may have different cache windows for the same provider.
+
+Push providers keep the existing timestamp behavior. A push credential with TTL `0` is usable at its grant timestamp but cannot be refreshed by the hook.
+
 ## tryValidateAccess(address lender, bytes hooksData)
 
 When a restricted function is called, the access control contract will attempt to validate the caller's access to the market in several ways.
 
-1. If lender has an unexpired credential from a provider that is still supported, return true.
+1. If the lender has a cacheable, unexpired credential from a provider that is still supported, return true. A pull credential with TTL `0` is never cacheable.
 2. If the lender provided `hooksData`, run [`handleHooksData(lender, hooksData)`](#handleHooksDataaddress-lender-bytes-hooksData)
     - If it returns a valid credential, go to step 5
 3. If the lender has an expired credential from a pull provider that is still supported, try to refresh their credential with `getCredential` (see: [tryPullCredential](#tryPullCredentialaddress-provider-address-lender))

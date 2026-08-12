@@ -973,6 +973,18 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');
   }
 
+  function test_getLenderStatus_ZeroTtlPullProviderRefreshesInSameBlock() external {
+    address bob = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), 0);
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(bob, uint32(block.timestamp));
+
+    LenderStatus memory status = baseHooks.getLenderStatus(bob);
+    assertEq(status.lastProvider, address(0), 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, 0, 'lastApprovalTimestamp');
+  }
+
   // ========================================================================== //
   //                           getOrValidateCredential                          //
   // ========================================================================== //
@@ -1116,6 +1128,34 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     assertEq(status.lastApprovalTimestamp, newTimestamp, 'lastApprovalTimestamp');
     assertEq(status.canRefresh, true, 'canRefresh');
     assertFalse(status.isBlockedFromDeposits, 'isBlockedFromDeposits');
+  }
+
+  function test_tryValidateAccess_ZeroTtlPullProviderRefreshesInSameBlock() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(true);
+    mockProvider1.setCredential(account, uint32(block.timestamp));
+    baseHooks.addRoleProvider(address(mockProvider1), 0);
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, '');
+    assertTrue(hasValidCredential, 'initial credential');
+    assertTrue(wasUpdated, 'initial update');
+
+    mockProvider1.setCredential(account, 0);
+    (hasValidCredential, wasUpdated) = baseHooks.tryValidateAccess(account, '');
+    assertFalse(hasValidCredential, 'removed credential');
+    assertTrue(wasUpdated, 'removal update');
+  }
+
+  function test_tryValidateAccess_ZeroTtlPushProviderUsesSameBlockCredential() external {
+    address account = address(0xb0b);
+    mockProvider1.setIsPullProvider(false);
+    baseHooks.addRoleProvider(address(mockProvider1), 0);
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(account, uint32(block.timestamp));
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, '');
+    assertTrue(hasValidCredential, 'hasValidCredential');
+    assertFalse(wasUpdated, 'wasUpdated');
   }
 
   // ========================================================================== //

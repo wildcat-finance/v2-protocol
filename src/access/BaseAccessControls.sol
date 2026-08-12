@@ -421,9 +421,7 @@ contract BaseAccessControls is IHooksAdministrator {
     if (status.lastApprovalTimestamp > 0) {
       RoleProvider provider = _roleProviders[status.lastProvider];
       if (!provider.isNull()) {
-        // If credential is not expired and the provider is still
-        // supported, the lender has a valid credential.
-        if (status.credentialNotExpired(provider)) return status;
+        if (_canUseCachedCredential(status, provider)) return status;
 
         // If credential is expired but the provider is still supported and
         // allows refreshing (i.e. it's a pull provider), try to refresh.
@@ -623,6 +621,19 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
+  /**
+   * @dev A zero-TTL pull provider is the source of truth on every check, including
+   *      another check in the same block. Push providers keep their existing
+   *      timestamp behavior because the hook cannot refresh them.
+   */
+  function _canUseCachedCredential(
+    LenderStatus memory status,
+    RoleProvider provider
+  ) internal view returns (bool) {
+    if (provider.isPullProvider() && provider.timeToLive() == 0) return false;
+    return status.credentialNotExpired(provider);
+  }
+
   function _readAddress(bytes calldata hooksData) internal pure returns (address providerAddress) {
     assembly {
       providerAddress := shr(96, calldataload(hooksData.offset))
@@ -793,8 +804,8 @@ contract BaseAccessControls is IHooksAdministrator {
       ? _roleProviders[status.lastProvider]
       : EmptyRoleProvider;
 
-    // If the lender has an active credential and the last provider is still supported, return
-    if (!lastProvider.isNull() && status.credentialNotExpired(lastProvider)) {
+    // If the lender has a cacheable active credential from a supported provider, return.
+    if (!lastProvider.isNull() && _canUseCachedCredential(status, lastProvider)) {
       return (true, false);
     }
 
