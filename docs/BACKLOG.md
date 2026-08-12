@@ -3,20 +3,16 @@
 Deferred tasks noted during the v2.5 pre-release cleanup pass (July 2026).
 These are not release blockers; they are queued for after the doc pass.
 
-## Deployment scripts for the v2.5 release
+## Deployment scripts for the v2.5 release — PARTIALLY DONE
 
-`script/DeployPeriodicTermHooksV21.sol` is deprecated: it targets the v2.1
-rollout and predates the five-argument `MarketLens` constructor, so it fails
-if run. The v2.5 release (RCF + PTH + lens set) needs updated deployment
-scripts.
+The ordered `script/deploy/v2-5/01` through `09` flow now covers the wrapper factory, standard and revolving factories, borrower identity registry, lens, owner actions, registration, plan generation, inventory finalization, and canary market. The market-transfer checkpoint updated factory and lens deployment inputs for the identity registry.
 
-- Reuse the inventory-management pattern from `script/deploy/DeployMarketLens.sol`
-  (labeled artifacts, canonical aliases, post-deploy wiring validation) — this
-  direction is confirmed as correct.
-- Evaluate whether the monolithic rollout-script model is right, or whether
-  per-component scripts composed by a thin orchestrator would be easier to
-  operate and audit.
-- Delete `DeployPeriodicTermHooksV21.sol` once the replacement exists.
+This is still not the final ceremony package. It must be regenerated and independently rehearsed after hooks/providers, RCF draw fees, and the event/lens hard cut are complete.
+
+`script/DeployPeriodicTermHooksV21.sol` remains deprecated: it targets the v2.1 rollout and predates the current `MarketLens` constructor.
+
+- Delete `DeployPeriodicTermHooksV21.sol` after confirming no remaining operator documentation or automation references it.
+- Regenerate the v2.5 ceremony package only after the remaining release-blocking contracts and ABIs are frozen.
 
 ## prettier-plugin-solidity upgrade
 
