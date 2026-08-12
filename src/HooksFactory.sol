@@ -11,6 +11,7 @@ import './access/IHooks.sol';
 import './IHooksFactory.sol';
 import './types/TransientBytesArray.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
+import './interfaces/IBorrowerIdentityRegistry.sol';
 
 struct TmpMarketParameterStorage {
   address borrower;
@@ -36,6 +37,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   TransientBytesArray internal constant _tmpMarketParameters =
     TransientBytesArray.wrap(uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1);
+
+  uint256 internal constant _TMP_BORROWER_PRINCIPAL_SLOT =
+    uint256(keccak256('Transient:TmpBorrowerPrincipal')) - 1;
 
   uint256 internal immutable ownCreate2Prefix = LibStoredInitCode.getCreate2Prefix(address(this));
 
@@ -147,6 +151,20 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _tmpMarketParameters.write(abi.encode(parameters));
   }
 
+  function _getTmpBorrowerPrincipal() internal view returns (address principal) {
+    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
+    assembly {
+      principal := tload(slot)
+    }
+  }
+
+  function _setTmpBorrowerPrincipal(address principal) internal {
+    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
+    assembly {
+      tstore(slot, principal)
+    }
+  }
+
   // ========================================================================== //
   //                                  Modifiers                                 //
   // ========================================================================== //
@@ -156,6 +174,17 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert CallerNotArchControllerOwner();
     }
     _;
+  }
+
+  function _resolveBorrowerPrincipal(
+    address borrower
+  ) internal view returns (address principal) {
+    (bool success, bytes memory returnData) = borrowerIdentityRegistry.staticcall(
+      abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower))
+    );
+    if (!success || returnData.length != 0x20) revert NotApprovedBorrower();
+    principal = abi.decode(returnData, (address));
+    if (principal == address(0)) revert NotApprovedBorrower();
   }
 
   // ========================================================================== //
@@ -322,17 +351,15 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   // ========================================================================== //
 
   /// @dev Deploy a hooks instance for an approved template with constructor args.
-  ///      Callable by approved borrowers on the arch-controller.
+  ///      Hooks are deployed and indexed under the caller's resolved principal.
   ///      Origination fees are not charged here; they are paid when a market
   ///      is deployed with the instance.
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
   ) external override nonReentrant returns (address hooksInstance) {
-    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
-      revert NotApprovedBorrower();
-    }
-    hooksInstance = _deployHooksInstance(hooksTemplate, constructorArgs);
+    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
+    hooksInstance = _deployHooksInstance(borrowerPrincipal, hooksTemplate, constructorArgs);
   }
 
   function getHooksInstancesForBorrower(
@@ -352,6 +379,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   function _deployHooksInstance(
+    address borrowerPrincipal,
     address hooksTemplate,
     bytes calldata constructorArgs
   ) internal returns (address hooksInstance) {
@@ -363,17 +391,17 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert HooksTemplateNotAvailable();
     }
 
-    uint256 numHooksForBorrower = _hooksInstancesByBorrower[msg.sender].length;
+    uint256 numHooksForBorrower = _hooksInstancesByBorrower[borrowerPrincipal].length;
     bytes32 salt;
     assembly {
-      salt := or(shl(96, caller()), numHooksForBorrower)
+      salt := or(shl(96, borrowerPrincipal), numHooksForBorrower)
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(hooksTemplate), 1)
       // Copy code from target address to memory starting at byte 1
       extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
-      // Write the address of the caller as the first parameter
-      mstore(endInitCodePointer, caller())
+      // Write the borrower principal as the first parameter
+      mstore(endInitCodePointer, borrowerPrincipal)
       // Write the offset to the encoded constructor args
       mstore(add(endInitCodePointer, 0x20), 0x40)
       // Write the length of the encoded constructor args
@@ -390,7 +418,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
         revert(0x1c, 0x04)
       }
     }
-    _hooksInstancesByBorrower[msg.sender].push(hooksInstance);
+    _hooksInstancesByBorrower[borrowerPrincipal].push(hooksInstance);
 
     emit HooksInstanceDeployed(hooksInstance, hooksTemplate);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
@@ -459,7 +487,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.archController = _archController;
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
-    parameters.borrowerPrincipal = tmp.borrower;
+    parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
     parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
   }
 
@@ -493,6 +521,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   function _deployMarket(
     DeployMarketInputs memory parameters,
     bytes memory hooksData,
+    address borrowerPrincipal,
     address hooksTemplate,
     HooksTemplate memory templateDetails,
     bytes32 salt,
@@ -526,7 +555,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
 
     parameters.hooks = IHooks(hooksInstance).onCreateMarket(
-      msg.sender,
+      borrowerPrincipal,
       market,
       parameters,
       hooksData
@@ -560,6 +589,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
 
     _setTmpMarketParameters(tmp);
+    _setTmpBorrowerPrincipal(borrowerPrincipal);
 
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
@@ -571,6 +601,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     IWildcatArchController(_archController).registerMarket(market);
 
     _tmpMarketParameters.setEmpty();
+    _setTmpBorrowerPrincipal(address(0));
 
     _marketsByHooksTemplate[hooksTemplate].push(market);
     _marketsByHooksInstance[hooksInstance].push(market);
@@ -591,8 +622,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     );
   }
 
-  /// @dev Deploy a market for an approved borrower using an existing hooks instance.
-  ///      Reverts if borrower, hooks instance, fees, asset or deployment checks fail.
+  /// @dev Deploy a market for a recognized borrower identity using an existing hooks instance.
+  ///      Reverts if identity, hooks instance, fees, asset or deployment checks fail.
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
@@ -600,9 +631,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address originationFeeAsset,
     uint256 originationFeeAmount
   ) external override nonReentrant returns (address market) {
-    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
-      revert NotApprovedBorrower();
-    }
+    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
     address hooksInstance = parameters.hooks.hooksAddress();
     address hooksTemplate = getHooksTemplateForInstance[hooksInstance];
     if (hooksTemplate == address(0)) {
@@ -612,6 +641,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     market = _deployMarket(
       parameters,
       hooksData,
+      borrowerPrincipal,
       hooksTemplate,
       templateDetails,
       salt,
@@ -620,8 +650,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     );
   }
 
-  /// @dev Deploy a hooks instance, then deploy a market for an approved borrower.
-  ///      Reverts if borrower, template, fees, asset or deployment checks fail.
+  /// @dev Deploy a principal-administered hooks instance, then deploy a market for the caller.
+  ///      Reverts if identity, template, fees, asset or deployment checks fail.
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksTemplateArgs,
@@ -631,18 +661,21 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address originationFeeAsset,
     uint256 originationFeeAmount
   ) external override nonReentrant returns (address market, address hooksInstance) {
-    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
-      revert NotApprovedBorrower();
-    }
+    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
     HooksTemplate memory templateDetails = _templateDetails[hooksTemplate];
     if (!templateDetails.exists) {
       revert HooksTemplateNotFound();
     }
-    hooksInstance = _deployHooksInstance(hooksTemplate, hooksTemplateArgs);
+    hooksInstance = _deployHooksInstance(
+      borrowerPrincipal,
+      hooksTemplate,
+      hooksTemplateArgs
+    );
     parameters.hooks = parameters.hooks.setHooksAddress(hooksInstance);
     market = _deployMarket(
       parameters,
       hooksData,
+      borrowerPrincipal,
       hooksTemplate,
       templateDetails,
       salt,

@@ -192,7 +192,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///      - Maps the hooks instance to the template address.
   ///
   ///      Reverts if:
-  ///      - The caller is not an approved borrower.
+  ///      - The caller does not resolve to a registered principal.
   ///      - The template does not exist.
   ///      - The template is not enabled.
   ///      - The deployment fails.
@@ -201,6 +201,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     bytes calldata constructorArgs
   ) external returns (address hooksDeployment);
 
+  /// @dev Hooks deployed under a direct principal or registered account are indexed by principal.
   function getHooksInstancesForBorrower(address borrower) external view returns (address[] memory);
 
   function getHooksInstancesCountForBorrower(address borrower) external view returns (uint256);
@@ -231,6 +232,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   function getMarketParameters() external view returns (MarketParameters memory parameters);
 
   /// @dev Deploy a market with an existing hooks deployment (in `parameters.hooks`)
+  ///      The caller becomes the market borrower. Its resolved principal is supplied
+  ///      to the hook and stored on the market.
   ///
   ///      On success:
   ///      - Pays the origination fee (if applicable).
@@ -239,7 +242,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///      - Emits `MarketDeployed`.
   ///
   ///      Reverts if:
-  ///      - The caller is not an approved borrower.
+  ///      - The caller does not resolve to a registered principal.
   ///      - The hooks instance does not exist.
   ///      - Payment of origination fee fails.
   ///      - The deployment fails.
@@ -254,9 +257,9 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market);
 
-  /// @dev Deploy a hooks instance for an approved template,then deploy a new market with that
-  ///      instance as its hooks contract.
-  ///      Will call `onCreateMarket` on `parameters.hooks`.
+  /// @dev Deploy a principal-administered hooks instance, then deploy a new market owned by
+  ///      the calling principal or registered account.
+  ///      Will call `onCreateMarket` on the new hooks instance.
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksConstructorArgs,
