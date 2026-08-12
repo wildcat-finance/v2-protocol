@@ -15,9 +15,7 @@ contract WrapperSanctionsScenariosTest is MarketConfigMatrix {
     DeployedCell memory d,
     Wildcat4626Wrapper wrapper
   ) internal returns (Wildcat4626Wrapper) {
-    startPrank(borrower);
-    BaseAccessControls(d.hooksInstance).grantRole(address(wrapper), uint32(block.timestamp));
-    stopPrank();
+    _grantHookRole(d.hooksInstance, address(wrapper));
     return wrapper;
   }
 

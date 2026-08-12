@@ -179,14 +179,24 @@ contract MarketConfigMatrix is BaseMarketTest {
       );
     }
 
-    // Credential both lenders on the hooks instance.
-    BaseAccessControls(instance).grantRole(alice, uint32(block.timestamp));
-    BaseAccessControls(instance).grantRole(bob, uint32(block.timestamp));
+    BaseAccessControls(instance).addRoleProvider(
+      address(ecdsaRoleProvider),
+      type(uint32).max
+    );
     stopPrank();
+
+    // Credential both lenders through an explicit provider.
+    _grantHookRole(instance, alice);
+    _grantHookRole(instance, bob);
 
     _approveMarket(alice, address(deployed.market));
     _approveMarket(bob, address(deployed.market));
     _approveMarket(borrower, address(deployed.market));
+  }
+
+  function _grantHookRole(address hooksInstance, address account) internal {
+    vm.prank(address(ecdsaRoleProvider));
+    BaseAccessControls(hooksInstance).grantRole(account, uint32(block.timestamp));
   }
 
   function _templateFor(MatrixHooksKind kind) internal view returns (address) {

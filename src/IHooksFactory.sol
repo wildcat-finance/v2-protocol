@@ -43,8 +43,19 @@ interface IHooksFactoryEventsAndErrors {
   error AssetBlacklisted();
   error SetProtocolFeeBipsFailed();
   error InvalidPaginationRange();
+  error InvalidHooksAdministrator();
+  error InvalidHooksInstanceAssociation();
 
-  event HooksInstanceDeployed(address hooksInstance, address hooksTemplate);
+  event HooksInstanceDeployed(
+    address indexed hooksInstance,
+    address indexed hooksTemplate,
+    address indexed administrator
+  );
+  event HooksInstanceAdministratorTransferred(
+    address indexed hooksInstance,
+    address indexed previousAdministrator,
+    address indexed newAdministrator
+  );
   event HooksTemplateAdded(
     address hooksTemplate,
     string name,
@@ -201,10 +212,35 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     bytes calldata constructorArgs
   ) external returns (address hooksDeployment);
 
-  /// @dev Hooks deployed under a direct principal or registered account are indexed by principal.
+  function getHooksAdministrator(address hooks) external view returns (address);
+
+  function getHooksInstanceDeploymentNonce(address administrator) external view returns (uint256);
+
+  function getHooksInstancesForAdministrator(
+    address administrator
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesForAdministrator(
+    address administrator,
+    uint256 start,
+    uint256 end
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesCountForAdministrator(
+    address administrator
+  ) external view returns (uint256);
+
+  /// @dev Compatibility alias for `getHooksInstancesForAdministrator`.
   function getHooksInstancesForBorrower(address borrower) external view returns (address[] memory);
 
+  /// @dev Compatibility alias for `getHooksInstancesCountForAdministrator`.
   function getHooksInstancesCountForBorrower(address borrower) external view returns (uint256);
+
+  /// @dev Called by a hooks instance after accepting a two-step administrator transfer.
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external;
 
   /// @dev Check if a hooks instance was deployed by the factory.
   function isHooksInstance(address hooks) external view returns (bool);

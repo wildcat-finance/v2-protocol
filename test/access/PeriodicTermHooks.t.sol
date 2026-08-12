@@ -34,10 +34,9 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
 
   function setUp() external {
     hooks = new MockPeriodicTermHooks(address(this));
-    baseHooks = MockBaseAccessControls(address(hooks));
+    _setUpBaseHooks(MockBaseAccessControls(address(hooks)));
     assertEq(hooks.factory(), address(this), 'factory');
-    assertEq(hooks.borrower(), address(this), 'borrower');
-    _addExpectedProvider(MockRoleProvider(address(this)), type(uint32).max, false);
+    assertEq(hooks.administrator(), address(this), 'administrator');
     _validateRoleProviders();
     warp(PeriodStart);
   }
@@ -257,10 +256,29 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     hooks.onCreateMarket(address(1), Market, inputs, '');
   }
 
-  function test_onCreateMarket_CallerNotBorrower() external {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_onCreateMarket_CallerNotAdministrator() external {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     DeployMarketInputs memory inputs;
     hooks.onCreateMarket(address(1), Market, inputs, '');
+  }
+
+  function test_acceptAdministratorTransfer_PreservesHookedMarketConfiguration() external {
+    address newAdministrator = address(0xA11CE);
+    _createMarket(EmptyHooksConfig, _encodeHooksData(100, true));
+    bytes32 marketBefore = keccak256(abi.encode(hooks.getHookedMarket(Market)));
+
+    _transferAdministrator(newAdministrator);
+
+    assertEq(
+      keccak256(abi.encode(hooks.getHookedMarket(Market))),
+      marketBefore,
+      'hooked market'
+    );
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.setMinimumDeposit(Market, 200);
+    vm.prank(newAdministrator);
+    hooks.setMinimumDeposit(Market, 200);
+    assertEq(hooks.getHookedMarket(Market).minimumDeposit, 200, 'minimum deposit');
   }
 
   function test_onCreateMarket_PeriodicWindowNotProvided() external {
@@ -1001,8 +1019,8 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     hooks.setMinimumDeposit(Market, 0);
   }
 
-  function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_setMinimumDeposit_CallerNotAdministrator() external asAccount(address(1)) {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     hooks.setMinimumDeposit(Market, 1);
   }
 
@@ -1090,12 +1108,12 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     );
   }
 
-  function test_proposeAnnualInterestBips_CallerNotBorrower() external {
+  function test_proposeAnnualInterestBips_CallerNotAdministrator() external {
     MockAprMarket market = new MockAprMarket(1_000);
     _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
 
     vm.prank(address(1));
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     hooks.proposeAnnualInterestBips(address(market), 900);
   }
 

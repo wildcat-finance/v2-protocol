@@ -4,6 +4,7 @@ pragma solidity >=0.8.20;
 import 'forge-std/Test.sol';
 import 'src/access/BaseAccessControls.sol';
 import 'src/access/IRoleProvider.sol';
+import 'src/WildcatArchController.sol';
 import { LibString } from 'solady/utils/LibString.sol';
 import '../shared/mocks/MockRoleProvider.sol';
 import '../shared/mocks/MockRoleProviderFactory.sol';
@@ -31,6 +32,8 @@ abstract contract MockBaseAccessControls is BaseAccessControls {
 }
 
 abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
+  error AdministratorTransferCallbackFailed();
+
   uint24 internal numPullProviders;
   uint24 internal numPushProviders;
   StandardRoleProvider[] internal expectedRoleProviders;
@@ -38,9 +41,46 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   MockRoleProvider internal mockProvider1 = new MockRoleProvider();
   MockRoleProvider internal mockProvider2 = new MockRoleProvider();
   MockRoleProviderFactory internal providerFactory = new MockRoleProviderFactory();
+  WildcatArchController internal hookArchController;
+  bool internal failAdministratorTransferCallback;
+  address internal callbackPreviousAdministrator;
+  address internal callbackNewAdministrator;
 
   bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
   uint256 internal constant Panic_Arithmetic = 0x11;
+
+  function _setUpBaseHooks(MockBaseAccessControls _baseHooks) internal {
+    baseHooks = _baseHooks;
+    hookArchController = new WildcatArchController();
+    hookArchController.registerBorrower(address(this));
+  }
+
+  function archController() external view returns (address) {
+    return address(hookArchController);
+  }
+
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external {
+    if (failAdministratorTransferCallback) revert AdministratorTransferCallbackFailed();
+    assertEq(msg.sender, address(baseHooks), 'callback caller');
+    callbackPreviousAdministrator = previousAdministrator;
+    callbackNewAdministrator = newAdministrator;
+  }
+
+  function _registerAdministrator(address account) internal {
+    if (!hookArchController.isRegisteredBorrower(account)) {
+      hookArchController.registerBorrower(account);
+    }
+  }
+
+  function _transferAdministrator(address newAdministrator) internal {
+    _registerAdministrator(newAdministrator);
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+    vm.prank(newAdministrator);
+    baseHooks.acceptAdministratorTransfer();
+  }
 
   function _getIsKnownLenderStatus(AccessControlHooksFuzzContext memory context) internal {
     baseHooks.setIsKnownLender(context.account, context.market, true);
@@ -171,12 +211,257 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   }
 
   // ========================================================================== //
+  //                         Administrator transfer                             //
+  // ========================================================================== //
+
+  function test_constructor_DoesNotAddAdministratorAsProvider() external {
+    assertTrue(baseHooks.getRoleProvider(address(this)).isNull(), 'administrator provider');
+    assertEq(baseHooks.getPullProviders().length, 0, 'pull providers');
+    assertEq(baseHooks.getPushProviders().length, 0, 'push providers');
+
+    vm.expectRevert(BaseAccessControls.ProviderNotFound.selector);
+    baseHooks.grantRole(address(1), uint32(block.timestamp));
+  }
+
+  function test_requestAdministratorTransfer() external {
+    address newAdministrator = address(0xA11CE);
+    _registerAdministrator(newAdministrator);
+
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AdministratorTransferRequested(
+      address(this),
+      address(0),
+      newAdministrator
+    );
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+
+    assertEq(baseHooks.administrator(), address(this), 'administrator');
+    assertEq(baseHooks.pendingAdministrator(), newAdministrator, 'pending administrator');
+  }
+
+  function test_requestAdministratorTransfer_ReplacesPendingAdministrator() external {
+    address firstAdministrator = address(0xA11CE);
+    address secondAdministrator = address(0xB0B);
+    _registerAdministrator(firstAdministrator);
+    _registerAdministrator(secondAdministrator);
+    baseHooks.requestAdministratorTransfer(firstAdministrator);
+
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AdministratorTransferRequested(
+      address(this),
+      firstAdministrator,
+      secondAdministrator
+    );
+    baseHooks.requestAdministratorTransfer(secondAdministrator);
+
+    assertEq(baseHooks.pendingAdministrator(), secondAdministrator, 'pending administrator');
+  }
+
+  function test_requestAdministratorTransfer_InvalidTargets() external {
+    vm.expectRevert(BaseAccessControls.InvalidAdministratorTransferTarget.selector);
+    baseHooks.requestAdministratorTransfer(address(0));
+
+    vm.expectRevert(BaseAccessControls.InvalidAdministratorTransferTarget.selector);
+    baseHooks.requestAdministratorTransfer(address(this));
+
+    vm.expectRevert(BaseAccessControls.AdministratorNotRegistered.selector);
+    baseHooks.requestAdministratorTransfer(address(0xBAD));
+  }
+
+  function test_requestAdministratorTransfer_CallerNotAdministrator() external {
+    vm.prank(address(1));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    baseHooks.requestAdministratorTransfer(address(2));
+  }
+
+  function test_cancelAdministratorTransfer() external {
+    address newAdministrator = address(0xA11CE);
+    _registerAdministrator(newAdministrator);
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AdministratorTransferCancelled(address(this), newAdministrator);
+    baseHooks.cancelAdministratorTransfer();
+
+    assertEq(baseHooks.pendingAdministrator(), address(0), 'pending administrator');
+  }
+
+  function test_cancelAdministratorTransfer_NoPendingTransfer() external {
+    vm.expectRevert(BaseAccessControls.NoPendingAdministratorTransfer.selector);
+    baseHooks.cancelAdministratorTransfer();
+  }
+
+  function test_cancelAdministratorTransfer_CallerNotAdministrator() external {
+    vm.prank(address(1));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    baseHooks.cancelAdministratorTransfer();
+  }
+
+  function test_acceptAdministratorTransfer() external {
+    address newAdministrator = address(0xA11CE);
+    _registerAdministrator(newAdministrator);
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+
+    vm.expectEmit(address(baseHooks));
+    emit BaseAccessControls.AdministratorTransferred(address(this), newAdministrator);
+    vm.prank(newAdministrator);
+    baseHooks.acceptAdministratorTransfer();
+
+    assertEq(baseHooks.administrator(), newAdministrator, 'administrator');
+    assertEq(baseHooks.borrower(), newAdministrator, 'borrower alias');
+    assertEq(baseHooks.pendingAdministrator(), address(0), 'pending administrator');
+    assertEq(callbackPreviousAdministrator, address(this), 'callback previous administrator');
+    assertEq(callbackNewAdministrator, newAdministrator, 'callback new administrator');
+  }
+
+  function test_acceptAdministratorTransfer_PendingAdministratorHasNoAuthority() external {
+    address newAdministrator = address(0xA11CE);
+    _registerAdministrator(newAdministrator);
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+
+    vm.prank(newAdministrator);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    baseHooks.setName('too early');
+  }
+
+  function test_acceptAdministratorTransfer_OnlyPendingAdministratorCanAccept() external {
+    address newAdministrator = address(0xA11CE);
+    _registerAdministrator(newAdministrator);
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+
+    vm.prank(address(0xB0B));
+    vm.expectRevert(BaseAccessControls.NotPendingAdministrator.selector);
+    baseHooks.acceptAdministratorTransfer();
+  }
+
+  function test_acceptAdministratorTransfer_RevalidatesRegistration() external {
+    address newAdministrator = address(0xA11CE);
+    _registerAdministrator(newAdministrator);
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+    hookArchController.removeBorrower(newAdministrator);
+
+    vm.prank(newAdministrator);
+    vm.expectRevert(BaseAccessControls.AdministratorNotRegistered.selector);
+    baseHooks.acceptAdministratorTransfer();
+
+    assertEq(baseHooks.administrator(), address(this), 'administrator');
+    assertEq(baseHooks.pendingAdministrator(), newAdministrator, 'pending administrator');
+  }
+
+  function test_acceptAdministratorTransfer_CallbackFailureRevertsTransfer() external {
+    address newAdministrator = address(0xA11CE);
+    _registerAdministrator(newAdministrator);
+    baseHooks.requestAdministratorTransfer(newAdministrator);
+    failAdministratorTransferCallback = true;
+
+    vm.prank(newAdministrator);
+    vm.expectRevert(AdministratorTransferCallbackFailed.selector);
+    baseHooks.acceptAdministratorTransfer();
+
+    assertEq(baseHooks.administrator(), address(this), 'administrator');
+    assertEq(baseHooks.pendingAdministrator(), newAdministrator, 'pending administrator');
+  }
+
+  function test_acceptAdministratorTransfer_PreservesAccessState() external {
+    address lender = address(0x1EAD);
+    address blockedLender = address(0xB10C);
+    address market = address(0xCAFE);
+    address newAdministrator = address(0xA11CE);
+    mockProvider1.setIsPullProvider(true);
+    mockProvider2.setIsPullProvider(false);
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+    baseHooks.addRoleProvider(address(mockProvider2), 30 days);
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(lender, uint32(block.timestamp));
+    baseHooks.blockFromDeposits(blockedLender);
+    baseHooks.setIsKnownLender(lender, market, true);
+
+    bytes32 pullProvidersBefore = keccak256(abi.encode(baseHooks.getPullProviders()));
+    bytes32 pushProvidersBefore = keccak256(abi.encode(baseHooks.getPushProviders()));
+    RoleProvider pullProviderBefore = baseHooks.getRoleProvider(address(mockProvider1));
+    RoleProvider pushProviderBefore = baseHooks.getRoleProvider(address(mockProvider2));
+    LenderStatus memory statusBefore = baseHooks.getPreviousLenderStatus(lender);
+    LenderStatus memory blockedStatusBefore = baseHooks.getPreviousLenderStatus(blockedLender);
+    _transferAdministrator(newAdministrator);
+
+    assertEq(
+      RoleProvider.unwrap(baseHooks.getRoleProvider(address(mockProvider1))),
+      RoleProvider.unwrap(pullProviderBefore),
+      'pull provider'
+    );
+    assertEq(
+      RoleProvider.unwrap(baseHooks.getRoleProvider(address(mockProvider2))),
+      RoleProvider.unwrap(pushProviderBefore),
+      'push provider'
+    );
+    assertEq(
+      keccak256(abi.encode(baseHooks.getPullProviders())),
+      pullProvidersBefore,
+      'pull providers'
+    );
+    assertEq(
+      keccak256(abi.encode(baseHooks.getPushProviders())),
+      pushProvidersBefore,
+      'push providers'
+    );
+    assertEq(baseHooks.getPreviousLenderStatus(lender), statusBefore, 'lender status');
+    assertEq(
+      baseHooks.getPreviousLenderStatus(blockedLender),
+      blockedStatusBefore,
+      'blocked lender status'
+    );
+    assertTrue(baseHooks.isKnownLenderOnMarket(lender, market), 'known lender');
+
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    baseHooks.setName('old administrator');
+
+    _registerAdministrator(address(0xB0B));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    baseHooks.requestAdministratorTransfer(address(0xB0B));
+
+    vm.prank(newAdministrator);
+    baseHooks.setName('new administrator');
+    assertEq(baseHooks.name(), 'new administrator', 'name');
+
+    vm.prank(newAdministrator);
+    baseHooks.requestAdministratorTransfer(address(0xB0B));
+    assertEq(baseHooks.pendingAdministrator(), address(0xB0B), 'next pending administrator');
+  }
+
+  function test_grantRole_PreservesDepositBlock() external {
+    address lender = address(0x1EAD);
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+    baseHooks.blockFromDeposits(lender);
+
+    vm.prank(address(mockProvider1));
+    baseHooks.grantRole(lender, uint32(block.timestamp));
+
+    LenderStatus memory status = baseHooks.getPreviousLenderStatus(lender);
+    assertTrue(status.isBlockedFromDeposits, 'deposit block');
+    assertEq(status.lastProvider, address(mockProvider1), 'last provider');
+  }
+
+  function test_refreshRole_PreservesDepositBlock() external {
+    address lender = address(0x1EAD);
+    mockProvider1.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+    baseHooks.blockFromDeposits(lender);
+    mockProvider1.setCredential(lender, uint32(block.timestamp));
+
+    baseHooks.tryValidateAccess(lender, '');
+
+    LenderStatus memory status = baseHooks.getPreviousLenderStatus(lender);
+    assertTrue(status.isBlockedFromDeposits, 'deposit block');
+    assertEq(status.lastProvider, address(mockProvider1), 'last provider');
+  }
+
+  // ========================================================================== //
   //                                   setName                                  //
   // ========================================================================== //
 
-  function test_setName_CallerNotBorrower() external {
+  function test_setName_CallerNotAdministrator() external {
     vm.prank(address(1));
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.setName('');
   }
 
@@ -191,12 +476,12 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   //                          Role provider management                          //
   // ========================================================================== //
 
-  function test_createRoleProvider_CallerNotBorrower(
+  function test_createRoleProvider_CallerNotAdministrator(
     bool isPullProvider,
     uint32 timeToLive
   ) external {
     vm.prank(address(1));
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.createRoleProvider(address(1), 0, '');
   }
 
@@ -209,7 +494,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
       expectedProviderAddress,
       timeToLive,
       isPullProvider ? 0 : NullProviderIndex,
-      isPullProvider ? NullProviderIndex : 1
+      isPullProvider ? NullProviderIndex : 0
     );
     baseHooks.createRoleProvider(address(providerFactory), timeToLive, factoryInput);
   }
@@ -230,7 +515,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     mockProvider1.setIsPullProvider(isPullProvider);
 
     uint24 pullProviderIndex = isPullProvider ? 0 : NullProviderIndex;
-    uint24 pushProviderIndex = isPullProvider ? NullProviderIndex : 1;
+    uint24 pushProviderIndex = isPullProvider ? NullProviderIndex : 0;
     expectedRoleProviders.push(
       StandardRoleProvider({
         providerAddress: address(mockProvider1),
@@ -251,8 +536,8 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     _validateRoleProviders();
   }
 
-  function test_addRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_addRoleProvider_CallerNotAdministrator() external asAccount(address(1)) {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.addRoleProvider(address(2), 1);
   }
 
@@ -388,8 +673,8 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     _validateRoleProviders();
   }
 
-  function test_removeRoleProvider_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_removeRoleProvider_CallerNotAdministrator() external asAccount(address(1)) {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.removeRoleProvider(address(mockProvider1));
   }
 
@@ -459,19 +744,19 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
         providerAddress: address(mockProvider2),
         timeToLive: 1,
         pullProviderIndex: NullProviderIndex,
-        pushProviderIndex: 1
+        pushProviderIndex: 0
       })
     );
 
     // Add two pull providers
-    _expectRoleProviderAdded(address(mockProvider1), 1, NullProviderIndex, 1);
+    _expectRoleProviderAdded(address(mockProvider1), 1, NullProviderIndex, 0);
     baseHooks.addRoleProvider(address(mockProvider1), 1);
 
-    _expectRoleProviderAdded(address(mockProvider2), 1, NullProviderIndex, 2);
+    _expectRoleProviderAdded(address(mockProvider2), 1, NullProviderIndex, 1);
     baseHooks.addRoleProvider(address(mockProvider2), 1);
 
-    _expectRoleProviderRemoved(address(mockProvider1), NullProviderIndex, 1);
-    _expectRoleProviderUpdated(address(mockProvider2), 1, NullProviderIndex, 1);
+    _expectRoleProviderRemoved(address(mockProvider1), NullProviderIndex, 0);
+    _expectRoleProviderUpdated(address(mockProvider2), 1, NullProviderIndex, 0);
 
     baseHooks.removeRoleProvider(address(mockProvider1));
     _validateRoleProviders();
@@ -601,8 +886,8 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     vm.prank(address(mockProvider1));
     baseHooks.grantRole(account, timestamp);
 
-    _expectRoleProviderRemoved(address(mockProvider1), NullProviderIndex, 1);
-    _expectRoleProviderUpdated(address(mockProvider2), timeToLive2, NullProviderIndex, 1);
+    _expectRoleProviderRemoved(address(mockProvider1), NullProviderIndex, 0);
+    _expectRoleProviderUpdated(address(mockProvider2), timeToLive2, NullProviderIndex, 0);
     baseHooks.removeRoleProvider(address(mockProvider1));
 
     _expectAccountAccessGranted(address(mockProvider2), account, timestamp);
@@ -872,6 +1157,8 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   function test_grantRoles_InvalidArrayLength() external {
     address[] memory accounts = new address[](4);
     uint32[] memory timestamps = new uint32[](3);
+    baseHooks.addRoleProvider(address(mockProvider1), 1);
+    vm.prank(address(mockProvider1));
     vm.expectRevert(BaseAccessControls.InvalidArrayLength.selector);
     baseHooks.grantRoles(accounts, timestamps);
   }
@@ -937,8 +1224,8 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   //                              blockFromDeposits                             //
   // ========================================================================== //
 
-  function test_blockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_blockFromDeposits_CallerNotAdministrator() external asAccount(address(1)) {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.blockFromDeposits(address(1));
   }
 
@@ -965,10 +1252,10 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
   }
 
-  function test_blockFromDeposits_multiple_CallerNotBorrower() external asAccount(address(1)) {
+  function test_blockFromDeposits_multiple_CallerNotAdministrator() external asAccount(address(1)) {
     address[] memory accounts = new address[](1);
     accounts[0] = address(0);
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.blockFromDeposits(accounts);
   }
 
@@ -1004,8 +1291,8 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   //                             unblockFromDeposits                            //
   // ========================================================================== //
 
-  function test_unblockFromDeposits_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_unblockFromDeposits_CallerNotAdministrator() external asAccount(address(1)) {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.unblockFromDeposits(address(1));
   }
 

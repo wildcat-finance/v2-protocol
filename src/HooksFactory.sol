@@ -11,6 +11,7 @@ import './access/IHooks.sol';
 import './IHooksFactory.sol';
 import './types/TransientBytesArray.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
+import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
 
 struct TmpMarketParameterStorage {
@@ -73,8 +74,22 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   address[] internal _hooksTemplates;
 
-  /// @dev Mapping from borrower to their deployed hooks instances
-  mapping(address borrower => address[] hooksInstances) internal _hooksInstancesByBorrower;
+  /// @dev Hooks instances currently administered by each address.
+  mapping(address administrator => address[] hooksInstances)
+    internal _hooksInstancesByAdministrator;
+
+  /// @dev Current administrator for each hooks instance deployed by this factory.
+  mapping(address hooksInstance => address administrator)
+    public
+    override getHooksAdministrator;
+
+  /// @dev Position of each hooks instance in its administrator's array.
+  mapping(address hooksInstance => uint256 index) internal _hooksInstanceIndex;
+
+  /// @dev Monotonic deployment nonce used in hook CREATE2 salts.
+  mapping(address administrator => uint256 nonce)
+    public
+    override getHooksInstanceDeploymentNonce;
 
   /**
    * @dev Mapping from hooks template to markets created with it.
@@ -358,20 +373,97 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address hooksTemplate,
     bytes calldata constructorArgs
   ) external override nonReentrant returns (address hooksInstance) {
-    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
-    hooksInstance = _deployHooksInstance(borrowerPrincipal, hooksTemplate, constructorArgs);
+    address administrator = _resolveBorrowerPrincipal(msg.sender);
+    hooksInstance = _deployHooksInstance(administrator, hooksTemplate, constructorArgs);
+  }
+
+  function getHooksInstancesForAdministrator(
+    address administrator
+  ) external view override returns (address[] memory) {
+    return _hooksInstancesByAdministrator[administrator];
+  }
+
+  function getHooksInstancesForAdministrator(
+    address administrator,
+    uint256 start,
+    uint256 end
+  ) external view override returns (address[] memory arr) {
+    address[] storage hooksInstances = _hooksInstancesByAdministrator[administrator];
+    end = MathUtils.min(end, hooksInstances.length);
+    if (start >= end) return new address[](0);
+    uint256 count = end - start;
+    arr = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      arr[i] = hooksInstances[start + i];
+    }
+  }
+
+  function getHooksInstancesCountForAdministrator(
+    address administrator
+  ) external view override returns (uint256) {
+    return _hooksInstancesByAdministrator[administrator].length;
   }
 
   function getHooksInstancesForBorrower(
     address borrower
   ) external view override returns (address[] memory) {
-    return _hooksInstancesByBorrower[borrower];
+    return _hooksInstancesByAdministrator[borrower];
   }
 
   function getHooksInstancesCountForBorrower(
     address borrower
   ) external view override returns (uint256) {
-    return _hooksInstancesByBorrower[borrower].length;
+    return _hooksInstancesByAdministrator[borrower].length;
+  }
+
+  /**
+   * @dev Moves a hooks instance to its new administrator's array. Removal uses
+   *      swap-and-pop, so an administrator's enumeration is not ordered.
+   */
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external override nonReentrant {
+    address hooksInstance = msg.sender;
+    if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+    if (
+      previousAdministrator == newAdministrator ||
+      newAdministrator == address(0) ||
+      getHooksAdministrator[hooksInstance] != previousAdministrator ||
+      IHooksAdministrator(hooksInstance).administrator() != newAdministrator ||
+      IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0) ||
+      !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
+    ) {
+      revert InvalidHooksAdministrator();
+    }
+
+    address[] storage previousHooksInstances = _hooksInstancesByAdministrator[
+      previousAdministrator
+    ];
+    uint256 indexToRemove = _hooksInstanceIndex[hooksInstance];
+    uint256 previousCount = previousHooksInstances.length;
+    if (indexToRemove >= previousCount || previousHooksInstances[indexToRemove] != hooksInstance) {
+      revert InvalidHooksInstanceAssociation();
+    }
+    uint256 lastIndex = previousCount - 1;
+    if (indexToRemove != lastIndex) {
+      address movedHooksInstance = previousHooksInstances[lastIndex];
+      previousHooksInstances[indexToRemove] = movedHooksInstance;
+      _hooksInstanceIndex[movedHooksInstance] = indexToRemove;
+    }
+    previousHooksInstances.pop();
+
+    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[newAdministrator].length;
+    _hooksInstancesByAdministrator[newAdministrator].push(hooksInstance);
+    getHooksAdministrator[hooksInstance] = newAdministrator;
+
+    emit HooksInstanceAdministratorTransferred(
+      hooksInstance,
+      previousAdministrator,
+      newAdministrator
+    );
   }
 
   function isHooksInstance(address hooksInstance) external view override returns (bool) {
@@ -379,7 +471,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   function _deployHooksInstance(
-    address borrowerPrincipal,
+    address administrator,
     address hooksTemplate,
     bytes calldata constructorArgs
   ) internal returns (address hooksInstance) {
@@ -391,17 +483,17 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert HooksTemplateNotAvailable();
     }
 
-    uint256 numHooksForBorrower = _hooksInstancesByBorrower[borrowerPrincipal].length;
+    uint256 deploymentNonce = getHooksInstanceDeploymentNonce[administrator];
     bytes32 salt;
     assembly {
-      salt := or(shl(96, borrowerPrincipal), numHooksForBorrower)
+      salt := or(shl(96, administrator), deploymentNonce)
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(hooksTemplate), 1)
       // Copy code from target address to memory starting at byte 1
       extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
-      // Write the borrower principal as the first parameter
-      mstore(endInitCodePointer, borrowerPrincipal)
+      // Write the administrator as the first parameter
+      mstore(endInitCodePointer, administrator)
       // Write the offset to the encoded constructor args
       mstore(add(endInitCodePointer, 0x20), 0x40)
       // Write the length of the encoded constructor args
@@ -418,9 +510,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
         revert(0x1c, 0x04)
       }
     }
-    _hooksInstancesByBorrower[borrowerPrincipal].push(hooksInstance);
+    getHooksInstanceDeploymentNonce[administrator] = deploymentNonce + 1;
+    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[administrator].length;
+    _hooksInstancesByAdministrator[administrator].push(hooksInstance);
+    getHooksAdministrator[hooksInstance] = administrator;
 
-    emit HooksInstanceDeployed(hooksInstance, hooksTemplate);
+    emit HooksInstanceDeployed(hooksInstance, hooksTemplate, administrator);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
 

@@ -705,11 +705,11 @@ contract HooksFactoryTest is Test, Assertions {
       initCodeHash := keccak256(initCodePointer, initCodeSizeWithArgs)
     }
 
-    uint256 numPreviousInstances = hooksFactory.getHooksInstancesCountForBorrower(borrower);
+    uint256 deploymentNonce = hooksFactory.getHooksInstanceDeploymentNonce(borrower);
     bytes32 salt;
 
     assembly {
-      salt := or(shl(96, borrower), numPreviousInstances)
+      salt := or(shl(96, borrower), deploymentNonce)
     }
 
     return
@@ -738,7 +738,11 @@ contract HooksFactoryTest is Test, Assertions {
     address expectedAddress
   ) internal {
     vm.expectEmit(address(hooksFactory));
-    emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(expectedAddress, hooksTemplate);
+    emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+      expectedAddress,
+      hooksTemplate,
+      address(this)
+    );
   }
 
   function _validateDeployedHooksInstance(

@@ -135,7 +135,7 @@ abstract contract MarketConstraintHooks is IHooks {
   }
 
   function _onCreateMarket(
-    address /* deployer */,
+    address /* administrator */,
     address /* marketAddress */,
     DeployMarketInputs calldata parameters,
     bytes calldata /* extraData */

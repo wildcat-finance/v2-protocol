@@ -250,11 +250,11 @@ contract Test is ForgeTest, Prankster, Assertions {
       initCodeHash := keccak256(initCodePointer, initCodeSizeWithArgs)
     }
 
-    uint256 numPreviousInstances = hooksFactory.getHooksInstancesCountForBorrower(borrower);
+    uint256 deploymentNonce = hooksFactory.getHooksInstanceDeploymentNonce(borrower);
     bytes32 salt;
 
     assembly {
-      salt := or(shl(96, borrower), numPreviousInstances)
+      salt := or(shl(96, borrower), deploymentNonce)
     }
 
     return
@@ -289,7 +289,8 @@ contract Test is ForgeTest, Prankster, Assertions {
       vm.expectEmit(address(hooksFactory));
       emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
         address(hooksInstance),
-        parameters.hooksTemplate
+        parameters.hooksTemplate,
+        parameters.borrower
       );
       assertEq(
         hooksFactory.deployHooksInstance(

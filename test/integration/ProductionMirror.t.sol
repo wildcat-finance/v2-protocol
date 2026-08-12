@@ -189,9 +189,7 @@ contract ProductionMirrorTest is MarketConfigMatrix {
     wrapper.deposit(wrapAmount, alice);
     stopPrank();
 
-    startPrank(borrower);
-    BaseAccessControls(d.hooksInstance).grantRole(address(wrapper), uint32(block.timestamp));
-    stopPrank();
+    _grantHookRole(d.hooksInstance, address(wrapper));
 
     uint256 marketBalanceBefore = d.market.balanceOf(alice);
     startPrank(alice);

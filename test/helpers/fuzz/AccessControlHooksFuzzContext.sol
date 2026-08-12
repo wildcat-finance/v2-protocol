@@ -232,7 +232,7 @@ function createAccessControlHooksFuzzContext(
   context.functionKind = functionKind;
   context.functionInputAmount = amount;
   context.hooks = hooks;
-  context.borrower = hooks.borrower();
+  context.borrower = hooks.administrator();
   context.account = account;
   context.existingCredentialOptions = fuzzInputs.existingCredentialInputs;
   context.dataOptions = fuzzInputs.dataInputs;

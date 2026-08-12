@@ -144,11 +144,14 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   // ========================================================================== //
 
   /**
-   * @param _deployer Address of the account that called the factory.
+   * @param _administrator Initial administrator for the hooks instance.
    * @param args Optional abi-encoded `NameAndProviderInputs` struct to initialize
    *             the providers and name for the hooks instance.
    */
-  constructor(address _deployer, bytes memory args) BaseAccessControls(_deployer) IHooks() {
+  constructor(
+    address _administrator,
+    bytes memory args
+  ) BaseAccessControls(_administrator) IHooks() {
     HooksConfig optionalFlags = encodeHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
@@ -222,8 +225,8 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   /**
    * @dev Called when market is deployed using this contract as its `hooks`.
    *
-   *     @param deployer      Address of the account that called the factory - must
-   *                          match the borrower address.
+   *     @param administrator_ Principal supplied by the factory. Must match the
+   *                           hooks administrator.
    *     @param marketAddress Address of the market being deployed.
    *     @param parameters    Parameters used to deploy the market.
    *     @param hooksData     Extra data passed to the market deployment function containing
@@ -245,13 +248,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
    *      so no need to verify the caller is the factory.
    */
   function _onCreateMarket(
-    address deployer,
+    address administrator_,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override returns (HooksConfig marketHooksConfig) {
-    super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
-    if (deployer != borrower) revert CallerNotBorrower();
+    super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
+    if (administrator_ != administrator) revert CallerNotAdministrator();
     if (hooksData.length < 0x60) revert PeriodicWindowNotProvided();
 
     marketHooksConfig = parameters.hooks;
@@ -330,7 +333,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
    *      later adopt a positive minimum.
    *      Reverts if `market` was not created with this hooks instance.
    */
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
+  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (newMinimumDeposit > 0 && !hookedMarket.depositHookEnabled) revert DepositHookNotEnabled();
@@ -342,7 +345,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   function proposeAnnualInterestBips(
     address market,
     uint16 annualInterestBips
-  ) external onlyBorrower {
+  ) external onlyAdministrator {
     HookedMarket memory hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (hookedMarket.isClosed) revert AprReductionProposalOnClosedMarket();

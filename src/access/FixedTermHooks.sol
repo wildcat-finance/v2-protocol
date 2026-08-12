@@ -25,17 +25,16 @@ struct HookedMarket {
 /**
  * @title FixedTermHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
- *      to accounts that have credentials from approved role providers, or
- *      which are manually approved by the borrower. Restricts withdrawals
- *      until a fixed loan term has elapsed, which can be reduced but not
- *      increased by the borrower.
+ *      to accounts that have credentials from approved role providers.
+ *      Restricts withdrawals until a fixed loan term has elapsed, which the
+ *      hook administrator can reduce but not increase.
  *
  *      Withdrawals are restricted in the same way for users that have not
  *      made a deposit, while users who have made a deposit at any point (or
  *      received market tokens while having deposit access) will always remain
  *      approved, even if their access is later revoked.
  *
- *      Deposit access may be canceled by the borrower.
+ *      Deposit access may be blocked by the hook administrator.
  */
 contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
   // ========================================================================== //
@@ -79,11 +78,14 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
   // ========================================================================== //
 
   /**
-   * @param _deployer Address of the account that called the factory.
+   * @param _administrator Initial administrator for the hooks instance.
    * @param args Optional abi-encoded `NameAndProviderInputs` struct to initialize
    *             the providers and name for the hooks instance.
    */
-  constructor(address _deployer, bytes memory args) BaseAccessControls(_deployer) IHooks() {
+  constructor(
+    address _administrator,
+    bytes memory args
+  ) BaseAccessControls(_administrator) IHooks() {
     HooksConfig optionalFlags = encodeHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
@@ -139,8 +141,8 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
   /**
    * @dev Called when market is deployed using this contract as its `hooks`.
    *
-   *     @param deployer      Address of the account that called the factory - must
-   *                          match the borrower address.
+   *     @param administrator_ Principal supplied by the factory. Must match the
+   *                           hooks administrator.
    *     @param marketAddress Address of the market being deployed.
    *     @param parameters    Parameters used to deploy the market.
    *     @param hooksData     Extra data passed to the market deployment function containing
@@ -159,14 +161,14 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
    *      so no need to verify the caller is the factory.
    */
   function _onCreateMarket(
-    address deployer,
+    address administrator_,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override returns (HooksConfig marketHooksConfig) {
     // Validate the deploy parameters
-    super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
-    if (deployer != borrower) revert CallerNotBorrower();
+    super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
+    if (administrator_ != administrator) revert CallerNotAdministrator();
     if (hooksData.length < 32) revert FixedTermNotProvided();
 
     marketHooksConfig = parameters.hooks;
@@ -239,7 +241,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
    *      later adopt a positive minimum.
    *      Reverts if `market` was not created with this hooks instance.
    */
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
+  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
@@ -248,10 +250,13 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
   }
 
   /**
-   * @dev Borrower-only setter for a hooked market's fixed-term end time.
+   * @dev Administrator-only setter for a hooked market's fixed-term end time.
    *      Reverts if the market is unknown, term reduction is disabled or term is extended.
    */
-  function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyBorrower {
+  function setFixedTermEndTime(
+    address market,
+    uint32 newFixedTermEndTime
+  ) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime)

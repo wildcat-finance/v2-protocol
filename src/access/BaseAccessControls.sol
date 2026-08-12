@@ -7,10 +7,12 @@ import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
 import './ProviderStructs.sol';
 import './IRoleProviderFactory.sol';
+import './IHooksAdministrator.sol';
+import '../interfaces/IWildcatArchController.sol';
 
 using BoolUtils for bool;
 
-contract BaseAccessControls {
+contract BaseAccessControls is IHooksAdministrator {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
@@ -42,12 +44,29 @@ contract BaseAccessControls {
   event AccountAccessRevoked(address indexed accountAddress);
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
   event NameUpdated(string name);
+  event AdministratorTransferRequested(
+    address indexed administrator,
+    address indexed previousPendingAdministrator,
+    address indexed pendingAdministrator
+  );
+  event AdministratorTransferCancelled(
+    address indexed administrator,
+    address indexed cancelledPendingAdministrator
+  );
+  event AdministratorTransferred(
+    address indexed previousAdministrator,
+    address indexed newAdministrator
+  );
 
   // ========================================================================== //
   //                                   Errors                                   //
   // ========================================================================== //
 
-  error CallerNotBorrower();
+  error CallerNotAdministrator();
+  error InvalidAdministratorTransferTarget();
+  error AdministratorNotRegistered();
+  error NoPendingAdministratorTransfer();
+  error NotPendingAdministrator();
   error ProviderNotFound();
   error ProviderCanNotReplaceCredential();
   error ProviderCanNotRevokeCredential();
@@ -67,7 +86,9 @@ contract BaseAccessControls {
   //                                    State                                   //
   // ========================================================================== //
 
-  address public immutable borrower;
+  address public override administrator;
+  address public override pendingAdministrator;
+  address internal immutable _hooksFactory;
   // Name of the hooks instance
   string public name;
   // Credentials by lender address
@@ -82,8 +103,8 @@ contract BaseAccessControls {
   //                                  Modifiers                                 //
   // ========================================================================== //
 
-  modifier onlyBorrower() {
-    if (msg.sender != borrower) revert CallerNotBorrower();
+  modifier onlyAdministrator() {
+    if (msg.sender != administrator) revert CallerNotAdministrator();
     _;
   }
 
@@ -91,17 +112,9 @@ contract BaseAccessControls {
   //                                 Constructor                                //
   // ========================================================================== //
 
-  constructor(address _borrower) {
-    borrower = _borrower;
-    // Allow deployer to grant roles with no expiry
-    RoleProvider borrowerProvider = encodeRoleProvider(
-      type(uint32).max,
-      _borrower,
-      NullProviderIndex,
-      0
-    );
-    _roleProviders[borrower] = borrowerProvider;
-    _pushProviders.push(borrowerProvider);
+  constructor(address _administrator) {
+    administrator = _administrator;
+    _hooksFactory = msg.sender;
   }
 
   function _initialize(NameAndProviderInputs memory inputs) internal {
@@ -123,8 +136,65 @@ contract BaseAccessControls {
     }
   }
 
-  /// @dev Borrower-only setter for this hooks instance name.
-  function setName(string memory _name) external onlyBorrower {
+  /// @dev Compatibility alias for integrations that still call the hook administrator `borrower`.
+  function borrower() external view returns (address) {
+    return administrator;
+  }
+
+  // ========================================================================== //
+  //                         Administrator transfer                             //
+  // ========================================================================== //
+
+  function _validateAdministratorTransferTarget(address newAdministrator) internal view {
+    if (newAdministrator == address(0) || newAdministrator == administrator) {
+      revert InvalidAdministratorTransferTarget();
+    }
+    address archController = IHooksFactoryAdministratorCallback(_hooksFactory).archController();
+    if (!IWildcatArchController(archController).isRegisteredBorrower(newAdministrator)) {
+      revert AdministratorNotRegistered();
+    }
+  }
+
+  function requestAdministratorTransfer(
+    address newAdministrator
+  ) external override onlyAdministrator {
+    _validateAdministratorTransferTarget(newAdministrator);
+    address previousPendingAdministrator = pendingAdministrator;
+    pendingAdministrator = newAdministrator;
+    emit AdministratorTransferRequested(
+      msg.sender,
+      previousPendingAdministrator,
+      newAdministrator
+    );
+  }
+
+  function cancelAdministratorTransfer() external override onlyAdministrator {
+    address cancelledPendingAdministrator = pendingAdministrator;
+    if (cancelledPendingAdministrator == address(0)) {
+      revert NoPendingAdministratorTransfer();
+    }
+    pendingAdministrator = address(0);
+    emit AdministratorTransferCancelled(msg.sender, cancelledPendingAdministrator);
+  }
+
+  function acceptAdministratorTransfer() external override {
+    address newAdministrator = pendingAdministrator;
+    if (msg.sender != newAdministrator) revert NotPendingAdministrator();
+    _validateAdministratorTransferTarget(newAdministrator);
+
+    address previousAdministrator = administrator;
+    pendingAdministrator = address(0);
+    administrator = newAdministrator;
+    emit AdministratorTransferred(previousAdministrator, newAdministrator);
+
+    IHooksFactoryAdministratorCallback(_hooksFactory).onHooksAdministratorTransferred(
+      previousAdministrator,
+      newAdministrator
+    );
+  }
+
+  /// @dev Administrator-only setter for this hooks instance name.
+  function setName(string memory _name) external onlyAdministrator {
     name = _name;
     emit NameUpdated(_name);
   }
@@ -134,14 +204,14 @@ contract BaseAccessControls {
   // ========================================================================== //
 
   /**
-   * @dev Borrower-only helper that creates a role provider through `providerFactory`
+   * @dev Administrator-only helper that creates a role provider through `providerFactory`
    *      and adds it with the supplied TTL. Reverts if creation returns address(0).
    */
   function createRoleProvider(
     address providerFactory,
     uint32 timeToLive,
     bytes memory data
-  ) external onlyBorrower {
+  ) external onlyAdministrator {
     _createRoleProvider(IRoleProviderFactory(providerFactory), timeToLive, data);
   }
 
@@ -162,7 +232,7 @@ contract BaseAccessControls {
    *      otherwise, it is added to `pushProviders`.
    *      If the provider is already approved, only updates `timeToLive`.
    */
-  function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyBorrower {
+  function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyAdministrator {
     _addRoleProvider(providerAddress, timeToLive);
   }
 
@@ -221,7 +291,7 @@ contract BaseAccessControls {
    * @dev Removes a role provider from the `_roleProviders` mapping and, if it is a
    *      pull provider, from the `_pullProviders` array.
    */
-  function removeRoleProvider(address providerAddress) external onlyBorrower {
+  function removeRoleProvider(address providerAddress) external onlyAdministrator {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) revert ProviderNotFound();
     // Remove the provider from `_roleProviders`
@@ -481,13 +551,13 @@ contract BaseAccessControls {
     emit AccountAccessRevoked(account);
   }
 
-  /// @dev Borrower-only block that clears any credential and prevents future deposits.
-  function blockFromDeposits(address account) external onlyBorrower {
+  /// @dev Administrator-only block that clears any credential and prevents future deposits.
+  function blockFromDeposits(address account) external onlyAdministrator {
     _blockFromDeposits(account);
   }
 
-  /// @dev Borrower-only batch version of `blockFromDeposits`.
-  function blockFromDeposits(address[] calldata accounts) external onlyBorrower {
+  /// @dev Administrator-only batch version of `blockFromDeposits`.
+  function blockFromDeposits(address[] calldata accounts) external onlyAdministrator {
     for (uint256 i; i < accounts.length; i++) {
       _blockFromDeposits(accounts[i]);
     }
@@ -504,8 +574,8 @@ contract BaseAccessControls {
     emit AccountBlockedFromDeposits(account);
   }
 
-  /// @dev Borrower-only unblock that lets the account deposit if otherwise approved.
-  function unblockFromDeposits(address account) external onlyBorrower {
+  /// @dev Administrator-only unblock that lets the account deposit if otherwise approved.
+  function unblockFromDeposits(address account) external onlyAdministrator {
     LenderStatus memory status = _lenderStatus[account];
     status.isBlockedFromDeposits = false;
     _lenderStatus[account] = status;
