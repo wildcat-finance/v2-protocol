@@ -6,6 +6,14 @@ Hook administration does not confer credential authority. A new hook does not ad
 
 The hook administrator configures each provider with a TTL, which controls how long the hook may use a credential without consulting the provider again.
 
+## Hook administration
+
+Factory-created access-control hooks expose `administrator()` and `pendingAdministrator()`. The current administrator may request a transfer to another ArchController-registered principal, replace a pending request, or cancel it. The target must still be registered when it accepts.
+
+The pending administrator has no authority before acceptance. Only the pending address may accept. Acceptance changes the hook administrator and updates the creating factory's administrator index in the same transaction; if the factory callback fails, the entire acceptance reverts. The factory records the result but cannot initiate the transfer or reassign the hook on its own.
+
+Hook transfer changes who may configure provider attachments, TTLs, hook-local blocks, and hooked-market policy. It does not transfer a market, rewrite lender status, change provider membership or administration, or move the hook merely because one of its markets changes borrowers. The compatibility getter `borrower()` returns the current hook administrator.
+
 A role provider can be a push provider, a pull provider, or a validation provider depending on what it supports.
 All approved role providers can push credentials by calling `grantRole` or `grantRoles`.
 A provider is treated as a pull provider only if it successfully implements `isPullProvider()` and returns true, meaning the hooks contract can query it with `getCredential` to check if a lender has a credential using only the lender's address.
@@ -37,13 +45,13 @@ Role-provider administration is optional and separate from hook administration. 
 
 ## Access-list role provider
 
-`AccessListRoleProvider` is the managed pull provider included with v2.5. One instance owns one reusable address list, and the same instance can be attached to several hooks. A borrower can deploy separate instances when two markets should not share a list.
+`AccessListRoleProvider` is the managed pull provider included with v2.5. One instance is one reusable address list, and the same instance can be attached to several hooks. Use separate instances when two sets of hooks should not share a list.
 
-The current provider administrator may add or remove one member or an explicitly supplied batch. Members are enumerable, but removal uses swap-and-pop, so enumeration order is not stable. Each membership event identifies the administrator that made the change. The provider has no hook callbacks, market authority, token functions, or list of attached hooks.
+The current provider administrator may add or remove one member or an explicitly supplied batch. Members are enumerable, but removal uses swap-and-pop, so enumeration order is not stable. Each membership event records the provider's current administrator. The factory deployment event separately records the actual factory caller and the full initial member list. The provider has no hook callbacks, market authority, token functions, or list of attached hooks.
 
 Provider administration uses its own two-step transfer. The pending administrator has no authority before acceptance. Acceptance changes only the provider administrator; the provider address, membership, and every hook attachment stay unchanged. There is no ArchController or Foundation registration check for providers or their administrators.
 
-`AccessListRoleProviderFactory` can deploy a provider directly or through the hook's generic `createRoleProvider` helper. Generic factory calldata is `abi.encode(AccessListRoleProviderFactoryInputs)`, where the struct contains `administrator`, `initialMembers`, and `salt`. The intended administrator is explicit because the factory caller may be a hook rather than the borrower. CREATE2 salts are namespaced by the caller, and the factory keeps no authority over the provider after deployment.
+`AccessListRoleProviderFactory` can deploy a provider directly or through the hook's generic `createRoleProvider` helper. Generic factory calldata is `abi.encode(AccessListRoleProviderFactoryInputs)`, where the struct contains `administrator`, `initialMembers`, and `salt`. The intended administrator is explicit because the factory caller may be a hook rather than the provider administrator. CREATE2 salts are namespaced by the caller, and the factory keeps no authority over the provider after deployment.
 
 The provider returns the current block timestamp for a listed account and zero for an unlisted account. It does not store a credential timestamp because membership remains valid until the administrator removes it.
 
@@ -72,7 +80,7 @@ When a restricted function is called, the access control contract will attempt t
 
 ```mermaid
 flowchart TD
-    validateAccess[["tryValidateAccess(address lender, bytes hooksData)"]] --> hasUnexpiredCredential{Lender has\nunexpired credential?}
+    validateAccess[["tryValidateAccess(address lender, bytes hooksData)"]] --> hasUnexpiredCredential{Lender has cacheable\nunexpired credential?}
     hasUnexpiredCredential -- yes --> returnTrue([Access verified])
     hasUnexpiredCredential -- no --> providedHooksData{hooksData?}
     providedHooksData -- yes --> callHandleHooksData[["handleHooksData(lender, hooksData)"]]

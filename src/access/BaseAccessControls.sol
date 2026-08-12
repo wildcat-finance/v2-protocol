@@ -622,7 +622,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   /**
-   * @dev A zero-TTL pull provider is the source of truth on every check, including
+   * @dev A zero-TTL pull credential cannot satisfy a check from cache, including
    *      another check in the same block. Push providers keep their existing
    *      timestamp behavior because the hook cannot refresh them.
    */
