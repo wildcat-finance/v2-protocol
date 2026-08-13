@@ -307,17 +307,25 @@ library LibAccessControlHooksFuzzContext {
         context.expectations.expectedCalls[i].data
       );
     }
+    address caller = context.functionKind == FunctionKind.HooksFunction
+      ? address(this)
+      : context.market;
     if (context.expectations.wasUpdated) {
       if (context.expectations.hasValidCredential) {
         vm.expectEmit(address(context.hooks));
         emit BaseAccessControls.AccountAccessGranted(
           context.expectations.lastProvider,
           context.account,
+          caller,
           context.expectations.lastApprovalTimestamp
         );
       } else if (!skipRevokedEvent) {
         vm.expectEmit(address(context.hooks));
-        emit BaseAccessControls.AccountAccessRevoked(context.account);
+        emit BaseAccessControls.AccountAccessRevoked(
+          address(context.previousProvider),
+          context.account,
+          caller
+        );
       }
     }
     if (

@@ -9,6 +9,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   error UnsupportedMarketDataVersion();
   error InvalidCommitmentFeeBips();
 
+  event RevolvingMarketDeployed(address indexed market, uint256 commitmentFeeBips);
+
   function archController() external view returns (address);
 
   function sanctionsSentinel() external view returns (address);

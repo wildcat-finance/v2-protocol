@@ -18,6 +18,7 @@ import 'src/lens/MarketLensLive.sol';
 import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
 import 'src/lens/MarketLens.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { AccessListRoleProvider } from 'src/access/AccessListRoleProvider.sol';
 import 'src/IHooksFactory.sol';
 import 'src/interfaces/IBorrowerIdentityRegistry.sol';
 
@@ -387,7 +388,7 @@ contract MarketDataTest is BaseMarketTest {
       address(borrowerIdentityRegistry),
       'identity registry'
     );
-    assertEq(pendingData.market.hooks.borrower, borrower, 'pending hook administrator');
+    assertEq(pendingData.market.hooks.administrator, borrower, 'pending hook administrator');
 
     vm.prank(nextBorrower);
     market.acceptBorrowerTransfer();
@@ -406,7 +407,7 @@ contract MarketDataTest is BaseMarketTest {
       address(borrowerIdentityRegistry),
       'accepted identity registry'
     );
-    assertEq(acceptedData.market.hooks.borrower, borrower, 'accepted hook administrator');
+    assertEq(acceptedData.market.hooks.administrator, borrower, 'accepted hook administrator');
   }
 
   function test_getMarketDataV2_tracksSameAccountPrincipalMigration() external {
@@ -755,6 +756,18 @@ contract MarketDataTest is BaseMarketTest {
       provider.pullProviderIndex(),
       string.concat(labelPrefix, ' pullProviderIndex')
     );
+    assertEq(
+      data.pushProviderIndex,
+      provider.pushProviderIndex(),
+      string.concat(labelPrefix, ' pushProviderIndex')
+    );
+    assertFalse(data.isManaged, string.concat(labelPrefix, ' isManaged'));
+    assertEq(data.administrator, address(0), string.concat(labelPrefix, ' administrator'));
+    assertEq(
+      data.pendingAdministrator,
+      address(0),
+      string.concat(labelPrefix, ' pendingAdministrator')
+    );
   }
 
   function checkPullProviders(RoleProviderData[] memory datas) internal view {
@@ -769,7 +782,8 @@ contract MarketDataTest is BaseMarketTest {
     MarketConfigFuzzInputs memory inputs
   ) internal {
     assertEq(data.hooksAddress, address(hooks), 'hooksAddress');
-    assertEq(data.borrower, borrower, 'borrower');
+    assertEq(data.administrator, borrower, 'administrator');
+    assertEq(data.pendingAdministrator, address(0), 'pendingAdministrator');
     assertEq(
       uint256(data.kind),
       inputs.isOpenTermHooks
@@ -1027,7 +1041,7 @@ contract MarketDataTest is BaseMarketTest {
     );
     assertEq(uint256(data.hooks.kind), uint256(HooksInstanceKind.PeriodicTerm), 'hooks kind');
     assertEq(data.hooks.hooksAddress, address(fixture.hooks), 'hooks instance address');
-    assertEq(data.hooks.borrower, borrower, 'hooks borrower');
+    assertEq(data.hooks.administrator, borrower, 'hooks administrator');
     assertEq(data.hooks.totalMarkets, 1, 'hooks totalMarkets');
     assertEq(
       data.hooksConfig.firstWithdrawalWindowStart,
@@ -1064,7 +1078,7 @@ contract MarketDataTest is BaseMarketTest {
       if (data[i].hooksAddress == address(fixture.hooks)) {
         found = true;
         assertEq(uint256(data[i].kind), uint256(HooksInstanceKind.PeriodicTerm), 'periodic kind');
-        assertEq(data[i].borrower, borrower, 'periodic borrower');
+        assertEq(data[i].administrator, borrower, 'periodic administrator');
         assertEq(data[i].hooksTemplate.hooksTemplate, fixture.template, 'periodic template');
         assertEq(data[i].hooksTemplate.name, 'PeriodicTermHooks', 'periodic template name');
         HooksDeploymentConfig deploymentConfig = fixture.hooks.config();
@@ -1084,13 +1098,50 @@ contract MarketDataTest is BaseMarketTest {
     assertTrue(found, 'periodic hooks instance not found');
   }
 
-  function test_HooksInstanceDataFill_readsBorrowerWhenNotProvided() external {
+  function test_HooksInstanceDataFill_readsAdministratorWhenNotProvided() external {
     HooksInstanceDataHarness harness = new HooksInstanceDataHarness();
 
     HooksInstanceData memory data = harness.fill(address(hooks), hooksFactory);
 
     assertEq(data.hooksAddress, address(hooks), 'hooksAddress');
-    assertEq(data.borrower, borrower, 'borrower');
+    assertEq(data.administrator, borrower, 'administrator');
+    assertEq(data.pendingAdministrator, address(0), 'pendingAdministrator');
+  }
+
+  function test_HooksInstanceDataFill_readsPendingAdministrator() external {
+    address nextAdministrator = address(0xB0B);
+    archController.registerBorrower(nextAdministrator);
+    vm.prank(borrower);
+    hooks.requestAdministratorTransfer(nextAdministrator);
+
+    HooksInstanceDataHarness harness = new HooksInstanceDataHarness();
+    HooksInstanceData memory data = harness.fill(address(hooks), hooksFactory);
+
+    assertEq(data.administrator, borrower, 'administrator');
+    assertEq(data.pendingAdministrator, nextAdministrator, 'pendingAdministrator');
+  }
+
+  function test_HooksInstanceDataFill_readsManagedProviderAdministration() external {
+    AccessListRoleProvider provider = new AccessListRoleProvider(borrower, new address[](0));
+    vm.prank(borrower);
+    hooks.addRoleProvider(address(provider), 7 days);
+
+    address newAdministrator = address(0xB0B);
+    vm.prank(borrower);
+    provider.requestAdministratorTransfer(newAdministrator);
+
+    HooksInstanceDataHarness harness = new HooksInstanceDataHarness();
+    HooksInstanceData memory data = harness.fill(address(hooks), hooksFactory);
+    RoleProviderData memory providerData = data.pullProviders[data.pullProviders.length - 1];
+
+    assertEq(providerData.providerAddress, address(provider), 'provider');
+    assertTrue(providerData.isManaged, 'isManaged');
+    assertEq(providerData.administrator, borrower, 'provider administrator');
+    assertEq(
+      providerData.pendingAdministrator,
+      newAdministrator,
+      'provider pending administrator'
+    );
   }
 
   function test_getMarketsData() external view {

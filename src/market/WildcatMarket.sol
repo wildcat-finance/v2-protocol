@@ -131,7 +131,7 @@ contract WildcatMarket is
     state.accruedProtocolFees -= withdrawableFees;
     asset.safeTransfer(feeRecipient, withdrawableFees);
     _writeState(state);
-    emit_FeesCollected(withdrawableFees);
+    emit_FeesCollected(msg.sender, feeRecipient, withdrawableFees);
   }
 
   /**
@@ -166,7 +166,7 @@ contract WildcatMarket is
     _onBorrow(state, amount);
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
-    emit_Borrow(amount);
+    emit_Borrow(currentBorrower, amount);
   }
 
   function _repay(
@@ -224,6 +224,8 @@ contract WildcatMarket is
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_MarketAlreadyClosed();
+    uint256 previousAnnualInterestBips = state.annualInterestBips;
+    uint256 previousReserveRatioBips = state.reserveRatioBips;
 
     uint256 currentlyHeld = totalAssets();
     uint256 totalDebts = state.totalDebts();
@@ -302,7 +304,14 @@ contract WildcatMarket is
 
     _onCloseMarket();
     _writeState(state);
-    emit_MarketClosed(block.timestamp);
+    emit_AnnualInterestAndReserveRatioBipsUpdated(
+      msg.sender,
+      previousAnnualInterestBips,
+      state.annualInterestBips,
+      previousReserveRatioBips,
+      state.reserveRatioBips
+    );
+    emit_MarketClosed(msg.sender, block.timestamp);
   }
 
   /**

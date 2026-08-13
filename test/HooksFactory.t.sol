@@ -10,9 +10,12 @@ import 'src/libraries/LibStoredInitCode.sol';
 import { MockERC20, ERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import './helpers/Assertions.sol';
 import './shared/mocks/MockHooks.sol';
+import './shared/mocks/MockRoleProvider.sol';
 import './helpers/StandardStructs.sol';
 import 'src/market/WildcatMarket.sol';
 import 'src/access/OpenTermHooks.sol';
+import 'src/access/ProviderStructs.sol';
+import 'src/types/RoleProvider.sol';
 import 'solady/utils/LibString.sol';
 
 using LibString for string;
@@ -119,6 +122,7 @@ contract HooksFactoryTest is Test, Assertions {
     string memory name = 'name';
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       MockHooksTemplate,
+      address(this),
       name,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -221,9 +225,14 @@ contract HooksFactoryTest is Test, Assertions {
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateFeesUpdated(
       MockHooksTemplate,
+      address(this),
+      address(0),
       feesInput.feeRecipient,
+      address(0),
       feesInput.originationFeeAsset,
+      0,
       feesInput.originationFeeAmount,
+      0,
       feesInput.protocolFeeBips
     );
 
@@ -563,7 +572,7 @@ contract HooksFactoryTest is Test, Assertions {
     );
 
     vm.expectEmit(address(hooksFactory));
-    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(MockHooksTemplate);
+    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(MockHooksTemplate, address(this));
 
     hooksFactory.disableHooksTemplate(MockHooksTemplate);
 
@@ -629,6 +638,75 @@ contract HooksFactoryTest is Test, Assertions {
     MockHooks hooksInstance = MockHooks(hooks);
     assertEq(hooksInstance.deployer(), address(this));
     assertEq(hooksInstance.constructorArgsHash(), keccak256(constructorArgs));
+  }
+
+  function test_deployHooksInstance_EmitsInitialRoleProviderSnapshot() external {
+    archController.registerBorrower(address(this));
+    address hooksTemplate = LibStoredInitCode.deployInitCode(type(OpenTermHooks).creationCode);
+    hooksFactory.addHooksTemplate(hooksTemplate, 'OpenTermHooks', address(0), address(0), 0, 0);
+
+    MockRoleProvider pullProvider = new MockRoleProvider();
+    pullProvider.setIsPullProvider(true);
+    MockRoleProvider pushProvider = new MockRoleProvider();
+
+    ExistingProviderInputs[] memory existingProviders = new ExistingProviderInputs[](2);
+    existingProviders[0] = ExistingProviderInputs({
+      providerAddress: address(pullProvider),
+      timeToLive: 1 days
+    });
+    existingProviders[1] = ExistingProviderInputs({
+      providerAddress: address(pushProvider),
+      timeToLive: 2 days
+    });
+    NameAndProviderInputs memory inputs = NameAndProviderInputs({
+      name: 'shared access',
+      roleProviderFactory: address(0),
+      newProviderInputs: new CreateProviderInputs[](0),
+      existingProviders: existingProviders
+    });
+    bytes memory constructorArgs = abi.encode(inputs);
+    address expectedHooksInstance = getNextInstanceAddress(
+      hooksTemplate,
+      address(this),
+      constructorArgs
+    );
+
+    RoleProvider[] memory pullProviders = new RoleProvider[](1);
+    pullProviders[0] = encodeRoleProvider(
+      1 days,
+      address(pullProvider),
+      0,
+      NullProviderIndex
+    );
+    RoleProvider[] memory pushProviders = new RoleProvider[](1);
+    pushProviders[0] = encodeRoleProvider(
+      2 days,
+      address(pushProvider),
+      NullProviderIndex,
+      0
+    );
+
+    vm.expectEmit(address(hooksFactory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+      expectedHooksInstance,
+      hooksTemplate,
+      address(this),
+      address(this),
+      'shared access',
+      'OpenTermHooks'
+    );
+    vm.expectEmit(address(hooksFactory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceRoleProviders(
+      expectedHooksInstance,
+      true,
+      pullProviders,
+      pushProviders
+    );
+
+    assertEq(
+      hooksFactory.deployHooksInstance(hooksTemplate, constructorArgs),
+      expectedHooksInstance
+    );
   }
 
   function test_deployHooksInstance_DeploymentFailed() external {
@@ -741,7 +819,17 @@ contract HooksFactoryTest is Test, Assertions {
     emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
       expectedAddress,
       hooksTemplate,
-      address(this)
+      address(this),
+      address(this),
+      '',
+      'mock-hooks'
+    );
+    vm.expectEmit(address(hooksFactory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceRoleProviders(
+      expectedAddress,
+      false,
+      new RoleProvider[](0),
+      new RoleProvider[](0)
     );
   }
 
@@ -781,6 +869,7 @@ contract HooksFactoryTest is Test, Assertions {
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
+      address(this),
       name,
       feesInput.feeRecipient,
       feesInput.originationFeeAsset,
@@ -837,6 +926,7 @@ contract HooksFactoryTest is Test, Assertions {
     FuzzFeeConfigurationInputs feesInput;
     HooksConfig expectedConfig;
     address hooksTemplate;
+    bytes hooksData;
   }
 
   // @todo context obj for tracking variables like salt
@@ -865,17 +955,34 @@ contract HooksFactoryTest is Test, Assertions {
       vm.expectEmit(address(hooksFactory));
       emit IHooksFactoryEventsAndErrors.MarketDeployed(
         args.hooksTemplate,
+        args.expectedConfig.hooksAddress(),
         hooksFactory.computeMarketAddress(bytes32(uint(1))),
+        address(this),
+        address(this),
         name,
         symbol,
         args.parameters.asset,
+        args.parameters.hooks,
+        args.expectedConfig
+      );
+      vm.expectEmit(address(hooksFactory));
+      emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
+        hooksFactory.computeMarketAddress(bytes32(uint(1))),
         args.parameters.maxTotalSupply,
         args.parameters.annualInterestBips,
         args.parameters.delinquencyFeeBips,
         args.parameters.withdrawalBatchDuration,
         args.parameters.reserveRatioBips,
         args.parameters.delinquencyGracePeriod,
-        args.expectedConfig
+        args.feesInput.feeRecipient,
+        args.feesInput.protocolFeeBips,
+        args.feesInput.originationFeeAsset,
+        args.feesInput.originationFeeAmount
+      );
+      vm.expectEmit(address(hooksFactory));
+      emit IHooksFactoryEventsAndErrors.MarketHooksData(
+        hooksFactory.computeMarketAddress(bytes32(uint(1))),
+        args.hooksData
       );
     }
   }
@@ -954,7 +1061,8 @@ contract HooksFactoryTest is Test, Assertions {
         parameters: parameters,
         feesInput: feesInput,
         expectedConfig: marketHooksConfig.mergeFlags(templateHooksConfig).toHooksConfig(),
-        hooksTemplate: hooksTemplate
+        hooksTemplate: hooksTemplate,
+        hooksData: hooksData
       })
     );
     market = WildcatMarket(
@@ -1247,7 +1355,8 @@ contract HooksFactoryTest is Test, Assertions {
         parameters: context.parameters,
         feesInput: feesInput,
         expectedConfig: context.expectedConfig,
-        hooksTemplate: MockHooksWithConfigTemplate
+        hooksTemplate: MockHooksWithConfigTemplate,
+        hooksData: context.createMarketHooksData
       })
     );
 
@@ -1466,23 +1575,23 @@ contract HooksFactoryTest is Test, Assertions {
 
     hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 1_000);
     vm.expectEmit(market0);
-    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(1_000);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(address(hooksFactory), 0, 1_000);
     vm.expectEmit(market1);
-    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(1_000);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(address(hooksFactory), 0, 1_000);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate);
     assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 1_000);
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 1_000);
 
     hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 500);
     vm.expectEmit(market0);
-    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(500);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(address(hooksFactory), 1_000, 500);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 0, 1);
     assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 500);
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 1_000);
 
     hooksFactory.updateHooksTemplateFees(MockHooksTemplate, address(0xfee), address(0), 0, 100);
     vm.expectEmit(market1);
-    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(100);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(address(hooksFactory), 1_000, 100);
     hooksFactory.pushProtocolFeeBipsUpdates(MockHooksTemplate, 1, 2);
     assertEq(WildcatMarket(market0).previousState().protocolFeeBips, 500);
     assertEq(WildcatMarket(market1).previousState().protocolFeeBips, 100);

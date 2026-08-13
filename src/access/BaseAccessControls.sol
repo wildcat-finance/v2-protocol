@@ -18,32 +18,50 @@ contract BaseAccessControls is IHooksAdministrator {
   // ========================================================================== //
 
   event RoleProviderUpdated(
+    address indexed administrator,
     address indexed providerAddress,
-    uint32 timeToLive,
-    uint24 pullProviderIndex,
-    uint24 pushProviderIndex
+    uint32 previousTimeToLive,
+    uint32 newTimeToLive,
+    uint24 previousPullProviderIndex,
+    uint24 newPullProviderIndex,
+    uint24 previousPushProviderIndex,
+    uint24 newPushProviderIndex
   );
   event RoleProviderAdded(
+    address indexed administrator,
     address indexed providerAddress,
     uint32 timeToLive,
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
   );
   event RoleProviderRemoved(
+    address indexed administrator,
     address indexed providerAddress,
+    uint32 timeToLive,
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
   );
-  event AccountBlockedFromDeposits(address indexed accountAddress);
-  event AccountUnblockedFromDeposits(address indexed accountAddress);
+  event AccountBlockedFromDeposits(
+    address indexed administrator,
+    address indexed accountAddress
+  );
+  event AccountUnblockedFromDeposits(
+    address indexed administrator,
+    address indexed accountAddress
+  );
   event AccountAccessGranted(
     address indexed providerAddress,
     address indexed accountAddress,
+    address indexed caller,
     uint32 credentialTimestamp
   );
-  event AccountAccessRevoked(address indexed accountAddress);
+  event AccountAccessRevoked(
+    address indexed providerAddress,
+    address indexed accountAddress,
+    address indexed caller
+  );
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
-  event NameUpdated(string name);
+  event NameUpdated(address indexed administrator, string previousName, string newName);
   event AdministratorTransferRequested(
     address indexed administrator,
     address indexed previousPendingAdministrator,
@@ -195,8 +213,9 @@ contract BaseAccessControls is IHooksAdministrator {
 
   /// @dev Administrator-only setter for this hooks instance name.
   function setName(string memory _name) external onlyAdministrator {
+    string memory previousName = name;
     name = _name;
-    emit NameUpdated(_name);
+    emit NameUpdated(msg.sender, previousName, _name);
   }
 
   // ========================================================================== //
@@ -270,9 +289,16 @@ contract BaseAccessControls is IHooksAdministrator {
       } else {
         _pushProviders.push(provider);
       }
-      emit RoleProviderAdded(providerAddress, timeToLive, pullProviderIndex, pushProviderIndex);
+      emit RoleProviderAdded(
+        administrator,
+        providerAddress,
+        timeToLive,
+        pullProviderIndex,
+        pushProviderIndex
+      );
     } else {
       // If provider already exists, the only value that can be updated is the TTL
+      uint32 previousTimeToLive = provider.timeToLive();
       provider = provider.setTimeToLive(timeToLive);
       uint24 pullProviderIndex = provider.pullProviderIndex();
       uint24 pushProviderIndex = provider.pushProviderIndex();
@@ -281,7 +307,16 @@ contract BaseAccessControls is IHooksAdministrator {
       } else {
         _pushProviders[pushProviderIndex] = provider;
       }
-      emit RoleProviderUpdated(providerAddress, timeToLive, pullProviderIndex, pushProviderIndex);
+      emit RoleProviderUpdated(
+        administrator,
+        providerAddress,
+        previousTimeToLive,
+        timeToLive,
+        pullProviderIndex,
+        pullProviderIndex,
+        pushProviderIndex,
+        pushProviderIndex
+      );
     }
     // Update the provider in storage
     _roleProviders[providerAddress] = provider;
@@ -297,7 +332,9 @@ contract BaseAccessControls is IHooksAdministrator {
     // Remove the provider from `_roleProviders`
     _roleProviders[providerAddress] = EmptyRoleProvider;
     emit RoleProviderRemoved(
+      administrator,
       providerAddress,
+      provider.timeToLive(),
       provider.pullProviderIndex(),
       provider.pushProviderIndex()
     );
@@ -332,9 +369,13 @@ contract BaseAccessControls is IHooksAdministrator {
     _roleProviders[lastProviderAddress] = lastProvider;
     // Emit an event to notify that the provider's index has been updated
     emit RoleProviderUpdated(
+      administrator,
       lastProviderAddress,
       lastProvider.timeToLive(),
+      lastProvider.timeToLive(),
+      uint24(lastIndex),
       indexToRemove,
+      NullProviderIndex,
       NullProviderIndex
     );
   }
@@ -362,9 +403,13 @@ contract BaseAccessControls is IHooksAdministrator {
     _roleProviders[lastProviderAddress] = lastProvider;
     // Emit an event to notify that the provider's index has been updated
     emit RoleProviderUpdated(
+      administrator,
       lastProviderAddress,
       lastProvider.timeToLive(),
+      lastProvider.timeToLive(),
       NullProviderIndex,
+      NullProviderIndex,
+      uint24(lastIndex),
       indexToRemove
     );
   }
@@ -544,9 +589,10 @@ contract BaseAccessControls is IHooksAdministrator {
     if (msg.sender != status.lastProvider) {
       revert ProviderCanNotRevokeCredential();
     }
+    address providerAddress = status.lastProvider;
     status.unsetCredential();
     _lenderStatus[account] = status;
-    emit AccountAccessRevoked(account);
+    emit AccountAccessRevoked(providerAddress, account, msg.sender);
   }
 
   /// @dev Administrator-only block that clears any credential and prevents future deposits.
@@ -564,12 +610,13 @@ contract BaseAccessControls is IHooksAdministrator {
   function _blockFromDeposits(address account) internal {
     LenderStatus memory status = _lenderStatus[account];
     if (status.hasCredential()) {
+      address providerAddress = status.lastProvider;
       status.unsetCredential();
-      emit AccountAccessRevoked(account);
+      emit AccountAccessRevoked(providerAddress, account, msg.sender);
     }
     status.isBlockedFromDeposits = true;
     _lenderStatus[account] = status;
-    emit AccountBlockedFromDeposits(account);
+    emit AccountBlockedFromDeposits(msg.sender, account);
   }
 
   /// @dev Administrator-only unblock that lets the account deposit if otherwise approved.
@@ -577,7 +624,7 @@ contract BaseAccessControls is IHooksAdministrator {
     LenderStatus memory status = _lenderStatus[account];
     status.isBlockedFromDeposits = false;
     _lenderStatus[account] = status;
-    emit AccountUnblockedFromDeposits(account);
+    emit AccountUnblockedFromDeposits(msg.sender, account);
   }
 
   /**
@@ -878,10 +925,15 @@ contract BaseAccessControls is IHooksAdministrator {
         emit AccountAccessGranted(
           status.lastProvider,
           accountAddress,
+          msg.sender,
           status.lastApprovalTimestamp
         );
       } else {
-        emit AccountAccessRevoked(accountAddress);
+        emit AccountAccessRevoked(
+          _lenderStatus[accountAddress].lastProvider,
+          accountAddress,
+          msg.sender
+        );
       }
     }
     // Mark account as a known lender if they have a valid credential, are not
@@ -909,6 +961,11 @@ contract BaseAccessControls is IHooksAdministrator {
     status.setCredential(provider, credentialTimestamp);
     // Update the account's status in storage
     _lenderStatus[accountAddress] = status;
-    emit AccountAccessGranted(provider.providerAddress(), accountAddress, credentialTimestamp);
+    emit AccountAccessGranted(
+      provider.providerAddress(),
+      accountAddress,
+      msg.sender,
+      credentialTimestamp
+    );
   }
 }

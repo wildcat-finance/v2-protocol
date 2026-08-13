@@ -34,7 +34,12 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
-  event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
+  event MinimumDepositUpdated(
+    address indexed market,
+    address indexed caller,
+    uint128 previousMinimumDeposit,
+    uint128 newMinimumDeposit
+  );
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -166,7 +171,12 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     if (hookedMarket.minimumDeposit > 0) {
       // If there is a minimum deposit, the deposit hook must be enabled
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
+      emit MinimumDepositUpdated(
+        marketAddress,
+        administrator_,
+        0,
+        hookedMarket.minimumDeposit
+      );
     }
     if (hookedMarket.transfersDisabled) {
       // If transfers are disabled, the transfer hook must be enabled
@@ -200,8 +210,9 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
+    uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
     hookedMarket.minimumDeposit = newMinimumDeposit;
-    emit MinimumDepositUpdated(market, newMinimumDeposit);
+    emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
 
   // ========================================================================== //

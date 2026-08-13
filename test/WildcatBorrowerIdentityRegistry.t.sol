@@ -58,7 +58,7 @@ contract WildcatBorrowerIdentityRegistryTest is Test {
     MockBorrowerAccountFactory secondFactory = new MockBorrowerAccountFactory(address(registry));
 
     vm.expectEmit(address(registry));
-    emit IBorrowerIdentityRegistry.AccountFactoryAdded(address(secondFactory));
+    emit IBorrowerIdentityRegistry.AccountFactoryAdded(address(this), address(secondFactory));
     registry.addAccountFactory(address(secondFactory));
 
     assertTrue(registry.isAccountFactory(address(secondFactory)));
@@ -105,7 +105,7 @@ contract WildcatBorrowerIdentityRegistryTest is Test {
     address account = accountFactory.deployAccount(principal);
 
     vm.expectEmit(address(registry));
-    emit IBorrowerIdentityRegistry.AccountFactoryRemoved(address(accountFactory));
+    emit IBorrowerIdentityRegistry.AccountFactoryRemoved(address(this), address(accountFactory));
     registry.removeAccountFactory(address(accountFactory));
 
     assertFalse(registry.isAccountFactory(address(accountFactory)));

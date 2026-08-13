@@ -20,10 +20,11 @@ contract MockPeriodicTermHooks is PeriodicTermHooks {
         emit AccountAccessGranted(
           status.lastProvider,
           accountAddress,
+          msg.sender,
           status.lastApprovalTimestamp
         );
       } else {
-        emit AccountAccessRevoked(accountAddress);
+        emit AccountAccessRevoked(lastProvider, accountAddress, msg.sender);
       }
     }
   }

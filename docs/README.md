@@ -4,6 +4,7 @@
 - [Core behavior](./Core%20Behavior.md) - most important aspects of how the protocol operates
 - [Borrower identity and transfers](./Borrower%20Identity%20and%20Transfers.md) - operational borrower, legal principal, account registry, and two-step transfers in v2.5
 - [Role provider inventory](./Role%20Provider%20Inventory.md) - production, mock, and conceptual provider capabilities in the v2.5 source tree
+- [v2.5 event model](./v2.5%20Event%20Model.md) - deployment snapshots, authority history, mutable state transitions, and indexer replay rules
 - [Terminology](./Terminology.md)
 - [Known issues](./Known%20Issues.md) - list of some things we know are issues or which might seem like issues but are intentional
 - [Changelog](./CHANGELOG.md) - changes between V1, V2, and V2.5

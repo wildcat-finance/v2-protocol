@@ -547,9 +547,13 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     aprReductionHooks.setPendingAnnualInterestBipsReduction(newAnnualInterestBips);
 
     vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.AnnualInterestBipsUpdated(newAnnualInterestBips);
-    vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.ReserveRatioBipsUpdated(DefaultReserveRatio);
+    emit IMarketEventsAndErrors.AnnualInterestAndReserveRatioBipsUpdated(
+      alice,
+      DefaultInterest,
+      newAnnualInterestBips,
+      DefaultReserveRatio,
+      DefaultReserveRatio
+    );
     vm.prank(alice);
     market.executePendingAnnualInterestBipsReduction();
 
@@ -638,7 +642,11 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     // max = 999 because it must not match the current fee, which is 1000 by default
     _protocolFeeBips = uint16(bound(_protocolFeeBips, 0, 999));
     vm.expectEmit(address(market));
-    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(_protocolFeeBips);
+    emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(
+      address(hooksFactory),
+      1_000,
+      _protocolFeeBips
+    );
     market.setProtocolFeeBips(_protocolFeeBips);
     assertEq(market.previousState().protocolFeeBips, _protocolFeeBips, 'protocolFeeBips');
   }

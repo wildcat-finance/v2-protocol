@@ -6,6 +6,7 @@ import 'src/WildcatArchController.sol';
 import 'src/WildcatBorrowerIdentityRegistry.sol';
 import 'src/HooksFactory.sol';
 import 'src/HooksFactoryRevolving.sol';
+import 'src/IHooksFactory.sol';
 import 'src/access/BaseAccessControls.sol';
 import 'src/access/OpenTermHooks.sol';
 import 'src/interfaces/IBorrowerIdentityRegistry.sol';
@@ -146,6 +147,15 @@ contract BorrowerAccountOriginationTest is Test {
   }
 
   function test_standardAccountDeploysHookAndMarket() external {
+    vm.expectEmit(false, true, true, true, address(standardFactory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+      address(0),
+      hooksTemplate,
+      principal,
+      borrowerAccount,
+      '',
+      'OpenTermHooks'
+    );
     vm.startPrank(borrowerAccount);
     address hooksInstance = standardFactory.deployHooksInstance(hooksTemplate, '');
     address market = standardFactory.deployMarket(
@@ -167,6 +177,15 @@ contract BorrowerAccountOriginationTest is Test {
   }
 
   function test_revolvingAccountDeploysHookAndMarket() external {
+    vm.expectEmit(false, true, true, true, address(revolvingFactory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+      address(0),
+      hooksTemplate,
+      principal,
+      borrowerAccount,
+      '',
+      'OpenTermHooks'
+    );
     vm.startPrank(borrowerAccount);
     address hooksInstance = revolvingFactory.deployHooksInstance(hooksTemplate, '');
     address market = revolvingFactory.deployMarket(

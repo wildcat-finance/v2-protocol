@@ -98,6 +98,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     vm.expectEmit(address(hooksFactoryRevolving));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
+      address(this),
       name_,
       nullAddress,
       nullAddress,
@@ -222,9 +223,14 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     vm.expectEmit(address(hooksFactoryRevolving));
     emit IHooksFactoryEventsAndErrors.HooksTemplateFeesUpdated(
       hooksTemplate,
+      address(this),
+      nullAddress,
       feeRecipient,
+      nullAddress,
       originationFeeAsset,
+      0,
       originationFeeAmount,
+      0,
       protocolFeeBips
     );
     hooksFactoryRevolving.updateHooksTemplateFees(
@@ -326,7 +332,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     );
 
     vm.expectEmit(address(hooksFactoryRevolving));
-    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(hooksTemplate);
+    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(hooksTemplate, address(this));
     hooksFactoryRevolving.disableHooksTemplate(hooksTemplate);
 
     HooksTemplate memory details = hooksFactoryRevolving.getHooksTemplateDetails(hooksTemplate);
@@ -464,7 +470,49 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
 
     address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
     DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+    HooksDeploymentConfig deploymentConfig = encodeHooksDeploymentConfig(
+      EmptyHooksConfig,
+      EmptyHooksConfig.setFlag(Bit_Enabled_Borrow)
+    );
+    MockHooks(hooksInstance).setConfig(deploymentConfig);
+    HooksConfig expectedConfig = parameters.hooks.setFlag(Bit_Enabled_Borrow);
     bytes memory hooksData = abi.encodePacked(bytes1(0xAB), bytes('hook-bytes'));
+    address expectedMarket = hooksFactoryRevolving.computeMarketAddress(bytes32(uint256(1)));
+
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryEventsAndErrors.MarketDeployed(
+      hooksTemplate,
+      hooksInstance,
+      expectedMarket,
+      address(this),
+      address(this),
+      'Wildcat Underlying',
+      'wcUND',
+      address(underlying),
+      parameters.hooks,
+      expectedConfig
+    );
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
+      expectedMarket,
+      parameters.maxTotalSupply,
+      parameters.annualInterestBips,
+      parameters.delinquencyFeeBips,
+      parameters.withdrawalBatchDuration,
+      parameters.reserveRatioBips,
+      parameters.delinquencyGracePeriod,
+      nullAddress,
+      0,
+      nullAddress,
+      0
+    );
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryEventsAndErrors.MarketHooksData(expectedMarket, hooksData);
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryRevolving.RevolvingMarketDeployed(
+      expectedMarket,
+      defaultCommitmentFeeBips
+    );
 
     address market = hooksFactoryRevolving.deployMarket(
       parameters,
@@ -475,6 +523,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       0
     );
 
+    assertEq(market, expectedMarket);
     assertTrue(archController.isRegisteredMarket(market));
     assertEq(hooksFactoryRevolving.getMarketsForHooksTemplateCount(hooksTemplate), 1);
     assertEq(hooksFactoryRevolving.getMarketsForHooksInstanceCount(hooksInstance), 1);

@@ -79,6 +79,7 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     emit BaseAccessControls.AccountAccessGranted(
       address(ecdsaRoleProvider),
       account,
+      address(ecdsaRoleProvider),
       uint32(block.timestamp)
     );
     hooks.grantRole(account, uint32(block.timestamp));
@@ -86,13 +87,17 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
 
   function _deauthorizeLender(address account) internal asAccount(address(ecdsaRoleProvider)) {
     vm.expectEmit(address(hooks));
-    emit BaseAccessControls.AccountAccessRevoked(account);
+    emit BaseAccessControls.AccountAccessRevoked(
+      address(ecdsaRoleProvider),
+      account,
+      address(ecdsaRoleProvider)
+    );
     hooks.revokeRole(account);
   }
 
   function _blockLender(address account) internal asAccount(parameters.borrower) {
     vm.expectEmit(address(hooks));
-    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(parameters.borrower, account);
     hooks.blockFromDeposits(account);
   }
 

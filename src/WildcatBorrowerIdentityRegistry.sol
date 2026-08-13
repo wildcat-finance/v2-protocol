@@ -56,7 +56,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     if (!_accountFactories.add(accountFactory)) {
       revert AccountFactoryAlreadyExists();
     }
-    emit AccountFactoryAdded(accountFactory);
+    emit AccountFactoryAdded(msg.sender, accountFactory);
   }
 
   function removeAccountFactory(
@@ -65,7 +65,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     if (!_accountFactories.remove(accountFactory)) {
       revert AccountFactoryDoesNotExist();
     }
-    emit AccountFactoryRemoved(accountFactory);
+    emit AccountFactoryRemoved(msg.sender, accountFactory);
   }
 
   function isAccountFactory(address accountFactory) external view override returns (bool) {

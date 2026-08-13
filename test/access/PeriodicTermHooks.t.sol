@@ -446,12 +446,13 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     vm.expectEmit(address(hooks));
     emit PeriodicTermHooks.PeriodicTermUpdated(
       Market,
+      address(this),
       FirstWithdrawalWindowStart,
       PeriodDuration,
       WithdrawalWindowDuration
     );
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.MinimumDepositUpdated(Market, 1e18);
+    emit PeriodicTermHooks.MinimumDepositUpdated(Market, address(this), 0, 1e18);
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       Market,
@@ -1005,7 +1006,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
 
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.MinimumDepositUpdated(Market, 2e18);
+    emit PeriodicTermHooks.MinimumDepositUpdated(Market, address(this), 1e18, 2e18);
     hooks.setMinimumDeposit(Market, 2e18);
     assertEq(hooks.getHookedMarket(Market).minimumDeposit, 2e18, 'minimumDeposit');
   }

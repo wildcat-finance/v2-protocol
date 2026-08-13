@@ -418,7 +418,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
 
     vm.expectEmit(address(hooks));
-    emit OpenTermHooks.MinimumDepositUpdated(address(1), 2e18);
+    emit OpenTermHooks.MinimumDepositUpdated(address(1), address(this), 1e18, 2e18);
     hooks.setMinimumDeposit(address(1), 2e18);
     assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
   }

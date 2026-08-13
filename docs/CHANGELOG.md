@@ -42,6 +42,15 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 ### Lens
 
 - Reintroduced as a facade (`MarketLens`) forwarding to helper contracts (`MarketLensCore`, `MarketLensAggregator`, `MarketLensLive`) to stay under the contract size limit; the aggregator serves both direct and multi-factory aggregated queries. The function-selector surface is preserved, but returned `HooksConfigData` tuples append `useOnExecutePendingAnnualInterestBipsReduction`, so consumers must use the v2.5 ABI.
+- Hook instance lens data now exposes administrator and pending administrator instead of treating hook administration as market borrower identity. Managed role-provider data exposes its own administrator and pending administrator without assuming every provider is managed.
+
+### Events and indexer data
+
+- Factory deployment events now form a complete market snapshot: operational borrower and legal principal, hook template and instance, requested and final hook flags, economic configuration, fee terms, accepted hook deployment payload, and the revolving commitment fee where applicable.
+- Hook instance deployment records the initial administrator, deploying borrower address, instance name, implementation version, and a bounded initial role-provider snapshot so borrower-account origination and constructor-time provider configuration can be indexed without a historical state call.
+- Mutable market, hook, provider, fee, and lender-access events now identify the acting address and carry old/new values where replay requires them. Market closure records its implicit APR and reserve-ratio transition.
+- Revolving markets emit drawn-principal changes separately from borrow proceeds and repayments. This preserves over-repayment and interest-only repayment semantics without adding fee-on-draw accounting.
+- Custom assembly market emitters have direct parity tests against ordinary Solidity event encoding. See [v2.5 Event Model](./v2.5%20Event%20Model.md).
 
 ### Factories and access control
 

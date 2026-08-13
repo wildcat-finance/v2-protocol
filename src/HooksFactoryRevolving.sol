@@ -13,6 +13,7 @@ import './types/TransientBytesArray.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
 import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
+import './types/RoleProvider.sol';
 
 struct TmpRevolvingMarketParameterStorage {
   address borrower;
@@ -40,6 +41,7 @@ struct TmpRevolvingMarketParameterStorage {
 struct DeployRevolvingMarketRuntimeParameters {
   address hooksTemplate;
   address borrowerPrincipal;
+  HooksConfig requestedHooks;
   bytes32 salt;
   address originationFeeAsset;
   uint256 originationFeeAmount;
@@ -263,6 +265,7 @@ contract HooksFactoryRevolving is
     _hooksTemplates.push(hooksTemplate);
     emit HooksTemplateAdded(
       hooksTemplate,
+      msg.sender,
       name_,
       feeRecipient,
       originationFeeAsset,
@@ -306,15 +309,24 @@ contract HooksFactoryRevolving is
     }
     _validateFees(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
     HooksTemplate storage template = _templateDetails[hooksTemplate];
+    address previousFeeRecipient = template.feeRecipient;
+    address previousOriginationFeeAsset = template.originationFeeAsset;
+    uint80 previousOriginationFeeAmount = template.originationFeeAmount;
+    uint16 previousProtocolFeeBips = template.protocolFeeBips;
     template.feeRecipient = feeRecipient;
     template.originationFeeAsset = originationFeeAsset;
     template.originationFeeAmount = originationFeeAmount;
     template.protocolFeeBips = protocolFeeBips;
     emit HooksTemplateFeesUpdated(
       hooksTemplate,
+      msg.sender,
+      previousFeeRecipient,
       feeRecipient,
+      previousOriginationFeeAsset,
       originationFeeAsset,
+      previousOriginationFeeAmount,
       originationFeeAmount,
+      previousProtocolFeeBips,
       protocolFeeBips
     );
   }
@@ -326,7 +338,7 @@ contract HooksFactoryRevolving is
     // The template is only disabled, not removed: `exists` stays true, so it
     // can not be re-added and there is no re-enable path.
     _templateDetails[hooksTemplate].enabled = false;
-    emit HooksTemplateDisabled(hooksTemplate);
+    emit HooksTemplateDisabled(hooksTemplate, msg.sender);
   }
 
   function getHooksTemplateDetails(
@@ -543,7 +555,25 @@ contract HooksFactoryRevolving is
     _hooksInstancesByAdministrator[administrator].push(hooksInstance);
     getHooksAdministrator[hooksInstance] = administrator;
 
-    emit HooksInstanceDeployed(hooksInstance, hooksTemplate, administrator);
+    emit HooksInstanceDeployed(
+      hooksInstance,
+      hooksTemplate,
+      administrator,
+      msg.sender,
+      getHooksInstanceString(hooksInstance, bytes4(keccak256('name()'))),
+      getHooksInstanceString(hooksInstance, IHooks.version.selector)
+    );
+    (
+      bool metadataAvailable,
+      RoleProvider[] memory pullProviders,
+      RoleProvider[] memory pushProviders
+    ) = getHooksInstanceRoleProviders(hooksInstance);
+    emit HooksInstanceRoleProviders(
+      hooksInstance,
+      metadataAvailable,
+      pullProviders,
+      pushProviders
+    );
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
 
@@ -661,6 +691,43 @@ contract HooksFactoryRevolving is
     commitmentFeeBips = decodedCommitmentFeeBips;
   }
 
+  function _emitMarketDeployment(
+    address market,
+    string memory name,
+    string memory symbol,
+    TmpRevolvingMarketParameterStorage memory tmp,
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams,
+    bytes calldata hooksData
+  ) internal {
+    emit MarketDeployed(
+      runtimeParams.hooksTemplate,
+      runtimeParams.requestedHooks.hooksAddress(),
+      market,
+      tmp.borrower,
+      runtimeParams.borrowerPrincipal,
+      name,
+      symbol,
+      tmp.asset,
+      runtimeParams.requestedHooks,
+      tmp.hooks
+    );
+    emit MarketDeploymentConfig(
+      market,
+      tmp.maxTotalSupply,
+      tmp.annualInterestBips,
+      tmp.delinquencyFeeBips,
+      tmp.withdrawalBatchDuration,
+      tmp.reserveRatioBips,
+      tmp.delinquencyGracePeriod,
+      tmp.feeRecipient,
+      tmp.protocolFeeBips,
+      runtimeParams.originationFeeAsset,
+      runtimeParams.originationFeeAmount
+    );
+    emit MarketHooksData(market, hooksData);
+    emit RevolvingMarketDeployed(market, runtimeParams.commitmentFeeBips);
+  }
+
   function _deployMarket(
     DeployMarketInputs memory parameters,
     bytes calldata hooksData,
@@ -761,20 +828,7 @@ contract HooksFactoryRevolving is
     _marketsByHooksTemplate[runtimeParams.hooksTemplate].push(market);
     _marketsByHooksInstance[hooksInstance].push(market);
 
-    emit MarketDeployed(
-      runtimeParams.hooksTemplate,
-      market,
-      name,
-      symbol,
-      tmp.asset,
-      tmp.maxTotalSupply,
-      tmp.annualInterestBips,
-      tmp.delinquencyFeeBips,
-      tmp.withdrawalBatchDuration,
-      tmp.reserveRatioBips,
-      tmp.delinquencyGracePeriod,
-      tmp.hooks
-    );
+    _emitMarketDeployment(market, name, symbol, tmp, runtimeParams, hooksData);
   }
 
   /**
@@ -804,6 +858,7 @@ contract HooksFactoryRevolving is
       memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
         hooksTemplate: hooksTemplate,
         borrowerPrincipal: borrowerPrincipal,
+        requestedHooks: parameters.hooks,
         salt: salt,
         originationFeeAsset: originationFeeAsset,
         originationFeeAmount: originationFeeAmount,
@@ -827,6 +882,7 @@ contract HooksFactoryRevolving is
       memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
         hooksTemplate: hooksTemplate,
         borrowerPrincipal: borrowerPrincipal,
+        requestedHooks: parameters.hooks,
         salt: salt,
         originationFeeAsset: originationFeeAsset,
         originationFeeAmount: originationFeeAmount,
@@ -840,6 +896,7 @@ contract HooksFactoryRevolving is
     );
     DeployMarketInputs memory marketInputs = parameters;
     marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
+    runtimeParams.requestedHooks = marketInputs.hooks;
     market = _deployMarket(marketInputs, hooksData, runtimeParams);
   }
 

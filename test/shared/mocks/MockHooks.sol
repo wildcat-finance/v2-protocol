@@ -126,11 +126,12 @@ contract MockHooks is IHooks {
   event AccountAccessGranted(
     address indexed providerAddress,
     address indexed accountAddress,
+    address indexed caller,
     uint32 credentialTimestamp
   );
   // Shim function to work with BaseMarketTest
   function grantRole(address account, uint32 roleGrantedTimestamp) external {
-    emit AccountAccessGranted(msg.sender, account, roleGrantedTimestamp);
+    emit AccountAccessGranted(msg.sender, account, msg.sender, roleGrantedTimestamp);
   }
   // Shim function to work with BaseMarketTest
   function addRoleProvider(address providerAddress, uint32 timeToLive) external {

@@ -122,9 +122,10 @@ contract WildcatMarketConfig is WildcatMarketBase {
     if (state.isClosed) revert_CapacityChangeOnClosedMarket();
 
     hooks.onSetMaxTotalSupply(_maxTotalSupply, state);
+    uint256 previousMaxTotalSupply = state.maxTotalSupply;
     state.maxTotalSupply = _maxTotalSupply.toUint128();
     _writeState(state);
-    emit_MaxTotalSupplyUpdated(_maxTotalSupply);
+    emit_MaxTotalSupplyUpdated(msg.sender, previousMaxTotalSupply, _maxTotalSupply);
   }
 
   function _applyAnnualInterestAndReserveRatioBips(
@@ -133,6 +134,8 @@ contract WildcatMarketConfig is WildcatMarketBase {
     uint16 _reserveRatioBips,
     uint256 initialReserveRatioBips
   ) internal {
+    uint256 previousAnnualInterestBips = state.annualInterestBips;
+    uint256 previousReserveRatioBips = state.reserveRatioBips;
     if (_annualInterestBips > BIP) {
       revert_AnnualInterestBipsTooHigh();
     }
@@ -155,8 +158,13 @@ contract WildcatMarketConfig is WildcatMarketBase {
     }
 
     _writeState(state);
-    emit_AnnualInterestBipsUpdated(_annualInterestBips);
-    emit_ReserveRatioBipsUpdated(_reserveRatioBips);
+    emit_AnnualInterestAndReserveRatioBipsUpdated(
+      msg.sender,
+      previousAnnualInterestBips,
+      _annualInterestBips,
+      previousReserveRatioBips,
+      _reserveRatioBips
+    );
   }
 
   /**
@@ -237,9 +245,10 @@ contract WildcatMarketConfig is WildcatMarketBase {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_ProtocolFeeChangeOnClosedMarket();
     if (_protocolFeeBips != state.protocolFeeBips) {
+      uint256 previousProtocolFeeBips = state.protocolFeeBips;
       hooks.onSetProtocolFeeBips(_protocolFeeBips, state);
       state.protocolFeeBips = _protocolFeeBips;
-      emit ProtocolFeeBipsUpdated(_protocolFeeBips);
+      emit_ProtocolFeeBipsUpdated(msg.sender, previousProtocolFeeBips, _protocolFeeBips);
     }
     _writeState(state);
   }

@@ -229,7 +229,7 @@ contract WildcatMarketTest is BaseMarketTest {
     vm.expectEmit(address(asset));
     emit Transfer(address(market), feeRecipient, 1e16);
     vm.expectEmit(address(market));
-    emit FeesCollected(1e16);
+    emit FeesCollected(address(this), feeRecipient, 1e16);
     market.collectFees();
   }
 

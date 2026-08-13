@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import './access/IHooks.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
+import './types/RoleProvider.sol';
 
 struct HooksTemplate {
   /// @dev Asset used to pay origination fee
@@ -23,6 +24,89 @@ struct HooksTemplate {
   address feeRecipient;
   /// @dev Name of the template
   string name;
+}
+
+function getHooksInstanceString(
+  address hooksInstance,
+  bytes4 selector
+) view returns (string memory value) {
+  value = '';
+  uint32 selectorWord = uint32(selector);
+  assembly ('memory-safe') {
+    let ptr := mload(0x40)
+    mstore(ptr, shl(224, selectorWord))
+    if staticcall(100000, hooksInstance, ptr, 0x04, ptr, 0x40) {
+      let size := returndatasize()
+      if and(
+        and(iszero(lt(size, 0x40)), iszero(gt(size, 0x1040))),
+        eq(mload(ptr), 0x20)
+      ) {
+        let length := mload(add(ptr, 0x20))
+        if iszero(gt(length, sub(size, 0x40))) {
+          value := ptr
+          mstore(ptr, length)
+          returndatacopy(add(ptr, 0x20), 0x40, length)
+          mstore(0x40, and(add(add(ptr, length), 0x3f), not(0x1f)))
+        }
+      }
+    }
+  }
+}
+
+/// @dev Reads optional access-control metadata through a bounded call.
+function tryGetHooksInstanceRoleProviders(
+  address hooksInstance,
+  bytes4 selector
+) view returns (bool success, RoleProvider[] memory providers) {
+  providers = new RoleProvider[](0);
+  uint32 selectorWord = uint32(selector);
+  assembly ('memory-safe') {
+    let ptr := mload(0x40)
+    mstore(ptr, shl(224, selectorWord))
+    if staticcall(1000000, hooksInstance, ptr, 0x04, ptr, 0x40) {
+      let size := returndatasize()
+      if and(
+        and(iszero(lt(size, 0x40)), iszero(gt(size, 0x2040))),
+        eq(mload(ptr), 0x20)
+      ) {
+        let length := mload(add(ptr, 0x20))
+        if iszero(gt(length, shr(5, sub(size, 0x40)))) {
+          providers := ptr
+          mstore(ptr, length)
+          returndatacopy(add(ptr, 0x20), 0x40, shl(5, length))
+          mstore(0x40, add(add(ptr, 0x20), shl(5, length)))
+          success := 1
+        }
+      }
+    }
+  }
+}
+
+function getHooksInstanceRoleProviders(
+  address hooksInstance
+)
+  view
+  returns (
+    bool metadataAvailable,
+    RoleProvider[] memory pullProviders,
+    RoleProvider[] memory pushProviders
+  )
+{
+  bool hasPullProviderMetadata;
+  bool hasPushProviderMetadata;
+  (hasPullProviderMetadata, pullProviders) = tryGetHooksInstanceRoleProviders(
+    hooksInstance,
+    bytes4(keccak256('getPullProviders()'))
+  );
+  (hasPushProviderMetadata, pushProviders) = tryGetHooksInstanceRoleProviders(
+    hooksInstance,
+    bytes4(keccak256('getPushProviders()'))
+  );
+  metadataAvailable = hasPullProviderMetadata && hasPushProviderMetadata;
+  if (!metadataAvailable) {
+    pullProviders = new RoleProvider[](0);
+    pushProviders = new RoleProvider[](0);
+  }
 }
 
 interface IHooksFactoryEventsAndErrors {
@@ -49,7 +133,16 @@ interface IHooksFactoryEventsAndErrors {
   event HooksInstanceDeployed(
     address indexed hooksInstance,
     address indexed hooksTemplate,
-    address indexed administrator
+    address indexed administrator,
+    address deployer,
+    string name,
+    string version
+  );
+  event HooksInstanceRoleProviders(
+    address indexed hooksInstance,
+    bool metadataAvailable,
+    RoleProvider[] pullProviders,
+    RoleProvider[] pushProviders
   );
   event HooksInstanceAdministratorTransferred(
     address indexed hooksInstance,
@@ -57,36 +150,54 @@ interface IHooksFactoryEventsAndErrors {
     address indexed newAdministrator
   );
   event HooksTemplateAdded(
-    address hooksTemplate,
+    address indexed hooksTemplate,
+    address indexed caller,
     string name,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
   );
-  event HooksTemplateDisabled(address hooksTemplate);
+  event HooksTemplateDisabled(address indexed hooksTemplate, address indexed caller);
   event HooksTemplateFeesUpdated(
-    address hooksTemplate,
-    address feeRecipient,
-    address originationFeeAsset,
-    uint80 originationFeeAmount,
-    uint16 protocolFeeBips
+    address indexed hooksTemplate,
+    address indexed caller,
+    address previousFeeRecipient,
+    address newFeeRecipient,
+    address previousOriginationFeeAsset,
+    address newOriginationFeeAsset,
+    uint80 previousOriginationFeeAmount,
+    uint80 newOriginationFeeAmount,
+    uint16 previousProtocolFeeBips,
+    uint16 newProtocolFeeBips
   );
 
   event MarketDeployed(
     address indexed hooksTemplate,
+    address indexed hooksInstance,
     address indexed market,
+    address borrower,
+    address borrowerPrincipal,
     string name,
     string symbol,
     address asset,
+    HooksConfig requestedHooks,
+    HooksConfig hooks
+  );
+  event MarketDeploymentConfig(
+    address indexed market,
     uint256 maxTotalSupply,
     uint256 annualInterestBips,
     uint256 delinquencyFeeBips,
     uint256 withdrawalBatchDuration,
     uint256 reserveRatioBips,
     uint256 delinquencyGracePeriod,
-    HooksConfig hooks
+    address feeRecipient,
+    uint256 protocolFeeBips,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   );
+  event MarketHooksData(address indexed market, bytes hooksData);
 }
 
 interface IHooksFactory is IHooksFactoryEventsAndErrors {
