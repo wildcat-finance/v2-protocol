@@ -118,7 +118,7 @@ contract BorrowerAccountOriginationTest is Test {
     WildcatMarket market = WildcatMarket(marketAddress);
     assertEq(market.borrower(), expectedBorrower, 'operational borrower');
     assertEq(market.borrowerPrincipal(), expectedPrincipal, 'borrower principal');
-    assertEq(OpenTermHooks(hooksInstance).borrower(), expectedPrincipal, 'hook borrower');
+    assertEq(OpenTermHooks(hooksInstance).administrator(), expectedPrincipal, 'hook administrator');
   }
 
   function _transferAccountPrincipal(address newPrincipal) internal {
@@ -158,8 +158,11 @@ contract BorrowerAccountOriginationTest is Test {
     vm.stopPrank();
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 1);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(borrowerAccount), 0);
+    assertEq(standardFactory.getHooksAdministrator(hooksInstance), principal);
+    assertEq(standardFactory.getHooksInstancesCountForAdministrator(principal), 1);
+    assertEq(standardFactory.getHooksInstancesCountForAdministrator(borrowerAccount), 0);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(principal), 1);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(borrowerAccount), 0);
     _assertAccountAuthority(market);
   }
 
@@ -177,8 +180,11 @@ contract BorrowerAccountOriginationTest is Test {
     vm.stopPrank();
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 1);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(borrowerAccount), 0);
+    assertEq(revolvingFactory.getHooksAdministrator(hooksInstance), principal);
+    assertEq(revolvingFactory.getHooksInstancesCountForAdministrator(principal), 1);
+    assertEq(revolvingFactory.getHooksInstancesCountForAdministrator(borrowerAccount), 0);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(principal), 1);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(borrowerAccount), 0);
     _assertAccountAuthority(market);
   }
 
@@ -195,7 +201,7 @@ contract BorrowerAccountOriginationTest is Test {
     );
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 1);
+    assertEq(standardFactory.getHooksAdministrator(hooksInstance), principal);
   }
 
   function test_revolvingAccountDeploysMarketAndHookTogether() external {
@@ -212,7 +218,7 @@ contract BorrowerAccountOriginationTest is Test {
     );
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 1);
+    assertEq(revolvingFactory.getHooksAdministrator(hooksInstance), principal);
   }
 
   function test_accountPaysOriginationFees() external {
@@ -353,7 +359,7 @@ contract BorrowerAccountOriginationTest is Test {
     assertEq(revolvingFactory.getMarketsForHooksInstanceCount(revolvingHooks), 2);
   }
 
-  function test_accountsUnderOnePrincipalShareHookDeploymentSequence() external {
+  function test_accountsUnderOnePrincipalShareHookDeploymentNonce() external {
     address secondAccount = accountFactory.deployAccount(principal);
 
     vm.prank(borrowerAccount);
@@ -368,12 +374,14 @@ contract BorrowerAccountOriginationTest is Test {
 
     assertTrue(firstStandardHooks != secondStandardHooks);
     assertTrue(firstRevolvingHooks != secondRevolvingHooks);
-    assertEq(OpenTermHooks(firstStandardHooks).borrower(), principal);
-    assertEq(OpenTermHooks(secondStandardHooks).borrower(), principal);
-    assertEq(OpenTermHooks(firstRevolvingHooks).borrower(), principal);
-    assertEq(OpenTermHooks(secondRevolvingHooks).borrower(), principal);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 2);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 2);
+    assertEq(standardFactory.getHooksAdministrator(firstStandardHooks), principal);
+    assertEq(standardFactory.getHooksAdministrator(secondStandardHooks), principal);
+    assertEq(revolvingFactory.getHooksAdministrator(firstRevolvingHooks), principal);
+    assertEq(revolvingFactory.getHooksAdministrator(secondRevolvingHooks), principal);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(principal), 2);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(principal), 2);
+    assertEq(standardFactory.getHooksInstancesCountForAdministrator(principal), 2);
+    assertEq(revolvingFactory.getHooksInstancesCountForAdministrator(principal), 2);
   }
 
   function test_accountCannotOriginateAfterPrincipalRemoval() external {
@@ -387,8 +395,8 @@ contract BorrowerAccountOriginationTest is Test {
     vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
     revolvingFactory.deployHooksInstance(hooksTemplate, '');
 
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 0);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 0);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(principal), 0);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(principal), 0);
   }
 
   function test_accountOriginationSurvivesAccountFactoryRemoval() external {
@@ -426,7 +434,7 @@ contract BorrowerAccountOriginationTest is Test {
     vm.prank(secondPrincipal);
     address standardHooks = standardFactory.deployHooksInstance(hooksTemplate, '');
     vm.prank(borrowerAccount);
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     standardFactory.deployMarket(
       _marketInputs(standardHooks),
       '',
@@ -438,7 +446,7 @@ contract BorrowerAccountOriginationTest is Test {
     vm.prank(secondPrincipal);
     address revolvingHooks = revolvingFactory.deployHooksInstance(hooksTemplate, '');
     vm.prank(borrowerAccount);
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     revolvingFactory.deployMarket(
       _marketInputs(revolvingHooks),
       '',
