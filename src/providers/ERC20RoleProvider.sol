@@ -1,27 +1,25 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity ^0.8.20;
 
-import 'src/access/IRoleProvider.sol';
+import '../libraries/SafeCastLib.sol';
+import './IERC20RoleProvider.sol';
 import { IERC20BalanceOf } from './TokenInterfaces.sol';
+
+using SafeCastLib for uint256;
 
 /// @notice Grants credentials while an account holds at least `minBalance` of `token`.
 /// @dev `minBalance` uses token base units.
-contract ERC20RoleProvider is IRoleProvider {
-  error InvalidTokenAddress();
-  error InvalidMinimumBalance();
+contract ERC20RoleProvider is IERC20RoleProvider {
+  bool public constant override isPullProvider = true;
 
-  address public immutable token;
-  uint256 public immutable minBalance;
+  address public immutable override token;
+  uint256 public immutable override minBalance;
 
   constructor(address token_, uint256 minBalance_) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
     if (minBalance_ == 0) revert InvalidMinimumBalance();
     token = token_;
     minBalance = minBalance_;
-  }
-
-  function isPullProvider() external pure override returns (bool) {
-    return true;
   }
 
   function getCredential(address account) external view override returns (uint32 timestamp) {
@@ -37,7 +35,7 @@ contract ERC20RoleProvider is IRoleProvider {
 
   function _credentialTimestamp(address account) internal view returns (uint32) {
     if (IERC20BalanceOf(token).balanceOf(account) >= minBalance) {
-      return uint32(block.timestamp);
+      return block.timestamp.toUint32();
     }
     return 0;
   }
