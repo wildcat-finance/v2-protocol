@@ -25,6 +25,12 @@ contract MockERC5484 is MockERC721 {
   }
 }
 
+contract InvalidERC165ERC5484 {
+  function supportsInterface(bytes4) external pure returns (bool) {
+    return true;
+  }
+}
+
 contract ERC5484RoleProviderTest is BaseMarketTest {
   MockERC5484 internal nft;
   ERC5484RoleProvider internal provider;
@@ -105,9 +111,29 @@ contract ERC5484RoleProviderTest is BaseMarketTest {
     new ERC5484RoleProvider(address(nft), 0, false);
   }
 
+  function test_constructor_reverts_with_undefined_burn_auth_mask() external {
+    vm.expectRevert(ERC5484RoleProvider.InvalidBurnAuthMask.selector);
+    new ERC5484RoleProvider(address(nft), 1 << 4, false);
+  }
+
+  function test_constructor_reverts_with_invalid_erc165() external {
+    InvalidERC165ERC5484 invalidErc165 = new InvalidERC165ERC5484();
+    vm.expectRevert(ERC5484RoleProvider.InvalidERC5484.selector);
+    new ERC5484RoleProvider(address(invalidErc165), issuerOnlyMask, false);
+  }
+
   function test_constructor_allows_skip_interface_check() external {
     MockERC721 nonErc5484 = new MockERC721('Plain', 'PLN');
     new ERC5484RoleProvider(address(nonErc5484), issuerOnlyMask, true);
+  }
+
+  function test_validateCredential_rejects_undefined_burn_auth() external {
+    nft.setBurnAuth(tokenId, 4);
+    assertEq(provider.validateCredential(approvedLender, abi.encode(tokenId)), 0, 'credential');
+  }
+
+  function test_validateCredential_rejects_malformed_data() external view {
+    assertEq(provider.validateCredential(approvedLender, hex'01'), 0, 'credential');
   }
 
   function _depositWithHooksData(

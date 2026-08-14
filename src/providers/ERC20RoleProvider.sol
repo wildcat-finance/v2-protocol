@@ -2,18 +2,20 @@
 pragma solidity ^0.8.20;
 
 import 'src/access/IRoleProvider.sol';
-import 'src/interfaces/IERC20.sol';
+import { IERC20BalanceOf } from './TokenInterfaces.sol';
 
-/// @notice ERC20 role provider; gates on balance >= minBalance.
-/// @dev minBalance is in token base units.
+/// @notice Grants credentials while an account holds at least `minBalance` of `token`.
+/// @dev `minBalance` uses token base units.
 contract ERC20RoleProvider is IRoleProvider {
   error InvalidTokenAddress();
+  error InvalidMinimumBalance();
 
   address public immutable token;
   uint256 public immutable minBalance;
 
   constructor(address token_, uint256 minBalance_) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
+    if (minBalance_ == 0) revert InvalidMinimumBalance();
     token = token_;
     minBalance = minBalance_;
   }
@@ -34,7 +36,7 @@ contract ERC20RoleProvider is IRoleProvider {
   }
 
   function _credentialTimestamp(address account) internal view returns (uint32) {
-    if (IERC20(token).balanceOf(account) >= minBalance) {
+    if (IERC20BalanceOf(token).balanceOf(account) >= minBalance) {
       return uint32(block.timestamp);
     }
     return 0;

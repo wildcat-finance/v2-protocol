@@ -2,28 +2,26 @@
 pragma solidity ^0.8.20;
 
 import 'src/access/IRoleProvider.sol';
+import { IERC165SupportsInterface, IERC721BalanceOf } from './TokenInterfaces.sol';
 
-interface IERC721 {
-  function balanceOf(address owner) external view returns (uint256);
-}
-
-interface IERC165 {
-  function supportsInterface(bytes4 interfaceId) external view returns (bool);
-}
-
-/// @notice ERC721 role provider; compatible with ERC721A/721C implementations.
-/// @dev Deploy with skipInterfaceCheck=true for non-ERC165 collections (Punks).
+/// @notice Grants credentials while an account holds a token from an ERC721 collection.
+/// @dev Deploy with `skipInterfaceCheck` for collections that do not implement ERC165.
 contract ERC721RoleProvider is IRoleProvider {
   error InvalidTokenAddress();
   error InvalidERC721();
 
+  bytes4 private constant ERC165_INTERFACE_ID = 0x01ffc9a7;
   bytes4 private constant ERC721_INTERFACE_ID = 0x80ac58cd;
+  bytes4 private constant INVALID_INTERFACE_ID = 0xffffffff;
 
   address public immutable token;
 
   constructor(address token_, bool skipInterfaceCheck) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
-    if (!skipInterfaceCheck && !_supportsInterface(token_, ERC721_INTERFACE_ID)) {
+    if (
+      !skipInterfaceCheck &&
+      (!_supportsERC165(token_) || !_supportsInterface(token_, ERC721_INTERFACE_ID))
+    ) {
       revert InvalidERC721();
     }
     token = token_;
@@ -45,17 +43,23 @@ contract ERC721RoleProvider is IRoleProvider {
   }
 
   function _credentialTimestamp(address account) internal view returns (uint32) {
-    if (IERC721(token).balanceOf(account) > 0) {
+    if (IERC721BalanceOf(token).balanceOf(account) > 0) {
       return uint32(block.timestamp);
     }
     return 0;
+  }
+
+  function _supportsERC165(address target) internal view returns (bool) {
+    return
+      _supportsInterface(target, ERC165_INTERFACE_ID) &&
+      !_supportsInterface(target, INVALID_INTERFACE_ID);
   }
 
   function _supportsInterface(
     address target,
     bytes4 interfaceId
   ) internal view returns (bool) {
-    try IERC165(target).supportsInterface(interfaceId) returns (bool supported) {
+    try IERC165SupportsInterface(target).supportsInterface(interfaceId) returns (bool supported) {
       return supported;
     } catch {
       return false;

@@ -19,6 +19,10 @@ This is the repository-scoped inventory for the v2.5 provider migration. It dist
 
 The exploratory providers are compatibility proofs, not part of the v2.5 deployment ceremony. They have no bundled factories, SDK encoders, or app flows. Each can be deployed independently and attached through `addRoleProvider`. They need separate product, security, and integration review before production use.
 
+ERC20 and ERC4626 thresholds must be greater than zero. Providers that check ERC165 reject contracts with invalid ERC165 behavior unless interface checking is explicitly skipped. Skipping the constructor check does not make an incompatible token valid; later credential checks still fail if the required token call is unavailable.
+
+Token and vault providers prove only the state visible during a credential check. They do not prove how long an account held an asset or prevent it from returning borrowed assets later in the transaction. The ERC4626 provider trusts the configured vault's `convertToAssets` result as credential input; it is not a price oracle. Provider selection and TTL must account for those properties.
+
 Membership and configuration changes follow the TTL selected for that provider on each hook. A zero TTL rechecks pull-provider membership on every access check and requires validation providers to supply fresh data after the current timestamp. A positive TTL deliberately allows a previously granted credential to remain cached until it expires. Dynamic token balances, token ownership, and Merkle roots should use zero or a deliberately short TTL unless delayed revocation is acceptable.
 
 `ERC5192RoleProvider` and `ERC5484RoleProvider` expect `abi.encode(tokenId)` after the packed provider address. `MerkleRoleProvider` expects `abi.encode(proof)` after the provider address. Malformed validation data fails closed.

@@ -25,6 +25,12 @@ contract MockERC5192 is MockERC721 {
   }
 }
 
+contract InvalidERC165ERC5192 {
+  function supportsInterface(bytes4) external pure returns (bool) {
+    return true;
+  }
+}
+
 contract ERC5192RoleProviderTest is BaseMarketTest {
   MockERC5192 internal nft;
   ERC5192RoleProvider internal provider;
@@ -104,9 +110,19 @@ contract ERC5192RoleProviderTest is BaseMarketTest {
     new ERC5192RoleProvider(address(nonErc5192), true, false);
   }
 
+  function test_constructor_reverts_with_invalid_erc165() external {
+    InvalidERC165ERC5192 invalidErc165 = new InvalidERC165ERC5192();
+    vm.expectRevert(ERC5192RoleProvider.InvalidERC5192.selector);
+    new ERC5192RoleProvider(address(invalidErc165), true, false);
+  }
+
   function test_constructor_allows_skip_interface_check() external {
     MockERC721 nonErc5192 = new MockERC721('Plain', 'PLN');
     new ERC5192RoleProvider(address(nonErc5192), true, true);
+  }
+
+  function test_validateCredential_rejects_malformed_data() external view {
+    assertEq(provider.validateCredential(approvedLender, hex'01'), 0, 'credential');
   }
 
   function _depositWithHooksData(

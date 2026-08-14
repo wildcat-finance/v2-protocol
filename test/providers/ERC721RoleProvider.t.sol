@@ -10,6 +10,12 @@ import 'src/providers/ERC721RoleProvider.sol';
 
 contract NonERC721 {}
 
+contract InvalidERC165ERC721 {
+  function supportsInterface(bytes4) external pure returns (bool) {
+    return true;
+  }
+}
+
 contract ERC721RoleProviderTest is BaseMarketTest {
   MockERC721 internal nft;
   ERC721RoleProvider internal provider;
@@ -101,6 +107,12 @@ contract ERC721RoleProviderTest is BaseMarketTest {
     NonERC721 nonErc721 = new NonERC721();
     vm.expectRevert(ERC721RoleProvider.InvalidERC721.selector);
     new ERC721RoleProvider(address(nonErc721), false);
+  }
+
+  function test_constructor_reverts_with_invalid_erc165() external {
+    InvalidERC165ERC721 invalidErc165 = new InvalidERC165ERC721();
+    vm.expectRevert(ERC721RoleProvider.InvalidERC721.selector);
+    new ERC721RoleProvider(address(invalidErc165), false);
   }
 
   function test_constructor_allows_skip_interface_check() external {

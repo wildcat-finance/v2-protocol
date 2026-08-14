@@ -2,23 +2,20 @@
 pragma solidity ^0.8.20;
 
 import 'src/access/IRoleProvider.sol';
+import { IERC4626Assets } from './TokenInterfaces.sol';
 
-interface IERC4626 {
-  function balanceOf(address account) external view returns (uint256);
-
-  function convertToAssets(uint256 shares) external view returns (uint256);
-}
-
-/// @notice ERC4626 role provider; gates on convertToAssets(balanceOf(lender)) >= minAssets.
-/// @dev minAssets is in base units of the ERC4626 underlying asset.
+/// @notice Grants credentials while an account's vault shares represent at least `minAssets`.
+/// @dev `minAssets` uses base units of the ERC4626 underlying asset.
 contract ERC4626AssetsRoleProvider is IRoleProvider {
   error InvalidVaultAddress();
+  error InvalidMinimumAssets();
 
   address public immutable vault;
   uint256 public immutable minAssets;
 
   constructor(address vault_, uint256 minAssets_) {
     if (vault_.code.length == 0) revert InvalidVaultAddress();
+    if (minAssets_ == 0) revert InvalidMinimumAssets();
     vault = vault_;
     minAssets = minAssets_;
   }
@@ -39,9 +36,9 @@ contract ERC4626AssetsRoleProvider is IRoleProvider {
   }
 
   function _credentialTimestamp(address account) internal view returns (uint32) {
-    uint256 shares = IERC4626(vault).balanceOf(account);
+    uint256 shares = IERC4626Assets(vault).balanceOf(account);
     if (shares == 0) return 0;
-    uint256 assets = IERC4626(vault).convertToAssets(shares);
+    uint256 assets = IERC4626Assets(vault).convertToAssets(shares);
     if (assets >= minAssets) {
       return uint32(block.timestamp);
     }

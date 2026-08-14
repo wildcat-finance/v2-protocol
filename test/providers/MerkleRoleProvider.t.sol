@@ -145,6 +145,12 @@ contract MerkleRoleProviderTest is BaseMarketTest {
     assertEq(provider.validateCredential(approvedLender, invalidData), 0, 'credential');
   }
 
+  function testFuzz_validateCredential_malformedData_failsClosed(
+    bytes calldata data
+  ) external view {
+    assertEq(provider.validateCredential(unapprovedLender, data), 0, 'credential');
+  }
+
   /// @dev Administrator must be a non-zero address.
   function test_constructor_reverts_invalid_admin() external {
     vm.expectRevert(IManagedRoleProvider.InvalidAdministratorTransferTarget.selector);

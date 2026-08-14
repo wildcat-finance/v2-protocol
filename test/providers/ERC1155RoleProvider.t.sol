@@ -10,6 +10,12 @@ import 'src/providers/ERC1155RoleProvider.sol';
 
 contract NonERC1155 {}
 
+contract InvalidERC165ERC1155 {
+  function supportsInterface(bytes4) external pure returns (bool) {
+    return true;
+  }
+}
+
 contract ERC1155RoleProviderTest is BaseMarketTest {
   MockERC1155 internal token;
   ERC1155RoleProvider internal provider;
@@ -104,6 +110,12 @@ contract ERC1155RoleProviderTest is BaseMarketTest {
     NonERC1155 nonErc1155 = new NonERC1155();
     vm.expectRevert(ERC1155RoleProvider.InvalidERC1155.selector);
     new ERC1155RoleProvider(address(nonErc1155), tokenId, false);
+  }
+
+  function test_constructor_reverts_with_invalid_erc165() external {
+    InvalidERC165ERC1155 invalidErc165 = new InvalidERC165ERC1155();
+    vm.expectRevert(ERC1155RoleProvider.InvalidERC1155.selector);
+    new ERC1155RoleProvider(address(invalidErc165), tokenId, false);
   }
 
   function test_constructor_allows_skip_interface_check() external {

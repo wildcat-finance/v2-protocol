@@ -88,4 +88,9 @@ contract ERC4626AssetsRoleProviderTest is BaseMarketTest {
     vm.expectRevert(ERC4626AssetsRoleProvider.InvalidVaultAddress.selector);
     new ERC4626AssetsRoleProvider(address(0), minAssets);
   }
+
+  function test_constructor_reverts_with_zero_minimum() external {
+    vm.expectRevert(ERC4626AssetsRoleProvider.InvalidMinimumAssets.selector);
+    new ERC4626AssetsRoleProvider(address(vault), 0);
+  }
 }

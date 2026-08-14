@@ -79,4 +79,9 @@ contract ERC20RoleProviderTest is BaseMarketTest {
     vm.expectRevert(ERC20RoleProvider.InvalidTokenAddress.selector);
     new ERC20RoleProvider(address(0), minBalance);
   }
+
+  function test_constructor_reverts_with_zero_minimum() external {
+    vm.expectRevert(ERC20RoleProvider.InvalidMinimumBalance.selector);
+    new ERC20RoleProvider(address(gatingToken), 0);
+  }
 }
