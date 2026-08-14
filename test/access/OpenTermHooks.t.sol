@@ -133,6 +133,13 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
     new OpenTermHooks(address(this), abi.encode(inputs));
   }
 
+  function test_constructor_NewProviders_RoleProviderFactoryRequired() external {
+    NameAndProviderInputs memory inputs;
+    inputs.newProviderInputs = new CreateProviderInputs[](1);
+    vm.expectRevert(BaseAccessControls.RoleProviderFactoryRequired.selector);
+    new OpenTermHooks(address(this), abi.encode(inputs));
+  }
+
   // ========================================================================== //
   //                               onCreateMarket                               //
   // ========================================================================== //

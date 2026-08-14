@@ -98,6 +98,7 @@ contract BaseAccessControls is IHooksAdministrator {
   /// @dev Error thrown when a user does not have a valid credential
   error NotApprovedLender();
   error InvalidArrayLength();
+  error RoleProviderFactoryRequired();
   error CreateRoleProviderFailed();
 
   // ========================================================================== //
@@ -136,6 +137,9 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   function _initialize(NameAndProviderInputs memory inputs) internal {
+    if (inputs.roleProviderFactory == address(0) && inputs.newProviderInputs.length > 0) {
+      revert RoleProviderFactoryRequired();
+    }
     name = inputs.name;
     for (uint256 i = 0; i < inputs.existingProviders.length; i++) {
       ExistingProviderInputs memory provider = inputs.existingProviders[i];
