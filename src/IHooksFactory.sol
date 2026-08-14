@@ -178,6 +178,7 @@ interface IHooksFactoryEventsAndErrors {
     address indexed market,
     address borrower,
     address borrowerPrincipal,
+    address borrowerIdentityRegistry,
     string name,
     string symbol,
     address asset,

@@ -486,6 +486,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       expectedMarket,
       address(this),
       address(this),
+      address(borrowerIdentityRegistry),
       'Wildcat Underlying',
       'wcUND',
       address(underlying),

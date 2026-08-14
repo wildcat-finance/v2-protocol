@@ -705,6 +705,7 @@ contract HooksFactoryRevolving is
       market,
       tmp.borrower,
       runtimeParams.borrowerPrincipal,
+      borrowerIdentityRegistry,
       name,
       symbol,
       tmp.asset,

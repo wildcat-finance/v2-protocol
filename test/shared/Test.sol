@@ -459,6 +459,7 @@ contract Test is ForgeTest, Prankster, Assertions {
         expectedMarket,
         parameters.borrower,
         borrowerIdentityRegistry.resolveBorrower(parameters.borrower),
+        address(borrowerIdentityRegistry),
         expectedName,
         expectedSymbol,
         parameters.asset,

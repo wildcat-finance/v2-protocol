@@ -959,6 +959,7 @@ contract HooksFactoryTest is Test, Assertions {
         hooksFactory.computeMarketAddress(bytes32(uint(1))),
         address(this),
         address(this),
+        address(borrowerIdentityRegistry),
         name,
         symbol,
         args.parameters.asset,

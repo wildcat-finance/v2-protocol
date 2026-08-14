@@ -666,6 +666,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       market,
       tmp.borrower,
       runtimeParams.borrowerPrincipal,
+      borrowerIdentityRegistry,
       name,
       symbol,
       tmp.asset,
