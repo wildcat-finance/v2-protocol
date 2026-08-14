@@ -11,20 +11,24 @@ import 'src/interfaces/IBorrowerIdentityRegistry.sol';
 contract MockExecutingBorrowerAccount {
   error CallerNotPrincipal();
 
-  address public immutable principal;
+  IBorrowerIdentityRegistry public immutable registry;
 
-  constructor(address principal_) {
-    principal = principal_;
+  constructor(address registry_) {
+    registry = IBorrowerIdentityRegistry(registry_);
   }
 
   receive() external payable {}
+
+  function principal() public view returns (address) {
+    return registry.principalOf(address(this));
+  }
 
   function execute(
     address target,
     uint256 value,
     bytes calldata data
   ) external payable returns (bytes memory result) {
-    if (msg.sender != principal) revert CallerNotPrincipal();
+    if (msg.sender != principal()) revert CallerNotPrincipal();
 
     bool success;
     (success, result) = target.call{ value: value }(data);
@@ -48,7 +52,7 @@ contract MockExecutingBorrowerAccountFactory {
   }
 
   function deployAccount(address principal) external returns (address account) {
-    account = address(new MockExecutingBorrowerAccount(principal));
+    account = address(new MockExecutingBorrowerAccount(address(registry)));
     registry.registerBorrowerAccount(account, principal);
   }
 }
