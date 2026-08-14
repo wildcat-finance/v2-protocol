@@ -71,6 +71,18 @@ The administrator can replace the root and can move that authority through the s
 
 The provider does not store or enumerate the underlying list. The borrower is responsible for keeping the canonical list and generating proofs. `MerkleRoleProviderFactory` can create a provider directly or through the hook's generic `createRoleProvider` helper. The factory assigns an explicit intended administrator, emits the initial root and deployment context, and keeps no authority after deployment.
 
+## ERC-4626 assets role provider
+
+`ERC4626AssetsRoleProvider` is an immutable pull provider. It grants a credential when `vault.convertToAssets(vault.balanceOf(account))` is greater than or equal to its configured `minAssets`. The threshold uses the underlying asset's base units and checks only shares held directly by the account.
+
+This is an ideal asset conversion, not a guarantee that the account can redeem that amount immediately. Vault fees, limits, liquidity, or malicious behavior can make actual redemption different. The provider also does not prove holding time or prevent borrowed shares from satisfying the threshold during a check. The hook administrator chooses which vault to trust.
+
+TTL `0` follows the live share balance on every gated interaction. A positive TTL keeps the last successful credential until its cache window expires, even if the account transfers or redeems the shares first. If the vault reverts, the provider call reverts. The hook treats that as no credential and continues checking other configured providers.
+
+`ERC4626AssetsRoleProviderFactory` creates a provider directly or through the hook constructor. Its CREATE2 salt is scoped to the factory caller, its deployment event contains the complete immutable configuration, and neither the factory nor the provider has an administrator.
+
+A Wildcat wrapper for one market may authorize another market. It cannot authorize its own wrapped market during a state-changing call because wrapper conversion reads that market's guarded `scaleFactor()` while the market is already executing.
+
 ## tryValidateAccess(address lender, bytes hooksData)
 
 When a restricted function is called, the access control contract will attempt to validate the caller's access to the market in several ways.
