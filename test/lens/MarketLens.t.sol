@@ -18,7 +18,7 @@ import 'src/lens/MarketLensLive.sol';
 import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
 import 'src/lens/MarketLens.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
-import { AccessListRoleProvider } from 'src/access/AccessListRoleProvider.sol';
+import { AccessListRoleProvider } from 'src/providers/AccessListRoleProvider.sol';
 import 'src/IHooksFactory.sol';
 import 'src/interfaces/IBorrowerIdentityRegistry.sol';
 

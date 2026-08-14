@@ -2,8 +2,8 @@
 pragma solidity >=0.8.20;
 
 import 'forge-std/Test.sol';
-import 'src/access/AccessListRoleProvider.sol';
-import 'src/access/AccessListRoleProviderFactory.sol';
+import 'src/providers/AccessListRoleProvider.sol';
+import 'src/providers/AccessListRoleProviderFactory.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import 'src/access/ProviderStructs.sol';
 import 'src/types/LenderStatus.sol';
