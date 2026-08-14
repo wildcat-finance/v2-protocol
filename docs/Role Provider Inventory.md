@@ -31,6 +31,14 @@ Membership and configuration changes follow the TTL selected for that provider o
 
 External providers may use different persistence and authority models, so SDK and migration tooling must probe optional capabilities rather than infer them from `IRoleProvider`.
 
+## Lens and indexer boundary
+
+The v2.5 lens treats role providers generically. For each hook attachment it returns the provider address, TTL, pull and push indexes, and optional current and pending administration. It does not hardcode provider kinds or copy provider-specific configuration into the lens ABI.
+
+Deployment events from known factory addresses identify the supported provider kind and initial configuration. Later membership, root, and administrator events carry mutable history. Immutable providers also expose typed getters for current validation. An attached provider without known factory provenance remains visible by address and is classified as unknown downstream instead of being guessed from selectors.
+
+This split is intentional. Hooks own attachment and credential-cache policy. Providers own credentials and provider-specific configuration. The indexer owns typed historical projection. Adding another provider does not require replacing the hook or lens.
+
 ## Access-list factory provenance
 
 `AccessListRoleProviderFactory` emits the provider address, intended administrator, actual factory caller, caller-scoped salt, and initial member list. It has no owner, registry role, upgrade path, or callable authority over a deployed provider. The provider itself exposes current membership and paginated enumeration, so current state does not depend on replaying factory or membership events.
