@@ -3,7 +3,7 @@
 Each of the following is considered a core function on the WildcatMarket contract which we may want a hooks contract to be able to track, impose restrictions on, or otherwise react to in some way:
 
 - `deposit` (+ `depositUpTo`)
-- `queueWithdrawal` (+ `queueFullWithdrawal`)
+- `queueWithdrawal` (+ `queueWithdrawalScaled`, `queueFullWithdrawal`)
 - `executeWithdrawal` (+ `executeWithdrawals`)
 - `transfer` (+ `transferFrom`)
 - `borrow`

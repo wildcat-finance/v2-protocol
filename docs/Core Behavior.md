@@ -116,6 +116,8 @@ From the time a withdrawal batch is created until the time it expires, new lende
 
 Because batch ownership is based on scaled amounts, two equal normalized withdrawal requests added to the same batch at different scale factors may receive slightly different final normalized amounts. This reflects the interest accrued by the batch between queue events; it is not based on the order in which paid withdrawals are later executed.
 
+v2.5 markets also expose `queueWithdrawalScaled(uint256)` for integrations that already hold an exact scaled amount. The function queues only the caller's requested scaled balance and derives its normalized event amount at execution. `queueFullWithdrawal()` still queues the caller's entire direct market-token balance.
+
 Withdrawal *execution*, or the claiming of paid withdrawals, is only possible after expiry.
 
 Withdrawal batches can be in one of three states:

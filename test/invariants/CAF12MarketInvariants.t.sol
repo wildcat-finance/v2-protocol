@@ -299,6 +299,25 @@ contract CAF12MarketAccountingHandler is ForgeTest {
     _observeScaleFactor();
   }
 
+  function queueWithdrawalScaled(uint256 actorSeed, uint256 scaledAmount) external {
+    if (market.isClosed()) return;
+
+    address actor = _actor(actorSeed);
+    uint256 balance = market.scaledBalanceOf(actor);
+    if (balance == 0) return;
+
+    scaledAmount = bound(scaledAmount, 1, balance);
+    (bool success, bytes memory result) = _callAs(
+      actor,
+      address(market),
+      abi.encodeWithSignature('queueWithdrawalScaled(uint256)', scaledAmount)
+    );
+    if (success && result.length == 32) {
+      _trackExpiry(abi.decode(result, (uint32)));
+    }
+    _observeScaleFactor();
+  }
+
   function queueFullWithdrawal(uint256 actorSeed) external {
     if (market.isClosed()) return;
 
@@ -498,21 +517,22 @@ contract CAF12MarketAccountingInvariant is CAF12InvariantDeployer {
     (market, asset, borrower, sanctionsSentinel) = _deployStandardMarket();
     handler = new CAF12MarketAccountingHandler(market, asset, sanctionsSentinel, borrower);
 
-    bytes4[] memory selectors = new bytes4[](14);
+    bytes4[] memory selectors = new bytes4[](15);
     selectors[0] = CAF12MarketAccountingHandler.deposit.selector;
     selectors[1] = CAF12MarketAccountingHandler.transfer.selector;
     selectors[2] = CAF12MarketAccountingHandler.borrow.selector;
     selectors[3] = CAF12MarketAccountingHandler.repay.selector;
     selectors[4] = CAF12MarketAccountingHandler.queueWithdrawal.selector;
-    selectors[5] = CAF12MarketAccountingHandler.queueFullWithdrawal.selector;
-    selectors[6] = CAF12MarketAccountingHandler.executeWithdrawal.selector;
-    selectors[7] = CAF12MarketAccountingHandler.repayAndProcess.selector;
-    selectors[8] = CAF12MarketAccountingHandler.updateState.selector;
-    selectors[9] = CAF12MarketAccountingHandler.collectFees.selector;
-    selectors[10] = CAF12MarketAccountingHandler.warp.selector;
-    selectors[11] = CAF12MarketAccountingHandler.sanctionLender.selector;
-    selectors[12] = CAF12MarketAccountingHandler.sanctionBorrower.selector;
-    selectors[13] = CAF12MarketAccountingHandler.nukeFromOrbit.selector;
+    selectors[5] = CAF12MarketAccountingHandler.queueWithdrawalScaled.selector;
+    selectors[6] = CAF12MarketAccountingHandler.queueFullWithdrawal.selector;
+    selectors[7] = CAF12MarketAccountingHandler.executeWithdrawal.selector;
+    selectors[8] = CAF12MarketAccountingHandler.repayAndProcess.selector;
+    selectors[9] = CAF12MarketAccountingHandler.updateState.selector;
+    selectors[10] = CAF12MarketAccountingHandler.collectFees.selector;
+    selectors[11] = CAF12MarketAccountingHandler.warp.selector;
+    selectors[12] = CAF12MarketAccountingHandler.sanctionLender.selector;
+    selectors[13] = CAF12MarketAccountingHandler.sanctionBorrower.selector;
+    selectors[14] = CAF12MarketAccountingHandler.nukeFromOrbit.selector;
 
     targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
     targetContract(address(handler));

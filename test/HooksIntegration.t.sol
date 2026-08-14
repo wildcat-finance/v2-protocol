@@ -154,6 +154,33 @@ contract HooksIntegrationTest is BaseMarketTest {
     }
   }
 
+  function test_onQueueWithdrawal_queueWithdrawalScaled(
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external {
+    _setUp(config);
+    _deposit(alice, 1e18);
+    MockHooks(address(hooks)).reset();
+    startPrank(alice);
+    MarketState memory state = pendingState();
+    uint256 scaledAmount = 100;
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(market.queueWithdrawalScaled.selector, scaledAmount),
+      extraData
+    );
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    bytes memory _returndata = abi.encode(expiry);
+    state.pendingWithdrawalExpiry = expiry;
+    if (config.useOnQueueWithdrawal) {
+      vm.expectEmit(address(hooks));
+      emit OnQueueWithdrawalCalled(alice, expiry, scaledAmount, state, extraData);
+    }
+    _callMarket(_calldata, _returndata, 'queueWithdrawalScaled');
+    if (!config.useOnQueueWithdrawal) {
+      assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
+    }
+  }
+
   function test_onQueueWithdrawal_nukeFromOrbit(
     StandardHooksConfig memory config,
     bytes memory extraData
