@@ -63,6 +63,14 @@ A positive TTL is an explicit cache window. If a hook queried the provider at ti
 
 Push providers keep the existing timestamp behavior. A push credential with TTL `0` is usable at its grant timestamp but cannot be refreshed by the hook.
 
+## Merkle role provider
+
+`MerkleRoleProvider` keeps one reusable allowlist root. It is a validation provider, so a lender supplies a proof with each fresh credential check. The hook data is `abi.encodePacked(provider, abi.encode(proof))`, where `proof` is a `bytes32[]`. Leaves are `keccak256(abi.encode(account))`, and each pair is sorted before hashing.
+
+The administrator can replace the root and can move that authority through the same two-step administration interface used by the access-list provider. The provider address and hook attachments do not change. A root update takes effect according to the TTL configured by each hook. TTL `0` requires a fresh proof after the block timestamp advances, but a credential granted at the current timestamp remains usable for the rest of that timestamp. A positive TTL keeps an existing credential valid until its cache window expires.
+
+The provider does not store or enumerate the underlying list. The borrower is responsible for keeping the canonical list and generating proofs. `MerkleRoleProviderFactory` can create a provider directly or through the hook's generic `createRoleProvider` helper. The factory assigns an explicit intended administrator, emits the initial root and deployment context, and keeps no authority after deployment.
+
 ## tryValidateAccess(address lender, bytes hooksData)
 
 When a restricted function is called, the access control contract will attempt to validate the caller's access to the market in several ways.

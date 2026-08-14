@@ -5,6 +5,7 @@ import '../BaseMarketTest.sol';
 import { fastForward } from '../helpers/VmUtils.sol';
 import 'src/access/BaseAccessControls.sol';
 import 'src/access/IManagedRoleProvider.sol';
+import 'src/providers/IMerkleRoleProvider.sol';
 import 'src/providers/MerkleRoleProvider.sol';
 
 contract MerkleRoleProviderTest is BaseMarketTest {
@@ -86,6 +87,17 @@ contract MerkleRoleProviderTest is BaseMarketTest {
     _expectDepositRevertNotApproved(approvedLender, 1e18, hooksData);
   }
 
+  function test_deposit_merkle_zero_ttl_uses_same_timestamp_credential() external {
+    bytes32[] memory proof = _proofForApproved();
+    _depositWithHooksData(approvedLender, 1e18, _hooksData(proof));
+
+    bytes32 newRoot = _hashPair(otherLeaf, _leaf(address(0xdead)));
+    vm.prank(parameters.borrower);
+    provider.updateRoot(newRoot);
+
+    _depositWithHooksData(approvedLender, 1e18, '');
+  }
+
   /// @dev Only the admin can update the merkle root.
   function test_updateRoot_reverts_non_admin() external {
     vm.expectRevert(IManagedRoleProvider.CallerNotAdministrator.selector);
@@ -96,7 +108,7 @@ contract MerkleRoleProviderTest is BaseMarketTest {
   function test_updateRoot_emits_administrator() external {
     bytes32 newRoot = bytes32(uint256(123));
     vm.expectEmit(address(provider));
-    emit MerkleRoleProvider.RootUpdated(parameters.borrower, merkleRoot, newRoot);
+    emit IMerkleRoleProvider.RootUpdated(parameters.borrower, merkleRoot, newRoot);
     vm.prank(parameters.borrower);
     provider.updateRoot(newRoot);
   }
@@ -143,6 +155,52 @@ contract MerkleRoleProviderTest is BaseMarketTest {
   function test_validateCredential_rejects_oversized_aligned_offset() external view {
     bytes memory invalidData = abi.encodePacked(type(uint256).max - 31, uint256(0));
     assertEq(provider.validateCredential(approvedLender, invalidData), 0, 'credential');
+  }
+
+  function test_validateCredential_rejects_noncanonical_empty_proof() external {
+    MerkleRoleProvider singleProvider = new MerkleRoleProvider(
+      parameters.borrower,
+      _leaf(approvedLender)
+    );
+    bytes memory invalidData = abi.encodePacked(uint256(0), uint256(0));
+    assertEq(singleProvider.validateCredential(approvedLender, invalidData), 0, 'credential');
+  }
+
+  function test_validateCredential_rejects_trailing_data() external view {
+    bytes32[] memory proof = _proofForApproved();
+    bytes memory invalidData = abi.encodePacked(abi.encode(proof), bytes32(uint256(1)));
+    assertEq(provider.validateCredential(approvedLender, invalidData), 0, 'credential');
+  }
+
+  function testFuzz_validateCredential_acceptsGeneratedProof(
+    address account,
+    bytes32[] calldata proof
+  ) external {
+    vm.assume(proof.length <= 64);
+    bytes32 root = _rootFor(account, proof);
+    MerkleRoleProvider generatedProvider = new MerkleRoleProvider(parameters.borrower, root);
+
+    assertEq(
+      generatedProvider.validateCredential(account, abi.encode(proof)),
+      uint32(block.timestamp),
+      'credential'
+    );
+  }
+
+  function testFuzz_validateCredential_rejectsDifferentAccount(
+    address account,
+    bytes32[] calldata proof
+  ) external {
+    vm.assume(proof.length <= 64);
+    bytes32 root = _rootFor(account, proof);
+    MerkleRoleProvider generatedProvider = new MerkleRoleProvider(parameters.borrower, root);
+    address differentAccount = address(uint160(account) ^ uint160(1));
+
+    assertEq(
+      generatedProvider.validateCredential(differentAccount, abi.encode(proof)),
+      0,
+      'credential'
+    );
   }
 
   function testFuzz_validateCredential_malformedData_failsClosed(
@@ -297,5 +355,15 @@ contract MerkleRoleProviderTest is BaseMarketTest {
 
   function _hashPair(bytes32 a, bytes32 b) internal pure returns (bytes32) {
     return a < b ? keccak256(abi.encodePacked(a, b)) : keccak256(abi.encodePacked(b, a));
+  }
+
+  function _rootFor(
+    address account,
+    bytes32[] calldata proof
+  ) internal pure returns (bytes32 root) {
+    root = _leaf(account);
+    for (uint256 i; i < proof.length; i++) {
+      root = _hashPair(root, proof[i]);
+    }
   }
 }

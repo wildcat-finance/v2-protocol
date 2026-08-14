@@ -58,6 +58,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 - `BaseAccessControls`: push credentials must have nonzero, non-future timestamps; `isPullProvider()` is probed defensively (non-implementing providers become push-only); providers already consulted via `hooksData` are skipped in the fallback pull loop.
 - Hook administration is now separate from credential ownership. Hooks no longer add their administrator as a permanent push provider, and hook administrators can move through a two-step transfer without rewriting provider configuration or lender state.
 - Added `AccessListRoleProvider`, a reusable pull provider with enumerable membership, explicit batch updates, and independent two-step administration. Its CREATE2 factory can assign the intended administrator when deployment is initiated through a hook and retains no authority after deployment.
+- Added `MerkleRoleProvider` as a production candidate for reusable offchain lists. It accepts canonical sorted-pair proofs, supports independent two-step root administration, and has a caller-namespaced CREATE2 factory that retains no authority. It is not scheduled for the v2.5 deployment ceremony.
 - TTL `0` now makes pull credentials non-cacheable, including within the same block. Positive TTLs retain the existing cache window, so delayed removal is an explicit hook configuration choice.
 - All three hook templates reject inconsistent access configurations (withdrawal access without deposit access, or without transfer access/disablement) at market creation.
 

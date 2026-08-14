@@ -11,13 +11,15 @@ This is the repository-scoped inventory for the v2.5 provider migration. It dist
 | `ERC1155RoleProvider` | `src/providers/ERC1155RoleProvider.sol` | Exploratory | Pull provider. Requires a non-zero balance of one configured token ID. | Ownerless. Collection and token ID are immutable. |
 | `ERC5192RoleProvider` | `src/providers/ERC5192RoleProvider.sol` | Exploratory | Validation provider. Checks ownership of the token ID supplied in hooks data and can require the token to be locked. | Ownerless. Collection and lock requirement are immutable. |
 | `ERC5484RoleProvider` | `src/providers/ERC5484RoleProvider.sol` | Exploratory | Validation provider. Checks ownership of the token ID supplied in hooks data and an allowed burn-authorization mask. | Ownerless. Collection and mask are immutable. |
-| `MerkleRoleProvider` | `src/providers/MerkleRoleProvider.sol` | Exploratory | Validation provider. Verifies a sorted-pair proof for `keccak256(abi.encode(account))`. | `IManagedRoleProvider` two-step administrator transfer. The administrator can update the root. |
+| `MerkleRoleProvider` | `src/providers/MerkleRoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Validation provider. Verifies a sorted-pair proof for `keccak256(abi.encode(account))`. | `IManagedRoleProvider` two-step administrator transfer. The administrator can update the root. |
 | `UniversalProvider` | `script/mock/UniversalProvider.sol` | Local deployment mock | Pull and validation provider. Always returns the current timestamp. | Ownerless and immutable. |
 | `MockRoleProvider` | `test/shared/mocks/MockRoleProvider.sol` | Test fixture | Configurable pull, push, stored credential, or signature-validation behavior. | Unrestricted test setters; not a production authority model. |
 | `AlwaysAuthorizedRoleProvider` | `test/shared/mocks/AlwaysAuthorizedRoleProvider.sol` | Test fixture | Always returns the current timestamp. | Ownerless and immutable. |
 | EOA, Safe, or smart-account push provider | No provider contract required | Supported integration shape | Calls `grantRole` or `grantRoles` on a hook directly. The hook stores the pushed timestamp and TTL. | Defined by the calling account, not by `IRoleProvider`. |
 
-The exploratory providers are compatibility proofs, not part of the v2.5 deployment ceremony. They have no bundled factories, SDK encoders, or app flows. Each can be deployed independently and attached through `addRoleProvider`. They need separate product, security, and integration review before production use.
+The token providers remain compatibility proofs and are not part of the v2.5 deployment ceremony. They have no bundled factories, SDK encoders, or app flows. Each can be deployed independently and attached through `addRoleProvider`. They need separate product, security, and integration review before production use.
+
+`MerkleRoleProvider` is a production candidate with its own factory, but is not scheduled for the v2.5 deployment ceremony. It still needs subgraph, SDK, app, and release integration before it can be treated as a supported product.
 
 ERC20 and ERC4626 thresholds must be greater than zero. Providers that check ERC165 reject contracts with invalid ERC165 behavior unless interface checking is explicitly skipped. Skipping the constructor check does not make an incompatible token valid; later credential checks still fail if the required token call is unavailable.
 
@@ -32,3 +34,11 @@ External providers may use different persistence and authority models, so SDK an
 ## Access-list factory provenance
 
 `AccessListRoleProviderFactory` emits the provider address, intended administrator, actual factory caller, caller-scoped salt, and initial member list. It has no owner, registry role, upgrade path, or callable authority over a deployed provider. The provider itself exposes current membership and paginated enumeration, so current state does not depend on replaying factory or membership events.
+
+## Merkle provider construction
+
+`MerkleRoleProviderFactory` follows the same authority and CREATE2 rules as the access-list factory. It emits the provider address, intended administrator, actual factory caller, caller-scoped salt, and initial root. It has no owner, registry role, upgrade path, or callable authority over a deployed provider.
+
+The leaf for an account is `keccak256(abi.encode(account))`. Each tree level hashes the two child values in ascending byte order. `validateCredential` accepts only the canonical `abi.encode(bytes32[] proof)` payload after the packed provider address. A zero root is allowed and behaves as an empty list unless somebody can produce a proof for it.
+
+The provider stores only the root. It cannot enumerate members or recover the source list, so the administrator must keep the canonical list and proof-generation data somewhere else. Root updates and administrator transfers are observable onchain, but the list itself is not. A zero-TTL credential remains usable for the rest of its block timestamp and needs a fresh proof once the timestamp advances.
