@@ -165,6 +165,35 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   }
 
   /**
+   * @dev Queue a withdrawal denominated in scaled market tokens.
+   *      Intended for integrations that already hold an exact scaled amount,
+   *      such as shares redeemed from the canonical ERC-4626 wrapper.
+   */
+  function queueWithdrawalScaled(
+    uint256 scaledAmount
+  ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
+    MarketState memory state = _getUpdatedState();
+
+    uint104 amount = scaledAmount.toUint104();
+    if (amount == 0) revert_NullBurnAmount();
+
+    // Cache account data
+    Account memory account = _getAccount(msg.sender);
+
+    uint256 normalizedAmount = state.normalizeAmount(amount);
+
+    return
+      _queueWithdrawal(
+        state,
+        account,
+        msg.sender,
+        amount,
+        normalizedAmount,
+        _runtimeConstant(0x24)
+      );
+  }
+
+  /**
    * @dev Queue a withdrawal for all of the caller's balance.
    */
   function queueFullWithdrawal()

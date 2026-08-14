@@ -10,7 +10,7 @@ At market creation the borrower configures:
 - `periodDuration` — how often a window recurs
 - `withdrawalWindowDuration` — how long each window stays open (must be shorter than the period)
 
-Windows are start-inclusive and end-exclusive: withdrawals may be queued at `windowStart` and may not at `windowStart + withdrawalWindowDuration`. Between windows, `queueWithdrawal` reverts `WithdrawOutsideWindow`. Withdrawal *batches* still expire on the market's immutable `withdrawalBatchDuration`, independent of the window schedule — the window gates only when a withdrawal can be *queued*.
+Windows are start-inclusive and end-exclusive: withdrawals may be queued at `windowStart` and may not at `windowStart + withdrawalWindowDuration`. Between windows, `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` revert `WithdrawOutsideWindow`. Withdrawal *batches* still expire on the market's immutable `withdrawalBatchDuration`, independent of the window schedule. The window gates only when a withdrawal can be *queued*.
 
 A closed market bypasses the window entirely: once the borrower closes, lenders can exit at any time.
 

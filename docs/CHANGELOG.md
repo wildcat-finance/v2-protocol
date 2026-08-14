@@ -19,6 +19,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 ### Scaled-amount rounding (all markets)
 
 - Transfers, deposits, and withdrawal queueing now scale normalized amounts **down** (`scaleAmountDown`) instead of half-up: the scaled amount credited, moved, or queued is never rounded up. Markets declare this via the new `scaledTransferRounding()` marker; `version()` is now `'2.5'` (first byte remains `'2'` for major-version checks).
+- Added `queueWithdrawalScaled(uint256)` for integrations that already know the exact scaled amount to queue. This lets a Safe redeem canonical wrapper shares and queue those same shares without consuming an unrelated direct market-token balance or relying on a normalized amount calculated before execution.
 - Withdrawal batch payments settle up to the exact floor-priced capacity (`maxScaledSettleableAmount`), so fully-funded closes always settle their batches and nothing strands on closed markets.
 - Hook minimum-deposit checks compare in scaled units, so depositing exactly the advertised minimum succeeds at any scale factor.
 - The half-up `MarketState.scaleAmount` was removed; rounding directions are documented in [Scale Factor](./Scale%20Factor.md#rounding).

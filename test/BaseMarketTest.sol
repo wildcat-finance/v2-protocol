@@ -178,6 +178,31 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     );
   }
 
+  function _requestWithdrawalScaled(
+    address from,
+    uint256 scaledAmount
+  ) internal asAccount(from) returns (uint32 expiry) {
+    MarketState memory state = pendingState();
+    (uint256 currentScaledBalance, ) = _getBalance(state, from);
+    uint104 amount = scaledAmount.toUint104();
+    uint256 normalizedAmount = state.normalizeAmount(amount);
+    _trackQueueWithdrawalScaled(
+      state,
+      from,
+      amount,
+      normalizedAmount,
+      registerExpectationsStandin,
+      0
+    );
+    expiry = market.queueWithdrawalScaled(scaledAmount);
+    _checkState(state);
+    assertEq(
+      market.scaledBalanceOf(from),
+      currentScaledBalance - amount,
+      'scaledBalance after scaled withdrawal'
+    );
+  }
+
   function _requestFullWithdrawal(address from) internal asAccount(from) {
     MarketState memory state = pendingState();
     (uint256 currentScaledBalance, uint256 currentBalance) = _getBalance(state, from);

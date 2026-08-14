@@ -118,6 +118,27 @@ contract MatrixCellHandler is CommonBase, StdUtils {
     _touch();
   }
 
+  function queueWithdrawalScaled(uint256 lenderSeed, uint256 scaledAmount) external {
+    address lender = _lender(lenderSeed);
+    uint256 balance = market.scaledBalanceOf(lender);
+    if (balance == 0) return;
+    scaledAmount = bound(scaledAmount, 1, balance);
+    bool gateOpen = _withdrawalsOpen();
+    vm.startPrank(lender);
+    try market.queueWithdrawalScaled(scaledAmount) returns (uint32 expiry) {
+      if (!gateOpen) ghost_gateViolations++;
+      trackedExpiries.push(expiry);
+      ghost_queueCount++;
+    } catch {
+      // Amounts are bounded to valid values, so the only accepted failure is
+      // a closed withdrawal gate.
+      if (gateOpen) ghost_gateViolations++;
+      ghost_queueRejections++;
+    }
+    vm.stopPrank();
+    _touch();
+  }
+
   function executeWithdrawal(uint256 lenderSeed, uint256 expirySeed) external {
     if (trackedExpiries.length == 0) return;
     uint32 expiry = trackedExpiries[expirySeed % trackedExpiries.length];
@@ -258,16 +279,17 @@ abstract contract MatrixInvariantBase is MarketConfigMatrix {
     _depositAs(d, alice, 10_000e18);
 
     targetContract(address(handler));
-    bytes4[] memory selectors = new bytes4[](9);
+    bytes4[] memory selectors = new bytes4[](10);
     selectors[0] = MatrixCellHandler.deposit.selector;
     selectors[1] = MatrixCellHandler.queueWithdrawal.selector;
-    selectors[2] = MatrixCellHandler.executeWithdrawal.selector;
-    selectors[3] = MatrixCellHandler.borrow.selector;
-    selectors[4] = MatrixCellHandler.repay.selector;
-    selectors[5] = MatrixCellHandler.warp.selector;
-    selectors[6] = MatrixCellHandler.poke.selector;
-    selectors[7] = MatrixCellHandler.proposeAprReduction.selector;
-    selectors[8] = MatrixCellHandler.executeAprReduction.selector;
+    selectors[2] = MatrixCellHandler.queueWithdrawalScaled.selector;
+    selectors[3] = MatrixCellHandler.executeWithdrawal.selector;
+    selectors[4] = MatrixCellHandler.borrow.selector;
+    selectors[5] = MatrixCellHandler.repay.selector;
+    selectors[6] = MatrixCellHandler.warp.selector;
+    selectors[7] = MatrixCellHandler.poke.selector;
+    selectors[8] = MatrixCellHandler.proposeAprReduction.selector;
+    selectors[9] = MatrixCellHandler.executeAprReduction.selector;
     targetSelector(FuzzSelector({ addr: address(handler), selectors: selectors }));
   }
 
