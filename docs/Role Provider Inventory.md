@@ -7,8 +7,8 @@ This is the repository-scoped inventory for the v2.5 provider migration. It dist
 | `AccessListRoleProvider` | `src/providers/AccessListRoleProvider.sol` | v2.5 production candidate | Pull provider. Returns the current timestamp while an account is a member and zero otherwise. | `IManagedRoleProvider` two-step administrator transfer. Membership and provider address survive transfer. |
 | `ERC20RoleProvider` | `src/providers/ERC20RoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Requires a configured token balance at or above `minBalance`. | Ownerless. Token and threshold are immutable. |
 | `ERC4626AssetsRoleProvider` | `src/providers/ERC4626AssetsRoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Converts the account's vault shares to assets and requires at least `minAssets`. | Ownerless. Vault and threshold are immutable. |
-| `ERC721RoleProvider` | `src/providers/ERC721RoleProvider.sol` | Exploratory | Pull provider. Requires a non-zero balance in the configured collection. | Ownerless. Collection is immutable. |
-| `ERC1155RoleProvider` | `src/providers/ERC1155RoleProvider.sol` | Exploratory | Pull provider. Requires a non-zero balance of one configured token ID. | Ownerless. Collection and token ID are immutable. |
+| `ERC721RoleProvider` | `src/providers/ERC721RoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Requires a non-zero balance in the configured collection. | Ownerless. Collection is immutable. |
+| `ERC1155RoleProvider` | `src/providers/ERC1155RoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Requires a non-zero balance of one configured token ID. | Ownerless. Collection and token ID are immutable. |
 | `ERC5192RoleProvider` | `src/providers/ERC5192RoleProvider.sol` | Exploratory | Validation provider. Checks ownership of the token ID supplied in hooks data and can require the token to be locked. | Ownerless. Collection and lock requirement are immutable. |
 | `ERC5484RoleProvider` | `src/providers/ERC5484RoleProvider.sol` | Exploratory | Validation provider. Checks ownership of the token ID supplied in hooks data and an allowed burn-authorization mask. | Ownerless. Collection and mask are immutable. |
 | `MerkleRoleProvider` | `src/providers/MerkleRoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Validation provider. Verifies a sorted-pair proof for `keccak256(abi.encode(account))`. | `IManagedRoleProvider` two-step administrator transfer. The administrator can update the root. |
@@ -17,13 +17,13 @@ This is the repository-scoped inventory for the v2.5 provider migration. It dist
 | `AlwaysAuthorizedRoleProvider` | `test/shared/mocks/AlwaysAuthorizedRoleProvider.sol` | Test fixture | Always returns the current timestamp. | Ownerless and immutable. |
 | EOA, Safe, or smart-account push provider | No provider contract required | Supported integration shape | Calls `grantRole` or `grantRoles` on a hook directly. The hook stores the pushed timestamp and TTL. | Defined by the calling account, not by `IRoleProvider`. |
 
-The remaining NFT token providers are compatibility proofs and are not part of the v2.5 deployment ceremony. They have no bundled factories, SDK encoders, or app flows. Each can be deployed independently and attached through `addRoleProvider`. They need separate product, security, and integration review before production use.
+The remaining NFT validation providers are compatibility proofs and are not part of the v2.5 deployment ceremony. They have no bundled factories, SDK encoders, or app flows. Each can be deployed independently and attached through `addRoleProvider`. They need separate product, security, and integration review before production use.
 
-`MerkleRoleProvider`, `ERC20RoleProvider`, and `ERC4626AssetsRoleProvider` are production candidates with their own factories, but none are scheduled for the v2.5 deployment ceremony. They still need subgraph, SDK, app, and release integration before they can be treated as supported products.
+`MerkleRoleProvider`, `ERC20RoleProvider`, `ERC721RoleProvider`, `ERC1155RoleProvider`, and `ERC4626AssetsRoleProvider` are production candidates with their own factories, but none are scheduled for the v2.5 deployment ceremony. They still need subgraph, SDK, app, and release integration before they can be treated as supported products.
 
 ERC20 and ERC4626 thresholds must be greater than zero. Providers that check ERC165 reject contracts with invalid ERC165 behavior unless interface checking is explicitly skipped. Skipping the constructor check does not make an incompatible token valid; later credential checks still fail if the required token call is unavailable.
 
-Token and vault providers prove only the state visible during a credential check. They do not prove how long an account held an asset or prevent it from returning borrowed assets later in the transaction. The ERC20 provider trusts the configured token's `balanceOf` result, and the ERC4626 provider trusts the configured vault's `convertToAssets` result. Neither is a price oracle. Provider selection and TTL must account for those properties.
+Token and vault providers prove only the state visible during a credential check. They do not prove how long an account held an asset or prevent it from returning borrowed assets later in the transaction. The ERC20, ERC721, and ERC1155 providers trust the configured token's `balanceOf` result, and the ERC4626 provider trusts the configured vault's `convertToAssets` result. None of these providers proves price or holding history. Provider selection and TTL must account for those properties.
 
 Membership and configuration changes follow the TTL selected for that provider on each hook. A zero TTL rechecks pull-provider membership on every access check and requires validation providers to supply fresh data after the current timestamp. A positive TTL deliberately allows a previously granted credential to remain cached until it expires. Dynamic token balances, token ownership, and Merkle roots should use zero or a deliberately short TTL unless delayed revocation is acceptable.
 
@@ -52,6 +52,22 @@ Eligibility is `token.balanceOf(account) >= minBalance`. The threshold is inclus
 The provider checks current balance, not holding time. A temporary or borrowed balance can satisfy the threshold during a check. TTL `0` rechecks the balance on every gated interaction, including another interaction in the same block. A positive TTL deliberately lets access survive until the cached credential expires after the account transfers the tokens. If `balanceOf` reverts, the hook treats that provider as granting no credential and may still accept a later provider.
 
 A Wildcat market token for Market A can authorize access to Market B as the lender's claim grows with interest. It cannot authorize a state-changing action on Market A itself. That path calls Market A's guarded `balanceOf` while Market A is already executing, so the view reentrancy guard rejects it. This limit is intentional. The provider does not weaken the market guard.
+
+## ERC721 provider construction
+
+`ERC721RoleProviderFactory` deploys one immutable provider configuration from a collection, an interface-check setting, and a caller-scoped salt. The factory and provider have no administrator, upgrade path, or authority to change the collection after deployment. The deployment event records the provider, collection, factory caller, supplied salt, and whether the constructor skipped its ERC165 check.
+
+Eligibility is `token.balanceOf(account) > 0`. Any token ID in the configured collection qualifies. The normal constructor path checks ERC165, ERC721 support, and the ERC165 invalid-interface rule. `skipInterfaceCheck` supports collections with a usable ERC721-style `balanceOf` that do not advertise ERC165. It bypasses only constructor detection. It does not make a missing or incompatible `balanceOf` call work later.
+
+The provider trusts the collection's reported balance. A malicious or nonconforming collection can lie or revert, and custom collection logic can change eligibility without an ordinary transfer. A temporary or borrowed token can satisfy the check. TTL `0` follows live balances on every gated interaction, including another interaction in the same block. A positive TTL deliberately lets access survive until the cached credential expires after the account transfers or loses its last token. If `balanceOf` reverts, the hook treats that provider as granting no credential and may still accept a later provider.
+
+## ERC1155 provider construction
+
+`ERC1155RoleProviderFactory` deploys one immutable provider configuration from a collection, one token ID, an interface-check setting, and a caller-scoped salt. The factory and provider have no administrator, upgrade path, or authority to change the collection or token ID after deployment. The deployment event records the provider, collection, factory caller, supplied salt, token ID, and whether the constructor skipped its ERC165 check.
+
+Eligibility is `token.balanceOf(account, tokenId) > 0`. Any positive balance of the configured token ID qualifies; balances of other token IDs do not. The normal constructor path checks ERC165, ERC1155 support, and the ERC165 invalid-interface rule. `skipInterfaceCheck` has the same narrow purpose as the ERC721 setting. The configured contract still needs a compatible `balanceOf(address,uint256)` call when credentials are checked.
+
+The provider trusts the collection's reported balance and does not prove holding time. A temporary or borrowed balance can qualify. TTL `0` follows the configured token balance on every gated interaction. A positive TTL deliberately lets access survive until the cached credential expires after the account transfers or burns its balance. If `balanceOf` reverts, the hook treats that provider as granting no credential and may still accept a later provider.
 
 ## ERC-4626 assets provider construction
 
