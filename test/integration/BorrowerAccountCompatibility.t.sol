@@ -11,11 +11,12 @@ import 'src/HooksFactory.sol';
 import 'src/HooksFactoryRevolving.sol';
 import 'src/IHooksFactory.sol';
 import 'src/IHooksFactoryRevolving.sol';
-import 'src/access/AccessListRoleProvider.sol';
-import 'src/access/AccessListRoleProviderFactory.sol';
+import 'src/providers/AccessListRoleProvider.sol';
+import 'src/providers/AccessListRoleProviderFactory.sol';
+import 'src/providers/MerkleRoleProvider.sol';
 import 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
-import 'src/access/IAccessListRoleProviderFactory.sol';
+import 'src/providers/IAccessListRoleProviderFactory.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import 'src/access/ProviderStructs.sol';
@@ -31,6 +32,7 @@ import 'src/vault/Wildcat4626Wrapper.sol';
 import 'src/vault/Wildcat4626WrapperFactory.sol';
 
 import { MockChainalysis } from '../shared/mocks/MockChainalysis.sol';
+import { MockCredentialedBorrowHooks } from '../shared/mocks/MockCredentialedBorrowHooks.sol';
 import {
   MockExecutingBorrowerAccount,
   MockExecutingBorrowerAccountFactory
@@ -63,7 +65,8 @@ interface IERC20AccountActions {
 enum AccountCompatibilityHooksKind {
   OpenTerm,
   FixedTerm,
-  PeriodicTerm
+  PeriodicTerm,
+  CredentialedBorrow
 }
 
 enum AccountCompatibilityMarketKind {
@@ -85,6 +88,7 @@ struct AccountCompatibilityDeployment {
  */
 contract BorrowerAccountCompatibilityTest is Test {
   address internal constant Principal = address(0xA11CE);
+  address internal constant SecondPrincipal = address(0xCAFE);
   address internal constant Lender = address(0x1EAD);
   address internal constant SecondLender = address(0xB0B);
   address internal constant FeeRecipient = address(0xFEE);
@@ -105,6 +109,7 @@ contract BorrowerAccountCompatibilityTest is Test {
   address internal openTermTemplate;
   address internal fixedTermTemplate;
   address internal periodicTermTemplate;
+  address internal credentialedBorrowTemplate;
 
   uint96 internal nextStandardSaltNonce = 1;
   uint96 internal nextRevolvingSaltNonce = 1;
@@ -181,10 +186,14 @@ contract BorrowerAccountCompatibilityTest is Test {
     openTermTemplate = LibStoredInitCode.deployInitCode(type(OpenTermHooks).creationCode);
     fixedTermTemplate = LibStoredInitCode.deployInitCode(type(FixedTermHooks).creationCode);
     periodicTermTemplate = LibStoredInitCode.deployInitCode(type(PeriodicTermHooks).creationCode);
+    credentialedBorrowTemplate = LibStoredInitCode.deployInitCode(
+      type(MockCredentialedBorrowHooks).creationCode
+    );
 
     _registerHooksTemplate(openTermTemplate, 'Open Term');
     _registerHooksTemplate(fixedTermTemplate, 'Fixed Term');
     _registerHooksTemplate(periodicTermTemplate, 'Periodic Term');
+    _registerHooksTemplate(credentialedBorrowTemplate, 'Credentialed Borrow');
   }
 
   function _registerHooksTemplate(address template, string memory name) internal {
@@ -197,7 +206,8 @@ contract BorrowerAccountCompatibilityTest is Test {
   ) internal view returns (address template) {
     if (hooksKind == AccountCompatibilityHooksKind.OpenTerm) return openTermTemplate;
     if (hooksKind == AccountCompatibilityHooksKind.FixedTerm) return fixedTermTemplate;
-    return periodicTermTemplate;
+    if (hooksKind == AccountCompatibilityHooksKind.PeriodicTerm) return periodicTermTemplate;
+    return credentialedBorrowTemplate;
   }
 
   function _hooksDataFor(
@@ -209,14 +219,17 @@ contract BorrowerAccountCompatibilityTest is Test {
     if (hooksKind == AccountCompatibilityHooksKind.FixedTerm) {
       return abi.encode(uint32(block.timestamp + 60 days), uint128(1e18), false, true, true);
     }
-    return
-      abi.encode(
-        uint32(block.timestamp + 30 days),
-        uint32(30 days),
-        uint32(7 days),
-        uint128(1e18),
-        false
-      );
+    if (hooksKind == AccountCompatibilityHooksKind.PeriodicTerm) {
+      return
+        abi.encode(
+          uint32(block.timestamp + 30 days),
+          uint32(30 days),
+          uint32(7 days),
+          uint128(1e18),
+          false
+        );
+    }
+    return '';
   }
 
   function _marketInputs() internal view returns (DeployMarketInputs memory inputs) {
@@ -243,6 +256,20 @@ contract BorrowerAccountCompatibilityTest is Test {
     inputs.existingProviders = new ExistingProviderInputs[](1);
     inputs.existingProviders[0] = ExistingProviderInputs({
       providerAddress: address(sharedProvider),
+      timeToLive: 0
+    });
+    inputs.newProviderInputs = new CreateProviderInputs[](0);
+    return abi.encode(inputs);
+  }
+
+  function _credentialProviderConstructorArgs(
+    MerkleRoleProvider provider
+  ) internal pure returns (bytes memory) {
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'Credentialed Borrow Hook';
+    inputs.existingProviders = new ExistingProviderInputs[](1);
+    inputs.existingProviders[0] = ExistingProviderInputs({
+      providerAddress: address(provider),
       timeToLive: 0
     });
     inputs.newProviderInputs = new CreateProviderInputs[](0);
@@ -287,7 +314,7 @@ contract BorrowerAccountCompatibilityTest is Test {
     address target,
     bytes memory data
   ) internal returns (bytes memory result) {
-    vm.prank(Principal);
+    vm.prank(account.principal());
     result = account.execute(target, 0, data);
   }
 
@@ -473,6 +500,193 @@ contract BorrowerAccountCompatibilityTest is Test {
     vm.stopPrank();
   }
 
+  function _principalLeaf(address principal) internal pure returns (bytes32) {
+    return keccak256(abi.encode(principal));
+  }
+
+  function _credentialedBorrowCallData(
+    uint256 amount,
+    MerkleRoleProvider provider
+  ) internal pure returns (bytes memory) {
+    bytes32[] memory proof = new bytes32[](0);
+    return
+      abi.encodePacked(
+        abi.encodeCall(IBorrowerMarketActions.borrow, (amount)),
+        address(provider),
+        abi.encode(proof)
+      );
+  }
+
+  function _expectAccountCallRevert(
+    MockExecutingBorrowerAccount account,
+    address target,
+    bytes memory data,
+    bytes4 errorSelector
+  ) internal {
+    address principal = account.principal();
+    vm.prank(principal);
+    vm.expectRevert(errorSelector);
+    account.execute(target, 0, data);
+  }
+
+  function _borrowWithCredential(
+    MockExecutingBorrowerAccount account,
+    WildcatMarket market,
+    uint256 amount,
+    MerkleRoleProvider provider
+  ) internal {
+    _execute(
+      account,
+      address(market),
+      _credentialedBorrowCallData(amount, provider)
+    );
+  }
+
+  function _runCredentialedBorrowCompatibility(
+    AccountCompatibilityMarketKind marketKind
+  ) internal {
+    MerkleRoleProvider provider = new MerkleRoleProvider(
+      Principal,
+      _principalLeaf(Principal)
+    );
+    AccountCompatibilityDeployment memory deployment = _deploy(
+      AccountCompatibilityHooksKind.CredentialedBorrow,
+      marketKind,
+      _credentialProviderConstructorArgs(provider)
+    );
+    MockCredentialedBorrowHooks hooks = MockCredentialedBorrowHooks(
+      address(deployment.hooks)
+    );
+
+    assertTrue(deployment.market.hooks().useOnBorrow(), 'borrow hook not enabled');
+    assertFalse(deployment.market.hooks().useOnDeposit(), 'deposit hook enabled');
+    assertFalse(deployment.market.hooks().useOnTransfer(), 'transfer hook enabled');
+    assertEq(hooks.administrator(), Principal, 'initial hook administrator');
+    assertFalse(hooks.getRoleProvider(address(provider)).isNull(), 'provider not attached');
+
+    _approveAndDeposit(deployment.market, Lender, 100e18);
+
+    _expectAccountCallRevert(
+      borrowerAccount,
+      address(deployment.market),
+      abi.encodeCall(IBorrowerMarketActions.borrow, (10e18)),
+      MockCredentialedBorrowHooks.BorrowCredentialRequired.selector
+    );
+
+    _borrowWithCredential(borrowerAccount, deployment.market, 10e18, provider);
+    assertEq(asset.balanceOf(address(borrowerAccount)), 10e18, 'initial draw recipient');
+    assertEq(
+      hooks.lastBorrower(address(deployment.market)),
+      address(borrowerAccount),
+      'initial borrower'
+    );
+    assertEq(
+      hooks.lastBorrowerPrincipal(address(deployment.market)),
+      Principal,
+      'initial principal'
+    );
+
+    vm.prank(Principal);
+    MockExecutingBorrowerAccount nextAccount = MockExecutingBorrowerAccount(
+      payable(accountFactory.deployAccount(Principal))
+    );
+    _execute(
+      borrowerAccount,
+      address(deployment.market),
+      abi.encodeCall(IBorrowerMarketActions.requestBorrowerTransfer, (address(nextAccount)))
+    );
+    _execute(
+      nextAccount,
+      address(deployment.market),
+      abi.encodeCall(IBorrowerMarketActions.acceptBorrowerTransfer, ())
+    );
+
+    _expectAccountCallRevert(
+      borrowerAccount,
+      address(deployment.market),
+      _credentialedBorrowCallData(10e18, provider),
+      IMarketEventsAndErrors.NotApprovedBorrower.selector
+    );
+
+    vm.warp(block.timestamp + 1);
+    _borrowWithCredential(nextAccount, deployment.market, 10e18, provider);
+    assertEq(asset.balanceOf(address(nextAccount)), 10e18, 'transferred draw recipient');
+    assertEq(
+      hooks.lastBorrower(address(deployment.market)),
+      address(nextAccount),
+      'transferred borrower'
+    );
+    assertEq(
+      hooks.lastBorrowerPrincipal(address(deployment.market)),
+      Principal,
+      'transferred principal'
+    );
+
+    archController.registerBorrower(SecondPrincipal);
+    vm.prank(Principal);
+    borrowerIdentityRegistry.requestBorrowerAccountPrincipalTransfer(
+      address(nextAccount),
+      SecondPrincipal
+    );
+    vm.prank(SecondPrincipal);
+    borrowerIdentityRegistry.acceptBorrowerAccountPrincipalTransfer(address(nextAccount));
+    assertEq(nextAccount.principal(), SecondPrincipal, 'account principal');
+
+    _execute(
+      nextAccount,
+      address(deployment.market),
+      abi.encodeCall(IBorrowerMarketActions.requestBorrowerTransfer, (address(nextAccount)))
+    );
+    _execute(
+      nextAccount,
+      address(deployment.market),
+      abi.encodeCall(IBorrowerMarketActions.acceptBorrowerTransfer, ())
+    );
+    assertEq(deployment.market.borrower(), address(nextAccount), 'migrated borrower');
+    assertEq(deployment.market.borrowerPrincipal(), SecondPrincipal, 'migrated principal');
+
+    vm.warp(block.timestamp + 1);
+    _expectAccountCallRevert(
+      nextAccount,
+      address(deployment.market),
+      _credentialedBorrowCallData(10e18, provider),
+      MockCredentialedBorrowHooks.BorrowCredentialRequired.selector
+    );
+
+    vm.prank(Principal);
+    hooks.requestAdministratorTransfer(SecondPrincipal);
+    vm.prank(SecondPrincipal);
+    hooks.acceptAdministratorTransfer();
+
+    vm.prank(Principal);
+    provider.requestAdministratorTransfer(SecondPrincipal);
+    vm.prank(SecondPrincipal);
+    provider.acceptAdministratorTransfer();
+    vm.prank(SecondPrincipal);
+    provider.updateRoot(_principalLeaf(SecondPrincipal));
+
+    address factoryAdministrator = marketKind == AccountCompatibilityMarketKind.Standard
+      ? standardFactory.getHooksAdministrator(address(hooks))
+      : revolvingFactory.getHooksAdministrator(address(hooks));
+    assertEq(hooks.administrator(), SecondPrincipal, 'migrated hook administrator');
+    assertEq(factoryAdministrator, SecondPrincipal, 'factory hook administrator');
+    assertEq(provider.administrator(), SecondPrincipal, 'provider administrator');
+    assertFalse(hooks.getRoleProvider(address(provider)).isNull(), 'provider detached');
+
+    _borrowWithCredential(nextAccount, deployment.market, 10e18, provider);
+    assertEq(asset.balanceOf(address(nextAccount)), 20e18, 'final draw recipient');
+    assertEq(
+      hooks.lastBorrower(address(deployment.market)),
+      address(nextAccount),
+      'final borrower'
+    );
+    assertEq(
+      hooks.lastBorrowerPrincipal(address(deployment.market)),
+      SecondPrincipal,
+      'final principal'
+    );
+  }
+
   function _runCompatibilityCell(
     AccountCompatibilityHooksKind hooksKind,
     AccountCompatibilityMarketKind marketKind
@@ -571,6 +785,14 @@ contract BorrowerAccountCompatibilityTest is Test {
       AccountCompatibilityHooksKind.PeriodicTerm,
       AccountCompatibilityMarketKind.Revolving
     );
+  }
+
+  function test_credentialedBorrowCompatibility_standard() external {
+    _runCredentialedBorrowCompatibility(AccountCompatibilityMarketKind.Standard);
+  }
+
+  function test_credentialedBorrowCompatibility_revolving() external {
+    _runCredentialedBorrowCompatibility(AccountCompatibilityMarketKind.Revolving);
   }
 
   function test_reusableProviderWorksAcrossAccountOwnedMarkets() external {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import './IRoleProvider.sol';
-import './IManagedRoleProvider.sol';
+import '../access/IRoleProvider.sol';
+import '../access/IManagedRoleProvider.sol';
 
 interface IAccessListRoleProvider is IRoleProvider, IManagedRoleProvider {
   event MemberAdded(address indexed administrator, address indexed account);
