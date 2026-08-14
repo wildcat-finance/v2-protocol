@@ -1,21 +1,23 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity ^0.8.20;
 
-import 'src/access/IRoleProvider.sol';
+import '../libraries/SafeCastLib.sol';
+import './IERC1155RoleProvider.sol';
 import { IERC1155BalanceOf, IERC165SupportsInterface } from './TokenInterfaces.sol';
+
+using SafeCastLib for uint256;
 
 /// @notice Grants credentials while an account holds the configured ERC1155 token ID.
 /// @dev Deploy with `skipInterfaceCheck` for collections that do not implement ERC165.
-contract ERC1155RoleProvider is IRoleProvider {
-  error InvalidTokenAddress();
-  error InvalidERC1155();
+contract ERC1155RoleProvider is IERC1155RoleProvider {
+  bool public constant override isPullProvider = true;
 
   bytes4 private constant ERC165_INTERFACE_ID = 0x01ffc9a7;
   bytes4 private constant ERC1155_INTERFACE_ID = 0xd9b67a26;
   bytes4 private constant INVALID_INTERFACE_ID = 0xffffffff;
 
-  address public immutable token;
-  uint256 public immutable tokenId;
+  address public immutable override token;
+  uint256 public immutable override tokenId;
 
   constructor(address token_, uint256 tokenId_, bool skipInterfaceCheck) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
@@ -27,10 +29,6 @@ contract ERC1155RoleProvider is IRoleProvider {
     }
     token = token_;
     tokenId = tokenId_;
-  }
-
-  function isPullProvider() external pure override returns (bool) {
-    return true;
   }
 
   function getCredential(address account) external view override returns (uint32 timestamp) {
@@ -46,7 +44,7 @@ contract ERC1155RoleProvider is IRoleProvider {
 
   function _credentialTimestamp(address account) internal view returns (uint32) {
     if (IERC1155BalanceOf(token).balanceOf(account, tokenId) > 0) {
-      return uint32(block.timestamp);
+      return block.timestamp.toUint32();
     }
     return 0;
   }
