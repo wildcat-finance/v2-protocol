@@ -71,6 +71,18 @@ The administrator can replace the root and can move that authority through the s
 
 The provider does not store or enumerate the underlying list. The borrower is responsible for keeping the canonical list and generating proofs. `MerkleRoleProviderFactory` can create a provider directly or through the hook's generic `createRoleProvider` helper. The factory assigns an explicit intended administrator, emits the initial root and deployment context, and keeps no authority after deployment.
 
+## ERC20 role provider
+
+`ERC20RoleProvider` is an immutable pull provider. It grants a credential when `token.balanceOf(account)` is greater than or equal to its configured `minBalance`. The threshold is inclusive, uses the token's base units, and checks only the balance reported for that account.
+
+The hook administrator chooses which token to trust. A malicious or nonconforming token can lie or revert, and a rebasing token can change eligibility without a transfer. The provider does not prove holding time or prevent a temporary or borrowed balance from satisfying the threshold during a check.
+
+TTL `0` follows the live token balance on every gated interaction. A positive TTL keeps the last successful credential until its cache window expires, even if the account transfers the tokens first. If `balanceOf` reverts, the hook treats that as no credential and continues checking other configured providers.
+
+`ERC20RoleProviderFactory` creates a provider directly or through the hook constructor. Its CREATE2 salt is scoped to the factory caller, its deployment event contains the complete immutable configuration, and neither the factory nor the provider has an administrator.
+
+A Wildcat market token for one market may authorize another market. It cannot authorize its own market during a state-changing call because the market's guarded `balanceOf` rejects the nested read while that market is already executing.
+
 ## ERC-4626 assets role provider
 
 `ERC4626AssetsRoleProvider` is an immutable pull provider. It grants a credential when `vault.convertToAssets(vault.balanceOf(account))` is greater than or equal to its configured `minAssets`. The threshold uses the underlying asset's base units and checks only shares held directly by the account.
