@@ -83,6 +83,22 @@ TTL `0` follows the live token balance on every gated interaction. A positive TT
 
 A Wildcat market token for one market may authorize another market. It cannot authorize its own market during a state-changing call because the market's guarded `balanceOf` rejects the nested read while that market is already executing.
 
+## ERC721 role provider
+
+`ERC721RoleProvider` is an immutable pull provider. It grants a credential when `token.balanceOf(account)` is greater than zero, so any token ID in the configured collection qualifies. The hook administrator chooses which collection to trust. A malicious or nonconforming collection can lie or revert, and the provider does not prove how long the account held a token.
+
+TTL `0` follows live collection balances on every gated interaction. A positive TTL keeps the last successful credential until its cache window expires, even if the account transfers its last token first. If `balanceOf` reverts, the hook treats that as no credential and continues checking other configured providers.
+
+`ERC721RoleProviderFactory` creates a provider directly or through the hook constructor. Its CREATE2 salt is scoped to the factory caller, its deployment event contains the collection and interface-check setting, and neither the factory nor the provider has an administrator. When interface checking is enabled, the constructor requires valid ERC165 and ERC721 support. The explicit bypass supports balance-compatible collections that do not advertise ERC165; it does not repair an incompatible collection.
+
+## ERC1155 role provider
+
+`ERC1155RoleProvider` is an immutable pull provider. It grants a credential when `token.balanceOf(account, tokenId)` is greater than zero. Only the configured token ID counts. The hook administrator chooses which collection to trust, and the provider does not prove holding time or prevent a temporary balance from satisfying the check.
+
+TTL `0` follows the live balance of the configured token ID on every gated interaction. A positive TTL keeps the last successful credential until its cache window expires, even if the account transfers or burns the balance first. If `balanceOf` reverts, the hook treats that as no credential and continues checking other configured providers.
+
+`ERC1155RoleProviderFactory` creates a provider directly or through the hook constructor. Its CREATE2 salt is scoped to the factory caller, its deployment event contains the collection, token ID, and interface-check setting, and neither the factory nor the provider has an administrator. The interface-check bypass has the same narrow compatibility purpose as the ERC721 provider.
+
 ## ERC-4626 assets role provider
 
 `ERC4626AssetsRoleProvider` is an immutable pull provider. It grants a credential when `vault.convertToAssets(vault.balanceOf(account))` is greater than or equal to its configured `minAssets`. The threshold uses the underlying asset's base units and checks only shares held directly by the account.
