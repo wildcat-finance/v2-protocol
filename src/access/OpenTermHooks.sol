@@ -99,7 +99,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     }
   }
 
-  function version() external pure override returns (string memory) {
+  function version() external pure virtual override returns (string memory) {
     return 'OpenTermHooks';
   }
 
@@ -141,7 +141,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal override returns (HooksConfig marketHooksConfig) {
+  ) internal virtual override returns (HooksConfig marketHooksConfig) {
     // Validate the deploy parameters
     super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
     if (administrator_ != administrator) revert CallerNotAdministrator();
