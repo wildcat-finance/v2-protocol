@@ -1,4 +1,4 @@
-# Access Control Hooks
+# Access control hooks
 
 The hook administrator configures a set of role providers that issue or validate lender credentials. The hook decides which providers it trusts and which market actions require access. It does not own the provider's credential list.
 
@@ -42,6 +42,17 @@ Pull providers must implement `isPullProvider()` and `getCredential()`.
 Providers used with `hooksData` validation must implement `validateCredential()`.
 
 Role-provider administration is optional and separate from hook administration. `IRoleProvider` does not define an owner. A third-party, immutable, or ownerless provider remains valid if the hook administrator chooses to trust it.
+
+## Singleton lender hooks
+
+The singleton hook templates use a different shape from a reusable lender list. Each instance
+constructs one immutable `SingletonRoleProvider`, confirms its deterministic factory binding, and
+seals provider configuration. The market then has one direct lender credential route for its life.
+
+There are open, fixed, and periodic singleton variants. They share the admission rule and canonical
+wrapper transfer exception; their parent templates retain their respective market lifecycle rules.
+See [Singleton Lender Hooks](./Singleton%20Lender%20Hooks.md) for the three variants and their
+boundaries.
 
 ## Access-list role provider
 

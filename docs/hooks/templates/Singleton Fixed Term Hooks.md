@@ -1,9 +1,11 @@
 # Singleton fixed-term hooks
 
-`SingletonFixedTermHooks` is the fixed-term companion to `SingletonOpenTermHooks`. A borrower
+`SingletonFixedTermHooks` is the fixed-term member of the singleton lender family. A borrower
 deploys a market with one nominated lender address. The address may be an EOA or a contract. The
 hooks instance creates the only role provider during construction, verifies the provider and lender
-binding, then permanently seals the provider set.
+binding, then permanently seals the provider set. See
+[Singleton Lender Hooks](./Singleton%20Lender%20Hooks.md) for the shared open, fixed, and periodic
+model.
 
 The template does not define the lender's business logic. A lender contract may run a fund, a note,
 or any other policy outside the market. At the Wildcat layer, the direct market position has one
@@ -53,6 +55,11 @@ silenced by the borrower at deployment or later.
 When false, transfer dispatch still runs: the nominated lender can receive market tokens through
 its live singleton credential, and the market's registered canonical 4626 wrapper may receive them
 through its market-authenticated exemption. No other recipient can receive market tokens.
+
+The wrapper is a transfer recipient, not a credentialed lender. If the supplied raw
+`useOnQueueWithdrawal` flag requires withdrawal access, it cannot queue a withdrawal itself. The
+direct singleton lender can receive the market tokens back and queue, or deployment can leave that
+raw flag false.
 
 ## Fixed-term lifecycle
 
