@@ -41,7 +41,7 @@ contract SingletonOpenTermHooks is OpenTermHooks {
     _sealRoleProviderConfiguration();
   }
 
-  function version() external pure override returns (string memory) {
+  function version() external pure virtual override returns (string memory) {
     return 'SingletonOpenTermHooks';
   }
 

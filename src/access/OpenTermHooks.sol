@@ -400,7 +400,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   function onCloseMarket(
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
-  ) external override {}
+  ) external virtual override {}
 
   /**
    * @dev Hook not implemented for this contract.
