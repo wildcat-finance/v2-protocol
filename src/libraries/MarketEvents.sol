@@ -188,6 +188,69 @@ function emit_InterestAndFeesAccrued(
   }
 }
 
+function emit_BorrowerTransferRequested(
+  address borrower,
+  address previousPendingBorrower,
+  address pendingBorrower,
+  address borrowerPrincipal,
+  address previousPendingBorrowerPrincipal,
+  address pendingBorrowerPrincipal
+) {
+  assembly {
+    let freePointer := mload(0x40)
+    mstore(0, borrowerPrincipal)
+    mstore(0x20, previousPendingBorrowerPrincipal)
+    mstore(0x40, pendingBorrowerPrincipal)
+    log4(
+      0,
+      0x60,
+      0x52a27a931945087c237eb781de9ec1bd1328a944b2ce031b914ed4ac5ce2ae47,
+      borrower,
+      previousPendingBorrower,
+      pendingBorrower
+    )
+    mstore(0x40, freePointer)
+  }
+}
+
+function emit_BorrowerTransferCancelled(
+  address borrower,
+  address cancelledPendingBorrower,
+  address borrowerPrincipal,
+  address cancelledPendingBorrowerPrincipal
+) {
+  assembly {
+    mstore(0, borrowerPrincipal)
+    mstore(0x20, cancelledPendingBorrowerPrincipal)
+    log3(
+      0,
+      0x40,
+      0x845fafbf05c3dba243e654ea4d739f09ec145e9d8c0d24cc8859eedcbd121889,
+      borrower,
+      cancelledPendingBorrower
+    )
+  }
+}
+
+function emit_BorrowerTransferred(
+  address previousBorrower,
+  address newBorrower,
+  address previousBorrowerPrincipal,
+  address newBorrowerPrincipal
+) {
+  assembly {
+    mstore(0, previousBorrowerPrincipal)
+    log4(
+      0,
+      0x20,
+      0x933b680a96769adaa385bb12d51347d449bd0e14defe462185eb094f62bc6628,
+      previousBorrower,
+      newBorrower,
+      newBorrowerPrincipal
+    )
+  }
+}
+
 function emit_WithdrawalBatchExpired(
   uint256 expiry,
   uint256 scaledTotalAmount,

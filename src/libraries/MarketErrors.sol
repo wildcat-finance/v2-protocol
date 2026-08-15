@@ -101,6 +101,31 @@ function revert_NotApprovedBorrower() pure {
   }
 }
 
+/// @dev Equivalent to `revert NoPendingBorrowerTransfer()`
+function revert_NoPendingBorrowerTransfer() pure {
+  assembly {
+    mstore(0, 0x6b1ac6e2)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev Equivalent to `revert NotPendingBorrower()`
+function revert_NotPendingBorrower() pure {
+  assembly {
+    mstore(0, 0x3505fe80)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev Equivalent to `revert BorrowerTransferWhileSanctioned(account)`
+function revert_BorrowerTransferWhileSanctioned(address account) pure {
+  assembly {
+    mstore(0, 0xfe1f6916)
+    mstore(0x20, account)
+    revert(0x1c, 0x24)
+  }
+}
+
 uint256 constant NotApprovedLender_ErrorSelector = 0xe50a45ce;
 
 /// @dev Equivalent to `revert NotApprovedLender()`

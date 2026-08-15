@@ -334,52 +334,83 @@ contract WildcatMarketBase is
   //                         Borrower Transfer                             //
   // ===================================================================== //
 
+  function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
+    if (_isFlaggedByChainalysis(operationalBorrower)) {
+      revert_BorrowerTransferWhileSanctioned(operationalBorrower);
+    }
+    if (principal != operationalBorrower && _isFlaggedByChainalysis(principal)) {
+      revert_BorrowerTransferWhileSanctioned(principal);
+    }
+  }
+
   function _validateBorrowerTransferTarget(
     address newBorrower,
     address expectedPrincipal
   ) internal view returns (address newBorrowerPrincipal) {
-    address currentBorrower = borrower();
-    if (newBorrower == address(0)) revert InvalidBorrowerTransferTarget();
+    address currentBorrower;
+    address currentBorrowerPrincipal;
+    bytes32 borrowerSlot = BORROWER_STORAGE_SLOT;
+    bytes32 borrowerPrincipalSlot = BORROWER_PRINCIPAL_STORAGE_SLOT;
+    address identityRegistry = borrowerIdentityRegistry;
+    assembly {
+      currentBorrower := sload(borrowerSlot)
+      if iszero(newBorrower) {
+        mstore(0, 0x5176bd60)
+        revert(0x1c, 0x04)
+      }
 
-    newBorrowerPrincipal = IBorrowerIdentityRegistry(borrowerIdentityRegistry).resolveBorrower(
-      newBorrower
-    );
+      // Resolve the principal while preserving the registry's revert data and
+      // Solidity's address-return validation.
+      mstore(0, 0xa111a9e8)
+      mstore(0x20, newBorrower)
+      if iszero(staticcall(gas(), identityRegistry, 0x1c, 0x24, 0, 0x20)) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      newBorrowerPrincipal := mload(0)
+      if shr(160, newBorrowerPrincipal) {
+        revert(0, 0)
+      }
 
-    address currentBorrowerPrincipal = borrowerPrincipal();
-    if (expectedPrincipal != address(0) && newBorrowerPrincipal != expectedPrincipal) {
-      revert PendingBorrowerPrincipalChanged(expectedPrincipal, newBorrowerPrincipal);
+      currentBorrowerPrincipal := sload(borrowerPrincipalSlot)
+
+      // A pending transfer is bound to the principal resolved at request time.
+      if and(expectedPrincipal, xor(newBorrowerPrincipal, expectedPrincipal)) {
+        mstore(0, 0xe1357b3c)
+        mstore(0x20, expectedPrincipal)
+        mstore(0x40, newBorrowerPrincipal)
+        revert(0x1c, 0x44)
+      }
+
+      // Re-requesting the same operational borrower is valid when its principal
+      // changed, but an exact borrower/principal no-op is not.
+      if and(
+        eq(newBorrower, currentBorrower),
+        eq(newBorrowerPrincipal, currentBorrowerPrincipal)
+      ) {
+        mstore(0, 0x5176bd60)
+        revert(0x1c, 0x04)
+      }
     }
-    if (
-      newBorrower == currentBorrower && newBorrowerPrincipal == currentBorrowerPrincipal
-    ) {
-      revert InvalidBorrowerTransferTarget();
-    }
-    if (_isFlaggedByChainalysis(currentBorrower)) {
-      revert BorrowerTransferWhileSanctioned(currentBorrower);
-    }
-    if (
-      currentBorrowerPrincipal != currentBorrower &&
-      _isFlaggedByChainalysis(currentBorrowerPrincipal)
-    ) {
-      revert BorrowerTransferWhileSanctioned(currentBorrowerPrincipal);
-    }
-    if (_isFlaggedByChainalysis(newBorrower)) {
-      revert BorrowerTransferWhileSanctioned(newBorrower);
-    }
-    if (newBorrowerPrincipal != newBorrower && _isFlaggedByChainalysis(newBorrowerPrincipal)) {
-      revert BorrowerTransferWhileSanctioned(newBorrowerPrincipal);
-    }
+    _checkBorrowerNotSanctioned(currentBorrower, currentBorrowerPrincipal);
+    _checkBorrowerNotSanctioned(newBorrower, newBorrowerPrincipal);
   }
 
   function requestBorrowerTransfer(
     address newBorrower
   ) external onlyBorrower nonReentrant sphereXGuardExternal {
-    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower, address(0));
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(
+      newBorrower,
+      _runtimeConstant(address(0))
+    );
     address previousPendingBorrower = pendingBorrower();
     address previousPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, newBorrower);
     _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
-    emit BorrowerTransferRequested(
+    emit_BorrowerTransferRequested(
       msg.sender,
       previousPendingBorrower,
       newBorrower,
@@ -391,11 +422,11 @@ contract WildcatMarketBase is
 
   function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
     address cancelledPendingBorrower = pendingBorrower();
-    if (cancelledPendingBorrower == address(0)) revert NoPendingBorrowerTransfer();
+    if (cancelledPendingBorrower == address(0)) revert_NoPendingBorrowerTransfer();
     address cancelledPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
     _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
-    emit BorrowerTransferCancelled(
+    emit_BorrowerTransferCancelled(
       msg.sender,
       cancelledPendingBorrower,
       borrowerPrincipal(),
@@ -405,7 +436,7 @@ contract WildcatMarketBase is
 
   function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
     address newBorrower = pendingBorrower();
-    if (msg.sender != newBorrower) revert NotPendingBorrower();
+    if (msg.sender != newBorrower) revert_NotPendingBorrower();
 
     address expectedPrincipal = pendingBorrowerPrincipal();
     address newBorrowerPrincipal = _validateBorrowerTransferTarget(
@@ -420,7 +451,7 @@ contract WildcatMarketBase is
     _setAddress(BORROWER_STORAGE_SLOT, newBorrower);
     _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
 
-    emit BorrowerTransferred(
+    emit_BorrowerTransferred(
       previousBorrower,
       newBorrower,
       previousBorrowerPrincipal,
