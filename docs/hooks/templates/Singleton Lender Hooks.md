@@ -19,6 +19,17 @@ The three variants differ only in the market promise around that sole lender:
 The templates are not product implementations. They put the one-lender market boundary into the
 market's hook configuration while the nominated lender contract owns any further logic.
 
+## Why the family stops here
+
+V2.5 has three concrete access and lifecycle templates: `OpenTermHooks`, `FixedTermHooks`, and
+`PeriodicTermHooks`. They are the three singleton siblings in this directory.
+`MarketConstraintHooks` is their abstract shared policy layer, while `BaseAccessControls` provides
+their credential machinery. Neither is a market template, so neither gets a singleton variant.
+
+Custom hooks can still use the role-provider system directly. This family covers the complete set
+of built-in term commitments; a fourth sibling needs a new lifecycle promise, not another spelling
+of the existing three.
+
 ## Construction and admission
 
 Each template accepts a `NameAndProviderInputs` payload and a non-zero lender address. The input
