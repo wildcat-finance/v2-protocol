@@ -11,6 +11,7 @@ import 'src/providers/ISingletonRoleProviderFactory.sol';
 import 'src/providers/SingletonRoleProviderFactory.sol';
 import 'src/types/HooksConfig.sol';
 import 'src/market/WildcatMarket.sol';
+import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 
 contract SingletonOpenTermHooksIntegrationTest is Test {
@@ -48,12 +49,10 @@ contract SingletonOpenTermHooksIntegrationTest is Test {
       timeToLive: 0,
       providerFactoryCalldata: abi.encode(providerInputs)
     });
-    return abi.encode(
-      SingletonOpenTermHooksInputs({
-        accessControlInputs: accessControlInputs,
-        lender: Lender
-      })
-    );
+    return
+      abi.encode(
+        SingletonOpenTermHooksInputs({ accessControlInputs: accessControlInputs, lender: Lender })
+      );
   }
 
   function _marketInputs(
@@ -90,8 +89,12 @@ contract SingletonOpenTermHooksIntegrationTest is Test {
   function test_deployMarketAndHooksDeploysSealedSingletonHooksForDirectBorrower() external {
     bytes memory constructorArgs = _constructorArgs();
     uint256 deploymentNonce = hooksFactory.getHooksInstanceDeploymentNonce(address(this));
-    address expectedHooks = getNextInstanceAddress(singletonTemplate, address(this), constructorArgs);
-    bytes32 marketSalt = bytes32(uint256(uint160(address(this))) << 96 | uint256(7));
+    address expectedHooks = getNextInstanceAddress(
+      singletonTemplate,
+      address(this),
+      constructorArgs
+    );
+    bytes32 marketSalt = bytes32((uint256(uint160(address(this))) << 96) | uint256(7));
     address expectedMarket = hooksFactory.computeMarketAddress(marketSalt);
     DeployMarketInputs memory inputs = _marketInputs(true, true);
 
@@ -99,7 +102,7 @@ contract SingletonOpenTermHooksIntegrationTest is Test {
       singletonTemplate,
       constructorArgs,
       inputs,
-      abi.encode(uint128(0), true),
+      abi.encode(uint128(0), false),
       marketSalt,
       address(0),
       0
@@ -113,6 +116,7 @@ contract SingletonOpenTermHooksIntegrationTest is Test {
     assertTrue(hooks.roleProviderConfigurationSealed(), 'provider configuration sealed');
     assertEq(hooks.getPushProviders().length, 0, 'no push providers');
     assertEq(hooks.getPullProviders().length, 1, 'one pull provider');
+    assertFalse(hooks.isMarketTransferDisabled(market), 'transfers globally disabled');
   }
 
   function test_deployMarketAndHooksRejectsMissingDepositAccess() external {
@@ -121,8 +125,8 @@ contract SingletonOpenTermHooksIntegrationTest is Test {
       singletonTemplate,
       _constructorArgs(),
       _marketInputs(false, true),
-      abi.encode(uint128(0), true),
-      bytes32(uint256(uint160(address(this))) << 96 | uint256(8)),
+      abi.encode(uint128(0), false),
+      bytes32((uint256(uint160(address(this))) << 96) | uint256(8)),
       address(0),
       0
     );
@@ -134,33 +138,55 @@ contract SingletonOpenTermHooksIntegrationTest is Test {
       singletonTemplate,
       _constructorArgs(),
       _marketInputs(true, false),
-      abi.encode(uint128(0), true),
-      bytes32(uint256(uint160(address(this))) << 96 | uint256(9)),
+      abi.encode(uint128(0), false),
+      bytes32((uint256(uint160(address(this))) << 96) | uint256(9)),
       address(0),
       0
     );
   }
 
-  function test_deployMarketAndHooksRejectsEnabledMarketTokenTransfers() external {
-    vm.expectRevert(SingletonOpenTermHooks.MarketTokenTransfersMustBeDisabled.selector);
-    hooksFactory.deployMarketAndHooks(
+  function test_canonicalWrapperCanReceiveAndReturnSingletonPosition() external {
+    bytes32 marketSalt = bytes32((uint256(uint160(address(this))) << 96) | uint256(10));
+    (address marketAddress, ) = hooksFactory.deployMarketAndHooks(
       singletonTemplate,
       _constructorArgs(),
       _marketInputs(true, true),
       abi.encode(uint128(0), false),
-      bytes32(uint256(uint160(address(this))) << 96 | uint256(10)),
+      marketSalt,
       address(0),
       0
     );
+    WildcatMarket market = WildcatMarket(marketAddress);
+    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(wrapperFactory.createWrapper(marketAddress));
+
+    assertEq(market.registeredWrapper(), address(wrapper), 'registered wrapper');
+
+    asset.mint(Lender, 1e6);
+    vm.startPrank(Lender);
+    asset.approve(marketAddress, 1e6);
+    market.deposit(1e6);
+    market.approve(address(wrapper), 1e6);
+
+    uint256 shares = wrapper.deposit(1e6, Lender);
+    assertEq(shares, 1e6, 'wrapper shares');
+    assertEq(market.balanceOf(address(wrapper)), 1e6, 'wrapper market balance');
+
+    uint256 assets = wrapper.redeem(shares, Lender, Lender);
+    assertEq(assets, 1e6, 'redeemed assets');
+    assertEq(market.balanceOf(Lender), 1e6, 'returned lender balance');
+
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    market.transfer(address(0xB0B), 1);
+    vm.stopPrank();
   }
 
-  function test_onlyTheConfiguredLenderCanAcquireThePosition() external {
-    bytes32 marketSalt = bytes32(uint256(uint160(address(this))) << 96 | uint256(11));
-    (address marketAddress,) = hooksFactory.deployMarketAndHooks(
+  function test_onlyTheConfiguredLenderCanDepositOrReceiveMarketTokens() external {
+    bytes32 marketSalt = bytes32((uint256(uint160(address(this))) << 96) | uint256(11));
+    (address marketAddress, ) = hooksFactory.deployMarketAndHooks(
       singletonTemplate,
       _constructorArgs(),
       _marketInputs(true, true),
-      abi.encode(uint128(0), true),
+      abi.encode(uint128(0), false),
       marketSalt,
       address(0),
       0

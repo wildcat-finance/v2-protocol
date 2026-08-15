@@ -171,12 +171,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     if (hookedMarket.minimumDeposit > 0) {
       // If there is a minimum deposit, the deposit hook must be enabled
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(
-        marketAddress,
-        administrator_,
-        0,
-        hookedMarket.minimumDeposit
-      );
+      emit MinimumDepositUpdated(marketAddress, administrator_, 0, hookedMarket.minimumDeposit);
     }
     if (hookedMarket.transfersDisabled) {
       // If transfers are disabled, the transfer hook must be enabled
@@ -323,6 +318,13 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     bytes calldata hooksData
   ) external override {}
 
+  /// @dev Hook-specific transfer recipient exemption. OpenTermHooks has no
+  ///      exemptions; specialized sealed hooks may override this for protocol
+  ///      components whose identity is authenticated by the market.
+  function _isTransferRecipientExempt(address, address) internal view virtual returns (bool) {
+    return false;
+  }
+
   /**
    * @dev Called when a lender attempts to transfer market tokens on a market
    *      that requires credentials for either transfers or withdrawals.
@@ -351,6 +353,8 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     if (market.transfersDisabled) {
       revert TransfersDisabled();
     }
+
+    if (_isTransferRecipientExempt(msg.sender, to)) return;
 
     // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {
