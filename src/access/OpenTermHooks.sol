@@ -82,7 +82,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false,
