@@ -362,7 +362,7 @@ contract OpenTermHooksTest is BaseAccessControlsTest {
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false,
