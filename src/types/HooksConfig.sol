@@ -87,7 +87,18 @@ library LibHooksConfig {
   ///      enabled hook path.
   function _callHook(address target, uint256 calldataPointer, uint256 calldataSize) private {
     assembly {
+      // Each caller has already built the hook calldata in memory. The slightly
+      // odd pointer usually starts 0x1c bytes into a word because a four-byte
+      // selector literal has 28 leading zero bytes when written by `mstore`. From
+      // there, the selector and arguments form one normal, contiguous ABI call.
+      //
+      // `call(gas, target, value, inputOffset, inputSize, outputOffset, outputSize)`
+      // forwards the remaining gas, sends no ETH, and expects no return value.
+      // The opcode leaves 1 on the stack for success and 0 for failure.
       if iszero(call(gas(), target, 0, calldataPointer, calldataSize, 0, 0)) {
+        // A hook is allowed to fail with a useful custom error. Copy its entire
+        // return buffer into scratch memory and bubble those exact bytes back
+        // through the market instead of hiding the original reason.
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
       }

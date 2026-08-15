@@ -292,19 +292,35 @@ contract WildcatMarketBase is
     address archController_ = parameters.archController;
     _archController = archController_;
     assembly {
-      // The registry must return this market's arch-controller as one clean
-      // ABI-encoded address.
+      // `staticcall` takes raw memory offsets, not Solidity arguments. This
+      // four-byte selector literal has 28 leading zero bytes in the word written
+      // at 0x00. Starting the calldata at 0x1c skips that padding, leaving exactly
+      // `archController()` as the four-byte input.
       mstore(0, 0x54635570) // archController()
+
+      // The last two arguments tell the EVM to copy up to one return word into
+      // memory at 0x00. `staticcall` itself returns 1 on success and 0 on failure.
       let validRegistry := staticcall(gas(), identityRegistry, 0x1c, 0x04, 0, 0x20)
+
+      // A valid address return is exactly one ABI word. Both operands below are
+      // already 0 or 1, so this bitwise `and` is also a logical AND.
       validRegistry := and(validRegistry, eq(returndatasize(), 0x20))
       if validRegistry {
+        // The call copied its return word over the selector at 0x00. An address
+        // occupies the low 160 bits of that word. If any of the upper 96 bits are
+        // set, the registry returned malformed ABI data and we must not truncate it.
         let registryArchController := mload(0)
         if shr(160, registryArchController) {
           revert(0, 0)
         }
+
+        // At this point the word is a clean address. The registry is only valid
+        // for this market if it points at the same ArchController the factory supplied.
         validRegistry := eq(registryArchController, archController_)
       }
       if iszero(validRegistry) {
+        // This uses the same compact custom-error layout as MarketErrors.sol:
+        // selector in the last four bytes of a word, then return only those bytes.
         mstore(0, 0x41d9e607) // InvalidBorrowerIdentityRegistry()
         revert(0x1c, 0x04)
       }
@@ -364,20 +380,39 @@ contract WildcatMarketBase is
     bytes32 borrowerPrincipalSlot = BORROWER_PRINCIPAL_STORAGE_SLOT;
     address identityRegistry = borrowerIdentityRegistry;
     assembly {
+      // The borrower fields use reserved storage slots rather than ordinary
+      // Solidity state variables. `sload` reads the whole 32-byte slot; the
+      // stored address is the low 160 bits and is assigned cleanly to the
+      // Solidity address variable.
       currentBorrower := sload(borrowerSlot)
       if iszero(newBorrower) {
+        // InvalidBorrowerTransferTarget() has no arguments, so its revert data
+        // is just the four-byte selector at the end of this scratch word.
         mstore(0, 0x5176bd60)
         revert(0x1c, 0x04)
       }
 
-      // Resolve the principal while preserving the registry's revert data and
-      // Solidity's address-return validation.
+      // Build `resolveBorrower(newBorrower)` directly in scratch memory. The
+      // selector occupies the last four bytes of the word at 0x00 and the address
+      // occupies the word at 0x20. Reading from 0x1c for 0x24 bytes gives the call
+      // its four-byte selector followed by one complete ABI argument.
       mstore(0, 0xa111a9e8)
       mstore(0x20, newBorrower)
+
+      // Ask the registry to resolve the operational address without allowing it
+      // to change state. The first 32 bytes of a successful return are copied
+      // back to 0x00, replacing the selector because we no longer need it.
       if iszero(staticcall(gas(), identityRegistry, 0x1c, 0x24, 0, 0x20)) {
+        // If the registry explains why it failed, preserve that exact error.
+        // `returndatacopy` moves every returned byte into scratch memory and the
+        // following revert sends the same bytes back to our caller.
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
       }
+
+      // Solidity needs at least one full word to decode an address. It also
+      // rejects dirty upper bits instead of silently truncating them, so perform
+      // both checks before treating the return word as a principal.
       if lt(returndatasize(), 0x20) {
         revert(0, 0)
       }
@@ -388,16 +423,27 @@ contract WildcatMarketBase is
 
       currentBorrowerPrincipal := sload(borrowerPrincipalSlot)
 
-      // A pending transfer is bound to the principal resolved at request time.
-      if and(expectedPrincipal, xor(newBorrowerPrincipal, expectedPrincipal)) {
-        mstore(0, 0xe1357b3c)
-        mstore(0x20, expectedPrincipal)
-        mstore(0x40, newBorrowerPrincipal)
-        revert(0x1c, 0x44)
+      // Requests pass zero here because there is no earlier resolution to bind.
+      // Acceptance passes the principal stored with the pending transfer. Yul
+      // treats any nonzero word as true, so this outer check is the readable way
+      // to distinguish those paths without confusing bitwise AND with boolean AND.
+      if expectedPrincipal {
+        // `xor(a, b)` is zero only when every bit is identical. Any nonzero
+        // result means the account changed principals while acceptance was pending.
+        if xor(newBorrowerPrincipal, expectedPrincipal) {
+          // PendingBorrowerPrincipalChanged(address,address) is the four-byte
+          // selector followed by the expected and current principal words.
+          mstore(0, 0xe1357b3c)
+          mstore(0x20, expectedPrincipal)
+          mstore(0x40, newBorrowerPrincipal)
+          revert(0x1c, 0x44)
+        }
       }
 
       // Re-requesting the same operational borrower is valid when its principal
-      // changed, but an exact borrower/principal no-op is not.
+      // changed, but an exact borrower/principal no-op is not. Unlike raw
+      // addresses, each `eq` returns exactly 0 or 1, so `and` is safe here as a
+      // logical AND.
       if and(
         eq(newBorrower, currentBorrower),
         eq(newBorrowerPrincipal, currentBorrowerPrincipal)

@@ -21,12 +21,29 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   constructor() {
     uint16 commitmentFeeBips_;
     assembly {
-      // Read the commitment fee from the factory's transient deployment data.
+      // During construction, `caller()` is the factory that created this market.
+      // The factory keeps the commitment fee in transient deployment data long
+      // enough for the new market to read it here.
+      //
+      // This four-byte selector literal has 28 leading zero bytes in the word
+      // written by `mstore`. Starting at 0x1c skips that padding, so the call input
+      // is exactly `getRevolvingMarketCommitmentFeeBips()` with no arguments.
       mstore(0, 0x0e304343) // getRevolvingMarketCommitmentFeeBips()
+
+      // `staticcall(gas, target, inputOffset, inputSize, outputOffset, outputSize)`
+      // forwards the remaining gas, sends those four bytes to the factory, and
+      // copies the first return word back into scratch memory at 0x00.
       if iszero(staticcall(gas(), caller(), 0x1c, 0x04, 0, 0x20)) {
+        // Preserve the factory's revert data instead of replacing a useful error
+        // with an empty one from the market constructor.
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
       }
+
+      // A uint16 still comes back as one 32-byte ABI word. Fewer than 32 bytes
+      // cannot be decoded. Shifting the word right by 16 then checks that every
+      // bit above the low uint16 is zero, which prevents a dirty value from being
+      // silently truncated when it reaches the Solidity variable.
       if or(lt(returndatasize(), 0x20), shr(16, mload(0))) {
         revert(0, 0)
       }
@@ -38,6 +55,8 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   function commitmentFeeBips() external view override returns (uint256 value) {
     value = _commitmentFeeBips;
     assembly {
+      // A single uint256 return is just one ABI word. Put the Solidity value in
+      // scratch memory and return those 32 bytes directly.
       mstore(0, value)
       return(0, 0x20)
     }
@@ -45,6 +64,9 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
 
   function drawnAmount() external view override returns (uint256) {
     assembly {
+      // `.slot` is Yul's handle for the storage slot Solidity assigned to the
+      // variable. `_drawnAmount` already fills one complete uint256 slot, so no
+      // masking or shifting is needed before returning it as one ABI word.
       mstore(0, sload(_drawnAmount.slot))
       return(0, 0x20)
     }
