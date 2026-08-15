@@ -74,27 +74,23 @@ contract WildcatMarketBase is
   /// @dev Registry that resolves borrower accounts to registered principals.
   address public immutable borrowerIdentityRegistry;
 
-  /// @dev Namespaced slot for the operational borrower. This keeps borrower
-  ///      transfers from shifting the existing market storage layout.
-  bytes32 internal constant BORROWER_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.borrower')) - 1);
-
-  /// @dev Namespaced slot for the market's registered principal.
+  /// @dev Reserved slots for borrower transfer and wrapper state. These are
+  ///      the final five slots in the EVM storage range, from 2^256 - 1 through
+  ///      2^256 - 5. Solidity assigns ordinary market storage from zero upward,
+  ///      so slots 0 through 10 keep their established layout and future market
+  ///      types can keep extending that layout without reaching this range.
+  ///
+  ///      Mappings and dynamic arrays derive their element slots with keccak256.
+  ///      Their chance of landing on one of these slots is the same negligible
+  ///      256-bit collision risk as an ordinary namespaced storage slot. Other
+  ///      manual storage must not use this five-slot range.
+  bytes32 internal constant BORROWER_STORAGE_SLOT = bytes32(type(uint256).max);
   bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.borrowerPrincipal')) - 1);
-
-  /// @dev Namespaced slot for the pending borrower.
-  bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.pendingBorrower')) - 1);
-
-  /// @dev Namespaced slot for the principal resolved when a transfer is requested.
+    bytes32(type(uint256).max - 1);
+  bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT = bytes32(type(uint256).max - 2);
   bytes32 internal constant PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.pendingBorrowerPrincipal')) - 1);
-
-  /// @dev Namespaced slot for the optional canonical wrapper. Using an
-  ///      unstructured slot preserves the established market storage layout.
-  bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.registeredWrapper')) - 1);
+    bytes32(type(uint256).max - 3);
+  bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT = bytes32(type(uint256).max - 4);
 
   /// @dev ABI-encoded size of `MarketParameters`, which has 22 static fields.
   uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2c0;
@@ -343,12 +339,18 @@ contract WildcatMarketBase is
   //                         Borrower Transfer                             //
   // ===================================================================== //
 
+  function _flaggedBorrowerIdentity(
+    address operationalBorrower,
+    address principal
+  ) internal view returns (address flaggedIdentity) {
+    if (_isFlaggedByChainalysis(operationalBorrower)) return operationalBorrower;
+    if (principal != operationalBorrower && _isFlaggedByChainalysis(principal)) return principal;
+  }
+
   function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
-    if (_isFlaggedByChainalysis(operationalBorrower)) {
-      revert_BorrowerTransferWhileSanctioned(operationalBorrower);
-    }
-    if (principal != operationalBorrower && _isFlaggedByChainalysis(principal)) {
-      revert_BorrowerTransferWhileSanctioned(principal);
+    address flaggedIdentity = _flaggedBorrowerIdentity(operationalBorrower, principal);
+    if (flaggedIdentity != address(0)) {
+      revert_BorrowerTransferWhileSanctioned(flaggedIdentity);
     }
   }
 

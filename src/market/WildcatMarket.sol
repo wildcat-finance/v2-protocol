@@ -147,10 +147,7 @@ contract WildcatMarket is
     // must not let either identity draw while flagged.
     address currentBorrower = borrower();
     address currentPrincipal = borrowerPrincipal();
-    if (
-      _isFlaggedByChainalysis(currentBorrower) ||
-      (currentPrincipal != currentBorrower && _isFlaggedByChainalysis(currentPrincipal))
-    ) {
+    if (_flaggedBorrowerIdentity(currentBorrower, currentPrincipal) != address(0)) {
       revert_BorrowWhileSanctioned();
     }
 
