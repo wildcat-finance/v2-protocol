@@ -1,142 +1,45 @@
-# v2.5 Deployment Tooling — Status
+# v2.5 Deployment Tooling Status
 
-As of 2026-07-22. Companion to [deployment.md](./deployment.md) (the process
-runbook) and
-[anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) (the current pre-Sepolia
-acceptance run). This records what is built, what prior rehearsals proved, and
-what must still be repeated from current source.
+As of 2026-08-14. This is the current implementation and rehearsal record. [deployment.md](./deployment.md) is the process runbook, [deploy-checklist.md](./deploy-checklist.md) is the condensed operator checklist, and [anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) is the pre-Sepolia acceptance run.
 
 ## Built and verified
 
-**Inventory** (committed): `factory-inventory.json` schema 1.1 — lifecycle
-(`canonical | live | retired`), append-only records, `wrapperFactories[]`
-with the v1 link; `lint` and two-half `reconcile` (registry-backed hooks
-factories via the ArchController, configuration-backed wrapper factories);
-the one-time repair of both networks' inventories (Sepolia canonical
-history corrected against on-chain creation blocks; mainnet backfilled from
-chain enumeration). The rollout selects every hooks factory whose reconciled
-inventory state is `registered: true`, removes its controller-factory role
-before its controller role, and finalization records it unregistered without
-changing historical indexing. Reconcile is green against live Sepolia and
-mainnet.
+**Inventory:** `factory-inventory.json` schema 1.1 is append-only and records `canonical`, `live`, and `retired` factory generations. Activation finalization adds the new generation without changing the registration state of an older generation. Retirement is generated later from the finalized, reconciled inventory and records only the factories actually removed from both ArchController roles. Existing markets are never removed. Live Sepolia and mainnet reconciliation are green.
 
-**Plan engine** (committed): `scripts/plan.js` — a deployment release
-compiles to a single plan artifact (`plan-<release>.json`): ordered
-transactions with plain-English descriptions, decoded args, `$ref`
-placeholders for not-yet-deployed addresses, execution envelopes, and an
-on-chain verification predicate per transaction. Subcommands: assemble /
-validate / execute (with halt-on-predicate-failure and verified resume) /
-verify / render-safe. Known network names are rejected if their plan chain ID
-does not match, preventing a plan generated without the target RPC from being
-assembled as a release artifact.
+**Activation plan:** `script/deploy/v2-5/01-07` deploys and configures the new generation. It deploys the wrapper factory, borrower identity registry, AccessList role-provider factory, standard and revolving factories, the four-part lens, and the three supported hook templates. It registers the six factory/template pairs and both new hooks factories. It does not retire an old factory.
 
-**Numbered scripts** (committed): `script/deploy/v2-5/01–09`. Dual-mode:
-`OWNER_MODE=plan` generates plan entries (no key, no broadcast);
-`OWNER_MODE=direct` broadcasts inline for component maintenance. Two-flow
-rule (see deployment.md §3): generational rollouts go through the plan
-pipeline on every network; inline direct is for between-release maintenance
-and deliberately cannot reach step 08. Step 06 registers the two new factories
-and disables every superseded inventory factory in both ArchController roles;
-it never removes markets.
+**Revolving init code:** `WildcatMarketRevolving` creation code no longer fits in one EIP-170 code-storage payload. The revolving factory therefore stores it in two contracts and reconstructs the exact creation code before CREATE2. The full init-code hash and predicted market address remain unchanged. The deployment scripts reject an oversized single payload before broadcasting.
 
-**Bundle mode** (committed): `scripts/plan-bundle.js` — compiles a plan into a
-minimal set of atomic Safe transactions (3 for v2-5): `MultiSend`
-delegatecall, deployments via the canonical `CreateCall` as CREATE2, every
-address precomputed at bundle time, all `$ref`s resolved statically.
-Outputs per bundle: Safe TX Builder JSON (review-only — the Builder's
-import model drops `operation`, so proposals must carry `operation: 1` via
-the Safe SDK), a frontend manifest, expected addresses, and one combined
-review sheet. `bundle-simulate` executes through the real Safe on a fork;
-`bundle-verify` derives the run-state that step 08 consumes unchanged.
+**Retirement plan:** `script/deploy/v2-5/retirement/01-generate-plan.sh` reads the post-activation inventory and creates a fresh plan for every still-registered superseded factory. Each factory loses `controllerFactory` before `controller`. `02-finalize-inventory.sh` applies only a fully verified retirement run-state. Sepolia independently reclaims and restores the helper owner during both ceremonies.
 
-**Frontend** (committed): `deploy-ui/` — self-contained static SPA
-(vite/react/viem/wagmi/Safe SDK; own dependency tree, root untouched). Two
-modes: EOA card-walk for testnets (mirrors `plan.js execute`, localStorage
-resume, run-state export) and Safe bundle ceremony for mainnet (propose
-with `operation: 1`, signature-progress polling, execute, per-bundle
-predicate board). Release builds embed one digest-bound ceremony package and
-lock the mode, so operators do not locate or load plan/bundle files. Rails:
-chainId hard-check, package/plan hash display for call-time byte verification, predicate failure is a full stop, no
-editable or manifest-trusted calldata; the browser independently reconstructs
-the exact calldata from the plan. Engine modules are React-free and
-fork-tested headlessly; EOA run-state is verified byte-compatible with
-`plan.js verify`. Stored browser progress is visually withheld until the
-connected chain re-verifies it; Anvil packages require an explicit same-fork
-resume or exact-key new-rehearsal reset. The desktop rail is resizable, manual
-history review has a return-to-current control, and transport failures surface
-as a signing stop rather than an unknown RPC error.
+**Plan engine:** `scripts/plan.js` assembles, validates, executes, verifies, and bundles plans. It accepts a named entries directory so activation and retirement cannot share stale plan entries. Every card has decoded arguments and an on-chain predicate. Known networks must match their configured chain IDs.
 
-**Fork launcher** (committed): `rehearse.sh` requires one explicit archive RPC,
-pins one fork block, probes historical storage, retries remote reads,
-periodically persists Anvil state and logs, and polls RPC readiness before it
-reports success. It exposes a guarded `--resume` mode that restores the saved
-fork without reseeding deployments or regenerating the plan. No external RPC is
-introduced implicitly; an explicitly supplied second URL is active
-round-robin, not passive failover.
+**Safe bundles:** `scripts/plan-bundle.js` turns cards into atomic Safe transactions using `MultiSend` delegatecall and canonical `CreateCall` CREATE2 deployments. Safe nonces are pinned when the package is generated. Safe Transaction Builder JSON is review-only because the Builder drops `operation: 1`; proposals must go through the deploy UI and Safe SDK.
 
-**Docs** (current): `deployment.md` — the runbook for both flows, the bundle
-ceremony, the guided Sepolia helper-owner compensation, and "adding a market
-type". `anvil-v2-5-rehearsal.md` is the command-by-command clean rebuild,
-locked-UI rehearsal; `sepolia-v2-5-first-deployment.md` is the live EOA
-walkthrough.
-`generate-handoff.js` — the subgraph/SDK touch-point document generated
-from inventory: all factory generations with index-all flags and
-startBlocks, routing prose, the v2.5 ABI-delta list.
+**Release UI:** `deploy-ui/` supports locked EOA and Safe packages. It independently reconstructs calldata from the plan, binds the package to a digest, verifies the connected chain and executor, rechecks receipts and predicates before trusting stored progress, and stops on any failed predicate.
 
-## Historical rehearsal evidence (Anvil forks, not checked in)
+**Fork launcher:** `rehearse.sh` requires an explicit archive RPC, pins one fork block, verifies historical reads, persists Anvil state, and supports guarded resume. `--full` executes and finalizes activation, confirms ownership restoration, then generates, executes, and finalizes the separate retirement plan.
 
-The following runs proved the machinery at their then-current revisions. They
-do not replace the fresh locked-UI run required by
-`anvil-v2-5-rehearsal.md`, especially after source, template-matrix, or
-factory-deactivation changes.
+**Handoff:** `scripts/generate-handoff.js` reports all factory generations, index flags, start blocks, the borrower identity registry, the AccessList role-provider factory, both revolving init-code storage addresses, and the v2.5 ABI changes needed by the subgraph and SDK.
 
-- Sepolia fork, current full pipeline: 38-transaction plan generated and
-  executed through the temporary helper-owner flow as a dev EOA, including
-  ownership reclaim and restoration plus paired removal of all seven
-  superseded hooks factories; 38/38 predicates verified, inventory finalized
-  with historical `indexed` flags preserved, and reconcile green. An earlier
-  direct-owner rehearsal also deployed, exercised, and closed the standard and
-  revolving canary markets.
-- Mainnet fork, current 24-transaction pipeline executed as the
-  impersonated Foundation Safe
-  (`0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, v1.4.1, threshold 3), including
-  paired removal of the one superseded hooks factory; 24/24 predicates
-  verified, historical indexing preserved, inventory finalized, and reconcile
-  green.
-- The earlier five-registration mainnet bundle ceremony used 3 bundles at
-  ~15.8M / 17.3M / 9.8M gas. Those bundle artifacts and gas figures are stale;
-  regenerate and re-simulate the corrected six-registration plan before
-  mainnet signing.
-- Sepolia fork, true signing path: fresh 1-of-1 Safe via canonical v1.4.1
-  ProxyFactory, real EIP-712 signature, all bundles and predicates green.
-- Frontend engines: headless fork tests for both modes, including the actual
-  Sepolia helper reclaim/restore sequence and the 1-of-1 Safe EIP-712 path.
+## Current rehearsal evidence
 
-## Ceremony shape (the deliverable UX)
+These are disposable Anvil forks and generated artifacts are not checked in. They prove the current engine and plan shape, but a fresh locked-UI rehearsal from the reviewed release commit remains the live release gate.
 
-Mainnet: host the package-specific `deploy-ui/dist`, confirm its fingerprint on
-the call, then per bundle: operator proposes, signers review the card and sign
-(three threshold signatures per generated bundle), operator executes, predicate
-board goes green. Export run-state → step 08 → reconcile → handoff.
+- Sepolia-shaped activation: 27 cards, consisting of 15 deployments and 12 calls. The extra two calls reclaim the ArchController from `MockArchControllerOwner` and return it afterward. All predicates passed, activation inventory finalization and reconciliation were green, and the helper owned the ArchController again.
+- Sepolia-shaped retirement: nine superseded factories produced 18 ordered removals, plus independent reclaim and return calls, for 20 cards total. All predicates passed, retirement inventory finalization and reconciliation were green, no market was removed, and the helper owned the ArchController again.
+- Mainnet-shaped activation: 25 cards, consisting of 15 deployments and 10 calls. Direct fork execution, predicate verification, inventory finalization, and reconciliation were green.
+- Mainnet-shaped retirement: the finalized rehearsal inventory had one superseded registered factory, producing one two-call retirement plan. Direct fork execution and reconciliation were green.
+- Exact Foundation Safe simulation: the 25 activation cards fit into three bundles using 17,561,801, 18,107,377, and 14,771,586 gas. The two retirement cards fit into one bundle using 94,042 gas. Every bundle stayed below the 20,000,000 gas ceiling and every predicate passed through the real Safe execution path.
+- The Foundation Safe was read as version 1.4.1 with threshold 3. The current release therefore requires three activation approvals and one later retirement approval from each participating signer. If the same three signers approve all four bundles, that is 12 signatures total. Cards are inner review actions and do not each need Safe signatures.
 
-Testnets: same page in locked EOA mode with a dev key. Sepolia's first and last
-cards perform the helper-owner reclaim and return; each card signs immediately.
+The rehearsal Safe nonce, CREATE2 addresses, and generated package hashes are not release constants. Regenerate them from the current Safe state at production freeze and repeat the exact simulation.
 
-## Remaining
+## Remaining release work
 
-1. **Fresh Sepolia-fork rehearsal through the locked deploy-ui (EOA mode)** —
-   rebuild from current protocol source, regenerate all plan artifacts, execute
-   all 38 cards, finalize/reconcile, and complete canary plus handoff checks.
-2. **Live Sepolia rollout through deploy-ui (EOA mode)** — the real test
-   drive: mints the v2.5 canonical generation on Sepolia, exercises the
-   page against a live network, produces the first real handoff. Gates the
-   legacy sweep.
-3. **Legacy sweep** (after the live rehearsal): old deploy scripts →
-   `script/legacy/`, retire superseded env conventions, supersede the RCF
-   checklist.
-4. **Mainnet ceremony** when the release is blessed: generate and simulate the
-   corrected Safe bundles, then use the resulting package with Foundation
-   signers on a call.
-5. Deferred: Plasma explorer verification config (`VERIFIER_URL`) when
-   those chains onboard; subgraph/SDK/app updates consume the generated
-   handoff.
+1. Run the fresh Sepolia-fork activation through the locked deploy UI in EOA mode, including reload and resume, then complete inventory finalization, canaries, explorer-input checks, and handoff validation.
+2. Deploy activation on live Sepolia and leave the existing preview factories registered during the validation window.
+3. Validate the new generation through the subgraph, SDK, app, and canary flows. Generate the Sepolia retirement plan only after that state is finalized and reconciled.
+4. Execute the separate Sepolia retirement ceremony when the preview factories are no longer needed.
+5. At mainnet release freeze, regenerate and simulate the three activation bundles against the current Safe nonce. Run the activation signing session, validate the release, then prepare the separate one-bundle retirement signing session from the post-activation inventory.
+6. Move superseded deployment scripts to `script/legacy/` only after the current ceremony is accepted. Plasma explorer configuration remains deferred until those networks onboard.

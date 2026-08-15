@@ -29,6 +29,24 @@ const FACTORY_ARTIFACTS = {
 
 const RELEASE_CONTRACTS = [
   {
+    key: "WildcatBorrowerIdentityRegistry",
+    planOutput: "borrower-identity-registry",
+    kind: "borrower-identity-registry",
+    forgeArtifactName:
+      "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
+    abiArtifactName:
+      "src/interfaces/IBorrowerIdentityRegistry.sol:IBorrowerIdentityRegistry",
+  },
+  {
+    key: "AccessListRoleProviderFactory",
+    planOutput: "access-list-role-provider-factory",
+    kind: "role-provider-factory",
+    forgeArtifactName:
+      "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+    abiArtifactName:
+      "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+  },
+  {
     key: "WildcatMarket_initCodeStorage",
     planOutput: "wildcat-market-init-code-storage",
     kind: "market-init-code-storage",
@@ -45,6 +63,14 @@ const RELEASE_CONTRACTS = [
   {
     key: "WildcatMarketRevolving_initCodeStorage",
     planOutput: "wildcat-market-revolving-init-code-storage",
+    kind: "market-init-code-storage",
+    forgeArtifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+    abiArtifactName:
+      "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving",
+  },
+  {
+    key: "WildcatMarketRevolving_initCodeStorage2",
+    planOutput: "wildcat-market-revolving-init-code-storage-2",
     kind: "market-init-code-storage",
     forgeArtifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
     abiArtifactName:
@@ -124,10 +150,36 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
     changed: ["version() return value changed from '2' to '2.5'."],
     added: [
+      "borrower(), pendingBorrower(), requestBorrowerTransfer(address), cancelBorrowerTransfer(), and acceptBorrowerTransfer().",
+      "queueWithdrawalScaled(uint104) queues an exact scaled withdrawal amount.",
       "scaledTransferRounding() returns keccak256('scaleAmountDown').",
       "executePendingAnnualInterestBipsReduction() applies a matured hooks proposal.",
       "AprReductionNotReduction error.",
       "ExecutePendingAprReductionNotEnabled error.",
+    ],
+  },
+  {
+    component: "Borrower identity registry",
+    artifactNames: [
+      "src/interfaces/IBorrowerIdentityRegistry.sol:IBorrowerIdentityRegistry",
+    ],
+    changed: [],
+    added: [
+      "Principal resolution for direct borrowers and borrower accounts.",
+      "Account-factory registration and account-to-principal association events.",
+      "Two-step borrower-account principal transfers.",
+    ],
+  },
+  {
+    component: "Access-list role-provider factory",
+    artifactNames: [
+      "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+      "src/providers/IAccessListRoleProvider.sol:IAccessListRoleProvider",
+    ],
+    changed: [],
+    added: [
+      "Permissionless deterministic deployment of borrower-administered access-list providers.",
+      "Two-step provider administrator transfers and enumerable membership management.",
     ],
   },
   {
@@ -508,9 +560,18 @@ function buildHandoff({
     "wrapper factory"
   );
 
-  const releaseContracts = RELEASE_CONTRACTS.map((definition) =>
-    releaseDeployment(definition, release, deployments, runMetadata)
-  ).filter(Boolean);
+  const releaseContracts = RELEASE_CONTRACTS.map((definition) => {
+    const contract = releaseDeployment(
+      definition,
+      release,
+      deployments,
+      runMetadata
+    );
+    if (!contract) {
+      throw new Error(`Missing release deployment ${definition.key}_${release}`);
+    }
+    return contract;
+  });
   const generations = factoryGenerations(inventory, release);
 
   return {
@@ -527,6 +588,10 @@ function buildHandoff({
     canonicalAddresses: {
       archController: deployments.WildcatArchController || null,
       sanctionsSentinel: deployments.WildcatSanctionsSentinel || null,
+      borrowerIdentityRegistry:
+        deployments.WildcatBorrowerIdentityRegistry || null,
+      accessListRoleProviderFactory:
+        deployments.AccessListRoleProviderFactory || null,
       standardHooksFactory: standard.address,
       revolvingHooksFactory: revolving.address,
       marketLens: deployments.MarketLens || null,
@@ -629,9 +694,29 @@ function validateHandoff(
   if (!Array.isArray(handoff?.releaseContracts)) {
     errors.push("releaseContracts must be an array");
   } else {
+    if (handoff.releaseContracts.length !== RELEASE_CONTRACTS.length) {
+      errors.push(
+        `releaseContracts must include all ${RELEASE_CONTRACTS.length} release deployments`
+      );
+    }
     const deploymentAddresses = new Set(
       Object.values(deployments).map(addressKey)
     );
+    const releaseContractsByKey = new Map(
+      handoff.releaseContracts.map((contract) => [contract.deploymentKey, contract])
+    );
+    for (const definition of RELEASE_CONTRACTS) {
+      const deploymentKey = `${definition.key}_${expectedRelease}`;
+      const contract = releaseContractsByKey.get(deploymentKey);
+      if (!contract) {
+        errors.push(`releaseContracts omits ${deploymentKey}`);
+      } else if (
+        contract.forgeArtifactName !== definition.forgeArtifactName ||
+        contract.abiArtifactName !== definition.abiArtifactName
+      ) {
+        errors.push(`release contract ${deploymentKey} has an invalid artifact name`);
+      }
+    }
     for (const contract of handoff.releaseContracts) {
       if (!isAddress(contract.address)) {
         errors.push(
@@ -675,6 +760,10 @@ function validateHandoff(
   const expectedCanonical = {
     archController: deployments.WildcatArchController || null,
     sanctionsSentinel: deployments.WildcatSanctionsSentinel || null,
+    borrowerIdentityRegistry:
+      deployments.WildcatBorrowerIdentityRegistry || null,
+    accessListRoleProviderFactory:
+      deployments.AccessListRoleProviderFactory || null,
     standardHooksFactory:
       canonicalHooks.find((record) => record.marketType === "legacy")
         ?.address || null,
@@ -716,7 +805,7 @@ function markdownCell(value) {
 
 function renderMarkdown(handoff) {
   const lines = [
-    `# Wildcat ${handoff.release} handoff — ${handoff.chain.network}`,
+    `# Wildcat ${handoff.release} handoff: ${handoff.chain.network}`,
     "",
     `Chain ID: \`${handoff.chain.chainId}\`. Generated: \`${handoff.generatedAt}\`.`,
     "",

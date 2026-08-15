@@ -10,6 +10,12 @@ contract LibStoredInitCodeExternal {
     return LibStoredInitCode.deployInitCode(data);
   }
 
+  function deployInitCodeInTwoParts(
+    bytes memory data
+  ) external returns (address initCodeStorage, address initCodeStorage2) {
+    return LibStoredInitCode.deployInitCodeInTwoParts(data);
+  }
+
   /// @dev Returns the create2 prefix for a given deployer address.
   /// Equivalent to `uint256(uint160(deployer)) | (0xff << 160)`
   function getCreate2Prefix(address deployer) external pure returns (uint256 create2Prefix) {
@@ -40,6 +46,14 @@ contract LibStoredInitCodeExternal {
     bytes32 salt
   ) external returns (address deployment) {
     return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt);
+  }
+
+  function create2WithStoredInitCode(
+    address initCodeStorage,
+    address initCodeStorage2,
+    bytes32 salt
+  ) external returns (address deployment) {
+    return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, initCodeStorage2, salt);
   }
 
   function create2WithStoredInitCode(

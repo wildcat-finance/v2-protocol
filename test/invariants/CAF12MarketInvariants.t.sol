@@ -32,12 +32,18 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
 
   function _storeMarketInitCode(
     bool revolving
-  ) internal returns (address initCodeStorage, uint256 initCodeHash) {
+  ) internal returns (address initCodeStorage, address initCodeStorage2, uint256 initCodeHash) {
     bytes memory marketInitCode = revolving
       ? type(WildcatMarketRevolving).creationCode
       : type(WildcatMarket).creationCode;
     initCodeHash = uint256(keccak256(marketInitCode));
-    initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
+    if (revolving) {
+      (initCodeStorage, initCodeStorage2) = LibStoredInitCode.deployInitCodeInTwoParts(
+        marketInitCode
+      );
+    } else {
+      initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
+    }
   }
 
   function _deployStandardMarket()
@@ -57,7 +63,7 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
       address(archController)
     );
     sanctionsSentinel = new MockSanctionsSentinel(address(archController));
-    (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode(false);
+    (address marketTemplate, , uint256 marketInitCodeHash) = _storeMarketInitCode(false);
 
     HooksFactory hooksFactory = new HooksFactory(
       address(archController),
@@ -114,13 +120,18 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
       address(archController)
     );
     MockSanctionsSentinel sanctionsSentinel = new MockSanctionsSentinel(address(archController));
-    (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode(true);
+    (
+      address marketTemplate,
+      address marketTemplate2,
+      uint256 marketInitCodeHash
+    ) = _storeMarketInitCode(true);
 
     HooksFactoryRevolving hooksFactory = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
+      marketTemplate2,
       marketInitCodeHash,
       address(borrowerIdentityRegistry)
     );

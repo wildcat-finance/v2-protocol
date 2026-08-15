@@ -170,11 +170,14 @@ contract BorrowerAccountCompatibilityTest is Test {
 
   function _deployRevolvingFactory() internal returns (HooksFactoryRevolving factory) {
     bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
+    (address initCodeStorage, address initCodeStorage2) = LibStoredInitCode
+      .deployInitCodeInTwoParts(marketInitCode);
     factory = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
       address(wrapperFactory),
-      LibStoredInitCode.deployInitCode(marketInitCode),
+      initCodeStorage,
+      initCodeStorage2,
       uint256(keccak256(marketInitCode)),
       address(borrowerIdentityRegistry)
     );

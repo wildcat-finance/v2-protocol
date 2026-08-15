@@ -43,11 +43,13 @@ contract WildcatMarketRevolvingTest is Test {
   function _storeMarketInitCode()
     internal
     virtual
-    returns (address initCodeStorage, uint256 initCodeHash)
+    returns (address initCodeStorage, address initCodeStorage2, uint256 initCodeHash)
   {
     bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
     initCodeHash = uint256(keccak256(marketInitCode));
-    initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
+    (initCodeStorage, initCodeStorage2) = LibStoredInitCode.deployInitCodeInTwoParts(
+      marketInitCode
+    );
   }
 
   function setUp() public {
@@ -56,12 +58,17 @@ contract WildcatMarketRevolvingTest is Test {
     archController = new WildcatArchController();
     borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
     sanctionsSentinel = new MockSanctionsSentinel(address(archController));
-    (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
+    (
+      address marketTemplate,
+      address marketTemplate2,
+      uint256 marketInitCodeHash
+    ) = _storeMarketInitCode();
     hooksFactoryRevolving = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
+      marketTemplate2,
       marketInitCodeHash,
       address(borrowerIdentityRegistry)
     );

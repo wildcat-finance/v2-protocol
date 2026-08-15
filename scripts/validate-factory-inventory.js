@@ -5,8 +5,10 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 const {
   assertFactoryDeactivationPlan,
+  assertRetirementPlan,
   getCanonicalFactory,
   getFactoryDeactivationTargets,
+  getFactoryRetirementTargets,
   getIndexedFactories,
   inventoryPathForNetwork,
   migrateInventory,
@@ -708,6 +710,84 @@ function runFixtures(fixturesDir) {
     failures.push("factory deactivation plan accepted a market removal");
   } catch (_error) {
     console.log("Fixture factory deactivation plan rejects market removal");
+  }
+
+  const retirementTargets = getFactoryRetirementTargets(expectedMigration);
+  if (
+    retirementTargets.length !== 1 ||
+    retirementTargets[0].factory !==
+      "0x2222222222222222222222222222222222222222"
+  ) {
+    failures.push(
+      "factory retirement targets must include only registered non-canonical factories"
+    );
+  } else {
+    console.log("Fixture factory retirement targets selected correctly");
+  }
+
+  const retirementTransactions = retirementTargets.flatMap((target, index) => [
+    {
+      id: `remove-superseded-controller-factory-${String(index + 1).padStart(2, "0")}`,
+      kind: "call",
+      to: archController,
+      functionSignature: "removeControllerFactory(address)",
+      args: [target.factory],
+      predicate: {
+        type: "callEq",
+        target: archController,
+        call: {
+          sig: "isRegisteredControllerFactory(address) view returns (bool)",
+          args: [target.factory],
+        },
+        expect: false,
+      },
+    },
+    {
+      id: `remove-superseded-controller-${String(index + 1).padStart(2, "0")}`,
+      kind: "call",
+      to: archController,
+      functionSignature: "removeController(address)",
+      args: [target.factory],
+      predicate: {
+        type: "callEq",
+        target: archController,
+        call: {
+          sig: "isRegisteredController(address) view returns (bool)",
+          args: [target.factory],
+        },
+        expect: false,
+      },
+    },
+  ]);
+  const retirementContext = {
+    network: "fixture",
+    targets: retirementTargets,
+    archController,
+    deployments: { WildcatArchController: archController },
+  };
+  const retirementPlan = {
+    network: "fixture",
+    release: "v2-5-retirement",
+    transactions: retirementTransactions,
+  };
+  try {
+    assertRetirementPlan(retirementPlan, retirementContext);
+    console.log("Fixture factory retirement plan validated");
+  } catch (error) {
+    failures.push(`valid factory retirement plan rejected: ${error.message}`);
+  }
+
+  try {
+    assertRetirementPlan(
+      {
+        ...retirementPlan,
+        transactions: [...retirementTransactions].reverse(),
+      },
+      retirementContext
+    );
+    failures.push("retirement plan accepted non-adjacent generated ordering");
+  } catch (_error) {
+    console.log("Fixture factory retirement plan order rejected as expected");
   }
 
   if (failures.length > 0) {
