@@ -46,12 +46,34 @@ contract BadStrings {
   }
 }
 
+contract MalformedStringMetadata {
+  function name() external pure {
+    assembly {
+      mstore(0x00, 0x20)
+      mstore(0x20, 33)
+      mstore(0x40, '01234567890123456789012345678901')
+      return(0x00, 0x60)
+    }
+  }
+
+  function symbol() external pure {
+    assembly {
+      mstore(0x00, 0x40)
+      mstore(0x20, 1)
+      mstore(0x40, 'A')
+      return(0x00, 0x60)
+    }
+  }
+}
+
 contract StringQueryTest is Test {
   using LibERC20 for address;
   Bytes32Metadata internal immutable bytes32Metadata = new Bytes32Metadata();
   StringMetadata internal immutable stringMetadata = new StringMetadata();
   LongStrings internal immutable longStrings = new LongStrings();
   BadStrings internal immutable badStrings = new BadStrings();
+  MalformedStringMetadata internal immutable malformedStringMetadata =
+    new MalformedStringMetadata();
 
   function queryName(address token) external view returns (string memory) {
     return token.name();
@@ -91,5 +113,20 @@ contract StringQueryTest is Test {
     badStrings.setGiveRevertData(true);
     vm.expectRevert(bytes('symbol'));
     this.querySymbol(address(badStrings));
+  }
+
+  function test_bytes32ToString_DoesNotDropHighBitFinalByte() external {
+    bytes32 value = 0xc380000000000000000000000000000000000000000000000000000000000000;
+    assertEq(bytes(bytes32ToString(value)), hex'c380');
+  }
+
+  function test_name_RejectsTruncatedDynamicString() external {
+    vm.expectRevert(bytes4(0x4cb9c000));
+    this.queryName(address(malformedStringMetadata));
+  }
+
+  function test_symbol_RejectsNonCanonicalDynamicStringOffset() external {
+    vm.expectRevert(bytes4(0x4cb9c000));
+    this.querySymbol(address(malformedStringMetadata));
   }
 }

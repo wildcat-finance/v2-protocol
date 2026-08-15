@@ -5,12 +5,10 @@ import { LibBit } from 'solady/utils/LibBit.sol';
 
 using LibBit for uint256;
 
-uint256 constant OnlyFullWordMask = 0xffffffe0;
-
 function bytes32ToString(bytes32 value) pure returns (string memory str) {
   uint256 size;
   unchecked {
-    uint256 sizeInBits = 255 - uint256(value).ffs();
+    uint256 sizeInBits = 256 - uint256(value).ffs();
     size = (sizeInBits + 7) / 8;
   }
   assembly {
@@ -60,25 +58,26 @@ function queryStringOrBytes32AsString(
     }
     str = bytes32ToString(value);
   } else {
-    // If returndata is a string, copy the length and value
+    // If returndata is a string, validate its canonical ABI shape before
+    // copying the length and value into a newly allocated string.
     assembly {
-      str := mload(0x40)
-      // Get allocation size for the string including the length and data.
-      // Rounding down returndatasize to nearest word because the returndata
-      // has an extra offset word.
-      let allocSize := and(sub(returndatasize(), 1), OnlyFullWordMask)
-      mstore(0x40, add(str, allocSize))
-      // Copy returndata after the offset
-      returndatacopy(str, 0x20, sub(returndatasize(), 0x20))
-      let length := mload(str)
-      // Check if the length matches the returndatasize.
-      // The encoded string should have the string length rounded up to the nearest word
-      // as well as two words for length and offset.
-      let expectedReturndataSize := add(allocSize, 0x20)
-      if xor(returndatasize(), expectedReturndataSize) {
+      let returnSize := returndatasize()
+      returndatacopy(0, 0, 0x40)
+      let length := mload(0x20)
+      let paddedLength := and(add(length, 0x1f), not(0x1f))
+      if or(
+        xor(mload(0), 0x20),
+        or(lt(paddedLength, length), xor(returnSize, add(0x40, paddedLength)))
+      ) {
         mstore(0, 0x4cb9c000)
         revert(0x1c, 0x04)
       }
+
+      str := mload(0x40)
+      let allocSize := add(0x20, paddedLength)
+      mstore(0x40, add(str, allocSize))
+      // Copy returndata after the offset
+      returndatacopy(str, 0x20, allocSize)
     }
   }
 }

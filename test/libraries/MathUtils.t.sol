@@ -34,6 +34,20 @@ contract MathUtilsExternalTest is Test {
     }
   }
 
+  function test_satAdd(uint256 a, uint256 b, uint256 maxValue) external {
+    uint256 expected;
+    if (a >= maxValue || b >= maxValue - a) {
+      expected = maxValue;
+    } else {
+      expected = a + b;
+    }
+    assertEq(MathUtilsExternal.satAdd(a, b, maxValue), expected);
+  }
+
+  function test_satAdd_OverflowReturnsMaximum() external {
+    assertEq(MathUtilsExternal.satAdd(type(uint256).max, 1, type(uint256).max), type(uint256).max);
+  }
+
   function test_mulDiv(uint256 a, uint256 b, uint256 c) external {
     if (c == 0 || (b != 0 && a > (type(uint256).max / b))) {
       vm.expectRevert(MathUtilsExternal.MulDivFailed.selector);

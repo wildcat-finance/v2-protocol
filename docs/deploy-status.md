@@ -8,7 +8,7 @@ As of 2026-08-15. This is the current implementation and rehearsal record. [depl
 
 **Activation plan:** `script/deploy/v2-5/01-07` deploys and configures the new generation. It deploys the wrapper factory, borrower identity registry, AccessList role-provider factory, standard and revolving factories, the four-part lens, and the three supported hook templates. It registers the six factory/template pairs and both new hooks factories. It does not retire an old factory.
 
-**Revolving init code:** `WildcatMarketRevolving` creation code is 23,091 bytes under the locked deploy profile. One leading `STOP` makes the stored runtime 23,092 bytes, leaving 1,484 bytes of EIP-170 margin. The revolving factory uses one storage contract again. The deployment scripts reject the payload before producing a plan or broadcasting if it stops fitting.
+**Revolving init code:** `WildcatMarketRevolving` creation code is 23,178 bytes under the locked deploy profile. One leading `STOP` makes the stored runtime 23,179 bytes, leaving 1,397 bytes of EIP-170 margin. The revolving factory uses one storage contract again. The deployment scripts reject the payload before producing a plan or broadcasting if it stops fitting.
 
 **Retirement plan:** `script/deploy/v2-5/retirement/01-generate-plan.sh` reads the post-activation inventory and creates a fresh plan for every still-registered superseded factory. Each factory loses `controllerFactory` before `controller`. `02-finalize-inventory.sh` applies only a fully verified retirement run-state. Sepolia independently reclaims and restores the helper owner during both ceremonies.
 
@@ -34,6 +34,14 @@ These are disposable Anvil forks and generated artifacts are not checked in. The
 - The Foundation Safe was read as version 1.4.1 with threshold 3. The current release therefore requires three activation approvals and one later retirement approval from each participating signer. If the same three signers approve all four bundles, that is 12 signatures total. Cards are inner review actions and do not each need Safe signatures.
 
 The rehearsal Safe nonce, CREATE2 addresses, and generated package hashes are not release constants. Regenerate them from the current Safe state at production freeze and repeat the exact simulation.
+
+## Current pre-audit gate
+
+The 2026-08-15 pre-audit pass is a **no-go for live Sepolia deployment** until one policy decision is closed:
+
+1. A canonical wrapper on a transfer-access-gated market currently enforces sanctions but does not reproduce hook-local lender eligibility on wrapper share mint, transfer, burn, or redemption. Either reject those markets as wrapper-incompatible or define and enforce the equivalent share-layer policy.
+
+The same pass hardened caller-scoped market salts, disabled-template retirement, exact APR-reduction threshold checks, extreme-balance withdrawal and revolving accounting, saturating addition, and ERC-20 metadata decoding. All earlier rehearsal evidence predates those source changes. After the wrapper decision and final verification, regenerate every plan/package/address and repeat the locked-UI rehearsal from the reviewed release commit.
 
 ## Remaining release work
 

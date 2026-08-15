@@ -358,8 +358,12 @@ contract DeployV2 is Script {
         abi.encode(borrower, hooksTemplateArgs)
       );
 
+      bytes32 predictionSalt = config.salt;
+      if (bytes20(predictionSalt) == bytes20(0)) {
+        predictionSalt = bytes32(uint256(predictionSalt) | (uint256(uint160(borrower)) << 96));
+      }
       assertEq(
-        hooksFactory.computeMarketAddress(config.salt),
+        hooksFactory.computeMarketAddress(predictionSalt),
         address(market),
         'Wrong market address computed'
       );

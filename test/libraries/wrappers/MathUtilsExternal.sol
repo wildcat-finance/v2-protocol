@@ -24,6 +24,10 @@ library MathUtilsExternal {
     return MathUtils.satSub(a, b);
   }
 
+  function satAdd(uint256 a, uint256 b, uint256 maxValue) external pure returns (uint256 c) {
+    return MathUtils.satAdd(a, b, maxValue);
+  }
+
   function ternary(
     bool condition,
     uint256 valueIfTrue,

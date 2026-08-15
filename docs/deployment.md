@@ -104,7 +104,7 @@ Set the deployment profile for every Forge and Node step:
 export FOUNDRY_PROFILE=deploy
 ```
 
-This is mandatory. The default profile can encounter both EIP-170 and `Stack too deep` failures. The `deploy` profile uses via-IR and optimizer runs `44`, produces the exact creation code consumed by the plan, and currently reports `HooksFactoryRevolving` at 17,297 runtime bytes. Do not substitute a different profile after rehearsal.
+This is mandatory. The default profile can encounter both EIP-170 and `Stack too deep` failures. The `deploy` profile uses via-IR and optimizer runs `44`, produces the exact creation code consumed by the plan, and currently reports `HooksFactoryRevolving` at 17,364 runtime bytes. Do not substitute a different profile after rehearsal.
 
 Set the testnet execution context:
 
@@ -155,7 +155,7 @@ forge script \
 
 ### 03: revolving hooks factory
 
-Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,091 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,092 bytes with 1,484 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
+Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,178 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,179 bytes with 1,397 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
 
 ```bash
 forge script \

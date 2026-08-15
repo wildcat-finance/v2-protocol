@@ -1123,6 +1123,29 @@ contract HooksFactoryTest is Test, Assertions {
     );
   }
 
+  function test_deployMarket_HooksTemplateNotAvailableWhenDisabled() external {
+    hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
+    archController.registerBorrower(address(this));
+    address hooksInstance = hooksFactory.deployHooksInstance(MockHooksTemplate, bytes(''));
+    hooksFactory.disableHooksTemplate(MockHooksTemplate);
+
+    DeployMarketInputs memory parameters = DeployMarketInputs({
+      asset: address(underlying),
+      namePrefix: 'Wildcat ',
+      symbolPrefix: 'wc',
+      maxTotalSupply: 1_000_000e18,
+      annualInterestBips: 1_000,
+      delinquencyFeeBips: 100,
+      withdrawalBatchDuration: 1 days,
+      reserveRatioBips: 1_000,
+      delinquencyGracePeriod: 1 days,
+      hooks: EmptyHooksConfig.setHooksAddress(hooksInstance)
+    });
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
+    hooksFactory.deployMarket(parameters, bytes(''), bytes32(uint256(1)), address(0), 0);
+  }
+
   function test_deployMarket_NameOrSymbolTooLong() external {
     hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
     archController.registerBorrower(address(this));
@@ -1312,6 +1335,30 @@ contract HooksFactoryTest is Test, Assertions {
       feesInput.originationFeeAsset,
       feesInput.originationFeeAmount
     );
+  }
+
+  function test_computeMarketAddress_ZeroPrefixSaltIsCallerScoped() external {
+    address alice = address(0xA11CE);
+    address bob = address(0xB0B);
+    bytes32 shorthandSalt = bytes32(uint256(123));
+    bytes32 aliceScopedSalt = bytes32((uint256(uint160(alice)) << 96) | uint256(123));
+
+    vm.prank(alice);
+    address aliceMarket = hooksFactory.computeMarketAddress(shorthandSalt);
+    vm.prank(bob);
+    address bobMarket = hooksFactory.computeMarketAddress(shorthandSalt);
+    vm.prank(alice);
+    address aliceMarketFromExplicitSalt = hooksFactory.computeMarketAddress(aliceScopedSalt);
+    vm.prank(bob);
+    address aliceMarketPredictedByBob = hooksFactory.computeMarketAddress(aliceScopedSalt);
+
+    assertNotEq(aliceMarket, bobMarket, 'zero-prefix salts must be caller scoped');
+    assertEq(aliceMarket, aliceMarketFromExplicitSalt, 'shorthand must match explicit caller salt');
+    assertEq(aliceMarket, aliceMarketPredictedByBob, 'explicit salts remain publicly predictable');
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+    vm.prank(address(0));
+    hooksFactory.computeMarketAddress(shorthandSalt);
   }
 
   function test_deployMarketAndHooks(

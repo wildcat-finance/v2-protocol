@@ -7,7 +7,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 ### Revolving credit markets
 
-- Added `WildcatMarketRevolving`, a market type for revolving credit facilities: tracks the borrower's drawn amount and accrues `commitmentFee + APR * min(drawn, supply) / supply` instead of APR on the full supply. No interest accrues while the market is closed or empty. Drawn amount is clamped to outstanding debt so self-supplied assets (e.g. an over-repayment) never accrue lender interest.
+- Added `WildcatMarketRevolving`, a market type for revolving credit facilities: tracks the borrower's drawn amount and accrues `commitmentFee + APR * min(drawn, supply) / supply` instead of APR on the full supply. No interest accrues while the market is closed or empty. Drawn amount is clamped to outstanding debt so self-supplied assets (e.g. an over-repayment) never accrue lender interest, including when an unusually large donated asset balance makes a borrow amount exceed ordinary market debt.
 - Added `HooksFactoryRevolving`, deploying revolving markets with factory-owned `marketData` (`abi.encode(uint8 version, uint16 commitmentFeeBips)`).
 - Extension seams (`_onBorrow`, `_onRepay`, `_onRepayAndGetTotalAssets`, `_onCloseMarket`, `_updateScaleFactorAndFees`) added to the base market as virtual functions; the standard market's behavior is unchanged.
 
@@ -20,7 +20,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 - Transfers, deposits, and withdrawal queueing now scale normalized amounts **down** (`scaleAmountDown`) instead of half-up: the scaled amount credited, moved, or queued is never rounded up. Markets declare this via the new `scaledTransferRounding()` marker; `version()` is now `'2.5'` (first byte remains `'2'` for major-version checks).
 - Added `queueWithdrawalScaled(uint256)` for integrations that already know the exact scaled amount to queue. This lets a Safe redeem canonical wrapper shares and queue those same shares without consuming an unrelated direct market-token balance or relying on a normalized amount calculated before execution.
-- Withdrawal batch payments settle up to the exact floor-priced capacity (`maxScaledSettleableAmount`), so fully-funded closes always settle their batches and nothing strands on closed markets.
+- Withdrawal batch payments settle up to the exact floor-priced capacity (`maxScaledSettleableAmount`), capped at the largest representable `uint104` batch amount before processing an unbounded underlying balance, so fully-funded closes always settle their batches and nothing strands on closed markets.
 - Hook minimum-deposit checks compare in scaled units, so depositing exactly the advertised minimum succeeds at any scale factor.
 - The half-up `MarketState.scaleAmount` was removed; rounding directions are documented in [Scale Factor](./Scale%20Factor.md#rounding).
 
@@ -55,7 +55,9 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 ### Factories and access control
 
-- Factory hardening: CREATE2 address verification on market deployment, pagination bounds validation (`InvalidPaginationRange`), empty-page handling.
+- Factory hardening: CREATE2 address verification on market deployment, pagination bounds validation (`InvalidPaginationRange`), empty-page handling. Zero-address-prefix market salts are now caller-scoped shorthand for the equivalent caller-prefixed salt, preventing another registered borrower from claiming the same counterfactual address; explicit caller-prefixed salts are unchanged.
+- Disabling a hooks template now blocks both new hook instances and new markets that would reuse an existing instance; existing instances and markets remain operational.
+- APR-reduction constraints compare the exact rational reduction against the 25% boundary before converting it to basis points, so a slightly-over-threshold reduction cannot floor onto the unpenalized boundary.
 - `BaseAccessControls`: push credentials must have nonzero, non-future timestamps; `isPullProvider()` is probed defensively (non-implementing providers become push-only); providers already consulted via `hooksData` are skipped in the fallback pull loop.
 - Hook administration is now separate from credential ownership. Hooks no longer add their administrator as a permanent push provider, and hook administrators can move through a two-step transfer without rewriting provider configuration or lender state.
 - Added `AccessListRoleProvider`, a reusable pull provider with enumerable membership, explicit batch updates, and independent two-step administration. Its CREATE2 factory can assign the intended administrator when deployment is initiated through a hook and retains no authority after deployment.
@@ -71,6 +73,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 - Removed the unemittable `SanctionedAccountAssetsSentToEscrow` event and other dead code.
 - Deployed singletons (`WildcatArchController`, `WildcatSanctionsSentinel`, `WildcatSanctionsEscrow`) are unchanged; documentation-only annotations added.
+- Hardened generic helpers so saturating addition detects arithmetic wraparound, bytes32 metadata retains a final high-bit byte, and malformed dynamic-string ABI returndata is rejected before it becomes an invalid in-memory string.
 
 ## V2 Changelog
 

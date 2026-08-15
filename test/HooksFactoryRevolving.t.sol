@@ -536,6 +536,31 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     assertEq(observedHooksData, hooksData);
   }
 
+  function test_deployMarket_HooksTemplateNotAvailableWhenDisabled() external {
+    hooksFactoryRevolving.addHooksTemplate(
+      hooksTemplate,
+      'revolving-template',
+      nullAddress,
+      nullAddress,
+      0,
+      0
+    );
+    archController.registerBorrower(address(this));
+    address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
+    hooksFactoryRevolving.disableHooksTemplate(hooksTemplate);
+    DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
+    hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      bytes32(uint256(1)),
+      nullAddress,
+      0
+    );
+  }
+
   function test_deployMarket_NameOrSymbolTooLong() external {
     hooksFactoryRevolving.addHooksTemplate(
       hooksTemplate,
@@ -1387,6 +1412,32 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     );
 
     assertEq(deployed, expected);
+  }
+
+  function test_computeMarketAddress_ZeroPrefixSaltIsCallerScoped() external {
+    address alice = address(0xA11CE);
+    address bob = address(0xB0B);
+    bytes32 shorthandSalt = bytes32(uint256(123));
+    bytes32 aliceScopedSalt = bytes32((uint256(uint160(alice)) << 96) | uint256(123));
+
+    vm.prank(alice);
+    address aliceMarket = hooksFactoryRevolving.computeMarketAddress(shorthandSalt);
+    vm.prank(bob);
+    address bobMarket = hooksFactoryRevolving.computeMarketAddress(shorthandSalt);
+    vm.prank(alice);
+    address aliceMarketFromExplicitSalt = hooksFactoryRevolving.computeMarketAddress(
+      aliceScopedSalt
+    );
+    vm.prank(bob);
+    address aliceMarketPredictedByBob = hooksFactoryRevolving.computeMarketAddress(aliceScopedSalt);
+
+    assertNotEq(aliceMarket, bobMarket, 'zero-prefix salts must be caller scoped');
+    assertEq(aliceMarket, aliceMarketFromExplicitSalt, 'shorthand must match explicit caller salt');
+    assertEq(aliceMarket, aliceMarketPredictedByBob, 'explicit salts remain publicly predictable');
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+    vm.prank(address(0));
+    hooksFactoryRevolving.computeMarketAddress(shorthandSalt);
   }
 
   function test_getRevolvingMarketCommitmentFeeBips_OutsideDeploymentContextReverts() external {

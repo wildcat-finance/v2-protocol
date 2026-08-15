@@ -626,8 +626,21 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.
+  ///      A salt with a zero address prefix is treated as shorthand for a salt
+  ///      prefixed by the caller, so predictions must be made from the account
+  ///      that will deploy the market.
   function computeMarketAddress(bytes32 salt) external view override returns (address) {
+    salt = _deriveMarketSalt(msg.sender, salt);
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+  }
+
+  function _deriveMarketSalt(address deployer, bytes32 salt) internal pure returns (bytes32) {
+    address saltOwner = address(bytes20(salt));
+    if (saltOwner == address(0)) {
+      if (deployer == address(0)) revert SaltDoesNotContainSender();
+      return bytes32(uint256(salt) | (uint256(uint160(deployer)) << 96));
+    }
+    return salt;
   }
 
   /**
@@ -695,15 +708,16 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     DeployMarketRuntimeParameters memory runtimeParams
   ) internal returns (address market) {
     HooksTemplate memory templateDetails = _templateDetails[runtimeParams.hooksTemplate];
+    if (!templateDetails.enabled) {
+      revert HooksTemplateNotAvailable();
+    }
     if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
       revert AssetBlacklisted();
     }
     address hooksInstance = parameters.hooks.hooksAddress();
 
-    if (
-      !(address(bytes20(runtimeParams.salt)) == msg.sender ||
-        bytes20(runtimeParams.salt) == bytes20(0))
-    ) {
+    runtimeParams.salt = _deriveMarketSalt(msg.sender, runtimeParams.salt);
+    if (address(bytes20(runtimeParams.salt)) != msg.sender) {
       revert SaltDoesNotContainSender();
     }
 

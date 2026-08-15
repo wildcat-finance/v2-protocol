@@ -359,6 +359,25 @@ contract WildcatMarketRevolvingTest is Test {
     assertEq(revolvingMarket.drawnAmount(), 200e18);
   }
 
+  function test_borrow_LargeDonationDoesNotWrapDrawnAmount() external {
+    MockERC20 targetUnderlying = new MockERC20('Large Supply', 'MAX', 18);
+    (
+      WildcatMarket targetMarket,
+      IWildcatMarketRevolving targetRevolvingMarket
+    ) = _deployRevolvingMarket(targetUnderlying, 1_000, annualInterestBips, commitmentFeeBips);
+    _deposit(targetMarket, targetUnderlying, lender, 1_000);
+
+    targetMarket.borrow(500);
+    targetUnderlying.transfer(address(targetMarket), 500);
+    targetUnderlying.mint(address(targetMarket), type(uint256).max - 1_000);
+
+    targetMarket.borrow(type(uint256).max - 499);
+
+    assertEq(targetMarket.totalAssets(), 499, 'assets after borrow');
+    assertEq(targetMarket.totalDebts(), 1_000, 'debt after borrow');
+    assertEq(targetRevolvingMarket.drawnAmount(), 501, 'drawn amount must clamp without wrapping');
+  }
+
   function test_repay_interestOnlyDoesNotReduceDrawnAmount() external {
     _deposit(lender, 1_000e18);
     market.borrow(500e18);

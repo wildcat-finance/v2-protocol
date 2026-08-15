@@ -656,6 +656,27 @@ contract WithdrawalsTest is BaseMarketTest {
     _checkState();
   }
 
+  function test_processUnpaidWithdrawalBatch_LargeDonationDoesNotOverflow() external {
+    parameters.protocolFeeBips = 0;
+    parameters.reserveRatioBips = 0;
+    parameters.annualInterestBips = 0;
+    parameters.delinquencyFeeBips = 0;
+    setUp();
+
+    _depositBorrowWithdraw(alice, 1e18, 1e18, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+    assertEq(market.getUnpaidBatchExpiries().length, 1, 'unpaid batch count');
+
+    uint256 overflowingLiquidity = type(uint256).max / RAY;
+    asset.mint(address(market), overflowingLiquidity);
+    market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+
+    _checkBatch(expiry, 1e18, 1e18, 1e18);
+    assertEq(market.getUnpaidBatchExpiries().length, 0, 'unpaid batch count');
+  }
+
   function test_processUnpaidWithdrawalBatch_ZeroScaledBurnEmitsNoPayment() external {
     parameters.protocolFeeBips = 0;
     parameters.reserveRatioBips = 0;

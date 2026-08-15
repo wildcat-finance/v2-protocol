@@ -71,7 +71,7 @@ library MathUtils {
   function satAdd(uint256 a, uint256 b, uint256 maxValue) internal pure returns (uint256 c) {
     unchecked {
       c = a + b;
-      return ternary(c < maxValue, c, maxValue);
+      return ternary(c < a || c >= maxValue, maxValue, c);
     }
   }
 

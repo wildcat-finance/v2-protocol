@@ -352,6 +352,23 @@ contract WildcatMarketConfigTest is BaseMarketTest {
     );
   }
 
+  function test_setAnnualInterestAndReserveRatioBips_SlightlyAboveQuarterReduction() public {
+    parameters.annualInterestBips = 7_501;
+    parameters.reserveRatioBips = 0;
+    setUp();
+
+    vm.prank(borrower);
+    market.setAnnualInterestAndReserveRatioBips(5_625, 0);
+
+    _checkTemporaryReserveRatioAndMarketBips(
+      5_625,
+      7_501,
+      5_000,
+      0,
+      block.timestamp + 2 weeks
+    );
+  }
+
   function test_setAnnualInterestAndReserveRatioBips_Decrease_Decrease() public {
     uint256 expiry = block.timestamp + 2 weeks;
     vm.expectEmit(address(hooks));

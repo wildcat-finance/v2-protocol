@@ -162,27 +162,25 @@ abstract contract MarketConstraintHooks is IHooks {
     uint256 originalAnnualInterestBips,
     uint256 originalReserveRatioBips
   ) internal pure returns (uint16 temporaryReserveRatioBips) {
+    uint256 reduction = originalAnnualInterestBips - annualInterestBips;
+
+    // Compare the exact reduction before quantizing it to bips. Otherwise a
+    // reduction slightly above 25% can floor to 2500 and avoid the temporary
+    // reserve requirement.
+    if (reduction * BIP <= originalAnnualInterestBips * 2500) {
+      return uint16(originalReserveRatioBips);
+    }
+
     // Calculate the relative reduction in the interest rate in bips,
     // bound to a maximum of 100%
-    uint256 relativeDiff = MathUtils.mulDiv(
-      10000,
-      originalAnnualInterestBips - annualInterestBips,
-      originalAnnualInterestBips
-    );
+    uint256 relativeDiff = MathUtils.mulDiv(BIP, reduction, originalAnnualInterestBips);
 
-    // If the reduction is 25% (2500 bips) or less, return the original reserve ratio
-    if (relativeDiff <= 2500) {
-      temporaryReserveRatioBips = uint16(originalReserveRatioBips);
-    } else {
-      // Calculate double the relative reduction in the interest rate in bips,
-      // bound to a maximum of 100%
-      uint256 boundRelativeDiff = MathUtils.min(10000, 2 * relativeDiff);
+    // Calculate double the relative reduction in the interest rate in bips,
+    // bound to a maximum of 100%
+    uint256 boundRelativeDiff = MathUtils.min(BIP, 2 * relativeDiff);
 
-      // If the bound relative diff is lower than the existing reserve ratio, return the latter.
-      temporaryReserveRatioBips = uint16(
-        MathUtils.max(boundRelativeDiff, originalReserveRatioBips)
-      );
-    }
+    // If the bound relative diff is lower than the existing reserve ratio, return the latter.
+    temporaryReserveRatioBips = uint16(MathUtils.max(boundRelativeDiff, originalReserveRatioBips));
   }
 
   /**

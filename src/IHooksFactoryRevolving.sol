@@ -71,7 +71,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev Disable a hooks template.
+  /// @dev Disable a hooks template for new hook instances and new markets,
+  ///      including markets that would reuse an existing instance.
   ///
   ///      On success:
   ///      - Emits `HooksTemplateDisabled` on success.
@@ -241,6 +242,10 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
+  /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.
+  ///      Zero-prefix salts are caller-scoped shorthand; call from the address
+  ///      that will deploy the market to obtain the deployment address. A
+  ///      zero-prefix query from the zero address reverts.
   function computeMarketAddress(bytes32 salt) external view returns (address);
 
   function pushProtocolFeeBipsUpdates(
