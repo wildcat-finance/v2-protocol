@@ -24,7 +24,6 @@ const HOOK_FACTORY_FIELDS = new Set([
   "registerTxHash",
   "wrapperFactory",
   "initCodeStorage",
-  "initCodeStorage2",
   "initCodeHash",
   "notes",
 ]);
@@ -62,7 +61,6 @@ function printUsage() {
     --indexed <true|false> --registered <true|false> [--start-block <block>]
     [--lifecycle <canonical|live|retired>]
     [--deployment-key <key>] [--wrapper-factory <address>] [--init-code-storage <address>]
-    [--init-code-storage-2 <address>]
     [--init-code-hash <bytes32>]
     [--input <path>] [--output <path>] [--create] [--preserve-start-block]
   node scripts/factory-inventory.js upsert-wrapper --network <name> --chain-id <id>
@@ -600,11 +598,6 @@ function assertActivationPlan(plan, network) {
       artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
     },
     {
-      id: "deploy-wildcat-market-revolving-init-code-storage-2",
-      kind: "deploy",
-      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
-    },
-    {
       id: "deploy-hooks-factory-revolving",
       kind: "deploy",
       artifactName: "src/HooksFactoryRevolving.sol:HooksFactoryRevolving",
@@ -953,12 +946,6 @@ function validateFactoryEntry(entry, index, marketTypes, schemaVersion) {
   if (hasOwn(entry, "initCodeStorage") && !isAddress(entry.initCodeStorage)) {
     errors.push(
       `${prefix}.initCodeStorage must be a valid EVM address when present`
-    );
-  }
-
-  if (hasOwn(entry, "initCodeStorage2") && !isAddress(entry.initCodeStorage2)) {
-    errors.push(
-      `${prefix}.initCodeStorage2 must be a valid EVM address when present`
     );
   }
 
@@ -1509,7 +1496,6 @@ function buildFactoryEntryFromArgs(args) {
     registerTxHash: optionalArg(args, "register-tx-hash"),
     wrapperFactory: optionalArg(args, "wrapper-factory"),
     initCodeStorage: optionalArg(args, "init-code-storage"),
-    initCodeStorage2: optionalArg(args, "init-code-storage-2"),
     initCodeHash: optionalArg(args, "init-code-hash"),
     notes: optionalArg(args, "notes"),
   });
@@ -2479,7 +2465,6 @@ async function runApplyRun(args) {
         registerTxHash: registerState.txHash,
         wrapperFactory: record.wrapperFactory,
         initCodeStorage: record.initCodeStorage,
-        initCodeStorage2: record.initCodeStorage2,
         initCodeHash: record.initCodeHash,
       });
       assertNewInventoryRecord(inventory, "hooksFactories", entry);

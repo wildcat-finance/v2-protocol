@@ -34,9 +34,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
   string internal constant IDENTITY_REGISTRY_OUTPUT = 'borrower-identity-registry';
   string internal constant STORAGE_ENTRY_ID = 'deploy-wildcat-market-revolving-init-code-storage';
   string internal constant STORAGE_OUTPUT = 'wildcat-market-revolving-init-code-storage';
-  string internal constant STORAGE_2_ENTRY_ID =
-    'deploy-wildcat-market-revolving-init-code-storage-2';
-  string internal constant STORAGE_2_OUTPUT = 'wildcat-market-revolving-init-code-storage-2';
   string internal constant FACTORY_ENTRY_ID = 'deploy-hooks-factory-revolving';
   string internal constant FACTORY_OUTPUT = 'hooks-factory-revolving';
 
@@ -45,27 +42,8 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     address sanctionsSentinel;
     address wrapperFactory;
     address borrowerIdentityRegistry;
-    bytes marketCreationCodePart1;
-    bytes marketCreationCodePart2;
+    bytes marketCreationCode;
     uint256 initCodeHash;
-  }
-
-  function _splitMarketCreationCode(
-    bytes memory marketCreationCode
-  ) internal pure returns (bytes memory part1, bytes memory part2) {
-    uint256 splitAt = (marketCreationCode.length + 1) / 2;
-    part1 = new bytes(splitAt);
-    part2 = new bytes(marketCreationCode.length - splitAt);
-    assembly ('memory-safe') {
-      mcopy(add(part1, 0x20), add(marketCreationCode, 0x20), splitAt)
-      mcopy(
-        add(part2, 0x20),
-        add(add(marketCreationCode, 0x20), splitAt),
-        mload(part2)
-      )
-    }
-    _requireInitCodeStoragePayloadFits(part1, 'WildcatMarketRevolving init-code part 1');
-    _requireInitCodeStoragePayloadFits(part2, 'WildcatMarketRevolving init-code part 2');
   }
 
   function _verifyFactory(
@@ -76,7 +54,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     address wrapperFactory,
     address borrowerIdentityRegistry,
     address initCodeStorage,
-    address initCodeStorage2,
     uint256 initCodeHash
   ) internal view {
     _verifyAddressCall(
@@ -114,13 +91,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       abi.encodeWithSelector(IHooksFactoryRevolving.marketInitCodeStorage.selector),
       initCodeStorage
     );
-    _verifyAddressCall(
-      factory,
-      label,
-      'marketInitCodeStorage2',
-      abi.encodeWithSelector(IHooksFactoryRevolving.marketInitCodeStorage2.selector),
-      initCodeStorage2
-    );
     _verifyUintCall(
       factory,
       label,
@@ -142,38 +112,20 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     storageEntry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
     storageEntry.decodedConstructorArgs = string.concat(
       '[',
-      _quoted(vm.toString(inputs.marketCreationCodePart1)),
+      _quoted(vm.toString(inputs.marketCreationCode)),
       ']'
     );
     storageEntry.output = STORAGE_OUTPUT;
     storageEntry.description =
-      'Deploy the first v2.5 WildcatMarketRevolving init-code storage contract.';
+      'Deploy the v2.5 WildcatMarketRevolving init-code storage contract.';
     storageEntry.predicate = _planCodePresentPredicate(STORAGE_OUTPUT);
     storageEntry.afterEntries = storageAfter;
     _planEntry(deployments, storageEntry);
 
-    string[] memory storage2After = new string[](1);
-    storage2After[0] = STORAGE_ENTRY_ID;
-    DeployPlanEntry memory storage2Entry;
-    storage2Entry.sequence = 7;
-    storage2Entry.id = STORAGE_2_ENTRY_ID;
-    storage2Entry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
-    storage2Entry.decodedConstructorArgs = string.concat(
-      '[',
-      _quoted(vm.toString(inputs.marketCreationCodePart2)),
-      ']'
-    );
-    storage2Entry.output = STORAGE_2_OUTPUT;
-    storage2Entry.description =
-      'Deploy the second v2.5 WildcatMarketRevolving init-code storage contract.';
-    storage2Entry.predicate = _planCodePresentPredicate(STORAGE_2_OUTPUT);
-    storage2Entry.afterEntries = storage2After;
-    _planEntry(deployments, storage2Entry);
-
     string[] memory factoryAfter = new string[](1);
-    factoryAfter[0] = STORAGE_2_ENTRY_ID;
+    factoryAfter[0] = STORAGE_ENTRY_ID;
     DeployPlanEntry memory factoryEntry;
-    factoryEntry.sequence = 8;
+    factoryEntry.sequence = 7;
     factoryEntry.id = FACTORY_ENTRY_ID;
     factoryEntry.artifactName = FACTORY_ARTIFACT;
     factoryEntry.decodedConstructorArgs = string.concat(
@@ -185,8 +137,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _ref(WRAPPER_OUTPUT),
       ',',
       _ref(STORAGE_OUTPUT),
-      ',',
-      _ref(STORAGE_2_OUTPUT),
       ',',
       _quoted(vm.toString(bytes32(inputs.initCodeHash))),
       ',',
@@ -210,8 +160,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     string memory networkName,
     string memory storageLabel,
     address initCodeStorage,
-    string memory storageLabel2,
-    address initCodeStorage2,
     string memory factoryLabel,
     address factory,
     address wrapperFactory,
@@ -233,21 +181,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     );
     _inventoryRecord(deployments, 6, storageLabel, storageRecord);
 
-    string memory storageRecord2 = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(storageLabel2),
-      ',"address":',
-      _quoted(vm.toString(initCodeStorage2)),
-      ',"initCodeHash":',
-      _quoted(vm.toString(bytes32(initCodeHash))),
-      '}'
-    );
-    _inventoryRecord(deployments, 7, storageLabel2, storageRecord2);
-
     string memory factoryRecord = string.concat(
       '{"recordType":"hooksFactory","network":',
       _quoted(networkName),
@@ -263,13 +196,11 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _quoted(vm.toString(borrowerIdentityRegistry)),
       ',"initCodeStorage":',
       _quoted(vm.toString(initCodeStorage)),
-      ',"initCodeStorage2":',
-      _quoted(vm.toString(initCodeStorage2)),
       ',"initCodeHash":',
       _quoted(vm.toString(bytes32(initCodeHash))),
       ',"canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 8, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 7, factoryLabel, factoryRecord);
   }
 
   function _writePlanInventoryRecords(
@@ -293,22 +224,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     );
     _inventoryRecord(deployments, 6, storageLabel, storageRecord);
 
-    string memory storageLabel2 = _label('WildcatMarketRevolving_initCodeStorage2');
-    string memory storageRecord2 = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(storageLabel2),
-      ',"address":',
-      _ref(STORAGE_2_OUTPUT),
-      ',"initCodeHash":',
-      _quoted(vm.toString(bytes32(initCodeHash))),
-      '}'
-    );
-    _inventoryRecord(deployments, 7, storageLabel2, storageRecord2);
-
     string memory factoryLabel = _label('HooksFactoryRevolving');
     string memory factoryRecord = string.concat(
       '{"recordType":"hooksFactory","network":',
@@ -325,13 +240,11 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _ref(IDENTITY_REGISTRY_OUTPUT),
       ',"initCodeStorage":',
       _ref(STORAGE_OUTPUT),
-      ',"initCodeStorage2":',
-      _ref(STORAGE_2_OUTPUT),
       ',"initCodeHash":',
       _quoted(vm.toString(bytes32(initCodeHash))),
       ',"registerEntryId":"register-hooks-factory-revolving","canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 8, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 7, factoryLabel, factoryRecord);
   }
 
   function _runDirect(
@@ -341,26 +254,18 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
   ) internal {
     _assertEip1153Supported();
     string memory storageLabel = _label('WildcatMarketRevolving_initCodeStorage');
-    string memory storageLabel2 = _label('WildcatMarketRevolving_initCodeStorage2');
     string memory factoryLabel = _label('HooksFactoryRevolving');
     (address initCodeStorage, bool didDeployStorage) = _getOrDeployInitCodeStorageByLabel(
       deployments,
       storageLabel,
       MARKET_ARTIFACT,
-      inputs.marketCreationCodePart1
-    );
-    (address initCodeStorage2, bool didDeployStorage2) = _getOrDeployInitCodeStorageByLabel(
-      deployments,
-      storageLabel2,
-      MARKET_ARTIFACT,
-      inputs.marketCreationCodePart2
+      inputs.marketCreationCode
     );
     bytes memory constructorArgs = abi.encode(
       inputs.archController,
       inputs.sanctionsSentinel,
       inputs.wrapperFactory,
       initCodeStorage,
-      initCodeStorage2,
       inputs.initCodeHash,
       inputs.borrowerIdentityRegistry
     );
@@ -380,7 +285,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       inputs.wrapperFactory,
       inputs.borrowerIdentityRegistry,
       initCodeStorage,
-      initCodeStorage2,
       inputs.initCodeHash
     );
     console.log(string.concat('Found and fully verified ', factoryLabel, ' at'), factory);
@@ -391,8 +295,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       networkName,
       storageLabel,
       initCodeStorage,
-      storageLabel2,
-      initCodeStorage2,
       factoryLabel,
       factory,
       inputs.wrapperFactory,
@@ -400,8 +302,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       inputs.initCodeHash
     );
 
-    console.log('Did deploy WildcatMarketRevolving init-code storage part 1:', didDeployStorage);
-    console.log('Did deploy WildcatMarketRevolving init-code storage part 2:', didDeployStorage2);
+    console.log('Did deploy WildcatMarketRevolving init-code storage:', didDeployStorage);
     console.log('Did deploy HooksFactoryRevolving:', didDeployFactory);
   }
 
@@ -419,12 +320,9 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       'WildcatSanctionsSentinel',
       'SANCTIONS_SENTINEL'
     );
-    bytes memory marketCreationCode = _getCreationCode(deployments, MARKET_ARTIFACT);
-    inputs.initCodeHash = uint256(keccak256(marketCreationCode));
-    (
-      inputs.marketCreationCodePart1,
-      inputs.marketCreationCodePart2
-    ) = _splitMarketCreationCode(marketCreationCode);
+    inputs.marketCreationCode = _getCreationCode(deployments, MARKET_ARTIFACT);
+    _requireInitCodeStoragePayloadFits(inputs.marketCreationCode, MARKET_ARTIFACT);
+    inputs.initCodeHash = uint256(keccak256(inputs.marketCreationCode));
 
     if (_isPlanMode(ownerMode)) {
       _writePlanEntries(deployments, inputs);

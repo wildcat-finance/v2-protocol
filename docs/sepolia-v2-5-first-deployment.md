@@ -23,7 +23,7 @@ Sections 1 through 4 generate and inspect activation without sending a transacti
 | Activation release | `v2-5` |
 | Retirement release | `v2-5-retirement` |
 | Foundry profile | `deploy` |
-| Activation shape | 27 cards: 15 deployments and 12 calls |
+| Activation shape | 26 cards: 14 deployments and 12 calls |
 | Current retirement shape | 20 calls for nine superseded factories, including helper reclaim and return |
 
 The retirement count is state-dependent. Regenerate it from the finalized live inventory and review every address.
@@ -101,7 +101,7 @@ forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
 bash script/deploy/v2-5/07-generate-plan.sh
 ```
 
-`07-generate-plan.sh` validates the complete activation allowlist and six-entry template matrix. It must print `27 tx (15 deploy, 12 call)` on Sepolia.
+`07-generate-plan.sh` validates the complete activation allowlist and six-entry template matrix. It must print `26 tx (14 deploy, 12 call)` on Sepolia.
 
 ## 3. Review the activation plan
 
@@ -120,8 +120,8 @@ jq -e \
   .chainId == 11155111 and
   .release == "v2-5" and
   ((.expectedExecutor | ascii_downcase) == $executor_lc) and
-  (.transactions | length) == 27 and
-  ([.transactions[] | select(.kind == "deploy")] | length) == 15 and
+  (.transactions | length) == 26 and
+  ([.transactions[] | select(.kind == "deploy")] | length) == 14 and
   ([.transactions[] | select(.kind == "call")] | length) == 12 and
   .transactions[0].id == "reclaim-arch-controller-ownership" and
   .transactions[-1].id == "restore-arch-controller-ownership" and
@@ -141,7 +141,7 @@ Print the card ledger and review every target, artifact, argument, and predicate
 jq -r '.transactions | to_entries[] | [(.key + 1), .value.kind, .value.id, (.value.functionSignature // "deploy")] | @tsv' "$PLAN"
 ```
 
-The 15 deployments must include the wrapper factory, borrower identity registry, AccessList role-provider factory, standard market init-code storage and factory, two revolving market init-code storage contracts and its factory, four lens contracts, and three hook-template init-code storage contracts.
+The 14 deployments must include the wrapper factory, borrower identity registry, AccessList role-provider factory, standard market init-code storage and factory, one revolving market init-code storage contract and its factory, four lens contracts, and three hook-template init-code storage contracts.
 
 Review the six template fee tuples:
 
@@ -169,7 +169,7 @@ cd /Users/kethcode/wildcat/mono/v2-protocol/deploy-ui
 npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort
 ```
 
-Open `http://127.0.0.1:4173/` in the browser profile containing the exact executor. The page must open in locked EOA mode with no plan picker or mode switch. Confirm release, network, chain, executor, 27-card count, full digest, and fingerprint before connecting the wallet.
+Open `http://127.0.0.1:4173/` in the browser profile containing the exact executor. The page must open in locked EOA mode with no plan picker or mode switch. Confirm release, network, chain, executor, 26-card count, full digest, and fingerprint before connecting the wallet.
 
 Do not place a private key in the site, environment, generated package, or hosting configuration. The browser wallet signs live transactions.
 
@@ -180,8 +180,8 @@ Sending card 1 is the live boundary. It temporarily moves ArchController ownersh
 1. Put the wallet on Sepolia and select the exact executor.
 2. Review card 1, `returnOwnership()` on the helper. Send it and wait for its receipt and predicate.
 3. Confirm `ArchController.owner()` is the expected executor.
-4. Walk cards 2 through 26 in order. For every card, review the plain-English action and technical details, send only the active transaction, and wait for a verified predicate before continuing.
-5. Review card 27, `ArchController.transferOwnership(helper)`. Send it and wait for the predicate.
+4. Walk cards 2 through 25 in order. For every card, review the plain-English action and technical details, send only the active transaction, and wait for a verified predicate before continuing.
+5. Review card 26, `ArchController.transferOwnership(helper)`. Send it and wait for the predicate.
 6. Confirm the helper owns the ArchController again.
 
 If the browser or RPC disconnects after submission, do not resend. Restore the endpoint, reopen the exact same site origin, reconnect the same account, and let the page recover the stored transaction hash and on-chain receipt.
@@ -189,7 +189,7 @@ If the browser or RPC disconnects after submission, do not resend. Restore the e
 Export the final unedited activation run-state to `$RUN_STATE`:
 
 ```bash
-test "$(jq 'length' "$RUN_STATE")" = "27"
+test "$(jq 'length' "$RUN_STATE")" = "26"
 node scripts/plan.js verify --plan "$PLAN" --run-state "$RUN_STATE" --rpc "$RPC_URL"
 ```
 
@@ -211,7 +211,7 @@ Finalization must append the new standard, revolving, and wrapper generations, m
 
 ## 7. Explorer, canary, and downstream validation
 
-List all 15 deployment artifacts and resolved addresses from the plan and run-state:
+List all 14 deployment artifacts and resolved addresses from the plan and run-state:
 
 ```bash
 jq -r --slurpfile state "$RUN_STATE" '.transactions[] | select(.kind == "deploy") | [.id, .artifactName, $state[0][.id].resolvedAddress] | @tsv' "$PLAN"

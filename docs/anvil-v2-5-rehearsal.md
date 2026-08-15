@@ -12,7 +12,7 @@ The rehearsal passes only when all of the following are true:
 
 - the full deploy-profile protocol test suite passes;
 - release source and deployment scripts build with the deploy profile and production contracts fit EIP-170;
-- activation has 27 cards on the Sepolia-shaped fork: 15 deployments and 12 calls;
+- activation has 26 cards on the Sepolia-shaped fork: 14 deployments and 12 calls;
 - activation reclaims ownership first, restores it last, registers six templates and two factories, and removes no factory role or market;
 - every activation predicate passes through the locked UI and a reload resumes only after on-chain re-verification;
 - the unedited activation run-state passes independent verification and inventory finalization;
@@ -135,8 +135,8 @@ jq -e '
   .network == "anvil" and
   .chainId == 31337 and
   .release == "v2-5" and
-  (.transactions | length) == 27 and
-  ([.transactions[] | select(.kind == "deploy")] | length) == 15 and
+  (.transactions | length) == 26 and
+  ([.transactions[] | select(.kind == "deploy")] | length) == 14 and
   ([.transactions[] | select(.kind == "call")] | length) == 12 and
   .transactions[0].id == "reclaim-arch-controller-ownership" and
   .transactions[-1].id == "restore-arch-controller-ownership" and
@@ -155,7 +155,7 @@ Print and review every card:
 jq -r '.transactions | to_entries[] | [(.key + 1), .value.kind, .value.id, (.value.functionSignature // "deploy")] | @tsv' "$PLAN"
 ```
 
-The deployment list must include `WildcatBorrowerIdentityRegistry`, `AccessListRoleProviderFactory`, `WildcatMarketRevolving` init-code storage part 1, and init-code storage part 2. The full activation plan must contain 15 deployments.
+The deployment list must include `WildcatBorrowerIdentityRegistry`, `AccessListRoleProviderFactory`, and one `WildcatMarketRevolving` init-code storage contract. The full activation plan must contain 14 deployments.
 
 ## 4. Build the locked activation site
 
@@ -194,11 +194,11 @@ test "$(cast call "$ARCH_CONTROLLER" 'owner()(address)' --rpc-url "$RPC_URL" | t
 cast call "$HELPER_OWNER" 'authorizedAccounts(address)(bool)' "$EXPECTED_EXECUTOR" --rpc-url "$RPC_URL"
 ```
 
-Walk all 27 cards in order. Review the plain-English action, target, decoded arguments, and predicate before sending. Wait for the receipt and green predicate before advancing. Card 1 reclaims ownership for the test executor. Card 27 returns ownership to the helper.
+Walk all 26 cards in order. Review the plain-English action, target, decoded arguments, and predicate before sending. Wait for the receipt and green predicate before advancing. Card 1 reclaims ownership for the test executor. Card 26 returns ownership to the helper.
 
 At a reviewed midpoint, export a checkpoint, reload the exact same page and fork, reconnect the same account, and choose the resume path. Stored progress must remain unverified until receipts and predicates are reread from the connected fork.
 
-After card 27, confirm ownership has returned:
+After card 26, confirm ownership has returned:
 
 ```bash
 test "$(cast call "$ARCH_CONTROLLER" 'owner()(address)' --rpc-url "$RPC_URL" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$HELPER_OWNER" | tr '[:upper:]' '[:lower:]')"
@@ -207,7 +207,7 @@ test "$(cast call "$ARCH_CONTROLLER" 'owner()(address)' --rpc-url "$RPC_URL" | t
 Export the final unedited activation run-state to `$RUN_STATE` and verify it independently:
 
 ```bash
-test "$(jq 'length' "$RUN_STATE")" = "27"
+test "$(jq 'length' "$RUN_STATE")" = "26"
 node scripts/plan.js verify --plan "$PLAN" --run-state "$RUN_STATE" --rpc "$RPC_URL"
 
 RUN_STATE="$RUN_STATE" RPC_URL="$RPC_URL" bash script/deploy/v2-5/08-finalize-inventory.sh
@@ -240,7 +240,7 @@ node scripts/generate-handoff.js --network anvil --release v2-5
 node scripts/generate-handoff.js --network anvil --release v2-5 --check
 ```
 
-Confirm the handoff includes the identity registry, AccessList role-provider factory, both hooks factories, both revolving init-code storage addresses, all four lens components, and all supported templates.
+Confirm the handoff includes the identity registry, AccessList role-provider factory, both hooks factories, the revolving init-code storage address, all four lens components, and all supported templates.
 
 ## 7. Generate retirement from finalized state
 

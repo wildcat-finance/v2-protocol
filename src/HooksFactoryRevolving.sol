@@ -77,8 +77,6 @@ contract HooksFactoryRevolving is
 
   address public immutable override marketInitCodeStorage;
 
-  address public immutable override marketInitCodeStorage2;
-
   uint256 public immutable override marketInitCodeHash;
 
   address public immutable override sanctionsSentinel;
@@ -139,12 +137,10 @@ contract HooksFactoryRevolving is
     address _sanctionsSentinel,
     address _wrapperFactory,
     address _marketInitCodeStorage,
-    address _marketInitCodeStorage2,
     uint256 _marketInitCodeHash,
     address _borrowerIdentityRegistry
   ) {
     marketInitCodeStorage = _marketInitCodeStorage;
-    marketInitCodeStorage2 = _marketInitCodeStorage2;
     marketInitCodeHash = _marketInitCodeHash;
     _archController = archController_;
     sanctionsSentinel = _sanctionsSentinel;
@@ -818,11 +814,8 @@ contract HooksFactoryRevolving is
       revert MarketAlreadyExists();
     }
     if (
-      LibStoredInitCode.create2WithStoredInitCode(
-        marketInitCodeStorage,
-        marketInitCodeStorage2,
-        runtimeParams.salt
-      ) != market
+      LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) !=
+      market
     ) {
       revert MarketDeploymentAddressMismatch();
     }

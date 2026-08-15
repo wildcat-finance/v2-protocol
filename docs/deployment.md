@@ -104,7 +104,7 @@ Set the deployment profile for every Forge and Node step:
 export FOUNDRY_PROFILE=deploy
 ```
 
-This is mandatory. The default profile can encounter both EIP-170 and `Stack too deep` failures. The `deploy` profile uses via-IR and optimizer runs `200`, produces the exact creation code consumed by the plan, and currently reports `HooksFactoryRevolving` at 17,786 runtime bytes. Do not substitute a different profile after rehearsal.
+This is mandatory. The default profile can encounter both EIP-170 and `Stack too deep` failures. The `deploy` profile uses via-IR and optimizer runs `44`, produces the exact creation code consumed by the plan, and currently reports `HooksFactoryRevolving` at 17,297 runtime bytes. Do not substitute a different profile after rehearsal.
 
 Set the testnet execution context:
 
@@ -155,7 +155,7 @@ forge script \
 
 ### 03: revolving hooks factory
 
-Use the same environment as 02. Run 01 and 02 first. The revolving market creation code is split across two `InitCodeStorage` deployments because one EIP-170 payload is too small. The factory reconstructs the exact creation code before CREATE2, so its full init-code hash and predicted market addresses do not change.
+Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,091 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,092 bytes with 1,484 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
 
 ```bash
 forge script \
@@ -211,13 +211,13 @@ node scripts/plan.js execute \
   --private-key "$PVT_KEY_SEPOLIA"
 ```
 
-Review the summary before execution. Activation has 25 cards on mainnet: 15 deployments and 10 calls. Sepolia's ceremony config adds an ownership reclaim and return, producing 27 cards. The plan must contain six template registrations, two new factory registrations, and no `removeControllerFactory`, `removeController`, or `removeMarket` call. `execute` writes `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
+Review the summary before execution. Activation has 24 cards on mainnet: 14 deployments and 10 calls. Sepolia's ceremony config adds an ownership reclaim and return, producing 26 cards. The plan must contain six template registrations, two new factory registrations, and no `removeControllerFactory`, `removeController`, or `removeMarket` call. `execute` writes `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
 
 ### 08: finalize activation inventory
 
 Environment: require `DEPLOYMENTS_NETWORK` and `RUN_STATE`; accept `RPC_URL`.
 The wrapper exports `FOUNDRY_PROFILE=deploy` itself. It rejects any missing,
-unknown, non-verified, or malformed run-state entry; appends exactly two hooks factories and one wrapper factory; moves canonical aliases; records the identity registry, AccessList factory, lens, template storage, and revolving two-part init-code storage addresses; leaves superseded factories registered; then reconciles.
+unknown, non-verified, or malformed run-state entry; appends exactly two hooks factories and one wrapper factory; moves canonical aliases; records the identity registry, AccessList factory, lens, template storage, and revolving init-code storage address; leaves superseded factories registered; then reconciles.
 
 ```bash
 export RUN_STATE="deployments/$DEPLOYMENTS_NETWORK/run-state-$RELEASE_TAG.json"
@@ -342,7 +342,7 @@ forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
 bash script/deploy/v2-5/07-generate-plan.sh
 ```
 
-The activation plan must have 25 cards: 15 deployments and 10 calls. It must register six templates and both new factories. It must not remove any factory role or market.
+The activation plan must have 24 cards: 14 deployments and 10 calls. It must register six templates and both new factories. It must not remove any factory role or market.
 
 ### Bundle and simulate activation
 
@@ -362,7 +362,7 @@ node scripts/plan.js bundle-simulate \
   --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
 ```
 
-The current plan fits into three activation bundles. The exact Safe rehearsal used 17,561,801, 18,107,377, and 14,771,586 gas. These numbers are evidence for the current source, not release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
+The current plan fits into three activation bundles. The exact Safe rehearsal used 14,417,671, 19,277,694, and 15,179,791 gas. These numbers are evidence for the current source, not release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
 
 Any plan change or intervening Safe transaction invalidates the package. Read the nonce again, regenerate, and repeat the simulation.
 
@@ -388,7 +388,7 @@ For each of the three activation bundles:
 2. Signers review the bundle and its plain-English inner cards, compare the nonce, addresses, calldata, and predicates, then approve the Safe transaction.
 3. At threshold, the operator executes. The UI checks every inner predicate before advancing. Any failed predicate stops the ceremony.
 
-The 25 cards are not 25 signer transactions. They are inner review actions inside three Safe bundles. With threshold 3, activation requires three approvals from each participating signer. If the same three signers participate, that is nine signatures total.
+The 24 cards are not 24 signer transactions. They are inner review actions inside the generated Safe bundles. Each bundle needs the Safe's normal threshold approval, not one signature per card.
 
 Export or derive the activation run-state, verify it independently, and finalize it:
 
@@ -481,7 +481,7 @@ Every fork rehearsal must preserve these invariants:
 - generate the plan from the source revision under review with
   `FOUNDRY_PROFILE=deploy` rather than reusing generated output;
 - for the Sepolia-shaped UI path, authorize a disposable Anvil EOA in the helper and keep reclaim and return as the first and final cards of each ceremony;
-- require 15 activation deployments, six template registrations, two new factory registrations, and no factory or market removal;
+- require 14 activation deployments, six template registrations, two new factory registrations, and no factory or market removal;
 - finalize activation only from its unedited, independently verified run-state, then generate retirement from the resulting reconciled inventory;
 - require each retirement target to lose its controller-factory role before its controller role, with no market removal;
 - finalize retirement only from its own unedited, independently verified run-state;
@@ -501,7 +501,7 @@ On mainnet forks, deploy a mock asset before the canary because mainnet
 1. Write the factory contract and its interface. Define the market init-code
    artifact, constructor inputs, registration predicates, and market-specific ABI
    surface.
-2. Copy the 01/02 script shape. Give every plan entry a unique dot-free ID, ordered sequence, output, envelope, dependency, description, and on-chain predicate. Emit one pending init-code-storage record when creation code fits a single EIP-170 payload. Use the reviewed two-part storage pattern when it does not. Emit one pending factory record with every storage address needed to reconstruct the exact creation code.
+2. Copy the 01/02 script shape. Give every plan entry a unique dot-free ID, ordered sequence, output, envelope, dependency, description, and on-chain predicate. Emit one pending init-code-storage record only after checking that the creation code fits a single EIP-170 payload. Stop plan generation if it does not fit. Emit one pending factory record with the storage address and hash for the exact creation code.
 3. Add the market type to inventory validation. Append the factory record. Move
    one canonical pointer for that market type; keep older live generations and
    retired exclusions.

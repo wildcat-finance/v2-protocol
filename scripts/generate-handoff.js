@@ -69,14 +69,6 @@ const RELEASE_CONTRACTS = [
       "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving",
   },
   {
-    key: "WildcatMarketRevolving_initCodeStorage2",
-    planOutput: "wildcat-market-revolving-init-code-storage-2",
-    kind: "market-init-code-storage",
-    forgeArtifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
-    abiArtifactName:
-      "src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving",
-  },
-  {
     key: "HooksFactoryRevolving",
     planOutput: "hooks-factory-revolving",
     kind: "hooks-factory",

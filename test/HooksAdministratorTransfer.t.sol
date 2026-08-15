@@ -29,10 +29,9 @@ contract HooksAdministratorTransferTest is Test {
     address standardMarketInitCode = LibStoredInitCode.deployInitCode(
       type(WildcatMarket).creationCode
     );
-    (
-      address revolvingMarketInitCode,
-      address revolvingMarketInitCode2
-    ) = LibStoredInitCode.deployInitCodeInTwoParts(type(WildcatMarketRevolving).creationCode);
+    address revolvingMarketInitCode = LibStoredInitCode.deployInitCode(
+      type(WildcatMarketRevolving).creationCode
+    );
     standardFactory = IHooksFactory(
       address(
         new HooksFactory(
@@ -52,7 +51,6 @@ contract HooksAdministratorTransferTest is Test {
           address(1),
           address(this),
           revolvingMarketInitCode,
-          revolvingMarketInitCode2,
           uint256(keccak256(type(WildcatMarketRevolving).creationCode)),
           address(borrowerIdentityRegistry)
         )

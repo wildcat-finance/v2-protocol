@@ -27,7 +27,6 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
   IHooksFactoryRevolving hooksFactoryRevolving;
   address hooksTemplate;
   address marketTemplate;
-  address marketTemplate2;
   MockERC20 underlying = new MockERC20('Underlying', 'UND', 18);
 
   address internal constant nullAddress = address(0);
@@ -37,13 +36,11 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
   function _storeMarketInitCode()
     internal
     virtual
-    returns (address initCodeStorage, address initCodeStorage2, uint256 initCodeHash)
+    returns (address initCodeStorage, uint256 initCodeHash)
   {
     bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
     initCodeHash = uint256(keccak256(marketInitCode));
-    (initCodeStorage, initCodeStorage2) = LibStoredInitCode.deployInitCodeInTwoParts(
-      marketInitCode
-    );
+    initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
   }
 
   function setUp() public {
@@ -51,13 +48,12 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
 
     uint256 marketInitCodeHash;
-    (marketTemplate, marketTemplate2, marketInitCodeHash) = _storeMarketInitCode();
+    (marketTemplate, marketInitCodeHash) = _storeMarketInitCode();
     hooksFactoryRevolving = new HooksFactoryRevolving(
       address(archController),
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      marketTemplate2,
       marketInitCodeHash,
       address(borrowerIdentityRegistry)
     );
@@ -96,7 +92,6 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       address(borrowerIdentityRegistry)
     );
     assertEq(hooksFactoryRevolving.marketInitCodeStorage(), marketTemplate);
-    assertEq(hooksFactoryRevolving.marketInitCodeStorage2(), marketTemplate2);
     assertTrue(archController.isRegisteredControllerFactory(address(hooksFactoryRevolving)));
     assertTrue(archController.isRegisteredController(address(hooksFactoryRevolving)));
   }
@@ -582,14 +577,12 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
 
   function test_deployMarket_MarketDeploymentAddressMismatch() external {
     bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
-    (address marketTemplate, address marketTemplate2) = LibStoredInitCode
-      .deployInitCodeInTwoParts(marketInitCode);
+    address marketTemplate = LibStoredInitCode.deployInitCode(marketInitCode);
     IHooksFactoryRevolving badFactory = new HooksFactoryRevolving(
       address(archController),
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      marketTemplate2,
       uint256(keccak256('stale revolving market init code hash')),
       address(borrowerIdentityRegistry)
     );

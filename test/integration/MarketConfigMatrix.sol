@@ -255,17 +255,12 @@ contract MarketConfigMatrix is BaseMarketTest {
   function _deployRevolvingFactory() internal asSelf {
     bytes memory initCode = type(WildcatMarketRevolving).creationCode;
     revolvingMarketInitCodeHash = uint256(keccak256(initCode));
-    address revolvingMarketInitCodeStorage2;
-    (
-      revolvingMarketInitCodeStorage,
-      revolvingMarketInitCodeStorage2
-    ) = LibStoredInitCode.deployInitCodeInTwoParts(initCode);
+    revolvingMarketInitCodeStorage = LibStoredInitCode.deployInitCode(initCode);
     revolvingFactory = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
       address(wrapperFactory),
       revolvingMarketInitCodeStorage,
-      revolvingMarketInitCodeStorage2,
       revolvingMarketInitCodeHash,
       address(borrowerIdentityRegistry)
     );

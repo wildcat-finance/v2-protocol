@@ -78,7 +78,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
       _writePlanEntry(
         deployments,
         archControllerAddress,
-        24,
+        23,
         REGISTER_STANDARD_ENTRY_ID,
         STANDARD_FACTORY_OUTPUT,
         AFTER_OWNER_ACTIONS,
@@ -87,7 +87,7 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
       _writePlanEntry(
         deployments,
         archControllerAddress,
-        25,
+        24,
         REGISTER_REVOLVING_ENTRY_ID,
         REVOLVING_FACTORY_OUTPUT,
         REGISTER_STANDARD_ENTRY_ID,
