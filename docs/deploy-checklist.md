@@ -1,121 +1,83 @@
 # v2.5 Deploy Checklists
 
-Condensed operator checklists. The full runbook with explanations is
-[deployment.md](./deployment.md); current tooling status is
-[deploy-status.md](./deploy-status.md). Every command assumes repo root and
-`FOUNDRY_PROFILE=deploy`.
+These are condensed operator checklists. Use [deployment.md](./deployment.md) for the full process and [deploy-status.md](./deploy-status.md) for current rehearsal evidence. Every command starts at the repository root with `FOUNDRY_PROFILE=deploy`.
 
-## A. Fork test drive (frontend, EOA mode)
+Activation and retirement are separate releases. Activation deploys and registers v2.5 without disabling an existing factory. Retirement is generated only after activation has been finalized, indexed, and validated. Never carry a pre-generated retirement plan into the activation call.
 
-The required pre-Sepolia gate. No public-network state is mutated. Use the full
-operator procedure in
-[anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md); these bullets are only a
-condensed index.
+## A. Fork test drive
 
-- [ ] Record the reviewed source revision and preserve any existing
-      `deployments/anvil/`; the setup script deletes that directory and kills
-      an Anvil process matching the selected port
-- [ ] Cold gate: `FOUNDRY_PROFILE=ir forge test`, then
-      `FOUNDRY_PROFILE=deploy forge build --sizes src script/common
-      script/deploy/v2-5`
-- [ ] UI gate: `cd deploy-ui && npm ci && npm test`
-- [ ] RPC gate: use only the explicitly selected archive endpoint
-      `https://eth-sep.hinterlight.net`; its chain ID must be `11155111`, and it
-      must pass a historical storage read at least 1,024 blocks behind the
-      selected head
-- [ ] Generate a fresh fork plan with `FORK_NETWORK=sepolia
-      FORK_RPC_URL=https://eth-sep.hinterlight.net ANVIL_PORT=8547 bash
-      script/deploy/v2-5/rehearse.sh` (without `--full`); wait for the positive
-      RPC-ready message, record the pinned block, and confirm the Anvil state
-      snapshot/log/PID files exist
-- [ ] Confirm 38 cards: 12 deploys, 26 calls, six template registrations,
-      seven paired factory-role deactivations, reclaim first, restore last,
-      and no market removal
-- [ ] Generate the EOA ceremony package and serve a production `vite preview`
-      build with `CEREMONY_PACKAGE` embedded; do not use the raw-plan
-      development loader for this acceptance run
-- [ ] Walk all 38 cards with Anvil account 1; every predicate must turn green;
-      export checkpoints and prove explicit same-fork reload/resume after card
-      13; cached state must not appear green before chain verification
-- [ ] Save the final unedited run-state; `plan.js verify`, step 08,
-      inventory validate/lint/reconcile, both canaries, and handoff `--check`
-      must pass
-- [ ] Confirm ownership is back with the helper; preserve the artifact/log
-      directory, then kill only the captured Anvil PID
+- [ ] Record the reviewed source revision and preserve any existing `deployments/anvil/`. The launcher replaces that directory and stops only an Anvil process using the selected port.
+- [ ] Run the full deploy-profile protocol test suite and a deploy-profile source size build.
+- [ ] Run `npm ci && npm test` in `deploy-ui/`.
+- [ ] Use one explicitly selected archive RPC and confirm its chain ID and historical storage access. Do not add an implicit fallback.
+- [ ] Start a fresh fork with `FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net ANVIL_PORT=8547 bash script/deploy/v2-5/rehearse.sh`.
+- [ ] Confirm the activation plan has 27 cards on the Sepolia-shaped fork: 15 deployments, 12 calls, reclaim first, restore last, six template registrations, two new factory registrations, and no factory or market removals.
+- [ ] Build a locked EOA ceremony package and walk the activation cards through the production UI. Prove same-fork reload and resume. Every predicate must turn green from on-chain verification.
+- [ ] Export the unedited activation run-state, run independent plan verification, and finalize it with `08-finalize-inventory.sh`.
+- [ ] Run inventory validation, lint, and reconciliation. Confirm the helper owns the ArchController again.
+- [ ] Run both canary markets and validate the generated handoff.
+- [ ] Generate retirement only now with `bash script/deploy/v2-5/retirement/01-generate-plan.sh`.
+- [ ] Review every retirement target from the finalized inventory. The current Sepolia inventory produces nine targets, 18 ordered removals, and two helper-owner calls for 20 cards. There must be no market removal.
+- [ ] Build and walk a separate locked EOA retirement package. Verify every predicate, finalize it with `retirement/02-finalize-inventory.sh`, reconcile again, and confirm ownership is back with the helper.
+- [ ] Preserve the plan, package digest, run-states, transaction hashes, logs, fork block, and final inventory as rehearsal evidence. Stop only the recorded Anvil PID.
 
-## B. Live Sepolia rollout (the real test deploy)
+`rehearse.sh --full` performs the same activation/finalization/retirement sequence headlessly. It is useful as an engine check but does not replace the locked-UI acceptance run.
 
-Mints the real v2.5 generation on Sepolia. Dev EOA signs.
+## B. Live Sepolia activation
 
-The first-time, command-by-command operator procedure is
-[sepolia-v2-5-first-deployment.md](./sepolia-v2-5-first-deployment.md). Use that
-walkthrough for the live run; the bullets below are only a condensed index.
+- [ ] Confirm the exact deployment-affecting source passed the fresh Anvil rehearsal.
+- [ ] Reconcile the live Sepolia inventory before generating anything.
+- [ ] Set `DEPLOYMENTS_NETWORK=sepolia`, `RELEASE_TAG=v2-5`, `OWNER_MODE=plan`, the reviewed RPC, and the exact expected executor.
+- [ ] Run deployment steps 01 through 06, then `bash script/deploy/v2-5/07-generate-plan.sh`.
+- [ ] Confirm the activation plan has 27 cards: 15 deployments and 12 calls. It must reclaim first, restore last, register six templates and two factories, and contain no `removeControllerFactory`, `removeController`, or `removeMarket` call.
+- [ ] Confirm the deployment list includes the borrower identity registry, AccessList role-provider factory, and both revolving init-code storage contracts.
+- [ ] Generate the locked EOA package, record its digest and fingerprint, and build the production UI with that package embedded.
+- [ ] Walk all 27 activation cards with the exact Sepolia developer EOA. Wait for each receipt and predicate before proceeding.
+- [ ] Export and independently verify the activation run-state. Finalize with `08-finalize-inventory.sh`, then validate, lint, and reconcile the inventory.
+- [ ] Verify every deployment on the explorer, run the standard and revolving canaries, and generate and check the subgraph/SDK handoff.
+- [ ] Leave the preview factories registered while the new generation is tested through the subgraph, SDK, and app.
 
-- [ ] Preflight: `node scripts/factory-inventory.js reconcile --network sepolia
-      --rpc-url "$RPC_URL"` → GREEN before starting
-- [ ] Env: `DEPLOYMENTS_NETWORK=sepolia RELEASE_TAG=v2-5 OWNER_MODE=plan
-      EXPECTED_EXECUTOR=0xca732651410E915090d7A7D889A1E44eF4575fcE
-      RPC_URL=<sepolia rpc>`
-- [ ] Generate: run steps 01–06 (`forge script
-      script/deploy/v2-5/NN-*.s.sol --rpc-url "$RPC_URL"`), then `bash
-      script/deploy/v2-5/07-generate-plan.sh`
-- [ ] Confirm the dev EOA is authorized in `MockArchControllerOwner`; the
-      generated plan has 38 cards, including reclaim first, 14 removals for
-      the seven reconciled superseded factories, and restore last
-- [ ] Package and build: `plan.js ceremony-package --mode eoa`, then build
-      deploy-ui with `CEREMONY_PACKAGE=../deployments/sepolia/ceremony-v2-5-eoa.json`
-- [ ] Drive the embedded EOA ceremony with the exact dev EOA in the browser wallet
-      (or headless: `node scripts/plan.js execute --plan
-      deployments/sepolia/plan-v2-5.json --rpc <rpc> --private-key <pk>`)
-- [ ] All 38 cards complete; the final ownership predicate is green;
-      export/collect run-state
-- [ ] Finalize: `RUN_STATE=deployments/sepolia/run-state-v2-5.json
-      RPC_URL=<rpc> bash script/deploy/v2-5/08-finalize-inventory.sh`
-      → apply-run + reconcile GREEN
-- [ ] Canary: `09-canary-market.sh` (BORROWER must be registered and
-      CANARY_ASSET deliberately selected)
-- [ ] Explorer verification: `forge verify-contract` per new deployment
-      (preserve the deploy-profile standard JSON inputs in `deployments/sepolia/`)
-- [ ] Handoff: `node scripts/generate-handoff.js --network sepolia
-      --release v2-5` → send to subgraph/SDK
-- [ ] Commit the inventory + handoff changes
+## C. Live Sepolia retirement
 
-## C. Mainnet ceremony (Foundation Safe)
+- [ ] Start from the committed post-activation inventory and reconcile it against live Sepolia.
+- [ ] Confirm the new v2.5 generation has passed the agreed validation window and the team intends to stop new origination through every listed superseded factory.
+- [ ] Set the same reviewed network, RPC, and executor values, then run `bash script/deploy/v2-5/retirement/01-generate-plan.sh`.
+- [ ] Review the dynamic target list and exact plan. Each target must have `removeControllerFactory(address)` immediately before `removeController(address)`. The plan must contain no deployment, registration, or market-removal call.
+- [ ] Confirm the retirement plan has its own helper reclaim and restore cards. Do not reuse activation run-state or browser progress.
+- [ ] Generate a locked EOA package for `v2-5-retirement`, record its separate digest and fingerprint, and execute it as a separate ceremony.
+- [ ] Independently verify the retirement run-state and finalize it with `RUN_STATE=deployments/sepolia/run-state-v2-5-retirement.json RPC_URL="$RPC_URL" bash script/deploy/v2-5/retirement/02-finalize-inventory.sh`.
+- [ ] Validate, lint, and reconcile the final inventory. Confirm the helper owns the ArchController and existing markets remain registered.
 
-After Sepolia is proven and the release is blessed.
+## D. Mainnet activation with the Foundation Safe
 
-- [ ] Preflight: reconcile GREEN on mainnet; team on the call; signers ready
-- [ ] Generate 01–06 + 07 with `DEPLOYMENTS_NETWORK=mainnet
-      EXPECTED_EXECUTOR=0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`
-- [ ] Confirm the generated plan has 24 transactions, including paired
-      controller-factory/controller removals for the one reconciled
-      superseded hooks factory
-- [ ] Read and freeze the current Safe nonce; bundle with `--start-nonce`:
-      `node scripts/plan.js bundle --plan deployments/mainnet/plan-v2-5.json
-      --safe 0xC15b…D9Ae --start-nonce <nonce>` → expected 2–4 bundles
-- [ ] Rehearse the exact bundles on a mainnet fork:
-      `plan.js bundle-simulate` → all predicates green, gas under ceiling
-- [ ] Generate the Safe ceremony package; build deploy-ui with that package
-      embedded; distribute `review-v2-5.md`, digest, and fingerprint
-- [ ] Host the resulting static `dist/`; confirm it opens in locked Safe mode
-      with no file selection
-- [ ] Per generated bundle: operator proposes (page, `operation: 1`) → signers
-      review card + sign (3 sigs) → operator executes → predicate board
-      green. TX Builder import must NOT be used to propose.
-- [ ] Export run-state (or `plan.js bundle-verify`) → step 08 → reconcile
-      GREEN
-- [ ] Explorer verification per deployment; handoff generation; commit
-- [ ] Post-ceremony: `plan.js verify` full pass; subgraph/SDK teams pick up
-      the handoff
+- [ ] Reconcile mainnet, freeze the reviewed source and configuration, and have the Foundation signers on the call.
+- [ ] Generate steps 01 through 07 with `DEPLOYMENTS_NETWORK=mainnet` and `EXPECTED_EXECUTOR=0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`.
+- [ ] Confirm the activation plan has 25 cards: 15 deployments and 10 calls, with no retirement or market-removal call.
+- [ ] Read the current Safe nonce immediately before packaging. Bundle the exact plan with `node scripts/plan.js bundle --plan deployments/mainnet/plan-v2-5.json --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae --start-nonce <nonce>`.
+- [ ] Confirm the current activation compiles to three bundles. Rehearse those exact bundles through the real Safe path on a pinned mainnet fork and require every predicate to pass below the 20,000,000 gas ceiling.
+- [ ] Generate the Safe ceremony package, record its digest and fingerprint, distribute the review sheet, and build the locked production UI.
+- [ ] For each of the three bundles, the operator proposes with `operation: 1`, the threshold signers approve once, and the operator executes after threshold. Do not use Safe Transaction Builder to propose.
+- [ ] Export or derive the activation run-state, independently verify it, finalize it with step 08, and reconcile.
+- [ ] Verify deployments, run release checks, and deliver the generated handoff. Leave the superseded factory registered during validation.
+
+The 25 cards are inner review actions inside three Safe transactions. With threshold 3, activation needs three approvals from each participating signer, not 25. If the same three signers participate, activation produces nine signatures total.
+
+## E. Mainnet retirement with the Foundation Safe
+
+- [ ] Begin only after activation finalization and the agreed validation window. Reconcile the post-activation inventory first.
+- [ ] Read the current Safe nonce again. Do not assume it is the activation start nonce plus three.
+- [ ] Generate `plan-v2-5-retirement.json` from the current inventory and review every target. The rehearsed inventory produced one target and two ordered calls; regenerate if live state differs.
+- [ ] Bundle and simulate the exact retirement plan as a new release package. The rehearsed plan fits into one Safe bundle.
+- [ ] Run a separate signer session. Each threshold signer approves the single retirement bundle once, then the operator executes and verifies both predicates.
+- [ ] Finalize with `retirement/02-finalize-inventory.sh`, reconcile, and confirm existing markets remain registered and usable.
+
+Across the currently rehearsed activation and retirement plans, the Foundation handles four Safe transactions. With threshold 3 and the same three participating signers, that is four approvals per signer and 12 signatures total.
 
 ## Reference facts
 
-- Foundation Safe: `0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae` (v1.4.1,
-  threshold 3) — mainnet ArchController owner
-- Historical pre-sixth-registration bundle gas: ~15.8M / 17.3M / 9.8M. Do not
-  reuse it; regenerate and re-simulate the current mainnet bundles against the
-  20M ceiling.
-- `FOUNDRY_PROFILE=deploy` is mandatory (HooksFactoryRevolving exceeds
-  EIP-170 on the default profile)
-- Canonical Safe libs (both networks): MultiSend
-  `0x3886…B526`, CreateCall `0x9b35…1A52`
+- Foundation Safe: `0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, version 1.4.1, threshold 3 at the rehearsal snapshot.
+- Current activation bundle gas: 17,561,801, 18,107,377, and 14,771,586.
+- Current retirement bundle gas: 94,042 for the one-target mainnet rehearsal.
+- Safe nonces, CREATE2 addresses, package hashes, gas use, and retirement target counts must be regenerated at release freeze.
+- `FOUNDRY_PROFILE=deploy` is mandatory. The revolving market uses two init-code storage contracts because one EIP-170 payload is too small.
+- Canonical Safe libraries: MultiSend `0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526` and CreateCall `0x9b35Af71d77eaf8d7e40252370304687390A1A52`.

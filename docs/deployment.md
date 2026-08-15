@@ -11,9 +11,7 @@ Sepolia run, use
 
 ## 1. Overview
 
-Create a fresh numbered script set for every release. For v2.5, run
-`script/deploy/v2-5/01` through `09` in order. Do not reuse feature-specific
-deployment scripts.
+Create a fresh numbered script set for every release. For v2.5, run `script/deploy/v2-5/01` through `09` in order for activation. Generate retirement later from `script/deploy/v2-5/retirement/`, after activation has been finalized and validated. Do not reuse feature-specific deployment scripts.
 
 Use one executor mode per target:
 
@@ -29,11 +27,7 @@ Plasma mainnet. It defaults to `direct` elsewhere. `plan.js` currently maps only
 assembling a plan. Plasma owner-mode handling exists in Solidity, but plan
 assembly has no Plasma chain-ID mapping.
 
-For each public-network ceremony, generate one ordered plan and one embedded
-ceremony package. Build a fresh disposable frontend from that package. Have the Foundation execute it
-while the deployment team verifies the chain, executor, nonce, receipt, and
-predicate on a live call. Treat the plan schema, not the frontend, as the durable
-interface.
+Activation and retirement are separate public-network ceremonies with separate plans, packages, nonces, review sheets, and run-states. Build a fresh disposable frontend from each package. Have the Foundation execute each Safe transaction while the deployment team verifies the chain, executor, nonce, receipt, and predicates on a live call. Treat the plan schema, not the frontend, as the durable interface.
 
 ## 2. Inventory model
 
@@ -81,29 +75,11 @@ node scripts/generate-handoff.js --help
 
 ### The two flows, and which one to use
 
-- **Generational rollouts** — anything that adds factory generations or moves
-  canonical pointers — use the **plan pipeline on every network**: generate
-  01–06 with `OWNER_MODE=plan`, assemble (07), execute the plan
-  (`plan.js execute --private-key` with a dev EOA on testnets; the Foundation
-  ceremony on mainnet), finalize (08), handoff. Only this flow reaches step
-  08: `apply-run` requires the
-  run-state's receipt provenance (tx hashes, receipt blocks for
-  `startBlock`s), which only the plan ceremony records. One artifact, one
-  expected executor, and one receipt-proven execution trail.
-- **Component maintenance** — redeploying a replaceable component (lens,
-  provider) between releases — uses the scripts' inline
-  `OWNER_MODE=direct` broadcast: one script, one command, no plan assembly.
-  This deliberately does not run 08; there are no generational records to
-  add, and the canonical-alias helper keeps `deployments.json` and
-  factory-inventory coherent. Regenerate the handoff afterwards if
-  downstream needs the new address.
+- **Generational activation:** Anything that adds factory generations or moves canonical pointers uses the plan pipeline on every network. Generate 01 through 06 with `OWNER_MODE=plan`, assemble with 07, execute the activation plan, finalize with 08, and generate the handoff. `apply-run` requires receipt provenance for every deployment and will not accept an inline broadcast.
+- **Generational retirement:** Generate a separate plan from the finalized post-activation inventory. Retirement removes factory authority only after the new generation has passed the agreed validation window. It has its own execution, verification, run-state, and inventory finalization.
+- **Component maintenance:** Redeploying a replaceable component such as the lens or a provider between releases can use the scripts' inline `OWNER_MODE=direct` broadcast. This deliberately does not run step 08 because no generation is being finalized. Regenerate the handoff afterward when downstream consumers need the new address.
 
-Do not attempt a generational rollout through the inline path: it broadcasts
-fine but writes concrete-address pending records that
-`factory-inventory.js apply-run` rejects (it requires plan `$ref` records
-plus a verified run-state), so `08-finalize-inventory.sh` will refuse to
-finalize it. This is a fence, not a gap — receipt-provenance inventory is
-the point of step 08.
+Do not attempt a generational rollout through the inline path. It writes concrete-address pending records that `factory-inventory.js apply-run` rejects because generational finalization requires plan references and a verified run-state. This is intentional. Receipt-provenance inventory is the point of step 08.
 
 The script headers define these environments:
 
@@ -113,7 +89,7 @@ The script headers define these environments:
 | 02   | Same as 01                                                                                                                                  | Same as 01                                                                                                     | Same as 01                                     |
 | 03   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `SKIP_EIP1153_CHECK`; 01 first                                            | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
 | 04   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `SKIP_EIP1153_CHECK`; inventory v1 wrapper record or explicit empty array | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>` unless Foundry already has a sender  | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
-| 05   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `TEMPLATE_FEE_SOURCE_FACTORY`, `TEMPLATE_FEE_RECIPIENT`; 01–04 first      | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>`; broadcaster is ArchController owner | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
+| 05   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`, `TEMPLATE_FEE_SOURCE_FACTORY`, `TEMPLATE_FEE_RECIPIENT`; 01 through 04 first | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>`; broadcaster is ArchController owner | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
 | 06   | `DEPLOYMENTS_NETWORK`; optional `RELEASE_TAG`, `ARCH_CONTROLLER`; 05 first                                                                  | `OWNER_MODE=direct` (default off mainnet), `RPC_URL`, `PVT_KEY_<NETWORK>`                                      | `OWNER_MODE=plan`, `RPC_URL`, `EXPECTED_EXECUTOR`; no key |
 
 The inline commands add `--rpc-url "$RPC_URL" --broadcast` to the Forge
@@ -128,12 +104,7 @@ Set the deployment profile for every Forge and Node step:
 export FOUNDRY_PROFILE=deploy
 ```
 
-This is mandatory. A targeted default-profile size build reports
-`HooksFactoryRevolving` at 24,767 runtime bytes, 191 bytes above EIP-170; a full
-default-profile build also encounters `Stack too deep`. The `deploy` profile
-uses via-IR and optimizer runs `200`, produces the creation code consumed by the
-plan, and reports `HooksFactoryRevolving` at 14,989 runtime bytes. Do not
-substitute the default or high-run IR profile.
+This is mandatory. The default profile can encounter both EIP-170 and `Stack too deep` failures. The `deploy` profile uses via-IR and optimizer runs `200`, produces the exact creation code consumed by the plan, and currently reports `HooksFactoryRevolving` at 17,786 runtime bytes. Do not substitute a different profile after rehearsal.
 
 Set the testnet execution context:
 
@@ -156,7 +127,7 @@ node scripts/factory-inventory.js reconcile \
   --rpc-url "$RPC_URL"
 ```
 
-### 01 — 4626 wrapper facade
+### 01: 4626 wrapper facade
 
 Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG` (default `v2-5`), `ARCH_CONTROLLER`,
@@ -170,11 +141,11 @@ forge script \
   --rpc-url "$RPC_URL"
 ```
 
-### 02 — standard hooks factory
+### 02: identity, AccessList provider, and standard hooks factory
 
 Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG`, `ARCH_CONTROLLER`,
-`SANCTIONS_SENTINEL`, `WRAPPER_FACTORY`, and `SKIP_EIP1153_CHECK`. Run 01 first.
+`SANCTIONS_SENTINEL`, `WRAPPER_FACTORY`, and `SKIP_EIP1153_CHECK`. Run 01 first. This step deploys the borrower identity registry and the default AccessList role-provider factory before the standard market init-code storage and hooks factory.
 
 ```bash
 forge script \
@@ -182,9 +153,9 @@ forge script \
   --rpc-url "$RPC_URL"
 ```
 
-### 03 — revolving hooks factory
+### 03: revolving hooks factory
 
-Use the same environment as 02. Run 01 and 02 first.
+Use the same environment as 02. Run 01 and 02 first. The revolving market creation code is split across two `InitCodeStorage` deployments because one EIP-170 payload is too small. The factory reconstructs the exact creation code before CREATE2, so its full init-code hash and predicted market addresses do not change.
 
 ```bash
 forge script \
@@ -192,7 +163,7 @@ forge script \
   --rpc-url "$RPC_URL"
 ```
 
-### 04 — MarketLens set
+### 04: MarketLens set
 
 Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG`, `ARCH_CONTROLLER`, and
@@ -204,12 +175,12 @@ forge script \
   --rpc-url "$RPC_URL"
 ```
 
-### 05 — owner actions and templates
+### 05: owner actions and templates
 
 Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
 `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG`, `ARCH_CONTROLLER`,
 `TEMPLATE_FEE_SOURCE_FACTORY`, and `TEMPLATE_FEE_RECIPIENT`. The script reads
-`deployments/template-fee-parameters.json`. Run 01–04 first.
+`deployments/template-fee-parameters.json`. Run 01 through 04 first.
 
 ```bash
 forge script \
@@ -217,15 +188,9 @@ forge script \
   --rpc-url "$RPC_URL"
 ```
 
-### 06 — register new factories and disable superseded factories
+### 06: register new factories
 
-Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and
-`EXPECTED_EXECUTOR`. Accept `RELEASE_TAG` and `ARCH_CONTROLLER`. Run 05 first.
-The script reads the reconciled factory inventory, registers both v2.5
-factories, then removes every previously registered hooks factory from the
-ArchController's controller-factory registry followed by its controller
-registry. It does not remove any market. Inventory `indexed` state is
-independent and is preserved during finalization.
+Environment: require `DEPLOYMENTS_NETWORK`, `OWNER_MODE=plan`, and `EXPECTED_EXECUTOR`. Accept `RELEASE_TAG` and `ARCH_CONTROLLER`. Run 05 first. This step registers both new v2.5 hooks factories in the ArchController. It does not remove authority from a superseded factory and it never removes a market.
 
 ```bash
 forge script \
@@ -233,7 +198,7 @@ forge script \
   --rpc-url "$RPC_URL"
 ```
 
-### 07 — assemble and execute
+### 07: assemble and execute activation
 
 Environment for assembly: require `DEPLOYMENTS_NETWORK`; accept `RELEASE_TAG`
 (default `v2-5`). The wrapper exports `FOUNDRY_PROFILE=deploy` itself.
@@ -246,26 +211,44 @@ node scripts/plan.js execute \
   --private-key "$PVT_KEY_SEPOLIA"
 ```
 
-Review the summary before execution. The base rollout has 23 transactions: 13
-deployments and 10 calls. Step 06 adds two calls for every registered
-superseded hooks factory. Sepolia's ceremony config adds ownership reclaim and
-restore calls. With the currently reconciled inventories, mainnet produces 25
-transactions and Sepolia produces 39. `execute` writes
-`deployments/<network>/run-state-v2-5.json` after receipts and predicates.
+Review the summary before execution. Activation has 25 cards on mainnet: 15 deployments and 10 calls. Sepolia's ceremony config adds an ownership reclaim and return, producing 27 cards. The plan must contain six template registrations, two new factory registrations, and no `removeControllerFactory`, `removeController`, or `removeMarket` call. `execute` writes `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
 
-### 08 — finalize inventory
+### 08: finalize activation inventory
 
 Environment: require `DEPLOYMENTS_NETWORK` and `RUN_STATE`; accept `RPC_URL`.
 The wrapper exports `FOUNDRY_PROFILE=deploy` itself. It rejects any missing,
-unknown, non-verified, or malformed run-state entry; appends exactly two hooks
-factories and one wrapper factory; moves canonical aliases; records every
-superseded factory as `registered: false` without changing its `indexed` flag;
-then reconciles.
+unknown, non-verified, or malformed run-state entry; appends exactly two hooks factories and one wrapper factory; moves canonical aliases; records the identity registry, AccessList factory, lens, template storage, and revolving two-part init-code storage addresses; leaves superseded factories registered; then reconciles.
 
 ```bash
 export RUN_STATE="deployments/$DEPLOYMENTS_NETWORK/run-state-$RELEASE_TAG.json"
 bash script/deploy/v2-5/08-finalize-inventory.sh
 ```
+
+### Separate retirement ceremony
+
+Do not generate retirement until activation finalization and reconciliation have completed and the new generation has passed the agreed validation window. Retirement is not an activation cleanup step. Keeping it separate gives the subgraph, SDK, app, and canary checks time to prove the new origination path before old factories lose authority.
+
+Generate retirement from the current post-activation inventory:
+
+```bash
+export OWNER_MODE=plan
+bash script/deploy/v2-5/retirement/01-generate-plan.sh
+```
+
+The script writes `deployments/<network>/plan-v2-5-retirement.json`. For each still-registered superseded factory, it emits `removeControllerFactory(address)` immediately before `removeController(address)`. Sepolia adds its own helper reclaim and return. It emits no deployment, registration, or market-removal call.
+
+Execute this as a distinct EOA or Safe ceremony with its own package and run-state. Then finalize only the independently verified retirement run:
+
+```bash
+export RUN_STATE="deployments/$DEPLOYMENTS_NETWORK/run-state-v2-5-retirement.json"
+RPC_URL="$RPC_URL" bash script/deploy/v2-5/retirement/02-finalize-inventory.sh
+
+node scripts/factory-inventory.js validate --network "$DEPLOYMENTS_NETWORK"
+node scripts/factory-inventory.js lint --network "$DEPLOYMENTS_NETWORK"
+node scripts/factory-inventory.js reconcile --network "$DEPLOYMENTS_NETWORK" --rpc-url "$RPC_URL"
+```
+
+Retirement target count is live state, not a release constant. The current reconciled inventories produced nine Sepolia targets and one mainnet target during rehearsal. Recheck the addresses and ordering before signing.
 
 ### Explorer verification
 
@@ -301,7 +284,7 @@ forge verify-contract \
 Do not mark a public rollout complete while a release contract remains
 unverified.
 
-### 09 — canary markets
+### 09: canary markets
 
 Environment: require `OWNER_MODE=direct`, `DEPLOYMENTS_NETWORK`, `BORROWER`, and
 `RPC_URL`. Accept `RELEASE_TAG`, `CANARY_ASSET`, and `PVT_KEY_<NETWORK>`. Without
@@ -336,13 +319,11 @@ node scripts/generate-handoff.js \
   --check
 ```
 
-## 4. Full rollout: mainnet plan ceremony
+## 4. Full rollout: mainnet Safe ceremonies
 
-The Ethereum mainnet ArchController owner is the Foundation Safe
-`0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`. Mainnet RPC reads on 2026-07-10
-returned Safe `VERSION()` `1.4.1` and threshold `3`.
+The Ethereum mainnet ArchController owner is the Foundation Safe at `0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`. The current rehearsal read Safe version 1.4.1 and threshold 3. Confirm both values again at release freeze.
 
-### Generate 01→06 and assemble 07
+### Generate activation
 
 ```bash
 export FOUNDRY_PROFILE=deploy
@@ -361,43 +342,31 @@ forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25
 bash script/deploy/v2-5/07-generate-plan.sh
 ```
 
-The release build embeds a generated ceremony package; Foundation operators do
-not select or load any files. Do not hand over a private key. The Safe executes
-every transaction.
+The activation plan must have 25 cards: 15 deployments and 10 calls. It must register six templates and both new factories. It must not remove any factory role or market.
 
-### Bundle the plan (the ceremony format)
+### Bundle and simulate activation
 
-The ceremony does not execute every plan transaction one by one. `plan.js bundle`
-compiles the plan into a minimal set of atomic Safe transactions, each a
-`MultiSend` **delegatecall** whose deployments run through the
-canonical `CreateCall` library as CREATE2 — every address is precomputed at
-bundle time from `(safe, salt, initCodeHash)`, all `$ref`s resolve
-statically. CREATE2 addresses do not depend on nonces or mid-ceremony state;
-the Safe envelopes deliberately pin consecutive Safe nonces so the reviewed
-EIP-712 hashes cannot drift.
+`plan.js bundle` compiles the cards into atomic Safe transactions. Each transaction is a `MultiSend` delegatecall, and deployments use the canonical `CreateCall` library with CREATE2. Addresses are precomputed from the Safe, salt, and init-code hash. The Safe envelopes pin consecutive nonces so the reviewed EIP-712 hashes cannot drift.
 
 ```bash
-SAFE_NONCE='<current on-chain Safe nonce at the fork snapshot>'
+SAFE_NONCE='<current on-chain Safe nonce>'
 node scripts/plan.js bundle \
   --plan deployments/mainnet/plan-v2-5.json \
   --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae \
   --start-nonce "$SAFE_NONCE"
-# outputs: deployments/mainnet/bundles-v2-5/
-#   bundle-N.txbuilder.json   (review-only import; see warning below)
-#   bundle-N.manifest.json    (the frontend's data source)
-#   expected-addresses.json   (pre-fills the handoff)
-#   review-v2-5.md            (the signers' review sheet)
+
+node scripts/plan.js bundle-simulate \
+  --plan deployments/mainnet/plan-v2-5.json \
+  --bundles deployments/mainnet/bundles-v2-5 \
+  --rpc '<pinned mainnet fork RPC>' \
+  --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
 ```
 
-Rehearse before signing: `plan.js bundle-simulate` executes every bundle
-through the real Safe on an anvil mainnet fork and reports per-bundle gas and
-all predicates. Every bundle must remain below the 20M ceiling. The fork Safe
-nonce must equal the pinned starting nonce. Any plan change or intervening Safe
-execution requires regeneration and a fresh simulation; do not reuse the
-historical three-bundle gas figures from the earlier five-registration plan.
+The current plan fits into three activation bundles. The exact Safe rehearsal used 17,561,801, 18,107,377, and 14,771,586 gas. These numbers are evidence for the current source, not release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
 
-After simulation, produce the only input to the release-specific site and build
-it in:
+Any plan change or intervening Safe transaction invalidates the package. Read the nonce again, regenerate, and repeat the simulation.
+
+### Build and execute activation
 
 ```bash
 node scripts/plan.js ceremony-package \
@@ -409,71 +378,79 @@ cd deploy-ui
 CEREMONY_PACKAGE=../deployments/mainnet/ceremony-v2-5-safe.json npm run build
 ```
 
-Record the printed full digest and short fingerprint in the independent signer
-review channel before hosting `dist/`.
+Record the full digest and short fingerprint in the independent signer channel before hosting `dist/`. The release site opens with the package embedded. Foundation operators do not select a plan file and no private key is handed to the deployment team.
 
-**Safe Transaction Builder cannot propose these.** Its import model drops
-the transaction's `operation`; an imported row submits as CALL and the
-delegatecall reverts. Proposals must carry `operation: 1` — the deploy-ui
-frontend does this via the Safe SDK; the txbuilder.json files are for
-review only.
+Safe Transaction Builder cannot propose these transactions because its import path drops `operation: 1`. Its JSON output is review-only. Propose through the locked deployment UI and Safe SDK.
 
-### Live-call ceremony (deploy-ui, Safe mode)
+For each of the three activation bundles:
 
-Host the release-specific `deploy-ui/dist` statically (see
-`deploy-ui/README.md`). The page opens with the package already loaded and its
-mode locked. Confirm on the call: the published fingerprint and full digest,
-chain ID `1`, Safe address and version, threshold, pinned Safe nonce/hash per
-bundle, and the per-bundle gas figures from simulation.
+1. The operator proposes with `operation: 1`.
+2. Signers review the bundle and its plain-English inner cards, compare the nonce, addresses, calldata, and predicates, then approve the Safe transaction.
+3. At threshold, the operator executes. The UI checks every inner predicate before advancing. Any failed predicate stops the ceremony.
 
-Per generated bundle (the rehearsed v2-5 plan produced 3):
+The 25 cards are not 25 signer transactions. They are inner review actions inside three Safe bundles. With threshold 3, activation requires three approvals from each participating signer. If the same three signers participate, that is nine signatures total.
 
-1. The operator proposes through the page (Safe SDK, `operation: 1`); the
-   page shows signature progress against the threshold.
-2. Signers review the bundle card and its plain-English inner transactions,
-   expand **Technical Details** to compare precomputed addresses and exact
-   checks, then sign from their own Safe apps (or in-page).
-3. At threshold, the operator executes. The page verifies every inner
-   predicate against the precomputed addresses and shows the green board
-   before advancing. A predicate failure is a full stop; bundles are atomic,
-   so there is no partial-bundle state to recover.
-
-Signer click budget for the rehearsed three-bundle rollout: connect, review,
-three signatures. After the final bundle, export the run-state from the page (or derive
-it with `plan.js bundle-verify`) and proceed to 08.
-
-### Finalize, verify, and hand off
-
-Finalize only with the completed resolved run-state:
+Export or derive the activation run-state, verify it independently, and finalize it:
 
 ```bash
 export RUN_STATE=deployments/mainnet/run-state-v2-5.json
 bash script/deploy/v2-5/08-finalize-inventory.sh
-```
 
-Run the Etherscan verification procedure from section 3. Then generate and check
-the handoff:
-
-```bash
 node scripts/generate-handoff.js --network mainnet --release v2-5
 node scripts/generate-handoff.js --network mainnet --release v2-5 --check
 ```
 
-Deliver `handoff-v2-5.json` and `handoff-v2-5.md` with the verified ABIs to the
-subgraph and SDK owners.
+Complete explorer verification and downstream validation while the superseded factory remains registered.
 
-Previous local rehearsal record: before the borrower identity registry was
-added to the plan, the corrected six-registration and superseded-factory
-deactivation plan completed end to end on both forks—38 transactions and 38/38
-predicates on Sepolia, 24 transactions and 24/24 predicates on mainnet—with
-inventory finalization and reconciliation green. The current 39/25-transaction
-plans still need a fresh rehearsal.
-The finalized fork inventories retained historical `indexed` flags, marked all
-superseded factories unregistered, and the plans contained no market-removal
-calls. Earlier rehearsals also closed both canary markets. These generated
-plans, run states,
-and receipts are not checked in; retain the exact rehearsal logs with the live
-rollout artifacts.
+### Generate and execute retirement later
+
+After the validation window, reconcile the finalized inventory and generate retirement fresh:
+
+```bash
+cd /Users/kethcode/wildcat/mono/v2-protocol
+export FOUNDRY_PROFILE=deploy
+export DEPLOYMENTS_NETWORK=mainnet
+export RELEASE_TAG=v2-5
+export OWNER_MODE=plan
+export RPC_URL='<mainnet RPC URL>'
+export EXPECTED_EXECUTOR=0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
+
+node scripts/factory-inventory.js reconcile --network mainnet --rpc-url "$RPC_URL"
+bash script/deploy/v2-5/retirement/01-generate-plan.sh
+```
+
+Review every retirement target. The current rehearsal inventory produced one superseded factory, so its plan contained two calls in order: `removeControllerFactory(address)` and then `removeController(address)`. The count is state-dependent and must be reviewed again at release time. No market is removed.
+
+Read the Safe nonce again and package retirement independently:
+
+```bash
+RETIREMENT_SAFE_NONCE='<current on-chain Safe nonce>'
+node scripts/plan.js bundle \
+  --plan deployments/mainnet/plan-v2-5-retirement.json \
+  --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae \
+  --start-nonce "$RETIREMENT_SAFE_NONCE"
+
+node scripts/plan.js bundle-simulate \
+  --plan deployments/mainnet/plan-v2-5-retirement.json \
+  --bundles deployments/mainnet/bundles-v2-5-retirement \
+  --rpc '<pinned mainnet fork RPC>' \
+  --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
+
+node scripts/plan.js ceremony-package \
+  --plan deployments/mainnet/plan-v2-5-retirement.json \
+  --mode safe \
+  --bundles deployments/mainnet/bundles-v2-5-retirement
+```
+
+The rehearsed two-call retirement fits into one Safe bundle and used 94,042 gas. Run it as a separate signer session. Each threshold signer approves once. After execution, derive or export `run-state-v2-5-retirement.json`, verify it, and finalize:
+
+```bash
+export RUN_STATE=deployments/mainnet/run-state-v2-5-retirement.json
+RPC_URL="$RPC_URL" bash script/deploy/v2-5/retirement/02-finalize-inventory.sh
+node scripts/factory-inventory.js reconcile --network mainnet --rpc-url "$RPC_URL"
+```
+
+Across the current activation and retirement shapes, the Foundation handles four Safe transactions. If the same three signers approve all four, that is four approvals per signer and 12 signatures total.
 
 ## 5. Fork rehearsal
 
@@ -503,16 +480,15 @@ Every fork rehearsal must preserve these invariants:
   the copied inventory identity to network `anvil`, chain ID `31337`;
 - generate the plan from the source revision under review with
   `FOUNDRY_PROFILE=deploy` rather than reusing generated output;
-- for the Sepolia-shaped UI path, authorize a disposable Anvil EOA in the
-  helper and keep reclaim/restore as the first and final cards;
-- require six template registrations, paired removal of both roles for all
-  seven reconciled superseded factories, and no market removal;
-- finalize only from the unedited, independently verified run-state;
+- for the Sepolia-shaped UI path, authorize a disposable Anvil EOA in the helper and keep reclaim and return as the first and final cards of each ceremony;
+- require 15 activation deployments, six template registrations, two new factory registrations, and no factory or market removal;
+- finalize activation only from its unedited, independently verified run-state, then generate retirement from the resulting reconciled inventory;
+- require each retirement target to lose its controller-factory role before its controller role, with no market removal;
+- finalize retirement only from its own unedited, independently verified run-state;
 - treat browser progress as stored but unverified until the connected chain
   rechecks receipts and predicates; only Anvil packages expose the destructive
   new-rehearsal reset;
-- keep historical indexing flags while marking superseded factories
-  unregistered; and
+- keep historical indexing flags while marking retired factories unregistered; and
 - preserve exact logs/artifacts and kill only the Anvil PID owned by the run.
 
 For a mainnet fork, the Foundation Safe/bundle path has separate nonce,
@@ -525,10 +501,7 @@ On mainnet forks, deploy a mock asset before the canary because mainnet
 1. Write the factory contract and its interface. Define the market init-code
    artifact, constructor inputs, registration predicates, and market-specific ABI
    surface.
-2. Copy the 01/02 script shape. Give every plan entry a unique dot-free ID,
-   ordered sequence, output, envelope, dependency, description, and on-chain
-   predicate. Emit one pending init-code-storage record and one pending factory
-   record.
+2. Copy the 01/02 script shape. Give every plan entry a unique dot-free ID, ordered sequence, output, envelope, dependency, description, and on-chain predicate. Emit one pending init-code-storage record when creation code fits a single EIP-170 payload. Use the reviewed two-part storage pattern when it does not. Emit one pending factory record with every storage address needed to reconstruct the exact creation code.
 3. Add the market type to inventory validation. Append the factory record. Move
    one canonical pointer for that market type; keep older live generations and
    retired exclusions.
@@ -537,20 +510,13 @@ On mainnet forks, deploy a mock asset before the canary because mainnet
    new factory.
 5. Add the factory artifact, market artifact, ABI delta, indexing policy, and
    routing rule to `scripts/generate-handoff.js`.
-6. Rehearse 01→09 on both target-network forks. Require plan validation, all
-   predicates, receipt-derived start blocks, inventory validation, lint,
-   reconcile, canary closure, handoff generation, and handoff `--check`.
+6. Rehearse activation and retirement on both target-network forks. Require plan validation, all predicates, receipt-derived start blocks, inventory validation, lint, reconciliation, canary closure, handoff generation, and handoff `--check`.
 
 Do not add a deployment framework. Extend the numbered release pattern.
 
 ## 7. Sepolia temporary-owner flow
 
-`deployments/sepolia/ceremony-config.json` makes the existing
-`MockArchControllerOwner` reclaim → act → return sequence part of the generated
-plan. Do not reclaim ownership before opening the release site. The first card
-calls `returnOwnership()`, and the last card calls
-`transferOwnership(helper)`. Resume rechecks the temporary-owner predicate
-until that compensating final card is verified, then treats it as historical.
+`deployments/sepolia/ceremony-config.json` makes the existing `MockArchControllerOwner` reclaim, act, and return sequence part of every generated owner-action plan. Activation and retirement each reclaim and return independently. Do not leave the developer EOA holding ownership between them. The first card calls `returnOwnership()`, and the last card calls `transferOwnership(helper)`. Resume rechecks the temporary-owner predicate until that compensating final card is verified, then treats it as historical.
 
 Before starting, resolve the helper and operator key and confirm the EOA is
 authorized by the helper:
@@ -577,4 +543,4 @@ cast send "$ARCH_CONTROLLER" \
 cast call "$ARCH_CONTROLLER" "owner()(address)" --rpc-url "$RPC_URL"
 ```
 
-Delay the return only for an explicit follow-up owner action.
+Do not delay the return for a possible retirement. Retirement has its own reclaim and return sequence.

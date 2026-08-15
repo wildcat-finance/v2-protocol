@@ -9,14 +9,11 @@ plan="deployments/${DEPLOYMENTS_NETWORK}/plan-${release}.json"
 
 node scripts/plan.js assemble --network "$DEPLOYMENTS_NETWORK" --release "$release"
 node scripts/plan.js validate --plan "$plan"
+node scripts/factory-inventory.js validate-activation-plan \
+  --network "$DEPLOYMENTS_NETWORK" \
+  --plan "$plan"
 node - "$plan" <<'NODE'
 const fs = require("fs");
-const path = require("path");
-const {
-  assertFactoryDeactivationPlan,
-  getFactoryDeactivationTargets,
-  readInventory,
-} = require("./scripts/factory-inventory");
 
 const planPath = process.argv[2];
 const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
@@ -63,33 +60,8 @@ for (const [id, [factory, storage, name]] of expected) {
 }
 
 console.log("Template matrix valid: 6 registrations across 2 factories");
-
-const inventory = readInventory(
-  path.join("deployments", plan.network, "factory-inventory.json"),
-);
-const deployments = JSON.parse(
-  fs.readFileSync(
-    path.join("deployments", plan.network, "deployments.json"),
-    "utf8",
-  ),
-);
-const excludedAddresses = [
-  deployments[`HooksFactory_${plan.release}`],
-  deployments[`HooksFactoryRevolving_${plan.release}`],
-].filter((address) => typeof address === "string");
-const deactivationTargets = getFactoryDeactivationTargets(
-  inventory,
-  excludedAddresses,
-);
-assertFactoryDeactivationPlan(
-  plan,
-  deactivationTargets,
-  deployments.WildcatArchController,
-);
-console.log(
-  `Factory deactivation matrix valid: ${deactivationTargets.length} superseded factories, ${deactivationTargets.length * 2} removals`,
-);
 NODE
+# shellcheck disable=SC2016
 node -e '
 const plan = require("./" + process.argv[1]);
 const deploys = plan.transactions.filter((entry) => entry.kind === "deploy").length;

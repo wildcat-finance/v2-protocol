@@ -39,6 +39,7 @@ const NETWORK_CHAIN_IDS = {
 function printUsage() {
   console.log(`Usage:
   node scripts/plan.js assemble --network <name> --release <tag>
+    [--entries <directory-name>]
   node scripts/plan.js validate --plan <path>
   node scripts/plan.js execute --plan <path> --rpc <url>
     [--private-key <key> | --impersonate <address>] [--yes]
@@ -53,13 +54,13 @@ function printUsage() {
   node scripts/plan.js ceremony-package --plan <path> --mode <eoa|safe>
     [--bundles <dir>] [--out <path>]
 
-assemble reads deployments/<network>/plan-entries/*.json and writes
+assemble reads deployments/<network>/<entries>/*.json and writes
 deployments/<network>/plan-<release>.json.
 `);
 }
 
 const KNOWN_FLAGS = {
-  assemble: ["network", "release"],
+  assemble: ["network", "release", "entries"],
   validate: ["plan"],
   execute: ["plan", "rpc", "private-key", "impersonate", "yes"],
   verify: ["plan", "run-state", "rpc"],
@@ -1062,11 +1063,17 @@ function assemblePlan(args) {
   if (!SAFE_ID_REGEX.test(network) || !SAFE_ID_REGEX.test(release)) {
     throw new Error("Network and release must not contain dots.");
   }
+  const entriesName = args.entries || "plan-entries";
+  if (!/^[A-Za-z0-9_-]+$/.test(entriesName)) {
+    throw new Error(
+      "Plan entries directory must contain only letters, digits, dashes, and underscores."
+    );
+  }
   const entriesDirectory = path.join(
     REPO_ROOT,
     "deployments",
     network,
-    "plan-entries"
+    entriesName
   );
   if (!fs.existsSync(entriesDirectory)) {
     throw new Error(`Plan entries directory not found: ${entriesDirectory}`);

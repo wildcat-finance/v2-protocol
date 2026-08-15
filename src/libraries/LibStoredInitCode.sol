@@ -42,6 +42,27 @@ library LibStoredInitCode {
     }
   }
 
+  function deployInitCodeInTwoParts(
+    bytes memory data
+  ) internal returns (address initCodeStorage, address initCodeStorage2) {
+    uint256 size = data.length;
+    uint256 firstPartSize = (size + 1) / 2;
+    bytes memory secondPart = new bytes(size - firstPartSize);
+    assembly ('memory-safe') {
+      mcopy(
+        add(secondPart, 0x20),
+        add(add(data, 0x20), firstPartSize),
+        mload(secondPart)
+      )
+      mstore(data, firstPartSize)
+    }
+    initCodeStorage = deployInitCode(data);
+    assembly ('memory-safe') {
+      mstore(data, size)
+    }
+    initCodeStorage2 = deployInitCode(secondPart);
+  }
+
   /**
    * @dev Returns the create2 prefix for a given deployer address.
    *      Equivalent to `uint256(uint160(deployer)) | (0xff << 160)`
@@ -103,6 +124,25 @@ library LibStoredInitCode {
     bytes32 salt
   ) internal returns (address deployment) {
     deployment = create2WithStoredInitCode(initCodeStorage, salt, 0);
+  }
+
+  function create2WithStoredInitCode(
+    address initCodeStorage,
+    address initCodeStorage2,
+    bytes32 salt
+  ) internal returns (address deployment) {
+    assembly {
+      let initCodePointer := mload(0x40)
+      let initCodeSize := sub(extcodesize(initCodeStorage), 1)
+      let initCodeSize2 := sub(extcodesize(initCodeStorage2), 1)
+      extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
+      extcodecopy(initCodeStorage2, add(initCodePointer, initCodeSize), 1, initCodeSize2)
+      deployment := create2(0, initCodePointer, add(initCodeSize, initCodeSize2), salt)
+      if iszero(deployment) {
+        mstore(0x00, 0x30116425) // DeploymentFailed()
+        revert(0x1c, 0x04)
+      }
+    }
   }
 
   function create2WithStoredInitCode(

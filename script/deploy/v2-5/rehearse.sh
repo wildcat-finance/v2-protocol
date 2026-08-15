@@ -12,8 +12,8 @@
 # (steps 01-07), then leave anvil RUNNING and print how to drive the plan
 # from deploy-ui (EOA mode) or the CLI.
 #
-# --full: additionally execute the plan (impersonated owner), finalize
-# inventory (08), and verify — the headless end-to-end rehearsal.
+# --full: execute and verify activation, then generate, execute, and verify
+# the separate retirement ceremony. This is the headless end-to-end rehearsal.
 #
 # --resume: restart a crashed Anvil process from the periodically persisted
 # state without reseeding deployments/anvil or regenerating the plan.
@@ -146,6 +146,24 @@ assert_anvil_alive() {
     tail -40 "$ANVIL_LOG_FILE" >&2
     exit 1
   fi
+}
+
+assert_helper_owns_arch_controller() {
+  if [[ "$FORK_NETWORK" != "sepolia" ]]; then
+    return
+  fi
+  local helper current_owner normalized_helper normalized_owner
+  helper="$(python3 -c "import json;print(json.load(open('deployments/anvil/deployments.json'))['MockArchControllerOwner'])")"
+  current_owner="$(cast call "$AC" 'owner()(address)' --rpc-url "$RPC")"
+  normalized_helper="$(printf '%s' "$helper" | tr '[:upper:]' '[:lower:]')"
+  normalized_owner="$(printf '%s' "$current_owner" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$normalized_owner" != "$normalized_helper" ]]; then
+    echo "ArchController ownership was not restored to the Sepolia helper" >&2
+    echo "Expected: $helper" >&2
+    echo "Actual:   $current_owner" >&2
+    exit 1
+  fi
+  echo "== ArchController ownership restored to the Sepolia helper"
 }
 
 wait_for_anvil() {
@@ -287,15 +305,30 @@ assert_anvil_alive
 
 PLAN="deployments/anvil/plan-${RELEASE_TAG}.json"
 PACKAGE="$PWD/deployments/anvil/ceremony-${RELEASE_TAG}-eoa.json"
+RETIREMENT_PLAN="deployments/anvil/plan-${RELEASE_TAG}-retirement.json"
+RETIREMENT_PACKAGE="$PWD/deployments/anvil/ceremony-${RELEASE_TAG}-retirement-eoa.json"
 
 if [[ "$RUN_MODE" == "--full" ]]; then
-  echo "== --full: executing plan as impersonated owner"
+  echo "== --full: executing activation plan as impersonated owner"
   node scripts/plan.js execute --plan "$PLAN" --rpc "$RPC" \
     --impersonate "$EXECUTOR" --yes | tail -2
   RUN_STATE="deployments/anvil/run-state-${RELEASE_TAG}.json" RPC_URL="$RPC" \
     bash script/deploy/v2-5/08-finalize-inventory.sh | tail -3
   node scripts/plan.js verify --plan "$PLAN" \
     --run-state "deployments/anvil/run-state-${RELEASE_TAG}.json" --rpc "$RPC" | tail -1
+  assert_helper_owns_arch_controller
+
+  echo "== --full: generating the separate retirement plan"
+  bash script/deploy/v2-5/retirement/01-generate-plan.sh
+  RETIREMENT_RUN_STATE="deployments/anvil/run-state-${RELEASE_TAG}-retirement.json"
+  echo "== --full: executing retirement plan as impersonated owner"
+  node scripts/plan.js execute --plan "$RETIREMENT_PLAN" --rpc "$RPC" \
+    --impersonate "$EXECUTOR" --yes | tail -2
+  RUN_STATE="$RETIREMENT_RUN_STATE" RPC_URL="$RPC" \
+    bash script/deploy/v2-5/retirement/02-finalize-inventory.sh | tail -3
+  node scripts/plan.js verify --plan "$RETIREMENT_PLAN" \
+    --run-state "$RETIREMENT_RUN_STATE" --rpc "$RPC" | tail -1
+  assert_helper_owns_arch_controller
   kill "$ANVIL_PID" 2>/dev/null || true
   wait "$ANVIL_PID" 2>/dev/null || true
   echo "== Full rehearsal complete. Clean up with: rm -rf deployments/anvil"
@@ -303,7 +336,7 @@ if [[ "$RUN_MODE" == "--full" ]]; then
 fi
 
 FUNDED_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-KEY_NOTE="(anvil account #1 — matches the default test executor)"
+KEY_NOTE="(anvil account #1, which matches the default test executor)"
 if [[ -n "${TEST_ACCOUNT:-}" ]]; then
   FUNDED_KEY="<the private key for ${EXECUTOR}>"
   KEY_NOTE=""
@@ -328,6 +361,16 @@ Drive it from the frontend (EOA mode):
   5. Export run-state, then:
        RUN_STATE=<exported file> RPC_URL=${RPC} \\
          bash script/deploy/v2-5/08-finalize-inventory.sh
+
+Validate the new deployment before retiring anything. When it is accepted:
+  1. EXPECTED_EXECUTOR=${EXECUTOR} \\
+      bash script/deploy/v2-5/retirement/01-generate-plan.sh
+  2. node scripts/plan.js ceremony-package --plan ${RETIREMENT_PLAN} \\
+      --mode eoa --out ${RETIREMENT_PACKAGE}
+  3. Rebuild deploy-ui with CEREMONY_PACKAGE=${RETIREMENT_PACKAGE}.
+  4. Walk the retirement cards and export their separate run-state.
+  5. RUN_STATE=<retirement run-state> RPC_URL=${RPC} \\
+      bash script/deploy/v2-5/retirement/02-finalize-inventory.sh
 
 Or headless: rerun with --full.
 After an Anvil crash: rerun with --resume; do not run fresh setup first.

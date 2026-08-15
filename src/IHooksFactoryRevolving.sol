@@ -21,6 +21,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
 
   function marketInitCodeStorage() external view returns (address);
 
+  function marketInitCodeStorage2() external view returns (address);
+
   function marketInitCodeHash() external view returns (uint256);
 
   /// @dev Set-up function to register the factory as a controller with the arch-controller.

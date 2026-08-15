@@ -4,7 +4,6 @@ pragma solidity >=0.8.20;
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
-import '../interfaces/IBorrowerIdentityRegistry.sol';
 import '../interfaces/IWildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
@@ -75,27 +74,23 @@ contract WildcatMarketBase is
   /// @dev Registry that resolves borrower accounts to registered principals.
   address public immutable borrowerIdentityRegistry;
 
-  /// @dev Namespaced slot for the operational borrower. This keeps borrower
-  ///      transfers from shifting the existing market storage layout.
-  bytes32 internal constant BORROWER_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.borrower')) - 1);
-
-  /// @dev Namespaced slot for the market's registered principal.
+  /// @dev Reserved slots for borrower transfer and wrapper state. These are
+  ///      the final five slots in the EVM storage range, from 2^256 - 1 through
+  ///      2^256 - 5. Solidity assigns ordinary market storage from zero upward,
+  ///      so slots 0 through 10 keep their established layout and future market
+  ///      types can keep extending that layout without reaching this range.
+  ///
+  ///      Mappings and dynamic arrays derive their element slots with keccak256.
+  ///      Their chance of landing on one of these slots is the same negligible
+  ///      256-bit collision risk as an ordinary namespaced storage slot. Other
+  ///      manual storage must not use this five-slot range.
+  bytes32 internal constant BORROWER_STORAGE_SLOT = bytes32(type(uint256).max);
   bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.borrowerPrincipal')) - 1);
-
-  /// @dev Namespaced slot for the pending borrower.
-  bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.pendingBorrower')) - 1);
-
-  /// @dev Namespaced slot for the principal resolved when a transfer is requested.
+    bytes32(type(uint256).max - 1);
+  bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT = bytes32(type(uint256).max - 2);
   bytes32 internal constant PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.pendingBorrowerPrincipal')) - 1);
-
-  /// @dev Namespaced slot for the optional canonical wrapper. Using an
-  ///      unstructured slot preserves the established market storage layout.
-  bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT =
-    bytes32(uint256(keccak256('wildcat.market.registeredWrapper')) - 1);
+    bytes32(type(uint256).max - 3);
+  bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT = bytes32(type(uint256).max - 4);
 
   /// @dev ABI-encoded size of `MarketParameters`, which has 22 static fields.
   uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2c0;
@@ -289,24 +284,50 @@ contract WildcatMarketBase is
     _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, parameters.borrowerPrincipal);
     feeRecipient = parameters.feeRecipient;
     wrapperFactory = parameters.wrapperFactory;
-    borrowerIdentityRegistry = parameters.borrowerIdentityRegistry;
+    address identityRegistry = parameters.borrowerIdentityRegistry;
+    borrowerIdentityRegistry = identityRegistry;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
     delinquencyGracePeriod = parameters.delinquencyGracePeriod;
     withdrawalBatchDuration = parameters.withdrawalBatchDuration;
-    _archController = parameters.archController;
-    (bool registryCallSucceeded, bytes memory registryResult) = borrowerIdentityRegistry.staticcall(
-      abi.encodeCall(IBorrowerIdentityRegistry.archController, ())
-    );
-    if (
-      !registryCallSucceeded ||
-      registryResult.length != 0x20 ||
-      abi.decode(registryResult, (address)) != _archController
-    ) {
-      revert InvalidBorrowerIdentityRegistry();
+    address archController_ = parameters.archController;
+    _archController = archController_;
+    assembly {
+      // `staticcall` takes raw memory offsets, not Solidity arguments. This
+      // four-byte selector literal has 28 leading zero bytes in the word written
+      // at 0x00. Starting the calldata at 0x1c skips that padding, leaving exactly
+      // `archController()` as the four-byte input.
+      mstore(0, 0x54635570) // archController()
+
+      // The last two arguments tell the EVM to copy up to one return word into
+      // memory at 0x00. `staticcall` itself returns 1 on success and 0 on failure.
+      let validRegistry := staticcall(gas(), identityRegistry, 0x1c, 0x04, 0, 0x20)
+
+      // A valid address return is exactly one ABI word. Both operands below are
+      // already 0 or 1, so this bitwise `and` is also a logical AND.
+      validRegistry := and(validRegistry, eq(returndatasize(), 0x20))
+      if validRegistry {
+        // The call copied its return word over the selector at 0x00. An address
+        // occupies the low 160 bits of that word. If any of the upper 96 bits are
+        // set, the registry returned malformed ABI data and we must not truncate it.
+        let registryArchController := mload(0)
+        if shr(160, registryArchController) {
+          revert(0, 0)
+        }
+
+        // At this point the word is a clean address. The registry is only valid
+        // for this market if it points at the same ArchController the factory supplied.
+        validRegistry := eq(registryArchController, archController_)
+      }
+      if iszero(validRegistry) {
+        // This uses the same compact custom-error layout as MarketErrors.sol:
+        // selector in the last four bytes of a word, then return only those bytes.
+        mstore(0, 0x41d9e607) // InvalidBorrowerIdentityRegistry()
+        revert(0x1c, 0x04)
+      }
     }
     if (
       parameters.borrowerPrincipal == address(0) ||
-      !IWildcatArchController(_archController).isRegisteredBorrower(parameters.borrowerPrincipal)
+      !IWildcatArchController(archController_).isRegisteredBorrower(parameters.borrowerPrincipal)
     ) {
       revert BorrowerPrincipalNotRegistered();
     }
@@ -334,52 +355,119 @@ contract WildcatMarketBase is
   //                         Borrower Transfer                             //
   // ===================================================================== //
 
+  function _flaggedBorrowerIdentity(
+    address operationalBorrower,
+    address principal
+  ) internal view returns (address flaggedIdentity) {
+    if (_isFlaggedByChainalysis(operationalBorrower)) return operationalBorrower;
+    if (principal != operationalBorrower && _isFlaggedByChainalysis(principal)) return principal;
+  }
+
+  function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
+    address flaggedIdentity = _flaggedBorrowerIdentity(operationalBorrower, principal);
+    if (flaggedIdentity != address(0)) {
+      revert_BorrowerTransferWhileSanctioned(flaggedIdentity);
+    }
+  }
+
   function _validateBorrowerTransferTarget(
     address newBorrower,
     address expectedPrincipal
   ) internal view returns (address newBorrowerPrincipal) {
-    address currentBorrower = borrower();
-    if (newBorrower == address(0)) revert InvalidBorrowerTransferTarget();
+    address currentBorrower;
+    address currentBorrowerPrincipal;
+    bytes32 borrowerSlot = BORROWER_STORAGE_SLOT;
+    bytes32 borrowerPrincipalSlot = BORROWER_PRINCIPAL_STORAGE_SLOT;
+    address identityRegistry = borrowerIdentityRegistry;
+    assembly {
+      // The borrower fields use reserved storage slots rather than ordinary
+      // Solidity state variables. `sload` reads the whole 32-byte slot; the
+      // stored address is the low 160 bits and is assigned cleanly to the
+      // Solidity address variable.
+      currentBorrower := sload(borrowerSlot)
+      if iszero(newBorrower) {
+        // InvalidBorrowerTransferTarget() has no arguments, so its revert data
+        // is just the four-byte selector at the end of this scratch word.
+        mstore(0, 0x5176bd60)
+        revert(0x1c, 0x04)
+      }
 
-    newBorrowerPrincipal = IBorrowerIdentityRegistry(borrowerIdentityRegistry).resolveBorrower(
-      newBorrower
-    );
+      // Build `resolveBorrower(newBorrower)` directly in scratch memory. The
+      // selector occupies the last four bytes of the word at 0x00 and the address
+      // occupies the word at 0x20. Reading from 0x1c for 0x24 bytes gives the call
+      // its four-byte selector followed by one complete ABI argument.
+      mstore(0, 0xa111a9e8)
+      mstore(0x20, newBorrower)
 
-    address currentBorrowerPrincipal = borrowerPrincipal();
-    if (expectedPrincipal != address(0) && newBorrowerPrincipal != expectedPrincipal) {
-      revert PendingBorrowerPrincipalChanged(expectedPrincipal, newBorrowerPrincipal);
+      // Ask the registry to resolve the operational address without allowing it
+      // to change state. The first 32 bytes of a successful return are copied
+      // back to 0x00, replacing the selector because we no longer need it.
+      if iszero(staticcall(gas(), identityRegistry, 0x1c, 0x24, 0, 0x20)) {
+        // If the registry explains why it failed, preserve that exact error.
+        // `returndatacopy` moves every returned byte into scratch memory and the
+        // following revert sends the same bytes back to our caller.
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+
+      // Solidity needs at least one full word to decode an address. It also
+      // rejects dirty upper bits instead of silently truncating them, so perform
+      // both checks before treating the return word as a principal.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      newBorrowerPrincipal := mload(0)
+      if shr(160, newBorrowerPrincipal) {
+        revert(0, 0)
+      }
+
+      currentBorrowerPrincipal := sload(borrowerPrincipalSlot)
+
+      // Requests pass zero here because there is no earlier resolution to bind.
+      // Acceptance passes the principal stored with the pending transfer. Yul
+      // treats any nonzero word as true, so this outer check is the readable way
+      // to distinguish those paths without confusing bitwise AND with boolean AND.
+      if expectedPrincipal {
+        // `xor(a, b)` is zero only when every bit is identical. Any nonzero
+        // result means the account changed principals while acceptance was pending.
+        if xor(newBorrowerPrincipal, expectedPrincipal) {
+          // PendingBorrowerPrincipalChanged(address,address) is the four-byte
+          // selector followed by the expected and current principal words.
+          mstore(0, 0xe1357b3c)
+          mstore(0x20, expectedPrincipal)
+          mstore(0x40, newBorrowerPrincipal)
+          revert(0x1c, 0x44)
+        }
+      }
+
+      // Re-requesting the same operational borrower is valid when its principal
+      // changed, but an exact borrower/principal no-op is not. Unlike raw
+      // addresses, each `eq` returns exactly 0 or 1, so `and` is safe here as a
+      // logical AND.
+      if and(
+        eq(newBorrower, currentBorrower),
+        eq(newBorrowerPrincipal, currentBorrowerPrincipal)
+      ) {
+        mstore(0, 0x5176bd60)
+        revert(0x1c, 0x04)
+      }
     }
-    if (
-      newBorrower == currentBorrower && newBorrowerPrincipal == currentBorrowerPrincipal
-    ) {
-      revert InvalidBorrowerTransferTarget();
-    }
-    if (_isFlaggedByChainalysis(currentBorrower)) {
-      revert BorrowerTransferWhileSanctioned(currentBorrower);
-    }
-    if (
-      currentBorrowerPrincipal != currentBorrower &&
-      _isFlaggedByChainalysis(currentBorrowerPrincipal)
-    ) {
-      revert BorrowerTransferWhileSanctioned(currentBorrowerPrincipal);
-    }
-    if (_isFlaggedByChainalysis(newBorrower)) {
-      revert BorrowerTransferWhileSanctioned(newBorrower);
-    }
-    if (newBorrowerPrincipal != newBorrower && _isFlaggedByChainalysis(newBorrowerPrincipal)) {
-      revert BorrowerTransferWhileSanctioned(newBorrowerPrincipal);
-    }
+    _checkBorrowerNotSanctioned(currentBorrower, currentBorrowerPrincipal);
+    _checkBorrowerNotSanctioned(newBorrower, newBorrowerPrincipal);
   }
 
   function requestBorrowerTransfer(
     address newBorrower
   ) external onlyBorrower nonReentrant sphereXGuardExternal {
-    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower, address(0));
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(
+      newBorrower,
+      _runtimeConstant(address(0))
+    );
     address previousPendingBorrower = pendingBorrower();
     address previousPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, newBorrower);
     _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
-    emit BorrowerTransferRequested(
+    emit_BorrowerTransferRequested(
       msg.sender,
       previousPendingBorrower,
       newBorrower,
@@ -391,11 +479,11 @@ contract WildcatMarketBase is
 
   function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
     address cancelledPendingBorrower = pendingBorrower();
-    if (cancelledPendingBorrower == address(0)) revert NoPendingBorrowerTransfer();
+    if (cancelledPendingBorrower == address(0)) revert_NoPendingBorrowerTransfer();
     address cancelledPendingBorrowerPrincipal = pendingBorrowerPrincipal();
     _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
     _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
-    emit BorrowerTransferCancelled(
+    emit_BorrowerTransferCancelled(
       msg.sender,
       cancelledPendingBorrower,
       borrowerPrincipal(),
@@ -405,7 +493,7 @@ contract WildcatMarketBase is
 
   function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
     address newBorrower = pendingBorrower();
-    if (msg.sender != newBorrower) revert NotPendingBorrower();
+    if (msg.sender != newBorrower) revert_NotPendingBorrower();
 
     address expectedPrincipal = pendingBorrowerPrincipal();
     address newBorrowerPrincipal = _validateBorrowerTransferTarget(
@@ -420,7 +508,7 @@ contract WildcatMarketBase is
     _setAddress(BORROWER_STORAGE_SLOT, newBorrower);
     _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
 
-    emit BorrowerTransferred(
+    emit_BorrowerTransferred(
       previousBorrower,
       newBorrower,
       previousBorrowerPrincipal,

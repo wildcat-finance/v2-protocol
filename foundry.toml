@@ -45,8 +45,7 @@ lint_on_build = false
 via_ir=true
 out='ir-out'
 cache_path='ir-cache'
-# optimizer_runs=4_294_967_295
-optimizer_runs=50_000
+optimizer_runs=44
 optimizer=true
 extra_output_files=["irOptimized", "ir"]
 bytecode_hash = 'none'
@@ -55,10 +54,11 @@ bytecode_hash = 'none'
 via_ir=true
 out='deploy-out'
 cache_path='deploy-cache'
-optimizer_runs=200
+optimizer_runs=44
 optimizer=true
 extra_output_files=["irOptimized", "ir"]
 bytecode_hash = 'none'
+cbor_metadata = false
 
 [profile.unoptimizedir]
 via_ir=true

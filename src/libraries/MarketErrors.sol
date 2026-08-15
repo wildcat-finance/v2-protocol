@@ -101,6 +101,42 @@ function revert_NotApprovedBorrower() pure {
   }
 }
 
+/// @dev Equivalent to `revert NoPendingBorrowerTransfer()`
+function revert_NoPendingBorrowerTransfer() pure {
+  assembly {
+    // `mstore` always writes a full 32-byte word. This four-byte selector literal
+    // has 28 leading zero bytes, so starting at 0x1c skips that padding and
+    // returns exactly the selector Solidity expects.
+    mstore(0, 0x6b1ac6e2)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev Equivalent to `revert NotPendingBorrower()`
+function revert_NotPendingBorrower() pure {
+  assembly {
+    // This is the ABI encoding for a custom error with no arguments. Write the
+    // selector as one word, skip its 28 bytes of left padding, and revert with
+    // the remaining four bytes.
+    mstore(0, 0x3505fe80)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev Equivalent to `revert BorrowerTransferWhileSanctioned(account)`
+function revert_BorrowerTransferWhileSanctioned(address account) pure {
+  assembly {
+    // A custom error uses the same basic ABI layout as a function call: four
+    // selector bytes followed by one 32-byte word for each argument. The
+    // selector occupies the last four bytes of the first word, and the address
+    // occupies the next ABI word.
+    mstore(0, 0xfe1f6916)
+    mstore(0x20, account)
+    // Start at byte 28 of the selector word and return 4 + 32 bytes.
+    revert(0x1c, 0x24)
+  }
+}
+
 uint256 constant NotApprovedLender_ErrorSelector = 0xe50a45ce;
 
 /// @dev Equivalent to `revert NotApprovedLender()`

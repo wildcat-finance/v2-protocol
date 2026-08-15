@@ -48,6 +48,7 @@ abstract contract DeployScriptBase is Script {
 
   uint256 internal constant ETHEREUM_MAINNET_CHAIN_ID = 1;
   uint256 internal constant DEFAULT_PLASMA_MAINNET_CHAIN_ID = 9745;
+  uint256 internal constant MAX_INIT_CODE_STORAGE_PAYLOAD_SIZE = 24_575;
 
   function _sameStrings(string memory a, string memory b) internal pure returns (bool) {
     return keccak256(bytes(a)) == keccak256(bytes(b));
@@ -230,6 +231,15 @@ abstract contract DeployScriptBase is Script {
     }
   }
 
+  function _requireInitCodeStoragePayloadFits(
+    bytes memory initCode,
+    string memory label
+  ) internal pure {
+    if (initCode.length > MAX_INIT_CODE_STORAGE_PAYLOAD_SIZE) {
+      revert(string.concat(label, ' exceeds the EIP-170 init-code storage limit'));
+    }
+  }
+
   function _verifyStoredInitCode(
     address deployment,
     string memory label,
@@ -305,6 +315,7 @@ abstract contract DeployScriptBase is Script {
     string memory artifactName,
     bytes memory initCode
   ) internal returns (address deployment, bool didDeploy) {
+    _requireInitCodeStoragePayloadFits(initCode, label);
     if (deployments.has(label)) {
       deployment = deployments.get(label);
       _verifyStoredInitCode(deployment, label, initCode);

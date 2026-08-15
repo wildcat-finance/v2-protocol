@@ -49,11 +49,13 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
 
   function _storeRevolvingMarketInitCode()
     internal
-    returns (address initCodeStorage, uint256 initCodeHash)
+    returns (address initCodeStorage, address initCodeStorage2, uint256 initCodeHash)
   {
     bytes memory marketInitCode = type(WildcatMarketRevolving).creationCode;
     initCodeHash = uint256(keccak256(marketInitCode));
-    initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
+    (initCodeStorage, initCodeStorage2) = LibStoredInitCode.deployInitCodeInTwoParts(
+      marketInitCode
+    );
   }
 
   function setUp() public override {
@@ -70,12 +72,17 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
       address(lensLive)
     );
 
-    (address marketTemplate, uint256 marketInitCodeHash) = _storeRevolvingMarketInitCode();
+    (
+      address marketTemplate,
+      address marketTemplate2,
+      uint256 marketInitCodeHash
+    ) = _storeRevolvingMarketInitCode();
     hooksFactoryRevolving = new HooksFactoryRevolving(
       address(archController),
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
+      marketTemplate2,
       marketInitCodeHash,
       address(borrowerIdentityRegistry)
     );

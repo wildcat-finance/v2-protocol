@@ -307,19 +307,24 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
   }
 
   function test_acceptBorrowerTransfer_BindsPendingAccountPrincipal() external {
+    // These values specifically catch a bitwise-AND implementation of the
+    // principal check: 0x1000 & (0x1000 ^ 0x3000) is zero even though the
+    // addresses are different.
+    address expectedPrincipal = address(0x1000);
+    address changedPrincipal = address(0x3000);
     address account = _deployAccount(borrower);
     _transferBorrower(borrower, account);
-    _transferAccountPrincipal(account, borrower, secondPrincipal);
+    _transferAccountPrincipal(account, borrower, expectedPrincipal);
     _requestTransfer(account, account);
 
-    _transferAccountPrincipal(account, secondPrincipal, thirdPrincipal);
+    _transferAccountPrincipal(account, expectedPrincipal, changedPrincipal);
 
     vm.prank(account);
     vm.expectRevert(
       abi.encodeWithSelector(
         IMarketEventsAndErrors.PendingBorrowerPrincipalChanged.selector,
-        secondPrincipal,
-        thirdPrincipal
+        expectedPrincipal,
+        changedPrincipal
       )
     );
     market.acceptBorrowerTransfer();
@@ -327,7 +332,7 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
     assertEq(market.borrower(), account);
     assertEq(market.borrowerPrincipal(), borrower);
     assertEq(market.pendingBorrower(), account);
-    assertEq(market.pendingBorrowerPrincipal(), secondPrincipal);
+    assertEq(market.pendingBorrowerPrincipal(), expectedPrincipal);
 
     vm.startPrank(account);
     market.cancelBorrowerTransfer();
@@ -336,7 +341,7 @@ contract WildcatMarketBorrowerTransferTest is BaseMarketTest {
     vm.stopPrank();
 
     assertEq(market.borrower(), account);
-    assertEq(market.borrowerPrincipal(), thirdPrincipal);
+    assertEq(market.borrowerPrincipal(), changedPrincipal);
   }
 
   function test_requestBorrowerTransfer_SameAccountRejectsSanctionedPreviousPrincipal() external {

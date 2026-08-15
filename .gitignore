@@ -29,9 +29,13 @@ deployments/*/rcf-template-sync-*.json
 deployments/*/rcf-v2-handoff*.json
 deployments/*/ceremony-evidence/
 deployments/*/ceremony-v2-5-*.json
+deployments/*/bundles-v2-5*/
 deployments/*/inventory-pending/
 deployments/*/plan-entries/
+deployments/*/retirement-plan-entries/
 deployments/*/plan-v2-5.json
+deployments/*/plan-v2-5-retirement.json
+deployments/*/run-state-v2-5*.json
 deployments/*/run-state-checkpoints/
 deployments/anvil/
 deployments/*/reconcile-report.json
