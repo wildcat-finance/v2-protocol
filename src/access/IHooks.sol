@@ -63,6 +63,7 @@ abstract contract IHooks {
   /// @dev Market hook called before executing a lender withdrawal.
   function onExecuteWithdrawal(
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData

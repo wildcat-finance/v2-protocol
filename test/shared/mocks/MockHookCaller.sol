@@ -25,8 +25,8 @@ contract MockHookCaller {
     hooks.onQueueWithdrawal(msg.sender, expiry, scaledAmount, state, 0x44);
   }
 
-  function executeWithdrawal(address lender, uint128 normalizedAmountWithdrawn) external {
-    hooks.onExecuteWithdrawal(lender, normalizedAmountWithdrawn, state, 0x44);
+  function executeWithdrawal(address lender, uint32 expiry, uint128 normalizedAmountWithdrawn) external {
+    hooks.onExecuteWithdrawal(lender, expiry, normalizedAmountWithdrawn, state, 0x64);
   }
 
   function transferFrom(address from, address to, uint scaledAmount) external {

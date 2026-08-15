@@ -206,7 +206,9 @@ contract HooksIntegrationTest is BaseMarketTest {
     }
     _callMarket(_calldata, abi.encode(1e18), 'executeWithdrawal');
 
-    if (!config.useOnExecuteWithdrawal) {
+    if (config.useOnExecuteWithdrawal) {
+      assertEq(MockHooks(address(hooks)).lastExecuteWithdrawalExpiry(), expiry);
+    } else {
       assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
     }
   }

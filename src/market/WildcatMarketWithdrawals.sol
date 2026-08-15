@@ -270,7 +270,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     if (normalizedAmountWithdrawn == 0) revert_NullWithdrawalAmount();
 
-    hooks.onExecuteWithdrawal(accountAddress, normalizedAmountWithdrawn, state, baseCalldataSize);
+    hooks.onExecuteWithdrawal(accountAddress, expiry, normalizedAmountWithdrawn, state, baseCalldataSize);
 
     status.normalizedAmountWithdrawn = newTotalWithdrawn;
     state.normalizedUnclaimedWithdrawals -= normalizedAmountWithdrawn;

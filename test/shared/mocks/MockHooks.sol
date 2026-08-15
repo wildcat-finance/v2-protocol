@@ -52,6 +52,7 @@ event OnSetProtocolFeeBipsCalled(
 );
 contract MockHooks is IHooks {
   bytes32 public lastCalldataHash;
+  uint32 public lastExecuteWithdrawalExpiry;
   address public deployer;
   bytes public constructorArgs;
   bytes32 public immutable constructorArgsHash;
@@ -83,6 +84,7 @@ contract MockHooks is IHooks {
 
   function reset() external {
     lastCalldataHash = 0;
+    lastExecuteWithdrawalExpiry = 0;
     DeployMarketInputs memory inputs;
     _lastDeployMarketInputs = inputs;
     lastCreateMarketHooksData = '';
@@ -174,11 +176,13 @@ contract MockHooks is IHooks {
 
   function onExecuteWithdrawal(
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
+    lastExecuteWithdrawalExpiry = expiry;
     emit OnExecuteWithdrawalCalled(lender, normalizedAmountWithdrawn, intermediateState, extraData);
   }
 

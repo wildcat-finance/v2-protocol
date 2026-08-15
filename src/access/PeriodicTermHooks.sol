@@ -590,6 +590,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
    */
   function onExecuteWithdrawal(
     address /* lender */,
+    uint32 /* expiry */,
     uint128 /* normalizedAmountWithdrawn */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
