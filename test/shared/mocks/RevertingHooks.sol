@@ -53,6 +53,7 @@ contract RevertingHooks is MockHooks {
 
   function onExecuteWithdrawal(
     address lender,
+    uint32,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData

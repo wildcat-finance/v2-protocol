@@ -850,7 +850,7 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     _createMarket();
     MarketState memory state;
     vm.prank(Market);
-    hooks.onExecuteWithdrawal(Lender, 1, state, '');
+    hooks.onExecuteWithdrawal(Lender, 0, 1, state, '');
   }
 
   function test_onCloseMarket_OpensWithdrawals() external {

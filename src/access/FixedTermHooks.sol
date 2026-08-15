@@ -397,6 +397,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
    */
   function onExecuteWithdrawal(
     address lender,
+    uint32 /* expiry */,
     uint128 /* normalizedAmountWithdrawn */,
     MarketState calldata /* state */,
     bytes calldata hooksData

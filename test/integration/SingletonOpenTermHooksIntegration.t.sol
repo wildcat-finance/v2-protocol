@@ -145,6 +145,26 @@ contract SingletonOpenTermHooksIntegrationTest is Test {
     );
   }
 
+  function test_marketCanOptIntoCloseHookDispatch() external {
+    DeployMarketInputs memory inputs = _marketInputs(true, true);
+    inputs.hooks = inputs.hooks.setFlag(Bit_Enabled_CloseMarket);
+    bytes32 marketSalt = bytes32((uint256(uint160(address(this))) << 96) | uint256(11));
+    (address marketAddress, ) = hooksFactory.deployMarketAndHooks(
+      singletonTemplate,
+      _constructorArgs(),
+      inputs,
+      abi.encode(uint128(0), false),
+      marketSalt,
+      address(0),
+      0
+    );
+
+    WildcatMarket market = WildcatMarket(marketAddress);
+    assertTrue(market.hooks().useOnCloseMarket(), 'close hook enabled');
+    market.closeMarket();
+    assertTrue(market.currentState().isClosed, 'market closed');
+  }
+
   function test_canonicalWrapperCanReceiveAndReturnSingletonPosition() external {
     bytes32 marketSalt = bytes32((uint256(uint160(address(this))) << 96) | uint256(10));
     (address marketAddress, ) = hooksFactory.deployMarketAndHooks(

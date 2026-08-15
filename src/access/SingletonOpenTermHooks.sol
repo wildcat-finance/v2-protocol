@@ -41,7 +41,7 @@ contract SingletonOpenTermHooks is OpenTermHooks {
     _sealRoleProviderConfiguration();
   }
 
-  function version() external pure override returns (string memory) {
+  function version() external pure virtual override returns (string memory) {
     return 'SingletonOpenTermHooks';
   }
 
@@ -50,7 +50,7 @@ contract SingletonOpenTermHooks is OpenTermHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal override returns (HooksConfig marketHooksConfig) {
+  ) internal virtual override returns (HooksConfig marketHooksConfig) {
     if (!parameters.hooks.useOnDeposit()) revert DepositAccessRequired();
     if (!parameters.hooks.useOnTransfer()) revert TransferHookRequired();
     if (hooksData.length != 64) revert InvalidMarketHooksData();

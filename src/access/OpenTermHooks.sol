@@ -82,7 +82,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
       useOnTransfer: true,
       useOnBorrow: false,
       useOnRepay: false,
-      useOnCloseMarket: false,
+      useOnCloseMarket: true,
       useOnNukeFromOrbit: false,
       useOnSetMaxTotalSupply: false,
       useOnSetAnnualInterestAndReserveRatioBips: false,
@@ -313,10 +313,11 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
    */
   function onExecuteWithdrawal(
     address lender,
+    uint32 /* expiry */,
     uint128 /* normalizedAmountWithdrawn */,
     MarketState calldata /* state */,
     bytes calldata hooksData
-  ) external override {}
+  ) external virtual override {}
 
   /// @dev Hook-specific transfer recipient exemption. OpenTermHooks has no
   ///      exemptions; specialized sealed hooks may override this for protocol
@@ -400,7 +401,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   function onCloseMarket(
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
-  ) external override {}
+  ) external virtual override {}
 
   /**
    * @dev Hook not implemented for this contract.
