@@ -4,7 +4,6 @@ pragma solidity >=0.8.20;
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
-import '../interfaces/IBorrowerIdentityRegistry.sol';
 import '../interfaces/IWildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
@@ -289,24 +288,34 @@ contract WildcatMarketBase is
     _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, parameters.borrowerPrincipal);
     feeRecipient = parameters.feeRecipient;
     wrapperFactory = parameters.wrapperFactory;
-    borrowerIdentityRegistry = parameters.borrowerIdentityRegistry;
+    address identityRegistry = parameters.borrowerIdentityRegistry;
+    borrowerIdentityRegistry = identityRegistry;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
     delinquencyGracePeriod = parameters.delinquencyGracePeriod;
     withdrawalBatchDuration = parameters.withdrawalBatchDuration;
-    _archController = parameters.archController;
-    (bool registryCallSucceeded, bytes memory registryResult) = borrowerIdentityRegistry.staticcall(
-      abi.encodeCall(IBorrowerIdentityRegistry.archController, ())
-    );
-    if (
-      !registryCallSucceeded ||
-      registryResult.length != 0x20 ||
-      abi.decode(registryResult, (address)) != _archController
-    ) {
-      revert InvalidBorrowerIdentityRegistry();
+    address archController_ = parameters.archController;
+    _archController = archController_;
+    assembly {
+      // The registry must return this market's arch-controller as one clean
+      // ABI-encoded address.
+      mstore(0, 0x54635570) // archController()
+      let validRegistry := staticcall(gas(), identityRegistry, 0x1c, 0x04, 0, 0x20)
+      validRegistry := and(validRegistry, eq(returndatasize(), 0x20))
+      if validRegistry {
+        let registryArchController := mload(0)
+        if shr(160, registryArchController) {
+          revert(0, 0)
+        }
+        validRegistry := eq(registryArchController, archController_)
+      }
+      if iszero(validRegistry) {
+        mstore(0, 0x41d9e607) // InvalidBorrowerIdentityRegistry()
+        revert(0x1c, 0x04)
+      }
     }
     if (
       parameters.borrowerPrincipal == address(0) ||
-      !IWildcatArchController(_archController).isRegisteredBorrower(parameters.borrowerPrincipal)
+      !IWildcatArchController(archController_).isRegisteredBorrower(parameters.borrowerPrincipal)
     ) {
       revert BorrowerPrincipalNotRegistered();
     }

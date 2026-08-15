@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity >=0.8.20;
 
-import '../IHooksFactoryRevolving.sol';
 import '../interfaces/IWildcatMarketRevolving.sol';
 import './WildcatMarket.sol';
 
@@ -17,19 +16,38 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
 
   uint16 internal immutable _commitmentFeeBips;
 
-  uint128 internal _drawnAmount;
+  uint256 internal _drawnAmount;
 
   constructor() {
-    // Read the commitment fee from the factory's transient deployment data.
-    _commitmentFeeBips = IHooksFactoryRevolving(msg.sender).getRevolvingMarketCommitmentFeeBips();
+    uint16 commitmentFeeBips_;
+    assembly {
+      // Read the commitment fee from the factory's transient deployment data.
+      mstore(0, 0x0e304343) // getRevolvingMarketCommitmentFeeBips()
+      if iszero(staticcall(gas(), caller(), 0x1c, 0x04, 0, 0x20)) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      if or(lt(returndatasize(), 0x20), shr(16, mload(0))) {
+        revert(0, 0)
+      }
+      commitmentFeeBips_ := mload(0)
+    }
+    _commitmentFeeBips = commitmentFeeBips_;
   }
 
-  function commitmentFeeBips() external view override returns (uint256) {
-    return _commitmentFeeBips;
+  function commitmentFeeBips() external view override returns (uint256 value) {
+    value = _commitmentFeeBips;
+    assembly {
+      mstore(0, value)
+      return(0, 0x20)
+    }
   }
 
   function drawnAmount() external view override returns (uint256) {
-    return _drawnAmount;
+    assembly {
+      mstore(0, sload(_drawnAmount.slot))
+      return(0, 0x20)
+    }
   }
 
   /**
@@ -41,12 +59,14 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   function _onBorrow(MarketState memory state, uint256 amount) internal virtual override {
     uint256 assetsAfterBorrow = totalAssets().satSub(amount);
     uint256 outstandingDebt = state.totalDebts().satSub(assetsAfterBorrow);
-    _setDrawnAmount(MathUtils.min(uint256(_drawnAmount) + amount, outstandingDebt));
+    unchecked {
+      // Both values are bounded by market debt, which is well below uint256.
+      _setDrawnAmount(MathUtils.min(_drawnAmount + amount, outstandingDebt));
+    }
   }
 
   function _onRepay(MarketState memory state, uint256 amount) internal virtual override {
-    amount;
-    _updateDrawnAmountAfterRepay(state, totalAssets());
+    _onRepayAndGetTotalAssets(state, amount);
   }
 
   function _onRepayAndGetTotalAssets(
@@ -55,27 +75,20 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   ) internal virtual override returns (uint256 currentTotalAssets) {
     amount;
     currentTotalAssets = totalAssets();
-    _updateDrawnAmountAfterRepay(state, currentTotalAssets);
-  }
-
-  /// @dev Repayments reduce the drawn amount to at most the remaining
-  ///      outstanding debt. `currentTotalAssets` includes the repaid amount.
-  function _updateDrawnAmountAfterRepay(
-    MarketState memory state,
-    uint256 currentTotalAssets
-  ) internal {
+    // Repayments reduce the drawn amount to at most the remaining outstanding
+    // debt. `currentTotalAssets` includes the repaid amount.
     uint256 outstandingDebt = state.totalDebts().satSub(currentTotalAssets);
-    _setDrawnAmount(MathUtils.min(uint256(_drawnAmount), outstandingDebt));
+    _setDrawnAmount(MathUtils.min(_drawnAmount, outstandingDebt));
   }
 
   function _onCloseMarket() internal virtual override {
-    _setDrawnAmount(0);
+    _setDrawnAmount(_runtimeConstant(uint256(0)));
   }
 
   function _setDrawnAmount(uint256 newDrawnAmount) internal {
     uint256 previousDrawnAmount = _drawnAmount;
     if (previousDrawnAmount != newDrawnAmount) {
-      _drawnAmount = newDrawnAmount.toUint128();
+      _drawnAmount = newDrawnAmount;
       emit_DrawnAmountUpdated(previousDrawnAmount, newDrawnAmount);
     }
   }
@@ -93,21 +106,34 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     MarketState memory state,
     uint256 timestamp
   ) internal view returns (uint256 baseInterestRay) {
-    uint256 timeDelta = timestamp - state.lastInterestAccruedTimestamp;
-    if (timeDelta == 0 || state.scaledTotalSupply == 0 || state.isClosed) {
-      return 0;
+    uint256 timeDelta;
+    unchecked {
+      // Accrual timestamps only move forward.
+      timeDelta = timestamp - state.lastInterestAccruedTimestamp;
+      // `scaledTotalSupply` is uint104, so the product cannot overflow within
+      // the market's finite timestamp horizon. It is only a compact zero check.
+      if (timeDelta * uint256(state.scaledTotalSupply) == 0 || state.isClosed) {
+        return 0;
+      }
     }
 
     baseInterestRay = MathUtils.calculateLinearInterestFromBips(_commitmentFeeBips, timeDelta);
 
     uint256 drawn = _drawnAmount;
-    if (state.annualInterestBips > 0 && drawn > 0) {
+    uint256 annualInterestBips = state.annualInterestBips;
+    unchecked {
+      // `annualInterestBips` is uint16 and drawn principal is bounded by
+      // market debt, so this product is only used as a compact nonzero check.
+      if (annualInterestBips * drawn == 0) return baseInterestRay;
+
       uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(
-        state.annualInterestBips,
+        annualInterestBips,
         timeDelta
       );
       uint256 totalSupply = state.totalSupply();
       uint256 drawnClamped = MathUtils.min(drawn, totalSupply);
+      // Both rates are bounded uint16 values, so their linear interest cannot
+      // approach uint256 over the market's finite timestamp horizon.
       baseInterestRay += MathUtils.mulDiv(annualInterestRay, drawnClamped, totalSupply);
     }
   }
