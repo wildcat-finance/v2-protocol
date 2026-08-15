@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import './OpenTermHooks.sol';
 import './ProviderStructs.sol';
+import './IWrapperAwareSingletonMarket.sol';
 import '../interfaces/WildcatStructsAndEnums.sol';
 import '../providers/ISingletonRoleProvider.sol';
 import '../providers/ISingletonRoleProviderFactory.sol';
@@ -13,10 +14,6 @@ import '../types/HooksConfig.sol';
 struct SingletonOpenTermHooksInputs {
   NameAndProviderInputs accessControlInputs;
   address lender;
-}
-
-interface IWrapperAwareSingletonMarket {
-  function registeredWrapper() external view returns (address);
 }
 
 /// @notice Open-term access hooks with one factory-bound immutable direct market lender.
