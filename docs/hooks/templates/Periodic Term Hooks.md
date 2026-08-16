@@ -28,6 +28,8 @@ Proposals are cancelled by: proposing again (overwrite), raising the APR through
 
 APR *increases* need no proposal and pass straight through to the base constraint hooks.
 
+Deposits and transfers remain open throughout the proposal lifecycle. A new lender does not receive a separate response window: the pending reduction is part of the disclosed entry terms. Market and deposit interfaces must show the current APR, proposed APR, and response-window timing. Once the response window has ended, interfaces should treat the executable proposed APR as the effective entry rate even though the market's stored APR does not change until execution.
+
 ## Configuration notes
 
 - `minimumDeposit` and `transfersDisabled` behave as in the other templates, except that this template stores the minimum as `uint96` (checked downcast; the external `setMinimumDeposit(address,uint128)` ABI is unchanged) to keep its market config in one storage slot. The minimum-deposit check compares in scaled units (see [Scale Factor — Rounding](../../Scale%20Factor.md#rounding)), so depositing exactly the minimum always succeeds.

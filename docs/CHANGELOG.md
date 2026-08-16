@@ -7,7 +7,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 ### Revolving credit markets
 
-- Added `WildcatMarketRevolving`, a market type for revolving credit facilities: tracks the borrower's drawn amount and accrues `commitmentFee + APR * min(drawn, supply) / supply` instead of APR on the full supply. No interest accrues while the market is closed or empty. Drawn amount is clamped to outstanding debt so self-supplied assets (e.g. an over-repayment) never accrue lender interest, including when an unusually large donated asset balance makes a borrow amount exceed ordinary market debt.
+- Added `WildcatMarketRevolving`, a market type for revolving credit facilities: tracks the borrower's drawn amount and accrues `commitmentFee + APR * min(drawn, supply) / supply` instead of APR on the full supply. No interest accrues while the market is closed or empty. Borrow and explicit repayment transitions reconcile drawn amount against outstanding debt. Raw underlying transfers are donations: they affect market liquidity but do not themselves reduce drawn principal. A later borrow cannot double-count donated or previously over-repaid liquidity as a new draw.
 - Added `HooksFactoryRevolving`, deploying revolving markets with factory-owned `marketData` (`abi.encode(uint8 version, uint16 commitmentFeeBips)`).
 - Extension seams (`_onBorrow`, `_onRepay`, `_onRepayAndGetTotalAssets`, `_onCloseMarket`, `_updateScaleFactorAndFees`) added to the base market as virtual functions; the standard market's behavior is unchanged.
 
