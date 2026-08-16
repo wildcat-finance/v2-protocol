@@ -645,6 +645,7 @@ contract HooksFactoryRevolving is
   }
 
   function computeMarketAddress(bytes32 salt) external view override returns (address) {
+    if (bytes20(salt) == bytes20(0)) revert SaltDoesNotContainSender();
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
   }
 
@@ -744,10 +745,7 @@ contract HooksFactoryRevolving is
     }
     address hooksInstance = parameters.hooks.hooksAddress();
 
-    if (
-      !(address(bytes20(runtimeParams.salt)) == msg.sender ||
-        bytes20(runtimeParams.salt) == bytes20(0))
-    ) {
+    if (address(bytes20(runtimeParams.salt)) != msg.sender) {
       revert SaltDoesNotContainSender();
     }
 

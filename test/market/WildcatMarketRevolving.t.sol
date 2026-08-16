@@ -99,7 +99,7 @@ contract WildcatMarketRevolvingTest is Test {
       params,
       bytes(''),
       abi.encode(uint8(1), commitmentFeeBips),
-      bytes32(uint256(1)),
+      bytes32((uint256(uint160(borrower)) << 96) | uint256(1)),
       address(0),
       0
     );
@@ -158,7 +158,7 @@ contract WildcatMarketRevolvingTest is Test {
       params,
       bytes(''),
       abi.encode(uint8(1), targetCommitmentFeeBips),
-      bytes32(nextScenarioSalt++),
+      bytes32((uint256(uint160(borrower)) << 96) | nextScenarioSalt++),
       address(0),
       0
     );
@@ -357,6 +357,25 @@ contract WildcatMarketRevolvingTest is Test {
     emit IWildcatMarketRevolving.DrawnAmountUpdated(0, 200e18);
     market.borrow(400e18);
     assertEq(revolvingMarket.drawnAmount(), 200e18);
+  }
+
+  function test_borrow_LargeDonationDoesNotWrapDrawnAmount() external {
+    MockERC20 targetUnderlying = new MockERC20('Large Supply', 'MAX', 18);
+    (
+      WildcatMarket targetMarket,
+      IWildcatMarketRevolving targetRevolvingMarket
+    ) = _deployRevolvingMarket(targetUnderlying, 1_000, annualInterestBips, commitmentFeeBips);
+    _deposit(targetMarket, targetUnderlying, lender, 1_000);
+
+    targetMarket.borrow(500);
+    targetUnderlying.transfer(address(targetMarket), 500);
+    targetUnderlying.mint(address(targetMarket), type(uint256).max - 1_000);
+
+    targetMarket.borrow(type(uint256).max - 499);
+
+    assertEq(targetMarket.totalAssets(), 499, 'assets after borrow');
+    assertEq(targetMarket.totalDebts(), 1_000, 'debt after borrow');
+    assertEq(targetRevolvingMarket.drawnAmount(), 501, 'drawn amount must clamp without wrapping');
   }
 
   function test_repay_interestOnlyDoesNotReduceDrawnAmount() external {

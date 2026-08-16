@@ -80,5 +80,5 @@ Across the currently rehearsed activation and retirement plans, the Foundation h
 - Current retirement bundle gas: 94,042 for the one-target mainnet rehearsal.
 - Safe nonces, CREATE2 addresses, package hashes, gas use, and retirement target counts must be regenerated at release freeze.
 - `FOUNDRY_PROFILE=deploy` is mandatory. The revolving market creation code fits one init-code storage contract under that exact profile, and plan generation rejects it if that stops being true.
-- Current revolving market creation code is 23,091 bytes. The stored runtime is 23,092 bytes including its leading `STOP`, leaving 1,484 bytes of EIP-170 margin.
+- Current revolving market creation code is 23,178 bytes. The stored runtime is 23,179 bytes including its leading `STOP`, leaving 1,397 bytes of EIP-170 margin.
 - Canonical Safe libraries: MultiSend `0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526` and CreateCall `0x9b35Af71d77eaf8d7e40252370304687390A1A52`.

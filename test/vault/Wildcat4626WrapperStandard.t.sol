@@ -86,7 +86,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     address marketAddress = hooksFactory.deployMarket(
       inputs,
       hooksData,
-      bytes32(uint256(1)),
+      bytes32((uint256(uint160(borrower)) << 96) | uint256(1)),
       address(0),
       0
     );
@@ -112,6 +112,12 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     MockERC20(underlyingAsset).approve(address(market), amount);
     market.deposit(amount);
     vm.stopPrank();
+  }
+
+  function test_openTransferWrapperImmediatelyReportsCapacity() external view {
+    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(_vault_);
+    assertGt(wrapper.maxDeposit(borrower), 0, 'open-transfer maxDeposit');
+    assertGt(wrapper.maxMint(borrower), 0, 'open-transfer maxMint');
   }
 
   function setUpVault(Init memory init) public override {

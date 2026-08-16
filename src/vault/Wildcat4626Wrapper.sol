@@ -3,12 +3,16 @@ pragma solidity >=0.8.20;
 
 import { ERC4626 } from 'solady/tokens/ERC4626.sol';
 import { IERC20Metadata } from 'openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
+import { IMarketTransferPolicy } from '../access/IMarketTransferPolicy.sol';
 import { IWildcatSanctionsSentinel } from '../interfaces/IWildcatSanctionsSentinel.sol';
 import { ReentrancyGuard } from '../ReentrancyGuard.sol';
 import { MathUtils, RAY } from '../libraries/MathUtils.sol';
 import { LibERC20 } from '../libraries/LibERC20.sol';
+import { HooksConfig, LibHooksConfig } from '../types/HooksConfig.sol';
 
 interface IWildcatMarketToken is IERC20Metadata {
+  function hooks() external view returns (HooksConfig);
+
   function scaleFactor() external view returns (uint256);
 
   function scaledBalanceOf(address account) external view returns (uint256);
@@ -34,6 +38,7 @@ interface IWildcatMarketToken is IERC20Metadata {
  *      Wildcat4626WrapperFactory, which enforces the market generation.
  */
 contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
+  using LibHooksConfig for HooksConfig;
   using MathUtils for uint256;
   using LibERC20 for address;
 
@@ -51,6 +56,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
   IWildcatMarketToken public immutable wrappedMarket;
   IWildcatSanctionsSentinel public immutable sanctionsSentinel;
+  IMarketTransferPolicy internal immutable _transferPolicy;
 
   uint8 private immutable _decimals;
   string private _name;
@@ -70,6 +76,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address sentinel = wrappedMarket.sentinel();
     if (sentinel == address(0)) revert ZeroAddress();
     sanctionsSentinel = IWildcatSanctionsSentinel(sentinel);
+    _transferPolicy = IMarketTransferPolicy(wrappedMarket.hooks().hooksAddress());
     _decimals = wrappedMarket.decimals();
 
     string memory marketSymbol = IERC20Metadata(marketAddress).symbol();
@@ -156,10 +163,11 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return _convertToAssetsDown(shares, scaleFactor);
   }
 
-  /// @notice Remaining normalized assets the wrapper can accept before hitting the market's maxTotalSupply
-  /// @dev Returns 0 for sanctioned receivers per erc4626 (deposit would revert)
+  /// @notice normalized assets the wrapper can accept right now.
+  /// @dev returns 0 if sanctions, wrapper health, market capacity, rounding, or the market's
+  ///      recipient policy would make the deposit fail.
   function maxDeposit(address receiver) public view override returns (uint256) {
-    if (_isSanctioned(receiver) || !_isOperational()) return 0;
+    if (_isSanctioned(receiver) || !_isOperational() || !_canReceiveMarketTokens()) return 0;
     uint256 marketCap = wrappedMarket.maxTotalSupply();
     uint256 held = totalAssets();
     if (held >= marketCap) return 0;
@@ -176,8 +184,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return convertToShares(assets);
   }
 
-  /// @notice Remaining shares that could be minted without violating the market's maxTotalSupply
-  /// @dev Returns 0 for sanctioned receivers per erc4626 (mint would revert)
+  /// @notice shares the wrapper can mint right now.
+  /// @dev goes through maxDeposit so it tells the same truth about whether the wrapper is ready.
   function maxMint(address receiver) public view override returns (uint256) {
     uint256 capAssets = maxDeposit(receiver);
     if (capAssets == 0) return 0;
@@ -526,6 +534,17 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
   function _isOperational() internal view returns (bool) {
     return !_isSanctioned(address(this)) && _isSolvent();
+  }
+
+  /// @dev wrapper deposits use ordinary market-token transfers, so no hook data comes with them.
+  ///      if the policy query fails, report zero capacity instead of making the ERC-4626 limit
+  ///      view revert.
+  function _canReceiveMarketTokens() internal view returns (bool allowed) {
+    try
+      _transferPolicy.isMarketTransferRecipientAllowed(address(wrappedMarket), address(this))
+    returns (bool isAllowed) {
+      allowed = isAllowed;
+    } catch {}
   }
 
   function _requireSolvent() internal view {

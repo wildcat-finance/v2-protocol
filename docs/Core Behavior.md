@@ -31,7 +31,7 @@ Markets are configured with the following values:
 V2.5 has two market implementations sharing the behavior described here:
 
 - **Standard markets** (`WildcatMarket`): interest accrues on the full supply at `annualInterestBips`.
-- **Revolving markets** (`WildcatMarketRevolving`): for revolving credit facilities. Lenders earn a commitment fee (fixed at deployment) on the full supply plus the APR on only the drawn portion: `commitmentFee + annualInterestBips * min(drawnAmount, totalSupply) / totalSupply`. The drawn amount rises with borrows (clamped to outstanding debt, so borrowing back self-supplied assets accrues nothing) and falls with repayments. No interest accrues while a revolving market is closed or empty.
+- **Revolving markets** (`WildcatMarketRevolving`): for revolving credit facilities. Lenders earn a commitment fee (fixed at deployment) on the full supply plus the APR on only the drawn portion: `commitmentFee + annualInterestBips * min(drawnAmount, totalSupply) / totalSupply`. Borrow and explicit repayment transitions reconcile drawn amount against outstanding debt. Raw underlying transfers are donations: they affect market liquidity but do not themselves reduce drawn principal. A later borrow cannot double-count donated or previously over-repaid liquidity as a new draw. No interest accrues while a revolving market is closed or empty.
 
 Everything else — collateral obligations, delinquency, withdrawals, closure — is identical between the two.
 

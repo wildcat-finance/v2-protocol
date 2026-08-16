@@ -461,7 +461,7 @@ contract BaseAccessControls is IHooksAdministrator {
    */
   function getLenderStatus(
     address accountAddress
-  ) external view returns (LenderStatus memory status) {
+  ) public view returns (LenderStatus memory status) {
     status = _lenderStatus[accountAddress];
 
     uint256 previousPullProviderIndexToSkip = type(uint256).max;
@@ -498,6 +498,20 @@ contract BaseAccessControls is IHooksAdministrator {
     ) {
       return status;
     }
+  }
+
+  /// @dev answers the same recipient-side question as the transfer hook when there's no hook
+  ///      data. canonical ERC-4626 wrappers use ordinary ERC-20 transfers, so they can't pass
+  ///      credential data along.
+  function _isMarketTransferRecipientAllowed(
+    address market,
+    address recipient,
+    bool transferRequiresAccess
+  ) internal view returns (bool) {
+    if (!transferRequiresAccess) return true;
+    if (isKnownLenderOnMarket[recipient][market]) return true;
+    if (_lenderStatus[recipient].isBlockedFromDeposits) return false;
+    return getLenderStatus(recipient).hasCredential();
   }
 
   // ========================================================================== //

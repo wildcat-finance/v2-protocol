@@ -32,6 +32,13 @@ library MarketStateLibExternal {
     return MarketStateLib.scaleAmountDown(state, amount);
   }
 
+  function $maxScaledSettleableAmount(
+    MarketState memory state,
+    uint256 amount
+  ) external pure returns (uint256) {
+    return MarketStateLib.maxScaledSettleableAmount(state, amount);
+  }
+
   /// Collateralization requires all pending withdrawals be covered
   /// and reserve ratio for remaining liquidity.
   function $liquidityRequired(
