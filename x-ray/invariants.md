@@ -478,6 +478,18 @@ On-chain: **Yes**
 
 **If violated** — A sanctioned account could hold or move wrapper shares, or an unwrap could deliver market tokens without the receiver passing through the market's transfer hook.
 
+#### X-12
+
+On-chain: **Yes**
+
+> A canonical wrapper reports nonzero `maxDeposit` or `maxMint` only when it currently passes the wrapped market's recipient-side transfer policy without extra hook data; conversion previews remain independent of access and capacity.
+
+**Caller side** — `src/vault/Wildcat4626Wrapper.sol` — combines sanctions, solvency, capacity, rounding, and the hook policy query in `maxDeposit`; `maxMint` derives from that result while previews remain conversion-only.
+
+**Callee side** — `src/access/{Open,Fixed,Periodic}TermHooks.sol` — reports the same no-data recipient decision used by the transfer hook for unrestricted, credentialed, blocked, and known-lender states. The wrapper treats a failed query as zero capacity.
+
+**If violated** — Routers can size a globally impossible wrapper deposit or mint, or a view failure can make ERC-4626 limit discovery revert.
+
 ---
 
 ## 4. Economic Invariants

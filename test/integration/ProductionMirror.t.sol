@@ -2,6 +2,7 @@
 pragma solidity >=0.8.20;
 
 import './MarketConfigMatrix.sol';
+import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { IMarketRounding, Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 
@@ -182,6 +183,11 @@ contract ProductionMirrorTest is MarketConfigMatrix {
 
     startPrank(alice);
     d.market.approve(address(wrapper), type(uint256).max);
+    // ERC-4626 previews intentionally ignore deposit limits, but maxDeposit
+    // and maxMint must report that this transfer-gated wrapper is not ready.
+    assertGt(wrapper.previewDeposit(wrapAmount), 0, 'preview unexpectedly gated');
+    assertEq(wrapper.maxDeposit(alice), 0, 'maxDeposit ignored wrapper access');
+    assertEq(wrapper.maxMint(alice), 0, 'maxMint ignored wrapper access');
     // Without a credential the wrapper cannot receive market tokens. The
     // hook's NotApprovedLender revert is swallowed by the wrapper's safe
     // transfer library and resurfaces as TransferFromFailed.
@@ -190,12 +196,20 @@ contract ProductionMirrorTest is MarketConfigMatrix {
     stopPrank();
 
     _grantHookRole(d.hooksInstance, address(wrapper));
+    assertGe(wrapper.maxDeposit(alice), wrapAmount, 'credential did not enable maxDeposit');
+    assertGt(wrapper.maxMint(alice), 0, 'credential did not enable maxMint');
 
     uint256 marketBalanceBefore = d.market.balanceOf(alice);
     startPrank(alice);
     uint256 shares = wrapper.deposit(wrapAmount, alice);
     stopPrank();
     assertGt(shares, 0, 'no shares minted');
+
+    // The successful transfer makes the wrapper a known lender. Revoking its
+    // credential must not hide capacity that the transfer hook will accept.
+    vm.prank(address(ecdsaRoleProvider));
+    BaseAccessControls(d.hooksInstance).revokeRole(address(wrapper));
+    assertGe(wrapper.maxDeposit(alice), wrapAmount, 'known wrapper lost maxDeposit');
 
     // A month of interest accrues to the wrapper's rebasing market-token
     // balance, moving the scale factor off RAY: all four execution paths must

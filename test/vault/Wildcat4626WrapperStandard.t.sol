@@ -114,6 +114,12 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     vm.stopPrank();
   }
 
+  function test_openTransferWrapperImmediatelyReportsCapacity() external view {
+    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(_vault_);
+    assertGt(wrapper.maxDeposit(borrower), 0, 'open-transfer maxDeposit');
+    assertGt(wrapper.maxMint(borrower), 0, 'open-transfer maxMint');
+  }
+
   function setUpVault(Init memory init) public override {
     uint256 maxSupply = type(uint104).max;
 

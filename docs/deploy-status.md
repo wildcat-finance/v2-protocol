@@ -39,6 +39,8 @@ The rehearsal Safe nonce, CREATE2 addresses, and generated package hashes are no
 
 The wrapper-share access review is closed with no protocol change. Market credentials govern direct market participation and market-token receipt; canonical ERC-4626 wrapper shares intentionally remain broadly composable. Callers and integrations choose the share receiver and must account for whether a receiver can later unwrap market tokens to itself.
 
+The separate wrapper-readiness issue is accepted for correction. Wrapper creation remains permissionless and activates open-transfer wrappers immediately. On transfer-gated markets, `maxDeposit` and `maxMint` now report zero until the wrapper can receive market tokens; preview functions remain conversion-only. The new wrapper generation therefore requires v2.5 hooks to expose a recipient-readiness transfer-policy view in addition to the existing global-disable view.
+
 The audit-fix branch also contains source changes that remain subject to the item-by-item owner walkthrough; the branch is not approved as an indivisible release patch. All earlier rehearsal evidence predates those source changes. After the remaining dispositions and final verification, regenerate every plan/package/address and repeat the locked-UI rehearsal from the reviewed release commit.
 
 ## Remaining release work

@@ -298,6 +298,17 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     return market.transfersDisabled;
   }
 
+  function isMarketTransferRecipientAllowed(
+    address marketAddress,
+    address recipient
+  ) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return
+      !market.transfersDisabled &&
+      _isMarketTransferRecipientAllowed(marketAddress, recipient, market.transferRequiresAccess);
+  }
+
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
     return _hookedMarkets[marketAddress];
   }
