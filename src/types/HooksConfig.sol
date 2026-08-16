@@ -400,17 +400,19 @@ library LibHooksConfig {
   //                         Hook for executeWithdrawal                         //
   // ========================================================================== //
 
-  // Size of lender + normalizedAmountWithdrawn + state + extraData.offset + extraData.length
-  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0244;
-  uint256 internal constant ExecuteWithdrawalHook_NormalizedAmount_Offset = 0x20;
-  uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x40;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0240;
+  // Size of lender + expiry + normalizedAmountWithdrawn + state + extraData.offset + extraData.length
+  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0264;
+  uint256 internal constant ExecuteWithdrawalHook_Expiry_Offset = 0x20;
+  uint256 internal constant ExecuteWithdrawalHook_NormalizedAmount_Offset = 0x40;
+  uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x60;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0220;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0240;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0260;
 
   function onExecuteWithdrawal(
     HooksConfig self,
     address lender,
+    uint32 expiry,
     uint256 normalizedAmountWithdrawn,
     MarketState memory state,
     uint256 baseCalldataSize
@@ -428,6 +430,8 @@ library LibHooksConfig {
         mstore(cdPointer, onExecuteWithdrawalSelector)
         // Write `lender` to hook calldata
         mstore(headPointer, lender)
+        // Write the exact withdrawal-batch `expiry` to hook calldata
+        mstore(add(headPointer, ExecuteWithdrawalHook_Expiry_Offset), expiry)
         // Write `normalizedAmountWithdrawn` to hook calldata
         mstore(
           add(headPointer, ExecuteWithdrawalHook_NormalizedAmount_Offset),

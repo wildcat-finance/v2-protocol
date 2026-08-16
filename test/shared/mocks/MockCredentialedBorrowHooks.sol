@@ -73,6 +73,7 @@ contract MockCredentialedBorrowHooks is IHooks, BaseAccessControls {
 
   function onExecuteWithdrawal(
     address,
+    uint32,
     uint128,
     MarketState calldata,
     bytes calldata
