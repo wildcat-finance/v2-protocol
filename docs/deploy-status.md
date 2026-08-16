@@ -41,7 +41,7 @@ The 2026-08-15 pre-audit pass is a **no-go for live Sepolia deployment** until o
 
 1. A canonical wrapper on a transfer-access-gated market currently enforces sanctions but does not reproduce hook-local lender eligibility on wrapper share mint, transfer, burn, or redemption. Either reject those markets as wrapper-incompatible or define and enforce the equivalent share-layer policy.
 
-The same pass hardened caller-scoped market salts, disabled-template retirement, exact APR-reduction threshold checks, extreme-balance withdrawal and revolving accounting, saturating addition, and ERC-20 metadata decoding. All earlier rehearsal evidence predates those source changes. After the wrapper decision and final verification, regenerate every plan/package/address and repeat the locked-UI rehearsal from the reviewed release commit.
+The same pass hardened market salts by requiring an explicit immediate-caller prefix, disabled-template retirement, exact APR-reduction threshold checks, extreme-balance withdrawal and revolving accounting, saturating addition, and ERC-20 metadata decoding. All earlier rehearsal evidence predates those source changes. After the wrapper decision and final verification, regenerate every plan/package/address and repeat the locked-UI rehearsal from the reviewed release commit.
 
 ## Remaining release work
 

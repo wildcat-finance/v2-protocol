@@ -55,7 +55,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 ### Factories and access control
 
-- Factory hardening: CREATE2 address verification on market deployment, pagination bounds validation (`InvalidPaginationRange`), empty-page handling. Zero-address-prefix market salts are now caller-scoped shorthand for the equivalent caller-prefixed salt, preventing another registered borrower from claiming the same counterfactual address; explicit caller-prefixed salts are unchanged.
+- Factory hardening: CREATE2 address verification on market deployment, pagination bounds validation (`InvalidPaginationRange`), empty-page handling. Market salts must encode the immediate factory caller in their first 20 bytes and a 12-byte nonce in the remainder. Zero-prefix salts are rejected. For borrower accounts, the prefix is the account contract rather than its principal.
 - Disabling a hooks template now blocks both new hook instances and new markets that would reuse an existing instance; existing instances and markets remain operational.
 - APR-reduction constraints compare the exact rational reduction against the 25% boundary before converting it to basis points, so a slightly-over-threshold reduction cannot floor onto the unpenalized boundary.
 - `BaseAccessControls`: push credentials must have nonzero, non-future timestamps; `isPullProvider()` is probed defensively (non-implementing providers become push-only); providers already consulted via `hooksData` are skipped in the fallback pull loop.
@@ -91,7 +91,7 @@ Removed the lens contracts from the core protocol repository.
 
 **Create2 restrictions**
 
-Borrowers are no longer restricted to deploying one market per combination of (asset, name, symbol), which was an issue when a borrower needed to close and recreate an existing market. When deploying a market, the borrower can now provide an arbitrary salt in the style of 0age's ImmutableCreate2Factory, where the first 20 bytes must either be zero or match the borrower's address, and the remaining 12 bytes can be any value so long as the full salt has not already been used.
+Borrowers are no longer restricted to deploying one market per combination of (asset, name, symbol), which was an issue when a borrower needed to close and recreate an existing market. When deploying a market, the borrower can now provide an arbitrary salt in the style of 0age's ImmutableCreate2Factory, where the first 20 bytes must match the immediate factory caller and the remaining 12 bytes can be any value so long as the full salt has not already been used. For borrower-account deployments, the caller prefix is the account contract, not its principal.
 
 **Name/symbol length**
 

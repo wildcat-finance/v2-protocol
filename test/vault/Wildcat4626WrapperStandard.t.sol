@@ -86,7 +86,7 @@ contract Wildcat4626WrapperStandardTest is ERC4626Test {
     address marketAddress = hooksFactory.deployMarket(
       inputs,
       hooksData,
-      bytes32(uint256(1)),
+      bytes32((uint256(uint160(borrower)) << 96) | uint256(1)),
       address(0),
       0
     );

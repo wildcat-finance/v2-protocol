@@ -110,6 +110,10 @@ contract BorrowerAccountOriginationTest is Test {
       });
   }
 
+  function _marketSalt(address deployer, uint96 nonce) internal pure returns (bytes32) {
+    return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
+  }
+
   function _assertMarketIdentity(
     address marketAddress,
     address hooksInstance,
@@ -161,7 +165,7 @@ contract BorrowerAccountOriginationTest is Test {
     address market = standardFactory.deployMarket(
       _marketInputs(hooksInstance),
       '',
-      bytes32(uint256(1)),
+      _marketSalt(borrowerAccount, 1),
       address(0),
       0
     );
@@ -192,7 +196,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(hooksInstance),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(1)),
+      _marketSalt(borrowerAccount, 1),
       address(0),
       0
     );
@@ -214,7 +218,7 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(2)),
+      _marketSalt(borrowerAccount, 2),
       address(0),
       0
     );
@@ -231,7 +235,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(2)),
+      _marketSalt(borrowerAccount, 2),
       address(0),
       0
     );
@@ -266,7 +270,7 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(20)),
+      _marketSalt(borrowerAccount, 20),
       address(asset),
       originationFeeAmount
     );
@@ -277,7 +281,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(20)),
+      _marketSalt(borrowerAccount, 20),
       address(asset),
       originationFeeAmount
     );
@@ -297,7 +301,7 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(3)),
+      _marketSalt(borrowerAccount, 3),
       address(0),
       0
     );
@@ -308,7 +312,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(3)),
+      _marketSalt(borrowerAccount, 3),
       address(0),
       0
     );
@@ -336,7 +340,7 @@ contract BorrowerAccountOriginationTest is Test {
     address firstStandardMarket = standardFactory.deployMarket(
       _marketInputs(standardHooks),
       '',
-      bytes32(uint256(10)),
+      _marketSalt(borrowerAccount, 10),
       address(0),
       0
     );
@@ -344,7 +348,7 @@ contract BorrowerAccountOriginationTest is Test {
     address secondStandardMarket = standardFactory.deployMarket(
       _marketInputs(standardHooks),
       '',
-      bytes32(uint256(11)),
+      _marketSalt(secondAccount, 11),
       address(0),
       0
     );
@@ -356,7 +360,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(revolvingHooks),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(10)),
+      _marketSalt(borrowerAccount, 10),
       address(0),
       0
     );
@@ -365,7 +369,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(revolvingHooks),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(11)),
+      _marketSalt(secondAccount, 11),
       address(0),
       0
     );
@@ -427,7 +431,7 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(12)),
+      _marketSalt(borrowerAccount, 12),
       address(0),
       0
     );
@@ -438,7 +442,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(12)),
+      _marketSalt(borrowerAccount, 12),
       address(0),
       0
     );
@@ -457,7 +461,7 @@ contract BorrowerAccountOriginationTest is Test {
     standardFactory.deployMarket(
       _marketInputs(standardHooks),
       '',
-      bytes32(uint256(4)),
+      _marketSalt(borrowerAccount, 4),
       address(0),
       0
     );
@@ -470,7 +474,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(revolvingHooks),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(4)),
+      _marketSalt(borrowerAccount, 4),
       address(0),
       0
     );

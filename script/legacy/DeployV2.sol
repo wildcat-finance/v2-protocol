@@ -291,6 +291,14 @@ contract DeployV2 is Script {
     }
 
     HooksFactory hooksFactory = HooksFactory(deployments.get('HooksFactory'));
+    uint256 broadcasterPrivateKey = vm.envOr(deployments.privateKeyVarName, uint256(0));
+    address marketDeployer = broadcasterPrivateKey == 0
+      ? tx.origin
+      : vm.addr(broadcasterPrivateKey);
+    if (bytes20(config.salt) == bytes20(0)) {
+      config.salt = bytes32(uint256(config.salt) | (uint256(uint160(marketDeployer)) << 96));
+    }
+    require(address(bytes20(config.salt)) == marketDeployer, 'Market salt has wrong deployer');
     address hooksTemplate = deployments.get(
       config.hooks.isOpenTerm ? 'OpenTermHooks_initCodeStorage' : 'FixedTermHooks_initCodeStorage'
     );
@@ -358,12 +366,8 @@ contract DeployV2 is Script {
         abi.encode(borrower, hooksTemplateArgs)
       );
 
-      bytes32 predictionSalt = config.salt;
-      if (bytes20(predictionSalt) == bytes20(0)) {
-        predictionSalt = bytes32(uint256(predictionSalt) | (uint256(uint160(borrower)) << 96));
-      }
       assertEq(
-        hooksFactory.computeMarketAddress(predictionSalt),
+        hooksFactory.computeMarketAddress(config.salt),
         address(market),
         'Wrong market address computed'
       );

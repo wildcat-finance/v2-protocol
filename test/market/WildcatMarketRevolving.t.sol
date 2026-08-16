@@ -99,7 +99,7 @@ contract WildcatMarketRevolvingTest is Test {
       params,
       bytes(''),
       abi.encode(uint8(1), commitmentFeeBips),
-      bytes32(uint256(1)),
+      bytes32((uint256(uint160(borrower)) << 96) | uint256(1)),
       address(0),
       0
     );
@@ -158,7 +158,7 @@ contract WildcatMarketRevolvingTest is Test {
       params,
       bytes(''),
       abi.encode(uint8(1), targetCommitmentFeeBips),
-      bytes32(nextScenarioSalt++),
+      bytes32((uint256(uint160(borrower)) << 96) | nextScenarioSalt++),
       address(0),
       0
     );

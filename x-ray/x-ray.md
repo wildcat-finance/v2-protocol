@@ -173,7 +173,7 @@ See [entry-points.md](entry-points.md) for the full permissionless entry point m
 
 - **ERC-4626 scaled custody, lender access, and sanctions transfer** &nbsp;&#91;[I-17](invariants.md#i-17), [X-7](invariants.md#x-7), [X-9](invariants.md#x-9), [E-4](invariants.md#e-4)&#93; — `Wildcat4626Wrapper.sol:247-570` reconciles observed scaled deltas and sanctions, but wrapper shares do not reproduce hook-local lender eligibility. A credentialed wrapper can therefore turn a transfer-access-gated market claim into a freely transferable claim; wrapper eligibility policy is a release decision.
 
-- **Transient CREATE2 constructor state** &nbsp;&#91;[X-1](invariants.md#x-1), [X-2](invariants.md#x-2)&#93; — `HooksFactory.sol:586-596,703-795` and the revolving twin stage constructor data and deploy stored init code. Zero-prefix salts are now normalized into a caller namespace in both prediction and deployment; explicit prefixed salts remain publicly predictable.
+- **Transient CREATE2 constructor state** &nbsp;&#91;[X-1](invariants.md#x-1), [X-2](invariants.md#x-2)&#93; — `HooksFactory.sol:586-596,703-795` and the revolving twin stage constructor data and deploy stored init code. Salts must explicitly encode the immediate factory caller; zero-prefix salts are rejected, while valid prefixed salts remain publicly predictable.
 
 - **Sanctions quarantine lifecycle** &nbsp;&#91;[X-8](invariants.md#x-8), [X-9](invariants.md#x-9)&#93; — `WildcatSanctionsSentinel.sol:93-133`, `WildcatSanctionsEscrow.sol:15-43`, and market/wrapper nuke paths cross mutable overrides, deterministic custody, term gates, and borrower-principal changes.
 
@@ -183,7 +183,7 @@ See [entry-points.md](entry-points.md) for the full permissionless entry point m
 
 | Finding | Confidence | Disposition |
 |---------|-----------:|-------------|
-| Global zero-prefix CREATE2 salts allow cross-borrower address squatting and counterfactual-prefund theft | 90 | **Remediated** — zero-prefix salts normalize to the caller in both factories; explicit salts remain context-free |
+| Global zero-prefix CREATE2 salts allow cross-borrower address squatting and counterfactual-prefund theft | 90 | **Defense-in-depth hardening accepted** — both factories reject zero-prefix salts and require the immediate caller prefix; explicit salts remain context-free |
 | Canonical wrapper bypasses hook-local lender/transfer eligibility once the wrapper itself is credentialed | 90 | **Release blocker** — choose unsupported-market rejection or equivalent share-layer policy enforcement |
 | Flooring before the exact 25% APR-reduction boundary avoids temporary reserves | 85 | **Remediated** — exact cross-multiplication precedes basis-point quantization |
 | Disabling a hooks template does not stop new markets from existing instances | 75 | **Remediated** — both factories reject disabled templates for existing-instance and new-instance origination; deployed markets remain live |
@@ -192,7 +192,7 @@ See [entry-points.md](entry-points.md) for the full permissionless entry point m
 | Wrapper `maxDeposit`/`maxMint` can advertise capacity before the wrapper can receive gated market tokens | 75 | **Coupled to wrapper blocker** — resolve through the same compatibility policy |
 | Generic saturation and metadata decoders contain edge-case arithmetic/ABI defects | Lead | **Hardened** — overflow, high-bit bytes32 length, offset, and declared-length cases have regressions |
 
-**Downstream compatibility check:** the current app generates salts as borrower address + 12 random bytes, so its predictions remain context-free and compatible. The generic SDK read wrapper does not supply an `eth_call.from`; zero-prefix shorthand therefore now fails closed there and should be documented or given an account-aware helper if that shorthand is exposed. The app currently rejects wrappers only when transfers are disabled, not when they require credentials, so its wrapper guard and tests must follow whichever wrapper policy is selected.
+**Downstream compatibility check:** the current app already constructs salts as connected borrower address + 12 random bytes, so its direct-EOA deployment path remains compatible and predictions remain context-free. The SDK should document the strict prefix and may add a constructor/validator helper. A future borrower-account app flow must use the account contract as the prefix rather than its principal or controlling signer. No ABI or event shape changed, so the subgraph does not need an A-01 code change. The app currently rejects wrappers only when transfers are disabled, not when they require credentials, so its wrapper guard and tests must follow whichever wrapper policy is selected.
 
 ### Protocol-Type Concerns
 

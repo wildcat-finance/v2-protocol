@@ -645,17 +645,8 @@ contract HooksFactoryRevolving is
   }
 
   function computeMarketAddress(bytes32 salt) external view override returns (address) {
-    salt = _deriveMarketSalt(msg.sender, salt);
+    if (bytes20(salt) == bytes20(0)) revert SaltDoesNotContainSender();
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
-  }
-
-  function _deriveMarketSalt(address deployer, bytes32 salt) internal pure returns (bytes32) {
-    address saltOwner = address(bytes20(salt));
-    if (saltOwner == address(0)) {
-      if (deployer == address(0)) revert SaltDoesNotContainSender();
-      return bytes32(uint256(salt) | (uint256(uint160(deployer)) << 96));
-    }
-    return salt;
   }
 
   /**
@@ -757,7 +748,6 @@ contract HooksFactoryRevolving is
     }
     address hooksInstance = parameters.hooks.hooksAddress();
 
-    runtimeParams.salt = _deriveMarketSalt(msg.sender, runtimeParams.salt);
     if (address(bytes20(runtimeParams.salt)) != msg.sender) {
       revert SaltDoesNotContainSender();
     }

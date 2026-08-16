@@ -362,9 +362,9 @@ On-chain: **Yes**
 
 On-chain: **Yes**
 
-> Factory address prediction and deployment apply the same caller namespace to zero-prefix salts, and stored init-code deployment plus ArchController registration refer to that same market address.
+> Factory address prediction rejects zero-prefix salts, deployment requires the explicit salt prefix to equal the immediate factory caller, and stored init-code deployment plus ArchController registration refer to that same market address.
 
-**Caller side** — `src/HooksFactory.sol:628-646,713-795` — normalizes zero-prefix salts to the caller, predicts, rejects existing code, verifies CREATE2 return, then registers; the revolving factory mirrors this path.
+**Caller side** — `src/HooksFactory.sol:628-637,704-785` — rejects zero-prefix predictions, requires an explicit caller prefix during deployment, rejects existing code, verifies CREATE2 return, then registers; the revolving factory mirrors this path. A borrower account is the caller namespace even when its principal changes.
 
 **Callee side** — `src/WildcatArchController.sol:356-369` — only a registered controller may add that exact address to the market set.
 
