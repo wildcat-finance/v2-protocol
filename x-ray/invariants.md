@@ -468,15 +468,15 @@ On-chain: **Yes**
 
 #### X-11
 
-On-chain: **No**
+On-chain: **Yes**
 
-> A canonical wrapper must not weaken the wrapped market's lender eligibility or transfer-access policy.
+> Canonical wrapper shares intentionally remain transferable without reproducing market role-provider eligibility, while borrower-scoped sanctions gate share mint, burn, and transfer and every unwrap receiver remains subject to the wrapped market's transfer hook.
 
-**Caller side** — `src/vault/Wildcat4626WrapperFactory.sol:96-155` — checks only whether market transfers are globally disabled before creating and registering the wrapper.
+**Caller side** — `src/vault/Wildcat4626WrapperFactory.sol:96-155` — rejects markets whose transfers are globally disabled, but does not reject markets whose transfer hooks require credentials.
 
-**Callee side** — `src/vault/Wildcat4626Wrapper.sol:264-399,549-570` — market-token movement presents the credentialed wrapper to the hook, while wrapper share mint, transfer, burn, and redemption enforce sanctions but not hook-local lender eligibility.
+**Callee side** — `src/vault/Wildcat4626Wrapper.sol:264-399,549-570` — market-token movement uses the normal market transfer path, while wrapper share mint, transfer, and burn enforce borrower-scoped sanctions rather than hook-local lender eligibility.
 
-**If violated** — An approved lender can mint the interest-bearing claim to an unapproved or blocked holder, who can later redeem through an approved receiver.
+**If violated** — A sanctioned account could hold or move wrapper shares, or an unwrap could deliver market tokens without the receiver passing through the market's transfer hook.
 
 ---
 

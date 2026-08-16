@@ -35,13 +35,11 @@ These are disposable Anvil forks and generated artifacts are not checked in. The
 
 The rehearsal Safe nonce, CREATE2 addresses, and generated package hashes are not release constants. Regenerate them from the current Safe state at production freeze and repeat the exact simulation.
 
-## Current pre-audit gate
+## Current pre-audit status
 
-The 2026-08-15 pre-audit pass is a **no-go for live Sepolia deployment** until one policy decision is closed:
+The wrapper-share access review is closed with no protocol change. Market credentials govern direct market participation and market-token receipt; canonical ERC-4626 wrapper shares intentionally remain broadly composable. Callers and integrations choose the share receiver and must account for whether a receiver can later unwrap market tokens to itself.
 
-1. A canonical wrapper on a transfer-access-gated market currently enforces sanctions but does not reproduce hook-local lender eligibility on wrapper share mint, transfer, burn, or redemption. Either reject those markets as wrapper-incompatible or define and enforce the equivalent share-layer policy.
-
-The same pass hardened market salts by requiring an explicit immediate-caller prefix, disabled-template retirement, exact APR-reduction threshold checks, extreme-balance withdrawal and revolving accounting, saturating addition, and ERC-20 metadata decoding. All earlier rehearsal evidence predates those source changes. After the wrapper decision and final verification, regenerate every plan/package/address and repeat the locked-UI rehearsal from the reviewed release commit.
+The audit-fix branch also contains source changes that remain subject to the item-by-item owner walkthrough; the branch is not approved as an indivisible release patch. All earlier rehearsal evidence predates those source changes. After the remaining dispositions and final verification, regenerate every plan/package/address and repeat the locked-UI rehearsal from the reviewed release commit.
 
 ## Remaining release work
 
