@@ -500,9 +500,9 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /// @dev Mirrors the recipient-side decision made by the access-control transfer hooks when
-  ///      no hook data is supplied. Canonical ERC-4626 wrappers use standard ERC-20 transfers,
-  ///      so they cannot forward credential data to the market transfer hook.
+  /// @dev answers the same recipient-side question as the transfer hook when there's no hook
+  ///      data. canonical ERC-4626 wrappers use ordinary ERC-20 transfers, so they can't pass
+  ///      credential data along.
   function _isMarketTransferRecipientAllowed(
     address market,
     address recipient,

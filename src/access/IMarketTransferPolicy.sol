@@ -10,10 +10,9 @@ interface IMarketTransferPolicy {
   function isMarketTransferDisabled(address market) external view returns (bool);
 
   /**
-   * @dev Whether `recipient` currently passes the recipient-side transfer policy for `market`
-   *      without additional hook data. This intentionally ignores sender balance, allowance,
-   *      and amount-dependent failures. Policy denial should return false rather than revert;
-   *      integrations may treat an unexpected query failure as unavailable.
+   * @dev says whether `recipient` can receive `market` tokens right now without extra hook data.
+   *      this doesn't pretend to check balance, allowance, or amount-specific failures. return
+   *      false for an ordinary policy denial; integrations can treat a revert as unavailable.
    */
   function isMarketTransferRecipientAllowed(
     address market,

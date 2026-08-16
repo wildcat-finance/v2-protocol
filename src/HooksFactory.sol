@@ -625,9 +625,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
   }
 
-  /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.
-  ///      The first 20 bytes of `salt` must contain a non-zero market deployer.
-  ///      Deployment separately requires that deployer to be the factory caller.
+  /// @dev returns the CREATE2 market address for `salt` and this factory's init code.
+  ///      the first 20 bytes name the deployer and can't be zero. deployment also
+  ///      requires that address to be `msg.sender`.
   function computeMarketAddress(bytes32 salt) external view override returns (address) {
     if (bytes20(salt) == bytes20(0)) revert SaltDoesNotContainSender();
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);

@@ -163,9 +163,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return _convertToAssetsDown(shares, scaleFactor);
   }
 
-  /// @notice Remaining normalized assets the wrapper can currently accept.
-  /// @dev Returns 0 when receiver sanctions, wrapper operation, market capacity, rounding, or
-  ///      the market's recipient-side transfer policy would prevent a deposit.
+  /// @notice normalized assets the wrapper can accept right now.
+  /// @dev returns 0 if sanctions, wrapper health, market capacity, rounding, or the market's
+  ///      recipient policy would make the deposit fail.
   function maxDeposit(address receiver) public view override returns (uint256) {
     if (_isSanctioned(receiver) || !_isOperational() || !_canReceiveMarketTokens()) return 0;
     uint256 marketCap = wrappedMarket.maxTotalSupply();
@@ -184,8 +184,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return convertToShares(assets);
   }
 
-  /// @notice Remaining shares the wrapper can currently mint.
-  /// @dev Derived from maxDeposit so recipient-side transfer readiness is reflected here too.
+  /// @notice shares the wrapper can mint right now.
+  /// @dev goes through maxDeposit so it tells the same truth about whether the wrapper is ready.
   function maxMint(address receiver) public view override returns (uint256) {
     uint256 capAssets = maxDeposit(receiver);
     if (capAssets == 0) return 0;
@@ -536,8 +536,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return !_isSanctioned(address(this)) && _isSolvent();
   }
 
-  /// @dev Wrapper deposits transfer market tokens without forwarding hook data. A policy
-  ///      failure is treated as zero capacity so ERC-4626 limit queries remain non-reverting.
+  /// @dev wrapper deposits use ordinary market-token transfers, so no hook data comes with them.
+  ///      if the policy query fails, report zero capacity instead of making the ERC-4626 limit
+  ///      view revert.
   function _canReceiveMarketTokens() internal view returns (bool allowed) {
     try
       _transferPolicy.isMarketTransferRecipientAllowed(address(wrappedMarket), address(this))

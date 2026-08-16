@@ -183,8 +183,8 @@ contract ProductionMirrorTest is MarketConfigMatrix {
 
     startPrank(alice);
     d.market.approve(address(wrapper), type(uint256).max);
-    // ERC-4626 previews intentionally ignore deposit limits, but maxDeposit
-    // and maxMint must report that this transfer-gated wrapper is not ready.
+    // previews are just math and intentionally ignore limits. maxDeposit and maxMint are
+    // the part that needs to say this transfer-gated wrapper isn't ready yet.
     assertGt(wrapper.previewDeposit(wrapAmount), 0, 'preview unexpectedly gated');
     assertEq(wrapper.maxDeposit(alice), 0, 'maxDeposit ignored wrapper access');
     assertEq(wrapper.maxMint(alice), 0, 'maxMint ignored wrapper access');
@@ -205,8 +205,8 @@ contract ProductionMirrorTest is MarketConfigMatrix {
     stopPrank();
     assertGt(shares, 0, 'no shares minted');
 
-    // The successful transfer makes the wrapper a known lender. Revoking its
-    // credential must not hide capacity that the transfer hook will accept.
+    // the first successful transfer makes the wrapper a known lender. revoking its
+    // credential doesn't undo that, so the available capacity should stay visible.
     vm.prank(address(ecdsaRoleProvider));
     BaseAccessControls(d.hooksInstance).revokeRole(address(wrapper));
     assertGe(wrapper.maxDeposit(alice), wrapAmount, 'known wrapper lost maxDeposit');

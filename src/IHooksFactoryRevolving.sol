@@ -71,8 +71,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev Disable a hooks template for new hook instances. Existing immutable
-  ///      hook instances remain available for new market deployments.
+  /// @dev disables this template for new hook instances. existing instances can still
+  ///      deploy markets; disabling a template isn't a kill switch for immutable hooks.
   ///
   ///      On success:
   ///      - Emits `HooksTemplateDisabled` on success.
@@ -242,10 +242,10 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
-  /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.
-  ///      The first 20 bytes of `salt` must contain a non-zero market deployer.
-  ///      Deployment requires that address to be the immediate factory caller;
-  ///      for borrower accounts, this is the account contract, not its principal.
+  /// @dev returns the CREATE2 market address for `salt` and this factory's init code.
+  ///      the first 20 bytes name the non-zero deployer, and deployment requires that
+  ///      address to call the factory. for borrower accounts, use the account contract,
+  ///      not its principal.
   function computeMarketAddress(bytes32 salt) external view returns (address);
 
   function pushProtocolFeeBipsUpdates(

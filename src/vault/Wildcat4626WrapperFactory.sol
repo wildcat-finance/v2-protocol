@@ -104,7 +104,8 @@ contract Wildcat4626WrapperFactory {
     address hooksAddress = marketHooks.hooksAddress();
     IMarketTransferPolicy transferPolicy = IMarketTransferPolicy(hooksAddress);
     try transferPolicy.isMarketTransferDisabled(market) returns (bool transfersDisabled) {
-      // Probe the complete capability needed by the wrapper's ERC-4626 limit functions.
+      // ask for both methods the wrapper needs. supporting half the policy interface would
+      // just move this failure into maxDeposit later.
       try transferPolicy.isMarketTransferRecipientAllowed(market, address(this)) returns (bool) {
         return transfersDisabled;
       } catch {

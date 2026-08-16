@@ -88,8 +88,8 @@ library MarketStateLib {
   /**
    * @dev Maximum scaled amount that `normalizedAmount` can settle when scaled
    *      tokens are priced with the floor rounding used for batch payments
-   *      (`mulDiv(scaled, scaleFactor, RAY)`): the largest representable
-   *      `uint104` value `k` with
+   *      (`mulDiv(scaled, scaleFactor, RAY)`): the largest `k` that fits in
+   *      `uint104` and still satisfies
    *      floor(k * scaleFactor / RAY) <= normalizedAmount.
    *
    *      `scaleAmountDown` can understate this by one scaled token, which
@@ -101,9 +101,8 @@ library MarketStateLib {
     MarketState memory state,
     uint256 normalizedAmount
   ) internal pure returns (uint256) {
-    // Every withdrawal amount is uint104. Once the available liquidity can
-    // settle the largest representable scaled amount, return that cap before
-    // multiplying attacker-inflatable liquidity by RAY.
+    // withdrawal amounts only get uint104. cap here before multiplying liquidity by RAY;
+    // direct token transfers can make `normalizedAmount` arbitrarily large.
     uint256 maxScaledAmount = type(uint104).max;
     uint256 normalizedMaxScaledAmount = MathUtils.mulDiv(maxScaledAmount, state.scaleFactor, RAY);
     if (normalizedAmount >= normalizedMaxScaledAmount) return maxScaledAmount;
