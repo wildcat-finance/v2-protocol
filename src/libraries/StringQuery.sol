@@ -58,8 +58,8 @@ function queryStringOrBytes32AsString(
     }
     str = bytes32ToString(value);
   } else {
-    // If returndata is a string, validate its canonical ABI shape before
-    // copying the length and value into a newly allocated string.
+    // If returndata is a string, validate its ABI offset and declared length
+    // before copying the length and value into a newly allocated string.
     assembly {
       let returnSize := returndatasize()
       returndatacopy(0, 0, 0x40)
@@ -67,7 +67,7 @@ function queryStringOrBytes32AsString(
       let paddedLength := and(add(length, 0x1f), not(0x1f))
       if or(
         xor(mload(0), 0x20),
-        or(lt(paddedLength, length), xor(returnSize, add(0x40, paddedLength)))
+        or(lt(paddedLength, length), gt(paddedLength, sub(returnSize, 0x40)))
       ) {
         mstore(0, 0x4cb9c000)
         revert(0x1c, 0x04)
@@ -76,7 +76,7 @@ function queryStringOrBytes32AsString(
       str := mload(0x40)
       let allocSize := add(0x20, paddedLength)
       mstore(0x40, add(str, allocSize))
-      // Copy returndata after the offset
+      // Copy the declared string after the offset and ignore trailing returndata.
       returndatacopy(str, 0x20, allocSize)
     }
   }

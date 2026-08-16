@@ -66,6 +66,18 @@ contract MalformedStringMetadata {
   }
 }
 
+contract TrailingStringMetadata {
+  function name() external pure {
+    assembly {
+      mstore(0x00, 0x20)
+      mstore(0x20, 1)
+      mstore(0x40, shl(248, 0x41))
+      mstore(0x60, 0xdeadbeef)
+      return(0x00, 0x80)
+    }
+  }
+}
+
 contract StringQueryTest is Test {
   using LibERC20 for address;
   Bytes32Metadata internal immutable bytes32Metadata = new Bytes32Metadata();
@@ -74,6 +86,7 @@ contract StringQueryTest is Test {
   BadStrings internal immutable badStrings = new BadStrings();
   MalformedStringMetadata internal immutable malformedStringMetadata =
     new MalformedStringMetadata();
+  TrailingStringMetadata internal immutable trailingStringMetadata = new TrailingStringMetadata();
 
   function queryName(address token) external view returns (string memory) {
     return token.name();
@@ -128,5 +141,9 @@ contract StringQueryTest is Test {
   function test_symbol_RejectsNonCanonicalDynamicStringOffset() external {
     vm.expectRevert(bytes4(0x4cb9c000));
     this.querySymbol(address(malformedStringMetadata));
+  }
+
+  function test_name_AcceptsTrailingReturnData() external view {
+    assertEq(address(trailingStringMetadata).name(), 'A');
   }
 }
