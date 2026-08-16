@@ -1131,7 +1131,7 @@ contract HooksFactoryTest is Test, Assertions {
     );
   }
 
-  function test_deployMarket_HooksTemplateNotAvailableWhenDisabled() external {
+  function test_deployMarket_ExistingInstanceRemainsAvailableWhenTemplateDisabled() external {
     hooksFactory.addHooksTemplate(MockHooksTemplate, 'template', address(0), address(0), 0, 0);
     archController.registerBorrower(address(this));
     address hooksInstance = hooksFactory.deployHooksInstance(MockHooksTemplate, bytes(''));
@@ -1150,8 +1150,17 @@ contract HooksFactoryTest is Test, Assertions {
       hooks: EmptyHooksConfig.setHooksAddress(hooksInstance)
     });
 
-    vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
-    hooksFactory.deployMarket(parameters, bytes(''), _marketSalt(1), address(0), 0);
+    address market = hooksFactory.deployMarket(
+      parameters,
+      bytes(''),
+      _marketSalt(1),
+      address(0),
+      0
+    );
+
+    assertTrue(archController.isRegisteredMarket(market), 'market not registered');
+    assertEq(hooksFactory.getMarketsForHooksTemplateCount(MockHooksTemplate), 1, 'template count');
+    assertEq(hooksFactory.getMarketsForHooksInstanceCount(hooksInstance), 1, 'instance count');
   }
 
   function test_deployMarket_NameOrSymbolTooLong() external {

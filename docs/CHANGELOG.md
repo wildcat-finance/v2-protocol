@@ -56,7 +56,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 ### Factories and access control
 
 - Factory hardening: CREATE2 address verification on market deployment, pagination bounds validation (`InvalidPaginationRange`), empty-page handling. Market salts must encode the immediate factory caller in their first 20 bytes and a 12-byte nonce in the remainder. Zero-prefix salts are rejected. For borrower accounts, the prefix is the account contract rather than its principal.
-- Disabling a hooks template now blocks both new hook instances and new markets that would reuse an existing instance; existing instances and markets remain operational.
+- Disabling a hooks template blocks new hook instances. Existing immutable instances remain available for new market deployments, and existing markets remain operational.
 - APR-reduction constraints compare the exact rational reduction against the 25% boundary before converting it to basis points, so a slightly-over-threshold reduction cannot floor onto the unpenalized boundary.
 - `BaseAccessControls`: push credentials must have nonzero, non-future timestamps; `isPullProvider()` is probed defensively (non-implementing providers become push-only); providers already consulted via `hooksData` are skipped in the fallback pull loop.
 - Hook administration is now separate from credential ownership. Hooks no longer add their administrator as a permanent push provider, and hook administrators can move through a two-step transfer without rewriting provider configuration or lender state.

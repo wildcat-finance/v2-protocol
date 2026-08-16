@@ -544,7 +544,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     assertEq(observedHooksData, hooksData);
   }
 
-  function test_deployMarket_HooksTemplateNotAvailableWhenDisabled() external {
+  function test_deployMarket_ExistingInstanceRemainsAvailableWhenTemplateDisabled() external {
     hooksFactoryRevolving.addHooksTemplate(
       hooksTemplate,
       'revolving-template',
@@ -558,14 +558,25 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     hooksFactoryRevolving.disableHooksTemplate(hooksTemplate);
     DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
 
-    vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
-    hooksFactoryRevolving.deployMarket(
+    address market = hooksFactoryRevolving.deployMarket(
       parameters,
       bytes(''),
       _defaultMarketData(),
       _marketSalt(1),
       nullAddress,
       0
+    );
+
+    assertTrue(archController.isRegisteredMarket(market), 'market not registered');
+    assertEq(
+      hooksFactoryRevolving.getMarketsForHooksTemplateCount(hooksTemplate),
+      1,
+      'template count'
+    );
+    assertEq(
+      hooksFactoryRevolving.getMarketsForHooksInstanceCount(hooksInstance),
+      1,
+      'instance count'
     );
   }
 

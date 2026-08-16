@@ -71,8 +71,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev Disable a hooks template for new hook instances and new markets,
-  ///      including markets that would reuse an existing instance.
+  /// @dev Disable a hooks template for new hook instances. Existing immutable
+  ///      hook instances remain available for new market deployments.
   ///
   ///      On success:
   ///      - Emits `HooksTemplateDisabled` on success.

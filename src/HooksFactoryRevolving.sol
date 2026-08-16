@@ -739,9 +739,6 @@ contract HooksFactoryRevolving is
     if (!templateDetails.exists) {
       revert HooksTemplateNotFound();
     }
-    if (!templateDetails.enabled) {
-      revert HooksTemplateNotAvailable();
-    }
 
     if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
       revert AssetBlacklisted();

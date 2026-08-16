@@ -78,7 +78,7 @@ Per-call preconditions. Heading IDs below (`G-N`) are anchor targets from x-ray.
 `msg.sender == IWildcatArchController(_archController).owner()` · `src/HooksFactory.sol:194-202` · Ties template approval and fee policy to the live ArchController owner.
 
 #### G-24
-`template.exists && template.enabled` · `src/HooksFactory.sol:497-505` · Prevents deployments through unknown or disabled hook templates.
+`template.exists && template.enabled` · `src/HooksFactory.sol:497-505` · Prevents new hook-instance deployment through unknown or disabled templates without revoking existing immutable instances.
 
 #### G-25
 `!archController.isBlacklistedAsset(parameters.asset)` · `src/HooksFactory.sol:690-701` · Prevents new markets using an asset rejected by protocol governance.

@@ -698,9 +698,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     DeployMarketRuntimeParameters memory runtimeParams
   ) internal returns (address market) {
     HooksTemplate memory templateDetails = _templateDetails[runtimeParams.hooksTemplate];
-    if (!templateDetails.enabled) {
-      revert HooksTemplateNotAvailable();
-    }
     if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
       revert AssetBlacklisted();
     }
