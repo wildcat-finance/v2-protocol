@@ -60,9 +60,10 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
-  /// @dev Market hook called before executing a lender withdrawal.
+  /// @dev Market hook called before executing a lender withdrawal from the batch keyed by `expiry`.
   function onExecuteWithdrawal(
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData

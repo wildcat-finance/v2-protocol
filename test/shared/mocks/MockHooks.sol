@@ -18,6 +18,7 @@ event OnQueueWithdrawalCalled(
 );
 event OnExecuteWithdrawalCalled(
   address lender,
+  uint32 expiry,
   uint128 normalizedAmountWithdrawn,
   MarketState intermediateState,
   bytes extraData
@@ -174,12 +175,19 @@ contract MockHooks is IHooks {
 
   function onExecuteWithdrawal(
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
-    emit OnExecuteWithdrawalCalled(lender, normalizedAmountWithdrawn, intermediateState, extraData);
+    emit OnExecuteWithdrawalCalled(
+      lender,
+      expiry,
+      normalizedAmountWithdrawn,
+      intermediateState,
+      extraData
+    );
   }
 
   function onTransfer(
