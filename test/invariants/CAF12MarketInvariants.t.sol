@@ -30,6 +30,10 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
 
   uint256 internal nextSalt = 1;
 
+  function _nextMarketSalt(address deployer) internal returns (bytes32) {
+    return bytes32((uint256(uint160(deployer)) << 96) | nextSalt++);
+  }
+
   function _storeMarketInitCode(
     bool revolving
   ) internal returns (address initCodeStorage, uint256 initCodeHash) {
@@ -93,7 +97,7 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
 
     vm.prank(borrower);
     market = WildcatMarket(
-      hooksFactory.deployMarket(params, bytes(''), bytes32(nextSalt++), address(0), 0)
+      hooksFactory.deployMarket(params, bytes(''), _nextMarketSalt(borrower), address(0), 0)
     );
   }
 
@@ -153,7 +157,7 @@ abstract contract CAF12InvariantDeployer is ForgeTest {
       params,
       bytes(''),
       abi.encode(uint8(1), uint16(200)),
-      bytes32(nextSalt++),
+      _nextMarketSalt(borrower),
       address(0),
       0
     );
