@@ -99,6 +99,7 @@ the actual evidence.
 | G-33 | Provider factories | Decode fixed generic inputs directly from bounded calldata             | Medium    | Accepted                               |
 | G-34 | Access-list factory | Keep dynamic provider members in bounded calldata                     | Medium    | Accepted                               |
 | G-35 | Sanctions sentinel | Bound the Chainalysis boolean probe                                    | Low       | Accepted                               |
+| G-36 | Identity registry  | Bound ArchController owner and borrower probes                        | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -672,6 +673,26 @@ Measured against the preceding accepted commit before adding the malformed-respo
 - representative escrow and sanctions flows save 187 to 550 gas depending on how many checks
   they execute;
 - sentinel initcode and runtime each shrink by 78 bytes, saving about 15,636 deployment gas; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded identity-registry controller probes (G-36)
+
+The borrower identity registry now reads the ArchController owner and borrower-registration
+flags with fixed calldata and one-word output buffers. Target reverts still bubble, short or
+dirty values still fail ABI validation, and harmless trailing return data remains accepted. The
+borrower-registration helper is shared by account creation, principal transfer, and the hot
+`resolveBorrower` path.
+
+Measured against the preceding accepted commit before adding the malformed-response test bodies:
+
+- all 43 registry tests pass, including short, dirty, oversized-valid, and reverting controller
+  response regressions;
+- direct-principal resolution saves 269 gas and a successful account registration saves 969 gas;
+- successful principal-transfer flows save roughly 1,200 to 1,939 gas depending on the number
+  of controller checks they execute;
+- owner-gated factory operations save about 241 to 255 gas per owner probe;
+- registry initcode shrinks by 649 bytes and runtime by 628 bytes, saving roughly 125,600 gas in
+  runtime code deposit; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
