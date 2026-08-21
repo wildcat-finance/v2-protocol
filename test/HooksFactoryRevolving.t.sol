@@ -536,6 +536,10 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     );
 
     assertEq(market, expectedMarket);
+    assertEq(
+      WildcatMarketRevolving(market).commitmentFeeBips(),
+      defaultCommitmentFeeBips
+    );
     assertTrue(archController.isRegisteredMarket(market));
     assertEq(hooksFactoryRevolving.getMarketsForHooksTemplateCount(hooksTemplate), 1);
     assertEq(hooksFactoryRevolving.getMarketsForHooksInstanceCount(hooksInstance), 1);
@@ -1462,6 +1466,8 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
   }
 
   function test_getRevolvingMarketCommitmentFeeBips_OutsideDeploymentContextReverts() external {
+    vm.expectRevert();
+    hooksFactoryRevolving.getMarketParameters();
     vm.expectRevert();
     hooksFactoryRevolving.getRevolvingMarketCommitmentFeeBips();
   }

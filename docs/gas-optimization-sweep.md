@@ -69,7 +69,7 @@ the actual evidence.
 | G-03 | Both factories     | Resolve borrower principals with an exact fixed-size staticcall        | Low       | Accepted in factory batch                     |
 | G-04 | Access controls    | Keep read-only batch inputs in calldata                                | Low       | Accepted                                      |
 | G-05 | Withdrawal queue   | Pack eight `uint32` expiries into each queue word                      | Medium    | Accepted for new deployments                  |
-| G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 16 words | Medium    | Pending investigation                         |
+| G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 16 words | Medium    | Accepted                                      |
 | G-07 | Markets            | Reuse exact post-transition balances already loaded by the same path   | Low       | Accepted                                      |
 | G-08 | Markets            | Dirty-slot writes instead of four unconditional state writes           | Medium    | Rejected from EVM cost analysis               |
 | G-09 | Fleet architecture | Clone or singleton markets/hooks                                       | Very high | Break-even analysis only                      |
@@ -202,6 +202,29 @@ Measured against the preceding accepted commit with seed `0x5eed`:
 The deployment increase is recovered by the second unpaid batch. Forge's single-transaction test
 snapshots exaggerate delete refunds, so the lifecycle conclusion uses the separate-transaction
 benchmark rather than treating aggregate test gas as production transaction gas.
+
+### Packed transient constructor handoff (G-06)
+
+Both factories now hand market constructors ten fixed transient words instead of ABI-encoding a
+16-word temporary struct into a transient byte array. The scalar parameters fill one exact 256-bit
+word, asset shares a word with decimals, and borrower principal shares a word with the revolving
+commitment fee. The borrower word is the active marker; clearing it makes both public constructor
+getters revert outside deployment, while every later deployment overwrites all remaining words
+before restoring the marker.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- a 1,000-run codec fuzz test round-trips every field, including arbitrary hook words and all
+  integer widths; explicit tests cover dirty-word overwrite, clear, and inactive reads;
+- all 40 standard-factory tests and 47 revolving-factory tests pass;
+- standard `deployMarket` and `deployMarketAndHooks` are each 6,117 gas cheaper;
+- the measured revolving deployment paths are 7,368 to 7,369 gas cheaper;
+- the standard factory grows by 59 runtime/initcode bytes, adding roughly 11,800 gas to its
+  one-time deployment, so its deployment cost breaks even with the second market;
+- the revolving factory shrinks by 347 runtime/initcode bytes, saving roughly 69,400 gas when the
+  factory itself is deployed; and
+- public ABIs and persistent storage layouts are unchanged. The internal transient encoding is
+  deliberately different and exists only during market construction.
 
 ## Rejected Candidates
 

@@ -9,30 +9,11 @@ import './ReentrancyGuard.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
 import './access/IHooks.sol';
 import './IHooksFactoryRevolving.sol';
-import './types/TransientBytesArray.sol';
+import './types/TransientMarketParameters.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
 import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
 import './types/RoleProvider.sol';
-
-struct TmpRevolvingMarketParameterStorage {
-  address borrower;
-  address asset;
-  address feeRecipient;
-  uint16 protocolFeeBips;
-  uint128 maxTotalSupply;
-  uint16 annualInterestBips;
-  uint16 delinquencyFeeBips;
-  uint32 withdrawalBatchDuration;
-  uint16 reserveRatioBips;
-  uint32 delinquencyGracePeriod;
-  bytes32 packedNameWord0;
-  bytes32 packedNameWord1;
-  bytes32 packedSymbolWord0;
-  bytes32 packedSymbolWord1;
-  uint8 decimals;
-  HooksConfig hooks;
-}
 
 /**
  * @dev Deployment parameters that are not part of `DeployMarketInputs`,
@@ -54,17 +35,6 @@ contract HooksFactoryRevolving is
   IHooksFactoryRevolving
 {
   using LibERC20 for address;
-
-  TransientBytesArray internal constant _tmpMarketParameters =
-    TransientBytesArray.wrap(
-      uint256(keccak256('Transient:TmpRevolvingMarketParameterStorage')) - 1
-    );
-
-  uint256 internal constant _TMP_BORROWER_PRINCIPAL_SLOT =
-    uint256(keccak256('Transient:TmpBorrowerPrincipal')) - 1;
-
-  TransientBytesArray internal constant _tmpRevolvingMarketData =
-    TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketData')) - 1);
 
   /// @dev Length of `abi.encode(uint8 version, uint16 commitmentFeeBips)`
   uint256 internal constant _MARKET_DATA_LENGTH = 0x40;
@@ -162,56 +132,6 @@ contract HooksFactoryRevolving is
 
   function archController() external view override returns (address) {
     return _archController;
-  }
-
-  // ========================================================================== //
-  //                          Internal Storage Helpers                          //
-  // ========================================================================== //
-
-  /**
-   * @dev Get the temporary market parameters from transient storage.
-   */
-  function _getTmpMarketParameters()
-    internal
-    view
-    returns (TmpRevolvingMarketParameterStorage memory parameters)
-  {
-    return abi.decode(_tmpMarketParameters.read(), (TmpRevolvingMarketParameterStorage));
-  }
-
-  /**
-   * @dev Set the temporary market parameters in transient storage.
-   */
-  function _setTmpMarketParameters(TmpRevolvingMarketParameterStorage memory parameters) internal {
-    _tmpMarketParameters.write(abi.encode(parameters));
-  }
-
-  function _getTmpBorrowerPrincipal() internal view returns (address principal) {
-    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
-    assembly {
-      principal := tload(slot)
-    }
-  }
-
-  function _setTmpBorrowerPrincipal(address principal) internal {
-    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
-    assembly {
-      tstore(slot, principal)
-    }
-  }
-
-  /**
-   * @dev Set the temporary commitment fee in transient storage.
-   */
-  function _setTmpCommitmentFeeBips(uint16 commitmentFeeBips) internal {
-    _tmpRevolvingMarketData.write(abi.encode(commitmentFeeBips));
-  }
-
-  /**
-   * @dev Get the temporary commitment fee from transient storage.
-   */
-  function _getTmpCommitmentFeeBips() internal view returns (uint16 commitmentFeeBips) {
-    return abi.decode(_tmpRevolvingMarketData.read(), (uint16));
   }
 
   // ========================================================================== //
@@ -633,7 +553,7 @@ contract HooksFactoryRevolving is
     override
     returns (MarketParameters memory parameters)
   {
-    TmpRevolvingMarketParameterStorage memory tmp = _getTmpMarketParameters();
+    TmpMarketParameters memory tmp = LibTransientMarketParameters.read();
 
     parameters.asset = tmp.asset;
     parameters.packedNameWord0 = tmp.packedNameWord0;
@@ -655,7 +575,7 @@ contract HooksFactoryRevolving is
     parameters.archController = _archController;
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
-    parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
+    parameters.borrowerPrincipal = tmp.borrowerPrincipal;
     parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
   }
 
@@ -711,7 +631,7 @@ contract HooksFactoryRevolving is
     address market,
     string memory name,
     string memory symbol,
-    TmpRevolvingMarketParameterStorage memory tmp,
+    TmpMarketParameters memory tmp,
     DeployRevolvingMarketRuntimeParameters memory runtimeParams,
     bytes calldata hooksData
   ) internal {
@@ -802,32 +722,32 @@ contract HooksFactoryRevolving is
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
     string memory symbol = string.concat(parameters.symbolPrefix, parameters.asset.symbol());
 
-    TmpRevolvingMarketParameterStorage memory tmp = TmpRevolvingMarketParameterStorage({
+    TmpMarketParameters memory tmp = TmpMarketParameters({
       borrower: msg.sender,
       asset: parameters.asset,
-      packedNameWord0: bytes32(0),
-      packedNameWord1: bytes32(0),
-      packedSymbolWord0: bytes32(0),
-      packedSymbolWord1: bytes32(0),
-      decimals: decimals,
       feeRecipient: templateFeeRecipient,
-      protocolFeeBips: templateProtocolFeeBips,
       maxTotalSupply: parameters.maxTotalSupply,
+      protocolFeeBips: templateProtocolFeeBips,
       annualInterestBips: parameters.annualInterestBips,
       delinquencyFeeBips: parameters.delinquencyFeeBips,
       withdrawalBatchDuration: parameters.withdrawalBatchDuration,
       reserveRatioBips: parameters.reserveRatioBips,
       delinquencyGracePeriod: parameters.delinquencyGracePeriod,
-      hooks: parameters.hooks
+      packedNameWord0: bytes32(0),
+      packedNameWord1: bytes32(0),
+      packedSymbolWord0: bytes32(0),
+      packedSymbolWord1: bytes32(0),
+      decimals: decimals,
+      hooks: parameters.hooks,
+      borrowerPrincipal: runtimeParams.borrowerPrincipal,
+      commitmentFeeBips: runtimeParams.commitmentFeeBips
     });
     {
       (tmp.packedNameWord0, tmp.packedNameWord1) = _packString(name);
       (tmp.packedSymbolWord0, tmp.packedSymbolWord1) = _packString(symbol);
     }
 
-    _setTmpMarketParameters(tmp);
-    _setTmpBorrowerPrincipal(runtimeParams.borrowerPrincipal);
-    _setTmpCommitmentFeeBips(runtimeParams.commitmentFeeBips);
+    LibTransientMarketParameters.write(tmp);
 
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
@@ -841,9 +761,7 @@ contract HooksFactoryRevolving is
 
     IWildcatArchController(_archController).registerMarket(market);
 
-    _tmpMarketParameters.setEmpty();
-    _setTmpBorrowerPrincipal(address(0));
-    _tmpRevolvingMarketData.setEmpty();
+    LibTransientMarketParameters.clear();
 
     _marketsByHooksTemplate[runtimeParams.hooksTemplate].push(market);
     _marketsByHooksInstance[hooksInstance].push(market);
@@ -857,7 +775,7 @@ contract HooksFactoryRevolving is
    *      market deployment.
    */
   function getRevolvingMarketCommitmentFeeBips() external view override returns (uint16) {
-    return _getTmpCommitmentFeeBips();
+    return LibTransientMarketParameters.commitmentFeeBips();
   }
 
   function deployMarket(

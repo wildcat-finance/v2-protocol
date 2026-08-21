@@ -9,30 +9,11 @@ import './ReentrancyGuard.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
 import './access/IHooks.sol';
 import './IHooksFactory.sol';
-import './types/TransientBytesArray.sol';
+import './types/TransientMarketParameters.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
 import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
 import './types/RoleProvider.sol';
-
-struct TmpMarketParameterStorage {
-  address borrower;
-  address asset;
-  address feeRecipient;
-  uint16 protocolFeeBips;
-  uint128 maxTotalSupply;
-  uint16 annualInterestBips;
-  uint16 delinquencyFeeBips;
-  uint32 withdrawalBatchDuration;
-  uint16 reserveRatioBips;
-  uint32 delinquencyGracePeriod;
-  bytes32 packedNameWord0;
-  bytes32 packedNameWord1;
-  bytes32 packedSymbolWord0;
-  bytes32 packedSymbolWord1;
-  uint8 decimals;
-  HooksConfig hooks;
-}
 
 /// @dev Deployment values outside `DeployMarketInputs`, grouped to stay within the stack limit.
 struct DeployMarketRuntimeParameters {
@@ -46,12 +27,6 @@ struct DeployMarketRuntimeParameters {
 
 contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactory {
   using LibERC20 for address;
-
-  TransientBytesArray internal constant _tmpMarketParameters =
-    TransientBytesArray.wrap(uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1);
-
-  uint256 internal constant _TMP_BORROWER_PRINCIPAL_SLOT =
-    uint256(keccak256('Transient:TmpBorrowerPrincipal')) - 1;
 
   uint256 internal immutable ownCreate2Prefix = LibStoredInitCode.getCreate2Prefix(address(this));
 
@@ -153,42 +128,6 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   function archController() external view override returns (address) {
     return _archController;
-  }
-
-  // ========================================================================== //
-  //                          Internal Storage Helpers                          //
-  // ========================================================================== //
-
-  /**
-   * @dev Get the temporary market parameters from transient storage.
-   */
-  function _getTmpMarketParameters()
-    internal
-    view
-    returns (TmpMarketParameterStorage memory parameters)
-  {
-    return abi.decode(_tmpMarketParameters.read(), (TmpMarketParameterStorage));
-  }
-
-  /**
-   * @dev Set the temporary market parameters in transient storage.
-   */
-  function _setTmpMarketParameters(TmpMarketParameterStorage memory parameters) internal {
-    _tmpMarketParameters.write(abi.encode(parameters));
-  }
-
-  function _getTmpBorrowerPrincipal() internal view returns (address principal) {
-    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
-    assembly {
-      principal := tload(slot)
-    }
-  }
-
-  function _setTmpBorrowerPrincipal(address principal) internal {
-    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
-    assembly {
-      tstore(slot, principal)
-    }
   }
 
   // ========================================================================== //
@@ -614,7 +553,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     override
     returns (MarketParameters memory parameters)
   {
-    TmpMarketParameterStorage memory tmp = _getTmpMarketParameters();
+    TmpMarketParameters memory tmp = LibTransientMarketParameters.read();
 
     parameters.asset = tmp.asset;
     parameters.packedNameWord0 = tmp.packedNameWord0;
@@ -636,7 +575,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.archController = _archController;
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
-    parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
+    parameters.borrowerPrincipal = tmp.borrowerPrincipal;
     parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
   }
 
@@ -674,7 +613,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address market,
     string memory name,
     string memory symbol,
-    TmpMarketParameterStorage memory tmp,
+    TmpMarketParameters memory tmp,
     DeployMarketRuntimeParameters memory runtimeParams,
     bytes calldata hooksData
   ) internal {
@@ -760,31 +699,32 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
     string memory symbol = string.concat(parameters.symbolPrefix, parameters.asset.symbol());
 
-    TmpMarketParameterStorage memory tmp = TmpMarketParameterStorage({
+    TmpMarketParameters memory tmp = TmpMarketParameters({
       borrower: msg.sender,
       asset: parameters.asset,
-      packedNameWord0: bytes32(0),
-      packedNameWord1: bytes32(0),
-      packedSymbolWord0: bytes32(0),
-      packedSymbolWord1: bytes32(0),
-      decimals: decimals,
       feeRecipient: templateFeeRecipient,
-      protocolFeeBips: templateProtocolFeeBips,
       maxTotalSupply: parameters.maxTotalSupply,
+      protocolFeeBips: templateProtocolFeeBips,
       annualInterestBips: parameters.annualInterestBips,
       delinquencyFeeBips: parameters.delinquencyFeeBips,
       withdrawalBatchDuration: parameters.withdrawalBatchDuration,
       reserveRatioBips: parameters.reserveRatioBips,
       delinquencyGracePeriod: parameters.delinquencyGracePeriod,
-      hooks: parameters.hooks
+      packedNameWord0: bytes32(0),
+      packedNameWord1: bytes32(0),
+      packedSymbolWord0: bytes32(0),
+      packedSymbolWord1: bytes32(0),
+      decimals: decimals,
+      hooks: parameters.hooks,
+      borrowerPrincipal: runtimeParams.borrowerPrincipal,
+      commitmentFeeBips: 0
     });
     {
       (tmp.packedNameWord0, tmp.packedNameWord1) = _packString(name);
       (tmp.packedSymbolWord0, tmp.packedSymbolWord1) = _packString(symbol);
     }
 
-    _setTmpMarketParameters(tmp);
-    _setTmpBorrowerPrincipal(runtimeParams.borrowerPrincipal);
+    LibTransientMarketParameters.write(tmp);
 
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
@@ -797,8 +737,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
     IWildcatArchController(_archController).registerMarket(market);
 
-    _tmpMarketParameters.setEmpty();
-    _setTmpBorrowerPrincipal(address(0));
+    LibTransientMarketParameters.clear();
 
     _marketsByHooksTemplate[runtimeParams.hooksTemplate].push(market);
     _marketsByHooksInstance[hooksInstance].push(market);

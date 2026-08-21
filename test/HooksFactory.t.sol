@@ -1381,6 +1381,11 @@ contract HooksFactoryTest is Test, Assertions {
     assertEq(aliceMarket, aliceMarketPredictedByBob, 'explicit salts remain publicly predictable');
   }
 
+  function test_getMarketParameters_OutsideDeploymentContextReverts() external {
+    vm.expectRevert();
+    hooksFactory.getMarketParameters();
+  }
+
   function test_deployMarketAndHooks(
     FuzzDeployMarketInputs memory paramsInput,
     FuzzFeeConfigurationInputs memory feesInput
