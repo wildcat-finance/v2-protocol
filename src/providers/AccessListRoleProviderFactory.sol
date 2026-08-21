@@ -11,25 +11,61 @@ import './IAccessListRoleProviderFactory.sol';
  */
 contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
-    AccessListRoleProviderFactoryInputs memory inputs = abi.decode(
-      data,
-      (AccessListRoleProviderFactoryInputs)
-    );
-    provider = _createRoleProvider(msg.sender, inputs);
+    address administrator;
+    bytes32 userSalt;
+    address[] calldata initialMembers;
+    assembly {
+      if lt(data.length, 0xa0) {
+        revert(0, 0)
+      }
+      if iszero(eq(calldataload(data.offset), 0x20)) {
+        revert(0, 0)
+      }
+      administrator := calldataload(add(data.offset, 0x20))
+      if shr(160, administrator) {
+        revert(0, 0)
+      }
+      if iszero(eq(calldataload(add(data.offset, 0x40)), 0x60)) {
+        revert(0, 0)
+      }
+      userSalt := calldataload(add(data.offset, 0x60))
+      let membersLength := calldataload(add(data.offset, 0x80))
+      if gt(membersLength, div(sub(data.length, 0xa0), 0x20)) {
+        revert(0, 0)
+      }
+      initialMembers.offset := add(data.offset, 0xa0)
+      initialMembers.length := membersLength
+      let membersEnd := add(initialMembers.offset, shl(5, membersLength))
+      for { let memberPointer := initialMembers.offset } lt(memberPointer, membersEnd) {
+        memberPointer := add(memberPointer, 0x20)
+      } {
+        if shr(160, calldataload(memberPointer)) {
+          revert(0, 0)
+        }
+      }
+    }
+    provider = _createRoleProvider(msg.sender, administrator, initialMembers, userSalt);
   }
 
   function createAccessListRoleProvider(
     AccessListRoleProviderFactoryInputs calldata inputs
   ) external override returns (address provider) {
-    provider = _createRoleProvider(msg.sender, inputs);
+    provider = _createRoleProvider(
+      msg.sender,
+      inputs.administrator,
+      inputs.initialMembers,
+      inputs.salt
+    );
   }
 
   function _createRoleProvider(
     address deployer,
-    AccessListRoleProviderFactoryInputs memory inputs
+    address administrator,
+    address[] calldata initialMembers,
+    bytes32 userSalt
   ) internal returns (address provider) {
-    bytes32 salt = _deriveSalt(deployer, inputs.salt);
-    bytes memory initCode = _getRoleProviderInitCode(inputs.administrator, inputs.initialMembers);
+    bytes32 salt = _deriveSalt(deployer, userSalt);
+    bytes memory initCode = _getRoleProviderInitCode(administrator, initialMembers);
     address expectedProvider = _computeCreate2Address(salt, keccak256(initCode));
     if (expectedProvider.code.length != 0) revert RoleProviderAlreadyExists();
     assembly ('memory-safe') {
@@ -43,10 +79,10 @@ contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
     }
     emit AccessListRoleProviderDeployed(
       provider,
-      inputs.administrator,
+      administrator,
       deployer,
-      inputs.salt,
-      inputs.initialMembers
+      userSalt,
+      initialMembers
     );
   }
 
@@ -62,7 +98,7 @@ contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
 
   function _getRoleProviderInitCode(
     address administrator,
-    address[] memory initialMembers
+    address[] calldata initialMembers
   ) internal pure returns (bytes memory initCode) {
     initCode = abi.encodePacked(
       type(AccessListRoleProvider).creationCode,

@@ -97,6 +97,7 @@ the actual evidence.
 | G-31 | Managed providers  | Reuse the administrator proved by the transfer-request modifier        | Low       | Accepted                               |
 | G-32 | Wrapper factory    | Validate transfer-policy booleans with bounded fixed-output calls      | Low       | Accepted                               |
 | G-33 | Provider factories | Decode fixed generic inputs directly from bounded calldata             | Medium    | Accepted                               |
+| G-34 | Access-list factory | Keep dynamic provider members in bounded calldata                     | Medium    | Accepted                               |
 
 ## Accepted Batches
 
@@ -619,8 +620,8 @@ Measured against the preceding accepted commit:
 The ERC-20, ERC-4626, ERC-721, ERC-1155, and Merkle generic factory entry points now read their
 fixed tuples directly from the nested calldata slice. The decoders retain `abi.decode`'s minimum
 length, clean-address, and clean-boolean requirements and continue to ignore harmless trailing
-bytes. The access-list tuple remains on the standard decoder because its dynamic offset and
-array-length validation is a different risk class.
+bytes. The access-list tuple was kept separate because its dynamic offset and array-length
+validation is a different risk class; that path is covered by G-34 below.
 
 Measured against the preceding accepted commit before adding the larger malformed-input test
 bodies:
@@ -632,6 +633,27 @@ bodies:
 - ERC-20, ERC-4626, and Merkle factory initcode/runtime each shrink by 60 bytes;
 - ERC-721 shrinks by 62 bytes and ERC-1155 by 81 bytes, saving roughly 12,000 to 16,200 gas at
   factory deployment; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded access-list factory decoding (G-34)
+
+The access-list factory now validates the one canonical dynamic tuple in place, keeps the member
+array in calldata through initcode construction and event emission, and checks every address word
+before exposing the calldata slice as an `address[]`. The typed entry point uses the same calldata
+path, so it no longer copies the whole struct to memory either. Empty arrays and trailing bytes
+remain supported; short data, dirty addresses, wrong offsets, and truncated arrays fail before
+deployment.
+
+Measured against the preceding accepted commit before adding the larger malformed-input test
+bodies:
+
+- all 205 provider tests and the targeted access-list and borrower-account integration suites
+  pass, including new empty, multi-member, trailing-data, dirty-address, wrong-offset, and
+  truncated-array regressions;
+- one-member typed and generic deployments save 909 and 911 gas;
+- the tested duplicate-deployment rejection saves 1,059 gas and two caller-namespaced generic
+  deployments save 1,440 gas;
+- factory initcode and runtime each shrink by 159 bytes, saving about 31,800 deployment gas; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

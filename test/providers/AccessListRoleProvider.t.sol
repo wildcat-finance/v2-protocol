@@ -282,6 +282,31 @@ contract AccessListRoleProviderFactoryTest is Test {
     assertEq(AccessListRoleProvider(actual).administrator(), Bob, 'administrator');
   }
 
+  function test_createRoleProvider_GenericInterface_EmptyMembersAndTrailingData() external {
+    AccessListRoleProviderFactoryInputs memory inputs;
+    inputs.administrator = Bob;
+    inputs.salt = bytes32('generic-trailing');
+    inputs.initialMembers = new address[](0);
+    address expected = factory.computeRoleProviderAddress(address(this), inputs);
+    address actual = factory.createRoleProvider(bytes.concat(abi.encode(inputs), hex'deadbeef'));
+
+    assertEq(actual, expected, 'provider');
+    assertEq(AccessListRoleProvider(actual).getMembersCount(), 0, 'members');
+  }
+
+  function test_createRoleProvider_GenericInterface_MultipleMembers() external {
+    AccessListRoleProviderFactoryInputs memory inputs;
+    inputs.administrator = Bob;
+    inputs.salt = bytes32('generic-multiple');
+    inputs.initialMembers = new address[](3);
+    inputs.initialMembers[0] = Alice;
+    inputs.initialMembers[1] = address(0xBEEF);
+    inputs.initialMembers[2] = address(0xCAFE);
+    address provider = factory.createRoleProvider(abi.encode(inputs));
+
+    assertEq(AccessListRoleProvider(provider).getMembers(), inputs.initialMembers, 'members');
+  }
+
   function test_deploymentEvent() external {
     AccessListRoleProviderFactoryInputs memory inputs;
     inputs.administrator = address(this);
@@ -326,6 +351,46 @@ contract AccessListRoleProviderFactoryTest is Test {
   function test_malformedInitializationReverts() external {
     vm.expectRevert();
     factory.createRoleProvider(hex'1234');
+
+    AccessListRoleProviderFactoryInputs memory inputs = _inputs(Bob, bytes32('malformed'));
+
+    bytes memory dirtyAdministrator = abi.encode(inputs);
+    assembly {
+      mstore(
+        add(dirtyAdministrator, 0x40),
+        or(mload(add(dirtyAdministrator, 0x40)), shl(160, 1))
+      )
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(dirtyAdministrator);
+
+    bytes memory dirtyMember = abi.encode(inputs);
+    assembly {
+      mstore(add(dirtyMember, 0xc0), or(mload(add(dirtyMember, 0xc0)), shl(160, 1)))
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(dirtyMember);
+
+    bytes memory invalidTupleOffset = abi.encode(inputs);
+    assembly {
+      mstore(add(invalidTupleOffset, 0x20), 0x40)
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(invalidTupleOffset);
+
+    bytes memory invalidMembersOffset = abi.encode(inputs);
+    assembly {
+      mstore(add(invalidMembersOffset, 0x60), 0x80)
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(invalidMembersOffset);
+
+    bytes memory missingMember = abi.encode(inputs);
+    assembly {
+      mstore(missingMember, sub(mload(missingMember), 0x20))
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(missingMember);
   }
 
   function test_invalidInitializationReverts() external {
