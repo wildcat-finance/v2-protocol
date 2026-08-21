@@ -844,7 +844,15 @@ contract WildcatMarketBase is
    *      Used at the end of all functions which modify `state`.
    */
   function _writeState(MarketState memory state) internal {
-    bool isDelinquent = state.liquidityRequired() > totalAssets();
+    _writeState(state, totalAssets());
+  }
+
+  /**
+   * @dev Writes state using a current asset balance already loaded after the last
+   *      external state-changing call.
+   */
+  function _writeState(MarketState memory state, uint256 currentTotalAssets) internal {
+    bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
 
     {

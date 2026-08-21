@@ -134,7 +134,11 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     emit_WithdrawalQueued(expiry, accountAddress, scaledAmount, normalizedAmount);
 
     // Burn as much of the withdrawal batch as possible with available liquidity.
-    uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets());
+    uint256 currentTotalAssets = totalAssets();
+    uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(
+      state,
+      currentTotalAssets
+    );
     if (availableLiquidity > 0) {
       _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
     }
@@ -143,7 +147,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     _withdrawalData.batches[expiry] = batch;
 
     // Update stored state
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
   /**
@@ -377,7 +381,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       // Reduce liquidity available to next batch
       availableLiquidity = availableLiquidity.satSub(normalizedAmountPaid);
     }
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
   function _processUnpaidWithdrawalBatch(
