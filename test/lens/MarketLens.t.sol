@@ -61,9 +61,21 @@ contract MarketVersionProbeHarness {
   }
 }
 
+contract HooksKindProbeHarness {
+  function kindForHooks(address target) external view returns (HooksInstanceKind) {
+    return HooksConfigDataLib.kindForHooks(target);
+  }
+}
+
 contract EmptyMarketVersion {
   function version() external pure returns (string memory) {
     return '';
+  }
+}
+
+contract LongMarketVersion {
+  function version() external pure returns (string memory) {
+    return 'This hooks version is deliberately longer than one word';
   }
 }
 
@@ -90,7 +102,8 @@ contract HooksInstanceDataHarness {
     address hooksAddress,
     IHooksFactory factory
   ) external view returns (HooksInstanceData memory data) {
-    data.fill(hooksAddress, factory);
+    HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksAddress);
+    data.fill(hooksAddress, factory, address(0), kind);
   }
 }
 
@@ -173,6 +186,39 @@ contract MarketDataTest is BaseMarketTest {
     RevertingMarketVersion target = new RevertingMarketVersion();
     vm.expectRevert(RevertingMarketVersion.VersionReadFailed.selector);
     harness.isV2(address(target));
+  }
+
+  function test_hooksKindProbe_handlesKnownEmptyAndLongVersions() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    assertEq(
+      uint8(harness.kindForHooks(address(hooks))),
+      uint8(HooksInstanceKind.OpenTerm),
+      'known'
+    );
+    assertEq(
+      uint8(harness.kindForHooks(address(new EmptyMarketVersion()))),
+      uint8(HooksInstanceKind.Unknown),
+      'empty'
+    );
+    assertEq(
+      uint8(harness.kindForHooks(address(new LongMarketVersion()))),
+      uint8(HooksInstanceKind.Unknown),
+      'long'
+    );
+  }
+
+  function test_hooksKindProbe_rejectsShortDynamicData() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    ShortMarketVersion target = new ShortMarketVersion();
+    vm.expectRevert();
+    harness.kindForHooks(address(target));
+  }
+
+  function test_hooksKindProbe_bubblesRevertData() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    RevertingMarketVersion target = new RevertingMarketVersion();
+    vm.expectRevert(RevertingMarketVersion.VersionReadFailed.selector);
+    harness.kindForHooks(address(target));
   }
 
   /// Every function in the aggregator section of the facade must forward to
