@@ -4,6 +4,7 @@ pragma solidity >=0.8.20;
 import './libraries/LibERC20.sol';
 import './interfaces/IWildcatArchController.sol';
 import './libraries/LibStoredInitCode.sol';
+import './libraries/LibFixedCall.sol';
 import './libraries/MathUtils.sol';
 import './ReentrancyGuard.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
@@ -105,7 +106,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     sanctionsSentinel = _sanctionsSentinel;
     wrapperFactory = _wrapperFactory;
     borrowerIdentityRegistry = _borrowerIdentityRegistry;
-    __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
+    __SphereXProtectedRegisteredBase_init(
+      LibFixedCall.readAddress(archController_, IWildcatArchController.sphereXEngine.selector)
+    );
   }
 
   /**
@@ -128,7 +131,10 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   // ========================================================================== //
 
   modifier onlyArchControllerOwner() {
-    if (msg.sender != IWildcatArchController(_archController).owner()) {
+    if (
+      msg.sender !=
+      LibFixedCall.readAddress(_archController, IWildcatArchController.owner.selector)
+    ) {
       revert CallerNotArchControllerOwner();
     }
     _;
@@ -415,9 +421,15 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       previousAdministrator == newAdministrator ||
       newAdministrator == address(0) ||
       currentAdministrator != previousAdministrator ||
-      IHooksAdministrator(hooksInstance).administrator() != newAdministrator ||
-      IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0) ||
-      !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
+      LibFixedCall.readAddress(hooksInstance, IHooksAdministrator.administrator.selector) !=
+      newAdministrator ||
+      LibFixedCall.readAddress(hooksInstance, IHooksAdministrator.pendingAdministrator.selector) !=
+      address(0) ||
+      !LibFixedCall.readBool(
+        _archController,
+        IWildcatArchController.isRegisteredBorrower.selector,
+        newAdministrator
+      )
     ) {
       revert InvalidHooksAdministrator();
     }
@@ -667,7 +679,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     uint80 templateOriginationFeeAmount = templateDetails.originationFeeAmount;
     address templateFeeRecipient = templateDetails.feeRecipient;
     uint16 templateProtocolFeeBips = templateDetails.protocolFeeBips;
-    if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
+    if (
+      LibFixedCall.readBool(
+        _archController,
+        IWildcatArchController.isBlacklistedAsset.selector,
+        parameters.asset
+      )
+    ) {
       revert AssetBlacklisted();
     }
     address hooksInstance = parameters.hooks.hooksAddress();

@@ -97,12 +97,13 @@ the actual evidence.
 | G-31 | Managed providers  | Reuse the administrator proved by the transfer-request modifier        | Low       | Accepted                               |
 | G-32 | Wrapper factory    | Validate transfer-policy booleans with bounded fixed-output calls      | Low       | Accepted                               |
 | G-33 | Provider factories | Decode fixed generic inputs directly from bounded calldata             | Medium    | Accepted                               |
-| G-34 | Access-list factory | Keep dynamic provider members in bounded calldata                     | Medium    | Accepted                               |
-| G-35 | Sanctions sentinel | Bound the Chainalysis boolean probe                                    | Low       | Accepted                               |
-| G-36 | Identity registry  | Bound ArchController owner and borrower probes                        | Low       | Accepted                               |
-| G-37 | ERC-4626 wrapper  | Bound sanctions, escrow, and transfer-policy probes                   | Low       | Accepted                               |
-| G-38 | ERC-4626 wrapper  | Share bounded one-word market readers                                | Low       | Accepted                               |
-| G-39 | Sanctions escrow  | Bound asset-balance and sentinel probes                              | Low       | Accepted                               |
+| G-34 | Access-list factory | Keep dynamic provider members in bounded calldata                    | Medium    | Accepted                               |
+| G-35 | Sanctions sentinel | Bound the Chainalysis boolean probe                                   | Low       | Accepted                               |
+| G-36 | Identity registry  | Bound ArchController owner and borrower probes                       | Low       | Accepted                               |
+| G-37 | ERC-4626 wrapper   | Bound sanctions, escrow, and transfer-policy probes                  | Low       | Accepted                               |
+| G-38 | ERC-4626 wrapper   | Share bounded one-word market readers                               | Low       | Accepted                               |
+| G-39 | Sanctions escrow   | Bound asset-balance and sentinel probes                             | Low       | Accepted                               |
+| G-40 | Hooks factories    | Share bounded controller and administrator probes                  | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -757,6 +758,28 @@ Measured against the preceding accepted commit:
   deployment;
 - the sentinel that embeds the escrow creation code also shrinks by 177 bytes, saving another
   roughly 35,400 gas on the one-time sentinel deployment; and
+- public ABIs and storage declarations are unchanged.
+
+### Shared factory controller probes (G-40)
+
+Both hooks factories now share fixed-shape readers for controller and administrator addresses
+and for account-scoped controller booleans. These cover the SphereX engine constructor read,
+owner checks, hook-administrator transfer validation, borrower registration, and the asset
+blacklist gate. Reverts still bubble, short results still revert, addresses and booleans still
+require clean ABI words, and harmless trailing data remains accepted.
+
+Measured against the preceding accepted commit:
+
+- all 92 focused factory and administrator-transfer cases pass, along with 10 adversarial helper
+  cases for short, dirty, oversized-valid, and reverting responses;
+- common owner-gated paths save 232 to 558 gas per tested transaction;
+- successful market deployments save about 697 to 712 gas at the blacklist probe;
+- the combined standard and revolving administrator-transfer test saves 1,360 gas, or about 680
+  gas per transferred instance;
+- fresh standard and revolving factory deployments save 74,047 and 71,047 gas in the focused
+  deployment paths;
+- standard factory initcode/runtime shrink by 515/364 bytes, while revolving factory
+  initcode/runtime shrink by 500/349 bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
