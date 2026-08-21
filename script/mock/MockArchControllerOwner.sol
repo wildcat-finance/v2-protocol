@@ -17,8 +17,8 @@ interface ILegacyWildcatMarketControllerFactory is IArchControllerBound {
 }
 
 /**
- * @dev Testnet authority helper for the singleton ArchController and contracts
- *      whose administrative authority follows `ArchController.owner()`.
+ * @dev testnet helper for the one ArchController and the protocol contracts
+ *      that use `ArchController.owner()` for admin calls.
  */
 contract MockArchControllerOwner {
   error AccountAlreadyAuthorized();
@@ -106,17 +106,17 @@ contract MockArchControllerOwner {
   }
 
   /**
-   * @dev Transfer ArchController ownership from this helper to the authorized
-   *      caller. Retained for recovery and backwards compatibility.
+   * @dev lets an authorized executor take ownership back directly. mostly a
+   *      recovery path, but the old scripts still use it too.
    */
   function returnOwnership() external onlyAuthorized {
     archController.transferOwnership(msg.sender);
   }
 
   /**
-   * @dev Permissionless testnet borrower registration retained for the SDK and
-   *      frontend onboarding flow. This succeeds while this helper owns the
-   *      ArchController.
+   * @dev borrower registration is intentionally permissionless on testnet; the
+   *      SDK/frontend onboarding path still uses it. the helper needs to own
+   *      the ArchController for this to work.
    */
   function registerBorrower(address borrower) external {
     archController.registerBorrower(borrower);
@@ -129,7 +129,8 @@ contract MockArchControllerOwner {
   }
 
   /**
-   * @dev Preserve the legacy V2 controller-factory fee administration surface.
+   * @dev keep the old V2 fee call working; the legacy controller factory still
+   *      needs it.
    */
   function setProtocolFeeConfiguration(
     ILegacyWildcatMarketControllerFactory factory,
@@ -149,8 +150,8 @@ contract MockArchControllerOwner {
   }
 
   /**
-   * @dev Execute one reviewed protocol administration action without moving
-   *      ArchController ownership to an EOA.
+   * @dev runs one reviewed owner action through the helper so we don't have to
+   *      hand the ArchController to an EOA.
    */
   function executeProtocolAction(
     address target,

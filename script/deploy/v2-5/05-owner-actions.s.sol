@@ -2,18 +2,18 @@
 pragma solidity >=0.8.20;
 
 /**
- * Deploy the v2.5 hooks template init-code storages, then perform the owner
- * actions that make the new factories and templates available.
+ * deploy the v2.5 hooks template init-code storages, then do the owner work
+ * that makes the new factories and templates usable.
  *
- * Environment:
- * - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
+ * env:
+ * - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
  *   ARCH_CONTROLLER, PROTOCOL_AUTHORITY_HELPER, TEMPLATE_FEE_SOURCE_FACTORY,
  *   and TEMPLATE_FEE_RECIPIENT.
- *   Scripts 01-04 must precede this script.
- * - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
- *   PVT_KEY_<NETWORK>. The broadcaster must own the ArchController or be an
+ *   run scripts 01-04 first.
+ * - direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
+ *   PVT_KEY_<NETWORK>. the broadcaster must own the ArchController or be an
  *   authorized executor on its configured authority helper.
- * - Plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
+ * - plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR. no private key needed.
  */
 
 import { console } from 'forge-std/console.sol';
