@@ -18,6 +18,15 @@ struct HookedMarket {
   bool transfersDisabled;
 }
 
+struct OpenTermMarketState {
+  bool isHooked;
+  bool transferRequiresAccess;
+  bool depositRequiresAccess;
+  uint128 minimumDeposit;
+  bool transfersDisabled;
+  bool depositHookEnabled;
+}
+
 /**
  * @title OpenTermHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
@@ -57,9 +66,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
 
   HooksDeploymentConfig public immutable override config;
 
-  mapping(address => HookedMarket) internal _hookedMarkets;
-  // Tracks immutable deposit-hook dispatch without changing the public HookedMarket ABI.
-  mapping(address => bool) internal _depositHookEnabled;
+  mapping(address => OpenTermMarketState) internal _hookedMarkets;
 
   // ========================================================================== //
   //                                 Constructor                                //
@@ -153,12 +160,13 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     // Use the deposit and transfer flags to determine whether those require access control.
     // These are tracked separately because if the market enables `onQueueWithdrawal`, deposit
     // and transfer hooks will also be  enabled, but may not require access control.
-    HookedMarket memory hookedMarket = HookedMarket({
+    OpenTermMarketState memory hookedMarket = OpenTermMarketState({
       isHooked: true,
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
       minimumDeposit: _readUint128Cd(hooksData),
-      transfersDisabled: _readBoolCd(hooksData, 0x20)
+      transfersDisabled: _readBoolCd(hooksData, 0x20),
+      depositHookEnabled: false
     });
 
     if (marketHooksConfig.useOnQueueWithdrawal()) {
@@ -189,7 +197,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
       );
     }
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
-    if (marketHooksConfig.useOnDeposit()) _depositHookEnabled[marketAddress] = true;
+    hookedMarket.depositHookEnabled = marketHooksConfig.useOnDeposit();
     _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
 
@@ -207,9 +215,9 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
    *      Reverts if `market` was not created with this hooks instance.
    */
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
-    HookedMarket storage hookedMarket = _hookedMarkets[market];
+    OpenTermMarketState storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
+    if (newMinimumDeposit > 0 && !hookedMarket.depositHookEnabled) revert DepositHookNotEnabled();
     uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
     hookedMarket.minimumDeposit = newMinimumDeposit;
     emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
@@ -220,7 +228,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   // ========================================================================== //
 
   function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
-    HookedMarket storage market = _hookedMarkets[marketAddress];
+    OpenTermMarketState storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return market.transfersDisabled;
   }
@@ -229,7 +237,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     address marketAddress,
     address recipient
   ) external view override returns (bool) {
-    HookedMarket storage market = _hookedMarkets[marketAddress];
+    OpenTermMarketState storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return
       !market.transfersDisabled &&
@@ -237,7 +245,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   }
 
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
-    return _hookedMarkets[marketAddress];
+    return _toHookedMarket(_hookedMarkets[marketAddress]);
   }
 
   function getHookedMarkets(
@@ -245,7 +253,16 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   ) external view returns (HookedMarket[] memory hookedMarkets) {
     hookedMarkets = new HookedMarket[](marketAddresses.length);
     for (uint256 i = 0; i < marketAddresses.length; i++) {
-      hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];
+      hookedMarkets[i] = _toHookedMarket(_hookedMarkets[marketAddresses[i]]);
+    }
+  }
+
+  function _toHookedMarket(
+    OpenTermMarketState memory market
+  ) internal pure returns (HookedMarket memory publicMarket) {
+    // The private struct only adds a trailing flag, so the public prefix has the same layout.
+    assembly {
+      publicMarket := market
     }
   }
 
@@ -265,7 +282,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     MarketState calldata state,
     bytes calldata hooksData
   ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
+    OpenTermMarketState memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
 
     // Retrieve the lender's status from storage
@@ -314,7 +331,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
+    OpenTermMarketState memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
     LenderStatus memory status = _lenderStatus[lender];
     if (
@@ -356,7 +373,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     MarketState calldata /* state */,
     bytes calldata extraData
   ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
+    OpenTermMarketState memory market = _hookedMarkets[msg.sender];
 
     if (!market.isHooked) revert NotHookedMarket();
 

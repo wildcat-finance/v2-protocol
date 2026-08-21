@@ -22,6 +22,19 @@ struct HookedMarket {
   bool allowTermReduction;
 }
 
+struct FixedTermMarketState {
+  bool isHooked;
+  bool transferRequiresAccess;
+  bool depositRequiresAccess;
+  bool withdrawalRequiresAccess;
+  uint128 minimumDeposit;
+  uint32 fixedTermEndTime;
+  bool transfersDisabled;
+  bool allowClosureBeforeTerm;
+  bool allowTermReduction;
+  bool depositHookEnabled;
+}
+
 /**
  * @title FixedTermHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
@@ -79,9 +92,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
 
   HooksDeploymentConfig public immutable override config;
 
-  mapping(address => HookedMarket) internal _hookedMarkets;
-  // Tracks immutable deposit-hook dispatch without changing the public HookedMarket ABI.
-  mapping(address => bool) internal _depositHookEnabled;
+  mapping(address => FixedTermMarketState) internal _hookedMarkets;
 
   // ========================================================================== //
   //                                 Constructor                                //
@@ -202,7 +213,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     // Read `minimumDeposit`, `transfersDisabled`, `allowClosureBeforeTerm` and `allowTermReduction`
     // from `hooksData`.
     // If the calldata does not contain sufficient bytes for a parameter, it will be read as zero.
-    HookedMarket memory hookedMarket = HookedMarket({
+    FixedTermMarketState memory hookedMarket = FixedTermMarketState({
       isHooked: true,
       transferRequiresAccess: marketHooksConfig.useOnTransfer(),
       depositRequiresAccess: marketHooksConfig.useOnDeposit(),
@@ -211,7 +222,8 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
       minimumDeposit: _readUint128Cd(hooksData, 0x20),
       transfersDisabled: _readBoolCd(hooksData, 0x40),
       allowClosureBeforeTerm: _readBoolCd(hooksData, 0x60),
-      allowTermReduction: _readBoolCd(hooksData, 0x80)
+      allowTermReduction: _readBoolCd(hooksData, 0x80),
+      depositHookEnabled: false
     });
     if (hookedMarket.withdrawalRequiresAccess) {
       if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
@@ -239,7 +251,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
       );
     }
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
-    if (marketHooksConfig.useOnDeposit()) _depositHookEnabled[marketAddress] = true;
+    hookedMarket.depositHookEnabled = marketHooksConfig.useOnDeposit();
     _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
 
@@ -257,9 +269,9 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
    *      Reverts if `market` was not created with this hooks instance.
    */
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
-    HookedMarket storage hookedMarket = _hookedMarkets[market];
+    FixedTermMarketState storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
+    if (newMinimumDeposit > 0 && !hookedMarket.depositHookEnabled) revert DepositHookNotEnabled();
     uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
     hookedMarket.minimumDeposit = newMinimumDeposit;
     emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
@@ -273,7 +285,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     address market,
     uint32 newFixedTermEndTime
   ) external onlyAdministrator {
-    HookedMarket storage hookedMarket = _hookedMarkets[market];
+    FixedTermMarketState storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime)
       revert TermReductionDisabled();
@@ -293,7 +305,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
   // ========================================================================== //
 
   function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
-    HookedMarket storage market = _hookedMarkets[marketAddress];
+    FixedTermMarketState storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return market.transfersDisabled;
   }
@@ -302,7 +314,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     address marketAddress,
     address recipient
   ) external view override returns (bool) {
-    HookedMarket storage market = _hookedMarkets[marketAddress];
+    FixedTermMarketState storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return
       !market.transfersDisabled &&
@@ -310,7 +322,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
   }
 
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
-    return _hookedMarkets[marketAddress];
+    return _toHookedMarket(_hookedMarkets[marketAddress]);
   }
 
   function getHookedMarkets(
@@ -318,7 +330,16 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
   ) external view returns (HookedMarket[] memory hookedMarkets) {
     hookedMarkets = new HookedMarket[](marketAddresses.length);
     for (uint256 i = 0; i < marketAddresses.length; i++) {
-      hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];
+      hookedMarkets[i] = _toHookedMarket(_hookedMarkets[marketAddresses[i]]);
+    }
+  }
+
+  function _toHookedMarket(
+    FixedTermMarketState memory market
+  ) internal pure returns (HookedMarket memory publicMarket) {
+    // The private struct only adds a trailing flag, so the public prefix has the same layout.
+    assembly {
+      publicMarket := market
     }
   }
 
@@ -338,7 +359,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     MarketState calldata state,
     bytes calldata hooksData
   ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
+    FixedTermMarketState memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
 
     // Retrieve the lender's status from storage
@@ -388,7 +409,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
+    FixedTermMarketState memory market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
     if (market.fixedTermEndTime > block.timestamp) {
       revert WithdrawBeforeTermEnd();
@@ -435,7 +456,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     MarketState calldata /* state */,
     bytes calldata extraData
   ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
+    FixedTermMarketState memory market = _hookedMarkets[msg.sender];
 
     if (!market.isHooked) revert NotHookedMarket();
 
@@ -490,7 +511,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {
-    HookedMarket storage market = _hookedMarkets[msg.sender];
+    FixedTermMarketState storage market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
     if (block.timestamp < market.fixedTermEndTime) {
       if (!(market.allowTermReduction || market.allowClosureBeforeTerm)) {
@@ -540,7 +561,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     override
     returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
   {
-    HookedMarket storage hookedMarket = _hookedMarkets[msg.sender];
+    FixedTermMarketState storage hookedMarket = _hookedMarkets[msg.sender];
 
     /* Revert if market is still in fixed term and new APR is lower than it was */
     if (

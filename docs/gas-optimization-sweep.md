@@ -110,6 +110,7 @@ the actual evidence.
 | G-44 | Wrapper factory    | Bound hooks, registration, and legacy-wrapper reads               | Low       | Accepted                               |
 | G-45 | Market lens        | Bound borrower-registration reads                                | Low       | Accepted                               |
 | G-46 | Hooks factories    | Bound no-return ArchController registration calls                | Medium    | Rejected after prototype               |
+| G-47 | Open/fixed hooks   | Pack immutable deposit-hook dispatch into the market state word  | Medium    | Accepted with explicit break-even      |
 
 ## Accepted Batches
 
@@ -870,6 +871,30 @@ Measured against the preceding accepted commit:
 - `MarketLensAggregator` initcode and runtime each shrink by 126 bytes, saving roughly 25,200
   deployment gas; and
 - public ABIs and storage declarations are unchanged.
+
+### Packed deposit-hook dispatch (G-47)
+
+Open- and fixed-term hooks now keep the immutable deposit-hook dispatch flag in the spare bytes
+of each market's existing state word. The public `HookedMarket` return types stay unchanged: the
+private state structs add the flag at the end, and the query functions expose the unchanged
+public prefix. This removes the second mapping word without hiding the flag inside one of the
+public fields.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- all 208 focused open- and fixed-term hook cases pass, including enabled, force-enabled,
+  disabled, minimum-deposit, batch-query, and administrator-transfer paths;
+- creating a market with deposit-hook dispatch enabled saves about 21,557 gas for open-term
+  hooks and 20,704 gas for fixed-term hooks;
+- rejecting a later positive minimum on a market without deposit dispatch saves 1,817 gas for
+  open-term hooks and 1,561 gas for fixed-term hooks by reading one market word instead of a
+  second mapping;
+- open-term hook initcode/runtime grow by 107 bytes and fixed-term hooks grow by 93 bytes, adding
+  roughly 21,400 and 18,600 gas respectively to each hooks-instance deployment;
+- the first enabled market therefore clears the code-deposit increase; an instance that only
+  serves deposit-hook-disabled markets does not recover it; and
+- public ABI hashes are unchanged. The private mapping value type changes and the now-unused
+  second mapping slot is removed, so this is only for newly deployed hook instances.
 
 ## Rejected Candidates
 
