@@ -98,17 +98,39 @@ library MarketDataLib {
   bytes4 internal constant _DRAWN_AMOUNT_SELECTOR = IWildcatMarketRevolving.drawnAmount.selector;
   bytes4 internal constant _TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR =
     bytes4(keccak256('temporaryExcessReserveRatio(address)'));
+  uint256 internal constant _VERSION_SELECTOR = uint32(IVersionedContract.version.selector);
+
+  function _isV2Market(address market) internal view returns (bool isV2) {
+    uint256 selector = _VERSION_SELECTOR;
+    assembly ('memory-safe') {
+      let ptr := mload(0x40)
+      mstore(ptr, shl(224, selector))
+      let success := staticcall(gas(), market, ptr, 4, ptr, 0x60)
+      let size := returndatasize()
+      if iszero(success) {
+        returndatacopy(ptr, 0, size)
+        revert(ptr, size)
+      }
+      if lt(size, 0x40) {
+        revert(0, 0)
+      }
+      if iszero(eq(mload(ptr), 0x20)) {
+        revert(0, 0)
+      }
+      let length := mload(add(ptr, 0x20))
+      if length {
+        if lt(size, 0x60) {
+          revert(0, 0)
+        }
+        isV2 := eq(byte(0, mload(add(ptr, 0x40))), 0x32)
+      }
+    }
+  }
 
   function fill(MarketData memory data, WildcatMarket market) internal view {
     data.marketToken.fill(address(market));
     data.underlyingToken.fill(market.asset());
-    string memory version = market.version();
-    bool isV2;
-    assembly {
-      let versionByte := and(mload(add(version, 1)), 0xff)
-      isV2 := eq(versionByte, 0x32)
-    }
-    if (!isV2) {
+    if (!_isV2Market(address(market))) {
       revert NotV2Market();
     }
     data.fillConfig();

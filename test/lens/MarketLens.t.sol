@@ -55,6 +55,36 @@ contract MockV1MarketLike {
   }
 }
 
+contract MarketVersionProbeHarness {
+  function isV2(address target) external view returns (bool) {
+    return MarketDataLib._isV2Market(target);
+  }
+}
+
+contract EmptyMarketVersion {
+  function version() external pure returns (string memory) {
+    return '';
+  }
+}
+
+contract RevertingMarketVersion {
+  error VersionReadFailed();
+
+  function version() external pure returns (string memory) {
+    revert VersionReadFailed();
+  }
+}
+
+contract ShortMarketVersion {
+  fallback() external {
+    assembly ('memory-safe') {
+      mstore(0, 0x20)
+      mstore(0x20, 1)
+      return(0, 0x40)
+    }
+  }
+}
+
 contract HooksInstanceDataHarness {
   function fill(
     address hooksAddress,
@@ -122,6 +152,27 @@ contract MarketDataTest is BaseMarketTest {
 
     vm.expectRevert(MarketLens.NotV2Market.selector);
     lens.getMarketData(address(v1Market));
+  }
+
+  function test_versionProbe_handlesV2V1AndEmptyVersions() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    assertTrue(harness.isV2(address(market)), 'v2');
+    assertFalse(harness.isV2(address(new MockV1MarketLike(address(asset)))), 'v1');
+    assertFalse(harness.isV2(address(new EmptyMarketVersion())), 'empty');
+  }
+
+  function test_versionProbe_rejectsShortDynamicData() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    ShortMarketVersion target = new ShortMarketVersion();
+    vm.expectRevert();
+    harness.isV2(address(target));
+  }
+
+  function test_versionProbe_bubblesRevertData() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    RevertingMarketVersion target = new RevertingMarketVersion();
+    vm.expectRevert(RevertingMarketVersion.VersionReadFailed.selector);
+    harness.isV2(address(target));
   }
 
   /// Every function in the aggregator section of the facade must forward to
@@ -1137,11 +1188,7 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(providerData.providerAddress, address(provider), 'provider');
     assertTrue(providerData.isManaged, 'isManaged');
     assertEq(providerData.administrator, borrower, 'provider administrator');
-    assertEq(
-      providerData.pendingAdministrator,
-      newAdministrator,
-      'provider pending administrator'
-    );
+    assertEq(providerData.pendingAdministrator, newAdministrator, 'provider pending administrator');
   }
 
   function test_getMarketsData() external view {
@@ -1312,8 +1359,11 @@ contract MarketDataTest is BaseMarketTest {
 
   function test_getLenderWithdrawalStatusForNonexistentBatch() external view {
     uint32 unknownExpiry = type(uint32).max;
-    WithdrawalBatchDataWithLenderStatus memory data = lens
-      .getWithdrawalBatchDataWithLenderStatus(address(market), unknownExpiry, alice);
+    WithdrawalBatchDataWithLenderStatus memory data = lens.getWithdrawalBatchDataWithLenderStatus(
+      address(market),
+      unknownExpiry,
+      alice
+    );
     checkWithdrawalBatchData(data.batch, unknownExpiry);
     checkEmptyWithdrawalBatchLenderStatus(data.lenderStatus, alice);
 

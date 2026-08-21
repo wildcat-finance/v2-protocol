@@ -79,6 +79,7 @@ the actual evidence.
 | G-13 | Access controls    | Short-circuit known-lender checks and reuse provider mapping reads     | Low       | Accepted with G-04                            |
 | G-14 | Provider factories | Reuse CREATE2 initcode and hash deterministic addresses in scratch     | Medium    | Accepted                                      |
 | G-15 | Market lens        | Keep core helper batch inputs in calldata                              | Low       | Accepted                                      |
+| G-16 | Market lens        | Read only the first byte needed from the dynamic market version        | Medium    | Accepted                                      |
 
 ## Accepted Batches
 
@@ -272,6 +273,24 @@ Measured against the preceding accepted commit with seed `0x5eed`:
   without changing delegation behavior; and
 - canonical ABI hashes for the facade and all three helpers are unchanged. No storage
   declaration changed.
+
+### Bounded market-version probe (G-16)
+
+Market-data reads used to ABI-decode the complete dynamic `version()` string and then inspect
+only its first byte. The lens now performs one bounded staticcall, validates the standard dynamic
+offset and minimum result shape, and reads that byte directly. Failed version calls still bubble
+their revert data; V1 and empty versions remain non-V2, and truncated dynamic data still reverts.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- both complete lens suites pass with 71 tests, including new V2, V1, empty-string, short-return,
+  and revert-bubbling cases for the version probe;
+- ordinary market-data fills save roughly 530 to 575 gas per market across direct, paginated,
+  aggregated, legacy, and revolving reads;
+- the one-market batch parity test, which fills the same market twice, saves 1,131 gas;
+- `MarketLensCore` and `MarketLensAggregator` each grow by eight runtime/initcode bytes, adding
+  roughly 1,600 gas to each one-time helper deployment; and
+- public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
 
