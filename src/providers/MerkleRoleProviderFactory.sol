@@ -10,75 +10,80 @@ import './IMerkleRoleProviderFactory.sol';
  *      deployment address first.
  */
 contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
-  function createRoleProvider(
-    bytes calldata data
-  ) external override returns (address provider) {
+  function createRoleProvider(bytes calldata data) external override returns (address provider) {
     MerkleRoleProviderFactoryInputs memory inputs = abi.decode(
       data,
       (MerkleRoleProviderFactoryInputs)
     );
-    provider = _createRoleProvider(msg.sender, inputs);
+    provider = _createRoleProvider(msg.sender, inputs.administrator, inputs.root, inputs.salt);
   }
 
   function createMerkleRoleProvider(
     MerkleRoleProviderFactoryInputs calldata inputs
   ) external override returns (address provider) {
-    provider = _createRoleProvider(msg.sender, inputs);
+    provider = _createRoleProvider(msg.sender, inputs.administrator, inputs.root, inputs.salt);
   }
 
   function _createRoleProvider(
     address deployer,
-    MerkleRoleProviderFactoryInputs memory inputs
+    address administrator,
+    bytes32 root,
+    bytes32 userSalt
   ) internal returns (address provider) {
-    address expectedProvider = _computeRoleProviderAddress(deployer, inputs);
+    bytes32 salt = _deriveSalt(deployer, userSalt);
+    bytes memory initCode = _getRoleProviderInitCode(administrator, root);
+    address expectedProvider = _computeCreate2Address(salt, keccak256(initCode));
     if (expectedProvider.code.length != 0) revert RoleProviderAlreadyExists();
-    bytes32 salt = _deriveSalt(deployer, inputs.salt);
-    provider = address(
-      new MerkleRoleProvider{ salt: salt }(inputs.administrator, inputs.root)
-    );
-    emit MerkleRoleProviderDeployed(
-      provider,
-      inputs.administrator,
-      deployer,
-      inputs.salt,
-      inputs.root
-    );
+    assembly ('memory-safe') {
+      provider := create2(0, add(initCode, 0x20), mload(initCode), salt)
+    }
+    if (provider == address(0)) {
+      assembly ('memory-safe') {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+    }
+    emit MerkleRoleProviderDeployed(provider, administrator, deployer, userSalt, root);
   }
 
   function computeRoleProviderAddress(
     address deployer,
     MerkleRoleProviderFactoryInputs calldata inputs
   ) external view override returns (address provider) {
-    provider = _computeRoleProviderAddress(deployer, inputs);
+    bytes32 initCodeHash = keccak256(_getRoleProviderInitCode(inputs.administrator, inputs.root));
+    provider = _computeCreate2Address(_deriveSalt(deployer, inputs.salt), initCodeHash);
   }
 
-  function _computeRoleProviderAddress(
-    address deployer,
-    MerkleRoleProviderFactoryInputs memory inputs
+  function _getRoleProviderInitCode(
+    address administrator,
+    bytes32 root
+  ) internal pure returns (bytes memory initCode) {
+    initCode = abi.encodePacked(
+      type(MerkleRoleProvider).creationCode,
+      abi.encode(administrator, root)
+    );
+  }
+
+  function _computeCreate2Address(
+    bytes32 salt,
+    bytes32 initCodeHash
   ) internal view returns (address provider) {
-    bytes32 initCodeHash = keccak256(
-      abi.encodePacked(
-        type(MerkleRoleProvider).creationCode,
-        abi.encode(inputs.administrator, inputs.root)
-      )
-    );
-    provider = address(
-      uint160(
-        uint256(
-          keccak256(
-            abi.encodePacked(
-              bytes1(0xff),
-              address(this),
-              _deriveSalt(deployer, inputs.salt),
-              initCodeHash
-            )
-          )
-        )
-      )
-    );
+    assembly {
+      let freeMemoryPointer := mload(0x40)
+      mstore(0x00, or(address(), 0xff0000000000000000000000000000000000000000))
+      mstore(0x20, salt)
+      mstore(0x40, initCodeHash)
+      provider := and(keccak256(0x0b, 0x55), 0xffffffffffffffffffffffffffffffffffffffff)
+      mstore(0x40, freeMemoryPointer)
+    }
   }
 
   function _deriveSalt(address deployer, bytes32 salt) internal pure returns (bytes32) {
-    return keccak256(abi.encode(deployer, salt));
+    assembly ('memory-safe') {
+      mstore(0x00, deployer)
+      mstore(0x20, salt)
+      salt := keccak256(0x00, 0x40)
+    }
+    return salt;
   }
 }

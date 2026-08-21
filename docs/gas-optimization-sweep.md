@@ -77,6 +77,7 @@ the actual evidence.
 | G-11 | Markets            | Reuse the sender already validated by `onlyBorrower`                    | Low       | Accepted with G-07                            |
 | G-12 | ERC-4626 wrapper   | Cache principal checks and reuse measured scaled backing               | Low       | Accepted with explicit break-even             |
 | G-13 | Access controls    | Short-circuit known-lender checks and reuse provider mapping reads     | Low       | Accepted with G-04                            |
+| G-14 | Provider factories | Reuse CREATE2 initcode and hash deterministic addresses in scratch     | Medium    | Accepted                                      |
 
 ## Accepted Batches
 
@@ -225,6 +226,31 @@ Measured against the preceding accepted commit with seed `0x5eed`:
   factory itself is deployed; and
 - public ABIs and persistent storage layouts are unchanged. The internal transient encoding is
   deliberately different and exists only during market construction.
+
+### Role-provider CREATE2 deployment (G-14)
+
+The six role-provider factories now build each provider's initcode once, use that same buffer
+for both the deterministic-address check and `CREATE2`, and hash the caller namespace and CREATE2
+preimage in scratch memory. The collision check still runs before `CREATE2`; omitting it makes a
+duplicate deployment consume nearly all forwarded gas because an EIP-684 collision is an
+exceptional creation failure. Constructor revert data is copied through unchanged.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- all 55 existing provider-factory tests pass, including constructor failures, duplicate salts,
+  generic factory calls, caller namespaces, and deployment events;
+- six independent regression tests compare every factory's result against the canonical CREATE2
+  formula built from the provider creation code and constructor arguments;
+- successful typed deployments save 1,427 to 2,003 gas across the five fixed-size providers;
+- their generic `createRoleProvider(bytes)` path saves 1,199 to 1,780 gas;
+- access-list provider creation saves 1,581 to 1,685 gas in the direct cases, and deploying two
+  caller-namespaced instances saves 3,082 gas;
+- the five fixed-size factory runtimes shrink by 98 to 132 bytes;
+- the access-list factory grows by 59 bytes relative to the preceding accepted commit, adding
+  roughly 11,800 gas to its one-time deployment and breaking even after about eight provider
+  deployments; and
+- public ABIs and storage declarations are unchanged. Provider addresses remain byte-for-byte
+  compatible because both the constructor encoding and caller-namespaced salt are unchanged.
 
 ## Rejected Candidates
 
