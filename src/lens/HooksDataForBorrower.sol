@@ -5,6 +5,8 @@ import './HooksTemplateData.sol';
 import './HooksInstanceData.sol';
 import '../IHooksFactory.sol';
 import '../WildcatArchController.sol';
+import '../interfaces/IWildcatArchController.sol';
+import '../libraries/LibFixedCall.sol';
 
 using HooksDataForBorrowerLib for HooksDataForBorrower global;
 
@@ -23,7 +25,11 @@ library HooksDataForBorrowerLib {
     address borrower
   ) internal view {
     data.borrower = borrower;
-    data.isRegisteredBorrower = archController.isRegisteredBorrower(borrower);
+    data.isRegisteredBorrower = LibFixedCall.readBool(
+      address(archController),
+      IWildcatArchController.isRegisteredBorrower.selector,
+      borrower
+    );
     address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
     data.hooksInstances = new HooksInstanceData[](hooksInstances.length);
     for (uint256 i; i < hooksInstances.length; i++) {

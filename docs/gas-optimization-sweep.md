@@ -108,6 +108,7 @@ the actual evidence.
 | G-42 | Access controls    | Bound factory and controller reads during administrator transfer  | Low       | Accepted                               |
 | G-43 | Periodic hooks     | Bound the market APR getter used by reduction proposals           | Low       | Accepted                               |
 | G-44 | Wrapper factory    | Bound hooks, registration, and legacy-wrapper reads               | Low       | Accepted                               |
+| G-45 | Market lens        | Bound borrower-registration reads                                | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -852,6 +853,21 @@ Measured against the preceding accepted commit:
   paths save up to 636 gas;
 - wrapper-factory initcode and runtime each shrink by 81 bytes, saving roughly 16,200 deployment
   gas; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded lens borrower probes (G-45)
+
+Direct and aggregated borrower-data queries now read the ArchController registration flag through
+the shared bounded boolean reader. This is lens execution rather than a user transaction path;
+the gas deltas describe EVM work performed by `eth_call`, while the deployment saving is on-chain.
+
+Measured against the preceding accepted commit:
+
+- all five focused direct, delegated, and aggregated borrower-query cases pass;
+- direct borrower data saves 283 gas-equivalent and aggregated borrower data saves 319 per query;
+- the parity test that executes both query paths saves 638 gas-equivalent;
+- `MarketLensAggregator` initcode and runtime each shrink by 126 bytes, saving roughly 25,200
+  deployment gas; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

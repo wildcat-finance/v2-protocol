@@ -8,6 +8,8 @@ import './HooksInstanceData.sol';
 import './HooksTemplateData.sol';
 import './MarketData.sol';
 import './interfaces/IMarketLensAggregator.sol';
+import '../interfaces/IWildcatArchController.sol';
+import '../libraries/LibFixedCall.sol';
 
 contract MarketLensAggregator is IMarketLensAggregator {
   WildcatArchController public immutable archController;
@@ -423,7 +425,11 @@ contract MarketLensAggregator is IMarketLensAggregator {
   ) external view returns (HooksDataForBorrower memory data) {
     address[] memory factories = getActiveHooksFactories();
     data.borrower = borrower;
-    data.isRegisteredBorrower = archController.isRegisteredBorrower(borrower);
+    data.isRegisteredBorrower = LibFixedCall.readBool(
+      address(archController),
+      IWildcatArchController.isRegisteredBorrower.selector,
+      borrower
+    );
     data.hooksInstances = getAggregatedHooksInstancesForBorrowerWithFactories(borrower, factories);
     data.hooksTemplates = getAggregatedAllHooksTemplatesForBorrowerWithFactories(
       borrower,
