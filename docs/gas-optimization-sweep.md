@@ -111,6 +111,7 @@ the actual evidence.
 | G-45 | Market lens        | Bound borrower-registration reads                                | Low       | Accepted                               |
 | G-46 | Hooks factories    | Bound no-return ArchController registration calls                | Medium    | Rejected after prototype               |
 | G-47 | Open/fixed hooks   | Pack immutable deposit-hook dispatch into the market state word  | Medium    | Accepted with explicit break-even      |
+| G-48 | Market tokens      | Skip canceling account writes on self-transfer                   | Low       | Rejected after prototype               |
 
 ## Accepted Batches
 
@@ -916,5 +917,19 @@ one-time controller registration reduced both factories by 29 bytes and saved ab
 the tested fresh-factory path, but compiler layout then added 18 gas to common standard market
 deployments. That marginal and asymmetric result does not justify a new low-level state-changing
 call primitive or wider memory-safety/refactoring work, so no mutation call was changed.
+
+### Self-transfer account-write shortcut (G-48)
+
+A prototype kept the transfer hook, allowance update, balance check, state accrual, and event,
+but skipped the two account writes when sender and recipient were the same. Existing token tests
+already perform a self-transfer while setting up balances, so the same fixed-seed cases measure
+both paths without a synthetic benchmark.
+
+The shortcut saved 3,057 gas on a self-transfer, but added 82 gas to an ordinary `transfer` and
+35 gas to an ordinary `transferFrom`. It also grew each market runtime enough to add about 12,400
+gas to the deployment path exercised by the transfer-policy test. Net-metered storage makes the
+self-transfer upper bound much smaller than the naive cost of two `SSTORE`s, and self-transfers
+are not an operational hot path. The branch and deployment costs are therefore not justified,
+so the market code was restored unchanged.
 
 Rejected candidates and further benchmark results will be added here as the sweep progresses.
