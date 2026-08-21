@@ -897,6 +897,51 @@ Measured against the preceding accepted commit with seed `0x5eed`:
 - public ABI hashes are unchanged. The private mapping value type changes and the now-unused
   second mapping slot is removed, so this is only for newly deployed hook instances.
 
+## Architecture and Upper Bounds
+
+### Clone or singleton fleets (G-09)
+
+The final direct-deployment runtimes leave a large theoretical code-deposit ceiling. Replacing
+them with a bare 45-byte ERC-1167 runtime would remove about 4.23 million gas of runtime code
+deposit from each standard market and 4.33 million from each revolving market. The equivalent
+ceilings are about 3.03 million for open-term hooks, 3.29 million for fixed-term hooks, and 3.80
+million for periodic-term hooks. These numbers exclude clone construction, immutable arguments,
+initialization, and every later delegation or storage-read cost, so they are ceilings rather than
+expected savings.
+
+The current market constructors embed runtime constants and establish isolated accounting,
+reentrancy, sanctions, hook, and SphereX state. A clone design would need an atomic initializer,
+a locked implementation, immutable-argument handling, and a fresh audit of every direct-call and
+delegatecall assumption. A singleton would go further and merge market custody and accounting
+into one security domain. Both are real architecture options for a later generation, but neither
+is a safe gas-only rewrite for v2.5, so no prototype was carried into this branch.
+
+### Reads across external transitions (G-10)
+
+The accepted market batch only removes asset-balance reads when the exact post-transition value
+is already in memory and no hook or token call can invalidate it. Those safe removals measured
+roughly 600 to 1,100 gas for an individual redundant read, and up to 2,554 gas where one test
+exercised several removals.
+
+The remaining balance reads sit after hooks, token transfers, or other external transitions.
+They are what lets the market observe fee-on-transfer behavior, donations, callback effects, and
+the actual liquidity used for delinquency and withdrawal accounting. Treating the earlier value
+as authoritative would save about one external balance query per site but can write the wrong
+protocol state. That is a semantic change, not a gas optimization, so the remaining upper bound
+stays report-only.
+
+### Other reviewed surfaces
+
+- The identity registry's principal, pending-principal, and factory values are full addresses;
+  no useful pair fits in one word. Its duplicate-looking sets and arrays serve different public
+  pagination keys, so removing one changes the read model.
+- The wrapper factory could derive a CREATE2 wrapper address instead of storing one mapping word,
+  but that changes wrapper addresses and legacy routing to avoid roughly one fresh `SSTORE` per
+  wrapper. It does not belong in this sweep.
+- The SphereX guard is already an assembly-heavy security boundary with fixed calldata, storage,
+  and callback conventions. Reworking its buffers or splitting it behind delegatecall would need
+  a SphereX-specific audit; the compiler/tool workaround remains analysis-only.
+
 ## Rejected Candidates
 
 ### Conditional packed-state writes (G-08)
@@ -932,4 +977,31 @@ self-transfer upper bound much smaller than the naive cost of two `SSTORE`s, and
 are not an operational hot path. The branch and deployment costs are therefore not justified,
 so the market code was restored unchanged.
 
-Rejected candidates and further benchmark results will be added here as the sweep progresses.
+## Final Verification
+
+The final branch was checked from the original `5e1de3b5` baseline with the same compiler,
+Cancun target, optimized IR pipeline, 44 optimizer runs, metadata settings, and fuzz seed.
+
+- A forced release-profile build compiled all 229 files in 2:26.67 with 4,285,220 KiB peak RSS.
+  The resulting manifest contains 119 production targets and no missing storage layouts.
+- The full fixed-seed snapshot compiled and ran in 30:44.87 with 33,322,064 KiB peak RSS. All
+  1,848 tests across 97 suites passed: 1,427 unit gas cases, 390 fuzz cases, and 31 invariants.
+- All 1,771 baseline cases remain present. Of the 1,740 comparable numeric cases, 1,301 are
+  cheaper, 185 are more expensive, and 254 are unchanged. Their aggregate test/fuzz metric drops
+  by 42,402,773 gas-equivalent units, or 0.56%; this is a regression signal, not a production
+  workload forecast.
+- Across the 115 common production targets, aggregate initcode shrinks by 16,732 bytes and
+  aggregate runtime shrinks by 14,372 bytes. Thirty runtimes shrink, five market-family runtimes
+  grow by 20 to 64 bytes, and eighty are unchanged. Aggregate bytes double-count shared source
+  across independently deployable artifacts, so lifecycle sections above remain the useful cost
+  model.
+- No existing public ABI hash changed. Four internal helper-library targets were added.
+- Eleven normalized storage-layout hashes deliberately change: open/fixed hooks remove the
+  dispatch mapping, both factories pack administrator associations, the market family adopts the
+  packed unpaid-batch queue, and the sanctions sentinel removes its persistent constructor
+  handoff. Every one is documented as new-deployment-only.
+- The largest final runtime is `WildcatMarketRevolving` at 21,719 bytes, leaving 2,857 bytes below
+  EIP-170. `WildcatMarket` leaves 3,379 bytes and `MarketLensAggregator` leaves 4,334 bytes.
+
+Final snapshot SHA-256:
+`3bcbded8f53063323dca0c9a5da0d23bd9b450c29b458c1fdbb137a61e1c0658`.
