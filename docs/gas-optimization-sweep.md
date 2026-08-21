@@ -93,6 +93,7 @@ the actual evidence.
 | G-27 | SBT providers      | Read ownership and token state through bounded one-word probes         | Low       | Accepted                               |
 | G-28 | Balance providers  | Read ERC-20 and ERC-4626 balances through exact fixed-shape calls      | Low       | Accepted                               |
 | G-29 | NFT providers      | Read ERC-721 and ERC-1155 balances through exact fixed-shape calls     | Low       | Accepted                               |
+| G-30 | Withdrawal loop    | Use a proved unchecked increment while processing unpaid batches      | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -560,6 +561,22 @@ Measured against the preceding accepted commit:
 - factory-created ERC-721 and ERC-1155 providers deploy 27,605 and 28,407 gas cheaper;
 - ERC-721 provider and factory initcode/runtime shrink by 137 bytes;
 - ERC-1155 provider and factory initcode/runtime shrink by 141 bytes; and
+- public ABIs and storage declarations are unchanged.
+
+### Unpaid-batch loop increment (G-30)
+
+The unpaid-batch processor now separates its bound check from an explicitly unchecked increment.
+The increment is safe because `numBatches` is capped by the queue's `uint128` length and only
+runs while the current index is lower. This also avoids incrementing an otherwise unused index
+when the loop exits for lack of liquidity.
+
+Measured against the preceding accepted commit:
+
+- all 30 focused standard and fixed-term withdrawal cases pass;
+- the no-batch and no-liquidity paths save 55 gas;
+- one-batch paths save 71 to 103 gas, while two-batch paths save 151 gas;
+- the early closed-market revert costs 2 additional gas;
+- standard, withdrawal-only, and revolving market initcode/runtime each shrink by 16 bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

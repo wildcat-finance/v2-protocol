@@ -375,11 +375,14 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint256 i;
     // Process up to `maxBatches` unpaid batches while there is available liquidity
-    while (i++ < numBatches && availableLiquidity > 0) {
+    while (i < numBatches && availableLiquidity > 0) {
       // Process the next unpaid batch using available liquidity
       uint256 normalizedAmountPaid = _processUnpaidWithdrawalBatch(state, availableLiquidity);
       // Reduce liquidity available to next batch
       availableLiquidity = availableLiquidity.satSub(normalizedAmountPaid);
+      unchecked {
+        ++i;
+      }
     }
     _writeState(state, currentTotalAssets);
   }
