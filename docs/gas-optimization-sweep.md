@@ -81,6 +81,7 @@ the actual evidence.
 | G-15 | Market lens        | Keep core helper batch inputs in calldata                              | Low       | Accepted                                      |
 | G-16 | Market lens        | Read only the first byte needed from the dynamic market version        | Medium    | Accepted                                      |
 | G-17 | Market lens        | Read fixed optional fields and reserve tuples directly into scratch    | Low       | Accepted                                      |
+| G-18 | Market lens        | Reuse hook kind and hash bounded hook versions without string decoding | Medium    | Accepted                                      |
 
 ## Accepted Batches
 
@@ -310,6 +311,28 @@ Measured against the preceding accepted commit with seed `0x5eed`:
   getter is absent or malformed;
 - runtime and initcode shrink by 148 bytes for `MarketLensCore`, 153 bytes for
   `MarketLensAggregator`, and 88 bytes for `MarketLensLive`; and
+- public ABIs and storage declarations are unchanged.
+
+### Hook-kind reuse and bounded version hashing (G-18)
+
+Full market reads used to fetch and decode the same hooks-instance version twice: once while
+classifying the market hooks and again while filling hooks-instance metadata. The second fill now
+uses the already-resolved enum. Direct hooks-instance reads still resolve their own kind, but do
+so by hashing a validated bounded return buffer instead of ABI-decoding a dynamic string. Valid
+unknown versions longer than one word remain `Unknown`; failed calls still bubble, and malformed
+dynamic returns still revert.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- both complete lens suites pass with 74 tests, including new known, empty, long, truncated, and
+  reverting hook-version cases;
+- common full market-data fills save about 2,170 gas per market;
+- the periodic-term market regression saves 5,278 gas because it performs multiple related
+  market-data reads;
+- a direct periodic hooks-instance read saves 805 gas even though it cannot reuse a market's
+  already-resolved kind;
+- `MarketLensCore` grows by 19 runtime/initcode bytes and `MarketLensAggregator` grows by five,
+  adding roughly 4,800 gas across both one-time helper deployments; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
