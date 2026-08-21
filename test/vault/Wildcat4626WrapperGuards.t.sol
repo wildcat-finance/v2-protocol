@@ -316,6 +316,107 @@ contract Wildcat4626WrapperGuardsTest is Test {
     assertEq(wrapper.maxRedeem(HOLDER), 0, 'sanctioned maxRedeem');
   }
 
+  function test_sanctionsResponseValidation() external {
+    bytes memory callData = abi.encodeWithSignature(
+      'isSanctioned(address,address)',
+      BORROWER,
+      HOLDER
+    );
+    address sentinel = address(sanctionsSentinel);
+
+    vm.mockCall(sentinel, callData, hex'01');
+    vm.expectRevert();
+    wrapper.maxRedeem(HOLDER);
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinel, callData, abi.encode(uint256(2)));
+    vm.expectRevert();
+    wrapper.maxRedeem(HOLDER);
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(sentinel, callData, revertData);
+    vm.expectRevert(revertData);
+    wrapper.maxRedeem(HOLDER);
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinel, callData, bytes.concat(abi.encode(true), hex'deadbeef'));
+    assertEq(wrapper.maxRedeem(HOLDER), 0, 'sanctioned max redeem');
+  }
+
+  function test_zeroAccountSkipsBorrowerPrincipalProbe() external {
+    vm.mockCallRevert(
+      address(market),
+      abi.encodeWithSignature('borrowerPrincipal()'),
+      hex'deadbeef'
+    );
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.AccountNotSanctioned.selector, address(0))
+    );
+    wrapper.nukeFromOrbit(address(0));
+  }
+
+  function test_transferPolicyResponseValidation() external {
+    bytes memory callData = abi.encodeWithSignature(
+      'isMarketTransferRecipientAllowed(address,address)',
+      address(market),
+      address(wrapper)
+    );
+    address policy = address(market);
+
+    vm.mockCall(policy, callData, hex'01');
+    assertEq(wrapper.maxDeposit(HOLDER), 0, 'short response');
+    vm.clearMockedCalls();
+
+    vm.mockCall(policy, callData, abi.encode(uint256(2)));
+    assertEq(wrapper.maxDeposit(HOLDER), 0, 'dirty response');
+    vm.clearMockedCalls();
+
+    vm.mockCallRevert(policy, callData, hex'deadbeef');
+    assertEq(wrapper.maxDeposit(HOLDER), 0, 'reverting response');
+    vm.clearMockedCalls();
+
+    vm.mockCall(policy, callData, bytes.concat(abi.encode(true), hex'deadbeef'));
+    assertGt(wrapper.maxDeposit(HOLDER), 0, 'valid response');
+  }
+
+  function test_escrowAddressResponseValidation() external {
+    _deposit(HOLDER, 10 * UNIT);
+    sanctionsSentinel.sanction(HOLDER);
+    address escrow = address(0xE5C0);
+    address sentinel = address(sanctionsSentinel);
+    bytes memory callData = abi.encodeWithSignature(
+      'getEscrowAddress(address,address,address)',
+      BORROWER,
+      HOLDER,
+      address(wrapper)
+    );
+
+    vm.mockCall(sentinel, callData, hex'01');
+    vm.prank(HOLDER);
+    vm.expectRevert();
+    wrapper.transfer(escrow, UNIT);
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinel, callData, abi.encode((uint256(1) << 160) | uint160(escrow)));
+    vm.prank(HOLDER);
+    vm.expectRevert();
+    wrapper.transfer(escrow, UNIT);
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(sentinel, callData, revertData);
+    vm.prank(HOLDER);
+    vm.expectRevert(revertData);
+    wrapper.transfer(escrow, UNIT);
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinel, callData, bytes.concat(abi.encode(escrow), hex'deadbeef'));
+    vm.prank(HOLDER);
+    wrapper.transfer(escrow, UNIT);
+    assertEq(wrapper.balanceOf(escrow), UNIT, 'escrow shares');
+  }
+
   function test_sanctions_depositRevertsForSanctionedCaller() external {
     _fundAndApprove(HOLDER, 2 * UNIT);
     sanctionsSentinel.sanction(HOLDER);

@@ -503,13 +503,58 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   function _isSanctioned(address account) internal view returns (bool) {
-    return
-      account != address(0) &&
-      sanctionsSentinel.isSanctioned(wrappedMarket.borrowerPrincipal(), account);
+    if (account == address(0)) return false;
+    return _isSanctioned(account, wrappedMarket.borrowerPrincipal());
   }
 
-  function _isSanctioned(address account, address principal) internal view returns (bool) {
-    return account != address(0) && sanctionsSentinel.isSanctioned(principal, account);
+  function _isSanctioned(
+    address account,
+    address principal
+  ) internal view returns (bool isSanctioned_) {
+    if (account == address(0)) return false;
+    address sentinel = address(sanctionsSentinel);
+    assembly ('memory-safe') {
+      let pointer := mload(0x40)
+      mstore(pointer, 0x06e74444)
+      mstore(add(pointer, 0x20), principal)
+      mstore(add(pointer, 0x40), account)
+      if iszero(staticcall(gas(), sentinel, add(pointer, 0x1c), 0x44, pointer, 0x20)) {
+        returndatacopy(pointer, 0, returndatasize())
+        revert(pointer, returndatasize())
+      }
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      isSanctioned_ := mload(pointer)
+      if gt(isSanctioned_, 1) {
+        revert(0, 0)
+      }
+    }
+  }
+
+  function _getEscrowAddress(
+    address principal,
+    address account
+  ) internal view returns (address escrow) {
+    address sentinel = address(sanctionsSentinel);
+    assembly ('memory-safe') {
+      let pointer := mload(0x40)
+      mstore(pointer, 0x1cdf58b0)
+      mstore(add(pointer, 0x20), principal)
+      mstore(add(pointer, 0x40), account)
+      mstore(add(pointer, 0x60), address())
+      if iszero(staticcall(gas(), sentinel, add(pointer, 0x1c), 0x64, pointer, 0x20)) {
+        returndatacopy(pointer, 0, returndatasize())
+        revert(pointer, returndatasize())
+      }
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      escrow := mload(pointer)
+      if shr(160, escrow) {
+        revert(0, 0)
+      }
+    }
   }
 
   /// @dev Checks `from` against the canonical escrow for `account` under its original principal.
@@ -521,9 +566,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
         escrowPrincipal := and(mload(0), 0xffffffffffffffffffffffffffffffffffffffff)
       }
     }
-    return
-      escrowPrincipal != address(0) &&
-      sanctionsSentinel.getEscrowAddress(escrowPrincipal, account, address(this)) == from;
+    return escrowPrincipal != address(0) && _getEscrowAddress(escrowPrincipal, account) == from;
   }
 
   function _isSolvent() internal view returns (bool) {
@@ -538,11 +581,19 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   ///      if the policy query fails, report zero capacity instead of making the ERC-4626 limit
   ///      view revert.
   function _canReceiveMarketTokens() internal view returns (bool allowed) {
-    try
-      _transferPolicy.isMarketTransferRecipientAllowed(address(wrappedMarket), address(this))
-    returns (bool isAllowed) {
-      allowed = isAllowed;
-    } catch {}
+    address policy = address(_transferPolicy);
+    address marketAddress = address(wrappedMarket);
+    assembly ('memory-safe') {
+      let pointer := mload(0x40)
+      mstore(pointer, 0x02439e44)
+      mstore(add(pointer, 0x20), marketAddress)
+      mstore(add(pointer, 0x40), address())
+      let success := staticcall(gas(), policy, add(pointer, 0x1c), 0x44, pointer, 0x20)
+      allowed := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), eq(mload(pointer), 1))
+      )
+    }
   }
 
   function _requireSolvent(uint256 scaledBacking) internal view {
@@ -584,11 +635,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       _requireOperational(principal);
     } else {
       if (fromIsSanctioned) {
-        address escrow = sanctionsSentinel.getEscrowAddress(
-          principal,
-          from,
-          address(this)
-        );
+        address escrow = _getEscrowAddress(principal, from);
         if (to != escrow) revert SanctionedAccount(from);
       } else {
         _requireOperational(principal);

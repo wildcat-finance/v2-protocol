@@ -100,6 +100,7 @@ the actual evidence.
 | G-34 | Access-list factory | Keep dynamic provider members in bounded calldata                     | Medium    | Accepted                               |
 | G-35 | Sanctions sentinel | Bound the Chainalysis boolean probe                                    | Low       | Accepted                               |
 | G-36 | Identity registry  | Bound ArchController owner and borrower probes                        | Low       | Accepted                               |
+| G-37 | ERC-4626 wrapper  | Bound sanctions, escrow, and transfer-policy probes                   | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -693,6 +694,27 @@ Measured against the preceding accepted commit before adding the malformed-respo
 - owner-gated factory operations save about 241 to 255 gas per owner probe;
 - registry initcode shrinks by 649 bytes and runtime by 628 bytes, saving roughly 125,600 gas in
   runtime code deposit; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded wrapper policy and sanctions probes (G-37)
+
+The ERC-4626 wrapper now uses exact fixed-shape calls for sanctions checks, canonical escrow
+lookups, and the fail-closed transfer-recipient policy query. Reverting calls still follow each
+path's old behavior: sanctions and escrow failures bubble, while a failed or malformed transfer-
+policy query reports zero deposit capacity. Short and dirty return words are rejected, and valid
+words with trailing data remain accepted.
+
+Measured against the preceding accepted commit:
+
+- all 164 wrapper, rounding, ERC-4626, and sanctions-integration cases pass, along with all 19
+  wrapper-factory tests; new regressions cover short, dirty, oversized-valid, and reverting
+  responses on all three probes;
+- ordinary deposits and mints save 1,352 gas;
+- successful withdrawals and redeems save 2,458 to 3,073 gas;
+- ordinary share-transfer paths save 2,312 to 2,374 gas, with the tested escrow-validation path
+  saving 3,700 gas;
+- wrapper initcode shrinks by 676 bytes and runtime by 648 bytes, cutting each wrapper deployment
+  by roughly 130,000 gas; the factory that embeds the initcode also shrinks by 676 bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
