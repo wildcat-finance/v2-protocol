@@ -5,6 +5,31 @@ interface IERC165SupportsInterface {
   function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
+library ERC165QueryLib {
+  bytes4 internal constant ERC165_INTERFACE_ID = 0x01ffc9a7;
+  bytes4 internal constant INVALID_INTERFACE_ID = 0xffffffff;
+
+  function supportsERC165(address target) internal view returns (bool) {
+    return
+      supportsInterface(target, ERC165_INTERFACE_ID) &&
+      !supportsInterface(target, INVALID_INTERFACE_ID);
+  }
+
+  function supportsInterface(
+    address target,
+    bytes4 interfaceId
+  ) internal view returns (bool value) {
+    uint256 selectorWord = uint32(IERC165SupportsInterface.supportsInterface.selector);
+    uint256 interfaceIdWord = uint32(interfaceId);
+    assembly {
+      mstore(0x00, selectorWord)
+      mstore(0x20, shl(224, interfaceIdWord))
+      let success := staticcall(gas(), target, 0x1c, 0x24, 0x00, 0x20)
+      value := and(success, and(iszero(lt(returndatasize(), 0x20)), eq(mload(0x00), 1)))
+    }
+  }
+}
+
 interface IERC20BalanceOf {
   function balanceOf(address account) external view returns (uint256);
 }

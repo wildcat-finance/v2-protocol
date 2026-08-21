@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import 'src/access/IRoleProvider.sol';
 import {
-  IERC165SupportsInterface,
+  ERC165QueryLib,
   IERC5192Locked,
   IERC721OwnerOf
 } from './TokenInterfaces.sol';
@@ -16,10 +16,8 @@ contract ERC5192RoleProvider is IRoleProvider {
   error InvalidTokenAddress();
   error InvalidERC5192();
 
-  bytes4 private constant ERC165_INTERFACE_ID = 0x01ffc9a7;
   bytes4 private constant ERC721_INTERFACE_ID = 0x80ac58cd;
   bytes4 private constant ERC5192_INTERFACE_ID = 0xb45a3c0e;
-  bytes4 private constant INVALID_INTERFACE_ID = 0xffffffff;
 
   address public immutable token;
   bool public immutable requireLocked;
@@ -28,9 +26,9 @@ contract ERC5192RoleProvider is IRoleProvider {
     if (token_.code.length == 0) revert InvalidTokenAddress();
     if (
       !skipInterfaceCheck &&
-      (!_supportsERC165(token_) ||
-        !_supportsInterface(token_, ERC721_INTERFACE_ID) ||
-        !_supportsInterface(token_, ERC5192_INTERFACE_ID))
+      (!ERC165QueryLib.supportsERC165(token_) ||
+        !ERC165QueryLib.supportsInterface(token_, ERC721_INTERFACE_ID) ||
+        !ERC165QueryLib.supportsInterface(token_, ERC5192_INTERFACE_ID))
     ) {
       revert InvalidERC5192();
     }
@@ -76,20 +74,4 @@ contract ERC5192RoleProvider is IRoleProvider {
     return uint32(block.timestamp);
   }
 
-  function _supportsERC165(address target) internal view returns (bool) {
-    return
-      _supportsInterface(target, ERC165_INTERFACE_ID) &&
-      !_supportsInterface(target, INVALID_INTERFACE_ID);
-  }
-
-  function _supportsInterface(
-    address target,
-    bytes4 interfaceId
-  ) internal view returns (bool) {
-    try IERC165SupportsInterface(target).supportsInterface(interfaceId) returns (bool supported) {
-      return supported;
-    } catch {
-      return false;
-    }
-  }
 }

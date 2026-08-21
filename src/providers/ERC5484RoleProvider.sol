@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import 'src/access/IRoleProvider.sol';
 import {
-  IERC165SupportsInterface,
+  ERC165QueryLib,
   IERC5484BurnAuth,
   IERC721OwnerOf
 } from './TokenInterfaces.sol';
@@ -18,10 +18,8 @@ contract ERC5484RoleProvider is IRoleProvider {
   error InvalidERC5484();
   error InvalidBurnAuthMask();
 
-  bytes4 private constant ERC165_INTERFACE_ID = 0x01ffc9a7;
   bytes4 private constant ERC721_INTERFACE_ID = 0x80ac58cd;
   bytes4 private constant ERC5484_INTERFACE_ID = 0x0489b56f;
-  bytes4 private constant INVALID_INTERFACE_ID = 0xffffffff;
 
   address public immutable token;
   uint8 public immutable allowedBurnAuthMask;
@@ -33,9 +31,9 @@ contract ERC5484RoleProvider is IRoleProvider {
     }
     if (
       !skipInterfaceCheck &&
-      (!_supportsERC165(token_) ||
-        !_supportsInterface(token_, ERC721_INTERFACE_ID) ||
-        !_supportsInterface(token_, ERC5484_INTERFACE_ID))
+      (!ERC165QueryLib.supportsERC165(token_) ||
+        !ERC165QueryLib.supportsInterface(token_, ERC721_INTERFACE_ID) ||
+        !ERC165QueryLib.supportsInterface(token_, ERC5484_INTERFACE_ID))
     ) {
       revert InvalidERC5484();
     }
@@ -86,20 +84,4 @@ contract ERC5484RoleProvider is IRoleProvider {
     return uint32(block.timestamp);
   }
 
-  function _supportsERC165(address target) internal view returns (bool) {
-    return
-      _supportsInterface(target, ERC165_INTERFACE_ID) &&
-      !_supportsInterface(target, INVALID_INTERFACE_ID);
-  }
-
-  function _supportsInterface(
-    address target,
-    bytes4 interfaceId
-  ) internal view returns (bool) {
-    try IERC165SupportsInterface(target).supportsInterface(interfaceId) returns (bool supported) {
-      return supported;
-    } catch {
-      return false;
-    }
-  }
 }

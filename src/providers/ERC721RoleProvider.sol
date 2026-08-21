@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import '../libraries/SafeCastLib.sol';
 import './IERC721RoleProvider.sol';
-import { IERC165SupportsInterface, IERC721BalanceOf } from './TokenInterfaces.sol';
+import { ERC165QueryLib, IERC721BalanceOf } from './TokenInterfaces.sol';
 
 using SafeCastLib for uint256;
 
@@ -12,9 +12,7 @@ using SafeCastLib for uint256;
 contract ERC721RoleProvider is IERC721RoleProvider {
   bool public constant override isPullProvider = true;
 
-  bytes4 private constant ERC165_INTERFACE_ID = 0x01ffc9a7;
   bytes4 private constant ERC721_INTERFACE_ID = 0x80ac58cd;
-  bytes4 private constant INVALID_INTERFACE_ID = 0xffffffff;
 
   address public immutable override token;
 
@@ -22,7 +20,8 @@ contract ERC721RoleProvider is IERC721RoleProvider {
     if (token_.code.length == 0) revert InvalidTokenAddress();
     if (
       !skipInterfaceCheck &&
-      (!_supportsERC165(token_) || !_supportsInterface(token_, ERC721_INTERFACE_ID))
+      (!ERC165QueryLib.supportsERC165(token_) ||
+        !ERC165QueryLib.supportsInterface(token_, ERC721_INTERFACE_ID))
     ) {
       revert InvalidERC721();
     }
@@ -47,20 +46,4 @@ contract ERC721RoleProvider is IERC721RoleProvider {
     return 0;
   }
 
-  function _supportsERC165(address target) internal view returns (bool) {
-    return
-      _supportsInterface(target, ERC165_INTERFACE_ID) &&
-      !_supportsInterface(target, INVALID_INTERFACE_ID);
-  }
-
-  function _supportsInterface(
-    address target,
-    bytes4 interfaceId
-  ) internal view returns (bool) {
-    try IERC165SupportsInterface(target).supportsInterface(interfaceId) returns (bool supported) {
-      return supported;
-    } catch {
-      return false;
-    }
-  }
 }

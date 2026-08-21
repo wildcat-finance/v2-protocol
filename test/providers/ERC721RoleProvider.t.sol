@@ -18,6 +18,25 @@ contract InvalidERC165ERC721 {
   }
 }
 
+contract MalformedERC165Response {
+  uint256 internal immutable _value;
+  uint256 internal immutable _length;
+
+  constructor(uint256 value, uint256 length) {
+    _value = value;
+    _length = length;
+  }
+
+  fallback() external {
+    uint256 value = _value;
+    uint256 length = _length;
+    assembly {
+      mstore(0x00, value)
+      return(0x00, length)
+    }
+  }
+}
+
 contract NonERC165ERC721BalanceToken {
   mapping(address account => uint256 balance) public balanceOf;
 
@@ -178,6 +197,16 @@ contract ERC721RoleProviderTest is BaseMarketTest {
     InvalidERC165ERC721 invalidErc165 = new InvalidERC165ERC721();
     vm.expectRevert(IERC721RoleProvider.InvalidERC721.selector);
     new ERC721RoleProvider(address(invalidErc165), false);
+  }
+
+  function test_constructor_reverts_with_malformed_erc165_response() external {
+    address shortResponse = address(new MalformedERC165Response(1, 0x1f));
+    vm.expectRevert(IERC721RoleProvider.InvalidERC721.selector);
+    new ERC721RoleProvider(shortResponse, false);
+
+    address dirtyBoolean = address(new MalformedERC165Response(2, 0x20));
+    vm.expectRevert(IERC721RoleProvider.InvalidERC721.selector);
+    new ERC721RoleProvider(dirtyBoolean, false);
   }
 
   function test_constructor_allows_usable_token_without_erc165_when_skipped() external {

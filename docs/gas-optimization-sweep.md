@@ -89,6 +89,7 @@ the actual evidence.
 | G-23 | Access-list roles  | Reuse the administrator already checked by the mutation entry point    | Low       | Accepted                               |
 | G-24 | Open/fixed hooks   | Skip the fresh zero write when deposit-hook dispatch is disabled       | Low       | Accepted                               |
 | G-25 | Wrapper factory    | Validate the legacy factory with fixed calldata and return buffers     | Low       | Accepted                               |
+| G-26 | Token providers    | Share a bounded, clean-boolean ERC-165 interface probe                 | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -480,6 +481,27 @@ Measured against the preceding accepted commit:
 - rejecting a codeless address saves 279 gas and rejecting a short response saves 456 gas;
 - factory initcode shrinks by 102 bytes while runtime is unchanged; and
 - the public ABI and storage declarations are unchanged.
+
+### Bounded ERC-165 provider checks (G-26)
+
+The ERC-721, ERC-1155, ERC-5192, and ERC-5484 providers carried four copies of the same
+constructor-only ERC-165 handshake. They now share an internal fixed-buffer query that accepts
+only a successful call with at least one full word containing a clean boolean true. Reverts,
+short data, dirty booleans, and the ERC-165 invalid-interface response all still fail closed.
+
+Measured against the preceding accepted commit:
+
+- all 74 focused provider, property, and factory tests pass, including a new malformed-response
+  regression;
+- normal interface-checked ERC-721 and ERC-1155 factory deployments save 1,257 and 1,255 gas;
+- their skip-interface-check paths still save 188 and 184 gas from smaller initcode;
+- deployments that reach the final ERC-5192 or ERC-5484 interface check before rejecting save
+  1,345 and 1,324 gas;
+- provider initcode shrinks by 149 to 159 bytes across the four implementations while their
+  runtime bytecode is unchanged;
+- the ERC-721 and ERC-1155 factories that embed provider creation code shrink by 152 and 149
+  bytes in both initcode and runtime; and
+- public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
 
