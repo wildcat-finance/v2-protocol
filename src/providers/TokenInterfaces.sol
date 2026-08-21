@@ -30,6 +30,23 @@ library ERC165QueryLib {
   }
 }
 
+library TokenQueryLib {
+  function readWord(
+    address target,
+    bytes4 selector,
+    uint256 argument
+  ) internal view returns (bool success, uint256 value) {
+    uint256 selectorWord = uint32(selector);
+    assembly {
+      mstore(0x00, selectorWord)
+      mstore(0x20, argument)
+      success := staticcall(gas(), target, 0x1c, 0x24, 0x00, 0x20)
+      success := and(success, iszero(lt(returndatasize(), 0x20)))
+      value := mload(0x00)
+    }
+  }
+}
+
 interface IERC20BalanceOf {
   function balanceOf(address account) external view returns (uint256);
 }

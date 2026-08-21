@@ -5,7 +5,8 @@ import 'src/access/IRoleProvider.sol';
 import {
   ERC165QueryLib,
   IERC5484BurnAuth,
-  IERC721OwnerOf
+  IERC721OwnerOf,
+  TokenQueryLib
 } from './TokenInterfaces.sol';
 
 /// @notice Validates ownership of a supplied token ID from an ERC5484 collection.
@@ -62,22 +63,20 @@ contract ERC5484RoleProvider is IRoleProvider {
   }
 
   function _credentialTimestamp(address account, uint256 tokenId) internal view returns (uint32) {
-    address owner;
-    try IERC721OwnerOf(token).ownerOf(tokenId) returns (address tokenOwner) {
-      owner = tokenOwner;
-    } catch {
-      return 0;
-    }
-    if (owner != account) return 0;
+    (bool success, uint256 value) = TokenQueryLib.readWord(
+      token,
+      IERC721OwnerOf.ownerOf.selector,
+      tokenId
+    );
+    if (!success || value != uint160(account)) return 0;
 
-    uint256 burnAuthValue;
-    try IERC5484BurnAuth(token).burnAuth(tokenId) returns (uint256 value) {
-      burnAuthValue = value;
-    } catch {
-      return 0;
-    }
-    if (burnAuthValue > 3) return 0;
-    if ((uint256(allowedBurnAuthMask) & (uint256(1) << burnAuthValue)) == 0) {
+    (success, value) = TokenQueryLib.readWord(
+      token,
+      IERC5484BurnAuth.burnAuth.selector,
+      tokenId
+    );
+    if (!success || value > 3) return 0;
+    if ((uint256(allowedBurnAuthMask) & (uint256(1) << value)) == 0) {
       return 0;
     }
 

@@ -90,6 +90,7 @@ the actual evidence.
 | G-24 | Open/fixed hooks   | Skip the fresh zero write when deposit-hook dispatch is disabled       | Low       | Accepted                               |
 | G-25 | Wrapper factory    | Validate the legacy factory with fixed calldata and return buffers     | Low       | Accepted                               |
 | G-26 | Token providers    | Share a bounded, clean-boolean ERC-165 interface probe                 | Low       | Accepted                               |
+| G-27 | SBT providers      | Read ownership and token state through bounded one-word probes         | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -501,6 +502,24 @@ Measured against the preceding accepted commit:
   runtime bytecode is unchanged;
 - the ERC-721 and ERC-1155 factories that embed provider creation code shrink by 152 and 149
   bytes in both initcode and runtime; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded SBT credential reads (G-27)
+
+The ERC-5192 and ERC-5484 providers now use the same exact 36-byte calldata shape for their
+runtime token reads and copy only the first return word. Ownership still requires a clean ABI
+address, ERC-5192 locking still requires a clean boolean true, and every call still fails closed
+on a revert or short response. ERC-5484 burn authorization remains a full `uint256` read and is
+bounded to its four defined values before the mask is applied.
+
+Measured against the preceding accepted commit:
+
+- all 24 focused tests pass, including new short-return, dirty-address, and dirty-boolean
+  regressions;
+- common successful and rejecting credential paths save 186 to 594 gas per market interaction;
+- direct ERC-5192 and ERC-5484 provider deployments save 29,851 and 29,056 gas;
+- ERC-5192 initcode and runtime each shrink by 149 bytes;
+- ERC-5484 initcode and runtime each shrink by 145 bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

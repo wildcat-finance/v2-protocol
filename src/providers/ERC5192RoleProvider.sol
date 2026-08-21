@@ -5,7 +5,8 @@ import 'src/access/IRoleProvider.sol';
 import {
   ERC165QueryLib,
   IERC5192Locked,
-  IERC721OwnerOf
+  IERC721OwnerOf,
+  TokenQueryLib
 } from './TokenInterfaces.sol';
 
 /// @notice Validates ownership of a supplied token ID from an ERC5192 collection.
@@ -57,19 +58,19 @@ contract ERC5192RoleProvider is IRoleProvider {
   }
 
   function _credentialTimestamp(address account, uint256 tokenId) internal view returns (uint32) {
-    address owner;
-    try IERC721OwnerOf(token).ownerOf(tokenId) returns (address tokenOwner) {
-      owner = tokenOwner;
-    } catch {
-      return 0;
-    }
-    if (owner != account) return 0;
+    (bool success, uint256 value) = TokenQueryLib.readWord(
+      token,
+      IERC721OwnerOf.ownerOf.selector,
+      tokenId
+    );
+    if (!success || value != uint160(account)) return 0;
     if (requireLocked) {
-      try IERC5192Locked(token).locked(tokenId) returns (bool isLocked) {
-        if (!isLocked) return 0;
-      } catch {
-        return 0;
-      }
+      (success, value) = TokenQueryLib.readWord(
+        token,
+        IERC5192Locked.locked.selector,
+        tokenId
+      );
+      if (!success || value != 1) return 0;
     }
     return uint32(block.timestamp);
   }

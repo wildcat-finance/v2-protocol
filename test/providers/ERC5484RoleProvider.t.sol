@@ -136,6 +136,30 @@ contract ERC5484RoleProviderTest is BaseMarketTest {
     assertEq(provider.validateCredential(approvedLender, hex'01'), 0, 'credential');
   }
 
+  function test_validateCredential_rejects_malformed_token_responses() external {
+    bytes memory ownerCall = abi.encodeWithSelector(IERC721OwnerOf.ownerOf.selector, tokenId);
+    vm.mockCall(address(nft), ownerCall, new bytes(31));
+    assertEq(provider.validateCredential(approvedLender, abi.encode(tokenId)), 0, 'short owner');
+    vm.clearMockedCalls();
+
+    vm.mockCall(
+      address(nft),
+      ownerCall,
+      abi.encode(uint256(uint160(approvedLender)) | (uint256(1) << 160))
+    );
+    assertEq(provider.validateCredential(approvedLender, abi.encode(tokenId)), 0, 'dirty owner');
+    vm.clearMockedCalls();
+
+    vm.mockCall(address(nft), ownerCall, abi.encode(approvedLender));
+    vm.mockCall(
+      address(nft),
+      abi.encodeWithSelector(IERC5484BurnAuth.burnAuth.selector, tokenId),
+      new bytes(31)
+    );
+    assertEq(provider.validateCredential(approvedLender, abi.encode(tokenId)), 0, 'short burn auth');
+    vm.clearMockedCalls();
+  }
+
   function _depositWithHooksData(
     address from,
     uint256 amount,
