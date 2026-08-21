@@ -106,6 +106,7 @@ the actual evidence.
 | G-40 | Hooks factories    | Share bounded controller and administrator probes                  | Low       | Accepted                               |
 | G-41 | Market constructor | Bound the borrower-registration probe                              | Low       | Accepted                               |
 | G-42 | Access controls    | Bound factory and controller reads during administrator transfer  | Low       | Accepted                               |
+| G-43 | Periodic hooks     | Bound the market APR getter used by reduction proposals           | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -817,6 +818,22 @@ Measured against the preceding accepted commit:
 - open-term and fixed-term hook initcode/runtime each shrink by 111 bytes, while periodic-term
   hook initcode/runtime shrink by 105 bytes;
 - the smaller runtimes save roughly 21,000 to 22,200 gas on every hook-instance deployment; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded periodic APR probe (G-43)
+
+Periodic hooks now read the market's current annual-interest value through a bounded one-word
+call before accepting an APR-reduction proposal. The reader accepts the full `uint256` range,
+bubbles target reverts, rejects short results, and accepts harmless trailing data.
+
+Measured against the preceding accepted commit:
+
+- all 18 focused proposal and APR-governance cases pass, along with all 14 shared fixed-call
+  response-validation cases;
+- a normal APR-reduction proposal saves 214 gas, while tested two-proposal paths save 422 gas;
+- each full APR-governance lifecycle test saves 13,065 gas including hook deployment;
+- periodic hook initcode and runtime each shrink by 64 bytes, saving roughly 12,800 gas on every
+  deployed instance; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

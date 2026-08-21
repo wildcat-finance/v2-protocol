@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import './MarketConstraintHooks.sol';
 import './IMarketTransferPolicy.sol';
 import '../libraries/SafeCastLib.sol';
+import '../libraries/LibFixedCall.sol';
 import './BaseAccessControls.sol';
 
 using BoolUtils for bool;
@@ -371,7 +372,10 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
       AnnualInterestBipsOutOfBounds.selector
     );
 
-    if (annualInterestBips >= IMarketApr(market).annualInterestBips()) {
+    if (
+      annualInterestBips >=
+      LibFixedCall.readWord(market, IMarketApr.annualInterestBips.selector)
+    ) {
       revert AprReductionProposalNotReduction();
     }
 

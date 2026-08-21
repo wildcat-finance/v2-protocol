@@ -11,12 +11,20 @@ contract FixedCallTarget {
     return ExpectedAddress;
   }
 
+  function wordValue() external pure returns (uint256) {
+    return type(uint256).max;
+  }
+
   function isExpectedAddress(address value) external pure returns (bool) {
     return value == ExpectedAddress;
   }
 }
 
 contract FixedCallHarness {
+  function readWord(address target, bytes4 selector) external view returns (uint256) {
+    return LibFixedCall.readWord(target, selector);
+  }
+
   function readAddress(address target, bytes4 selector) external view returns (address) {
     return LibFixedCall.readAddress(target, selector);
   }
@@ -29,6 +37,42 @@ contract FixedCallHarness {
 contract LibFixedCallTest is Test {
   FixedCallHarness internal harness = new FixedCallHarness();
   FixedCallTarget internal target = new FixedCallTarget();
+
+  function test_readWord() external view {
+    assertEq(
+      harness.readWord(address(target), FixedCallTarget.wordValue.selector),
+      type(uint256).max
+    );
+  }
+
+  function test_readWord_AcceptsTrailingData() external {
+    bytes memory callData = abi.encodeCall(FixedCallTarget.wordValue, ());
+    vm.mockCall(
+      address(target),
+      callData,
+      bytes.concat(abi.encode(type(uint256).max), bytes32(uint256(1)))
+    );
+
+    assertEq(
+      harness.readWord(address(target), FixedCallTarget.wordValue.selector),
+      type(uint256).max
+    );
+  }
+
+  function test_readWord_RejectsShortData() external {
+    vm.mockCall(address(target), abi.encodeCall(FixedCallTarget.wordValue, ()), hex'01');
+
+    vm.expectRevert();
+    harness.readWord(address(target), FixedCallTarget.wordValue.selector);
+  }
+
+  function test_readWord_BubblesRevert() external {
+    bytes memory reason = abi.encodeWithSignature('Error(string)', 'no word');
+    vm.mockCallRevert(address(target), abi.encodeCall(FixedCallTarget.wordValue, ()), reason);
+
+    vm.expectRevert(reason);
+    harness.readWord(address(target), FixedCallTarget.wordValue.selector);
+  }
 
   function test_readAddress() external view {
     assertEq(
