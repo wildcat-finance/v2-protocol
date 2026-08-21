@@ -80,6 +80,7 @@ the actual evidence.
 | G-14 | Provider factories | Reuse CREATE2 initcode and hash deterministic addresses in scratch     | Medium    | Accepted                                      |
 | G-15 | Market lens        | Keep core helper batch inputs in calldata                              | Low       | Accepted                                      |
 | G-16 | Market lens        | Read only the first byte needed from the dynamic market version        | Medium    | Accepted                                      |
+| G-17 | Market lens        | Read fixed optional fields and reserve tuples directly into scratch    | Low       | Accepted                                      |
 
 ## Accepted Batches
 
@@ -290,6 +291,25 @@ Measured against the preceding accepted commit with seed `0x5eed`:
 - the one-market batch parity test, which fills the same market twice, saves 1,131 gas;
 - `MarketLensCore` and `MarketLensAggregator` each grow by eight runtime/initcode bytes, adding
   roughly 1,600 gas to each one-time helper deployment; and
+- public ABIs and storage declarations are unchanged.
+
+### Fixed-output lens probes (G-17)
+
+The optional revolving getters and temporary excess-reserve getter now return directly into a
+fixed scratch buffer. The old paths allocated dynamic `bytes` values and decoded them even though
+the lens only accepts one 32-byte word or one 96-byte tuple. Missing methods, call failures, and
+short results still leave the optional data absent, matching the previous fail-soft behavior.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- all existing malformed, reverting, missing, zero-valued, legacy, revolving, and live-data
+  probe cases pass;
+- the temporary-reserve probe saves about 815 gas per ordinary market-data fill;
+- the two optional revolving probes save about 544 gas per live-market row;
+- full V2 market-data cases save roughly 1,660 to 1,690 gas per call depending on which optional
+  getter is absent or malformed;
+- runtime and initcode shrink by 148 bytes for `MarketLensCore`, 153 bytes for
+  `MarketLensAggregator`, and 88 bytes for `MarketLensLive`; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

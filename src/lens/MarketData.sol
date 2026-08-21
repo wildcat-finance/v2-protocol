@@ -185,31 +185,44 @@ library MarketDataLib {
     address target,
     bytes4 selector
   ) internal view {
-    (bool success, bytes memory result) = target.staticcall(abi.encodeWithSelector(selector));
-    if (!success || result.length < 0x20) {
-      return;
-    }
-
-    data.isPresent = true;
-    assembly {
-      mstore(add(data, 0x20), mload(add(result, 0x20)))
+    uint256 selectorWord = uint32(selector);
+    assembly ('memory-safe') {
+      let ptr := mload(0x40)
+      mstore(ptr, shl(224, selectorWord))
+      let success := staticcall(gas(), target, ptr, 4, ptr, 0x20)
+      if and(success, iszero(lt(returndatasize(), 0x20))) {
+        mstore(data, 1)
+        mstore(add(data, 0x20), mload(ptr))
+      }
     }
   }
 
   function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
     address marketAddress = data.marketToken.token;
     address hooksAddress = data.hooks.hooksAddress;
-    (bool success, bytes memory result) = hooksAddress.staticcall(
-      abi.encodeWithSelector(_TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR, marketAddress)
-    );
-    if (!success || result.length < 0x60) {
+    uint256 selectorWord = uint32(_TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR);
+    bool success;
+    uint256 originalAnnualInterestBips;
+    uint256 originalReserveRatioBips;
+    uint256 temporaryReserveRatioExpiry;
+    assembly ('memory-safe') {
+      let ptr := mload(0x40)
+      mstore(ptr, shl(224, selectorWord))
+      mstore(add(ptr, 4), marketAddress)
+      success := staticcall(gas(), hooksAddress, ptr, 0x24, ptr, 0x60)
+      success := and(success, iszero(lt(returndatasize(), 0x60)))
+      if success {
+        originalAnnualInterestBips := mload(ptr)
+        originalReserveRatioBips := mload(add(ptr, 0x20))
+        temporaryReserveRatioExpiry := mload(add(ptr, 0x40))
+      }
+    }
+    if (!success) {
       return;
     }
-    (
-      data.originalAnnualInterestBips,
-      data.originalReserveRatioBips,
-      data.temporaryReserveRatioExpiry
-    ) = abi.decode(result, (uint256, uint256, uint256));
+    data.originalAnnualInterestBips = originalAnnualInterestBips;
+    data.originalReserveRatioBips = originalReserveRatioBips;
+    data.temporaryReserveRatioExpiry = temporaryReserveRatioExpiry;
     data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
   }
 
