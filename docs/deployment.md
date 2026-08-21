@@ -18,7 +18,7 @@ Use one executor mode per target:
 | Network                                  | Executor                                                                            | Owner mode         |
 | ---------------------------------------- | ----------------------------------------------------------------------------------- | ------------------ |
 | Ethereum mainnet, Plasma mainnet         | Foundation through the disposable deployment frontend, with the team on a live call | `plan`             |
-| Sepolia, Plasma testnet, future testnets | Dev EOA, with temporary helper ownership represented in the plan                   | `plan`             |
+| Sepolia, Plasma testnet, future testnets | Dev EOA; Sepolia owner calls use the persistent authority helper, while other testnets require their reviewed authority configuration | `plan`             |
 | Anvil forks                              | Test EOA for the Sepolia-shaped UI rehearsal; impersonated owner for headless/direct maintenance | `plan` or `direct` |
 
 `DeployScriptBase` enforces an explicit `OWNER_MODE` on Ethereum mainnet and
@@ -155,7 +155,7 @@ forge script \
 
 ### 03: revolving hooks factory
 
-Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,178 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,179 bytes with 1,397 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
+Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,230 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,231 bytes with 1,345 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
 
 ```bash
 forge script \
@@ -374,7 +374,7 @@ node scripts/plan.js bundle-simulate \
   --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
 ```
 
-The current plan fits into three activation bundles. The exact Safe rehearsal used 14,417,671, 19,277,694, and 15,179,791 gas. These numbers are evidence for the current source, not release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
+The pre-optimization ceremony rehearsal fit into three activation bundles and used 14,417,671, 19,277,694, and 15,179,791 gas. Those numbers are historical engine evidence, not estimates for the reviewed `6c2cbfb` protocol source or release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
 
 Any plan change or intervening Safe transaction invalidates the package. Read the nonce again, regenerate, and repeat the simulation.
 
@@ -454,7 +454,7 @@ node scripts/plan.js ceremony-package \
   --bundles deployments/mainnet/bundles-v2-5-retirement
 ```
 
-The rehearsed two-call retirement fits into one Safe bundle and used 94,042 gas. Run it as a separate signer session. Each threshold signer approves once. After execution, derive or export `run-state-v2-5-retirement.json`, verify it, and finalize:
+The pre-optimization two-call retirement rehearsal fit into one Safe bundle and used 94,042 gas. Regenerate and simulate it from the post-activation inventory, then run it as a separate signer session. Each threshold signer approves once. After execution, derive or export `run-state-v2-5-retirement.json`, verify it, and finalize:
 
 ```bash
 export RUN_STATE=deployments/mainnet/run-state-v2-5-retirement.json

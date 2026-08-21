@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
-const { Interface, JsonRpcProvider, getAddress, id } = require("ethers");
+const { Interface, JsonRpcProvider, ZeroAddress, getAddress, id } = require("ethers");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const FORWARD_SIGNATURE = "executeProtocolAction(address,bytes)";
@@ -137,22 +137,39 @@ function context(args) {
 }
 
 function replacementHelper(args, contextValue) {
-  if (args.helper) return getAddress(args.helper);
-  const runStatePath =
-    args["phase-one-run-state"] ||
-    path.join(
-      contextValue.networkDir,
-      "run-state-authority-helper-phase-1.json"
-    );
-  const runState = readJson(runStatePath);
-  const helper =
-    runState["deploy-replacement-authority-helper"]?.resolvedAddress;
-  if (!helper) {
+  const helperOverride = args.helper;
+  const runStatePath = args["phase-one-run-state"];
+  if (helperOverride && runStatePath) {
+    throw new Error("Use --helper or --phase-one-run-state, not both");
+  }
+  if (!helperOverride && !runStatePath) {
     throw new Error(
-      `Phase-one run state has no verified replacement helper: ${runStatePath}`
+      "Phase two and phase three require --phase-one-run-state or an explicit --helper"
     );
   }
-  return getAddress(helper);
+
+  let helper;
+  if (helperOverride) {
+    helper = getAddress(helperOverride);
+  } else {
+    const runState = readJson(runStatePath);
+    const replacementState = runState["deploy-replacement-authority-helper"];
+    if (replacementState?.status !== "verified" || !replacementState.resolvedAddress) {
+      throw new Error(`Phase-one run state has no verified replacement helper: ${runStatePath}`);
+    }
+    helper = getAddress(replacementState.resolvedAddress);
+  }
+
+  if (helper === ZeroAddress) {
+    throw new Error("Replacement helper cannot be the zero address");
+  }
+
+  if (helper === contextValue.currentHelper) {
+    throw new Error(
+      "Replacement helper resolves to the current legacy helper; use the verified phase-one run state"
+    );
+  }
+  return helper;
 }
 
 function assemble(contextValue, release, entries) {

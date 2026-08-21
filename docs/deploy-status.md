@@ -1,6 +1,6 @@
 # v2.5 Deployment Tooling Status
 
-As of 2026-08-21. This is the current implementation and rehearsal record. [deployment.md](./deployment.md) is the process runbook, [deploy-checklist.md](./deploy-checklist.md) is the condensed operator checklist, and [anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) is the pre-Sepolia acceptance run.
+As of 2026-08-21. Reviewed protocol code is frozen at `6c2cbfb`; ceremony-only descendants must preserve the same production Solidity. The rehearsal evidence below predates that optimization overlay, so a fresh locked-UI rehearsal remains required. [deployment.md](./deployment.md) is the process runbook, [deploy-checklist.md](./deploy-checklist.md) is the condensed operator checklist, and [anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) is the pre-Sepolia acceptance run.
 
 ## Built and verified
 
@@ -8,7 +8,7 @@ As of 2026-08-21. This is the current implementation and rehearsal record. [depl
 
 **Activation plan:** `script/deploy/v2-5/01-07` deploys and configures the new generation. It deploys the wrapper factory, borrower identity registry, AccessList role-provider factory, standard and revolving factories, the four-part lens, and the three supported hook templates. It registers the six factory/template pairs and both new hooks factories. It does not retire an old factory.
 
-**Revolving init code:** `WildcatMarketRevolving` creation code is 23,178 bytes under the locked deploy profile. One leading `STOP` makes the stored runtime 23,179 bytes, leaving 1,397 bytes of EIP-170 margin. The revolving factory uses one storage contract again. The deployment scripts reject the payload before producing a plan or broadcasting if it stops fitting.
+**Revolving init code:** `WildcatMarketRevolving` creation code is 23,230 bytes under the locked deploy profile. One leading `STOP` makes the stored runtime 23,231 bytes, leaving 1,345 bytes of EIP-170 margin. The revolving factory uses one storage contract again. The deployment scripts reject the payload before producing a plan or broadcasting if it stops fitting.
 
 **Retirement plan:** `script/deploy/v2-5/retirement/01-generate-plan.sh` reads the post-activation inventory and creates a fresh plan for every still-registered superseded factory. Each factory loses `controllerFactory` before `controller`. `02-finalize-inventory.sh` applies only a fully verified retirement run-state. Sepolia forwards both removals through the persistent authority helper without transferring ArchController ownership.
 
@@ -24,27 +24,25 @@ As of 2026-08-21. This is the current implementation and rehearsal record. [depl
 
 **Handoff:** `scripts/generate-handoff.js` reports all factory generations, index flags, start blocks, the borrower identity registry, the AccessList role-provider factory, the revolving init-code storage address, and the v2.5 ABI changes needed by the subgraph and SDK.
 
-## Current rehearsal evidence
+## Previous rehearsal evidence
 
-These are disposable Anvil forks and generated artifacts are not checked in. They prove the current engine and plan shape, but a fresh locked-UI rehearsal from the reviewed release commit remains the live release gate.
+These disposable Anvil forks prove the ceremony engine and plan shape at the pre-optimization base. Generated artifacts are not checked in. They do not approve addresses, gas estimates, packages, or deployment from `6c2cbfb`; a fresh locked-UI rehearsal from the final ceremony commit remains the live release gate.
 
 - Sepolia authority rotation: five phase-1 cards from the old executor, three phase-2 cards from the new executor, and three delayed phase-3 cards from the new executor all passed. The replacement helper runtime hash was `0x71813272287ef573f8a2f96101f1a9ba6982761ad9de14a3e65e88c236a8a6fa`. The final preflight proved both wallets authorized, helper ownership plus ArchController SphereX admin/operator, helper engine default-admin/operator, revocation of the old wallet's direct engine operator role, and preservation of the ArchController sender-adder role.
 - Sepolia-shaped activation: 24 cards, consisting of 14 deployments and 10 calls. Eight owner actions were forwarded through the helper. All predicates passed, activation inventory finalization and reconciliation were green, and the helper remained ArchController owner.
 - Sepolia-shaped retirement: nine superseded factories produced 18 forwarded, ordered removals. All predicates passed, retirement inventory finalization and reconciliation were green, no market was removed, and the helper remained ArchController owner.
 - Mainnet-shaped activation: 24 cards, consisting of 14 deployments and 10 calls. Direct fork execution, predicate verification, inventory finalization, and reconciliation were green.
 - Mainnet-shaped retirement: the finalized rehearsal inventory had one superseded registered factory, producing one two-call retirement plan. Direct fork execution and reconciliation were green.
-- Exact Foundation Safe simulation: the 24 activation cards fit into three bundles using 14,417,671, 19,277,694, and 15,179,791 gas. The two retirement cards fit into one bundle using 94,042 gas. Every bundle stayed below the 20,000,000 gas ceiling and every predicate passed through the real Safe execution path.
+- Previous Foundation Safe simulation: the 24 activation cards fit into three bundles using 14,417,671, 19,277,694, and 15,179,791 gas. The two retirement cards fit into one bundle using 94,042 gas. Every bundle stayed below the 20,000,000 gas ceiling and every predicate passed through the real Safe execution path. Regenerate all bundle gas from the reviewed source.
 - The Foundation Safe was read as version 1.4.1 with threshold 3. The current release therefore requires three activation approvals and one later retirement approval from each participating signer. If the same three signers approve all four bundles, that is 12 signatures total. Cards are inner review actions and do not each need Safe signatures.
 
 The rehearsal Safe nonce, CREATE2 addresses, and generated package hashes are not release constants. Regenerate them from the current Safe state at production freeze and repeat the exact simulation.
 
-## Current pre-audit status
+## Current release-source status
 
-The wrapper-share access review is closed with no protocol change. Market credentials govern direct market participation and market-token receipt; canonical ERC-4626 wrapper shares intentionally remain broadly composable. Callers and integrations choose the share receiver and must account for whether a receiver can later unwrap market tokens to itself.
+`6c2cbfb` retains the reviewed 15-commit gas keep-list on top of the feature-complete ceremony base. It changes no existing public ABI or ArchController/factory source. Its only persistent layout change is the packed unpaid-batch queue used by markets deployed from the new factory bytecode; existing factories and markets remain unchanged.
 
-The separate wrapper-readiness issue is accepted for correction. Wrapper creation remains permissionless and activates open-transfer wrappers immediately. On transfer-gated markets, `maxDeposit` and `maxMint` now report zero until the wrapper can receive market tokens; preview functions remain conversion-only. The new wrapper generation therefore requires v2.5 hooks to expose a recipient-readiness transfer-policy view in addition to the existing global-disable view.
-
-The audit-fix branch also contains source changes that remain subject to the item-by-item owner walkthrough; the branch is not approved as an indivisible release patch. All earlier rehearsal evidence predates those source changes. After the remaining dispositions and final verification, regenerate every plan/package/address and repeat the locked-UI rehearsal from the reviewed release commit.
+The exact reviewed head passed all 1,797 fixed-seed Forge cases. The current deploy-profile build, downstream subgraph verification, SDK ABI/build checks, focused authority-helper tests, and deploy-UI tests/build are green. None of that replaces the fresh Anvil and locked-UI ceremony gate.
 
 ## Remaining release work
 
