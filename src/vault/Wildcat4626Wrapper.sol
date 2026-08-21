@@ -274,8 +274,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 assets,
     address receiver
   ) public override nonReentrant returns (uint256 shares) {
-    _checkNotSanctioned(msg.sender);
-    _requireOperational();
+    _requireOperational(msg.sender, address(0));
     if (assets == 0) revert ZeroAssets();
 
     uint256 limit = _remainingCapacityAssets();
@@ -295,7 +294,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (shares != expectedShares) revert SharesMismatch(expectedShares, shares);
 
     _mint(receiver, shares);
-    _requireSolvent();
+    _requireSolvent(scaledAfter);
     emit Deposit(msg.sender, receiver, assets, shares);
     return shares;
   }
@@ -305,8 +304,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     uint256 shares,
     address receiver
   ) public override nonReentrant returns (uint256 assets) {
-    _checkNotSanctioned(msg.sender);
-    _requireOperational();
+    _requireOperational(msg.sender, address(0));
     if (shares == 0) revert ZeroShares();
     uint256 scaleFactor = wrappedMarket.scaleFactor();
     // Reuse the `assets` return variable to hold remaining capacity for the cap check.
@@ -332,7 +330,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     if (mintedShares != shares) revert SharesMismatch(shares, mintedShares);
 
     _mint(receiver, shares);
-    _requireSolvent();
+    _requireSolvent(scaledAfter);
     emit Deposit(msg.sender, receiver, assets, shares);
   }
 
@@ -343,9 +341,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address receiver,
     address owner_
   ) public override nonReentrant returns (uint256 shares) {
-    _checkNotSanctioned(msg.sender);
-    _checkNotSanctioned(receiver);
-    _requireOperational();
+    _requireOperational(msg.sender, receiver);
     if (assets == 0) revert ZeroAssets();
 
     uint256 scaleFactor = wrappedMarket.scaleFactor();
@@ -366,7 +362,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
     uint256 burnedShares = scaledBefore - scaledAfter;
     if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
-    _requireSolvent();
+    _requireSolvent(scaledAfter);
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
   }
 
@@ -378,9 +374,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     address receiver,
     address owner_
   ) public override nonReentrant returns (uint256 assets) {
-    _checkNotSanctioned(msg.sender);
-    _checkNotSanctioned(receiver);
-    _requireOperational();
+    _requireOperational(msg.sender, receiver);
     if (shares == 0) revert ZeroShares();
 
     if (msg.sender != owner_) {
@@ -401,7 +395,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
     uint256 burnedShares = scaledBefore - scaledAfter;
     if (burnedShares != shares) revert SharesMismatch(shares, burnedShares);
-    _requireSolvent();
+    _requireSolvent(scaledAfter);
 
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
   }
@@ -514,6 +508,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       sanctionsSentinel.isSanctioned(wrappedMarket.borrowerPrincipal(), account);
   }
 
+  function _isSanctioned(address account, address principal) internal view returns (bool) {
+    return account != address(0) && sanctionsSentinel.isSanctioned(principal, account);
+  }
+
   /// @dev Checks `from` against the canonical escrow for `account` under its original principal.
   function _isEscrowRelease(address from, address account) internal view returns (bool) {
     address escrowPrincipal;
@@ -547,16 +545,23 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     } catch {}
   }
 
-  function _requireSolvent() internal view {
-    uint256 scaledBacking = wrappedMarket.scaledBalanceOf(address(this));
+  function _requireSolvent(uint256 scaledBacking) internal view {
     uint256 shareSupply = totalSupply();
     // New deposits must not recapitalize claims held by the existing shareholders.
     if (scaledBacking < shareSupply) revert InsolventWrapper(scaledBacking, shareSupply);
   }
 
-  function _requireOperational() internal view {
-    _checkNotSanctioned(address(this));
-    _requireSolvent();
+  function _requireOperational(address principal) internal view {
+    _checkNotSanctioned(address(this), principal);
+    _requireSolvent(wrappedMarket.scaledBalanceOf(address(this)));
+  }
+
+  function _requireOperational(address account, address secondAccount) internal view {
+    address principal = wrappedMarket.borrowerPrincipal();
+    _checkNotSanctioned(account, principal);
+    _checkNotSanctioned(secondAccount, principal);
+    _checkNotSanctioned(address(this), principal);
+    _requireSolvent(wrappedMarket.scaledBalanceOf(address(this)));
   }
 
   function _checkNotSanctioned(address account) internal view {
@@ -565,21 +570,28 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     }
   }
 
+  function _checkNotSanctioned(address account, address principal) internal view {
+    if (_isSanctioned(account, principal)) {
+      revert SanctionedAccount(account);
+    }
+  }
+
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-    bool fromIsSanctioned = _isSanctioned(from);
-    bool toIsSanctioned = _isSanctioned(to);
+    address principal = wrappedMarket.borrowerPrincipal();
+    bool fromIsSanctioned = _isSanctioned(from, principal);
+    bool toIsSanctioned = _isSanctioned(to, principal);
     if ((fromIsSanctioned || toIsSanctioned) && _isEscrowRelease(from, to)) {
-      _requireOperational();
+      _requireOperational(principal);
     } else {
       if (fromIsSanctioned) {
         address escrow = sanctionsSentinel.getEscrowAddress(
-          wrappedMarket.borrowerPrincipal(),
+          principal,
           from,
           address(this)
         );
         if (to != escrow) revert SanctionedAccount(from);
       } else {
-        _requireOperational();
+        _requireOperational(principal);
       }
       if (toIsSanctioned) revert SanctionedAccount(to);
     }

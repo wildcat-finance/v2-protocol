@@ -75,6 +75,7 @@ the actual evidence.
 | G-09 | Fleet architecture | Clone or singleton markets/hooks                                       | Very high | Break-even analysis only                      |
 | G-10 | Markets            | Remove balance reads across hooks or token transfers                   | High      | Report only; semantics can change             |
 | G-11 | Markets            | Reuse the sender already validated by `onlyBorrower`                    | Low       | Accepted with G-07                            |
+| G-12 | ERC-4626 wrapper   | Cache principal checks and reuse measured scaled backing               | Low       | Accepted with explicit break-even             |
 
 ## Accepted Batches
 
@@ -128,6 +129,30 @@ Measured against the baseline with seed `0x5eed`:
 
 The focused market compile and test took 9:34.22. The incremental production build took 1:58.91
 and used 3,333,764 KiB peak RSS.
+
+### Wrapper call caching (G-12)
+
+Wrapper executions now reuse the scaled backing measured after each market-token transfer for
+the final solvency check. Sanctions checks also fetch the current borrower principal once within
+each uninterrupted precheck or share-transfer hook. The principal is deliberately fetched again
+after a market-token transfer, so the optimization does not carry identity state across an
+external state-changing boundary.
+
+Measured against the baseline with seed `0x5eed`:
+
+- all 168 focused wrapper snapshot cases pass;
+- direct deposit and mint cases are 2,613 to 2,616 gas cheaper;
+- direct withdraw and redeem cases are 4,931 to 6,167 gas cheaper;
+- common share-transfer sanctions paths are 4,194 to 4,529 gas cheaper;
+- `Wildcat4626Wrapper` runtime grows by 807 bytes and initcode grows by 835 bytes;
+- `Wildcat4626WrapperFactory` grows by 835 bytes because it embeds the wrapper creation code;
+  deploying a wrapper costs about 161,900 more gas in the measured factory test; and
+- the per-wrapper deployment increase breaks even after roughly 62 deposits, 27 withdrawals,
+  or 36 share transfers, before amortizing the one-time factory deployment increase.
+
+This is a lifecycle optimization rather than a universal win. It belongs in the experimental
+stack because active wrappers should clear the break-even, but a production decision should use
+expected wrapper activity and deployment count.
 
 ## Rejected Candidates
 
