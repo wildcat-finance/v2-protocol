@@ -109,6 +109,7 @@ the actual evidence.
 | G-43 | Periodic hooks     | Bound the market APR getter used by reduction proposals           | Low       | Accepted                               |
 | G-44 | Wrapper factory    | Bound hooks, registration, and legacy-wrapper reads               | Low       | Accepted                               |
 | G-45 | Market lens        | Bound borrower-registration reads                                | Low       | Accepted                               |
+| G-46 | Hooks factories    | Bound no-return ArchController registration calls                | Medium    | Rejected after prototype               |
 
 ## Accepted Batches
 
@@ -879,5 +880,16 @@ already costs 100 gas. Adding a fresh warm `SLOAD`, comparison, and branch to av
 does not remove meaningful EVM work, and modified slots still need the `SSTORE`. This is not a
 useful optimization unless the state-loading API is redesigned to retain the original raw words,
 which is disproportionate to the upper bound.
+
+### No-return ArchController registration calls (G-46)
+
+A fixed-shape mutation helper was tested for factory and market registration while retaining
+Solidity's target-code check and revert bubbling. The standard factory prototype saved 128 gas
+per successful market deployment and 105 runtime bytes, but the same source change pushed the
+revolving deployment function one slot past the optimized-IR stack limit. Keeping only the
+one-time controller registration reduced both factories by 29 bytes and saved about 5,934 gas in
+the tested fresh-factory path, but compiler layout then added 18 gas to common standard market
+deployments. That marginal and asymmetric result does not justify a new low-level state-changing
+call primitive or wider memory-safety/refactoring work, so no mutation call was changed.
 
 Rejected candidates and further benchmark results will be added here as the sweep progresses.
