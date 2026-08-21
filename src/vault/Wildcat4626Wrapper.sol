@@ -503,13 +503,78 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   function _isSanctioned(address account) internal view returns (bool) {
-    return
-      account != address(0) &&
-      sanctionsSentinel.isSanctioned(wrappedMarket.borrowerPrincipal(), account);
+    if (account == address(0)) return false;
+    return _isSanctioned(account, wrappedMarket.borrowerPrincipal());
   }
 
-  function _isSanctioned(address account, address principal) internal view returns (bool) {
-    return account != address(0) && sanctionsSentinel.isSanctioned(principal, account);
+  function _isSanctioned(
+    address account,
+    address principal
+  ) internal view returns (bool isSanctioned_) {
+    if (account == address(0)) return false;
+    address sentinel = address(sanctionsSentinel);
+    assembly ('memory-safe') {
+      // borrow the free-memory pointer for calldata and the first return word. nothing needs
+      // this buffer after the assembly block, so leave 0x40 alone.
+      let pointer := mload(0x40)
+
+      // mstore puts the four-byte selector at the right edge of a 32-byte word. starting the
+      // call at +0x1c skips the leading zeroes, so calldata is selector | principal | account.
+      mstore(pointer, 0x06e74444)
+      mstore(add(pointer, 0x20), principal)
+      mstore(add(pointer, 0x40), account)
+
+      // ask staticcall to write up to the first return word over the start of our buffer. if it
+      // reverts, replace that with the full revert payload and bubble it up.
+      if iszero(staticcall(gas(), sentinel, add(pointer, 0x1c), 0x44, pointer, 0x20)) {
+        returndatacopy(pointer, 0, returndatasize())
+        revert(pointer, returndatasize())
+      }
+
+      // Solidity would reject a short bool or anything other than zero or one. do the same
+      // here. extra return data is fine; the bool still lives in the first word.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      isSanctioned_ := mload(pointer)
+      if gt(isSanctioned_, 1) {
+        revert(0, 0)
+      }
+    }
+  }
+
+  function _getEscrowAddress(
+    address principal,
+    address account
+  ) internal view returns (address escrow) {
+    address sentinel = address(sanctionsSentinel);
+    assembly ('memory-safe') {
+      // same calldata trick as _isSanctioned, just with one more address. address() is this
+      // wrapper when we're inside Yul.
+      let pointer := mload(0x40)
+      mstore(pointer, 0x1cdf58b0)
+      mstore(add(pointer, 0x20), principal)
+      mstore(add(pointer, 0x40), account)
+      mstore(add(pointer, 0x60), address())
+
+      // reuse the start of the buffer for the return word. on failure, overwrite it with the
+      // complete revert payload and bubble that up instead.
+      if iszero(staticcall(gas(), sentinel, add(pointer, 0x1c), 0x64, pointer, 0x20)) {
+        returndatacopy(pointer, 0, returndatasize())
+        revert(pointer, returndatasize())
+      }
+      // short data can't hold an address. trailing data is fine; we only use the first word.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+
+      // an ABI address is 160 bits with zeroes on the left. reject anything in those upper bits
+      // so this behaves like Solidity's normal decoder.
+      escrow := mload(pointer)
+      if shr(160, escrow) {
+        revert(0, 0)
+      }
+    }
   }
 
   /// @dev Checks `from` against the canonical escrow for `account` under its original principal.
@@ -521,9 +586,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
         escrowPrincipal := and(mload(0), 0xffffffffffffffffffffffffffffffffffffffff)
       }
     }
-    return
-      escrowPrincipal != address(0) &&
-      sanctionsSentinel.getEscrowAddress(escrowPrincipal, account, address(this)) == from;
+    return escrowPrincipal != address(0) && _getEscrowAddress(escrowPrincipal, account) == from;
   }
 
   function _isSolvent() internal view returns (bool) {
@@ -534,15 +597,29 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return !_isSanctioned(address(this)) && _isSolvent();
   }
 
-  /// @dev wrapper deposits use ordinary market-token transfers, so no hook data comes with them.
-  ///      if the policy query fails, report zero capacity instead of making the ERC-4626 limit
-  ///      view revert.
+  /// @dev wrapper deposits are plain market-token transfers, so they don't have hook data to
+  ///      carry permission. keep this fail closed: if the policy probe breaks, report zero
+  ///      capacity instead of breaking the ERC-4626 limit view too.
   function _canReceiveMarketTokens() internal view returns (bool allowed) {
-    try
-      _transferPolicy.isMarketTransferRecipientAllowed(address(wrappedMarket), address(this))
-    returns (bool isAllowed) {
-      allowed = isAllowed;
-    } catch {}
+    address policy = address(_transferPolicy);
+    address marketAddress = address(wrappedMarket);
+    assembly ('memory-safe') {
+      // same layout again: the selector starts at +0x1c, then market and wrapper each get a
+      // normal 32-byte ABI slot.
+      let pointer := mload(0x40)
+      mstore(pointer, 0x02439e44)
+      mstore(add(pointer, 0x20), marketAddress)
+      mstore(add(pointer, 0x40), address())
+      let success := staticcall(gas(), policy, add(pointer, 0x1c), 0x44, pointer, 0x20)
+
+      // only open capacity when all three checks pass: the call succeeded, returned a full
+      // word, and that word is exactly one. a revert, short return, dirty bool, or ordinary
+      // false all stay closed without breaking the view.
+      allowed := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), eq(mload(pointer), 1))
+      )
+    }
   }
 
   function _requireSolvent(uint256 scaledBacking) internal view {
@@ -584,11 +661,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       _requireOperational(principal);
     } else {
       if (fromIsSanctioned) {
-        address escrow = sanctionsSentinel.getEscrowAddress(
-          principal,
-          from,
-          address(this)
-        );
+        address escrow = _getEscrowAddress(principal, from);
         if (to != escrow) revert SanctionedAccount(from);
       } else {
         _requireOperational(principal);
