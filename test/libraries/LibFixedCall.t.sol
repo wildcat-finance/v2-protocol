@@ -11,6 +11,10 @@ contract FixedCallTarget {
     return ExpectedAddress;
   }
 
+  function addressValueFor(address value) external pure returns (address) {
+    return value;
+  }
+
   function wordValue() external pure returns (uint256) {
     return type(uint256).max;
   }
@@ -27,6 +31,14 @@ contract FixedCallHarness {
 
   function readAddress(address target, bytes4 selector) external view returns (address) {
     return LibFixedCall.readAddress(target, selector);
+  }
+
+  function readAddress(
+    address target,
+    bytes4 selector,
+    address argument
+  ) external view returns (address) {
+    return LibFixedCall.readAddress(target, selector, argument);
   }
 
   function readBool(address target, bytes4 selector, address argument) external view returns (bool) {
@@ -119,6 +131,78 @@ contract LibFixedCallTest is Test {
 
     vm.expectRevert(reason);
     harness.readAddress(address(target), FixedCallTarget.addressValue.selector);
+  }
+
+  function test_readAddressWithArgument() external view {
+    assertEq(
+      harness.readAddress(
+        address(target),
+        FixedCallTarget.addressValueFor.selector,
+        address(0xB0B)
+      ),
+      address(0xB0B)
+    );
+  }
+
+  function test_readAddressWithArgument_AcceptsTrailingData() external {
+    bytes memory callData = abi.encodeCall(FixedCallTarget.addressValueFor, (address(0xB0B)));
+    vm.mockCall(
+      address(target),
+      callData,
+      bytes.concat(abi.encode(address(0xB0B)), bytes32(uint256(1)))
+    );
+
+    assertEq(
+      harness.readAddress(
+        address(target),
+        FixedCallTarget.addressValueFor.selector,
+        address(0xB0B)
+      ),
+      address(0xB0B)
+    );
+  }
+
+  function test_readAddressWithArgument_RejectsShortData() external {
+    vm.mockCall(
+      address(target),
+      abi.encodeCall(FixedCallTarget.addressValueFor, (address(0xB0B))),
+      hex'01'
+    );
+
+    vm.expectRevert();
+    harness.readAddress(
+      address(target),
+      FixedCallTarget.addressValueFor.selector,
+      address(0xB0B)
+    );
+  }
+
+  function test_readAddressWithArgument_RejectsDirtyAddress() external {
+    vm.mockCall(
+      address(target),
+      abi.encodeCall(FixedCallTarget.addressValueFor, (address(0xB0B))),
+      abi.encode(uint256(1) << 160)
+    );
+
+    vm.expectRevert();
+    harness.readAddress(
+      address(target),
+      FixedCallTarget.addressValueFor.selector,
+      address(0xB0B)
+    );
+  }
+
+  function test_readAddressWithArgument_BubblesRevert() external {
+    bytes memory callData = abi.encodeCall(FixedCallTarget.addressValueFor, (address(0xB0B)));
+    bytes memory reason = abi.encodeWithSignature('Error(string)', 'no address');
+    vm.mockCallRevert(address(target), callData, reason);
+
+    vm.expectRevert(reason);
+    harness.readAddress(
+      address(target),
+      FixedCallTarget.addressValueFor.selector,
+      address(0xB0B)
+    );
   }
 
   function test_readBool() external view {

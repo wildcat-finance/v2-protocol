@@ -107,6 +107,7 @@ the actual evidence.
 | G-41 | Market constructor | Bound the borrower-registration probe                              | Low       | Accepted                               |
 | G-42 | Access controls    | Bound factory and controller reads during administrator transfer  | Low       | Accepted                               |
 | G-43 | Periodic hooks     | Bound the market APR getter used by reduction proposals           | Low       | Accepted                               |
+| G-44 | Wrapper factory    | Bound hooks, registration, and legacy-wrapper reads               | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -834,6 +835,23 @@ Measured against the preceding accepted commit:
 - each full APR-governance lifecycle test saves 13,065 gas including hook deployment;
 - periodic hook initcode and runtime each shrink by 64 bytes, saving roughly 12,800 gas on every
   deployed instance; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded wrapper-factory readers (G-44)
+
+The wrapper factory now uses shared fixed-shape readers for the market hooks word, the
+ArchController's registered-market flag, and legacy wrapper discovery. All three calls retain
+their previous ABI rules: target reverts bubble, short results revert, addresses and booleans
+must be clean, and harmless trailing data is accepted.
+
+Measured against the preceding accepted commit:
+
+- all 19 wrapper-factory cases and all 19 shared fixed-call cases pass;
+- successful v2.5 wrapper creation saves 561 gas;
+- tested transfer-policy rejection paths save 532 to 914 gas, while legacy discovery and routing
+  paths save up to 636 gas;
+- wrapper-factory initcode and runtime each shrink by 81 bytes, saving roughly 16,200 deployment
+  gas; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

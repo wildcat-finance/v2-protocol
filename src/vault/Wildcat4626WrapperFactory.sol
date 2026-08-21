@@ -5,6 +5,7 @@ import { Wildcat4626Wrapper } from './Wildcat4626Wrapper.sol';
 import { IMarketTransferPolicy } from '../access/IMarketTransferPolicy.sol';
 import { IWildcatArchController } from '../interfaces/IWildcatArchController.sol';
 import { HooksConfig } from '../types/HooksConfig.sol';
+import { LibFixedCall } from '../libraries/LibFixedCall.sol';
 
 interface IMarketRounding {
   function scaledTransferRounding() external view returns (bytes32);
@@ -105,7 +106,9 @@ contract Wildcat4626WrapperFactory {
   }
 
   function _validateTransferPolicy(address market) internal view returns (bool) {
-    HooksConfig marketHooks = IWrapperAwareMarket(market).hooks();
+    HooksConfig marketHooks = HooksConfig.wrap(
+      LibFixedCall.readWord(market, IWrapperAwareMarket.hooks.selector)
+    );
     address hooksAddress = marketHooks.hooksAddress();
     bool valid;
     bool transfersDisabled;
@@ -154,7 +157,12 @@ contract Wildcat4626WrapperFactory {
     (bool declared, ) = _probeRounding(market);
     if (declared) return address(0);
     if (address(v1Factory) == address(0)) return address(0);
-    return v1Factory.wrapperForMarket(market);
+    return
+      LibFixedCall.readAddress(
+        address(v1Factory),
+        IWildcat4626WrapperFactoryV1.wrapperForMarket.selector,
+        market
+      );
   }
 
   /// @notice callable by anyone, deploys a new wrapper for `market` if one does not already exist.
@@ -176,7 +184,13 @@ contract Wildcat4626WrapperFactory {
     // future wrapper factory; forwarding it to v1 would mispair it silently.
     if (rounding != FloorRounding) revert UnsupportedMarketRounding(market, rounding);
 
-    if (!archController.isRegisteredMarket(market)) revert NotRegisteredMarket(market);
+    if (
+      !LibFixedCall.readBool(
+        address(archController),
+        IWildcatArchController.isRegisteredMarket.selector,
+        market
+      )
+    ) revert NotRegisteredMarket(market);
     if (_validateTransferPolicy(market)) revert MarketTransfersDisabled(market);
 
     wrapper = address(new Wildcat4626Wrapper(market));

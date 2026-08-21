@@ -37,6 +37,30 @@ library LibFixedCall {
     }
   }
 
+  function readAddress(
+    address target,
+    bytes4 selector,
+    address argument
+  ) internal view returns (address value) {
+    uint256 selectorWord = uint32(selector);
+    assembly ('memory-safe') {
+      let pointer := mload(0x40)
+      mstore(pointer, selectorWord)
+      mstore(add(pointer, 0x20), argument)
+      if iszero(staticcall(gas(), target, add(pointer, 0x1c), 0x24, pointer, 0x20)) {
+        returndatacopy(pointer, 0, returndatasize())
+        revert(pointer, returndatasize())
+      }
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      value := mload(pointer)
+      if shr(160, value) {
+        revert(0, 0)
+      }
+    }
+  }
+
   function readBool(
     address target,
     bytes4 selector,
