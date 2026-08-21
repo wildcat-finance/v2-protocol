@@ -202,15 +202,30 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _;
   }
 
-  function _resolveBorrowerPrincipal(
-    address borrower
-  ) internal view returns (address principal) {
-    (bool success, bytes memory returnData) = borrowerIdentityRegistry.staticcall(
-      abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower))
+  function _resolveBorrowerPrincipal(address borrower) internal view returns (address principal) {
+    address registry = borrowerIdentityRegistry;
+    uint256 resolveBorrowerSelector = uint32(
+      IBorrowerIdentityRegistry.resolveBorrower.selector
     );
-    if (!success || returnData.length != 0x20) revert NotApprovedBorrower();
-    principal = abi.decode(returnData, (address));
-    if (principal == address(0)) revert NotApprovedBorrower();
+    uint256 notApprovedBorrowerSelector = uint32(NotApprovedBorrower.selector);
+    assembly ('memory-safe') {
+      mstore(0, resolveBorrowerSelector)
+      mstore(0x20, borrower)
+      let success := staticcall(gas(), registry, 0x1c, 0x24, 0, 0x20)
+      if iszero(and(success, eq(returndatasize(), 0x20))) {
+        mstore(0, notApprovedBorrowerSelector)
+        revert(0x1c, 0x04)
+      }
+      principal := mload(0)
+      // Match Solidity's address decoder instead of silently truncating dirty returndata.
+      if shr(160, principal) {
+        revert(0, 0)
+      }
+      if iszero(principal) {
+        mstore(0, notApprovedBorrowerSelector)
+        revert(0x1c, 0x04)
+      }
+    }
   }
 
   // ========================================================================== //
@@ -661,7 +676,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     string memory symbol,
     TmpMarketParameterStorage memory tmp,
     DeployMarketRuntimeParameters memory runtimeParams,
-    bytes memory hooksData
+    bytes calldata hooksData
   ) internal {
     emit MarketDeployed(
       runtimeParams.hooksTemplate,
@@ -694,10 +709,16 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   function _deployMarket(
     DeployMarketInputs memory parameters,
-    bytes memory hooksData,
+    bytes calldata hooksData,
     DeployMarketRuntimeParameters memory runtimeParams
   ) internal returns (address market) {
-    HooksTemplate memory templateDetails = _templateDetails[runtimeParams.hooksTemplate];
+    HooksTemplate storage templateDetails = _templateDetails[runtimeParams.hooksTemplate];
+    // Snapshot only the fee fields used below. Copying the whole struct also loads its
+    // dynamic name, and reading these fields later would let callbacks change this deployment.
+    address templateOriginationFeeAsset = templateDetails.originationFeeAsset;
+    uint80 templateOriginationFeeAmount = templateDetails.originationFeeAmount;
+    address templateFeeRecipient = templateDetails.feeRecipient;
+    uint16 templateProtocolFeeBips = templateDetails.protocolFeeBips;
     if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
       revert AssetBlacklisted();
     }
@@ -708,8 +729,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
 
     if (
-      runtimeParams.originationFeeAsset != templateDetails.originationFeeAsset ||
-      runtimeParams.originationFeeAmount != templateDetails.originationFeeAmount
+      runtimeParams.originationFeeAsset != templateOriginationFeeAsset ||
+      runtimeParams.originationFeeAmount != templateOriginationFeeAmount
     ) {
       revert FeeMismatch();
     }
@@ -717,7 +738,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     if (runtimeParams.originationFeeAsset != address(0)) {
       runtimeParams.originationFeeAsset.safeTransferFrom(
         msg.sender,
-        templateDetails.feeRecipient,
+        templateFeeRecipient,
         runtimeParams.originationFeeAmount
       );
     }
@@ -747,8 +768,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       packedSymbolWord0: bytes32(0),
       packedSymbolWord1: bytes32(0),
       decimals: decimals,
-      feeRecipient: templateDetails.feeRecipient,
-      protocolFeeBips: templateDetails.protocolFeeBips,
+      feeRecipient: templateFeeRecipient,
+      protocolFeeBips: templateProtocolFeeBips,
       maxTotalSupply: parameters.maxTotalSupply,
       annualInterestBips: parameters.annualInterestBips,
       delinquencyFeeBips: parameters.delinquencyFeeBips,
@@ -823,10 +844,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     uint256 originationFeeAmount
   ) external override nonReentrant returns (address market, address hooksInstance) {
     address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
-    HooksTemplate memory templateDetails = _templateDetails[hooksTemplate];
-    if (!templateDetails.exists) {
-      revert HooksTemplateNotFound();
-    }
+    // `_deployHooksInstance` performs the template existence and availability checks.
     hooksInstance = _deployHooksInstance(
       borrowerPrincipal,
       hooksTemplate,
@@ -855,7 +873,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     uint marketStartIndex,
     uint marketEndIndex
   ) public override nonReentrant {
-    HooksTemplate memory details = _templateDetails[hooksTemplate];
+    HooksTemplate storage details = _templateDetails[hooksTemplate];
     if (!details.exists) revert HooksTemplateNotFound();
 
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];

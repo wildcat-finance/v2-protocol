@@ -64,14 +64,39 @@ the actual evidence.
 
 | ID   | Surface            | Candidate                                                              | Risk      | Status                                        |
 | ---- | ------------------ | ---------------------------------------------------------------------- | --------- | --------------------------------------------- |
-| G-01 | Standard factory   | Preserve `hooksData` as calldata through deployment and event emission | Low       | Pending benchmark                             |
-| G-02 | Both factories     | Avoid copying the template's dynamic name on fee and deployment paths  | Low       | Pending benchmark                             |
-| G-03 | Both factories     | Resolve borrower principals with an exact fixed-size staticcall        | Low       | Pending benchmark                             |
+| G-01 | Standard factory   | Preserve `hooksData` as calldata through deployment and event emission | Low       | Accepted in factory batch                     |
+| G-02 | Both factories     | Avoid copying the template's dynamic name on fee and deployment paths  | Low       | Accepted in factory batch                     |
+| G-03 | Both factories     | Resolve borrower principals with an exact fixed-size staticcall        | Low       | Accepted in factory batch                     |
 | G-04 | Access controls    | Keep read-only batch inputs in calldata                                | Low       | Pending benchmark                             |
 | G-05 | Withdrawal queue   | Pack eight `uint32` expiries into each queue word                      | Medium    | Pending benchmark                             |
-| G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 15 words | Medium    | Pending investigation                         |
-| G-07 | Markets            | Avoid redundant token balance reads across state transitions           | High      | Report only unless token semantics are proven |
+| G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 16 words | Medium    | Pending investigation                         |
+| G-07 | Markets            | Reuse exact post-transition balances already loaded by the same path   | Low       | Pending benchmark                             |
 | G-08 | Markets            | Dirty-slot writes instead of four unconditional state writes           | Medium    | Pending IR and gas proof                      |
 | G-09 | Fleet architecture | Clone or singleton markets/hooks                                       | Very high | Break-even analysis only                      |
+| G-10 | Markets            | Remove balance reads across hooks or token transfers                   | High      | Report only; semantics can change             |
 
-Rejected candidates and benchmark results will be added here as the sweep progresses.
+## Accepted Batches
+
+### Factory deployment and fee paths (G-01 through G-03)
+
+This batch keeps standard-factory hook data in calldata, avoids loading the dynamic template
+name when only fee fields are needed, and replaces dynamic borrower-registry call encoding with
+an exact 36-byte staticcall. Fee fields are snapshotted before any callback, so the deployment
+continues to use one coherent template configuration even if an external call mutates storage.
+
+Measured against the baseline with seed `0x5eed`:
+
+- all focused factory tests pass;
+- successful market-deployment cases are 1,981 to 3,777 gas cheaper;
+- the tested protocol-fee update batches are 7,669 and 8,117 gas cheaper;
+- common validation failures are 545 to 7,251 gas cheaper;
+- `HooksFactory` runtime and initcode are 310 bytes smaller, saving roughly 62,000 gas when the
+  factory itself is deployed;
+- `HooksFactoryRevolving` runtime is 221 bytes smaller and initcode is 207 bytes smaller, saving
+  roughly 44,200 gas in runtime code deposit; and
+- every ABI and normalized storage-layout hash is unchanged.
+
+The exact production artifact build completed in 1:59.66 using 3,380,368 KiB peak RSS after the
+baseline cache had been populated.
+
+Rejected candidates and further benchmark results will be added here as the sweep progresses.
