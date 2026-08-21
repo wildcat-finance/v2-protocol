@@ -98,6 +98,7 @@ the actual evidence.
 | G-32 | Wrapper factory    | Validate transfer-policy booleans with bounded fixed-output calls      | Low       | Accepted                               |
 | G-33 | Provider factories | Decode fixed generic inputs directly from bounded calldata             | Medium    | Accepted                               |
 | G-34 | Access-list factory | Keep dynamic provider members in bounded calldata                     | Medium    | Accepted                               |
+| G-35 | Sanctions sentinel | Bound the Chainalysis boolean probe                                    | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -654,6 +655,23 @@ bodies:
 - the tested duplicate-deployment rejection saves 1,059 gas and two caller-namespaced generic
   deployments save 1,440 gas;
 - factory initcode and runtime each shrink by 159 bytes, saving about 31,800 deployment gas; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded Chainalysis probe (G-35)
+
+The sanctions sentinel now calls the immutable Chainalysis list with exact calldata and a
+one-word output buffer. It still bubbles target reverts, accepts harmless trailing return data,
+and rejects short or dirty boolean results. This is paid on every non-overridden sanctions check,
+including the checks reached through markets, escrows, and wrappers.
+
+Measured against the preceding accepted commit before adding the malformed-response test body:
+
+- the sentinel and escrow suites pass, including short, dirty, oversized-valid, and reverting
+  Chainalysis response regressions;
+- a direct non-overridden sanctions query saves about 234 gas per Chainalysis call;
+- representative escrow and sanctions flows save 187 to 550 gas depending on how many checks
+  they execute;
+- sentinel initcode and runtime each shrink by 78 bytes, saving about 15,636 deployment gas; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

@@ -109,8 +109,27 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   /**
    * @dev Returns boolean indicating whether `account` is sanctioned on Chainalysis.
    */
-  function isFlaggedByChainalysis(address account) public view override returns (bool) {
-    return IChainalysisSanctionsList(chainalysisSanctionsList).isSanctioned(account);
+  function isFlaggedByChainalysis(
+    address account
+  ) public view override returns (bool) {
+    bool isFlagged;
+    address sanctionsList = chainalysisSanctionsList;
+    assembly ('memory-safe') {
+      mstore(0, 0xdf592f7d)
+      mstore(0x20, account)
+      if iszero(staticcall(gas(), sanctionsList, 0x1c, 0x24, 0, 0x20)) {
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      isFlagged := mload(0)
+      if gt(isFlagged, 1) {
+        revert(0, 0)
+      }
+    }
+    return isFlagged;
   }
 
   /**

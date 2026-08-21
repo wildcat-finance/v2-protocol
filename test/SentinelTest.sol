@@ -48,6 +48,34 @@ contract SentinelTest is Test {
     assertEq(address(sentinel.chainalysisSanctionsList()), address(SanctionsList));
   }
 
+  function testChainalysisResponseValidation() public {
+    address sanctionsList = address(0xC4A1);
+    WildcatSanctionsSentinel probe = new WildcatSanctionsSentinel(
+      address(archController),
+      sanctionsList
+    );
+    bytes memory callData = abi.encodeCall(IChainalysisSanctionsList.isSanctioned, (address(1)));
+
+    vm.mockCall(sanctionsList, callData, hex'01');
+    vm.expectRevert();
+    probe.isFlaggedByChainalysis(address(1));
+    vm.clearMockedCalls();
+
+    vm.mockCall(sanctionsList, callData, abi.encode(uint256(2)));
+    vm.expectRevert();
+    probe.isFlaggedByChainalysis(address(1));
+    vm.clearMockedCalls();
+
+    vm.mockCall(sanctionsList, callData, bytes.concat(abi.encode(true), hex'deadbeef'));
+    assertTrue(probe.isFlaggedByChainalysis(address(1)));
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(sanctionsList, callData, revertData);
+    vm.expectRevert(revertData);
+    probe.isFlaggedByChainalysis(address(1));
+  }
+
   function testArchController() public {
     assertEq(address(sentinel.archController()), address(archController));
   }
