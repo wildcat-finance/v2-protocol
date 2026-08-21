@@ -102,7 +102,7 @@ function expandStorageType(typeId, types, active = new Set()) {
 }
 
 function normalizeStorageLayout(layout) {
-  if (!layout?.storage || !layout?.types) return [];
+  if (!Array.isArray(layout?.storage) || !layout?.types) return undefined;
   return layout.storage.map((entry) => ({
     label: entry.label,
     offset: entry.offset,
@@ -129,6 +129,7 @@ function readTargetArtifact(file) {
   const initcode = artifact.bytecode?.object || "";
   const runtime = artifact.deployedBytecode?.object || "";
   const storageLayout = normalizeStorageLayout(artifact.storageLayout);
+  const hasStorageLayout = storageLayout !== undefined;
   return {
     source,
     contract,
@@ -139,9 +140,11 @@ function readTargetArtifact(file) {
     initcodeSha256: sha256(initcode),
     runtimeSha256: sha256(runtime),
     abiSha256: sha256(canonicalJson(artifact.abi || [])),
-    storageLayoutSha256: sha256(canonicalJson(storageLayout)),
+    storageLayoutSha256: hasStorageLayout
+      ? sha256(canonicalJson(storageLayout))
+      : null,
     abiEntries: artifact.abi?.length || 0,
-    storageEntries: storageLayout.length,
+    storageEntries: hasStorageLayout ? storageLayout.length : null,
   };
 }
 
@@ -237,7 +240,7 @@ function main() {
     throw new Error("No production Solidity artifacts found.");
 
   const result = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     gitCommit: execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
     }).trim(),
