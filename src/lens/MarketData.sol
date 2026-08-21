@@ -200,31 +200,61 @@ library MarketDataLib {
     address target,
     bytes4 selector
   ) internal view {
-    (bool success, bytes memory result) = target.staticcall(abi.encodeWithSelector(selector));
-    if (!success || result.length < 0x20) {
-      return;
-    }
+    // these getters only exist on some market shapes. a missing method, revert, or short return
+    // means "not present" here; it shouldn't break the rest of the lens result.
+    uint256 selectorWord = uint32(selector);
+    assembly ('memory-safe') {
+      // borrow one word at the free-memory pointer. put the selector in its first four bytes,
+      // then reuse the same word for the return value.
+      let ptr := mload(0x40)
+      mstore(ptr, shl(224, selectorWord))
+      let success := staticcall(gas(), target, ptr, 4, ptr, 0x20)
 
-    data.isPresent = true;
-    assembly {
-      mstore(add(data, 0x20), mload(add(result, 0x20)))
+      // only touch the result struct when the call returned a complete word. data points to
+      // isPresent, and its next word is value. harmless trailing return data stays uncopied.
+      if and(success, iszero(lt(returndatasize(), 0x20))) {
+        mstore(data, 1)
+        mstore(add(data, 0x20), mload(ptr))
+      }
     }
   }
 
   function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
     address marketAddress = data.marketToken.token;
     address hooksAddress = data.hooks.hooksAddress;
-    (bool success, bytes memory result) = hooksAddress.staticcall(
-      abi.encodeWithSelector(_TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR, marketAddress)
-    );
-    if (!success || result.length < 0x60) {
+    uint256 selectorWord = uint32(_TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR);
+    bool success;
+    uint256 originalAnnualInterestBips;
+    uint256 originalReserveRatioBips;
+    uint256 temporaryReserveRatioExpiry;
+    assembly ('memory-safe') {
+      // borrow enough space for 36 bytes of calldata and the three-word response. nothing needs
+      // the buffer after this block, so leave the free-memory pointer alone.
+      let ptr := mload(0x40)
+
+      // put the selector first, then write marketAddress into the 32-byte ABI slot starting at
+      // ptr + 4. that gives us selector | marketAddress without allocating encoded bytes.
+      mstore(ptr, shl(224, selectorWord))
+      mstore(add(ptr, 4), marketAddress)
+
+      // this getter owes us three complete words. fold the size check into success so a missing,
+      // reverting, or short implementation follows the same quiet "not present" path as before.
+      success := staticcall(gas(), hooksAddress, ptr, 0x24, ptr, 0x60)
+      success := and(success, iszero(lt(returndatasize(), 0x60)))
+      if success {
+        // load the fixed tuple into Solidity locals now that the whole response is available.
+        // anything after these three words doesn't affect the result.
+        originalAnnualInterestBips := mload(ptr)
+        originalReserveRatioBips := mload(add(ptr, 0x20))
+        temporaryReserveRatioExpiry := mload(add(ptr, 0x40))
+      }
+    }
+    if (!success) {
       return;
     }
-    (
-      data.originalAnnualInterestBips,
-      data.originalReserveRatioBips,
-      data.temporaryReserveRatioExpiry
-    ) = abi.decode(result, (uint256, uint256, uint256));
+    data.originalAnnualInterestBips = originalAnnualInterestBips;
+    data.originalReserveRatioBips = originalReserveRatioBips;
+    data.temporaryReserveRatioExpiry = temporaryReserveRatioExpiry;
     data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
   }
 
