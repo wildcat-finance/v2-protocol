@@ -68,7 +68,7 @@ the actual evidence.
 | G-02 | Both factories     | Avoid copying the template's dynamic name on fee and deployment paths  | Low       | Accepted in factory batch                     |
 | G-03 | Both factories     | Resolve borrower principals with an exact fixed-size staticcall        | Low       | Accepted in factory batch                     |
 | G-04 | Access controls    | Keep read-only batch inputs in calldata                                | Low       | Accepted                                      |
-| G-05 | Withdrawal queue   | Pack eight `uint32` expiries into each queue word                      | Medium    | Pending benchmark                             |
+| G-05 | Withdrawal queue   | Pack eight `uint32` expiries into each queue word                      | Medium    | Accepted for new deployments                  |
 | G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 16 words | Medium    | Pending investigation                         |
 | G-07 | Markets            | Reuse exact post-transition balances already loaded by the same path   | Low       | Accepted                                      |
 | G-08 | Markets            | Dirty-slot writes instead of four unconditional state writes           | Medium    | Rejected from EVM cost analysis               |
@@ -175,6 +175,33 @@ Measured against the baseline with seed `0x5eed`:
   `WildcatArchController`, and 52 bytes for both the access-list provider and its factory.
 
 Every public ABI is unchanged and no storage declaration changed.
+
+### Packed unpaid-withdrawal queue (G-05)
+
+The unpaid-batch FIFO now stores eight `uint32` expiries per mapping word. Consumed full words
+are deleted, while the current partial word stays allocated so the next batch can reuse it. The
+queue can therefore retain one word while empty, but stale storage cannot grow without bound.
+
+This is intentionally a new-deployment-only change: the mapping value type and encoding changed,
+even though the queue's top-level slot did not. It must not be applied to an existing market.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- all 18 focused queue tests pass, including a 1,000-run reference-model fuzz test covering zero
+  values, partial shifts, appends, empty-queue reuse, and packed-word boundaries;
+- all 62 ordinary withdrawal tests, the fixed-term equivalence suite, and the public lens unpaid-
+  expiry regression test pass;
+- `WildcatMarket`, `WildcatMarketRevolving`, and `WildcatMarketWithdrawals` each grow by 78 runtime
+  and initcode bytes, adding roughly 15,600 gas to each market deployment;
+- a separate-transaction Anvil benchmark puts the first packed push 72 gas above baseline, then
+  saves 17,028 gas on each of pushes two through eight into the same word;
+- consuming a partial word saves 254 gas per shift, while the eighth shift that deletes the full
+  word costs 53 gas more; and
+- consuming eight queued entries with `shiftN` drops from 54,429 to 27,054 gas.
+
+The deployment increase is recovered by the second unpaid batch. Forge's single-transaction test
+snapshots exaggerate delete refunds, so the lifecycle conclusion uses the separate-transaction
+benchmark rather than treating aggregate test gas as production transaction gas.
 
 ## Rejected Candidates
 

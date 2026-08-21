@@ -37,4 +37,8 @@ library FIFOQueueLibExternal {
   function $values(FIFOQueue storage self) external view returns (uint32[] memory) {
     return FIFOQueueLib.values(self);
   }
+
+  function $word(FIFOQueue storage self, uint256 index) external view returns (uint256) {
+    return self.data[index];
+  }
 }
