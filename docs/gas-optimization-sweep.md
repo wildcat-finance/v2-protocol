@@ -101,6 +101,7 @@ the actual evidence.
 | G-35 | Sanctions sentinel | Bound the Chainalysis boolean probe                                    | Low       | Accepted                               |
 | G-36 | Identity registry  | Bound ArchController owner and borrower probes                        | Low       | Accepted                               |
 | G-37 | ERC-4626 wrapper  | Bound sanctions, escrow, and transfer-policy probes                   | Low       | Accepted                               |
+| G-38 | ERC-4626 wrapper  | Share bounded one-word market readers                                | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -715,6 +716,28 @@ Measured against the preceding accepted commit:
   saving 3,700 gas;
 - wrapper initcode shrinks by 676 bytes and runtime by 648 bytes, cutting each wrapper deployment
   by roughly 130,000 gas; the factory that embeds the initcode also shrinks by 676 bytes; and
+- public ABIs and storage declarations are unchanged.
+
+### Shared wrapper market readers (G-38)
+
+The wrapper now routes fixed one-word market getters through two bounded readers: one for no-arg
+getters and one for account-scoped getters. Address results still require clean upper bits, the
+constructor still validates `decimals()` as a clean `uint8`, target reverts still bubble, short
+results still revert, and harmless trailing return data remains accepted. This covers borrower,
+principal, sentinel, factory, hooks config, scale factor, cap, normalized balance, and scaled
+balance reads without changing the dynamic symbol query.
+
+Measured against G-37:
+
+- all 169 wrapper, rounding, ERC-4626, and sanctions-integration cases pass, along with all 19
+  wrapper-factory tests; new regressions cover both reader shapes, address cleaning, constructor
+  decimal cleaning, short returns, trailing data, and bubbled reverts;
+- ordinary deposits and mints save another 2,186 and 2,001 gas;
+- successful withdrawals and redeems save another 3,745 and 2,846 gas;
+- tested share-transfer paths save another 2,210 to 2,401 gas, and the open-transfer capacity
+  query saves 2,581 gas;
+- wrapper initcode shrinks by 3,230 bytes and runtime by 2,915 bytes, cutting each wrapper
+  deployment by roughly 583,000 gas; the embedding factory also shrinks by 3,230 bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
