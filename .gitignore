@@ -37,6 +37,10 @@ deployments/*/plan-v2-5.json
 deployments/*/plan-v2-5-retirement.json
 deployments/*/run-state-v2-5*.json
 deployments/*/run-state-checkpoints/
+deployments/*/authority-helper-phase-*-entries/
+deployments/*/plan-authority-helper-phase-*.json
+deployments/*/run-state-authority-helper-phase-*.json
+deployments/*/ceremony-authority-helper-phase-*.json
 deployments/anvil/
 deployments/*/reconcile-report.json
 audits/

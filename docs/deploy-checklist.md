@@ -11,14 +11,16 @@ Activation and retirement are separate releases. Activation deploys and register
 - [ ] Run `npm ci && npm test` in `deploy-ui/`.
 - [ ] Use one explicitly selected archive RPC and confirm its chain ID and historical storage access. Do not add an implicit fallback.
 - [ ] Start a fresh fork with `FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net ANVIL_PORT=8547 bash script/deploy/v2-5/rehearse.sh`.
-- [ ] Confirm the activation plan has 26 cards on the Sepolia-shaped fork: 14 deployments, 12 calls, reclaim first, restore last, six template registrations, two new factory registrations, and no factory or market removals.
+- [ ] Confirm all three authority-migration plans pass: five old-executor cards, three new-executor ArchController cards, and three new-executor SphereX engine cards after the one-hour delay.
+- [ ] Run the authority-helper preflight. Confirm the replacement helper owns the ArchController, holds the expected SphereX roles, authorizes both wallets, and the old wallet has no direct engine operator role.
+- [ ] Confirm the activation plan has 24 cards on the Sepolia-shaped fork: 14 deployments, 10 calls, eight forwarded owner actions, six template registrations, two new factory registrations, and no ownership handoff or factory/market removal.
 - [ ] Build a locked EOA ceremony package and walk the activation cards through the production UI. Prove same-fork reload and resume. Every predicate must turn green from on-chain verification.
 - [ ] Export the unedited activation run-state, run independent plan verification, and finalize it with `08-finalize-inventory.sh`.
-- [ ] Run inventory validation, lint, and reconciliation. Confirm the helper owns the ArchController again.
+- [ ] Run inventory validation, lint, reconciliation, and the authority-helper preflight. Confirm the helper remained the ArchController owner throughout.
 - [ ] Run both canary markets and validate the generated handoff.
 - [ ] Generate retirement only now with `bash script/deploy/v2-5/retirement/01-generate-plan.sh`.
-- [ ] Review every retirement target from the finalized inventory. The current Sepolia inventory produces nine targets, 18 ordered removals, and two helper-owner calls for 20 cards. There must be no market removal.
-- [ ] Build and walk a separate locked EOA retirement package. Verify every predicate, finalize it with `retirement/02-finalize-inventory.sh`, reconcile again, and confirm ownership is back with the helper.
+- [ ] Review every retirement target from the finalized inventory. The current Sepolia inventory produces nine targets and 18 forwarded, ordered removals. There must be no ownership handoff or market removal.
+- [ ] Build and walk a separate locked EOA retirement package. Verify every predicate, finalize it with `retirement/02-finalize-inventory.sh`, reconcile again, and confirm the helper remained the owner.
 - [ ] Preserve the plan, package digest, run-states, transaction hashes, logs, fork block, and final inventory as rehearsal evidence. Stop only the recorded Anvil PID.
 
 `rehearse.sh --full` performs the same activation/finalization/retirement sequence headlessly. It is useful as an engine check but does not replace the locked-UI acceptance run.
@@ -26,15 +28,17 @@ Activation and retirement are separate releases. Activation deploys and register
 ## B. Live Sepolia activation
 
 - [ ] Confirm the exact deployment-affecting source passed the fresh Anvil rehearsal.
+- [ ] Execute and independently verify the three authority-helper migration packages from [sepolia-v2-5-first-deployment.md](./sepolia-v2-5-first-deployment.md): phase 1 with the old wallet, phases 2 and 3 with the new wallet, respecting the SphereX delay.
+- [ ] Finalize the deployment alias only after the replacement helper passes the full authority preflight. Preserve the original address as `MockArchControllerOwnerLegacy` and keep the old wallet authorized by the replacement helper.
 - [ ] Reconcile the live Sepolia inventory before generating anything.
 - [ ] Set `DEPLOYMENTS_NETWORK=sepolia`, `RELEASE_TAG=v2-5`, `OWNER_MODE=plan`, the reviewed RPC, and the exact expected executor.
 - [ ] Run deployment steps 01 through 06, then `bash script/deploy/v2-5/07-generate-plan.sh`.
-- [ ] Confirm the activation plan has 26 cards: 14 deployments and 12 calls. It must reclaim first, restore last, register six templates and two factories, and contain no `removeControllerFactory`, `removeController`, or `removeMarket` call.
+- [ ] Confirm the activation plan has 24 cards: 14 deployments and 10 calls. Eight owner actions must use the reviewed helper forwarding path. It must register six templates and two factories and contain no ownership handoff, `removeControllerFactory`, `removeController`, or `removeMarket` call.
 - [ ] Confirm the deployment list includes the borrower identity registry, AccessList role-provider factory, and revolving init-code storage contract.
 - [ ] Generate the locked EOA package, record its digest and fingerprint, and build the production UI with that package embedded.
-- [ ] Walk all 26 activation cards with the exact Sepolia developer EOA. Wait for each receipt and predicate before proceeding.
+- [ ] Walk all 24 activation cards with the new Sepolia executor. Wait for each receipt and predicate before proceeding.
 - [ ] Export and independently verify the activation run-state. Finalize with `08-finalize-inventory.sh`, then validate, lint, and reconcile the inventory.
-- [ ] Verify every deployment on the explorer, run the standard and revolving canaries, and generate and check the subgraph/SDK handoff.
+- [ ] Re-run the authority preflight, verify every deployment on the explorer, run the standard and revolving canaries, and generate and check the subgraph/SDK handoff.
 - [ ] Leave the preview factories registered while the new generation is tested through the subgraph, SDK, and app.
 
 ## C. Live Sepolia retirement
@@ -43,10 +47,10 @@ Activation and retirement are separate releases. Activation deploys and register
 - [ ] Confirm the new v2.5 generation has passed the agreed validation window and the team intends to stop new origination through every listed superseded factory.
 - [ ] Set the same reviewed network, RPC, and executor values, then run `bash script/deploy/v2-5/retirement/01-generate-plan.sh`.
 - [ ] Review the dynamic target list and exact plan. Each target must have `removeControllerFactory(address)` immediately before `removeController(address)`. The plan must contain no deployment, registration, or market-removal call.
-- [ ] Confirm the retirement plan has its own helper reclaim and restore cards. Do not reuse activation run-state or browser progress.
+- [ ] Confirm every retirement call uses the reviewed helper forwarding path and the plan contains no ownership handoff. Do not reuse activation run-state or browser progress.
 - [ ] Generate a locked EOA package for `v2-5-retirement`, record its separate digest and fingerprint, and execute it as a separate ceremony.
 - [ ] Independently verify the retirement run-state and finalize it with `RUN_STATE=deployments/sepolia/run-state-v2-5-retirement.json RPC_URL="$RPC_URL" bash script/deploy/v2-5/retirement/02-finalize-inventory.sh`.
-- [ ] Validate, lint, and reconcile the final inventory. Confirm the helper owns the ArchController and existing markets remain registered.
+- [ ] Validate, lint, and reconcile the final inventory. Re-run the authority preflight and confirm existing markets remain registered.
 
 ## D. Mainnet activation with the Foundation Safe
 

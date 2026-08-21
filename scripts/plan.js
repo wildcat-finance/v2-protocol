@@ -30,6 +30,8 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SAFE_ID_REGEX = /^[^.]+$/;
 const HEX_DATA_REGEX = /^0x(?:[a-fA-F0-9]{2})*$/;
+const AUTHORITY_HELPER_FORWARD_SIGNATURE =
+  "executeProtocolAction(address,bytes)";
 const NETWORK_CHAIN_IDS = {
   mainnet: 1,
   sepolia: 11155111,
@@ -610,19 +612,49 @@ function encodeFunctionCall(signature, args, outputs = null) {
   return contractInterface.encodeFunctionData(fragment, resolvedArgs);
 }
 
+function encodeForwardedCall(transaction, outputs = null) {
+  const forwardedCall = transaction.forwardedCall;
+  if (!forwardedCall || typeof forwardedCall !== "object") {
+    throw new Error("Missing forwarded call");
+  }
+  const target = outputs
+    ? resolveReferences(forwardedCall.target, outputs)
+    : replaceReferencesWithZero(forwardedCall.target);
+  if (!ADDRESS_REGEX.test(target || "")) {
+    throw new Error(`Resolved invalid forwarded target ${target}`);
+  }
+  const data = encodeFunctionCall(
+    forwardedCall.functionSignature,
+    forwardedCall.args,
+    outputs
+  );
+  return encodeFunctionCall(transaction.functionSignature, [target, data]);
+}
+
 function transactionReferenceFields(transaction) {
   const values = [transaction.envelope?.to];
   if (transaction.kind === "deploy") {
     values.push(transaction.constructorArgs?.decoded);
   } else if (transaction.kind === "call") {
-    values.push(transaction.to, transaction.args);
+    values.push(transaction.to);
+    if (transaction.forwardedCall) {
+      values.push(
+        transaction.forwardedCall.target,
+        transaction.forwardedCall.args
+      );
+    } else {
+      values.push(transaction.args);
+    }
   }
   return values;
 }
 
 function predicateReferenceFields(transaction) {
   const values = [transaction.predicate?.target];
-  if (transaction.predicate?.type === "callEq") {
+  if (
+    transaction.predicate?.type === "callEq" ||
+    transaction.predicate?.type === "callResultEq"
+  ) {
     values.push(transaction.predicate.call?.args, transaction.predicate.expect);
   }
   return values;
@@ -651,9 +683,10 @@ function validateEnvelope(plan, transaction, index, errors) {
   if (!jsonEqual(envelope.to, expectedTo)) {
     errors.push(`${valuePath}.to: must match the transaction destination`);
   }
-  const expectedData =
-    transaction.kind === "deploy"
-      ? "initCode+constructorArgs"
+  const expectedData = transaction.kind === "deploy"
+    ? "initCode+constructorArgs"
+    : transaction.forwardedCall
+      ? "forwardedCall"
       : "functionSignature+args";
   if (envelope.data !== expectedData) {
     errors.push(`${valuePath}.data: must equal ${expectedData}`);
@@ -714,6 +747,7 @@ function validatePlan(plan, options = {}) {
         "to",
         "functionSignature",
         "args",
+        "forwardedCall",
         "calldata",
       ]) {
         if (Object.prototype.hasOwnProperty.call(transaction, callOnlyField)) {
@@ -787,15 +821,34 @@ function validatePlan(plan, options = {}) {
           );
         }
       }
+      const hasArgs = Array.isArray(transaction.args);
+      const hasForwardedCall =
+        transaction.forwardedCall !== undefined &&
+        transaction.forwardedCall !== null;
+      if (hasArgs === hasForwardedCall) {
+        errors.push(
+          `${transactionPath}: call must contain exactly one of args or forwardedCall`
+        );
+      }
+      if (
+        hasForwardedCall &&
+        transaction.functionSignature !== AUTHORITY_HELPER_FORWARD_SIGNATURE
+      ) {
+        errors.push(
+          `${transactionPath}.functionSignature: forwarded calls must use ${AUTHORITY_HELPER_FORWARD_SIGNATURE}`
+        );
+      }
       if (
         typeof transaction.functionSignature === "string" &&
-        Array.isArray(transaction.args)
+        (hasArgs || hasForwardedCall)
       ) {
         try {
-          const expectedCalldata = encodeFunctionCall(
-            transaction.functionSignature,
-            transaction.args
-          );
+          const expectedCalldata = hasForwardedCall
+            ? encodeForwardedCall(transaction)
+            : encodeFunctionCall(
+                transaction.functionSignature,
+                transaction.args
+              );
           if (
             typeof transaction.calldata === "string" &&
             transaction.calldata.toLowerCase() !==
@@ -968,52 +1021,43 @@ function uniqueEnvelopeValue(transactions, field) {
   )?.envelope[field];
 }
 
-function temporaryOwnerTransactions(
+function authorizedHelperTransactions(
   transactions,
-  expectedExecutor,
-  archController,
-  helperOwner
+  helperOwner,
+  forwardedFunctionSignatures
 ) {
-  const executor = getAddress(expectedExecutor);
-  const arch = getAddress(archController);
   const helper = getAddress(helperOwner);
-  return [
-    {
-      id: "reclaim-arch-controller-ownership",
-      kind: "call",
+  const forwardedSignatures = new Set(forwardedFunctionSignatures);
+  return transactions.map((transaction) => {
+    if (
+      transaction.kind !== "call" ||
+      !forwardedSignatures.has(transaction.functionSignature)
+    ) {
+      return transaction;
+    }
+    if (transaction.forwardedCall || !Array.isArray(transaction.args)) {
+      throw new Error(
+        `${transaction.id}: owner action is already forwarded or has no decoded arguments`
+      );
+    }
+    const forwardedCall = {
+      target: transaction.to,
+      functionSignature: transaction.functionSignature,
+      args: transaction.args,
+    };
+    const wrapped = {
+      ...transaction,
       to: helper,
-      functionSignature: "returnOwnership()",
-      args: [],
-      description:
-        "Temporarily reclaim ArchController ownership from the Sepolia helper for this deployment.",
-      reverifyUntil: "restore-arch-controller-ownership",
-      predicate: {
-        type: "callEq",
-        target: arch,
-        call: { sig: "owner() view returns (address)", args: [] },
-        expect: executor,
-      },
-    },
-    ...transactions,
-    {
-      id: "restore-arch-controller-ownership",
-      kind: "call",
-      to: arch,
-      functionSignature: "transferOwnership(address)",
-      args: [helper],
-      description:
-        "Return ArchController ownership to the Sepolia helper after every deployment action is verified.",
-      predicate: {
-        type: "callEq",
-        target: arch,
-        call: { sig: "owner() view returns (address)", args: [] },
-        expect: helper,
-      },
-    },
-  ];
+      functionSignature: AUTHORITY_HELPER_FORWARD_SIGNATURE,
+      forwardedCall,
+    };
+    delete wrapped.args;
+    delete wrapped.calldata;
+    return wrapped;
+  });
 }
 
-function applyCeremonyConfig(network, transactions, expectedExecutor) {
+function applyCeremonyConfig(network, transactions) {
   const configPath = path.join(
     REPO_ROOT,
     "deployments",
@@ -1023,12 +1067,39 @@ function applyCeremonyConfig(network, transactions, expectedExecutor) {
   if (!fs.existsSync(configPath)) return transactions;
   const config = readJson(configPath);
   if (
-    config.schemaVersion !== "1.0.0" ||
-    config.ownership?.type !== "temporary-mock-owner" ||
+    config.schemaVersion !== "2.0.0" ||
+    config.ownership?.type !== "authorized-helper" ||
     typeof config.ownership.archControllerKey !== "string" ||
-    typeof config.ownership.helperOwnerKey !== "string"
+    typeof config.ownership.helperOwnerKey !== "string" ||
+    typeof config.ownership.legacyHelperOwnerKey !== "string" ||
+    typeof config.ownership.helperVersion !== "string" ||
+    !Array.isArray(config.ownership.retainedAuthorizedAccounts) ||
+    config.ownership.retainedAuthorizedAccounts.some(
+      (account) => !ADDRESS_REGEX.test(account || "")
+    ) ||
+    new Set(
+      config.ownership.retainedAuthorizedAccounts.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== config.ownership.retainedAuthorizedAccounts.length ||
+    !Array.isArray(config.ownership.revokedSphereXEngineOperators) ||
+    config.ownership.revokedSphereXEngineOperators.some(
+      (account) => !ADDRESS_REGEX.test(account || "")
+    ) ||
+    new Set(
+      config.ownership.revokedSphereXEngineOperators.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== config.ownership.revokedSphereXEngineOperators.length ||
+    !Array.isArray(config.ownership.forwardedFunctionSignatures) ||
+    config.ownership.forwardedFunctionSignatures.length === 0 ||
+    new Set(config.ownership.forwardedFunctionSignatures).size !==
+      config.ownership.forwardedFunctionSignatures.length ||
+    config.ownership.forwardedFunctionSignatures.some(
+      (signature) => typeof signature !== "string" || signature.length === 0
+    )
   ) {
-    throw new Error(`Invalid temporary-owner ceremony config: ${configPath}`);
+    throw new Error(`Invalid authorized-helper ceremony config: ${configPath}`);
   }
   const deploymentsPath = path.join(
     REPO_ROOT,
@@ -1037,8 +1108,8 @@ function applyCeremonyConfig(network, transactions, expectedExecutor) {
     "deployments.json"
   );
   const deployments = readJson(deploymentsPath);
-  const archController = deployments[config.ownership.archControllerKey];
   const helperOwner = deployments[config.ownership.helperOwnerKey];
+  const archController = deployments[config.ownership.archControllerKey];
   if (!ADDRESS_REGEX.test(archController || "")) {
     throw new Error(
       `${configPath}: missing deployment address ${config.ownership.archControllerKey}`
@@ -1049,11 +1120,10 @@ function applyCeremonyConfig(network, transactions, expectedExecutor) {
       `${configPath}: missing deployment address ${config.ownership.helperOwnerKey}`
     );
   }
-  return temporaryOwnerTransactions(
+  return authorizedHelperTransactions(
     transactions,
-    expectedExecutor,
-    archController,
-    helperOwner
+    helperOwner,
+    config.ownership.forwardedFunctionSignatures
   );
 }
 
@@ -1109,7 +1179,7 @@ function assemblePlan(args) {
       "Could not infer expected executor; include envelope.expectedExecutor in an entry"
     );
   }
-  transactions = applyCeremonyConfig(network, transactions, expectedExecutor);
+  transactions = applyCeremonyConfig(network, transactions);
 
   for (const transaction of transactions) {
     if (transaction.kind === "deploy") {
@@ -1123,10 +1193,12 @@ function assemblePlan(args) {
         transaction.constructorArgs.decoded || []
       );
     } else if (transaction.kind === "call") {
-      transaction.calldata = encodeFunctionCall(
-        transaction.functionSignature,
-        transaction.args || []
-      );
+      transaction.calldata = transaction.forwardedCall
+        ? encodeForwardedCall(transaction)
+        : encodeFunctionCall(
+            transaction.functionSignature,
+            transaction.args || []
+          );
     }
     const existingEnvelope = transaction.envelope || {};
     transaction.envelope = {
@@ -1137,7 +1209,9 @@ function assemblePlan(args) {
       data:
         transaction.kind === "deploy"
           ? "initCode+constructorArgs"
-          : "functionSignature+args",
+          : transaction.forwardedCall
+            ? "forwardedCall"
+            : "functionSignature+args",
       gasLimitPolicy: existingEnvelope.gasLimitPolicy ?? "estimate*1.3",
       nonceCheck: "display-and-confirm",
     };
@@ -1236,7 +1310,14 @@ async function codePresent(rpc, address) {
   };
 }
 
-async function callEq(rpc, target, signature, args, expected) {
+async function callEq(
+  rpc,
+  target,
+  signature,
+  args,
+  expected,
+  resultIndex = null
+) {
   const { contractInterface, fragment } = functionInterface(signature);
   const data = contractInterface.encodeFunctionData(fragment, args);
   const encodedResult = await rpc("eth_call", [{ to: target, data }, "latest"]);
@@ -1244,8 +1325,15 @@ async function callEq(rpc, target, signature, args, expected) {
     fragment,
     encodedResult
   );
-  const actual =
-    fragment.outputs.length === 1
+  if (
+    resultIndex !== null &&
+    (!Number.isInteger(resultIndex) || resultIndex < 0 || resultIndex >= fragment.outputs.length)
+  ) {
+    throw new Error(`${signature} has no result at index ${resultIndex}`);
+  }
+  const actual = resultIndex !== null
+    ? canonicalValue(decodedResult[resultIndex])
+    : fragment.outputs.length === 1
       ? canonicalValue(decodedResult[0])
       : canonicalValue(Array.from(decodedResult));
   const normalizedExpected = canonicalValue(expected);
@@ -1268,10 +1356,17 @@ async function checkPredicate(rpc, predicate, outputs) {
   if (predicate.type === "codePresent") {
     return codePresent(rpc, target);
   }
-  if (predicate.type === "callEq") {
+  if (predicate.type === "callEq" || predicate.type === "callResultEq") {
     const args = resolveReferences(predicate.call.args, outputs);
     const expected = resolveReferences(predicate.expect, outputs);
-    return callEq(rpc, target, predicate.call.sig, args, expected);
+    return callEq(
+      rpc,
+      target,
+      predicate.call.sig,
+      args,
+      expected,
+      predicate.type === "callResultEq" ? predicate.resultIndex : null
+    );
   }
   throw new Error(`Unsupported predicate type: ${predicate.type}`);
 }
@@ -1327,11 +1422,13 @@ function transactionPayload(transaction, outputs) {
   }
   return {
     to,
-    data: encodeFunctionCall(
-      transaction.functionSignature,
-      transaction.args,
-      outputs
-    ),
+    data: transaction.forwardedCall
+      ? encodeForwardedCall(transaction, outputs)
+      : encodeFunctionCall(
+          transaction.functionSignature,
+          transaction.args,
+          outputs
+        ),
     value,
   };
 }
@@ -1832,9 +1929,24 @@ function renderSafe(args) {
     .map((transaction) => {
       const { fragment } = functionInterface(transaction.functionSignature);
       const unresolvedReferences = [];
-      for (const value of [transaction.to, transaction.args]) {
+      for (const value of transaction.forwardedCall
+        ? [
+            transaction.to,
+            transaction.forwardedCall.target,
+            transaction.forwardedCall.args,
+          ]
+        : [transaction.to, transaction.args]) {
         collectReferences(value, unresolvedReferences);
       }
+      const displayArgs = transaction.forwardedCall
+        ? [
+            transaction.forwardedCall.target,
+            encodeFunctionCall(
+              transaction.forwardedCall.functionSignature,
+              transaction.forwardedCall.args
+            ),
+          ]
+        : transaction.args;
       const names = new Set();
       const inputs = fragment.inputs.map((input, index) => {
         let name = input.name || `arg${index}`;
@@ -1845,7 +1957,7 @@ function renderSafe(args) {
       const contractInputsValues = Object.fromEntries(
         inputs.map((input, index) => [
           input.name,
-          safeInputValue(transaction.args[index]),
+          safeInputValue(displayArgs[index]),
         ])
       );
       return {
@@ -1955,6 +2067,7 @@ module.exports = {
   codePresent,
   encodeConstructorArgs,
   encodeFunctionCall,
+  encodeForwardedCall,
   validatePlan,
-  temporaryOwnerTransactions,
+  authorizedHelperTransactions,
 };

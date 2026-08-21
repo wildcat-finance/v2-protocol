@@ -218,6 +218,23 @@ export function assertPlan(value: unknown): DeploymentPlan {
     ) {
       throw new Error(`${transaction.id}: constructor ABI types are missing or incomplete.`)
     }
+    if (transaction.kind === 'call') {
+      const hasArgs = Array.isArray(transaction.args)
+      const hasForwardedCall = transaction.forwardedCall !== undefined
+      if (hasArgs === hasForwardedCall) {
+        throw new Error(`${transaction.id}: call must contain exactly one of args or forwardedCall.`)
+      }
+      if (
+        hasForwardedCall &&
+        (transaction.functionSignature !== 'executeProtocolAction(address,bytes)' ||
+          transaction.envelope.data !== 'forwardedCall')
+      ) {
+        throw new Error(`${transaction.id}: forwarded call has an invalid helper envelope.`)
+      }
+      if (!hasForwardedCall && transaction.envelope.data !== 'functionSignature+args') {
+        throw new Error(`${transaction.id}: direct call has an invalid execution envelope.`)
+      }
+    }
   }
   const positions = new Map(plan.transactions.map((transaction, index) => [transaction.id, index]))
   plan.transactions.forEach((transaction, index) => {

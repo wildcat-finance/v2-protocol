@@ -167,7 +167,11 @@
           "default": "0"
         },
         "data": {
-          "enum": ["initCode+constructorArgs", "functionSignature+args"]
+          "enum": [
+            "initCode+constructorArgs",
+            "functionSignature+args",
+            "forwardedCall"
+          ]
         },
         "gasLimitPolicy": {
           "$ref": "#/$defs/gasLimitPolicy",
@@ -221,12 +225,32 @@
       },
       "additionalProperties": false
     },
+    "forwardedCall": {
+      "type": "object",
+      "required": ["target", "functionSignature", "args"],
+      "properties": {
+        "target": {
+          "$ref": "#/$defs/addressOrRef"
+        },
+        "functionSignature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/argument"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "predicate": {
       "type": "object",
       "required": ["type", "target"],
       "properties": {
         "type": {
-          "enum": ["codePresent", "callEq"]
+          "enum": ["codePresent", "callEq", "callResultEq"]
         },
         "target": {
           "$ref": "#/$defs/addressOrRef"
@@ -234,7 +258,11 @@
         "call": {
           "$ref": "#/$defs/predicateCall"
         },
-        "expect": {}
+        "expect": {},
+        "resultIndex": {
+          "type": "integer",
+          "minimum": 0
+        }
       },
       "additionalProperties": false,
       "allOf": [
@@ -249,6 +277,19 @@
           },
           "then": {
             "required": ["call", "expect"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "callResultEq"
+              }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["call", "expect", "resultIndex"]
           }
         }
       ]
@@ -298,6 +339,9 @@
             "$ref": "#/$defs/argument"
           }
         },
+        "forwardedCall": {
+          "$ref": "#/$defs/forwardedCall"
+        },
         "calldata": {
           "$ref": "#/$defs/hexData",
           "description": "Review encoding; execution rebuilds calldata from the signature and resolved arguments."
@@ -339,7 +383,7 @@
             "required": ["kind"]
           },
           "then": {
-            "required": ["to", "functionSignature", "args", "calldata"]
+            "required": ["to", "functionSignature", "calldata"]
           }
         }
       ]
