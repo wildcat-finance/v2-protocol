@@ -82,6 +82,7 @@ the actual evidence.
 | G-16 | Market lens        | Read only the first byte needed from the dynamic market version        | Medium    | Accepted                                      |
 | G-17 | Market lens        | Read fixed optional fields and reserve tuples directly into scratch    | Low       | Accepted                                      |
 | G-18 | Market lens        | Reuse hook kind and hash bounded hook versions without string decoding | Medium    | Accepted                                      |
+| G-19 | Market lens        | Skip pending-administrator probes for unmanaged role providers         | Low       | Accepted                                      |
 
 ## Accepted Batches
 
@@ -333,6 +334,22 @@ Measured against the preceding accepted commit with seed `0x5eed`:
   already-resolved kind;
 - `MarketLensCore` grows by 19 runtime/initcode bytes and `MarketLensAggregator` grows by five,
   adding roughly 4,800 gas across both one-time helper deployments; and
+- public ABIs and storage declarations are unchanged.
+
+### Unmanaged role-provider short circuit (G-19)
+
+Role-provider metadata now asks for `pendingAdministrator()` only when the provider first returns
+a valid `administrator()`. A provider cannot be classified as managed without both values, so the
+second capped staticcall was dead work for every ordinary token, Merkle-proof, or other unmanaged
+provider.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- unmanaged-provider hook-instance and market-data cases save 664 gas per metadata fill;
+- the one-market batch parity test fills the same market twice and saves 1,328 gas;
+- the managed-provider administration regression still passes and remains semantically complete;
+- `MarketLensCore`, `MarketLensAggregator`, and `MarketLensLive` each shrink by 12 runtime/initcode
+  bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
