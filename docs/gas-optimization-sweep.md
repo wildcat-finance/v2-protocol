@@ -88,6 +88,7 @@ the actual evidence.
 | G-22 | Role providers     | Hash address leaves and probe provider type in fixed scratch words     | Low       | Accepted                               |
 | G-23 | Access-list roles  | Reuse the administrator already checked by the mutation entry point    | Low       | Accepted                               |
 | G-24 | Open/fixed hooks   | Skip the fresh zero write when deposit-hook dispatch is disabled       | Low       | Accepted                               |
+| G-25 | Wrapper factory    | Validate the legacy factory with fixed calldata and return buffers     | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -463,6 +464,22 @@ Measured against the preceding accepted commit:
 - `OpenTermHooks` initcode and runtime each shrink by 21 bytes, while `FixedTermHooks` shrinks by
   nine bytes in each; and
 - public ABIs and storage declarations are unchanged.
+
+### Fixed-output legacy-wrapper-factory probe (G-25)
+
+The wrapper factory constructor only needs to know whether a configured legacy factory answers
+`wrapperForMarket(address)` with at least one ABI word. It now builds that 36-byte call in scratch
+memory and caps copied return data at one word instead of allocating dynamic calldata and bytes.
+Failed and short calls still produce the same `InvalidV1Factory` error.
+
+Measured against the preceding accepted commit:
+
+- all 18 wrapper-factory tests pass, including new explicit valid and short-response constructor
+  cases;
+- deploying with a valid legacy factory saves 457 gas;
+- rejecting a codeless address saves 279 gas and rejecting a short response saves 456 gas;
+- factory initcode shrinks by 102 bytes while runtime is unchanged; and
+- the public ABI and storage declarations are unchanged.
 
 ## Rejected Candidates
 

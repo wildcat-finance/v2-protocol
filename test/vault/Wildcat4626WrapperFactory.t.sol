@@ -267,11 +267,30 @@ contract Wildcat4626WrapperFactoryTest is Test {
 
   /// @dev A nonzero v1 address that is not a live wrapper factory must be
   ///      rejected at construction: it is frozen forever.
+  function test_constructorAcceptsV1Factory() external {
+    Wildcat4626WrapperFactory deployed = new Wildcat4626WrapperFactory(
+      address(archController),
+      address(v1Factory)
+    );
+    assertEq(address(deployed.v1Factory()), address(v1Factory), 'v1 factory');
+  }
+
   function test_constructorRejectsBadV1Factory() external {
     vm.expectRevert(
       abi.encodeWithSelector(Wildcat4626WrapperFactory.InvalidV1Factory.selector, address(0xDEAD))
     );
     new Wildcat4626WrapperFactory(address(archController), address(0xDEAD));
+  }
+
+  function test_constructorRejectsShortV1FactoryResponse() external {
+    address shortReturner = address(new ShortReturner());
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626WrapperFactory.InvalidV1Factory.selector,
+        shortReturner
+      )
+    );
+    new Wildcat4626WrapperFactory(address(archController), shortReturner);
   }
 
   /// @dev A mispaired wrapper sitting in the v1 registry for a floor-rounding

@@ -66,10 +66,15 @@ contract Wildcat4626WrapperFactory {
     // (and make discovery revert on codeless addresses), so prove at deploy
     // time that it answers `wrapperForMarket`.
     if (v1Factory_ != address(0)) {
-      (bool success, bytes memory data) = v1Factory_.staticcall(
-        abi.encodeWithSelector(IWildcat4626WrapperFactoryV1.wrapperForMarket.selector, address(0))
-      );
-      if (!success || data.length < 0x20) revert InvalidV1Factory(v1Factory_);
+      uint256 selectorWord = uint32(IWildcat4626WrapperFactoryV1.wrapperForMarket.selector);
+      bool isValid;
+      assembly {
+        mstore(0x00, selectorWord)
+        mstore(0x20, 0)
+        let success := staticcall(gas(), v1Factory_, 0x1c, 0x24, 0x00, 0x20)
+        isValid := and(success, iszero(lt(returndatasize(), 0x20)))
+      }
+      if (!isValid) revert InvalidV1Factory(v1Factory_);
     }
     v1Factory = IWildcat4626WrapperFactoryV1(v1Factory_);
   }
