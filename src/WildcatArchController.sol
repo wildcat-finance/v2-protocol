@@ -116,7 +116,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   function _updateSphereXEngineOnRegisteredContractsInSet(
     EnumerableSet.AddressSet storage set,
     address engineAddress,
-    address[] memory contracts,
+    address[] calldata contracts,
     bytes memory changeSphereXEngineCalldata,
     bytes memory addAllowedSenderOnChainCalldata,
     bytes4 notInSetErrorSelectorBytes

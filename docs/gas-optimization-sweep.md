@@ -67,7 +67,7 @@ the actual evidence.
 | G-01 | Standard factory   | Preserve `hooksData` as calldata through deployment and event emission | Low       | Accepted in factory batch                     |
 | G-02 | Both factories     | Avoid copying the template's dynamic name on fee and deployment paths  | Low       | Accepted in factory batch                     |
 | G-03 | Both factories     | Resolve borrower principals with an exact fixed-size staticcall        | Low       | Accepted in factory batch                     |
-| G-04 | Access controls    | Keep read-only batch inputs in calldata                                | Low       | Pending benchmark                             |
+| G-04 | Access controls    | Keep read-only batch inputs in calldata                                | Low       | Accepted                                      |
 | G-05 | Withdrawal queue   | Pack eight `uint32` expiries into each queue word                      | Medium    | Pending benchmark                             |
 | G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 16 words | Medium    | Pending investigation                         |
 | G-07 | Markets            | Reuse exact post-transition balances already loaded by the same path   | Low       | Accepted                                      |
@@ -76,6 +76,7 @@ the actual evidence.
 | G-10 | Markets            | Remove balance reads across hooks or token transfers                   | High      | Report only; semantics can change             |
 | G-11 | Markets            | Reuse the sender already validated by `onlyBorrower`                    | Low       | Accepted with G-07                            |
 | G-12 | ERC-4626 wrapper   | Cache principal checks and reuse measured scaled backing               | Low       | Accepted with explicit break-even             |
+| G-13 | Access controls    | Short-circuit known-lender checks and reuse provider mapping reads     | Low       | Accepted with G-04                            |
 
 ## Accepted Batches
 
@@ -153,6 +154,27 @@ Measured against the baseline with seed `0x5eed`:
 This is a lifecycle optimization rather than a universal win. It belongs in the experimental
 stack because active wrappers should clear the break-even, but a production decision should use
 expected wrapper activity and deployment count.
+
+### Access-control calldata and lookup reuse (G-04 and G-13)
+
+Read-only administrative batches now remain in calldata, hooks-data validation reuses the role
+provider value already loaded for the selected address, and the known-lender update uses actual
+short-circuit evaluation. The last change matters on withdrawal paths: they cannot mark a lender
+known, so they no longer perform the second mapping lookup merely to feed an eager boolean helper.
+
+Measured against the baseline with seed `0x5eed`:
+
+- the full access-hook suite and the focused controller/provider suites pass;
+- `grantRoles` is 2,040 gas cheaper in open, fixed, and periodic hooks;
+- `setName` is 276 gas cheaper and the tested hooks-data validation path is 196 gas cheaper;
+- restricted withdrawal validation cases save 234 to 425 gas;
+- access-list batch mutation saves 285 gas in its direct test;
+- the successful SphereX controller update batch saves 1,348 gas, with failure and null-engine
+  cases saving 431 to 1,043 gas; and
+- runtime shrinks by 210 bytes for open/fixed hooks, 218 bytes for periodic hooks, 31 bytes for
+  `WildcatArchController`, and 52 bytes for both the access-list provider and its factory.
+
+Every public ABI is unchanged and no storage declaration changed.
 
 ## Rejected Candidates
 
