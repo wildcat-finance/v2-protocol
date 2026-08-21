@@ -45,6 +45,26 @@ library TokenQueryLib {
       value := mload(0x00)
     }
   }
+
+  function readWordOrRevert(
+    address target,
+    bytes4 selector,
+    uint256 argument
+  ) internal view returns (uint256 value) {
+    uint256 selectorWord = uint32(selector);
+    assembly {
+      mstore(0x00, selectorWord)
+      mstore(0x20, argument)
+      if iszero(staticcall(gas(), target, 0x1c, 0x24, 0x00, 0x20)) {
+        returndatacopy(0x00, 0x00, returndatasize())
+        revert(0x00, returndatasize())
+      }
+      if lt(returndatasize(), 0x20) {
+        revert(0x00, 0x00)
+      }
+      value := mload(0x00)
+    }
+  }
 }
 
 interface IERC20BalanceOf {

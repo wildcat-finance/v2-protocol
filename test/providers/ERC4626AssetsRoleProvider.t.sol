@@ -172,6 +172,45 @@ contract ERC4626AssetsRoleProviderTest is BaseMarketTest {
     assertEq(higherThresholdProvider.getCredential(approvedLender), 0, 'credential');
   }
 
+  function test_getCredential_bubbles_vault_reverts() external {
+    BalanceRevertingERC4626Vault balanceRevertingVault = new BalanceRevertingERC4626Vault();
+    ERC4626AssetsRoleProvider balanceProvider = new ERC4626AssetsRoleProvider(
+      address(balanceRevertingVault),
+      1
+    );
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', 'BALANCE_REVERTED'));
+    balanceProvider.getCredential(approvedLender);
+
+    ConversionRevertingERC4626Vault conversionRevertingVault = new ConversionRevertingERC4626Vault();
+    ERC4626AssetsRoleProvider conversionProvider = new ERC4626AssetsRoleProvider(
+      address(conversionRevertingVault),
+      1
+    );
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', 'CONVERSION_REVERTED'));
+    conversionProvider.getCredential(approvedLender);
+  }
+
+  function test_getCredential_reverts_on_short_vault_response() external {
+    bytes memory balanceCall = abi.encodeWithSelector(
+      IERC4626Assets.balanceOf.selector,
+      approvedLender
+    );
+    vm.mockCall(address(vault), balanceCall, new bytes(31));
+    vm.expectRevert();
+    provider.getCredential(approvedLender);
+    vm.clearMockedCalls();
+
+    vm.mockCall(address(vault), balanceCall, abi.encode(uint256(1)));
+    vm.mockCall(
+      address(vault),
+      abi.encodeWithSelector(IERC4626Assets.convertToAssets.selector, uint256(1)),
+      new bytes(31)
+    );
+    vm.expectRevert();
+    provider.getCredential(approvedLender);
+    vm.clearMockedCalls();
+  }
+
   function test_deposit_allows_erc4626_assets_holder() external {
     _deposit(approvedLender, 1e18, false);
   }

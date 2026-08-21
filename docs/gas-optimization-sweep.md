@@ -91,6 +91,7 @@ the actual evidence.
 | G-25 | Wrapper factory    | Validate the legacy factory with fixed calldata and return buffers     | Low       | Accepted                               |
 | G-26 | Token providers    | Share a bounded, clean-boolean ERC-165 interface probe                 | Low       | Accepted                               |
 | G-27 | SBT providers      | Read ownership and token state through bounded one-word probes         | Low       | Accepted                               |
+| G-28 | Balance providers  | Read ERC-20 and ERC-4626 balances through exact fixed-shape calls      | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -520,6 +521,25 @@ Measured against the preceding accepted commit:
 - direct ERC-5192 and ERC-5484 provider deployments save 29,851 and 29,056 gas;
 - ERC-5192 initcode and runtime each shrink by 149 bytes;
 - ERC-5484 initcode and runtime each shrink by 145 bytes; and
+- public ABIs and storage declarations are unchanged.
+
+### Fixed-shape balance-provider reads (G-28)
+
+The ERC-20 and ERC-4626 providers now issue their balance and conversion queries with exact
+36-byte calldata and one-word output buffers. Unlike the fail-closed SBT helpers, this path
+preserves the public methods' previous behavior: target revert data is bubbled unchanged, and a
+successful short response reverts without data just like Solidity's ABI decoder. The market's
+outer provider probe continues to turn either failure into a missing credential.
+
+Measured against the preceding accepted commit:
+
+- all 56 focused provider, property, integration, and factory cases pass, including direct-call
+  regressions for bubbled vault/token errors and short responses;
+- ERC-20 credential paths save 232 to 495 gas per market interaction;
+- ERC-4626 credential paths save 254 to 758 gas per market interaction;
+- ordinary factory-created ERC-20 and ERC-4626 providers deploy 27,610 and 36,108 gas cheaper;
+- ERC-20 provider and factory initcode/runtime shrink by 137 bytes;
+- ERC-4626 provider and factory initcode/runtime shrink by 179 bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

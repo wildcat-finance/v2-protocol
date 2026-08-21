@@ -105,6 +105,24 @@ contract ERC20RoleProviderTest is BaseMarketTest {
     assertEq(higherThresholdProvider.getCredential(approvedLender), 0, 'credential');
   }
 
+  function test_getCredential_bubbles_token_revert() external {
+    RevertingERC20BalanceToken revertingToken = new RevertingERC20BalanceToken();
+    ERC20RoleProvider revertingProvider = new ERC20RoleProvider(address(revertingToken), 1);
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', 'BALANCE_REVERTED'));
+    revertingProvider.getCredential(approvedLender);
+  }
+
+  function test_getCredential_reverts_on_short_balance_response() external {
+    vm.mockCall(
+      address(gatingToken),
+      abi.encodeWithSelector(IERC20BalanceOf.balanceOf.selector, approvedLender),
+      new bytes(31)
+    );
+    vm.expectRevert();
+    provider.getCredential(approvedLender);
+    vm.clearMockedCalls();
+  }
+
   function test_deposit_allows_erc20_holder() external {
     _deposit(approvedLender, 1e18, false);
   }

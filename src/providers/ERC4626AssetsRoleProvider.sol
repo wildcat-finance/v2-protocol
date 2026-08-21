@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import '../libraries/SafeCastLib.sol';
 import './IERC4626AssetsRoleProvider.sol';
-import { IERC4626Assets } from './TokenInterfaces.sol';
+import { IERC4626Assets, TokenQueryLib } from './TokenInterfaces.sol';
 
 using SafeCastLib for uint256;
 
@@ -34,9 +34,17 @@ contract ERC4626AssetsRoleProvider is IERC4626AssetsRoleProvider {
   }
 
   function _credentialTimestamp(address account) internal view returns (uint32) {
-    uint256 shares = IERC4626Assets(vault).balanceOf(account);
+    uint256 shares = TokenQueryLib.readWordOrRevert(
+      vault,
+      IERC4626Assets.balanceOf.selector,
+      uint160(account)
+    );
     if (shares == 0) return 0;
-    uint256 assets = IERC4626Assets(vault).convertToAssets(shares);
+    uint256 assets = TokenQueryLib.readWordOrRevert(
+      vault,
+      IERC4626Assets.convertToAssets.selector,
+      shares
+    );
     if (assets >= minAssets) {
       return block.timestamp.toUint32();
     }
