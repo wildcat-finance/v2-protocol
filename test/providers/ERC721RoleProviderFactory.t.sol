@@ -133,6 +133,24 @@ contract ERC721RoleProviderFactoryTest is Test {
   function test_malformedInitializationReverts() external {
     vm.expectRevert();
     factory.createRoleProvider(hex'1234');
+
+    bytes memory dirtyAddress = abi.encode(
+      _inputs(address(token), false, bytes32('dirty-address'))
+    );
+    assembly {
+      mstore(add(dirtyAddress, 0x20), or(mload(add(dirtyAddress, 0x20)), shl(160, 1)))
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(dirtyAddress);
+
+    bytes memory dirtyBoolean = abi.encode(
+      _inputs(address(token), false, bytes32('dirty-bool'))
+    );
+    assembly {
+      mstore(add(dirtyBoolean, 0x40), 2)
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(dirtyBoolean);
   }
 
   function test_invalidTokenReverts() external {

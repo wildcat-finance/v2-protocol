@@ -67,7 +67,7 @@ contract ERC20RoleProviderFactoryTest is Test {
       bytes32('generic')
     );
     address expected = factory.computeRoleProviderAddress(address(this), inputs);
-    address actual = factory.createRoleProvider(abi.encode(inputs));
+    address actual = factory.createRoleProvider(bytes.concat(abi.encode(inputs), hex'deadbeef'));
 
     assertEq(actual, expected, 'provider');
     assertEq(ERC20RoleProvider(actual).token(), address(token), 'token');
@@ -127,6 +127,15 @@ contract ERC20RoleProviderFactoryTest is Test {
   function test_malformedInitializationReverts() external {
     vm.expectRevert();
     factory.createRoleProvider(hex'1234');
+
+    bytes memory dirtyAddress = abi.encode(
+      _inputs(address(token), 100e18, bytes32('dirty'))
+    );
+    assembly {
+      mstore(add(dirtyAddress, 0x20), or(mload(add(dirtyAddress, 0x20)), shl(160, 1)))
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(dirtyAddress);
   }
 
   function test_invalidTokenReverts() external {

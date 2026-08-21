@@ -96,6 +96,7 @@ the actual evidence.
 | G-30 | Withdrawal loop    | Use a proved unchecked increment while processing unpaid batches      | Low       | Accepted                               |
 | G-31 | Managed providers  | Reuse the administrator proved by the transfer-request modifier        | Low       | Accepted                               |
 | G-32 | Wrapper factory    | Validate transfer-policy booleans with bounded fixed-output calls      | Low       | Accepted                               |
+| G-33 | Provider factories | Decode fixed generic inputs directly from bounded calldata             | Medium    | Accepted                               |
 
 ## Accepted Batches
 
@@ -611,6 +612,26 @@ Measured against the preceding accepted commit:
 - transfer-disabled, incomplete-policy, and unsupported-policy rejections save 658, 457, and
   126 gas;
 - factory initcode and runtime each shrink by 81 bytes, saving about 16,254 deployment gas; and
+- public ABIs and storage declarations are unchanged.
+
+### Fixed generic provider-factory decoding (G-33)
+
+The ERC-20, ERC-4626, ERC-721, ERC-1155, and Merkle generic factory entry points now read their
+fixed tuples directly from the nested calldata slice. The decoders retain `abi.decode`'s minimum
+length, clean-address, and clean-boolean requirements and continue to ignore harmless trailing
+bytes. The access-list tuple remains on the standard decoder because its dynamic offset and
+array-length validation is a different risk class.
+
+Measured against the preceding accepted commit before adding the larger malformed-input test
+bodies:
+
+- all 48 focused factory and property cases pass, including short input, dirty address, dirty
+  boolean, and trailing-data regressions;
+- generic provider deployments save 206 to 317 gas each;
+- two caller-namespaced generic deployments save 412 to 580 gas;
+- ERC-20, ERC-4626, and Merkle factory initcode/runtime each shrink by 60 bytes;
+- ERC-721 shrinks by 62 bytes and ERC-1155 by 81 bytes, saving roughly 12,000 to 16,200 gas at
+  factory deployment; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

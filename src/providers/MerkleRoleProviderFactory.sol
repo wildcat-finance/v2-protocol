@@ -11,11 +11,21 @@ import './IMerkleRoleProviderFactory.sol';
  */
 contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
-    MerkleRoleProviderFactoryInputs memory inputs = abi.decode(
-      data,
-      (MerkleRoleProviderFactoryInputs)
-    );
-    provider = _createRoleProvider(msg.sender, inputs.administrator, inputs.root, inputs.salt);
+    address administrator;
+    bytes32 root;
+    bytes32 salt;
+    assembly {
+      if lt(data.length, 0x60) {
+        revert(0, 0)
+      }
+      administrator := calldataload(data.offset)
+      if shr(160, administrator) {
+        revert(0, 0)
+      }
+      root := calldataload(add(data.offset, 0x20))
+      salt := calldataload(add(data.offset, 0x40))
+    }
+    provider = _createRoleProvider(msg.sender, administrator, root, salt);
   }
 
   function createMerkleRoleProvider(

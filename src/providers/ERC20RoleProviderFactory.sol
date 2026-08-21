@@ -11,11 +11,21 @@ import './IERC20RoleProviderFactory.sol';
  */
 contract ERC20RoleProviderFactory is IERC20RoleProviderFactory {
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
-    ERC20RoleProviderFactoryInputs memory inputs = abi.decode(
-      data,
-      (ERC20RoleProviderFactoryInputs)
-    );
-    provider = _createRoleProvider(msg.sender, inputs.token, inputs.minBalance, inputs.salt);
+    address token;
+    uint256 minBalance;
+    bytes32 salt;
+    assembly {
+      if lt(data.length, 0x60) {
+        revert(0, 0)
+      }
+      token := calldataload(data.offset)
+      if shr(160, token) {
+        revert(0, 0)
+      }
+      minBalance := calldataload(add(data.offset, 0x20))
+      salt := calldataload(add(data.offset, 0x40))
+    }
+    provider = _createRoleProvider(msg.sender, token, minBalance, salt);
   }
 
   function createERC20RoleProvider(

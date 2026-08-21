@@ -11,11 +11,21 @@ import './IERC4626AssetsRoleProviderFactory.sol';
  */
 contract ERC4626AssetsRoleProviderFactory is IERC4626AssetsRoleProviderFactory {
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
-    ERC4626AssetsRoleProviderFactoryInputs memory inputs = abi.decode(
-      data,
-      (ERC4626AssetsRoleProviderFactoryInputs)
-    );
-    provider = _createRoleProvider(msg.sender, inputs.vault, inputs.minAssets, inputs.salt);
+    address vault;
+    uint256 minAssets;
+    bytes32 salt;
+    assembly {
+      if lt(data.length, 0x60) {
+        revert(0, 0)
+      }
+      vault := calldataload(data.offset)
+      if shr(160, vault) {
+        revert(0, 0)
+      }
+      minAssets := calldataload(add(data.offset, 0x20))
+      salt := calldataload(add(data.offset, 0x40))
+    }
+    provider = _createRoleProvider(msg.sender, vault, minAssets, salt);
   }
 
   function createERC4626AssetsRoleProvider(

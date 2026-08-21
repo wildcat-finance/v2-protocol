@@ -11,16 +11,24 @@ import './IERC721RoleProviderFactory.sol';
  */
 contract ERC721RoleProviderFactory is IERC721RoleProviderFactory {
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
-    ERC721RoleProviderFactoryInputs memory inputs = abi.decode(
-      data,
-      (ERC721RoleProviderFactoryInputs)
-    );
-    provider = _createRoleProvider(
-      msg.sender,
-      inputs.token,
-      inputs.skipInterfaceCheck,
-      inputs.salt
-    );
+    address token;
+    bool skipInterfaceCheck;
+    bytes32 salt;
+    assembly {
+      if lt(data.length, 0x60) {
+        revert(0, 0)
+      }
+      token := calldataload(data.offset)
+      if shr(160, token) {
+        revert(0, 0)
+      }
+      skipInterfaceCheck := calldataload(add(data.offset, 0x20))
+      if gt(skipInterfaceCheck, 1) {
+        revert(0, 0)
+      }
+      salt := calldataload(add(data.offset, 0x40))
+    }
+    provider = _createRoleProvider(msg.sender, token, skipInterfaceCheck, salt);
   }
 
   function createERC721RoleProvider(

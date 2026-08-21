@@ -130,6 +130,15 @@ contract ERC4626AssetsRoleProviderFactoryTest is Test {
   function test_malformedInitializationReverts() external {
     vm.expectRevert();
     factory.createRoleProvider(hex'1234');
+
+    bytes memory dirtyAddress = abi.encode(
+      _inputs(address(vault), 100e18, bytes32('dirty'))
+    );
+    assembly {
+      mstore(add(dirtyAddress, 0x20), or(mload(add(dirtyAddress, 0x20)), shl(160, 1)))
+    }
+    vm.expectRevert();
+    factory.createRoleProvider(dirtyAddress);
   }
 
   function test_invalidVaultReverts() external {
