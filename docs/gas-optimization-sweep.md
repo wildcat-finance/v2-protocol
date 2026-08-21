@@ -62,27 +62,28 @@ the actual evidence.
 
 ## Candidate Ledger
 
-| ID   | Surface            | Candidate                                                              | Risk      | Status                                        |
-| ---- | ------------------ | ---------------------------------------------------------------------- | --------- | --------------------------------------------- |
-| G-01 | Standard factory   | Preserve `hooksData` as calldata through deployment and event emission | Low       | Accepted in factory batch                     |
-| G-02 | Both factories     | Avoid copying the template's dynamic name on fee and deployment paths  | Low       | Accepted in factory batch                     |
-| G-03 | Both factories     | Resolve borrower principals with an exact fixed-size staticcall        | Low       | Accepted in factory batch                     |
-| G-04 | Access controls    | Keep read-only batch inputs in calldata                                | Low       | Accepted                                      |
-| G-05 | Withdrawal queue   | Pack eight `uint32` expiries into each queue word                      | Medium    | Accepted for new deployments                  |
-| G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 16 words | Medium    | Accepted                                      |
-| G-07 | Markets            | Reuse exact post-transition balances already loaded by the same path   | Low       | Accepted                                      |
-| G-08 | Markets            | Dirty-slot writes instead of four unconditional state writes           | Medium    | Rejected from EVM cost analysis               |
-| G-09 | Fleet architecture | Clone or singleton markets/hooks                                       | Very high | Break-even analysis only                      |
-| G-10 | Markets            | Remove balance reads across hooks or token transfers                   | High      | Report only; semantics can change             |
-| G-11 | Markets            | Reuse the sender already validated by `onlyBorrower`                    | Low       | Accepted with G-07                            |
-| G-12 | ERC-4626 wrapper   | Cache principal checks and reuse measured scaled backing               | Low       | Accepted with explicit break-even             |
-| G-13 | Access controls    | Short-circuit known-lender checks and reuse provider mapping reads     | Low       | Accepted with G-04                            |
-| G-14 | Provider factories | Reuse CREATE2 initcode and hash deterministic addresses in scratch     | Medium    | Accepted                                      |
-| G-15 | Market lens        | Keep core helper batch inputs in calldata                              | Low       | Accepted                                      |
-| G-16 | Market lens        | Read only the first byte needed from the dynamic market version        | Medium    | Accepted                                      |
-| G-17 | Market lens        | Read fixed optional fields and reserve tuples directly into scratch    | Low       | Accepted                                      |
-| G-18 | Market lens        | Reuse hook kind and hash bounded hook versions without string decoding | Medium    | Accepted                                      |
-| G-19 | Market lens        | Skip pending-administrator probes for unmanaged role providers         | Low       | Accepted                                      |
+| ID   | Surface            | Candidate                                                              | Risk      | Status                                 |
+| ---- | ------------------ | ---------------------------------------------------------------------- | --------- | -------------------------------------- |
+| G-01 | Standard factory   | Preserve `hooksData` as calldata through deployment and event emission | Low       | Accepted in factory batch              |
+| G-02 | Both factories     | Avoid copying the template's dynamic name on fee and deployment paths  | Low       | Accepted in factory batch              |
+| G-03 | Both factories     | Resolve borrower principals with an exact fixed-size staticcall        | Low       | Accepted in factory batch              |
+| G-04 | Access controls    | Keep read-only batch inputs in calldata                                | Low       | Accepted                               |
+| G-05 | Withdrawal queue   | Pack eight `uint32` expiries into each queue word                      | Medium    | Accepted for new deployments           |
+| G-06 | Both factories     | Pack transient constructor parameters instead of ABI-encoding 16 words | Medium    | Accepted                               |
+| G-07 | Markets            | Reuse exact post-transition balances already loaded by the same path   | Low       | Accepted                               |
+| G-08 | Markets            | Dirty-slot writes instead of four unconditional state writes           | Medium    | Rejected from EVM cost analysis        |
+| G-09 | Fleet architecture | Clone or singleton markets/hooks                                       | Very high | Break-even analysis only               |
+| G-10 | Markets            | Remove balance reads across hooks or token transfers                   | High      | Report only; semantics can change      |
+| G-11 | Markets            | Reuse the sender already validated by `onlyBorrower`                   | Low       | Accepted with G-07                     |
+| G-12 | ERC-4626 wrapper   | Cache principal checks and reuse measured scaled backing               | Low       | Accepted with explicit break-even      |
+| G-13 | Access controls    | Short-circuit known-lender checks and reuse provider mapping reads     | Low       | Accepted with G-04                     |
+| G-14 | Provider factories | Reuse CREATE2 initcode and hash deterministic addresses in scratch     | Medium    | Accepted                               |
+| G-15 | Market lens        | Keep core helper batch inputs in calldata                              | Low       | Accepted                               |
+| G-16 | Market lens        | Read only the first byte needed from the dynamic market version        | Medium    | Accepted                               |
+| G-17 | Market lens        | Read fixed optional fields and reserve tuples directly into scratch    | Low       | Accepted                               |
+| G-18 | Market lens        | Reuse hook kind and hash bounded hook versions without string decoding | Medium    | Accepted                               |
+| G-19 | Market lens        | Skip pending-administrator probes for unmanaged role providers         | Low       | Accepted                               |
+| G-20 | Sanctions sentinel | Move the escrow constructor handoff from persistent to transient state | Medium    | Accepted for a new sentinel deployment |
 
 ## Accepted Batches
 
@@ -351,6 +352,32 @@ Measured against the preceding accepted commit with seed `0x5eed`:
 - `MarketLensCore`, `MarketLensAggregator`, and `MarketLensLive` each shrink by 12 runtime/initcode
   bytes; and
 - public ABIs and storage declarations are unchanged.
+
+### Transient sanctions-escrow constructor handoff (G-20)
+
+The sanctions sentinel used three persistent slots to pass borrower, account, and asset into a
+new escrow, then restored all three slots before returning. That handoff only exists during the
+current transaction. It now uses three namespaced transient slots, with a marker packed above
+the borrower address so `address(0)` remains valid. Clearing the marker restores the public
+getter's existing `(address(1), address(1), address(1))` idle result without carrying state into
+the next transaction.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- direct and fuzzed escrow creation cases save roughly 7,090 to 7,560 gas per new escrow;
+- an exact Anvil deployment estimate drops from 828,020 to 772,230 gas, saving 55,790 gas on the
+  sentinel deployment;
+- the sentinel initcode shrinks by 26 bytes while runtime grows by 55 bytes;
+- all 226 focused sentinel, escrow, market-withdrawal, borrower-transfer, wrapper, and sanctions
+  integration tests pass, including explicit zero-borrower and maximum-address coverage;
+- the sentinel ABI hash is unchanged and the escrow initcode hash is unchanged; and
+- the sentinel storage layout deliberately changes because the temporary struct is removed and
+  the sanctions-override mapping moves from slot three to slot zero.
+
+This only applies to a newly deployed sentinel. The current deployment is not upgradeable, and
+the v2.5 deployment scripts presently reuse it. Opting into this change therefore means deploying
+a new sentinel and wiring new factories, markets, and wrappers to it. Existing escrows remain in
+the old sentinel's CREATE2 namespace, while the new sentinel produces a new address namespace.
 
 ## Rejected Candidates
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity >=0.8.25;
 
 import { IChainalysisSanctionsList } from './interfaces/IChainalysisSanctionsList.sol';
 import { IWildcatSanctionsSentinel } from './interfaces/IWildcatSanctionsSentinel.sol';
@@ -17,11 +17,12 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
 
   address public immutable override archController;
 
+  uint256 internal constant _TMP_ESCROW_PARAMS_SLOT =
+    uint256(keccak256('Transient:EscrowParameters')) - 1;
+
   // ========================================================================== //
   //                                   Storage                                  //
   // ========================================================================== //
-
-  TmpEscrowParams public override tmpEscrowParams;
 
   mapping(address borrower => mapping(address account => bool sanctionOverride))
     public
@@ -34,15 +35,50 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   constructor(address _archController, address _chainalysisSanctionsList) {
     archController = _archController;
     chainalysisSanctionsList = _chainalysisSanctionsList;
-    _resetTmpEscrowParams();
   }
 
   // ========================================================================== //
   //                              Internal Helpers                              //
   // ========================================================================== //
 
+  function tmpEscrowParams()
+    public
+    view
+    override
+    returns (address borrower, address account, address asset)
+  {
+    uint256 slot = _TMP_ESCROW_PARAMS_SLOT;
+    assembly ('memory-safe') {
+      let packedBorrower := tload(slot)
+      switch iszero(packedBorrower)
+      case 1 {
+        borrower := 1
+        account := 1
+        asset := 1
+      }
+      default {
+        borrower := and(packedBorrower, 0xffffffffffffffffffffffffffffffffffffffff)
+        account := and(tload(add(slot, 1)), 0xffffffffffffffffffffffffffffffffffffffff)
+        asset := and(tload(add(slot, 2)), 0xffffffffffffffffffffffffffffffffffffffff)
+      }
+    }
+  }
+
+  function _setTmpEscrowParams(address borrower, address account, address asset) internal {
+    uint256 slot = _TMP_ESCROW_PARAMS_SLOT;
+    assembly ('memory-safe') {
+      let addressMask := 0xffffffffffffffffffffffffffffffffffffffff
+      tstore(add(slot, 1), account)
+      tstore(add(slot, 2), asset)
+      tstore(slot, or(and(borrower, addressMask), shl(160, 1)))
+    }
+  }
+
   function _resetTmpEscrowParams() internal {
-    tmpEscrowParams = TmpEscrowParams(address(1), address(1), address(1));
+    uint256 slot = _TMP_ESCROW_PARAMS_SLOT;
+    assembly ('memory-safe') {
+      tstore(slot, 0)
+    }
   }
 
   /**
@@ -127,7 +163,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     // Skip creation if the address code size is non-zero
     if (escrowContract.code.length != 0) return escrowContract;
 
-    tmpEscrowParams = TmpEscrowParams(borrower, account, asset);
+    _setTmpEscrowParams(borrower, account, asset);
 
     new WildcatSanctionsEscrow{ salt: _deriveSalt(borrower, account, asset) }();
 

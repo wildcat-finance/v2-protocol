@@ -52,6 +52,28 @@ contract SentinelTest is Test {
     assertEq(address(sentinel.archController()), address(archController));
   }
 
+  function testDeploySentinel() public {
+    new WildcatSanctionsSentinel(address(archController), address(SanctionsList));
+  }
+
+  function testTmpEscrowParamsReset() public {
+    address borrower = address(1);
+    address account = address(2);
+    address asset = address(new MockERC20());
+
+    (address tmpBorrower, address tmpAccount, address tmpAsset) = sentinel.tmpEscrowParams();
+    assertEq(tmpBorrower, address(1));
+    assertEq(tmpAccount, address(1));
+    assertEq(tmpAsset, address(1));
+
+    sentinel.createEscrow(borrower, account, asset);
+
+    (tmpBorrower, tmpAccount, tmpAsset) = sentinel.tmpEscrowParams();
+    assertEq(tmpBorrower, address(1));
+    assertEq(tmpAccount, address(1));
+    assertEq(tmpAsset, address(1));
+  }
+
   function testIsSanctioned() public {
     assertEq(sentinel.isSanctioned(address(0), address(1)), false);
     MockChainalysis(address(SanctionsList)).sanction(address(1));
@@ -188,6 +210,21 @@ contract SentinelTest is Test {
     );
     assertEq(escrowedAsset, asset);
     assertEq(escrowedAmount, amount);
+  }
+
+  function testCreateEscrowWithZeroBorrowerAndMaxValues() public {
+    address borrower = address(0);
+    address account = address(type(uint160).max);
+    address asset = address(type(uint160).max - 1);
+    address mockAsset = address(new MockERC20());
+    vm.etch(asset, mockAsset.code);
+
+    address escrow = sentinel.createEscrow(borrower, account, asset);
+
+    assertEq(WildcatSanctionsEscrow(escrow).borrower(), borrower);
+    assertEq(WildcatSanctionsEscrow(escrow).account(), account);
+    (address escrowAsset, ) = WildcatSanctionsEscrow(escrow).escrowedAsset();
+    assertEq(escrowAsset, asset);
   }
 
   function testFuzzCreateEscrow(
