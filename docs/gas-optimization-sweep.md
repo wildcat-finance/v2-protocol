@@ -85,6 +85,7 @@ the actual evidence.
 | G-19 | Market lens        | Skip pending-administrator probes for unmanaged role providers         | Low       | Accepted                               |
 | G-20 | Sanctions sentinel | Move the escrow constructor handoff from persistent to transient state | Medium    | Accepted for a new sentinel deployment |
 | G-21 | Hooks factories    | Pack each hooks administrator and list index into one association word | Medium    | Accepted for new factory deployments   |
+| G-22 | Role providers     | Hash address leaves and probe provider type in fixed scratch words     | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -405,6 +406,28 @@ Measured against the preceding accepted commit with seed `0x5eed`:
 The 96-bit index is range-checked before packing. Reaching that bound is not operationally
 possible, but the check keeps a corrupted or future alternate insertion path from silently
 truncating the association.
+
+### Fixed-word role-provider operations (G-22)
+
+Merkle role providers now hash the one-word address leaf directly in scratch memory instead of
+allocating `abi.encode(account)`. Access hooks likewise ask `isPullProvider()` with a four-byte
+staticcall and one fixed return word. The provider probe still fails closed: failed calls, short
+responses, zero, and dirty boolean values are push providers; only a clean word containing one is
+pull-capable. Oversized return data is no longer copied into memory.
+
+Measured against the preceding accepted commit:
+
+- all 317 pre-existing focused provider and access-hook tests pass, and a new regression covers
+  clean true/false, dirty booleans, short and oversized responses, and a reverting provider;
+- direct Merkle membership checks save 246 gas, while ordinary proof validation paths save about
+  204 gas per check;
+- deploying and using a single-leaf Merkle provider in the existing integration case saves
+  26,683 gas;
+- classifying an EOA or other provider with no compatible response saves 434 gas;
+- `MerkleRoleProvider` initcode and runtime each shrink by 130 bytes;
+- `FixedTermHooks` runtime shrinks by 100 bytes and `PeriodicTermHooks` by 91 bytes, with their
+  initcodes shrinking by 203 and 194 bytes respectively; and
+- public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
 

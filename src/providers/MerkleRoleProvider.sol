@@ -35,7 +35,7 @@ contract MerkleRoleProvider is IMerkleRoleProvider, ManagedRoleProvider {
     address account,
     bytes32[] calldata proof
   ) external view override returns (bool) {
-    return MerkleProofLib.verifyCalldata(proof, root, keccak256(abi.encode(account)));
+    return MerkleProofLib.verifyCalldata(proof, root, _hashAccount(account));
   }
 
   function getCredential(address) external pure override returns (uint32 timestamp) {
@@ -60,10 +60,17 @@ contract MerkleRoleProvider is IMerkleRoleProvider, ManagedRoleProvider {
       proof.length := proofLength
       proof.offset := add(data.offset, 0x40)
     }
-    bytes32 leaf = keccak256(abi.encode(account));
+    bytes32 leaf = _hashAccount(account);
     if (MerkleProofLib.verifyCalldata(proof, root, leaf)) {
       return block.timestamp.toUint32();
     }
     return 0;
+  }
+
+  function _hashAccount(address account) internal pure returns (bytes32 leaf) {
+    assembly {
+      mstore(0x00, and(account, 0xffffffffffffffffffffffffffffffffffffffff))
+      leaf := keccak256(0x00, 0x20)
+    }
   }
 }

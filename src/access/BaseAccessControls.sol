@@ -260,16 +260,14 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   function _isPullProvider(address providerAddress) internal view returns (bool isPullProvider) {
-    (bool success, bytes memory data) = providerAddress.staticcall(
-      abi.encodeCall(IRoleProvider.isPullProvider, ())
-    );
-    if (success && data.length >= 0x20) {
-      uint256 result;
-      assembly {
-        result := mload(add(data, 0x20))
-      }
-      // Only a clean boolean true response makes the provider pull-capable.
-      isPullProvider = result == 1;
+    uint256 selectorWord = uint32(IRoleProvider.isPullProvider.selector);
+    assembly {
+      mstore(0x00, shl(224, selectorWord))
+      let success := staticcall(gas(), providerAddress, 0x00, 0x04, 0x00, 0x20)
+      isPullProvider := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), eq(mload(0x00), 1))
+      )
     }
   }
 
