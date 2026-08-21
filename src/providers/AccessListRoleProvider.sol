@@ -23,7 +23,12 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
     address administrator_,
     address[] memory initialMembers
   ) ManagedRoleProvider(administrator_) {
-    _addMembers(initialMembers);
+    for (uint256 i; i < initialMembers.length; i++) {
+      address account = initialMembers[i];
+      if (account == address(0)) revert InvalidMember();
+      if (!_members.add(account)) revert MemberAlreadyExists();
+      emit MemberAdded(administrator_, account);
+    }
   }
 
   // ========================================================================== //
@@ -40,16 +45,10 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
     }
   }
 
-  function _addMembers(address[] memory accounts) internal {
-    for (uint256 i; i < accounts.length; i++) {
-      _addMember(accounts[i]);
-    }
-  }
-
   function _addMember(address account) internal {
     if (account == address(0)) revert InvalidMember();
     if (!_members.add(account)) revert MemberAlreadyExists();
-    emit MemberAdded(administrator, account);
+    emit MemberAdded(msg.sender, account);
   }
 
   function removeMember(address account) external override onlyAdministrator {
@@ -64,7 +63,7 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
 
   function _removeMember(address account) internal {
     if (!_members.remove(account)) revert MemberNotFound();
-    emit MemberRemoved(administrator, account);
+    emit MemberRemoved(msg.sender, account);
   }
 
   // ========================================================================== //

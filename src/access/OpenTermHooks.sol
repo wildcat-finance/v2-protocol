@@ -189,7 +189,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
       );
     }
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
-    _depositHookEnabled[marketAddress] = marketHooksConfig.useOnDeposit();
+    if (marketHooksConfig.useOnDeposit()) _depositHookEnabled[marketAddress] = true;
     _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
 

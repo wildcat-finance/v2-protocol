@@ -239,7 +239,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
       );
     }
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
-    _depositHookEnabled[marketAddress] = marketHooksConfig.useOnDeposit();
+    if (marketHooksConfig.useOnDeposit()) _depositHookEnabled[marketAddress] = true;
     _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
 

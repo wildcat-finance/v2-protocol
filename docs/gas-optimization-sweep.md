@@ -86,6 +86,8 @@ the actual evidence.
 | G-20 | Sanctions sentinel | Move the escrow constructor handoff from persistent to transient state | Medium    | Accepted for a new sentinel deployment |
 | G-21 | Hooks factories    | Pack each hooks administrator and list index into one association word | Medium    | Accepted for new factory deployments   |
 | G-22 | Role providers     | Hash address leaves and probe provider type in fixed scratch words     | Low       | Accepted                               |
+| G-23 | Access-list roles  | Reuse the administrator already checked by the mutation entry point    | Low       | Accepted                               |
+| G-24 | Open/fixed hooks   | Skip the fresh zero write when deposit-hook dispatch is disabled       | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -427,6 +429,39 @@ Measured against the preceding accepted commit:
 - `MerkleRoleProvider` initcode and runtime each shrink by 130 bytes;
 - `FixedTermHooks` runtime shrinks by 100 bytes and `PeriodicTermHooks` by 91 bytes, with their
   initcodes shrinking by 203 and 194 bytes respectively; and
+- public ABIs and storage declarations are unchanged.
+
+### Access-list administrator reuse (G-23)
+
+The access-list provider's mutation entry points already prove that `msg.sender` is the current
+administrator before touching membership. They now carry that checked address into the event
+helpers instead of loading the same storage slot again for every member. Constructor inserts use
+the constructor's validated administrator argument.
+
+Measured against the preceding accepted commit:
+
+- the single-member add-and-remove test saves 179 gas across two mutations, and the two-member
+  batch test saves 358 gas across four mutations;
+- one-member typed and generic factory deployments each save 2,165 gas, while deploying two
+  caller-namespaced providers saves 4,310 gas;
+- provider initcode shrinks by 17 bytes and runtime by ten bytes; the factory that embeds the
+  provider creation code shrinks by 17 bytes in both initcode and runtime; and
+- public ABIs and storage declarations are unchanged.
+
+### Disabled deposit-hook zero-write removal (G-24)
+
+Open- and fixed-term hook instances no longer write `false` into a fresh private dispatch mapping
+when the final market configuration does not use the deposit hook. A true value is still stored
+exactly as before. This relies on the existing factory invariant that `onCreateMarket` runs once
+for a newly deployed market address; a second callback for the same address is not a valid market
+deployment path.
+
+Measured against the preceding accepted commit:
+
+- all 232 focused access-list, factory, open-term, and fixed-term tests pass;
+- the disabled-dispatch creation path saves roughly 330 gas;
+- `OpenTermHooks` initcode and runtime each shrink by 21 bytes, while `FixedTermHooks` shrinks by
+  nine bytes in each; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
