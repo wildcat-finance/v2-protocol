@@ -24,7 +24,7 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
   function requestAdministratorTransfer(
     address newAdministrator
   ) external override onlyAdministrator {
-    if (newAdministrator == address(0) || newAdministrator == administrator) {
+    if (newAdministrator == address(0) || newAdministrator == msg.sender) {
       revert InvalidAdministratorTransferTarget();
     }
     address previousPendingAdministrator = pendingAdministrator;

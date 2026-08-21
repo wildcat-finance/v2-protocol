@@ -94,6 +94,7 @@ the actual evidence.
 | G-28 | Balance providers  | Read ERC-20 and ERC-4626 balances through exact fixed-shape calls      | Low       | Accepted                               |
 | G-29 | NFT providers      | Read ERC-721 and ERC-1155 balances through exact fixed-shape calls     | Low       | Accepted                               |
 | G-30 | Withdrawal loop    | Use a proved unchecked increment while processing unpaid batches      | Low       | Accepted                               |
+| G-31 | Managed providers  | Reuse the administrator proved by the transfer-request modifier        | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -577,6 +578,21 @@ Measured against the preceding accepted commit:
 - one-batch paths save 71 to 103 gas, while two-batch paths save 151 gas;
 - the early closed-market revert costs 2 additional gas;
 - standard, withdrawal-only, and revolving market initcode/runtime each shrink by 16 bytes; and
+- public ABIs and storage declarations are unchanged.
+
+### Managed-provider administrator reuse (G-31)
+
+An administrator-transfer request previously loaded `administrator` in `onlyAdministrator`, then
+loaded it again to reject a transfer back to the current administrator. With no external call or
+state change between those operations, the already-validated `msg.sender` is the same value.
+
+Measured against the preceding accepted commit:
+
+- all 55 focused access-list, Merkle, and factory cases pass;
+- administrator-transfer paths save 12 to 31 gas in the focused tests;
+- access-list and Merkle providers, plus both embedding factories, shrink by 5 bytes in initcode
+  and runtime;
+- each direct or factory-created provider deployment therefore saves about 1,000 gas; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
