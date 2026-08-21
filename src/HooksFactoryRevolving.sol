@@ -68,18 +68,11 @@ contract HooksFactoryRevolving is
   mapping(address administrator => address[] hooksInstances)
     internal _hooksInstancesByAdministrator;
 
-  /// @dev Current administrator for each hooks instance deployed by this factory.
-  mapping(address hooksInstance => address administrator)
-    public
-    override getHooksAdministrator;
-
-  /// @dev Position of each hooks instance in its administrator's array.
-  mapping(address hooksInstance => uint256 index) internal _hooksInstanceIndex;
+  /// @dev Current administrator and list index, packed into one word per hooks instance.
+  mapping(address hooksInstance => uint256 association) internal _hooksInstanceAssociations;
 
   /// @dev Monotonic deployment nonce used in hook CREATE2 salts.
-  mapping(address administrator => uint256 nonce)
-    public
-    override getHooksInstanceDeploymentNonce;
+  mapping(address administrator => uint256 nonce) public override getHooksInstanceDeploymentNonce;
 
   /**
    * @dev Mapping from hooks template to markets created with it.
@@ -147,9 +140,7 @@ contract HooksFactoryRevolving is
 
   function _resolveBorrowerPrincipal(address borrower) internal view returns (address principal) {
     address registry = borrowerIdentityRegistry;
-    uint256 resolveBorrowerSelector = uint32(
-      IBorrowerIdentityRegistry.resolveBorrower.selector
-    );
+    uint256 resolveBorrowerSelector = uint32(IBorrowerIdentityRegistry.resolveBorrower.selector);
     uint256 notApprovedBorrowerSelector = uint32(NotApprovedBorrower.selector);
     assembly ('memory-safe') {
       mstore(0, resolveBorrowerSelector)
@@ -391,6 +382,20 @@ contract HooksFactoryRevolving is
     return _hooksInstancesByAdministrator[borrower].length;
   }
 
+  function getHooksAdministrator(
+    address hooksInstance
+  ) external view override returns (address administrator) {
+    administrator = address(uint160(_hooksInstanceAssociations[hooksInstance]));
+  }
+
+  function _encodeHooksInstanceAssociation(
+    address administrator,
+    uint256 index
+  ) internal pure returns (uint256 association) {
+    if (index > type(uint96).max) revert InvalidHooksInstanceAssociation();
+    association = uint160(administrator) | (index << 160);
+  }
+
   /**
    * @dev Moves a hooks instance to its new administrator's array. Removal uses
    *      swap-and-pop, so an administrator's enumeration is not ordered.
@@ -403,10 +408,13 @@ contract HooksFactoryRevolving is
     if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
       revert HooksInstanceNotFound();
     }
+    uint256 association = _hooksInstanceAssociations[hooksInstance];
+    address currentAdministrator = address(uint160(association));
+    uint256 indexToRemove = association >> 160;
     if (
       previousAdministrator == newAdministrator ||
       newAdministrator == address(0) ||
-      getHooksAdministrator[hooksInstance] != previousAdministrator ||
+      currentAdministrator != previousAdministrator ||
       IHooksAdministrator(hooksInstance).administrator() != newAdministrator ||
       IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0) ||
       !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
@@ -417,7 +425,6 @@ contract HooksFactoryRevolving is
     address[] storage previousHooksInstances = _hooksInstancesByAdministrator[
       previousAdministrator
     ];
-    uint256 indexToRemove = _hooksInstanceIndex[hooksInstance];
     uint256 previousCount = previousHooksInstances.length;
     if (indexToRemove >= previousCount || previousHooksInstances[indexToRemove] != hooksInstance) {
       revert InvalidHooksInstanceAssociation();
@@ -426,13 +433,18 @@ contract HooksFactoryRevolving is
     if (indexToRemove != lastIndex) {
       address movedHooksInstance = previousHooksInstances[lastIndex];
       previousHooksInstances[indexToRemove] = movedHooksInstance;
-      _hooksInstanceIndex[movedHooksInstance] = indexToRemove;
+      _hooksInstanceAssociations[movedHooksInstance] = _encodeHooksInstanceAssociation(
+        previousAdministrator,
+        indexToRemove
+      );
     }
     previousHooksInstances.pop();
 
-    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[newAdministrator].length;
+    _hooksInstanceAssociations[hooksInstance] = _encodeHooksInstanceAssociation(
+      newAdministrator,
+      _hooksInstancesByAdministrator[newAdministrator].length
+    );
     _hooksInstancesByAdministrator[newAdministrator].push(hooksInstance);
-    getHooksAdministrator[hooksInstance] = newAdministrator;
 
     emit HooksInstanceAdministratorTransferred(
       hooksInstance,
@@ -486,9 +498,11 @@ contract HooksFactoryRevolving is
       }
     }
     getHooksInstanceDeploymentNonce[administrator] = deploymentNonce + 1;
-    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[administrator].length;
+    _hooksInstanceAssociations[hooksInstance] = _encodeHooksInstanceAssociation(
+      administrator,
+      _hooksInstancesByAdministrator[administrator].length
+    );
     _hooksInstancesByAdministrator[administrator].push(hooksInstance);
-    getHooksAdministrator[hooksInstance] = administrator;
 
     emit HooksInstanceDeployed(
       hooksInstance,
@@ -503,12 +517,7 @@ contract HooksFactoryRevolving is
       RoleProvider[] memory pullProviders,
       RoleProvider[] memory pushProviders
     ) = getHooksInstanceRoleProviders(hooksInstance);
-    emit HooksInstanceRoleProviders(
-      hooksInstance,
-      metadataAvailable,
-      pullProviders,
-      pushProviders
-    );
+    emit HooksInstanceRoleProviders(hooksInstance, metadataAvailable, pullProviders, pushProviders);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
 
@@ -827,11 +836,7 @@ contract HooksFactoryRevolving is
         commitmentFeeBips: _decodeMarketData(marketData)
       });
     // `_deployHooksInstance` reverts if the template does not exist or is disabled.
-    hooksInstance = _deployHooksInstance(
-      borrowerPrincipal,
-      hooksTemplate,
-      hooksConstructorArgs
-    );
+    hooksInstance = _deployHooksInstance(borrowerPrincipal, hooksTemplate, hooksConstructorArgs);
     DeployMarketInputs memory marketInputs = parameters;
     marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
     runtimeParams.requestedHooks = marketInputs.hooks;

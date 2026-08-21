@@ -84,6 +84,7 @@ the actual evidence.
 | G-18 | Market lens        | Reuse hook kind and hash bounded hook versions without string decoding | Medium    | Accepted                               |
 | G-19 | Market lens        | Skip pending-administrator probes for unmanaged role providers         | Low       | Accepted                               |
 | G-20 | Sanctions sentinel | Move the escrow constructor handoff from persistent to transient state | Medium    | Accepted for a new sentinel deployment |
+| G-21 | Hooks factories    | Pack each hooks administrator and list index into one association word | Medium    | Accepted for new factory deployments   |
 
 ## Accepted Batches
 
@@ -378,6 +379,32 @@ This only applies to a newly deployed sentinel. The current deployment is not up
 the v2.5 deployment scripts presently reuse it. Opting into this change therefore means deploying
 a new sentinel and wiring new factories, markets, and wrappers to it. Existing escrows remain in
 the old sentinel's CREATE2 namespace, while the new sentinel produces a new address namespace.
+
+### Packed hooks-instance associations (G-21)
+
+Both hooks factories kept each instance's current administrator and its position in that
+administrator's array in separate mapping words. The values are one association and always move
+together, so they now share a word: the administrator uses 160 bits and the array index uses the
+remaining 96. The explicit `getHooksAdministrator` function preserves the generated mapping
+getter's exact ABI, including its named return value.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- the first index-zero hooks instance saves 2,309 gas per factory in the direct association test;
+- a later instance retained at a nonzero index saves 22,209 gas, mostly by avoiding a second
+  zero-to-nonzero storage slot;
+- the two-factory administrator-transfer test saves 5,732 gas, while the swap-and-pop test saves
+  11,172 gas across the deployments and transfers it exercises;
+- all 103 standard factory, revolving factory, borrower origination, and administrator-transfer
+  tests pass, including moving the first of two instances and then moving the swapped instance;
+- each factory grows by 16 runtime/initcode bytes, adding roughly 3,200 gas to its one-time code
+  deposit and recovering that increase with its second hooks-instance deployment; and
+- both factory ABI hashes are unchanged. Their storage layouts deliberately change, so the packed
+  representation only applies to newly deployed factories.
+
+The 96-bit index is range-checked before packing. Reaching that bound is not operationally
+possible, but the check keeps a corrupted or future alternate insertion path from silently
+truncating the association.
 
 ## Rejected Candidates
 
