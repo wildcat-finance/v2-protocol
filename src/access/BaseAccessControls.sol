@@ -260,16 +260,27 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   function _isPullProvider(address providerAddress) internal view returns (bool isPullProvider) {
-    (bool success, bytes memory data) = providerAddress.staticcall(
-      abi.encodeCall(IRoleProvider.isPullProvider, ())
-    );
-    if (success && data.length >= 0x20) {
-      uint256 result;
-      assembly {
-        result := mload(add(data, 0x20))
-      }
-      // Only a clean boolean true response makes the provider pull-capable.
-      isPullProvider = result == 1;
+    // make this a low-end four-byte number; the Yul shift below moves it into calldata position.
+    uint256 selectorWord = uint32(IRoleProvider.isPullProvider.selector);
+    assembly {
+      // 0x00 is Solidity scratch space. shifting left by 224 bits, or 28 bytes, puts the selector
+      // in the first four bytes of that word so staticcall can read it directly from 0x00.
+      mstore(0x00, shl(224, selectorWord))
+
+      // staticcall reads those four input bytes before writing up to one return word back over
+      // them, so the same scratch word can safely handle both sides of the call.
+      let success := staticcall(gas(), providerAddress, 0x00, 0x04, 0x00, 0x20)
+
+      // keep this fail closed. only a successful call with a complete first word containing
+      // exactly one makes this a pull provider. reverts, empty or short responses, false, and
+      // dirty bools all become push providers; harmless trailing data is ignored.
+      //
+      // Yul's and evaluates every term, but success and return size still gate the final value.
+      // stale scratch data can't turn a failed or short call into true.
+      isPullProvider := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), eq(mload(0x00), 1))
+      )
     }
   }
 
