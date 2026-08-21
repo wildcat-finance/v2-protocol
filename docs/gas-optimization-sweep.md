@@ -102,6 +102,7 @@ the actual evidence.
 | G-36 | Identity registry  | Bound ArchController owner and borrower probes                        | Low       | Accepted                               |
 | G-37 | ERC-4626 wrapper  | Bound sanctions, escrow, and transfer-policy probes                   | Low       | Accepted                               |
 | G-38 | ERC-4626 wrapper  | Share bounded one-word market readers                                | Low       | Accepted                               |
+| G-39 | Sanctions escrow  | Bound asset-balance and sentinel probes                              | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -738,6 +739,24 @@ Measured against G-37:
   query saves 2,581 gas;
 - wrapper initcode shrinks by 3,230 bytes and runtime by 2,915 bytes, cutting each wrapper
   deployment by roughly 583,000 gas; the embedding factory also shrinks by 3,230 bytes; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded sanctions-escrow probes (G-39)
+
+The sanctions escrow now reads its asset balance and release status with exact fixed-shape calls.
+Asset and sentinel reverts still bubble, short results still revert, the sanctions boolean still
+requires a clean word, and harmless trailing return data remains accepted. The release path also
+uses the already-cached asset address for its transfer.
+
+Measured against the preceding accepted commit:
+
+- all 29 sentinel and escrow cases pass, including new short, dirty, oversized-valid, and
+  reverting-response regressions;
+- representative balance and release flows save 35,724 to 36,364 gas including deployment;
+- escrow initcode and runtime each shrink by 177 bytes, saving roughly 35,400 gas on every escrow
+  deployment;
+- the sentinel that embeds the escrow creation code also shrinks by 177 bytes, saving another
+  roughly 35,400 gas on the one-time sentinel deployment; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

@@ -76,6 +76,30 @@ contract EscrowTest is Test {
     assertEq(escrow.balance(), 1);
   }
 
+  function testBalanceResponseValidation() public {
+    address borrower = address(1);
+    address account = address(2);
+    address asset = address(0xA55E7);
+    WildcatSanctionsEscrow escrow = WildcatSanctionsEscrow(
+      sentinel.createEscrow(borrower, account, asset)
+    );
+    bytes memory callData = abi.encodeWithSignature('balanceOf(address)', address(escrow));
+
+    vm.mockCall(asset, callData, hex'01');
+    vm.expectRevert();
+    escrow.balance();
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(asset, callData, revertData);
+    vm.expectRevert(revertData);
+    escrow.balance();
+    vm.clearMockedCalls();
+
+    vm.mockCall(asset, callData, bytes.concat(abi.encode(uint256(42)), hex'deadbeef'));
+    assertEq(escrow.balance(), 42);
+  }
+
   function testFuzzBalance(
     address borrower,
     address account,
@@ -103,6 +127,40 @@ contract EscrowTest is Test {
     assertEq(escrow.canReleaseEscrow(), true);
     MockChainalysis(address(SanctionsList)).sanction(account);
     assertEq(escrow.canReleaseEscrow(), false);
+  }
+
+  function testCanReleaseEscrowResponseValidation() public {
+    address borrower = address(1);
+    address account = address(2);
+    address asset = address(3);
+    WildcatSanctionsEscrow escrow = WildcatSanctionsEscrow(
+      sentinel.createEscrow(borrower, account, asset)
+    );
+    bytes memory callData = abi.encodeWithSignature(
+      'isSanctioned(address,address)',
+      borrower,
+      account
+    );
+    address sentinelAddress = address(sentinel);
+
+    vm.mockCall(sentinelAddress, callData, hex'01');
+    vm.expectRevert();
+    escrow.canReleaseEscrow();
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinelAddress, callData, abi.encode(uint256(2)));
+    vm.expectRevert();
+    escrow.canReleaseEscrow();
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(sentinelAddress, callData, revertData);
+    vm.expectRevert(revertData);
+    escrow.canReleaseEscrow();
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinelAddress, callData, bytes.concat(abi.encode(true), hex'deadbeef'));
+    assertFalse(escrow.canReleaseEscrow());
   }
 
   function testFuzzCanReleaseEscrow(
