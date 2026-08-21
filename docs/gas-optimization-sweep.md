@@ -105,6 +105,7 @@ the actual evidence.
 | G-39 | Sanctions escrow   | Bound asset-balance and sentinel probes                             | Low       | Accepted                               |
 | G-40 | Hooks factories    | Share bounded controller and administrator probes                  | Low       | Accepted                               |
 | G-41 | Market constructor | Bound the borrower-registration probe                              | Low       | Accepted                               |
+| G-42 | Access controls    | Bound factory and controller reads during administrator transfer  | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -798,6 +799,24 @@ Measured against the preceding accepted commit:
   markets and 25,000 gas for revolving markets;
 - standard and revolving market initcode shrink by 99 and 125 bytes, while both runtime sizes
   remain unchanged; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded hook administrator-transfer probes (G-42)
+
+Administrator-transfer validation now reads the factory's ArchController and the target's
+borrower-registration flag through the shared fixed-shape readers. The two-hop trust check is
+unchanged: hooks still resolve the controller from their deploying factory instead of accepting
+one from the transfer caller, and both external-call failure modes retain Solidity's decoding
+semantics.
+
+Measured against the preceding accepted commit:
+
+- all 76 focused administrator-transfer cases pass across open, fixed, and periodic hooks;
+- each transfer validation saves 619 gas, and a normal request-plus-accept sequence saves 1,241
+  gas in the focused tests;
+- open-term and fixed-term hook initcode/runtime each shrink by 111 bytes, while periodic-term
+  hook initcode/runtime shrink by 105 bytes;
+- the smaller runtimes save roughly 21,000 to 22,200 gas on every hook-instance deployment; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

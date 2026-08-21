@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import '../libraries/BoolUtils.sol';
+import '../libraries/LibFixedCall.sol';
 import '../types/RoleProvider.sol';
 import '../types/LenderStatus.sol';
 import './IRoleProvider.sol';
@@ -171,8 +172,17 @@ contract BaseAccessControls is IHooksAdministrator {
     if (newAdministrator == address(0) || newAdministrator == administrator) {
       revert InvalidAdministratorTransferTarget();
     }
-    address archController = IHooksFactoryAdministratorCallback(_hooksFactory).archController();
-    if (!IWildcatArchController(archController).isRegisteredBorrower(newAdministrator)) {
+    address archController = LibFixedCall.readAddress(
+      _hooksFactory,
+      IHooksFactoryAdministratorCallback.archController.selector
+    );
+    if (
+      !LibFixedCall.readBool(
+        archController,
+        IWildcatArchController.isRegisteredBorrower.selector,
+        newAdministrator
+      )
+    ) {
       revert AdministratorNotRegistered();
     }
   }
