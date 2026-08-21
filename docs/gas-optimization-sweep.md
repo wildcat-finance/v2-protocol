@@ -104,6 +104,7 @@ the actual evidence.
 | G-38 | ERC-4626 wrapper   | Share bounded one-word market readers                               | Low       | Accepted                               |
 | G-39 | Sanctions escrow   | Bound asset-balance and sentinel probes                             | Low       | Accepted                               |
 | G-40 | Hooks factories    | Share bounded controller and administrator probes                  | Low       | Accepted                               |
+| G-41 | Market constructor | Bound the borrower-registration probe                              | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -780,6 +781,23 @@ Measured against the preceding accepted commit:
   deployment paths;
 - standard factory initcode/runtime shrink by 515/364 bytes, while revolving factory
   initcode/runtime shrink by 500/349 bytes; and
+- public ABIs and storage declarations are unchanged.
+
+### Bounded market borrower probe (G-41)
+
+The shared market constructor now checks the borrower principal through the same bounded,
+clean-boolean reader used by the factories. The zero-principal short circuit is unchanged, target
+reverts still bubble, short or dirty results still revert, and valid results with trailing data
+remain accepted.
+
+Measured against the preceding accepted commit:
+
+- all 143 focused standard, revolving, factory, and constructor cases pass;
+- standard and revolving market deployments save about 247 and 289 gas per market;
+- the one-time paths that store each market's creation code save about 19,800 gas for standard
+  markets and 25,000 gas for revolving markets;
+- standard and revolving market initcode shrink by 99 and 125 bytes, while both runtime sizes
+  remain unchanged; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

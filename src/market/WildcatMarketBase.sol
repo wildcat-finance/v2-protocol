@@ -12,6 +12,7 @@ import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
 import '../libraries/FunctionTypeCasts.sol';
 import '../libraries/LibERC20.sol';
+import '../libraries/LibFixedCall.sol';
 import '../types/HooksConfig.sol';
 
 contract WildcatMarketBase is
@@ -327,7 +328,11 @@ contract WildcatMarketBase is
     }
     if (
       parameters.borrowerPrincipal == address(0) ||
-      !IWildcatArchController(archController_).isRegisteredBorrower(parameters.borrowerPrincipal)
+      !LibFixedCall.readBool(
+        archController_,
+        IWildcatArchController.isRegisteredBorrower.selector,
+        parameters.borrowerPrincipal
+      )
     ) {
       revert BorrowerPrincipalNotRegistered();
     }
