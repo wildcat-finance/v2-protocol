@@ -114,6 +114,28 @@ contract ERC1155RoleProviderTest is BaseMarketTest {
     assertEq(provider.getCredential(unapprovedLender), 0, 'missing credential');
   }
 
+  function test_getCredential_bubbles_token_revert() external {
+    RevertingERC1155BalanceToken revertingToken = new RevertingERC1155BalanceToken();
+    ERC1155RoleProvider revertingProvider = new ERC1155RoleProvider(
+      address(revertingToken),
+      tokenId,
+      false
+    );
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', 'BALANCE_REVERTED'));
+    revertingProvider.getCredential(approvedLender);
+  }
+
+  function test_getCredential_reverts_on_short_balance_response() external {
+    vm.mockCall(
+      address(token),
+      abi.encodeWithSelector(IERC1155BalanceOf.balanceOf.selector, approvedLender, tokenId),
+      new bytes(31)
+    );
+    vm.expectRevert();
+    provider.getCredential(approvedLender);
+    vm.clearMockedCalls();
+  }
+
   function test_deposit_allows_erc1155_holder() external {
     _deposit(approvedLender, 1e18, false);
   }

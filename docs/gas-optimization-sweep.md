@@ -92,6 +92,7 @@ the actual evidence.
 | G-26 | Token providers    | Share a bounded, clean-boolean ERC-165 interface probe                 | Low       | Accepted                               |
 | G-27 | SBT providers      | Read ownership and token state through bounded one-word probes         | Low       | Accepted                               |
 | G-28 | Balance providers  | Read ERC-20 and ERC-4626 balances through exact fixed-shape calls      | Low       | Accepted                               |
+| G-29 | NFT providers      | Read ERC-721 and ERC-1155 balances through exact fixed-shape calls     | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -540,6 +541,25 @@ Measured against the preceding accepted commit:
 - ordinary factory-created ERC-20 and ERC-4626 providers deploy 27,610 and 36,108 gas cheaper;
 - ERC-20 provider and factory initcode/runtime shrink by 137 bytes;
 - ERC-4626 provider and factory initcode/runtime shrink by 179 bytes; and
+- public ABIs and storage declarations are unchanged.
+
+### Fixed-shape NFT balance reads (G-29)
+
+The ERC-721 and ERC-1155 providers now use the same exact-call path for their runtime balance
+queries. The ERC-1155 form builds its second argument in scratch memory and restores Solidity's
+free-memory-pointer word before returning. The property suite caught the missing restore in the
+first prototype, so the final regression surface includes allocation after arbitrary token IDs.
+Target revert data and short-response behavior remain unchanged for direct provider callers.
+
+Measured against the preceding accepted commit:
+
+- all 56 focused provider, property, and factory cases pass, including direct-call error and
+  short-response regressions;
+- ordinary ERC-721 credential paths save 175 to 451 gas per market interaction;
+- ordinary ERC-1155 credential paths save 193 to 531 gas per market interaction;
+- factory-created ERC-721 and ERC-1155 providers deploy 27,605 and 28,407 gas cheaper;
+- ERC-721 provider and factory initcode/runtime shrink by 137 bytes;
+- ERC-1155 provider and factory initcode/runtime shrink by 141 bytes; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates

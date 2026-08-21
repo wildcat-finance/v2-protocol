@@ -110,6 +110,27 @@ contract ERC721RoleProviderTest is BaseMarketTest {
     assertEq(provider.getCredential(unapprovedLender), 0, 'missing credential');
   }
 
+  function test_getCredential_bubbles_token_revert() external {
+    RevertingERC721BalanceToken revertingToken = new RevertingERC721BalanceToken();
+    ERC721RoleProvider revertingProvider = new ERC721RoleProvider(
+      address(revertingToken),
+      false
+    );
+    vm.expectRevert(abi.encodeWithSignature('Error(string)', 'BALANCE_REVERTED'));
+    revertingProvider.getCredential(approvedLender);
+  }
+
+  function test_getCredential_reverts_on_short_balance_response() external {
+    vm.mockCall(
+      address(token),
+      abi.encodeWithSelector(IERC721BalanceOf.balanceOf.selector, approvedLender),
+      new bytes(31)
+    );
+    vm.expectRevert();
+    provider.getCredential(approvedLender);
+    vm.clearMockedCalls();
+  }
+
   function test_deposit_allows_erc721_holder() external {
     _deposit(approvedLender, 1e18, false);
   }

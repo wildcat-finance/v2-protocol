@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import '../libraries/SafeCastLib.sol';
 import './IERC1155RoleProvider.sol';
-import { ERC165QueryLib, IERC1155BalanceOf } from './TokenInterfaces.sol';
+import { ERC165QueryLib, IERC1155BalanceOf, TokenQueryLib } from './TokenInterfaces.sol';
 
 using SafeCastLib for uint256;
 
@@ -42,7 +42,13 @@ contract ERC1155RoleProvider is IERC1155RoleProvider {
   }
 
   function _credentialTimestamp(address account) internal view returns (uint32) {
-    if (IERC1155BalanceOf(token).balanceOf(account, tokenId) > 0) {
+    uint256 balance = TokenQueryLib.readWordOrRevert(
+      token,
+      IERC1155BalanceOf.balanceOf.selector,
+      uint160(account),
+      tokenId
+    );
+    if (balance > 0) {
       return block.timestamp.toUint32();
     }
     return 0;
