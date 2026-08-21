@@ -234,6 +234,20 @@ contract Wildcat4626WrapperGuardsTest is Test {
     new Wildcat4626Wrapper(address(badMarket));
   }
 
+  function test_constructor_rejectsMalformedDecimals() external {
+    GuardMockMarket badMarket = new GuardMockMarket(6, BORROWER, address(sanctionsSentinel));
+    bytes memory callData = abi.encodeWithSignature('decimals()');
+
+    vm.mockCall(address(badMarket), callData, hex'01');
+    vm.expectRevert();
+    new Wildcat4626Wrapper(address(badMarket));
+    vm.clearMockedCalls();
+
+    vm.mockCall(address(badMarket), callData, abi.encode(uint256(type(uint8).max) + 1));
+    vm.expectRevert();
+    new Wildcat4626Wrapper(address(badMarket));
+  }
+
   function test_metadata_usesSixDecimalMarket() external view {
     assertEq(wrapper.decimals(), 6, 'decimals');
     assertEq(wrapper.name(), 'HEX6 [4626 Vault Shares]', 'name');
@@ -342,6 +356,68 @@ contract Wildcat4626WrapperGuardsTest is Test {
 
     vm.mockCall(sentinel, callData, bytes.concat(abi.encode(true), hex'deadbeef'));
     assertEq(wrapper.maxRedeem(HOLDER), 0, 'sanctioned max redeem');
+  }
+
+  function test_marketWordResponseValidation() external {
+    bytes memory callData = abi.encodeWithSignature('scaleFactor()');
+    address marketAddress = address(market);
+
+    vm.mockCall(marketAddress, callData, hex'01');
+    vm.expectRevert();
+    wrapper.convertToShares(UNIT);
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(marketAddress, callData, revertData);
+    vm.expectRevert(revertData);
+    wrapper.convertToShares(UNIT);
+    vm.clearMockedCalls();
+
+    vm.mockCall(marketAddress, callData, bytes.concat(abi.encode(RAY), hex'deadbeef'));
+    assertEq(wrapper.convertToShares(UNIT), UNIT, 'shares');
+  }
+
+  function test_marketAccountWordResponseValidation() external {
+    bytes memory callData = abi.encodeWithSignature('balanceOf(address)', address(wrapper));
+    address marketAddress = address(market);
+
+    vm.mockCall(marketAddress, callData, hex'01');
+    vm.expectRevert();
+    wrapper.totalAssets();
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(marketAddress, callData, revertData);
+    vm.expectRevert(revertData);
+    wrapper.totalAssets();
+    vm.clearMockedCalls();
+
+    vm.mockCall(marketAddress, callData, bytes.concat(abi.encode(UNIT), hex'deadbeef'));
+    assertEq(wrapper.totalAssets(), UNIT, 'assets');
+  }
+
+  function test_marketAddressResponseValidation() external {
+    bytes memory callData = abi.encodeWithSignature('borrower()');
+    address marketAddress = address(market);
+
+    vm.mockCall(marketAddress, callData, hex'01');
+    vm.expectRevert();
+    wrapper.marketOwner();
+    vm.clearMockedCalls();
+
+    vm.mockCall(marketAddress, callData, abi.encode((uint256(1) << 160) | uint160(BORROWER)));
+    vm.expectRevert();
+    wrapper.marketOwner();
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(marketAddress, callData, revertData);
+    vm.expectRevert(revertData);
+    wrapper.marketOwner();
+    vm.clearMockedCalls();
+
+    vm.mockCall(marketAddress, callData, bytes.concat(abi.encode(BORROWER), hex'deadbeef'));
+    assertEq(wrapper.marketOwner(), BORROWER, 'borrower');
   }
 
   function test_zeroAccountSkipsBorrowerPrincipalProbe() external {
