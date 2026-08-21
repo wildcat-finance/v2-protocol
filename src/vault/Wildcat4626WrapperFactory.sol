@@ -107,18 +107,39 @@ contract Wildcat4626WrapperFactory {
   function _validateTransferPolicy(address market) internal view returns (bool) {
     HooksConfig marketHooks = IWrapperAwareMarket(market).hooks();
     address hooksAddress = marketHooks.hooksAddress();
-    IMarketTransferPolicy transferPolicy = IMarketTransferPolicy(hooksAddress);
-    try transferPolicy.isMarketTransferDisabled(market) returns (bool transfersDisabled) {
-      // ask for both methods the wrapper needs. supporting half the policy interface would
-      // just move this failure into maxDeposit later.
-      try transferPolicy.isMarketTransferRecipientAllowed(market, address(this)) returns (bool) {
-        return transfersDisabled;
-      } catch {
-        revert UnsupportedMarketTransferPolicy(market, hooksAddress);
-      }
-    } catch {
-      revert UnsupportedMarketTransferPolicy(market, hooksAddress);
+    bool valid;
+    bool transfersDisabled;
+    uint256 disabledSelector = uint32(IMarketTransferPolicy.isMarketTransferDisabled.selector);
+    assembly {
+      mstore(0x00, disabledSelector)
+      mstore(0x20, market)
+      let success := staticcall(gas(), hooksAddress, 0x1c, 0x24, 0x00, 0x20)
+      transfersDisabled := mload(0x00)
+      valid := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), iszero(gt(transfersDisabled, 1)))
+      )
     }
+    if (!valid) revert UnsupportedMarketTransferPolicy(market, hooksAddress);
+
+    uint256 recipientSelector = uint32(
+      IMarketTransferPolicy.isMarketTransferRecipientAllowed.selector
+    );
+    assembly {
+      let freeMemoryPointer := mload(0x40)
+      mstore(0x00, recipientSelector)
+      mstore(0x20, market)
+      mstore(0x40, address())
+      let success := staticcall(gas(), hooksAddress, 0x1c, 0x44, 0x00, 0x20)
+      let result := mload(0x00)
+      valid := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), iszero(gt(result, 1)))
+      )
+      mstore(0x40, freeMemoryPointer)
+    }
+    if (!valid) revert UnsupportedMarketTransferPolicy(market, hooksAddress);
+    return transfersDisabled;
   }
 
   /// @notice Wrapper for `market`, whichever factory generation deployed it.

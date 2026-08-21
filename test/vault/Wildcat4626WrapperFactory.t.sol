@@ -130,6 +130,28 @@ contract IncompleteTransferPolicy {
   }
 }
 
+contract DirtyTransferDisabledPolicy {
+  fallback() external {
+    assembly {
+      mstore(0, 2)
+      return(0, 0x20)
+    }
+  }
+}
+
+contract DirtyRecipientPolicy {
+  function isMarketTransferDisabled(address) external pure returns (bool) {
+    return false;
+  }
+
+  fallback() external {
+    assembly {
+      mstore(0, 2)
+      return(0, 0x20)
+    }
+  }
+}
+
 /// @dev Mirrors the deployed v1 factory's semantics: duplicate creates revert.
 contract StubV1WrapperFactory {
   error WrapperAlreadyExists(address market);
@@ -409,6 +431,30 @@ contract Wildcat4626WrapperFactoryTest is Test {
     factory.createWrapper(address(market));
     assertEq(factory.wrapperForMarket(address(market)), address(0), 'wrapper recorded');
     assertEq(market.registeredWrapper(), address(0), 'wrapper registered');
+  }
+
+  function test_createWrapperRejectsDirtyTransferPolicyBooleans() external {
+    address dirtyDisabled = address(new DirtyTransferDisabledPolicy());
+    market.setHooksAddress(dirtyDisabled);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626WrapperFactory.UnsupportedMarketTransferPolicy.selector,
+        address(market),
+        dirtyDisabled
+      )
+    );
+    factory.createWrapper(address(market));
+
+    address dirtyRecipient = address(new DirtyRecipientPolicy());
+    market.setHooksAddress(dirtyRecipient);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626WrapperFactory.UnsupportedMarketTransferPolicy.selector,
+        address(market),
+        dirtyRecipient
+      )
+    );
+    factory.createWrapper(address(market));
   }
 
   function test_wrapperCannotBeDeployedOutsideCanonicalFactory() external {

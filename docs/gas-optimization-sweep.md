@@ -95,6 +95,7 @@ the actual evidence.
 | G-29 | NFT providers      | Read ERC-721 and ERC-1155 balances through exact fixed-shape calls     | Low       | Accepted                               |
 | G-30 | Withdrawal loop    | Use a proved unchecked increment while processing unpaid batches      | Low       | Accepted                               |
 | G-31 | Managed providers  | Reuse the administrator proved by the transfer-request modifier        | Low       | Accepted                               |
+| G-32 | Wrapper factory    | Validate transfer-policy booleans with bounded fixed-output calls      | Low       | Accepted                               |
 
 ## Accepted Batches
 
@@ -593,6 +594,23 @@ Measured against the preceding accepted commit:
 - access-list and Merkle providers, plus both embedding factories, shrink by 5 bytes in initcode
   and runtime;
 - each direct or factory-created provider deployment therefore saves about 1,000 gas; and
+- public ABIs and storage declarations are unchanged.
+
+### Fixed-output wrapper transfer-policy probes (G-32)
+
+Wrapper deployment now asks the hooks instance for both required transfer-policy booleans with
+exact calldata and one-word output buffers. Both results still require clean ABI booleans, and
+any revert, missing method, short response, or dirty value still maps to the factory's existing
+`UnsupportedMarketTransferPolicy` error. The bounded buffers also stop a hostile policy from
+forcing the factory to copy unbounded return data.
+
+Measured against the preceding accepted commit:
+
+- all 19 wrapper-factory tests pass, including new dirty-boolean regressions for both methods;
+- successful wrapper creation saves 662 gas;
+- transfer-disabled, incomplete-policy, and unsupported-policy rejections save 658, 457, and
+  126 gas;
+- factory initcode and runtime each shrink by 81 bytes, saving about 16,254 deployment gas; and
 - public ABIs and storage declarations are unchanged.
 
 ## Rejected Candidates
