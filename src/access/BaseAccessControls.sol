@@ -216,7 +216,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   /// @dev Administrator-only setter for this hooks instance name.
-  function setName(string memory _name) external onlyAdministrator {
+  function setName(string calldata _name) external onlyAdministrator {
     string memory previousName = name;
     name = _name;
     emit NameUpdated(msg.sender, previousName, _name);
@@ -544,7 +544,10 @@ contract BaseAccessControls is IHooksAdministrator {
    *      - the caller is the previous role provider, OR
    *      - the new expiry is later than the current expiry
    */
-  function grantRoles(address[] memory accounts, uint32[] memory roleGrantedTimestamps) external {
+  function grantRoles(
+    address[] calldata accounts,
+    uint32[] calldata roleGrantedTimestamps
+  ) external {
     RoleProvider callingProvider = _roleProviders[msg.sender];
 
     if (callingProvider.isNull()) revert ProviderNotFound();
@@ -723,12 +726,12 @@ contract BaseAccessControls is IHooksAdministrator {
   function _tryValidateCredential(
     LenderStatus memory status,
     address accountAddress,
-    bytes calldata hooksData
+    bytes calldata hooksData,
+    RoleProvider provider
   ) internal returns (bool) {
     uint validateSelector = uint32(IRoleProvider.validateCredential.selector);
-    address providerAddress = _readAddress(hooksData);
-    RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) return false;
+    address providerAddress = provider.providerAddress();
     uint credentialTimestamp;
     uint invalidCredentialReturnedSelector = uint32(InvalidCredentialReturned.selector);
     assembly {
@@ -839,7 +842,7 @@ contract BaseAccessControls is IHooksAdministrator {
       if (!provider.isNull() && provider.isPullProvider()) {
         pullProviderIndexToSkip = provider.pullProviderIndex();
       }
-      validCredential = _tryValidateCredential(status, accountAddress, hooksData);
+      validCredential = _tryValidateCredential(status, accountAddress, hooksData, provider);
     }
   }
 
@@ -957,9 +960,9 @@ contract BaseAccessControls is IHooksAdministrator {
     // Mark account as a known lender if they have a valid credential, are not
     // already known, and the function counts as a deposit.
     if (
-      canSetKnownLender.and(hasValidCredential).and(
-        !isKnownLenderOnMarket[accountAddress][msg.sender]
-      )
+      canSetKnownLender &&
+      hasValidCredential &&
+      !isKnownLenderOnMarket[accountAddress][msg.sender]
     ) {
       isKnownLenderOnMarket[accountAddress][msg.sender] = true;
       emit AccountMadeFirstDeposit(msg.sender, accountAddress);
