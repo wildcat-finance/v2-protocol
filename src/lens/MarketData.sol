@@ -268,7 +268,7 @@ library MarketDataLib {
 
   function fill(
     LenderAccountQueryResult memory result,
-    LenderAccountQuery memory query
+    LenderAccountQuery calldata query
   ) internal view {
     WildcatMarket market = WildcatMarket(query.market);
     result.market.fill(market);

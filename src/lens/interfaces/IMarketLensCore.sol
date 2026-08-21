@@ -10,19 +10,19 @@ interface IMarketLensCore {
   function getTokenInfo(address token) external view returns (TokenMetadata memory info);
 
   function getTokensInfo(
-    address[] memory tokens
+    address[] calldata tokens
   ) external view returns (TokenMetadata[] memory infos);
 
   function getMarketData(address market) external view returns (MarketData memory data);
 
   function getMarketsData(
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketData[] memory data);
 
   function getMarketDataV2(address market) external view returns (MarketDataV2_5 memory data);
 
   function getMarketsDataV2(
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketDataV2_5[] memory data);
 
   function getMarketDataWithLenderStatus(
@@ -32,7 +32,7 @@ interface IMarketLensCore {
 
   function getMarketsDataWithLenderStatus(
     address lender,
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketDataWithLenderStatus[] memory data);
 
   function getLenderAccountData(
@@ -42,20 +42,20 @@ interface IMarketLensCore {
 
   function getLenderAccountData(
     address lender,
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (LenderAccountData[] memory data);
 
   function getLenderAccountsData(
     address marketAddress,
-    address[] memory lenders
+    address[] calldata lenders
   ) external view returns (LenderAccountData[] memory data);
 
   function queryLenderAccount(
-    LenderAccountQuery memory query
+    LenderAccountQuery calldata query
   ) external view returns (LenderAccountQueryResult memory result);
 
   function queryLenderAccounts(
-    LenderAccountQuery[] memory queries
+    LenderAccountQuery[] calldata queries
   ) external view returns (LenderAccountQueryResult[] memory results);
 
   function getWithdrawalBatchData(
@@ -65,12 +65,12 @@ interface IMarketLensCore {
 
   function getWithdrawalBatchesData(
     address market,
-    uint32[] memory expiries
+    uint32[] calldata expiries
   ) external view returns (WithdrawalBatchData[] memory data);
 
   function getWithdrawalBatchesDataWithLenderStatus(
     address market,
-    uint32[] memory expiries,
+    uint32[] calldata expiries,
     address lender
   ) external view returns (WithdrawalBatchDataWithLenderStatus[] memory data);
 

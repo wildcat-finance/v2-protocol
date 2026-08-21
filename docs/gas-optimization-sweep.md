@@ -78,6 +78,7 @@ the actual evidence.
 | G-12 | ERC-4626 wrapper   | Cache principal checks and reuse measured scaled backing               | Low       | Accepted with explicit break-even             |
 | G-13 | Access controls    | Short-circuit known-lender checks and reuse provider mapping reads     | Low       | Accepted with G-04                            |
 | G-14 | Provider factories | Reuse CREATE2 initcode and hash deterministic addresses in scratch     | Medium    | Accepted                                      |
+| G-15 | Market lens        | Keep core helper batch inputs in calldata                              | Low       | Accepted                                      |
 
 ## Accepted Batches
 
@@ -251,6 +252,26 @@ Measured against the preceding accepted commit with seed `0x5eed`:
   deployments; and
 - public ABIs and storage declarations are unchanged. Provider addresses remain byte-for-byte
   compatible because both the constructor encoding and caller-namespaced salt are unchanged.
+
+### Lens core calldata reads (G-15)
+
+Dynamic batch inputs to the core lens helper now stay in calldata until each item is consumed.
+This covers token and market lists, lender lists, withdrawal expiries, and nested lender-account
+queries. The aggregation helper keeps its memory-based internals because those arrays are built
+from other contract calls rather than supplied by the RPC caller.
+
+Measured against the preceding accepted commit with seed `0x5eed`:
+
+- both complete lens suites pass: 68 tests across the core, live, facade, aggregation, legacy,
+  revolving, periodic, and multi-factory paths;
+- a single-market `getMarketsData` call saves 726 gas;
+- the bundled facade parity checks save 2,143 gas across token/market reads and 5,686 gas across
+  account/withdrawal reads;
+- `MarketLensCore` runtime and initcode shrink by 351 bytes;
+- the `MarketLens` facade runtime and initcode shrink by 415 bytes, increasing its EIP-170 margin
+  without changing delegation behavior; and
+- canonical ABI hashes for the facade and all three helpers are unchanged. No storage
+  declaration changed.
 
 ## Rejected Candidates
 
