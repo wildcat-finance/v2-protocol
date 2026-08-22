@@ -524,56 +524,23 @@ The standalone SphereX configuration family is complete:
 
 See `test-next/parity/spherex-config.md`.
 
-The first direct hooks-factory slice is complete:
+The direct standard/revolving hooks-factory family is complete:
 
-- nine runtime-matrix properties replace 25 standard/revolving constructor, registration,
-  template-management, fee-validation, disable, and template-pagination entries
-- all four invalid fee shapes, zero/max fee boundaries, permanent disable behavior, events, and
-  error selectors remain explicit
-- the in-progress factory suite currently emits 12,584 bytes of initcode
-- the full replacement checkpoint is 418 tests across 29 suites with zero inherited entries,
-  405,980 bytes of test-side initcode, and 397,380 bytes of runtime bytecode
+- one 25-property runtime matrix replaces all 86 direct factory entries
+- construction, registration, template administration, hook deployment, standard/revolving
+  market deployment, every rejection path, indexes, pagination, and protocol-fee propagation are
+  explicit
+- production factories, hooks, markets, ArchController, borrower identity registry, and stored
+  market initcode remain on the paths under test
+- dedicated test-side initcode falls from 274,238 to 43,398 bytes, an 84.18% reduction; runtime
+  bytecode falls from 245,720 to 43,363 bytes, an 82.35% reduction
+- the full replacement checkpoint is 434 tests across 29 suites with zero inherited entries,
+  436,794 bytes of test-side initcode, and 428,185 bytes of runtime bytecode
+- forced canonical compile-to-green is 83.28 seconds with a 2,600,456 KiB RSS peak
 
-Hook-instance, market-deployment, market pagination, and protocol-fee propagation behavior remain
-in the same factory migration. See `test-next/parity/hooks-factory-templates.md`.
-
-The hook-instance deployment portion is now complete as well:
-
-- two additional matrix properties replace all ten direct standard/revolving deployment entries
-- real OpenTerm constructor data verifies name/version and pull/push provider snapshot events and
-  state in both factories
-- borrower approval, missing/disabled templates, constructor failure, indexes, aliases, and
-  deployment nonces are explicit
-- the in-progress suite plus its failure artifact now emits 17,042 bytes of initcode
-- the full replacement checkpoint is 420 tests across 29 suites with zero inherited entries,
-  410,438 bytes of test-side initcode, and 401,829 bytes of runtime bytecode
-
-Market deployment, pagination, revolving market-data parsing, and protocol-fee propagation remain.
-
-The two factory market-deployment happy paths are complete:
-
-- two additional matrix properties replace six standard/revolving success entries
-- existing-hook and combined deployments use real OpenTerm hooks and real markets
-- CREATE2 prediction, all deployment events, hook data/flags, market configuration, origination
-  fees, indexes, borrower identity, and revolving commitment fees are explicit
-- the in-progress suite plus its failure artifact now emits 25,048 bytes of initcode
-- the full replacement checkpoint is 422 tests across 29 suites with zero inherited entries,
-  418,444 bytes of test-side initcode, and 409,835 bytes of runtime bytecode
-
-The market rejection matrix, pagination, revolving market-data parser, and fee propagation remain.
-
-The hooks-factory market rejection matrix and revolving parser are complete:
-
-- eight additional properties replace 32 direct/combined rejection and boundary entries
-- both factories now cover identity, hooks, salt, blacklist, 63-byte metadata, fee, duplicate,
-  disabled-template, stale-initcode, and combined rollback behavior
-- revolving payload length/version/commitment-fee validation is explicit and runs before combined
-  hook deployment
-- the in-progress suite plus failure artifact now emits 36,364 bytes of initcode
-- the full replacement checkpoint is 430 tests across 29 suites with zero inherited entries,
-  429,760 bytes of test-side initcode, and 421,151 bytes of runtime bytecode
-
-Only the final 13 market-pagination and protocol-fee propagation entries remain in this family.
+Accurate non-IR coverage is still compiler-blocked in `HooksFactoryRevolving.sol:882`; canonical
+via-IR validation is green and no coverage-only source patch is retained. See
+`test-next/parity/hooks-factory-templates.md`.
 
 ### Phase 2: migrate feature families
 

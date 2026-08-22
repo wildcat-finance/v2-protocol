@@ -69,4 +69,4 @@ Completed family ledgers live in `parity/`:
 - `sanctions.md`
 - `reentrancy-guard.md`
 - `spherex-config.md`
-- `hooks-factory-templates.md` (factory family in progress)
+- `hooks-factory-templates.md`

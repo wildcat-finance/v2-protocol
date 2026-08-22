@@ -40,7 +40,8 @@ file before the final cutover.
 - Forge does not credit `ReentrancyGuard.nonReentrant`'s `_clearReentrancyGuard()` source line.
   It reports `_clearReentrancyGuard` itself as executed, and repeated guarded calls in one test
   transaction prove the transient slot is cleared after each successful call.
-- The borrower-account origination and hooks-administrator transfer graphs cannot produce
-  accurate non-IR coverage after the SphereX patch: `HooksFactoryRevolving` is stack-too-deep,
-  and `--ir-minimum` fails Yul stack allocation. Canonical via-IR tests are green; exact coverage
-  is deferred to the dedicated factory migration, and no coverage-only source patch is retained.
+- The borrower-account origination, hooks-administrator transfer, and completed direct factory
+  graphs cannot produce accurate non-IR coverage after the SphereX patch:
+  `HooksFactoryRevolving.sol:882` is stack-too-deep, and `--ir-minimum` fails Yul stack
+  allocation. Canonical via-IR tests are green; exact factory source coverage remains unavailable
+  through Forge's current coverage compiler, and no coverage-only source patch is retained.

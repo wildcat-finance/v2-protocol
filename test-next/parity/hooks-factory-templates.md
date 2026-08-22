@@ -1,15 +1,21 @@
-# Hooks factory template-management parity
+# Hooks factories parity
 
-Status: standard and revolving factory construction, registration, template administration,
-hook-instance deployment, fee configuration, and template pagination are complete. Market
-deployment and fee propagation remain in progress in the same replacement suite.
+Status: complete.
 
 ## Family boundary
 
-This checkpoint covers 25 entries from `HooksFactoryTest` and `HooksFactoryRevolvingTest`: the
-shared template state machine, both factories' constructor/registration wiring, and template-list
-pagination. A second checkpoint covers all ten direct hook-instance deployment entries. It does
-not yet claim full parity for either legacy factory suite.
+This family covers all 86 direct entries from `HooksFactoryTest` and
+`HooksFactoryRevolvingTest`. One concrete suite runs both production factories at runtime, while
+keeping standard/revolving-specific behavior explicit inside the same property matrix.
+
+| Behavior slice                         | Legacy entries | Replacement entries |
+| -------------------------------------- | -------------: | ------------------: |
+| Construction and template management   |             25 |                   9 |
+| Hook-instance deployment               |             10 |                   2 |
+| Market-deployment happy paths          |              6 |                   2 |
+| Market rejection and revolving parsing |             32 |                   8 |
+| Market indexes and fee propagation     |             13 |                   4 |
+| **Total**                              |         **86** |              **25** |
 
 ## Property disposition
 
@@ -86,18 +92,35 @@ covers:
 The replacement strengthens several single-factory legacy cases by running the same rejection
 through both implementations and asserting state is unchanged after every failed path.
 
+## Market indexes and protocol-fee propagation
+
+Four final runtime-matrix properties replace the remaining 13 legacy entries. They preserve:
+
+- template and instance market indexes, counts, ordering, bounded pages, clamping, and every
+  empty-range shape
+- full-list and paged protocol-fee propagation through real standard and revolving markets
+- exact per-market fee-update events and untouched markets outside the selected page
+- empty-template and empty-page no-ops, invalid range rejection, unknown-template rejection, and
+  failed-market error normalization
+
 ## Canonical result
 
-All 21 properties pass at the fixed timestamp and seed. The suite uses canonical production
+All 25 properties pass at the fixed timestamp and seed. The suite uses canonical production
 factory artifacts, stored standard/revolving market initcode, the production ArchController and
-borrower identity registry, and an OpenTerm hooks template. Its current test contract emits 12,584
-bytes of initcode and 12,558 bytes of runtime bytecode at the first checkpoint. After adding
-hook-instance deployment, the suite plus its dedicated failure artifact emits 17,042 bytes of
-initcode and 17,007 bytes of runtime bytecode. With the market happy paths included, it emits
-25,048 bytes of initcode and 25,013 bytes of runtime bytecode. With the rejection matrix, the suite
-plus failure artifact emits 36,364 bytes of initcode and 36,329 bytes of runtime bytecode. The
-final family delta will be recorded after the remaining 13 market-pagination and protocol-fee
-propagation entries are replaced.
+borrower identity registry, and an OpenTerm hooks template.
 
-The complete replacement checkpoint now has 430 tests across 29 suites, zero inherited entries,
-429,760 bytes of test-side initcode, and 421,151 bytes of runtime bytecode.
+| Dedicated family artifacts |  Legacy | Replacement |    Delta | Reduction |
+| -------------------------- | ------: | ----------: | -------: | --------: |
+| Initcode bytes             | 274,238 |      43,398 | -230,840 |    84.18% |
+| Runtime bytes              | 245,720 |      43,363 | -202,357 |    82.35% |
+
+The replacement total includes one 12-byte failure-template artifact; the legacy total includes
+the same artifact compiled once for each factory suite.
+
+The full replacement checkpoint is 434 tests across 29 suites with zero inherited entries,
+436,794 bytes of test-side initcode, and 428,185 bytes of runtime bytecode. A forced canonical
+compile-to-green took 83.28 seconds and peaked at 2,600,456 KiB RSS.
+
+Accurate Forge coverage remains compiler-blocked: without via-IR,
+`HooksFactoryRevolving.sol:882` is stack-too-deep. The canonical via-IR run is green, and the
+temporary SphereX coverage patch was restored cleanly after the failed coverage attempt.
