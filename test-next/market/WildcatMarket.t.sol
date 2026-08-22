@@ -13,9 +13,10 @@ import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { RAY, MathUtils } from 'src/libraries/MathUtils.sol';
-import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
+import { AccountWithdrawalStatus, WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { Bit_Enabled_Deposit, Bit_Enabled_Transfer, HooksConfig } from 'src/types/HooksConfig.sol';
+import { Vm } from 'forge-std/Vm.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { MarketConfigHooks, ProtocolFeeReadOnDepositHooks } from '../mocks/MarketMocks.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
@@ -40,6 +41,17 @@ contract WildcatMarketTest is MarketFixture {
 
   function _newTokenMarket(HooksKind kind) private returns (Fixture memory fixture) {
     return _newMarket(_tokenOptions(kind));
+  }
+
+  function _withdrawalOptions(HooksKind kind) private pure returns (Options memory options) {
+    options = _defaultOptions(kind);
+    options.protocolFeeBips = 0;
+    options.annualInterestBips = 0;
+    options.delinquencyFeeBips = 0;
+  }
+
+  function _newWithdrawalMarket(HooksKind kind) private returns (Fixture memory fixture) {
+    return _newMarket(_withdrawalOptions(kind));
   }
 
   function _newConfigMarket()
@@ -79,6 +91,64 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(state.annualInterestBips, 0, 'closed APR');
     assertEq(state.reserveRatioBips, 10_000, 'closed reserve ratio');
     assertEq(state.timeDelinquent, 0, 'closed delinquency time');
+  }
+
+  function _borrow(Fixture memory fixture, uint256 amount) private {
+    vm.prank(Borrower);
+    fixture.market.borrow(amount);
+  }
+
+  function _assertBatch(
+    Fixture memory fixture,
+    uint32 expiry,
+    uint256 scaledTotal,
+    uint256 scaledBurned,
+    uint256 normalizedPaid
+  ) private view {
+    WithdrawalBatch memory batch = fixture.market.getWithdrawalBatch(expiry);
+    assertEq(batch.scaledTotalAmount, scaledTotal, 'batch scaled total');
+    assertEq(batch.scaledAmountBurned, scaledBurned, 'batch scaled burn');
+    assertEq(batch.normalizedAmountPaid, normalizedPaid, 'batch normalized payment');
+  }
+
+  function _makeUnpaidBatch(
+    Fixture memory fixture,
+    address lender
+  ) private returns (uint32 expiry) {
+    _deposit(fixture, lender, 1e18);
+    _borrow(fixture, 8e17);
+    vm.prank(lender);
+    expiry = fixture.market.queueFullWithdrawal();
+    vm.warp(uint256(expiry) + 1);
+    fixture.market.updateState();
+    assertEq(fixture.market.getUnpaidBatchExpiries().length, 1, 'unpaid batch');
+  }
+
+  function _makeTwoUnpaidBatches(
+    Fixture memory fixture,
+    address lender
+  ) private returns (uint32 firstExpiry, uint32 secondExpiry) {
+    _deposit(fixture, lender, 2e18);
+    _borrow(fixture, 16e17);
+    vm.prank(lender);
+    firstExpiry = fixture.market.queueWithdrawal(1e18);
+    vm.warp(uint256(firstExpiry) + 1);
+    fixture.market.updateState();
+    vm.prank(lender);
+    secondExpiry = fixture.market.queueFullWithdrawal();
+    vm.warp(uint256(secondExpiry) + 1);
+    fixture.market.updateState();
+    assertEq(fixture.market.getUnpaidBatchExpiries().length, 2, 'two unpaid batches');
+  }
+
+  function _assertNoWithdrawalPayment(Vm.Log[] memory logs) private pure {
+    bytes32 paymentSignature = keccak256('WithdrawalBatchPayment(uint256,uint256,uint256)');
+    for (uint256 i; i < logs.length; i++) {
+      assertFalse(
+        logs[i].topics.length > 0 && logs[i].topics[0] == paymentSignature,
+        'unexpected withdrawal payment'
+      );
+    }
   }
 
   function _expectedInitialState(
@@ -1500,6 +1570,604 @@ contract WildcatMarketTest is MarketFixture {
       roundingFixture.market.transferFrom(Holder, Recipient, 1);
       assertEq(roundingFixture.market.allowance(Holder, Delegate), 1, 'rounded allowance');
       assertEq(roundingFixture.market.scaledBalanceOf(Recipient), 0, 'rounded recipient');
+    }
+  }
+
+  function test_queueWithdrawalEntrypointsRejectInvalidAmounts_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+
+      vm.startPrank(Holder);
+      vm.expectRevert(IMarketEventsAndErrors.NullBurnAmount.selector);
+      fixture.market.queueWithdrawal(0);
+      vm.expectRevert(IMarketEventsAndErrors.NullBurnAmount.selector);
+      fixture.market.queueWithdrawalScaled(0);
+      vm.expectRevert(IMarketEventsAndErrors.NullBurnAmount.selector);
+      fixture.market.queueFullWithdrawal();
+      vm.expectRevert(_arithmeticPanic());
+      fixture.market.queueWithdrawalScaled(uint256(type(uint104).max) + 1);
+      vm.stopPrank();
+
+      _deposit(fixture, Holder, 1e18);
+      bytes32 stateHash = keccak256(abi.encode(fixture.market.currentState()));
+      uint256 scaledBalance = fixture.market.scaledBalanceOf(Holder);
+
+      vm.prank(Holder);
+      vm.expectRevert(_arithmeticPanic());
+      fixture.market.queueWithdrawal(1e18 + 1);
+      vm.prank(Holder);
+      vm.expectRevert(_arithmeticPanic());
+      fixture.market.queueWithdrawalScaled(scaledBalance + 1);
+
+      assertEq(
+        keccak256(abi.encode(fixture.market.currentState())),
+        stateHash,
+        'failed queue state'
+      );
+      assertEq(fixture.market.scaledBalanceOf(Holder), scaledBalance, 'failed queue balance');
+    }
+  }
+
+  function test_queueWithdrawalEntrypointsShareAndAccumulateOneBatch_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(fixture, Holder, 3e18);
+      _deposit(fixture, Recipient, 2e18);
+
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueWithdrawal(1e18);
+      vm.prank(Holder);
+      assertEq(fixture.market.queueWithdrawalScaled(1e18), expiry, 'scaled batch expiry');
+      vm.prank(Holder);
+      assertEq(fixture.market.queueFullWithdrawal(), expiry, 'full batch expiry');
+      vm.prank(Recipient);
+      assertEq(fixture.market.queueFullWithdrawal(), expiry, 'second lender expiry');
+
+      _assertBatch(fixture, expiry, 5e18, 5e18, 5e18);
+      AccountWithdrawalStatus memory holderStatus = fixture.market.getAccountWithdrawalStatus(
+        Holder,
+        expiry
+      );
+      AccountWithdrawalStatus memory recipientStatus = fixture.market.getAccountWithdrawalStatus(
+        Recipient,
+        expiry
+      );
+      assertEq(holderStatus.scaledAmount, 3e18, 'holder status');
+      assertEq(recipientStatus.scaledAmount, 2e18, 'recipient status');
+      MarketState memory state = fixture.market.previousState();
+      assertEq(state.scaledPendingWithdrawals, 0, 'pending withdrawal scale');
+      assertEq(state.scaledTotalSupply, 0, 'remaining supply');
+      assertEq(state.normalizedUnclaimedWithdrawals, 5e18, 'unclaimed withdrawals');
+      assertEq(fixture.market.scaledBalanceOf(Holder), 0, 'holder balance');
+      assertEq(fixture.market.scaledBalanceOf(Recipient), 0, 'recipient balance');
+    }
+  }
+
+  function test_queueWithdrawalTracksLiquidityShortfall_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(fixture, Holder, 1e18);
+      _borrow(fixture, 8e17);
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueFullWithdrawal();
+
+      _assertBatch(fixture, expiry, 1e18, 2e17, 2e17);
+      MarketState memory state = fixture.market.previousState();
+      assertTrue(state.isDelinquent, 'shortfall delinquency');
+      assertEq(state.timeDelinquent, 0, 'shortfall delinquency time');
+      assertEq(state.scaledPendingWithdrawals, 8e17, 'shortfall pending');
+      assertEq(state.scaledTotalSupply, 8e17, 'shortfall supply');
+      assertEq(state.normalizedUnclaimedWithdrawals, 2e17, 'shortfall unclaimed');
+    }
+  }
+
+  function test_queueScaledUsesLiveScaleFactorAndMatchesFullWithdrawal_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Options memory options = _withdrawalOptions(HooksKind(i));
+      options.annualInterestBips = 1_000;
+      Fixture memory fullFixture = _newMarket(options);
+      Fixture memory scaledFixture = _newMarket(options);
+      _deposit(fullFixture, Holder, 100e18);
+      _deposit(scaledFixture, Holder, 100e18);
+      _borrow(fullFixture, 60e18);
+      _borrow(scaledFixture, 60e18);
+      vm.warp(initialBlockTimestamp + 30 days);
+
+      uint256 scaledBalance = scaledFixture.market.scaledBalanceOf(Holder);
+      assertTrue(fullFixture.market.currentState().scaleFactor > RAY, 'live scale factor');
+      vm.prank(Holder);
+      uint32 fullExpiry = fullFixture.market.queueFullWithdrawal();
+      vm.prank(Holder);
+      uint32 scaledExpiry = scaledFixture.market.queueWithdrawalScaled(scaledBalance);
+
+      assertEq(scaledExpiry, fullExpiry, 'equivalent expiry');
+      assertEq(
+        keccak256(abi.encode(scaledFixture.market.previousState())),
+        keccak256(abi.encode(fullFixture.market.previousState())),
+        'equivalent state'
+      );
+      assertEq(
+        keccak256(abi.encode(scaledFixture.market.getWithdrawalBatch(scaledExpiry))),
+        keccak256(abi.encode(fullFixture.market.getWithdrawalBatch(fullExpiry))),
+        'equivalent batch'
+      );
+      assertEq(
+        keccak256(
+          abi.encode(scaledFixture.market.getAccountWithdrawalStatus(Holder, scaledExpiry))
+        ),
+        keccak256(abi.encode(fullFixture.market.getAccountWithdrawalStatus(Holder, fullExpiry))),
+        'equivalent account status'
+      );
+    }
+  }
+
+  function test_closedMarketWithdrawalsDrainAcrossFreshBatches_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(fixture, Holder, 6e18);
+      _borrow(fixture, 3e18);
+
+      vm.prank(Holder);
+      uint32 firstExpiry = fixture.market.queueWithdrawal(2e18);
+      vm.warp(uint256(firstExpiry) + 1);
+      fixture.market.updateState();
+      vm.prank(Holder);
+      uint32 secondExpiry = fixture.market.queueWithdrawal(2e18);
+      vm.warp(uint256(secondExpiry) + 1);
+      fixture.market.updateState();
+
+      uint256 remainingDebt = fixture.market.totalDebts() - fixture.market.totalAssets();
+      _fundAndApprove(fixture, Borrower, remainingDebt);
+      vm.prank(Borrower);
+      fixture.market.closeMarket();
+
+      vm.prank(Holder);
+      uint32 thirdExpiry = fixture.market.queueWithdrawal(1e18);
+      vm.warp(uint256(thirdExpiry) + 1);
+      fixture.market.updateState();
+      vm.prank(Holder);
+      uint32 fourthExpiry = fixture.market.queueFullWithdrawal();
+      vm.warp(uint256(fourthExpiry) + 1);
+      fixture.market.updateState();
+
+      MarketState memory state = fixture.market.currentState();
+      assertTrue(state.isClosed, 'closed drain state');
+      assertFalse(state.isDelinquent, 'closed drain delinquency');
+      assertEq(state.scaledPendingWithdrawals, 0, 'closed drain pending');
+      assertEq(state.scaledTotalSupply, 0, 'closed drain supply');
+      assertEq(fixture.market.scaledBalanceOf(Holder), 0, 'closed drain balance');
+      assertEq(fixture.market.getUnpaidBatchExpiries().length, 0, 'closed drain unpaid');
+    }
+  }
+
+  function test_executeWithdrawalRejectsPendingAndDuplicateThenPays_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(fixture, Holder, 1e18);
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueWithdrawal(6e17);
+
+      vm.expectRevert(IMarketEventsAndErrors.WithdrawalBatchNotExpired.selector);
+      fixture.market.executeWithdrawal(Holder, expiry);
+      vm.warp(uint256(expiry) + 1);
+      assertEq(fixture.market.getAvailableWithdrawalAmount(Holder, expiry), 6e17, 'available');
+      uint256 payout = fixture.market.executeWithdrawal(Holder, expiry);
+      assertEq(payout, 6e17, 'payout');
+      assertEq(fixture.asset.balanceOf(Holder), 6e17, 'holder assets');
+      assertEq(
+        fixture.market.getAccountWithdrawalStatus(Holder, expiry).normalizedAmountWithdrawn,
+        6e17,
+        'withdrawn status'
+      );
+
+      vm.expectRevert(IMarketEventsAndErrors.NullWithdrawalAmount.selector);
+      fixture.market.executeWithdrawal(Holder, expiry);
+    }
+  }
+
+  function test_executeWithdrawalAllowsClosedMarketBeforeAndAfterExpiry_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory earlyFixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(earlyFixture, Holder, 1e18);
+      vm.prank(Holder);
+      uint32 earlyExpiry = earlyFixture.market.queueFullWithdrawal();
+      vm.prank(Borrower);
+      earlyFixture.market.closeMarket();
+      assertEq(earlyFixture.market.executeWithdrawal(Holder, earlyExpiry), 1e18, 'early payout');
+
+      vm.warp(initialBlockTimestamp);
+      Fixture memory expiredFixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(expiredFixture, Holder, 1e18);
+      vm.prank(Holder);
+      uint32 expiredExpiry = expiredFixture.market.queueFullWithdrawal();
+      vm.prank(Borrower);
+      expiredFixture.market.closeMarket();
+      vm.warp(uint256(expiredExpiry) + 1);
+      assertEq(
+        expiredFixture.market.executeWithdrawal(Holder, expiredExpiry),
+        1e18,
+        'expired payout'
+      );
+    }
+  }
+
+  function test_executeWithdrawalsValidatesAndAtomicallyPaysBatches_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      address[] memory mismatchedAccounts = new address[](1);
+      uint32[] memory mismatchedExpiries = new uint32[](2);
+      vm.expectRevert(IMarketEventsAndErrors.InvalidArrayLength.selector);
+      fixture.market.executeWithdrawals(mismatchedAccounts, mismatchedExpiries);
+
+      _deposit(fixture, Holder, 1e18);
+      _deposit(fixture, Recipient, 1e18);
+      vm.prank(Holder);
+      uint32 firstExpiry = fixture.market.queueWithdrawal(5e17);
+      vm.prank(Recipient);
+      fixture.market.queueWithdrawal(5e17);
+      vm.warp(uint256(firstExpiry) + 1);
+      vm.prank(Holder);
+      uint32 secondExpiry = fixture.market.queueFullWithdrawal();
+      vm.prank(Recipient);
+      fixture.market.queueFullWithdrawal();
+      vm.warp(uint256(secondExpiry) + 1);
+
+      address[] memory accounts = new address[](4);
+      accounts[0] = Holder;
+      accounts[1] = Recipient;
+      accounts[2] = Holder;
+      accounts[3] = Recipient;
+      uint32[] memory expiries = new uint32[](4);
+      expiries[0] = firstExpiry;
+      expiries[1] = firstExpiry;
+      expiries[2] = secondExpiry;
+      expiries[3] = secondExpiry;
+      uint256[] memory payouts = fixture.market.executeWithdrawals(accounts, expiries);
+      for (uint256 j; j < payouts.length; j++) {
+        assertEq(payouts[j], 5e17, 'batch payout');
+      }
+      assertEq(fixture.asset.balanceOf(Holder), 1e18, 'holder batch assets');
+      assertEq(fixture.asset.balanceOf(Recipient), 1e18, 'recipient batch assets');
+
+      vm.warp(initialBlockTimestamp);
+      Fixture memory duplicateFixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(duplicateFixture, Holder, 1e18);
+      vm.prank(Holder);
+      uint32 duplicateExpiry = duplicateFixture.market.queueFullWithdrawal();
+      vm.warp(uint256(duplicateExpiry) + 1);
+      address[] memory duplicateAccounts = new address[](2);
+      duplicateAccounts[0] = Holder;
+      duplicateAccounts[1] = Holder;
+      uint32[] memory duplicateExpiries = new uint32[](2);
+      duplicateExpiries[0] = duplicateExpiry;
+      duplicateExpiries[1] = duplicateExpiry;
+      vm.expectRevert(IMarketEventsAndErrors.NullWithdrawalAmount.selector);
+      duplicateFixture.market.executeWithdrawals(duplicateAccounts, duplicateExpiries);
+      assertEq(duplicateFixture.asset.balanceOf(Holder), 0, 'atomic payout rollback');
+      assertEq(
+        duplicateFixture
+          .market
+          .getAccountWithdrawalStatus(Holder, duplicateExpiry)
+          .normalizedAmountWithdrawn,
+        0,
+        'atomic status rollback'
+      );
+    }
+  }
+
+  function test_executeSanctionedWithdrawalsRouteToEscrow_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(fixture, Holder, 1e18);
+      _deposit(fixture, Recipient, 1e18);
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueWithdrawal(5e17);
+      vm.prank(Recipient);
+      fixture.market.queueWithdrawal(5e17);
+      vm.warp(uint256(expiry) + 1);
+      fixture.sentinel.setSanctioned(Holder, true);
+
+      address[] memory accounts = new address[](2);
+      accounts[0] = Holder;
+      accounts[1] = Recipient;
+      uint32[] memory expiries = new uint32[](2);
+      expiries[0] = expiry;
+      expiries[1] = expiry;
+      fixture.market.executeWithdrawals(accounts, expiries);
+
+      assertEq(
+        fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()),
+        5e17,
+        'escrowed withdrawal'
+      );
+      assertEq(fixture.asset.balanceOf(Recipient), 5e17, 'ordinary withdrawal');
+      assertEq(fixture.sentinel.createEscrowCalls(), 1, 'escrow calls');
+    }
+  }
+
+  function test_processUnpaidBatchHandlesNoLiquidityAndOneWeiBoundary_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory emptyFixture = _newWithdrawalMarket(HooksKind(i));
+      emptyFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+
+      vm.warp(initialBlockTimestamp);
+      Options memory options = _withdrawalOptions(HooksKind(i));
+      options.reserveRatioBips = 0;
+      options.annualInterestBips = 1_000;
+      Fixture memory boundaryFixture = _newMarket(options);
+      _deposit(boundaryFixture, Holder, 1e18);
+      _borrow(boundaryFixture, 1e18);
+      vm.prank(Holder);
+      uint32 expiry = boundaryFixture.market.queueFullWithdrawal();
+      vm.warp(uint256(expiry) + 1);
+      boundaryFixture.market.updateState();
+      boundaryFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      assertEq(boundaryFixture.market.getUnpaidBatchExpiries().length, 1, 'no liquidity');
+
+      boundaryFixture.asset.mint(address(boundaryFixture.market), 1);
+      boundaryFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      _assertBatch(boundaryFixture, expiry, 1e18, 1, 1);
+      assertEq(boundaryFixture.market.getUnpaidBatchExpiries().length, 1, 'boundary unpaid');
+    }
+  }
+
+  function test_processUnpaidBatchHandlesLargeAndSubScaledLiquidity_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Options memory largeOptions = _withdrawalOptions(HooksKind(i));
+      largeOptions.reserveRatioBips = 0;
+      Fixture memory largeFixture = _newMarket(largeOptions);
+      _deposit(largeFixture, Holder, 1e18);
+      _borrow(largeFixture, 1e18);
+      vm.prank(Holder);
+      uint32 largeExpiry = largeFixture.market.queueFullWithdrawal();
+      vm.warp(uint256(largeExpiry) + 1);
+      largeFixture.market.updateState();
+      largeFixture.asset.mint(address(largeFixture.market), type(uint256).max / RAY);
+      largeFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      _assertBatch(largeFixture, largeExpiry, 1e18, 1e18, 1e18);
+      assertEq(largeFixture.market.getUnpaidBatchExpiries().length, 0, 'large payment');
+
+      vm.warp(initialBlockTimestamp);
+      Options memory dustOptions = _withdrawalOptions(HooksKind(i));
+      dustOptions.reserveRatioBips = 0;
+      dustOptions.annualInterestBips = 10_000;
+      dustOptions.withdrawalBatchDuration = 365 days;
+      Fixture memory dustFixture = _newMarket(dustOptions);
+      _deposit(dustFixture, Holder, 1e18);
+      _borrow(dustFixture, 1e18);
+      vm.prank(Holder);
+      uint32 dustExpiry = dustFixture.market.queueFullWithdrawal();
+      vm.warp(uint256(dustExpiry) + 1);
+      dustFixture.market.updateState();
+      vm.warp(vm.getBlockTimestamp() + 730 days);
+      dustFixture.asset.mint(address(dustFixture.market), 1);
+      vm.recordLogs();
+      dustFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      _assertNoWithdrawalPayment(vm.getRecordedLogs());
+      _assertBatch(dustFixture, dustExpiry, 1e18, 0, 0);
+      assertEq(dustFixture.market.getUnpaidBatchExpiries().length, 1, 'dust unpaid');
+    }
+  }
+
+  function test_processUnpaidBatchProgressesPartialAndFullPayments_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      uint32 expiry = _makeUnpaidBatch(fixture, Holder);
+      _assertBatch(fixture, expiry, 1e18, 2e17, 2e17);
+
+      fixture.asset.mint(address(fixture.market), 4e17);
+      fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      _assertBatch(fixture, expiry, 1e18, 6e17, 6e17);
+      assertEq(fixture.market.getUnpaidBatchExpiries().length, 1, 'partial unpaid');
+
+      fixture.asset.mint(address(fixture.market), 4e17);
+      fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      _assertBatch(fixture, expiry, 1e18, 1e18, 1e18);
+      assertEq(fixture.market.getUnpaidBatchExpiries().length, 0, 'full paid');
+    }
+  }
+
+  function test_repayAndProcessHonorsLimitsAndAvailableLiquidity_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory limitFixture = _newWithdrawalMarket(HooksKind(i));
+      _makeTwoUnpaidBatches(limitFixture, Holder);
+      limitFixture.asset.mint(address(limitFixture.market), 2e18);
+      limitFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 0);
+      assertEq(limitFixture.market.getUnpaidBatchExpiries().length, 2, 'zero batch limit');
+      limitFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      assertEq(limitFixture.market.getUnpaidBatchExpiries().length, 1, 'one batch limit');
+
+      vm.warp(initialBlockTimestamp);
+      Fixture memory partialFixture = _newWithdrawalMarket(HooksKind(i));
+      _makeTwoUnpaidBatches(partialFixture, Holder);
+      partialFixture.asset.mint(address(partialFixture.market), 7e17);
+      partialFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 10);
+      assertEq(partialFixture.market.getUnpaidBatchExpiries().length, 1, 'second batch partial');
+
+      vm.warp(initialBlockTimestamp);
+      Fixture memory completeFixture = _newWithdrawalMarket(HooksKind(i));
+      _makeTwoUnpaidBatches(completeFixture, Holder);
+      completeFixture.asset.mint(address(completeFixture.market), 16e17);
+      completeFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 10);
+      assertEq(completeFixture.market.getUnpaidBatchExpiries().length, 0, 'both batches paid');
+    }
+  }
+
+  function test_repayAndProcessIncludesRepayAndRejectsClosedMarket_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _makeTwoUnpaidBatches(fixture, Holder);
+      _fundAndApprove(fixture, Recipient, 16e17);
+      vm.expectEmit(address(fixture.market));
+      emit IMarketEventsAndErrors.DebtRepaid(Recipient, 16e17);
+      vm.prank(Recipient);
+      fixture.market.repayAndProcessUnpaidWithdrawalBatches(16e17, 10);
+      assertEq(fixture.market.getUnpaidBatchExpiries().length, 0, 'repay batches paid');
+
+      vm.warp(initialBlockTimestamp);
+      Fixture memory closedFixture = _newWithdrawalMarket(HooksKind(i));
+      vm.prank(Borrower);
+      closedFixture.market.closeMarket();
+      _fundAndApprove(closedFixture, Recipient, 1e18);
+      vm.prank(Recipient);
+      vm.expectRevert(IMarketEventsAndErrors.RepayToClosedMarket.selector);
+      closedFixture.market.repayAndProcessUnpaidWithdrawalBatches(1e18, 10);
+      assertEq(closedFixture.asset.balanceOf(Recipient), 1e18, 'closed repay rollback');
+    }
+  }
+
+  function test_withdrawalViewsReflectMissingPendingPaidAndUnpaidBatches_AcrossHookKinds()
+    external
+  {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _assertBatch(fixture, 0, 0, 0, 0);
+      _deposit(fixture, Holder, 1e18);
+      _borrow(fixture, 8e17);
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueFullWithdrawal();
+      _assertBatch(fixture, expiry, 1e18, 2e17, 2e17);
+      assertEq(fixture.market.getUnpaidBatchExpiries().length, 0, 'pending unpaid list');
+
+      vm.warp(uint256(expiry) + 1);
+      _assertBatch(fixture, expiry, 1e18, 2e17, 2e17);
+      fixture.market.updateState();
+      assertEq(fixture.market.getUnpaidBatchExpiries().length, 1, 'expired unpaid list');
+
+      vm.warp(initialBlockTimestamp);
+      Fixture memory paidFixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(paidFixture, Holder, 2e18);
+      vm.prank(Holder);
+      uint32 paidExpiry = paidFixture.market.queueWithdrawal(1e18);
+      _assertBatch(paidFixture, paidExpiry, 1e18, 1e18, 1e18);
+      vm.warp(uint256(paidExpiry) + 1);
+      paidFixture.market.updateState();
+      assertEq(paidFixture.market.getUnpaidBatchExpiries().length, 0, 'paid unpaid list');
+    }
+  }
+
+  function test_accountWithdrawalViewsTrackPartialAndCompleteClaims_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      uint32 expiry = _makeUnpaidBatch(fixture, Holder);
+      AccountWithdrawalStatus memory status = fixture.market.getAccountWithdrawalStatus(
+        Holder,
+        expiry
+      );
+      assertEq(status.scaledAmount, 1e18, 'initial status scale');
+      assertEq(status.normalizedAmountWithdrawn, 0, 'initial status withdrawn');
+      assertEq(
+        fixture.market.getAvailableWithdrawalAmount(Holder, expiry),
+        2e17,
+        'first available'
+      );
+      assertEq(fixture.market.executeWithdrawal(Holder, expiry), 2e17, 'first claim');
+
+      fixture.asset.mint(address(fixture.market), 8e17);
+      fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+      assertEq(fixture.market.getAvailableWithdrawalAmount(Holder, expiry), 8e17, 'next available');
+      assertEq(fixture.market.executeWithdrawal(Holder, expiry), 8e17, 'second claim');
+      status = fixture.market.getAccountWithdrawalStatus(Holder, expiry);
+      assertEq(status.scaledAmount, 1e18, 'final status scale');
+      assertEq(status.normalizedAmountWithdrawn, 1e18, 'final status withdrawn');
+      assertEq(fixture.asset.balanceOf(Holder), 1e18, 'complete claim balance');
+    }
+  }
+
+  function test_availableWithdrawalRejectsPendingAndReadsExpiredView_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(fixture, Holder, 1e18);
+      _borrow(fixture, 8e17);
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueFullWithdrawal();
+
+      vm.expectRevert(IMarketEventsAndErrors.WithdrawalBatchNotExpired.selector);
+      fixture.market.getAvailableWithdrawalAmount(Holder, expiry);
+      vm.warp(uint256(expiry) + 1);
+      assertEq(
+        fixture.market.getAvailableWithdrawalAmount(Holder, expiry),
+        2e17,
+        'expired view available'
+      );
+      fixture.market.updateState();
+      assertEq(
+        fixture.market.getAvailableWithdrawalAmount(Holder, expiry),
+        2e17,
+        'stored unpaid available'
+      );
+    }
+  }
+
+  function test_pendingBatchUsesIncomingLiquidityBeforeExpiry_AcrossHookKinds() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
+      _deposit(fixture, Holder, 1e18);
+      _borrow(fixture, 8e17);
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueFullWithdrawal();
+      _assertBatch(fixture, expiry, 1e18, 2e17, 2e17);
+
+      fixture.asset.mint(address(fixture.market), 8e17);
+      _assertBatch(fixture, expiry, 1e18, 1e18, 1e18);
+      fixture.market.updateState();
+      _assertBatch(fixture, expiry, 1e18, 1e18, 1e18);
+      assertEq(fixture.market.previousState().scaledPendingWithdrawals, 0, 'pending paid');
+      assertEq(fixture.market.previousState().normalizedUnclaimedWithdrawals, 1e18, 'reserved');
     }
   }
 }

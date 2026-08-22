@@ -83,3 +83,4 @@ Completed family ledgers live in `parity/`:
 - `market-config.md`
 - `market-lifecycle.md`
 - `market-borrower-transfer.md`
+- `market-withdrawals.md`

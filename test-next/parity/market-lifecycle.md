@@ -1,7 +1,6 @@
 # Market lifecycle parity
 
-Status: core lifecycle behavior replaced; the two inherited closed-market drain entries remain
-assigned to the withdrawal family.
+Status: complete; the withdrawal checkpoint now owns the two inherited closed-market drain entries.
 
 ## Family boundary
 
@@ -11,21 +10,21 @@ properties to the shared `WildcatMarketTest` runtime matrix. Behavior already ow
 hook-dispatch, or production access-hook suites is mapped to those completed families instead of
 being compiled into the market artifact again.
 
-| Shared behavior slice                                              | Legacy entries | Replacement ownership      |
-| ------------------------------------------------------------------ | -------------: | -------------------------- |
-| State persistence, no-op update, and both expired-batch paths      |              8 | 2 market properties        |
-| Deposit exactness, capacity, rounding, closure, and transfer error |             18 | 1 market property          |
-| Production minimum-deposit integration                             |              2 | 1 market property          |
-| Deposit and withdrawal credential/access matrices                  |             14 | access-hook families       |
-| Empty, available, and unavailable protocol fees                    |              6 | 1 market property          |
-| Borrow liquidity, authority, closure, and sanctions                |              6 | 1 market property          |
-| Close debt/excess, pending/unpaid batches, and batch-key safety    |             24 | 6 market properties        |
-| Repay success, zero, closure, and transfer failure                 |              6 | 1 market property          |
-| Exact hook dispatch and revert bubbling                            |             18 | hook/type families         |
-| Rescue authority and protected assets                              |              6 | 1 market property          |
-| Transfer rounding, known-lender, disabled, and access policy       |             12 | token/access families      |
-| Randomized closed-market withdrawal drain                          |              2 | withdrawal family          |
-| **Total**                                                          |        **122** | **120 mapped / 2 pending** |
+| Shared behavior slice                                              | Legacy entries | Replacement ownership |
+| ------------------------------------------------------------------ | -------------: | --------------------- |
+| State persistence, no-op update, and both expired-batch paths      |              8 | 2 market properties   |
+| Deposit exactness, capacity, rounding, closure, and transfer error |             18 | 1 market property     |
+| Production minimum-deposit integration                             |              2 | 1 market property     |
+| Deposit and withdrawal credential/access matrices                  |             14 | access-hook families  |
+| Empty, available, and unavailable protocol fees                    |              6 | 1 market property     |
+| Borrow liquidity, authority, closure, and sanctions                |              6 | 1 market property     |
+| Close debt/excess, pending/unpaid batches, and batch-key safety    |             24 | 6 market properties   |
+| Repay success, zero, closure, and transfer failure                 |              6 | 1 market property     |
+| Exact hook dispatch and revert bubbling                            |             18 | hook/type families    |
+| Rescue authority and protected assets                              |              6 | 1 market property     |
+| Transfer rounding, known-lender, disabled, and access policy       |             12 | token/access families |
+| Randomized closed-market withdrawal drain                          |              2 | 1 withdrawal property |
+| **Total**                                                          |        **122** | **122 mapped**        |
 
 The deposit property tests both entrypoints rather than treating `deposit` as an alias: `depositUpTo`
 clips to remaining capacity and returns the actual transfer, while `deposit` rolls the same clipped

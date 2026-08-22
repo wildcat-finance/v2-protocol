@@ -719,8 +719,8 @@ The core market borrower-transfer family is complete:
   contracts
 - all 64 executable lines and all 12 branches in the `WildcatMarketBase` borrower-transfer region
   are covered
-- eight cross-component legacy entries remain explicitly assigned to withdrawal-escrow and wrapper
-  integration; their market-side sanctions namespace behavior is already covered here
+- the two withdrawal-escrow entries are complete in the withdrawal checkpoint; six wrapper entries
+  remain assigned to wrapper integration
 - the provisional core artifact is 29,907 bytes of initcode and 29,881 bytes of runtime bytecode,
   versus 206,866 and 86,410 bytes for the legacy suite and its dedicated account artifacts
 - the full replacement checkpoint is 560 tests across 36 suites with zero inherited entries,
@@ -729,6 +729,25 @@ The core market borrower-transfer family is complete:
   RSS peak; execution is 1.84s
 
 See `test-next/parity/market-borrower-transfer.md`.
+
+The standard/fixed-term market-withdrawal family is complete:
+
+- 18 runtime-matrix properties replace all 124 direct and inherited withdrawal entries; completed
+  access-hook suites own the repeated credential gates
+- the same checkpoint closes the two lifecycle drain and two borrower-principal escrow handoffs,
+  for 128 mapped legacy entries in total
+- normalized, scaled, and full queueing; execution; sanctions routing; unpaid-batch processing;
+  repayment; FIFO limits; closure; and every withdrawal query use production market behavior
+- `WildcatMarketWithdrawals` has 100% line, statement, branch, and function coverage
+- growth of the shared market and borrower-transfer artifacts is 43,271 bytes of initcode and
+  runtime bytecode, versus 463,643 and 223,049 bytes for the two legacy withdrawal artifacts: a
+  90.67% initcode and 80.60% runtime reduction
+- the full replacement checkpoint is 579 tests across 36 suites with zero inherited entries,
+  761,906 bytes of test-side initcode, and 752,695 bytes of runtime bytecode
+- forced canonical via-IR compile-to-green is 2m08.40s, including 125.23s in solc, with a
+  3,233,724 KiB RSS peak; execution is 1.88s
+
+See `test-next/parity/market-withdrawals.md`.
 
 ### Phase 2: migrate feature families
 

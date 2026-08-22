@@ -81,15 +81,21 @@ properties and 15 market properties. Focused accurate coverage reports 100% for
 `WildcatMarketConfig`; the remaining partial market files belong to lifecycle, borrower-transfer,
 and withdrawal slices. See `market-config.md`.
 
-The market-lifecycle checkpoint maps 120 of 122 standard/inherited `WildcatMarketTest` entries.
+The market-lifecycle checkpoint maps all 122 standard/inherited `WildcatMarketTest` entries.
 Fourteen new runtime-matrix properties own state updates, deposits, fees, borrowing, repayment,
 closure, batch-key safety, and rescue behavior; completed token, dispatch, and access-hook families
-own the duplicated cross-boundary properties. The final two randomized closed-market drain entries
-remain assigned to withdrawals. See `market-lifecycle.md`.
+own the duplicated cross-boundary properties. The withdrawal checkpoint now owns the final two
+randomized closed-market drain entries. See `market-lifecycle.md` and `market-withdrawals.md`.
 
 The market borrower-transfer checkpoint maps all 29 core identity, authority, sanctions, and
 accounting entries into ten composed properties and adds one malformed-registry response property.
-All executable lines and branches in the production borrower-transfer region are covered. Eight
-legacy cross-component entries remain explicitly assigned to withdrawal-escrow and wrapper
-integration rather than importing that deployment graph into the market suite. See
-`market-borrower-transfer.md`.
+All executable lines and branches in the production borrower-transfer region are covered. The two
+withdrawal-escrow entries are now complete in the withdrawal checkpoint; six wrapper entries remain
+explicitly assigned to wrapper integration rather than importing that deployment graph into the
+market suite. See `market-borrower-transfer.md` and `market-withdrawals.md`.
+
+The market-withdrawal checkpoint maps all 124 standard/inherited withdrawal entries, the two
+lifecycle closed-market drain entries, and the two borrower-principal escrow entries. Eighteen
+runtime-matrix market properties plus one production-Sentinel property cover the family, while
+completed access-hook suites own repeated credential gates. `WildcatMarketWithdrawals` has 100%
+line, statement, branch, and function coverage. See `market-withdrawals.md`.

@@ -1,7 +1,7 @@
 # Market borrower-transfer parity
 
-Status: the market's borrower-transfer state machine is complete; eight legacy entries with
-withdrawal-escrow or wrapper assertions remain assigned to those integration families.
+Status: the market state machine and withdrawal-escrow handoff are complete; six wrapper entries
+remain assigned to wrapper integration.
 
 ## Family boundary
 
@@ -22,9 +22,9 @@ with artifact-backed deployment and one concrete suite.
 | Active, delinquent, and closed accounting preservation           |              3 | 1 market property                     |
 | Latest-target replacement fuzzing                                |              1 | 1 market property                     |
 | Lender namespace changes plus wrapper readiness                  |              2 | market half complete; wrapper pending |
-| Market withdrawal escrow namespace and release                   |              2 | withdrawal integration family         |
+| Market withdrawal escrow namespace and release                   |              2 | 1 withdrawal integration property     |
 | Wrapper escrow namespace, release, and sweep authority           |              4 | wrapper integration family            |
-| **Total**                                                        |         **37** | **29 complete / 8 integration-owned** |
+| **Total**                                                        |         **37** | **31 complete / 6 wrapper-owned**     |
 
 The identity matrix covers direct principal to direct principal, direct principal to account,
 same-principal account rotation, account to a new principal's account, and account back to a direct
@@ -52,9 +52,9 @@ low-level registry response-validation branches absent from the legacy suite.
 
 The current core suite artifact is 29,907 bytes of initcode and 29,881 bytes of runtime bytecode.
 The legacy suite plus its two dedicated account support artifacts is 206,866 bytes of initcode and
-86,410 bytes of runtime bytecode. That is an 85.54% initcode and 65.42% runtime reduction before the
-eight cross-component entries are charged to the withdrawal and wrapper checkpoints; the final
-family comparison will be recomputed after those land.
+86,410 bytes of runtime bytecode. That is an 85.54% initcode and 65.42% runtime reduction for the
+core transfer slice. The two withdrawal-escrow entries are charged to the withdrawal checkpoint;
+the final family comparison will be recomputed after the six wrapper entries land.
 
 The full replacement checkpoint is 560 tests across 36 suites with zero inherited entries,
 718,635 bytes of test-side initcode, and 709,424 bytes of runtime bytecode. A forced canonical

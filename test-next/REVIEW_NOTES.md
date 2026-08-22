@@ -55,7 +55,6 @@ file before the final cutover.
   `CloseMarketWithUnpaidWithdrawals` requires an adversarial asset that reports successful
   `transferFrom` without moving funds; keep that case for the adversarial/invariant pass rather
   than changing the normal ERC-20 fixture.
-- Borrower-transfer core behavior is complete. Keep its two market-withdrawal escrow cases with the
-  withdrawal integration slice, and its six wrapper readiness, wrapper escrow, wrapper namespace,
-  and sweep-authority cases with the wrapper slice. The borrower-transfer ledger names all eight so
-  they do not disappear between checkpoints.
+- Borrower-transfer core behavior and both market-withdrawal escrow cases are complete. Its six
+  wrapper readiness, wrapper escrow, wrapper namespace, and sweep-authority cases remain assigned
+  to the wrapper slice; the borrower-transfer ledger names them so they do not disappear.

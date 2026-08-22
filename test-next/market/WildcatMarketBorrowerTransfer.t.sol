@@ -8,6 +8,7 @@ import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegi
 import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
 import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegistry.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
+import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.sol';
 import { DeployMarketInputs, MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
@@ -244,6 +245,26 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   ) private view {
     assertEq(fixture.market.pendingBorrower(), borrower, 'pending borrower');
     assertEq(fixture.market.pendingBorrowerPrincipal(), principal, 'pending principal');
+  }
+
+  function _escrowSanctionedPosition(
+    Fixture memory fixture,
+    address lender
+  ) private returns (address escrow, uint256 escrowedAmount) {
+    _deposit(fixture, lender, 10e18);
+    fixture.sanctionsList.sanction(lender);
+    fixture.market.nukeFromOrbit(lender);
+    uint32 expiry = fixture.market.previousState().pendingWithdrawalExpiry;
+    vm.warp(uint256(expiry) + 1);
+    fixture.market.updateState();
+    fixture.market.executeWithdrawal(lender, expiry);
+    escrow = fixture.sentinel.getEscrowAddress(
+      fixture.market.borrowerPrincipal(),
+      lender,
+      address(fixture.asset)
+    );
+    escrowedAmount = fixture.asset.balanceOf(escrow);
+    assertTrue(escrowedAmount > 0, 'escrowed amount');
   }
 
   function test_requestReplacementCancellationAndAuthorization() external {
@@ -603,6 +624,44 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     migrationFixture.sentinel.overrideSanction(Lender);
     vm.prank(Lender);
     migrationFixture.market.deposit(1e18);
+  }
+
+  function test_withdrawalEscrowUsesAndRetainsBorrowerPrincipalNamespace() external {
+    Fixture memory namespaceFixture = _newFixture();
+    address account = _deployAccount(namespaceFixture, SecondPrincipal);
+    _transfer(namespaceFixture, Borrower, account);
+    (address principalEscrow, ) = _escrowSanctionedPosition(namespaceFixture, Lender);
+    address accountEscrow = namespaceFixture.sentinel.getEscrowAddress(
+      account,
+      Lender,
+      address(namespaceFixture.asset)
+    );
+
+    assertTrue(principalEscrow != accountEscrow, 'escrow namespaces');
+    assertEq(accountEscrow.code.length, 0, 'operational account escrow');
+    assertEq(IWildcatSanctionsEscrow(principalEscrow).borrower(), SecondPrincipal, 'escrow owner');
+
+    Fixture memory migrationFixture = _newFixture();
+    (address oldEscrow, uint256 escrowedAmount) = _escrowSanctionedPosition(
+      migrationFixture,
+      Lender
+    );
+    _registerPrincipal(migrationFixture, SecondPrincipal);
+    _transfer(migrationFixture, Borrower, SecondPrincipal);
+    vm.prank(Borrower);
+    migrationFixture.sentinel.overrideSanction(Lender);
+
+    uint256 lenderBalanceBefore = migrationFixture.asset.balanceOf(Lender);
+    IWildcatSanctionsEscrow(oldEscrow).releaseEscrow();
+    assertEq(
+      migrationFixture.asset.balanceOf(Lender),
+      lenderBalanceBefore + escrowedAmount,
+      'released old escrow'
+    );
+    assertTrue(
+      migrationFixture.sentinel.isSanctioned(SecondPrincipal, Lender),
+      'new namespace sanction'
+    );
   }
 
   function test_acceptPreservesActiveDelinquentAndClosedAccounting() external {
