@@ -47,3 +47,9 @@ and metadata settings as the deployment build.
 
 The old suite remains the behavioral oracle during the migration. It is not being edited or moved
 as part of this work. Its matching fixed-seed command is `yarn test:legacy:fixed`.
+
+Completed family ledgers live in `parity/`:
+
+- `access-controls.md`
+- `libraries-types.md`
+- `role-provider-factories.md`

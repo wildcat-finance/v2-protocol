@@ -1,6 +1,6 @@
 # Test Suite Inventory and Restructuring Baseline
 
-Status: baseline captured; parallel replacement started under `test-next/`.
+Status: baseline captured; parallel replacement underway under `test-next/`.
 
 ## Survey boundary
 
@@ -348,6 +348,19 @@ The first representative checkpoint is implemented:
 See `test-next/parity/access-controls.md` and `test-next/parity/libraries-types.md` for property
 disposition and comparison details. Hook-specific OpenTerm, FixedTerm, and PeriodicTerm properties
 remain in the migration backlog.
+
+The first Phase 2 family is also complete:
+
+- one runtime matrix replaces the six role-provider factory suites
+- all 55 legacy factory properties map to 18 replacement entries, with shared entries exercising
+  every applicable factory
+- the six factory contracts have 100% line, statement, branch, and function coverage
+- dedicated test-side initcode fell from 190,018 to 18,598 bytes, a 90.21% reduction
+- the full replacement checkpoint is 254 tests across 17 suites with zero inherited entries and
+  219,157 bytes of test-side initcode
+- forced canonical compile-to-green is 59.64 seconds with a 1,860,904 KiB RSS peak
+
+See `test-next/parity/role-provider-factories.md` for the property map and exact comparison.
 
 ### Phase 2: migrate feature families
 

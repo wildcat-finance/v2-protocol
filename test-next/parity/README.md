@@ -42,3 +42,9 @@ source is restored before returning. No coverage-only Solidity change is retaine
 At the first representative checkpoint, 236 tests cover the currently imported production slice
 at 98.16% lines, 97.69% statements, 94.59% branches, and 99.49% functions. The remaining
 `IHooks.onCreateMarket` path belongs to the hook-specific migration rather than this shared slice.
+
+The second checkpoint adds the complete role-provider factory family. All six factory contracts
+have 100% line, statement, branch, and function coverage. Aggregate coverage of every newly
+imported source is temporarily lower because the factory matrix necessarily imports provider and
+`OpenTermHooks` implementations whose full behavior belongs to later slices; those partial files
+are not being presented as complete.
