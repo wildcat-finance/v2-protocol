@@ -86,3 +86,10 @@ Fourteen new runtime-matrix properties own state updates, deposits, fees, borrow
 closure, batch-key safety, and rescue behavior; completed token, dispatch, and access-hook families
 own the duplicated cross-boundary properties. The final two randomized closed-market drain entries
 remain assigned to withdrawals. See `market-lifecycle.md`.
+
+The market borrower-transfer checkpoint maps all 29 core identity, authority, sanctions, and
+accounting entries into ten composed properties and adds one malformed-registry response property.
+All executable lines and branches in the production borrower-transfer region are covered. Eight
+legacy cross-component entries remain explicitly assigned to withdrawal-escrow and wrapper
+integration rather than importing that deployment graph into the market suite. See
+`market-borrower-transfer.md`.

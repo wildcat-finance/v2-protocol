@@ -710,6 +710,26 @@ The shared standard/fixed-term market-lifecycle family is complete:
 
 See `test-next/parity/market-lifecycle.md`.
 
+The core market borrower-transfer family is complete:
+
+- ten composed properties replace all 29 market-owned legacy entries, and one added adversarial
+  property covers malformed registry response words
+- direct principals, borrower accounts, same-account principal migration, target replacement,
+  factory removal, raw sanctions, acceptance revalidation, authority, and accounting use production
+  contracts
+- all 64 executable lines and all 12 branches in the `WildcatMarketBase` borrower-transfer region
+  are covered
+- eight cross-component legacy entries remain explicitly assigned to withdrawal-escrow and wrapper
+  integration; their market-side sanctions namespace behavior is already covered here
+- the provisional core artifact is 29,907 bytes of initcode and 29,881 bytes of runtime bytecode,
+  versus 206,866 and 86,410 bytes for the legacy suite and its dedicated account artifacts
+- the full replacement checkpoint is 560 tests across 36 suites with zero inherited entries,
+  718,635 bytes of test-side initcode, and 709,424 bytes of runtime bytecode
+- forced canonical compile-to-green is 1m57.16s, including 114.03s in solc, with a 3,121,564 KiB
+  RSS peak; execution is 1.84s
+
+See `test-next/parity/market-borrower-transfer.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
