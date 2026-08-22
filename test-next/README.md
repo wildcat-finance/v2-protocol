@@ -23,9 +23,11 @@ yarn coverage:next
 
 The coverage script refuses to touch an already-modified SphereX source file, applies
 `docs/coverage-spherex.patch` only for the run, restores the source on exit, and verifies the
-file is clean afterward. The patch is never part of the replacement suite. Integration graphs
-that import `HooksFactoryRevolving` still exceed the coverage compiler; focused families can set
-`FOUNDRY_TEST` to keep discovery narrow, for example:
+file is clean afterward. The patch is never part of the replacement suite. Forge's
+accurate-coverage mode replaces the canonical via-IR build with a non-IR instrumented build.
+Production graphs that import `HooksFactoryRevolving` exceed that coverage-only compiler; this
+does not affect canonical compilation or test execution. Focused families can set `FOUNDRY_TEST`
+to keep discovery narrow, for example:
 
 ```sh
 FOUNDRY_TEST=test-next/sanctions yarn coverage:next --match-contract SanctionsTest
@@ -70,3 +72,4 @@ Completed family ledgers live in `parity/`:
 - `reentrancy-guard.md`
 - `spherex-config.md`
 - `hooks-factory-templates.md`
+- `hook-dispatch.md`

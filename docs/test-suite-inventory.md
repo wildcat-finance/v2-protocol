@@ -538,9 +538,24 @@ The direct standard/revolving hooks-factory family is complete:
   436,794 bytes of test-side initcode, and 428,185 bytes of runtime bytecode
 - forced canonical compile-to-green is 83.28 seconds with a 2,600,456 KiB RSS peak
 
-Accurate non-IR coverage is still compiler-blocked in `HooksFactoryRevolving.sol:882`; canonical
-via-IR validation is green and no coverage-only source patch is retained. See
-`test-next/parity/hooks-factory-templates.md`.
+Forge's noncanonical accurate-coverage profile is compiler-blocked in
+`HooksFactoryRevolving.sol:882`; canonical via-IR validation is green and no coverage-only source
+patch is retained. See `test-next/parity/hooks-factory-templates.md`.
+
+The generic market-to-hook dispatch family is complete:
+
+- 12 focused properties replace all 18 entries from `HooksIntegration.t.sol`
+- production market code preserves flag gating, exact intermediate state and callback calldata,
+  caller identity, arbitrary trailing data, nested/batched empty-data behavior, and APR callback
+  return values
+- focused LCOV comparison gives an identical executable-line hit set for all 11 dispatch routines
+- dedicated initcode falls from 200,778 to 29,892 bytes, an 85.11% reduction; runtime bytecode
+  falls from 87,282 to 29,639 bytes, a 66.04% reduction
+- the full replacement checkpoint is 446 tests across 30 suites with zero inherited entries,
+  466,686 bytes of test-side initcode, and 457,824 bytes of runtime bytecode
+- forced canonical compile-to-green is 87.21 seconds with a 2,690,600 KiB RSS peak
+
+See `test-next/parity/hook-dispatch.md`.
 
 ### Phase 2: migrate feature families
 

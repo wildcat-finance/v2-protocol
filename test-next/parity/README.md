@@ -25,10 +25,11 @@ rationale.
 ## Coverage lane
 
 The legacy monolith still cannot produce current coverage: after the temporary SphereX workaround,
-its non-IR build reaches unrelated stack-too-deep failures and minimum-IR reaches a Yul allocation
-failure. Accurate non-IR coverage works for replacement slices whose import graphs avoid those
-contracts. Completed integration slices that import `HooksFactoryRevolving` hit the same compiler
-limit and carry that result in their family ledgers.
+Forge's non-IR coverage build reaches unrelated stack-too-deep failures and minimum-IR reaches a
+Yul allocation failure. This is a limitation of the coverage-only compiler profile, not the
+canonical via-IR test lane. Accurate non-IR coverage works for replacement slices whose import
+graphs avoid those contracts. Completed integration slices that import
+`HooksFactoryRevolving` carry that tooling exception in their family ledgers.
 
 Run it with:
 

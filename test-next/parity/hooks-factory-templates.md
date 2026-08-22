@@ -121,6 +121,7 @@ The full replacement checkpoint is 434 tests across 29 suites with zero inherite
 436,794 bytes of test-side initcode, and 428,185 bytes of runtime bytecode. A forced canonical
 compile-to-green took 83.28 seconds and peaked at 2,600,456 KiB RSS.
 
-Accurate Forge coverage remains compiler-blocked: without via-IR,
-`HooksFactoryRevolving.sol:882` is stack-too-deep. The canonical via-IR run is green, and the
-temporary SphereX coverage patch was restored cleanly after the failed coverage attempt.
+Forge's accurate-coverage mode cannot compile this production graph: its non-IR build is
+stack-too-deep at `HooksFactoryRevolving.sol:882`, while `--ir-minimum` fails Yul stack
+allocation. This is limited to the coverage-only compiler profile. The canonical via-IR suite is
+green, and the temporary SphereX coverage patch was restored cleanly after both attempts.
