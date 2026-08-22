@@ -111,6 +111,11 @@ The wrapper-factory checkpoint replaces all 16 generation-routing, deployment, r
 transfer-policy entries with nine composed properties. The production factory reaches 100% line,
 statement, branch, and function coverage. See `wildcat-4626-wrapper-factory.md`.
 
+The Lens checkpoint replaces 74 core and multi-factory entries with 19 properties split across
+the deployed facade, core/live, and aggregator boundaries. Focused accurate coverage gives
+`MarketLens`, `MarketLensCore`, `MarketLensLive`, and `MarketLensAggregator` 100% line, statement,
+branch, and function coverage. See `market-lens.md`.
+
 The core wrapper checkpoint maps all 160 non-factory vault entries into 19 composed properties.
 Conversions, execution, allowances, caps, sanctions, defensive reads, sweeps, and quarantine use the
 production wrapper with one floor-rounding market mock. Ten production-composition properties then

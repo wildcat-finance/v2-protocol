@@ -2,6 +2,7 @@
 pragma solidity >=0.8.20;
 
 import { IHooks } from 'src/access/IHooks.sol';
+import { HooksTemplate } from 'src/IHooksFactory.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 
@@ -49,6 +50,7 @@ contract HookDispatchSentinelMock {
 
 contract HookDispatchFactoryMock {
   MarketParameters internal _parameters;
+  address internal _lensHooksTemplate = address(0x7E4);
   uint256 internal _revolvingCommitmentFeeResponse = 500;
   uint256 internal _revolvingCommitmentFeeResponseSize = 32;
   bool internal _revolvingCommitmentFeeReverts;
@@ -59,6 +61,30 @@ contract HookDispatchFactoryMock {
 
   function getMarketParameters() external view returns (MarketParameters memory) {
     return _parameters;
+  }
+
+  function setLensHooksTemplate(address hooksTemplate) external {
+    _lensHooksTemplate = hooksTemplate;
+  }
+
+  function getHooksTemplateForInstance(address) external view returns (address) {
+    return _lensHooksTemplate;
+  }
+
+  function getHooksTemplateDetails(
+    address hooksTemplate
+  ) external view returns (HooksTemplate memory data) {
+    data.exists = hooksTemplate == _lensHooksTemplate;
+    data.enabled = data.exists;
+    data.name = data.exists ? 'Fixture Hooks' : '';
+  }
+
+  function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256) {
+    return hooksTemplate == _lensHooksTemplate ? 1 : 0;
+  }
+
+  function getMarketsForHooksInstanceCount(address) external pure returns (uint256) {
+    return 1;
   }
 
   function setRevolvingMarketCommitmentFeeResponse(

@@ -87,3 +87,4 @@ Completed family ledgers live in `parity/`:
 - `wildcat-4626-wrapper-factory.md`
 - `wildcat-4626-wrapper.md`
 - `wildcat-4626-wrapper-integration.md`
+- `market-lens.md`

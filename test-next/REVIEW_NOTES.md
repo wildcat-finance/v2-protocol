@@ -53,3 +53,6 @@ file before the final cutover.
   records the identities. Production wrapper integration now covers the live sanctions-escrow
   release branch, all built-in hooks, borrower-account namespace transitions, and the revolving
   market path.
+- Accurate Lens coverage closes all four shipped Lens contracts with one `FOUNDRY_TEST` root at a
+  time. Directory-wide discovery imports the existing factory graph that Forge's non-IR coverage
+  compiler cannot lower; canonical via-IR compilation is unaffected.

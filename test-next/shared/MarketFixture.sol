@@ -168,7 +168,8 @@ abstract contract MarketFixture is TestKernel {
     Fixture memory fixture,
     Options memory options,
     HooksConfig requestedHooks,
-    HooksConfig expectedHooks
+    HooksConfig expectedHooks,
+    bytes memory hooksData
   ) private {
     DeployMarketInputs memory deploymentInputs = _deploymentInputs(
       fixture,
@@ -179,7 +180,7 @@ abstract contract MarketFixture is TestKernel {
       Borrower,
       address(fixture.market),
       deploymentInputs,
-      _hookData(options)
+      hooksData
     );
     assertEq(
       HooksConfig.unwrap(configuredHooks),
@@ -228,6 +229,14 @@ abstract contract MarketFixture is TestKernel {
     Options memory options,
     IHooks hooks
   ) internal returns (Fixture memory fixture) {
+    return _newMarket(options, hooks, _hookData(options));
+  }
+
+  function _newMarket(
+    Options memory options,
+    IHooks hooks,
+    bytes memory hooksData
+  ) internal returns (Fixture memory fixture) {
     fixture = _deployFixtureDependencies();
     fixture.hooks = hooks;
     fixture.factory.setRevolvingMarketCommitmentFeeResponse(options.commitmentFeeBips, 32, false);
@@ -239,7 +248,7 @@ abstract contract MarketFixture is TestKernel {
       _buildMarketParameters(fixture, options, marketHooks),
       options.revolving
     );
-    _configureHooks(fixture, options, requestedHooks, marketHooks);
+    _configureHooks(fixture, options, requestedHooks, marketHooks, hooksData);
   }
 
   function _newMarket(HooksKind hooksKind) internal returns (Fixture memory fixture) {

@@ -845,6 +845,27 @@ The direct revolving-market family is complete:
 The randomized standard/revolving × hook matrix remains assigned to the invariant migration. See
 `test-next/parity/market-revolving.md`.
 
+The Market Lens family is complete:
+
+- eight facade, five core/live, and six aggregator properties replace all 74 legacy Lens entries
+- raw selector routing covers every facade endpoint, and exact revert/probe tests own the malformed
+  return-data boundaries without rebuilding a market fixture
+- production standard, revolving, and periodic markets cover the complete market, live, lender,
+  borrower-identity, and withdrawal read models
+- focused factory mocks cover discovery, deduplication, ordering, failure isolation, factory scope,
+  pagination, and every direct and aggregated endpoint
+- all four shipped Lens contracts have 100% line, statement, branch, and function coverage in
+  focused accurate-coverage runs
+- emitted family initcode falls from 684,250 to a conservatively charged 79,205 bytes, an 88.42%
+  reduction; runtime bytecode falls 82.25%
+- the full replacement checkpoint is 648 tests across 42 suites with zero inherited entries,
+  1,014,984 bytes of test-side initcode, and 1,003,508 bytes of runtime bytecode
+- forced canonical via-IR AST compilation takes 3m22.89s, including 202.12s in solc, with a
+  5,601,176 KiB RSS peak; warm execution remains about two seconds
+
+The legacy suite remains the fixed-seed parity oracle and is not retrofitted. See
+`test-next/parity/market-lens.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
