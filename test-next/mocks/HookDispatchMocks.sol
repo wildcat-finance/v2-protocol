@@ -49,6 +49,9 @@ contract HookDispatchSentinelMock {
 
 contract HookDispatchFactoryMock {
   MarketParameters internal _parameters;
+  uint256 internal _revolvingCommitmentFeeResponse = 500;
+  uint256 internal _revolvingCommitmentFeeResponseSize = 32;
+  bool internal _revolvingCommitmentFeeReverts;
 
   function setMarketParameters(MarketParameters calldata parameters) external {
     _parameters = parameters;
@@ -58,8 +61,27 @@ contract HookDispatchFactoryMock {
     return _parameters;
   }
 
-  function getRevolvingMarketCommitmentFeeBips() external pure returns (uint16) {
-    return 500;
+  function setRevolvingMarketCommitmentFeeResponse(
+    uint256 response,
+    uint256 responseSize,
+    bool shouldRevert
+  ) external {
+    _revolvingCommitmentFeeResponse = response;
+    _revolvingCommitmentFeeResponseSize = responseSize;
+    _revolvingCommitmentFeeReverts = shouldRevert;
+  }
+
+  function getRevolvingMarketCommitmentFeeBips() external view returns (uint16) {
+    uint256 response = _revolvingCommitmentFeeResponse;
+    uint256 responseSize = _revolvingCommitmentFeeResponseSize;
+    bool shouldRevert = _revolvingCommitmentFeeReverts;
+    assembly ('memory-safe') {
+      mstore(0, response)
+      if shouldRevert {
+        revert(0, responseSize)
+      }
+      return(0, responseSize)
+    }
   }
 
   function deployMarket(bytes memory creationCode) external returns (address market) {

@@ -825,6 +825,26 @@ The token-provider production-composition handoff is complete:
 
 See `test-next/parity/token-role-providers.md`.
 
+The direct revolving-market family is complete:
+
+- 12 properties replace all 22 direct market entries and four deterministic differential entries
+- drawn-principal accounting covers borrow, both repay paths, interest-first repayment,
+  over-repayment, borrower-supplied liquidity, maximum-value donations, closure, and borrower
+  transfer
+- commitment, utilization, protocol-fee, delinquency-fee, zero-input, clamped-utilization, and raw-
+  unit dust paths give `WildcatMarketRevolving` 100% line, statement, branch, and function coverage
+- the standard-market differential is exact while fully drawn and diverges in the intended
+  direction after lender supply grows above fixed drawn principal
+- dedicated initcode falls from 324,097 to 32,913 bytes, an 89.84% reduction; runtime bytecode falls
+  83.85%
+- the full replacement checkpoint is 629 tests across 39 suites with zero inherited entries,
+  935,779 bytes of test-side initcode, and 925,540 bytes of runtime bytecode
+- forced canonical via-IR AST compile-to-green is 2m43.33s, including 159.56s in solc, with a
+  4,046,644 KiB RSS peak
+
+The randomized standard/revolving × hook matrix remains assigned to the invariant migration. See
+`test-next/parity/market-revolving.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

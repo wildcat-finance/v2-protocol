@@ -7,6 +7,7 @@ import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegi
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
+import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { HookDispatchFactoryMock } from '../mocks/HookDispatchMocks.sol';
@@ -32,6 +33,8 @@ abstract contract MarketFixture is TestKernel {
     uint128 minimumDeposit;
     uint32 fixedTermEndTime;
     bool transfersDisabled;
+    bool revolving;
+    uint16 commitmentFeeBips;
   }
 
   struct Fixture {
@@ -58,11 +61,19 @@ abstract contract MarketFixture is TestKernel {
     options.withdrawalBatchDuration = 1 days;
     options.reserveRatioBips = 2_000;
     options.delinquencyGracePeriod = 2_000;
+    options.commitmentFeeBips = 500;
+  }
+
+  function _defaultRevolvingOptions(
+    HooksKind hooksKind
+  ) internal pure returns (Options memory options) {
+    options = _defaultOptions(hooksKind);
+    options.revolving = true;
   }
 
   function _packString(string memory value) private pure returns (bytes32 word0, bytes32 word1) {
     require(bytes(value).length <= 63, 'fixture string too long');
-    assembly {
+    assembly ('memory-safe') {
       word0 := mload(add(value, 0x1f))
       word1 := mul(mload(add(value, 0x3f)), gt(mload(value), 0x1f))
     }
@@ -181,16 +192,32 @@ abstract contract MarketFixture is TestKernel {
     Fixture memory fixture,
     MarketParameters memory parameters
   ) internal returns (WildcatMarket deployedMarket) {
+    return _deployMarketFromParameters(fixture, parameters, false);
+  }
+
+  function _deployMarketFromParameters(
+    Fixture memory fixture,
+    MarketParameters memory parameters,
+    bool revolving
+  ) internal returns (WildcatMarket deployedMarket) {
     fixture.factory.setMarketParameters(parameters);
-    return _deployStoredMarket(fixture);
+    return _deployStoredMarket(fixture, revolving);
   }
 
   function _deployStoredMarket(
     Fixture memory fixture
   ) internal returns (WildcatMarket deployedMarket) {
-    deployedMarket = WildcatMarket(
-      fixture.factory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket'))
-    );
+    return _deployStoredMarket(fixture, false);
+  }
+
+  function _deployStoredMarket(
+    Fixture memory fixture,
+    bool revolving
+  ) internal returns (WildcatMarket deployedMarket) {
+    string memory artifact = revolving
+      ? 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
+      : 'src/market/WildcatMarket.sol:WildcatMarket';
+    deployedMarket = WildcatMarket(fixture.factory.deployMarket(vm.getCode(artifact)));
   }
 
   function _newMarket(Options memory options) internal returns (Fixture memory fixture) {
@@ -203,18 +230,24 @@ abstract contract MarketFixture is TestKernel {
   ) internal returns (Fixture memory fixture) {
     fixture = _deployFixtureDependencies();
     fixture.hooks = hooks;
+    fixture.factory.setRevolvingMarketCommitmentFeeResponse(options.commitmentFeeBips, 32, false);
 
     HooksConfig requestedHooks = options.requestedHooks.setHooksAddress(address(fixture.hooks));
     HooksConfig marketHooks = requestedHooks.mergeFlags(fixture.hooks.config());
     fixture.market = _deployMarketFromParameters(
       fixture,
-      _buildMarketParameters(fixture, options, marketHooks)
+      _buildMarketParameters(fixture, options, marketHooks),
+      options.revolving
     );
     _configureHooks(fixture, options, requestedHooks, marketHooks);
   }
 
   function _newMarket(HooksKind hooksKind) internal returns (Fixture memory fixture) {
     return _newMarket(_defaultOptions(hooksKind));
+  }
+
+  function _newRevolvingMarket(HooksKind hooksKind) internal returns (Fixture memory fixture) {
+    return _newMarket(_defaultRevolvingOptions(hooksKind));
   }
 
   function _fundAndApprove(Fixture memory fixture, address account, uint256 amount) internal {

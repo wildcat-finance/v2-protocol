@@ -9,7 +9,9 @@ import { ReentrancyGuard } from 'src/ReentrancyGuard.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
+import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { RAY, MathUtils } from 'src/libraries/MathUtils.sol';
@@ -22,12 +24,17 @@ import { MarketConfigHooks, ProtocolFeeReadOnDepositHooks } from '../mocks/Marke
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
 contract WildcatMarketTest is MarketFixture {
+  using FeeMath for MarketState;
+
+  error RevolvingFeeReadFailed();
+
   address internal constant Holder = address(0xA11CE);
   address internal constant Recipient = address(0xB0B);
   address internal constant Delegate = address(0xDE1E6A7E);
   bytes32 internal constant BorrowerStorageSlot = bytes32(type(uint256).max);
   bytes4 internal constant PanicSelector = 0x4e487b71;
   uint256 internal constant ArithmeticPanic = 0x11;
+  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(10));
 
   function _arithmeticPanic() private pure returns (bytes memory) {
     return abi.encodeWithSelector(PanicSelector, ArithmeticPanic);
@@ -62,6 +69,132 @@ contract WildcatMarketTest is MarketFixture {
       _deployCode('test-next/mocks/MarketMocks.sol:MarketConfigHooks')
     );
     fixture = _newMarket(_defaultOptions(HooksKind.OpenTerm), IHooks(address(configHooks)));
+  }
+
+  function _revolvingOptions(
+    uint16 commitmentFeeBips,
+    uint16 annualInterestBips,
+    uint16 protocolFeeBips
+  ) private pure returns (Options memory options) {
+    options = _defaultRevolvingOptions(HooksKind.OpenTerm);
+    options.commitmentFeeBips = commitmentFeeBips;
+    options.annualInterestBips = annualInterestBips;
+    options.protocolFeeBips = protocolFeeBips;
+    options.delinquencyFeeBips = 0;
+  }
+
+  function _revolving(Fixture memory fixture) private pure returns (IWildcatMarketRevolving) {
+    return IWildcatMarketRevolving(address(fixture.market));
+  }
+
+  function _approveBorrower(Fixture memory fixture) private {
+    vm.prank(Borrower);
+    fixture.asset.approve(address(fixture.market), type(uint256).max);
+  }
+
+  function _accruedDebtAboveDrawn(Fixture memory fixture) private view returns (uint256) {
+    return
+      fixture.market.totalDebts() -
+      fixture.market.totalAssets() -
+      _revolving(fixture).drawnAmount();
+  }
+
+  function _assertNoDrawnAmountUpdate(Vm.Log[] memory logs) private pure {
+    bytes32 eventSignature = keccak256('DrawnAmountUpdated(uint256,uint256)');
+    for (uint256 i; i < logs.length; i++) {
+      assertFalse(
+        logs[i].topics.length > 0 && logs[i].topics[0] == eventSignature,
+        'unexpected drawn amount update'
+      );
+    }
+  }
+
+  function _utilizationInterestRay(
+    uint256 totalSupply,
+    uint256 drawn,
+    uint16 annualInterestBips,
+    uint32 elapsed
+  ) private pure returns (uint256) {
+    return
+      MathUtils.mulDiv(
+        MathUtils.calculateLinearInterestFromBips(annualInterestBips, elapsed),
+        drawn,
+        totalSupply
+      );
+  }
+
+  function _minimumDrawForInterest(
+    uint256 totalSupply,
+    uint16 annualInterestBips,
+    uint32 elapsed
+  ) private pure returns (uint256) {
+    uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(
+      annualInterestBips,
+      elapsed
+    );
+    return totalSupply / annualInterestRay + 1;
+  }
+
+  function _assertObservedRevolvingDust(
+    uint128 totalSupply,
+    uint16 annualInterestBips,
+    uint32 elapsed
+  ) private {
+    assertEq(
+      _minimumDrawForInterest(totalSupply, annualInterestBips, elapsed),
+      1,
+      'observed minimum draw'
+    );
+    uint256 expectedInterest = _utilizationInterestRay(totalSupply, 1, annualInterestBips, elapsed);
+    assertTrue(expectedInterest > 0, 'observed utilization interest');
+
+    Options memory options = _revolvingOptions(0, annualInterestBips, 0);
+    options.maxTotalSupply = totalSupply;
+    Fixture memory fixture = _newMarket(options);
+    _deposit(fixture, Holder, totalSupply);
+    vm.prank(Borrower);
+    fixture.market.borrow(1);
+    vm.warp(vm.getBlockTimestamp() + elapsed);
+    fixture.market.updateState();
+    assertEq(fixture.market.scaleFactor(), RAY + expectedInterest, 'observed dust accrual');
+  }
+
+  function _assertRevolvingDustBoundary(
+    uint128 totalSupply,
+    uint16 annualInterestBips,
+    uint32 elapsed
+  ) private {
+    uint256 minimumDraw = _minimumDrawForInterest(totalSupply, annualInterestBips, elapsed);
+    assertTrue(minimumDraw > 1, 'stress minimum draw');
+    assertTrue(minimumDraw < totalSupply, 'stress borrowable threshold');
+    assertEq(
+      _utilizationInterestRay(totalSupply, minimumDraw - 1, annualInterestBips, elapsed),
+      0,
+      'below-threshold interest'
+    );
+    assertEq(
+      _utilizationInterestRay(totalSupply, minimumDraw, annualInterestBips, elapsed),
+      1,
+      'boundary interest'
+    );
+
+    Options memory options = _revolvingOptions(0, annualInterestBips, 0);
+    options.maxTotalSupply = totalSupply;
+    Fixture memory belowFixture = _newMarket(options);
+    _deposit(belowFixture, Holder, totalSupply);
+    vm.prank(Borrower);
+    belowFixture.market.borrow(minimumDraw - 1);
+    vm.warp(vm.getBlockTimestamp() + elapsed);
+    belowFixture.market.updateState();
+    assertEq(belowFixture.market.scaleFactor(), RAY, 'below dust boundary');
+
+    Fixture memory boundaryFixture = _newMarket(options);
+    _deposit(boundaryFixture, Holder, totalSupply);
+    vm.prank(Borrower);
+    boundaryFixture.market.borrow(minimumDraw);
+    vm.warp(vm.getBlockTimestamp() + elapsed);
+    boundaryFixture.market.updateState();
+    assertEq(boundaryFixture.market.scaleFactor(), RAY + 1, 'exact dust boundary');
   }
 
   function _mintMarketTokens(Fixture memory fixture, address account, uint256 amount) private {
@@ -2169,5 +2302,383 @@ contract WildcatMarketTest is MarketFixture {
       assertEq(fixture.market.previousState().scaledPendingWithdrawals, 0, 'pending paid');
       assertEq(fixture.market.previousState().normalizedUnclaimedWithdrawals, 1e18, 'reserved');
     }
+  }
+
+  // ========================================================================== //
+  //                         Revolving market behavior                          //
+  // ========================================================================== //
+
+  function test_revolvingConstructorValidatesAndStoresCommitmentFee() external {
+    Options memory options = _revolvingOptions(200, 1_000, 0);
+    Fixture memory fixture = _newMarket(options);
+    IWildcatMarketRevolving revolvingMarket = _revolving(fixture);
+    assertEq(revolvingMarket.commitmentFeeBips(), 200, 'commitment fee');
+    assertEq(revolvingMarket.drawnAmount(), 0, 'initial drawn amount');
+    assertEq(fixture.market.borrowerPrincipal(), Borrower, 'borrower principal');
+
+    MarketParameters memory parameters = _buildMarketParameters(
+      fixture,
+      options,
+      fixture.market.hooks()
+    );
+    fixture.factory.setRevolvingMarketCommitmentFeeResponse(type(uint16).max, 32, false);
+    WildcatMarket maximumFeeMarket = _deployMarketFromParameters(fixture, parameters, true);
+    assertEq(
+      IWildcatMarketRevolving(address(maximumFeeMarket)).commitmentFeeBips(),
+      type(uint16).max,
+      'maximum commitment fee'
+    );
+
+    fixture.factory.setRevolvingMarketCommitmentFeeResponse(200, 31, false);
+    vm.expectRevert();
+    _deployStoredMarket(fixture, true);
+
+    fixture.factory.setRevolvingMarketCommitmentFeeResponse((uint256(1) << 16) | 200, 32, false);
+    vm.expectRevert();
+    _deployStoredMarket(fixture, true);
+
+    uint256 errorWord = uint256(uint32(RevolvingFeeReadFailed.selector)) << 224;
+    fixture.factory.setRevolvingMarketCommitmentFeeResponse(errorWord, 4, true);
+    vm.expectRevert(RevolvingFeeReadFailed.selector);
+    _deployStoredMarket(fixture, true);
+  }
+
+  function test_revolvingDrawnAmountTracksBorrowAndSaturatingRepayment() external {
+    Fixture memory fixture = _newMarket(_revolvingOptions(200, 1_000, 0));
+    IWildcatMarketRevolving revolvingMarket = _revolving(fixture);
+    _deposit(fixture, Holder, 1_000e18);
+    _approveBorrower(fixture);
+
+    vm.expectEmit(address(fixture.market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(0, 400e18);
+    vm.prank(Borrower);
+    fixture.market.borrow(400e18);
+    assertEq(revolvingMarket.drawnAmount(), 400e18, 'drawn after borrow');
+
+    vm.expectEmit(address(fixture.market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 150e18);
+    vm.prank(Borrower);
+    fixture.market.repay(250e18);
+    assertEq(revolvingMarket.drawnAmount(), 150e18, 'drawn after partial repay');
+
+    fixture.asset.mint(Borrower, 1_000e18);
+    vm.expectEmit(address(fixture.market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(150e18, 0);
+    vm.prank(Borrower);
+    fixture.market.repay(1_000e18);
+    assertEq(revolvingMarket.drawnAmount(), 0, 'drawn after saturated repay');
+  }
+
+  function test_revolvingDrawnAmountClampsOverRepayDonationAndLargeValues() external {
+    Fixture memory fixture = _newMarket(_revolvingOptions(200, 1_000, 0));
+    IWildcatMarketRevolving revolvingMarket = _revolving(fixture);
+    _deposit(fixture, Holder, 1_000e18);
+    _approveBorrower(fixture);
+    vm.prank(Borrower);
+    fixture.market.borrow(400e18);
+
+    fixture.asset.mint(Borrower, 200e18);
+    vm.expectEmit(address(fixture.market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 0);
+    vm.prank(Borrower);
+    fixture.market.repay(600e18);
+
+    vm.expectEmit(address(fixture.market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(0, 200e18);
+    vm.prank(Borrower);
+    fixture.market.borrow(400e18);
+    assertEq(revolvingMarket.drawnAmount(), 200e18, 'drawn after surplus borrow');
+
+    Options memory largeOptions = _revolvingOptions(200, 1_000, 0);
+    largeOptions.maxTotalSupply = 1_000;
+    Fixture memory largeFixture = _newMarket(largeOptions);
+    _deposit(largeFixture, Holder, 1_000);
+    vm.prank(Borrower);
+    largeFixture.market.borrow(500);
+    vm.prank(Borrower);
+    largeFixture.asset.transfer(address(largeFixture.market), 500);
+    largeFixture.asset.mint(address(largeFixture.market), type(uint256).max - 1_000);
+
+    vm.prank(Borrower);
+    largeFixture.market.borrow(type(uint256).max - 499);
+    assertEq(largeFixture.market.totalAssets(), 499, 'large assets after borrow');
+    assertEq(largeFixture.market.totalDebts(), 1_000, 'large debt after borrow');
+    assertEq(_revolving(largeFixture).drawnAmount(), 501, 'large drawn clamp');
+  }
+
+  function test_revolvingRepayConsumesInterestBeforePrincipalAcrossBothEntrypoints() external {
+    uint256 initialTimestamp = vm.getBlockTimestamp();
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialTimestamp);
+      Fixture memory fixture = _newMarket(_revolvingOptions(200, 1_000, 0));
+      IWildcatMarketRevolving revolvingMarket = _revolving(fixture);
+      _deposit(fixture, Holder, 1_000e18);
+      _approveBorrower(fixture);
+      vm.prank(Borrower);
+      fixture.market.borrow(500e18);
+
+      vm.warp(initialTimestamp + 365 days);
+      uint256 accruedDebt = _accruedDebtAboveDrawn(fixture);
+      assertTrue(accruedDebt > 0, 'accrued debt');
+      vm.recordLogs();
+      vm.prank(Borrower);
+      if (i == 0) {
+        fixture.market.repay(accruedDebt);
+      } else {
+        fixture.market.repayAndProcessUnpaidWithdrawalBatches(accruedDebt, 0);
+      }
+      _assertNoDrawnAmountUpdate(vm.getRecordedLogs());
+      assertEq(revolvingMarket.drawnAmount(), 500e18, 'drawn after interest');
+
+      vm.expectEmit(address(fixture.market));
+      emit IWildcatMarketRevolving.DrawnAmountUpdated(500e18, 377e18);
+      vm.prank(Borrower);
+      if (i == 0) {
+        fixture.market.repay(123e18);
+      } else {
+        fixture.market.repayAndProcessUnpaidWithdrawalBatches(123e18, 0);
+      }
+      assertEq(revolvingMarket.drawnAmount(), 377e18, 'drawn after principal');
+    }
+  }
+
+  function test_revolvingCloseZerosDrawnAndFreezesAccrual() external {
+    Fixture memory fixture = _newMarket(_revolvingOptions(200, 1_000, 0));
+    _deposit(fixture, Holder, 1_000e18);
+    _approveBorrower(fixture);
+    vm.prank(Borrower);
+    fixture.market.borrow(400e18);
+
+    vm.expectEmit(address(fixture.market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 0);
+    vm.prank(Borrower);
+    fixture.market.closeMarket();
+    assertTrue(fixture.market.isClosed(), 'closed');
+    assertEq(_revolving(fixture).drawnAmount(), 0, 'closed drawn amount');
+
+    uint256 scaleFactor = fixture.market.scaleFactor();
+    uint256 totalDebts = fixture.market.totalDebts();
+    vm.warp(vm.getBlockTimestamp() + 365 days);
+    fixture.market.updateState();
+    assertEq(fixture.market.scaleFactor(), scaleFactor, 'closed scale factor');
+    assertEq(fixture.market.totalDebts(), totalDebts, 'closed total debts');
+  }
+
+  function test_revolvingAccrualCombinesCommitmentUtilizationAndProtocolFees() external {
+    Fixture memory fixture = _newMarket(_revolvingOptions(200, 1_000, 500));
+    _deposit(fixture, Holder, 1_000e18);
+    vm.prank(Borrower);
+    fixture.market.borrow(500e18);
+
+    uint32 elapsed = 365 days;
+    vm.warp(vm.getBlockTimestamp() + elapsed);
+    MarketState memory state = fixture.market.previousState();
+    uint256 commitmentInterest = MathUtils.calculateLinearInterestFromBips(200, elapsed);
+    uint256 utilizationInterest = _utilizationInterestRay(1_000e18, 500e18, 1_000, elapsed);
+    uint256 baseInterest = commitmentInterest + utilizationInterest;
+    uint256 expectedProtocolFees = state.applyProtocolFee(baseInterest);
+    fixture.market.updateState();
+
+    assertEq(fixture.market.scaleFactor(), RAY + baseInterest, 'combined scale factor');
+    assertEq(
+      fixture.market.previousState().accruedProtocolFees,
+      expectedProtocolFees,
+      'revolving protocol fees'
+    );
+    assertEq(_revolving(fixture).drawnAmount(), 500e18, 'accrual drawn amount');
+  }
+
+  function test_revolvingAccrualAppliesDelinquencyFee() external {
+    Options memory options = _revolvingOptions(0, 0, 0);
+    options.delinquencyFeeBips = 1_000;
+    options.delinquencyGracePeriod = 0;
+    Fixture memory fixture = _newMarket(options);
+    _deposit(fixture, Holder, 1e18);
+    vm.prank(Borrower);
+    fixture.market.borrow(8e17);
+    vm.prank(Holder);
+    fixture.market.queueFullWithdrawal();
+    assertTrue(fixture.market.currentState().isDelinquent, 'revolving delinquency');
+
+    uint32 elapsed = 2_000;
+    vm.warp(vm.getBlockTimestamp() + elapsed);
+    fixture.market.updateState();
+    assertEq(
+      fixture.market.scaleFactor(),
+      RAY + MathUtils.calculateLinearInterestFromBips(1_000, elapsed),
+      'revolving delinquency fee'
+    );
+  }
+
+  function test_revolvingAccrualHandlesFeeOnlyZeroSupplyAndZeroTime() external {
+    Options memory options = _revolvingOptions(500, 1_000, 0);
+    Fixture memory feeOnlyFixture = _newMarket(options);
+    _deposit(feeOnlyFixture, Holder, 100_000e18);
+    uint32 elapsed = 73 days;
+    vm.warp(vm.getBlockTimestamp() + elapsed);
+    feeOnlyFixture.market.updateState();
+    uint256 commitmentInterest = MathUtils.calculateLinearInterestFromBips(500, elapsed);
+    assertEq(feeOnlyFixture.market.scaleFactor(), RAY + commitmentInterest, 'fee-only accrual');
+    assertTrue(
+      feeOnlyFixture.market.scaleFactor() <
+        RAY + MathUtils.calculateLinearInterestFromBips(1_000, elapsed),
+      'undrawn APR leak'
+    );
+
+    uint256 currentTimestamp = vm.getBlockTimestamp();
+    Fixture memory zeroSupplyFixture = _newMarket(options);
+    vm.warp(currentTimestamp + 365 days);
+    zeroSupplyFixture.market.updateState();
+    assertEq(zeroSupplyFixture.market.scaleFactor(), RAY, 'zero-supply accrual');
+
+    Fixture memory zeroTimeFixture = _newMarket(options);
+    _deposit(zeroTimeFixture, Holder, 1_000e18);
+    vm.prank(Borrower);
+    zeroTimeFixture.market.borrow(500e18);
+    zeroTimeFixture.market.updateState();
+    assertEq(zeroTimeFixture.market.scaleFactor(), RAY, 'zero-time accrual');
+    assertEq(_revolving(zeroTimeFixture).drawnAmount(), 500e18, 'zero-time drawn amount');
+  }
+
+  function test_revolvingAccrualClampsUtilizationAndPreservesDustBoundaries() external {
+    Fixture memory clampedFixture = _newMarket(_revolvingOptions(200, 1_000, 0));
+    _deposit(clampedFixture, Holder, 1_000e18);
+    vm.store(address(clampedFixture.market), RevolvingDrawnAmountSlot, bytes32(uint256(2_000e18)));
+    assertEq(_revolving(clampedFixture).drawnAmount(), 2_000e18, 'forced drawn amount');
+    vm.warp(vm.getBlockTimestamp() + 365 days);
+    clampedFixture.market.updateState();
+    uint256 fullUtilization = MathUtils.calculateLinearInterestFromBips(1_000, 365 days);
+    uint256 commitmentInterest = MathUtils.calculateLinearInterestFromBips(200, 365 days);
+    assertEq(
+      clampedFixture.market.scaleFactor(),
+      RAY + commitmentInterest + fullUtilization,
+      'clamped utilization'
+    );
+
+    assertEq(_minimumDrawForInterest(1_000e6, 1, 12), 1, '1k six-decimal threshold');
+    assertEq(_minimumDrawForInterest(110_000_000e6, 1, 12), 1, '110m six-decimal threshold');
+    assertEq(
+      _minimumDrawForInterest(110_000_000e6, 1_000, 12),
+      1,
+      '110m high-APR six-decimal threshold'
+    );
+    assertEq(_minimumDrawForInterest(110_000_000e6, 1, 1), 1, 'one-second six-decimal threshold');
+    assertEq(_minimumDrawForInterest(110_000_000e18, 1, 12), 2_890_800_001, '18-decimal threshold');
+    assertEq(
+      _minimumDrawForInterest(110_000_000e18, 1_000, 12),
+      2_890_801,
+      'high-APR 18-decimal threshold'
+    );
+    assertEq(
+      _minimumDrawForInterest(110_000_000e18, 1, 1),
+      34_689_600_001,
+      'one-second 18-decimal threshold'
+    );
+
+    _assertObservedRevolvingDust(1_000e6, 1, 12);
+    _assertObservedRevolvingDust(110_000_000e6, 1, 12);
+    _assertObservedRevolvingDust(110_000_000e6, 1_000, 12);
+
+    _assertRevolvingDustBoundary(1_000e18, 1, 12);
+    _assertRevolvingDustBoundary(1_000e18, 1_000, 12);
+    _assertRevolvingDustBoundary(110_000_000e18, 1, 12);
+    _assertRevolvingDustBoundary(110_000_000e18, 1_000, 12);
+  }
+
+  function test_revolvingFullyDrawnFirstSegmentMatchesStandardThenDiverges() external {
+    uint256 depositAmount = 100_000e18;
+    Options memory standardOptions = _defaultOptions(HooksKind.OpenTerm);
+    standardOptions.reserveRatioBips = 0;
+    standardOptions.protocolFeeBips = 0;
+    standardOptions.delinquencyFeeBips = 0;
+    Options memory revolvingOptions = _revolvingOptions(0, 1_000, 0);
+    revolvingOptions.reserveRatioBips = 0;
+    Fixture memory standardFixture = _newMarket(standardOptions);
+    Fixture memory revolvingFixture = _newMarket(revolvingOptions);
+    _deposit(standardFixture, Holder, depositAmount);
+    _deposit(revolvingFixture, Holder, depositAmount);
+    vm.prank(Borrower);
+    standardFixture.market.borrow(depositAmount);
+    vm.prank(Borrower);
+    revolvingFixture.market.borrow(depositAmount);
+
+    vm.warp(vm.getBlockTimestamp() + 45 days);
+    standardFixture.market.updateState();
+    revolvingFixture.market.updateState();
+    assertEq(
+      revolvingFixture.market.scaleFactor(),
+      standardFixture.market.scaleFactor(),
+      'first segment differential'
+    );
+    assertTrue(standardFixture.market.scaleFactor() > RAY, 'first segment accrual');
+
+    uint256 scaleFactorBefore = revolvingFixture.market.scaleFactor();
+    uint256 supplyBefore = revolvingFixture.market.totalSupply();
+    uint256 secondSegmentInterest = _utilizationInterestRay(
+      supplyBefore,
+      depositAmount,
+      revolvingOptions.annualInterestBips,
+      30 days
+    );
+    uint256 expectedRevolving = scaleFactorBefore +
+      MathUtils.rayMul(scaleFactorBefore, secondSegmentInterest);
+    vm.warp(vm.getBlockTimestamp() + 30 days);
+    standardFixture.market.updateState();
+    revolvingFixture.market.updateState();
+    assertEq(revolvingFixture.market.scaleFactor(), expectedRevolving, 'second segment oracle');
+    assertTrue(
+      revolvingFixture.market.scaleFactor() < standardFixture.market.scaleFactor(),
+      'second segment differential'
+    );
+  }
+
+  function test_revolvingFullRepayReturnsToCommitmentOnlyAccrual() external {
+    Options memory options = _revolvingOptions(300, 1_000, 0);
+    options.reserveRatioBips = 0;
+    Fixture memory fixture = _newMarket(options);
+    _deposit(fixture, Holder, 100_000e18);
+    _approveBorrower(fixture);
+    vm.prank(Borrower);
+    fixture.market.borrow(100_000e18);
+
+    vm.warp(vm.getBlockTimestamp() + 20 days);
+    fixture.market.updateState();
+    uint256 owed = fixture.market.totalDebts() - fixture.market.totalAssets();
+    fixture.asset.mint(Borrower, owed);
+    vm.prank(Borrower);
+    fixture.market.repay(owed);
+    assertEq(_revolving(fixture).drawnAmount(), 0, 'drawn after full repay');
+
+    uint256 scaleFactorBefore = fixture.market.scaleFactor();
+    uint256 commitmentInterest = MathUtils.calculateLinearInterestFromBips(300, 15 days);
+    uint256 expectedScaleFactor = scaleFactorBefore +
+      MathUtils.rayMul(scaleFactorBefore, commitmentInterest);
+    vm.warp(vm.getBlockTimestamp() + 15 days);
+    fixture.market.updateState();
+    assertEq(fixture.market.scaleFactor(), expectedScaleFactor, 'post-repay fee-only accrual');
+  }
+
+  function test_revolvingBorrowerTransferPreservesDrawnAmountAndStorage() external {
+    Fixture memory fixture = _newMarket(_revolvingOptions(200, 1_000, 0));
+    _deposit(fixture, Holder, 1_000e18);
+    vm.prank(Borrower);
+    fixture.market.borrow(400e18);
+    bytes32 drawnAmountWord = vm.load(address(fixture.market), RevolvingDrawnAmountSlot);
+    address newBorrower = address(0xB0B0);
+    fixture.archController.registerBorrower(newBorrower);
+
+    vm.prank(Borrower);
+    fixture.market.requestBorrowerTransfer(newBorrower);
+    vm.prank(newBorrower);
+    fixture.market.acceptBorrowerTransfer();
+
+    assertEq(fixture.market.borrower(), newBorrower, 'transferred borrower');
+    assertEq(fixture.market.borrowerPrincipal(), newBorrower, 'transferred principal');
+    assertEq(_revolving(fixture).drawnAmount(), 400e18, 'transferred drawn amount');
+    assertEq(
+      vm.load(address(fixture.market), RevolvingDrawnAmountSlot),
+      drawnAmountWord,
+      'drawn storage word'
+    );
   }
 }

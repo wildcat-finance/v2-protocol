@@ -100,6 +100,13 @@ runtime-matrix market properties plus one production-Sentinel property cover the
 completed access-hook suites own repeated credential gates. `WildcatMarketWithdrawals` has 100%
 line, statement, branch, and function coverage. See `market-withdrawals.md`.
 
+The revolving-market checkpoint maps all 22 direct market entries and four deterministic
+differential entries into 12 properties on the shared market artifact. Drawn-principal accounting,
+commitment/utilization interest, protocol and delinquency fees, dust boundaries, borrower transfer,
+closure, and standard-market anchors give `WildcatMarketRevolving` 100% line, statement, branch,
+and function coverage. The randomized hook × market matrix remains in the dedicated invariant
+migration. See `market-revolving.md`.
+
 The wrapper-factory checkpoint replaces all 16 generation-routing, deployment, registration, and
 transfer-policy entries with nine composed properties. The production factory reaches 100% line,
 statement, branch, and function coverage. See `wildcat-4626-wrapper-factory.md`.
