@@ -399,6 +399,24 @@ The earlier factory matrix already owns AccessList/Merkle creation and hook-cons
 attachment. Production FixedTerm and generic market-to-hook dispatch remain assigned to their
 later feature slices. See `test-next/parity/managed-role-providers.md`.
 
+The ArchController family is also complete:
+
+- one five-registry runtime matrix replaces the repeated controller-factory, controller, market,
+  borrower, and blacklist CRUD suites
+- lightweight registered targets preserve the ArchController-owned SphereX propagation,
+  allowlisting, null-engine, authorization, missing-entry, event, and revert behavior without
+  inheriting the full market fixture
+- `WildcatArchController` has 100% line, statement, branch, and function coverage
+- 12 properties replace 47 legacy entries
+- dedicated initcode falls from 195,663 to 15,393 bytes, a 92.13% reduction
+- the full replacement checkpoint is 320 tests across 21 suites with zero inherited entries,
+  290,941 bytes of test-side initcode, and 284,697 bytes of runtime bytecode
+- forced canonical compile-to-green is 68.10 seconds with a 2,088,680 KiB RSS peak
+
+The disabled CAF-13 pagination and CAF-16 registered-target remediation cases remain documented
+known behavior rather than replacement assertions because the deployed ArchController is a
+singleton. See `test-next/parity/wildcat-arch-controller.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

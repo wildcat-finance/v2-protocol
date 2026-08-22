@@ -25,3 +25,9 @@ file before the final cutover.
 - Forge reports the same instrumentation behavior for one constant-return line in
   `MerkleRoleProvider`: branch and function coverage are 100%, and both zero-return paths are
   explicitly asserted.
+- The disabled CAF-13 invalid-pagination and CAF-16 registered-target-validation cases are not
+  carried into the ArchController replacement suite. They describe remediations that cannot be
+  applied to the deployed singleton; the new suite preserves its current registry semantics.
+- ArchController SphereX propagation uses lightweight registered targets. Their mocks cover the
+  controller-owned dispatch and allowlisting behavior; each real target's own
+  `changeSphereXEngine` implementation remains assigned to its factory, hooks, or market slice.
