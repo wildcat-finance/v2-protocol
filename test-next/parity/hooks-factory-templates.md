@@ -49,6 +49,23 @@ The replacement uses a real OpenTerm hooks template with one pull and one push p
 constructor-argument and metadata path is asserted against production hook behavior in both
 factory implementations. The failure path uses one minimal reverting initcode artifact.
 
+## Market deployment happy-path checkpoint
+
+Two additional runtime-matrix properties replace six legacy happy-path entries. Existing-hook and
+combined hook+market deployment now both run through production OpenTerm hooks and production
+standard/revolving markets. They retain:
+
+- exact CREATE2 prediction and returned market addresses
+- all factory market/config/hook-data events plus the revolving commitment-fee event
+- requested versus effective hook flags and forwarded hook data
+- borrower and borrower-principal identity, token metadata, market parameters, sanctions
+  sentinel, fee recipient, and initial protocol fee
+- origination-fee transfer, template/instance market indexes, controller registration, and the
+  revolving commitment fee
+
+The successful combined path also proves the newly deployed hook is indexed under the caller and
+used by the market in both factory variants.
+
 ## Canonical result
 
 All 11 properties pass at the fixed timestamp and seed. The suite uses canonical production
@@ -56,8 +73,9 @@ factory artifacts, stored standard/revolving market initcode, the production Arc
 borrower identity registry, and an OpenTerm hooks template. Its current test contract emits 12,584
 bytes of initcode and 12,558 bytes of runtime bytecode at the first checkpoint. After adding
 hook-instance deployment, the suite plus its dedicated failure artifact emits 17,042 bytes of
-initcode and 17,007 bytes of runtime bytecode. The final family delta will be recorded after the
-remaining 51 legacy factory entries are replaced.
+initcode and 17,007 bytes of runtime bytecode. With the market happy paths included, it emits
+25,048 bytes of initcode and 25,013 bytes of runtime bytecode. The final family delta will be
+recorded after the remaining 45 legacy factory entries are replaced.
 
-The complete replacement checkpoint now has 420 tests across 29 suites, zero inherited entries,
-410,438 bytes of test-side initcode, and 401,829 bytes of runtime bytecode.
+The complete replacement checkpoint now has 422 tests across 29 suites, zero inherited entries,
+418,444 bytes of test-side initcode, and 409,835 bytes of runtime bytecode.

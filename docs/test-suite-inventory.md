@@ -550,6 +550,18 @@ The hook-instance deployment portion is now complete as well:
 
 Market deployment, pagination, revolving market-data parsing, and protocol-fee propagation remain.
 
+The two factory market-deployment happy paths are complete:
+
+- two additional matrix properties replace six standard/revolving success entries
+- existing-hook and combined deployments use real OpenTerm hooks and real markets
+- CREATE2 prediction, all deployment events, hook data/flags, market configuration, origination
+  fees, indexes, borrower identity, and revolving commitment fees are explicit
+- the in-progress suite plus its failure artifact now emits 25,048 bytes of initcode
+- the full replacement checkpoint is 422 tests across 29 suites with zero inherited entries,
+  418,444 bytes of test-side initcode, and 409,835 bytes of runtime bytecode
+
+The market rejection matrix, pagination, revolving market-data parser, and fee propagation remain.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

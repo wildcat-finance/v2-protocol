@@ -6,14 +6,20 @@ import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';
 import { HooksTemplate } from 'src/IHooksFactory.sol';
 import { IHooksFactory } from 'src/IHooksFactory.sol';
 import { IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
+import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { CreateProviderInputs } from 'src/access/ProviderStructs.sol';
 import { ExistingProviderInputs } from 'src/access/ProviderStructs.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
+import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
+import { WildcatMarket } from 'src/market/WildcatMarket.sol';
+import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
+import { Bit_Enabled_Deposit, EmptyHooksConfig, HooksConfig } from 'src/types/HooksConfig.sol';
 import { NullProviderIndex, RoleProvider, encodeRoleProvider } from 'src/types/RoleProvider.sol';
+import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { BrokenHooksTemplate } from '../mocks/HooksFactoryMocks.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
@@ -42,6 +48,8 @@ contract HooksFactoriesTest is TestKernel {
     uint256 revolvingMarketHash;
     address firstTemplate;
     address secondTemplate;
+    MockERC20 asset;
+    MockERC20 feeToken;
   }
 
   address internal constant SanctionsSentinel = address(0x5A);
@@ -115,6 +123,18 @@ contract HooksFactoriesTest is TestKernel {
     fixture.secondTemplate = LibStoredInitCode.deployInitCode(
       vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
     );
+    fixture.asset = MockERC20(
+      _deployCode(
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
+        abi.encode('Underlying', 'UND', uint8(18))
+      )
+    );
+    fixture.feeToken = MockERC20(
+      _deployCode(
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
+        abi.encode('Fee Token', 'FEE', uint8(18))
+      )
+    );
   }
 
   function _factories(
@@ -138,6 +158,94 @@ contract HooksFactoriesTest is TestKernel {
       fees.amount,
       fees.protocolFeeBips
     );
+  }
+
+  function _marketSalt(address deployer, uint96 nonce) internal pure returns (bytes32) {
+    return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
+  }
+
+  function _marketInputs(
+    Fixture memory fixture,
+    address hooksInstance
+  ) internal pure returns (DeployMarketInputs memory) {
+    return
+      DeployMarketInputs({
+        asset: address(fixture.asset),
+        namePrefix: 'Wildcat ',
+        symbolPrefix: 'wc',
+        maxTotalSupply: 1_000_000e18,
+        annualInterestBips: 1_000,
+        delinquencyFeeBips: 100,
+        withdrawalBatchDuration: 1 days,
+        reserveRatioBips: 1_000,
+        delinquencyGracePeriod: 1 days,
+        hooks: EmptyHooksConfig.setHooksAddress(hooksInstance)
+      });
+  }
+
+  function _deployMarket(
+    FactoryKind kind,
+    IHooksFactory factory,
+    DeployMarketInputs memory parameters,
+    bytes memory hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  ) internal returns (address market) {
+    if (kind == FactoryKind.Standard) {
+      return
+        factory.deployMarket(
+          parameters,
+          hooksData,
+          salt,
+          originationFeeAsset,
+          originationFeeAmount
+        );
+    }
+    return
+      IHooksFactoryRevolving(address(factory)).deployMarket(
+        parameters,
+        hooksData,
+        abi.encode(uint8(1), uint16(100)),
+        salt,
+        originationFeeAsset,
+        originationFeeAmount
+      );
+  }
+
+  function _deployMarketAndHooks(
+    FactoryKind kind,
+    IHooksFactory factory,
+    address hooksTemplate,
+    DeployMarketInputs memory parameters,
+    bytes memory hooksData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  ) internal returns (address market, address hooksInstance) {
+    if (kind == FactoryKind.Standard) {
+      return
+        factory.deployMarketAndHooks(
+          hooksTemplate,
+          '',
+          parameters,
+          hooksData,
+          salt,
+          originationFeeAsset,
+          originationFeeAmount
+        );
+    }
+    return
+      IHooksFactoryRevolving(address(factory)).deployMarketAndHooks(
+        hooksTemplate,
+        '',
+        parameters,
+        hooksData,
+        abi.encode(uint8(1), uint16(100)),
+        salt,
+        originationFeeAsset,
+        originationFeeAmount
+      );
   }
 
   function _assertTemplate(
@@ -535,6 +643,146 @@ contract HooksFactoriesTest is TestKernel {
 
       assertEq(factory.getHooksInstanceDeploymentNonce(address(this)), 0);
       assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 0);
+    }
+  }
+
+  function test_deployMarket_PreservesConfigurationHooksAndFeesAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory fees = FeeConfig({
+      recipient: FeeRecipient,
+      asset: address(fixture.feeToken),
+      amount: 123,
+      protocolFeeBips: 456
+    });
+    bytes memory hooksData = abi.encode(uint128(77));
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; i++) {
+      FactoryKind kind = FactoryKind(i);
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
+      HooksConfig expectedHooks = parameters.hooks.setFlag(Bit_Enabled_Deposit).mergeFlags(
+        OpenTermHooks(hooksInstance).config()
+      );
+      bytes32 salt = _marketSalt(address(this), 1);
+      address expectedMarket = factory.computeMarketAddress(salt);
+
+      fixture.feeToken.mint(address(this), fees.amount);
+      fixture.feeToken.approve(address(factory), fees.amount);
+
+      vm.expectEmit(address(factory));
+      emit IHooksFactoryEventsAndErrors.MarketDeployed(
+        fixture.firstTemplate,
+        hooksInstance,
+        expectedMarket,
+        address(this),
+        address(this),
+        address(fixture.registry),
+        'Wildcat Underlying',
+        'wcUND',
+        address(fixture.asset),
+        parameters.hooks,
+        expectedHooks
+      );
+      vm.expectEmit(address(factory));
+      emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
+        expectedMarket,
+        parameters.maxTotalSupply,
+        parameters.annualInterestBips,
+        parameters.delinquencyFeeBips,
+        parameters.withdrawalBatchDuration,
+        parameters.reserveRatioBips,
+        parameters.delinquencyGracePeriod,
+        fees.recipient,
+        fees.protocolFeeBips,
+        fees.asset,
+        fees.amount
+      );
+      vm.expectEmit(address(factory));
+      emit IHooksFactoryEventsAndErrors.MarketHooksData(expectedMarket, hooksData);
+      if (kind == FactoryKind.Revolving) {
+        vm.expectEmit(address(factory));
+        emit IHooksFactoryRevolving.RevolvingMarketDeployed(expectedMarket, 100);
+      }
+
+      address marketAddress = _deployMarket(
+        kind,
+        factory,
+        parameters,
+        hooksData,
+        salt,
+        fees.asset,
+        fees.amount
+      );
+      assertEq(marketAddress, expectedMarket);
+      assertTrue(fixture.archController.isRegisteredMarket(marketAddress));
+      assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 1);
+      assertEq(factory.getMarketsForHooksInstanceCount(hooksInstance), 1);
+
+      WildcatMarket market = WildcatMarket(marketAddress);
+      assertEq(market.asset(), address(fixture.asset));
+      assertEq(market.name(), 'Wildcat Underlying');
+      assertEq(market.symbol(), 'wcUND');
+      assertEq(uint256(market.decimals()), 18);
+      assertEq(address(market.sentinel()), SanctionsSentinel);
+      assertEq(market.borrower(), address(this));
+      assertEq(market.borrowerPrincipal(), address(this));
+      assertEq(market.feeRecipient(), fees.recipient);
+      assertEq(uint256(market.previousState().protocolFeeBips), fees.protocolFeeBips);
+      assertEq(HooksConfig.unwrap(market.hooks()), HooksConfig.unwrap(expectedHooks));
+      assertEq(fixture.feeToken.balanceOf(fees.recipient), fees.amount * (i + 1));
+      assertTrue(OpenTermHooks(hooksInstance).getHookedMarket(marketAddress).isHooked);
+      assertEq(
+        uint256(OpenTermHooks(hooksInstance).getHookedMarket(marketAddress).minimumDeposit),
+        77
+      );
+      if (kind == FactoryKind.Revolving) {
+        assertEq(WildcatMarketRevolving(marketAddress).commitmentFeeBips(), 100);
+      }
+    }
+  }
+
+  function test_deployMarketAndHooks_IndexesBothDeploymentsAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory noFees;
+    bytes memory hooksData = abi.encode(uint128(88));
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; i++) {
+      FactoryKind kind = FactoryKind(i);
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', noFees);
+      DeployMarketInputs memory parameters = _marketInputs(fixture, address(0));
+      bytes32 salt = _marketSalt(address(this), 2);
+
+      (address market, address hooksInstance) = _deployMarketAndHooks(
+        kind,
+        factory,
+        fixture.firstTemplate,
+        parameters,
+        hooksData,
+        salt,
+        address(0),
+        0
+      );
+
+      assertEq(market, factory.computeMarketAddress(salt));
+      assertTrue(factory.isHooksInstance(hooksInstance));
+      assertEq(factory.getHooksTemplateForInstance(hooksInstance), fixture.firstTemplate);
+      assertEq(factory.getHooksAdministrator(hooksInstance), address(this));
+      assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 1);
+      assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 1);
+      assertEq(factory.getMarketsForHooksInstanceCount(hooksInstance), 1);
+      assertTrue(fixture.archController.isRegisteredMarket(market));
+      assertEq(WildcatMarket(market).borrower(), address(this));
+      assertEq(WildcatMarket(market).borrowerPrincipal(), address(this));
+      assertEq(WildcatMarket(market).hooks().hooksAddress(), hooksInstance);
+      assertEq(uint256(OpenTermHooks(hooksInstance).getHookedMarket(market).minimumDeposit), 88);
+      if (kind == FactoryKind.Revolving) {
+        assertEq(WildcatMarketRevolving(market).commitmentFeeBips(), 100);
+      }
     }
   }
 }
