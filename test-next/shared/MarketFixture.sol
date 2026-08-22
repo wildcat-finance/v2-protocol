@@ -30,6 +30,7 @@ abstract contract MarketFixture is TestKernel {
     uint16 reserveRatioBips;
     uint32 delinquencyGracePeriod;
     uint128 minimumDeposit;
+    uint32 fixedTermEndTime;
     bool transfersDisabled;
   }
 
@@ -78,14 +79,10 @@ abstract contract MarketFixture is TestKernel {
     if (options.hooksKind == HooksKind.OpenTerm) {
       return abi.encode(options.minimumDeposit, options.transfersDisabled);
     }
+    uint32 fixedTermEndTime = options.fixedTermEndTime;
+    if (fixedTermEndTime == 0) fixedTermEndTime = uint32(vm.getBlockTimestamp());
     return
-      abi.encode(
-        uint32(vm.getBlockTimestamp()),
-        options.minimumDeposit,
-        options.transfersDisabled,
-        true,
-        true
-      );
+      abi.encode(fixedTermEndTime, options.minimumDeposit, options.transfersDisabled, true, true);
   }
 
   function _deployFixtureDependencies() private returns (Fixture memory fixture) {

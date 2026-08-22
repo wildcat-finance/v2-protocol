@@ -80,3 +80,4 @@ Completed family ledgers live in `parity/`:
 - `market-constraint-hooks.md`
 - `market-token.md`
 - `market-base.md`
+- `market-config.md`

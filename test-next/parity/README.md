@@ -74,3 +74,9 @@ entries with 14 properties on one runtime-matrix suite. Focused accurate coverag
 `WildcatMarketToken` at 100%; `WildcatMarketBase` is intentionally partial until its configuration,
 lifecycle, borrower-transfer, and withdrawal slices join the same artifact. See `market-token.md`
 and `market-base.md`.
+
+The market-configuration checkpoint replaces all 88 standard/inherited FixedTerm configuration
+entries with 22 properties split at the production contract boundary: seven constraint-hook
+properties and 15 market properties. Focused accurate coverage reports 100% for
+`WildcatMarketConfig`; the remaining partial market files belong to lifecycle, borrower-transfer,
+and withdrawal slices. See `market-config.md`.

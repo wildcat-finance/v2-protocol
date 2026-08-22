@@ -3,6 +3,7 @@ pragma solidity >=0.8.20;
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
+import { MarketConstraintHooks } from 'src/access/MarketConstraintHooks.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { ReentrancyGuard } from 'src/ReentrancyGuard.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
@@ -13,13 +14,14 @@ import { MarketState } from 'src/libraries/MarketState.sol';
 import { RAY, MathUtils } from 'src/libraries/MathUtils.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { Bit_Enabled_Deposit, Bit_Enabled_Transfer, HooksConfig } from 'src/types/HooksConfig.sol';
-import { ProtocolFeeReadOnDepositHooks } from '../mocks/MarketMocks.sol';
+import { MarketConfigHooks, ProtocolFeeReadOnDepositHooks } from '../mocks/MarketMocks.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
 contract WildcatMarketTest is MarketFixture {
   address internal constant Holder = address(0xA11CE);
   address internal constant Recipient = address(0xB0B);
   address internal constant Delegate = address(0xDE1E6A7E);
+  bytes32 internal constant BorrowerStorageSlot = bytes32(type(uint256).max);
   bytes4 internal constant PanicSelector = 0x4e487b71;
   uint256 internal constant ArithmeticPanic = 0x11;
 
@@ -35,6 +37,16 @@ contract WildcatMarketTest is MarketFixture {
 
   function _newTokenMarket(HooksKind kind) private returns (Fixture memory fixture) {
     return _newMarket(_tokenOptions(kind));
+  }
+
+  function _newConfigMarket()
+    private
+    returns (Fixture memory fixture, MarketConfigHooks configHooks)
+  {
+    configHooks = MarketConfigHooks(
+      _deployCode('test-next/mocks/MarketMocks.sol:MarketConfigHooks')
+    );
+    fixture = _newMarket(_defaultOptions(HooksKind.OpenTerm), IHooks(address(configHooks)));
   }
 
   function _mintMarketTokens(Fixture memory fixture, address account, uint256 amount) private {
@@ -329,6 +341,446 @@ contract WildcatMarketTest is MarketFixture {
       bytes32(ReentrancyGuard.NoReentrantCalls.selector),
       'reentrant read selector'
     );
+  }
+
+  function test_configurationGettersAndMaximumDeposit_AcrossHookKinds(
+    uint104 rawDepositAmount
+  ) external {
+    uint256 depositAmount = bound(rawDepositAmount, 1, MaximumMarketSupply);
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Options memory options = _defaultOptions(HooksKind(i));
+      Fixture memory fixture = _newMarket(options);
+
+      assertEq(fixture.market.maxTotalSupply(), MaximumMarketSupply, 'maximum supply getter');
+      assertEq(fixture.market.annualInterestBips(), options.annualInterestBips, 'APR getter');
+      assertEq(fixture.market.reserveRatioBips(), options.reserveRatioBips, 'reserve getter');
+      assertFalse(fixture.market.isClosed(), 'initial closed state');
+      assertEq(fixture.market.maximumDeposit(), MaximumMarketSupply, 'initial deposit capacity');
+
+      _deposit(fixture, Holder, depositAmount);
+      assertEq(
+        fixture.market.maximumDeposit(),
+        MaximumMarketSupply - depositAmount,
+        'remaining deposit capacity'
+      );
+
+      uint256 remainingCapacity = MaximumMarketSupply - depositAmount;
+      if (remainingCapacity != 0) _deposit(fixture, Holder, remainingCapacity);
+      assertEq(fixture.market.maximumDeposit(), 0, 'filled deposit capacity');
+
+      vm.warp(initialBlockTimestamp + 365 days);
+      assertEq(fixture.market.maximumDeposit(), 0, 'interest cannot restore deposit capacity');
+    }
+  }
+
+  function test_borrowerReservedStorageControlsAuthority_AcrossHookKinds() external {
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      assertEq(
+        address(uint160(uint256(vm.load(address(fixture.market), BorrowerStorageSlot)))),
+        Borrower,
+        'stored borrower'
+      );
+
+      address newBorrower = address(uint160(0xB0B0 + i));
+      vm.store(
+        address(fixture.market),
+        BorrowerStorageSlot,
+        bytes32(uint256(uint160(newBorrower)))
+      );
+      assertEq(fixture.market.borrower(), newBorrower, 'borrower getter');
+
+      vm.prank(Borrower);
+      vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+      fixture.market.setMaxTotalSupply(1);
+
+      vm.prank(newBorrower);
+      fixture.market.setMaxTotalSupply(1);
+      assertEq(fixture.market.maxTotalSupply(), 1, 'new borrower authority');
+    }
+  }
+
+  function test_setMaxTotalSupplyAcceptsCapacityAboveAndBelowSupply_AcrossHookKinds(
+    uint104 rawSupply,
+    uint128 rawHighCapacity,
+    uint104 rawLowCapacity
+  ) external {
+    uint256 supply = bound(rawSupply, 1, MaximumMarketSupply);
+    uint256 highCapacity = bound(rawHighCapacity, supply, type(uint128).max);
+    uint256 lowCapacity = bound(rawLowCapacity, 0, supply - 1);
+
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      _deposit(fixture, Holder, supply);
+
+      vm.expectEmit(address(fixture.market));
+      emit IMarketEventsAndErrors.MaxTotalSupplyUpdated(
+        Borrower,
+        MaximumMarketSupply,
+        highCapacity
+      );
+      vm.prank(Borrower);
+      fixture.market.setMaxTotalSupply(highCapacity);
+      assertEq(fixture.market.maxTotalSupply(), highCapacity, 'high capacity');
+
+      vm.expectEmit(address(fixture.market));
+      emit IMarketEventsAndErrors.MaxTotalSupplyUpdated(Borrower, highCapacity, lowCapacity);
+      vm.prank(Borrower);
+      fixture.market.setMaxTotalSupply(lowCapacity);
+      assertEq(fixture.market.maxTotalSupply(), lowCapacity, 'low capacity');
+      assertEq(fixture.market.maximumDeposit(), 0, 'capacity below supply');
+    }
+  }
+
+  function test_setMaxTotalSupplyRejectsInvalidCallerClosedMarketAndOverflow_AcrossHookKinds()
+    external
+  {
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+      fixture.market.setMaxTotalSupply(1);
+
+      vm.prank(Borrower);
+      fixture.market.closeMarket();
+      assertTrue(fixture.market.isClosed(), 'closed state getter');
+      vm.prank(Borrower);
+      vm.expectRevert(IMarketEventsAndErrors.CapacityChangeOnClosedMarket.selector);
+      fixture.market.setMaxTotalSupply(1);
+
+      Fixture memory overflowFixture = _newMarket(HooksKind(i));
+      vm.prank(Borrower);
+      vm.expectRevert(_arithmeticPanic());
+      overflowFixture.market.setMaxTotalSupply(uint256(type(uint128).max) + 1);
+    }
+  }
+
+  function test_setProtocolFeeBipsUpdatesFromFactory_AcrossHookKinds(
+    uint16 rawProtocolFee
+  ) external {
+    uint16 protocolFee = uint16(bound(rawProtocolFee, 0, 999));
+
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectEmit(address(fixture.market));
+      emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(
+        address(fixture.factory),
+        1_000,
+        protocolFee
+      );
+      fixture.factory.callMarket(
+        address(fixture.market),
+        abi.encodeCall(fixture.market.setProtocolFeeBips, (protocolFee))
+      );
+      assertEq(fixture.market.previousState().protocolFeeBips, protocolFee, 'protocol fee');
+
+      fixture.factory.callMarket(
+        address(fixture.market),
+        abi.encodeCall(fixture.market.setProtocolFeeBips, (protocolFee))
+      );
+      assertEq(fixture.market.previousState().protocolFeeBips, protocolFee, 'unchanged fee');
+    }
+  }
+
+  function test_setProtocolFeeBipsRejectsInvalidCallerFeeAndClosedMarket_AcrossHookKinds()
+    external
+  {
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectRevert(IMarketEventsAndErrors.NotFactory.selector);
+      fixture.market.setProtocolFeeBips(0);
+
+      vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeTooHigh.selector);
+      fixture.factory.callMarket(
+        address(fixture.market),
+        abi.encodeCall(fixture.market.setProtocolFeeBips, (1_001))
+      );
+
+      vm.prank(Borrower);
+      fixture.market.closeMarket();
+      vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeChangeOnClosedMarket.selector);
+      fixture.factory.callMarket(
+        address(fixture.market),
+        abi.encodeCall(fixture.market.setProtocolFeeBips, (0))
+      );
+    }
+  }
+
+  function test_nukeFromOrbitQueuesEntireSanctionedBalanceAndIsIdempotent_AcrossHookKinds(
+    address lender
+  ) external {
+    vm.assume(lender != address(0) && lender != Borrower);
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialBlockTimestamp);
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      _deposit(fixture, lender, 1e18);
+      fixture.sentinel.setSanctioned(lender, true);
+      uint32 expiry = uint32(initialBlockTimestamp + 1 days);
+
+      vm.expectEmit(address(fixture.market));
+      emit IMarketEventsAndErrors.SanctionedAccountAssetsQueuedForWithdrawal(
+        lender,
+        expiry,
+        1e18,
+        1e18
+      );
+      fixture.market.nukeFromOrbit(lender);
+
+      assertEq(fixture.market.balanceOf(lender), 0, 'sanctioned lender balance');
+      assertEq(
+        fixture.market.getAccountWithdrawalStatus(lender, expiry).scaledAmount,
+        1e18,
+        'sanctions withdrawal amount'
+      );
+      assertEq(fixture.market.currentState().pendingWithdrawalExpiry, expiry, 'pending expiry');
+
+      vm.warp(uint256(expiry) + 1);
+      fixture.market.executeWithdrawal(lender, expiry);
+      assertEq(
+        fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()),
+        1e18,
+        'sanctions escrow balance'
+      );
+      assertEq(fixture.sentinel.createEscrowCalls(), 1, 'sanctions escrow calls');
+      assertEq(
+        fixture.market.getAccountWithdrawalStatus(lender, expiry).normalizedAmountWithdrawn,
+        1e18,
+        'sanctions withdrawal executed'
+      );
+
+      fixture.market.nukeFromOrbit(lender);
+      assertEq(
+        fixture.market.getAccountWithdrawalStatus(lender, expiry).scaledAmount,
+        1e18,
+        'idempotent sanctions withdrawal'
+      );
+    }
+  }
+
+  function test_nukeFromOrbitHandlesEmptyBalancesAndRejectsUnsanctionedAccounts_AcrossHookKinds()
+    external
+  {
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectRevert(IMarketEventsAndErrors.BadLaunchCode.selector);
+      fixture.market.nukeFromOrbit(Holder);
+
+      fixture.sentinel.setSanctioned(Holder, true);
+      fixture.market.nukeFromOrbit(Holder);
+      assertEq(fixture.sentinel.createEscrowCalls(), 0, 'empty sanctions escrow calls');
+      assertEq(fixture.market.currentState().pendingWithdrawalExpiry, 0, 'empty pending expiry');
+      assertEq(
+        fixture.market.getAccountWithdrawalStatus(Holder, 0).scaledAmount,
+        0,
+        'empty sanctions withdrawal'
+      );
+
+      fixture.sentinel.setSanctioned(address(0), true);
+      fixture.market.nukeFromOrbit(address(0));
+    }
+  }
+
+  function test_registerWrapperAuthenticatesFactoryAndProtectsCanonicalWrapper_AcrossHookKinds()
+    external
+  {
+    address wrapper = address(0xA4626);
+
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectRevert(IMarketEventsAndErrors.NotWrapperFactory.selector);
+      fixture.market.registerWrapper(wrapper);
+
+      vm.expectEmit(address(fixture.market));
+      emit IMarketEventsAndErrors.WrapperRegistered(wrapper);
+      vm.prank(WrapperFactory);
+      fixture.market.registerWrapper(wrapper);
+      assertEq(fixture.market.registeredWrapper(), wrapper, 'registered wrapper');
+
+      vm.prank(WrapperFactory);
+      vm.expectRevert(IMarketEventsAndErrors.WrapperAlreadyRegistered.selector);
+      fixture.market.registerWrapper(address(0xB4626));
+
+      fixture.sentinel.setSanctioned(wrapper, true);
+      vm.expectRevert(IMarketEventsAndErrors.CannotNukeWrapper.selector);
+      fixture.market.nukeFromOrbit(wrapper);
+    }
+  }
+
+  function test_nukeFromOrbitPreservesFixedTermWithdrawalRestriction() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+    Options memory options = _defaultOptions(HooksKind.FixedTerm);
+    options.fixedTermEndTime = uint32(initialBlockTimestamp + 365 days);
+    Fixture memory fixture = _newMarket(options);
+    _deposit(fixture, Holder, 1e18);
+    fixture.sentinel.setSanctioned(Holder, true);
+
+    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    fixture.market.nukeFromOrbit(Holder);
+    assertEq(fixture.market.balanceOf(Holder), 1e18, 'balance after rejected nuke');
+    assertEq(fixture.market.currentState().pendingWithdrawalExpiry, 0, 'pending after rejection');
+  }
+
+  function test_setAnnualInterestAndReserveRatioBipsAppliesProductionConstraints_AcrossHookKinds(
+    uint16 rawAnnualInterestBips,
+    uint16 requestedReserveRatioBips
+  ) external {
+    uint16 annualInterestBips = uint16(bound(rawAnnualInterestBips, 1, 10_000));
+    uint256 reserveRatioBips = 2_000;
+    if (annualInterestBips < 750) {
+      uint256 relativeReduction = MathUtils.mulDiv(
+        10_000,
+        1_000 - uint256(annualInterestBips),
+        1_000
+      );
+      reserveRatioBips = MathUtils.min(10_000, 2 * relativeReduction);
+    }
+
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectEmit(address(fixture.market));
+      emit IMarketEventsAndErrors.AnnualInterestAndReserveRatioBipsUpdated(
+        Borrower,
+        1_000,
+        annualInterestBips,
+        2_000,
+        reserveRatioBips
+      );
+      vm.prank(Borrower);
+      fixture.market.setAnnualInterestAndReserveRatioBips(
+        annualInterestBips,
+        requestedReserveRatioBips
+      );
+
+      assertEq(fixture.market.annualInterestBips(), annualInterestBips, 'updated APR');
+      assertEq(fixture.market.reserveRatioBips(), reserveRatioBips, 'updated reserve ratio');
+    }
+  }
+
+  function test_setAprRejectsAuthorityBoundsAndClosure_AcrossHookKinds() external {
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+      fixture.market.setAnnualInterestAndReserveRatioBips(1_000, 2_000);
+
+      vm.prank(Borrower);
+      vm.expectRevert(MarketConstraintHooks.AnnualInterestBipsOutOfBounds.selector);
+      fixture.market.setAnnualInterestAndReserveRatioBips(10_001, 0);
+
+      vm.prank(Borrower);
+      fixture.market.closeMarket();
+      vm.prank(Borrower);
+      vm.expectRevert(IMarketEventsAndErrors.AprChangeOnClosedMarket.selector);
+      fixture.market.setAnnualInterestAndReserveRatioBips(1_000, 2_000);
+    }
+
+    (Fixture memory aprFixture, MarketConfigHooks aprHooks) = _newConfigMarket();
+    aprHooks.setAprAndReserveRatioReturn(10_001, 0);
+    vm.prank(Borrower);
+    vm.expectRevert(IMarketEventsAndErrors.AnnualInterestBipsTooHigh.selector);
+    aprFixture.market.setAnnualInterestAndReserveRatioBips(1_000, 2_000);
+
+    (Fixture memory reserveFixture, MarketConfigHooks reserveHooks) = _newConfigMarket();
+    reserveHooks.setAprAndReserveRatioReturn(1_000, 10_001);
+    vm.prank(Borrower);
+    vm.expectRevert(IMarketEventsAndErrors.ReserveRatioBipsTooHigh.selector);
+    reserveFixture.market.setAnnualInterestAndReserveRatioBips(1_000, 2_000);
+  }
+
+  function test_setAnnualInterestAndReserveRatioBipsEnforcesLiquidityBeforeAndAfterChange()
+    external
+  {
+    (Fixture memory oldRatioFixture, MarketConfigHooks oldRatioHooks) = _newConfigMarket();
+    _deposit(oldRatioFixture, Holder, 1e18);
+    vm.prank(Borrower);
+    oldRatioFixture.market.borrow(8e17);
+    vm.prank(Holder);
+    oldRatioFixture.market.queueWithdrawal(1e18);
+    assertTrue(oldRatioFixture.market.currentState().isDelinquent, 'old-ratio delinquency');
+
+    oldRatioHooks.setAprAndReserveRatioReturn(1_000, 2_000);
+    vm.prank(Borrower);
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForOldLiquidityRatio.selector);
+    oldRatioFixture.market.setAnnualInterestAndReserveRatioBips(1_000, 2_000);
+
+    (Fixture memory newRatioFixture, MarketConfigHooks newRatioHooks) = _newConfigMarket();
+    _deposit(newRatioFixture, Holder, 1e18);
+    vm.prank(Borrower);
+    newRatioFixture.market.borrow(5e17);
+    vm.prank(Holder);
+    newRatioFixture.market.queueWithdrawal(1e18);
+    newRatioHooks.setAprAndReserveRatioReturn(1_000, 5_020);
+    vm.prank(Borrower);
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForNewLiquidityRatio.selector);
+    newRatioFixture.market.setAnnualInterestAndReserveRatioBips(1_000, 2_000);
+
+    Fixture memory healthyFixture = _newMarket(HooksKind.OpenTerm);
+    _deposit(healthyFixture, Holder, 50_000e18);
+    vm.prank(Borrower);
+    healthyFixture.market.borrow(5_000e18 + 1);
+    vm.prank(Borrower);
+    healthyFixture.market.setAnnualInterestAndReserveRatioBips(1_000, 1);
+    assertEq(healthyFixture.market.reserveRatioBips(), 2_000, 'borrower reserve input ignored');
+    assertFalse(healthyFixture.market.currentState().isDelinquent, 'healthy after APR update');
+  }
+
+  function test_executePendingAnnualInterestBipsReductionIsPermissionlessAndUsesHookState()
+    external
+  {
+    (Fixture memory fixture, MarketConfigHooks configHooks) = _newConfigMarket();
+    configHooks.setPendingAnnualInterestBipsReduction(999);
+
+    vm.expectEmit(address(fixture.market));
+    emit IMarketEventsAndErrors.AnnualInterestAndReserveRatioBipsUpdated(
+      Holder,
+      1_000,
+      999,
+      2_000,
+      2_000
+    );
+    vm.prank(Holder);
+    fixture.market.executePendingAnnualInterestBipsReduction();
+
+    assertEq(fixture.market.annualInterestBips(), 999, 'executed pending APR');
+    assertEq(fixture.market.reserveRatioBips(), 2_000, 'preserved reserve ratio');
+    assertEq(configHooks.lastIntermediateAnnualInterestBips(), 1_000, 'intermediate APR');
+    assertEq(configHooks.lastIntermediateReserveRatioBips(), 2_000, 'intermediate reserve ratio');
+  }
+
+  function test_executePendingAnnualInterestBipsReductionRejectsInvalidMarketAndHookStates()
+    external
+  {
+    for (uint256 i; i < 2; i++) {
+      Fixture memory fixture = _newMarket(HooksKind(i));
+      vm.expectRevert(IMarketEventsAndErrors.ExecutePendingAprReductionNotEnabled.selector);
+      fixture.market.executePendingAnnualInterestBipsReduction();
+
+      vm.prank(Borrower);
+      fixture.market.closeMarket();
+      vm.expectRevert(IMarketEventsAndErrors.AprChangeOnClosedMarket.selector);
+      fixture.market.executePendingAnnualInterestBipsReduction();
+    }
+
+    (Fixture memory equalFixture, MarketConfigHooks equalHooks) = _newConfigMarket();
+    equalHooks.setPendingAnnualInterestBipsReduction(1_000);
+    vm.expectRevert(IMarketEventsAndErrors.AprReductionNotReduction.selector);
+    equalFixture.market.executePendingAnnualInterestBipsReduction();
+    equalHooks.setPendingAnnualInterestBipsReduction(1_001);
+    vm.expectRevert(IMarketEventsAndErrors.AprReductionNotReduction.selector);
+    equalFixture.market.executePendingAnnualInterestBipsReduction();
+
+    (Fixture memory delinquentFixture, MarketConfigHooks delinquentHooks) = _newConfigMarket();
+    _deposit(delinquentFixture, Holder, 1e18);
+    vm.prank(Borrower);
+    delinquentFixture.market.borrow(8e17);
+    vm.prank(Holder);
+    delinquentFixture.market.queueWithdrawal(1e18);
+    delinquentHooks.setPendingAnnualInterestBipsReduction(999);
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForOldLiquidityRatio.selector);
+    delinquentFixture.market.executePendingAnnualInterestBipsReduction();
   }
 
   function test_tokenMetadataAndRoundingMarker_AcrossHookKinds() external {

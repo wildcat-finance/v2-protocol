@@ -20,7 +20,10 @@ contract HookDispatchBorrowerRegistryMock {
 }
 
 contract HookDispatchSentinelMock {
+  address public constant EscrowAddress = address(0xE5C0);
+
   mapping(address account => bool) public sanctioned;
+  uint256 public createEscrowCalls;
 
   function setSanctioned(address account, bool value) external {
     sanctioned[account] = value;
@@ -32,6 +35,15 @@ contract HookDispatchSentinelMock {
 
   function isFlaggedByChainalysis(address account) external view returns (bool) {
     return sanctioned[account];
+  }
+
+  function getEscrowAddress(address, address, address) external pure returns (address) {
+    return EscrowAddress;
+  }
+
+  function createEscrow(address, address, address) external returns (address) {
+    createEscrowCalls++;
+    return EscrowAddress;
   }
 }
 

@@ -668,6 +668,28 @@ lines and 78.00% functions at this boundary because configuration, lifecycle, bo
 and withdrawal behavior remain assigned to subsequent market slices. See
 `test-next/parity/market-base.md`.
 
+The shared standard/fixed-term market-configuration family is complete:
+
+- seven constraint-hook properties and 15 market properties replace all 88 direct and inherited
+  configuration entries
+- capacity, borrower authority, sanctions withdrawals and escrow, wrapper registration, APR
+  updates and liquidity gates, pending APR execution, and protocol-fee updates use production
+  market code and runtime OpenTerm/FixedTerm variants where behavior can differ
+- `WildcatMarketConfig` has 100% line, statement, branch, and function coverage; the separate
+  `MarketConstraintHooks` production boundary remains at 100% across all four measures
+- dedicated configuration initcode falls from 456,281 to a conservatively counted 38,042 bytes,
+  a 91.66% reduction; runtime bytecode falls 82.35%
+- cumulatively, the token/base/configuration family falls from 1,256,315 to 74,679 bytes of
+  initcode and from 162 entries to 36, with no inheritance
+- the full replacement checkpoint is 535 tests across 35 suites with zero inherited entries,
+  648,619 bytes of test-side initcode, and 639,436 bytes of runtime bytecode
+- forced canonical compile-to-green is 1m48.26s, including 105.14s in solc, with a 2,966,276 KiB
+  RSS peak; execution is 1.83s
+
+Focused accurate coverage leaves `WildcatMarketBase`, `WildcatMarket`, and
+`WildcatMarketWithdrawals` intentionally partial until lifecycle, borrower-transfer, and
+withdrawal behavior join the shared market artifact. See `test-next/parity/market-config.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
