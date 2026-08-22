@@ -31,3 +31,6 @@ file before the final cutover.
 - ArchController SphereX propagation uses lightweight registered targets. Their mocks cover the
   controller-owned dispatch and allowlisting behavior; each real target's own
   `changeSphereXEngine` implementation remains assigned to its factory, hooks, or market slice.
+- Forge does not credit the `MockArchControllerOwner.onlyAuthorized` modifier's revert
+  statement/branch. Multiple replacement properties still exercise it and assert the exact
+  `NotAuthorized` selector through three separate external functions.

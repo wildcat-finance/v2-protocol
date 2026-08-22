@@ -432,6 +432,23 @@ The borrower identity registry family is complete as well:
 Borrower-account origination and compatibility remain separate integration slices. See
 `test-next/parity/borrower-identity-registry.md`.
 
+The testnet ArchController owner helper is complete:
+
+- 16 properties replace all 17 ceremony-helper entries
+- executor rotation, permissionless testnet borrower onboarding, generic owner actions, the
+  legacy fee call, and ArchController/SphereX ownership transitions retain real cross-contract
+  authorization paths
+- malformed and reverting bound-target identity responses plus both swap-pop branches strengthen
+  the legacy cases
+- helper coverage is 100% lines/functions and all executable branches are asserted; Forge still
+  misses the explicitly tested `onlyAuthorized` modifier statement/branch
+- dedicated initcode falls from 47,776 to 26,321 bytes, a 44.91% reduction
+- the full replacement checkpoint is 368 tests across 23 suites with zero inherited entries,
+  344,147 bytes of test-side initcode, and 336,835 bytes of runtime bytecode
+- forced canonical compile-to-green is 73.69 seconds with a 2,300,612 KiB RSS peak
+
+See `test-next/parity/mock-arch-controller-owner.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
