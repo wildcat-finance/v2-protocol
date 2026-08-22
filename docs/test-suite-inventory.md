@@ -573,6 +573,24 @@ The direct OpenTerm-hooks family is complete:
 
 See `test-next/parity/open-term-hooks.md`.
 
+The direct FixedTerm-hooks family is complete:
+
+- 13 mapped properties replace all 41 direct entries, plus two strengthened production-policy
+  properties
+- a seven-input runtime matrix preserves requested access separately from required callback flags,
+  minimum deposits, transfer disablement, closure, and term-reduction policy
+- term boundaries and administration, post-term withdrawals, lender access, APR gating, early
+  closure, exact events, and all callback selectors use the production hook
+- `FixedTermHooks` has 100% line, statement, branch, and function coverage
+- the replacement FixedTerm artifact is 31,989 bytes of initcode versus 158,407 bytes for the
+  legacy concrete artifact; the latter includes 70 inherited base properties, so the complete
+  access-family comparison still waits for PeriodicTerm
+- the full replacement checkpoint is 476 tests across 32 suites with zero inherited entries,
+  525,268 bytes of test-side initcode, and 516,354 bytes of runtime bytecode
+- forced canonical compile-to-green is 93.21 seconds with a 2,861,828 KiB RSS peak
+
+See `test-next/parity/fixed-term-hooks.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
