@@ -46,3 +46,7 @@ file before the final cutover.
   stack allocation. This does not block the canonical via-IR suite, which is green. Exact factory
   source coverage remains unavailable through Forge's current coverage compiler, and no
   coverage-only source patch is retained.
+- Runtime matrices that use `vm.warp` should read mutable cheatcode time through
+  `vm.getBlockTimestamp()`, not repeatedly through the `block.timestamp` opcode. Via-IR may
+  rematerialize or hoist that opcode because timestamp cannot change during a real transaction;
+  Foundry's warp cheatcode deliberately breaks that EVM invariant inside the test call.

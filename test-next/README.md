@@ -1,7 +1,8 @@
 # Replacement Foundry Suite
 
-This tree is the canonical-settings replacement for `test/`. Both suites stay available until
-semantic and coverage parity are demonstrated.
+This tree is the canonical-settings replacement for `test/`. The legacy suite stays untouched as
+a parity oracle while this one is built; the replacement does not need to inherit, relocate, or
+retrofit the legacy fixture architecture.
 
 Run it with:
 
@@ -78,3 +79,4 @@ Completed family ledgers live in `parity/`:
 - `periodic-term-hooks.md`
 - `market-constraint-hooks.md`
 - `market-token.md`
+- `market-base.md`

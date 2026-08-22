@@ -646,6 +646,28 @@ The shared artifact-backed market fixture is now established. Later market-base,
 lifecycle, and withdrawal properties will join the same concrete suite rather than creating new
 OpenTerm/FixedTerm artifacts. See `test-next/parity/market-token.md`.
 
+The shared standard/fixed-term market-base family is complete:
+
+- seven runtime-matrix properties replace all 34 direct and inherited base entries
+- production market, hooks, ArchController, and borrower registry artifacts preserve constructor
+  layout/validation, initial and accrued state reads, scale-factor behavior, fee caps, and guarded
+  reentrant reads
+- the replacement assertions strengthen several legacy getter-only entries with exact state,
+  debt, supply, coverage, borrowable-asset, and protocol-fee values
+- the base slice adds 20,697 bytes of dedicated initcode versus 448,386 bytes across the two
+  legacy artifacts, a 95.38% reduction; runtime bytecode falls 90.06%
+- cumulatively, the token-plus-base family falls from 800,034 to 36,637 bytes of dedicated
+  initcode and from 74 entries to 14, with no inheritance
+- the full replacement checkpoint is 520 tests across 35 suites with zero inherited entries,
+  624,366 bytes of test-side initcode, and 615,229 bytes of runtime bytecode
+- forced canonical compile-to-green is 1m43.85s, including 101.24s in solc, with a 2,877,928 KiB
+  RSS peak; execution is 1.43s
+
+Focused accurate coverage keeps `WildcatMarketToken` at 100%. `WildcatMarketBase` is 66.57%
+lines and 78.00% functions at this boundary because configuration, lifecycle, borrower transfer,
+and withdrawal behavior remain assigned to subsequent market slices. See
+`test-next/parity/market-base.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

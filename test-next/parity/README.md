@@ -68,3 +68,9 @@ ManagedRoleProvider and AccessListRoleProvider have 100% line, statement, branch
 coverage; MerkleRoleProvider has 100% branch/function coverage with one constant-return line missed
 by Forge instrumentation. See `managed-role-providers.md` for the composition boundary around
 factory, FixedTerm, and generic market dispatch.
+
+The shared market-token and market-base checkpoint replaces 74 standard/inherited FixedTerm
+entries with 14 properties on one runtime-matrix suite. Focused accurate coverage keeps
+`WildcatMarketToken` at 100%; `WildcatMarketBase` is intentionally partial until its configuration,
+lifecycle, borrower-transfer, and withdrawal slices join the same artifact. See `market-token.md`
+and `market-base.md`.

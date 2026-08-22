@@ -2,13 +2,13 @@
 pragma solidity >=0.8.20;
 
 import { IHooks } from 'src/access/IHooks.sol';
+import { WildcatArchController } from 'src/WildcatArchController.sol';
+import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
-import { HookDispatchArchControllerMock } from '../mocks/HookDispatchMocks.sol';
-import { HookDispatchBorrowerRegistryMock } from '../mocks/HookDispatchMocks.sol';
 import { HookDispatchFactoryMock } from '../mocks/HookDispatchMocks.sol';
 import { HookDispatchSentinelMock } from '../mocks/HookDispatchMocks.sol';
 import { TestKernel } from './TestKernel.sol';
@@ -37,8 +37,8 @@ abstract contract MarketFixture is TestKernel {
     WildcatMarket market;
     MockERC20 asset;
     IHooks hooks;
-    HookDispatchArchControllerMock archController;
-    HookDispatchBorrowerRegistryMock registry;
+    WildcatArchController archController;
+    WildcatBorrowerIdentityRegistry registry;
     HookDispatchSentinelMock sentinel;
     HookDispatchFactoryMock factory;
   }
@@ -80,7 +80,7 @@ abstract contract MarketFixture is TestKernel {
     }
     return
       abi.encode(
-        uint32(block.timestamp),
+        uint32(vm.getBlockTimestamp()),
         options.minimumDeposit,
         options.transfersDisabled,
         true,
@@ -88,18 +88,17 @@ abstract contract MarketFixture is TestKernel {
       );
   }
 
-  function _deployFixtureDependencies(
-    HooksKind hooksKind
-  ) private returns (Fixture memory fixture) {
-    fixture.archController = HookDispatchArchControllerMock(
-      _deployCode('test-next/mocks/HookDispatchMocks.sol:HookDispatchArchControllerMock')
+  function _deployFixtureDependencies() private returns (Fixture memory fixture) {
+    fixture.archController = WildcatArchController(
+      _deployCode('src/WildcatArchController.sol:WildcatArchController')
     );
-    fixture.registry = HookDispatchBorrowerRegistryMock(
+    fixture.registry = WildcatBorrowerIdentityRegistry(
       _deployCode(
-        'test-next/mocks/HookDispatchMocks.sol:HookDispatchBorrowerRegistryMock',
+        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
         abi.encode(address(fixture.archController))
       )
     );
+    fixture.archController.registerBorrower(Borrower);
     fixture.sentinel = HookDispatchSentinelMock(
       _deployCode('test-next/mocks/HookDispatchMocks.sol:HookDispatchSentinelMock')
     );
@@ -112,14 +111,13 @@ abstract contract MarketFixture is TestKernel {
         abi.encode('Token', 'TKN', uint8(18))
       )
     );
-    fixture.hooks = _deployHooks(hooksKind);
   }
 
-  function _marketParameters(
+  function _buildMarketParameters(
     Fixture memory fixture,
     Options memory options,
     HooksConfig marketHooks
-  ) private pure returns (MarketParameters memory parameters) {
+  ) internal pure returns (MarketParameters memory parameters) {
     (parameters.packedNameWord0, parameters.packedNameWord1) = _packString('Wildcat Token');
     (parameters.packedSymbolWord0, parameters.packedSymbolWord1) = _packString('WCTKN');
     parameters.asset = address(fixture.asset);
@@ -182,14 +180,38 @@ abstract contract MarketFixture is TestKernel {
     );
   }
 
+  function _deployMarketFromParameters(
+    Fixture memory fixture,
+    MarketParameters memory parameters
+  ) internal returns (WildcatMarket deployedMarket) {
+    fixture.factory.setMarketParameters(parameters);
+    return _deployStoredMarket(fixture);
+  }
+
+  function _deployStoredMarket(
+    Fixture memory fixture
+  ) internal returns (WildcatMarket deployedMarket) {
+    deployedMarket = WildcatMarket(
+      fixture.factory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket'))
+    );
+  }
+
   function _newMarket(Options memory options) internal returns (Fixture memory fixture) {
-    fixture = _deployFixtureDependencies(options.hooksKind);
+    return _newMarket(options, _deployHooks(options.hooksKind));
+  }
+
+  function _newMarket(
+    Options memory options,
+    IHooks hooks
+  ) internal returns (Fixture memory fixture) {
+    fixture = _deployFixtureDependencies();
+    fixture.hooks = hooks;
 
     HooksConfig requestedHooks = options.requestedHooks.setHooksAddress(address(fixture.hooks));
     HooksConfig marketHooks = requestedHooks.mergeFlags(fixture.hooks.config());
-    fixture.factory.setMarketParameters(_marketParameters(fixture, options, marketHooks));
-    fixture.market = WildcatMarket(
-      fixture.factory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket'))
+    fixture.market = _deployMarketFromParameters(
+      fixture,
+      _buildMarketParameters(fixture, options, marketHooks)
     );
     _configureHooks(fixture, options, requestedHooks, marketHooks);
   }

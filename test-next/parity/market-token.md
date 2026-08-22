@@ -9,9 +9,10 @@ specific entries. `FixedTermWildcatMarketTokenTest` then recompiles the same 20 
 to replace OpenTerm hooks with an already-matured FixedTerm instance. The replacement deploys both
 hook kinds at runtime from one concrete suite, so the shared behavior is compiled once.
 
-The market and hooks are production artifacts. Lightweight artifact-backed controller, registry,
-sentinel, asset, and parameter-factory contracts provide only the constructor/call surfaces needed
-by this behavior slice. The full factory/CREATE2 deployment path is already owned by
+The market, hooks, ArchController, and borrower registry are production artifacts. Lightweight
+artifact-backed sentinel, asset, and parameter-factory contracts provide only the remaining
+constructor/call surfaces needed by this behavior slice. The full factory/CREATE2 deployment path
+is already owned by
 `hooks-factory-templates.md`; this fixture configures each production hook immediately after market
 construction and before the first market call.
 
@@ -45,15 +46,15 @@ Focused accurate coverage reports 100% lines, statements, branches, and function
 `WildcatMarketToken`. All seven properties pass at the fixed timestamp and seed. Five properties
 run 1,000 fixed-seed cases, and every property executes both OpenTerm and FixedTerm variants.
 
-| Market-token artifact                     | Initcode bytes | Runtime bytes | Test entries |
-| ----------------------------------------- | -------------: | ------------: | -----------: |
-| Legacy `WildcatMarketTokenTest`           |        175,187 |        54,891 |           20 |
-| Legacy `FixedTermWildcatMarketTokenTest`  |        176,461 |        56,165 |           20 |
-| **Legacy total**                          |    **351,648** |   **111,056** |       **40** |
-| Replacement `WildcatMarketTest` (current) |         15,940 |        15,914 |            7 |
-| **Difference**                            |   **-335,708** |   **-95,142** |      **-33** |
-| **Reduction**                             |     **95.47%** |    **85.67%** |   **82.50%** |
+| Market-token artifact                              | Initcode bytes | Runtime bytes | Test entries |
+| -------------------------------------------------- | -------------: | ------------: | -----------: |
+| Legacy `WildcatMarketTokenTest`                    |        175,187 |        54,891 |           20 |
+| Legacy `FixedTermWildcatMarketTokenTest`           |        176,461 |        56,165 |           20 |
+| **Legacy total**                                   |    **351,648** |   **111,056** |       **40** |
+| Replacement `WildcatMarketTest` (token checkpoint) |         15,940 |        15,914 |            7 |
+| **Difference**                                     |   **-335,708** |   **-95,142** |      **-33** |
+| **Reduction**                                      |     **95.47%** |    **85.67%** |   **82.50%** |
 
-The replacement artifact is intentionally named for the whole standard market family. Later base,
-configuration, lifecycle, and withdrawal slices will add properties to this one concrete suite
-instead of producing more inherited fixture artifacts.
+The replacement artifact is intentionally named for the whole standard market family. The base
+slice now shares it; configuration, lifecycle, and withdrawal properties will follow without
+producing more inherited fixture artifacts. See `market-base.md` for the current cumulative size.
