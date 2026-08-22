@@ -465,6 +465,20 @@ Accurate non-IR coverage for this graph is compiler-blocked in `HooksFactoryRevo
 coverage-only source change is retained. See
 `test-next/parity/borrower-account-origination.md`.
 
+The hooks-administrator transfer integration slice is complete:
+
+- five properties preserve the five legacy transfer/association properties while running both
+  factory implementations at runtime
+- hook and factory events, pending/accepted state, administrator indexes, compatibility aliases,
+  callback authentication, swap-pop behavior, and deployment nonces remain explicit
+- dedicated initcode falls from 124,577 to 7,627 bytes, a 93.88% reduction
+- the full replacement checkpoint is 382 tests across 25 suites with zero inherited entries,
+  364,951 bytes of test-side initcode, and 357,587 bytes of runtime bytecode
+- forced canonical compile-to-green is 75.79 seconds with a 2,378,532 KiB RSS peak
+
+This slice shares the revolving-factory accurate-coverage compiler block above. See
+`test-next/parity/hooks-administrator-transfer.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

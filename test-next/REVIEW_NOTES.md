@@ -34,7 +34,7 @@ file before the final cutover.
 - Forge does not credit the `MockArchControllerOwner.onlyAuthorized` modifier's revert
   statement/branch. Multiple replacement properties still exercise it and assert the exact
   `NotAuthorized` selector through three separate external functions.
-- The borrower-account origination graph cannot produce accurate non-IR coverage after the
-  SphereX patch: `HooksFactoryRevolving.deployMarketAndHooks` is stack-too-deep, and
-  `--ir-minimum` fails Yul stack allocation. Canonical via-IR tests are green; exact coverage is
-  deferred to the dedicated factory migration, and no coverage-only source patch is retained.
+- The borrower-account origination and hooks-administrator transfer graphs cannot produce
+  accurate non-IR coverage after the SphereX patch: `HooksFactoryRevolving` is stack-too-deep,
+  and `--ir-minimum` fails Yul stack allocation. Canonical via-IR tests are green; exact coverage
+  is deferred to the dedicated factory migration, and no coverage-only source patch is retained.
