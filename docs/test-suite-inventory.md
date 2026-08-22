@@ -610,6 +610,23 @@ The direct PeriodicTerm-hooks family and complete access-hooks comparison are co
 
 See `test-next/parity/periodic-term-hooks.md`.
 
+The shared market-constraint state machine is complete:
+
+- seven focused properties replace the ten hook-state properties embedded in the legacy
+  `WildcatMarketConfigTest`; its remaining 34 market properties stay assigned to the market slice
+- parameter constraints, the exact APR reduction formula, integer-rounding boundary, temporary
+  reserve activation/update/cancellation/expiry, timer preservation/extension, and storage cleanup
+  use the production `OpenTermHooks` delegate
+- every advertised deployment constraint now has accepted boundaries and an exact overflow error
+- `MarketConstraintHooks` has 100% line, statement, branch, and function coverage
+- the focused artifact is 13,389 bytes of initcode and 13,363 bytes of runtime bytecode; no
+  reduction is claimed against the mixed 44-property legacy market artifact
+- the full replacement checkpoint is 506 tests across 34 suites with zero inherited entries,
+  587,729 bytes of test-side initcode, and 578,664 bytes of runtime bytecode
+- forced canonical compile-to-green is 98.97 seconds with a 2,784,556 KiB RSS peak
+
+See `test-next/parity/market-constraint-hooks.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

@@ -57,8 +57,8 @@ lender continuity.
 ## Coverage and canonical result
 
 Focused accurate coverage reports 100% lines, statements, branches, and functions for
-`PeriodicTermHooks`. `MarketConstraintHooks` remains intentionally partial until its shared
-temporary-reserve-ratio state machine is migrated.
+`PeriodicTermHooks`. The completed temporary-reserve-ratio state machine is documented separately
+in `market-constraint-hooks.md`.
 
 All 23 properties pass at the fixed timestamp and seed. Provider construction, market
 configuration, window/closed-state behavior, strict APR reduction, and response-window selection

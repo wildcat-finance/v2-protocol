@@ -1,7 +1,7 @@
 # OpenTerm hooks parity
 
 Status: all direct OpenTerm hook properties replaced; shared market-constraint state transitions
-remain in their term-hooks slice.
+are covered separately in `market-constraint-hooks.md`.
 
 ## Family boundary
 
@@ -42,9 +42,8 @@ Batch market reads and both transfer-policy queries are also asserted directly.
 ## Coverage and canonical result
 
 Focused accurate coverage reports 100% lines, statements, branches, and functions for
-`OpenTermHooks`. `MarketConstraintHooks` is intentionally partial here: this checkpoint proves the
-OpenTerm delegate, while temporary-reserve-ratio state transitions belong to the shared
-market-constraint slice.
+`OpenTermHooks`. The completed temporary-reserve-ratio state machine is documented separately in
+`market-constraint-hooks.md`.
 
 All 15 properties pass at the fixed timestamp and seed, including 1,000 runs for each of the three
 parameterized provider-construction matrices.

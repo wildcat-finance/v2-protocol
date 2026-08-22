@@ -1,7 +1,7 @@
 # FixedTerm hooks parity
 
 Status: all direct FixedTerm hook properties replaced; shared temporary-reserve-ratio transitions
-remain in the market-constraint slice.
+are covered separately in `market-constraint-hooks.md`.
 
 ## Family boundary
 
@@ -47,8 +47,8 @@ revoked, blocked, and disabled recipients.
 ## Coverage and canonical result
 
 Focused accurate coverage reports 100% lines, statements, branches, and functions for
-`FixedTermHooks`. `MarketConstraintHooks` remains intentionally partial until its shared
-temporary-reserve-ratio state machine is migrated.
+`FixedTermHooks`. The completed temporary-reserve-ratio state machine is documented separately in
+`market-constraint-hooks.md`.
 
 All 15 properties pass at the fixed timestamp and seed. The combined provider-shape property and
 seven-input market-configuration matrix each pass 1,000 fixed-seed fuzz runs.
