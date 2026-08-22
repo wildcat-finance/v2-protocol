@@ -496,6 +496,19 @@ The sanctions family is complete:
 
 See `test-next/parity/sanctions.md`.
 
+The shared reentrancy guard is complete:
+
+- three focused properties preserve the three legacy entries and exact rejection selector
+- both state-changing and view reentrancy paths prove the guard remains usable after rejection
+- dedicated initcode falls from 5,987 to 3,035 bytes, a 49.31% reduction
+- branch and function coverage are 100%; Forge misses only the modifier source line that invokes
+  an otherwise covered `_clearReentrancyGuard`
+- the full replacement checkpoint is 396 tests across 27 suites with zero inherited entries,
+  379,816 bytes of test-side initcode, and 372,349 bytes of runtime bytecode
+- forced canonical compile-to-green is 77.74 seconds with a 2,423,068 KiB RSS peak
+
+See `test-next/parity/reentrancy-guard.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

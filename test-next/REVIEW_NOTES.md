@@ -34,6 +34,9 @@ file before the final cutover.
 - Forge does not credit the `MockArchControllerOwner.onlyAuthorized` modifier's revert
   statement/branch. Multiple replacement properties still exercise it and assert the exact
   `NotAuthorized` selector through three separate external functions.
+- Forge does not credit `ReentrancyGuard.nonReentrant`'s `_clearReentrancyGuard()` source line.
+  It reports `_clearReentrancyGuard` itself as executed, and repeated guarded calls in one test
+  transaction prove the transient slot is cleared after each successful call.
 - The borrower-account origination and hooks-administrator transfer graphs cannot produce
   accurate non-IR coverage after the SphereX patch: `HooksFactoryRevolving` is stack-too-deep,
   and `--ir-minimum` fails Yul stack allocation. Canonical via-IR tests are green; exact coverage

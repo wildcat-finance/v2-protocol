@@ -67,3 +67,4 @@ Completed family ledgers live in `parity/`:
 - `borrower-account-origination.md`
 - `hooks-administrator-transfer.md`
 - `sanctions.md`
+- `reentrancy-guard.md`
