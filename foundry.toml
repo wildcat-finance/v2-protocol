@@ -13,6 +13,8 @@ solc="0.8.25"
 fs_permissions = [
   { access = "read-write", path = "./deployments/"},
   { access = "read-write", path = "./out/"},
+  { access = "read-write", path = "./out-test-next/"},
+  { access = "read-write", path = "./out-test-next-coverage/"},
   { access = "read-write", path = "./ir-out/"},
   { access = "read-write", path = "./deploy-out/"},
   { access = "read-write", path = "./deployments-old.json"}

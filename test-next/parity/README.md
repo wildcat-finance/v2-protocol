@@ -104,8 +104,8 @@ The revolving-market checkpoint maps all 22 direct market entries and four deter
 differential entries into 12 properties on the shared market artifact. Drawn-principal accounting,
 commitment/utilization interest, protocol and delinquency fees, dust boundaries, borrower transfer,
 closure, and standard-market anchors give `WildcatMarketRevolving` 100% line, statement, branch,
-and function coverage. The randomized hook × market matrix remains in the dedicated invariant
-migration. See `market-revolving.md`.
+and function coverage. The randomized hook × market matrix is complete in the invariant
+checkpoint. See `market-revolving.md` and `market-invariants.md`.
 
 The wrapper-factory checkpoint replaces all 16 generation-routing, deployment, registration, and
 transfer-policy entries with nine composed properties. The production factory reaches 100% line,
@@ -115,6 +115,12 @@ The Lens checkpoint replaces 74 core and multi-factory entries with 19 propertie
 the deployed facade, core/live, and aggregator boundaries. Focused accurate coverage gives
 `MarketLens`, `MarketLensCore`, `MarketLensLive`, and `MarketLensAggregator` 100% line, statement,
 branch, and function coverage. See `market-lens.md`.
+
+The invariant checkpoint replaces 26 meaningful matrix and CAF12 entries with eight properties in
+one six-cell runtime matrix. The two withdrawal-batch identity invariants are owned by stronger
+deterministic market properties, and three vacuous generic MockERC20 invariants are retired. Every
+canonical property passes 2,000 runs at depth 30, the focused accurate-coverage lane is green, and
+the invariant tail falls from 1,761,168 to 54,426 bytes of initcode. See `market-invariants.md`.
 
 The core wrapper checkpoint maps all 160 non-factory vault entries into 19 composed properties.
 Conversions, execution, allowances, caps, sanctions, defensive reads, sweeps, and quarantine use the

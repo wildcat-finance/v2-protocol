@@ -842,8 +842,8 @@ The direct revolving-market family is complete:
 - forced canonical via-IR AST compile-to-green is 2m43.33s, including 159.56s in solc, with a
   4,046,644 KiB RSS peak
 
-The randomized standard/revolving × hook matrix remains assigned to the invariant migration. See
-`test-next/parity/market-revolving.md`.
+The randomized standard/revolving × hook matrix is completed by the later invariant checkpoint.
+See `test-next/parity/market-revolving.md` and `test-next/parity/market-invariants.md`.
 
 The Market Lens family is complete:
 
@@ -865,6 +865,28 @@ The Market Lens family is complete:
 
 The legacy suite remains the fixed-seed parity oracle and is not retrofitted. See
 `test-next/parity/market-lens.md`.
+
+The market-invariant tail is complete:
+
+- one 17-action handler drives OpenTerm, FixedTerm, and PeriodicTerm standard/revolving cells from
+  one generated action stream, with four lenders and production hooks and markets
+- eight properties replace 26 meaningful Matrix and CAF12 entries; every property passes 2,000
+  runs at depth 30, applying up to 60,000 generated actions to each of the six cells
+- the stale `drawnAmount <= totalDebts` assertion is replaced with exact borrow/repay transitions
+  and explicit non-repayment preservation, matching the documented donation and lender-exit model
+- the two withdrawal-batch identity invariants map to stronger deterministic market properties;
+  three generic MockERC20 invariants are retired because all handler calls reverted while their
+  initial-state assertions still passed
+- the focused accurate-coverage lane compiles without via-IR after the temporary SphereX
+  workaround, runs all eight properties, and restores the source cleanly
+- invariant-tail initcode falls from 1,761,168 to 54,426 bytes, a 96.91% reduction; runtime
+  bytecode falls from 916,040 to 52,065 bytes, a 94.32% reduction
+- the complete replacement checkpoint has 656 properties across 43 suites with zero inherited
+  entries, 1,069,410 bytes of test-side initcode, and 1,055,573 bytes of runtime bytecode
+- forced canonical via-IR AST compilation takes 3m27.95s, including 207.17s in solc, with a
+  5,772,504 KiB RSS peak
+
+See `test-next/parity/market-invariants.md`.
 
 ### Phase 2: migrate feature families
 

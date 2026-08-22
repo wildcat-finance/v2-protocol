@@ -1,7 +1,6 @@
 # Revolving market parity
 
-Status: direct market behavior and deterministic differential anchors complete. Stateful matrix
-invariants remain in the dedicated invariant migration.
+Status: complete, including the stateful standard/revolving × hook matrix handoff.
 
 ## Family boundary
 
@@ -66,3 +65,6 @@ The complete replacement checkpoint has 629 tests across 39 suites with zero inh
 935,779 bytes of test-side initcode, and 925,540 bytes of runtime bytecode. A forced canonical
 via-IR AST compile-to-green took 2m43.33s, including 159.56s in solc, and peaked at 4,046,644 KiB
 RSS. Execution remains about two seconds.
+
+The randomized principal, utilization, and cross-hook properties are complete in
+`market-invariants.md`.
