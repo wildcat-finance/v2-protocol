@@ -524,6 +524,19 @@ The standalone SphereX configuration family is complete:
 
 See `test-next/parity/spherex-config.md`.
 
+The first direct hooks-factory slice is complete:
+
+- nine runtime-matrix properties replace 25 standard/revolving constructor, registration,
+  template-management, fee-validation, disable, and template-pagination entries
+- all four invalid fee shapes, zero/max fee boundaries, permanent disable behavior, events, and
+  error selectors remain explicit
+- the in-progress factory suite currently emits 12,584 bytes of initcode
+- the full replacement checkpoint is 418 tests across 29 suites with zero inherited entries,
+  405,980 bytes of test-side initcode, and 397,380 bytes of runtime bytecode
+
+Hook-instance, market-deployment, market pagination, and protocol-fee propagation behavior remain
+in the same factory migration. See `test-next/parity/hooks-factory-templates.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
