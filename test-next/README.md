@@ -75,3 +75,4 @@ Completed family ledgers live in `parity/`:
 - `hook-dispatch.md`
 - `open-term-hooks.md`
 - `fixed-term-hooks.md`
+- `periodic-term-hooks.md`

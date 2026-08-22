@@ -59,8 +59,8 @@ seven-input market-configuration matrix each pass 1,000 fixed-seed fuzz runs.
 | Replacement `FixedTermHooksTest` |         31,989 |        31,963 |           15 |
 
 The legacy artifact includes all 70 inherited access-control properties. The byte counts are not
-presented as a standalone reduction; the fair comparison comes after the base, OpenTerm,
-FixedTerm, and PeriodicTerm replacement slices are complete.
+presented as a standalone reduction; the completed fair access-family comparison is recorded in
+`periodic-term-hooks.md`.
 
 The full replacement checkpoint is 476 tests across 32 suites with zero inherited entries,
 525,268 bytes of test-side initcode, and 516,354 bytes of runtime bytecode. A forced canonical

@@ -55,9 +55,8 @@ parameterized provider-construction matrices.
 | Replacement `OpenTermHooksTest` |         26,593 |        26,567 |           15 |
 
 The legacy artifact's 97 entries include the 70 shared inherited access-control properties, so
-those byte counts are not presented as a standalone reduction. A fair access-family comparison
-will combine the one replacement base suite with the OpenTerm, FixedTerm, and PeriodicTerm slices
-after all three are complete.
+those byte counts are not presented as a standalone reduction. The completed fair access-family
+comparison is recorded in `periodic-term-hooks.md`.
 
 The full replacement checkpoint is 461 tests across 31 suites with zero inherited entries,
 493,279 bytes of test-side initcode, and 484,391 bytes of runtime bytecode. A forced canonical

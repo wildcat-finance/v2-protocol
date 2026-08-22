@@ -591,6 +591,25 @@ The direct FixedTerm-hooks family is complete:
 
 See `test-next/parity/fixed-term-hooks.md`.
 
+The direct PeriodicTerm-hooks family and complete access-hooks comparison are complete:
+
+- 23 focused properties replace all 93 direct PeriodicTerm entries
+- recurring withdrawal-window math, schedule boundaries, access control, closure, APR proposals,
+  response windows, expiry, unpaid-withdrawal gates, and both execution paths use the production
+  hook
+- actual deposit credentials establish known-lender continuity; no test-only storage setter is
+  used
+- `PeriodicTermHooks` has 100% line, statement, branch, and function coverage
+- across BaseAccessControls, OpenTerm, FixedTerm, and PeriodicTerm, concrete entries fall from 371
+  to 124 and inherited entries fall from 210 to zero
+- the complete access family falls from 501,473 to 181,342 bytes of test-side initcode, a 63.84%
+  reduction; runtime bytecode falls from 486,887 to 178,301 bytes, a 63.38% reduction
+- the full replacement checkpoint is 499 tests across 33 suites with zero inherited entries,
+  574,340 bytes of test-side initcode, and 565,301 bytes of runtime bytecode
+- forced canonical compile-to-green is 97.25 seconds with a 2,748,736 KiB RSS peak
+
+See `test-next/parity/periodic-term-hooks.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

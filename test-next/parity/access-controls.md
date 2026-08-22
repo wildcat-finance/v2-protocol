@@ -1,6 +1,7 @@
 # Base access-controls parity
 
-Status: representative vertical complete; hook-specific behavior is not yet ported.
+Status: base slice complete; the full access-hooks comparison is recorded in
+`periodic-term-hooks.md`.
 
 ## Property disposition
 
@@ -43,8 +44,9 @@ carry a test-side copy of the storage and event logic.
 | Accurate branch coverage                            |   current legacy coverage blocked |                 93.75% |
 | Accurate function coverage                          |   current legacy coverage blocked |                   100% |
 
-The legacy access family is 501,473 bytes of initcode, but that also contains 161 hook-specific
-test entries. It is not a fair byte-for-byte comparison until those tests are ported.
+The legacy access family is 501,473 bytes of initcode, including 161 hook-specific test entries.
+OpenTerm, FixedTerm, and PeriodicTerm are now replaced; see `periodic-term-hooks.md` for the fair
+family comparison.
 
 The replacement result uses official solc 0.8.25, via-IR, optimizer enabled at 44 runs, Cancun,
 no bytecode hash, and no CBOR metadata. Accurate coverage uses the temporary SphereX workaround
