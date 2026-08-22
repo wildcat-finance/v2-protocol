@@ -26,6 +26,13 @@ abstract contract TestKernel {
     bytes memory creationCode = abi.encodePacked(vm.getCode(artifact), constructorArguments);
     assembly {
       deployed := create(0, add(creationCode, 0x20), mload(creationCode))
+      if iszero(deployed) {
+        let returnDataSize := returndatasize()
+        if returnDataSize {
+          returndatacopy(0, 0, returnDataSize)
+          revert(0, returnDataSize)
+        }
+      }
     }
     if (deployed == address(0)) revert ArtifactDeploymentFailed(artifact);
   }

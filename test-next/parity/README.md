@@ -48,3 +48,8 @@ have 100% line, statement, branch, and function coverage. Aggregate coverage of 
 imported source is temporarily lower because the factory matrix necessarily imports provider and
 `OpenTermHooks` implementations whose full behavior belongs to later slices; those partial files
 are not being presented as complete.
+
+The token role-provider core checkpoint replaces 42 provider-level legacy entries with 21 focused
+properties. Four pull providers have 100% coverage; ERC5192 and ERC5484 have 100% branch/function
+coverage and only four constant-return lines missed by Forge's line instrumentation. Market-hook
+behavior and the Wildcat debt-token/wrapper scenarios remain explicitly mapped to later slices.
