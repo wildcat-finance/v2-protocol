@@ -54,3 +54,4 @@ Completed family ledgers live in `parity/`:
 - `libraries-types.md`
 - `role-provider-factories.md`
 - `token-role-providers.md`
+- `managed-role-providers.md`

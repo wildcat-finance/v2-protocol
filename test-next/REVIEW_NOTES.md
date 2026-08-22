@@ -15,6 +15,13 @@ file before the final cutover.
   lightweight market identity. One real `WildcatMarket.depositUpTo -> onDeposit` dispatch still
   belongs in the later market/access-hook slice; repeating that generic dispatch for all six
   providers would recreate the fixture duplication this rewrite is removing.
+- Managed-provider integration now reaches the same production OpenTerm path. The legacy
+  AccessList suite also repeated shared credential behavior through a mock FixedTerm hook; one
+  production FixedTerm dispatch remains assigned to the FixedTerm hook slice rather than being
+  inferred from the OpenTerm result.
 - Forge line instrumentation leaves ERC5192/ERC5484's four constant-return source lines uncovered
   while reporting their `isPullProvider` and `getCredential` functions as executed. The tests
   explicitly assert both return values; branch and function coverage for both contracts is 100%.
+- Forge reports the same instrumentation behavior for one constant-return line in
+  `MerkleRoleProvider`: branch and function coverage are 100%, and both zero-return paths are
+  explicitly asserted.

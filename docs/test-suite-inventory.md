@@ -381,6 +381,24 @@ The remaining token-provider work is three debt-token and wrapper integration pr
 market-to-hook dispatch is mapped once to the later market/access-hook slice rather than repeated
 for each provider. See `test-next/parity/token-role-providers.md`.
 
+The managed-provider family is also complete:
+
+- 24 focused properties replace 44 AccessList and Merkle provider/integration entries
+- shared two-step administration runs once as a two-provider matrix
+- production provider artifacts run through production `OpenTermHooks` for TTL, local-block,
+  packed-proof, malformed-data, and root/list update behavior
+- ManagedRoleProvider and AccessListRoleProvider have 100% line, statement, branch, and function
+  coverage; MerkleRoleProvider has 100% branch/function coverage with one constant-return line
+  missed by Forge instrumentation
+- dedicated initcode falls from 267,476 to 25,660 bytes, a 90.41% reduction
+- the full replacement checkpoint is 308 tests across 20 suites with zero inherited entries and
+  275,548 bytes of test-side initcode
+- forced canonical compile-to-green is 66.66 seconds with a 2,036,800 KiB RSS peak
+
+The earlier factory matrix already owns AccessList/Merkle creation and hook-constructor
+attachment. Production FixedTerm and generic market-to-hook dispatch remain assigned to their
+later feature slices. See `test-next/parity/managed-role-providers.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

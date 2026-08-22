@@ -53,3 +53,9 @@ The token role-provider checkpoint replaces 84 provider and deposit-hook entries
 properties. Four pull providers have 100% coverage; ERC5192 and ERC5484 have 100% branch/function
 coverage and only four constant-return lines missed by Forge's line instrumentation. The three
 Wildcat debt-token/wrapper scenarios remain explicitly mapped to the market/vault slice.
+
+The managed-provider checkpoint replaces 44 AccessList/Merkle entries with 24 focused properties.
+ManagedRoleProvider and AccessListRoleProvider have 100% line, statement, branch, and function
+coverage; MerkleRoleProvider has 100% branch/function coverage with one constant-return line missed
+by Forge instrumentation. See `managed-role-providers.md` for the composition boundary around
+factory, FixedTerm, and generic market dispatch.
