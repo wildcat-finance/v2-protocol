@@ -44,3 +44,10 @@ deployments/*/ceremony-authority-helper-phase-*.json
 deployments/anvil/
 deployments/*/reconcile-report.json
 audits/
+
+# Local audit/fuzzing artifacts
+PROPERTIES.md
+echidna.yaml
+medusa.json
+fizz_data/
+test/fizz/

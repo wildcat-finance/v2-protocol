@@ -1,6 +1,6 @@
 # X-Ray Report
 
-> Wildcat V2.5 | 13,072 in-scope nSLOC | working tree based on 5f3caa8 (`fix/v2.5-single-rcf-init-code-storage`) | Foundry / Solidity 0.8.25 / Cancun | 15/08/26
+> Wildcat V2.5 | 13,444 in-scope nSLOC | 215f441 (`feat/v2.5-gas-optimizations-reviewed`) | Foundry / Solidity 0.8.25 / Cancun | 21/08/26
 
 ---
 
@@ -20,20 +20,14 @@ For a visual overview of the protocol's architecture, see the [architecture diag
 
 | Subsystem | Key Contracts | nSLOC | Role |
 |-----------|--------------|------:|------|
-| Markets | WildcatMarket, WildcatMarketBase, WildcatMarketConfig, WildcatMarketToken, WildcatMarketWithdrawals, WildcatMarketRevolving | 1,440 | Core debt, interest, liquidity, token, and withdrawal state |
-| Hooks & access | BaseAccessControls, OpenTermHooks, FixedTermHooks, PeriodicTermHooks, MarketConstraintHooks | 2,005 | Lender credentials, term gates, transfers, and APR constraints |
-| Role providers | AccessList, Merkle, ERC20/4626/721/1155/5192/5484 providers and factories | 967 | Reusable credential sources and deterministic deployment |
-| Market factories | HooksFactory, HooksFactoryRevolving | 1,449 | Template policy, transient constructor state, CREATE2 deployment, indexing |
-| Registry & protection | WildcatArchController, BorrowerIdentityRegistry, Sanctions Sentinel/Escrow, SphereX bases, ReentrancyGuard | 1,034 | Root registration, identity, sanctions, middleware, reentrancy |
-| ERC-4626 | Wildcat4626Wrapper, Wildcat4626WrapperFactory | 458 | Non-rebasing scaled-custody facade and generation routing |
-| Lens | MarketLens and helper/data libraries | 1,855 | Aggregated read models across factories and markets |
-| Math, state & low-level | MarketState, FeeMath, Withdrawal, LibERC20, LibStoredInitCode, events/errors, packed types | 2,414 | Accounting formulas, low-level calls, encodings, and queues |
-
-### Backwards-Compatibility Code
-
-- `Wildcat4626WrapperFactory.v1Factory` — routes markets without the v2.5 floor-rounding marker to the legacy wrapper factory; not used for v2.5 wrapper arithmetic.
-- `Wildcat4626Wrapper.marketOwner()` — dynamic compatibility alias for the market's current `borrower()`; authority is not locally cached.
-- V2/V2.1 ABI handlers are intentionally external to this source; v2.5 event ABIs are a hard cut rather than backwards-decoded in contracts.
+| Markets | WildcatMarket, WildcatMarketBase, WildcatMarketConfig, WildcatMarketToken, WildcatMarketWithdrawals, WildcatMarketRevolving | 1,457 | Core debt, interest, liquidity, token, and withdrawal state |
+| Hooks & access | BaseAccessControls, OpenTermHooks, FixedTermHooks, PeriodicTermHooks, MarketConstraintHooks | 2,035 | Lender credentials, term gates, transfers, and APR constraints |
+| Role providers | AccessList, Merkle, ERC20/4626/721/1155/5192/5484 providers and factories | 943 | Reusable credential sources and deterministic deployment |
+| Market factories | HooksFactory, HooksFactoryRevolving | 1,431 | Template policy, transient constructor state, CREATE2 deployment, indexing |
+| Registry & protection | WildcatArchController, BorrowerIdentityRegistry, Sanctions Sentinel/Escrow, SphereX bases, ReentrancyGuard | 1,085 | Root registration, identity, sanctions, middleware, reentrancy |
+| ERC-4626 | Wildcat4626Wrapper, Wildcat4626WrapperFactory | 627 | Non-rebasing scaled-custody facade and generation routing |
+| Lens | MarketLens and helper/data libraries | 1,938 | Aggregated read models across factories and markets |
+| Math, state & low-level | MarketState, FeeMath, Withdrawal, FIFOQueue, LibERC20, LibStoredInitCode, events/errors, packed types | 2,453 | Accounting formulas, low-level calls, encodings, and queues |
 
 ### How It Fits Together
 
@@ -151,48 +145,33 @@ See [entry-points.md](entry-points.md) for the full permissionless entry point m
 - **Hook admin → credentials** — provider attachments, TTLs, blocks, and term configuration update instantly; two-step transfer protects only the administrator seat (`src/access/BaseAccessControls.sol:170-419`).
 - **Provider → lender admission** — token/vault balance and proof semantics are trusted after defensive call/timestamp checks (`src/access/BaseAccessControls.sol:641-758`).
 - **SphereX operator → protected calls** — engine rotation is instant and protection can be disabled with address zero (`src/spherex/SphereXConfig.sol:137-160`).
-- **Git signal** — fund-flow and state-machine areas have 272 and 227 historical source commits respectively, with 27 late source commits in the final 30-day window.
+- **Git signal** — fund-flow and state-machine areas have 287 and 238 historical source commits respectively, with 49 late source commits in the final 30-day window.
 
 ### Key Attack Surfaces
 
-- **Scaled supply and withdrawal conservation** &nbsp;&#91;[I-1](invariants.md#i-1), [I-2](invariants.md#i-2), [I-3](invariants.md#i-3), [E-1](invariants.md#e-1)&#93; — `WildcatMarket.sol:54-89` and `WildcatMarketWithdrawals.sol:88-146` use paired writes across live balances, batches, supply, and liabilities; trace every alternate mutation path.
+- **Scaled supply and withdrawal conservation** &nbsp;&#91;[I-1](invariants.md#i-1), [I-2](invariants.md#i-2), [I-3](invariants.md#i-3), [E-1](invariants.md#e-1)&#93; — `WildcatMarket.sol:77-84` and `WildcatMarketWithdrawals.sol:121-132` use paired writes across live balances, batches, supply, and liabilities; trace every alternate mutation path.
 
-- **Batch expiry, FIFO payment, and close finalization** &nbsp;&#91;[I-3](invariants.md#i-3), [I-4](invariants.md#i-4), [I-6](invariants.md#i-6), [E-3](invariants.md#e-3)&#93; — `WildcatMarketBase.sol:711-999` and `WildcatMarket.sol:220-300` split accrual at expiry and use floor-priced maximal settlement; confirm identical behavior under partial liquidity and same-timestamp closure.
+- **Batch expiry, FIFO payment, and close finalization** &nbsp;&#91;[I-3](invariants.md#i-3), [I-4](invariants.md#i-4), [I-6](invariants.md#i-6), [E-3](invariants.md#e-3)&#93; — `WildcatMarketBase.sol:994-1002` and `WildcatMarket.sol:223-242` split accrual at expiry and use floor-priced maximal settlement; confirm identical behavior under partial liquidity and same-timestamp closure.
 
 - **Floor/half-up conversion boundaries** &nbsp;&#91;[I-5](invariants.md#i-5), [X-7](invariants.md#x-7), [E-7](invariants.md#e-7)&#93; — `MarketState.sol:69-115` deliberately floors normalized→scaled but half-up normalizes labels; inspect one-unit boundaries at every market, hook, and wrapper caller.
 
 - **Revolving drawn-principal interest** &nbsp;&#91;[I-16](invariants.md#i-16), [E-5](invariants.md#e-5)&#93; — `WildcatMarketRevolving.sol:75-195` couples borrow/repay clamps with a custom rate formula and segmented accrual; compare every override with the standard market seam.
 
-- **Borrower/principal two-step migration** &nbsp;&#91;[I-8](invariants.md#i-8), [I-15](invariants.md#i-15), [X-3](invariants.md#x-3), [X-9](invariants.md#x-9)&#93; — `WildcatMarketBase.sol:358-517` crosses registry resolution, raw sanctions, reserved storage, wrapper authority, and pending-state replacement.
+- **Borrower/principal two-step migration** &nbsp;&#91;[I-8](invariants.md#i-8), [I-15](invariants.md#i-15), [X-3](invariants.md#x-3), [X-9](invariants.md#x-9)&#93; — `WildcatMarketBase.sol:468-509` crosses registry resolution, raw sanctions, reserved storage, wrapper authority, and pending-state replacement.
 
-- **Credential cache and provider replacement** &nbsp;&#91;[I-9](invariants.md#i-9), [I-10](invariants.md#i-10), [X-5](invariants.md#x-5)&#93; — `BaseAccessControls.sol:507-758,892-973` combines push timestamps, TTL-zero refresh, arbitrary provider calls, and a permanent known-lender latch; trace ordering and provider-skip cases.
+- **Credential cache and provider replacement** &nbsp;&#91;[I-9](invariants.md#i-9), [I-10](invariants.md#i-10), [X-5](invariants.md#x-5)&#93; — `BaseAccessControls.sol:541-797,971-1001` combines push timestamps, TTL-zero refresh, arbitrary provider calls, and a permanent known-lender latch; trace ordering and provider-skip cases.
 
-- **Periodic windows and permissionless APR execution** &nbsp;&#91;[I-11](invariants.md#i-11), [I-12](invariants.md#i-12), [I-13](invariants.md#i-13), [X-10](invariants.md#x-10)&#93; — `PeriodicTermHooks.sol:357-400,467-503,699-805` stores proposal-time bounds and recurring windows; confirm all time and closure boundaries.
+- **Periodic windows and permissionless APR execution** &nbsp;&#91;[I-11](invariants.md#i-11), [I-12](invariants.md#i-12), [I-13](invariants.md#i-13), [X-10](invariants.md#x-10)&#93; — `PeriodicTermHooks.sol:383-392,468-489,683-797` stores proposal-time bounds and recurring windows; confirm all time and closure boundaries.
 
-- **Hand-built hook calldata** &nbsp;&#91;[X-6](invariants.md#x-6)&#93; — `HooksConfig.sol:285-880` manually lays out `MarketState`, dynamic trailing bytes, return data, and selectors for every action; compare constants against `IHooks` after any type-layout change.
+- **Hand-built hook calldata** &nbsp;&#91;[X-6](invariants.md#x-6)&#93; — `HooksConfig.sol:294-910` manually lays out `MarketState`, dynamic trailing bytes, return data, and selectors for every action; compare constants against `IHooks` after any type-layout change.
 
-- **ERC-4626 scaled custody, lender access, and sanctions transfer** &nbsp;&#91;[I-17](invariants.md#i-17), [X-7](invariants.md#x-7), [X-9](invariants.md#x-9), [X-11](invariants.md#x-11), [E-4](invariants.md#e-4)&#93; — `Wildcat4626Wrapper.sol:247-570` reconciles observed scaled deltas and sanctions. Wrapper shares intentionally do not reproduce hook-local lender eligibility: market credentials govern direct market participation and market-token receipt, while non-sanctioned wrapper shares remain broadly composable. Unwrap receivers still pass through the market-token transfer hook.
+- **ERC-4626 scaled custody, lender access, and sanctions transfer** &nbsp;&#91;[I-17](invariants.md#i-17), [X-7](invariants.md#x-7), [X-9](invariants.md#x-9), [X-11](invariants.md#x-11), [X-12](invariants.md#x-12), [E-4](invariants.md#e-4)&#93; — `Wildcat4626Wrapper.sol:184-218,289-441,620-792` reconciles observed scaled deltas, receiver eligibility, and sanctions; trace preview/limit/execution symmetry across inherited ERC-20 paths.
 
 - **Transient CREATE2 constructor state** &nbsp;&#91;[X-1](invariants.md#x-1), [X-2](invariants.md#x-2)&#93; — `HooksFactory.sol:586-596,703-795` and the revolving twin stage constructor data and deploy stored init code. Salts must explicitly encode the immediate factory caller; zero-prefix salts are rejected, while valid prefixed salts remain publicly predictable.
 
 - **Sanctions quarantine lifecycle** &nbsp;&#91;[X-8](invariants.md#x-8), [X-9](invariants.md#x-9)&#93; — `WildcatSanctionsSentinel.sol:93-133`, `WildcatSanctionsEscrow.sol:15-43`, and market/wrapper nuke paths cross mutable overrides, deterministic custody, term gates, and borrower-principal changes.
 
 - **Manual storage and Yul return/event layouts** &nbsp;&#91;[I-18](invariants.md#i-18)&#93; — `WildcatMarketBase.sol:77-93,118-154,202-334` and `MarketEvents.sol` bypass Solidity layout/ABI checks; re-derive slot, selector, memory-pointer, and return-size assumptions.
-
-### Pre-audit Findings Disposition
-
-| Finding | Confidence | Disposition |
-|---------|-----------:|-------------|
-| Global zero-prefix CREATE2 salts allow cross-borrower address squatting and counterfactual-prefund theft | 90 | **Defense-in-depth hardening accepted** — both factories reject zero-prefix salts and require the immediate caller prefix; explicit salts remain context-free |
-| Canonical wrapper shares do not reproduce hook-local lender/transfer eligibility once the wrapper itself is credentialed | 90 | **Closed as intended behavior** — market credentials govern direct market participation; wrapper shares remain composable and unwrap receivers still pass through the market transfer hook |
-| Flooring before the exact 25% APR-reduction boundary avoids temporary reserves | 85 | **Remediated** — exact cross-multiplication precedes basis-point quantization |
-| Disabling a hooks template does not stop new markets from existing instances | 75 | **Closed as intended behavior** — disablement stops new instances; existing immutable instances remain usable per WKI-009 |
-| Extreme donated liquidity can overflow withdrawal settlement before the `uint104` debt cap | 75 | **Hardened** — settlement capacity saturates before multiplying unbounded liquidity |
-| Extreme donated liquidity can wrap revolving drawn-principal addition | 75 | **Hardened** — drawn amount is increased only within remaining outstanding debt |
-| Wrapper `maxDeposit`/`maxMint` can advertise capacity before the wrapper can receive gated market tokens | 75 | **Remediated as a UX/integration correction** — limits now reflect recipient-side transfer readiness; previews remain conversion-only |
-| Generic saturation and metadata decoders contain edge-case arithmetic/ABI defects | Lead | **Hardened** — overflow, high-bit bytes32 length, offset, and declared-length cases have regressions |
-
-**Downstream compatibility check:** the current app already constructs salts as connected borrower address + 12 random bytes, so its direct-EOA deployment path remains compatible and predictions remain context-free. The SDK should document the strict prefix and may add a constructor/validator helper. A future borrower-account app flow must use the account contract as the prefix rather than its principal or controlling signer. No ABI or event shape changed for A-01, so the subgraph does not need an A-01 code change. No A-02 wrapper guard change is required downstream; wrapper documentation and integrations should make the caller-selected share receiver and conditional unwrap eligibility clear. For A-03, SDKs and apps should use `maxDeposit`/`maxMint` for readiness and keep previews as quotes; generated hook ABIs should include the new transfer-recipient policy view. No event or indexing behavior changed.
 
 ### Protocol-Type Concerns
 
@@ -285,10 +264,10 @@ See [entry-points.md](entry-points.md) for the full permissionless entry point m
 >
 > - **50 Enforced Guards** (`G-1` … `G-50`) — per-call preconditions with predicate, location, and purpose
 > - **18 Single-Contract Invariants** (`I-1` … `I-18`) — Conservation, Bound, Ratio, StateMachine, Temporal
-> - **11 Cross-Contract Invariants** (`X-1` … `X-11`) — caller/callee pairs that cross scope boundaries
+> - **12 Cross-Contract Invariants** (`X-1` … `X-12`) — caller/callee pairs that cross scope boundaries
 > - **7 Economic Invariants** (`E-1` … `E-7`) — higher-order properties deriving from `I-N` + `X-N`
 >
-> Every inferred block cites a concrete Δ-pair, guard-lift + write-sites, state edge, temporal predicate, or NatSpec quote. The two **On-chain=No** blocks are the future assembly/storage-layout obligation and wrapper preservation of lender-access policy. Attack-surface bullets above cross-link directly into the relevant blocks.
+> Every inferred block cites a concrete Δ-pair, guard-lift + write-sites, state edge, temporal predicate, or NatSpec quote. The single **On-chain=No** block is the future assembly/storage-layout obligation. Attack-surface bullets above cross-link directly into the relevant blocks.
 
 ---
 
@@ -297,11 +276,11 @@ See [entry-points.md](entry-points.md) for the full permissionless entry point m
 | Aspect | Status | Notes |
 |--------|--------|-------|
 | README | Present | `README.md` includes v2 status and Yul/type-layout warnings |
-| NatSpec | ~803 doc-comment starts / 638 tags | Thorough on core math, wrappers, factories, hooks, and low-level assembly; several interfaces remain the canonical semantics |
-| Spec/Whitepaper | Present | `docs/Core Behavior.md`, `Scale Factor.md`, `EIP-4626.md`, hooks docs, identity/transfer docs, event model, and Known Issues |
+| NatSpec | 108 detected documentation signals | Core math, wrappers, factories, hooks, and low-level assembly are documented; several interfaces remain the canonical semantics |
+| Spec/Whitepaper | Limited in the prescribed documentation glob | `README.md`, `docs/README.md`, and `deploy-ui/README.md` were the three matched documents; deploy UI claims were treated as spec-derived |
 | Inline Comments | Thorough | Recent Yul hardening explains selectors, scratch memory, transient state, and ABI layouts |
 
-The consolidated audit delta is useful but its declared candidate is `822045f`, not current `5f3caa8`; its historical coverage appendix explicitly predates later identity/provider features. Treat current source and this report as the scope source of truth.
+The exact X-Ray documentation glob matched only three README files, so current source and this report remain the scope source of truth.
 
 ---
 
@@ -309,30 +288,25 @@ The consolidated audit delta is useful but its declared candidate is `822045f`, 
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Test files | 115 Solidity files (70 `.t.sol`) | File scan |
-| Test functions | 1,370 active (`1,354 test*` + `16 invariant_*`) | Anchored function-definition scan |
-| Full-suite execution | 1,749 passed, 0 failed across 92 suites | `yarn test`; default 1,000-run fuzz and 2,000-run invariant settings |
-| Focused pre-audit regressions | 15 passed, 0 failed | Factory, APR, withdrawal, revolving, math, string, and template-retirement targets |
-| Static analysis | Aderyn completed; targeted Slither completed; repository-wide Slither parser-blocked | 108 files / 88 Aderyn detectors; Slither does not support the dynamic library-function casts |
-| Deploy-profile build | Passed; tightest runtime margin 2,909 bytes | `FOUNDRY_PROFILE=deploy forge build --sizes src` |
-| Line coverage | Unavailable — current instrumentation attempts fail compilation before execution | `forge coverage`; script stack-too-deep, then Yul stack-depth failure |
-| Branch coverage | Unavailable — same instrumentation failure | `forge coverage` |
+| Test files | 117 Solidity files | File scan |
+| Test functions | 1,422 active test/invariant functions | Anchored function-definition scan |
+| Line coverage | Unavailable — SphereX coverage instrumentation is incompatible with the required viaIR build; deferred by the user | `forge coverage` |
+| Branch coverage | Unavailable — same instrumentation incompatibility and deferral | `forge coverage` |
 
 ### Test Depth
 
 | Category | Count | Contracts Covered |
 |----------|-------|-------------------|
-| Unit / example | ~1,284 | Markets, factories, hooks, providers, wrappers, lens, libraries, SphereX, identity, sanctions |
-| Integration | 68 test functions | Lifecycle, APR governance, identity compatibility, market matrix, sanctions, wrapper/scaled queue, revolving differential |
+| Unit / example | Broad | Markets, factories, hooks, providers, wrappers, lens, libraries, SphereX, identity, sanctions |
 | Fork | 0 | Deployment rehearsals exist as scripts/docs, not Solidity fork tests |
 | Stateless Fuzz | 44 | Market config/state/math, hooks, providers, wrapper and queue boundaries |
-| Stateful Fuzz (Foundry) | 16 invariant functions | Supply/balance conservation, CAF12 market/revolving properties, withdrawal key identity, six-cell matrix |
-| Stateful Fuzz (Echidna/Medusa) | 0 | No tool binary/config/harness; Fizz stopped at its mandatory tool check |
+| Stateful Fuzz (Foundry) | 21 invariant functions | Supply/balance conservation, market/revolving properties, withdrawal identity, and integration matrices |
+| Stateful Fuzz (Echidna/Medusa) | 0 | No existing Echidna/Medusa property suite detected before this audit's Fizz phase |
 | Formal Verification | 0 | No protocol Certora, Halmos, or HEVM specs detected |
 
 ### Gaps
 
-- Current coverage cannot be claimed until the documented SphereX-only workaround also clears the new deployment-script and Yul stack-depth failures.
+- Current coverage is intentionally deferred to the user's separate SphereX-aware coverage pass.
 - No independent Echidna/Medusa state machine exists; current invariants run only through Foundry's engine.
 - No formal properties prove the floor/half-up settlement math, revolving formula, manual storage slots, or wrapper conversion identities.
 - No Solidity fork tests exercise the exact release ceremony; deployment evidence lives in scripts and prior Anvil rehearsal artifacts.
@@ -341,36 +315,36 @@ The consolidated audit delta is useful but its declared candidate is `822045f`, 
 
 ## 6. Developer & Git History
 
-> Repo shape: normal_dev — 675 source-touching commits over 1,508 days (2022-06-29 → 2026-08-15) are visible within 1,238 total commits.
+> Repo shape: normal_dev — 697 source-touching commits over 1,514 days (2022-06-29 → 2026-08-21) are visible within 1,270 total commits.
 
 ### Contributors
 
 | Author | Source Commits | Source Lines Added | % of Source Additions |
 |--------|---------------:|-------------------:|----------------------:|
-| d1ll0n / Dillon Kellar aliases | 489 | 29,210 | 66.1% |
-| Dave Coleman | 69 | 11,074 | 25.1% |
-| Dr Laurence E. Day aliases | 131 | 2,610 | 5.9% |
-| Jack aliases | 1+ | 1,139 | 2.6% |
+| d1ll0n | — | 29,210 | 64.7% |
+| Dave Coleman | — | 12,057 | 26.7% |
+| Dr Laurence E. Day | — | 2,610 | 5.8% |
+| Jack McSweeney / Jack | — | 1,139 | 2.5% |
 
 ### Review & Process Signals
 
 | Signal | Value | Assessment |
 |--------|-------|------------|
-| Unique contributors | 7 line-contribution identities | Small concentrated team |
-| Merge commits | 81 of 1,238 (6.5%) | Some integration history; merge count alone does not prove peer review |
-| Repo age | 2022-06-29 → 2026-08-15 | 1,508 days |
-| Recent source activity (30d) | 27 commits; 3 without paired test-file changes | Late burst before audit |
-| Test co-change rate | 23% | File co-modification signal only; not coverage |
-| Fix-without-test rate | 40% | Historical fix commit signal; not proof the code lacks later tests |
+| Unique contributors | 10 commit identities; 7 line-contribution identities | Small concentrated team |
+| Merge commits | 84 of 1,270 (6.6%) | Some integration history; merge count alone does not prove peer review |
+| Repo age | 2022-06-29 → 2026-08-21 | 1,514 days |
+| Recent source activity (30d) | 49 commits; 10 without paired test-file changes | Late optimization and audit-remediation burst |
+| Test co-change rate | 24.4% | File co-modification signal only; not coverage |
+| Fix-without-test rate | 20% | Historical fix commit signal; not proof the code lacks later tests |
 
 ### File Hotspots
 
 | File | Modifications | Note |
 |------|-------------:|------|
-| `src/market/WildcatMarketBase.sol` | 84 | Storage, accrual, identity, sanctions, batch core |
-| `src/market/WildcatMarket.sol` | 72 | Main value flows and closure |
-| `src/market/WildcatMarketWithdrawals.sol` | 61 | Queue/payment/execution state machine |
-| `src/market/WildcatMarketConfig.sol` | 54 | APR/reserve/fee/wrapper policy |
+| `src/market/WildcatMarketBase.sol` | 85 | Storage, accrual, identity, sanctions, batch core |
+| `src/market/WildcatMarket.sol` | 73 | Main value flows and closure |
+| `src/market/WildcatMarketWithdrawals.sol` | 64 | Queue/payment/execution state machine |
+| `src/market/WildcatMarketConfig.sol` | 55 | APR/reserve/fee/wrapper policy |
 | `src/interfaces/IMarketEventsAndErrors.sol` | 35 | Cross-version ABI/event surface |
 | `src/HooksFactory.sol` | 29 | Deployment and template control plane |
 | `src/types/HooksConfig.sol` | 25 | Manual callback ABI assembly |
@@ -389,11 +363,11 @@ The consolidated audit delta is useful but its declared candidate is `822045f`, 
 
 | Security Area | Commits | Key Files |
 |--------------|--------:|-----------|
-| fund_flows | 272 | WildcatMarket, Withdrawals, MarketState |
-| state_machines | 227 | MarketBase, Withdrawals, access hooks |
-| signatures / ABI layouts | 157 | HooksFactory, HooksConfig, MarketEvents |
-| access_control | 150 | Factories, ArchController, BaseAccessControls |
-| oracle_price heuristic | 13 | MarketState |
+| fund_flows | 287 | WildcatMarket, Withdrawals, MarketState |
+| state_machines | 238 | MarketBase, Withdrawals, access hooks |
+| signatures / ABI layouts | 165 | HooksFactory, HooksConfig, MarketEvents |
+| access_control | 160 | Factories, ArchController, BaseAccessControls |
+| oracle_price heuristic | 15 | MarketState |
 
 ### Forked Dependencies
 
@@ -415,8 +389,8 @@ The consolidated audit delta is useful but its declared candidate is `822045f`, 
 
 ### Security Observations
 
-- **Two-contributor concentration** — d1ll0n and Dave Coleman account for 91.2% of source additions.
-- **Late release burst** — 27 source commits landed in 30 days; `5f3caa8` changes stored revolving init code on the report date.
+- **Two-contributor concentration** — d1ll0n and Dave Coleman account for 91.4% of source additions.
+- **Late release burst** — 49 source commits landed in 30 days, including current-branch Yul, lens, access, wrapper, and FIFO gas changes.
 - **Unpaired late refactors** — `beedf27` and `aed11ad` changed market Yul/bytecode without test files in the same commits, though surrounding commits add tests.
 - **Core churn concentration** — the four market implementation files are the top current-file modification hotspots.
 - **Coverage evidence is stale** — `docs/v2.5-audit-delta.md` identifies `822045f` and explicitly says its coverage predates later features.
@@ -433,11 +407,11 @@ The consolidated audit delta is useful but its declared candidate is `822045f`, 
 
 ## X-Ray Verdict
 
-**FRAGILE** — Unit, fuzz, invariant, documentation, and role-boundary evidence are substantial, but access control has no protocol timelock and four security-relevant PeriodicTermHooks production bounds remain explicit TODOs, lowering the evidence-derived tier by one.
+**EXPOSED** — Unit, fuzz, invariant, and documentation evidence are substantial, but privileged operational actions have no protocol timelock and four security-relevant PeriodicTermHooks production bounds remain explicit mainnet TODOs; the X-Ray rubric lowers the access-control floor by one tier for those unresolved markers.
 
 **Structural facts:**
-1. 13,072 in-scope Solidity nSLOC across eight protocol subsystems.
-2. 115 Solidity test files contain 1,370 active test/invariant functions, including 44 stateless fuzz tests and 16 Foundry invariant functions.
-3. 675 source-touching commits span 1,508 days; the two largest contributors account for 91.2% of source additions.
-4. 27 source commits landed in the final 30-day window; three did not change a test file in the same commit.
+1. 13,444 in-scope Solidity nSLOC across eight protocol subsystems.
+2. 117 Solidity test files contain 1,422 active test/invariant functions, including 44 stateless fuzz tests and 21 Foundry invariant functions.
+3. 697 source-touching commits span 1,514 days; the two largest contributors account for 91.4% of source additions.
+4. 49 source commits landed in the final 30-day window; ten did not change a test file in the same commit.
 5. Four `FOR MAINNET` TODOs remain in PeriodicTermHooks parameter bounds, and no protocol formal-verification suite was detected.
