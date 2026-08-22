@@ -537,6 +537,19 @@ The first direct hooks-factory slice is complete:
 Hook-instance, market-deployment, market pagination, and protocol-fee propagation behavior remain
 in the same factory migration. See `test-next/parity/hooks-factory-templates.md`.
 
+The hook-instance deployment portion is now complete as well:
+
+- two additional matrix properties replace all ten direct standard/revolving deployment entries
+- real OpenTerm constructor data verifies name/version and pull/push provider snapshot events and
+  state in both factories
+- borrower approval, missing/disabled templates, constructor failure, indexes, aliases, and
+  deployment nonces are explicit
+- the in-progress suite plus its failure artifact now emits 17,042 bytes of initcode
+- the full replacement checkpoint is 420 tests across 29 suites with zero inherited entries,
+  410,438 bytes of test-side initcode, and 401,829 bytes of runtime bytecode
+
+Market deployment, pagination, revolving market-data parsing, and protocol-fee propagation remain.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

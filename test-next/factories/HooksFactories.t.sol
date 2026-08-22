@@ -3,10 +3,19 @@ pragma solidity >=0.8.20;
 
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';
-import { HooksTemplate, IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
+import { HooksTemplate } from 'src/IHooksFactory.sol';
+import { IHooksFactory } from 'src/IHooksFactory.sol';
+import { IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
+import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
+import { CreateProviderInputs } from 'src/access/ProviderStructs.sol';
+import { ExistingProviderInputs } from 'src/access/ProviderStructs.sol';
+import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
+import { NullProviderIndex, RoleProvider, encodeRoleProvider } from 'src/types/RoleProvider.sol';
+import { BrokenHooksTemplate } from '../mocks/HooksFactoryMocks.sol';
+import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
 contract HooksFactoriesTest is TestKernel {
@@ -390,6 +399,142 @@ contract HooksFactoriesTest is TestKernel {
       assertEq(factory.getHooksTemplates(2, 2).length, 0);
       assertEq(factory.getHooksTemplates(2, 1).length, 0);
       assertEq(factory.getHooksTemplates(3, type(uint256).max).length, 0);
+    }
+  }
+
+  function test_deployHooksInstance_RecordsIdentityAndProviderSnapshotAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+
+    MockRoleProvider pullProvider = MockRoleProvider(
+      _deployCode('test-next/mocks/MockRoleProvider.sol:MockRoleProvider')
+    );
+    MockRoleProvider pushProvider = MockRoleProvider(
+      _deployCode('test-next/mocks/MockRoleProvider.sol:MockRoleProvider')
+    );
+    pullProvider.setIsPullProvider(true);
+
+    ExistingProviderInputs[] memory existingProviders = new ExistingProviderInputs[](2);
+    existingProviders[0] = ExistingProviderInputs({
+      providerAddress: address(pullProvider),
+      timeToLive: 1 days
+    });
+    existingProviders[1] = ExistingProviderInputs({
+      providerAddress: address(pushProvider),
+      timeToLive: 2 days
+    });
+    bytes memory constructorArgs = abi.encode(
+      NameAndProviderInputs({
+        name: 'shared access',
+        roleProviderFactory: address(0),
+        newProviderInputs: new CreateProviderInputs[](0),
+        existingProviders: existingProviders
+      })
+    );
+
+    RoleProvider[] memory expectedPullProviders = new RoleProvider[](1);
+    expectedPullProviders[0] = encodeRoleProvider(
+      1 days,
+      address(pullProvider),
+      0,
+      NullProviderIndex
+    );
+    RoleProvider[] memory expectedPushProviders = new RoleProvider[](1);
+    expectedPushProviders[0] = encodeRoleProvider(
+      2 days,
+      address(pushProvider),
+      NullProviderIndex,
+      0
+    );
+
+    FeeConfig memory noFees;
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', noFees);
+
+      vm.expectEmit(false, true, true, true, address(factory));
+      emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+        address(0),
+        fixture.firstTemplate,
+        address(this),
+        address(this),
+        'shared access',
+        'OpenTermHooks'
+      );
+      vm.expectEmit(false, true, true, true, address(factory));
+      emit IHooksFactoryEventsAndErrors.HooksInstanceRoleProviders(
+        address(0),
+        true,
+        expectedPullProviders,
+        expectedPushProviders
+      );
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, constructorArgs);
+
+      assertTrue(factory.isHooksInstance(hooksInstance));
+      assertEq(factory.getHooksTemplateForInstance(hooksInstance), fixture.firstTemplate);
+      assertEq(factory.getHooksAdministrator(hooksInstance), address(this));
+      assertEq(factory.getHooksInstanceDeploymentNonce(address(this)), 1);
+      assertEq(OpenTermHooks(hooksInstance).administrator(), address(this));
+      assertEq(OpenTermHooks(hooksInstance).name(), 'shared access');
+
+      address[] memory administratorInstances = factory.getHooksInstancesForAdministrator(
+        address(this)
+      );
+      assertEq(administratorInstances.length, 1);
+      assertEq(administratorInstances[0], hooksInstance);
+      assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 1);
+      address[] memory borrowerInstances = factory.getHooksInstancesForBorrower(address(this));
+      assertEq(borrowerInstances.length, 1);
+      assertEq(borrowerInstances[0], hooksInstance);
+      assertEq(factory.getHooksInstancesCountForBorrower(address(this)), 1);
+
+      RoleProvider[] memory pullProviders = OpenTermHooks(hooksInstance).getPullProviders();
+      RoleProvider[] memory pushProviders = OpenTermHooks(hooksInstance).getPushProviders();
+      assertEq(pullProviders.length, 1);
+      assertEq(pushProviders.length, 1);
+      assertEq(
+        RoleProvider.unwrap(pullProviders[0]),
+        RoleProvider.unwrap(expectedPullProviders[0])
+      );
+      assertEq(
+        RoleProvider.unwrap(pushProviders[0]),
+        RoleProvider.unwrap(expectedPushProviders[0])
+      );
+    }
+  }
+
+  function test_deployHooksInstance_RejectsInvalidPathsAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    FeeConfig memory noFees;
+    IHooksFactory[2] memory factories = _factories(fixture);
+
+    for (uint256 i; i < factories.length; i++) {
+      _addTemplate(factories[i], fixture.firstTemplate, 'Open Term', noFees);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
+      factories[i].deployHooksInstance(fixture.firstTemplate, '');
+    }
+
+    fixture.archController.registerBorrower(address(this));
+    address brokenTemplate = LibStoredInitCode.deployInitCode(
+      vm.getCode('test-next/mocks/HooksFactoryMocks.sol:BrokenHooksTemplate')
+    );
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+
+      vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
+      factory.deployHooksInstance(fixture.secondTemplate, '');
+
+      factory.disableHooksTemplate(fixture.firstTemplate);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
+      factory.deployHooksInstance(fixture.firstTemplate, '');
+
+      _addTemplate(factory, brokenTemplate, 'broken', noFees);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.DeploymentFailed.selector);
+      factory.deployHooksInstance(brokenTemplate, '');
+
+      assertEq(factory.getHooksInstanceDeploymentNonce(address(this)), 0);
+      assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 0);
     }
   }
 }
