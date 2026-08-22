@@ -73,3 +73,4 @@ Completed family ledgers live in `parity/`:
 - `spherex-config.md`
 - `hooks-factory-templates.md`
 - `hook-dispatch.md`
+- `open-term-hooks.md`

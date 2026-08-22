@@ -557,6 +557,22 @@ The generic market-to-hook dispatch family is complete:
 
 See `test-next/parity/hook-dispatch.md`.
 
+The direct OpenTerm-hooks family is complete:
+
+- 13 mapped properties replace all 27 direct entries, plus two strengthened production-policy
+  properties
+- provider construction, market configuration, administrator transfer, minimum deposits,
+  known/unknown lender withdrawal access, and transfer policy use the production hook
+- `OpenTermHooks` has 100% line, statement, branch, and function coverage
+- the replacement OpenTerm artifact is 26,593 bytes of initcode versus 146,404 bytes for the
+  legacy concrete artifact; the legacy number still includes 70 shared inherited properties, so
+  the final access-family reduction waits for FixedTerm and PeriodicTerm completion
+- the full replacement checkpoint is 461 tests across 31 suites with zero inherited entries,
+  493,279 bytes of test-side initcode, and 484,391 bytes of runtime bytecode
+- forced canonical compile-to-green is 90.33 seconds with a 2,770,084 KiB RSS peak
+
+See `test-next/parity/open-term-hooks.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
