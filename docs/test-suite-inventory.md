@@ -627,6 +627,25 @@ The shared market-constraint state machine is complete:
 
 See `test-next/parity/market-constraint-hooks.md`.
 
+The shared standard/fixed-term market-token family is complete:
+
+- seven runtime-matrix properties replace all 40 concrete ERC-20 entries from the standard and
+  inherited FixedTerm market-token suites
+- production market and hook artifacts preserve metadata, mint/burn accounting, approvals,
+  ordinary/self transfers, finite/infinite allowances, exact failure modes, and blocked-recipient
+  policy
+- `WildcatMarketToken` has 100% line, statement, branch, and function coverage
+- dedicated test-side initcode falls from 351,648 to 15,940 bytes, a 95.47% reduction; runtime
+  bytecode falls from 111,056 to 15,914 bytes, an 85.67% reduction
+- the full replacement checkpoint is 513 tests across 35 suites with zero inherited entries,
+  603,669 bytes of test-side initcode, and 594,578 bytes of runtime bytecode
+- forced canonical compile-to-green is 101.35 seconds, including 98.79 seconds in solc, with a
+  2,828,104 KiB RSS peak
+
+The shared artifact-backed market fixture is now established. Later market-base, configuration,
+lifecycle, and withdrawal properties will join the same concrete suite rather than creating new
+OpenTerm/FixedTerm artifacts. See `test-next/parity/market-token.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

@@ -77,3 +77,4 @@ Completed family ledgers live in `parity/`:
 - `fixed-term-hooks.md`
 - `periodic-term-hooks.md`
 - `market-constraint-hooks.md`
+- `market-token.md`
