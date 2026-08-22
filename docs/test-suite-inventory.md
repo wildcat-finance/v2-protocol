@@ -749,6 +749,21 @@ The standard/fixed-term market-withdrawal family is complete:
 
 See `test-next/parity/market-withdrawals.md`.
 
+The Wildcat 4626 wrapper-factory family is complete:
+
+- nine composed properties replace all 16 legacy factory entries
+- legacy forwarding, floor-generation isolation, hostile rounding probes, deployment,
+  registration, duplication, and transfer-policy validation use the production factory and wrapper
+- `Wildcat4626WrapperFactory` has 100% line, statement, branch, and function coverage
+- dedicated initcode falls from 43,771 to a conservatively counted 18,532 bytes, a 57.66%
+  reduction; runtime bytecode falls 58.32%
+- the full replacement checkpoint is 588 tests across 37 suites with zero inherited entries,
+  780,438 bytes of test-side initcode, and 770,735 bytes of runtime bytecode
+- forced canonical via-IR compile-to-green is 2m08.75s, including 125.56s in solc, with a
+  3,284,512 KiB RSS peak; execution is 1.88s
+
+See `test-next/parity/wildcat-4626-wrapper-factory.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

@@ -99,3 +99,7 @@ lifecycle closed-market drain entries, and the two borrower-principal escrow ent
 runtime-matrix market properties plus one production-Sentinel property cover the family, while
 completed access-hook suites own repeated credential gates. `WildcatMarketWithdrawals` has 100%
 line, statement, branch, and function coverage. See `market-withdrawals.md`.
+
+The wrapper-factory checkpoint replaces all 16 generation-routing, deployment, registration, and
+transfer-policy entries with nine composed properties. The production factory reaches 100% line,
+statement, branch, and function coverage. See `wildcat-4626-wrapper-factory.md`.
