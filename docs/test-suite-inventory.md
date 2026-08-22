@@ -449,6 +449,22 @@ The testnet ArchController owner helper is complete:
 
 See `test-next/parity/mock-arch-controller-owner.md`.
 
+The borrower-account origination integration slice is complete:
+
+- one two-factory runtime matrix replaces the separate standard/revolving origination paths
+- nine properties replace 11 entries while preserving resolved-principal administration,
+  operational account authority, shared hooks/nonces, fees, principal changes/removal, removed
+  account factories, and cross-principal rejection
+- production factories, hooks, markets, and stored initcode remain on every path under test
+- dedicated initcode falls from 137,599 to 13,177 bytes, a 90.42% reduction
+- the full replacement checkpoint is 377 tests across 24 suites with zero inherited entries,
+  357,324 bytes of test-side initcode, and 349,986 bytes of runtime bytecode
+- forced canonical compile-to-green is 75.62 seconds with a 2,353,872 KiB RSS peak
+
+Accurate non-IR coverage for this graph is compiler-blocked in `HooksFactoryRevolving`; no
+coverage-only source change is retained. See
+`test-next/parity/borrower-account-origination.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

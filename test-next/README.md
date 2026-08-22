@@ -58,3 +58,4 @@ Completed family ledgers live in `parity/`:
 - `wildcat-arch-controller.md`
 - `borrower-identity-registry.md`
 - `mock-arch-controller-owner.md`
+- `borrower-account-origination.md`
