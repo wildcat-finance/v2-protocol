@@ -55,10 +55,8 @@ file before the final cutover.
   `CloseMarketWithUnpaidWithdrawals` requires an adversarial asset that reports successful
   `transferFrom` without moving funds; keep that case for the adversarial/invariant pass rather
   than changing the normal ERC-20 fixture.
-- Borrower-transfer core behavior and both market-withdrawal escrow cases are complete. Its six
-  wrapper readiness, wrapper escrow, wrapper namespace, and sweep-authority cases remain assigned
-  to the wrapper slice; the borrower-transfer ledger names them so they do not disappear.
 - Core wrapper coverage leaves two shadowed Solady configuration helpers and three defensive
   arithmetic guards unreachable under the market's required `scaleFactor >= RAY`. The parity ledger
-  records the identities. The live sanctions-escrow release branch remains assigned to production
-  wrapper integration.
+  records the identities. Production wrapper integration now covers the live sanctions-escrow
+  release branch, all built-in hooks, borrower-account namespace transitions, and the revolving
+  market path.

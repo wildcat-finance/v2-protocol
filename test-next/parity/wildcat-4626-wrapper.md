@@ -1,7 +1,6 @@
 # Wildcat 4626 wrapper parity
 
-Status: core wrapper complete; production market and sanctions-escrow composition remains in the
-wrapper integration checkpoint.
+Status: complete, including production composition in the wrapper integration checkpoint.
 
 ## Family boundary
 
@@ -51,8 +50,8 @@ The five uncovered lines are deliberate boundaries:
 - the mint round-trip mismatch, zero-asset redeem, and zero-asset market-sweep guards are
   unreachable while the market preserves its required `scaleFactor >= RAY`; successful fuzzing
   directly proves each corresponding ceil/floor identity.
-- the canonical sanctions-escrow release branch belongs to the production Sentinel integration
-  checkpoint and is not simulated with a privileged mock.
+- the focused mock suite deliberately leaves the canonical sanctions-escrow release branch to the
+  production integration checkpoint, which now executes it with a real CREATE2 escrow.
 
 The legacy non-factory suites and their support artifacts total 304,837 bytes of initcode and
 303,649 bytes of runtime bytecode. The replacement suite and its three dedicated support artifacts

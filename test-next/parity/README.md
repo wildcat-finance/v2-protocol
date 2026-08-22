@@ -87,12 +87,11 @@ closure, batch-key safety, and rescue behavior; completed token, dispatch, and a
 own the duplicated cross-boundary properties. The withdrawal checkpoint now owns the final two
 randomized closed-market drain entries. See `market-lifecycle.md` and `market-withdrawals.md`.
 
-The market borrower-transfer checkpoint maps all 29 core identity, authority, sanctions, and
-accounting entries into ten composed properties and adds one malformed-registry response property.
-All executable lines and branches in the production borrower-transfer region are covered. The two
-withdrawal-escrow entries are now complete in the withdrawal checkpoint; six wrapper entries remain
-explicitly assigned to wrapper integration rather than importing that deployment graph into the
-market suite. See `market-borrower-transfer.md` and `market-withdrawals.md`.
+The market borrower-transfer checkpoint maps the core identity, authority, sanctions, accounting,
+and withdrawal-escrow entries into 12 composed properties. All executable lines and branches in
+the production borrower-transfer region are covered. The wrapper integration checkpoint now owns
+the final six cross-boundary entries. See `market-borrower-transfer.md`, `market-withdrawals.md`,
+and `wildcat-4626-wrapper-integration.md`.
 
 The market-withdrawal checkpoint maps all 124 standard/inherited withdrawal entries, the two
 lifecycle closed-market drain entries, and the two borrower-principal escrow entries. Eighteen
@@ -106,5 +105,7 @@ statement, branch, and function coverage. See `wildcat-4626-wrapper-factory.md`.
 
 The core wrapper checkpoint maps all 160 non-factory vault entries into 19 composed properties.
 Conversions, execution, allowances, caps, sanctions, defensive reads, sweeps, and quarantine use the
-production wrapper with one floor-rounding market mock. The remaining production escrow-release
-branch belongs to wrapper integration. See `wildcat-4626-wrapper.md`.
+production wrapper with one floor-rounding market mock. Seven production-composition properties
+then close the ten legacy integration entries and six borrower-transfer wrapper handoffs, including
+the live escrow-release branch, all built-in hooks, borrower accounts, and a revolving market. See
+`wildcat-4626-wrapper.md` and `wildcat-4626-wrapper-integration.md`.

@@ -719,10 +719,11 @@ The core market borrower-transfer family is complete:
   contracts
 - all 64 executable lines and all 12 branches in the `WildcatMarketBase` borrower-transfer region
   are covered
-- the two withdrawal-escrow entries are complete in the withdrawal checkpoint; six wrapper entries
-  remain assigned to wrapper integration
-- the provisional core artifact is 29,907 bytes of initcode and 29,881 bytes of runtime bytecode,
-  versus 206,866 and 86,410 bytes for the legacy suite and its dedicated account artifacts
+- the two withdrawal-escrow entries are complete in the market suite, and production wrapper
+  integration now closes the remaining six handoffs
+- the market artifact is now 32,451 bytes of initcode and 32,425 bytes of runtime bytecode; the
+  final family comparison is recorded with wrapper integration so shared behavior is not priced
+  independently
 - the full replacement checkpoint is 560 tests across 36 suites with zero inherited entries,
   718,635 bytes of test-side initcode, and 709,424 bytes of runtime bytecode
 - forced canonical compile-to-green is 1m57.16s, including 114.03s in solc, with a 3,121,564 KiB
@@ -772,8 +773,9 @@ The core Wildcat 4626 wrapper family is complete:
 - sanctions, insolvency, malformed low-level reads, quarantine, arbitrary-token sweep, market-token
   surplus sweep, and atomic rollback use the production wrapper
 - `Wildcat4626Wrapper` reaches 98.42% lines, 98.52% statements, 94.29% branches, and 95.92%
-  functions; the production escrow-release branch remains assigned to wrapper integration, while
-  the other misses are shadowed helpers or guards unreachable under `scaleFactor >= RAY`
+  functions in the focused mock slice; production integration now executes the live escrow-release
+  branch, while the other misses are shadowed helpers or guards unreachable under
+  `scaleFactor >= RAY`
 - dedicated initcode falls from 304,837 to 81,822 bytes, a 73.16% reduction; runtime bytecode falls
   73.22%
 - the full replacement checkpoint is 607 tests across 38 suites with zero inherited entries,
@@ -782,6 +784,28 @@ The core Wildcat 4626 wrapper family is complete:
   3,476,168 KiB RSS peak; execution is 2.08s
 
 See `test-next/parity/wildcat-4626-wrapper.md`.
+
+The production Wildcat 4626 wrapper integration family is complete:
+
+- seven composed properties replace ten legacy wrapper-integration entries and the six remaining
+  borrower-transfer wrapper handoffs
+- production OpenTerm, FixedTerm, and PeriodicTerm hooks prove wrapper readiness before and after
+  credentialing; standard and revolving markets share the same quarantine rules
+- production ArchController, borrower registry, Sentinel, CREATE2 escrows, market, wrapper factory,
+  and wrapper cover coordinated quarantine, unrelated-holder redemption, backing protection,
+  principal namespace migration, escrow release, and operational-borrower sweep authority
+- the accurate coverage profile compiles the 74-source graph and executes the live escrow-release
+  path without a new compiler exception
+- conservatively charged integration initcode falls from 432,010 to 32,678 bytes, a 92.44%
+  reduction; runtime bytecode falls from 191,416 to 32,417 bytes, an 83.06% reduction
+- across borrower transfer plus wrapper integration, 47 legacy entries become 19 replacement
+  properties while emitted initcode falls 89.81% and runtime bytecode falls 76.66%
+- the full replacement checkpoint is 614 tests across 39 suites with zero inherited entries,
+  890,595 bytes of test-side initcode, and 880,367 bytes of runtime bytecode
+- forced canonical via-IR AST compile-to-green is 2m26.55s, including 142.83s in solc, with a
+  3,814,448 KiB RSS peak; execution is 2.06s
+
+See `test-next/parity/wildcat-4626-wrapper-integration.md`.
 
 ### Phase 2: migrate feature families
 

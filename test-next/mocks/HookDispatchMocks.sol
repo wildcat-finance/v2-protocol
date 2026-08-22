@@ -58,6 +58,10 @@ contract HookDispatchFactoryMock {
     return _parameters;
   }
 
+  function getRevolvingMarketCommitmentFeeBips() external pure returns (uint16) {
+    return 500;
+  }
+
   function deployMarket(bytes memory creationCode) external returns (address market) {
     assembly {
       market := create(0, add(creationCode, 0x20), mload(creationCode))
