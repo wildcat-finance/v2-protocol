@@ -50,3 +50,8 @@ file before the final cutover.
   `vm.getBlockTimestamp()`, not repeatedly through the `block.timestamp` opcode. Via-IR may
   rematerialize or hoist that opcode because timestamp cannot change during a real transaction;
   Foundry's warp cheatcode deliberately breaks that EVM invariant inside the test call.
+- Focused market coverage leaves two `WildcatMarket` lines. The internal `_repay` closed-state
+  guard is structurally preceded by `closeMarket`'s public closed-state check. Reaching
+  `CloseMarketWithUnpaidWithdrawals` requires an adversarial asset that reports successful
+  `transferFrom` without moving funds; keep that case for the adversarial/invariant pass rather
+  than changing the normal ERC-20 fixture.

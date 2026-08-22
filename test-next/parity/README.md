@@ -80,3 +80,9 @@ entries with 22 properties split at the production contract boundary: seven cons
 properties and 15 market properties. Focused accurate coverage reports 100% for
 `WildcatMarketConfig`; the remaining partial market files belong to lifecycle, borrower-transfer,
 and withdrawal slices. See `market-config.md`.
+
+The market-lifecycle checkpoint maps 120 of 122 standard/inherited `WildcatMarketTest` entries.
+Fourteen new runtime-matrix properties own state updates, deposits, fees, borrowing, repayment,
+closure, batch-key safety, and rescue behavior; completed token, dispatch, and access-hook families
+own the duplicated cross-boundary properties. The final two randomized closed-market drain entries
+remain assigned to withdrawals. See `market-lifecycle.md`.

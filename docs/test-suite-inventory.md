@@ -690,6 +690,26 @@ Focused accurate coverage leaves `WildcatMarketBase`, `WildcatMarket`, and
 `WildcatMarketWithdrawals` intentionally partial until lifecycle, borrower-transfer, and
 withdrawal behavior join the shared market artifact. See `test-next/parity/market-config.md`.
 
+The shared standard/fixed-term market-lifecycle family is complete:
+
+- 14 runtime-matrix properties map 120 of the 122 direct and inherited lifecycle entries; the
+  remaining two closed-market drain entries belong to the withdrawal family
+- state updates, deposits, fees, borrowing, repayment, closure, batch-key safety, and rescue
+  behavior run through production market code with both OpenTerm and FixedTerm hooks
+- completed token, dispatch, and access-hook suites own the duplicated cross-boundary behavior
+  instead of recompiling it into this artifact
+- `WildcatMarket` reaches 98.32% lines, 97.90% statements, 86.36% branches, and 100% functions;
+  its two uncovered lines require either an unreachable internal state or a dishonest ERC-20 and
+  remain assigned to the adversarial/invariant pass
+- dedicated lifecycle initcode falls from 518,970 to 40,109 bytes, a 92.27% reduction; runtime
+  bytecode falls 85.56%
+- the full replacement checkpoint is 549 tests across 35 suites with zero inherited entries,
+  688,728 bytes of test-side initcode, and 679,543 bytes of runtime bytecode
+- forced canonical compile-to-green is 1m53.83s, including 110.76s in solc, with a 3,044,364 KiB
+  RSS peak; execution is 1.80s
+
+See `test-next/parity/market-lifecycle.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
