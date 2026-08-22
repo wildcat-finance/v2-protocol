@@ -58,10 +58,11 @@ imported source is temporarily lower because the factory matrix necessarily impo
 `OpenTermHooks` implementations whose full behavior belongs to later slices; those partial files
 are not being presented as complete.
 
-The token role-provider checkpoint replaces 84 provider and deposit-hook entries with 30 focused
-properties. Four pull providers have 100% coverage; ERC5192 and ERC5484 have 100% branch/function
-coverage and only four constant-return lines missed by Forge's line instrumentation. The three
-Wildcat debt-token/wrapper scenarios remain explicitly mapped to the market/vault slice.
+The token role-provider checkpoint replaces all 87 provider and deposit-hook entries with 33
+properties. Four pull providers have 100% coverage; ERC5192 and ERC5484 have 100%
+branch/function coverage and only four constant-return lines missed by Forge's line
+instrumentation. Three production-composition properties close the Wildcat debt-token and wrapper
+interest boundary through real source and target markets.
 
 The managed-provider checkpoint replaces 44 AccessList/Merkle entries with 24 focused properties.
 ManagedRoleProvider and AccessListRoleProvider have 100% line, statement, branch, and function
@@ -105,7 +106,8 @@ statement, branch, and function coverage. See `wildcat-4626-wrapper-factory.md`.
 
 The core wrapper checkpoint maps all 160 non-factory vault entries into 19 composed properties.
 Conversions, execution, allowances, caps, sanctions, defensive reads, sweeps, and quarantine use the
-production wrapper with one floor-rounding market mock. Seven production-composition properties
-then close the ten legacy integration entries and six borrower-transfer wrapper handoffs, including
-the live escrow-release branch, all built-in hooks, borrower accounts, and a revolving market. See
-`wildcat-4626-wrapper.md` and `wildcat-4626-wrapper-integration.md`.
+production wrapper with one floor-rounding market mock. Ten production-composition properties then
+close the ten legacy integration entries, six borrower-transfer wrapper handoffs, and three
+token-provider cross-feature entries, including the live escrow-release branch, all built-in
+hooks, borrower accounts, a revolving market, and production debt-token/wrapper access checks.
+See `wildcat-4626-wrapper.md` and `wildcat-4626-wrapper-integration.md`.

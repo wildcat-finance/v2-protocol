@@ -207,6 +207,8 @@ new coherent suite built beside the existing one.
 
 - Keep `test/` unchanged and executable as the behavioral reference during migration.
 - Build the replacement under `test-next/` with canonical deploy compiler settings.
+- Treat the legacy suite as frozen: close parity gaps in `test-next/` rather than retrofitting the
+  old fixture and inheritance graph.
 - Do not import the broad legacy fixture into the new suite.
 - Compare semantic properties and source coverage, not raw test counts.
 - Run the old monolith only at family-level parity checkpoints, not after every test-only edit.
@@ -377,9 +379,9 @@ Token-backed provider behavior is the next completed Phase 2 slice:
   249,888 bytes of test-side initcode
 - forced canonical compile-to-green is 63.23 seconds with a 1,960,240 KiB RSS peak
 
-The remaining token-provider work is three debt-token and wrapper integration properties. Generic
-market-to-hook dispatch is mapped once to the later market/access-hook slice rather than repeated
-for each provider. See `test-next/parity/token-role-providers.md`.
+Three debt-token and wrapper integration properties were intentionally deferred from this focused
+checkpoint and are closed by the later production-composition handoff. See
+`test-next/parity/token-role-providers.md`.
 
 The managed-provider family is also complete:
 
@@ -806,6 +808,22 @@ The production Wildcat 4626 wrapper integration family is complete:
   3,814,448 KiB RSS peak; execution is 2.06s
 
 See `test-next/parity/wildcat-4626-wrapper-integration.md`.
+
+The token-provider production-composition handoff is complete:
+
+- three properties close the debt-token self-reference, cross-market debt-token interest, and
+  cross-market wrapper-interest scenarios that were intentionally deferred from the focused
+  provider matrix
+- all three use real source and target markets and execute the production deposit-hook path
+- the source-market self-reference fails closed at the production view reentrancy guard, while
+  interest-grown debt-token and wrapper claims authorize a separate target market
+- all 87 legacy token-provider entries are now mapped to 33 replacement properties
+- the full replacement checkpoint is 617 tests across 39 suites with zero inherited entries,
+  902,866 bytes of test-side initcode, and 892,638 bytes of runtime bytecode
+- forced canonical via-IR AST compile-to-green is 2m32.40s, including 148.68s in solc, with a
+  3,965,736 KiB RSS peak
+
+See `test-next/parity/token-role-providers.md`.
 
 ### Phase 2: migrate feature families
 

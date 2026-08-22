@@ -199,7 +199,7 @@ contract RoleProviderHookIntegrationTest is TestKernel {
   ) internal view {
     LenderStatus memory status = fixture.hooks.getPreviousLenderStatus(lender);
     assertEq(status.lastProvider, expectedProvider, 'credential provider');
-    assertEq(status.lastApprovalTimestamp, uint32(block.timestamp), 'credential timestamp');
+    assertEq(status.lastApprovalTimestamp, uint32(vm.getBlockTimestamp()), 'credential timestamp');
     assertTrue(fixture.hooks.isKnownLenderOnMarket(lender, fixture.market), 'known lender');
   }
 
@@ -244,7 +244,7 @@ contract RoleProviderHookIntegrationTest is TestKernel {
 
       _setPullEligibility(kind, fixture.token, Holder, false);
       _deposit(fixture, Holder, '');
-      vm.warp(block.timestamp + 2);
+      vm.warp(vm.getBlockTimestamp() + 2);
       _expectDepositDenied(fixture, Holder, '');
     }
   }
@@ -311,7 +311,7 @@ contract RoleProviderHookIntegrationTest is TestKernel {
       _deposit(fixture, Holder, hooksData);
 
       _setPushEligibility(kind, fixture.token, Recipient);
-      vm.warp(block.timestamp + 1);
+      vm.warp(vm.getBlockTimestamp() + 1);
 
       _expectDepositDenied(fixture, Holder, hooksData);
       _deposit(fixture, Recipient, hooksData);

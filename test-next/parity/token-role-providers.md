@@ -1,7 +1,6 @@
 # Token role-provider parity
 
-Status: provider truth, constructor behavior, and provider-specific deposit-hook integration
-complete. Three cross-feature market/vault scenarios remain.
+Status: complete.
 
 ## Family boundary
 
@@ -12,7 +11,7 @@ across 12 suites. They mix three different concerns:
 | ------------------------------------------ | -------------: | ----------------------------------------------- |
 | Provider credentials and constructor gates |             42 | Replaced by 21 focused properties               |
 | Shared hook/market access behavior         |             42 | Replaced by 9 runtime-matrix properties         |
-| Wildcat debt-token and wrapper interest    |              3 | Retained for the market/vault integration slice |
+| Wildcat debt-token and wrapper interest    |              3 | Replaced by 3 production-composition properties |
 
 Keeping those concerns separate lets the provider truth tests run without inheriting the full
 controller, hooks factory, market, sentinel, wrapper, and role-provider fixture.
@@ -64,9 +63,20 @@ scope without embedding the rest of the protocol six times.
 Malformed packed data is also rejected through the real deposit hook for both push variants. It
 was previously asserted only against the providers directly.
 
-The generic `WildcatMarket.depositUpTo -> onDeposit` dispatch does not vary by provider and will
-be proven once in the market/access-hook integration slice. The provider matrix deliberately does
-not pretend that a fake market identity proves ERC20 movement, accounting, or market state.
+The focused provider matrix deliberately does not pretend that a lightweight market identity
+proves ERC20 movement, accounting, or market state. Three production-composition properties now
+close that boundary through real `WildcatMarket.depositUpTo -> OpenTermHooks.onDeposit` calls:
+
+- A debt-token provider reports the lender's balance outside a market call, but cannot authorize
+  deposits back into its own source market. The recursive debt-token balance read reaches the
+  source market's view reentrancy guard and the provider fails closed.
+- Interest on a source-market debt-token balance can cross the configured threshold and authorize
+  a deposit into a different production market.
+- Interest on a wrapper's underlying market claim can cross the configured asset threshold and
+  authorize a deposit into a different production market.
+
+The latter two properties first prove rejection below the threshold, accrue a year of production
+market interest, and then prove admission through the target market's real deposit entrypoint.
 
 ## Coverage and canonical result
 
@@ -81,13 +91,20 @@ Forge does not mark the source lines containing ERC5192/ERC5484's constant `retu
 `return 0` statements, although its function counters record both functions and the tests assert
 both results. Those four lines account for the entire reported gap.
 
-All 30 replacement properties pass at the fixed timestamp and seed with 1,000 runs per
+The 30 focused replacement properties pass at the fixed timestamp and seed with 1,000 runs per
 parameterized entry. The two suites and their shared token mock emit 30,482 bytes of initcode and
 30,384 bytes of runtime bytecode. The comparable 84-property legacy provider slice emits
 1,110,784 bytes of initcode and 387,022 bytes of runtime bytecode after excluding the two suites
-that own the three deferred cross-feature scenarios. That is a 97.26% initcode reduction and a
+that own the three cross-feature scenarios. That is a 97.26% initcode reduction and a
 92.15% runtime-bytecode reduction for the migrated behavior.
 
-The complete replacement checkpoint now has 284 tests across 19 suites, zero inherited entries,
-and 249,888 bytes of test-side initcode. A forced canonical AST compile-to-green took 63.23
-seconds, including 61.75 seconds in solc, and peaked at 1,960,240 KiB RSS.
+All 33 mapped properties are now closed. The two legacy cross-feature artifacts emit 335,492 bytes
+of initcode and 94,900 bytes of runtime bytecode for their three entries. Adding the three
+production-composition properties and the shared memory-safe artifact deploy path grew the full
+replacement suite by 12,271 bytes in both measures, a conservative 96.34% initcode and 87.07%
+runtime-bytecode reduction for that final slice.
+
+The complete replacement checkpoint now has 617 tests across 39 suites, zero inherited entries,
+902,866 bytes of test-side initcode, and 892,638 bytes of runtime bytecode. A forced canonical
+via-IR AST compile-to-green took 2m32.40s, including 148.68s in solc, and peaked at 3,965,736 KiB
+RSS. All tests passed at the fixed timestamp and seed.

@@ -14,6 +14,8 @@ import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.
 import { DeployMarketInputs, MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
+import { ERC20RoleProvider } from 'src/providers/ERC20RoleProvider.sol';
+import { ERC4626AssetsRoleProvider } from 'src/providers/ERC4626AssetsRoleProvider.sol';
 import { EmptyHooksConfig, HooksConfig } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
@@ -60,7 +62,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
 
   function _packString(string memory value) private pure returns (bytes32 word0, bytes32 word1) {
     require(bytes(value).length <= 63, 'fixture string too long');
-    assembly {
+    assembly ('memory-safe') {
       word0 := mload(add(value, 0x1f))
       word1 := mul(mload(add(value, 0x3f)), gt(mload(value), 0x1f))
     }
@@ -224,6 +226,13 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.hooks.grantRole(account, uint32(vm.getBlockTimestamp()));
   }
 
+  function _replaceLenderAccessProvider(Fixture memory fixture, address provider) private {
+    vm.prank(Borrower);
+    fixture.hooks.addRoleProvider(provider, 0);
+    vm.prank(address(fixture.roleProvider));
+    fixture.hooks.revokeRole(Lender);
+  }
+
   function _deployWrapper(
     Fixture memory fixture,
     bool authorize
@@ -236,6 +245,49 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.asset.mint(account, amount);
     vm.prank(account);
     fixture.asset.approve(address(fixture.market), type(uint256).max);
+  }
+
+  function _deployAdditionalMarket(
+    Fixture memory fixture,
+    MockERC20 asset
+  ) private returns (WildcatMarket market) {
+    fixture.asset = asset;
+    HooksConfig requestedHooks = _requestedHooks(address(fixture.hooks));
+    HooksConfig marketHooks = requestedHooks.mergeFlags(IHooks(address(fixture.hooks)).config());
+    fixture.marketFactory.setMarketParameters(_marketParameters(fixture, marketHooks));
+    market = WildcatMarket(
+      fixture.marketFactory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket'))
+    );
+    HooksConfig configuredHooks = IHooks(address(fixture.hooks)).onCreateMarket(
+      Borrower,
+      address(market),
+      _deploymentInputs(fixture, requestedHooks),
+      _hooksData(HooksKind.OpenTerm)
+    );
+    assertEq(HooksConfig.unwrap(configuredHooks), HooksConfig.unwrap(marketHooks), 'target hooks');
+    vm.prank(address(fixture.marketFactory));
+    fixture.archController.registerMarket(address(market));
+  }
+
+  function _newAsset(string memory name, string memory symbol) private returns (MockERC20 asset) {
+    asset = MockERC20(
+      _deployCode(
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
+        abi.encode(name, symbol, uint8(18))
+      )
+    );
+  }
+
+  function _fundTargetDeposit(MockERC20 asset, WildcatMarket market) private {
+    asset.mint(Lender, 1e18);
+    vm.prank(Lender);
+    asset.approve(address(market), type(uint256).max);
+  }
+
+  function _expectTargetDepositDenied(WildcatMarket market) private {
+    vm.prank(Lender);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    market.depositUpTo(1e18);
   }
 
   function _deposit(Fixture memory fixture, address account, uint256 amount) private {
@@ -517,5 +569,91 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(revolvingWrapper.balanceOf(revolvingEscrow), shares, 'revolving escrow');
     revolvingWrapper.nukeFromOrbit(Lender);
     assertEq(revolvingWrapper.balanceOf(revolvingEscrow), shares, 'repeat revolving nuke');
+  }
+
+  function test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    _deposit(fixture, Lender, 1e18);
+    ERC20RoleProvider provider = ERC20RoleProvider(
+      _deployCode(
+        'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider',
+        abi.encode(address(fixture.market), 1e18)
+      )
+    );
+    assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'outside credential');
+
+    _replaceLenderAccessProvider(fixture, address(provider));
+    fixture.asset.mint(Lender, 1e18);
+    _expectTargetDepositDenied(fixture.market);
+    assertEq(
+      provider.getCredential(Lender),
+      uint32(vm.getBlockTimestamp()),
+      'credential after blocked deposit'
+    );
+  }
+
+  function test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    _deposit(fixture, Lender, DepositAmount);
+    uint256 borrowableAssets = fixture.market.borrowableAssets();
+    vm.prank(Borrower);
+    fixture.market.borrow(borrowableAssets);
+
+    uint256 minimumBalance = fixture.market.balanceOf(Lender) + 1e18;
+    ERC20RoleProvider provider = ERC20RoleProvider(
+      _deployCode(
+        'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider',
+        abi.encode(address(fixture.market), minimumBalance)
+      )
+    );
+    MockERC20 targetAsset = _newAsset('Target Token', 'TGT');
+    WildcatMarket targetMarket = _deployAdditionalMarket(fixture, targetAsset);
+    _replaceLenderAccessProvider(fixture, address(provider));
+    _fundTargetDeposit(targetAsset, targetMarket);
+
+    assertEq(provider.getCredential(Lender), 0, 'credential before interest');
+    _expectTargetDepositDenied(targetMarket);
+    vm.warp(vm.getBlockTimestamp() + 365 days);
+    fixture.market.updateState();
+
+    assertTrue(fixture.market.balanceOf(Lender) >= minimumBalance, 'debt-token balance');
+    assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'credential');
+    vm.prank(Lender);
+    targetMarket.depositUpTo(1e18);
+  }
+
+  function test_wildcatWrapperInterestCanAuthorizeADifferentMarket() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    _deposit(fixture, Lender, DepositAmount);
+    uint256 borrowableAssets = fixture.market.borrowableAssets();
+    vm.prank(Borrower);
+    fixture.market.borrow(borrowableAssets);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
+    vm.startPrank(Lender);
+    fixture.market.approve(address(wrapper), type(uint256).max);
+    uint256 shares = wrapper.deposit(DepositAmount, Lender);
+    vm.stopPrank();
+
+    uint256 minimumAssets = wrapper.convertToAssets(shares) + 1e18;
+    ERC4626AssetsRoleProvider provider = ERC4626AssetsRoleProvider(
+      _deployCode(
+        'src/providers/ERC4626AssetsRoleProvider.sol:ERC4626AssetsRoleProvider',
+        abi.encode(address(wrapper), minimumAssets)
+      )
+    );
+    MockERC20 targetAsset = _newAsset('Target Token', 'TGT');
+    WildcatMarket targetMarket = _deployAdditionalMarket(fixture, targetAsset);
+    _replaceLenderAccessProvider(fixture, address(provider));
+    _fundTargetDeposit(targetAsset, targetMarket);
+
+    assertEq(provider.getCredential(Lender), 0, 'credential before interest');
+    _expectTargetDepositDenied(targetMarket);
+    vm.warp(vm.getBlockTimestamp() + 365 days);
+    fixture.market.updateState();
+
+    assertTrue(wrapper.convertToAssets(shares) >= minimumAssets, 'wrapped claim');
+    assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'credential');
+    vm.prank(Lender);
+    targetMarket.depositUpTo(1e18);
   }
 }

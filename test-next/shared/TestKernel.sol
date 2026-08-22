@@ -24,13 +24,14 @@ abstract contract TestKernel {
     bytes memory constructorArguments
   ) internal returns (address deployed) {
     bytes memory creationCode = abi.encodePacked(vm.getCode(artifact), constructorArguments);
-    assembly {
+    assembly ('memory-safe') {
       deployed := create(0, add(creationCode, 0x20), mload(creationCode))
       if iszero(deployed) {
         let returnDataSize := returndatasize()
         if returnDataSize {
-          returndatacopy(0, 0, returnDataSize)
-          revert(0, returnDataSize)
+          let returnDataPointer := mload(0x40)
+          returndatacopy(returnDataPointer, 0, returnDataSize)
+          revert(returnDataPointer, returnDataSize)
         }
       }
     }
