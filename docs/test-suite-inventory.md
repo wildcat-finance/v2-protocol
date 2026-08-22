@@ -509,6 +509,21 @@ The shared reentrancy guard is complete:
 
 See `test-next/parity/reentrancy-guard.md`.
 
+The standalone SphereX configuration family is complete:
+
+- 13 properties replace 14 entries while preserving two-step admin transfer, operator and engine
+  updates, interface validation, allowed-sender propagation, and registered-base authority
+- the replacement adds explicit constructor state, both valid allowed-sender roles, the missing
+  unauthorized role case, and post-transition/revert state checks
+- `SphereXConfig` has 100% line, statement, branch, and function coverage; active registered-base
+  engine communication remains assigned to protected-contract slices
+- dedicated initcode falls from 19,288 to 13,580 bytes, a 29.59% reduction
+- the full replacement checkpoint is 409 tests across 28 suites with zero inherited entries,
+  393,396 bytes of test-side initcode, and 384,822 bytes of runtime bytecode
+- forced canonical compile-to-green is 78.74 seconds with a 2,461,044 KiB RSS peak
+
+See `test-next/parity/spherex-config.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

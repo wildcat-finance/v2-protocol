@@ -68,3 +68,4 @@ Completed family ledgers live in `parity/`:
 - `hooks-administrator-transfer.md`
 - `sanctions.md`
 - `reentrancy-guard.md`
+- `spherex-config.md`
