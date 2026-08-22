@@ -49,7 +49,7 @@ imported source is temporarily lower because the factory matrix necessarily impo
 `OpenTermHooks` implementations whose full behavior belongs to later slices; those partial files
 are not being presented as complete.
 
-The token role-provider core checkpoint replaces 42 provider-level legacy entries with 21 focused
+The token role-provider checkpoint replaces 84 provider and deposit-hook entries with 30 focused
 properties. Four pull providers have 100% coverage; ERC5192 and ERC5484 have 100% branch/function
-coverage and only four constant-return lines missed by Forge's line instrumentation. Market-hook
-behavior and the Wildcat debt-token/wrapper scenarios remain explicitly mapped to later slices.
+coverage and only four constant-return lines missed by Forge's line instrumentation. The three
+Wildcat debt-token/wrapper scenarios remain explicitly mapped to the market/vault slice.

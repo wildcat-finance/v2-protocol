@@ -1,6 +1,7 @@
 # Token role-provider parity
 
-Status: provider truth and constructor behavior complete; hook/market integration remains.
+Status: provider truth, constructor behavior, and provider-specific deposit-hook integration
+complete. Three cross-feature market/vault scenarios remain.
 
 ## Family boundary
 
@@ -9,8 +10,8 @@ across 12 suites. They mix three different concerns:
 
 | Concern                                    | Legacy entries | Status                                          |
 | ------------------------------------------ | -------------: | ----------------------------------------------- |
-| Provider credentials and constructor gates |             42 | Replaced here                                   |
-| Shared hook/market access behavior         |             42 | Next provider checkpoint                        |
+| Provider credentials and constructor gates |             42 | Replaced by 21 focused properties               |
+| Shared hook/market access behavior         |             42 | Replaced by 9 runtime-matrix properties         |
 | Wildcat debt-token and wrapper interest    |              3 | Retained for the market/vault integration slice |
 
 Keeping those concerns separate lets the provider truth tests run without inheriting the full
@@ -41,6 +42,32 @@ Provider constructors still execute from canonical production creation artifacts
 test kernel now bubbles constructor revert data so exact production selectors remain observable
 without embedding six provider creation binaries in the test contract.
 
+## Hook integration disposition
+
+The 42 legacy integration entries repeated the same full controller/factory/market fixture for
+each provider. The replacement deploys production `OpenTermHooks` and production provider
+artifacts, registers a lightweight market identity through `onCreateMarket`, and calls the real
+`onDeposit` path as that market. This keeps provider discovery, credential caching, hooks-data
+decoding, lender-status writes, first-deposit state, blocking, and `NotApprovedLender` behavior in
+scope without embedding the rest of the protocol six times.
+
+| Legacy behavior group                          | Entries | Replacement disposition                                                                                     |
+| ---------------------------------------------- | ------: | ----------------------------------------------------------------------------------------------------------- |
+| Pull-provider admission and rejection          |       9 | Four-provider current-credential matrix; configured ERC1155 ID is also proven in the provider-truth suite   |
+| Zero-TTL recheck and moved eligibility         |       7 | Four-provider matrix checks old-account rejection and new-account admission in the same block               |
+| Positive-TTL delayed removal                   |       4 | Four-provider cache/expiry matrix                                                                           |
+| Hook-local block overrides eligibility         |       4 | One real-hook property composed with the shared block/status properties in `BaseAccessControlsTest`         |
+| Reverting reads and later-provider fallthrough |       9 | Four-provider failed-read/fallthrough matrix plus the ERC4626 conversion-failure path                       |
+| Push-provider policy and admission             |       8 | ERC5192/ERC5484 packed-data hook matrix composed with the provider-truth lock and burn-authorization matrix |
+| Push credential expiry after ownership change  |       1 | Both push-provider variants must revalidate after expiry; this strengthens the ERC5192-only legacy property |
+
+Malformed packed data is also rejected through the real deposit hook for both push variants. It
+was previously asserted only against the providers directly.
+
+The generic `WildcatMarket.depositUpTo -> onDeposit` dispatch does not vary by provider and will
+be proven once in the market/access-hook integration slice. The provider matrix deliberately does
+not pretend that a fake market identity proves ERC20 movement, accounting, or market state.
+
 ## Coverage and canonical result
 
 | Production contracts                      |  Lines | Statements | Branches | Functions |
@@ -54,11 +81,13 @@ Forge does not mark the source lines containing ERC5192/ERC5484's constant `retu
 `return 0` statements, although its function counters record both functions and the tests assert
 both results. Those four lines account for the entire reported gap.
 
-All 21 properties pass at the fixed timestamp and seed with 1,000 runs per parameterized entry.
-The suite and its dedicated mock emit 21,780 bytes of initcode and 21,708 bytes of runtime
-bytecode. A fair legacy bytecode comparison waits for the hook integration and three cross-feature
-properties: the 42 core entries are mixed into six 168-177 KB full-fixture contracts.
+All 30 replacement properties pass at the fixed timestamp and seed with 1,000 runs per
+parameterized entry. The two suites and their shared token mock emit 30,482 bytes of initcode and
+30,384 bytes of runtime bytecode. The comparable 84-property legacy provider slice emits
+1,110,784 bytes of initcode and 387,022 bytes of runtime bytecode after excluding the two suites
+that own the three deferred cross-feature scenarios. That is a 97.26% initcode reduction and a
+92.15% runtime-bytecode reduction for the migrated behavior.
 
-The complete replacement checkpoint now has 275 tests across 18 suites, zero inherited entries,
-and 241,186 bytes of test-side initcode. A forced canonical AST compile-to-green took 62.46
-seconds, including 61.00 seconds in solc, and peaked at 1,931,452 KiB RSS.
+The complete replacement checkpoint now has 284 tests across 19 suites, zero inherited entries,
+and 249,888 bytes of test-side initcode. A forced canonical AST compile-to-green took 63.23
+seconds, including 61.75 seconds in solc, and peaked at 1,960,240 KiB RSS.

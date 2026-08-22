@@ -362,19 +362,24 @@ The first Phase 2 family is also complete:
 
 See `test-next/parity/role-provider-factories.md` for the property map and exact comparison.
 
-Token-backed provider truth is the next completed Phase 2 slice:
+Token-backed provider behavior is the next completed Phase 2 slice:
 
-- 21 focused properties replace 42 legacy constructor and credential entries across ERC20,
-  ERC721, ERC1155, ERC4626-assets, ERC5192, and ERC5484 providers
+- 30 focused properties replace 84 legacy constructor, credential, and deposit-hook entries
+  across ERC20, ERC721, ERC1155, ERC4626-assets, ERC5192, and ERC5484 providers
+- production provider artifacts run through production `OpenTermHooks.onDeposit`; the repeated
+  full controller/factory/market fixture is no longer part of the provider matrix
 - the four pull providers have 100% line, statement, branch, and function coverage
 - ERC5192/ERC5484 have 100% branch/function coverage; Forge misses only their four
   constant-return source lines despite executing and counting both functions
-- the full replacement checkpoint is 275 tests across 18 suites with zero inherited entries and
-  241,186 bytes of test-side initcode
-- forced canonical compile-to-green is 62.46 seconds with a 1,931,452 KiB RSS peak
+- dedicated initcode for the migrated 84-property slice falls from 1,110,784 to 30,482 bytes, a
+  97.26% reduction
+- the full replacement checkpoint is 284 tests across 19 suites with zero inherited entries and
+  249,888 bytes of test-side initcode
+- forced canonical compile-to-green is 63.23 seconds with a 1,960,240 KiB RSS peak
 
-The remaining token-provider work is 42 shared market/hook properties plus three debt-token and
-wrapper integration properties. See `test-next/parity/token-role-providers.md`.
+The remaining token-provider work is three debt-token and wrapper integration properties. Generic
+market-to-hook dispatch is mapped once to the later market/access-hook slice rather than repeated
+for each provider. See `test-next/parity/token-role-providers.md`.
 
 ### Phase 2: migrate feature families
 
