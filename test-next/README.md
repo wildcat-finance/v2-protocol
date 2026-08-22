@@ -56,3 +56,4 @@ Completed family ledgers live in `parity/`:
 - `token-role-providers.md`
 - `managed-role-providers.md`
 - `wildcat-arch-controller.md`
+- `borrower-identity-registry.md`

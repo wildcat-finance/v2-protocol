@@ -417,6 +417,21 @@ The disabled CAF-13 pagination and CAF-16 registered-target remediation cases re
 known behavior rather than replacement assertions because the deployed ArchController is a
 singleton. See `test-next/parity/wildcat-arch-controller.md`.
 
+The borrower identity registry family is complete as well:
+
+- 32 focused properties replace all 43 direct registry entries
+- production ArchController/registry artifacts cover account-factory administration, identity
+  registration, two-step principal transfers, dynamic revalidation, resolution, and pagination
+- the replacement adds a reachable nested-principal ambiguity case missing from the legacy suite
+- `WildcatBorrowerIdentityRegistry` has 100% line, statement, branch, and function coverage
+- dedicated initcode falls from 49,053 to 26,885 bytes, a 45.19% reduction
+- the full replacement checkpoint is 352 tests across 22 suites with zero inherited entries,
+  317,826 bytes of test-side initcode, and 311,398 bytes of runtime bytecode
+- forced canonical compile-to-green is 71.50 seconds with a 2,168,304 KiB RSS peak
+
+Borrower-account origination and compatibility remain separate integration slices. See
+`test-next/parity/borrower-identity-registry.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
