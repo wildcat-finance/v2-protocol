@@ -85,3 +85,4 @@ Completed family ledgers live in `parity/`:
 - `market-borrower-transfer.md`
 - `market-withdrawals.md`
 - `wildcat-4626-wrapper-factory.md`
+- `wildcat-4626-wrapper.md`

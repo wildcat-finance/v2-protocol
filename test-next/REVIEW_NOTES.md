@@ -58,3 +58,7 @@ file before the final cutover.
 - Borrower-transfer core behavior and both market-withdrawal escrow cases are complete. Its six
   wrapper readiness, wrapper escrow, wrapper namespace, and sweep-authority cases remain assigned
   to the wrapper slice; the borrower-transfer ledger names them so they do not disappear.
+- Core wrapper coverage leaves two shadowed Solady configuration helpers and three defensive
+  arithmetic guards unreachable under the market's required `scaleFactor >= RAY`. The parity ledger
+  records the identities. The live sanctions-escrow release branch remains assigned to production
+  wrapper integration.

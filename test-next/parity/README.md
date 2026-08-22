@@ -103,3 +103,8 @@ line, statement, branch, and function coverage. See `market-withdrawals.md`.
 The wrapper-factory checkpoint replaces all 16 generation-routing, deployment, registration, and
 transfer-policy entries with nine composed properties. The production factory reaches 100% line,
 statement, branch, and function coverage. See `wildcat-4626-wrapper-factory.md`.
+
+The core wrapper checkpoint maps all 160 non-factory vault entries into 19 composed properties.
+Conversions, execution, allowances, caps, sanctions, defensive reads, sweeps, and quarantine use the
+production wrapper with one floor-rounding market mock. The remaining production escrow-release
+branch belongs to wrapper integration. See `wildcat-4626-wrapper.md`.

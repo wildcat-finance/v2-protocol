@@ -764,6 +764,25 @@ The Wildcat 4626 wrapper-factory family is complete:
 
 See `test-next/parity/wildcat-4626-wrapper-factory.md`.
 
+The core Wildcat 4626 wrapper family is complete:
+
+- 19 composed properties replace all 160 non-factory vault entries
+- conversion and execution fuzzing covers every ERC-4626 entrypoint, rounding direction, allowance
+  mode, cap, round trip, donation, and scaled-backing identity
+- sanctions, insolvency, malformed low-level reads, quarantine, arbitrary-token sweep, market-token
+  surplus sweep, and atomic rollback use the production wrapper
+- `Wildcat4626Wrapper` reaches 98.42% lines, 98.52% statements, 94.29% branches, and 95.92%
+  functions; the production escrow-release branch remains assigned to wrapper integration, while
+  the other misses are shadowed helpers or guards unreachable under `scaleFactor >= RAY`
+- dedicated initcode falls from 304,837 to 81,822 bytes, a 73.16% reduction; runtime bytecode falls
+  73.22%
+- the full replacement checkpoint is 607 tests across 38 suites with zero inherited entries,
+  862,458 bytes of test-side initcode, and 852,256 bytes of runtime bytecode
+- forced canonical via-IR compile-to-green is 2m18.95s, including 135.52s in solc, with a
+  3,476,168 KiB RSS peak; execution is 2.08s
+
+See `test-next/parity/wildcat-4626-wrapper.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
