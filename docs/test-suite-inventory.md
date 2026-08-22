@@ -562,6 +562,19 @@ The two factory market-deployment happy paths are complete:
 
 The market rejection matrix, pagination, revolving market-data parser, and fee propagation remain.
 
+The hooks-factory market rejection matrix and revolving parser are complete:
+
+- eight additional properties replace 32 direct/combined rejection and boundary entries
+- both factories now cover identity, hooks, salt, blacklist, 63-byte metadata, fee, duplicate,
+  disabled-template, stale-initcode, and combined rollback behavior
+- revolving payload length/version/commitment-fee validation is explicit and runs before combined
+  hook deployment
+- the in-progress suite plus failure artifact now emits 36,364 bytes of initcode
+- the full replacement checkpoint is 430 tests across 29 suites with zero inherited entries,
+  429,760 bytes of test-side initcode, and 421,151 bytes of runtime bytecode
+
+Only the final 13 market-pagination and protocol-fee propagation entries remain in this family.
+
 ### Phase 2: migrate feature families
 
 Suggested order:

@@ -66,16 +66,38 @@ standard/revolving markets. They retain:
 The successful combined path also proves the newly deployed hook is indexed under the caller and
 used by the market in both factory variants.
 
+## Market rejection checkpoint
+
+Eight additional properties replace 32 legacy rejection and boundary entries. The matrix now
+covers:
+
+- borrower resolution, unknown hooks, caller-scoped salts, publicly reproducible nonzero salt
+  predictions, blacklisted assets, and unchanged market indexes after rejection
+- exact 63-byte name/symbol boundaries, overlong metadata, fee mismatch, duplicate CREATE2 salts,
+  and the ordering required to reach each error
+- continued market deployment through existing hooks after their template is disabled
+- stale market-initcode hashes in both factories
+- combined-deployment borrower, template, disabled-template, salt, and both fee mismatch shapes,
+  including complete hook nonce/index rollback
+- every revolving market-data error (empty, ABI-length mismatch, unsupported version, excessive
+  commitment fee), validation before combined hook deployment, and the deployment-context-only
+  commitment-fee getter
+
+The replacement strengthens several single-factory legacy cases by running the same rejection
+through both implementations and asserting state is unchanged after every failed path.
+
 ## Canonical result
 
-All 11 properties pass at the fixed timestamp and seed. The suite uses canonical production
+All 21 properties pass at the fixed timestamp and seed. The suite uses canonical production
 factory artifacts, stored standard/revolving market initcode, the production ArchController and
 borrower identity registry, and an OpenTerm hooks template. Its current test contract emits 12,584
 bytes of initcode and 12,558 bytes of runtime bytecode at the first checkpoint. After adding
 hook-instance deployment, the suite plus its dedicated failure artifact emits 17,042 bytes of
 initcode and 17,007 bytes of runtime bytecode. With the market happy paths included, it emits
-25,048 bytes of initcode and 25,013 bytes of runtime bytecode. The final family delta will be
-recorded after the remaining 45 legacy factory entries are replaced.
+25,048 bytes of initcode and 25,013 bytes of runtime bytecode. With the rejection matrix, the suite
+plus failure artifact emits 36,364 bytes of initcode and 36,329 bytes of runtime bytecode. The
+final family delta will be recorded after the remaining 13 market-pagination and protocol-fee
+propagation entries are replaced.
 
-The complete replacement checkpoint now has 422 tests across 29 suites, zero inherited entries,
-418,444 bytes of test-side initcode, and 409,835 bytes of runtime bytecode.
+The complete replacement checkpoint now has 430 tests across 29 suites, zero inherited entries,
+429,760 bytes of test-side initcode, and 421,151 bytes of runtime bytecode.

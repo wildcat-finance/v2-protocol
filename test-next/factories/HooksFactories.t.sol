@@ -164,6 +164,12 @@ contract HooksFactoriesTest is TestKernel {
     return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
   }
 
+  function _repeat(bytes1 character, uint256 length) internal pure returns (string memory value) {
+    bytes memory output = new bytes(length);
+    for (uint256 i; i < length; i++) output[i] = character;
+    value = string(output);
+  }
+
   function _marketInputs(
     Fixture memory fixture,
     address hooksInstance
@@ -784,5 +790,339 @@ contract HooksFactoriesTest is TestKernel {
         assertEq(WildcatMarketRevolving(market).commitmentFeeBips(), 100);
       }
     }
+  }
+
+  function test_deployMarket_RejectsIdentityHookSaltAndBlacklistAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    FeeConfig memory noFees;
+    IHooksFactory[2] memory factories = _factories(fixture);
+    DeployMarketInputs memory unknownHooksParameters = _marketInputs(fixture, address(0xBEEF));
+
+    for (uint256 i; i < factories.length; i++) {
+      _addTemplate(factories[i], fixture.firstTemplate, 'Open Term', noFees);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
+      _deployMarket(
+        FactoryKind(i),
+        factories[i],
+        unknownHooksParameters,
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+    }
+
+    fixture.archController.registerBorrower(address(this));
+    for (uint256 i; i < factories.length; i++) {
+      FactoryKind kind = FactoryKind(i);
+      IHooksFactory factory = factories[i];
+
+      vm.expectRevert(IHooksFactoryEventsAndErrors.HooksInstanceNotFound.selector);
+      _deployMarket(
+        kind,
+        factory,
+        unknownHooksParameters,
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
+      bytes32 foreignSalt = _marketSalt(Outsider, 1);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+      _deployMarket(kind, factory, parameters, '', foreignSalt, address(0), 0);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+      _deployMarket(kind, factory, parameters, '', bytes32(uint256(1)), address(0), 0);
+
+      vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+      factory.computeMarketAddress(bytes32(uint256(1)));
+      address predicted = factory.computeMarketAddress(foreignSalt);
+      vm.prank(Outsider);
+      assertEq(factory.computeMarketAddress(foreignSalt), predicted);
+    }
+
+    fixture.archController.addBlacklist(address(fixture.asset));
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+      address hooksInstance = factory.getHooksInstancesForAdministrator(address(this))[0];
+      vm.expectRevert(IHooksFactoryEventsAndErrors.AssetBlacklisted.selector);
+      _deployMarket(
+        FactoryKind(i),
+        factory,
+        _marketInputs(fixture, hooksInstance),
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+      assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 0);
+    }
+  }
+
+  function test_deployMarket_EnforcesMetadataFeesAndUniqueSaltAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory fees = FeeConfig({
+      recipient: FeeRecipient,
+      asset: address(fixture.feeToken),
+      amount: 123,
+      protocolFeeBips: 0
+    });
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; i++) {
+      FactoryKind kind = FactoryKind(i);
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
+      bytes32 salt = _marketSalt(address(this), 1);
+
+      vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
+      _deployMarket(kind, factory, parameters, '', salt, fees.asset, fees.amount - 1);
+
+      fixture.feeToken.mint(address(this), fees.amount);
+      fixture.feeToken.approve(address(factory), fees.amount);
+      parameters.namePrefix = _repeat('n', 54);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
+      _deployMarket(kind, factory, parameters, '', salt, fees.asset, fees.amount);
+
+      parameters.namePrefix = '';
+      parameters.symbolPrefix = _repeat('s', 61);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.NameOrSymbolTooLong.selector);
+      _deployMarket(kind, factory, parameters, '', salt, fees.asset, fees.amount);
+
+      parameters.namePrefix = _repeat('n', 53);
+      parameters.symbolPrefix = _repeat('s', 60);
+      address market = _deployMarket(kind, factory, parameters, '', salt, fees.asset, fees.amount);
+      assertEq(bytes(WildcatMarket(market).name()).length, 63);
+      assertEq(bytes(WildcatMarket(market).symbol()).length, 63);
+
+      fixture.feeToken.mint(address(this), fees.amount);
+      fixture.feeToken.approve(address(factory), fees.amount);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.MarketAlreadyExists.selector);
+      _deployMarket(kind, factory, parameters, '', salt, fees.asset, fees.amount);
+      assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 1);
+    }
+  }
+
+  function test_deployMarket_ExistingHookSurvivesTemplateDisableAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory noFees;
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', noFees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      factory.disableHooksTemplate(fixture.firstTemplate);
+
+      address market = _deployMarket(
+        FactoryKind(i),
+        factory,
+        _marketInputs(fixture, hooksInstance),
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+      assertTrue(fixture.archController.isRegisteredMarket(market));
+      assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 1);
+      assertEq(factory.getMarketsForHooksInstanceCount(hooksInstance), 1);
+    }
+  }
+
+  function test_deployMarket_RejectsStoredInitcodeHashMismatchAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory noFees;
+    IHooksFactory[2] memory badFactories;
+    badFactories[0] = _deployFactory(
+      fixture,
+      false,
+      fixture.standardMarketStorage,
+      uint256(keccak256('stale standard market hash'))
+    );
+    badFactories[1] = _deployFactory(
+      fixture,
+      true,
+      fixture.revolvingMarketStorage,
+      uint256(keccak256('stale revolving market hash'))
+    );
+
+    for (uint256 i; i < badFactories.length; i++) {
+      IHooksFactory factory = badFactories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', noFees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      vm.expectRevert(IHooksFactoryEventsAndErrors.MarketDeploymentAddressMismatch.selector);
+      _deployMarket(
+        FactoryKind(i),
+        factory,
+        _marketInputs(fixture, hooksInstance),
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+      assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 0);
+    }
+  }
+
+  function test_deployMarketAndHooks_RejectsIdentityTemplateAndDisableAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    FeeConfig memory noFees;
+    IHooksFactory[2] memory factories = _factories(fixture);
+    DeployMarketInputs memory parameters = _marketInputs(fixture, address(0));
+
+    for (uint256 i; i < factories.length; i++) {
+      _addTemplate(factories[i], fixture.firstTemplate, 'Open Term', noFees);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
+      _deployMarketAndHooks(
+        FactoryKind(i),
+        factories[i],
+        fixture.firstTemplate,
+        parameters,
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+    }
+
+    fixture.archController.registerBorrower(address(this));
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+      vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotFound.selector);
+      _deployMarketAndHooks(
+        FactoryKind(i),
+        factory,
+        fixture.secondTemplate,
+        parameters,
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+
+      factory.disableHooksTemplate(fixture.firstTemplate);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateNotAvailable.selector);
+      _deployMarketAndHooks(
+        FactoryKind(i),
+        factory,
+        fixture.firstTemplate,
+        parameters,
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+      assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 0);
+    }
+  }
+
+  function test_deployMarketAndHooks_RejectsSaltAndFeeMismatchAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory fees = FeeConfig({
+      recipient: FeeRecipient,
+      asset: address(fixture.feeToken),
+      amount: 123,
+      protocolFeeBips: 0
+    });
+    IHooksFactory[2] memory factories = _factories(fixture);
+    DeployMarketInputs memory parameters = _marketInputs(fixture, address(0));
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
+
+      vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+      _deployMarketAndHooks(
+        FactoryKind(i),
+        factory,
+        fixture.firstTemplate,
+        parameters,
+        '',
+        _marketSalt(Outsider, 1),
+        fees.asset,
+        fees.amount
+      );
+      vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
+      _deployMarketAndHooks(
+        FactoryKind(i),
+        factory,
+        fixture.firstTemplate,
+        parameters,
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        fees.amount
+      );
+      vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
+      _deployMarketAndHooks(
+        FactoryKind(i),
+        factory,
+        fixture.firstTemplate,
+        parameters,
+        '',
+        _marketSalt(address(this), 1),
+        fees.asset,
+        fees.amount - 1
+      );
+
+      assertEq(factory.getHooksInstanceDeploymentNonce(address(this)), 0);
+      assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 0);
+      assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 0);
+    }
+  }
+
+  function test_revolvingMarketData_RejectsInvalidPayloadsBeforeStateChanges() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory noFees;
+    IHooksFactoryRevolving factory = IHooksFactoryRevolving(address(fixture.revolvingFactory));
+    _addTemplate(fixture.revolvingFactory, fixture.firstTemplate, 'Open Term', noFees);
+    address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+    DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
+    bytes32 salt = _marketSalt(address(this), 1);
+
+    vm.expectRevert(IHooksFactoryRevolving.InvalidMarketData.selector);
+    factory.deployMarket(parameters, '', '', salt, address(0), 0);
+    vm.expectRevert(IHooksFactoryRevolving.InvalidMarketData.selector);
+    factory.deployMarket(
+      parameters,
+      '',
+      abi.encodePacked(uint8(1), uint16(100)),
+      salt,
+      address(0),
+      0
+    );
+    vm.expectRevert(IHooksFactoryRevolving.UnsupportedMarketDataVersion.selector);
+    factory.deployMarket(parameters, '', abi.encode(uint8(2), uint16(100)), salt, address(0), 0);
+    vm.expectRevert(IHooksFactoryRevolving.InvalidCommitmentFeeBips.selector);
+    factory.deployMarket(parameters, '', abi.encode(uint8(1), uint16(10_001)), salt, address(0), 0);
+    assertEq(factory.getMarketsForHooksTemplateCount(fixture.firstTemplate), 0);
+
+    uint256 previousNonce = factory.getHooksInstanceDeploymentNonce(address(this));
+    parameters.hooks = EmptyHooksConfig;
+    vm.expectRevert(IHooksFactoryRevolving.InvalidMarketData.selector);
+    factory.deployMarketAndHooks(
+      fixture.firstTemplate,
+      '',
+      parameters,
+      '',
+      '',
+      salt,
+      address(0),
+      0
+    );
+    assertEq(factory.getHooksInstanceDeploymentNonce(address(this)), previousNonce);
+    assertEq(factory.getHooksInstancesCountForAdministrator(address(this)), 1);
+  }
+
+  function test_revolvingCommitmentFeeGetter_RejectsOutsideDeployment() external {
+    Fixture memory fixture = _newFixture();
+    vm.expectRevert();
+    IHooksFactoryRevolving(address(fixture.revolvingFactory)).getRevolvingMarketCommitmentFeeBips();
   }
 }
