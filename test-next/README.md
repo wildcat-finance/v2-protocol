@@ -23,7 +23,13 @@ yarn coverage:next
 
 The coverage script refuses to touch an already-modified SphereX source file, applies
 `docs/coverage-spherex.patch` only for the run, restores the source on exit, and verifies the
-file is clean afterward. The patch is never part of the replacement suite.
+file is clean afterward. The patch is never part of the replacement suite. Integration graphs
+that import `HooksFactoryRevolving` still exceed the coverage compiler; focused families can set
+`FOUNDRY_TEST` to keep discovery narrow, for example:
+
+```sh
+FOUNDRY_TEST=test-next/sanctions yarn coverage:next --match-contract SanctionsTest
+```
 
 The `test-next` Foundry profile changes only test discovery and artifact/cache paths. It inherits
 the same official solc version, via-IR setting, optimizer sequence, optimizer runs, EVM version,
@@ -60,3 +66,4 @@ Completed family ledgers live in `parity/`:
 - `mock-arch-controller-owner.md`
 - `borrower-account-origination.md`
 - `hooks-administrator-transfer.md`
+- `sanctions.md`

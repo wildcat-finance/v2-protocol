@@ -26,8 +26,9 @@ rationale.
 
 The legacy monolith still cannot produce current coverage: after the temporary SphereX workaround,
 its non-IR build reaches unrelated stack-too-deep failures and minimum-IR reaches a Yul allocation
-failure. The replacement suite's narrow import graph avoids both failures, so accurate non-IR
-coverage now works for each completed slice.
+failure. Accurate non-IR coverage works for replacement slices whose import graphs avoid those
+contracts. Completed integration slices that import `HooksFactoryRevolving` hit the same compiler
+limit and carry that result in their family ledgers.
 
 Run it with:
 
@@ -38,6 +39,13 @@ yarn coverage:next
 `scripts/test-next-coverage.sh` applies `docs/coverage-spherex.patch` temporarily and reverses it
 even when Forge fails. It refuses to start if the SphereX source is already dirty and verifies the
 source is restored before returning. No coverage-only Solidity change is retained.
+
+Use `FOUNDRY_TEST` for a focused family when the complete replacement discovery graph includes a
+compiler-blocked integration slice. For example:
+
+```sh
+FOUNDRY_TEST=test-next/sanctions yarn coverage:next --match-contract SanctionsTest
+```
 
 At the first representative checkpoint, 236 tests cover the currently imported production slice
 at 98.16% lines, 97.69% statements, 94.59% branches, and 99.49% functions. The remaining

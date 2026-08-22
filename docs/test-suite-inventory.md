@@ -479,6 +479,23 @@ The hooks-administrator transfer integration slice is complete:
 This slice shares the revolving-factory accurate-coverage compiler block above. See
 `test-next/parity/hooks-administrator-transfer.md`.
 
+The sanctions family is complete:
+
+- one concrete suite replaces the separate Sentinel and Escrow fixtures
+- 11 properties replace 24 entries while preserving strict Chainalysis ABI validation,
+  borrower-scoped overrides, exact CREATE2 addressing, escrow initialization/idempotency, and
+  permissionless release behavior
+- release assertions now verify both the escrow's full balance drain and the account's received
+  balance
+- both `WildcatSanctionsSentinel` and `WildcatSanctionsEscrow` have 100% line, statement, branch,
+  and function coverage
+- dedicated initcode falls from 43,206 to 11,830 bytes, a 72.62% reduction
+- the full replacement checkpoint is 393 tests across 26 suites with zero inherited entries,
+  376,781 bytes of test-side initcode, and 369,366 bytes of runtime bytecode
+- forced canonical compile-to-green is 77.13 seconds with a 2,412,868 KiB RSS peak
+
+See `test-next/parity/sanctions.md`.
+
 ### Phase 2: migrate feature families
 
 Suggested order:
