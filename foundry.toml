@@ -55,6 +55,22 @@ out='deploy-out'
 cache_path='deploy-cache'
 extra_output_files=["irOptimized", "ir"]
 
+# Replacement test suite. This deliberately inherits the canonical compiler settings above;
+# only discovery and artifact paths are isolated while we prove parity beside `test/`.
+[profile.test-next]
+test='test-next'
+out='out-test-next'
+cache_path='cache-test-next'
+
+# Accurate coverage needs a narrow discovery graph as well as the temporary
+# SphereX analyzer workaround applied by `scripts/test-next-coverage.sh`.
+[profile.test-next-coverage]
+src='test-next/parity'
+test='test-next'
+script='test-next/parity'
+out='out-test-next-coverage'
+cache_path='cache-test-next-coverage'
+
 [profile.unoptimizedir]
 via_ir=true
 out='unoptimized-ir-out'

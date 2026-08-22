@@ -1,6 +1,6 @@
 # Test Suite Inventory and Restructuring Baseline
 
-Status: survey and planning only. No test-suite changes are adopted by this document.
+Status: baseline captured; parallel replacement started under `test-next/`.
 
 ## Survey boundary
 
@@ -21,20 +21,20 @@ the Solidity compile described here.
 
 ## Current Foundry suite
 
-| Area | Suites | Tests / invariants |
-| --- | ---: | ---: |
-| Market | 12 | 467 |
-| Access hooks | 3 | 371 |
-| Root / admin / factories | 14 | 258 |
-| Role providers | 21 | 186 |
-| Vault / wrapper | 6 | 176 |
-| Libraries | 10 | 122 |
-| Integration matrix / scenarios | 18 | 87 |
-| Lens | 2 | 74 |
-| Types | 4 | 32 |
-| SphereX | 1 | 14 |
-| Dedicated invariants | 3 | 10 |
-| **Total** | **94** | **1,797** |
+| Area                           | Suites | Tests / invariants |
+| ------------------------------ | -----: | -----------------: |
+| Market                         |     12 |                467 |
+| Access hooks                   |      3 |                371 |
+| Root / admin / factories       |     14 |                258 |
+| Role providers                 |     21 |                186 |
+| Vault / wrapper                |      6 |                176 |
+| Libraries                      |     10 |                122 |
+| Integration matrix / scenarios |     18 |                 87 |
+| Lens                           |      2 |                 74 |
+| Types                          |      4 |                 32 |
+| SphereX                        |      1 |                 14 |
+| Dedicated invariants           |      3 |                 10 |
+| **Total**                      | **94** |          **1,797** |
 
 Underlying source shape:
 
@@ -79,13 +79,13 @@ problem. Compilation accounts for roughly 97% of the recorded wall time.
 A disposable-checkout experiment at `6c2cbfb9e951976bd27a6ab67f594c35f85f55a5`, using the
 official Solidity 0.8.25 compiler, produced these results:
 
-| Configuration | Cold compile |
-| --- | ---: |
-| Canonical protocol `src/` only | 36.1s |
-| Cheap-IR, monolithic tests | 13m58s |
-| Canonical tests, 8 shards | 13m12s |
-| Cheap-IR tests, 8 longest-first shards | 5m29s |
-| Warm execution of all shards | 56.8s |
+| Configuration                          | Cold compile |
+| -------------------------------------- | -----------: |
+| Canonical protocol `src/` only         |        36.1s |
+| Cheap-IR, monolithic tests             |       13m58s |
+| Canonical tests, 8 shards              |       13m12s |
+| Cheap-IR tests, 8 longest-first shards |        5m29s |
+| Warm execution of all shards           |        56.8s |
 
 The cheap-IR profile still uses via-IR. It runs a reduced Solidity optimizer sequence once
 instead of repeating the canonical fixed-point cycle. Its artifacts are deliberately
@@ -103,12 +103,12 @@ The reported fast run was not yet a complete parity run. It executed 90 suites a
 because the disposable runner selected only `*.t.sol` roots. It omitted the four runnable legacy
 `.sol` files, which account for the exact missing 4 suites and 28 entries:
 
-| Omitted file | Entries |
-| --- | ---: |
-| `test/EscrowTest.sol` | 12 |
-| `test/InvariantTests.sol` | 3 |
-| `test/LogTest.sol` | 1 |
-| `test/SentinelTest.sol` | 12 |
+| Omitted file              | Entries |
+| ------------------------- | ------: |
+| `test/EscrowTest.sol`     |      12 |
+| `test/InvariantTests.sol` |       3 |
+| `test/LogTest.sol`        |       1 |
+| `test/SentinelTest.sol`   |      12 |
 
 Before this becomes tracked tooling, the runner must cover all 94 suites / 1,797 entries and
 isolate or disable the shared metrics files written by parallel invariant handlers. The local
@@ -116,12 +116,12 @@ fast-profile, runner, and patch files remain untracked experiments.
 
 Sharding and the cheap-IR profile are separate choices:
 
-| Lane | What it proves | What it does not prove |
-| --- | --- | --- |
-| Cheap-IR shards | Fast behavioral feedback from the selected tests | Canonical bytecode, gas, size, CREATE2 addresses, deployment, or verification |
-| Canonical-profile shards | Test behavior under canonical compiler settings; the measured protocol artifacts matched the monolithic build | One unified artifact/build-info tree or stable source-map IDs |
-| Canonical release/deployment build | Authoritative unified protocol artifacts | Test-suite behavior by itself |
-| Canonical monolithic tests | Current highest-confidence behavioral reference | A tolerable inner development loop |
+| Lane                               | What it proves                                                                                                | What it does not prove                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Cheap-IR shards                    | Fast behavioral feedback from the selected tests                                                              | Canonical bytecode, gas, size, CREATE2 addresses, deployment, or verification |
+| Canonical-profile shards           | Test behavior under canonical compiler settings; the measured protocol artifacts matched the monolithic build | One unified artifact/build-info tree or stable source-map IDs                 |
+| Canonical release/deployment build | Authoritative unified protocol artifacts                                                                      | Test-suite behavior by itself                                                 |
+| Canonical monolithic tests         | Current highest-confidence behavioral reference                                                               | A tolerable inner development loop                                            |
 
 The cheap-IR sharder is therefore optional developer scaffolding, not the test-suite redesign,
 an audit interface, or a release gate. Auditors and external contributors should not need a
@@ -137,11 +137,11 @@ Test contracts dominate code generation:
 
 The largest test compile families are:
 
-| Family | Approximate creation bytecode |
-| --- | ---: |
-| Integration suites | 4.0 MB |
-| Market suites | 2.5 MB |
-| Provider suites | 1.86 MB |
+| Family             | Approximate creation bytecode |
+| ------------------ | ----------------------------: |
+| Integration suites |                        4.0 MB |
+| Market suites      |                        2.5 MB |
+| Provider suites    |                       1.86 MB |
 
 Together, those three families account for about 67% of test creation bytecode.
 
@@ -196,7 +196,8 @@ the complete protocol fixture and consequently emits about 133 KB.
   deployment fork rehearsals and deploy-UI fork tests are separate.
 - The last recorded coverage result predates the current suite: 98.35% lines and 96.32%
   branches at 1,298 tests. Current coverage has not been measured because Forge coverage still
-  fails on the SphereX / via-IR path.
+  fails on the SphereX / monolithic compiler path. Accurate coverage now works for completed
+  replacement slices; see the phase-one checkpoint below.
 
 ## Preferred approach: parallel ground-up replacement
 
@@ -220,15 +221,15 @@ The final acceptance command is the ordinary clean-checkout test command under c
 settings. It must not require the cheap-IR profile, sharding script, warmed caches, or local
 knowledge.
 
-| Measure | Acceptance direction |
-| --- | --- |
-| Behavioral properties | Every existing property replaced, strengthened, retained with rationale, or explicitly retired with rationale |
-| Source coverage | No per-file line, branch, or function regression; aggregate coverage equal or better |
-| Invariants | Existing invariant semantics and target surfaces preserved or strengthened |
-| Compiler settings | Canonical deploy settings using official solc |
-| Test creation bytecode | Working target: reduce approximately 12.5 MB to 4 MB or less |
-| Clean canonical test time | Working target: five minutes or less on the current 9950X machine |
-| Audit interface | Plain canonical command; no one-off runner |
+| Measure                   | Acceptance direction                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Behavioral properties     | Every existing property replaced, strengthened, retained with rationale, or explicitly retired with rationale |
+| Source coverage           | No per-file line, branch, or function regression; aggregate coverage equal or better                          |
+| Invariants                | Existing invariant semantics and target surfaces preserved or strengthened                                    |
+| Compiler settings         | Canonical deploy settings using official solc                                                                 |
+| Test creation bytecode    | Working target: reduce approximately 12.5 MB to 4 MB or less                                                  |
+| Clean canonical test time | Working target: five minutes or less on the current 9950X machine                                             |
+| Audit interface           | Plain canonical command; no one-off runner                                                                    |
 
 The bytecode and timing numbers are initial engineering targets, not claims. The first
 representative vertical should confirm whether they are realistic before the whole suite is
@@ -312,6 +313,17 @@ runtime property replaces several compile-time copies without reducing behavior 
 - Generate the first parity ledger from the existing suite, including inherited origins.
 - Keep the 1,797-test fixed-seed run as the reference oracle during migration.
 
+Current checkpoint:
+
+- the canonical artifact/AST inventory is reproducible with `scripts/test-suite-metrics.js`
+- the compact legacy ledger records all 1,438 declared properties in
+  `test-next/parity/legacy-suite.json`
+- the legacy monolith remains blocked by separate non-IR stack-too-deep and minimum-IR Yul
+  allocation failures after applying the SphereX workaround
+- `yarn coverage:next` applies and reverses that workaround safely; accurate non-IR coverage now
+  works for the replacement suite's narrow import graph
+- no coverage-only Solidity change is retained
+
 ### Phase 1: prove the architecture
 
 - Add the canonical-settings `test-next/` profile and isolated output/cache paths.
@@ -321,6 +333,21 @@ runtime property replaces several compile-time copies without reducing behavior 
   currently expand to 210 concrete entries across three hook types.
 - Compare coverage, property disposition, emitted bytecode, and clean compile time before
   accepting the architecture.
+
+The first representative checkpoint is implemented:
+
+- the 70 shared `BaseAccessControls` properties compile once instead of becoming 210 inherited
+  entries, and one missing wrapper-transfer property was added
+- the library/type family retains every meaningful legacy property and adds 11 useful entries;
+  its initcode fell from 314,141 to 126,897 bytes including replacement support artifacts
+- 236 tests across 16 suites pass the fixed timestamp and seed with zero inherited entries
+- the complete checkpoint emits 200,559 bytes of initcode
+- a forced canonical compile-to-green took 57.77 seconds and peaked at 1,799,392 KiB RSS
+- accurate coverage is 98.16% lines, 97.69% statements, 94.59% branches, and 99.49% functions
+
+See `test-next/parity/access-controls.md` and `test-next/parity/libraries-types.md` for property
+disposition and comparison details. Hook-specific OpenTerm, FixedTerm, and PeriodicTerm properties
+remain in the migration backlog.
 
 ### Phase 2: migrate feature families
 
