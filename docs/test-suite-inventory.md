@@ -919,9 +919,11 @@ Cutover result:
 - default and deploy-profile test discovery now point at `test-next/`;
 - the frozen suite remains runnable through the isolated `legacy` profile;
 - forced fixed-seed runs passed both suites at the final branch state;
-- the replacement passed all 656 entries in 3m33.39s and the legacy oracle passed all 1,797 in
+- the replacement passed all 674 entries in 3m50.30s and the legacy oracle passed all 1,797 in
   32m16.65s under the same canonical compiler settings;
-- the ceremony's deploy-profile lane passed the replacement in 3m34.50s; and
+- the ceremony's deploy-profile lane passed the replacement in 3m49.45s;
+- all 1,438 distinct legacy declarations have an exact validated disposition, with source-tree
+  hashes preventing either suite from drifting behind its checked-in snapshot; and
 - whole-suite Forge coverage remains compiler-blocked, while accurate focused coverage and the
   temporary SphereX workaround remain available and documented.
 

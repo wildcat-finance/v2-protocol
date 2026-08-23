@@ -1,6 +1,6 @@
 # Canonical Foundry Test-Suite Cutover
 
-Status: provisional on `refactor/test-suite-next`; semantic integration parity is under review.
+Status: complete on `refactor/test-suite-next`; ready for branch review.
 
 The ground-up suite under `test-next/` is now the default Foundry and deployment-profile test
 tree. The former `test/` tree is unchanged and remains available through the explicit `legacy`
@@ -12,27 +12,37 @@ The redesign and cutover do not modify production `src/` Solidity or the frozen 
 
 | Measure                            | Frozen legacy suite | Canonical suite |          Change |
 | ---------------------------------- | ------------------: | --------------: | --------------: |
-| Solidity test files                |                 117 |              74 |         -36.75% |
-| Solidity test lines                |              39,445 |          25,176 |         -36.17% |
-| Runnable suites                    |                  94 |              43 |         -54.26% |
-| Test and invariant entries         |               1,797 |             656 |         -63.49% |
+| Solidity test files                |                 117 |              80 |         -31.62% |
+| Solidity test lines                |              39,445 |          27,360 |         -30.64% |
+| Runnable suites                    |                  94 |              46 |         -51.06% |
+| Test and invariant entries         |               1,797 |             674 |         -62.49% |
 | Inherited entries                  |                 473 |               0 |           -100% |
-| Test-side initcode                 |    12,517,142 bytes | 1,069,410 bytes |         -91.46% |
-| Test-side runtime bytecode         |     6,774,062 bytes | 1,055,573 bytes |         -84.42% |
-| Forced fixed-seed compile-to-green |           32m16.65s |        3m33.39s | -88.98% / 9.08x |
-| Peak RSS for that run              |            33.5 GiB |         4.0 GiB | -88.11% / 8.41x |
+| Test-side initcode                 |    12,517,142 bytes | 1,192,195 bytes |         -90.48% |
+| Test-side runtime bytecode         |     6,774,062 bytes | 1,175,139 bytes |         -82.65% |
+| Forced fixed-seed compile-to-green |           32m16.65s |        3m50.30s | -88.11% / 8.41x |
+| Peak RSS for that run              |            33.5 GiB |        4.29 GiB | -87.20% / 7.81x |
 
 Both forced runs used official solc 0.8.25, full via-IR, the canonical 44-run optimizer profile,
 the same fixed timestamp and seed, 1,000 fuzz runs, and 2,000 invariant runs at depth 30. The
-replacement passed all 656 entries; the frozen oracle passed all 1,797 entries. The deploy profile
-also passed the complete replacement suite in 3m34.50s with a 4.2 GiB peak.
+replacement passed all 674 entries; the frozen oracle passed all 1,797 entries. The deploy profile
+also passed all 674 entries from a forced build in 3m49.45s with a 4.52 GiB peak. Warm fixed-seed
+execution took 41.67s for the replacement and 37.83s for the frozen oracle; the replacement's eight
+matrix invariants each completed 2,000 runs at depth 30 with zero handler reverts.
 
-The lower entry count is not a claim that fewer behaviors matter. Thirty-one family ledgers under
-`test-next/parity/` record the initial mapping to direct replacements, stronger composed/runtime
-properties, deliberate handoffs, or explicit retirements. A later intent-level audit found that
-several cross-contract handoffs were too broad: the component behavior exists, but the production
-composition or required deterministic sequence does not. The open integration requirements and
-exit gate are tracked in `test-next/parity/integration-intents.md`.
+The lower entry count is not a claim that fewer behaviors matter. Family ledgers under
+`test-next/parity/` document the semantic replacement, and
+`legacy-property-dispositions.json` accounts for every one of the 1,438 legacy declarations and
+all 1,797 concrete/inherited entries: 206 direct, 1,198 composed, 29 reassigned across production
+contract boundaries, and five retired with explicit rationale. The manifest is backed by AST
+snapshots and source-tree hashes, and its validator rejects missing owners, changed family counts,
+unknown origins, source drift, or stale generated output.
+
+The intent-level audit did find production compositions and deterministic sequences that the first
+component pass had compressed too far. Those gaps are now native `test-next/` properties covering
+the real six-cell factory matrix, complete lifecycles, periodic APR governance, minimum-deposit
+ordering, rounding regressions, sanctions, production-sized economics, borrower accounts, exact
+events, Lens V1 rejection, and wrapped scaled queueing. The completed catalogue and exit gate are
+in `test-next/parity/integration-intents.md`.
 
 ## Maintenance model
 
@@ -55,10 +65,13 @@ yarn test
 # Repeatable audit lane
 yarn test:fixed
 
+# Exact legacy-property disposition check
+yarn test:parity
+
 # Exact deployment-profile lane used by the ceremony
 FOUNDRY_PROFILE=deploy forge test
 
-# Frozen pre-cutover oracle
+# Frozen pre-cutover oracle; audit-injected test/fizz harnesses are excluded
 yarn test:legacy:fixed
 ```
 

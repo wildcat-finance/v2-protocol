@@ -6,6 +6,8 @@ None of these items blocks the canonical or deployment-profile suite.
 - Canonical `forge test --ast` currently prints Foundry's non-fatal `unresolved symbol locals`
   diagnostic for the SphereX modifier at `SphereXProtectedRegisteredBase.sol:153`. Compilation,
   test execution, and the AST metrics all complete with exit status 0.
+- The legacy oracle commands explicitly exclude `test/fizz/**`. Audit-generated fuzz harnesses can
+  remain in the worktree without changing the frozen 94-suite / 1,797-entry comparison.
 - The repository-wide formatting check currently stops on existing Prettier drift outside
   `test-next/`. New replacement files are checked directly until that baseline is cleaned up.
 - Forge line instrumentation leaves ERC5192/ERC5484's four constant-return source lines uncovered

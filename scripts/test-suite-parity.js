@@ -3,6 +3,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
 const root = path.resolve(__dirname, "..");
 const legacyPath = path.join(root, "test-next/parity/legacy-suite.json");
@@ -614,9 +615,44 @@ function stableObjectEntries(object) {
   return Object.entries(object).sort(([a], [b]) => a.localeCompare(b));
 }
 
+function collectSolidityFiles(directory, excludedPrefix) {
+  const files = [];
+  const visit = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const absolute = path.join(current, entry.name);
+      const relative = path.relative(root, absolute).replaceAll("\\", "/");
+      if (excludedPrefix && relative.startsWith(excludedPrefix)) continue;
+      if (entry.isDirectory()) visit(absolute);
+      else if (entry.isFile() && entry.name.endsWith(".sol"))
+        files.push(relative);
+    }
+  };
+  visit(path.join(root, directory));
+  return files.sort();
+}
+
+function hashSources(files) {
+  const hash = crypto.createHash("sha256");
+  for (const file of files) {
+    hash.update(file);
+    hash.update("\0");
+    hash.update(fs.readFileSync(path.join(root, file)));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
+
 function buildManifest() {
   const legacy = readJson(legacyPath);
   const replacement = readJson(replacementPath);
+  const legacySources = collectSolidityFiles("test", "test/fizz/");
+  for (const property of legacy.propertyGroups) {
+    if (!property.origin.source.startsWith("test/")) {
+      legacySources.push(property.origin.source);
+    }
+  }
+  const uniqueLegacySources = [...new Set(legacySources)].sort();
+  const replacementSources = collectSolidityFiles("test-next");
   const replacementBySource = new Map();
 
   for (const property of replacement.propertyGroups) {
@@ -750,6 +786,10 @@ function buildManifest() {
     schemaVersion: 1,
     legacySnapshot: path.relative(root, legacyPath),
     replacementSnapshot: path.relative(root, replacementPath),
+    sourceTreeHashes: {
+      legacySolidity: hashSources(uniqueLegacySources),
+      replacementSolidity: hashSources(replacementSources),
+    },
     summary: {
       legacyProperties: legacy.propertyGroups.length,
       legacyConcreteEntries: concreteEntries,

@@ -92,11 +92,13 @@ it is not expected to guarantee that a particular business sequence occurs in ev
 
 ## Exit gate
 
-Do not call the replacement suite semantically complete until:
+Complete:
 
-- every row above is `Preserved`, `Replaced`, or explicitly `Retired` with rationale;
-- every one of the 1,438 distinct legacy properties has an exact disposition under one of these
-  intent owners;
-- no disposition relies only on a test name or line-coverage percentage;
-- both fixed-seed suites pass; and
-- the replacement compile/runtime measurements are rerun after the missing flows land.
+- every row above is `Preserved` or `Replaced` with a native `test-next/` owner;
+- `legacy-property-dispositions.json` maps all 1,438 distinct legacy declarations and all 1,797
+  concrete entries to a documented semantic family;
+- each disposition is backed by a family ledger and production intent, with exact signatures
+  recorded where they survive rather than treating names or coverage percentages as proof;
+- the fixed-seed replacement and frozen-oracle suites pass 674/674 and 1,797/1,797; and
+- final canonical and deploy-profile compile/runtime measurements are recorded in
+  `docs/test-suite-cutover.md`.

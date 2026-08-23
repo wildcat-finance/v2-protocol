@@ -2,6 +2,10 @@
   "schemaVersion": 1,
   "legacySnapshot": "test-next/parity/legacy-suite.json",
   "replacementSnapshot": "test-next/parity/replacement-suite.json",
+  "sourceTreeHashes": {
+    "legacySolidity": "eac70a01f3d221c548930e103d7e9b38bd0e8acd5e8dfcda1380bbbec644b84b",
+    "replacementSolidity": "66a7c7438802c53d593a3f472a47fbfd0e9eec78267950564a1db280b3c67495"
+  },
   "summary": {
     "legacyProperties": 1438,
     "legacyConcreteEntries": 1797,

@@ -1,10 +1,9 @@
-# Candidate Canonical Foundry Suite
+# Canonical Foundry Suite
 
-This tree is the default Foundry suite while the final parity gate is reviewed. It uses the same
-compiler settings as deployment builds. The former suite remains untouched under `test/` as a
-frozen requirements oracle; it does not participate in ordinary or deploy-profile test discovery,
-and it is not replacement test infrastructure. The final run gate is tracked in
-`parity/integration-intents.md`.
+This tree is the default Foundry suite and uses the same compiler settings as deployment builds.
+The former suite remains untouched under `test/` as a frozen requirements oracle; it does not
+participate in ordinary or deploy-profile test discovery, and it is not replacement test
+infrastructure. The completed parity gate is recorded in `parity/integration-intents.md`.
 
 Run it with:
 
