@@ -1,6 +1,6 @@
 # Production matrix scenarios
 
-Status: production topology, deterministic lifecycle, and withdrawal-boundary intents replaced.
+Status: production topology and the deterministic matrix integration intents are replaced.
 
 ## Boundary
 
@@ -33,11 +33,27 @@ The boundary property checks both market implementations at one second before an
 FixedTerm end, and immediately before, at the start of, at the end of, and at the next PeriodicTerm
 withdrawal window.
 
+The periodic APR properties run the proposal lifecycle through real periodic hooks and both market
+implementations. They check the response bounds, premature execution, lender exit, permissionless
+execution, expiry, APR-increase cancellation, market-close cancellation, and proposal cleanup.
+
+The minimum-deposit properties check capacity clamping before hook validation, live borrower
+updates, clearing the minimum, administrator authority, and the exact accepted/rejected boundary
+after the scale factor has accrued. The accrued-scale boundary runs against all three production
+hook templates.
+
+The rounding property restores the audited numeric stranding windows with explicit non-vacuity
+checks, then proves both a fully queued close and a withdrawal queued after close can drain without
+leaving an unpaid batch or lender balance.
+
+The sanctions property composes the real sanctions list, Sentinel, escrow, hooks, and markets. It
+checks direct nuke -> expiry -> escrow -> borrower override -> release, the accepted periodic-window
+limitation, and that nuking a lender in a revolving market does not change drawn principal.
+
 The stateful matrix remains separate. It owns randomized action ordering and conservation; these
 scenarios own required business sequences and real-factory composition.
 
 ## Focused result
 
-All three properties pass under the canonical via-IR profile. After the first fixture compile, the
-expanded scenario artifact compiled in 25.46 seconds and the complete runtime matrix executed in
-under 10 milliseconds.
+All nine properties pass under the canonical via-IR profile. Compile and runtime measurements are
+recorded again at the suite cutover gate rather than treated as stable while this file is growing.
