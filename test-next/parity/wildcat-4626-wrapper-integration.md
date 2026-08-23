@@ -5,11 +5,11 @@ Status: complete.
 ## Family boundary
 
 This checkpoint closes the ten legacy wrapper integration entries, the six wrapper handoffs
-previously parked in the borrower-transfer family, and the three token-provider cross-feature
-entries. Ten composed properties use the production ArchController, borrower registry, sanctions
-Sentinel and escrows, all three built-in access hooks, standard and revolving markets, wrapper
-factory, and wrapper. Artifact-backed deployment keeps that production graph out of the test
-artifact instead of rebuilding the legacy matrix fixture.
+previously parked in the borrower-transfer family, the three token-provider cross-feature entries,
+and the three wrapped scaled-withdrawal entries. Eleven composed properties use the production
+ArchController, borrower registry, sanctions Sentinel and escrows, all three built-in access hooks,
+standard and revolving markets, wrapper factory, and wrapper. Artifact-backed deployment keeps
+that production graph out of the test artifact instead of rebuilding the legacy matrix fixture.
 
 | Behavior slice                                                       | Legacy entries | Replacement properties |
 | -------------------------------------------------------------------- | -------------: | ---------------------: |
@@ -22,7 +22,8 @@ artifact instead of rebuilding the legacy matrix fixture.
 | Empty/repeated quarantine and the revolving-market path              |              2 |                      1 |
 | Debt-token self-reference and cross-market interest authorization    |              2 |                      2 |
 | Wrapper-interest cross-market authorization                          |              1 |                      1 |
-| **Total**                                                            |         **19** |                 **10** |
+| Atomic wrapper redemption and exact scaled withdrawal queue          |              3 |                      1 |
+| **Total**                                                            |         **22** |                 **11** |
 
 Readiness is checked before and after credentialing the wrapper on production OpenTerm,
 FixedTerm, and PeriodicTerm hooks. Wrapper previews remain arithmetic while the executable limits
@@ -48,11 +49,17 @@ the recursive balance read reaches the market's view reentrancy guard. Debt-toke
 claims that grow through production interest can authorize deposits into a separate production
 market after first being rejected below their configured thresholds.
 
+The scaled-withdrawal property runs standard and revolving markets at an accrued scale factor. A
+small account helper redeems wrapper shares and queues the same exact scaled amount in one call,
+without consuming its pre-existing direct market-token balance. Asking it to queue one scaled token
+too many reverts the whole call and restores wrapper shares, backing, direct balance, and market
+state.
+
 ## Coverage and canonical result
 
 The fixed-seed legacy oracle passes all ten wrapper integration entries, all 37 borrower-transfer
-entries, and all three token-provider cross-feature entries. All ten replacement properties pass
-under canonical via-IR settings. Accurate coverage also compiles this 79-source production graph
+entries, all three token-provider cross-feature entries, and all three scaled-queue entries. All
+eleven replacement properties pass under canonical via-IR settings. Accurate coverage also compiles this 79-source production graph
 without an additional workaround and executes the live sanctions-escrow release path and real
 cross-market deposit paths that the focused suites intentionally left open.
 
@@ -66,12 +73,11 @@ bytes of initcode and 94,900 bytes of runtime bytecode. Conservatively charging 
 12,271-byte growth of the replacement suite—including the shared memory-safe artifact deploy
 path—still reduces that final slice by 96.34% and 87.07%, respectively.
 
-Across the complete borrower-transfer and wrapper-integration boundary, 47 legacy entries become
-19 composed replacement properties. Counting both runnable artifacts and the five unique reusable
-support artifacts, emitted test-side bytecode falls from 638,876 to 65,129 initcode bytes and from
-277,826 to 64,842 runtime bytes: reductions of 89.81% and 76.66%, respectively.
+Before the scaled-queue property was added, the borrower-transfer and wrapper-integration boundary
+reduced 47 legacy entries to 19 composed properties. Counting both runnable artifacts and the five
+unique reusable support artifacts, emitted test-side bytecode fell from 638,876 to 65,129 initcode
+bytes and from 277,826 to 64,842 runtime bytes: reductions of 89.81% and 76.66%, respectively.
 
-The full replacement checkpoint is 617 tests across 39 suites with zero inherited entries,
-902,866 bytes of test-side initcode, and 892,638 bytes of runtime bytecode. A forced canonical
-via-IR AST compile-to-green takes 2m32.40s, including 148.68s in solc, with a 3,965,736 KiB RSS
-peak; execution remains about two seconds.
+The full-suite counts and bytecode totals in the earlier checkpoint predate this property and its
+small account helper. They are rerun once at the final cutover gate rather than revised from a
+focused artifact.

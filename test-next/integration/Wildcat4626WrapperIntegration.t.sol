@@ -27,6 +27,7 @@ import { BorrowerIdentityAccountFactoryMock } from '../mocks/BorrowerIdentityMoc
 import { HookDispatchFactoryMock } from '../mocks/HookDispatchMocks.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { SanctionsListMock } from '../mocks/SanctionsMocks.sol';
+import { WrapperQueueAccountMock } from '../mocks/WrapperQueueAccountMock.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
 // Keep the concrete hooks and revolving market imports even though deployment uses vm.getCode.
@@ -361,6 +362,80 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       vm.expectRevert(IMarketEventsAndErrors.WrapperAlreadyRegistered.selector);
       fixture.market.registerWrapper(address(0xBEEF));
     }
+  }
+
+  function test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes() external {
+    for (uint256 revolving; revolving < 2; revolving++) {
+      _assertRedeemAndScaledQueue(false, revolving == 1);
+      _assertRedeemAndScaledQueue(true, revolving == 1);
+    }
+  }
+
+  function _assertRedeemAndScaledQueue(bool shouldFail, bool revolving) private {
+    uint256 directScaledBalance = 10e18;
+    uint256 wrappedShares = 25e18;
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, revolving);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
+    WrapperQueueAccountMock account = WrapperQueueAccountMock(
+      _deployCode('test-next/mocks/WrapperQueueAccountMock.sol:WrapperQueueAccountMock')
+    );
+    _authorize(fixture, address(account));
+
+    fixture.asset.mint(address(account), directScaledBalance + wrappedShares);
+    vm.startPrank(address(account));
+    fixture.asset.approve(address(fixture.market), type(uint256).max);
+    fixture.market.deposit(directScaledBalance + wrappedShares);
+    fixture.market.approve(address(wrapper), type(uint256).max);
+    wrapper.deposit(wrappedShares, address(account));
+    vm.stopPrank();
+    assertEq(fixture.market.scaledBalanceOf(address(account)), directScaledBalance, 'direct scale');
+
+    vm.warp(vm.getBlockTimestamp() + 30 days);
+    if (shouldFail) {
+      bytes32 stateBefore = keccak256(abi.encode(fixture.market.currentState()));
+      vm.expectRevert(abi.encodeWithSelector(bytes4(0x4e487b71), uint256(0x11)));
+      account.redeemAndQueue(
+        wrapper,
+        fixture.market,
+        wrappedShares,
+        directScaledBalance + wrappedShares + 1
+      );
+      assertEq(wrapper.balanceOf(address(account)), wrappedShares, 'rollback shares');
+      assertEq(wrapper.totalSupply(), wrappedShares, 'rollback supply');
+      assertEq(fixture.market.scaledBalanceOf(address(wrapper)), wrappedShares, 'rollback backing');
+      assertEq(
+        fixture.market.scaledBalanceOf(address(account)),
+        directScaledBalance,
+        'rollback direct scale'
+      );
+      assertEq(
+        keccak256(abi.encode(fixture.market.currentState())),
+        stateBefore,
+        'rollback market state'
+      );
+      return;
+    }
+
+    (uint256 assets, uint32 expiry) = account.redeemAndQueue(
+      wrapper,
+      fixture.market,
+      wrappedShares,
+      wrappedShares
+    );
+    assertTrue(assets > wrappedShares, 'accrued redemption');
+    assertEq(wrapper.balanceOf(address(account)), 0, 'remaining shares');
+    assertEq(wrapper.totalSupply(), 0, 'remaining supply');
+    assertEq(fixture.market.scaledBalanceOf(address(wrapper)), 0, 'remaining backing');
+    assertEq(
+      fixture.market.scaledBalanceOf(address(account)),
+      directScaledBalance,
+      'direct scale changed'
+    );
+    assertEq(
+      fixture.market.getAccountWithdrawalStatus(address(account), expiry).scaledAmount,
+      wrappedShares,
+      'queued scale'
+    );
   }
 
   function test_wrapperCoordinatesDirectAndShareQuarantineWithoutFreezingOtherHolders() external {
