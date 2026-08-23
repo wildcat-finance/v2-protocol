@@ -1,9 +1,10 @@
 # Parity Ledger
 
-The family ledgers are an initial mapping, not a completed semantic-parity claim. The later
-integration-intent review found cross-contract guarantees that were split across component tests
-without retaining their production composition or deterministic sequence. Those open requirements
-and the final exit gate live in `integration-intents.md`.
+The family ledgers and exact disposition manifest treat the frozen suite as a requirements archive,
+not replacement test infrastructure. The later integration-intent review found cross-contract
+guarantees that had been split across component tests without retaining their production
+composition or deterministic sequence; those guarantees now have native owners under `test-next/`.
+The remaining final-run gate lives in `integration-intents.md`.
 
 `legacy-suite.json` is the machine-readable baseline for the tracked legacy suite. It is generated
 from Foundry's canonical cache and artifacts rather than source-name heuristics:
@@ -28,9 +29,30 @@ inherits or implements it, compiler settings, category totals, and emitted test 
 current snapshot contains 94 runnable suites, 1,797 test/invariant entries, 1,438 distinct declared
 properties, and 12,517,142 bytes of test-side creation bytecode.
 
-Replacement ledgers should classify each legacy property as directly replaced, covered by a
-stronger runtime property, deliberately retained in the reference suite, or retired with a written
-rationale.
+The canonical replacement snapshot and exact disposition manifest are generated with:
+
+```sh
+forge build --ast --force
+node scripts/test-suite-metrics.js \
+  --artifacts out \
+  --cache cache/solidity-files-cache.json \
+  --prefix test-next/ \
+  --compact > test-next/parity/replacement-suite.json
+yarn test:parity:update
+yarn test:parity
+```
+
+`legacy-property-dispositions.json` contains one row for every legacy declaration. Each row has an
+exact `direct`, `composed`, `reassigned`, or `retired` disposition, a semantic family, and any exact
+replacement signature that survives. The normalized family catalogue supplies the intent,
+replacement sources, and written ledger evidence. The validator fails if a legacy property is
+unmapped, a configured source disappears, a family count changes, a replacement owner is absent,
+an AST origin is unknown, or the generated manifest is stale.
+
+The current map accounts for all 1,438 declarations and all 1,797 inherited/concrete entries: 206
+direct, 1,198 composed, 29 reassigned across contract boundaries, and five retired with explicit
+rationale. The replacement snapshot contains 674 properties across 46 suites with zero inherited
+entries.
 
 ## Coverage lane
 

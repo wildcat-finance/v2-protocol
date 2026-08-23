@@ -26,6 +26,8 @@
     "test:fixed": "forge test --block-timestamp 1724284800 --fuzz-seed 0x5eed",
     "test:legacy": "FOUNDRY_PROFILE=legacy forge test --block-timestamp $(date +%s)",
     "test:legacy:fixed": "FOUNDRY_PROFILE=legacy forge test --block-timestamp 1724284800 --fuzz-seed 0x5eed",
+    "test:parity": "node scripts/test-suite-parity.js --check",
+    "test:parity:update": "node scripts/test-suite-parity.js --write",
     "test:next": "yarn test",
     "test:next:fixed": "yarn test:fixed",
     "coverage:next": "yarn coverage",

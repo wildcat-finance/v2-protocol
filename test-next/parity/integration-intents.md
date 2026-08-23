@@ -1,7 +1,7 @@
 # Integration intent parity
 
-Status: open. The replacement suite is green and substantially smaller, but semantic parity for
-cross-contract flows has not been established.
+Status: integration intent complete. The exact property map is complete; the final fixed-seed and
+measurement rerun remains before the cutover can be called final.
 
 This ledger treats the frozen suite as a requirements archive, not an implementation template.
 The goal is to preserve each useful guarantee without rebuilding the old inheritance graph or its
@@ -77,7 +77,7 @@ protocol contracts for indexers and services.
 
 ## Replacement shape
 
-The missing work should be added in four bounded layers:
+The completed replacement uses four bounded layers:
 
 1. **Topology:** one artifact-backed production-factory fixture that can deploy all six cells.
 2. **Deterministic flows:** lifecycle, periodic APR, minimum-deposit ordering, sanctions, and the
