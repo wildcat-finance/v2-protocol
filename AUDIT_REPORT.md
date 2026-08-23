@@ -11,13 +11,16 @@
 | Remediation status updated | 2026-08-23 |
 | Review methods | X-Ray v2, Solidity Auditor v3, Fizz v1, focused Foundry regressions, Medusa stateful fuzzing |
 | Solidity-auditor coverage | 12 independent review passes over 95 in-scope files |
-| Final result | 5 reportable findings: 2 Medium, 3 Low, 0 High, 0 Critical; 2 accepted observations |
+| Final result | 4 reportable findings: 1 Medium, 3 Low, 0 High, 0 Critical; 3 accepted observations |
+| Current disposition | All 4 reportable findings remediated post-audit; 3 observations accepted without protocol changes |
 
 This report consolidates the findings and test results already validated during the audit. It does not claim that the assessed development branch is deployed to mainnet, and it does not represent a guarantee that the code contains no additional vulnerabilities.
 
 ## Executive Summary
 
-The audit identified five reportable issues and two accepted observations. The most important reportable issues involve wrapper sanctions-escrow provenance and a sanctions-policy inconsistency in `closeMarket`. Three lower-severity findings concern reserve rounding, metadata compatibility in the lens, and temporary reserve rounding after an APR reduction. The checkpoint-dependent delinquency behavior and finite withdrawal-batch counter were accepted after considering the protocol's operating model and controlled asset list.
+The audit identified four reportable issues and three accepted observations. The Medium-severity finding concerns wrapper sanctions-escrow provenance. Three Low-severity findings concern reserve rounding, metadata compatibility in the lens, and temporary reserve rounding after an APR reduction. The checkpoint-dependent delinquency behavior, finite withdrawal-batch counter, and close-market surplus settlement were accepted after considering the protocol's operating model, controlled asset list, and complete debt accounting.
+
+All four reportable findings have post-audit remediations recorded below. This is source-branch evidence only and does not establish deployment of those changes.
 
 No finding was rated High or Critical after considering attacker prerequisites, market-listing controls, asset ownership, lifecycle constraints, and the cost or time needed to reach the vulnerable state.
 
@@ -27,13 +30,13 @@ The final Fizz campaign compiled the exact harness through viaIR and executed 50
 
 | ID | Severity | Confidence | Title | Status |
 |---|---:|---:|---|---|
-| F-01 | Medium | 95% | Foreign Sentinel escrow bypasses wrapper sanctions | Open |
+| F-01 | Medium | 95% | Foreign Sentinel escrow bypasses wrapper sanctions | Fixed / authorized escrow provenance |
 | F-02 | N/A | 100% | Checkpoint-based delinquency transitions require state writes | Accepted / Hydra mitigated |
 | F-03 | N/A | 100% | Finite `uint104` withdrawal-batch lifetime counter | Accepted known issue |
 | F-04 | Low | 90% | Scaled-space reserve rounding understates required liquidity | Fixed / normalized partition |
 | F-05 | Low | 100% | Factory-admitted `bytes32` metadata can revert lens batches | Fixed / shared decoder |
 | F-06 | Low | 75% | APR-cut double rounding creates a one-basis-point reserve gap | Fixed / single-floor formula |
-| F-07 | Medium | 75% | `closeMarket` surplus payout bypasses the raw sanctions draw gate | Open |
+| F-07 | N/A | 100% | `closeMarket` returns only unencumbered surplus | Accepted / intended surplus settlement |
 
 ## Scope and Methodology
 
@@ -73,11 +76,11 @@ This bypasses the wrapper's live-principal sanctions policy and permits repeatab
 
 A focused Foundry regression demonstrated that a direct transfer to the sanctioned recipient reverted while release from the foreign-principal escrow succeeded. Fizz property SP-43 independently reproduced the provenance failure in the final campaign.
 
-#### Recommendation
+#### Audit Resolution
 
-Record the escrows created by this wrapper's `nukeFromOrbit` flow and require `_isEscrowRelease` to accept only a recorded escrow. Store provenance rather than requiring the current principal so legitimate escrows created under a former principal can still release after principal migration.
+The wrapper now records the escrow returned by the Sentinel during `nukeFromOrbit` before transferring the sanctioned holder's shares. `_isEscrowRelease` requires that wrapper-local authorization before applying the existing deterministic-address check against the escrow's original principal namespace. A genuine escrow created and funded only through an unrelated principal therefore no longer receives the release exception, while an escrow precreated under the current principal becomes authorized when the wrapper actually funds it.
 
-Add negative tests for canonical escrows created under unrelated namespaces and retain the existing historical-principal release test as a positive control.
+Canonical `test-next` regressions cover rejection of a foreign-principal release, authorization of a precreated current-principal escrow through `nukeFromOrbit`, and release of a wrapper-funded escrow after principal migration. These changes remediate the assessed revision after the audit; the focused Foundry regression and SP-43 counterexample above remain evidence of the original finding, not post-fix failures. The change adds one private provenance mapping and does not alter the wrapper's external ABI.
 
 ### F-02 — Checkpoint-Based Delinquency Transitions Require State Writes
 
@@ -209,31 +212,33 @@ Fizz property SP-14 reproduced the `7,501 -> 5,625` APR transition: the implemen
 
 Canonical `test-next` coverage includes the exact 25% boundary, the non-zero-remainder `7,501 -> 5,625` transition, fuzzed APR and reserve combinations, consecutive reductions, partial recovery, cancellation, and expiry. The original transition now produces the intended 5,001-bip temporary reserve. The focused constraint-hook, periodic-hook, and market suites passed all 104 tests, with 1,000 fuzz runs per fuzzed case.
 
-### F-07 — `closeMarket` Surplus Payout Bypasses the Raw Sanctions Draw Gate
+### F-07 — `closeMarket` Returns Only Unencumbered Surplus
 
-**Severity:** Medium  
-**Confidence:** 75%  
-**Affected code:** [`src/market/WildcatMarket.sol`](src/market/WildcatMarket.sol), `borrow` and `closeMarket`
+**Disposition:** Accepted intended behavior. **Confidence:** 100%.
+
+**Affected code:** [`src/market/WildcatMarket.sol`](src/market/WildcatMarket.sol), `closeMarket`; [`src/libraries/MarketState.sol`](src/libraries/MarketState.sol), `totalDebts`
 
 #### Description
 
-`borrow` rejects a draw when either the operational borrower or its registered principal is raw-flagged by the sanctions policy. `closeMarket` contains another borrower-directed underlying-token outflow: when market assets exceed lender debt, it transfers the full surplus to `msg.sender` before closing.
+`closeMarket` balances the market against `state.totalDebts()`, which includes normalized market-token supply, paid-but-unclaimed withdrawals, and accrued protocol fees. Current and expired unpaid withdrawal requests remain inside scaled total supply until payment. Once paid, their scaled supply is burned and the corresponding underlying is added to `normalizedUnclaimedWithdrawals`, so each lender claim remains included exactly once.
 
-The close-time surplus branch does not apply the raw borrower/principal check. A flagged borrower can therefore receive existing or donated surplus through `closeMarket` even though an economically equivalent `borrow` call is rejected.
+Only assets above that complete debt amount are returned to the borrower. The remaining balance is then applied to the current withdrawal batch and every FIFO unpaid batch. If any unpaid scaled withdrawal remains, `closeMarket` reverts. Because the surplus transfer and withdrawal settlement occur in one transaction, that revert also rolls back the earlier transfer.
+
+A successful close may leave paid withdrawals awaiting lender execution or ordinary market tokens that have not been queued, but those claims remain fully funded. It cannot successfully close with an unmet pending or unpaid withdrawal request.
 
 #### Impact
 
-The issue bypasses the protocol's sanctions boundary for borrower-directed underlying payouts. It does not take assets owed to lenders because the transferred value is the surplus above all lender obligations. Severity depends partly on whether the protocol intends close-time return of borrower-owned excess to be subject to the same raw sanctions policy as ordinary draws.
+Returning the surplus cannot consume lender-backed assets or underfund withdrawal claims. The remaining distinction is sanctions policy: `borrow` blocks a raw-flagged operational borrower or principal, while `closeMarket` can return unencumbered surplus to the operational borrower.
 
 #### Validation
 
-The composed source trace used a fully covered market with excess underlying: the raw-flagged borrower could not borrow the excess, while the close branch transferred that same surplus and closed the market. Existing tests independently establish the raw two-identity borrow guard and return of excess assets during close.
+Canonical coverage intentionally transfers underlying directly to a market and confirms that `closeMarket` returns only that excess to the borrower. Separate close tests cover debt top-ups, pending and FIFO unpaid withdrawals, paid-but-unclaimed reserves, and transaction rollback when the borrower cannot fund all debts.
 
-#### Recommendation
+#### Audit Resolution
 
-Apply the same raw borrower/principal check before every borrower-directed underlying payout. If a sanctioned borrower must remain able to close a market, close the market while routing only the surplus into a sanctions escrow rather than paying it directly.
+A direct underlying transfer creates no market tokens, withdrawal credit, or protocol-fee claim, so it becomes unencumbered surplus under the market accounting model. The mechanical sanctions distinction matters only under a broader policy that forbids every underlying-token transfer to a flagged borrower, including settlement of value carrying no lender claim. That is not the protocol boundary applied here.
 
-Add tests covering a flagged operational borrower, a flagged principal, principal migration, donated surplus, and policy overrides.
+No protocol change is required. Reopen this item if a successful close can transfer any part of `totalDebts`, leave `scaledPendingWithdrawals` nonzero, underfund paid-but-unclaimed withdrawals, or if the sanctions policy changes to prohibit all borrower-directed payouts.
 
 ## Fizz Campaign Results
 
@@ -267,7 +272,7 @@ The four failing targets were:
 | `wildcatMarket_aprBoundaryCampaign` | SP-14 | F-06 APR-cut rounding |
 | `wildcatSanctionsEscrow_provenanceCampaign` | SP-43 | F-01 escrow provenance |
 
-This campaign ran against the assessed revision before the remediation entries above. Its counterexamples remain validation of the original findings, not post-remediation failures. F-04 and F-06 were revalidated through their focused canonical Foundry suites after remediation; the Medusa campaign was not rerun.
+This campaign ran against the assessed revision before the remediation entries above. Its counterexamples remain validation of the original findings, not post-remediation failures. The post-audit fixes and focused canonical regressions are described in F-01, F-04, and F-06; the Medusa campaign was not rerun after those changes.
 
 Earlier campaigns exposed several projected-state versus stored-state oracle mismatches and handler precondition errors. Those harness issues were corrected before the final campaign. The affected properties passed in the final run.
 
@@ -291,13 +296,13 @@ This label is an audit-readiness classification. It does not mean that the audit
 - Temporary focused regressions used to validate F-02 and F-03 were removed after execution and are not included as portable PoCs.
 - No audit can establish the absence of all vulnerabilities.
 
-## Remediation Priorities
+## Remaining Follow-Up
 
-1. Address F-01 and F-07 before treating the assessed branch as production-ready, retain Hydra checkpointing as the operational control for F-02, and retain the controlled asset-list boundary for F-03.
-2. Correct the reserve and APR rounding order in F-04 and F-06, then rerun the existing counterexample properties as regression tests.
-3. Align lens metadata handling with factory admission for F-05 and add failure isolation for batch reads.
+1. Retain Hydra checkpointing as the operational control for F-02.
+2. Keep the controlled asset-list boundary for F-03 and reopen it before supporting a materially higher-decimal asset.
+3. Update and rerun the Fizz counterexample properties for the post-audit F-01, F-04, and F-06 behavior if the harness remains part of release qualification.
 4. Convert the seven deferred properties into executable campaigns where practical.
-5. Run a longer Medusa campaign and a complementary Echidna campaign after the fixes.
+5. Run a longer Medusa campaign and a complementary Echidna campaign against the final release candidate.
 6. Perform the planned coverage pass using a configuration that avoids the current SphereX/source-attribution limitations.
 
 ## Audit Artifacts
