@@ -5,10 +5,10 @@ The former suite remains untouched under `test/` as a frozen requirements oracle
 participate in ordinary or deploy-profile test discovery, and it is not replacement test
 infrastructure. The completed parity gate is recorded in `parity/integration-intents.md`.
 
-Run it with:
+Run it directly with Forge, without environment setup or CLI overrides:
 
 ```sh
-yarn test
+forge test
 ```
 
 The repeatable parity lane uses a fixed timestamp and fuzz seed:
@@ -48,6 +48,8 @@ metadata settings.
 - Runtime matrices that warp inside one test call must read time with `vm.getBlockTimestamp()`.
   The EVM assumes `block.timestamp` is stable during a transaction, so via-IR may reuse that value
   across a Foundry cheatcode warp.
+- A test that needs an initial timestamp beyond Forge's default must establish it in its own
+  fixture. Plain `forge test` is the canonical execution boundary.
 - Keep real factory/CREATE2 deployment paths when deployment is the behavior under test. Fixture
   infrastructure may use artifact-backed deployment after constructor and immutable semantics are
   verified.

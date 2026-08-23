@@ -22,7 +22,7 @@
     "lint:fix": "prettier --write 'src/**/*.sol' 'test/**/*.sol' 'test-next/**/*.sol' && solhint --config ./.solhint.json --ignore-path ./.solhintignore 'src/**/*.sol' 'test/**/*.sol' 'test-next/**/*.sol'",
     "clean:coverage": "rm -rf coverage lcov.info",
     "coverage": "./scripts/test-next-coverage.sh",
-    "test": "forge test --block-timestamp $(date +%s)",
+    "test": "forge test",
     "test:fixed": "forge test --block-timestamp 1724284800 --fuzz-seed 0x5eed",
     "test:legacy": "FOUNDRY_PROFILE=legacy forge test --no-match-path 'test/fizz/**' --block-timestamp $(date +%s)",
     "test:legacy:fixed": "FOUNDRY_PROFILE=legacy forge test --no-match-path 'test/fizz/**' --block-timestamp 1724284800 --fuzz-seed 0x5eed",

@@ -50,6 +50,8 @@ in `test-next/parity/integration-intents.md`.
 - Shared behavior is a scenario or runtime matrix, not an inherited `test*` function.
 - Fixtures are capability-sized and use artifact-backed infrastructure where deployment is not
   the behavior under test.
+- Tests establish any non-default initial timestamp in their own fixture. Plain `forge test` must
+  run without environment setup or CLI overrides.
 - Real factories and CREATE2 paths remain in tests that own deployment behavior.
 - Every new property gets one clear owner and a parity note when it replaces existing coverage.
 - The suite may grow with the protocol. The constraint is to avoid multiplicative compile-time
@@ -60,7 +62,7 @@ in `test-next/parity/integration-intents.md`.
 
 ```sh
 # Ordinary canonical suite
-yarn test
+forge test
 
 # Repeatable audit lane
 yarn test:fixed
