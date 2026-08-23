@@ -904,12 +904,12 @@ contract WildcatMarketTest is MarketFixture {
     uint16 annualInterestBips = uint16(bound(rawAnnualInterestBips, 1, 10_000));
     uint256 reserveRatioBips = 2_000;
     if (annualInterestBips < 750) {
-      uint256 relativeReduction = MathUtils.mulDiv(
-        10_000,
+      uint256 temporaryReserveRatio = MathUtils.mulDiv(
+        20_000,
         1_000 - uint256(annualInterestBips),
         1_000
       );
-      reserveRatioBips = MathUtils.min(10_000, 2 * relativeReduction);
+      reserveRatioBips = MathUtils.min(10_000, temporaryReserveRatio);
     }
 
     for (uint256 i; i < 2; i++) {

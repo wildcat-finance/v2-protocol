@@ -8,6 +8,7 @@
 | Branch | `feat/v2.5-gas-optimizations-reviewed` |
 | Assessed revision | `215f4411dc48b83e2ac9a4f4c25a43243b02afec` |
 | Report date | 2026-08-22 |
+| Remediation status updated | 2026-08-23 |
 | Review methods | X-Ray v2, Solidity Auditor v3, Fizz v1, focused Foundry regressions, Medusa stateful fuzzing |
 | Solidity-auditor coverage | 12 independent review passes over 95 in-scope files |
 | Final result | 5 reportable findings: 2 Medium, 3 Low, 0 High, 0 Critical; 2 accepted observations |
@@ -29,9 +30,9 @@ The final Fizz campaign compiled the exact harness through viaIR and executed 50
 | F-01 | Medium | 95% | Foreign Sentinel escrow bypasses wrapper sanctions | Open |
 | F-02 | N/A | 100% | Checkpoint-based delinquency transitions require state writes | Accepted / Hydra mitigated |
 | F-03 | N/A | 100% | Finite `uint104` withdrawal-batch lifetime counter | Accepted known issue |
-| F-04 | Low | 90% | Scaled-space reserve rounding understates required liquidity | Open |
+| F-04 | Low | 90% | Scaled-space reserve rounding understates required liquidity | Fixed / normalized partition |
 | F-05 | Low | 100% | Factory-admitted `bytes32` metadata can revert lens batches | Fixed / shared decoder |
-| F-06 | Low | 75% | APR-cut double rounding creates a one-basis-point reserve gap | Open |
+| F-06 | Low | 75% | APR-cut double rounding creates a one-basis-point reserve gap | Fixed / single-floor formula |
 | F-07 | Medium | 75% | `closeMarket` surplus payout bypasses the raw sanctions draw gate | Open |
 
 ## Scope and Methodology
@@ -148,11 +149,11 @@ The validated high-scale trace used one scaled share, a scale factor of `2^22 * 
 
 Fizz global property GL-08 and positive-borrow property SP-20 reproduced the discrepancy in the final campaign. These two failed targets are the same root cause.
 
-#### Recommendation
+#### Audit Resolution
 
-Calculate the reserve in the documented unit order: normalize the relevant outstanding supply and then apply the reserve ratio. If the protocol adopts a different one-pass formula, specify its rounding direction and prove that it cannot understate the required reserve.
+`liquidityRequired` now calculates pending withdrawals and outstanding supply in normalized units before applying the reserve ratio to the outstanding portion. Dedicated branches preserve the ordinary 0% reserve path and make a 100% reserve ratio recombine exactly to `totalSupply()`. Accrued protocol fees and unclaimed withdrawals are added afterward as before. The change does not alter storage or any external ABI.
 
-Add high-scale, low-share-count tests covering reserve calculation, borrowing limits, and delinquency classification.
+Canonical `test-next` regressions cover the normalized partition across scale factors and reserve ratios, the original high-scale one-share counterexample, `borrowableAssets`, and exact 0% and 100% behavior. The focused `MarketStateTest` suite passed all 13 tests, and the 74-test `WildcatMarketTest` suite passed with 1,000 fuzz runs per fuzzed case. The high-scale 4,999-bip case now reserves 2,096,733 underlying units, and 100% reserves equal `totalDebts()` exactly.
 
 ### F-05 — Factory-Admitted `bytes32` Metadata Can Revert Lens Batches
 
@@ -202,11 +203,11 @@ The borrower can draw an additional 0.01% of lender supply in affected threshold
 
 Fizz property SP-14 reproduced the `7,501 -> 5,625` APR transition: the implementation produced a 5,000-bip temporary reserve while the single-floor doubled expression produced 5,001 bips.
 
-#### Recommendation
+#### Audit Resolution
 
-Multiply the reduction by two before performing the division, cap the result at 10,000 bips, and explicitly document whether the policy rounds down, to nearest, or conservatively upward.
+`_calculateTemporaryReserveRatioBips` now evaluates `floor(2 * BIP * reduction / originalAPR)` and then caps the result at 10,000 bips. This applies the documented floor once instead of doubling an already rounded ratio. The exact 25% trigger comparison, the existing reserve-ratio floor, the 100% cap, and the two-week activation, update, cancellation, and expiry behavior are unchanged. The change does not alter storage or any external ABI.
 
-Add exact-boundary and non-zero-remainder test cases, including consecutive APR reductions during the temporary reserve period.
+Canonical `test-next` coverage includes the exact 25% boundary, the non-zero-remainder `7,501 -> 5,625` transition, fuzzed APR and reserve combinations, consecutive reductions, partial recovery, cancellation, and expiry. The original transition now produces the intended 5,001-bip temporary reserve. The focused constraint-hook, periodic-hook, and market suites passed all 104 tests, with 1,000 fuzz runs per fuzzed case.
 
 ### F-07 — `closeMarket` Surplus Payout Bypasses the Raw Sanctions Draw Gate
 
@@ -265,6 +266,8 @@ The four failing targets were:
 | `wildcatMarket_borrow_full` | SP-20 | F-04 reserve rounding |
 | `wildcatMarket_aprBoundaryCampaign` | SP-14 | F-06 APR-cut rounding |
 | `wildcatSanctionsEscrow_provenanceCampaign` | SP-43 | F-01 escrow provenance |
+
+This campaign ran against the assessed revision before the remediation entries above. Its counterexamples remain validation of the original findings, not post-remediation failures. F-04 and F-06 were revalidated through their focused canonical Foundry suites after remediation; the Medusa campaign was not rerun.
 
 Earlier campaigns exposed several projected-state versus stored-state oracle mismatches and handler precondition errors. Those harness issues were corrected before the final campaign. The affected properties passed in the final run.
 

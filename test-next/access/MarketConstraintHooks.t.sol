@@ -55,9 +55,13 @@ contract MarketConstraintHooksTest is TestKernel {
   ) internal pure returns (uint16) {
     uint256 reduction = originalApr - newApr;
     if (reduction * 10_000 <= uint256(originalApr) * 2_500) return originalReserveRatio;
-    uint256 relativeReduction = MathUtils.mulDiv(10_000, reduction, originalApr);
     return
-      uint16(MathUtils.max(originalReserveRatio, MathUtils.min(10_000, relativeReduction * 2)));
+      uint16(
+        MathUtils.max(
+          originalReserveRatio,
+          MathUtils.min(10_000, MathUtils.mulDiv(20_000, reduction, originalApr))
+        )
+      );
   }
 
   function _assertTemporaryReserveRatio(
@@ -219,11 +223,11 @@ contract MarketConstraintHooksTest is TestKernel {
     emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
       MarketB,
       0,
-      5_000,
+      5_001,
       StartTimestamp + 2 weeks
     );
     (, reserveRatioBips) = _setApr(MarketB, 5_625, 0, 7_501, 0);
-    assertEq(reserveRatioBips, 5_000, 'slightly over quarter');
+    assertEq(reserveRatioBips, 5_001, 'slightly over quarter');
   }
 
   function test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry() external {
