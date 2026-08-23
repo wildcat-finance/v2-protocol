@@ -21,7 +21,7 @@ contract MarketLensCore is IMarketLensCore {
   }
 
   function getTokensInfo(
-    address[] memory tokens
+    address[] calldata tokens
   ) external view returns (TokenMetadata[] memory info) {
     info = new TokenMetadata[](tokens.length);
     for (uint256 i; i < tokens.length; i++) {
@@ -34,9 +34,12 @@ contract MarketLensCore is IMarketLensCore {
   }
 
   function getMarketsData(
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketData[] memory data) {
-    return MarketDataLib.fillMarketsData(markets);
+    data = new MarketData[](markets.length);
+    for (uint256 i; i < markets.length; i++) {
+      data[i].fill(WildcatMarket(markets[i]));
+    }
   }
 
   function getMarketDataV2(address market) external view returns (MarketDataV2_5 memory data) {
@@ -44,9 +47,12 @@ contract MarketLensCore is IMarketLensCore {
   }
 
   function getMarketsDataV2(
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketDataV2_5[] memory data) {
-    return MarketDataLib.fillMarketsDataV2(markets);
+    data = new MarketDataV2_5[](markets.length);
+    for (uint256 i; i < markets.length; i++) {
+      data[i].fill(WildcatMarket(markets[i]));
+    }
   }
 
   function getMarketDataWithLenderStatus(
@@ -58,7 +64,7 @@ contract MarketLensCore is IMarketLensCore {
 
   function getMarketsDataWithLenderStatus(
     address lender,
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketDataWithLenderStatus[] memory data) {
     data = new MarketDataWithLenderStatus[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -75,7 +81,7 @@ contract MarketLensCore is IMarketLensCore {
 
   function getLenderAccountData(
     address lender,
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (LenderAccountData[] memory arr) {
     arr = new LenderAccountData[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -85,7 +91,7 @@ contract MarketLensCore is IMarketLensCore {
 
   function getLenderAccountsData(
     address marketAddress,
-    address[] memory lenders
+    address[] calldata lenders
   ) external view returns (LenderAccountData[] memory data) {
     data = new LenderAccountData[](lenders.length);
     WildcatMarket market = WildcatMarket(marketAddress);
@@ -95,13 +101,13 @@ contract MarketLensCore is IMarketLensCore {
   }
 
   function queryLenderAccount(
-    LenderAccountQuery memory query
+    LenderAccountQuery calldata query
   ) external view returns (LenderAccountQueryResult memory result) {
     result.fill(query);
   }
 
   function queryLenderAccounts(
-    LenderAccountQuery[] memory queries
+    LenderAccountQuery[] calldata queries
   ) external view returns (LenderAccountQueryResult[] memory result) {
     result = new LenderAccountQueryResult[](queries.length);
     for (uint256 i; i < queries.length; i++) {
@@ -118,7 +124,7 @@ contract MarketLensCore is IMarketLensCore {
 
   function getWithdrawalBatchesData(
     address market,
-    uint32[] memory expiries
+    uint32[] calldata expiries
   ) external view returns (WithdrawalBatchData[] memory data) {
     data = new WithdrawalBatchData[](expiries.length);
     for (uint256 i; i < expiries.length; i++) {
@@ -128,7 +134,7 @@ contract MarketLensCore is IMarketLensCore {
 
   function getWithdrawalBatchesDataWithLenderStatus(
     address market,
-    uint32[] memory expiries,
+    uint32[] calldata expiries,
     address lender
   ) external view returns (WithdrawalBatchDataWithLenderStatus[] memory statuses) {
     statuses = new WithdrawalBatchDataWithLenderStatus[](expiries.length);

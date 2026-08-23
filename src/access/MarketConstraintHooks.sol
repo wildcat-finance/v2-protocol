@@ -170,12 +170,11 @@ abstract contract MarketConstraintHooks is IHooks {
       return uint16(originalReserveRatioBips);
     }
 
-    // Calculate the relative reduction in the interest rate in bips,
-    // bound to a maximum of 100%
-    uint256 relativeDiff = MathUtils.mulDiv(BIP, reduction, originalAnnualInterestBips);
-
-    // double the reduction for the temporary reserve ratio, but stop at 100%.
-    uint256 boundRelativeDiff = MathUtils.min(BIP, 2 * relativeDiff);
+    // multiply before dividing so the temporary reserve ratio only rounds once.
+    uint256 boundRelativeDiff = MathUtils.min(
+      BIP,
+      MathUtils.mulDiv(2 * BIP, reduction, originalAnnualInterestBips)
+    );
 
     // don't let this calculation lower the reserve ratio that's already set.
     temporaryReserveRatioBips = uint16(MathUtils.max(boundRelativeDiff, originalReserveRatioBips));

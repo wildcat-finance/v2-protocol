@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   encodeAbiParameters,
+  encodeFunctionData,
   getAddress,
+  parseAbi,
   parseAbiParameters,
   type Address,
   type Hex,
@@ -20,6 +22,7 @@ import type {
   DeploymentPlan,
   DeployTransaction,
   ExecutionTransport,
+  ForwardedCallTransaction,
   Predicate,
   ReceiptLike,
 } from '../types'
@@ -127,6 +130,70 @@ describe('fixture-driven engine semantics', () => {
     expect(buildPlanPayload(transaction, new Map()).data).toBe(
       `0x60${encoded.slice(2)}`,
     )
+  })
+
+  it('rebuilds nested helper calldata after resolving the logical target', () => {
+    const helper = getAddress('0x2000000000000000000000000000000000000002')
+    const factory = getAddress('0x3000000000000000000000000000000000000003')
+    const zero = getAddress('0x0000000000000000000000000000000000000000')
+    const forwardAbi = parseAbi([
+      'function executeProtocolAction(address target, bytes data) returns (bytes result)',
+    ])
+    const archAbi = parseAbi(['function registerControllerFactory(address factory)'])
+    const unresolvedInner = encodeFunctionData({
+      abi: archAbi,
+      functionName: 'registerControllerFactory',
+      args: [zero],
+    })
+    const transaction: ForwardedCallTransaction = {
+      id: 'forward-register-factory',
+      kind: 'call',
+      description: 'Register the reviewed controller factory through the authority helper.',
+      to: helper,
+      functionSignature: 'executeProtocolAction(address,bytes)',
+      forwardedCall: {
+        target: { $ref: 'arch-controller' },
+        functionSignature: 'registerControllerFactory(address)',
+        args: [{ $ref: 'factory' }],
+      },
+      calldata: encodeFunctionData({
+        abi: forwardAbi,
+        functionName: 'executeProtocolAction',
+        args: [zero, unresolvedInner],
+      }),
+      envelope: {
+        chainId: plan.chainId,
+        expectedExecutor: executor,
+        to: helper,
+        value: '0',
+        data: 'forwardedCall',
+        gasLimitPolicy: 'estimate*1.3',
+        nonceCheck: 'display-and-confirm',
+      },
+      predicate: { type: 'codePresent', target: { $ref: 'factory' } },
+    }
+
+    const payload = buildPlanPayload(
+      transaction,
+      new Map([
+        ['arch-controller', executor],
+        ['factory', factory],
+      ]),
+    )
+    const resolvedInner = encodeFunctionData({
+      abi: archAbi,
+      functionName: 'registerControllerFactory',
+      args: [factory],
+    })
+    expect(payload).toEqual({
+      to: helper,
+      data: encodeFunctionData({
+        abi: forwardAbi,
+        functionName: 'executeProtocolAction',
+        args: [executor, resolvedInner],
+      }),
+      value: 0n,
+    })
   })
 
   it('persists the transaction hash before waiting for a receipt', async () => {
@@ -253,7 +320,7 @@ describe('fixture-driven engine semantics', () => {
     })
   })
 
-  it('evaluates codePresent and callEq exactly like plan.js', async () => {
+  it('evaluates codePresent and call predicates exactly like plan.js', async () => {
     const transport = new FakeTransport()
     const target = getAddress('0x1000000000000000000000000000000000000001')
     transport.code.set(target.toLowerCase(), '0x6000')
@@ -279,6 +346,26 @@ describe('fixture-driven engine semantics', () => {
     expect(
       (await evaluatePredicate(transport, { ...predicate, expect: '999' }, new Map())).detail,
     ).toContain('expected "999", got "1000"')
+
+    transport.callResult = encodeAbiParameters(parseAbiParameters('address,uint48'), [
+      target,
+      1234,
+    ])
+    expect(
+      (
+        await evaluatePredicate(
+          transport,
+          {
+            type: 'callResultEq',
+            target,
+            call: { sig: 'pendingDefaultAdmin() view returns (address,uint48)', args: [] },
+            resultIndex: 0,
+            expect: target,
+          },
+          new Map(),
+        )
+      ).ok,
+    ).toBe(true)
   })
 
   it('derives outputs and emits the plan.js run-state shape with a trailing newline', () => {

@@ -111,6 +111,112 @@ contract FIFOQueueTest is Test {
     assertEq(arr.$values(), _arr);
   }
 
+  function test_values_AcrossPackedWords() external {
+    for (uint32 i = 1; i <= 10; i++) {
+      arr.$push(i);
+    }
+    arr.$shiftN(3);
+
+    uint32[] memory expected = new uint32[](7);
+    for (uint32 i = 0; i < expected.length; i++) {
+      expected[i] = i + 4;
+    }
+    assertEq(arr.$values(), expected);
+  }
+
+  function test_shift_AcrossPackedWord() external {
+    for (uint32 i = 1; i <= 9; i++) {
+      arr.$push(i);
+    }
+    for (uint32 i = 1; i <= 8; i++) {
+      assertEq(arr.$first(), i);
+      arr.$shift();
+    }
+    assertEq(arr.$first(), 9);
+    assertEq(arr.$length(), 1);
+  }
+
+  function test_shiftN_AcrossPackedWords() external {
+    for (uint32 i = 1; i <= 20; i++) {
+      arr.$push(i);
+    }
+    arr.$shiftN(13);
+    assertEq(arr.$first(), 14);
+
+    for (uint32 i = 21; i <= 24; i++) {
+      arr.$push(i);
+    }
+
+    uint32[] memory expected = new uint32[](11);
+    for (uint32 i = 0; i < expected.length; i++) {
+      expected[i] = i + 14;
+    }
+    assertEq(arr.$values(), expected);
+  }
+
+  function test_shiftN_EmptyPartialWordCanBeReused() external {
+    for (uint32 i = 1; i <= 3; i++) {
+      arr.$push(i);
+    }
+    arr.$shiftN(3);
+    arr.$push(4);
+    assertEq(arr.$first(), 4);
+    assertEq(arr.$values().length, 1);
+  }
+
+  function test_shift_ClearsFullWords() external {
+    for (uint32 i = 1; i <= 9; i++) {
+      arr.$push(i);
+    }
+    arr.$shiftN(8);
+    assertEq(arr.$word(0), 0);
+    assertEq(arr.$word(1), 9);
+
+    arr.$shift();
+    assertEq(arr.$word(1), 9);
+
+    for (uint32 i = 10; i <= 16; i++) {
+      arr.$push(i);
+    }
+    arr.$shiftN(7);
+    assertEq(arr.$word(1), 0);
+  }
+
+  function testFuzz_matchesReference(
+    uint32[] calldata initialValues,
+    uint32[] calldata extraValues,
+    uint256 shiftSeed
+  ) external {
+    uint256 initialLength = initialValues.length < 32 ? initialValues.length : 32;
+    uint256 extraLength = extraValues.length < 16 ? extraValues.length : 16;
+
+    for (uint256 i = 0; i < initialLength; i++) {
+      arr.$push(initialValues[i]);
+    }
+
+    uint256 shiftCount = bound(shiftSeed, 0, initialLength);
+    arr.$shiftN(uint128(shiftCount));
+
+    for (uint256 i = 0; i < extraLength; i++) {
+      arr.$push(extraValues[i]);
+    }
+
+    uint32[] memory expected = new uint32[](initialLength - shiftCount + extraLength);
+    uint256 expectedIndex;
+    for (uint256 i = shiftCount; i < initialLength; i++) {
+      expected[expectedIndex++] = initialValues[i];
+    }
+    for (uint256 i = 0; i < extraLength; i++) {
+      expected[expectedIndex++] = extraValues[i];
+    }
+
+    assertEq(arr.$length(), expected.length);
+    assertEq(arr.$values(), expected);
+    for (uint256 i = 0; i < expected.length; i++) {
+      assertEq(arr.$at(i), expected[i]);
+    }
+  }
+
   function assertEq(uint32[] memory a, uint32[] memory b) internal {
     assertEq(a.length, b.length, 'length');
     for (uint256 i = 0; i < a.length; i++) {

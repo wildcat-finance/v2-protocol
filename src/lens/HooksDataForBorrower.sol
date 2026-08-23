@@ -27,7 +27,9 @@ library HooksDataForBorrowerLib {
     address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
     data.hooksInstances = new HooksInstanceData[](hooksInstances.length);
     for (uint256 i; i < hooksInstances.length; i++) {
-      data.hooksInstances[i].fill(hooksInstances[i], factory, borrower);
+      address hooksInstance = hooksInstances[i];
+      HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksInstance);
+      data.hooksInstances[i].fill(hooksInstance, factory, borrower, kind);
     }
     address[] memory hooksTemplates = factory.getHooksTemplates();
     data.hooksTemplates = new HooksTemplateData[](hooksTemplates.length);

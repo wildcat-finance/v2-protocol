@@ -18,7 +18,7 @@ Use one executor mode per target:
 | Network                                  | Executor                                                                            | Owner mode         |
 | ---------------------------------------- | ----------------------------------------------------------------------------------- | ------------------ |
 | Ethereum mainnet, Plasma mainnet         | Foundation through the disposable deployment frontend, with the team on a live call | `plan`             |
-| Sepolia, Plasma testnet, future testnets | Dev EOA, with temporary helper ownership represented in the plan                   | `plan`             |
+| Sepolia, Plasma testnet, future testnets | Dev EOA; Sepolia owner calls use the persistent authority helper, while other testnets require their reviewed authority configuration | `plan`             |
 | Anvil forks                              | Test EOA for the Sepolia-shaped UI rehearsal; impersonated owner for headless/direct maintenance | `plan` or `direct` |
 
 `DeployScriptBase` enforces an explicit `OWNER_MODE` on Ethereum mainnet and
@@ -155,7 +155,7 @@ forge script \
 
 ### 03: revolving hooks factory
 
-Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,178 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,179 bytes with 1,397 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
+Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,230 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,231 bytes with 1,345 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
 
 ```bash
 forge script \
@@ -211,7 +211,14 @@ node scripts/plan.js execute \
   --private-key "$PVT_KEY_SEPOLIA"
 ```
 
-Review the summary before execution. Activation has 24 cards on mainnet: 14 deployments and 10 calls. Sepolia's ceremony config adds an ownership reclaim and return, producing 26 cards. The plan must contain six template registrations, two new factory registrations, and no `removeControllerFactory`, `removeController`, or `removeMarket` call. `execute` writes `deployments/<network>/run-state-v2-5.json` after receipts and predicates.
+Review the summary before execution. Activation has 24 cards on both mainnet
+and Sepolia: 14 deployments and 10 calls. On Sepolia, eight protocol-owner
+actions are forwarded through the persistent authority helper while the two
+permissionless factory registrations remain direct. The plan must contain six
+template registrations, two new factory registrations, no ownership handoff,
+and no `removeControllerFactory`, `removeController`, or `removeMarket` call.
+`execute` writes `deployments/<network>/run-state-v2-5.json` after receipts and
+predicates.
 
 ### 08: finalize activation inventory
 
@@ -235,7 +242,12 @@ export OWNER_MODE=plan
 bash script/deploy/v2-5/retirement/01-generate-plan.sh
 ```
 
-The script writes `deployments/<network>/plan-v2-5-retirement.json`. For each still-registered superseded factory, it emits `removeControllerFactory(address)` immediately before `removeController(address)`. Sepolia adds its own helper reclaim and return. It emits no deployment, registration, or market-removal call.
+The script writes `deployments/<network>/plan-v2-5-retirement.json`. For each
+still-registered superseded factory, it emits
+`removeControllerFactory(address)` immediately before
+`removeController(address)`. On Sepolia, both calls are forwarded through the
+persistent authority helper without transferring ownership. It emits no
+deployment, registration, ownership-handoff, or market-removal call.
 
 Execute this as a distinct EOA or Safe ceremony with its own package and run-state. Then finalize only the independently verified retirement run:
 
@@ -362,7 +374,7 @@ node scripts/plan.js bundle-simulate \
   --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
 ```
 
-The current plan fits into three activation bundles. The exact Safe rehearsal used 14,417,671, 19,277,694, and 15,179,791 gas. These numbers are evidence for the current source, not release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
+The pre-optimization ceremony rehearsal fit into three activation bundles and used 14,417,671, 19,277,694, and 15,179,791 gas. Those numbers are historical engine evidence, not estimates for the reviewed `6c2cbfb` protocol source or release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
 
 Any plan change or intervening Safe transaction invalidates the package. Read the nonce again, regenerate, and repeat the simulation.
 
@@ -442,7 +454,7 @@ node scripts/plan.js ceremony-package \
   --bundles deployments/mainnet/bundles-v2-5-retirement
 ```
 
-The rehearsed two-call retirement fits into one Safe bundle and used 94,042 gas. Run it as a separate signer session. Each threshold signer approves once. After execution, derive or export `run-state-v2-5-retirement.json`, verify it, and finalize:
+The pre-optimization two-call retirement rehearsal fit into one Safe bundle and used 94,042 gas. Regenerate and simulate it from the post-activation inventory, then run it as a separate signer session. Each threshold signer approves once. After execution, derive or export `run-state-v2-5-retirement.json`, verify it, and finalize:
 
 ```bash
 export RUN_STATE=deployments/mainnet/run-state-v2-5-retirement.json
@@ -480,7 +492,7 @@ Every fork rehearsal must preserve these invariants:
   the copied inventory identity to network `anvil`, chain ID `31337`;
 - generate the plan from the source revision under review with
   `FOUNDRY_PROFILE=deploy` rather than reusing generated output;
-- for the Sepolia-shaped UI path, authorize a disposable Anvil EOA in the helper and keep reclaim and return as the first and final cards of each ceremony;
+- for the Sepolia-shaped path, execute and verify all three authority-migration plans, retain both executors on the replacement helper, and require the helper to remain ArchController owner throughout activation and retirement;
 - require 14 activation deployments, six template registrations, two new factory registrations, and no factory or market removal;
 - finalize activation only from its unedited, independently verified run-state, then generate retirement from the resulting reconciled inventory;
 - require each retirement target to lose its controller-factory role before its controller role, with no market removal;
@@ -514,33 +526,44 @@ On mainnet forks, deploy a mock asset before the canary because mainnet
 
 Do not add a deployment framework. Extend the numbered release pattern.
 
-## 7. Sepolia temporary-owner flow
+## 7. Sepolia authority-helper flow
 
-`deployments/sepolia/ceremony-config.json` makes the existing `MockArchControllerOwner` reclaim, act, and return sequence part of every generated owner-action plan. Activation and retirement each reclaim and return independently. Do not leave the developer EOA holding ownership between them. The first card calls `returnOwnership()`, and the last card calls `transferOwnership(helper)`. Resume rechecks the temporary-owner predicate until that compensating final card is verified, then treats it as historical.
+Sepolia uses a persistent, versioned authority helper. The helper owns the
+ArchController, holds its SphereX admin/operator roles, and holds the SphereX
+engine default-admin/operator roles. Both the new executor and the old executor
+are initially authorized by the helper. Activation and retirement forward
+their protocol-owner calls through it; neither ceremony transfers ownership.
 
-Before starting, resolve the helper and operator key and confirm the EOA is
-authorized by the helper:
+The one-time live rotation is split into three independently packaged plans:
+
+1. the old executor deploys the replacement helper, moves ArchController
+   ownership to it, and begins the two SphereX admin transfers;
+2. the new executor accepts ArchController SphereX administration, moves its
+   operator role, and registers itself as a testnet borrower; and
+3. after the engine's one-hour delay, the new executor accepts engine default
+   administration, grants the helper the engine operator role, and revokes the
+   old wallet's direct engine operator role.
+
+Generate those plans with `scripts/authority-migration.js`. After all three
+run-states verify, use `scripts/authority-helper.js finalize` to preserve the
+old address as `MockArchControllerOwnerLegacy` and move the stable
+`MockArchControllerOwner` deployment alias to the replacement. The finalizer
+runs the complete authority preflight before changing the local deployment
+file.
+
+Before generating any activation or retirement plan, require:
 
 ```bash
-export HELPER_OPERATOR_KEY="${HELPER_OPERATOR_KEY:-$PVT_KEY_SEPOLIA}"
-export ARCH_CONTROLLER="${ARCH_CONTROLLER:-$(jq -r '.WildcatArchController' deployments/$DEPLOYMENTS_NETWORK/deployments.json)}"
-export HELPER_OWNER="$(cast call "$ARCH_CONTROLLER" "owner()(address)" --rpc-url "$RPC_URL")"
-cast call "$HELPER_OWNER" "authorizedAccounts(address)(bool)" \
-  "$EXPECTED_EXECUTOR" --rpc-url "$RPC_URL"
-```
-
-If the ceremony halts after reclaim and before the final compensation, preserve
-the run-state and return ownership with the reviewed recovery command before
-ending the session:
-
-```bash
-cast send "$ARCH_CONTROLLER" \
-  "transferOwnership(address)" \
-  "$HELPER_OWNER" \
+node scripts/authority-helper.js preflight \
+  --network "$DEPLOYMENTS_NETWORK" \
   --rpc-url "$RPC_URL" \
-  --private-key "$HELPER_OPERATOR_KEY"
-
-cast call "$ARCH_CONTROLLER" "owner()(address)" --rpc-url "$RPC_URL"
+  --expected-executor "$EXPECTED_EXECUTOR"
 ```
 
-Do not delay the return for a possible retirement. Retirement has its own reclaim and return sequence.
+The preflight verifies helper bytecode and version, the immutable
+ArchController, ownership, both required executors, ArchController SphereX
+admin/operator state, engine default-admin/operator state, the old wallet's
+direct engine-operator revocation, and the ArchController sender-adder role.
+See [sepolia-authority-helper-rotation.md](./sepolia-authority-helper-rotation.md)
+for the authority design and [sepolia-v2-5-first-deployment.md](./sepolia-v2-5-first-deployment.md)
+for the exact live procedure.

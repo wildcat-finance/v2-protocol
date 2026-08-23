@@ -144,20 +144,21 @@ contract WildcatMarketConfig is WildcatMarketBase {
       revert_ReserveRatioBipsTooHigh();
     }
 
+    uint256 currentTotalAssets = totalAssets();
     if (_reserveRatioBips <= initialReserveRatioBips) {
-      if (state.liquidityRequired() > totalAssets()) {
+      if (state.liquidityRequired() > currentTotalAssets) {
         revert_InsufficientReservesForOldLiquidityRatio();
       }
     }
     state.reserveRatioBips = _reserveRatioBips;
     state.annualInterestBips = _annualInterestBips;
     if (_reserveRatioBips > initialReserveRatioBips) {
-      if (state.liquidityRequired() > totalAssets()) {
+      if (state.liquidityRequired() > currentTotalAssets) {
         revert_InsufficientReservesForNewLiquidityRatio();
       }
     }
 
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
     emit_AnnualInterestAndReserveRatioBipsUpdated(
       msg.sender,
       previousAnnualInterestBips,

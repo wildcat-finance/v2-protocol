@@ -35,7 +35,9 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
   }
 
   function addMembers(address[] calldata accounts) external override onlyAdministrator {
-    _addMembers(accounts);
+    for (uint256 i; i < accounts.length; i++) {
+      _addMember(accounts[i]);
+    }
   }
 
   function _addMembers(address[] memory accounts) internal {

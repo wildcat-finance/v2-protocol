@@ -43,6 +43,7 @@ case "$RUN_MODE" in
 esac
 ANVIL_PORT="${ANVIL_PORT:-8547}"
 RPC="http://127.0.0.1:${ANVIL_PORT}"
+export RPC_URL="$RPC"
 case "$FORK_NETWORK" in
   sepolia)
     EXPECTED_FORK_CHAIN_ID=11155111
@@ -158,12 +159,66 @@ assert_helper_owns_arch_controller() {
   normalized_helper="$(printf '%s' "$helper" | tr '[:upper:]' '[:lower:]')"
   normalized_owner="$(printf '%s' "$current_owner" | tr '[:upper:]' '[:lower:]')"
   if [[ "$normalized_owner" != "$normalized_helper" ]]; then
-    echo "ArchController ownership was not restored to the Sepolia helper" >&2
+    echo "Sepolia authority helper does not own the ArchController" >&2
     echo "Expected: $helper" >&2
     echo "Actual:   $current_owner" >&2
     exit 1
   fi
-  echo "== ArchController ownership restored to the Sepolia helper"
+  echo "== ArchController remains owned by the Sepolia authority helper"
+}
+
+migrate_sepolia_authority_helper() {
+  local old_executor new_helper phase_one phase_two phase_three
+  old_executor="0xca732651410E915090d7A7D889A1E44eF4575fcE"
+  cast rpc anvil_setBalance "$old_executor" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/null
+
+  node scripts/authority-migration.js phase-one \
+    --network anvil \
+    --rpc-url "$RPC" \
+    --old-executor "$old_executor" \
+    --new-executor "$EXECUTOR"
+  phase_one="deployments/anvil/plan-authority-helper-phase-1.json"
+  node scripts/plan.js execute --plan "$phase_one" --rpc "$RPC" \
+    --impersonate "$old_executor" --yes | tail -2
+  node scripts/plan.js verify --plan "$phase_one" \
+    --run-state deployments/anvil/run-state-authority-helper-phase-1.json \
+    --rpc "$RPC" | tail -1
+  new_helper="$(jq -er '."deploy-replacement-authority-helper".resolvedAddress' \
+    deployments/anvil/run-state-authority-helper-phase-1.json)"
+
+  node scripts/authority-migration.js phase-two \
+    --network anvil \
+    --phase-one-run-state deployments/anvil/run-state-authority-helper-phase-1.json \
+    --new-executor "$EXECUTOR"
+  phase_two="deployments/anvil/plan-authority-helper-phase-2.json"
+  node scripts/plan.js execute --plan "$phase_two" --rpc "$RPC" \
+    --impersonate "$EXECUTOR" --yes | tail -2
+  node scripts/plan.js verify --plan "$phase_two" \
+    --run-state deployments/anvil/run-state-authority-helper-phase-2.json \
+    --rpc "$RPC" | tail -1
+
+  cast rpc evm_increaseTime 3601 --rpc-url "$RPC" >/dev/null
+  cast rpc evm_mine --rpc-url "$RPC" >/dev/null
+  node scripts/authority-migration.js phase-three \
+    --network anvil \
+    --rpc-url "$RPC" \
+    --phase-one-run-state deployments/anvil/run-state-authority-helper-phase-1.json \
+    --old-executor "$old_executor" \
+    --new-executor "$EXECUTOR"
+  phase_three="deployments/anvil/plan-authority-helper-phase-3.json"
+  node scripts/plan.js execute --plan "$phase_three" --rpc "$RPC" \
+    --impersonate "$EXECUTOR" --yes | tail -2
+  node scripts/plan.js verify --plan "$phase_three" \
+    --run-state deployments/anvil/run-state-authority-helper-phase-3.json \
+    --rpc "$RPC" | tail -1
+
+  node scripts/authority-helper.js finalize \
+    --network anvil \
+    --rpc-url "$RPC" \
+    --expected-executor "$EXECUTOR" \
+    --helper "$new_helper"
+  echo "== Rehearsed authority migration to helper: ${new_helper}"
+  assert_helper_owns_arch_controller
 }
 
 wait_for_anvil() {
@@ -273,18 +328,12 @@ if [[ "$RUN_MODE" == "--full" && "$FORK_NETWORK" == "mainnet" ]]; then
   # Headless mode executes as the impersonated real owner.
   EXECUTOR="$OWNER"
 else
-  # Sepolia uses the same EOA path as the live ceremony. The test account is
-  # authorized in the helper's mapping on this disposable fork, then the
-  # plan's first and last cards perform the real reclaim/restore calls.
+  # Sepolia uses the same authorized-helper shape as the live ceremony.
   EXECUTOR="${TEST_ACCOUNT:-0x70997970C51812dc3A010C7d01b50e0d17dc79C8}"
   cast rpc anvil_setBalance "$EXECUTOR" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/null
   if [[ "$FORK_NETWORK" == "sepolia" ]]; then
-    HELPER=$(python3 -c "import json;print(json.load(open('deployments/anvil/deployments.json'))['MockArchControllerOwner'])")
-    AUTHORIZED_SLOT=$(cast index address "$EXECUTOR" 0)
-    cast rpc anvil_setStorageAt "$HELPER" "$AUTHORIZED_SLOT" \
-      0x0000000000000000000000000000000000000000000000000000000000000001 \
-      --rpc-url "$RPC" >/dev/null
-    echo "== Test executor authorized in helper; the plan will reclaim and restore ownership: ${EXECUTOR}"
+    migrate_sepolia_authority_helper
+    echo "== Test executor authorized on the replacement helper: ${EXECUTOR}"
   else
     cast send "$AC" 'transferOwnership(address)' "$EXECUTOR" \
       --from "$OWNER" --unlocked --rpc-url "$RPC" >/dev/null

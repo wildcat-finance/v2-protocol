@@ -9,6 +9,8 @@ const INVENTORY_SCHEMA_VERSION = "1.1.0";
 const INVENTORY_FILE_NAME = "factory-inventory.json";
 const DEFAULT_MARKET_TYPES = ["legacy", "revolving"];
 const LIFECYCLES = new Set(["canonical", "live", "retired"]);
+const AUTHORITY_HELPER_FORWARD_SIGNATURE =
+  "executeProtocolAction(address,bytes)";
 
 const HOOK_FACTORY_FIELDS = new Set([
   "label",
@@ -299,6 +301,15 @@ function addressKey(address) {
   return address.toLowerCase();
 }
 
+function logicalCall(transaction) {
+  if (!transaction || transaction.kind === "deploy") return null;
+  return transaction.forwardedCall || {
+    target: transaction.to,
+    functionSignature: transaction.functionSignature,
+    args: transaction.args,
+  };
+}
+
 function getFactoryDeactivationTargets(inventory, excludedAddresses = []) {
   const excluded = new Set(excludedAddresses.map(addressKey));
   return inventory.hooksFactories
@@ -324,13 +335,14 @@ function getPlanRetirementTargets(plan, inventory, archController) {
   const targets = [];
   const seen = new Set();
   for (const transaction of plan.transactions || []) {
-    if (transaction.functionSignature !== "removeControllerFactory(address)") {
+    const call = logicalCall(transaction);
+    if (call?.functionSignature !== "removeControllerFactory(address)") {
       continue;
     }
-    const factory = transaction.args?.[0];
+    const factory = call.args?.[0];
     if (
-      !isAddress(transaction.to) ||
-      addressKey(transaction.to) !== addressKey(archController) ||
+      !isAddress(call.target) ||
+      addressKey(call.target) !== addressKey(archController) ||
       !isAddress(factory)
     ) {
       throw new Error(`Invalid retirement target in ${transaction.id}`);
@@ -385,16 +397,15 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
   const controllerPredicate =
     "isRegisteredController(address) view returns (bool)";
   const controllerFactoryCalls = plan.transactions.filter(
-    (transaction) =>
-      transaction.functionSignature === controllerFactorySignature
+    (transaction) => logicalCall(transaction)?.functionSignature === controllerFactorySignature
   );
   const controllerCalls = plan.transactions.filter(
-    (transaction) => transaction.functionSignature === controllerSignature
+    (transaction) => logicalCall(transaction)?.functionSignature === controllerSignature
   );
 
   if (
     plan.transactions.some(
-      (transaction) => transaction.functionSignature === "removeMarket(address)"
+      (transaction) => logicalCall(transaction)?.functionSignature === "removeMarket(address)"
     )
   ) {
     throw new Error(
@@ -415,12 +426,16 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
     const matches = plan.transactions
       .map((transaction, index) => ({ transaction, index }))
       .filter(
-        ({ transaction }) =>
-          transaction.functionSignature === signature &&
-          Array.isArray(transaction.args) &&
-          transaction.args.length === 1 &&
-          isAddress(transaction.args[0]) &&
-          addressKey(transaction.args[0]) === addressKey(target.factory)
+        ({ transaction }) => {
+          const call = logicalCall(transaction);
+          return (
+            call?.functionSignature === signature &&
+            Array.isArray(call.args) &&
+            call.args.length === 1 &&
+            isAddress(call.args[0]) &&
+            addressKey(call.args[0]) === addressKey(target.factory)
+          );
+        }
       );
     if (matches.length !== 1) {
       throw new Error(
@@ -428,10 +443,11 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
       );
     }
     const { transaction, index } = matches[0];
+    const call = logicalCall(transaction);
     const predicate = transaction.predicate;
     if (
-      !isAddress(transaction.to) ||
-      addressKey(transaction.to) !== addressKey(archController) ||
+      !isAddress(call.target) ||
+      addressKey(call.target) !== addressKey(archController) ||
       predicate?.type !== "callEq" ||
       !isAddress(predicate.target) ||
       addressKey(predicate.target) !== addressKey(archController) ||
@@ -468,7 +484,7 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
   }
 }
 
-function temporaryOwnerContext(network, deployments = null) {
+function authorizedHelperContext(network, deployments = null) {
   const ceremonyConfigPath = path.join(
     "deployments",
     network,
@@ -478,12 +494,36 @@ function temporaryOwnerContext(network, deployments = null) {
 
   const ceremonyConfig = readJson(ceremonyConfigPath);
   if (
-    ceremonyConfig.schemaVersion !== "1.0.0" ||
-    ceremonyConfig.ownership?.type !== "temporary-mock-owner" ||
+    ceremonyConfig.schemaVersion !== "2.0.0" ||
+    ceremonyConfig.ownership?.type !== "authorized-helper" ||
     typeof ceremonyConfig.ownership.archControllerKey !== "string" ||
-    typeof ceremonyConfig.ownership.helperOwnerKey !== "string"
+    typeof ceremonyConfig.ownership.helperOwnerKey !== "string" ||
+    typeof ceremonyConfig.ownership.legacyHelperOwnerKey !== "string" ||
+    typeof ceremonyConfig.ownership.helperVersion !== "string" ||
+    !Array.isArray(ceremonyConfig.ownership.retainedAuthorizedAccounts) ||
+    ceremonyConfig.ownership.retainedAuthorizedAccounts.some(
+      (account) => !isAddress(account)
+    ) ||
+    new Set(
+      ceremonyConfig.ownership.retainedAuthorizedAccounts.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== ceremonyConfig.ownership.retainedAuthorizedAccounts.length ||
+    !Array.isArray(ceremonyConfig.ownership.revokedSphereXEngineOperators) ||
+    ceremonyConfig.ownership.revokedSphereXEngineOperators.some(
+      (account) => !isAddress(account)
+    ) ||
+    new Set(
+      ceremonyConfig.ownership.revokedSphereXEngineOperators.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== ceremonyConfig.ownership.revokedSphereXEngineOperators.length ||
+    !Array.isArray(ceremonyConfig.ownership.forwardedFunctionSignatures) ||
+    ceremonyConfig.ownership.forwardedFunctionSignatures.length === 0 ||
+    new Set(ceremonyConfig.ownership.forwardedFunctionSignatures).size !==
+      ceremonyConfig.ownership.forwardedFunctionSignatures.length
   ) {
-    throw new Error(`Invalid temporary-owner ceremony config: ${ceremonyConfigPath}`);
+    throw new Error(`Invalid authorized-helper ceremony config: ${ceremonyConfigPath}`);
   }
   const resolvedDeployments =
     deployments ||
@@ -494,51 +534,54 @@ function temporaryOwnerContext(network, deployments = null) {
     resolvedDeployments[ceremonyConfig.ownership.helperOwnerKey];
   if (!isAddress(archController) || !isAddress(helperOwner)) {
     throw new Error(
-      `Temporary-owner ceremony config references a missing deployment address: ${ceremonyConfigPath}`
+      `Authorized-helper ceremony config references a missing deployment address: ${ceremonyConfigPath}`
     );
   }
-  return { archController, helperOwner };
+  return {
+    archController,
+    helperOwner,
+    forwardedFunctionSignatures:
+      ceremonyConfig.ownership.forwardedFunctionSignatures,
+  };
 }
 
-function assertTemporaryOwnerBoundary(plan, context) {
+function assertAuthorizedHelperBoundary(plan, context) {
   if (!context) return;
-  const reclaim = plan.transactions[0];
-  const restore = plan.transactions.at(-1);
+  const forwardedSignatures = new Set(context.forwardedFunctionSignatures);
   if (
     !isAddress(plan.expectedExecutor) ||
-    reclaim?.id !== "reclaim-arch-controller-ownership" ||
-    reclaim?.kind !== "call" ||
-    !isAddress(reclaim.to) ||
-    addressKey(reclaim.to) !== addressKey(context.helperOwner) ||
-    reclaim.functionSignature !== "returnOwnership()" ||
-    reclaim.args?.length !== 0 ||
-    reclaim.reverifyUntil !== "restore-arch-controller-ownership" ||
-    !isAddress(reclaim.predicate?.target) ||
-    addressKey(reclaim.predicate.target) !==
-      addressKey(context.archController) ||
-    reclaim.predicate?.call?.sig !== "owner() view returns (address)" ||
-    reclaim.predicate?.call?.args?.length !== 0 ||
-    !isAddress(reclaim.predicate?.expect) ||
-    addressKey(reclaim.predicate.expect) !== addressKey(plan.expectedExecutor) ||
-    restore?.id !== "restore-arch-controller-ownership" ||
-    restore?.kind !== "call" ||
-    !isAddress(restore.to) ||
-    addressKey(restore.to) !== addressKey(context.archController) ||
-    restore.functionSignature !== "transferOwnership(address)" ||
-    restore.args?.length !== 1 ||
-    !isAddress(restore.args[0]) ||
-    addressKey(restore.args[0]) !== addressKey(context.helperOwner) ||
-    !isAddress(restore.predicate?.target) ||
-    addressKey(restore.predicate.target) !==
-      addressKey(context.archController) ||
-    restore.predicate?.call?.sig !== "owner() view returns (address)" ||
-    restore.predicate?.call?.args?.length !== 0 ||
-    !isAddress(restore.predicate?.expect) ||
-    addressKey(restore.predicate.expect) !== addressKey(context.helperOwner)
+    plan.transactions.some(
+      (transaction) =>
+        transaction.id === "reclaim-arch-controller-ownership" ||
+        transaction.id === "restore-arch-controller-ownership" ||
+        transaction.reverifyUntil !== undefined
+    )
   ) {
     throw new Error(
-      "Temporary-owner plan has an invalid reclaim or restore transaction"
+      "Authorized-helper plan must not contain temporary ownership transactions"
     );
+  }
+  for (const transaction of plan.transactions) {
+    if (transaction.kind !== "call") continue;
+    const call = logicalCall(transaction);
+    const shouldForward = forwardedSignatures.has(call.functionSignature);
+    const isForwarded = transaction.forwardedCall !== undefined;
+    if (shouldForward !== isForwarded) {
+      throw new Error(
+        `${transaction.id}: authorized-helper forwarding does not match ceremony config`
+      );
+    }
+    if (
+      isForwarded &&
+      (!isAddress(transaction.to) ||
+        addressKey(transaction.to) !== addressKey(context.helperOwner) ||
+        transaction.functionSignature !== AUTHORITY_HELPER_FORWARD_SIGNATURE ||
+        transaction.args !== undefined)
+    ) {
+      throw new Error(
+        `${transaction.id}: invalid authorized-helper forwarding envelope`
+      );
+    }
   }
 }
 
@@ -555,11 +598,11 @@ function assertActivationPlan(plan, network) {
     "removeMarket(address)",
   ]);
   const forbidden = plan.transactions.find((transaction) =>
-    forbiddenSignatures.has(transaction.functionSignature)
+    forbiddenSignatures.has(logicalCall(transaction)?.functionSignature)
   );
   if (forbidden) {
     throw new Error(
-      `Activation plan must not retire factories or markets; found ${forbidden.functionSignature}`
+      `Activation plan must not retire factories or markets; found ${logicalCall(forbidden).functionSignature}`
     );
   }
 
@@ -671,19 +714,7 @@ function assertActivationPlan(plan, network) {
       functionSignature: "registerWithArchController()",
     },
   ];
-  const temporaryOwner = temporaryOwnerContext(network);
-  if (temporaryOwner) {
-    expectedTransactions.unshift({
-      id: "reclaim-arch-controller-ownership",
-      kind: "call",
-      functionSignature: "returnOwnership()",
-    });
-    expectedTransactions.push({
-      id: "restore-arch-controller-ownership",
-      kind: "call",
-      functionSignature: "transferOwnership(address)",
-    });
-  }
+  const authorityHelper = authorizedHelperContext(network);
   if (plan.transactions.length !== expectedTransactions.length) {
     throw new Error(
       `Activation plan must contain exactly ${expectedTransactions.length} transactions; found ${plan.transactions.length}`
@@ -697,14 +728,14 @@ function assertActivationPlan(plan, network) {
       (expected.artifactName &&
         transaction.artifactName !== expected.artifactName) ||
       (expected.functionSignature &&
-        transaction.functionSignature !== expected.functionSignature)
+        logicalCall(transaction)?.functionSignature !== expected.functionSignature)
     ) {
       throw new Error(
         `Activation transaction ${index + 1} must be ${expected.id}`
       );
     }
   }
-  assertTemporaryOwnerBoundary(plan, temporaryOwner);
+  assertAuthorizedHelperBoundary(plan, authorityHelper);
 
   const requiredDeployments = [
     {
@@ -2077,45 +2108,45 @@ function assertRetirementPlan(plan, context) {
     throw new Error("Retirement plan must contain only calls");
   }
 
-  const temporaryOwner = temporaryOwnerContext(
+  const authorityHelper = authorizedHelperContext(
     context.network,
     context.deployments
   );
-  const expectedTransactionCount =
-    context.targets.length * 2 + (temporaryOwner ? 2 : 0);
+  const expectedTransactionCount = context.targets.length * 2;
   if (plan.transactions.length !== expectedTransactionCount) {
     throw new Error(
       `Expected ${expectedTransactionCount} retirement transactions, found ${plan.transactions.length}`
     );
   }
   if (
-    temporaryOwner &&
-    addressKey(temporaryOwner.archController) !==
+    authorityHelper &&
+    addressKey(authorityHelper.archController) !==
       addressKey(context.archController)
   ) {
-    throw new Error("Temporary-owner ArchController does not match deployments.json");
+    throw new Error("Authority-helper ArchController does not match deployments.json");
   }
-  assertTemporaryOwnerBoundary(plan, temporaryOwner);
+  assertAuthorizedHelperBoundary(plan, authorityHelper);
   assertFactoryDeactivationPlan(
     plan,
     context.targets,
     context.archController
   );
-  const bodyOffset = temporaryOwner ? 1 : 0;
   for (const [index, target] of context.targets.entries()) {
-    const removeFactoryRole = plan.transactions[bodyOffset + index * 2];
-    const removeController = plan.transactions[bodyOffset + index * 2 + 1];
+    const removeFactoryRole = plan.transactions[index * 2];
+    const removeController = plan.transactions[index * 2 + 1];
+    const removeFactoryRoleCall = logicalCall(removeFactoryRole);
+    const removeControllerCall = logicalCall(removeController);
     if (
       removeFactoryRole?.id !== retirementEntryId("controller-factory", index) ||
-      removeFactoryRole.functionSignature !== "removeControllerFactory(address)" ||
-      removeFactoryRole.args?.length !== 1 ||
-      !isAddress(removeFactoryRole.args[0]) ||
-      addressKey(removeFactoryRole.args[0]) !== addressKey(target.factory) ||
+      removeFactoryRoleCall?.functionSignature !== "removeControllerFactory(address)" ||
+      removeFactoryRoleCall.args?.length !== 1 ||
+      !isAddress(removeFactoryRoleCall.args[0]) ||
+      addressKey(removeFactoryRoleCall.args[0]) !== addressKey(target.factory) ||
       removeController?.id !== retirementEntryId("controller", index) ||
-      removeController.functionSignature !== "removeController(address)" ||
-      removeController.args?.length !== 1 ||
-      !isAddress(removeController.args[0]) ||
-      addressKey(removeController.args[0]) !== addressKey(target.factory)
+      removeControllerCall?.functionSignature !== "removeController(address)" ||
+      removeControllerCall.args?.length !== 1 ||
+      !isAddress(removeControllerCall.args[0]) ||
+      addressKey(removeControllerCall.args[0]) !== addressKey(target.factory)
     ) {
       throw new Error(
         `Retirement plan must remove both roles for ${target.label} in the generated order`

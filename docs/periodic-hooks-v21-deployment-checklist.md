@@ -1,6 +1,9 @@
 # Periodic Hooks V2.1 Deployment Checklist
 
-Status: operator checklist for the additive v2.1 `PeriodicTermHooks` rollout.
+Status: historical operator checklist for the completed additive v2.1
+`PeriodicTermHooks` rollout. Its Sepolia ownership commands describe the
+superseded helper. Do not reuse them for V2.5; use
+`docs/sepolia-v2-5-first-deployment.md`.
 
 Primary script:
 
@@ -19,7 +22,7 @@ registers it on the target `HooksFactory`, and deploys a new
 | Target | `DEPLOYMENTS_NETWORK` | `RPC_URL` | Registration mode | Notes |
 | --- | --- | --- | --- | --- |
 | Sepolia fork | `sepolia-anvil` | local Anvil fork | `auto` or `emit` | Safe rehearsal; copy Sepolia inventory into a throwaway folder. |
-| Sepolia | `sepolia` | real Sepolia RPC | `auto`, `direct`, or `emit` | Sepolia helper reclaim/return may be required. |
+| Sepolia | `sepolia` | real Sepolia RPC | `auto`, `direct`, or `emit` | Historical helper flow; do not reuse for V2.5. |
 | Mainnet fork | `mainnet-anvil` | local Anvil fork | `auto` or `emit` | Safe rehearsal; copy mainnet inventory into a throwaway folder. |
 | Mainnet | `mainnet` | real mainnet RPC | `emit` | Execute owner action through the approved owner process. |
 
@@ -330,8 +333,8 @@ The generated action artifact is:
 deployments/<network>/pending-admin-actions/PeriodicTermHooks-disable-template.json
 ```
 
-Execute it with the same owner path used for registration. For the Sepolia helper
-flow after direct ownership has been reclaimed:
+The following command records the historical direct-owner flow used for that
+rollout. Do not use it with the V2.5 persistent authority helper:
 
 ```bash
 export ACTION="deployments/$DEPLOYMENTS_NETWORK/pending-admin-actions/PeriodicTermHooks-disable-template.json"
@@ -435,6 +438,7 @@ falling back to the pre-periodic canonical lens.
 - `getHooksTemplateDetails(...).name` is `PeriodicTermHooks`.
 - `getHooksTemplateDetails(...).enabled` is true.
 - Any known bad-target `PeriodicTermHooks` registration has been disabled.
-- Sepolia helper ownership was returned if the helper reclaim flow was used.
+- The historical Sepolia helper ownership was returned if that rollout used its
+  reclaim flow.
 - Final script rerun is idempotent and broadcasts no transactions.
 - `periodic-hooks-v21-rollout.json` is saved for handoff.

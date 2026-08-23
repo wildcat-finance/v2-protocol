@@ -216,7 +216,7 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   /// @dev Administrator-only setter for this hooks instance name.
-  function setName(string memory _name) external onlyAdministrator {
+  function setName(string calldata _name) external onlyAdministrator {
     string memory previousName = name;
     name = _name;
     emit NameUpdated(msg.sender, previousName, _name);
@@ -260,16 +260,27 @@ contract BaseAccessControls is IHooksAdministrator {
   }
 
   function _isPullProvider(address providerAddress) internal view returns (bool isPullProvider) {
-    (bool success, bytes memory data) = providerAddress.staticcall(
-      abi.encodeCall(IRoleProvider.isPullProvider, ())
-    );
-    if (success && data.length >= 0x20) {
-      uint256 result;
-      assembly {
-        result := mload(add(data, 0x20))
-      }
-      // Only a clean boolean true response makes the provider pull-capable.
-      isPullProvider = result == 1;
+    // make this a low-end four-byte number; the Yul shift below moves it into calldata position.
+    uint256 selectorWord = uint32(IRoleProvider.isPullProvider.selector);
+    assembly {
+      // 0x00 is Solidity scratch space. shifting left by 224 bits, or 28 bytes, puts the selector
+      // in the first four bytes of that word so staticcall can read it directly from 0x00.
+      mstore(0x00, shl(224, selectorWord))
+
+      // staticcall reads those four input bytes before writing up to one return word back over
+      // them, so the same scratch word can safely handle both sides of the call.
+      let success := staticcall(gas(), providerAddress, 0x00, 0x04, 0x00, 0x20)
+
+      // keep this fail closed. only a successful call with a complete first word containing
+      // exactly one makes this a pull provider. reverts, empty or short responses, false, and
+      // dirty bools all become push providers; harmless trailing data is ignored.
+      //
+      // Yul's and evaluates every term, but success and return size still gate the final value.
+      // stale scratch data can't turn a failed or short call into true.
+      isPullProvider := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), eq(mload(0x00), 1))
+      )
     }
   }
 
@@ -544,7 +555,10 @@ contract BaseAccessControls is IHooksAdministrator {
    *      - the caller is the previous role provider, OR
    *      - the new expiry is later than the current expiry
    */
-  function grantRoles(address[] memory accounts, uint32[] memory roleGrantedTimestamps) external {
+  function grantRoles(
+    address[] calldata accounts,
+    uint32[] calldata roleGrantedTimestamps
+  ) external {
     RoleProvider callingProvider = _roleProviders[msg.sender];
 
     if (callingProvider.isNull()) revert ProviderNotFound();
@@ -723,12 +737,12 @@ contract BaseAccessControls is IHooksAdministrator {
   function _tryValidateCredential(
     LenderStatus memory status,
     address accountAddress,
-    bytes calldata hooksData
+    bytes calldata hooksData,
+    RoleProvider provider
   ) internal returns (bool) {
     uint validateSelector = uint32(IRoleProvider.validateCredential.selector);
-    address providerAddress = _readAddress(hooksData);
-    RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) return false;
+    address providerAddress = provider.providerAddress();
     uint credentialTimestamp;
     uint invalidCredentialReturnedSelector = uint32(InvalidCredentialReturned.selector);
     assembly {
@@ -839,7 +853,7 @@ contract BaseAccessControls is IHooksAdministrator {
       if (!provider.isNull() && provider.isPullProvider()) {
         pullProviderIndexToSkip = provider.pullProviderIndex();
       }
-      validCredential = _tryValidateCredential(status, accountAddress, hooksData);
+      validCredential = _tryValidateCredential(status, accountAddress, hooksData, provider);
     }
   }
 
@@ -957,9 +971,9 @@ contract BaseAccessControls is IHooksAdministrator {
     // Mark account as a known lender if they have a valid credential, are not
     // already known, and the function counts as a deposit.
     if (
-      canSetKnownLender.and(hasValidCredential).and(
-        !isKnownLenderOnMarket[accountAddress][msg.sender]
-      )
+      canSetKnownLender &&
+      hasValidCredential &&
+      !isKnownLenderOnMarket[accountAddress][msg.sender]
     ) {
       isKnownLenderOnMarket[accountAddress][msg.sender] = true;
       emit AccountMadeFirstDeposit(msg.sender, accountAddress);

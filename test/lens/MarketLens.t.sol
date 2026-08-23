@@ -55,12 +55,55 @@ contract MockV1MarketLike {
   }
 }
 
+contract MarketVersionProbeHarness {
+  function isV2(address target) external view returns (bool) {
+    return MarketDataLib._isV2Market(target);
+  }
+}
+
+contract HooksKindProbeHarness {
+  function kindForHooks(address target) external view returns (HooksInstanceKind) {
+    return HooksConfigDataLib.kindForHooks(target);
+  }
+}
+
+contract EmptyMarketVersion {
+  function version() external pure returns (string memory) {
+    return '';
+  }
+}
+
+contract LongMarketVersion {
+  function version() external pure returns (string memory) {
+    return 'This hooks version is deliberately longer than one word';
+  }
+}
+
+contract RevertingMarketVersion {
+  error VersionReadFailed();
+
+  function version() external pure returns (string memory) {
+    revert VersionReadFailed();
+  }
+}
+
+contract ShortMarketVersion {
+  fallback() external {
+    assembly ('memory-safe') {
+      mstore(0, 0x20)
+      mstore(0x20, 1)
+      return(0, 0x40)
+    }
+  }
+}
+
 contract HooksInstanceDataHarness {
   function fill(
     address hooksAddress,
     IHooksFactory factory
   ) external view returns (HooksInstanceData memory data) {
-    data.fill(hooksAddress, factory);
+    HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksAddress);
+    data.fill(hooksAddress, factory, address(0), kind);
   }
 }
 
@@ -122,6 +165,60 @@ contract MarketDataTest is BaseMarketTest {
 
     vm.expectRevert(MarketLens.NotV2Market.selector);
     lens.getMarketData(address(v1Market));
+  }
+
+  function test_versionProbe_handlesV2V1AndEmptyVersions() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    assertTrue(harness.isV2(address(market)), 'v2');
+    assertFalse(harness.isV2(address(new MockV1MarketLike(address(asset)))), 'v1');
+    assertFalse(harness.isV2(address(new EmptyMarketVersion())), 'empty');
+  }
+
+  function test_versionProbe_rejectsShortDynamicData() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    ShortMarketVersion target = new ShortMarketVersion();
+    vm.expectRevert();
+    harness.isV2(address(target));
+  }
+
+  function test_versionProbe_bubblesRevertData() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    RevertingMarketVersion target = new RevertingMarketVersion();
+    vm.expectRevert(RevertingMarketVersion.VersionReadFailed.selector);
+    harness.isV2(address(target));
+  }
+
+  function test_hooksKindProbe_handlesKnownEmptyAndLongVersions() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    assertEq(
+      uint8(harness.kindForHooks(address(hooks))),
+      uint8(HooksInstanceKind.OpenTerm),
+      'known'
+    );
+    assertEq(
+      uint8(harness.kindForHooks(address(new EmptyMarketVersion()))),
+      uint8(HooksInstanceKind.Unknown),
+      'empty'
+    );
+    assertEq(
+      uint8(harness.kindForHooks(address(new LongMarketVersion()))),
+      uint8(HooksInstanceKind.Unknown),
+      'long'
+    );
+  }
+
+  function test_hooksKindProbe_rejectsShortDynamicData() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    ShortMarketVersion target = new ShortMarketVersion();
+    vm.expectRevert();
+    harness.kindForHooks(address(target));
+  }
+
+  function test_hooksKindProbe_bubblesRevertData() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    RevertingMarketVersion target = new RevertingMarketVersion();
+    vm.expectRevert(RevertingMarketVersion.VersionReadFailed.selector);
+    harness.kindForHooks(address(target));
   }
 
   /// Every function in the aggregator section of the facade must forward to

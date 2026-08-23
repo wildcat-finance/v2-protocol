@@ -2,21 +2,18 @@
 pragma solidity >=0.8.20;
 
 /**
- * Deploy the v2.5 hooks template init-code storages, then perform the owner
- * actions that make the new factories and templates available.
+ * deploy the v2.5 hooks template init-code storages, then do the owner work
+ * that makes the new factories and templates usable.
  *
- * Environment:
- * - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
- *   ARCH_CONTROLLER, TEMPLATE_FEE_SOURCE_FACTORY, and TEMPLATE_FEE_RECIPIENT.
- *   Scripts 01-04 must precede this script.
- * - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
- *   PVT_KEY_<NETWORK>. The broadcaster must be the ArchController owner.
- * - Plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
- *
- * Sepolia direct-mode helper flow, before running this script:
- *   cast send "$HELPER_OWNER" 'returnOwnership()' --rpc-url "$RPC_URL" --private-key "$KEY"
- * Return ownership afterward with:
- *   cast send "$ARCH_CONTROLLER" 'transferOwnership(address)' "$HELPER_OWNER" --rpc-url "$RPC_URL" --private-key "$KEY"
+ * env:
+ * - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
+ *   ARCH_CONTROLLER, PROTOCOL_AUTHORITY_HELPER, TEMPLATE_FEE_SOURCE_FACTORY,
+ *   and TEMPLATE_FEE_RECIPIENT.
+ *   run scripts 01-04 first.
+ * - direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
+ *   PVT_KEY_<NETWORK>. the broadcaster must own the ArchController or be an
+ *   authorized executor on its configured authority helper.
+ * - plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR. no private key needed.
  */
 
 import { console } from 'forge-std/console.sol';
@@ -25,6 +22,15 @@ import { HooksTemplate, IHooksFactory } from 'src/IHooksFactory.sol';
 import { IWildcatArchController } from 'src/interfaces/IWildcatArchController.sol';
 
 import '../../common/DeployScriptBase.sol';
+
+interface IProtocolAuthorityHelper {
+  function archController() external view returns (address);
+
+  function executeProtocolAction(
+    address target,
+    bytes calldata data
+  ) external returns (bytes memory result);
+}
 
 contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant FEE_PARAMETERS_PATH = 'deployments/template-fee-parameters.json';
@@ -56,8 +62,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant ADD_STANDARD_PERIODIC_ENTRY_ID = 'add-standard-periodic-term-template';
   string internal constant ADD_REVOLVING_OPEN_ENTRY_ID = 'add-revolving-open-term-template';
   string internal constant ADD_REVOLVING_FIXED_ENTRY_ID = 'add-revolving-fixed-term-template';
-  string internal constant ADD_REVOLVING_PERIODIC_ENTRY_ID =
-    'add-revolving-periodic-term-template';
+  string internal constant ADD_REVOLVING_PERIODIC_ENTRY_ID = 'add-revolving-periodic-term-template';
 
   struct TemplateFeeParameters {
     address originationFeeAsset;
@@ -411,11 +416,19 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   function _registerControllerFactory(
     Deployments memory deployments,
     IWildcatArchController archController,
+    address authorityHelper,
     address factory
   ) internal {
     if (!archController.isRegisteredControllerFactory(factory)) {
       deployments.broadcast();
-      archController.registerControllerFactory(factory);
+      if (authorityHelper == address(0)) {
+        archController.registerControllerFactory(factory);
+      } else {
+        IProtocolAuthorityHelper(authorityHelper).executeProtocolAction(
+          address(archController),
+          abi.encodeCall(IWildcatArchController.registerControllerFactory, (factory))
+        );
+      }
     }
     if (!archController.isRegisteredControllerFactory(factory)) {
       revert('Controller factory registration failed');
@@ -424,6 +437,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
 
   function _addTemplate(
     Deployments memory deployments,
+    address authorityHelper,
     address factoryAddress,
     TemplateDeployment memory template
   ) internal {
@@ -431,14 +445,31 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     address feeRecipient = _resolveFeeRecipient(deployments, template.name);
     if (!factory.isHooksTemplate(template.deployment)) {
       deployments.broadcast();
-      factory.addHooksTemplate(
-        template.deployment,
-        template.name,
-        feeRecipient,
-        template.fees.originationFeeAsset,
-        template.fees.originationFeeAmount,
-        template.fees.protocolFeeBips
-      );
+      if (authorityHelper == address(0)) {
+        factory.addHooksTemplate(
+          template.deployment,
+          template.name,
+          feeRecipient,
+          template.fees.originationFeeAsset,
+          template.fees.originationFeeAmount,
+          template.fees.protocolFeeBips
+        );
+      } else {
+        IProtocolAuthorityHelper(authorityHelper).executeProtocolAction(
+          factoryAddress,
+          abi.encodeCall(
+            IHooksFactory.addHooksTemplate,
+            (
+              template.deployment,
+              template.name,
+              feeRecipient,
+              template.fees.originationFeeAsset,
+              template.fees.originationFeeAmount,
+              template.fees.protocolFeeBips
+            )
+          )
+        );
+      }
     }
     HooksTemplate memory details = factory.getHooksTemplateDetails(template.deployment);
     if (!details.exists || !details.enabled) revert('Template registration failed');
@@ -449,6 +480,33 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       details.originationFeeAmount != template.fees.originationFeeAmount ||
       details.protocolFeeBips != template.fees.protocolFeeBips
     ) revert('Template fee configuration mismatch');
+  }
+
+  function _resolveAuthorityHelper(
+    Deployments memory deployments,
+    address archControllerAddress
+  ) internal returns (address helper) {
+    helper = vm.envOr('PROTOCOL_AUTHORITY_HELPER', address(0));
+    if (helper == address(0) && deployments.has('MockArchControllerOwner')) {
+      helper = deployments.get('MockArchControllerOwner');
+    }
+    if (helper == address(0)) return address(0);
+
+    address owner = IWildcatArchController(archControllerAddress).owner();
+    if (owner != helper) {
+      if (vm.envOr('PROTOCOL_AUTHORITY_HELPER', address(0)) != address(0)) {
+        revert('Configured protocol authority helper does not own ArchController');
+      }
+      return address(0);
+    }
+    if (helper.code.length == 0) revert('Protocol authority helper has no code');
+    try IProtocolAuthorityHelper(helper).archController() returns (address helperArchController) {
+      if (helperArchController != archControllerAddress) {
+        revert('Protocol authority helper uses a different ArchController');
+      }
+    } catch {
+      revert('Protocol authority helper does not expose the v2 interface');
+    }
   }
 
   function run() external {
@@ -504,13 +562,14 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     address standardFactory = deployments.get(standardFactoryLabel);
     address revolvingFactory = deployments.get(revolvingFactoryLabel);
     IWildcatArchController archController = IWildcatArchController(archControllerAddress);
-    _registerControllerFactory(deployments, archController, standardFactory);
-    _registerControllerFactory(deployments, archController, revolvingFactory);
-    _addTemplate(deployments, standardFactory, openTerm);
-    _addTemplate(deployments, standardFactory, fixedTerm);
-    _addTemplate(deployments, standardFactory, periodicTerm);
-    _addTemplate(deployments, revolvingFactory, openTerm);
-    _addTemplate(deployments, revolvingFactory, fixedTerm);
-    _addTemplate(deployments, revolvingFactory, periodicTerm);
+    address authorityHelper = _resolveAuthorityHelper(deployments, archControllerAddress);
+    _registerControllerFactory(deployments, archController, authorityHelper, standardFactory);
+    _registerControllerFactory(deployments, archController, authorityHelper, revolvingFactory);
+    _addTemplate(deployments, authorityHelper, standardFactory, openTerm);
+    _addTemplate(deployments, authorityHelper, standardFactory, fixedTerm);
+    _addTemplate(deployments, authorityHelper, standardFactory, periodicTerm);
+    _addTemplate(deployments, authorityHelper, revolvingFactory, openTerm);
+    _addTemplate(deployments, authorityHelper, revolvingFactory, fixedTerm);
+    _addTemplate(deployments, authorityHelper, revolvingFactory, periodicTerm);
   }
 }
