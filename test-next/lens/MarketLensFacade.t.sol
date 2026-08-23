@@ -2,6 +2,7 @@
 pragma solidity >=0.8.20;
 
 import { MarketLens } from 'src/lens/MarketLens.sol';
+import { MarketLensCore } from 'src/lens/MarketLensCore.sol';
 import { HooksConfigData, HooksInstanceKind } from 'src/lens/HooksConfigData.sol';
 import { LenderAccountQuery, OptionalUintDataV2_5 } from 'src/lens/MarketData.sol';
 import { Bit_Enabled_Borrow } from 'src/types/HooksConfig.sol';
@@ -17,7 +18,7 @@ import { Bit_Enabled_SetMaxTotalSupply } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_SetProtocolFeeBips } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
 import { EmptyHooksConfig, HooksConfig } from 'src/types/HooksConfig.sol';
-import { LensDelegateTargetMock, LensProbeHarness } from '../mocks/LensMocks.sol';
+import { LensDelegateTargetMock, LensProbeHarness, LensV1MarketMock } from '../mocks/LensMocks.sol';
 import { MalformedVersionMock, OptionalUintTargetMock } from '../mocks/LensMocks.sol';
 import { RevertingVersionMock, VersionStringMock } from '../mocks/LensMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
@@ -306,6 +307,24 @@ contract MarketLensFacadeTest is TestKernel {
 
     vm.expectRevert(LensDelegateTargetMock.DelegatedCallFailed.selector);
     revertingLens.getTokenInfo(address(0));
+  }
+
+  function test_getMarketData_BubblesCanonicalNotV2MarketError() external {
+    MarketLensCore core = MarketLensCore(
+      _deployCode('src/lens/MarketLensCore.sol:MarketLensCore', abi.encode(address(0), address(0)))
+    );
+    MarketLens productionCoreLens = MarketLens(
+      _deployCode(
+        'src/lens/MarketLens.sol:MarketLens',
+        abi.encode(address(0), address(0), address(core), address(0), address(0))
+      )
+    );
+    LensV1MarketMock v1Market = LensV1MarketMock(
+      _deployCode('test-next/mocks/LensMocks.sol:LensV1MarketMock', abi.encode(address(0)))
+    );
+
+    vm.expectRevert(MarketLens.NotV2Market.selector);
+    productionCoreLens.getMarketData(address(v1Market));
   }
 
   function test_versionAndHooksKindProbes_HandleValidBoundaries() external {

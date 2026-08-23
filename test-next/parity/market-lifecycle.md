@@ -45,6 +45,11 @@ calldata, and the lifecycle properties execute the ordinary callbacks. OpenTerm 
 own credential, known-lender, blocked-lender, and transfer-disablement state machines. The market-token
 properties own transfer accounting and the post-interest scaled-rounding failure.
 
+One post-checkpoint property records a real deposit, queue, batch expiry/closure, state update, and
+sanctioned withdrawal. It matches exact emitters, indexed topics, and ABI payloads for `Transfer`,
+`InterestAndFeesAccrued`, `StateUpdated`, `WithdrawalBatchExpired`, `WithdrawalBatchClosed`,
+`WithdrawalQueued`, `WithdrawalExecuted`, and `SanctionedAccountWithdrawalSentToEscrow`.
+
 ## Coverage and canonical result
 
 The fixed-seed legacy oracle passes all 122 standard/fixed-term entries. All 43 cumulative replacement

@@ -26,6 +26,8 @@ import { MockRoleProviderFactory } from '../mocks/MockRoleProviderFactory.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
 contract OpenTermHooksTest is TestKernel {
+  event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
+
   address internal constant MarketA = address(0x1001);
   address internal constant MarketB = address(0x1002);
   address internal constant MarketC = address(0x1003);
@@ -495,6 +497,8 @@ contract OpenTermHooksTest is TestKernel {
 
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
+    vm.expectEmit(address(hooks));
+    emit AccountMadeFirstDeposit(MarketA, Lender);
     vm.prank(MarketA);
     hooks.onDeposit(Lender, 1, state, '');
     assertTrue(hooks.isKnownLenderOnMarket(Lender, MarketA), 'known lender');

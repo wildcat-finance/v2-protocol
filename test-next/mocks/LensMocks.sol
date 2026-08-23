@@ -187,6 +187,21 @@ contract VersionStringMock {
   }
 }
 
+contract LensV1MarketMock {
+  address public immutable asset;
+  string public constant name = 'Wildcat V1';
+  string public constant symbol = 'WCV1';
+  uint8 public constant decimals = 18;
+
+  constructor(address asset_) {
+    asset = asset_;
+  }
+
+  function version() external pure returns (string memory) {
+    return '1.0.0';
+  }
+}
+
 contract RevertingVersionMock {
   error VersionReadFailed();
 

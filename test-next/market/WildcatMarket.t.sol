@@ -284,6 +284,57 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
+  function _addressTopic(address value) private pure returns (bytes32) {
+    return bytes32(uint256(uint160(value)));
+  }
+
+  function _singleTopic(bytes32 signature) private pure returns (bytes32[] memory topics) {
+    topics = new bytes32[](1);
+    topics[0] = signature;
+  }
+
+  function _twoTopics(
+    bytes32 signature,
+    bytes32 indexedValue
+  ) private pure returns (bytes32[] memory topics) {
+    topics = new bytes32[](2);
+    topics[0] = signature;
+    topics[1] = indexedValue;
+  }
+
+  function _threeTopics(
+    bytes32 signature,
+    bytes32 firstIndexedValue,
+    bytes32 secondIndexedValue
+  ) private pure returns (bytes32[] memory topics) {
+    topics = new bytes32[](3);
+    topics[0] = signature;
+    topics[1] = firstIndexedValue;
+    topics[2] = secondIndexedValue;
+  }
+
+  function _assertExactEvent(
+    Vm.Log[] memory logs,
+    address emitter,
+    bytes32[] memory expectedTopics,
+    bytes memory expectedData,
+    string memory message
+  ) private pure {
+    bytes32 topicsHash = keccak256(abi.encode(expectedTopics));
+    bytes32 dataHash = keccak256(expectedData);
+    uint256 matches;
+    for (uint256 i; i < logs.length; i++) {
+      if (
+        logs[i].emitter == emitter &&
+        keccak256(abi.encode(logs[i].topics)) == topicsHash &&
+        keccak256(logs[i].data) == dataHash
+      ) {
+        matches++;
+      }
+    }
+    assertEq(matches, 1, message);
+  }
+
   function _expectedInitialState(
     Options memory options
   ) private view returns (MarketState memory state) {
@@ -1060,6 +1111,134 @@ contract WildcatMarketTest is MarketFixture {
         'expired accrual timestamp'
       );
     }
+  }
+
+  function test_marketLifecycleEmitsCanonicalIndexerEvents() external {
+    uint256 initialTimestamp = vm.getBlockTimestamp();
+    Options memory options = _defaultOptions(HooksKind.OpenTerm);
+    options.protocolFeeBips = 0;
+    options.annualInterestBips = 3_650;
+    options.delinquencyFeeBips = 0;
+    Fixture memory fixture = _newMarket(options);
+    _fundAndApprove(fixture, Holder, 1e18);
+
+    vm.recordLogs();
+    vm.prank(Holder);
+    fixture.market.deposit(1e18);
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _threeTopics(
+        keccak256('Transfer(address,address,uint256)'),
+        _addressTopic(address(0)),
+        _addressTopic(Holder)
+      ),
+      abi.encode(1e18),
+      'market-token mint event'
+    );
+
+    vm.recordLogs();
+    vm.prank(Holder);
+    uint32 expiry = fixture.market.queueFullWithdrawal();
+    logs = vm.getRecordedLogs();
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _threeTopics(
+        keccak256('Transfer(address,address,uint256)'),
+        _addressTopic(Holder),
+        _addressTopic(address(fixture.market))
+      ),
+      abi.encode(1e18),
+      'withdrawal transfer event'
+    );
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _threeTopics(
+        keccak256('WithdrawalQueued(uint256,address,uint256,uint256)'),
+        bytes32(uint256(expiry)),
+        _addressTopic(Holder)
+      ),
+      abi.encode(1e18, 1e18),
+      'withdrawal queued event'
+    );
+
+    vm.warp(initialTimestamp + 2 days);
+    vm.recordLogs();
+    fixture.market.updateState();
+    logs = vm.getRecordedLogs();
+    uint256 scaleAtExpiry = 1.001e27;
+    uint256 scaleAtUpdate = 1.002001e27;
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _singleTopic(
+        keccak256('InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)')
+      ),
+      abi.encode(initialTimestamp, expiry, scaleAtExpiry, 1e24, 0, 0),
+      'first accrual event'
+    );
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _twoTopics(
+        keccak256('WithdrawalBatchExpired(uint256,uint256,uint256,uint256)'),
+        bytes32(uint256(expiry))
+      ),
+      abi.encode(1e18, 1e18, 1e18),
+      'batch expired event'
+    );
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _twoTopics(keccak256('WithdrawalBatchClosed(uint256)'), bytes32(uint256(expiry))),
+      '',
+      'batch closed event'
+    );
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _singleTopic(
+        keccak256('InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)')
+      ),
+      abi.encode(expiry, initialTimestamp + 2 days, scaleAtUpdate, 1e24, 0, 0),
+      'second accrual event'
+    );
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _singleTopic(keccak256('StateUpdated(uint256,bool)')),
+      abi.encode(scaleAtUpdate, false),
+      'state updated event'
+    );
+
+    fixture.sentinel.setSanctioned(Holder, true);
+    vm.recordLogs();
+    fixture.market.executeWithdrawal(Holder, expiry);
+    logs = vm.getRecordedLogs();
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _twoTopics(
+        keccak256('SanctionedAccountWithdrawalSentToEscrow(address,address,uint32,uint256)'),
+        _addressTopic(Holder)
+      ),
+      abi.encode(fixture.sentinel.EscrowAddress(), expiry, 1e18),
+      'sanctioned escrow event'
+    );
+    _assertExactEvent(
+      logs,
+      address(fixture.market),
+      _threeTopics(
+        keccak256('WithdrawalExecuted(uint256,address,uint256)'),
+        bytes32(uint256(expiry)),
+        _addressTopic(Holder)
+      ),
+      abi.encode(1e18),
+      'withdrawal executed event'
+    );
   }
 
   function test_depositEntrypointsApplyCapacityExactnessAndRounding_AcrossHookKinds() external {

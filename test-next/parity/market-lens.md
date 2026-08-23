@@ -10,10 +10,10 @@ rebuilding the old shared protocol fixture:
 
 | Production boundary                                           |            Legacy entries | Replacement properties |
 | ------------------------------------------------------------- | ------------------------: | ---------------------: |
-| Facade routing, probes, flags, and exact revert bubbling      | shared across both suites |                      8 |
+| Facade routing, probes, flags, and exact revert bubbling      | shared across both suites |                      9 |
 | Core and live market, account, identity, and withdrawal reads |                        45 |                      5 |
 | Factory discovery, aggregation, deduplication, and pagination |                        29 |                      6 |
-| **Total**                                                     |                    **74** |                 **19** |
+| **Total**                                                     |                    **74** |                 **20** |
 
 The old suite remains the fixed-seed reference oracle. It does not need to be retrofitted into the
 new fixture model: the replacement properties preserve its meaningful behavior while removing the
@@ -25,7 +25,8 @@ The facade suite calls every public facade selector as raw calldata. That proves
 routing without constructing a full market graph for each alias. It also checks constructor
 immutables, exact delegatecall revert bubbling, every `HooksConfigData` flag, optional-uint
 presence versus fallback, and the complete version and hook-kind probe boundary, including empty,
-long, malformed, and reverting return data.
+long, malformed, and reverting return data. A V1-shaped market is routed through the production
+core helper and proves that the facade bubbles the canonical `NotV2Market` selector.
 
 The core/live suite uses production standard, revolving, and periodic markets. Five composed
 properties cover token metadata; scalar and list market reads; V2 optional fields; live/full-data
@@ -44,7 +45,7 @@ aggregated endpoints.
 
 ## Coverage and canonical result
 
-The fixed-seed legacy oracle passes all 74 entries. All 19 replacement properties pass under the
+The fixed-seed legacy oracle passes all 74 entries. All 20 replacement properties pass under the
 canonical via-IR profile. Focused accurate coverage reports 100% line, statement, branch, and
 function coverage for all four shipped Lens contracts:
 

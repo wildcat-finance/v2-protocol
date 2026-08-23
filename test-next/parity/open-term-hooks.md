@@ -38,6 +38,8 @@ fixtures:
 - every unrestricted callback selector plus the OpenTerm-to-`MarketConstraintHooks` APR delegate
 
 Batch market reads and both transfer-policy queries are also asserted directly.
+The known-lender callback also checks the exact `AccountMadeFirstDeposit` emitter and indexed
+fields rather than relying only on the resulting mapping value.
 
 ## Coverage and canonical result
 
