@@ -110,6 +110,38 @@ contract MarketLensCoreTest is MarketFixture {
     );
   }
 
+  function test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches() external {
+    vm.mockCall(
+      address(fixture.asset),
+      abi.encodeWithSignature('name()'),
+      abi.encode(bytes32('Legacy Token'))
+    );
+    vm.mockCall(
+      address(fixture.asset),
+      abi.encodeWithSignature('symbol()'),
+      abi.encode(bytes32('LEGACY'))
+    );
+
+    TokenMetadata memory direct = core.getTokenInfo(address(fixture.asset));
+    assertEq(direct.name, 'Legacy Token', 'direct name');
+    assertEq(direct.symbol, 'LEGACY', 'direct symbol');
+    assertEq(direct.decimals, 18, 'direct decimals');
+
+    address[] memory tokens = new address[](2);
+    tokens[0] = address(fixture.market);
+    tokens[1] = address(fixture.asset);
+    TokenMetadata[] memory tokenData = core.getTokensInfo(tokens);
+    assertEq(tokenData[0].name, 'Wildcat Token', 'string name');
+    assertEq(tokenData[1].name, 'Legacy Token', 'bytes32 name');
+    assertEq(tokenData[1].symbol, 'LEGACY', 'bytes32 symbol');
+
+    address[] memory markets = new address[](1);
+    markets[0] = address(fixture.market);
+    MarketData[] memory marketData = core.getMarketsData(markets);
+    assertEq(marketData[0].underlyingToken.name, 'Legacy Token', 'market underlying name');
+    assertEq(marketData[0].underlyingToken.symbol, 'LEGACY', 'market underlying symbol');
+  }
+
   function test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity() external {
     Fixture memory revolving = _newRevolvingMarket(HooksKind.OpenTerm);
     _deposit(revolving, Lender, 100e18);

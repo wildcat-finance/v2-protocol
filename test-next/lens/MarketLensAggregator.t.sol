@@ -424,6 +424,34 @@ contract MarketLensAggregatorTest is MarketFixture {
     assertTrue(v2[1].commitmentFeeBips.isPresent, 'v2 revolving');
   }
 
+  function test_templateWideMarketReads_AcceptBytes32UnderlyingMetadata() external {
+    vm.mockCall(
+      address(standard.asset),
+      abi.encodeWithSignature('name()'),
+      abi.encode(bytes32('Legacy Token'))
+    );
+    vm.mockCall(
+      address(standard.asset),
+      abi.encodeWithSignature('symbol()'),
+      abi.encode(bytes32('LEGACY'))
+    );
+
+    MarketData[] memory factoryMarkets = aggregator.getAllMarketsDataForHooksTemplate(
+      address(factoryB),
+      SharedTemplate
+    );
+    assertEq(factoryMarkets.length, 2, 'factory markets');
+    assertEq(factoryMarkets[0].underlyingToken.name, 'Legacy Token', 'bytes32 name');
+    assertEq(factoryMarkets[1].underlyingToken.name, 'Token', 'string name');
+
+    MarketDataV2_5[] memory aggregated = aggregator.getAggregatedAllMarketsDataV2ForHooksTemplate(
+      SharedTemplate
+    );
+    assertEq(aggregated.length, 2, 'aggregated markets');
+    assertEq(aggregated[0].market.underlyingToken.symbol, 'LEGACY', 'bytes32 symbol');
+    assertEq(aggregated[1].market.underlyingToken.symbol, 'TKN', 'string symbol');
+  }
+
   function _assertTemplate(
     HooksTemplateData memory data,
     address template,

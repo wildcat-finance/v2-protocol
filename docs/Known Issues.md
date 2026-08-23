@@ -172,7 +172,9 @@ Wildcat V2 bytecode uses transient storage for reentrancy protection and factory
 
 **Nonstandard token metadata on listed assets**
 
-Wildcat assumes listed assets expose stable standard ERC20 metadata and standard transfer semantics. Market deployment reads asset `name()`, `symbol()`, and `decimals()` and packs the derived market name and symbol by byte length. Empty, malformed, excessively long, or confusing display metadata, including names that rely on invisible unicode characters, can block deployment or produce misleading offchain display text. Zero-amount transfer reverts can also break fee paths that otherwise amount to no economic transfer. This is accepted as an asset-listing boundary: asset review must reject or explicitly approve such tokens before listing.
+Wildcat intentionally supports both ABI strings and legacy fixed-width `bytes32` values for token `name()` and `symbol()`. Market deployment and the lens use the same `LibERC20` decoder for those values and for `decimals()`.
+
+Outside that compatibility form, Wildcat assumes listed assets expose stable metadata and standard transfer semantics. Empty, malformed, mutable, excessively long, or confusing display metadata, including names that rely on invisible unicode characters, can block deployment, later break lens reads, or produce misleading offchain display text. Zero-amount transfer reverts can also break fee paths that otherwise amount to no economic transfer. This is accepted as an asset-listing boundary: asset review must reject or explicitly approve such tokens before listing.
 
 **Hooks lack some specificity**
 

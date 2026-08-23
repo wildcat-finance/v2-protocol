@@ -30,7 +30,7 @@ The final Fizz campaign compiled the exact harness through viaIR and executed 50
 | F-02 | N/A | 100% | Checkpoint-based delinquency transitions require state writes | Accepted / Hydra mitigated |
 | F-03 | N/A | 100% | Finite `uint104` withdrawal-batch lifetime counter | Accepted known issue |
 | F-04 | Low | 90% | Scaled-space reserve rounding understates required liquidity | Open |
-| F-05 | Low | 80% | Factory-admitted `bytes32` metadata can revert lens batches | Open |
+| F-05 | Low | 100% | Factory-admitted `bytes32` metadata can revert lens batches | Fixed / shared decoder |
 | F-06 | Low | 75% | APR-cut double rounding creates a one-basis-point reserve gap | Open |
 | F-07 | Medium | 75% | `closeMarket` surplus payout bypasses the raw sanctions draw gate | Open |
 
@@ -157,7 +157,7 @@ Add high-scale, low-share-count tests covering reserve calculation, borrowing li
 ### F-05 — Factory-Admitted `bytes32` Metadata Can Revert Lens Batches
 
 **Severity:** Low  
-**Confidence:** 80%  
+**Confidence:** 100%<br>
 **Affected code:** [`src/HooksFactory.sol`](src/HooksFactory.sol), market deployment metadata checks; [`src/libraries/LibERC20.sol`](src/libraries/LibERC20.sol), compatible metadata queries; [`src/lens/TokenData.sol`](src/lens/TokenData.sol), `fill`; [`src/lens/MarketData.sol`](src/lens/MarketData.sol), batch fill functions
 
 #### Description
@@ -172,13 +172,15 @@ This is a read-only availability and integration failure. It can prevent applica
 
 #### Validation
 
-The source discrepancy was confirmed against the repository's legacy metadata helpers and fixtures. The lens was not included in the retained final Fizz target set.
+The source discrepancy was confirmed against the repository's legacy metadata helpers and fixtures. New `test-next` regressions exercise direct token reads, mixed string/`bytes32` token batches, market data, factory-wide market batches, and aggregated multi-factory batches. The original `bytes32` trigger now succeeds through each lens surface. Existing tests continue to reject truncated and noncanonical dynamic-string encodings while accepting canonical strings, legacy `bytes32`, high-bit final bytes, and harmless trailing data.
 
-#### Recommendation
+#### Audit Resolution
 
-Use the same `LibERC20.name` and `LibERC20.symbol` compatibility helpers in the lens that the factory uses during deployment. Consider isolating each market fill with explicit error data or `try/catch` so one fallible metadata source cannot revert a heterogeneous batch.
+`TokenMetadataLib.fill` now uses `LibERC20` for `name`, `symbol`, and `decimals`, matching the exact decoder used during market deployment. This closes the admission/read discrepancy at the shared metadata boundary without changing any lens ABI, market contract, or storage layout.
 
-Add an end-to-end lens test containing one bytes32-metadata market and one ordinary market.
+The focused lens and metadata suites passed 27 tests. The canonical suite passed all 678 tests, including all eight stateful market-matrix invariants. The added decoder increased `MarketLensCore` and `MarketLensAggregator` runtime bytecode by 270 bytes each; the tighter aggregator retains 3,938 bytes of EIP-170 margin.
+
+Per-market `try/catch` isolation was not added. Metadata that mutates or begins reverting after market deployment remains part of the controlled asset-listing boundary rather than a new partial-result API for the lens.
 
 ### F-06 — APR-Cut Double Rounding Creates a One-Basis-Point Reserve Gap
 
