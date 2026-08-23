@@ -1,6 +1,6 @@
 # Invariant Map
 
-> Wildcat V2.5 | 50 guards | 18 single-contract + 11 cross-contract + 7 economic invariants | 2 not enforced on-chain
+> Wildcat V2.5 | 50 guards | 18 single-contract + 12 cross-contract + 7 economic invariants | 1 not enforced on-chain | `215f441`
 
 ---
 

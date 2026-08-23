@@ -31,6 +31,28 @@ abstract contract MockBaseAccessControls is BaseAccessControls {
   ) external virtual;
 }
 
+contract MockPullProviderResponse {
+  uint256 internal immutable _value;
+  uint256 internal immutable _length;
+  bool internal immutable _shouldRevert;
+
+  constructor(uint256 value, uint256 length, bool shouldRevert) {
+    _value = value;
+    _length = length;
+    _shouldRevert = shouldRevert;
+  }
+
+  fallback() external {
+    if (_shouldRevert) revert();
+    uint256 value = _value;
+    uint256 length = _length;
+    assembly {
+      mstore(0x00, value)
+      return(0x00, length)
+    }
+  }
+}
+
 abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   error AdministratorTransferCallbackFailed();
 
@@ -572,6 +594,29 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     _expectAccountAccessGranted(pushProvider, account, timestamp);
     vm.prank(pushProvider);
     baseHooks.grantRole(account, timestamp);
+  }
+
+  function test_addRoleProvider_onlyCleanBooleanTrueIsPullProvider() external {
+    MockPullProviderResponse[6] memory providers = [
+      new MockPullProviderResponse(1, 0x20, false),
+      new MockPullProviderResponse(0, 0x20, false),
+      new MockPullProviderResponse(2, 0x20, false),
+      new MockPullProviderResponse(1, 0x1f, false),
+      new MockPullProviderResponse(1, 0x40, false),
+      new MockPullProviderResponse(1, 0x20, true)
+    ];
+    bool[6] memory expectedPull = [true, false, false, false, true, false];
+
+    for (uint256 i; i < providers.length; i++) {
+      address providerAddress = address(providers[i]);
+      baseHooks.addRoleProvider(providerAddress, 1);
+      RoleProvider provider = baseHooks.getRoleProvider(providerAddress);
+      assertEq(
+        provider.pullProviderIndex() != NullProviderIndex,
+        expectedPull[i],
+        'pull provider classification'
+      );
+    }
   }
 
   function test_addRoleProvider_updateTimeToLive(uint32 ttl1, uint32 ttl2) external {

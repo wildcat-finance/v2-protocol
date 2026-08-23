@@ -1,6 +1,6 @@
 # Entry Point Map
 
-> Wildcat V2.5 | State-changing public and external surfaces in the working tree based on `5f3caa8`
+> Wildcat V2.5 | Grouped state-changing public and external surfaces at `215f441` (`feat/v2.5-gas-optimizations-reviewed`)
 
 ## Protocol Flow Paths
 

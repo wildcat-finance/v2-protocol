@@ -134,6 +134,10 @@ Record the replacement address, constructor arguments, runtime code hash,
 transaction hashes, and package digest. Fund the new executor for the remaining
 ceremonies without using it to deploy another contract.
 
+Do not generate or reuse phase 2 or phase 3 before this run-state is verified.
+Both generators require either this exact phase-1 run-state or an explicitly
+reviewed replacement-helper address, and reject the current legacy helper.
+
 ## 3. Authority phase 2 — new executor
 
 Phase 2 proves the new wallet can operate the helper, accepts ArchController

@@ -145,7 +145,7 @@ contract WildcatMarket is
   function borrow(uint256 amount) external virtual onlyBorrower nonReentrant sphereXGuardExternal {
     // Check the raw Chainalysis status of both borrower identities. Sentinel overrides
     // must not let either identity draw while flagged.
-    address currentBorrower = borrower();
+    address currentBorrower = msg.sender;
     address currentPrincipal = borrowerPrincipal();
     if (_flaggedBorrowerIdentity(currentBorrower, currentPrincipal) != address(0)) {
       revert_BorrowWhileSanctioned();
@@ -202,9 +202,9 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
-    _onRepay(state, amount);
+    uint256 currentTotalAssets = _onRepayAndGetTotalAssets(state, amount);
 
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
   /**
@@ -234,7 +234,7 @@ contract WildcatMarket is
     } else if (currentlyHeld > totalDebts) {
       uint256 excessDebt = currentlyHeld - totalDebts;
       // Transfer excess assets to borrower
-      asset.safeTransfer(borrower(), excessDebt);
+      asset.safeTransfer(msg.sender, excessDebt);
       currentlyHeld -= excessDebt;
     }
     hooks.onCloseMarket(state);

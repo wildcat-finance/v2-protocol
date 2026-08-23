@@ -49,14 +49,16 @@ library RoleProviderDataLib {
       data.providerAddress,
       IManagedRoleProvider.administrator.selector
     );
-    (bool hasPendingAdministrator, address pendingAdministrator) = _tryReadAddress(
-      data.providerAddress,
-      IManagedRoleProvider.pendingAdministrator.selector
-    );
-    if (hasAdministrator && hasPendingAdministrator) {
-      data.isManaged = true;
-      data.administrator = administrator;
-      data.pendingAdministrator = pendingAdministrator;
+    if (hasAdministrator) {
+      (bool hasPendingAdministrator, address pendingAdministrator) = _tryReadAddress(
+        data.providerAddress,
+        IManagedRoleProvider.pendingAdministrator.selector
+      );
+      if (hasPendingAdministrator) {
+        data.isManaged = true;
+        data.administrator = administrator;
+        data.pendingAdministrator = pendingAdministrator;
+      }
     }
   }
 

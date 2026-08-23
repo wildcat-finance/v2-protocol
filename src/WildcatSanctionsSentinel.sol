@@ -73,8 +73,38 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   /**
    * @dev Returns boolean indicating whether `account` is sanctioned on Chainalysis.
    */
-  function isFlaggedByChainalysis(address account) public view override returns (bool) {
-    return IChainalysisSanctionsList(chainalysisSanctionsList).isSanctioned(account);
+  function isFlaggedByChainalysis(
+    address account
+  ) public view override returns (bool) {
+    bool isFlagged;
+    address sanctionsList = chainalysisSanctionsList;
+    assembly ('memory-safe') {
+      // 0x00 through 0x3f is Solidity's scratch space. that's exactly enough for a selector and
+      // one address, and we can reuse the first word for the result.
+      mstore(0, 0xdf592f7d)
+      mstore(0x20, account)
+
+      // mstore leaves the selector in the last four bytes of the first word. starting at 0x1c
+      // gives us selector | account, or 0x24 bytes of ordinary ABI calldata.
+      if iszero(staticcall(gas(), sanctionsList, 0x1c, 0x24, 0, 0x20)) {
+        // the call only writes one word for us, but a revert may be longer. copy the whole error
+        // over scratch space and bubble it up. this path ends here, so nothing sees that memory
+        // afterward.
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+
+      // Solidity's bool decoder expects one full word containing zero or one. keep the same
+      // rules here; trailing data is harmless because we only read that first word.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      isFlagged := mload(0)
+      if gt(isFlagged, 1) {
+        revert(0, 0)
+      }
+    }
+    return isFlagged;
   }
 
   /**

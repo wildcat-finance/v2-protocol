@@ -1,6 +1,6 @@
 # v2.5 Deploy Checklists
 
-These are condensed operator checklists. Use [deployment.md](./deployment.md) for the full process and [deploy-status.md](./deploy-status.md) for current rehearsal evidence. Every command starts at the repository root with `FOUNDRY_PROFILE=deploy`.
+These are condensed operator checklists. Use [deployment.md](./deployment.md) for the full process and [deploy-status.md](./deploy-status.md) for rehearsal status and evidence. Every command starts at the repository root with `FOUNDRY_PROFILE=deploy`.
 
 Activation and retirement are separate releases. Activation deploys and registers v2.5 without disabling an existing factory. Retirement is generated only after activation has been finalized, indexed, and validated. Never carry a pre-generated retirement plan into the activation call.
 
@@ -29,6 +29,7 @@ Activation and retirement are separate releases. Activation deploys and register
 
 - [ ] Confirm the exact deployment-affecting source passed the fresh Anvil rehearsal.
 - [ ] Execute and independently verify the three authority-helper migration packages from [sepolia-v2-5-first-deployment.md](./sepolia-v2-5-first-deployment.md): phase 1 with the old wallet, phases 2 and 3 with the new wallet, respecting the SphereX delay.
+- [ ] Generate phase 2 and phase 3 only from the verified phase-1 run-state. Do not reuse pre-generated authority plans or resolve either phase against the legacy helper.
 - [ ] Finalize the deployment alias only after the replacement helper passes the full authority preflight. Preserve the original address as `MockArchControllerOwnerLegacy` and keep the old wallet authorized by the replacement helper.
 - [ ] Reconcile the live Sepolia inventory before generating anything.
 - [ ] Set `DEPLOYMENTS_NETWORK=sepolia`, `RELEASE_TAG=v2-5`, `OWNER_MODE=plan`, the reviewed RPC, and the exact expected executor.
@@ -80,9 +81,9 @@ Across the currently rehearsed activation and retirement plans, the Foundation h
 ## Reference facts
 
 - Foundation Safe: `0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, version 1.4.1, threshold 3 at the rehearsal snapshot.
-- Current activation bundle gas: 14,417,671, 19,277,694, and 15,179,791.
-- Current retirement bundle gas: 94,042 for the one-target mainnet rehearsal.
+- Pre-optimization activation rehearsal gas: 14,417,671, 19,277,694, and 15,179,791. Regenerate for the reviewed `6c2cbfb` protocol source.
+- Pre-optimization retirement rehearsal gas: 94,042 for one target. Regenerate from the post-activation inventory.
 - Safe nonces, CREATE2 addresses, package hashes, gas use, and retirement target counts must be regenerated at release freeze.
 - `FOUNDRY_PROFILE=deploy` is mandatory. The revolving market creation code fits one init-code storage contract under that exact profile, and plan generation rejects it if that stops being true.
-- Current revolving market creation code is 23,178 bytes. The stored runtime is 23,179 bytes including its leading `STOP`, leaving 1,397 bytes of EIP-170 margin.
+- Current revolving market creation code is 23,230 bytes. The stored runtime is 23,231 bytes including its leading `STOP`, leaving 1,345 bytes of EIP-170 margin.
 - Canonical Safe libraries: MultiSend `0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526` and CreateCall `0x9b35Af71d77eaf8d7e40252370304687390A1A52`.

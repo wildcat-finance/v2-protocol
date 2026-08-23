@@ -34,7 +34,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
   }
 
   modifier onlyArchControllerOwner() {
-    if (msg.sender != IWildcatArchController(_archController).owner()) {
+    if (msg.sender != _archControllerOwner()) {
       revert CallerNotArchControllerOwner();
     }
     _;
@@ -107,11 +107,10 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
       revert BorrowerAccountAlreadyRegistered();
     }
 
-    IWildcatArchController controller = IWildcatArchController(_archController);
-    if (controller.isRegisteredBorrower(account) || principalOf[principal] != address(0)) {
+    if (_isRegisteredBorrower(account) || principalOf[principal] != address(0)) {
       revert AmbiguousBorrowerIdentity();
     }
-    if (!controller.isRegisteredBorrower(principal)) {
+    if (!_isRegisteredBorrower(principal)) {
       revert BorrowerPrincipalNotRegistered();
     }
 
@@ -176,14 +175,13 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     if (borrower == address(0)) revert BorrowerIdentityNotFound();
 
     principal = principalOf[borrower];
-    IWildcatArchController controller = IWildcatArchController(_archController);
-    if (controller.isRegisteredBorrower(borrower)) {
+    if (_isRegisteredBorrower(borrower)) {
       if (principal != address(0)) revert AmbiguousBorrowerIdentity();
       return borrower;
     }
     if (principal == address(0)) revert BorrowerIdentityNotFound();
     if (principalOf[principal] != address(0)) revert AmbiguousBorrowerIdentity();
-    if (!controller.isRegisteredBorrower(principal)) {
+    if (!_isRegisteredBorrower(principal)) {
       revert BorrowerPrincipalNotRegistered();
     }
   }
@@ -260,12 +258,61 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
       revert InvalidBorrowerAccountPrincipalTransferTarget();
     }
 
-    IWildcatArchController controller = IWildcatArchController(_archController);
-    if (controller.isRegisteredBorrower(account) || principalOf[newPrincipal] != address(0)) {
+    if (_isRegisteredBorrower(account) || principalOf[newPrincipal] != address(0)) {
       revert AmbiguousBorrowerIdentity();
     }
-    if (!controller.isRegisteredBorrower(newPrincipal)) {
+    if (!_isRegisteredBorrower(newPrincipal)) {
       revert BorrowerPrincipalNotRegistered();
+    }
+  }
+
+  function _archControllerOwner() internal view returns (address controllerOwner) {
+    address controller = _archController;
+    assembly ('memory-safe') {
+      // owner() has no arguments, so one scratch word can do both jobs. mstore leaves the
+      // selector at 0x1c; call those last four bytes and reuse 0x00 for the return word.
+      mstore(0, 0x8da5cb5b)
+      if iszero(staticcall(gas(), controller, 0x1c, 0x04, 0, 0x20)) {
+        // don't hide an ArchController error behind this helper. copy the complete revert data
+        // over scratch space and bubble it up. this path ends here, so nothing needs that memory.
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+
+      // owner() owes us one clean ABI address: a complete word with zeroes above the low 160 bits.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      controllerOwner := mload(0)
+      if shr(160, controllerOwner) {
+        revert(0, 0)
+      }
+    }
+  }
+
+  function _isRegisteredBorrower(address borrower) internal view returns (bool isRegistered) {
+    address controller = _archController;
+    assembly ('memory-safe') {
+      // same scratch-space layout, now with borrower in the second word. starting at 0x1c gives
+      // us four selector bytes followed by one normal address slot, for 0x24 bytes total.
+      mstore(0, 0x0787c1fe)
+      mstore(0x20, borrower)
+      if iszero(staticcall(gas(), controller, 0x1c, 0x24, 0, 0x20)) {
+        // preserve the controller's revert exactly. the full payload can overwrite scratch
+        // because this branch immediately reverts.
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+
+      // Solidity's bool decoder requires one full word containing exactly zero or one. extra
+      // return data is harmless, so only validate the first word.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      isRegistered := mload(0)
+      if gt(isRegistered, 1) {
+        revert(0, 0)
+      }
     }
   }
 

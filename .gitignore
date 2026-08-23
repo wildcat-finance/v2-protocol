@@ -1,7 +1,13 @@
 broadcast
 out/
+out-test-next/
+out-test-next-coverage/
+out-legacy/
 ir-out/
 cache/
+cache-test-next/
+cache-test-next-coverage/
+cache-legacy/
 ir-cache/
 deploy-out/
 deploy-cache/
@@ -15,6 +21,7 @@ typechain-types
 hh-cache
 artifacts
 coverage/
+lcov.info
 .env
 docs/agent/
 deployments/*/*-0x*/
@@ -44,3 +51,10 @@ deployments/*/ceremony-authority-helper-phase-*.json
 deployments/anvil/
 deployments/*/reconcile-report.json
 audits/
+
+# Local audit/fuzzing artifacts
+PROPERTIES.md
+echidna.yaml
+medusa.json
+fizz_data/
+test/fizz/

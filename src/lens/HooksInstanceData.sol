@@ -55,16 +55,9 @@ library HooksInstanceDataLib {
   function fill(
     HooksInstanceData memory data,
     address hooksAddress,
-    IHooksFactory factory
-  ) internal view {
-    fill(data, hooksAddress, factory, address(0));
-  }
-
-  function fill(
-    HooksInstanceData memory data,
-    address hooksAddress,
     IHooksFactory factory,
-    address administrator
+    address administrator,
+    HooksInstanceKind kind
   ) internal view {
     data.hooksAddress = hooksAddress;
     if (administrator != address(0)) {
@@ -72,7 +65,7 @@ library HooksInstanceDataLib {
     }
 
     IHooks hooks = IHooks(hooksAddress);
-    data.kind = HooksConfigDataLib.kindForVersion(hooks.version());
+    data.kind = kind;
 
     if (data.administrator == address(0)) {
       (bool hasAdministrator, address currentAdministrator) = _tryReadAddress(

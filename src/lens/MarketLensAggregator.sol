@@ -154,7 +154,9 @@ contract MarketLensAggregator is IMarketLensAggregator {
     address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);
     arr = new HooksInstanceData[](hooksInstances.length);
     for (uint256 i; i < hooksInstances.length; i++) {
-      arr[i].fill(hooksInstances[i], factory, borrower);
+      address hooksInstance = hooksInstances[i];
+      HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksInstance);
+      arr[i].fill(hooksInstance, factory, borrower, kind);
     }
   }
 
@@ -333,7 +335,9 @@ contract MarketLensAggregator is IMarketLensAggregator {
       try factory.getHooksInstancesForBorrower(borrower) returns (address[] memory hooksInstances) {
         arr = new HooksInstanceData[](hooksInstances.length);
         for (uint256 i; i < hooksInstances.length; i++) {
-          arr[i].fill(hooksInstances[i], factory, borrower);
+          address hooksInstance = hooksInstances[i];
+          HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksInstance);
+          arr[i].fill(hooksInstance, factory, borrower, kind);
         }
         return arr;
       } catch {
@@ -361,7 +365,8 @@ contract MarketLensAggregator is IMarketLensAggregator {
       for (uint256 j; j < hooksInstances.length; j++) {
         address hooksAddress = hooksInstances[j];
         if (!_containsHooksInstanceAddress(arr, uniqueCount, hooksAddress)) {
-          arr[uniqueCount].fill(hooksAddress, factory, borrower);
+          HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksAddress);
+          arr[uniqueCount].fill(hooksAddress, factory, borrower, kind);
           uniqueCount++;
         }
       }

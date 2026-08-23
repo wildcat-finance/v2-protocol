@@ -188,6 +188,7 @@ migrate_sepolia_authority_helper() {
 
   node scripts/authority-migration.js phase-two \
     --network anvil \
+    --phase-one-run-state deployments/anvil/run-state-authority-helper-phase-1.json \
     --new-executor "$EXECUTOR"
   phase_two="deployments/anvil/plan-authority-helper-phase-2.json"
   node scripts/plan.js execute --plan "$phase_two" --rpc "$RPC" \
@@ -201,6 +202,7 @@ migrate_sepolia_authority_helper() {
   node scripts/authority-migration.js phase-three \
     --network anvil \
     --rpc-url "$RPC" \
+    --phase-one-run-state deployments/anvil/run-state-authority-helper-phase-1.json \
     --old-executor "$old_executor" \
     --new-executor "$EXECUTOR"
   phase_three="deployments/anvil/plan-authority-helper-phase-3.json"

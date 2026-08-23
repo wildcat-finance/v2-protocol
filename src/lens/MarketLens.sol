@@ -193,7 +193,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   }
 
   function getTokensInfo(
-    address[] memory tokens
+    address[] calldata tokens
   ) external view returns (TokenMetadata[] memory info) {
     _delegateCoreHelper();
   }
@@ -224,7 +224,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   }
 
   function getMarketsData(
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketData[] memory data) {
     _delegateCoreHelper();
   }
@@ -234,7 +234,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   }
 
   function getMarketsDataV2(
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketDataV2_5[] memory data) {
     _delegateCoreHelper();
   }
@@ -341,7 +341,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
 
   function getMarketsDataWithLenderStatus(
     address lender,
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (MarketDataWithLenderStatus[] memory data) {
     _delegateCoreHelper();
   }
@@ -359,26 +359,26 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
 
   function getLenderAccountData(
     address lender,
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (LenderAccountData[] memory arr) {
     _delegateCoreHelper();
   }
 
   function getLenderAccountsData(
     address marketAddress,
-    address[] memory lenders
+    address[] calldata lenders
   ) external view returns (LenderAccountData[] memory data) {
     _delegateCoreHelper();
   }
 
   function queryLenderAccount(
-    LenderAccountQuery memory query
+    LenderAccountQuery calldata query
   ) external view returns (LenderAccountQueryResult memory result) {
     _delegateCoreHelper();
   }
 
   function queryLenderAccounts(
-    LenderAccountQuery[] memory queries
+    LenderAccountQuery[] calldata queries
   ) external view returns (LenderAccountQueryResult[] memory result) {
     _delegateCoreHelper();
   }
@@ -396,7 +396,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
 
   function getWithdrawalBatchesData(
     address market,
-    uint32[] memory expiries
+    uint32[] calldata expiries
   ) external view returns (WithdrawalBatchData[] memory data) {
     _delegateCoreHelper();
   }
@@ -407,7 +407,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
 
   function getWithdrawalBatchesDataWithLenderStatus(
     address market,
-    uint32[] memory expiries,
+    uint32[] calldata expiries,
     address lender
   ) external view returns (WithdrawalBatchDataWithLenderStatus[] memory statuses) {
     _delegateCoreHelper();
