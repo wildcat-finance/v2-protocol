@@ -3,8 +3,8 @@
 This rehearsal forks current Sepolia state, migrates to the replacement
 authority-helper model, generates the v2.5 activation plan, and leaves a pinned
 Anvil process for the locked-UI walkthrough. `--full` also executes activation,
-finalizes inventory, generates retirement, executes it, and reconciles the
-result.
+finalizes inventory, runs the standard and revolving canaries, validates the
+handoff, executes retirement, refreshes the handoff, and reconciles the result.
 
 It never mutates Sepolia. It deliberately replaces local
 `deployments/anvil/` and stops any Anvil process on the selected port.
@@ -22,6 +22,8 @@ It never mutates Sepolia. It deliberately replaces local
 - activation has 24 cards: 14 deployments and 10 calls;
 - eight activation owner calls are forwarded through the helper;
 - the helper remains ArchController owner throughout activation;
+- the standard and revolving canaries both deposit, queue, close, and finalize;
+- the activation and post-retirement handoffs both pass `--check`;
 - retirement contains two ordered forwarded removals per superseded factory,
   with no market removal or ownership handoff; and
 - all plan predicates, inventory finalization, and reconciliation checks pass.
@@ -41,10 +43,12 @@ unset FORK_FALLBACK_RPC_URL
 export ANVIL_PORT=8547
 export ANVIL_STARTUP_TIMEOUT=120
 export RELEASE_TAG=v2-5
+export PRODUCTION_SOLIDITY_BASELINE=49f891c93768f9986f985204c2f533c77c5e6f60
 
 git branch --show-current
 git rev-parse HEAD
 git status --short
+git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src
 
 forge --version
 cast --version
@@ -94,8 +98,8 @@ The launcher:
 4. time-warps only the disposable fork through the one-hour SphereX delay;
 5. finalizes the helper alias after the complete authority preflight;
 6. generates and validates the 24-card activation plan; and
-7. either leaves Anvil running or completes activation and retirement in
-   `--full` mode.
+7. either leaves Anvil running or completes activation, canaries, handoff
+   validation, retirement, and the final handoff refresh in `--full` mode.
 
 The disposable new executor is Anvil account 1:
 `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`.

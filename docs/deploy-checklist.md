@@ -6,9 +6,9 @@ Activation and retirement are separate releases. Activation deploys and register
 
 ## A. Fork test drive
 
-- [ ] Record the reviewed source revision and preserve any existing `deployments/anvil/`. The launcher replaces that directory and stops only an Anvil process using the selected port.
+- [ ] Record the reviewed source revision, confirm `git diff --quiet 49f891c93768f9986f985204c2f533c77c5e6f60 -- src`, and preserve any existing `deployments/anvil/`. The launcher replaces that directory and stops only an Anvil process using the selected port.
 - [ ] Run the full deploy-profile protocol test suite and a deploy-profile source size build.
-- [ ] Run `npm ci && npm test` in `deploy-ui/`.
+- [ ] In `deploy-ui/`, run `npm ci`, `npm audit`, `npm test`, `npm run build`, and `SEPOLIA_RPC_URL="$FORK_RPC_URL" npm run test:fork` after the deploy-profile build has produced current artifacts.
 - [ ] Use one explicitly selected archive RPC and confirm its chain ID and historical storage access. Do not add an implicit fallback.
 - [ ] Start a fresh fork with `FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net ANVIL_PORT=8547 bash script/deploy/v2-5/rehearse.sh`.
 - [ ] Confirm all three authority-migration plans pass: five old-executor cards, three new-executor ArchController cards, and three new-executor SphereX engine cards after the one-hour delay.
@@ -23,7 +23,7 @@ Activation and retirement are separate releases. Activation deploys and register
 - [ ] Build and walk a separate locked EOA retirement package. Verify every predicate, finalize it with `retirement/02-finalize-inventory.sh`, reconcile again, and confirm the helper remained the owner.
 - [ ] Preserve the plan, package digest, run-states, transaction hashes, logs, fork block, and final inventory as rehearsal evidence. Stop only the recorded Anvil PID.
 
-`rehearse.sh --full` performs the same activation/finalization/retirement sequence headlessly. It is useful as an engine check but does not replace the locked-UI acceptance run.
+`rehearse.sh --full` performs activation/finalization, the standard and revolving canaries, handoff generation/checking, retirement, and the final handoff refresh headlessly. It is useful as an engine check but does not replace the locked-UI acceptance run.
 
 ## B. Live Sepolia activation
 
@@ -81,9 +81,9 @@ Across the currently rehearsed activation and retirement plans, the Foundation h
 ## Reference facts
 
 - Foundation Safe: `0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae`, version 1.4.1, threshold 3 at the rehearsal snapshot.
-- Pre-optimization activation rehearsal gas: 14,417,671, 19,277,694, and 15,179,791. Regenerate for the reviewed `6c2cbfb` protocol source.
-- Pre-optimization retirement rehearsal gas: 94,042 for one target. Regenerate from the post-activation inventory.
+- Historical activation rehearsal gas: 14,417,671, 19,277,694, and 15,179,791. Regenerate from the final production source and current Safe nonce.
+- Historical retirement rehearsal gas: 94,042 for one target. Regenerate from the post-activation inventory.
 - Safe nonces, CREATE2 addresses, package hashes, gas use, and retirement target counts must be regenerated at release freeze.
 - `FOUNDRY_PROFILE=deploy` is mandatory. The revolving market creation code fits one init-code storage contract under that exact profile, and plan generation rejects it if that stops being true.
-- Current revolving market creation code is 23,230 bytes. The stored runtime is 23,231 bytes including its leading `STOP`, leaving 1,345 bytes of EIP-170 margin.
+- Current revolving market creation code is 23,343 bytes. The stored runtime is 23,344 bytes including its leading `STOP`, leaving 1,232 bytes of EIP-170 margin.
 - Canonical Safe libraries: MultiSend `0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526` and CreateCall `0x9b35Af71d77eaf8d7e40252370304687390A1A52`.

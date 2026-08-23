@@ -25,6 +25,7 @@ revision first.
 | Activation release | `v2-5` |
 | Retirement release | `v2-5-retirement` |
 | Foundry profile | `deploy` |
+| Production Solidity baseline | `49f891c93768f9986f985204c2f533c77c5e6f60` |
 | Activation shape | 24 cards: 14 deployments and 10 calls |
 | Current retirement shape | 18 calls for nine superseded factories |
 
@@ -55,6 +56,7 @@ export OLD_EXECUTOR=0xca732651410E915090d7A7D889A1E44eF4575fcE
 export NEW_EXECUTOR=0xca7007a75296b532ce1606d9e130eaa849800ca7
 export ARCH_CONTROLLER=0xC003f20F2642c76B81e5e1620c6D8cdEE826408f
 export LEGACY_HELPER=0xa476920af80B587f696734430227869795E2Ea78
+export PRODUCTION_SOLIDITY_BASELINE=49f891c93768f9986f985204c2f533c77c5e6f60
 export REHEARSED_COMMIT='<full commit from the successful Anvil rehearsal>'
 ```
 
@@ -65,6 +67,7 @@ git branch --show-current
 git rev-parse HEAD
 git status --short
 test "$(git rev-parse HEAD)" = "$REHEARSED_COMMIT"
+git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src
 test "$(cast chain-id --rpc-url "$RPC_URL")" = 11155111
 
 FOUNDRY_PROFILE=deploy forge test

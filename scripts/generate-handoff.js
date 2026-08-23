@@ -142,13 +142,17 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
     changed: ["version() return value changed from '2' to '2.5'."],
     added: [
-      "borrower(), pendingBorrower(), requestBorrowerTransfer(address), cancelBorrowerTransfer(), and acceptBorrowerTransfer().",
-      "queueWithdrawalScaled(uint104) queues an exact scaled withdrawal amount.",
+      "borrower(), borrowerPrincipal(), borrowerIdentityRegistry(), pendingBorrower(), pendingBorrowerPrincipal(), requestBorrowerTransfer(address), cancelBorrowerTransfer(), and acceptBorrowerTransfer().",
+      "wrapperFactory(), registerWrapper(address), and registeredWrapper().",
+      "WrapperRegistered(address) event plus NotWrapperFactory, WrapperAlreadyRegistered, and CannotNukeWrapper errors.",
+      "queueWithdrawalScaled(uint256) queues an exact scaled withdrawal amount.",
       "scaledTransferRounding() returns keccak256('scaleAmountDown').",
       "executePendingAnnualInterestBipsReduction() applies a matured hooks proposal.",
       "AprReductionNotReduction error.",
       "ExecutePendingAprReductionNotEnabled error.",
+      "WithdrawalBatchKeyAlreadyExists error.",
     ],
+    removed: ["NullBuyBackAmount and BuyBackOnDelinquentMarket errors."],
   },
   {
     component: "Borrower identity registry",
@@ -172,6 +176,23 @@ const ABI_CHANGES_SINCE_V2 = [
     added: [
       "Permissionless deterministic deployment of borrower-administered access-list providers.",
       "Two-step provider administrator transfers and enumerable membership management.",
+    ],
+  },
+  {
+    component: "HooksFactory and HooksFactoryRevolving",
+    artifactNames: [
+      "src/IHooksFactory.sol:IHooksFactory",
+      "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving",
+    ],
+    changed: [
+      "HooksTemplateAdded, HooksTemplateDisabled, and HooksTemplateFeesUpdated identify the caller and preserve complete fee history.",
+      "HooksInstanceDeployed identifies the template, administrator, deployer, name, and version.",
+      "MarketDeployed identifies borrower, principal, identity registry, requested hooks, and accepted hooks; configuration and hook payload move to companion events.",
+      "getMarketParameters() includes the borrower identity registry and wrapper factory.",
+    ],
+    added: [
+      "HooksInstanceRoleProviders, HooksInstanceAdministratorTransferred, MarketDeploymentConfig, MarketHooksData, and RevolvingMarketDeployed events.",
+      "borrowerIdentityRegistry(), wrapperFactory(), hook-administrator indexing, and administrator-transfer callback views.",
     ],
   },
   {
@@ -203,6 +224,11 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
     changed: [],
     added: [
+      "administrator(), pendingAdministrator(), requestAdministratorTransfer(address), cancelAdministratorTransfer(), and acceptAdministratorTransfer().",
+      "AdministratorTransferRequested, AdministratorTransferCancelled, and AdministratorTransferred events.",
+      "RoleProviderAdded, RoleProviderUpdated, and RoleProviderRemoved carry administrator, TTL, and complete pull/push index history.",
+      "AccountAccessGranted and AccountAccessRevoked identify provider, account, and caller.",
+      "NameUpdated, MinimumDepositUpdated, FixedTermUpdated, and PeriodicTermUpdated carry actor plus previous/new state where applicable.",
       "isMarketTransferDisabled(address) reports the immutable per-market transfer policy.",
       "DepositHookNotEnabled error.",
     ],
@@ -217,7 +243,10 @@ const ABI_CHANGES_SINCE_V2 = [
     changed: [
       "HooksConfigData return tuples append useOnExecutePendingAnnualInterestBipsReduction; consumers must regenerate ABI tuple decoders.",
     ],
-    added: [],
+    added: [
+      "Borrower, principal, pending borrower, hook administrator, provider administration, transfer policy, wrapper, and revolving-credit state in the v2.5 market and hooks views.",
+      "Core, aggregation, and live helper routing behind the MarketLens facade.",
+    ],
   },
   {
     component: "Wildcat4626WrapperFactory",
@@ -226,6 +255,8 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
     changed: [],
     added: [
+      "v1Factory(), wrapperForMarket(address), createWrapper(address), isFloorRoundingMarket(address), and WrapperDeployed(address,address).",
+      "WrapperAlreadyExists, LegacyMarketsNotSupported, UnsupportedMarketRounding, NotRegisteredMarket, InvalidV1Factory, and ZeroAddress errors.",
       "MarketTransfersDisabled(address) error.",
       "UnsupportedMarketTransferPolicy(address,address) error.",
     ],
@@ -237,15 +268,29 @@ const ABI_CHANGES_SINCE_V2 = [
       "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving",
     ],
     changed: [],
-    added: ["commitmentFeeBips() view.", "drawnAmount() view."],
+    added: [
+      "commitmentFeeBips() view.",
+      "drawnAmount() view.",
+      "DrawnAmountUpdated(uint256,uint256) event.",
+    ],
   },
   {
     component: "Market event surface",
     artifactNames: [
       "src/interfaces/IMarketEventsAndErrors.sol:IMarketEventsAndErrors",
     ],
-    changed: [],
-    removed: ["SanctionedAccountAssetsSentToEscrow event."],
+    changed: [
+      "MaxTotalSupplyUpdated, ProtocolFeeBipsUpdated, Borrow, MarketClosed, and FeesCollected identify the acting borrower, caller, collector, or fee recipient and preserve previous/new values where applicable.",
+      "AnnualInterestBipsUpdated and ReserveRatioBipsUpdated are replaced by the atomic AnnualInterestAndReserveRatioBipsUpdated event.",
+    ],
+    added: [
+      "BorrowerTransferRequested, BorrowerTransferCancelled, and BorrowerTransferred events preserve operational borrower and principal history.",
+      "WrapperRegistered(address) event.",
+    ],
+    removed: [
+      "AccountSanctioned event.",
+      "SanctionedAccountAssetsSentToEscrow event.",
+    ],
   },
 ];
 
@@ -560,7 +605,9 @@ function buildHandoff({
       runMetadata
     );
     if (!contract) {
-      throw new Error(`Missing release deployment ${definition.key}_${release}`);
+      throw new Error(
+        `Missing release deployment ${definition.key}_${release}`
+      );
     }
     return contract;
   });
@@ -695,7 +742,10 @@ function validateHandoff(
       Object.values(deployments).map(addressKey)
     );
     const releaseContractsByKey = new Map(
-      handoff.releaseContracts.map((contract) => [contract.deploymentKey, contract])
+      handoff.releaseContracts.map((contract) => [
+        contract.deploymentKey,
+        contract,
+      ])
     );
     for (const definition of RELEASE_CONTRACTS) {
       const deploymentKey = `${definition.key}_${expectedRelease}`;
@@ -706,7 +756,9 @@ function validateHandoff(
         contract.forgeArtifactName !== definition.forgeArtifactName ||
         contract.abiArtifactName !== definition.abiArtifactName
       ) {
-        errors.push(`release contract ${deploymentKey} has an invalid artifact name`);
+        errors.push(
+          `release contract ${deploymentKey} has an invalid artifact name`
+        );
       }
     }
     for (const contract of handoff.releaseContracts) {

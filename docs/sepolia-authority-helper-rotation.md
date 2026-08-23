@@ -3,7 +3,7 @@
 Status: implemented and rehearsed on a pinned Sepolia fork. No live transaction
 is authorized or recorded by this document.
 
-Last reviewed: 2026-08-21
+Last reviewed: 2026-08-23
 
 ## Objective
 
@@ -30,7 +30,7 @@ The relevant live contracts are:
 - Legacy `WildcatMarketControllerFactory`:
   `0xEb97C8E52d7Fdf978a64a538F28271Fd8499b864`
 
-Read against Sepolia on 2026-08-21:
+Read against Sepolia at block `11548961` on 2026-08-23:
 
 - the existing helper owns the ArchController;
 - the old executor is the only usable authorized account in that helper;

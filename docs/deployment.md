@@ -104,7 +104,7 @@ Set the deployment profile for every Forge and Node step:
 export FOUNDRY_PROFILE=deploy
 ```
 
-This is mandatory. The default profile can encounter both EIP-170 and `Stack too deep` failures. The `deploy` profile uses via-IR and optimizer runs `44`, produces the exact creation code consumed by the plan, and currently reports `HooksFactoryRevolving` at 17,364 runtime bytes. Do not substitute a different profile after rehearsal.
+This is mandatory. The default profile can encounter both EIP-170 and `Stack too deep` failures. The `deploy` profile uses via-IR and optimizer runs `44`, produces the exact creation code consumed by the plan, and currently reports `HooksFactoryRevolving` at 17,293 runtime bytes. Do not substitute a different profile after rehearsal.
 
 Set the testnet execution context:
 
@@ -113,7 +113,7 @@ export DEPLOYMENTS_NETWORK=sepolia
 export RELEASE_TAG=v2-5
 export OWNER_MODE=plan
 export RPC_URL='<sepolia RPC URL>'
-export EXPECTED_EXECUTOR='<dev EOA that temporarily owns the ArchController>'
+export EXPECTED_EXECUTOR='<dev EOA authorized by the persistent Sepolia helper>'
 export PVT_KEY_SEPOLIA='<dev EOA private key>'
 ```
 
@@ -155,7 +155,7 @@ forge script \
 
 ### 03: revolving hooks factory
 
-Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,230 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,231 bytes with 1,345 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
+Use the same environment as 02. Run 01 and 02 first. Under the locked deploy profile, the revolving market creation code is 23,343 bytes. The stored runtime adds one leading `STOP`, bringing it to 23,344 bytes with 1,232 bytes of EIP-170 margin. Plan generation checks the payload before producing a deployment card, and the factory uses the hash of that exact creation code for CREATE2 address prediction.
 
 ```bash
 forge script \
@@ -374,7 +374,7 @@ node scripts/plan.js bundle-simulate \
   --safe 0xC15bE5214978d1fc509ECdd4f9D5BC067C94D9Ae
 ```
 
-The pre-optimization ceremony rehearsal fit into three activation bundles and used 14,417,671, 19,277,694, and 15,179,791 gas. Those numbers are historical engine evidence, not estimates for the reviewed `6c2cbfb` protocol source or release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
+The earlier ceremony rehearsal fit into three activation bundles and used 14,417,671, 19,277,694, and 15,179,791 gas. Those numbers are historical engine evidence, not estimates for the current production source or release constants. Every bundle must be regenerated and simulated against the current Safe nonce and remain below the 20,000,000 gas ceiling.
 
 Any plan change or intervening Safe transaction invalidates the package. Read the nonce again, regenerate, and repeat the simulation.
 
@@ -454,7 +454,7 @@ node scripts/plan.js ceremony-package \
   --bundles deployments/mainnet/bundles-v2-5-retirement
 ```
 
-The pre-optimization two-call retirement rehearsal fit into one Safe bundle and used 94,042 gas. Regenerate and simulate it from the post-activation inventory, then run it as a separate signer session. Each threshold signer approves once. After execution, derive or export `run-state-v2-5-retirement.json`, verify it, and finalize:
+The earlier two-call retirement rehearsal fit into one Safe bundle and used 94,042 gas. Treat that as historical engine evidence. Regenerate and simulate retirement from the post-activation inventory, then run it as a separate signer session. Each threshold signer approves once. After execution, derive or export `run-state-v2-5-retirement.json`, verify it, and finalize:
 
 ```bash
 export RUN_STATE=deployments/mainnet/run-state-v2-5-retirement.json

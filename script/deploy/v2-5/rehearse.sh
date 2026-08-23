@@ -12,8 +12,9 @@
 # (steps 01-07), then leave anvil RUNNING and print how to drive the plan
 # from deploy-ui (EOA mode) or the CLI.
 #
-# --full: execute and verify activation, then generate, execute, and verify
-# the separate retirement ceremony. This is the headless end-to-end rehearsal.
+# --full: execute and verify activation, run Sepolia-shaped canaries, validate
+# the downstream handoff, then generate, execute, and verify the separate
+# retirement ceremony. This is the headless end-to-end rehearsal.
 #
 # --resume: restart a crashed Anvil process from the periodically persisted
 # state without reseeding deployments/anvil or regenerating the plan.
@@ -367,6 +368,17 @@ if [[ "$RUN_MODE" == "--full" ]]; then
     --run-state "deployments/anvil/run-state-${RELEASE_TAG}.json" --rpc "$RPC" | tail -1
   assert_helper_owns_arch_controller
 
+  if [[ "$FORK_NETWORK" == "sepolia" ]]; then
+    echo "== --full: running standard and revolving canaries"
+    BORROWER="$EXECUTOR" OWNER_MODE=direct \
+      bash script/deploy/v2-5/09-canary-market.sh | tail -24
+    assert_anvil_alive
+  fi
+
+  echo "== --full: generating and validating the activation handoff"
+  node scripts/generate-handoff.js --network anvil --release "$RELEASE_TAG" | tail -4
+  node scripts/generate-handoff.js --network anvil --release "$RELEASE_TAG" --check | tail -3
+
   echo "== --full: generating the separate retirement plan"
   bash script/deploy/v2-5/retirement/01-generate-plan.sh
   RETIREMENT_RUN_STATE="deployments/anvil/run-state-${RELEASE_TAG}-retirement.json"
@@ -378,6 +390,9 @@ if [[ "$RUN_MODE" == "--full" ]]; then
   node scripts/plan.js verify --plan "$RETIREMENT_PLAN" \
     --run-state "$RETIREMENT_RUN_STATE" --rpc "$RPC" | tail -1
   assert_helper_owns_arch_controller
+  echo "== --full: refreshing and validating the post-retirement handoff"
+  node scripts/generate-handoff.js --network anvil --release "$RELEASE_TAG" | tail -4
+  node scripts/generate-handoff.js --network anvil --release "$RELEASE_TAG" --check | tail -3
   kill "$ANVIL_PID" 2>/dev/null || true
   wait "$ANVIL_PID" 2>/dev/null || true
   echo "== Full rehearsal complete. Clean up with: rm -rf deployments/anvil"

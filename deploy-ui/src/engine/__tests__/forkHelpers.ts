@@ -20,17 +20,24 @@ export function withCurrentFixtureBytecode(
   root: string,
 ): DeploymentPlan {
   const plan = structuredClone(fixture)
-  const artifacts: Record<string, string> = {
-    'deploy-token': join(root, 'deploy-out/mock/MockERC20.sol/MockERC20.json'),
-    'deploy-market': join(root, 'deploy-out/MarketLens.t.sol/MockV1MarketLike.json'),
+  const artifacts: Record<string, { name: string; path: string }> = {
+    'deploy-token': {
+      name: 'script/mock/MockERC20.sol:MockERC20',
+      path: join(root, 'deploy-out/mock/MockERC20.sol/MockERC20.json'),
+    },
+    'deploy-market': {
+      name: 'test-next/mocks/LensMocks.sol:LensV1MarketMock',
+      path: join(root, 'deploy-out/LensMocks.sol/LensV1MarketMock.json'),
+    },
   }
   for (const transaction of plan.transactions) {
     if (transaction.kind !== 'deploy') continue
-    const artifactPath = artifacts[transaction.id]
-    if (!artifactPath) continue
-    const artifact = JSON.parse(readFileSync(artifactPath, 'utf8')) as {
+    const currentArtifact = artifacts[transaction.id]
+    if (!currentArtifact) continue
+    const artifact = JSON.parse(readFileSync(currentArtifact.path, 'utf8')) as {
       bytecode: { object: Hex }
     }
+    transaction.artifactName = currentArtifact.name
     transaction.initCode = artifact.bytecode.object
   }
   return plan

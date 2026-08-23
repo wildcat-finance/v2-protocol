@@ -3,16 +3,16 @@
 Deferred tasks noted during the v2.5 pre-release cleanup pass (July 2026).
 These are not release blockers; they are queued for after the doc pass.
 
-## Deployment scripts for the v2.5 release — PARTIALLY DONE
+## Deployment scripts for the v2.5 release — DONE; ACCEPTANCE PENDING
 
 The ordered `script/deploy/v2-5/01` through `09` flow now covers the wrapper factory, standard and revolving factories, borrower identity registry, lens, owner actions, registration, plan generation, inventory finalization, and canary market. The market-transfer checkpoint updated factory and lens deployment inputs for the identity registry.
 
-This is still not the final ceremony package. It must be regenerated and independently rehearsed after hooks/providers, RCF draw fees, and the event/lens hard cut are complete.
+The source-driven ceremony has been regenerated from the post-audit integration source and passes the headless Sepolia-fork activation, canary, handoff, and retirement path. The final live package still must be generated and independently walked through the locked UI from the exact commit selected for deployment.
 
 `script/DeployPeriodicTermHooksV21.sol` remains deprecated: it targets the v2.1 rollout and predates the current `MarketLens` constructor.
 
 - Delete `DeployPeriodicTermHooksV21.sol` after confirming no remaining operator documentation or automation references it.
-- Regenerate the v2.5 ceremony package only after the remaining release-blocking contracts and ABIs are frozen.
+- Preserve the final locked-UI rehearsal package and evidence only after confirming the deployment commit still matches the rehearsed production source.
 
 ## prettier-plugin-solidity upgrade
 
