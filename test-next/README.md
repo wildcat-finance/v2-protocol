@@ -1,8 +1,10 @@
-# Canonical Foundry Suite
+# Candidate Canonical Foundry Suite
 
-This tree is the default Foundry suite. It uses the same compiler settings as deployment builds.
-The former suite remains untouched under `test/` as a frozen parity oracle for one review cycle;
-it does not participate in ordinary or deploy-profile test discovery.
+This tree is the default Foundry suite while semantic parity is reviewed. It uses the same compiler
+settings as deployment builds.
+The former suite remains untouched under `test/` as a frozen parity oracle; it does not participate
+in ordinary or deploy-profile test discovery. The integration-intent gaps that must close before
+the cutover is final are tracked in `parity/integration-intents.md`.
 
 Run it with:
 

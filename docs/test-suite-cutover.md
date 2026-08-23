@@ -1,6 +1,6 @@
 # Canonical Foundry Test-Suite Cutover
 
-Status: complete on `refactor/test-suite-next`.
+Status: provisional on `refactor/test-suite-next`; semantic integration parity is under review.
 
 The ground-up suite under `test-next/` is now the default Foundry and deployment-profile test
 tree. The former `test/` tree is unchanged and remains available through the explicit `legacy`
@@ -28,9 +28,11 @@ replacement passed all 656 entries; the frozen oracle passed all 1,797 entries. 
 also passed the complete replacement suite in 3m34.50s with a 4.2 GiB peak.
 
 The lower entry count is not a claim that fewer behaviors matter. Thirty-one family ledgers under
-`test-next/parity/` map the legacy properties to direct replacements, stronger composed/runtime
-properties, deliberate handoffs, or explicit retirements. One generated invariant action now
-drives six hook/market cells instead of compiling the fixture and property set six times.
+`test-next/parity/` record the initial mapping to direct replacements, stronger composed/runtime
+properties, deliberate handoffs, or explicit retirements. A later intent-level audit found that
+several cross-contract handoffs were too broad: the component behavior exists, but the production
+composition or required deterministic sequence does not. The open integration requirements and
+exit gate are tracked in `test-next/parity/integration-intents.md`.
 
 ## Maintenance model
 

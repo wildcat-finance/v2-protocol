@@ -1,5 +1,10 @@
 # Parity Ledger
 
+The family ledgers are an initial mapping, not a completed semantic-parity claim. The later
+integration-intent review found cross-contract guarantees that were split across component tests
+without retaining their production composition or deterministic sequence. Those open requirements
+and the final exit gate live in `integration-intents.md`.
+
 `legacy-suite.json` is the machine-readable baseline for the tracked legacy suite. It is generated
 from Foundry's canonical cache and artifacts rather than source-name heuristics:
 
