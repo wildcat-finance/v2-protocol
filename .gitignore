@@ -21,6 +21,7 @@ typechain-types
 hh-cache
 artifacts
 coverage/
+lcov.info
 .env
 docs/agent/
 deployments/*/*-0x*/

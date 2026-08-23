@@ -9,7 +9,8 @@
 - [Known issues](./Known%20Issues.md) - list of some things we know are issues or which might seem like issues but are intentional
 - [Changelog](./CHANGELOG.md) - changes between V1, V2, and V2.5
 - [V2.5 Audit Delta](./v2.5-audit-delta.md) - consolidated pre-audit change inventory, findings, and coverage appendix for the V2.5 release
-- [Test suite inventory](./test-suite-inventory.md) - current Foundry suite shape, compile-cost analysis, and incremental restructuring plan
+- [Canonical Foundry test suite](./test-suite-cutover.md) - commands, maintenance contract,
+  parity evidence, and measured cutover result
 - [EIP-4626 Wrapper](./EIP-4626.md) - ERC-4626 wrapper for Wildcat market tokens
 - [Hooks](./hooks/Hooks.md)
     - [How hooks work](./hooks/How%20Hooks%20Work.md)

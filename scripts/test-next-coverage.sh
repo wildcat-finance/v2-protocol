@@ -8,6 +8,11 @@ spherex_source='src/spherex/SphereXProtectedRegisteredBase.sol'
 coverage_patch='docs/coverage-spherex.patch'
 patch_applied=false
 
+if [[ -z "${FOUNDRY_TEST:-}" ]]; then
+  echo 'error: set FOUNDRY_TEST to a focused test-next root; whole-suite Forge coverage is compiler-blocked' >&2
+  exit 1
+fi
+
 restore_spherex_source() {
   if [[ "$patch_applied" == true ]]; then
     git apply -R "$coverage_patch"

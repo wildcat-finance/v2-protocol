@@ -1,6 +1,6 @@
 # Canonical Foundry Test-Suite Cutover
 
-Status: complete on `refactor/test-suite-next`; ready for branch review.
+Status: canonical Foundry suite as of 2026-08-23.
 
 The ground-up suite under `test-next/` is now the default Foundry and deployment-profile test
 tree. The former `test/` tree is unchanged and remains available through the explicit `legacy`
@@ -73,6 +73,9 @@ FOUNDRY_PROFILE=deploy forge test
 
 # Frozen pre-cutover oracle; audit-injected test/fizz harnesses are excluded
 yarn test:legacy:fixed
+
+# Focused accurate coverage; whole-suite Forge coverage is compiler-blocked
+FOUNDRY_TEST=test-next/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
 `test:next` and `test:next:fixed` remain as transitional aliases. The `test-next` profile keeps an
@@ -94,5 +97,4 @@ lane later without changing the canonical test architecture.
 
 Foundry still prints a non-fatal `unresolved symbol locals` diagnostic for the SphereX modifier at
 `SphereXProtectedRegisteredBase.sol:153`. Canonical compilation, test execution, artifact metrics,
-and deployment-profile execution all return success. Remaining instrumentation notes are retained
-in `test-next/REVIEW_NOTES.md` for the review cycle.
+and deployment-profile execution all return success.
