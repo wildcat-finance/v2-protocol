@@ -71,6 +71,7 @@ Completed family ledgers live in `parity/`:
 - `borrower-identity-registry.md`
 - `mock-arch-controller-owner.md`
 - `borrower-account-origination.md`
+- `borrower-account-compatibility.md`
 - `hooks-administrator-transfer.md`
 - `sanctions.md`
 - `reentrancy-guard.md`
