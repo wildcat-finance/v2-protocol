@@ -53,6 +53,9 @@ contract BaseAccessControlsTest is TestKernel {
   address internal callbackNewAdministrator;
 
   function setUp() external {
+    // expired-credential cases need two valid timestamps before the current block
+    if (block.timestamp < 3) vm.warp(3);
+
     mockProvider1 = MockRoleProvider(
       _deployCode('test-next/mocks/MockRoleProvider.sol:MockRoleProvider')
     );
