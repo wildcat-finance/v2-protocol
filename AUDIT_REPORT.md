@@ -8,15 +8,19 @@
 | Branch | `feat/v2.5-gas-optimizations-reviewed` |
 | Assessed revision | `215f4411dc48b83e2ac9a4f4c25a43243b02afec` |
 | Report date | 2026-08-22 |
+| Remediation status updated | 2026-08-23 |
 | Review methods | X-Ray v2, Solidity Auditor v3, Fizz v1, focused Foundry regressions, Medusa stateful fuzzing |
 | Solidity-auditor coverage | 12 independent review passes over 95 in-scope files |
-| Final result | 7 findings: 4 Medium, 3 Low, 0 High, 0 Critical |
+| Final result | 4 reportable findings: 1 Medium, 3 Low, 0 High, 0 Critical; 3 accepted observations |
+| Current disposition | All 4 reportable findings remediated post-audit; 3 observations accepted without protocol changes |
 
 This report consolidates the findings and test results already validated during the audit. It does not claim that the assessed development branch is deployed to mainnet, and it does not represent a guarantee that the code contains no additional vulnerabilities.
 
 ## Executive Summary
 
-The audit identified seven reportable issues. The most important involve wrapper sanctions-escrow provenance, checkpoint-dependent delinquency accounting, withdrawal-batch counter exhaustion, and a sanctions-policy inconsistency in `closeMarket`. Three lower-severity findings concern reserve rounding, metadata compatibility in the lens, and temporary reserve rounding after an APR reduction.
+The audit identified four reportable issues and three accepted observations. The Medium-severity finding concerns wrapper sanctions-escrow provenance. Three Low-severity findings concern reserve rounding, metadata compatibility in the lens, and temporary reserve rounding after an APR reduction. The checkpoint-dependent delinquency behavior, finite withdrawal-batch counter, and close-market surplus settlement were accepted after considering the protocol's operating model, controlled asset list, and complete debt accounting.
+
+All four reportable findings have post-audit remediations recorded below. This is source-branch evidence only and does not establish deployment of those changes.
 
 No finding was rated High or Critical after considering attacker prerequisites, market-listing controls, asset ownership, lifecycle constraints, and the cost or time needed to reach the vulnerable state.
 
@@ -26,13 +30,13 @@ The final Fizz campaign compiled the exact harness through viaIR and executed 50
 
 | ID | Severity | Confidence | Title | Status |
 |---|---:|---:|---|---|
-| F-01 | Medium | 95% | Foreign Sentinel escrow bypasses wrapper sanctions | Open |
-| F-02 | Medium | 90% | Checkpoint-dependent accrual can omit delinquency penalties | Open |
-| F-03 | Medium | 90% | Lifetime `uint104` withdrawal counter enables renewable queue denial | Open |
-| F-04 | Low | 90% | Scaled-space reserve rounding understates required liquidity | Open |
-| F-05 | Low | 80% | Factory-admitted `bytes32` metadata can revert lens batches | Open |
-| F-06 | Low | 75% | APR-cut double rounding creates a one-basis-point reserve gap | Open |
-| F-07 | Medium | 75% | `closeMarket` surplus payout bypasses the raw sanctions draw gate | Open |
+| F-01 | Medium | 95% | Foreign Sentinel escrow bypasses wrapper sanctions | Fixed / authorized escrow provenance |
+| F-02 | N/A | 100% | Checkpoint-based delinquency transitions require state writes | Accepted / Hydra mitigated |
+| F-03 | N/A | 100% | Finite `uint104` withdrawal-batch lifetime counter | Accepted known issue |
+| F-04 | Low | 90% | Scaled-space reserve rounding understates required liquidity | Fixed / normalized partition |
+| F-05 | Low | 100% | Factory-admitted `bytes32` metadata can revert lens batches | Fixed / shared decoder |
+| F-06 | Low | 75% | APR-cut double rounding creates a one-basis-point reserve gap | Fixed / single-floor formula |
+| F-07 | N/A | 100% | `closeMarket` returns only unencumbered surplus | Accepted / intended surplus settlement |
 
 ## Scope and Methodology
 
@@ -72,44 +76,36 @@ This bypasses the wrapper's live-principal sanctions policy and permits repeatab
 
 A focused Foundry regression demonstrated that a direct transfer to the sanctioned recipient reverted while release from the foreign-principal escrow succeeded. Fizz property SP-43 independently reproduced the provenance failure in the final campaign.
 
-#### Recommendation
+#### Audit Resolution
 
-Record the escrows created by this wrapper's `nukeFromOrbit` flow and require `_isEscrowRelease` to accept only a recorded escrow. Store provenance rather than requiring the current principal so legitimate escrows created under a former principal can still release after principal migration.
+The wrapper now records the escrow returned by the Sentinel during `nukeFromOrbit` before transferring the sanctioned holder's shares. `_isEscrowRelease` requires that wrapper-local authorization before applying the existing deterministic-address check against the escrow's original principal namespace. A genuine escrow created and funded only through an unrelated principal therefore no longer receives the release exception, while an escrow precreated under the current principal becomes authorized when the wrapper actually funds it.
 
-Add negative tests for canonical escrows created under unrelated namespaces and retain the existing historical-principal release test as a positive control.
+Canonical `test-next` regressions cover rejection of a foreign-principal release, authorization of a precreated current-principal escrow through `nukeFromOrbit`, and release of a wrapper-funded escrow after principal migration. These changes remediate the assessed revision after the audit; the focused Foundry regression and SP-43 counterexample above remain evidence of the original finding, not post-fix failures. The change adds one private provenance mapping and does not alter the wrapper's external ABI.
 
-### F-02 — Checkpoint-Dependent Accrual Can Omit Delinquency Penalties
+### F-02 — Checkpoint-Based Delinquency Transitions Require State Writes
 
-**Severity:** Medium  
-**Confidence:** 90%  
+**Disposition:** Accepted known behavior. **Confidence:** 100%. **Operational control:** Hydra keeper.
+
 **Affected code:** [`src/libraries/FeeMath.sol`](src/libraries/FeeMath.sol), interest and delinquency accrual; [`src/market/WildcatMarketBase.sol`](src/market/WildcatMarketBase.sol), `_calculateCurrentState` and `_writeState`; [`src/market/WildcatMarket.sol`](src/market/WildcatMarket.sol), `closeMarket`
 
 #### Description
 
-Accrual classifies the entire elapsed interval using the previously stored `isDelinquent` flag. The market recalculates its current liquidity requirement and updates the delinquency flag only after applying interest and fees for that interval.
+Market accounting is updated lazily because a blockchain cannot persist a state transition without a transaction. Accrual classifies an elapsed interval using the previously stored `isDelinquent` flag, then recalculates the current liquidity requirement and stores the new flag at the end of the state write.
 
-If a market was healthy at its last checkpoint but becomes under-reserved solely because interest grows during a long idle period, the elapsed interval is still accrued as healthy. Calling `closeMarket` after that interval can settle and close the market without charging the delinquency penalty that would have accrued if any account had called the permissionless checkpoint function earlier.
+Ordinary state-changing activity naturally refreshes busy markets. Idle markets can otherwise accumulate a larger difference between their economically projected condition and stored `timeDelinquent`, so Wildcat operates the Hydra keeper across all markets. Hydra monitors approaching delinquency and refreshes state before and after the relevant timeout when the threshold is crossed.
 
-#### Impact
+Keeper polling and block inclusion are not exact to the instant, so a small cadence-dependent difference remains possible. This timing tolerance is an accepted operational property of the lazy-state model.
 
-Borrower debt depends on checkpoint cadence. A borrower can benefit from inactivity by avoiding penalty interest for time in which the market was economically under-reserved. This shifts value from lenders and the protocol relative to the checkpointed path.
+#### Audit Resolution
 
-#### Validation
+A focused regression demonstrated the expected difference between an indefinitely idle market with no checkpoint and a path containing a timely permissionless checkpoint. It did not demonstrate a way to bypass ordinary market writes or the Hydra keeper.
 
-A focused regression used a 100% APR, 100% reserve ratio, 100% penalty rate, and zero grace period. After a one-year idle interval, the uncheckpointed close path produced materially less lender debt than a control path containing an early permissionless checkpoint. The temporary regression test was removed after validation and is not part of the distributed repository.
-
-This is distinct from the documented behavior that forgives remaining time on an already recorded delinquency timer when a market closes. Here, the idle interval is never classified as delinquent before closure.
-
-#### Recommendation
-
-When deterministic accrual causes a previously healthy market to cross its liquidity requirement, solve for the crossing timestamp and split accrual at that point. Apply ordinary interest before the crossing and delinquency time, grace-period logic, and penalty interest after it.
-
-Use the same calculation for view projections and state-changing paths. Add an invariant comparing one long update with strategically inserted permissionless checkpoints, allowing only explicitly documented rounding differences.
+F-02 is therefore not a reportable vulnerability and requires no protocol change. Reopen it only if a supported market can defeat timely checkpointing under the stated operating model, or if a material accounting divergence remains after the expected checkpoint occurs.
 
 ### F-03 — Lifetime `uint104` Withdrawal Counter Enables Renewable Queue Denial
 
-**Severity:** Medium  
-**Confidence:** 90%  
+**Disposition:** Accepted known issue. **Confidence:** 100%.
+
 **Affected code:** [`src/libraries/Withdrawal.sol`](src/libraries/Withdrawal.sol), `WithdrawalBatch`; [`src/market/WildcatMarketWithdrawals.sol`](src/market/WildcatMarketWithdrawals.sol), `_queueWithdrawal`
 
 #### Description
@@ -120,17 +116,19 @@ An eligible lender can repeatedly deposit and queue liquid shares until the pend
 
 #### Impact
 
-The attacker can repeatedly deny honest lenders access to `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` for the active batch. The attack is most practical for a market whose underlying token has unusually high decimals. In the validated 30-decimal example, filling the counter required approximately 20.2824 nominal tokens, plus any interest top-up, and the principal was recoverable at expiry.
+The attacker can repeatedly deny honest lenders access to `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` for the active batch. The attack is most practical for a market whose underlying token has unusually high decimals. In the validated 30-decimal example, filling the counter required approximately 20.2824 nominal tokens, plus any interest top-up, and the principal was recoverable at expiry. The Foundation-controlled asset list currently contains only 6- and 18-decimal assets; even the old `uint104` threshold represents approximately 20.28 trillion nominal tokens for an 18-decimal asset.
 
 #### Validation
 
-A focused regression filled the batch counter to `20282409603651670423947251286015`, observed a competing queue request revert with panic `0x11`, then reclaimed the attacker's withdrawal and repeated the fill against the next batch. The temporary regression test was removed after validation and is not part of the distributed repository.
+A focused regression filled the batch counter to `20282409603651670423947251286015`, observed a competing queue request revert with panic `0x11`, then reclaimed the attacker's withdrawal and repeated the fill against the next batch. The temporary regression was removed after validation.
 
-#### Recommendation
+#### Audit Resolution
 
-Use a wider type, preferably `uint256`, for lifetime batch and account counters. If storage compatibility prevents widening, introduce a safe rollover mechanism that moves new requests into a fresh batch before exhaustion without blocking existing users.
+No protocol or ABI change was retained. Saturating the counter requires repeatedly replacing paid shares before the same batch expires. At the minimum scale factor, the `uint104` limit represents approximately `2.03e13` nominal tokens for an 18-decimal asset or `2.03e25` for a 6-decimal asset. Scale-factor growth only increases the required underlying amount.
 
-Add boundary tests that cumulatively queue and pay more than `2^104 - 1` scaled units while continuing to accept new withdrawal requests.
+The Foundation controls the supported asset list, which currently contains only 6- and 18-decimal assets. The demonstrated low-capital case required an unsupported 30-decimal token, while reaching the same state with a supported asset is not credible under present capital, transaction-count, and block-gas constraints. The original representation and storage layout are therefore retained.
+
+The finite counter is recorded in `docs/Known Issues.md`. Reopen F-03 if a higher-decimal asset is considered for listing, a practical path reaches the limit with a supported asset, or the counter can fail below `type(uint104).max`.
 
 ### F-04 — Scaled-Space Reserve Rounding Understates Required Liquidity
 
@@ -154,16 +152,16 @@ The validated high-scale trace used one scaled share, a scale factor of `2^22 * 
 
 Fizz global property GL-08 and positive-borrow property SP-20 reproduced the discrepancy in the final campaign. These two failed targets are the same root cause.
 
-#### Recommendation
+#### Audit Resolution
 
-Calculate the reserve in the documented unit order: normalize the relevant outstanding supply and then apply the reserve ratio. If the protocol adopts a different one-pass formula, specify its rounding direction and prove that it cannot understate the required reserve.
+`liquidityRequired` now calculates pending withdrawals and outstanding supply in normalized units before applying the reserve ratio to the outstanding portion. Dedicated branches preserve the ordinary 0% reserve path and make a 100% reserve ratio recombine exactly to `totalSupply()`. Accrued protocol fees and unclaimed withdrawals are added afterward as before. The change does not alter storage or any external ABI.
 
-Add high-scale, low-share-count tests covering reserve calculation, borrowing limits, and delinquency classification.
+Canonical `test-next` regressions cover the normalized partition across scale factors and reserve ratios, the original high-scale one-share counterexample, `borrowableAssets`, and exact 0% and 100% behavior. The focused `MarketStateTest` suite passed all 13 tests, and the 74-test `WildcatMarketTest` suite passed with 1,000 fuzz runs per fuzzed case. The high-scale 4,999-bip case now reserves 2,096,733 underlying units, and 100% reserves equal `totalDebts()` exactly.
 
 ### F-05 — Factory-Admitted `bytes32` Metadata Can Revert Lens Batches
 
 **Severity:** Low  
-**Confidence:** 80%  
+**Confidence:** 100%<br>
 **Affected code:** [`src/HooksFactory.sol`](src/HooksFactory.sol), market deployment metadata checks; [`src/libraries/LibERC20.sol`](src/libraries/LibERC20.sol), compatible metadata queries; [`src/lens/TokenData.sol`](src/lens/TokenData.sol), `fill`; [`src/lens/MarketData.sol`](src/lens/MarketData.sol), batch fill functions
 
 #### Description
@@ -178,13 +176,15 @@ This is a read-only availability and integration failure. It can prevent applica
 
 #### Validation
 
-The source discrepancy was confirmed against the repository's legacy metadata helpers and fixtures. The lens was not included in the retained final Fizz target set.
+The source discrepancy was confirmed against the repository's legacy metadata helpers and fixtures. New `test-next` regressions exercise direct token reads, mixed string/`bytes32` token batches, market data, factory-wide market batches, and aggregated multi-factory batches. The original `bytes32` trigger now succeeds through each lens surface. Existing tests continue to reject truncated and noncanonical dynamic-string encodings while accepting canonical strings, legacy `bytes32`, high-bit final bytes, and harmless trailing data.
 
-#### Recommendation
+#### Audit Resolution
 
-Use the same `LibERC20.name` and `LibERC20.symbol` compatibility helpers in the lens that the factory uses during deployment. Consider isolating each market fill with explicit error data or `try/catch` so one fallible metadata source cannot revert a heterogeneous batch.
+`TokenMetadataLib.fill` now uses `LibERC20` for `name`, `symbol`, and `decimals`, matching the exact decoder used during market deployment. This closes the admission/read discrepancy at the shared metadata boundary without changing any lens ABI, market contract, or storage layout.
 
-Add an end-to-end lens test containing one bytes32-metadata market and one ordinary market.
+The focused lens and metadata suites passed 27 tests. The canonical suite passed all 678 tests, including all eight stateful market-matrix invariants. The added decoder increased `MarketLensCore` and `MarketLensAggregator` runtime bytecode by 270 bytes each; the tighter aggregator retains 3,938 bytes of EIP-170 margin.
+
+Per-market `try/catch` isolation was not added. Metadata that mutates or begins reverting after market deployment remains part of the controlled asset-listing boundary rather than a new partial-result API for the lens.
 
 ### F-06 — APR-Cut Double Rounding Creates a One-Basis-Point Reserve Gap
 
@@ -206,37 +206,39 @@ The borrower can draw an additional 0.01% of lender supply in affected threshold
 
 Fizz property SP-14 reproduced the `7,501 -> 5,625` APR transition: the implementation produced a 5,000-bip temporary reserve while the single-floor doubled expression produced 5,001 bips.
 
-#### Recommendation
+#### Audit Resolution
 
-Multiply the reduction by two before performing the division, cap the result at 10,000 bips, and explicitly document whether the policy rounds down, to nearest, or conservatively upward.
+`_calculateTemporaryReserveRatioBips` now evaluates `floor(2 * BIP * reduction / originalAPR)` and then caps the result at 10,000 bips. This applies the documented floor once instead of doubling an already rounded ratio. The exact 25% trigger comparison, the existing reserve-ratio floor, the 100% cap, and the two-week activation, update, cancellation, and expiry behavior are unchanged. The change does not alter storage or any external ABI.
 
-Add exact-boundary and non-zero-remainder test cases, including consecutive APR reductions during the temporary reserve period.
+Canonical `test-next` coverage includes the exact 25% boundary, the non-zero-remainder `7,501 -> 5,625` transition, fuzzed APR and reserve combinations, consecutive reductions, partial recovery, cancellation, and expiry. The original transition now produces the intended 5,001-bip temporary reserve. The focused constraint-hook, periodic-hook, and market suites passed all 104 tests, with 1,000 fuzz runs per fuzzed case.
 
-### F-07 — `closeMarket` Surplus Payout Bypasses the Raw Sanctions Draw Gate
+### F-07 — `closeMarket` Returns Only Unencumbered Surplus
 
-**Severity:** Medium  
-**Confidence:** 75%  
-**Affected code:** [`src/market/WildcatMarket.sol`](src/market/WildcatMarket.sol), `borrow` and `closeMarket`
+**Disposition:** Accepted intended behavior. **Confidence:** 100%.
+
+**Affected code:** [`src/market/WildcatMarket.sol`](src/market/WildcatMarket.sol), `closeMarket`; [`src/libraries/MarketState.sol`](src/libraries/MarketState.sol), `totalDebts`
 
 #### Description
 
-`borrow` rejects a draw when either the operational borrower or its registered principal is raw-flagged by the sanctions policy. `closeMarket` contains another borrower-directed underlying-token outflow: when market assets exceed lender debt, it transfers the full surplus to `msg.sender` before closing.
+`closeMarket` balances the market against `state.totalDebts()`, which includes normalized market-token supply, paid-but-unclaimed withdrawals, and accrued protocol fees. Current and expired unpaid withdrawal requests remain inside scaled total supply until payment. Once paid, their scaled supply is burned and the corresponding underlying is added to `normalizedUnclaimedWithdrawals`, so each lender claim remains included exactly once.
 
-The close-time surplus branch does not apply the raw borrower/principal check. A flagged borrower can therefore receive existing or donated surplus through `closeMarket` even though an economically equivalent `borrow` call is rejected.
+Only assets above that complete debt amount are returned to the borrower. The remaining balance is then applied to the current withdrawal batch and every FIFO unpaid batch. If any unpaid scaled withdrawal remains, `closeMarket` reverts. Because the surplus transfer and withdrawal settlement occur in one transaction, that revert also rolls back the earlier transfer.
+
+A successful close may leave paid withdrawals awaiting lender execution or ordinary market tokens that have not been queued, but those claims remain fully funded. It cannot successfully close with an unmet pending or unpaid withdrawal request.
 
 #### Impact
 
-The issue bypasses the protocol's sanctions boundary for borrower-directed underlying payouts. It does not take assets owed to lenders because the transferred value is the surplus above all lender obligations. Severity depends partly on whether the protocol intends close-time return of borrower-owned excess to be subject to the same raw sanctions policy as ordinary draws.
+Returning the surplus cannot consume lender-backed assets or underfund withdrawal claims. The remaining distinction is sanctions policy: `borrow` blocks a raw-flagged operational borrower or principal, while `closeMarket` can return unencumbered surplus to the operational borrower.
 
 #### Validation
 
-The composed source trace used a fully covered market with excess underlying: the raw-flagged borrower could not borrow the excess, while the close branch transferred that same surplus and closed the market. Existing tests independently establish the raw two-identity borrow guard and return of excess assets during close.
+Canonical coverage intentionally transfers underlying directly to a market and confirms that `closeMarket` returns only that excess to the borrower. Separate close tests cover debt top-ups, pending and FIFO unpaid withdrawals, paid-but-unclaimed reserves, and transaction rollback when the borrower cannot fund all debts.
 
-#### Recommendation
+#### Audit Resolution
 
-Apply the same raw borrower/principal check before every borrower-directed underlying payout. If a sanctioned borrower must remain able to close a market, close the market while routing only the surplus into a sanctions escrow rather than paying it directly.
+A direct underlying transfer creates no market tokens, withdrawal credit, or protocol-fee claim, so it becomes unencumbered surplus under the market accounting model. The mechanical sanctions distinction matters only under a broader policy that forbids every underlying-token transfer to a flagged borrower, including settlement of value carrying no lender claim. That is not the protocol boundary applied here.
 
-Add tests covering a flagged operational borrower, a flagged principal, principal migration, donated surplus, and policy overrides.
+No protocol change is required. Reopen this item if a successful close can transfer any part of `totalDebts`, leave `scaledPendingWithdrawals` nonzero, underfund paid-but-unclaimed withdrawals, or if the sanctions policy changes to prohibit all borrower-directed payouts.
 
 ## Fizz Campaign Results
 
@@ -270,6 +272,8 @@ The four failing targets were:
 | `wildcatMarket_aprBoundaryCampaign` | SP-14 | F-06 APR-cut rounding |
 | `wildcatSanctionsEscrow_provenanceCampaign` | SP-43 | F-01 escrow provenance |
 
+This campaign ran against the assessed revision before the remediation entries above. Its counterexamples remain validation of the original findings, not post-remediation failures. The post-audit fixes and focused canonical regressions are described in F-01, F-04, and F-06; the Medusa campaign was not rerun after those changes.
+
 Earlier campaigns exposed several projected-state versus stored-state oracle mismatches and handler precondition errors. Those harness issues were corrected before the final campaign. The affected properties passed in the final run.
 
 ## X-Ray Readiness Assessment
@@ -292,13 +296,13 @@ This label is an audit-readiness classification. It does not mean that the audit
 - Temporary focused regressions used to validate F-02 and F-03 were removed after execution and are not included as portable PoCs.
 - No audit can establish the absence of all vulnerabilities.
 
-## Remediation Priorities
+## Remaining Follow-Up
 
-1. Fix F-01, F-02, F-03, and F-07 before treating the assessed branch as production-ready.
-2. Correct the reserve and APR rounding order in F-04 and F-06, then rerun the existing counterexample properties as regression tests.
-3. Align lens metadata handling with factory admission for F-05 and add failure isolation for batch reads.
+1. Retain Hydra checkpointing as the operational control for F-02.
+2. Keep the controlled asset-list boundary for F-03 and reopen it before supporting a materially higher-decimal asset.
+3. Update and rerun the Fizz counterexample properties for the post-audit F-01, F-04, and F-06 behavior if the harness remains part of release qualification.
 4. Convert the seven deferred properties into executable campaigns where practical.
-5. Run a longer Medusa campaign and a complementary Echidna campaign after the fixes.
+5. Run a longer Medusa campaign and a complementary Echidna campaign against the final release candidate.
 6. Perform the planned coverage pass using a configuration that avoids the current SphereX/source-attribution limitations.
 
 ## Audit Artifacts
@@ -312,4 +316,3 @@ This label is an audit-readiness classification. It does not mean that the audit
 - [Property implementation plan](fizz_data/property-plan.md)
 - [Final Medusa log](fizz_data/corpus_medusa/medusa-run.log)
 - [Final coverage report](fizz_data/corpus_medusa/coverage/coverage_report.html)
-

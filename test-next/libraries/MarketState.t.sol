@@ -74,26 +74,88 @@ contract MarketStateTest is TestKernel {
     uint128 accruedProtocolFees,
     uint128 normalizedUnclaimedWithdrawals
   ) external pure {
-    reserveRatioBips = uint16(bound(reserveRatioBips, 1, 10000));
+    reserveRatioBips = uint16(bound(reserveRatioBips, 0, BIP));
     scaledPendingWithdrawals = uint104(bound(scaledPendingWithdrawals, 0, scaledTotalSupply));
 
     MarketState memory state;
+    state.scaleFactor = uint112(RAY);
     state.scaledPendingWithdrawals = scaledPendingWithdrawals;
     state.scaledTotalSupply = scaledTotalSupply;
     state.reserveRatioBips = reserveRatioBips;
     state.accruedProtocolFees = accruedProtocolFees;
     state.normalizedUnclaimedWithdrawals = normalizedUnclaimedWithdrawals;
 
-    uint256 scaledRequiredReserves = (uint256(scaledTotalSupply - scaledPendingWithdrawals) *
-      uint256(reserveRatioBips)) / uint256(10000);
-    uint256 collateralForOutstanding = state.$normalizeAmount(
-      scaledRequiredReserves + scaledPendingWithdrawals
-    );
+    uint256 normalizedPendingWithdrawals = state.$normalizeAmount(scaledPendingWithdrawals);
+    uint256 normalizedOutstandingSupply = state.$totalSupply() - normalizedPendingWithdrawals;
 
     assertEq(
       state.$liquidityRequired(),
-      collateralForOutstanding + state.normalizedUnclaimedWithdrawals + uint256(accruedProtocolFees)
+      normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(reserveRatioBips) +
+        state.normalizedUnclaimedWithdrawals +
+        uint256(accruedProtocolFees)
     );
+  }
+
+  function test_liquidityRequired_NormalizedSupplyPartition(
+    uint112 scaleFactor,
+    uint104 scaledPendingWithdrawals,
+    uint104 scaledTotalSupply,
+    uint16 reserveRatioBips,
+    uint128 accruedProtocolFees,
+    uint128 normalizedUnclaimedWithdrawals
+  ) external pure {
+    scaleFactor = uint112(bound(scaleFactor, RAY, type(uint112).max));
+    scaledPendingWithdrawals = uint104(bound(scaledPendingWithdrawals, 0, scaledTotalSupply));
+    reserveRatioBips = uint16(bound(reserveRatioBips, 0, BIP));
+
+    MarketState memory state;
+    state.scaleFactor = scaleFactor;
+    state.scaledPendingWithdrawals = scaledPendingWithdrawals;
+    state.scaledTotalSupply = scaledTotalSupply;
+    state.reserveRatioBips = reserveRatioBips;
+    state.accruedProtocolFees = accruedProtocolFees;
+    state.normalizedUnclaimedWithdrawals = normalizedUnclaimedWithdrawals;
+
+    uint256 normalizedPendingWithdrawals = state.$normalizeAmount(scaledPendingWithdrawals);
+    uint256 normalizedTotalSupply = state.$totalSupply();
+    uint256 normalizedOutstandingSupply = normalizedTotalSupply - normalizedPendingWithdrawals;
+    uint256 otherDebts = uint256(accruedProtocolFees) + normalizedUnclaimedWithdrawals;
+
+    assertEq(
+      state.$liquidityRequired(),
+      normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(reserveRatioBips) +
+        otherDebts,
+      'normalized partition'
+    );
+
+    state.reserveRatioBips = 0;
+    assertEq(
+      state.$liquidityRequired(),
+      normalizedPendingWithdrawals + otherDebts,
+      'zero reserve ratio'
+    );
+
+    state.reserveRatioBips = uint16(BIP);
+    assertEq(state.$liquidityRequired(), state.$totalDebts(), 'full reserve ratio');
+  }
+
+  function test_liquidityRequired_HighScaleReserveRounding() external pure {
+    MarketState memory state;
+    state.scaleFactor = uint112((1 << 22) * RAY);
+    state.scaledTotalSupply = 1;
+    state.reserveRatioBips = 4_999;
+
+    assertEq(state.$liquidityRequired(), 2_096_733, '4,999 bip reserve');
+    assertEq(state.$borrowableAssets(2_096_733), 0, 'reserved assets are not borrowable');
+    assertEq(state.$borrowableAssets(2_096_734), 1, 'assets above the reserve are borrowable');
+
+    state.reserveRatioBips = 5_000;
+    assertEq(state.$liquidityRequired(), 2_097_152, '5,000 bip reserve');
+
+    state.reserveRatioBips = 10_000;
+    assertEq(state.$liquidityRequired(), state.$totalDebts(), 'full reserve recombines');
   }
 
   function test_hasPendingExpiredBatch(uint32 pendingWithdrawalExpiry, uint32 timestamp) external {
@@ -115,25 +177,26 @@ contract MarketStateTest is TestKernel {
     uint128 normalizedUnclaimedWithdrawals,
     uint128 totalAssets
   ) external pure {
-    reserveRatioBips = uint16(bound(reserveRatioBips, 1, 10000));
+    reserveRatioBips = uint16(bound(reserveRatioBips, 0, BIP));
     scaledPendingWithdrawals = uint104(bound(scaledPendingWithdrawals, 0, scaledTotalSupply));
 
     MarketState memory state;
+    state.scaleFactor = uint112(RAY);
     state.scaledPendingWithdrawals = scaledPendingWithdrawals;
     state.scaledTotalSupply = scaledTotalSupply;
     state.reserveRatioBips = reserveRatioBips;
     state.accruedProtocolFees = accruedProtocolFees;
     state.normalizedUnclaimedWithdrawals = normalizedUnclaimedWithdrawals;
 
-    uint256 scaledRequiredReserves = (uint256(scaledTotalSupply - scaledPendingWithdrawals) *
-      uint256(reserveRatioBips)) / uint256(10000);
-    uint256 collateralForOutstanding = state.$normalizeAmount(
-      scaledRequiredReserves + scaledPendingWithdrawals
-    );
+    uint256 normalizedPendingWithdrawals = state.$normalizeAmount(scaledPendingWithdrawals);
+    uint256 normalizedOutstandingSupply = state.$totalSupply() - normalizedPendingWithdrawals;
 
     assertEq(
       state.$liquidityRequired(),
-      collateralForOutstanding + state.normalizedUnclaimedWithdrawals + uint256(accruedProtocolFees)
+      normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(reserveRatioBips) +
+        state.normalizedUnclaimedWithdrawals +
+        uint256(accruedProtocolFees)
     );
     assertEq(
       state.$borrowableAssets(totalAssets),

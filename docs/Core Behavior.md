@@ -66,13 +66,17 @@ The total collateral obligation that a borrower is required to maintain in the m
 - accrued protocol fees
 
 ```solidity
-state.normalizeAmount(state.scaledPendingWithdrawals)
+uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
+uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
+
+normalizedPendingWithdrawals
++ normalizedOutstandingSupply.bipMul(state.reserveRatioBips)
 + state.normalizedUnclaimedWithdrawals
-+ state.normalizeAmount(
-    state.scaledTotalSupply - state.scaledPendingWithdrawals
-).bipMul(state.reserveRatioBips)
 + state.accruedProtocolFees
 ```
+
+Outstanding supply is the normalized total supply minus normalized pending withdrawals.
+This keeps the two portions of the supply in the same rounding domain and makes a 100% reserve ratio recombine exactly to `state.totalSupply()`.
 
 
 #### Delinquency

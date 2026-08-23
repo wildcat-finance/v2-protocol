@@ -12,6 +12,7 @@ import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
 import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.sol';
 import { DeployMarketInputs, MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
 import { ERC20RoleProvider } from 'src/providers/ERC20RoleProvider.sol';
@@ -515,6 +516,48 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     wrapper.redeem(otherShares, OtherLender, OtherLender);
     assertEq(wrapper.totalSupply(), lenderShares, 'recovered supply');
     assertEq(fixture.market.scaledBalanceOf(address(wrapper)), lenderShares, 'recovered backing');
+  }
+
+  function test_foreignPrincipalEscrowCannotReleaseSharesToSanctionedHolder() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
+    uint256 shares = _wrap(fixture, wrapper, OtherLender, DepositAmount);
+    fixture.sanctionsList.sanction(Lender);
+
+    vm.prank(OtherLender);
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, Lender));
+    wrapper.transfer(Lender, shares);
+
+    address foreignEscrow = fixture.sentinel.createEscrow(Outsider, Lender, address(wrapper));
+    vm.prank(OtherLender);
+    wrapper.transfer(foreignEscrow, shares);
+    vm.prank(Outsider);
+    fixture.sentinel.overrideSanction(Lender);
+
+    assertTrue(fixture.sentinel.isSanctioned(Borrower, Lender), 'live principal sanction');
+    assertFalse(fixture.sentinel.isSanctioned(Outsider, Lender), 'foreign override');
+    vm.expectRevert(LibERC20.TransferFailed.selector);
+    IWildcatSanctionsEscrow(foreignEscrow).releaseEscrow();
+    assertEq(wrapper.balanceOf(foreignEscrow), shares, 'foreign escrow rollback');
+    assertEq(wrapper.balanceOf(Lender), 0, 'sanctioned holder balance');
+  }
+
+  function test_precreatedCurrentPrincipalEscrowIsAuthorizedWhenWrapperNukesHolder() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
+    uint256 shares = _wrap(fixture, wrapper, Lender, DepositAmount);
+    address escrow = fixture.sentinel.createEscrow(Borrower, Lender, address(wrapper));
+
+    fixture.sanctionsList.sanction(Lender);
+    wrapper.nukeFromOrbit(Lender);
+    assertEq(wrapper.balanceOf(escrow), shares, 'precreated escrow funding');
+
+    vm.prank(Borrower);
+    fixture.sentinel.overrideSanction(Lender);
+    IWildcatSanctionsEscrow(escrow).releaseEscrow();
+
+    assertEq(wrapper.balanceOf(escrow), 0, 'precreated escrow remainder');
+    assertEq(wrapper.balanceOf(Lender), shares, 'current principal release');
   }
 
   function test_wrapperEscrowsRemainReleasableInTheirOriginalPrincipalNamespace() external {

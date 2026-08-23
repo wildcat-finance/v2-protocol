@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.20;
 
+import '../libraries/LibERC20.sol';
 import '../interfaces/IERC20.sol';
 
+using LibERC20 for address;
 using TokenMetadataLib for TokenMetadata global;
 
 struct TokenMetadata {
@@ -27,10 +29,9 @@ library TokenMetadataLib {
       return;
     }
     data.token = tokenAddress;
-    IERC20 token = IERC20(tokenAddress);
-    data.name = token.name();
-    data.symbol = token.symbol();
-    data.decimals = token.decimals();
+    data.name = tokenAddress.name();
+    data.symbol = tokenAddress.symbol();
+    data.decimals = tokenAddress.decimals();
     data.isMock = checkIsMock(tokenAddress);
   }
 }

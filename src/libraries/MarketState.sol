@@ -130,14 +130,23 @@ library MarketStateLib {
   function liquidityRequired(
     MarketState memory state
   ) internal pure returns (uint256 _liquidityRequired) {
-    uint256 scaledWithdrawals = state.scaledPendingWithdrawals;
-    uint256 scaledRequiredReserves = (state.scaledTotalSupply - scaledWithdrawals).bipMul(
-      state.reserveRatioBips
-    ) + scaledWithdrawals;
+    uint256 reserveRatioBips = state.reserveRatioBips;
+    uint256 normalizedSupplyRequired;
+    // 0% is the usual case, and 100% should recombine exactly to totalSupply.
+    // only intermediate ratios need the normalized pending/outstanding partition.
+    if (reserveRatioBips == 0) {
+      normalizedSupplyRequired = state.normalizeAmount(state.scaledPendingWithdrawals);
+    } else if (reserveRatioBips == BIP) {
+      normalizedSupplyRequired = state.totalSupply();
+    } else {
+      uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
+      uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
+      normalizedSupplyRequired =
+        normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(reserveRatioBips);
+    }
     return
-      state.normalizeAmount(scaledRequiredReserves) +
-      state.accruedProtocolFees +
-      state.normalizedUnclaimedWithdrawals;
+      normalizedSupplyRequired + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
   }
 
   /**
