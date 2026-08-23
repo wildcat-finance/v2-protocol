@@ -46,20 +46,20 @@ are structurally required base-class overrides with no reachable call path
 (its analyzer cannot resolve a modifier that takes the function's named return
 value as an argument). A semantically identical inline of that modifier is
 kept as `docs/coverage-spherex.patch` — it is deliberately never committed to
-the source file because it is not bytecode-identical. Procedure:
+the source file because it is not bytecode-identical. The tracked coverage
+command applies the patch temporarily and verifies that the source is restored. Run it against a
+focused family whose production graph the coverage compiler supports, for example:
 
 ```
-git apply docs/coverage-spherex.patch
-FOUNDRY_FUZZ_RUNS=32 FOUNDRY_INVARIANT_RUNS=8 FOUNDRY_INVARIANT_DEPTH=15 \
-  forge coverage --no-match-coverage "(^test/|^script/|^lib/)" \
-  --report summary --report lcov
-git checkout -- src/spherex/SphereXProtectedRegisteredBase.sol
+FOUNDRY_TEST=test-next/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
 The run caps keep the instrumented build tractable; the anchored exclusion
-regex matters (an unanchored `lib` also excludes `src/libraries`). Consider
-wiring this procedure into the `coverage` script in package.json, and remove
-the patch if a future foundry release fixes the analyzer.
+regex matters (an unanchored `lib` also excludes `src/libraries`). Remove the
+patch if a future Foundry release fixes the analyzer. Production graphs that
+include `HooksFactoryRevolving` still exceed Forge's non-IR coverage compiler;
+their canonical via-IR tests and focused coverage status are recorded in the
+replacement parity ledgers.
 
 ## Minimum-deposit check consolidation
 
