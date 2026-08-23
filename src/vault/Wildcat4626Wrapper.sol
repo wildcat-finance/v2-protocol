@@ -62,6 +62,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   string private _name;
   string private _symbol;
 
+  /// @dev remembers which escrows this wrapper actually used to quarantine sanctioned shares.
+  mapping(address escrow => bool authorized) private _authorizedEscrows;
+
   /**
    * @param marketAddress the wildcat market (debt token) address to wrap
    */
@@ -465,6 +468,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       account,
       address(this)
     );
+    _authorizedEscrows[escrow] = true;
     _transfer(account, escrow, shares);
     emit SanctionedAccountSharesSentToEscrow(account, escrow, shares);
   }
@@ -695,8 +699,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     }
   }
 
-  /// @dev Checks `from` against the canonical escrow for `account` under its original principal.
+  /// @dev `from` only gets the release exception if this wrapper authorized it and it still matches
+  ///      `account` under its original principal.
   function _isEscrowRelease(address from, address account) internal view returns (bool) {
+    if (!_authorizedEscrows[from]) return false;
     address escrowPrincipal;
     assembly {
       mstore(0, 0x7df1f1b9) // borrower()
