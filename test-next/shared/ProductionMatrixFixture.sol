@@ -434,7 +434,28 @@ abstract contract ProductionMatrixFixture is TestKernel {
         );
       }
     }
-    expectedScaleFactor = uint256(state.scaleFactor).rayMul(RAY + baseInterestRay);
+    uint256 delinquencyFeeRay = MathUtils.calculateLinearInterestFromBips(
+      cell.options.delinquencyFeeBips,
+      _expectedPenaltyTime(cell.options, state, elapsed)
+    );
+    expectedScaleFactor = uint256(state.scaleFactor).rayMul(
+      RAY + baseInterestRay + delinquencyFeeRay
+    );
+  }
+
+  function _expectedPenaltyTime(
+    MatrixOptions memory options,
+    MarketState memory state,
+    uint256 elapsed
+  ) private pure returns (uint256) {
+    if (state.isDelinquent) {
+      return
+        elapsed.satSub(
+          uint256(options.delinquencyGracePeriod).satSub(uint256(state.timeDelinquent))
+        );
+    }
+    return
+      MathUtils.min(uint256(state.timeDelinquent).satSub(options.delinquencyGracePeriod), elapsed);
   }
 
   function _accrueAndCheck(MatrixCell memory cell, uint256 elapsed) internal {

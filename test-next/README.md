@@ -93,3 +93,4 @@ Completed family ledgers live in `parity/`:
 - `market-lens.md`
 - `market-invariants.md`
 - `production-matrix-scenarios.md`
+- `production-economics.md`
