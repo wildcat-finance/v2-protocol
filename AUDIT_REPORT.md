@@ -10,13 +10,13 @@
 | Report date | 2026-08-22 |
 | Review methods | X-Ray v2, Solidity Auditor v3, Fizz v1, focused Foundry regressions, Medusa stateful fuzzing |
 | Solidity-auditor coverage | 12 independent review passes over 95 in-scope files |
-| Final result | 7 findings: 4 Medium, 3 Low, 0 High, 0 Critical |
+| Final result | 5 reportable findings: 2 Medium, 3 Low, 0 High, 0 Critical; 2 accepted observations |
 
 This report consolidates the findings and test results already validated during the audit. It does not claim that the assessed development branch is deployed to mainnet, and it does not represent a guarantee that the code contains no additional vulnerabilities.
 
 ## Executive Summary
 
-The audit identified seven reportable issues. The most important involve wrapper sanctions-escrow provenance, checkpoint-dependent delinquency accounting, withdrawal-batch counter exhaustion, and a sanctions-policy inconsistency in `closeMarket`. Three lower-severity findings concern reserve rounding, metadata compatibility in the lens, and temporary reserve rounding after an APR reduction.
+The audit identified five reportable issues and two accepted observations. The most important reportable issues involve wrapper sanctions-escrow provenance and a sanctions-policy inconsistency in `closeMarket`. Three lower-severity findings concern reserve rounding, metadata compatibility in the lens, and temporary reserve rounding after an APR reduction. The checkpoint-dependent delinquency behavior and finite withdrawal-batch counter were accepted after considering the protocol's operating model and controlled asset list.
 
 No finding was rated High or Critical after considering attacker prerequisites, market-listing controls, asset ownership, lifecycle constraints, and the cost or time needed to reach the vulnerable state.
 
@@ -27,8 +27,8 @@ The final Fizz campaign compiled the exact harness through viaIR and executed 50
 | ID | Severity | Confidence | Title | Status |
 |---|---:|---:|---|---|
 | F-01 | Medium | 95% | Foreign Sentinel escrow bypasses wrapper sanctions | Open |
-| F-02 | Medium | 90% | Checkpoint-dependent accrual can omit delinquency penalties | Open |
-| F-03 | Medium | 90% | Lifetime `uint104` withdrawal counter enables renewable queue denial | Open |
+| F-02 | N/A | 100% | Checkpoint-based delinquency transitions require state writes | Accepted / Hydra mitigated |
+| F-03 | N/A | 100% | Finite `uint104` withdrawal-batch lifetime counter | Accepted known issue |
 | F-04 | Low | 90% | Scaled-space reserve rounding understates required liquidity | Open |
 | F-05 | Low | 80% | Factory-admitted `bytes32` metadata can revert lens batches | Open |
 | F-06 | Low | 75% | APR-cut double rounding creates a one-basis-point reserve gap | Open |
@@ -78,38 +78,30 @@ Record the escrows created by this wrapper's `nukeFromOrbit` flow and require `_
 
 Add negative tests for canonical escrows created under unrelated namespaces and retain the existing historical-principal release test as a positive control.
 
-### F-02 — Checkpoint-Dependent Accrual Can Omit Delinquency Penalties
+### F-02 — Checkpoint-Based Delinquency Transitions Require State Writes
 
-**Severity:** Medium  
-**Confidence:** 90%  
+**Disposition:** Accepted known behavior. **Confidence:** 100%. **Operational control:** Hydra keeper.
+
 **Affected code:** [`src/libraries/FeeMath.sol`](src/libraries/FeeMath.sol), interest and delinquency accrual; [`src/market/WildcatMarketBase.sol`](src/market/WildcatMarketBase.sol), `_calculateCurrentState` and `_writeState`; [`src/market/WildcatMarket.sol`](src/market/WildcatMarket.sol), `closeMarket`
 
 #### Description
 
-Accrual classifies the entire elapsed interval using the previously stored `isDelinquent` flag. The market recalculates its current liquidity requirement and updates the delinquency flag only after applying interest and fees for that interval.
+Market accounting is updated lazily because a blockchain cannot persist a state transition without a transaction. Accrual classifies an elapsed interval using the previously stored `isDelinquent` flag, then recalculates the current liquidity requirement and stores the new flag at the end of the state write.
 
-If a market was healthy at its last checkpoint but becomes under-reserved solely because interest grows during a long idle period, the elapsed interval is still accrued as healthy. Calling `closeMarket` after that interval can settle and close the market without charging the delinquency penalty that would have accrued if any account had called the permissionless checkpoint function earlier.
+Ordinary state-changing activity naturally refreshes busy markets. Idle markets can otherwise accumulate a larger difference between their economically projected condition and stored `timeDelinquent`, so Wildcat operates the Hydra keeper across all markets. Hydra monitors approaching delinquency and refreshes state before and after the relevant timeout when the threshold is crossed.
 
-#### Impact
+Keeper polling and block inclusion are not exact to the instant, so a small cadence-dependent difference remains possible. This timing tolerance is an accepted operational property of the lazy-state model.
 
-Borrower debt depends on checkpoint cadence. A borrower can benefit from inactivity by avoiding penalty interest for time in which the market was economically under-reserved. This shifts value from lenders and the protocol relative to the checkpointed path.
+#### Audit Resolution
 
-#### Validation
+A focused regression demonstrated the expected difference between an indefinitely idle market with no checkpoint and a path containing a timely permissionless checkpoint. It did not demonstrate a way to bypass ordinary market writes or the Hydra keeper.
 
-A focused regression used a 100% APR, 100% reserve ratio, 100% penalty rate, and zero grace period. After a one-year idle interval, the uncheckpointed close path produced materially less lender debt than a control path containing an early permissionless checkpoint. The temporary regression test was removed after validation and is not part of the distributed repository.
-
-This is distinct from the documented behavior that forgives remaining time on an already recorded delinquency timer when a market closes. Here, the idle interval is never classified as delinquent before closure.
-
-#### Recommendation
-
-When deterministic accrual causes a previously healthy market to cross its liquidity requirement, solve for the crossing timestamp and split accrual at that point. Apply ordinary interest before the crossing and delinquency time, grace-period logic, and penalty interest after it.
-
-Use the same calculation for view projections and state-changing paths. Add an invariant comparing one long update with strategically inserted permissionless checkpoints, allowing only explicitly documented rounding differences.
+F-02 is therefore not a reportable vulnerability and requires no protocol change. Reopen it only if a supported market can defeat timely checkpointing under the stated operating model, or if a material accounting divergence remains after the expected checkpoint occurs.
 
 ### F-03 — Lifetime `uint104` Withdrawal Counter Enables Renewable Queue Denial
 
-**Severity:** Medium  
-**Confidence:** 90%  
+**Disposition:** Accepted known issue. **Confidence:** 100%.
+
 **Affected code:** [`src/libraries/Withdrawal.sol`](src/libraries/Withdrawal.sol), `WithdrawalBatch`; [`src/market/WildcatMarketWithdrawals.sol`](src/market/WildcatMarketWithdrawals.sol), `_queueWithdrawal`
 
 #### Description
@@ -120,17 +112,19 @@ An eligible lender can repeatedly deposit and queue liquid shares until the pend
 
 #### Impact
 
-The attacker can repeatedly deny honest lenders access to `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` for the active batch. The attack is most practical for a market whose underlying token has unusually high decimals. In the validated 30-decimal example, filling the counter required approximately 20.2824 nominal tokens, plus any interest top-up, and the principal was recoverable at expiry.
+The attacker can repeatedly deny honest lenders access to `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` for the active batch. The attack is most practical for a market whose underlying token has unusually high decimals. In the validated 30-decimal example, filling the counter required approximately 20.2824 nominal tokens, plus any interest top-up, and the principal was recoverable at expiry. The Foundation-controlled asset list currently contains only 6- and 18-decimal assets; even the old `uint104` threshold represents approximately 20.28 trillion nominal tokens for an 18-decimal asset.
 
 #### Validation
 
-A focused regression filled the batch counter to `20282409603651670423947251286015`, observed a competing queue request revert with panic `0x11`, then reclaimed the attacker's withdrawal and repeated the fill against the next batch. The temporary regression test was removed after validation and is not part of the distributed repository.
+A focused regression filled the batch counter to `20282409603651670423947251286015`, observed a competing queue request revert with panic `0x11`, then reclaimed the attacker's withdrawal and repeated the fill against the next batch. The temporary regression was removed after validation.
 
-#### Recommendation
+#### Audit Resolution
 
-Use a wider type, preferably `uint256`, for lifetime batch and account counters. If storage compatibility prevents widening, introduce a safe rollover mechanism that moves new requests into a fresh batch before exhaustion without blocking existing users.
+No protocol or ABI change was retained. Saturating the counter requires repeatedly replacing paid shares before the same batch expires. At the minimum scale factor, the `uint104` limit represents approximately `2.03e13` nominal tokens for an 18-decimal asset or `2.03e25` for a 6-decimal asset. Scale-factor growth only increases the required underlying amount.
 
-Add boundary tests that cumulatively queue and pay more than `2^104 - 1` scaled units while continuing to accept new withdrawal requests.
+The Foundation controls the supported asset list, which currently contains only 6- and 18-decimal assets. The demonstrated low-capital case required an unsupported 30-decimal token, while reaching the same state with a supported asset is not credible under present capital, transaction-count, and block-gas constraints. The original representation and storage layout are therefore retained.
+
+The finite counter is recorded in `docs/Known Issues.md`. Reopen F-03 if a higher-decimal asset is considered for listing, a practical path reaches the limit with a supported asset, or the counter can fail below `type(uint104).max`.
 
 ### F-04 — Scaled-Space Reserve Rounding Understates Required Liquidity
 
@@ -294,7 +288,7 @@ This label is an audit-readiness classification. It does not mean that the audit
 
 ## Remediation Priorities
 
-1. Fix F-01, F-02, F-03, and F-07 before treating the assessed branch as production-ready.
+1. Address F-01 and F-07 before treating the assessed branch as production-ready, retain Hydra checkpointing as the operational control for F-02, and retain the controlled asset-list boundary for F-03.
 2. Correct the reserve and APR rounding order in F-04 and F-06, then rerun the existing counterexample properties as regression tests.
 3. Align lens metadata handling with factory admission for F-05 and add failure isolation for batch reads.
 4. Convert the seven deferred properties into executable campaigns where practical.
@@ -312,4 +306,3 @@ This label is an audit-readiness classification. It does not mean that the audit
 - [Property implementation plan](fizz_data/property-plan.md)
 - [Final Medusa log](fizz_data/corpus_medusa/medusa-run.log)
 - [Final coverage report](fizz_data/corpus_medusa/coverage/coverage_report.html)
-

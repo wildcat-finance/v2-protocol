@@ -2,6 +2,42 @@
 
 If the borrower closes the market while still in penalized delinquency, they will not have to pay out the remaining time worth of penalized delinquency fees as the timer will be set to zero.
 
+**Delinquency transitions are recorded on state writes**
+
+Market accounting is updated lazily. Interest and fees for an elapsed interval
+use the previously stored `isDelinquent` flag, and the market stores its new
+delinquency status when a state-changing transaction writes the updated state.
+Normal market activity provides these checkpoints for busy markets.
+
+Wildcat operates the Hydra keeper to monitor pending delinquency across all
+markets and refresh state before and after the relevant timeout when a threshold
+crosses. Polling and block-inclusion latency mean this is not exact to the
+instant, so a small cadence-dependent difference is accepted. Reports that only
+restate this lazy-update behavior are duplicates of this known issue. A path that
+defeats timely checkpointing or leaves a material accounting discrepancy after
+the checkpoint should still be reported.
+
+**Finite `uint104` withdrawal-batch lifetime counters**
+
+Withdrawal-batch totals, paid-share totals, and each account's queued amount are
+cumulative for an expiry. Paid positions can be replaced before that expiry, so
+the counters can grow beyond the market's live token supply. These counters use
+`uint104` and revert on checked-arithmetic overflow at `2^104 - 1` rather than
+rolling over or opening another batch.
+
+At the minimum scale factor, reaching the limit requires approximately
+`2.03e13` nominal tokens for an 18-decimal asset or `2.03e25` for a 6-decimal
+asset; scale-factor growth only raises that requirement. Saturation must also
+repeatedly replace paid shares before the same batch expires. The low-capital
+demonstration used an unsupported 30-decimal token. The Foundation-controlled
+asset list currently contains only 6- and 18-decimal assets, so the finite
+counter and existing storage layout are accepted.
+
+Reports that only restate the finite `uint104` ceiling are duplicates of this
+known issue. A practical path that reaches it for a supported asset, overflows a
+counter earlier, or avoids the same-batch timing and capital constraints should
+still be reported. Revisit this decision before listing a higher-decimal asset.
+
 **Finite `uint112` scale-factor lifetime**
 
 `MarketState.scaleFactor` is stored as a `uint112` and grows monotonically while
