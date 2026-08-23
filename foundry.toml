@@ -1,8 +1,9 @@
 [profile.default]
 src = 'src'
-# The vendored a16z erc4626-tests suite defines `testFail_*` tests, which newer
-# foundry rejects outright. They are re-expressed with explicit revert
-# expectations in test/vault/Wildcat4626WrapperStandard.t.sol.
+test = 'test-next'
+# The frozen suite includes vendored `testFail_*` tests that newer Foundry
+# rejects outright. The replacement expresses those paths with explicit revert
+# expectations; keeping this filter here also leaves the legacy profile runnable.
 no_match_test = 'testFail'
 out = 'out'
 libs = ['lib']
@@ -15,6 +16,7 @@ fs_permissions = [
   { access = "read-write", path = "./out/"},
   { access = "read-write", path = "./out-test-next/"},
   { access = "read-write", path = "./out-test-next-coverage/"},
+  { access = "read-write", path = "./out-legacy/"},
   { access = "read-write", path = "./ir-out/"},
   { access = "read-write", path = "./deploy-out/"},
   { access = "read-write", path = "./deployments-old.json"}
@@ -57,12 +59,19 @@ out='deploy-out'
 cache_path='deploy-cache'
 extra_output_files=["irOptimized", "ir"]
 
-# Replacement test suite. This deliberately inherits the canonical compiler settings above;
-# only discovery and artifact paths are isolated while we prove parity beside `test/`.
+# Transitional comparison profile. The default profile now discovers the same
+# suite; this only keeps metrics artifacts and cache entries isolated.
 [profile.test-next]
 test='test-next'
 out='out-test-next'
 cache_path='cache-test-next'
+
+# Frozen parity oracle. Ordinary and deploy-profile test runs use `test-next/`;
+# this profile keeps the former suite available for the review cycle.
+[profile.legacy]
+test='test'
+out='out-legacy'
+cache_path='cache-legacy'
 
 # Accurate coverage needs a narrow discovery graph as well as the temporary
 # SphereX analyzer workaround applied by `scripts/test-next-coverage.sh`.

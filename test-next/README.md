@@ -1,44 +1,40 @@
-# Replacement Foundry Suite
+# Canonical Foundry Suite
 
-This tree is the canonical-settings replacement for `test/`. The legacy suite stays untouched as
-a parity oracle while this one is built; the replacement does not need to inherit, relocate, or
-retrofit the legacy fixture architecture.
+This tree is the default Foundry suite. It uses the same compiler settings as deployment builds.
+The former suite remains untouched under `test/` as a frozen parity oracle for one review cycle;
+it does not participate in ordinary or deploy-profile test discovery.
 
 Run it with:
 
 ```sh
-yarn test:next
+yarn test
 ```
 
 The repeatable parity lane uses a fixed timestamp and fuzz seed:
 
 ```sh
-yarn test:next:fixed
+yarn test:fixed
 ```
 
-Accurate coverage uses the documented temporary SphereX analyzer workaround:
-
-```sh
-yarn coverage:next
-```
-
-The coverage script refuses to touch an already-modified SphereX source file, applies
+Focused accurate coverage uses the documented temporary SphereX analyzer workaround. The
+coverage script refuses to touch an already-modified SphereX source file, applies
 `docs/coverage-spherex.patch` only for the run, restores the source on exit, and verifies the
 file is clean afterward. The patch is never part of the replacement suite. Forge's
 accurate-coverage mode replaces the canonical via-IR build with a non-IR instrumented build.
 Production graphs that import `HooksFactoryRevolving` exceed that coverage-only compiler; this
-does not affect canonical compilation or test execution. Focused families can set `FOUNDRY_TEST`
-to keep discovery narrow, for example:
+does not affect canonical compilation or test execution. Set `FOUNDRY_TEST` to keep discovery
+narrow, for example:
 
 ```sh
-FOUNDRY_TEST=test-next/sanctions yarn coverage:next --match-contract SanctionsTest
+FOUNDRY_TEST=test-next/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
-The `test-next` Foundry profile changes only test discovery and artifact/cache paths. It inherits
-the same official solc version, via-IR setting, optimizer sequence, optimizer runs, EVM version,
-and metadata settings as the deployment build.
+The default and deploy profiles discover this tree directly. The transitional `test-next`
+profile remains available with isolated artifacts for comparison tooling; all three inherit the
+same official solc version, via-IR setting, optimizer sequence, optimizer runs, EVM version, and
+metadata settings.
 
-## Rules while rebuilding
+## Maintenance rules
 
 - Do not import the legacy `test/` fixture or helpers. Small dependencies should live here so the
   new suite's compile graph remains visible.
@@ -48,14 +44,19 @@ and metadata settings as the deployment build.
   controller, factories, hooks, providers, markets, and wrapper stack.
 - Exercise common implementation variants at runtime from one property. Keep separate properties
   only when behavior is intentionally different.
+- Runtime matrices that warp inside one test call must read time with `vm.getBlockTimestamp()`.
+  The EVM assumes `block.timestamp` is stable during a transaction, so via-IR may reuse that value
+  across a Foundry cheatcode warp.
 - Keep real factory/CREATE2 deployment paths when deployment is the behavior under test. Fixture
   infrastructure may use artifact-backed deployment after constructor and immutable semantics are
   verified.
 - Map every migrated property in `parity/`; a lower test count is acceptable only when the new
   property is demonstrably equivalent or stronger.
+- Let the suite grow when the protocol grows. Avoid compile-time copies; do not optimize for an
+  arbitrary permanent test count.
 
-The old suite remains the behavioral oracle during the migration. It is not being edited or moved
-as part of this work. Its matching fixed-seed command is `yarn test:legacy:fixed`.
+The old suite remains available without being edited or moved. Run its matching fixed-seed oracle
+with `yarn test:legacy:fixed`.
 
 Completed family ledgers live in `parity/`:
 

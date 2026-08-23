@@ -4,14 +4,19 @@
 from Foundry's canonical cache and artifacts rather than source-name heuristics:
 
 ```sh
-forge build --ast
-node scripts/test-suite-metrics.js --compact > test-next/parity/legacy-suite.json
+FOUNDRY_PROFILE=legacy forge build --ast
+node scripts/test-suite-metrics.js \
+  --artifacts out-legacy \
+  --cache cache-legacy/solidity-files-cache.json \
+  --prefix test/ \
+  --compact > test-next/parity/legacy-suite.json
 ```
 
 The AST flag is required to recover the declaring contract behind inherited test selectors. For
-the replacement tree, use the same commands with `FOUNDRY_PROFILE=test-next`,
-`--artifacts out-test-next`, `--cache cache-test-next/solidity-files-cache.json`, and
-`--prefix test-next/`.
+the replacement tree, use the default profile with `--artifacts out`,
+`--cache cache/solidity-files-cache.json`, and `--prefix test-next/`. The isolated transitional
+profile remains reproducible with `FOUNDRY_PROFILE=test-next`, `out-test-next`, and
+`cache-test-next/solidity-files-cache.json`.
 
 The baseline records each declared property, its source declaration, every concrete suite that
 inherits or implements it, compiler settings, category totals, and emitted test bytecode. The
@@ -31,22 +36,18 @@ canonical via-IR test lane. Accurate non-IR coverage works for replacement slice
 graphs avoid those contracts. Completed integration slices that import
 `HooksFactoryRevolving` carry that tooling exception in their family ledgers.
 
-Run it with:
+Run a focused family with:
 
 ```sh
-yarn coverage:next
+FOUNDRY_TEST=test-next/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
 `scripts/test-next-coverage.sh` applies `docs/coverage-spherex.patch` temporarily and reverses it
 even when Forge fails. It refuses to start if the SphereX source is already dirty and verifies the
 source is restored before returning. No coverage-only Solidity change is retained.
 
-Use `FOUNDRY_TEST` for a focused family when the complete replacement discovery graph includes a
-compiler-blocked integration slice. For example:
-
-```sh
-FOUNDRY_TEST=test-next/sanctions yarn coverage:next --match-contract SanctionsTest
-```
+The complete replacement discovery graph includes a compiler-blocked integration slice, so an
+unscoped `yarn coverage` is expected to stop at that production compiler boundary.
 
 At the first representative checkpoint, 236 tests cover the currently imported production slice
 at 98.16% lines, 97.69% statements, 94.59% branches, and 99.49% functions. The remaining

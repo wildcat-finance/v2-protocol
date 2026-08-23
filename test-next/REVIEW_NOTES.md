@@ -1,17 +1,13 @@
 # Test replacement review notes
 
-Non-blocking items collected while the replacement suite is being built. Resolve or remove this
-file before the final cutover.
+Non-blocking instrumentation and review notes retained for the first post-cutover review cycle.
+None of these items blocks the canonical or deployment-profile suite.
 
 - Canonical `forge test --ast` currently prints Foundry's non-fatal `unresolved symbol locals`
   diagnostic for the SphereX modifier at `SphereXProtectedRegisteredBase.sol:153`. Compilation,
   test execution, and the AST metrics all complete with exit status 0.
 - The repository-wide formatting check currently stops on existing Prettier drift outside
   `test-next/`. New replacement files are checked directly until that baseline is cleaned up.
-- Managed-provider integration now reaches the same production OpenTerm path. The legacy
-  AccessList suite also repeated shared credential behavior through a mock FixedTerm hook; one
-  production FixedTerm dispatch remains assigned to the FixedTerm hook slice rather than being
-  inferred from the OpenTerm result.
 - Forge line instrumentation leaves ERC5192/ERC5484's four constant-return source lines uncovered
   while reporting their `isPullProvider` and `getCredential` functions as executed. The tests
   explicitly assert both return values; branch and function coverage for both contracts is 100%.
@@ -39,15 +35,11 @@ file before the final cutover.
   stack allocation. This does not block the canonical via-IR suite, which is green. Exact factory
   source coverage remains unavailable through Forge's current coverage compiler, and no
   coverage-only source patch is retained.
-- Runtime matrices that use `vm.warp` should read mutable cheatcode time through
-  `vm.getBlockTimestamp()`, not repeatedly through the `block.timestamp` opcode. Via-IR may
-  rematerialize or hoist that opcode because timestamp cannot change during a real transaction;
-  Foundry's warp cheatcode deliberately breaks that EVM invariant inside the test call.
 - Focused market coverage leaves two `WildcatMarket` lines. The internal `_repay` closed-state
   guard is structurally preceded by `closeMarket`'s public closed-state check. Reaching
   `CloseMarketWithUnpaidWithdrawals` requires an adversarial asset that reports successful
-  `transferFrom` without moving funds; keep that case for the adversarial/invariant pass rather
-  than changing the normal ERC-20 fixture.
+  `transferFrom` without moving funds. These remain explicit defensive coverage exceptions rather
+  than changing the canonical market fixture away from supported ERC-20 behavior.
 - Core wrapper coverage leaves two shadowed Solady configuration helpers and three defensive
   arithmetic guards unreachable under the market's required `scaleFactor >= RAY`. The parity ledger
   records the identities. Production wrapper integration now covers the live sanctions-escrow

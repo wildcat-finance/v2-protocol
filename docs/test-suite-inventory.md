@@ -1,6 +1,6 @@
 # Test Suite Inventory and Restructuring Baseline
 
-Status: baseline captured; parallel replacement underway under `test-next/`.
+Status: replacement and canonical audit-path cutover complete. See `test-suite-cutover.md`.
 
 ## Survey boundary
 
@@ -19,7 +19,7 @@ The inventory deliberately excludes the audit-generated Fizz harness and its sup
 The deploy UI is also separate: its seven Vitest files and one fork helper do not contribute to
 the Solidity compile described here.
 
-## Current Foundry suite
+## Legacy Foundry suite
 
 | Area                           | Suites | Tests / invariants |
 | ------------------------------ | -----: | -----------------: |
@@ -233,9 +233,10 @@ knowledge.
 | Clean canonical test time | Working target: five minutes or less on the current 9950X machine                                             |
 | Audit interface           | Plain canonical command; no one-off runner                                                                    |
 
-The bytecode and timing numbers are initial engineering targets, not claims. The first
-representative vertical should confirm whether they are realistic before the whole suite is
-ported.
+The bytecode and timing numbers are engineering targets, not a permanent size or runtime ceiling.
+The suite is expected to grow with the protocol. The lasting acceptance criterion is that new
+coverage has one clear owner and does not recreate compile-time copies through fixture or test
+inheritance.
 
 ## Replacement architecture
 
@@ -912,6 +913,19 @@ and carry the greatest semantic risk.
   coverage.
 - Keep the old suite excluded but available for one review/audit cycle.
 - Remove or archive it only in a separate, explicit follow-up decision.
+
+Cutover result:
+
+- default and deploy-profile test discovery now point at `test-next/`;
+- the frozen suite remains runnable through the isolated `legacy` profile;
+- forced fixed-seed runs passed both suites at the final branch state;
+- the replacement passed all 656 entries in 3m33.39s and the legacy oracle passed all 1,797 in
+  32m16.65s under the same canonical compiler settings;
+- the ceremony's deploy-profile lane passed the replacement in 3m34.50s; and
+- whole-suite Forge coverage remains compiler-blocked, while accurate focused coverage and the
+  temporary SphereX workaround remain available and documented.
+
+The compact final comparison and maintenance contract are in `docs/test-suite-cutover.md`.
 
 ## Developer sharding
 
