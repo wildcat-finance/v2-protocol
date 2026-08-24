@@ -6,7 +6,7 @@
     "legacy",
     "revolving"
   ],
-  "recordCount": 10,
+  "recordCount": 13,
   "hooksFactories": [
     {
       "label": "legacy-v2",
@@ -26,8 +26,8 @@
       "marketType": "legacy",
       "address": "0x10A64ABa0159720F8a23E1A552800CA4eb21576C",
       "startBlock": 7124440,
-      "canonical": true,
-      "lifecycle": "canonical",
+      "canonical": false,
+      "lifecycle": "live",
       "indexed": true,
       "registered": true,
       "deployTxHash": "0x33dc2335b0915dc7bc5f773a5154cb6e894e50f8402684a5255c5d9b6bd85f18",
@@ -52,8 +52,8 @@
       "marketType": "revolving",
       "address": "0xb899ba2a5F5b609898A2bABe445Aa31dDf0277e5",
       "startBlock": 10725492,
-      "canonical": true,
-      "lifecycle": "canonical",
+      "canonical": false,
+      "lifecycle": "live",
       "indexed": true,
       "registered": true,
       "deploymentKey": "HooksFactoryRevolving",
@@ -129,6 +129,38 @@
       "registered": true,
       "deployTxHash": "0xb7a83d452532c9dd8c5e4f51def060c424651611ebb58c9660426bd08596c58a",
       "notes": "Backfilled registered Sepolia test generation; retired and intentionally not indexed."
+    },
+    {
+      "label": "HooksFactory_v2-5",
+      "marketType": "legacy",
+      "address": "0xbFbDaFc91977eE599a61B30D9e75788565Ad6d18",
+      "startBlock": 11559133,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactory_v2-5",
+      "deployTxHash": "0xa062e4ec88db3e96e5bb1bde4eb6ef063cb9899cb746f1b7cdc1be8899ed7daf",
+      "registerTxHash": "0xd5f1227eb28dd9057e7872b4b832934cdfb42ef2242e97d1a9f99ac1a0756eec",
+      "wrapperFactory": "0x6B1DD93453584346C530A1646e98aB306fD6D37C",
+      "initCodeStorage": "0xED41382959e50dc3B65d0684B444F1BcC71465e8",
+      "initCodeHash": "0xb5381dc485493bbda1d46d50f9593782835de7dc5455f4917bc11b1bbb94653f"
+    },
+    {
+      "label": "HooksFactoryRevolving_v2-5",
+      "marketType": "revolving",
+      "address": "0x190B42942fe9492df9CeA441dA5c43309840E93A",
+      "startBlock": 11559137,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactoryRevolving_v2-5",
+      "deployTxHash": "0xfdbcfc09fa336e112a3ff3bd3c89f228ee0acf9acb20b021f6ce4761186ff017",
+      "registerTxHash": "0x9eaab4f796d70f16d6b17f8d07eba3c0e5540db9e104aa3db0b9840f3d21bdbe",
+      "wrapperFactory": "0x6B1DD93453584346C530A1646e98aB306fD6D37C",
+      "initCodeStorage": "0x56B4E1A4161Decf4224cB16B037f2696698dBa34",
+      "initCodeHash": "0x26f4a47d1267c99a56e00bb0ad593cd0436df7108bffd099e4c997332ea2f083"
     }
   ],
   "wrapperFactories": [
@@ -136,11 +168,20 @@
       "label": "wrapper-v1",
       "address": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
       "startBlock": 10534112,
-      "lifecycle": "canonical",
+      "lifecycle": "live",
       "indexed": true,
       "deployTxHash": "0xdfd481ee8a43495d1fc86a9bef5ec726f5556e1f87908f7ebee08be61c3ee37e",
       "v1Factory": null,
       "notes": "Legacy 4626 wrapper factory for pre-v2.5 markets; configuration-backed and not enumerable from the ArchController."
+    },
+    {
+      "label": "Wildcat4626WrapperFactory_v2-5",
+      "address": "0x6B1DD93453584346C530A1646e98aB306fD6D37C",
+      "startBlock": 11559124,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "deployTxHash": "0x61d1d18313b211f55740243d96bcc3d6c03d658294e708f0b0647aa6435413c3",
+      "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843"
     }
   ]
 }

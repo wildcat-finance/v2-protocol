@@ -211,11 +211,13 @@ replacement_helper() {
 }
 
 verify_replacement_helper() {
-  local helper arch_controller helper_arch runtime_hash old_authorized new_authorized
+  local helper arch_controller helper_arch runtime_code runtime_hash old_authorized new_authorized
   helper="$(replacement_helper)"
   arch_controller="$(jq -er '.WildcatArchController' "$NETWORK_DIR/deployments.json")"
   helper_arch="$(cast call "$helper" 'archController()(address)' --rpc-url "$RPC_URL")"
-  runtime_hash="$(cast codehash "$helper" --rpc-url "$RPC_URL")"
+  # runtime_hash="$(cast codehash "$helper" --rpc-url "$RPC_URL")"
+  runtime_code="$(cast code "$helper" --rpc-url "$RPC_URL")"
+  runtime_hash="$(cast keccak "$runtime_code")"
   old_authorized="$(cast call "$helper" 'authorizedAccounts(address)(bool)' "$OLD_EXECUTOR" --rpc-url "$RPC_URL")"
   new_authorized="$(cast call "$helper" 'authorizedAccounts(address)(bool)' "$NEW_EXECUTOR" --rpc-url "$RPC_URL")"
 
