@@ -79,7 +79,8 @@ diff -u \
     docs/sepolia-v2-5-first-deployment.md \
     script/deploy/v2-5/rehearse-stage.sh \
     script/deploy/v2-5/rehearse.sh \
-    scripts/generate-handoff.js | sort) \
+    scripts/generate-handoff.js \
+    v2-5-sepolia-rehearsal-20260824T082524Z.tar.gz | sort) \
   <(git diff --name-only "$REHEARSED_COMMIT"..HEAD | sort)
 
 git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src
