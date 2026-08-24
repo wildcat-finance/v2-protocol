@@ -51,7 +51,7 @@ export RPC_URL DEPLOYMENTS_NETWORK
 export FOUNDRY_PROFILE=deploy
 export RELEASE_TAG=v2-5
 export OWNER_MODE=plan
-export TEMPLATE_FEE_RECIPIENT="$OLD_EXECUTOR"
+export TEMPLATE_FEE_RECIPIENT="$NEW_EXECUTOR"
 
 readonly NETWORK_DIR="$PWD/deployments/$DEPLOYMENTS_NETWORK"
 readonly PHASE_1_PLAN="$NETWORK_DIR/plan-authority-helper-phase-1.json"
