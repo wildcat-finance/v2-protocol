@@ -38,17 +38,18 @@ run-state unchanged.
 ## 1. Prepare
 
 - [ ] Fund both wallets on Sepolia before creating the fork.
-- [ ] Set the environment and record the exact source:
+- [ ] From the `v2-protocol` repository root, set the environment and record
+      the exact source:
 
 ```bash
-cd /home/kethcode/wildcat/mono/v2-protocol
-
 export FOUNDRY_PROFILE=deploy
 export FORK_NETWORK=sepolia
 export FORK_RPC_URL=https://eth-sep.hinterlight.net
 unset FORK_FALLBACK_RPC_URL
 export ANVIL_PORT=8547
 export ANVIL_STARTUP_TIMEOUT=120
+export OLD_EXECUTOR=0xca732651410E915090d7A7D889A1E44eF4575fcE
+export NEW_EXECUTOR=0xca7007a75296b532ce1606d9e130eaa849800ca7
 export PRODUCTION_SOLIDITY_BASELINE=49f891c93768f9986f985204c2f533c77c5e6f60
 
 git branch --show-current
@@ -85,8 +86,7 @@ bash script/deploy/v2-5/rehearse.sh
 - [ ] Serve the locked UI in a second terminal:
 
 ```bash
-cd /home/kethcode/wildcat/mono/v2-protocol
-npm --prefix deploy-ui exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort
+(cd deploy-ui && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort)
 ```
 
 - [ ] Add `http://127.0.0.1:8547` as chain `31337` in the browser wallet. Keep
@@ -149,8 +149,9 @@ bash script/deploy/v2-5/rehearse-stage.sh activation
       calls, eight forwarded owner actions, six template registrations, two
       factory registrations, and no ownership handoff, retirement, or market
       removal.
-- [ ] Execute in order. At a reviewed midpoint, export a checkpoint, reload,
-      resume, and confirm prior receipts and predicates are rechecked.
+- [ ] Execute in order. At a reviewed midpoint, export
+      `run-state-v2-5-checkpoint.json`, reload, resume, and confirm prior
+      receipts and predicates are rechecked.
 - [ ] Export `deployments/anvil/run-state-v2-5.json`.
 - [ ] Finalize:
 
@@ -162,14 +163,24 @@ bash script/deploy/v2-5/rehearse-stage.sh finalize-activation
       and handoff checks pass.
 - [ ] Confirm both wallets remain authorized and the old wallet has no direct
       SphereX engine operator role.
-- [ ] Run both canaries through the signing path planned for live Sepolia. An
-      unlocked or impersonated run is not wallet-ceremony acceptance.
+
+Optional: run the standard and revolving canaries on this disposable fork.
+They are supplemental contract-flow coverage, not wallet-ceremony acceptance
+and not a live deployment requirement:
+
+```bash
+cast rpc anvil_impersonateAccount "$NEW_EXECUTOR" --rpc-url "http://127.0.0.1:$ANVIL_PORT"
+OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil BORROWER="$NEW_EXECUTOR" \
+  RPC_URL="http://127.0.0.1:$ANVIL_PORT" RELEASE_TAG=v2-5 \
+  bash script/deploy/v2-5/09-canary-market.sh
+```
 
 ## 5. Preserve evidence and stop
 
-- [ ] Preserve the commit, fork block, four plan/package digests, four unedited
-      run-states, transaction hashes, delay evidence, reload/resume evidence,
-      final inventory, reconciliation, authority preflight, handoff, and log.
+- [ ] Preserve `source-commit`, the fork block, four plan/package digests, four
+      unedited final run-states, transaction hashes, delay evidence, the
+      midpoint checkpoint, final inventory, reconciliation, authority
+      preflight, handoff, and Anvil state snapshot.
 - [ ] Record status, then stop only the recorded Anvil process:
 
 ```bash

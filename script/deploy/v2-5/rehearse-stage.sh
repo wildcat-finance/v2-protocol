@@ -426,10 +426,10 @@ finalize_activation() {
   node scripts/generate-handoff.js --network anvil --release v2-5 --check
   cat <<EOF
 
-Activation is finalized and the handoff is valid. Run the standard and
-revolving canaries as the new executor using the same signing path planned for
-live Sepolia. Retirement is not part of this rehearsal; prepare and rehearse it
-later from the finalized post-activation Sepolia state.
+Activation is finalized and the handoff is valid. Standard and revolving
+canaries are optional supplemental checks on this disposable fork; they are not
+part of the wallet ceremony or a live deployment requirement. Retirement is a
+separate ceremony prepared later from finalized post-activation Sepolia state.
 EOF
 }
 

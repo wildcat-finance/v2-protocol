@@ -611,6 +611,11 @@ function buildHandoff({
     }
     return contract;
   });
+  const releaseContractsByKey = new Map(
+    releaseContracts.map((contract) => [contract.deploymentKey, contract])
+  );
+  const releaseAddress = (key) =>
+    releaseContractsByKey.get(`${key}_${release}`).address;
   const generations = factoryGenerations(inventory, release);
 
   return {
@@ -648,10 +653,10 @@ function buildHandoff({
           "The canonical v2.5 facade serves locally recorded v2.5 floor-rounding markets. Markets without scaledTransferRounding() fall through to v1Factory when configured. Markets declaring an unsupported rounding do not fall through.",
       },
       lens: {
-        facade: deployments.MarketLens || null,
-        coreHelper: deployments.MarketLensCore || null,
-        aggregationHelper: deployments.MarketLensAggregator || null,
-        liveHelper: deployments.MarketLensLive || null,
+        facade: releaseAddress("MarketLens"),
+        coreHelper: releaseAddress("MarketLensCore"),
+        aggregationHelper: releaseAddress("MarketLensAggregator"),
+        liveHelper: releaseAddress("MarketLensLive"),
         behavior:
           "Treat MarketLens as the public facade. It static-calls the core, aggregation, or live helper selected by the requested method; helper addresses are implementation contracts, not replacement facade addresses.",
       },
@@ -670,6 +675,7 @@ function validateHandoff(
   expectedRelease
 ) {
   const errors = [];
+  let releaseContractsByKey = new Map();
   if (handoff?.schemaVersion !== HANDOFF_SCHEMA_VERSION) {
     errors.push(`schemaVersion must be ${HANDOFF_SCHEMA_VERSION}`);
   }
@@ -741,7 +747,7 @@ function validateHandoff(
     const deploymentAddresses = new Set(
       Object.values(deployments).map(addressKey)
     );
-    const releaseContractsByKey = new Map(
+    releaseContractsByKey = new Map(
       handoff.releaseContracts.map((contract) => [
         contract.deploymentKey,
         contract,
@@ -752,13 +758,25 @@ function validateHandoff(
       const contract = releaseContractsByKey.get(deploymentKey);
       if (!contract) {
         errors.push(`releaseContracts omits ${deploymentKey}`);
-      } else if (
-        contract.forgeArtifactName !== definition.forgeArtifactName ||
-        contract.abiArtifactName !== definition.abiArtifactName
-      ) {
-        errors.push(
-          `release contract ${deploymentKey} has an invalid artifact name`
-        );
+      } else {
+        if (
+          contract.forgeArtifactName !== definition.forgeArtifactName ||
+          contract.abiArtifactName !== definition.abiArtifactName
+        ) {
+          errors.push(
+            `release contract ${deploymentKey} has an invalid artifact name`
+          );
+        }
+        const deploymentAddress = deployments[deploymentKey];
+        if (
+          isAddress(deploymentAddress) &&
+          (!isAddress(contract.address) ||
+            addressKey(contract.address) !== addressKey(deploymentAddress))
+        ) {
+          errors.push(
+            `release contract ${deploymentKey} differs from deployments.json`
+          );
+        }
       }
     }
     for (const contract of handoff.releaseContracts) {
@@ -829,6 +847,27 @@ function validateHandoff(
         addressKey(actual) !== addressKey(expected))
     ) {
       errors.push(`canonicalAddresses.${name} differs from source files`);
+    }
+  }
+  const expectedLensRouting = {
+    facade: releaseContractsByKey.get(`MarketLens_${expectedRelease}`)?.address,
+    coreHelper: releaseContractsByKey.get(`MarketLensCore_${expectedRelease}`)
+      ?.address,
+    aggregationHelper: releaseContractsByKey.get(
+      `MarketLensAggregator_${expectedRelease}`
+    )?.address,
+    liveHelper: releaseContractsByKey.get(`MarketLensLive_${expectedRelease}`)
+      ?.address,
+  };
+  for (const [name, expected] of Object.entries(expectedLensRouting)) {
+    const actual = handoff?.routing?.lens?.[name];
+    if (!isAddress(actual)) {
+      errors.push(`routing.lens.${name} is invalid`);
+    } else if (
+      isAddress(expected) &&
+      addressKey(actual) !== addressKey(expected)
+    ) {
+      errors.push(`routing.lens.${name} differs from releaseContracts`);
     }
   }
   if (

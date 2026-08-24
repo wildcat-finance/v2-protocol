@@ -9,8 +9,9 @@ release windows:
    validation window.
 
 Do not generate or execute retirement during activation. Complete
-[anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) from the exact source
-revision first.
+[anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) first. A ceremony-only
+descendant of that revision may proceed only if the reviewed-delta check below
+passes exactly.
 
 ## Fixed identity
 
@@ -35,10 +36,11 @@ inventory and review every address.
 
 ## Stop conditions
 
-Stop if the source revision differs from rehearsal, the RPC or wallet is on the
-wrong chain, the selected wallet is not the phase's exact executor, a package
-digest changes, a transaction reverts, a predicate stays red, a pending nonce
-is unresolved, or any authority preflight fails.
+Stop if deployment-affecting source differs from rehearsal, the reviewed delta
+contains another path, the RPC or wallet is on the wrong chain, the selected
+wallet is not the phase's exact executor, a package digest changes, a
+transaction reverts, a predicate stays red, a pending nonce is unresolved, or
+any authority preflight fails.
 
 There is no skip path. Preserve the exact package, browser state, run-state,
 transaction hash, and error before changing anything. Never edit a generated
@@ -46,9 +48,9 @@ plan or run-state.
 
 ## 1. Prepare source and environment
 
-```bash
-cd /home/kethcode/wildcat/mono/v2-protocol
+From the `v2-protocol` repository root:
 
+```bash
 export REPO_ROOT="$(pwd -P)"
 export FOUNDRY_PROFILE=deploy
 export DEPLOYMENTS_NETWORK=sepolia
@@ -58,7 +60,7 @@ export NEW_EXECUTOR=0xca7007a75296b532ce1606d9e130eaa849800ca7
 export ARCH_CONTROLLER=0xC003f20F2642c76B81e5e1620c6D8cdEE826408f
 export LEGACY_HELPER=0xa476920af80B587f696734430227869795E2Ea78
 export PRODUCTION_SOLIDITY_BASELINE=49f891c93768f9986f985204c2f533c77c5e6f60
-export REHEARSED_COMMIT='<full commit from the successful Anvil rehearsal>'
+export REHEARSED_COMMIT=595e3d7b385db16155161b70dd69c006190ed3f8
 ```
 
 Record source and run the cold gates:
@@ -67,7 +69,19 @@ Record source and run the cold gates:
 git branch --show-current
 git rev-parse HEAD
 git status --short
-test "$(git rev-parse HEAD)" = "$REHEARSED_COMMIT"
+
+diff -u \
+  <(printf '%s\n' \
+    docs/anvil-v2-5-rehearsal.md \
+    docs/deploy-checklist.md \
+    docs/deploy-status.md \
+    docs/deployment.md \
+    docs/sepolia-v2-5-first-deployment.md \
+    script/deploy/v2-5/rehearse-stage.sh \
+    script/deploy/v2-5/rehearse.sh \
+    scripts/generate-handoff.js | sort) \
+  <(git diff --name-only "$REHEARSED_COMMIT"..HEAD | sort)
+
 git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src
 test "$(cast chain-id --rpc-url "$RPC_URL")" = 11155111
 
@@ -323,10 +337,15 @@ node scripts/factory-inventory.js lint --network sepolia
 node scripts/factory-inventory.js reconcile --network sepolia --rpc-url "$RPC_URL"
 node scripts/authority-helper.js preflight \
   --network sepolia --rpc-url "$RPC_URL" --expected-executor "$NEW_EXECUTOR"
+node scripts/generate-handoff.js \
+  --network sepolia --release "$RELEASE_TAG"
+node scripts/generate-handoff.js \
+  --network sepolia --release "$RELEASE_TAG" --check
 ```
 
-Run both canaries, generate the downstream handoff, deploy and validate the
-subgraph, SDK, and app, and preserve all ceremony evidence. Do not generate
+Deploy and validate the subgraph, SDK, and app, and preserve all ceremony
+evidence. Sepolia canaries are an optional post-deployment check, not an
+activation gate. They are not part of the mainnet ceremony. Do not generate
 retirement until the activated generation is accepted.
 
 ## 7. Retirement after validation

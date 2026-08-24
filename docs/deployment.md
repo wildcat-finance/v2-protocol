@@ -233,7 +233,7 @@ bash script/deploy/v2-5/08-finalize-inventory.sh
 
 ### Separate retirement ceremony
 
-Do not generate retirement until activation finalization and reconciliation have completed and the new generation has passed the agreed validation window. Retirement is not an activation cleanup step. Keeping it separate gives the subgraph, SDK, app, and canary checks time to prove the new origination path before old factories lose authority.
+Do not generate retirement until activation finalization and reconciliation have completed and the new generation has passed the agreed validation window. Retirement is not an activation cleanup step. Keeping it separate gives the subgraph, SDK, and app time to prove the new origination path before old factories lose authority.
 
 Generate retirement from the current post-activation inventory:
 
@@ -296,7 +296,7 @@ forge verify-contract \
 Do not mark a public rollout complete while a release contract remains
 unverified.
 
-### 09: canary markets
+### 09: optional fork or testnet canary markets
 
 Environment: require `OWNER_MODE=direct`, `DEPLOYMENTS_NETWORK`, `BORROWER`, and
 `RPC_URL`. Accept `RELEASE_TAG`, `CANARY_ASSET`, and `PVT_KEY_<NETWORK>`. Without
@@ -313,6 +313,7 @@ bash script/deploy/v2-5/09-canary-market.sh
 
 The script deploys, funds, queues, and closes one dust market through each v2.5
 factory. It refuses Ethereum mainnet and the configured Plasma mainnet chain ID.
+It is supplemental contract-flow coverage, not a deployment-ceremony gate.
 
 Finish with validation, lint, reconcile, and handoff generation:
 
@@ -487,9 +488,9 @@ Every fork rehearsal must preserve these invariants:
 - poll the local RPC until it actually serves chain `31337`; on bounded startup
   timeout, terminate the launcher-owned process instead of reporting an
   ambiguous failure while it continues starting in the background;
-- persist Anvil state at a short interval, retain its log/PID/fork-block
-  metadata, and use `rehearse.sh --resume` rather than reseeding after a
-  recoverable node crash;
+- persist Anvil state at a short interval, retain its source-commit,
+  log/PID/fork-block metadata, and use `rehearse.sh --resume` rather than
+  reseeding after a recoverable node crash;
 - seed `deployments.json`, `factory-inventory.json`, and the source network's
   historical lint allowlist, then rewrite only their copied identities to
   network `anvil`, chain ID `31337`;
@@ -516,8 +517,8 @@ Every fork rehearsal must preserve these invariants:
 
 For a mainnet fork, the Foundation Safe/bundle path has separate nonce,
 CREATE2, delegatecall, signature, and gas-ceiling requirements in section 4.
-On mainnet forks, deploy a mock asset before the canary because mainnet
-`deployments.json` has no mock token.
+When running the optional check on a mainnet fork, deploy a mock asset first
+because mainnet `deployments.json` has no mock token.
 
 ## 6. Adding a market type
 
@@ -533,7 +534,7 @@ On mainnet forks, deploy a mock asset before the canary because mainnet
    new factory.
 5. Add the factory artifact, market artifact, ABI delta, indexing policy, and
    routing rule to `scripts/generate-handoff.js`.
-6. Rehearse activation and retirement on both target-network forks. Require plan validation, all predicates, receipt-derived start blocks, inventory validation, lint, reconciliation, canary closure, handoff generation, and handoff `--check`.
+6. Rehearse activation and retirement on both target-network forks. Require plan validation, all predicates, receipt-derived start blocks, inventory validation, lint, reconciliation, handoff generation, and handoff `--check`. Run canaries only when the extra fork-level contract-flow coverage is useful.
 
 Do not add a deployment framework. Extend the numbered release pattern.
 

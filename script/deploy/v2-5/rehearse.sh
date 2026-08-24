@@ -81,6 +81,7 @@ ANVIL_STATE_FILE="${ANVIL_STATE_FILE:-$ANVIL_DIR/anvil-state.json}"
 ANVIL_LOG_FILE="${ANVIL_LOG_FILE:-$ANVIL_DIR/anvil.log}"
 ANVIL_PID_FILE="${ANVIL_PID_FILE:-$ANVIL_DIR/anvil.pid}"
 FORK_BLOCK_FILE="$ANVIL_DIR/anvil-fork-block"
+SOURCE_COMMIT_FILE="$ANVIL_DIR/source-commit"
 ARCHIVE_PROBE_ADDRESS="$(jq -er '.WildcatArchController' "deployments/${FORK_NETWORK}/deployments.json")"
 
 preflight_rpc() {
@@ -107,6 +108,10 @@ if [[ "$RUN_MODE" == "--resume" ]]; then
     echo "Cannot resume: missing pinned fork block $FORK_BLOCK_FILE" >&2
     exit 1
   }
+  test -f "$SOURCE_COMMIT_FILE" || {
+    echo "Cannot resume: missing source commit $SOURCE_COMMIT_FILE" >&2
+    exit 1
+  }
   test -f "$ANVIL_DIR/deployments.json" || {
     echo "Cannot resume: missing seeded deployment state $ANVIL_DIR/deployments.json" >&2
     exit 1
@@ -117,6 +122,13 @@ if [[ "$RUN_MODE" == "--resume" ]]; then
     exit 1
   fi
   SAVED_FORK_BLOCK="$(<"$FORK_BLOCK_FILE")"
+  SAVED_SOURCE_COMMIT="$(<"$SOURCE_COMMIT_FILE")"
+  CURRENT_SOURCE_COMMIT="$(git rev-parse HEAD)"
+  if [[ "$CURRENT_SOURCE_COMMIT" != "$SAVED_SOURCE_COMMIT" ]]; then
+    echo "Cannot resume: current commit $CURRENT_SOURCE_COMMIT differs from saved $SAVED_SOURCE_COMMIT" >&2
+    exit 1
+  fi
+  REHEARSAL_SOURCE_COMMIT="$SAVED_SOURCE_COMMIT"
   if [[ -n "${FORK_BLOCK_NUMBER:-}" && "$FORK_BLOCK_NUMBER" != "$SAVED_FORK_BLOCK" ]]; then
     echo "Cannot resume: requested fork block $FORK_BLOCK_NUMBER differs from saved $SAVED_FORK_BLOCK" >&2
     exit 1
@@ -299,6 +311,7 @@ if [[ "$RUN_MODE" == "--resume" ]]; then
 ================================================================
 Anvil state restored (pid ${ANVIL_PID}) at fork block ${FORK_BLOCK_NUMBER}.
 Existing packages, run-state, and browser progress were not changed.
+Source commit: ${REHEARSAL_SOURCE_COMMIT}
 State snapshot: ${ANVIL_STATE_FILE}
 Anvil log: ${ANVIL_LOG_FILE}
 
@@ -328,6 +341,8 @@ json.dump(d, open(p, 'w'), indent=2)
 PY
 
 printf '%s\n' "$FORK_BLOCK_NUMBER" > "$FORK_BLOCK_FILE"
+REHEARSAL_SOURCE_COMMIT="$(git rev-parse HEAD)"
+printf '%s\n' "$REHEARSAL_SOURCE_COMMIT" > "$SOURCE_COMMIT_FILE"
 
 echo "== Starting anvil fork of ${FORK_NETWORK} block ${FORK_BLOCK_NUMBER} on port ${ANVIL_PORT}"
 start_anvil fresh
@@ -367,6 +382,7 @@ if [[ -z "$RUN_MODE" && "$FORK_NETWORK" == "sepolia" ]]; then
 ================================================================
 Fork is RUNNING (pid ${ANVIL_PID}) at pinned Sepolia block ${FORK_BLOCK_NUMBER}.
 No account was impersonated or funded, and no transaction was executed.
+Source commit: ${REHEARSAL_SOURCE_COMMIT}
 State snapshot: ${ANVIL_STATE_FILE}
 Anvil log: ${ANVIL_LOG_FILE}
 
@@ -469,6 +485,7 @@ cat <<NEXT
 Fork is RUNNING (pid ${ANVIL_PID}).  Plan: ${PLAN}
 Plan executor: ${EXECUTOR}
 Pinned fork block: ${FORK_BLOCK_NUMBER}
+Source commit: ${REHEARSAL_SOURCE_COMMIT}
 State snapshot: ${ANVIL_STATE_FILE}
 Anvil log: ${ANVIL_LOG_FILE}
 

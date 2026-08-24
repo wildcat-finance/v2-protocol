@@ -17,11 +17,11 @@ Activation and retirement are separate releases. Activation deploys and register
 - [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh advance-delay`, review the recorded timestamp change, then run `bash script/deploy/v2-5/rehearse-stage.sh phase-3` and walk its three cards with the new wallet.
 - [ ] Run the authority-helper preflight. Confirm the replacement helper owns the ArchController, holds the expected SphereX roles, authorizes both wallets, and the old wallet has no direct engine operator role.
 - [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh activation`. Confirm its 24 cards: 14 deployments, 10 calls, eight forwarded owner actions, six template registrations, two new factory registrations, and no ownership handoff or factory/market removal.
-- [ ] Walk the activation cards with the new wallet. Prove same-fork reload and resume. Every predicate must turn green from on-chain verification.
+- [ ] Walk the activation cards with the new wallet. At a midpoint, export a checkpoint and prove same-fork reload and resume. Every predicate must turn green from on-chain verification.
 - [ ] Export the unedited activation run-state and run `bash script/deploy/v2-5/rehearse-stage.sh finalize-activation`.
 - [ ] Run inventory validation, lint, reconciliation, and the authority-helper preflight. Confirm the helper remained the ArchController owner throughout.
-- [ ] Validate the generated handoff. Run canaries only through the signing path intended for live Sepolia; unlocked or impersonated canary execution remains headless engine evidence.
-- [ ] Preserve the plan, package digest, run-states, transaction hashes, logs, fork block, and final inventory as rehearsal evidence. Stop only the recorded Anvil PID.
+- [ ] Validate the generated handoff. Fork-only canaries are optional supplemental contract-flow coverage, not wallet-ceremony acceptance.
+- [ ] Preserve `source-commit`, the plan, package digest, run-states, transaction hashes, fork block, Anvil state snapshot, and final inventory as rehearsal evidence. Stop only the recorded Anvil PID.
 
 Retirement is a later ceremony. Rehearse it from a fresh fork of the accepted
 post-activation Sepolia state when the validation window is complete.
@@ -44,7 +44,7 @@ does not replace the real-wallet locked-UI acceptance run.
 - [ ] Generate the locked EOA package, record its digest and fingerprint, and build the production UI with that package embedded.
 - [ ] Walk all 24 activation cards with the new Sepolia executor. Wait for each receipt and predicate before proceeding.
 - [ ] Export and independently verify the activation run-state. Finalize with `08-finalize-inventory.sh`, then validate, lint, and reconcile the inventory.
-- [ ] Re-run the authority preflight, verify every deployment on the explorer, run the standard and revolving canaries, and generate and check the subgraph/SDK handoff.
+- [ ] Re-run the authority preflight, verify every deployment on the explorer, and generate and check the subgraph/SDK handoff. Sepolia canaries are optional follow-up validation, not an activation gate.
 - [ ] Leave the preview factories registered while the new generation is tested through the subgraph, SDK, and app.
 
 ## C. Live Sepolia retirement
