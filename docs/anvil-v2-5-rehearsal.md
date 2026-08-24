@@ -59,57 +59,32 @@ stage() {
 }
 ```
 
-- [ ] Require a clean, pushed source and unchanged production Solidity:
+- [ ] Confirm a clean, pushed source and unchanged production Solidity:
 
 ```bash
-check_rehearsal_source() (
-  set -euo pipefail
-
-  rehearsal_commit="$(git rev-parse HEAD)"
-  if ! upstream_commit="$(git rev-parse '@{upstream}' 2>/dev/null)"; then
-    echo 'source preflight failed: this branch has no upstream' >&2
-    return 1
-  fi
-
-  git branch --show-current
-  printf 'rehearsal commit: %s\n' "$rehearsal_commit"
-  if [[ "$rehearsal_commit" != "$upstream_commit" ]]; then
-    echo "source preflight failed: upstream is $upstream_commit" >&2
-    return 1
-  fi
-  if [[ -n "$(git status --porcelain)" ]]; then
-    echo 'source preflight failed: worktree is dirty' >&2
-    git status --short >&2
-    return 1
-  fi
-  if ! git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src; then
-    echo 'source preflight failed: production Solidity differs from the baseline' >&2
-    git diff --stat "$PRODUCTION_SOLIDITY_BASELINE" -- src >&2
-    return 1
-  fi
-
-  echo 'source preflight: GREEN'
-)
-check_rehearsal_source
+git branch --show-current
+git rev-parse HEAD
+git rev-parse '@{upstream}'
+git status --short
+git diff --stat "$PRODUCTION_SOLIDITY_BASELINE" -- src
 ```
+
+Continue only if the two commit hashes match and the final two commands print
+nothing.
 
 - [ ] Run the cold gates:
 
 ```bash
+forge test
+forge build --sizes src script/common script/deploy/v2-5
+
 (
-  set -euo pipefail
-
-  forge test
-  forge build --sizes src script/common script/deploy/v2-5
-
-  (
-    cd deploy-ui
-    npm ci
-    npm audit
-    npm test
-    npm run build
-    SEPOLIA_RPC_URL="$FORK_RPC_URL" npm run test:fork
-  )
+  cd deploy-ui
+  npm ci
+  npm audit
+  npm test
+  npm run build
+  SEPOLIA_RPC_URL="$FORK_RPC_URL" npm run test:fork
 )
 ```
 

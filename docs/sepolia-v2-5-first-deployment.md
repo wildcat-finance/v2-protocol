@@ -62,85 +62,43 @@ stage() {
 }
 ```
 
-- [ ] Require a clean, pushed descendant with unchanged production and
-      ceremony tooling, then verify the rehearsal archive:
+- [ ] Confirm a clean, pushed descendant with unchanged production and
+      ceremony tooling, then verify the rehearsal archive and live RPC:
 
 ```bash
-check_live_source() (
-  set -euo pipefail
-
-  case "$REHEARSED_COMMIT$REHEARSAL_ARCHIVE$REHEARSAL_ARCHIVE_SHA256" in
-    *'<'*)
-      echo 'live preflight failed: fill the accepted rehearsal values first' >&2
-      return 1
-      ;;
-  esac
-  if ! upstream_commit="$(git rev-parse '@{upstream}' 2>/dev/null)"; then
-    echo 'live preflight failed: this branch has no upstream' >&2
-    return 1
-  fi
-
-  git branch --show-current
-  printf 'deployment commit: %s\n' "$DEPLOYMENT_COMMIT"
-  if [[ "$DEPLOYMENT_COMMIT" != "$upstream_commit" ]]; then
-    echo "live preflight failed: upstream is $upstream_commit" >&2
-    return 1
-  fi
-  if [[ -n "$(git status --porcelain)" ]]; then
-    echo 'live preflight failed: worktree is dirty' >&2
-    git status --short >&2
-    return 1
-  fi
-  if ! git merge-base --is-ancestor "$REHEARSED_COMMIT" "$DEPLOYMENT_COMMIT"; then
-    echo 'live preflight failed: rehearsal commit is not an ancestor' >&2
-    return 1
-  fi
-  if ! git diff --quiet "$REHEARSED_COMMIT"..HEAD -- \
-    src script scripts deploy-ui foundry.toml package.json yarn.lock \
-    deployments/sepolia/ceremony-config.json \
-    deployments/sepolia/deployments.json \
-    deployments/sepolia/factory-inventory.json; then
-    echo 'live preflight failed: deployment-affecting files changed after rehearsal' >&2
-    return 1
-  fi
-  if ! git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src; then
-    echo 'live preflight failed: production Solidity differs from the baseline' >&2
-    return 1
-  fi
-
-  archive_sha256="$(shasum -a 256 "$REHEARSAL_ARCHIVE" | awk '{print $1}')"
-  if [[ "$archive_sha256" != "$REHEARSAL_ARCHIVE_SHA256" ]]; then
-    echo "live preflight failed: rehearsal archive digest is $archive_sha256" >&2
-    return 1
-  fi
-  chain_id="$(cast chain-id --rpc-url "$RPC_URL")"
-  if [[ "$chain_id" != '11155111' ]]; then
-    echo "live preflight failed: RPC chain ID is $chain_id" >&2
-    return 1
-  fi
-
-  echo 'live preflight: GREEN'
-)
-check_live_source
+git branch --show-current
+printf 'deployment commit: %s\n' "$DEPLOYMENT_COMMIT"
+git rev-parse '@{upstream}'
+git status --short
+git merge-base "$REHEARSED_COMMIT" "$DEPLOYMENT_COMMIT"
+git diff --stat "$REHEARSED_COMMIT"..HEAD -- \
+  src script scripts deploy-ui foundry.toml package.json yarn.lock \
+  deployments/sepolia/ceremony-config.json \
+  deployments/sepolia/deployments.json \
+  deployments/sepolia/factory-inventory.json
+git diff --stat "$PRODUCTION_SOLIDITY_BASELINE" -- src
+printf 'expected archive sha256: %s\n' "$REHEARSAL_ARCHIVE_SHA256"
+shasum -a 256 "$REHEARSAL_ARCHIVE"
+cast chain-id --rpc-url "$RPC_URL"
 ```
+
+Continue only if the deployment and upstream commits match; the merge base is
+the rehearsed commit; status and both diffs print nothing; the archive digests
+match; and the chain ID is `11155111`.
 
 - [ ] Run the same cold gates used for rehearsal:
 
 ```bash
+forge test
+forge build --sizes src script/common script/deploy/v2-5
+
 (
-  set -euo pipefail
-
-  forge test
-  forge build --sizes src script/common script/deploy/v2-5
-
-  (
-    cd deploy-ui
-    npm ci
-    npm audit
-    npm test
-    npm run build
-    SEPOLIA_RPC_URL="$RPC_URL" npm run test:fork
-  )
+  cd deploy-ui
+  npm ci
+  npm audit
+  npm test
+  npm run build
+  SEPOLIA_RPC_URL="$RPC_URL" npm run test:fork
 )
 ```
 
