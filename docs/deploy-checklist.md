@@ -10,20 +10,25 @@ Activation and retirement are separate releases. Activation deploys and register
 - [ ] Run the full deploy-profile protocol test suite and a deploy-profile source size build.
 - [ ] In `deploy-ui/`, run `npm ci`, `npm audit`, `npm test`, `npm run build`, and `SEPOLIA_RPC_URL="$FORK_RPC_URL" npm run test:fork` after the deploy-profile build has produced current artifacts.
 - [ ] Use one explicitly selected archive RPC and confirm its chain ID and historical storage access. Do not add an implicit fallback.
+- [ ] Fund both real executor wallets on Sepolia before pinning the fork. The user-driven rehearsal must not impersonate either account or replace its balance.
 - [ ] Start a fresh fork with `FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net ANVIL_PORT=8547 bash script/deploy/v2-5/rehearse.sh`.
-- [ ] Confirm all three authority-migration plans pass: five old-executor cards, three new-executor ArchController cards, and three new-executor SphereX engine cards after the one-hour delay.
+- [ ] Confirm the launcher stops after preparing authority phase 1. No transaction has executed. Walk its five cards in the locked UI with `0xca732651410E915090d7A7D889A1E44eF4575fcE`, then export the unedited run-state.
+- [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh phase-2`. Walk its three cards with `0xca7007a75296b532ce1606d9e130eaa849800ca7`, then export the unedited run-state.
+- [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh advance-delay`, review the recorded timestamp change, then run `bash script/deploy/v2-5/rehearse-stage.sh phase-3` and walk its three cards with the new wallet.
 - [ ] Run the authority-helper preflight. Confirm the replacement helper owns the ArchController, holds the expected SphereX roles, authorizes both wallets, and the old wallet has no direct engine operator role.
-- [ ] Confirm the activation plan has 24 cards on the Sepolia-shaped fork: 14 deployments, 10 calls, eight forwarded owner actions, six template registrations, two new factory registrations, and no ownership handoff or factory/market removal.
-- [ ] Build a locked EOA ceremony package and walk the activation cards through the production UI. Prove same-fork reload and resume. Every predicate must turn green from on-chain verification.
-- [ ] Export the unedited activation run-state, run independent plan verification, and finalize it with `08-finalize-inventory.sh`.
+- [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh activation`. Confirm its 24 cards: 14 deployments, 10 calls, eight forwarded owner actions, six template registrations, two new factory registrations, and no ownership handoff or factory/market removal.
+- [ ] Walk the activation cards with the new wallet. Prove same-fork reload and resume. Every predicate must turn green from on-chain verification.
+- [ ] Export the unedited activation run-state and run `bash script/deploy/v2-5/rehearse-stage.sh finalize-activation`.
 - [ ] Run inventory validation, lint, reconciliation, and the authority-helper preflight. Confirm the helper remained the ArchController owner throughout.
-- [ ] Run both canary markets and validate the generated handoff.
-- [ ] Generate retirement only now with `bash script/deploy/v2-5/retirement/01-generate-plan.sh`.
-- [ ] Review every retirement target from the finalized inventory. The current Sepolia inventory produces nine targets and 18 forwarded, ordered removals. There must be no ownership handoff or market removal.
-- [ ] Build and walk a separate locked EOA retirement package. Verify every predicate, finalize it with `retirement/02-finalize-inventory.sh`, reconcile again, and confirm the helper remained the owner.
+- [ ] Validate the generated handoff. Run canaries only through the signing path intended for live Sepolia; unlocked or impersonated canary execution remains headless engine evidence.
 - [ ] Preserve the plan, package digest, run-states, transaction hashes, logs, fork block, and final inventory as rehearsal evidence. Stop only the recorded Anvil PID.
 
-`rehearse.sh --full` performs activation/finalization, the standard and revolving canaries, handoff generation/checking, retirement, and the final handoff refresh headlessly. It is useful as an engine check but does not replace the locked-UI acceptance run.
+Retirement is a later ceremony. Rehearse it from a fresh fork of the accepted
+post-activation Sepolia state when the validation window is complete.
+
+`rehearse.sh --full` performs authority migration, activation, canaries,
+handoff checks, and retirement headlessly. It is useful as an engine check but
+does not replace the real-wallet locked-UI acceptance run.
 
 ## B. Live Sepolia activation
 

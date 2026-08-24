@@ -1,13 +1,14 @@
 # v2.5 Sepolia first-deployment checklist
 
-This is the operator walkthrough for the first live v2.5 deployment. It has
-three distinct ceremonies:
+This is the operator walkthrough for the first live v2.5 deployment. It has two
+release windows:
 
-1. rotate the Sepolia authority helper;
-2. activate and validate the new v2.5 generation; and
-3. retire superseded factory authority after the validation window.
+1. rotate the Sepolia authority helper in three locked packages, then activate
+   and validate the new v2.5 generation; and
+2. retire superseded factory authority in a separate ceremony after the
+   validation window.
 
-Do not combine them. Complete
+Do not generate or execute retirement during activation. Complete
 [anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) from the exact source
 revision first.
 
@@ -123,6 +124,11 @@ reviewed ownership transfer before ending the session.
 After all five predicates pass, export the unedited run-state and verify it:
 
 ```bash
+node scripts/plan.js verify-eoa-run-state \
+  --plan "$AUTHORITY_PHASE_1" \
+  --run-state "$AUTHORITY_PHASE_1_STATE" \
+  --rpc "$RPC_URL"
+
 node scripts/plan.js verify \
   --plan "$AUTHORITY_PHASE_1" \
   --run-state "$AUTHORITY_PHASE_1_STATE" \
@@ -168,6 +174,11 @@ ArchController call and its decoded arguments, not only nested calldata.
 Execute, export, and verify:
 
 ```bash
+node scripts/plan.js verify-eoa-run-state \
+  --plan "$AUTHORITY_PHASE_2" \
+  --run-state "$AUTHORITY_PHASE_2_STATE" \
+  --rpc "$RPC_URL"
+
 node scripts/plan.js verify \
   --plan "$AUTHORITY_PHASE_2" \
   --run-state "$AUTHORITY_PHASE_2_STATE" \
@@ -206,6 +217,18 @@ run-state, and verify it. The cards accept engine default administration, grant
 the helper the engine operator role, and remove the old wallet's direct engine
 operator role. They do **not** remove the old wallet from the helper's executor
 list.
+
+```bash
+node scripts/plan.js verify-eoa-run-state \
+  --plan "$AUTHORITY_PHASE_3" \
+  --run-state "$AUTHORITY_PHASE_3_STATE" \
+  --rpc "$RPC_URL"
+
+node scripts/plan.js verify \
+  --plan "$AUTHORITY_PHASE_3" \
+  --run-state "$AUTHORITY_PHASE_3_STATE" \
+  --rpc "$RPC_URL"
+```
 
 Only after all three phases are verified, finalize the local deployment alias:
 
@@ -290,6 +313,8 @@ run-state:
 
 ```bash
 test "$(jq 'length' "$RUN_STATE")" = 24
+node scripts/plan.js verify-eoa-run-state \
+  --plan "$PLAN" --run-state "$RUN_STATE" --rpc "$RPC_URL"
 node scripts/plan.js verify --plan "$PLAN" --run-state "$RUN_STATE" --rpc "$RPC_URL"
 RUN_STATE="$RUN_STATE" RPC_URL="$RPC_URL" bash script/deploy/v2-5/08-finalize-inventory.sh
 
@@ -330,6 +355,11 @@ unedited retirement run-state, verify it, and finalize:
 ```bash
 node scripts/plan.js ceremony-package \
   --plan "$RETIREMENT_PLAN" --mode eoa --out "$RETIREMENT_PACKAGE"
+
+node scripts/plan.js verify-eoa-run-state \
+  --plan "$RETIREMENT_PLAN" \
+  --run-state "$RETIREMENT_RUN_STATE" \
+  --rpc "$RPC_URL"
 
 node scripts/plan.js verify \
   --plan "$RETIREMENT_PLAN" \

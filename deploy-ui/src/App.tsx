@@ -40,6 +40,7 @@ import { SAFE_1_4_1_FORK_NETWORKS } from './safeContracts'
 import {
   clampRailWidth,
   DEFAULT_RAIL_WIDTH,
+  eoaCompletionGuidance,
   errorText,
   isRpcUnavailableError,
   MAX_RAIL_WIDTH,
@@ -1626,7 +1627,7 @@ export default function App() {
                   <div className="state-strip done">
                     ✓ COMPLETE{' '}
                     <span className="sans">
-                      export the run state from the top bar and hand it unchanged to step 08.
+                      {eoaCompletionGuidance(plan.release, plan.network)}
                     </span>
                   </div>
                 </div>

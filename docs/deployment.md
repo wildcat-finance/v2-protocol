@@ -19,7 +19,7 @@ Use one executor mode per target:
 | ---------------------------------------- | ----------------------------------------------------------------------------------- | ------------------ |
 | Ethereum mainnet, Plasma mainnet         | Foundation through the disposable deployment frontend, with the team on a live call | `plan`             |
 | Sepolia, Plasma testnet, future testnets | Dev EOA; Sepolia owner calls use the persistent authority helper, while other testnets require their reviewed authority configuration | `plan`             |
-| Anvil forks                              | Test EOA for the Sepolia-shaped UI rehearsal; impersonated owner for headless/direct maintenance | `plan` or `direct` |
+| Anvil forks                              | The real target EOA for Sepolia release acceptance; impersonated owner only for explicit headless/direct engine checks | `plan` or `direct` |
 
 `DeployScriptBase` enforces an explicit `OWNER_MODE` on Ethereum mainnet and
 Plasma mainnet. It defaults to `direct` elsewhere. `plan.js` currently maps only
@@ -468,8 +468,10 @@ Across the current activation and retirement shapes, the Foundation handles four
 
 The canonical Sepolia-shaped EOA procedure is
 [`anvil-v2-5-rehearsal.md`](./anvil-v2-5-rehearsal.md). It deliberately uses
-`rehearse.sh` only for fork setup and plan generation, then packages the fresh
-plan into the same locked production UI shape used for the live ceremony.
+`rehearse.sh` only for fork setup and authority phase-1 package generation.
+`rehearse-stage.sh` verifies each exported run-state before it prepares the
+next authority or activation package. The same old and new wallets used on
+live Sepolia sign every transaction through the locked production UI.
 
 `rehearse.sh --full` remains a useful headless engine check, but it does not
 exercise wallet connection, package fingerprint review, card UX, checkpoint
@@ -488,15 +490,24 @@ Every fork rehearsal must preserve these invariants:
 - persist Anvil state at a short interval, retain its log/PID/fork-block
   metadata, and use `rehearse.sh --resume` rather than reseeding after a
   recoverable node crash;
-- seed both `deployments.json` and `factory-inventory.json`, then rewrite only
-  the copied inventory identity to network `anvil`, chain ID `31337`;
+- seed `deployments.json`, `factory-inventory.json`, and the source network's
+  historical lint allowlist, then rewrite only their copied identities to
+  network `anvil`, chain ID `31337`;
 - generate the plan from the source revision under review with
   `FOUNDRY_PROFILE=deploy` rather than reusing generated output;
-- for the Sepolia-shaped path, execute and verify all three authority-migration plans, retain both executors on the replacement helper, and require the helper to remain ArchController owner throughout activation and retirement;
+- for Sepolia release acceptance, start Anvil without auto-impersonation, do
+  not inject balances or edit storage, and require both real executors to be
+  funded at the pinned source block;
+- execute the five-card phase 1 with the old executor, then generate the two
+  three-card new-executor phases only from verified prior run-state;
+- advance the disposable fork to the SphereX acceptance timestamp only after
+  an explicit operator command, retain both executors on the replacement
+  helper, and remove only the old executor's direct engine operator role;
 - require 14 activation deployments, six template registrations, two new factory registrations, and no factory or market removal;
-- finalize activation only from its unedited, independently verified run-state, then generate retirement from the resulting reconciled inventory;
-- require each retirement target to lose its controller-factory role before its controller role, with no market removal;
-- finalize retirement only from its own unedited, independently verified run-state;
+- finalize activation only from its unedited, independently verified
+  run-state, with the helper remaining ArchController owner throughout;
+- leave retirement out of activation acceptance. Rehearse it later on a fresh
+  fork of the accepted post-activation public state;
 - treat browser progress as stored but unverified until the connected chain
   rechecks receipts and predicates; only Anvil packages expose the destructive
   new-rehearsal reset;

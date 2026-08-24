@@ -46,6 +46,8 @@ function printUsage() {
   node scripts/plan.js execute --plan <path> --rpc <url>
     [--private-key <key> | --impersonate <address>] [--yes]
   node scripts/plan.js verify --plan <path> --run-state <path> --rpc <url>
+  node scripts/plan.js verify-eoa-run-state --plan <path> --run-state <path>
+    --rpc <url>
   node scripts/plan.js render-safe --plan <path>
   node scripts/plan.js bundle --plan <path> --safe <address>
     --start-nonce <n> [--max-gas <n>] [--out-dir <dir>]
@@ -66,6 +68,7 @@ const KNOWN_FLAGS = {
   validate: ["plan"],
   execute: ["plan", "rpc", "private-key", "impersonate", "yes"],
   verify: ["plan", "run-state", "rpc"],
+  "verify-eoa-run-state": ["plan", "run-state", "rpc"],
   "render-safe": ["plan"],
   bundle: ["plan", "safe", "start-nonce", "max-gas", "out-dir"],
   "bundle-simulate": ["plan", "bundles", "rpc", "safe", "private-key"],
@@ -1906,6 +1909,138 @@ async function verifyPlan(args) {
   console.log(`Verification passed: ${plan.transactions.length} predicate(s).`);
 }
 
+function recordedBlockNumber(entry, transactionId) {
+  try {
+    const blockNumber = BigInt(entry.blockNumber);
+    if (blockNumber <= 0n) throw new Error("not positive");
+    return blockNumber;
+  } catch (_error) {
+    throw new Error(
+      `Run state entry ${transactionId} has invalid blockNumber ${entry.blockNumber}`
+    );
+  }
+}
+
+async function verifyEoaRunState(args) {
+  const planPath = requiredArg(args, "plan");
+  const statePath = requiredArg(args, "run-state");
+  const rpcUrl = requiredArg(args, "rpc");
+  const plan = assertValidPlan(readJson(planPath));
+  if (!fs.existsSync(statePath)) {
+    throw new Error(`Run state not found: ${statePath}`);
+  }
+  const runState = readRunState(statePath);
+  const expectedIds = new Set(
+    plan.transactions.map((transaction) => transaction.id)
+  );
+  for (const transactionId of Object.keys(runState)) {
+    if (!expectedIds.has(transactionId)) {
+      throw new Error(
+        `Run state contains unknown transaction id ${transactionId}`
+      );
+    }
+  }
+  for (const transaction of plan.transactions) {
+    const entry = runState[transaction.id];
+    if (!entry || entry.status !== "verified") {
+      throw new Error(`Run state entry ${transaction.id} is not verified`);
+    }
+    if (!/^0x[a-fA-F0-9]{64}$/.test(entry.txHash || "")) {
+      throw new Error(`Run state entry ${transaction.id} has invalid txHash`);
+    }
+    recordedBlockNumber(entry, transaction.id);
+    if (
+      transaction.kind === "deploy" &&
+      !ADDRESS_REGEX.test(entry.resolvedAddress || "")
+    ) {
+      throw new Error(
+        `Run state deployment ${transaction.id} has invalid resolvedAddress`
+      );
+    }
+  }
+
+  const rpc = createRpcClient(rpcUrl);
+  const actualChainId = Number(BigInt(await rpc("eth_chainId")));
+  if (actualChainId !== plan.chainId) {
+    throw new Error(
+      `RPC chain id mismatch: plan=${plan.chainId}, rpc=${actualChainId}`
+    );
+  }
+  const outputs = outputsFromRunState(plan, runState);
+  for (const transaction of plan.transactions) {
+    const entry = runState[transaction.id];
+    const [receipt, actualTransaction] = await Promise.all([
+      rpc("eth_getTransactionReceipt", [entry.txHash]),
+      rpc("eth_getTransactionByHash", [entry.txHash]),
+    ]);
+    if (!receipt || !actualTransaction) {
+      throw new Error(
+        `Run state transaction ${transaction.id} is not present on the RPC`
+      );
+    }
+    if (BigInt(receipt.status) !== 1n) {
+      throw new Error(
+        `Run state transaction ${transaction.id} did not succeed`
+      );
+    }
+    if (
+      BigInt(receipt.blockNumber) !== recordedBlockNumber(entry, transaction.id)
+    ) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has a different block number`
+      );
+    }
+    const expectedExecutor = getAddress(transaction.envelope.expectedExecutor);
+    if (
+      getAddress(receipt.from) !== expectedExecutor ||
+      getAddress(actualTransaction.from) !== expectedExecutor
+    ) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has the wrong executor`
+      );
+    }
+
+    const payload = transactionPayload(transaction, outputs);
+    const actualTo = actualTransaction.to
+      ? getAddress(actualTransaction.to)
+      : null;
+    const expectedTo = payload.to ? getAddress(payload.to) : null;
+    if (actualTo !== expectedTo) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has the wrong destination`
+      );
+    }
+    if (
+      (actualTransaction.input || "").toLowerCase() !==
+      payload.data.toLowerCase()
+    ) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has different calldata`
+      );
+    }
+    if (BigInt(actualTransaction.value) !== payload.value) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has a different value`
+      );
+    }
+    if (transaction.kind === "deploy") {
+      if (
+        !receipt.contractAddress ||
+        getAddress(receipt.contractAddress) !==
+          getAddress(entry.resolvedAddress)
+      ) {
+        throw new Error(
+          `Run state deployment ${transaction.id} has a different receipt address`
+        );
+      }
+    }
+    console.log(`PROVENANCE ${transaction.id}: ${entry.txHash}`);
+  }
+  console.log(
+    `EOA run-state provenance passed: ${plan.transactions.length} transaction(s).`
+  );
+}
+
 function safeInputValue(value) {
   if (isReference(value)) return `$ref:${value.$ref}`;
   if (Array.isArray(value) || (value !== null && typeof value === "object")) {
@@ -2039,6 +2174,7 @@ async function main() {
   if (command === "validate") return runValidate(args);
   if (command === "execute") return executePlan(args);
   if (command === "verify") return verifyPlan(args);
+  if (command === "verify-eoa-run-state") return verifyEoaRunState(args);
   if (command === "render-safe") return renderSafe(args);
   if (command === "bundle") return bundleCommands().bundlePlan(args);
   if (command === "bundle-simulate") {

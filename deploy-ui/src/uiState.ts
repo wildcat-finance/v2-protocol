@@ -32,3 +32,21 @@ export function isRpcUnavailableError(error: unknown): boolean {
     errorText(error),
   )
 }
+
+export function eoaCompletionGuidance(release: string, network: string): string {
+  if (network !== 'anvil') {
+    return 'export the run state from the top bar unchanged, then continue with the reviewed network runbook.'
+  }
+  switch (release) {
+    case 'authority-helper-phase-1':
+      return 'export run-state-authority-helper-phase-1.json into deployments/anvil, then run bash script/deploy/v2-5/rehearse-stage.sh phase-2.'
+    case 'authority-helper-phase-2':
+      return 'export run-state-authority-helper-phase-2.json into deployments/anvil, then run bash script/deploy/v2-5/rehearse-stage.sh advance-delay.'
+    case 'authority-helper-phase-3':
+      return 'export run-state-authority-helper-phase-3.json into deployments/anvil, then run bash script/deploy/v2-5/rehearse-stage.sh activation.'
+    case 'v2-5':
+      return 'export run-state-v2-5.json into deployments/anvil, then run bash script/deploy/v2-5/rehearse-stage.sh finalize-activation.'
+    default:
+      return 'export the run state from the top bar unchanged, then continue with the reviewed network runbook.'
+  }
+}
