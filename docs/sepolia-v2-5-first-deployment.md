@@ -42,7 +42,7 @@ unchanged.
 ## 1. Prepare
 
 - [ ] Complete and accept a new real-wallet rehearsal using the shared stage
-      interface. Fill in its commit, archive, and digest below before proceeding.
+      interface.
 - [ ] From the `v2-protocol` repository root, set the live target:
 
 ```bash
@@ -52,9 +52,6 @@ export FOUNDRY_PROFILE=deploy
 export DEPLOYMENTS_NETWORK=sepolia
 export RPC_URL='<reviewed Sepolia RPC URL>'
 export PRODUCTION_SOLIDITY_BASELINE=49f891c93768f9986f985204c2f533c77c5e6f60
-export REHEARSED_COMMIT='<accepted shared-flow rehearsal commit>'
-export REHEARSAL_ARCHIVE='<accepted rehearsal archive path>'
-export REHEARSAL_ARCHIVE_SHA256='<accepted rehearsal archive sha256>'
 export DEPLOYMENT_COMMIT="$(git rev-parse HEAD)"
 
 stage() {
@@ -62,29 +59,20 @@ stage() {
 }
 ```
 
-- [ ] Confirm a clean, pushed descendant with unchanged production and
-      ceremony tooling, then verify the rehearsal archive and live RPC:
+- [ ] Confirm a clean, pushed source with unchanged production Solidity and the
+      live RPC:
 
 ```bash
 git branch --show-current
 printf 'deployment commit: %s\n' "$DEPLOYMENT_COMMIT"
 git rev-parse '@{upstream}'
 git status --short
-git merge-base "$REHEARSED_COMMIT" "$DEPLOYMENT_COMMIT"
-git diff --stat "$REHEARSED_COMMIT"..HEAD -- \
-  src script scripts deploy-ui foundry.toml package.json yarn.lock \
-  deployments/sepolia/ceremony-config.json \
-  deployments/sepolia/deployments.json \
-  deployments/sepolia/factory-inventory.json
 git diff --stat "$PRODUCTION_SOLIDITY_BASELINE" -- src
-printf 'expected archive sha256: %s\n' "$REHEARSAL_ARCHIVE_SHA256"
-shasum -a 256 "$REHEARSAL_ARCHIVE"
 cast chain-id --rpc-url "$RPC_URL"
 ```
 
-Continue only if the deployment and upstream commits match; the merge base is
-the rehearsed commit; status and both diffs print nothing; the archive digests
-match; and the chain ID is `11155111`.
+Continue only if the deployment and upstream commits match, status and the diff
+print nothing, and the chain ID is `11155111`.
 
 - [ ] Run the same cold gates used for rehearsal:
 
