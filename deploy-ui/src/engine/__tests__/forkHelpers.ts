@@ -1,6 +1,10 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import {
+  execFileSync,
+  spawn,
+  type ChildProcessWithoutNullStreams,
+} from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import {
   createPublicClient,
   createWalletClient,
@@ -15,26 +19,84 @@ import type { DeploymentPlan } from '../types'
 export const DEV_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as Hex
 
+interface FoundryArtifactCache {
+  files?: Record<string, { artifacts?: Record<string, unknown> }>
+}
+
+function collectArtifactPaths(
+  value: unknown,
+  paths = new Set<string>(),
+): Set<string> {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectArtifactPaths(entry, paths)
+  } else if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.path === 'string') paths.add(record.path)
+    for (const entry of Object.values(record)) collectArtifactPaths(entry, paths)
+  }
+  return paths
+}
+
+function currentArtifactPath(
+  root: string,
+  outDirectory: string,
+  cache: FoundryArtifactCache,
+  sourceName: string,
+  contractName: string,
+): string {
+  const paths = [
+    ...collectArtifactPaths(cache.files?.[sourceName]?.artifacts?.[contractName]),
+  ]
+  if (paths.length !== 1) {
+    throw new Error(
+      `Expected one deploy-profile artifact for ${sourceName}:${contractName}; found ${paths.length}. Run npm run test:fork from deploy-ui.`,
+    )
+  }
+  return resolve(root, outDirectory, paths[0])
+}
+
 export function withCurrentFixtureBytecode(
   fixture: DeploymentPlan,
   root: string,
 ): DeploymentPlan {
   const plan = structuredClone(fixture)
-  const artifacts: Record<string, { name: string; path: string }> = {
+  const config = JSON.parse(
+    execFileSync('forge', ['config', '--json'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, FOUNDRY_PROFILE: 'deploy' },
+    }),
+  ) as { out: string; cache_path: string }
+  const cache = JSON.parse(
+    readFileSync(join(root, config.cache_path, 'solidity-files-cache.json'), 'utf8'),
+  ) as FoundryArtifactCache
+  const artifacts: Record<
+    string,
+    { name: string; sourceName: string; contractName: string }
+  > = {
     'deploy-token': {
       name: 'script/mock/MockERC20.sol:MockERC20',
-      path: join(root, 'deploy-out/mock/MockERC20.sol/MockERC20.json'),
+      sourceName: 'script/mock/MockERC20.sol',
+      contractName: 'MockERC20',
     },
     'deploy-market': {
       name: 'test-next/mocks/LensMocks.sol:LensV1MarketMock',
-      path: join(root, 'deploy-out/LensMocks.sol/LensV1MarketMock.json'),
+      sourceName: 'test-next/mocks/LensMocks.sol',
+      contractName: 'LensV1MarketMock',
     },
   }
   for (const transaction of plan.transactions) {
     if (transaction.kind !== 'deploy') continue
     const currentArtifact = artifacts[transaction.id]
     if (!currentArtifact) continue
-    const artifact = JSON.parse(readFileSync(currentArtifact.path, 'utf8')) as {
+    const artifactPath = currentArtifactPath(
+      root,
+      config.out,
+      cache,
+      currentArtifact.sourceName,
+      currentArtifact.contractName,
+    )
+    const artifact = JSON.parse(readFileSync(artifactPath, 'utf8')) as {
       bytecode: { object: Hex }
     }
     transaction.artifactName = currentArtifact.name
