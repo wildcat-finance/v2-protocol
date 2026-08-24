@@ -43,7 +43,6 @@ order, wait for every receipt and predicate, then export the run-state unchanged
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-set -euo pipefail
 
 export FOUNDRY_PROFILE=deploy
 export FORK_NETWORK=sepolia
@@ -63,26 +62,54 @@ stage() {
 - [ ] Require a clean, pushed source and unchanged production Solidity:
 
 ```bash
-git branch --show-current
-git rev-parse HEAD
-test "$(git rev-parse HEAD)" = "$(git rev-parse '@{upstream}')"
-test -z "$(git status --porcelain)"
-git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src
+check_rehearsal_source() (
+  set -euo pipefail
+
+  rehearsal_commit="$(git rev-parse HEAD)"
+  if ! upstream_commit="$(git rev-parse '@{upstream}' 2>/dev/null)"; then
+    echo 'source preflight failed: this branch has no upstream' >&2
+    return 1
+  fi
+
+  git branch --show-current
+  printf 'rehearsal commit: %s\n' "$rehearsal_commit"
+  if [[ "$rehearsal_commit" != "$upstream_commit" ]]; then
+    echo "source preflight failed: upstream is $upstream_commit" >&2
+    return 1
+  fi
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo 'source preflight failed: worktree is dirty' >&2
+    git status --short >&2
+    return 1
+  fi
+  if ! git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src; then
+    echo 'source preflight failed: production Solidity differs from the baseline' >&2
+    git diff --stat "$PRODUCTION_SOLIDITY_BASELINE" -- src >&2
+    return 1
+  fi
+
+  echo 'source preflight: GREEN'
+)
+check_rehearsal_source
 ```
 
 - [ ] Run the cold gates:
 
 ```bash
-forge test
-forge build --sizes src script/common script/deploy/v2-5
-
 (
-  cd deploy-ui
-  npm ci
-  npm audit
-  npm test
-  npm run build
-  SEPOLIA_RPC_URL="$FORK_RPC_URL" npm run test:fork
+  set -euo pipefail
+
+  forge test
+  forge build --sizes src script/common script/deploy/v2-5
+
+  (
+    cd deploy-ui
+    npm ci
+    npm audit
+    npm test
+    npm run build
+    SEPOLIA_RPC_URL="$FORK_RPC_URL" npm run test:fork
+  )
 )
 ```
 
