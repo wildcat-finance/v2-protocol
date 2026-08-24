@@ -1,395 +1,222 @@
 # v2.5 Sepolia first-deployment checklist
 
-This is the operator walkthrough for the first live v2.5 deployment. It has two
-release windows:
+Run the accepted rehearsal sequence against live Sepolia: three authority
+packages, the SphereX delay, then one 24-card activation package. Every
+transaction is signed through the locked deployment UI.
 
-1. rotate the Sepolia authority helper in three locked packages, then activate
-   and validate the new v2.5 generation; and
-2. retire superseded factory authority in a separate ceremony after the
-   validation window.
+Retirement is a later ceremony after the validation window. Do not run live
+canaries as part of activation.
 
-Do not generate or execute retirement during activation. Complete
-[anvil-v2-5-rehearsal.md](./anvil-v2-5-rehearsal.md) first. A ceremony-only
-descendant of that revision may proceed only if the reviewed-delta check below
-passes exactly.
+## Fixed inputs
 
-## Fixed identity
-
-| Role | Expected value |
-| --- | --- |
-| Network | Sepolia, chain ID `11155111` |
-| Old executor, retained temporarily | `0xca732651410E915090d7A7D889A1E44eF4575fcE` |
-| New executor | `0xca7007a75296b532ce1606d9e130eaa849800ca7` |
-| Template fee recipient | `0xca732651410E915090d7A7D889A1E44eF4575fcE` |
+| Item           | Expected value                               |
+| -------------- | -------------------------------------------- |
+| Network        | Sepolia `11155111`                           |
+| Old executor   | `0xca732651410E915090d7A7D889A1E44eF4575fcE` |
+| New executor   | `0xca7007a75296b532ce1606d9e130eaa849800ca7` |
 | ArchController | `0xC003f20F2642c76B81e5e1620c6D8cdEE826408f` |
-| Legacy helper | `0xa476920af80B587f696734430227869795E2Ea78` |
+| Legacy helper  | `0xa476920af80B587f696734430227869795E2Ea78` |
 | SphereX engine | `0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e` |
-| Activation release | `v2-5` |
-| Retirement release | `v2-5-retirement` |
-| Foundry profile | `deploy` |
-| Production Solidity baseline | `49f891c93768f9986f985204c2f533c77c5e6f60` |
-| Activation shape | 24 cards: 14 deployments and 10 calls |
-| Current retirement shape | 18 calls for nine superseded factories |
+| Activation     | 24 cards: 14 deployments and 10 calls        |
 
-The retirement count is state-dependent. Regenerate it from finalized live
-inventory and review every address.
+The replacement helper must keep both wallets authorized. Phase 3 removes only
+the old wallet's direct SphereX engine operator role.
 
 ## Stop conditions
 
-Stop if deployment-affecting source differs from rehearsal, the reviewed delta
-contains another path, the RPC or wallet is on the wrong chain, the selected
-wallet is not the phase's exact executor, a package digest changes, a
-transaction reverts, a predicate stays red, a pending nonce is unresolved, or
-any authority preflight fails.
+Stop on source drift, a dirty starting worktree, an unfunded wallet, the wrong
+RPC, chain or wallet, a changed package digest, unexpected card count, failed
+transaction, red predicate, or failed verification. Preserve the exact plan,
+package, browser state, run-state, transaction hash, and error before
+diagnosing. Never edit evidence, skip a card, or generate a later phase from
+unverified state.
 
-There is no skip path. Preserve the exact package, browser state, run-state,
-transaction hash, and error before changing anything. Never edit a generated
-plan or run-state.
+Phase 1 cards 2 and 3 are one ownership handoff. If interrupted after reclaim,
+resume the same reviewed package and complete the transfer before stopping.
 
-## 1. Prepare source and environment
+For every package: stop the preview, run the next stage, restart the preview,
+confirm chain `11155111`, wallet, digest, fingerprint, and card count, execute
+in order, wait for every receipt and predicate, then export the run-state
+unchanged.
 
-From the `v2-protocol` repository root:
+## 1. Prepare
+
+- [ ] Complete and accept a new real-wallet rehearsal using the shared stage
+      interface. Fill in its commit, archive, and digest below before proceeding.
+- [ ] From the `v2-protocol` repository root, set the live target:
 
 ```bash
-export REPO_ROOT="$(pwd -P)"
+cd "$(git rev-parse --show-toplevel)"
+set -euo pipefail
+
 export FOUNDRY_PROFILE=deploy
 export DEPLOYMENTS_NETWORK=sepolia
 export RPC_URL='<reviewed Sepolia RPC URL>'
-export OLD_EXECUTOR=0xca732651410E915090d7A7D889A1E44eF4575fcE
-export NEW_EXECUTOR=0xca7007a75296b532ce1606d9e130eaa849800ca7
-export ARCH_CONTROLLER=0xC003f20F2642c76B81e5e1620c6D8cdEE826408f
-export LEGACY_HELPER=0xa476920af80B587f696734430227869795E2Ea78
 export PRODUCTION_SOLIDITY_BASELINE=49f891c93768f9986f985204c2f533c77c5e6f60
-export REHEARSED_COMMIT=595e3d7b385db16155161b70dd69c006190ed3f8
+export REHEARSED_COMMIT='<accepted shared-flow rehearsal commit>'
+export REHEARSAL_ARCHIVE='<accepted rehearsal archive path>'
+export REHEARSAL_ARCHIVE_SHA256='<accepted rehearsal archive sha256>'
+
+stage() {
+  bash script/deploy/v2-5/ceremony-stage.sh "$@"
+}
 ```
 
-Record source and run the cold gates:
+- [ ] Require a clean, pushed descendant with unchanged production and
+      ceremony tooling, then verify the rehearsal archive:
 
 ```bash
+case "$REHEARSED_COMMIT$REHEARSAL_ARCHIVE$REHEARSAL_ARCHIVE_SHA256" in
+  *'<'*) echo 'fill the accepted rehearsal values first' >&2; false ;;
+esac
+
+DEPLOYMENT_COMMIT="$(git rev-parse HEAD)"
+export DEPLOYMENT_COMMIT
 git branch --show-current
-git rev-parse HEAD
-git status --short
-
-diff -u \
-  <(printf '%s\n' \
-    docs/anvil-v2-5-rehearsal.md \
-    docs/deploy-checklist.md \
-    docs/deploy-status.md \
-    docs/deployment.md \
-    docs/sepolia-v2-5-first-deployment.md \
-    script/deploy/v2-5/rehearse-stage.sh \
-    script/deploy/v2-5/rehearse.sh \
-    scripts/generate-handoff.js \
-    v2-5-sepolia-rehearsal-20260824T082524Z.tar.gz | sort) \
-  <(git diff --name-only "$REHEARSED_COMMIT"..HEAD | sort)
-
+printf 'deployment commit: %s\n' "$DEPLOYMENT_COMMIT"
+test "$DEPLOYMENT_COMMIT" = "$(git rev-parse '@{upstream}')"
+test -z "$(git status --porcelain)"
+git merge-base --is-ancestor "$REHEARSED_COMMIT" "$DEPLOYMENT_COMMIT"
+git diff --quiet "$REHEARSED_COMMIT"..HEAD -- \
+  src script scripts deploy-ui foundry.toml package.json yarn.lock \
+  deployments/sepolia/ceremony-config.json \
+  deployments/sepolia/deployments.json \
+  deployments/sepolia/factory-inventory.json
 git diff --quiet "$PRODUCTION_SOLIDITY_BASELINE" -- src
+test "$(shasum -a 256 "$REHEARSAL_ARCHIVE" | awk '{print $1}')" = \
+  "$REHEARSAL_ARCHIVE_SHA256"
 test "$(cast chain-id --rpc-url "$RPC_URL")" = 11155111
+```
 
-FOUNDRY_PROFILE=deploy forge test
-FOUNDRY_PROFILE=deploy forge build --sizes src script/common script/deploy/v2-5
+- [ ] Run the same cold gates used for rehearsal:
+
+```bash
+forge test
+forge build --sizes src script/common script/deploy/v2-5
 
 (
   cd deploy-ui
   npm ci
+  npm audit
   npm test
   npm run build
+  SEPOLIA_RPC_URL="$RPC_URL" npm run test:fork
 )
 ```
 
-Before phase 1, independently confirm the live baseline documented in
-[sepolia-authority-helper-rotation.md](./sepolia-authority-helper-rotation.md).
-The legacy helper must own the ArchController. The old executor must still be
-the ArchController SphereX admin/operator and the SphereX engine default
-admin/operator.
+## 2. Execute the shared sequence
 
-## 2. Authority phase 1 — old executor
+| Stage                 | Wallet | Cards | Output                                                        |
+| --------------------- | ------ | ----: | ------------------------------------------------------------- |
+| `phase-1`             | old    |     5 | `deployments/sepolia/run-state-authority-helper-phase-1.json` |
+| `phase-2`             | new    |     3 | `deployments/sepolia/run-state-authority-helper-phase-2.json` |
+| `delay`               | none   |     0 | `deployments/sepolia/authority-delay-v2-5.json`               |
+| `phase-3`             | new    |     3 | `deployments/sepolia/run-state-authority-helper-phase-3.json` |
+| `activation`          | new    |    24 | `deployments/sepolia/run-state-v2-5.json`                     |
+| `finalize-activation` | none   |     0 | inventory, reconciliation, preflight, and handoff             |
+| `status`              | none   |     0 | `deployments/sepolia/status-v2-5.txt`                         |
 
-Phase 1 deploys the replacement helper from the old wallet with both executors
-authorized, transfers ArchController ownership, and starts both SphereX admin
-transfers.
-
-```bash
-node scripts/authority-migration.js phase-one \
-  --network sepolia \
-  --rpc-url "$RPC_URL" \
-  --old-executor "$OLD_EXECUTOR" \
-  --new-executor "$NEW_EXECUTOR"
-
-export AUTHORITY_PHASE_1="$REPO_ROOT/deployments/sepolia/plan-authority-helper-phase-1.json"
-export AUTHORITY_PHASE_1_PACKAGE="$REPO_ROOT/deployments/sepolia/ceremony-authority-helper-phase-1.json"
-export AUTHORITY_PHASE_1_STATE="$REPO_ROOT/deployments/sepolia/run-state-authority-helper-phase-1.json"
-
-node scripts/plan.js ceremony-package \
-  --plan "$AUTHORITY_PHASE_1" --mode eoa --out "$AUTHORITY_PHASE_1_PACKAGE"
-```
-
-Build the locked UI with that package. Confirm five cards and the old executor:
-
-1. deploy the replacement helper;
-2. reclaim ArchController ownership from the legacy helper;
-3. transfer ArchController ownership to the replacement helper;
-4. start the ArchController SphereX admin transfer; and
-5. start the SphereX engine default-admin transfer.
-
-The temporary owner predicate on card 2 is compensated by card 3. Stop between
-those cards only if necessary, preserve the run-state, and complete the already
-reviewed ownership transfer before ending the session.
-
-After all five predicates pass, export the unedited run-state and verify it:
+- [ ] Prepare phase 1. This also checks the complete live authority baseline,
+      wallet balances, chain, inventory identity, and package shape:
 
 ```bash
-node scripts/plan.js verify-eoa-run-state \
-  --plan "$AUTHORITY_PHASE_1" \
-  --run-state "$AUTHORITY_PHASE_1_STATE" \
-  --rpc "$RPC_URL"
-
-node scripts/plan.js verify \
-  --plan "$AUTHORITY_PHASE_1" \
-  --run-state "$AUTHORITY_PHASE_1_STATE" \
-  --rpc "$RPC_URL"
-
-export REPLACEMENT_HELPER="$(jq -er '."deploy-replacement-authority-helper".resolvedAddress' "$AUTHORITY_PHASE_1_STATE")"
-cast call "$REPLACEMENT_HELPER" 'version()(string)' --rpc-url "$RPC_URL"
-cast call "$REPLACEMENT_HELPER" 'getAuthorizedAccounts()(address[])' --rpc-url "$RPC_URL"
+stage phase-1
 ```
 
-Record the replacement address, constructor arguments, runtime code hash,
-transaction hashes, and package digest. Fund the new executor for the remaining
-ceremonies without using it to deploy another contract.
-
-Do not generate or reuse phase 2 or phase 3 before this run-state is verified.
-Both generators require either this exact phase-1 run-state or an explicitly
-reviewed replacement-helper address, and reject the current legacy helper.
-
-## 3. Authority phase 2 — new executor
-
-Phase 2 proves the new wallet can operate the helper, accepts ArchController
-SphereX administration, moves the ArchController SphereX operator, and registers
-the new wallet as a testnet borrower.
+- [ ] In a second terminal, serve the exact build:
 
 ```bash
-node scripts/authority-migration.js phase-two \
-  --network sepolia \
-  --phase-one-run-state "$AUTHORITY_PHASE_1_STATE" \
-  --new-executor "$NEW_EXECUTOR"
-
-export AUTHORITY_PHASE_2="$REPO_ROOT/deployments/sepolia/plan-authority-helper-phase-2.json"
-export AUTHORITY_PHASE_2_PACKAGE="$REPO_ROOT/deployments/sepolia/ceremony-authority-helper-phase-2.json"
-export AUTHORITY_PHASE_2_STATE="$REPO_ROOT/deployments/sepolia/run-state-authority-helper-phase-2.json"
-
-node scripts/plan.js ceremony-package \
-  --plan "$AUTHORITY_PHASE_2" --mode eoa --out "$AUTHORITY_PHASE_2_PACKAGE"
+(cd deploy-ui && npm exec -- vite preview --host 127.0.0.1 --port 4173 --strictPort)
 ```
 
-Build a fresh locked UI. Confirm three cards, the new executor, and the
-replacement helper transport target. The UI must show each logical
-ArchController call and its decoded arguments, not only nested calldata.
-
-Execute, export, and verify:
+- [ ] With the old wallet, execute five cards: deploy the two-wallet helper;
+      reclaim and transfer ArchController ownership; start both SphereX admin
+      transfers. Export the phase-1 run-state above.
+- [ ] Stop the preview, prepare phase 2, then restart the same preview command:
 
 ```bash
-node scripts/plan.js verify-eoa-run-state \
-  --plan "$AUTHORITY_PHASE_2" \
-  --run-state "$AUTHORITY_PHASE_2_STATE" \
-  --rpc "$RPC_URL"
-
-node scripts/plan.js verify \
-  --plan "$AUTHORITY_PHASE_2" \
-  --run-state "$AUTHORITY_PHASE_2_STATE" \
-  --rpc "$RPC_URL"
+stage phase-2
 ```
 
-## 4. Authority phase 3 — after the SphereX delay
-
-Read the engine schedule and wait until it has passed:
+- [ ] Confirm the reviewed replacement-helper runtime hash and both wallet
+      authorizations pass. With the new wallet, execute three cards: accept
+      ArchController SphereX administration; move its operator role to the
+      helper; register the new wallet as a Sepolia borrower. Export phase 2.
+- [ ] Stop the preview and record the live SphereX schedule:
 
 ```bash
-cast call 0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e \
-  'pendingDefaultAdmin()(address,uint48)' --rpc-url "$RPC_URL"
+stage delay
 ```
 
-Do not estimate or send the acceptance transaction early. After the timestamp:
+- [ ] Wait until the printed UTC eligibility time. Do not advance, mine, or
+      otherwise mutate Sepolia. Prepare phase 3; it will refuse to continue
+      early and will add the ready block and timestamp to the delay evidence:
 
 ```bash
-node scripts/authority-migration.js phase-three \
-  --network sepolia \
-  --rpc-url "$RPC_URL" \
-  --phase-one-run-state "$AUTHORITY_PHASE_1_STATE" \
-  --old-executor "$OLD_EXECUTOR" \
-  --new-executor "$NEW_EXECUTOR"
-
-export AUTHORITY_PHASE_3="$REPO_ROOT/deployments/sepolia/plan-authority-helper-phase-3.json"
-export AUTHORITY_PHASE_3_PACKAGE="$REPO_ROOT/deployments/sepolia/ceremony-authority-helper-phase-3.json"
-export AUTHORITY_PHASE_3_STATE="$REPO_ROOT/deployments/sepolia/run-state-authority-helper-phase-3.json"
-
-node scripts/plan.js ceremony-package \
-  --plan "$AUTHORITY_PHASE_3" --mode eoa --out "$AUTHORITY_PHASE_3_PACKAGE"
+stage phase-3
 ```
 
-Build a fresh locked UI, execute the three cards with the new wallet, export the
-run-state, and verify it. The cards accept engine default administration, grant
-the helper the engine operator role, and remove the old wallet's direct engine
-operator role. They do **not** remove the old wallet from the helper's executor
-list.
+- [ ] Restart the preview. With the new wallet, execute three cards: accept
+      SphereX engine administration; grant the helper its operator role; revoke
+      the old wallet's direct role. Confirm there is no helper deauthorization
+      card. Export phase 3.
+- [ ] Stop the preview, prepare activation, then restart it:
 
 ```bash
-node scripts/plan.js verify-eoa-run-state \
-  --plan "$AUTHORITY_PHASE_3" \
-  --run-state "$AUTHORITY_PHASE_3_STATE" \
-  --rpc "$RPC_URL"
-
-node scripts/plan.js verify \
-  --plan "$AUTHORITY_PHASE_3" \
-  --run-state "$AUTHORITY_PHASE_3_STATE" \
-  --rpc "$RPC_URL"
+stage activation
 ```
 
-Only after all three phases are verified, finalize the local deployment alias:
+- [ ] Confirm 24 cards: 14 deployments, 10 calls, eight forwarded owner
+      actions, six template registrations, two factory registrations, and no
+      ownership handoff, retirement, or market removal.
+- [ ] Execute in order with the new wallet. At a reviewed midpoint, export
+      `deployments/sepolia/run-state-v2-5-checkpoint.json`, reload, resume, and
+      confirm all earlier receipts and predicates are rechecked.
+- [ ] Export the final activation run-state, stop the preview, and finalize:
 
 ```bash
-node scripts/authority-helper.js finalize \
-  --network sepolia \
-  --rpc-url "$RPC_URL" \
-  --expected-executor "$NEW_EXECUTOR" \
-  --helper "$REPLACEMENT_HELPER"
-
-node scripts/authority-helper.js preflight \
-  --network sepolia \
-  --rpc-url "$RPC_URL" \
-  --expected-executor "$NEW_EXECUTOR"
+stage finalize-activation
+stage status | tee deployments/sepolia/status-v2-5.txt
 ```
 
-Review and commit the `deployments.json` alias change normally. It preserves the
-old address under `MockArchControllerOwnerLegacy`.
+- [ ] Confirm inventory validation, lint, reconciliation, authority preflight,
+      and handoff checks pass. Confirm both wallets remain authorized and the
+      old wallet no longer has the direct SphereX engine operator role.
 
-## 5. Generate v2.5 activation
+## 3. Preserve evidence
+
+- [ ] Verify the replacement helper and all 14 activation deployments on the
+      explorer, preserving their compiler inputs.
+- [ ] Archive the unedited evidence and record its digest:
 
 ```bash
-export RELEASE_TAG=v2-5
-export OWNER_MODE=plan
-export EXPECTED_EXECUTOR="$NEW_EXECUTOR"
-export TEMPLATE_FEE_RECIPIENT=0xca732651410E915090d7A7D889A1E44eF4575fcE
-export PLAN="$REPO_ROOT/deployments/sepolia/plan-v2-5.json"
-export PACKAGE="$REPO_ROOT/deployments/sepolia/ceremony-v2-5-eoa.json"
-export RUN_STATE="$REPO_ROOT/deployments/sepolia/run-state-v2-5.json"
-
-forge script script/deploy/v2-5/01-deploy-wrapper-factory.s.sol:DeployWrapperFactoryV25 --rpc-url "$RPC_URL"
-forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 --rpc-url "$RPC_URL"
-forge script script/deploy/v2-5/03-deploy-hooks-factory-revolving.s.sol:DeployHooksFactoryRevolvingV25 --rpc-url "$RPC_URL"
-forge script script/deploy/v2-5/04-deploy-market-lens.s.sol:DeployMarketLensV25 --rpc-url "$RPC_URL"
-forge script script/deploy/v2-5/05-owner-actions.s.sol:OwnerActionsV25 --rpc-url "$RPC_URL"
-forge script script/deploy/v2-5/06-register-factories.s.sol:RegisterFactoriesV25 --rpc-url "$RPC_URL"
-bash script/deploy/v2-5/07-generate-plan.sh
+printf '%s\n' "$DEPLOYMENT_COMMIT" > deployments/sepolia/source-commit-v2-5.txt
+EVIDENCE_ARCHIVE="v2-5-sepolia-live-$(date -u '+%Y%m%dT%H%M%SZ').tar.gz"
+COPYFILE_DISABLE=1 tar -czf "$EVIDENCE_ARCHIVE" deployments/sepolia
+shasum -a 256 "$EVIDENCE_ARCHIVE"
 ```
 
-The generator runs the authority preflight first. It must print `24 tx (14
-deploy, 10 call)`. Eight owner actions must be forwarded through the helper;
-the two permissionless `registerWithArchController()` calls remain direct.
+- [ ] Preserve the commit; four plans, packages, digests and unedited
+      run-states; delay evidence; checkpoint; transaction hashes; replacement
+      helper and code hash; final inventory; reconciliation; preflight;
+      handoff; and explorer compiler inputs.
+- [ ] Review the evidence for private keys, mnemonics, RPC credentials, and
+      bearer tokens before committing it.
+- [ ] Validate the new generation through the subgraph, SDK, and app while the
+      old factories remain live. Stop the preview. Do not generate retirement.
 
-Review the logical calls rather than only the transport calls:
+## Recovery
 
-```bash
-jq -e '
-  def logical: (.forwardedCall // {target: .to, functionSignature, args});
-  (.transactions | length) == 24 and
-  ([.transactions[] | select(.kind == "deploy")] | length) == 14 and
-  ([.transactions[] | select(.kind == "call")] | length) == 10 and
-  ([.transactions[] | select(.forwardedCall != null)] | length) == 8 and
-  ([.transactions[] | logical | select(.functionSignature == "addHooksTemplate(address,string,address,address,uint80,uint16)")] | length) == 6 and
-  ([.transactions[] | logical | select(.functionSignature == "registerControllerFactory(address)")] | length) == 2 and
-  all(.transactions[]; .id != "reclaim-arch-controller-ownership") and
-  all(.transactions[]; .id != "restore-arch-controller-ownership")
-' "$PLAN"
+After an interruption, restart the exact saved package and resume from browser
+progress or the exported run-state. Require all earlier receipts and predicates
+to recheck. Do not rerun a stage to regenerate a completed or partially
+executed package.
 
-jq -r '
-  .transactions | to_entries[] |
-  (.value.forwardedCall // {target: .value.to, functionSignature: .value.functionSignature, args: .value.args}) as $call |
-  [(.key + 1), .value.kind, .value.id, ($call.functionSignature // "deploy"), ($call.target // "")] | @tsv
-' "$PLAN"
-```
+After a failure, preserve the evidence and stop. Do not edit the plan, retry
+from a new package, or continue into a later phase without separate review.
 
-## 6. Execute and finalize activation
+## Later: retirement
 
-Build a fresh locked package and site:
-
-```bash
-node scripts/plan.js ceremony-package --plan "$PLAN" --mode eoa --out "$PACKAGE"
-(
-  cd deploy-ui
-  CEREMONY_PACKAGE="$PACKAGE" npm run build
-)
-```
-
-Confirm the new executor, Sepolia chain ID, package digest, and 24-card count.
-Walk every card in order. The helper remains ArchController owner throughout;
-there is no reclaim or return card. Export and independently verify the final
-run-state:
-
-```bash
-test "$(jq 'length' "$RUN_STATE")" = 24
-node scripts/plan.js verify-eoa-run-state \
-  --plan "$PLAN" --run-state "$RUN_STATE" --rpc "$RPC_URL"
-node scripts/plan.js verify --plan "$PLAN" --run-state "$RUN_STATE" --rpc "$RPC_URL"
-RUN_STATE="$RUN_STATE" RPC_URL="$RPC_URL" bash script/deploy/v2-5/08-finalize-inventory.sh
-
-node scripts/factory-inventory.js validate --network sepolia
-node scripts/factory-inventory.js lint --network sepolia
-node scripts/factory-inventory.js reconcile --network sepolia --rpc-url "$RPC_URL"
-node scripts/authority-helper.js preflight \
-  --network sepolia --rpc-url "$RPC_URL" --expected-executor "$NEW_EXECUTOR"
-node scripts/generate-handoff.js \
-  --network sepolia --release "$RELEASE_TAG"
-node scripts/generate-handoff.js \
-  --network sepolia --release "$RELEASE_TAG" --check
-```
-
-Deploy and validate the subgraph, SDK, and app, and preserve all ceremony
-evidence. Sepolia canaries are an optional post-deployment check, not an
-activation gate. They are not part of the mainnet ceremony. Do not generate
-retirement until the activated generation is accepted.
-
-## 7. Retirement after validation
-
-```bash
-export EXPECTED_EXECUTOR="$NEW_EXECUTOR"
-export RETIREMENT_PLAN="$REPO_ROOT/deployments/sepolia/plan-v2-5-retirement.json"
-export RETIREMENT_PACKAGE="$REPO_ROOT/deployments/sepolia/ceremony-v2-5-retirement-eoa.json"
-export RETIREMENT_RUN_STATE="$REPO_ROOT/deployments/sepolia/run-state-v2-5-retirement.json"
-
-node scripts/factory-inventory.js reconcile --network sepolia --rpc-url "$RPC_URL"
-bash script/deploy/v2-5/retirement/01-generate-plan.sh
-node scripts/plan.js validate --plan "$RETIREMENT_PLAN"
-node scripts/factory-inventory.js validate-retirement-plan \
-  --network sepolia --plan "$RETIREMENT_PLAN"
-```
-
-The current inventory produces nine targets and 18 forwarded calls. For every
-target, `removeControllerFactory(address)` must immediately precede
-`removeController(address)`. There is no ownership handoff and no
-`removeMarket(address)` call.
-
-Build a separate locked retirement site, execute every card, export the
-unedited retirement run-state, verify it, and finalize:
-
-```bash
-node scripts/plan.js ceremony-package \
-  --plan "$RETIREMENT_PLAN" --mode eoa --out "$RETIREMENT_PACKAGE"
-
-node scripts/plan.js verify-eoa-run-state \
-  --plan "$RETIREMENT_PLAN" \
-  --run-state "$RETIREMENT_RUN_STATE" \
-  --rpc "$RPC_URL"
-
-node scripts/plan.js verify \
-  --plan "$RETIREMENT_PLAN" \
-  --run-state "$RETIREMENT_RUN_STATE" \
-  --rpc "$RPC_URL"
-
-RUN_STATE="$RETIREMENT_RUN_STATE" RPC_URL="$RPC_URL" \
-  bash script/deploy/v2-5/retirement/02-finalize-inventory.sh
-```
-
-Re-run inventory reconciliation and the authority-helper preflight. Removing
-the old executor from the helper is a later, separately reviewed operation
-after the contracts, subgraph, SDK, and app have been stable for several days.
+Retirement gets its own plan, package, run-state, review, and ceremony after the
+validation window. Generate it from the finalized live inventory. Removing the
+old wallet from the replacement helper is later still.

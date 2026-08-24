@@ -12,13 +12,13 @@ Activation and retirement are separate releases. Activation deploys and register
 - [ ] Use one explicitly selected archive RPC and confirm its chain ID and historical storage access. Do not add an implicit fallback.
 - [ ] Fund both real executor wallets on Sepolia before pinning the fork. The user-driven rehearsal must not impersonate either account or replace its balance.
 - [ ] Start a fresh fork with `FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net ANVIL_PORT=8547 bash script/deploy/v2-5/rehearse.sh`.
-- [ ] Confirm the launcher stops after preparing authority phase 1. No transaction has executed. Walk its five cards in the locked UI with `0xca732651410E915090d7A7D889A1E44eF4575fcE`, then export the unedited run-state.
-- [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh phase-2`. Walk its three cards with `0xca7007a75296b532ce1606d9e130eaa849800ca7`, then export the unedited run-state.
-- [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh advance-delay`, review the recorded timestamp change, then run `bash script/deploy/v2-5/rehearse-stage.sh phase-3` and walk its three cards with the new wallet.
+- [ ] Confirm the launcher stops before package generation. Set `DEPLOYMENTS_NETWORK=anvil` and the local `RPC_URL`, then run `bash script/deploy/v2-5/ceremony-stage.sh phase-1`. Walk its five cards in the locked UI with `0xca732651410E915090d7A7D889A1E44eF4575fcE`, then export the unedited run-state.
+- [ ] Run `bash script/deploy/v2-5/ceremony-stage.sh phase-2`. Walk its three cards with `0xca7007a75296b532ce1606d9e130eaa849800ca7`, then export the unedited run-state.
+- [ ] Run `bash script/deploy/v2-5/ceremony-stage.sh delay`, review the recorded timestamp change, then run `bash script/deploy/v2-5/ceremony-stage.sh phase-3` and walk its three cards with the new wallet.
 - [ ] Run the authority-helper preflight. Confirm the replacement helper owns the ArchController, holds the expected SphereX roles, authorizes both wallets, and the old wallet has no direct engine operator role.
-- [ ] Run `bash script/deploy/v2-5/rehearse-stage.sh activation`. Confirm its 24 cards: 14 deployments, 10 calls, eight forwarded owner actions, six template registrations, two new factory registrations, and no ownership handoff or factory/market removal.
+- [ ] Run `bash script/deploy/v2-5/ceremony-stage.sh activation`. Confirm its 24 cards: 14 deployments, 10 calls, eight forwarded owner actions, six template registrations, two new factory registrations, and no ownership handoff or factory/market removal.
 - [ ] Walk the activation cards with the new wallet. At a midpoint, export a checkpoint and prove same-fork reload and resume. Every predicate must turn green from on-chain verification.
-- [ ] Export the unedited activation run-state and run `bash script/deploy/v2-5/rehearse-stage.sh finalize-activation`.
+- [ ] Export the unedited activation run-state and run `bash script/deploy/v2-5/ceremony-stage.sh finalize-activation`.
 - [ ] Run inventory validation, lint, reconciliation, and the authority-helper preflight. Confirm the helper remained the ArchController owner throughout.
 - [ ] Validate the generated handoff. Fork-only canaries are optional supplemental contract-flow coverage, not wallet-ceremony acceptance.
 - [ ] Preserve `source-commit`, the plan, package digest, run-states, transaction hashes, fork block, Anvil state snapshot, and final inventory as rehearsal evidence. Stop only the recorded Anvil PID.
@@ -33,17 +33,16 @@ does not replace the real-wallet locked-UI acceptance run.
 ## B. Live Sepolia activation
 
 - [ ] Confirm the exact deployment-affecting source passed the fresh Anvil rehearsal.
+- [ ] Set `DEPLOYMENTS_NETWORK=sepolia` and the reviewed `RPC_URL`. Follow the same `ceremony-stage.sh` sequence used in rehearsal: `phase-1`, `phase-2`, `delay`, `phase-3`, `activation`, `finalize-activation`, and `status`.
 - [ ] Execute and independently verify the three authority-helper migration packages from [sepolia-v2-5-first-deployment.md](./sepolia-v2-5-first-deployment.md): phase 1 with the old wallet, phases 2 and 3 with the new wallet, respecting the SphereX delay.
 - [ ] Generate phase 2 and phase 3 only from the verified phase-1 run-state. Do not reuse pre-generated authority plans or resolve either phase against the legacy helper.
 - [ ] Finalize the deployment alias only after the replacement helper passes the full authority preflight. Preserve the original address as `MockArchControllerOwnerLegacy` and keep the old wallet authorized by the replacement helper.
-- [ ] Reconcile the live Sepolia inventory before generating anything.
-- [ ] Set `DEPLOYMENTS_NETWORK=sepolia`, `RELEASE_TAG=v2-5`, `OWNER_MODE=plan`, the reviewed RPC, and the exact expected executor.
-- [ ] Run deployment steps 01 through 06, then `bash script/deploy/v2-5/07-generate-plan.sh`.
+- [ ] Confirm the shared `activation` stage reconciles the live inventory before generating steps 01 through 07 and never broadcasts.
 - [ ] Confirm the activation plan has 24 cards: 14 deployments and 10 calls. Eight owner actions must use the reviewed helper forwarding path. It must register six templates and two factories and contain no ownership handoff, `removeControllerFactory`, `removeController`, or `removeMarket` call.
 - [ ] Confirm the deployment list includes the borrower identity registry, AccessList role-provider factory, and revolving init-code storage contract.
-- [ ] Generate the locked EOA package, record its digest and fingerprint, and build the production UI with that package embedded.
+- [ ] Confirm each shared stage generates the locked EOA package, records its digest and fingerprint, and builds the production UI with that package embedded.
 - [ ] Walk all 24 activation cards with the new Sepolia executor. Wait for each receipt and predicate before proceeding.
-- [ ] Export and independently verify the activation run-state. Finalize with `08-finalize-inventory.sh`, then validate, lint, and reconcile the inventory.
+- [ ] Export the activation run-state unchanged. Run the shared `finalize-activation` stage to verify it, finalize, validate, lint, reconcile, run the authority preflight, and check the handoff.
 - [ ] Re-run the authority preflight, verify every deployment on the explorer, and generate and check the subgraph/SDK handoff. Sepolia canaries are optional follow-up validation, not an activation gate.
 - [ ] Leave the preview factories registered while the new generation is tested through the subgraph, SDK, and app.
 

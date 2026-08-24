@@ -420,7 +420,7 @@ Complete explorer verification and downstream validation while the superseded fa
 After the validation window, reconcile the finalized inventory and generate retirement fresh:
 
 ```bash
-cd /Users/kethcode/wildcat/mono/v2-protocol
+cd "$(git rev-parse --show-toplevel)"
 export FOUNDRY_PROFILE=deploy
 export DEPLOYMENTS_NETWORK=mainnet
 export RELEASE_TAG=v2-5
@@ -469,10 +469,11 @@ Across the current activation and retirement shapes, the Foundation handles four
 
 The canonical Sepolia-shaped EOA procedure is
 [`anvil-v2-5-rehearsal.md`](./anvil-v2-5-rehearsal.md). It deliberately uses
-`rehearse.sh` only for fork setup and authority phase-1 package generation.
-`rehearse-stage.sh` verifies each exported run-state before it prepares the
-next authority or activation package. The same old and new wallets used on
-live Sepolia sign every transaction through the locked production UI.
+`rehearse.sh` only for fork setup. `ceremony-stage.sh` drives the identical
+`phase-1`, `phase-2`, `delay`, `phase-3`, `activation`, and finalization
+sequence on Anvil and live Sepolia. It verifies each exported run-state before
+preparing the next package. The same old and new wallets used on live Sepolia
+sign every transaction through the locked production UI.
 
 `rehearse.sh --full` remains a useful headless engine check, but it does not
 exercise wallet connection, package fingerprint review, card UX, checkpoint

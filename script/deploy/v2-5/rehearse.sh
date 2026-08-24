@@ -8,9 +8,9 @@
 #   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
 #     bash script/deploy/v2-5/rehearse.sh --resume
 #
-# Default Sepolia mode: fork the network, seed deployments/anvil/, prepare
-# authority phase 1, then leave Anvil running. Every authority and activation
-# transaction is signed by the expected real wallet through deploy-ui.
+# Default Sepolia mode: fork the network, seed deployments/anvil/, then leave
+# Anvil running without generating a package. The operator uses the same shared
+# stage commands as live Sepolia, and signs every transaction through deploy-ui.
 #
 # --full: impersonate and execute the complete flow headlessly. This proves the
 # automation engine and state transitions, but is not release acceptance for
@@ -46,7 +46,6 @@ ANVIL_PORT="${ANVIL_PORT:-8547}"
 RPC="http://127.0.0.1:${ANVIL_PORT}"
 export RPC_URL="$RPC"
 readonly SEPOLIA_OLD_EXECUTOR='0xca732651410E915090d7A7D889A1E44eF4575fcE'
-readonly SEPOLIA_NEW_EXECUTOR='0xca7007a75296b532ce1606d9e130eaa849800ca7'
 case "$FORK_NETWORK" in
   sepolia)
     EXPECTED_FORK_CHAIN_ID=11155111
@@ -116,11 +115,6 @@ if [[ "$RUN_MODE" == "--resume" ]]; then
     echo "Cannot resume: missing seeded deployment state $ANVIL_DIR/deployments.json" >&2
     exit 1
   }
-  if [[ ! -f "$ANVIL_DIR/plan-authority-helper-phase-1.json" && \
-        ! -f "$ANVIL_DIR/plan-${RELEASE_TAG}.json" ]]; then
-    echo 'Cannot resume: no staged ceremony plan exists. Fix the stop condition and start a fresh fork.' >&2
-    exit 1
-  fi
   SAVED_FORK_BLOCK="$(<"$FORK_BLOCK_FILE")"
   SAVED_SOURCE_COMMIT="$(<"$SOURCE_COMMIT_FILE")"
   CURRENT_SOURCE_COMMIT="$(git rev-parse HEAD)"
@@ -310,7 +304,7 @@ if [[ "$RUN_MODE" == "--resume" ]]; then
 
 ================================================================
 Anvil state restored (pid ${ANVIL_PID}) at fork block ${FORK_BLOCK_NUMBER}.
-Existing packages, run-state, and browser progress were not changed.
+Existing packages, run-state, and browser progress, if any, were not changed.
 Source commit: ${REHEARSAL_SOURCE_COMMIT}
 State snapshot: ${ANVIL_STATE_FILE}
 Anvil log: ${ANVIL_LOG_FILE}
@@ -353,42 +347,18 @@ echo "== ArchController: ${AC}"
 echo "== Current owner: ${OWNER}"
 
 if [[ -z "$RUN_MODE" && "$FORK_NETWORK" == "sepolia" ]]; then
-  BEFORE_BLOCK="$(cast block-number --rpc-url "$RPC")"
-  BEFORE_OWNER="$(cast call "$AC" 'owner()(address)' --rpc-url "$RPC")"
-  BEFORE_OWNER_BALANCE="$(cast balance "$OWNER" --rpc-url "$RPC")"
-  BEFORE_OLD_BALANCE="$(cast balance "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
-  BEFORE_OLD_NONCE="$(cast nonce "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
-  BEFORE_NEW_BALANCE="$(cast balance "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
-  BEFORE_NEW_NONCE="$(cast nonce "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
-  ANVIL_PORT="$ANVIL_PORT" bash script/deploy/v2-5/rehearse-stage.sh phase-1
-  AFTER_BLOCK="$(cast block-number --rpc-url "$RPC")"
-  AFTER_OWNER="$(cast call "$AC" 'owner()(address)' --rpc-url "$RPC")"
-  AFTER_OWNER_BALANCE="$(cast balance "$OWNER" --rpc-url "$RPC")"
-  AFTER_OLD_BALANCE="$(cast balance "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
-  AFTER_OLD_NONCE="$(cast nonce "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
-  AFTER_NEW_BALANCE="$(cast balance "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
-  AFTER_NEW_NONCE="$(cast nonce "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
-  if [[ "$AFTER_BLOCK" != "$BEFORE_BLOCK" || "$AFTER_OWNER" != "$BEFORE_OWNER" || \
-        "$AFTER_OWNER_BALANCE" != "$BEFORE_OWNER_BALANCE" || \
-        "$AFTER_OLD_BALANCE" != "$BEFORE_OLD_BALANCE" || \
-        "$AFTER_OLD_NONCE" != "$BEFORE_OLD_NONCE" || \
-        "$AFTER_NEW_BALANCE" != "$BEFORE_NEW_BALANCE" || \
-        "$AFTER_NEW_NONCE" != "$BEFORE_NEW_NONCE" ]]; then
-    echo 'Fork state changed while preparing authority phase 1. Stop and preserve the fork for diagnosis.' >&2
-    exit 1
-  fi
   cat <<STAGED
 
 ================================================================
 Fork is RUNNING (pid ${ANVIL_PID}) at pinned Sepolia block ${FORK_BLOCK_NUMBER}.
-No account was impersonated or funded, and no transaction was executed.
+No account was impersonated or funded, no package was generated, and no
+transaction was executed.
 Source commit: ${REHEARSAL_SOURCE_COMMIT}
 State snapshot: ${ANVIL_STATE_FILE}
 Anvil log: ${ANVIL_LOG_FILE}
 
-Execute authority phase 1 in the locked UI with the old real wallet. Export
-its run-state into deployments/anvil, then prepare phase 2 with:
-  bash script/deploy/v2-5/rehearse-stage.sh phase-2
+Begin the same operator sequence used on live Sepolia:
+  DEPLOYMENTS_NETWORK=anvil RPC_URL=${RPC} bash script/deploy/v2-5/ceremony-stage.sh phase-1
 
 After an Anvil crash: rerun with --resume; do not run fresh setup first.
 Stop fork: kill ${ANVIL_PID}
