@@ -1,9 +1,10 @@
 # Sepolia Authority Helper Rotation
 
-Status: implemented and rehearsed on a pinned Sepolia fork. No live transaction
-is authorized or recorded by this document.
+Status: implemented with headless fork coverage. The real-wallet locked-UI
+rehearsal is still required. No live transaction is authorized or recorded by
+this document.
 
-Last reviewed: 2026-08-23
+Last reviewed: 2026-08-24
 
 ## Objective
 
@@ -168,8 +169,11 @@ authorized-helper model.
 - Extend inventory and plan validation so a package cannot silently mix the
   old temporary-owner and new authorized-helper models.
 
-The Anvil rehearsal must reproduce the same helper ownership and SphereX role
-shape used on Sepolia.
+The release-acceptance Anvil rehearsal must use the same old and new wallets,
+package boundaries, transaction order, helper ownership, and SphereX role shape
+used on Sepolia. It must not impersonate or fund those wallets. Advancing the
+disposable fork to the engine acceptance timestamp is the only fork-only state
+change, and it must be an explicit operator step.
 
 ## Live Migration Sequence
 

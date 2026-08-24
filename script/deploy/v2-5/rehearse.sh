@@ -8,13 +8,13 @@
 #   FORK_NETWORK=sepolia FORK_RPC_URL=https://eth-sep.hinterlight.net \
 #     bash script/deploy/v2-5/rehearse.sh --resume
 #
-# Default: fork the network, seed deployments/anvil/, generate the plan
-# (steps 01-07), then leave anvil RUNNING and print how to drive the plan
-# from deploy-ui (EOA mode) or the CLI.
+# Default Sepolia mode: fork the network, seed deployments/anvil/, prepare
+# authority phase 1, then leave Anvil running. Every authority and activation
+# transaction is signed by the expected real wallet through deploy-ui.
 #
-# --full: execute and verify activation, run Sepolia-shaped canaries, validate
-# the downstream handoff, then generate, execute, and verify the separate
-# retirement ceremony. This is the headless end-to-end rehearsal.
+# --full: impersonate and execute the complete flow headlessly. This proves the
+# automation engine and state transitions, but is not release acceptance for
+# the user-driven Sepolia ceremony.
 #
 # --resume: restart a crashed Anvil process from the periodically persisted
 # state without reseeding deployments/anvil or regenerating the plan.
@@ -45,6 +45,8 @@ esac
 ANVIL_PORT="${ANVIL_PORT:-8547}"
 RPC="http://127.0.0.1:${ANVIL_PORT}"
 export RPC_URL="$RPC"
+readonly SEPOLIA_OLD_EXECUTOR='0xca732651410E915090d7A7D889A1E44eF4575fcE'
+readonly SEPOLIA_NEW_EXECUTOR='0xca7007a75296b532ce1606d9e130eaa849800ca7'
 case "$FORK_NETWORK" in
   sepolia)
     EXPECTED_FORK_CHAIN_ID=11155111
@@ -105,10 +107,15 @@ if [[ "$RUN_MODE" == "--resume" ]]; then
     echo "Cannot resume: missing pinned fork block $FORK_BLOCK_FILE" >&2
     exit 1
   }
-  test -f "$ANVIL_DIR/plan-${RELEASE_TAG}.json" || {
-    echo "Cannot resume: missing existing plan $ANVIL_DIR/plan-${RELEASE_TAG}.json" >&2
+  test -f "$ANVIL_DIR/deployments.json" || {
+    echo "Cannot resume: missing seeded deployment state $ANVIL_DIR/deployments.json" >&2
     exit 1
   }
+  if [[ ! -f "$ANVIL_DIR/plan-authority-helper-phase-1.json" && \
+        ! -f "$ANVIL_DIR/plan-${RELEASE_TAG}.json" ]]; then
+    echo 'Cannot resume: no staged ceremony plan exists. Fix the stop condition and start a fresh fork.' >&2
+    exit 1
+  fi
   SAVED_FORK_BLOCK="$(<"$FORK_BLOCK_FILE")"
   if [[ -n "${FORK_BLOCK_NUMBER:-}" && "$FORK_BLOCK_NUMBER" != "$SAVED_FORK_BLOCK" ]]; then
     echo "Cannot resume: requested fork block $FORK_BLOCK_NUMBER differs from saved $SAVED_FORK_BLOCK" >&2
@@ -168,9 +175,9 @@ assert_helper_owns_arch_controller() {
   echo "== ArchController remains owned by the Sepolia authority helper"
 }
 
-migrate_sepolia_authority_helper() {
+headless_migrate_sepolia_authority_helper() {
   local old_executor new_helper phase_one phase_two phase_three
-  old_executor="0xca732651410E915090d7A7D889A1E44eF4575fcE"
+  old_executor="$SEPOLIA_OLD_EXECUTOR"
   cast rpc anvil_setBalance "$old_executor" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/null
 
   node scripts/authority-migration.js phase-one \
@@ -260,10 +267,12 @@ start_anvil() {
     --retries "$ANVIL_FORK_RETRIES"
     --chain-id 31337
     --port "$ANVIL_PORT"
-    --auto-impersonate
     --silent
     --state-interval "$ANVIL_STATE_INTERVAL"
   )
+  if [[ "$RUN_MODE" == "--full" || "$FORK_NETWORK" == "mainnet" ]]; then
+    args+=(--auto-impersonate)
+  fi
   if [[ -n "$FORK_FALLBACK_RPC_URL" ]]; then
     args+=(--fork-url "$FORK_FALLBACK_RPC_URL")
   fi
@@ -289,7 +298,7 @@ if [[ "$RUN_MODE" == "--resume" ]]; then
 
 ================================================================
 Anvil state restored (pid ${ANVIL_PID}) at fork block ${FORK_BLOCK_NUMBER}.
-Existing plan and browser progress were not changed.
+Existing packages, run-state, and browser progress were not changed.
 State snapshot: ${ANVIL_STATE_FILE}
 Anvil log: ${ANVIL_LOG_FILE}
 
@@ -307,6 +316,10 @@ cp "deployments/${FORK_NETWORK}/factory-inventory.json" deployments/anvil/factor
 if [[ -f "deployments/${FORK_NETWORK}/ceremony-config.json" ]]; then
   cp "deployments/${FORK_NETWORK}/ceremony-config.json" deployments/anvil/ceremony-config.json
 fi
+jq --arg source_network "$FORK_NETWORK" \
+  '{networks: {anvil: .networks[$source_network]}}' \
+  deployments/factory-inventory-lint-allowlist.json \
+  > deployments/anvil/factory-inventory-lint-allowlist.json
 python3 - <<'PY'
 import json
 p = 'deployments/anvil/factory-inventory.json'
@@ -321,9 +334,54 @@ start_anvil fresh
 
 AC=$(python3 -c "import json;print(json.load(open('deployments/anvil/deployments.json'))['WildcatArchController'])")
 OWNER=$(cast call "$AC" 'owner()(address)' --rpc-url "$RPC")
-cast rpc anvil_setBalance "$OWNER" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/null
 echo "== ArchController: ${AC}"
 echo "== Current owner: ${OWNER}"
+
+if [[ -z "$RUN_MODE" && "$FORK_NETWORK" == "sepolia" ]]; then
+  BEFORE_BLOCK="$(cast block-number --rpc-url "$RPC")"
+  BEFORE_OWNER="$(cast call "$AC" 'owner()(address)' --rpc-url "$RPC")"
+  BEFORE_OWNER_BALANCE="$(cast balance "$OWNER" --rpc-url "$RPC")"
+  BEFORE_OLD_BALANCE="$(cast balance "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
+  BEFORE_OLD_NONCE="$(cast nonce "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
+  BEFORE_NEW_BALANCE="$(cast balance "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
+  BEFORE_NEW_NONCE="$(cast nonce "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
+  ANVIL_PORT="$ANVIL_PORT" bash script/deploy/v2-5/rehearse-stage.sh phase-1
+  AFTER_BLOCK="$(cast block-number --rpc-url "$RPC")"
+  AFTER_OWNER="$(cast call "$AC" 'owner()(address)' --rpc-url "$RPC")"
+  AFTER_OWNER_BALANCE="$(cast balance "$OWNER" --rpc-url "$RPC")"
+  AFTER_OLD_BALANCE="$(cast balance "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
+  AFTER_OLD_NONCE="$(cast nonce "$SEPOLIA_OLD_EXECUTOR" --rpc-url "$RPC")"
+  AFTER_NEW_BALANCE="$(cast balance "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
+  AFTER_NEW_NONCE="$(cast nonce "$SEPOLIA_NEW_EXECUTOR" --rpc-url "$RPC")"
+  if [[ "$AFTER_BLOCK" != "$BEFORE_BLOCK" || "$AFTER_OWNER" != "$BEFORE_OWNER" || \
+        "$AFTER_OWNER_BALANCE" != "$BEFORE_OWNER_BALANCE" || \
+        "$AFTER_OLD_BALANCE" != "$BEFORE_OLD_BALANCE" || \
+        "$AFTER_OLD_NONCE" != "$BEFORE_OLD_NONCE" || \
+        "$AFTER_NEW_BALANCE" != "$BEFORE_NEW_BALANCE" || \
+        "$AFTER_NEW_NONCE" != "$BEFORE_NEW_NONCE" ]]; then
+    echo 'Fork state changed while preparing authority phase 1. Stop and preserve the fork for diagnosis.' >&2
+    exit 1
+  fi
+  cat <<STAGED
+
+================================================================
+Fork is RUNNING (pid ${ANVIL_PID}) at pinned Sepolia block ${FORK_BLOCK_NUMBER}.
+No account was impersonated or funded, and no transaction was executed.
+State snapshot: ${ANVIL_STATE_FILE}
+Anvil log: ${ANVIL_LOG_FILE}
+
+Execute authority phase 1 in the locked UI with the old real wallet. Export
+its run-state into deployments/anvil, then prepare phase 2 with:
+  bash script/deploy/v2-5/rehearse-stage.sh phase-2
+
+After an Anvil crash: rerun with --resume; do not run fresh setup first.
+Stop fork: kill ${ANVIL_PID}
+================================================================
+STAGED
+  exit 0
+fi
+
+cast rpc anvil_setBalance "$OWNER" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/null
 
 if [[ "$RUN_MODE" == "--full" && "$FORK_NETWORK" == "mainnet" ]]; then
   # Headless mode executes as the impersonated real owner.
@@ -333,7 +391,7 @@ else
   EXECUTOR="${TEST_ACCOUNT:-0x70997970C51812dc3A010C7d01b50e0d17dc79C8}"
   cast rpc anvil_setBalance "$EXECUTOR" 0x8AC7230489E80000 --rpc-url "$RPC" >/dev/null
   if [[ "$FORK_NETWORK" == "sepolia" ]]; then
-    migrate_sepolia_authority_helper
+    headless_migrate_sepolia_authority_helper
     echo "== Test executor authorized on the replacement helper: ${EXECUTOR}"
   else
     cast send "$AC" 'transferOwnership(address)' "$EXECUTOR" \

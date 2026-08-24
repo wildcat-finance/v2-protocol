@@ -4,6 +4,7 @@ import { LocalStorageProgressStore } from './engine/runState'
 import {
   clampRailWidth,
   DEFAULT_RAIL_WIDTH,
+  eoaCompletionGuidance,
   isRpcUnavailableError,
   MAX_RAIL_WIDTH,
   MIN_RAIL_WIDTH,
@@ -90,5 +91,13 @@ describe('deploy UI recovery helpers', () => {
     expect(needsAnvilResumeDecision(true, 1)).toBe(true)
     expect(needsAnvilResumeDecision(true, 0)).toBe(false)
     expect(needsAnvilResumeDecision(false, 1)).toBe(false)
+  })
+
+  it('routes each staged authority package to the next explicit operator action', () => {
+    expect(eoaCompletionGuidance('authority-helper-phase-1', 'anvil')).toContain('phase-2')
+    expect(eoaCompletionGuidance('authority-helper-phase-2', 'anvil')).toContain('advance-delay')
+    expect(eoaCompletionGuidance('authority-helper-phase-3', 'anvil')).toContain('activation')
+    expect(eoaCompletionGuidance('v2-5', 'anvil')).toContain('finalize-activation')
+    expect(eoaCompletionGuidance('v2-5', 'sepolia')).not.toContain('rehearse-stage.sh')
   })
 })
