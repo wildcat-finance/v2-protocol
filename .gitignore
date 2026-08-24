@@ -58,3 +58,4 @@ echidna.yaml
 medusa.json
 fizz_data/
 test/fizz/
+.DS_Store
