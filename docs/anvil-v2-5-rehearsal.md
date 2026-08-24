@@ -173,13 +173,17 @@ stage finalize-activation
       old wallet no longer has the direct SphereX engine operator role.
 
 Optional: run the standard and revolving canaries on the disposable fork. They
-are contract-flow coverage, not wallet-ceremony acceptance or a live gate:
+are contract-flow coverage, not wallet-ceremony acceptance or a live gate. The
+scoped key override keeps Foundry's auto-loaded `.env` from replacing the
+impersonated Anvil borrower with a configured deployment key:
 
 ```bash
 cast rpc anvil_impersonateAccount \
   0xca7007a75296b532ce1606d9e130eaa849800ca7 \
   --rpc-url "$RPC_URL"
-OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil \
+env -u PVT_KEY_ANVIL \
+  DEPLOYER_PRIVATE_KEY_VAR=PVT_KEY_CANARY_UNLOCKED \
+  OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil \
   BORROWER=0xca7007a75296b532ce1606d9e130eaa849800ca7 \
   RPC_URL="$RPC_URL" RELEASE_TAG=v2-5 \
   bash script/deploy/v2-5/09-canary-market.sh
