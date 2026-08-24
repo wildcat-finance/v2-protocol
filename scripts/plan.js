@@ -446,6 +446,41 @@ function artifactIdentity(artifact) {
   return { sourceName: entries[0][0], contractName: entries[0][1] };
 }
 
+function artifactDeploymentSurface(artifact) {
+  return {
+    abi: artifact.abi,
+    bytecode: artifact.bytecode,
+    deployedBytecode: artifact.deployedBytecode,
+    rawMetadata: artifact.rawMetadata,
+  };
+}
+
+function collapseDuplicateArtifactCandidates(candidates, artifactName) {
+  const byIdentity = new Map();
+  for (const candidate of candidates) {
+    const identity = `${candidate.sourceName}:${candidate.contractName}`;
+    const existing = byIdentity.get(identity);
+    if (!existing) {
+      byIdentity.set(identity, candidate);
+      continue;
+    }
+    if (
+      !jsonEqual(
+        artifactDeploymentSurface(existing.artifact),
+        artifactDeploymentSurface(candidate.artifact)
+      )
+    ) {
+      const paths = [existing.filePath, candidate.filePath]
+        .map((filePath) => path.relative(REPO_ROOT, filePath))
+        .join(", ");
+      throw new Error(
+        `Artifact "${artifactName}" has conflicting compiled copies for ${identity} (${paths}); run FOUNDRY_PROFILE=deploy forge clean and rebuild`
+      );
+    }
+  }
+  return [...byIdentity.values()];
+}
+
 function loadArtifact(artifactName) {
   assertDeployProfile();
   const separator = artifactName.lastIndexOf(":");
@@ -457,7 +492,7 @@ function loadArtifact(artifactName) {
     throw new Error(`Invalid artifact name: ${artifactName}`);
 
   artifactFiles ||= listArtifactFiles(OUT_DIR);
-  const candidates = [];
+  const discoveredCandidates = [];
   for (const filePath of artifactFiles) {
     if (path.basename(filePath) !== `${requestedContract}.json`) continue;
     let artifact;
@@ -469,8 +504,13 @@ function loadArtifact(artifactName) {
     const identity = artifactIdentity(artifact);
     if (!identity || identity.contractName !== requestedContract) continue;
     if (requestedSource && identity.sourceName !== requestedSource) continue;
-    candidates.push({ artifact, filePath, ...identity });
+    discoveredCandidates.push({ artifact, filePath, ...identity });
   }
+
+  const candidates = collapseDuplicateArtifactCandidates(
+    discoveredCandidates,
+    artifactName
+  );
 
   if (candidates.length === 0) {
     throw new Error(`Artifact "${artifactName}" was not found in out/`);
@@ -2200,6 +2240,7 @@ module.exports = {
   PLAN_SCHEMA_VERSION,
   callEq,
   checkPredicate,
+  collapseDuplicateArtifactCandidates,
   codePresent,
   encodeConstructorArgs,
   encodeFunctionCall,
