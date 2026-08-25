@@ -1,29 +1,38 @@
 // SPDX-License-Identifier: TODO
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
+
+import {AccountWithdrawalStatus, WithdrawalBatch} from "src/libraries/Withdrawal.sol";
 
 /**
- * @notice minimal Wildcat market interface used by the Morpho adapter.
+ * @notice Minimal V2.5 Wildcat market surface used by the Morpho adapter.
  */
 interface IWildcatMarket {
+    function archController() external view returns (address);
 
-    /// @notice Underlying asset of the market
     function asset() external view returns (address);
 
-    /// @notice Deposit exactly `amount` underlying asset
-    function deposit(uint256 amount) external;
+    function scaledTransferRounding() external pure returns (bytes32);
 
-    /// @notice Normalized balance of `account`
     function balanceOf(address account) external view returns (uint256);
 
-    /// @notice Queue a withdrawal of `amount` normalized assets
+    function scaledBalanceOf(address account) external view returns (uint256);
+
+    function scaleFactor() external view returns (uint256);
+
+    function deposit(uint256 amount) external;
+
     function queueWithdrawal(uint256 amount) external returns (uint32 expiry);
 
-    /// @notice Execute a matured withdrawal for `account` and `expiry`
+    function queueWithdrawalScaled(uint256 scaledAmount) external returns (uint32 expiry);
+
     function executeWithdrawal(address account, uint32 expiry) external returns (uint256);
 
-    /// @notice Expiries of every unpaid withdrawal batch
-    function getUnpaidBatchExpiries() external view returns (uint32[] memory);
+    function getWithdrawalBatch(uint32 expiry) external view returns (WithdrawalBatch memory);
 
-    /// @notice Amount currently available to withdraw immediately for `account` and `expiry`
+    function getAccountWithdrawalStatus(address account, uint32 expiry)
+        external
+        view
+        returns (AccountWithdrawalStatus memory);
+
     function getAvailableWithdrawalAmount(address account, uint32 expiry) external view returns (uint256);
 }
