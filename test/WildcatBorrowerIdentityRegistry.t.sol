@@ -54,11 +54,60 @@ contract WildcatBorrowerIdentityRegistryTest is Test {
     new WildcatBorrowerIdentityRegistry(address(0xBEEF));
   }
 
+  function test_archControllerOwnerResponseValidation() external {
+    bytes memory callData = abi.encodeWithSignature('owner()');
+    address controller = address(archController);
+    MockBorrowerAccountFactory secondFactory = new MockBorrowerAccountFactory(address(registry));
+
+    vm.mockCall(controller, callData, hex'01');
+    vm.expectRevert();
+    registry.addAccountFactory(address(secondFactory));
+    vm.clearMockedCalls();
+
+    vm.mockCall(controller, callData, abi.encode(uint256(1) << 160));
+    vm.expectRevert();
+    registry.addAccountFactory(address(secondFactory));
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(controller, callData, revertData);
+    vm.expectRevert(revertData);
+    registry.addAccountFactory(address(secondFactory));
+    vm.clearMockedCalls();
+
+    vm.mockCall(controller, callData, bytes.concat(abi.encode(address(this)), hex'deadbeef'));
+    registry.addAccountFactory(address(secondFactory));
+  }
+
+  function test_registeredBorrowerResponseValidation() external {
+    bytes memory callData = abi.encodeCall(IWildcatArchController.isRegisteredBorrower, (principal));
+    address controller = address(archController);
+
+    vm.mockCall(controller, callData, hex'01');
+    vm.expectRevert();
+    registry.resolveBorrower(principal);
+    vm.clearMockedCalls();
+
+    vm.mockCall(controller, callData, abi.encode(uint256(2)));
+    vm.expectRevert();
+    registry.resolveBorrower(principal);
+    vm.clearMockedCalls();
+
+    bytes memory revertData = hex'deadbeef';
+    vm.mockCallRevert(controller, callData, revertData);
+    vm.expectRevert(revertData);
+    registry.resolveBorrower(principal);
+    vm.clearMockedCalls();
+
+    vm.mockCall(controller, callData, bytes.concat(abi.encode(true), hex'deadbeef'));
+    assertEq(registry.resolveBorrower(principal), principal);
+  }
+
   function test_addAccountFactory() external {
     MockBorrowerAccountFactory secondFactory = new MockBorrowerAccountFactory(address(registry));
 
     vm.expectEmit(address(registry));
-    emit IBorrowerIdentityRegistry.AccountFactoryAdded(address(secondFactory));
+    emit IBorrowerIdentityRegistry.AccountFactoryAdded(address(this), address(secondFactory));
     registry.addAccountFactory(address(secondFactory));
 
     assertTrue(registry.isAccountFactory(address(secondFactory)));
@@ -105,7 +154,7 @@ contract WildcatBorrowerIdentityRegistryTest is Test {
     address account = accountFactory.deployAccount(principal);
 
     vm.expectEmit(address(registry));
-    emit IBorrowerIdentityRegistry.AccountFactoryRemoved(address(accountFactory));
+    emit IBorrowerIdentityRegistry.AccountFactoryRemoved(address(this), address(accountFactory));
     registry.removeAccountFactory(address(accountFactory));
 
     assertFalse(registry.isAccountFactory(address(accountFactory)));

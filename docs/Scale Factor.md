@@ -16,7 +16,7 @@ As of v2.5, rounding directions are deliberate and asymmetric:
 
 - Converting normalized amounts **into** scaled units — deposits, transfers, withdrawal queueing — rounds **down** (`scaleAmountDown`): the scaled amount credited, moved, or queued is never rounded up, so the market never over-credits.
 - Converting scaled amounts **out** to normalized labels — balances, debt totals (`normalizeAmount`) — rounds **half-up**, as does scale-factor compounding itself. This matches deployed V2.
-- Withdrawal batch payments settle the largest scaled amount whose floor-priced cost fits in available liquidity (`maxScaledSettleableAmount`), which guarantees fully-funded closed markets can always finish their batches.
+- Withdrawal batch payments settle the largest representable scaled amount whose floor-priced cost fits in available liquidity (`maxScaledSettleableAmount`). Capacity saturates at the `uint104` batch limit before multiplying an unbounded underlying balance, and fully-funded closed markets can always finish their batches.
 
 Markets before v2.5 rounded transfers half-up. v2.5+ markets declare their convention via `scaledTransferRounding()`, which rounding-sensitive integrations (e.g. the ERC-4626 wrapper factory) key on.
 

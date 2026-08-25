@@ -122,7 +122,17 @@ export async function evaluatePredicate(
   const data = encodeFunctionData({ abi: [abi], args })
   const encodedResult = await transport.ethCall(target, data)
   const decoded = decodeFunctionResult({ abi: [abi], data: encodedResult })
-  const actual = canonicalValue(decoded)
+  if (
+    predicate.type === 'callResultEq' &&
+    (!Number.isInteger(predicate.resultIndex) ||
+      predicate.resultIndex < 0 ||
+      predicate.resultIndex >= abi.outputs.length)
+  ) {
+    throw new Error(`${predicate.call.sig} has no result at index ${predicate.resultIndex}`)
+  }
+  const actual = canonicalValue(
+    predicate.type === 'callResultEq' ? decoded[predicate.resultIndex] : decoded,
+  )
   const expected = canonicalValue(resolveReferences(predicate.expect, outputs))
   const ok = JSON.stringify(actual) === JSON.stringify(expected)
   return {
@@ -133,7 +143,9 @@ export async function evaluatePredicate(
   }
 }
 
-export function encodePredicateCall(predicate: Extract<Predicate, { type: 'callEq' }>): Hex {
+export function encodePredicateCall(
+  predicate: Exclude<Predicate, { type: 'codePresent' }>,
+): Hex {
   const abi = functionAbi(predicate.call.sig)
   return encodeFunctionData({ abi: [abi], args: predicate.call.args as readonly unknown[] })
 }

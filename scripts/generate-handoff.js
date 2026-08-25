@@ -29,6 +29,24 @@ const FACTORY_ARTIFACTS = {
 
 const RELEASE_CONTRACTS = [
   {
+    key: "WildcatBorrowerIdentityRegistry",
+    planOutput: "borrower-identity-registry",
+    kind: "borrower-identity-registry",
+    forgeArtifactName:
+      "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
+    abiArtifactName:
+      "src/interfaces/IBorrowerIdentityRegistry.sol:IBorrowerIdentityRegistry",
+  },
+  {
+    key: "AccessListRoleProviderFactory",
+    planOutput: "access-list-role-provider-factory",
+    kind: "role-provider-factory",
+    forgeArtifactName:
+      "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+    abiArtifactName:
+      "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+  },
+  {
     key: "WildcatMarket_initCodeStorage",
     planOutput: "wildcat-market-init-code-storage",
     kind: "market-init-code-storage",
@@ -124,10 +142,57 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
     changed: ["version() return value changed from '2' to '2.5'."],
     added: [
+      "borrower(), borrowerPrincipal(), borrowerIdentityRegistry(), pendingBorrower(), pendingBorrowerPrincipal(), requestBorrowerTransfer(address), cancelBorrowerTransfer(), and acceptBorrowerTransfer().",
+      "wrapperFactory(), registerWrapper(address), and registeredWrapper().",
+      "WrapperRegistered(address) event plus NotWrapperFactory, WrapperAlreadyRegistered, and CannotNukeWrapper errors.",
+      "queueWithdrawalScaled(uint256) queues an exact scaled withdrawal amount.",
       "scaledTransferRounding() returns keccak256('scaleAmountDown').",
       "executePendingAnnualInterestBipsReduction() applies a matured hooks proposal.",
       "AprReductionNotReduction error.",
       "ExecutePendingAprReductionNotEnabled error.",
+      "WithdrawalBatchKeyAlreadyExists error.",
+    ],
+    removed: ["NullBuyBackAmount and BuyBackOnDelinquentMarket errors."],
+  },
+  {
+    component: "Borrower identity registry",
+    artifactNames: [
+      "src/interfaces/IBorrowerIdentityRegistry.sol:IBorrowerIdentityRegistry",
+    ],
+    changed: [],
+    added: [
+      "Principal resolution for direct borrowers and borrower accounts.",
+      "Account-factory registration and account-to-principal association events.",
+      "Two-step borrower-account principal transfers.",
+    ],
+  },
+  {
+    component: "Access-list role-provider factory",
+    artifactNames: [
+      "src/providers/IAccessListRoleProviderFactory.sol:IAccessListRoleProviderFactory",
+      "src/providers/IAccessListRoleProvider.sol:IAccessListRoleProvider",
+    ],
+    changed: [],
+    added: [
+      "Permissionless deterministic deployment of borrower-administered access-list providers.",
+      "Two-step provider administrator transfers and enumerable membership management.",
+    ],
+  },
+  {
+    component: "HooksFactory and HooksFactoryRevolving",
+    artifactNames: [
+      "src/IHooksFactory.sol:IHooksFactory",
+      "src/IHooksFactoryRevolving.sol:IHooksFactoryRevolving",
+    ],
+    changed: [
+      "HooksTemplateAdded, HooksTemplateDisabled, and HooksTemplateFeesUpdated identify the caller and preserve complete fee history.",
+      "HooksInstanceDeployed identifies the template, administrator, deployer, name, and version.",
+      "MarketDeployed identifies borrower, principal, identity registry, requested hooks, and accepted hooks; configuration and hook payload move to companion events.",
+      "getMarketParameters() includes the borrower identity registry and wrapper factory.",
+    ],
+    added: [
+      "HooksInstanceRoleProviders, HooksInstanceAdministratorTransferred, MarketDeploymentConfig, MarketHooksData, and RevolvingMarketDeployed events.",
+      "borrowerIdentityRegistry(), wrapperFactory(), hook-administrator indexing, and administrator-transfer callback views.",
     ],
   },
   {
@@ -159,6 +224,11 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
     changed: [],
     added: [
+      "administrator(), pendingAdministrator(), requestAdministratorTransfer(address), cancelAdministratorTransfer(), and acceptAdministratorTransfer().",
+      "AdministratorTransferRequested, AdministratorTransferCancelled, and AdministratorTransferred events.",
+      "RoleProviderAdded, RoleProviderUpdated, and RoleProviderRemoved carry administrator, TTL, and complete pull/push index history.",
+      "AccountAccessGranted and AccountAccessRevoked identify provider, account, and caller.",
+      "NameUpdated, MinimumDepositUpdated, FixedTermUpdated, and PeriodicTermUpdated carry actor plus previous/new state where applicable.",
       "isMarketTransferDisabled(address) reports the immutable per-market transfer policy.",
       "DepositHookNotEnabled error.",
     ],
@@ -173,7 +243,10 @@ const ABI_CHANGES_SINCE_V2 = [
     changed: [
       "HooksConfigData return tuples append useOnExecutePendingAnnualInterestBipsReduction; consumers must regenerate ABI tuple decoders.",
     ],
-    added: [],
+    added: [
+      "Borrower, principal, pending borrower, hook administrator, provider administration, transfer policy, wrapper, and revolving-credit state in the v2.5 market and hooks views.",
+      "Core, aggregation, and live helper routing behind the MarketLens facade.",
+    ],
   },
   {
     component: "Wildcat4626WrapperFactory",
@@ -182,6 +255,8 @@ const ABI_CHANGES_SINCE_V2 = [
     ],
     changed: [],
     added: [
+      "v1Factory(), wrapperForMarket(address), createWrapper(address), isFloorRoundingMarket(address), and WrapperDeployed(address,address).",
+      "WrapperAlreadyExists, LegacyMarketsNotSupported, UnsupportedMarketRounding, NotRegisteredMarket, InvalidV1Factory, and ZeroAddress errors.",
       "MarketTransfersDisabled(address) error.",
       "UnsupportedMarketTransferPolicy(address,address) error.",
     ],
@@ -193,15 +268,29 @@ const ABI_CHANGES_SINCE_V2 = [
       "src/interfaces/IWildcatMarketRevolving.sol:IWildcatMarketRevolving",
     ],
     changed: [],
-    added: ["commitmentFeeBips() view.", "drawnAmount() view."],
+    added: [
+      "commitmentFeeBips() view.",
+      "drawnAmount() view.",
+      "DrawnAmountUpdated(uint256,uint256) event.",
+    ],
   },
   {
     component: "Market event surface",
     artifactNames: [
       "src/interfaces/IMarketEventsAndErrors.sol:IMarketEventsAndErrors",
     ],
-    changed: [],
-    removed: ["SanctionedAccountAssetsSentToEscrow event."],
+    changed: [
+      "MaxTotalSupplyUpdated, ProtocolFeeBipsUpdated, Borrow, MarketClosed, and FeesCollected identify the acting borrower, caller, collector, or fee recipient and preserve previous/new values where applicable.",
+      "AnnualInterestBipsUpdated and ReserveRatioBipsUpdated are replaced by the atomic AnnualInterestAndReserveRatioBipsUpdated event.",
+    ],
+    added: [
+      "BorrowerTransferRequested, BorrowerTransferCancelled, and BorrowerTransferred events preserve operational borrower and principal history.",
+      "WrapperRegistered(address) event.",
+    ],
+    removed: [
+      "AccountSanctioned event.",
+      "SanctionedAccountAssetsSentToEscrow event.",
+    ],
   },
 ];
 
@@ -508,9 +597,25 @@ function buildHandoff({
     "wrapper factory"
   );
 
-  const releaseContracts = RELEASE_CONTRACTS.map((definition) =>
-    releaseDeployment(definition, release, deployments, runMetadata)
-  ).filter(Boolean);
+  const releaseContracts = RELEASE_CONTRACTS.map((definition) => {
+    const contract = releaseDeployment(
+      definition,
+      release,
+      deployments,
+      runMetadata
+    );
+    if (!contract) {
+      throw new Error(
+        `Missing release deployment ${definition.key}_${release}`
+      );
+    }
+    return contract;
+  });
+  const releaseContractsByKey = new Map(
+    releaseContracts.map((contract) => [contract.deploymentKey, contract])
+  );
+  const releaseAddress = (key) =>
+    releaseContractsByKey.get(`${key}_${release}`).address;
   const generations = factoryGenerations(inventory, release);
 
   return {
@@ -527,6 +632,10 @@ function buildHandoff({
     canonicalAddresses: {
       archController: deployments.WildcatArchController || null,
       sanctionsSentinel: deployments.WildcatSanctionsSentinel || null,
+      borrowerIdentityRegistry:
+        deployments.WildcatBorrowerIdentityRegistry || null,
+      accessListRoleProviderFactory:
+        deployments.AccessListRoleProviderFactory || null,
       standardHooksFactory: standard.address,
       revolvingHooksFactory: revolving.address,
       marketLens: deployments.MarketLens || null,
@@ -544,10 +653,10 @@ function buildHandoff({
           "The canonical v2.5 facade serves locally recorded v2.5 floor-rounding markets. Markets without scaledTransferRounding() fall through to v1Factory when configured. Markets declaring an unsupported rounding do not fall through.",
       },
       lens: {
-        facade: deployments.MarketLens || null,
-        coreHelper: deployments.MarketLensCore || null,
-        aggregationHelper: deployments.MarketLensAggregator || null,
-        liveHelper: deployments.MarketLensLive || null,
+        facade: releaseAddress("MarketLens"),
+        coreHelper: releaseAddress("MarketLensCore"),
+        aggregationHelper: releaseAddress("MarketLensAggregator"),
+        liveHelper: releaseAddress("MarketLensLive"),
         behavior:
           "Treat MarketLens as the public facade. It static-calls the core, aggregation, or live helper selected by the requested method; helper addresses are implementation contracts, not replacement facade addresses.",
       },
@@ -566,6 +675,7 @@ function validateHandoff(
   expectedRelease
 ) {
   const errors = [];
+  let releaseContractsByKey = new Map();
   if (handoff?.schemaVersion !== HANDOFF_SCHEMA_VERSION) {
     errors.push(`schemaVersion must be ${HANDOFF_SCHEMA_VERSION}`);
   }
@@ -629,9 +739,46 @@ function validateHandoff(
   if (!Array.isArray(handoff?.releaseContracts)) {
     errors.push("releaseContracts must be an array");
   } else {
+    if (handoff.releaseContracts.length !== RELEASE_CONTRACTS.length) {
+      errors.push(
+        `releaseContracts must include all ${RELEASE_CONTRACTS.length} release deployments`
+      );
+    }
     const deploymentAddresses = new Set(
       Object.values(deployments).map(addressKey)
     );
+    releaseContractsByKey = new Map(
+      handoff.releaseContracts.map((contract) => [
+        contract.deploymentKey,
+        contract,
+      ])
+    );
+    for (const definition of RELEASE_CONTRACTS) {
+      const deploymentKey = `${definition.key}_${expectedRelease}`;
+      const contract = releaseContractsByKey.get(deploymentKey);
+      if (!contract) {
+        errors.push(`releaseContracts omits ${deploymentKey}`);
+      } else {
+        if (
+          contract.forgeArtifactName !== definition.forgeArtifactName ||
+          contract.abiArtifactName !== definition.abiArtifactName
+        ) {
+          errors.push(
+            `release contract ${deploymentKey} has an invalid artifact name`
+          );
+        }
+        const deploymentAddress = deployments[deploymentKey];
+        if (
+          isAddress(deploymentAddress) &&
+          (!isAddress(contract.address) ||
+            addressKey(contract.address) !== addressKey(deploymentAddress))
+        ) {
+          errors.push(
+            `release contract ${deploymentKey} differs from deployments.json`
+          );
+        }
+      }
+    }
     for (const contract of handoff.releaseContracts) {
       if (!isAddress(contract.address)) {
         errors.push(
@@ -675,6 +822,10 @@ function validateHandoff(
   const expectedCanonical = {
     archController: deployments.WildcatArchController || null,
     sanctionsSentinel: deployments.WildcatSanctionsSentinel || null,
+    borrowerIdentityRegistry:
+      deployments.WildcatBorrowerIdentityRegistry || null,
+    accessListRoleProviderFactory:
+      deployments.AccessListRoleProviderFactory || null,
     standardHooksFactory:
       canonicalHooks.find((record) => record.marketType === "legacy")
         ?.address || null,
@@ -698,6 +849,27 @@ function validateHandoff(
       errors.push(`canonicalAddresses.${name} differs from source files`);
     }
   }
+  const expectedLensRouting = {
+    facade: releaseContractsByKey.get(`MarketLens_${expectedRelease}`)?.address,
+    coreHelper: releaseContractsByKey.get(`MarketLensCore_${expectedRelease}`)
+      ?.address,
+    aggregationHelper: releaseContractsByKey.get(
+      `MarketLensAggregator_${expectedRelease}`
+    )?.address,
+    liveHelper: releaseContractsByKey.get(`MarketLensLive_${expectedRelease}`)
+      ?.address,
+  };
+  for (const [name, expected] of Object.entries(expectedLensRouting)) {
+    const actual = handoff?.routing?.lens?.[name];
+    if (!isAddress(actual)) {
+      errors.push(`routing.lens.${name} is invalid`);
+    } else if (
+      isAddress(expected) &&
+      addressKey(actual) !== addressKey(expected)
+    ) {
+      errors.push(`routing.lens.${name} differs from releaseContracts`);
+    }
+  }
   if (
     typeof handoff?.routing?.factories !== "string" ||
     typeof handoff?.routing?.wrapper4626?.behavior !== "string" ||
@@ -716,7 +888,7 @@ function markdownCell(value) {
 
 function renderMarkdown(handoff) {
   const lines = [
-    `# Wildcat ${handoff.release} handoff — ${handoff.chain.network}`,
+    `# Wildcat ${handoff.release} handoff: ${handoff.chain.network}`,
     "",
     `Chain ID: \`${handoff.chain.chainId}\`. Generated: \`${handoff.generatedAt}\`.`,
     "",

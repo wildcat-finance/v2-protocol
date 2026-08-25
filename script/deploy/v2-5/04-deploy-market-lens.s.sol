@@ -87,7 +87,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
   function _writePlanEntries(Deployments memory deployments, address archController) internal {
     _writeHelperPlanEntry(
       deployments,
-      7,
+      8,
       CORE_ENTRY_ID,
       CORE_ARTIFACT,
       CORE_OUTPUT,
@@ -97,7 +97,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     );
     _writeHelperPlanEntry(
       deployments,
-      8,
+      9,
       AGGREGATOR_ENTRY_ID,
       AGGREGATOR_ARTIFACT,
       AGGREGATOR_OUTPUT,
@@ -107,7 +107,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     );
     _writeHelperPlanEntry(
       deployments,
-      9,
+      10,
       LIVE_ENTRY_ID,
       LIVE_ARTIFACT,
       LIVE_OUTPUT,
@@ -119,7 +119,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string[] memory facadeAfter = new string[](1);
     facadeAfter[0] = LIVE_ENTRY_ID;
     DeployPlanEntry memory facadeEntry;
-    facadeEntry.sequence = 10;
+    facadeEntry.sequence = 11;
     facadeEntry.id = FACADE_ENTRY_ID;
     facadeEntry.artifactName = FACADE_ARTIFACT;
     facadeEntry.decodedConstructorArgs = string.concat(
@@ -284,17 +284,17 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string memory networkName,
     LensSet memory lens
   ) internal {
-    _writeInventoryRecord(deployments, networkName, 7, 'MarketLensCore', 'core', lens.core);
+    _writeInventoryRecord(deployments, networkName, 8, 'MarketLensCore', 'core', lens.core);
     _writeInventoryRecord(
       deployments,
       networkName,
-      8,
+      9,
       'MarketLensAggregator',
       'aggregator',
       lens.aggregator
     );
-    _writeInventoryRecord(deployments, networkName, 9, 'MarketLensLive', 'live', lens.live);
-    _writeInventoryRecord(deployments, networkName, 10, 'MarketLens', 'facade', lens.facade);
+    _writeInventoryRecord(deployments, networkName, 10, 'MarketLensLive', 'live', lens.live);
+    _writeInventoryRecord(deployments, networkName, 11, 'MarketLens', 'facade', lens.facade);
   }
 
   function _writePlanInventoryRecord(
@@ -326,17 +326,17 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     Deployments memory deployments,
     string memory networkName
   ) internal {
-    _writePlanInventoryRecord(deployments, networkName, 7, 'MarketLensCore', 'core', CORE_OUTPUT);
+    _writePlanInventoryRecord(deployments, networkName, 8, 'MarketLensCore', 'core', CORE_OUTPUT);
     _writePlanInventoryRecord(
       deployments,
       networkName,
-      8,
+      9,
       'MarketLensAggregator',
       'aggregator',
       AGGREGATOR_OUTPUT
     );
-    _writePlanInventoryRecord(deployments, networkName, 9, 'MarketLensLive', 'live', LIVE_OUTPUT);
-    _writePlanInventoryRecord(deployments, networkName, 10, 'MarketLens', 'facade', FACADE_OUTPUT);
+    _writePlanInventoryRecord(deployments, networkName, 10, 'MarketLensLive', 'live', LIVE_OUTPUT);
+    _writePlanInventoryRecord(deployments, networkName, 11, 'MarketLens', 'facade', FACADE_OUTPUT);
   }
 
   function run() external {

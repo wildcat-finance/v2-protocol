@@ -41,8 +41,18 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
   //                                   Events                                   //
   // ========================================================================== //
 
-  event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
-  event FixedTermUpdated(address market, uint32 fixedTermEndTime);
+  event MinimumDepositUpdated(
+    address indexed market,
+    address indexed caller,
+    uint128 previousMinimumDeposit,
+    uint128 newMinimumDeposit
+  );
+  event FixedTermUpdated(
+    address indexed market,
+    address indexed caller,
+    uint32 previousFixedTermEndTime,
+    uint32 newFixedTermEndTime
+  );
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -180,7 +190,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     ) {
       revert InvalidFixedTerm();
     }
-    emit FixedTermUpdated(marketAddress, fixedTermEndTime);
+    emit FixedTermUpdated(marketAddress, administrator_, 0, fixedTermEndTime);
 
     // Use the deposit and transfer flags to determine whether those require
     // access control. These are tracked separately because if the market
@@ -212,7 +222,12 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
 
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
+      emit MinimumDepositUpdated(
+        marketAddress,
+        administrator_,
+        0,
+        hookedMarket.minimumDeposit
+      );
     }
     if (hookedMarket.transfersDisabled) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
@@ -245,8 +260,9 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
+    uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
     hookedMarket.minimumDeposit = newMinimumDeposit;
-    emit MinimumDepositUpdated(market, newMinimumDeposit);
+    emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
 
   /**
@@ -262,8 +278,14 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime)
       revert TermReductionDisabled();
     if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
+    uint32 previousFixedTermEndTime = hookedMarket.fixedTermEndTime;
     hookedMarket.fixedTermEndTime = newFixedTermEndTime;
-    emit FixedTermUpdated(market, newFixedTermEndTime);
+    emit FixedTermUpdated(
+      market,
+      msg.sender,
+      previousFixedTermEndTime,
+      newFixedTermEndTime
+    );
   }
 
   // ========================================================================== //
@@ -274,6 +296,17 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     HookedMarket storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return market.transfersDisabled;
+  }
+
+  function isMarketTransferRecipientAllowed(
+    address marketAddress,
+    address recipient
+  ) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return
+      !market.transfersDisabled &&
+      _isMarketTransferRecipientAllowed(marketAddress, recipient, market.transferRequiresAccess);
   }
 
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
@@ -375,6 +408,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
    */
   function onExecuteWithdrawal(
     address lender,
+    uint32 /* expiry */,
     uint128 /* normalizedAmountWithdrawn */,
     MarketState calldata /* state */,
     bytes calldata hooksData
@@ -462,8 +496,14 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
       if (!(market.allowTermReduction || market.allowClosureBeforeTerm)) {
         revert ClosureDisabledBeforeTerm();
       }
+      uint32 previousFixedTermEndTime = market.fixedTermEndTime;
       market.fixedTermEndTime = uint32(block.timestamp);
-      emit FixedTermUpdated(msg.sender, market.fixedTermEndTime);
+      emit FixedTermUpdated(
+        msg.sender,
+        msg.sender,
+        previousFixedTermEndTime,
+        market.fixedTermEndTime
+      );
     }
   }
 

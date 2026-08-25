@@ -31,6 +31,28 @@ abstract contract MockBaseAccessControls is BaseAccessControls {
   ) external virtual;
 }
 
+contract MockPullProviderResponse {
+  uint256 internal immutable _value;
+  uint256 internal immutable _length;
+  bool internal immutable _shouldRevert;
+
+  constructor(uint256 value, uint256 length, bool shouldRevert) {
+    _value = value;
+    _length = length;
+    _shouldRevert = shouldRevert;
+  }
+
+  fallback() external {
+    if (_shouldRevert) revert();
+    uint256 value = _value;
+    uint256 length = _length;
+    assembly {
+      mstore(0x00, value)
+      return(0x00, length)
+    }
+  }
+}
+
 abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   error AdministratorTransferCallbackFailed();
 
@@ -156,6 +178,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   ) internal {
     vm.expectEmit();
     emit BaseAccessControls.RoleProviderAdded(
+      baseHooks.administrator(),
       providerAddress,
       timeToLive,
       pullProviderIndex,
@@ -169,11 +192,16 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
   ) internal {
+    RoleProvider previousProvider = baseHooks.getRoleProvider(providerAddress);
     vm.expectEmit();
     emit BaseAccessControls.RoleProviderUpdated(
+      baseHooks.administrator(),
       providerAddress,
+      previousProvider.timeToLive(),
       timeToLive,
+      previousProvider.pullProviderIndex(),
       pullProviderIndex,
+      previousProvider.pushProviderIndex(),
       pushProviderIndex
     );
   }
@@ -183,9 +211,12 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
   ) internal {
+    RoleProvider provider = baseHooks.getRoleProvider(providerAddress);
     vm.expectEmit();
     emit BaseAccessControls.RoleProviderRemoved(
+      baseHooks.administrator(),
       providerAddress,
+      provider.timeToLive(),
       pullProviderIndex,
       pushProviderIndex
     );
@@ -200,6 +231,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     emit BaseAccessControls.AccountAccessGranted(
       providerAddress,
       accountAddress,
+      providerAddress,
       credentialTimestamp
     );
   }
@@ -467,7 +499,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
 
   function test_setName() external {
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.NameUpdated('New Name');
+    emit BaseAccessControls.NameUpdated(address(this), baseHooks.name(), 'New Name');
     baseHooks.setName('New Name');
     assertEq(baseHooks.name(), 'New Name', 'name');
   }
@@ -562,6 +594,29 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     _expectAccountAccessGranted(pushProvider, account, timestamp);
     vm.prank(pushProvider);
     baseHooks.grantRole(account, timestamp);
+  }
+
+  function test_addRoleProvider_onlyCleanBooleanTrueIsPullProvider() external {
+    MockPullProviderResponse[6] memory providers = [
+      new MockPullProviderResponse(1, 0x20, false),
+      new MockPullProviderResponse(0, 0x20, false),
+      new MockPullProviderResponse(2, 0x20, false),
+      new MockPullProviderResponse(1, 0x1f, false),
+      new MockPullProviderResponse(1, 0x40, false),
+      new MockPullProviderResponse(1, 0x20, true)
+    ];
+    bool[6] memory expectedPull = [true, false, false, false, true, false];
+
+    for (uint256 i; i < providers.length; i++) {
+      address providerAddress = address(providers[i]);
+      baseHooks.addRoleProvider(providerAddress, 1);
+      RoleProvider provider = baseHooks.getRoleProvider(providerAddress);
+      assertEq(
+        provider.pullProviderIndex() != NullProviderIndex,
+        expectedPull[i],
+        'pull provider classification'
+      );
+    }
   }
 
   function test_addRoleProvider_updateTimeToLive(uint32 ttl1, uint32 ttl2) external {
@@ -1221,7 +1276,11 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     vm.startPrank(address(mockProvider1));
     baseHooks.grantRole(address(1), uint32(block.timestamp));
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountAccessRevoked(address(1));
+    emit BaseAccessControls.AccountAccessRevoked(
+      address(mockProvider1),
+      address(1),
+      address(mockProvider1)
+    );
     baseHooks.revokeRole(address(1));
   }
 
@@ -1245,7 +1304,11 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     vm.startPrank(address(mockProvider1));
     baseHooks.grantRole(address(1), uint32(block.timestamp));
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountAccessRevoked(address(1));
+    emit BaseAccessControls.AccountAccessRevoked(
+      address(mockProvider1),
+      address(1),
+      address(mockProvider1)
+    );
     baseHooks.revokeRoles(lenders);
   }
 
@@ -1271,7 +1334,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
 
   function test_blockFromDeposits(address account) external {
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(address(this), account);
     baseHooks.blockFromDeposits(account);
     LenderStatus memory status = baseHooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
@@ -1283,9 +1346,9 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     baseHooks.grantRole(account, uint32(block.timestamp));
 
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountAccessRevoked(account);
+    emit BaseAccessControls.AccountAccessRevoked(address(mockProvider1), account, address(this));
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(address(this), account);
 
     baseHooks.blockFromDeposits(account);
     LenderStatus memory status = baseHooks.getLenderStatus(account);
@@ -1303,7 +1366,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     address[] memory accounts = new address[](1);
     accounts[0] = account;
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(address(this), account);
     baseHooks.blockFromDeposits(accounts);
     LenderStatus memory status = baseHooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, true, 'isBlockedFromDeposits');
@@ -1318,9 +1381,9 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     accounts[0] = account;
 
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountAccessRevoked(account);
+    emit BaseAccessControls.AccountAccessRevoked(address(mockProvider1), account, address(this));
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(address(this), account);
 
     baseHooks.blockFromDeposits(accounts);
     LenderStatus memory status = baseHooks.getLenderStatus(account);
@@ -1339,7 +1402,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   function test_unblockFromDeposits(address account) external {
     baseHooks.blockFromDeposits(account);
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountUnblockedFromDeposits(account);
+    emit BaseAccessControls.AccountUnblockedFromDeposits(address(this), account);
     baseHooks.unblockFromDeposits(account);
     LenderStatus memory status = baseHooks.getLenderStatus(account);
     assertEq(status.isBlockedFromDeposits, false, 'isBlockedFromDeposits');

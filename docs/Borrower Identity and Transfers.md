@@ -18,6 +18,8 @@ borrowerPrincipal() = principal P
 
 The market stores both accepted addresses. Ordinary borrower actions do not depend on a live identity-registry lookup.
 
+Borrower, principal, pending-transfer, and wrapper pointers use the final five EVM storage slots, from `type(uint256).max` through `type(uint256).max - 4`. This leaves the established sequential market layout at slots 0 through 10 unchanged and lets derived market types keep extending that layout normally. New manual storage must not use the reserved five-slot range.
+
 ## Borrower identity registry
 
 `WildcatBorrowerIdentityRegistry` recognizes contract accounts belonging to registered principals.

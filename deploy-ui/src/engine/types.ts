@@ -18,6 +18,13 @@ export type Predicate =
       call: { sig: string; args: PlanValue[] }
       expect: PlanValue
     }
+  | {
+      type: 'callResultEq'
+      target: Address | Reference
+      call: { sig: string; args: PlanValue[] }
+      resultIndex: number
+      expect: PlanValue
+    }
 
 export type GasLimitPolicy =
   | 'estimate*1.3'
@@ -28,7 +35,7 @@ export interface TransactionEnvelope {
   expectedExecutor: Address
   to: Address | Reference | null
   value: string
-  data: 'initCode+constructorArgs' | 'functionSignature+args'
+  data: 'initCode+constructorArgs' | 'functionSignature+args' | 'forwardedCall'
   gasLimitPolicy: GasLimitPolicy
   nonceCheck: 'display-and-confirm'
 }
@@ -49,13 +56,31 @@ export interface DeployTransaction extends PlanTransactionBase {
   output: string
 }
 
-export interface CallTransaction extends PlanTransactionBase {
+export interface ForwardedCall {
+  target: Address | Reference
+  functionSignature: string
+  args: PlanValue[]
+}
+
+export interface DirectCallTransaction extends PlanTransactionBase {
   kind: 'call'
   to: Address | Reference
   functionSignature: string
   args: PlanValue[]
+  forwardedCall?: never
   calldata: Hex
 }
+
+export interface ForwardedCallTransaction extends PlanTransactionBase {
+  kind: 'call'
+  to: Address | Reference
+  functionSignature: 'executeProtocolAction(address,bytes)'
+  args?: never
+  forwardedCall: ForwardedCall
+  calldata: Hex
+}
+
+export type CallTransaction = DirectCallTransaction | ForwardedCallTransaction
 
 export type PlanTransaction = DeployTransaction | CallTransaction
 

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -7,7 +8,45 @@ import { encodeFunctionData, keccak256, parseAbi, stringToHex } from 'viem'
 import miniPlanJson from '../../../../scripts/__fixtures__/plan/mini-plan.json'
 import { assertCeremonyPackage, assertPlan } from '../../artifacts'
 
+interface ArtifactCandidate {
+  artifact: {
+    abi: unknown[]
+    bytecode: { object: string; linkReferences: Record<string, unknown> }
+    deployedBytecode: { object: string }
+    rawMetadata: string
+  }
+  filePath: string
+  sourceName: string
+  contractName: string
+}
+
 const ROOT = resolve(import.meta.dirname, '../../../..')
+const require = createRequire(import.meta.url)
+const { collapseDuplicateArtifactCandidates } =
+  require('../../../../scripts/plan.js') as {
+    collapseDuplicateArtifactCandidates: (
+      candidates: ArtifactCandidate[],
+      artifactName: string,
+    ) => ArtifactCandidate[]
+  }
+
+function artifactCandidate(
+  sourceName: string,
+  filePath: string,
+  bytecode = '0x6000',
+): ArtifactCandidate {
+  return {
+    artifact: {
+      abi: [],
+      bytecode: { object: bytecode, linkReferences: {} },
+      deployedBytecode: { object: '0x00' },
+      rawMetadata: '{"sources":{}}',
+    },
+    filePath,
+    sourceName,
+    contractName: 'MockERC20',
+  }
+}
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
@@ -39,6 +78,57 @@ function eoaPackage() {
     payload,
   }
 }
+
+describe('Foundry artifact resolution', () => {
+  it('collapses duplicate files for the same compiled artifact identity', () => {
+    const source = 'script/mock/MockERC20.sol'
+    const candidates = [
+      artifactCandidate(source, '/tmp/first/MockERC20.json'),
+      artifactCandidate(source, '/tmp/second/MockERC20.json'),
+    ]
+
+    expect(
+      collapseDuplicateArtifactCandidates(
+        candidates,
+        'script/mock/MockERC20.sol:MockERC20',
+      ),
+    ).toEqual([candidates[0]])
+  })
+
+  it('rejects conflicting compiled copies of the same artifact identity', () => {
+    const source = 'script/mock/MockERC20.sol'
+    const candidate = artifactCandidate(source, '/tmp/first/MockERC20.json')
+    const conflicting = artifactCandidate(
+      source,
+      '/tmp/second/MockERC20.json',
+      '0x6001',
+    )
+
+    expect(() =>
+      collapseDuplicateArtifactCandidates(
+        [candidate, conflicting],
+        'script/mock/MockERC20.sol:MockERC20',
+      ),
+    ).toThrow('has conflicting compiled copies')
+  })
+
+  it('keeps artifacts from different source contracts distinct', () => {
+    const candidates = [
+      artifactCandidate(
+        'script/mock/MockERC20.sol',
+        '/tmp/script/MockERC20.json',
+      ),
+      artifactCandidate(
+        'lib/example/MockERC20.sol',
+        '/tmp/library/MockERC20.json',
+      ),
+    ]
+
+    expect(collapseDuplicateArtifactCandidates(candidates, 'MockERC20')).toEqual(
+      candidates,
+    )
+  })
+})
 
 describe('embedded ceremony packages', () => {
   it('validates its digest and exact packaged plan bytes', () => {

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "test": "vitest run --exclude 'src/engine/__tests__/*.fork.test.ts'",
-    "test:fork": "vitest run src/engine/__tests__/planExecutor.fork.test.ts src/engine/__tests__/safeCeremony.fork.test.ts --testTimeout=120000"
+    "test:fork": "FOUNDRY_PROFILE=deploy forge build --root .. script/mock/MockERC20.sol test-next/mocks/LensMocks.sol && vitest run src/engine/__tests__/planExecutor.fork.test.ts src/engine/__tests__/safeCeremony.fork.test.ts --testTimeout=120000"
   },
   "dependencies": {
     "@safe-global/api-kit": "5.0.1",

@@ -131,7 +131,7 @@ contract WildcatMarket is
     state.accruedProtocolFees -= withdrawableFees;
     asset.safeTransfer(feeRecipient, withdrawableFees);
     _writeState(state);
-    emit_FeesCollected(withdrawableFees);
+    emit_FeesCollected(msg.sender, feeRecipient, withdrawableFees);
   }
 
   /**
@@ -145,12 +145,9 @@ contract WildcatMarket is
   function borrow(uint256 amount) external virtual onlyBorrower nonReentrant sphereXGuardExternal {
     // Check the raw Chainalysis status of both borrower identities. Sentinel overrides
     // must not let either identity draw while flagged.
-    address currentBorrower = borrower();
+    address currentBorrower = msg.sender;
     address currentPrincipal = borrowerPrincipal();
-    if (
-      _isFlaggedByChainalysis(currentBorrower) ||
-      (currentPrincipal != currentBorrower && _isFlaggedByChainalysis(currentPrincipal))
-    ) {
+    if (_flaggedBorrowerIdentity(currentBorrower, currentPrincipal) != address(0)) {
       revert_BorrowWhileSanctioned();
     }
 
@@ -166,7 +163,7 @@ contract WildcatMarket is
     _onBorrow(state, amount);
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
-    emit_Borrow(amount);
+    emit_Borrow(currentBorrower, amount);
   }
 
   function _repay(
@@ -205,9 +202,9 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
-    _onRepay(state, amount);
+    uint256 currentTotalAssets = _onRepayAndGetTotalAssets(state, amount);
 
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
   /**
@@ -224,6 +221,8 @@ contract WildcatMarket is
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_MarketAlreadyClosed();
+    uint256 previousAnnualInterestBips = state.annualInterestBips;
+    uint256 previousReserveRatioBips = state.reserveRatioBips;
 
     uint256 currentlyHeld = totalAssets();
     uint256 totalDebts = state.totalDebts();
@@ -235,7 +234,7 @@ contract WildcatMarket is
     } else if (currentlyHeld > totalDebts) {
       uint256 excessDebt = currentlyHeld - totalDebts;
       // Transfer excess assets to borrower
-      asset.safeTransfer(borrower(), excessDebt);
+      asset.safeTransfer(msg.sender, excessDebt);
       currentlyHeld -= excessDebt;
     }
     hooks.onCloseMarket(state);
@@ -302,7 +301,14 @@ contract WildcatMarket is
 
     _onCloseMarket();
     _writeState(state);
-    emit_MarketClosed(block.timestamp);
+    emit_AnnualInterestAndReserveRatioBipsUpdated(
+      msg.sender,
+      previousAnnualInterestBips,
+      state.annualInterestBips,
+      previousReserveRatioBips,
+      state.reserveRatioBips
+    );
+    emit_MarketClosed(msg.sender, block.timestamp);
   }
 
   /**

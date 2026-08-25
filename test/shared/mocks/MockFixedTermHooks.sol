@@ -20,10 +20,11 @@ contract MockFixedTermHooks is FixedTermHooks {
         emit AccountAccessGranted(
           status.lastProvider,
           accountAddress,
+          msg.sender,
           status.lastApprovalTimestamp
         );
       } else {
-        emit AccountAccessRevoked(accountAddress);
+        emit AccountAccessRevoked(lastProvider, accountAddress, msg.sender);
       }
     }
   }

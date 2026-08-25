@@ -82,6 +82,29 @@ function encodeHooksConfig(
 }
 
 library LibHooksConfig {
+  /// @dev Shared call path for hooks that do not return data. Keeping the call
+  ///      and revert bubbling here avoids copying the same tail into every
+  ///      enabled hook path.
+  function _callHook(address target, uint256 calldataPointer, uint256 calldataSize) private {
+    assembly {
+      // Each caller has already built the hook calldata in memory. The slightly
+      // odd pointer usually starts 0x1c bytes into a word because a four-byte
+      // selector literal has 28 leading zero bytes when written by `mstore`. From
+      // there, the selector and arguments form one normal, contiguous ABI call.
+      //
+      // `call(gas, target, value, inputOffset, inputSize, outputOffset, outputSize)`
+      // forwards the remaining gas, sends no ETH, and expects no return value.
+      // The opcode leaves 1 on the stack for success and 0 for failure.
+      if iszero(call(gas(), target, 0, calldataPointer, calldataSize, 0, 0)) {
+        // A hook is allowed to fail with a useful custom error. Copy its entire
+        // return buffer into scratch memory and bubble those exact bytes back
+        // through the market instead of hiding the original reason.
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+    }
+  }
+
   function setHooksAddress(
     HooksConfig hooks,
     address _hooksAddress
@@ -277,6 +300,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onDepositSelector = uint32(IHooks.onDeposit.selector);
     if (self.useOnDeposit()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), DepositCalldataSize)
         let cdPointer := mload(0x40)
@@ -303,13 +328,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(DepositHook_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(DepositHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -337,6 +359,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onQueueWithdrawalSelector = uint32(IHooks.onQueueWithdrawal.selector);
     if (self.useOnQueueWithdrawal()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
@@ -365,13 +389,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(QueueWithdrawalHook_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(QueueWithdrawalHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -379,17 +400,19 @@ library LibHooksConfig {
   //                         Hook for executeWithdrawal                         //
   // ========================================================================== //
 
-  // Size of lender + normalizedAmountWithdrawn + state + extraData.offset + extraData.length
-  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0244;
-  uint256 internal constant ExecuteWithdrawalHook_NormalizedAmount_Offset = 0x20;
-  uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x40;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0200;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0240;
+  // Size of lender + expiry + normalizedAmountWithdrawn + state + extraData.offset + extraData.length
+  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0264;
+  uint256 internal constant ExecuteWithdrawalHook_Expiry_Offset = 0x20;
+  uint256 internal constant ExecuteWithdrawalHook_NormalizedAmount_Offset = 0x40;
+  uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x60;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0220;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0240;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0260;
 
   function onExecuteWithdrawal(
     HooksConfig self,
     address lender,
+    uint32 expiry,
     uint256 normalizedAmountWithdrawn,
     MarketState memory state,
     uint256 baseCalldataSize
@@ -397,6 +420,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onExecuteWithdrawalSelector = uint32(IHooks.onExecuteWithdrawal.selector);
     if (self.useOnExecuteWithdrawal()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
@@ -405,6 +430,8 @@ library LibHooksConfig {
         mstore(cdPointer, onExecuteWithdrawalSelector)
         // Write `lender` to hook calldata
         mstore(headPointer, lender)
+        // Write the exact withdrawal-batch `expiry` to hook calldata
+        mstore(add(headPointer, ExecuteWithdrawalHook_Expiry_Offset), expiry)
         // Write `normalizedAmountWithdrawn` to hook calldata
         mstore(
           add(headPointer, ExecuteWithdrawalHook_NormalizedAmount_Offset),
@@ -426,13 +453,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(ExecuteWithdrawalHook_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(ExecuteWithdrawalHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -461,6 +485,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onTransferSelector = uint32(IHooks.onTransfer.selector);
     if (self.useOnTransfer()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let cdPointer := mload(0x40)
@@ -491,13 +517,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(TransferHook_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(TransferHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -517,6 +540,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onBorrowSelector = uint32(IHooks.onBorrow.selector);
     if (self.useOnBorrow()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), BorrowCalldataSize)
         let ptr := mload(0x40)
@@ -541,12 +566,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(BorrowHook_Base_Size, extraCalldataBytes)
-        if iszero(call(gas(), target, 0, add(ptr, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(ptr, 0x1c)
+        calldataSize := add(BorrowHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -570,6 +593,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onRepaySelector = uint32(IHooks.onRepay.selector);
     if (self.useOnRepay()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), baseCalldataSize)
         let ptr := mload(0x40)
@@ -591,12 +616,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(RepayHook_Base_Size, extraCalldataBytes)
-        if iszero(call(gas(), target, 0, add(ptr, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(ptr, 0x1c)
+        calldataSize := add(RepayHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -617,6 +640,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onCloseMarketSelector = uint32(IHooks.onCloseMarket.selector);
     if (self.useOnCloseMarket()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), CloseMarketCalldataSize)
         let cdPointer := mload(0x40)
@@ -639,13 +664,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(CloseMarketHook_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(CloseMarketHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -669,6 +691,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onSetMaxTotalSupplySelector = uint32(IHooks.onSetMaxTotalSupply.selector);
     if (self.useOnSetMaxTotalSupply()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), SetMaxTotalSupplyCalldataSize)
         let cdPointer := mload(0x40)
@@ -693,13 +717,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(SetMaxTotalSupplyHook_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(SetMaxTotalSupplyHook_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -806,6 +827,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onSetProtocolFeeBipsSelector = uint32(IHooks.onSetProtocolFeeBips.selector);
     if (self.useOnSetProtocolFeeBips()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), SetProtocolFeeBipsCalldataSize)
         let cdPointer := mload(0x40)
@@ -830,13 +853,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(SetProtocolFeeBips_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(SetProtocolFeeBips_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 
@@ -856,6 +876,8 @@ library LibHooksConfig {
     address target = self.hooksAddress();
     uint32 onNukeFromOrbitSelector = uint32(IHooks.onNukeFromOrbit.selector);
     if (self.useOnNukeFromOrbit()) {
+      uint256 calldataPointer;
+      uint256 calldataSize;
       assembly {
         let extraCalldataBytes := sub(calldatasize(), NukeFromOrbitCalldataSize)
         let cdPointer := mload(0x40)
@@ -880,13 +902,10 @@ library LibHooksConfig {
           extraCalldataBytes
         )
 
-        let size := add(NukeFromOrbit_Base_Size, extraCalldataBytes)
-
-        if iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0)) {
-          returndatacopy(0, 0, returndatasize())
-          revert(0, returndatasize())
-        }
+        calldataPointer := add(cdPointer, 0x1c)
+        calldataSize := add(NukeFromOrbit_Base_Size, extraCalldataBytes)
       }
+      _callHook(target, calldataPointer, calldataSize);
     }
   }
 }

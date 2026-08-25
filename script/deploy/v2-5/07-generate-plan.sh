@@ -7,16 +7,24 @@ export FOUNDRY_PROFILE=deploy
 release="${RELEASE_TAG:-v2-5}"
 plan="deployments/${DEPLOYMENTS_NETWORK}/plan-${release}.json"
 
+ceremony_config="deployments/${DEPLOYMENTS_NETWORK}/ceremony-config.json"
+if [[ -f "$ceremony_config" ]] && \
+  jq -e '.ownership.type == "authorized-helper"' "$ceremony_config" >/dev/null; then
+  : "${RPC_URL:?RPC_URL is required for the authorized-helper preflight}"
+  : "${EXPECTED_EXECUTOR:?EXPECTED_EXECUTOR is required for the authorized-helper preflight}"
+  node scripts/authority-helper.js preflight \
+    --network "$DEPLOYMENTS_NETWORK" \
+    --rpc-url "$RPC_URL" \
+    --expected-executor "$EXPECTED_EXECUTOR"
+fi
+
 node scripts/plan.js assemble --network "$DEPLOYMENTS_NETWORK" --release "$release"
 node scripts/plan.js validate --plan "$plan"
+node scripts/factory-inventory.js validate-activation-plan \
+  --network "$DEPLOYMENTS_NETWORK" \
+  --plan "$plan"
 node - "$plan" <<'NODE'
 const fs = require("fs");
-const path = require("path");
-const {
-  assertFactoryDeactivationPlan,
-  getFactoryDeactivationTargets,
-  readInventory,
-} = require("./scripts/factory-inventory");
 
 const planPath = process.argv[2];
 const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
@@ -38,8 +46,13 @@ const expected = new Map(
     ]),
   ),
 );
+const logicalCall = (transaction) => transaction.forwardedCall || {
+  target: transaction.to,
+  functionSignature: transaction.functionSignature,
+  args: transaction.args,
+};
 const registrations = plan.transactions.filter(
-  (transaction) => transaction.functionSignature === signature,
+  (transaction) => logicalCall(transaction).functionSignature === signature,
 );
 
 if (registrations.length !== expected.size) {
@@ -50,11 +63,12 @@ if (registrations.length !== expected.size) {
 
 for (const [id, [factory, storage, name]] of expected) {
   const transaction = registrations.find((candidate) => candidate.id === id);
+  const call = transaction && logicalCall(transaction);
   if (
     !transaction ||
-    transaction.to?.$ref !== factory ||
-    transaction.args?.[0]?.$ref !== storage ||
-    transaction.args?.[1] !== name
+    call.target?.$ref !== factory ||
+    call.args?.[0]?.$ref !== storage ||
+    call.args?.[1] !== name
   ) {
     throw new Error(
       `Invalid v2.5 template registration ${id}; expected ${name} from ${storage} on ${factory}`,
@@ -63,33 +77,8 @@ for (const [id, [factory, storage, name]] of expected) {
 }
 
 console.log("Template matrix valid: 6 registrations across 2 factories");
-
-const inventory = readInventory(
-  path.join("deployments", plan.network, "factory-inventory.json"),
-);
-const deployments = JSON.parse(
-  fs.readFileSync(
-    path.join("deployments", plan.network, "deployments.json"),
-    "utf8",
-  ),
-);
-const excludedAddresses = [
-  deployments[`HooksFactory_${plan.release}`],
-  deployments[`HooksFactoryRevolving_${plan.release}`],
-].filter((address) => typeof address === "string");
-const deactivationTargets = getFactoryDeactivationTargets(
-  inventory,
-  excludedAddresses,
-);
-assertFactoryDeactivationPlan(
-  plan,
-  deactivationTargets,
-  deployments.WildcatArchController,
-);
-console.log(
-  `Factory deactivation matrix valid: ${deactivationTargets.length} superseded factories, ${deactivationTargets.length * 2} removals`,
-);
 NODE
+# shellcheck disable=SC2016
 node -e '
 const plan = require("./" + process.argv[1]);
 const deploys = plan.transactions.filter((entry) => entry.kind === "deploy").length;

@@ -20,8 +20,14 @@ interface IBorrowerIdentityRegistry {
   error NoPendingBorrowerAccountPrincipalTransfer();
   error InvalidPaginationRange();
 
-  event AccountFactoryAdded(address indexed accountFactory);
-  event AccountFactoryRemoved(address indexed accountFactory);
+  event AccountFactoryAdded(
+    address indexed administrator,
+    address indexed accountFactory
+  );
+  event AccountFactoryRemoved(
+    address indexed administrator,
+    address indexed accountFactory
+  );
   event BorrowerAccountRegistered(
     address indexed account,
     address indexed principal,

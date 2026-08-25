@@ -134,7 +134,11 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     emit_WithdrawalQueued(expiry, accountAddress, scaledAmount, normalizedAmount);
 
     // Burn as much of the withdrawal batch as possible with available liquidity.
-    uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets());
+    uint256 currentTotalAssets = totalAssets();
+    uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(
+      state,
+      currentTotalAssets
+    );
     if (availableLiquidity > 0) {
       _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
     }
@@ -143,7 +147,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     _withdrawalData.batches[expiry] = batch;
 
     // Update stored state
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
   /**
@@ -162,6 +166,35 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     return
       _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, _runtimeConstant(0x24));
+  }
+
+  /**
+   * @dev Queue a withdrawal denominated in scaled market tokens.
+   *      Intended for integrations that already hold an exact scaled amount,
+   *      such as shares redeemed from the canonical ERC-4626 wrapper.
+   */
+  function queueWithdrawalScaled(
+    uint256 scaledAmount
+  ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
+    MarketState memory state = _getUpdatedState();
+
+    uint104 amount = scaledAmount.toUint104();
+    if (amount == 0) revert_NullBurnAmount();
+
+    // Cache account data
+    Account memory account = _getAccount(msg.sender);
+
+    uint256 normalizedAmount = state.normalizeAmount(amount);
+
+    return
+      _queueWithdrawal(
+        state,
+        account,
+        msg.sender,
+        amount,
+        normalizedAmount,
+        _runtimeConstant(0x24)
+      );
   }
 
   /**
@@ -270,7 +303,13 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     if (normalizedAmountWithdrawn == 0) revert_NullWithdrawalAmount();
 
-    hooks.onExecuteWithdrawal(accountAddress, normalizedAmountWithdrawn, state, baseCalldataSize);
+    hooks.onExecuteWithdrawal(
+      accountAddress,
+      expiry,
+      normalizedAmountWithdrawn,
+      state,
+      baseCalldataSize
+    );
 
     status.normalizedAmountWithdrawn = newTotalWithdrawn;
     state.normalizedUnclaimedWithdrawals -= normalizedAmountWithdrawn;
@@ -336,13 +375,16 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint256 i;
     // Process up to `maxBatches` unpaid batches while there is available liquidity
-    while (i++ < numBatches && availableLiquidity > 0) {
+    while (i < numBatches && availableLiquidity > 0) {
       // Process the next unpaid batch using available liquidity
       uint256 normalizedAmountPaid = _processUnpaidWithdrawalBatch(state, availableLiquidity);
       // Reduce liquidity available to next batch
       availableLiquidity = availableLiquidity.satSub(normalizedAmountPaid);
+      unchecked {
+        ++i;
+      }
     }
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
   function _processUnpaidWithdrawalBatch(

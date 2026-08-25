@@ -191,7 +191,12 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       .setFlag(Bit_Enabled_Transfer)
       .setHooksAddress(address(hooks));
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 365 days));
+    emit FixedTermHooks.FixedTermUpdated(
+      address(1),
+      address(this),
+      0,
+      uint32(block.timestamp + 365 days)
+    );
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -534,7 +539,12 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
+    emit FixedTermHooks.FixedTermUpdated(
+      address(1),
+      address(this),
+      uint32(block.timestamp + 365 days),
+      uint32(block.timestamp + 364 days)
+    );
     hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 364 days), 'fixedTermEndTime');
@@ -709,7 +719,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
 
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.MinimumDepositUpdated(address(1), 2e18);
+    emit FixedTermHooks.MinimumDepositUpdated(address(1), address(this), 1e18, 2e18);
     hooks.setMinimumDeposit(address(1), 2e18);
     assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
   }
@@ -817,7 +827,12 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     );
     vm.prank(address(1));
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp));
+    emit FixedTermHooks.FixedTermUpdated(
+      address(1),
+      address(1),
+      uint32(block.timestamp + 365 days),
+      uint32(block.timestamp)
+    );
     MarketState memory state;
     hooks.onCloseMarket(state, '');
     HookedMarket memory market = hooks.getHookedMarket(address(1));
