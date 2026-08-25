@@ -92,9 +92,9 @@ contract MinimumDepositScenariosTest is MarketConfigMatrix {
     _depositAs(d, alice, 1e18);
     assertEq(d.market.balanceOf(alice), MIN_DEPOSIT + 1e18, 'small deposit after clearing');
 
-    // Only the borrower can move the knob.
+    // Only the hook administrator can move the knob.
     startPrank(alice);
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     PeriodicTermHooks(d.hooksInstance).setMinimumDeposit(address(d.market), 1);
     stopPrank();
   }

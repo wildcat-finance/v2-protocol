@@ -30,6 +30,8 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SAFE_ID_REGEX = /^[^.]+$/;
 const HEX_DATA_REGEX = /^0x(?:[a-fA-F0-9]{2})*$/;
+const AUTHORITY_HELPER_FORWARD_SIGNATURE =
+  "executeProtocolAction(address,bytes)";
 const NETWORK_CHAIN_IDS = {
   mainnet: 1,
   sepolia: 11155111,
@@ -39,10 +41,13 @@ const NETWORK_CHAIN_IDS = {
 function printUsage() {
   console.log(`Usage:
   node scripts/plan.js assemble --network <name> --release <tag>
+    [--entries <directory-name>]
   node scripts/plan.js validate --plan <path>
   node scripts/plan.js execute --plan <path> --rpc <url>
     [--private-key <key> | --impersonate <address>] [--yes]
   node scripts/plan.js verify --plan <path> --run-state <path> --rpc <url>
+  node scripts/plan.js verify-eoa-run-state --plan <path> --run-state <path>
+    --rpc <url>
   node scripts/plan.js render-safe --plan <path>
   node scripts/plan.js bundle --plan <path> --safe <address>
     --start-nonce <n> [--max-gas <n>] [--out-dir <dir>]
@@ -53,16 +58,17 @@ function printUsage() {
   node scripts/plan.js ceremony-package --plan <path> --mode <eoa|safe>
     [--bundles <dir>] [--out <path>]
 
-assemble reads deployments/<network>/plan-entries/*.json and writes
+assemble reads deployments/<network>/<entries>/*.json and writes
 deployments/<network>/plan-<release>.json.
 `);
 }
 
 const KNOWN_FLAGS = {
-  assemble: ["network", "release"],
+  assemble: ["network", "release", "entries"],
   validate: ["plan"],
   execute: ["plan", "rpc", "private-key", "impersonate", "yes"],
   verify: ["plan", "run-state", "rpc"],
+  "verify-eoa-run-state": ["plan", "run-state", "rpc"],
   "render-safe": ["plan"],
   bundle: ["plan", "safe", "start-nonce", "max-gas", "out-dir"],
   "bundle-simulate": ["plan", "bundles", "rpc", "safe", "private-key"],
@@ -440,6 +446,41 @@ function artifactIdentity(artifact) {
   return { sourceName: entries[0][0], contractName: entries[0][1] };
 }
 
+function artifactDeploymentSurface(artifact) {
+  return {
+    abi: artifact.abi,
+    bytecode: artifact.bytecode,
+    deployedBytecode: artifact.deployedBytecode,
+    rawMetadata: artifact.rawMetadata,
+  };
+}
+
+function collapseDuplicateArtifactCandidates(candidates, artifactName) {
+  const byIdentity = new Map();
+  for (const candidate of candidates) {
+    const identity = `${candidate.sourceName}:${candidate.contractName}`;
+    const existing = byIdentity.get(identity);
+    if (!existing) {
+      byIdentity.set(identity, candidate);
+      continue;
+    }
+    if (
+      !jsonEqual(
+        artifactDeploymentSurface(existing.artifact),
+        artifactDeploymentSurface(candidate.artifact)
+      )
+    ) {
+      const paths = [existing.filePath, candidate.filePath]
+        .map((filePath) => path.relative(REPO_ROOT, filePath))
+        .join(", ");
+      throw new Error(
+        `Artifact "${artifactName}" has conflicting compiled copies for ${identity} (${paths}); run FOUNDRY_PROFILE=deploy forge clean and rebuild`
+      );
+    }
+  }
+  return [...byIdentity.values()];
+}
+
 function loadArtifact(artifactName) {
   assertDeployProfile();
   const separator = artifactName.lastIndexOf(":");
@@ -451,7 +492,7 @@ function loadArtifact(artifactName) {
     throw new Error(`Invalid artifact name: ${artifactName}`);
 
   artifactFiles ||= listArtifactFiles(OUT_DIR);
-  const candidates = [];
+  const discoveredCandidates = [];
   for (const filePath of artifactFiles) {
     if (path.basename(filePath) !== `${requestedContract}.json`) continue;
     let artifact;
@@ -463,8 +504,13 @@ function loadArtifact(artifactName) {
     const identity = artifactIdentity(artifact);
     if (!identity || identity.contractName !== requestedContract) continue;
     if (requestedSource && identity.sourceName !== requestedSource) continue;
-    candidates.push({ artifact, filePath, ...identity });
+    discoveredCandidates.push({ artifact, filePath, ...identity });
   }
+
+  const candidates = collapseDuplicateArtifactCandidates(
+    discoveredCandidates,
+    artifactName
+  );
 
   if (candidates.length === 0) {
     throw new Error(`Artifact "${artifactName}" was not found in out/`);
@@ -609,19 +655,49 @@ function encodeFunctionCall(signature, args, outputs = null) {
   return contractInterface.encodeFunctionData(fragment, resolvedArgs);
 }
 
+function encodeForwardedCall(transaction, outputs = null) {
+  const forwardedCall = transaction.forwardedCall;
+  if (!forwardedCall || typeof forwardedCall !== "object") {
+    throw new Error("Missing forwarded call");
+  }
+  const target = outputs
+    ? resolveReferences(forwardedCall.target, outputs)
+    : replaceReferencesWithZero(forwardedCall.target);
+  if (!ADDRESS_REGEX.test(target || "")) {
+    throw new Error(`Resolved invalid forwarded target ${target}`);
+  }
+  const data = encodeFunctionCall(
+    forwardedCall.functionSignature,
+    forwardedCall.args,
+    outputs
+  );
+  return encodeFunctionCall(transaction.functionSignature, [target, data]);
+}
+
 function transactionReferenceFields(transaction) {
   const values = [transaction.envelope?.to];
   if (transaction.kind === "deploy") {
     values.push(transaction.constructorArgs?.decoded);
   } else if (transaction.kind === "call") {
-    values.push(transaction.to, transaction.args);
+    values.push(transaction.to);
+    if (transaction.forwardedCall) {
+      values.push(
+        transaction.forwardedCall.target,
+        transaction.forwardedCall.args
+      );
+    } else {
+      values.push(transaction.args);
+    }
   }
   return values;
 }
 
 function predicateReferenceFields(transaction) {
   const values = [transaction.predicate?.target];
-  if (transaction.predicate?.type === "callEq") {
+  if (
+    transaction.predicate?.type === "callEq" ||
+    transaction.predicate?.type === "callResultEq"
+  ) {
     values.push(transaction.predicate.call?.args, transaction.predicate.expect);
   }
   return values;
@@ -650,9 +726,10 @@ function validateEnvelope(plan, transaction, index, errors) {
   if (!jsonEqual(envelope.to, expectedTo)) {
     errors.push(`${valuePath}.to: must match the transaction destination`);
   }
-  const expectedData =
-    transaction.kind === "deploy"
-      ? "initCode+constructorArgs"
+  const expectedData = transaction.kind === "deploy"
+    ? "initCode+constructorArgs"
+    : transaction.forwardedCall
+      ? "forwardedCall"
       : "functionSignature+args";
   if (envelope.data !== expectedData) {
     errors.push(`${valuePath}.data: must equal ${expectedData}`);
@@ -713,6 +790,7 @@ function validatePlan(plan, options = {}) {
         "to",
         "functionSignature",
         "args",
+        "forwardedCall",
         "calldata",
       ]) {
         if (Object.prototype.hasOwnProperty.call(transaction, callOnlyField)) {
@@ -786,15 +864,34 @@ function validatePlan(plan, options = {}) {
           );
         }
       }
+      const hasArgs = Array.isArray(transaction.args);
+      const hasForwardedCall =
+        transaction.forwardedCall !== undefined &&
+        transaction.forwardedCall !== null;
+      if (hasArgs === hasForwardedCall) {
+        errors.push(
+          `${transactionPath}: call must contain exactly one of args or forwardedCall`
+        );
+      }
+      if (
+        hasForwardedCall &&
+        transaction.functionSignature !== AUTHORITY_HELPER_FORWARD_SIGNATURE
+      ) {
+        errors.push(
+          `${transactionPath}.functionSignature: forwarded calls must use ${AUTHORITY_HELPER_FORWARD_SIGNATURE}`
+        );
+      }
       if (
         typeof transaction.functionSignature === "string" &&
-        Array.isArray(transaction.args)
+        (hasArgs || hasForwardedCall)
       ) {
         try {
-          const expectedCalldata = encodeFunctionCall(
-            transaction.functionSignature,
-            transaction.args
-          );
+          const expectedCalldata = hasForwardedCall
+            ? encodeForwardedCall(transaction)
+            : encodeFunctionCall(
+                transaction.functionSignature,
+                transaction.args
+              );
           if (
             typeof transaction.calldata === "string" &&
             transaction.calldata.toLowerCase() !==
@@ -967,52 +1064,43 @@ function uniqueEnvelopeValue(transactions, field) {
   )?.envelope[field];
 }
 
-function temporaryOwnerTransactions(
+function authorizedHelperTransactions(
   transactions,
-  expectedExecutor,
-  archController,
-  helperOwner
+  helperOwner,
+  forwardedFunctionSignatures
 ) {
-  const executor = getAddress(expectedExecutor);
-  const arch = getAddress(archController);
   const helper = getAddress(helperOwner);
-  return [
-    {
-      id: "reclaim-arch-controller-ownership",
-      kind: "call",
+  const forwardedSignatures = new Set(forwardedFunctionSignatures);
+  return transactions.map((transaction) => {
+    if (
+      transaction.kind !== "call" ||
+      !forwardedSignatures.has(transaction.functionSignature)
+    ) {
+      return transaction;
+    }
+    if (transaction.forwardedCall || !Array.isArray(transaction.args)) {
+      throw new Error(
+        `${transaction.id}: owner action is already forwarded or has no decoded arguments`
+      );
+    }
+    const forwardedCall = {
+      target: transaction.to,
+      functionSignature: transaction.functionSignature,
+      args: transaction.args,
+    };
+    const wrapped = {
+      ...transaction,
       to: helper,
-      functionSignature: "returnOwnership()",
-      args: [],
-      description:
-        "Temporarily reclaim ArchController ownership from the Sepolia helper for this deployment.",
-      reverifyUntil: "restore-arch-controller-ownership",
-      predicate: {
-        type: "callEq",
-        target: arch,
-        call: { sig: "owner() view returns (address)", args: [] },
-        expect: executor,
-      },
-    },
-    ...transactions,
-    {
-      id: "restore-arch-controller-ownership",
-      kind: "call",
-      to: arch,
-      functionSignature: "transferOwnership(address)",
-      args: [helper],
-      description:
-        "Return ArchController ownership to the Sepolia helper after every deployment action is verified.",
-      predicate: {
-        type: "callEq",
-        target: arch,
-        call: { sig: "owner() view returns (address)", args: [] },
-        expect: helper,
-      },
-    },
-  ];
+      functionSignature: AUTHORITY_HELPER_FORWARD_SIGNATURE,
+      forwardedCall,
+    };
+    delete wrapped.args;
+    delete wrapped.calldata;
+    return wrapped;
+  });
 }
 
-function applyCeremonyConfig(network, transactions, expectedExecutor) {
+function applyCeremonyConfig(network, transactions) {
   const configPath = path.join(
     REPO_ROOT,
     "deployments",
@@ -1022,12 +1110,39 @@ function applyCeremonyConfig(network, transactions, expectedExecutor) {
   if (!fs.existsSync(configPath)) return transactions;
   const config = readJson(configPath);
   if (
-    config.schemaVersion !== "1.0.0" ||
-    config.ownership?.type !== "temporary-mock-owner" ||
+    config.schemaVersion !== "2.0.0" ||
+    config.ownership?.type !== "authorized-helper" ||
     typeof config.ownership.archControllerKey !== "string" ||
-    typeof config.ownership.helperOwnerKey !== "string"
+    typeof config.ownership.helperOwnerKey !== "string" ||
+    typeof config.ownership.legacyHelperOwnerKey !== "string" ||
+    typeof config.ownership.helperVersion !== "string" ||
+    !Array.isArray(config.ownership.retainedAuthorizedAccounts) ||
+    config.ownership.retainedAuthorizedAccounts.some(
+      (account) => !ADDRESS_REGEX.test(account || "")
+    ) ||
+    new Set(
+      config.ownership.retainedAuthorizedAccounts.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== config.ownership.retainedAuthorizedAccounts.length ||
+    !Array.isArray(config.ownership.revokedSphereXEngineOperators) ||
+    config.ownership.revokedSphereXEngineOperators.some(
+      (account) => !ADDRESS_REGEX.test(account || "")
+    ) ||
+    new Set(
+      config.ownership.revokedSphereXEngineOperators.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== config.ownership.revokedSphereXEngineOperators.length ||
+    !Array.isArray(config.ownership.forwardedFunctionSignatures) ||
+    config.ownership.forwardedFunctionSignatures.length === 0 ||
+    new Set(config.ownership.forwardedFunctionSignatures).size !==
+      config.ownership.forwardedFunctionSignatures.length ||
+    config.ownership.forwardedFunctionSignatures.some(
+      (signature) => typeof signature !== "string" || signature.length === 0
+    )
   ) {
-    throw new Error(`Invalid temporary-owner ceremony config: ${configPath}`);
+    throw new Error(`Invalid authorized-helper ceremony config: ${configPath}`);
   }
   const deploymentsPath = path.join(
     REPO_ROOT,
@@ -1036,8 +1151,8 @@ function applyCeremonyConfig(network, transactions, expectedExecutor) {
     "deployments.json"
   );
   const deployments = readJson(deploymentsPath);
-  const archController = deployments[config.ownership.archControllerKey];
   const helperOwner = deployments[config.ownership.helperOwnerKey];
+  const archController = deployments[config.ownership.archControllerKey];
   if (!ADDRESS_REGEX.test(archController || "")) {
     throw new Error(
       `${configPath}: missing deployment address ${config.ownership.archControllerKey}`
@@ -1048,11 +1163,10 @@ function applyCeremonyConfig(network, transactions, expectedExecutor) {
       `${configPath}: missing deployment address ${config.ownership.helperOwnerKey}`
     );
   }
-  return temporaryOwnerTransactions(
+  return authorizedHelperTransactions(
     transactions,
-    expectedExecutor,
-    archController,
-    helperOwner
+    helperOwner,
+    config.ownership.forwardedFunctionSignatures
   );
 }
 
@@ -1062,11 +1176,17 @@ function assemblePlan(args) {
   if (!SAFE_ID_REGEX.test(network) || !SAFE_ID_REGEX.test(release)) {
     throw new Error("Network and release must not contain dots.");
   }
+  const entriesName = args.entries || "plan-entries";
+  if (!/^[A-Za-z0-9_-]+$/.test(entriesName)) {
+    throw new Error(
+      "Plan entries directory must contain only letters, digits, dashes, and underscores."
+    );
+  }
   const entriesDirectory = path.join(
     REPO_ROOT,
     "deployments",
     network,
-    "plan-entries"
+    entriesName
   );
   if (!fs.existsSync(entriesDirectory)) {
     throw new Error(`Plan entries directory not found: ${entriesDirectory}`);
@@ -1102,7 +1222,7 @@ function assemblePlan(args) {
       "Could not infer expected executor; include envelope.expectedExecutor in an entry"
     );
   }
-  transactions = applyCeremonyConfig(network, transactions, expectedExecutor);
+  transactions = applyCeremonyConfig(network, transactions);
 
   for (const transaction of transactions) {
     if (transaction.kind === "deploy") {
@@ -1116,10 +1236,12 @@ function assemblePlan(args) {
         transaction.constructorArgs.decoded || []
       );
     } else if (transaction.kind === "call") {
-      transaction.calldata = encodeFunctionCall(
-        transaction.functionSignature,
-        transaction.args || []
-      );
+      transaction.calldata = transaction.forwardedCall
+        ? encodeForwardedCall(transaction)
+        : encodeFunctionCall(
+            transaction.functionSignature,
+            transaction.args || []
+          );
     }
     const existingEnvelope = transaction.envelope || {};
     transaction.envelope = {
@@ -1130,7 +1252,9 @@ function assemblePlan(args) {
       data:
         transaction.kind === "deploy"
           ? "initCode+constructorArgs"
-          : "functionSignature+args",
+          : transaction.forwardedCall
+            ? "forwardedCall"
+            : "functionSignature+args",
       gasLimitPolicy: existingEnvelope.gasLimitPolicy ?? "estimate*1.3",
       nonceCheck: "display-and-confirm",
     };
@@ -1229,7 +1353,14 @@ async function codePresent(rpc, address) {
   };
 }
 
-async function callEq(rpc, target, signature, args, expected) {
+async function callEq(
+  rpc,
+  target,
+  signature,
+  args,
+  expected,
+  resultIndex = null
+) {
   const { contractInterface, fragment } = functionInterface(signature);
   const data = contractInterface.encodeFunctionData(fragment, args);
   const encodedResult = await rpc("eth_call", [{ to: target, data }, "latest"]);
@@ -1237,8 +1368,15 @@ async function callEq(rpc, target, signature, args, expected) {
     fragment,
     encodedResult
   );
-  const actual =
-    fragment.outputs.length === 1
+  if (
+    resultIndex !== null &&
+    (!Number.isInteger(resultIndex) || resultIndex < 0 || resultIndex >= fragment.outputs.length)
+  ) {
+    throw new Error(`${signature} has no result at index ${resultIndex}`);
+  }
+  const actual = resultIndex !== null
+    ? canonicalValue(decodedResult[resultIndex])
+    : fragment.outputs.length === 1
       ? canonicalValue(decodedResult[0])
       : canonicalValue(Array.from(decodedResult));
   const normalizedExpected = canonicalValue(expected);
@@ -1261,10 +1399,17 @@ async function checkPredicate(rpc, predicate, outputs) {
   if (predicate.type === "codePresent") {
     return codePresent(rpc, target);
   }
-  if (predicate.type === "callEq") {
+  if (predicate.type === "callEq" || predicate.type === "callResultEq") {
     const args = resolveReferences(predicate.call.args, outputs);
     const expected = resolveReferences(predicate.expect, outputs);
-    return callEq(rpc, target, predicate.call.sig, args, expected);
+    return callEq(
+      rpc,
+      target,
+      predicate.call.sig,
+      args,
+      expected,
+      predicate.type === "callResultEq" ? predicate.resultIndex : null
+    );
   }
   throw new Error(`Unsupported predicate type: ${predicate.type}`);
 }
@@ -1320,11 +1465,13 @@ function transactionPayload(transaction, outputs) {
   }
   return {
     to,
-    data: encodeFunctionCall(
-      transaction.functionSignature,
-      transaction.args,
-      outputs
-    ),
+    data: transaction.forwardedCall
+      ? encodeForwardedCall(transaction, outputs)
+      : encodeFunctionCall(
+          transaction.functionSignature,
+          transaction.args,
+          outputs
+        ),
     value,
   };
 }
@@ -1802,6 +1949,138 @@ async function verifyPlan(args) {
   console.log(`Verification passed: ${plan.transactions.length} predicate(s).`);
 }
 
+function recordedBlockNumber(entry, transactionId) {
+  try {
+    const blockNumber = BigInt(entry.blockNumber);
+    if (blockNumber <= 0n) throw new Error("not positive");
+    return blockNumber;
+  } catch (_error) {
+    throw new Error(
+      `Run state entry ${transactionId} has invalid blockNumber ${entry.blockNumber}`
+    );
+  }
+}
+
+async function verifyEoaRunState(args) {
+  const planPath = requiredArg(args, "plan");
+  const statePath = requiredArg(args, "run-state");
+  const rpcUrl = requiredArg(args, "rpc");
+  const plan = assertValidPlan(readJson(planPath));
+  if (!fs.existsSync(statePath)) {
+    throw new Error(`Run state not found: ${statePath}`);
+  }
+  const runState = readRunState(statePath);
+  const expectedIds = new Set(
+    plan.transactions.map((transaction) => transaction.id)
+  );
+  for (const transactionId of Object.keys(runState)) {
+    if (!expectedIds.has(transactionId)) {
+      throw new Error(
+        `Run state contains unknown transaction id ${transactionId}`
+      );
+    }
+  }
+  for (const transaction of plan.transactions) {
+    const entry = runState[transaction.id];
+    if (!entry || entry.status !== "verified") {
+      throw new Error(`Run state entry ${transaction.id} is not verified`);
+    }
+    if (!/^0x[a-fA-F0-9]{64}$/.test(entry.txHash || "")) {
+      throw new Error(`Run state entry ${transaction.id} has invalid txHash`);
+    }
+    recordedBlockNumber(entry, transaction.id);
+    if (
+      transaction.kind === "deploy" &&
+      !ADDRESS_REGEX.test(entry.resolvedAddress || "")
+    ) {
+      throw new Error(
+        `Run state deployment ${transaction.id} has invalid resolvedAddress`
+      );
+    }
+  }
+
+  const rpc = createRpcClient(rpcUrl);
+  const actualChainId = Number(BigInt(await rpc("eth_chainId")));
+  if (actualChainId !== plan.chainId) {
+    throw new Error(
+      `RPC chain id mismatch: plan=${plan.chainId}, rpc=${actualChainId}`
+    );
+  }
+  const outputs = outputsFromRunState(plan, runState);
+  for (const transaction of plan.transactions) {
+    const entry = runState[transaction.id];
+    const [receipt, actualTransaction] = await Promise.all([
+      rpc("eth_getTransactionReceipt", [entry.txHash]),
+      rpc("eth_getTransactionByHash", [entry.txHash]),
+    ]);
+    if (!receipt || !actualTransaction) {
+      throw new Error(
+        `Run state transaction ${transaction.id} is not present on the RPC`
+      );
+    }
+    if (BigInt(receipt.status) !== 1n) {
+      throw new Error(
+        `Run state transaction ${transaction.id} did not succeed`
+      );
+    }
+    if (
+      BigInt(receipt.blockNumber) !== recordedBlockNumber(entry, transaction.id)
+    ) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has a different block number`
+      );
+    }
+    const expectedExecutor = getAddress(transaction.envelope.expectedExecutor);
+    if (
+      getAddress(receipt.from) !== expectedExecutor ||
+      getAddress(actualTransaction.from) !== expectedExecutor
+    ) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has the wrong executor`
+      );
+    }
+
+    const payload = transactionPayload(transaction, outputs);
+    const actualTo = actualTransaction.to
+      ? getAddress(actualTransaction.to)
+      : null;
+    const expectedTo = payload.to ? getAddress(payload.to) : null;
+    if (actualTo !== expectedTo) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has the wrong destination`
+      );
+    }
+    if (
+      (actualTransaction.input || "").toLowerCase() !==
+      payload.data.toLowerCase()
+    ) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has different calldata`
+      );
+    }
+    if (BigInt(actualTransaction.value) !== payload.value) {
+      throw new Error(
+        `Run state transaction ${transaction.id} has a different value`
+      );
+    }
+    if (transaction.kind === "deploy") {
+      if (
+        !receipt.contractAddress ||
+        getAddress(receipt.contractAddress) !==
+          getAddress(entry.resolvedAddress)
+      ) {
+        throw new Error(
+          `Run state deployment ${transaction.id} has a different receipt address`
+        );
+      }
+    }
+    console.log(`PROVENANCE ${transaction.id}: ${entry.txHash}`);
+  }
+  console.log(
+    `EOA run-state provenance passed: ${plan.transactions.length} transaction(s).`
+  );
+}
+
 function safeInputValue(value) {
   if (isReference(value)) return `$ref:${value.$ref}`;
   if (Array.isArray(value) || (value !== null && typeof value === "object")) {
@@ -1825,9 +2104,24 @@ function renderSafe(args) {
     .map((transaction) => {
       const { fragment } = functionInterface(transaction.functionSignature);
       const unresolvedReferences = [];
-      for (const value of [transaction.to, transaction.args]) {
+      for (const value of transaction.forwardedCall
+        ? [
+            transaction.to,
+            transaction.forwardedCall.target,
+            transaction.forwardedCall.args,
+          ]
+        : [transaction.to, transaction.args]) {
         collectReferences(value, unresolvedReferences);
       }
+      const displayArgs = transaction.forwardedCall
+        ? [
+            transaction.forwardedCall.target,
+            encodeFunctionCall(
+              transaction.forwardedCall.functionSignature,
+              transaction.forwardedCall.args
+            ),
+          ]
+        : transaction.args;
       const names = new Set();
       const inputs = fragment.inputs.map((input, index) => {
         let name = input.name || `arg${index}`;
@@ -1838,7 +2132,7 @@ function renderSafe(args) {
       const contractInputsValues = Object.fromEntries(
         inputs.map((input, index) => [
           input.name,
-          safeInputValue(transaction.args[index]),
+          safeInputValue(displayArgs[index]),
         ])
       );
       return {
@@ -1920,6 +2214,7 @@ async function main() {
   if (command === "validate") return runValidate(args);
   if (command === "execute") return executePlan(args);
   if (command === "verify") return verifyPlan(args);
+  if (command === "verify-eoa-run-state") return verifyEoaRunState(args);
   if (command === "render-safe") return renderSafe(args);
   if (command === "bundle") return bundleCommands().bundlePlan(args);
   if (command === "bundle-simulate") {
@@ -1945,9 +2240,11 @@ module.exports = {
   PLAN_SCHEMA_VERSION,
   callEq,
   checkPredicate,
+  collapseDuplicateArtifactCandidates,
   codePresent,
   encodeConstructorArgs,
   encodeFunctionCall,
+  encodeForwardedCall,
   validatePlan,
-  temporaryOwnerTransactions,
+  authorizedHelperTransactions,
 };

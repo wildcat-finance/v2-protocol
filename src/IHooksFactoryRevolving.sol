@@ -9,6 +9,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   error UnsupportedMarketDataVersion();
   error InvalidCommitmentFeeBips();
 
+  event RevolvingMarketDeployed(address indexed market, uint256 commitmentFeeBips);
+
   function archController() external view returns (address);
 
   function sanctionsSentinel() external view returns (address);
@@ -69,7 +71,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev Disable a hooks template.
+  /// @dev disables this template for new hook instances. existing instances can still
+  ///      deploy markets; disabling a template isn't a kill switch for immutable hooks.
   ///
   ///      On success:
   ///      - Emits `HooksTemplateDisabled` on success.
@@ -131,10 +134,35 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     bytes calldata constructorArgs
   ) external returns (address hooksDeployment);
 
-  /// @dev Hooks deployed under a direct principal or registered account are indexed by principal.
+  function getHooksAdministrator(address hooks) external view returns (address);
+
+  function getHooksInstanceDeploymentNonce(address administrator) external view returns (uint256);
+
+  function getHooksInstancesForAdministrator(
+    address administrator
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesForAdministrator(
+    address administrator,
+    uint256 start,
+    uint256 end
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesCountForAdministrator(
+    address administrator
+  ) external view returns (uint256);
+
+  /// @dev Compatibility alias for `getHooksInstancesForAdministrator`.
   function getHooksInstancesForBorrower(address borrower) external view returns (address[] memory);
 
+  /// @dev Compatibility alias for `getHooksInstancesCountForAdministrator`.
   function getHooksInstancesCountForBorrower(address borrower) external view returns (uint256);
+
+  /// @dev Called by a hooks instance after accepting a two-step administrator transfer.
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external;
 
   /// @dev Check if a hooks instance was deployed by the factory.
   function isHooksInstance(address hooks) external view returns (bool);
@@ -214,6 +242,10 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
+  /// @dev returns the CREATE2 market address for `salt` and this factory's init code.
+  ///      the first 20 bytes name the non-zero deployer, and deployment requires that
+  ///      address to call the factory. for borrower accounts, use the account contract,
+  ///      not its principal.
   function computeMarketAddress(bytes32 salt) external view returns (address);
 
   function pushProtocolFeeBipsUpdates(

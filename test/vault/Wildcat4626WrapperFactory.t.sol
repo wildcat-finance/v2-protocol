@@ -27,6 +27,7 @@ contract StubMarketToken is IWildcatMarketToken {
   address public registeredWrapper;
   address public hooksAddress;
   bool public transfersDisabled;
+  bool public recipientCheckReverts;
   bool internal immutable _declaresFloorRounding;
 
   mapping(address => uint256) internal _balances;
@@ -58,9 +59,18 @@ contract StubMarketToken is IWildcatMarketToken {
     transfersDisabled = transfersDisabled_;
   }
 
+  function setRecipientCheckReverts(bool recipientCheckReverts_) external {
+    recipientCheckReverts = recipientCheckReverts_;
+  }
+
   function isMarketTransferDisabled(address market) external view returns (bool) {
     require(market == address(this), 'UNKNOWN_MARKET');
     return transfersDisabled;
+  }
+
+  function isMarketTransferRecipientAllowed(address market, address) external view returns (bool) {
+    if (recipientCheckReverts) revert('RECIPIENT_CHECK_FAILED');
+    return market == address(this) && !transfersDisabled;
   }
 
   function registerWrapper(address wrapper) external {
@@ -111,6 +121,12 @@ contract StubArchController {
 
   function registerMarket(address market) external returns (bool) {
     isRegisteredMarket[market] = true;
+  }
+}
+
+contract IncompleteTransferPolicy {
+  function isMarketTransferDisabled(address) external pure returns (bool) {
+    return false;
   }
 }
 
@@ -321,6 +337,16 @@ contract Wildcat4626WrapperFactoryTest is Test {
     assertEq(Wildcat4626Wrapper(wrapperAddr).asset(), address(market), 'wrapper asset');
   }
 
+  function test_maxDepositReturnsZeroIfTransferPolicyQueryFails() external {
+    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(factory.createWrapper(address(market)));
+    assertGt(wrapper.maxDeposit(BORROWER), 0, 'initial maxDeposit');
+
+    market.setRecipientCheckReverts(true);
+
+    assertEq(wrapper.maxDeposit(BORROWER), 0, 'failed policy maxDeposit');
+    assertEq(wrapper.maxMint(BORROWER), 0, 'failed policy maxMint');
+  }
+
   function test_createWrapperRejectsTransferDisabledMarket() external {
     market.setTransfersDisabled(true);
 
@@ -343,6 +369,22 @@ contract Wildcat4626WrapperFactoryTest is Test {
         Wildcat4626WrapperFactory.UnsupportedMarketTransferPolicy.selector,
         address(market),
         address(sanctionsSentinel)
+      )
+    );
+    factory.createWrapper(address(market));
+    assertEq(factory.wrapperForMarket(address(market)), address(0), 'wrapper recorded');
+    assertEq(market.registeredWrapper(), address(0), 'wrapper registered');
+  }
+
+  function test_createWrapperRejectsIncompleteTransferPolicy() external {
+    address incompletePolicy = address(new IncompleteTransferPolicy());
+    market.setHooksAddress(incompletePolicy);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626WrapperFactory.UnsupportedMarketTransferPolicy.selector,
+        address(market),
+        incompletePolicy
       )
     );
     factory.createWrapper(address(market));

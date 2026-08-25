@@ -3,16 +3,16 @@
 Deferred tasks noted during the v2.5 pre-release cleanup pass (July 2026).
 These are not release blockers; they are queued for after the doc pass.
 
-## Deployment scripts for the v2.5 release — PARTIALLY DONE
+## Deployment scripts for the v2.5 release — DONE; ACCEPTANCE PENDING
 
 The ordered `script/deploy/v2-5/01` through `09` flow now covers the wrapper factory, standard and revolving factories, borrower identity registry, lens, owner actions, registration, plan generation, inventory finalization, and canary market. The market-transfer checkpoint updated factory and lens deployment inputs for the identity registry.
 
-This is still not the final ceremony package. It must be regenerated and independently rehearsed after hooks/providers, RCF draw fees, and the event/lens hard cut are complete.
+The source-driven ceremony has been regenerated from the post-audit integration source and passes the headless Sepolia-fork activation, canary, handoff, and retirement path. The final live package still must be generated and independently walked through the locked UI from the exact commit selected for deployment.
 
 `script/DeployPeriodicTermHooksV21.sol` remains deprecated: it targets the v2.1 rollout and predates the current `MarketLens` constructor.
 
 - Delete `DeployPeriodicTermHooksV21.sol` after confirming no remaining operator documentation or automation references it.
-- Regenerate the v2.5 ceremony package only after the remaining release-blocking contracts and ABIs are frozen.
+- Preserve the final locked-UI rehearsal package and evidence only after confirming the deployment commit still matches the rehearsed production source.
 
 ## prettier-plugin-solidity upgrade
 
@@ -46,20 +46,20 @@ are structurally required base-class overrides with no reachable call path
 (its analyzer cannot resolve a modifier that takes the function's named return
 value as an argument). A semantically identical inline of that modifier is
 kept as `docs/coverage-spherex.patch` — it is deliberately never committed to
-the source file because it is not bytecode-identical. Procedure:
+the source file because it is not bytecode-identical. The tracked coverage
+command applies the patch temporarily and verifies that the source is restored. Run it against a
+focused family whose production graph the coverage compiler supports, for example:
 
 ```
-git apply docs/coverage-spherex.patch
-FOUNDRY_FUZZ_RUNS=32 FOUNDRY_INVARIANT_RUNS=8 FOUNDRY_INVARIANT_DEPTH=15 \
-  forge coverage --no-match-coverage "(^test/|^script/|^lib/)" \
-  --report summary --report lcov
-git checkout -- src/spherex/SphereXProtectedRegisteredBase.sol
+FOUNDRY_TEST=test-next/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
 The run caps keep the instrumented build tractable; the anchored exclusion
-regex matters (an unanchored `lib` also excludes `src/libraries`). Consider
-wiring this procedure into the `coverage` script in package.json, and remove
-the patch if a future foundry release fixes the analyzer.
+regex matters (an unanchored `lib` also excludes `src/libraries`). Remove the
+patch if a future Foundry release fixes the analyzer. Production graphs that
+include `HooksFactoryRevolving` still exceed Forge's non-IR coverage compiler;
+their canonical via-IR tests and focused coverage status are recorded in the
+replacement parity ledgers.
 
 ## Minimum-deposit check consolidation
 

@@ -51,6 +51,15 @@ contract MarketStateTest is Test {
     assertEq(state.$normalizeAmount(scaledAmount), uint256(scaledAmount).rayMul(scaleFactor));
   }
 
+  function test_maxScaledSettleableAmount_SaturatesBeforeLiquidityOverflow() external {
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+    uint256 overflowingLiquidity = type(uint256).max / RAY;
+
+    assertEq(state.$maxScaledSettleableAmount(overflowingLiquidity), type(uint104).max);
+    assertEq(state.$maxScaledSettleableAmount(type(uint104).max - 1), type(uint104).max - 1);
+  }
+
   function test_totalSupply(
     uint112 scaleFactor,
     uint104 scaledTotalSupply

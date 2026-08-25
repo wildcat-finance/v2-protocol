@@ -74,25 +74,30 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
     setUpContracts(false);
   }
 
-  function _authorizeLender(address account) internal asAccount(parameters.borrower) {
+  function _authorizeLender(address account) internal asAccount(address(ecdsaRoleProvider)) {
     vm.expectEmit(address(hooks));
     emit BaseAccessControls.AccountAccessGranted(
-      parameters.borrower,
+      address(ecdsaRoleProvider),
       account,
+      address(ecdsaRoleProvider),
       uint32(block.timestamp)
     );
     hooks.grantRole(account, uint32(block.timestamp));
   }
 
-  function _deauthorizeLender(address account) internal asAccount(parameters.borrower) {
+  function _deauthorizeLender(address account) internal asAccount(address(ecdsaRoleProvider)) {
     vm.expectEmit(address(hooks));
-    emit BaseAccessControls.AccountAccessRevoked(account);
+    emit BaseAccessControls.AccountAccessRevoked(
+      address(ecdsaRoleProvider),
+      account,
+      address(ecdsaRoleProvider)
+    );
     hooks.revokeRole(account);
   }
 
   function _blockLender(address account) internal asAccount(parameters.borrower) {
     vm.expectEmit(address(hooks));
-    emit BaseAccessControls.AccountBlockedFromDeposits(account);
+    emit BaseAccessControls.AccountBlockedFromDeposits(parameters.borrower, account);
     hooks.blockFromDeposits(account);
   }
 
@@ -170,6 +175,31 @@ contract BaseMarketTest is Test, ExpectedStateTracker {
       market.scaledBalanceOf(from),
       currentScaledBalance - scaledAmount,
       'scaledBalance after withdrawal'
+    );
+  }
+
+  function _requestWithdrawalScaled(
+    address from,
+    uint256 scaledAmount
+  ) internal asAccount(from) returns (uint32 expiry) {
+    MarketState memory state = pendingState();
+    (uint256 currentScaledBalance, ) = _getBalance(state, from);
+    uint104 amount = scaledAmount.toUint104();
+    uint256 normalizedAmount = state.normalizeAmount(amount);
+    _trackQueueWithdrawalScaled(
+      state,
+      from,
+      amount,
+      normalizedAmount,
+      registerExpectationsStandin,
+      0
+    );
+    expiry = market.queueWithdrawalScaled(scaledAmount);
+    _checkState(state);
+    assertEq(
+      market.scaledBalanceOf(from),
+      currentScaledBalance - amount,
+      'scaledBalance after scaled withdrawal'
     );
   }
 

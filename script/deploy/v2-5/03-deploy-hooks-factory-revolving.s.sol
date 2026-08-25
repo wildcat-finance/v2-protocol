@@ -107,7 +107,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     string[] memory storageAfter = new string[](1);
     storageAfter[0] = STANDARD_FACTORY_ENTRY_ID;
     DeployPlanEntry memory storageEntry;
-    storageEntry.sequence = 5;
+    storageEntry.sequence = 6;
     storageEntry.id = STORAGE_ENTRY_ID;
     storageEntry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
     storageEntry.decodedConstructorArgs = string.concat(
@@ -116,7 +116,8 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       ']'
     );
     storageEntry.output = STORAGE_OUTPUT;
-    storageEntry.description = 'Deploy the v2.5 WildcatMarketRevolving init-code storage contract.';
+    storageEntry.description =
+      'Deploy the v2.5 WildcatMarketRevolving init-code storage contract.';
     storageEntry.predicate = _planCodePresentPredicate(STORAGE_OUTPUT);
     storageEntry.afterEntries = storageAfter;
     _planEntry(deployments, storageEntry);
@@ -124,7 +125,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     string[] memory factoryAfter = new string[](1);
     factoryAfter[0] = STORAGE_ENTRY_ID;
     DeployPlanEntry memory factoryEntry;
-    factoryEntry.sequence = 6;
+    factoryEntry.sequence = 7;
     factoryEntry.id = FACTORY_ENTRY_ID;
     factoryEntry.artifactName = FACTORY_ARTIFACT;
     factoryEntry.decodedConstructorArgs = string.concat(
@@ -178,7 +179,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       '}'
     );
-    _inventoryRecord(deployments, 5, storageLabel, storageRecord);
+    _inventoryRecord(deployments, 6, storageLabel, storageRecord);
 
     string memory factoryRecord = string.concat(
       '{"recordType":"hooksFactory","network":',
@@ -199,7 +200,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       ',"canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 6, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 7, factoryLabel, factoryRecord);
   }
 
   function _writePlanInventoryRecords(
@@ -221,7 +222,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       '}'
     );
-    _inventoryRecord(deployments, 5, storageLabel, storageRecord);
+    _inventoryRecord(deployments, 6, storageLabel, storageRecord);
 
     string memory factoryLabel = _label('HooksFactoryRevolving');
     string memory factoryRecord = string.concat(
@@ -243,7 +244,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       ',"registerEntryId":"register-hooks-factory-revolving","canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 6, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 7, factoryLabel, factoryRecord);
   }
 
   function _runDirect(
@@ -320,6 +321,7 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
       'SANCTIONS_SENTINEL'
     );
     inputs.marketCreationCode = _getCreationCode(deployments, MARKET_ARTIFACT);
+    _requireInitCodeStoragePayloadFits(inputs.marketCreationCode, MARKET_ARTIFACT);
     inputs.initCodeHash = uint256(keccak256(inputs.marketCreationCode));
 
     if (_isPlanMode(ownerMode)) {

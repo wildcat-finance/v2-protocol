@@ -6,6 +6,7 @@ import 'src/WildcatArchController.sol';
 import 'src/WildcatBorrowerIdentityRegistry.sol';
 import 'src/HooksFactory.sol';
 import 'src/HooksFactoryRevolving.sol';
+import 'src/IHooksFactory.sol';
 import 'src/access/BaseAccessControls.sol';
 import 'src/access/OpenTermHooks.sol';
 import 'src/interfaces/IBorrowerIdentityRegistry.sol';
@@ -109,6 +110,10 @@ contract BorrowerAccountOriginationTest is Test {
       });
   }
 
+  function _marketSalt(address deployer, uint96 nonce) internal pure returns (bytes32) {
+    return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
+  }
+
   function _assertMarketIdentity(
     address marketAddress,
     address hooksInstance,
@@ -118,7 +123,7 @@ contract BorrowerAccountOriginationTest is Test {
     WildcatMarket market = WildcatMarket(marketAddress);
     assertEq(market.borrower(), expectedBorrower, 'operational borrower');
     assertEq(market.borrowerPrincipal(), expectedPrincipal, 'borrower principal');
-    assertEq(OpenTermHooks(hooksInstance).borrower(), expectedPrincipal, 'hook borrower');
+    assertEq(OpenTermHooks(hooksInstance).administrator(), expectedPrincipal, 'hook administrator');
   }
 
   function _transferAccountPrincipal(address newPrincipal) internal {
@@ -146,39 +151,63 @@ contract BorrowerAccountOriginationTest is Test {
   }
 
   function test_standardAccountDeploysHookAndMarket() external {
+    vm.expectEmit(false, true, true, true, address(standardFactory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+      address(0),
+      hooksTemplate,
+      principal,
+      borrowerAccount,
+      '',
+      'OpenTermHooks'
+    );
     vm.startPrank(borrowerAccount);
     address hooksInstance = standardFactory.deployHooksInstance(hooksTemplate, '');
     address market = standardFactory.deployMarket(
       _marketInputs(hooksInstance),
       '',
-      bytes32(uint256(1)),
+      _marketSalt(borrowerAccount, 1),
       address(0),
       0
     );
     vm.stopPrank();
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 1);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(borrowerAccount), 0);
+    assertEq(standardFactory.getHooksAdministrator(hooksInstance), principal);
+    assertEq(standardFactory.getHooksInstancesCountForAdministrator(principal), 1);
+    assertEq(standardFactory.getHooksInstancesCountForAdministrator(borrowerAccount), 0);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(principal), 1);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(borrowerAccount), 0);
     _assertAccountAuthority(market);
   }
 
   function test_revolvingAccountDeploysHookAndMarket() external {
+    vm.expectEmit(false, true, true, true, address(revolvingFactory));
+    emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
+      address(0),
+      hooksTemplate,
+      principal,
+      borrowerAccount,
+      '',
+      'OpenTermHooks'
+    );
     vm.startPrank(borrowerAccount);
     address hooksInstance = revolvingFactory.deployHooksInstance(hooksTemplate, '');
     address market = revolvingFactory.deployMarket(
       _marketInputs(hooksInstance),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(1)),
+      _marketSalt(borrowerAccount, 1),
       address(0),
       0
     );
     vm.stopPrank();
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 1);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(borrowerAccount), 0);
+    assertEq(revolvingFactory.getHooksAdministrator(hooksInstance), principal);
+    assertEq(revolvingFactory.getHooksInstancesCountForAdministrator(principal), 1);
+    assertEq(revolvingFactory.getHooksInstancesCountForAdministrator(borrowerAccount), 0);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(principal), 1);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(borrowerAccount), 0);
     _assertAccountAuthority(market);
   }
 
@@ -189,13 +218,13 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(2)),
+      _marketSalt(borrowerAccount, 2),
       address(0),
       0
     );
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 1);
+    assertEq(standardFactory.getHooksAdministrator(hooksInstance), principal);
   }
 
   function test_revolvingAccountDeploysMarketAndHookTogether() external {
@@ -206,13 +235,13 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(2)),
+      _marketSalt(borrowerAccount, 2),
       address(0),
       0
     );
 
     _assertMarketIdentity(market, hooksInstance, borrowerAccount, principal);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 1);
+    assertEq(revolvingFactory.getHooksAdministrator(hooksInstance), principal);
   }
 
   function test_accountPaysOriginationFees() external {
@@ -241,7 +270,7 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(20)),
+      _marketSalt(borrowerAccount, 20),
       address(asset),
       originationFeeAmount
     );
@@ -252,7 +281,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(20)),
+      _marketSalt(borrowerAccount, 20),
       address(asset),
       originationFeeAmount
     );
@@ -272,7 +301,7 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(3)),
+      _marketSalt(borrowerAccount, 3),
       address(0),
       0
     );
@@ -283,7 +312,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(3)),
+      _marketSalt(borrowerAccount, 3),
       address(0),
       0
     );
@@ -311,7 +340,7 @@ contract BorrowerAccountOriginationTest is Test {
     address firstStandardMarket = standardFactory.deployMarket(
       _marketInputs(standardHooks),
       '',
-      bytes32(uint256(10)),
+      _marketSalt(borrowerAccount, 10),
       address(0),
       0
     );
@@ -319,7 +348,7 @@ contract BorrowerAccountOriginationTest is Test {
     address secondStandardMarket = standardFactory.deployMarket(
       _marketInputs(standardHooks),
       '',
-      bytes32(uint256(11)),
+      _marketSalt(secondAccount, 11),
       address(0),
       0
     );
@@ -331,7 +360,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(revolvingHooks),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(10)),
+      _marketSalt(borrowerAccount, 10),
       address(0),
       0
     );
@@ -340,7 +369,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(revolvingHooks),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(11)),
+      _marketSalt(secondAccount, 11),
       address(0),
       0
     );
@@ -353,7 +382,7 @@ contract BorrowerAccountOriginationTest is Test {
     assertEq(revolvingFactory.getMarketsForHooksInstanceCount(revolvingHooks), 2);
   }
 
-  function test_accountsUnderOnePrincipalShareHookDeploymentSequence() external {
+  function test_accountsUnderOnePrincipalShareHookDeploymentNonce() external {
     address secondAccount = accountFactory.deployAccount(principal);
 
     vm.prank(borrowerAccount);
@@ -368,12 +397,14 @@ contract BorrowerAccountOriginationTest is Test {
 
     assertTrue(firstStandardHooks != secondStandardHooks);
     assertTrue(firstRevolvingHooks != secondRevolvingHooks);
-    assertEq(OpenTermHooks(firstStandardHooks).borrower(), principal);
-    assertEq(OpenTermHooks(secondStandardHooks).borrower(), principal);
-    assertEq(OpenTermHooks(firstRevolvingHooks).borrower(), principal);
-    assertEq(OpenTermHooks(secondRevolvingHooks).borrower(), principal);
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 2);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 2);
+    assertEq(standardFactory.getHooksAdministrator(firstStandardHooks), principal);
+    assertEq(standardFactory.getHooksAdministrator(secondStandardHooks), principal);
+    assertEq(revolvingFactory.getHooksAdministrator(firstRevolvingHooks), principal);
+    assertEq(revolvingFactory.getHooksAdministrator(secondRevolvingHooks), principal);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(principal), 2);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(principal), 2);
+    assertEq(standardFactory.getHooksInstancesCountForAdministrator(principal), 2);
+    assertEq(revolvingFactory.getHooksInstancesCountForAdministrator(principal), 2);
   }
 
   function test_accountCannotOriginateAfterPrincipalRemoval() external {
@@ -387,8 +418,8 @@ contract BorrowerAccountOriginationTest is Test {
     vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
     revolvingFactory.deployHooksInstance(hooksTemplate, '');
 
-    assertEq(standardFactory.getHooksInstancesCountForBorrower(principal), 0);
-    assertEq(revolvingFactory.getHooksInstancesCountForBorrower(principal), 0);
+    assertEq(standardFactory.getHooksInstanceDeploymentNonce(principal), 0);
+    assertEq(revolvingFactory.getHooksInstanceDeploymentNonce(principal), 0);
   }
 
   function test_accountOriginationSurvivesAccountFactoryRemoval() external {
@@ -400,7 +431,7 @@ contract BorrowerAccountOriginationTest is Test {
       '',
       _marketInputs(address(0)),
       '',
-      bytes32(uint256(12)),
+      _marketSalt(borrowerAccount, 12),
       address(0),
       0
     );
@@ -411,7 +442,7 @@ contract BorrowerAccountOriginationTest is Test {
       _marketInputs(address(0)),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(12)),
+      _marketSalt(borrowerAccount, 12),
       address(0),
       0
     );
@@ -426,11 +457,11 @@ contract BorrowerAccountOriginationTest is Test {
     vm.prank(secondPrincipal);
     address standardHooks = standardFactory.deployHooksInstance(hooksTemplate, '');
     vm.prank(borrowerAccount);
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     standardFactory.deployMarket(
       _marketInputs(standardHooks),
       '',
-      bytes32(uint256(4)),
+      _marketSalt(borrowerAccount, 4),
       address(0),
       0
     );
@@ -438,12 +469,12 @@ contract BorrowerAccountOriginationTest is Test {
     vm.prank(secondPrincipal);
     address revolvingHooks = revolvingFactory.deployHooksInstance(hooksTemplate, '');
     vm.prank(borrowerAccount);
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     revolvingFactory.deployMarket(
       _marketInputs(revolvingHooks),
       '',
       abi.encode(uint8(1), uint16(100)),
-      bytes32(uint256(4)),
+      _marketSalt(borrowerAccount, 4),
       address(0),
       0
     );

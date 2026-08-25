@@ -20,7 +20,7 @@ Use this as the literal execution checklist. The older narrative runbooks remain
 | Target | `DEPLOYMENTS_NETWORK` | `RPC_URL` | Owner mode | Broadcast expectations |
 | --- | --- | --- | --- | --- |
 | Sepolia fork | `sepolia` | local Anvil fork of Sepolia | usually `emit` | safe local rehearsal; may write local metadata into `deployments/sepolia` |
-| Sepolia | `sepolia` | real Sepolia RPC | usually `emit` | real broadcast; Sepolia helper reclaim/return may be required |
+| Sepolia | `sepolia` | real Sepolia RPC | usually `emit` | historical owner flow; do not reuse for V2.5 |
 | Mainnet fork | `mainnet` | local Anvil fork of mainnet | usually `emit` or `require-direct` | safe local rehearsal; use local labels and review metadata |
 | Mainnet | `mainnet` | real mainnet RPC | `emit` or multisig-controlled flow | real broadcast; do not assume direct owner EOA |
 

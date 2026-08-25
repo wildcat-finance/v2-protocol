@@ -456,6 +456,8 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
   function _trackCloseMarket(MarketState memory state, bool expectEvents) internal {
     uint256 currentlyHeld = lastTotalAssets;
     uint totalDebts = state.totalDebts();
+    uint256 previousAnnualInterestBips = state.annualInterestBips;
+    uint256 previousReserveRatioBips = state.reserveRatioBips;
     if (currentlyHeld < totalDebts) {
       uint256 remainingDebt = totalDebts - currentlyHeld;
       _trackRepay(state, borrower, remainingDebt);
@@ -527,7 +529,15 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     }
     if (expectEvents) {
       vm.expectEmit(address(market));
-      emit MarketClosed(block.timestamp);
+      emit AnnualInterestAndReserveRatioBipsUpdated(
+        parameters.borrower,
+        previousAnnualInterestBips,
+        state.annualInterestBips,
+        previousReserveRatioBips,
+        state.reserveRatioBips
+      );
+      vm.expectEmit(address(market));
+      emit MarketClosed(parameters.borrower, block.timestamp);
     }
     updateState(state);
   }
@@ -536,7 +546,7 @@ contract ExpectedStateTracker is Test, IMarketEventsAndErrors {
     vm.expectEmit(parameters.asset);
     emit Transfer(address(market), parameters.borrower, normalizedAmount);
     vm.expectEmit(address(market));
-    emit Borrow(normalizedAmount);
+    emit Borrow(parameters.borrower, normalizedAmount);
     lastTotalAssets -= normalizedAmount;
   }
 

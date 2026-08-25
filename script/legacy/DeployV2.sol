@@ -291,6 +291,14 @@ contract DeployV2 is Script {
     }
 
     HooksFactory hooksFactory = HooksFactory(deployments.get('HooksFactory'));
+    uint256 broadcasterPrivateKey = vm.envOr(deployments.privateKeyVarName, uint256(0));
+    address marketDeployer = broadcasterPrivateKey == 0
+      ? tx.origin
+      : vm.addr(broadcasterPrivateKey);
+    if (bytes20(config.salt) == bytes20(0)) {
+      config.salt = bytes32(uint256(config.salt) | (uint256(uint160(marketDeployer)) << 96));
+    }
+    require(address(bytes20(config.salt)) == marketDeployer, 'Market salt has wrong deployer');
     address hooksTemplate = deployments.get(
       config.hooks.isOpenTerm ? 'OpenTermHooks_initCodeStorage' : 'FixedTermHooks_initCodeStorage'
     );

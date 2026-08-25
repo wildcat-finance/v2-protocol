@@ -17,10 +17,9 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
   function setUp() external {
     hooks = new MockFixedTermHooks(address(this));
-    baseHooks = MockBaseAccessControls(address(hooks));
+    _setUpBaseHooks(MockBaseAccessControls(address(hooks)));
     assertEq(hooks.factory(), address(this), 'factory');
-    assertEq(hooks.borrower(), address(this), 'borrower');
-    _addExpectedProvider(MockRoleProvider(address(this)), type(uint32).max, false);
+    assertEq(hooks.administrator(), address(this), 'administrator');
     _validateRoleProviders();
     // Set block.timestamp to 4:50 am, May 3 2024
     warp(1714737030);
@@ -144,10 +143,37 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     hooks.onCreateMarket(address(1), address(1), inputs, '');
   }
 
-  function test_onCreateMarket_CallerNotBorrower() external {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_onCreateMarket_CallerNotAdministrator() external {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     DeployMarketInputs memory inputs;
     hooks.onCreateMarket(address(1), address(1), inputs, '');
+  }
+
+  function test_acceptAdministratorTransfer_PreservesHookedMarketConfiguration() external {
+    address marketAddress = address(1);
+    address newAdministrator = address(0xA11CE);
+    DeployMarketInputs memory inputs;
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
+    hooks.onCreateMarket(
+      address(this),
+      marketAddress,
+      inputs,
+      abi.encode(uint32(block.timestamp + 365 days), uint128(100), true, true, true)
+    );
+    bytes32 marketBefore = keccak256(abi.encode(hooks.getHookedMarket(marketAddress)));
+
+    _transferAdministrator(newAdministrator);
+
+    assertEq(
+      keccak256(abi.encode(hooks.getHookedMarket(marketAddress))),
+      marketBefore,
+      'hooked market'
+    );
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.setMinimumDeposit(marketAddress, 200);
+    vm.prank(newAdministrator);
+    hooks.setMinimumDeposit(marketAddress, 200);
+    assertEq(hooks.getHookedMarket(marketAddress).minimumDeposit, 200, 'minimum deposit');
   }
 
   function test_onCreateMarket_FixedTermNotProvided() external {
@@ -165,7 +191,12 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       .setFlag(Bit_Enabled_Transfer)
       .setHooksAddress(address(hooks));
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 365 days));
+    emit FixedTermHooks.FixedTermUpdated(
+      address(1),
+      address(this),
+      0,
+      uint32(block.timestamp + 365 days)
+    );
     HooksConfig config = hooks.onCreateMarket(
       address(this),
       address(1),
@@ -480,8 +511,8 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     hooks.setFixedTermEndTime(address(1), 0);
   }
 
-  function test_setFixedTermEndTime_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_setFixedTermEndTime_CallerNotAdministrator() external asAccount(address(1)) {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     hooks.setFixedTermEndTime(address(1), 0);
   }
 
@@ -508,7 +539,12 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
       abi.encode(block.timestamp + 365 days, 1e18, false, false, true)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp + 364 days));
+    emit FixedTermHooks.FixedTermUpdated(
+      address(1),
+      address(this),
+      uint32(block.timestamp + 365 days),
+      uint32(block.timestamp + 364 days)
+    );
     hooks.setFixedTermEndTime(address(1), uint32(block.timestamp + 364 days));
     HookedMarket memory market = hooks.getHookedMarket(address(1));
     assertEq(market.fixedTermEndTime, uint32(block.timestamp + 364 days), 'fixedTermEndTime');
@@ -569,12 +605,15 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
 
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
+    hooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+    vm.prank(address(mockProvider1));
     hooks.grantRole(address(2), uint32(block.timestamp));
 
     vm.prank(address(1));
     hooks.onDeposit(address(2), 1, state, '');
     assertTrue(hooks.isKnownLenderOnMarket(address(2), address(1)), 'known lender');
 
+    vm.prank(address(mockProvider1));
     hooks.revokeRole(address(2));
     assertEq(hooks.getPreviousLenderStatus(address(2)).lastApprovalTimestamp, 0, 'revoked');
 
@@ -680,7 +719,7 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
 
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.MinimumDepositUpdated(address(1), 2e18);
+    emit FixedTermHooks.MinimumDepositUpdated(address(1), address(this), 1e18, 2e18);
     hooks.setMinimumDeposit(address(1), 2e18);
     assertEq(hooks.getHookedMarket(address(1)).minimumDeposit, 2e18, 'minimumDeposit');
   }
@@ -702,8 +741,8 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     hooks.setMinimumDeposit(address(1), 0);
   }
 
-  function test_setMinimumDeposit_CallerNotBorrower() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotBorrower.selector);
+  function test_setMinimumDeposit_CallerNotAdministrator() external asAccount(address(1)) {
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     hooks.setMinimumDeposit(address(1), 1);
   }
 
@@ -788,7 +827,12 @@ contract FixedTermHooksTest is BaseAccessControlsTest {
     );
     vm.prank(address(1));
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(address(1), uint32(block.timestamp));
+    emit FixedTermHooks.FixedTermUpdated(
+      address(1),
+      address(1),
+      uint32(block.timestamp + 365 days),
+      uint32(block.timestamp)
+    );
     MarketState memory state;
     hooks.onCloseMarket(state, '');
     HookedMarket memory market = hooks.getHookedMarket(address(1));

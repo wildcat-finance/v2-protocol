@@ -38,6 +38,10 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
   uint256 internal constant DUST_DEPOSIT = 1e15;
   uint256 internal constant MAX_TOTAL_SUPPLY = 1e18;
 
+  function _marketSalt(address marketDeployer, uint96 nonce) internal pure returns (bytes32) {
+    return bytes32((uint256(uint160(marketDeployer)) << 96) | uint256(nonce));
+  }
+
   function _broadcastAsBorrower(Deployments memory deployments, address borrower) internal {
     uint256 privateKey = vm.envOr(deployments.privateKeyVarName, uint256(0));
     if (privateKey == 0) {
@@ -189,7 +193,7 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
       '',
       _marketInputs(asset, 'V2.5 Standard Canary ', 'v25sc'),
       abi.encode(uint128(0), false),
-      bytes32(0),
+      _marketSalt(borrower, 0),
       address(0),
       0
     );
@@ -209,7 +213,7 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
       _marketInputs(asset, 'V2.5 Revolving Canary ', 'v25rc'),
       abi.encode(uint128(0), false),
       abi.encode(uint8(1), uint16(0)),
-      bytes32(0),
+      _marketSalt(borrower, 0),
       address(0),
       0
     );

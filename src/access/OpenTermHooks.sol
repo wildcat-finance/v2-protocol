@@ -21,21 +21,25 @@ struct HookedMarket {
 /**
  * @title OpenTermHooks
  * @dev Hooks contract for wildcat markets. Restricts access to deposits
- *      to accounts that have credentials from approved role providers, or
- *      which are manually approved by the borrower.
+ *      to accounts that have credentials from approved role providers.
  *
  *      Withdrawals are restricted in the same way for users that have not
  *      made a deposit, while users who have made a deposit at any point (or
  *      received market tokens while having deposit access) will always remain
  *      approved, even if their access is later revoked.
  *
- *      Deposit access may be canceled by the borrower.
+ *      Deposit access may be blocked by the hook administrator.
  */
 contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
-  event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
+  event MinimumDepositUpdated(
+    address indexed market,
+    address indexed caller,
+    uint128 previousMinimumDeposit,
+    uint128 newMinimumDeposit
+  );
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -62,11 +66,14 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   // ========================================================================== //
 
   /**
-   * @param _deployer Address of the account that called the factory.
+   * @param _administrator Initial administrator for the hooks instance.
    * @param args Optional abi-encoded `NameAndProviderInputs` struct to initialize
    *             the providers and name for the hooks instance.
    */
-  constructor(address _deployer, bytes memory args) BaseAccessControls(_deployer) IHooks() {
+  constructor(
+    address _administrator,
+    bytes memory args
+  ) BaseAccessControls(_administrator) IHooks() {
     HooksConfig optionalFlags = encodeHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
@@ -113,8 +120,8 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   /**
    * @dev Called when market is deployed using this contract as its `hooks`.
    *
-   *     @param deployer      Address of the account that called the factory - must
-   *                          match the borrower address.
+   *     @param administrator_ Principal supplied by the factory. Must match the
+   *                           hooks administrator.
    *     @param marketAddress Address of the market being deployed.
    *     @param parameters    Parameters used to deploy the market.
    *     @param hooksData     Extra data passed to the market deployment function containing
@@ -130,14 +137,14 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
    *      so no need to verify the caller is the factory.
    */
   function _onCreateMarket(
-    address deployer,
+    address administrator_,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override returns (HooksConfig marketHooksConfig) {
     // Validate the deploy parameters
-    super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
-    if (deployer != borrower) revert CallerNotBorrower();
+    super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
+    if (administrator_ != administrator) revert CallerNotAdministrator();
     marketHooksConfig = parameters.hooks;
 
     // Read `minimumDeposit` and `transfersDisabled` from `hooksData`
@@ -164,7 +171,12 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     if (hookedMarket.minimumDeposit > 0) {
       // If there is a minimum deposit, the deposit hook must be enabled
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
+      emit MinimumDepositUpdated(
+        marketAddress,
+        administrator_,
+        0,
+        hookedMarket.minimumDeposit
+      );
     }
     if (hookedMarket.transfersDisabled) {
       // If transfers are disabled, the transfer hook must be enabled
@@ -194,12 +206,13 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
    *      later adopt a positive minimum.
    *      Reverts if `market` was not created with this hooks instance.
    */
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
+  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
+    uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
     hookedMarket.minimumDeposit = newMinimumDeposit;
-    emit MinimumDepositUpdated(market, newMinimumDeposit);
+    emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
 
   // ========================================================================== //
@@ -210,6 +223,17 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     HookedMarket storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return market.transfersDisabled;
+  }
+
+  function isMarketTransferRecipientAllowed(
+    address marketAddress,
+    address recipient
+  ) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return
+      !market.transfersDisabled &&
+      _isMarketTransferRecipientAllowed(marketAddress, recipient, market.transferRequiresAccess);
   }
 
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
@@ -305,6 +329,7 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
    */
   function onExecuteWithdrawal(
     address lender,
+    uint32 /* expiry */,
     uint128 /* normalizedAmountWithdrawn */,
     MarketState calldata /* state */,
     bytes calldata hooksData

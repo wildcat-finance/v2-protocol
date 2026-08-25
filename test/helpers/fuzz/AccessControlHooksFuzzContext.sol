@@ -232,7 +232,7 @@ function createAccessControlHooksFuzzContext(
   context.functionKind = functionKind;
   context.functionInputAmount = amount;
   context.hooks = hooks;
-  context.borrower = hooks.borrower();
+  context.borrower = hooks.administrator();
   context.account = account;
   context.existingCredentialOptions = fuzzInputs.existingCredentialInputs;
   context.dataOptions = fuzzInputs.dataInputs;
@@ -307,17 +307,25 @@ library LibAccessControlHooksFuzzContext {
         context.expectations.expectedCalls[i].data
       );
     }
+    address caller = context.functionKind == FunctionKind.HooksFunction
+      ? address(this)
+      : context.market;
     if (context.expectations.wasUpdated) {
       if (context.expectations.hasValidCredential) {
         vm.expectEmit(address(context.hooks));
         emit BaseAccessControls.AccountAccessGranted(
           context.expectations.lastProvider,
           context.account,
+          caller,
           context.expectations.lastApprovalTimestamp
         );
       } else if (!skipRevokedEvent) {
         vm.expectEmit(address(context.hooks));
-        emit BaseAccessControls.AccountAccessRevoked(context.account);
+        emit BaseAccessControls.AccountAccessRevoked(
+          address(context.previousProvider),
+          context.account,
+          caller
+        );
       }
     }
     if (

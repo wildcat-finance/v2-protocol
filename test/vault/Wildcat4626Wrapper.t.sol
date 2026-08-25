@@ -6,6 +6,7 @@ import 'forge-std/Test.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { IWildcatMarketToken } from 'src/vault/Wildcat4626Wrapper.sol';
+import { HooksConfig, EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 
 contract MockSanctionsSentinel {
   mapping(address => bool) public sanctioned;
@@ -98,6 +99,14 @@ contract MockMarketToken is IWildcatMarketToken {
 
   function balanceOf(address account) public view override returns (uint256) {
     return _scaledBalances[account].rayMul(scaleFactor);
+  }
+
+  function hooks() external view override returns (HooksConfig) {
+    return EmptyHooksConfig.setHooksAddress(address(this));
+  }
+
+  function isMarketTransferRecipientAllowed(address market, address) external view returns (bool) {
+    return market == address(this);
   }
 
   function totalSupply() external view returns (uint256) {

@@ -18,6 +18,8 @@ borrowerPrincipal() = principal P
 
 The market stores both accepted addresses. Ordinary borrower actions do not depend on a live identity-registry lookup.
 
+Borrower, principal, pending-transfer, and wrapper pointers use the final five EVM storage slots, from `type(uint256).max` through `type(uint256).max - 4`. This leaves the established sequential market layout at slots 0 through 10 unchanged and lets derived market types keep extending that layout normally. New manual storage must not use the reserved five-slot range.
+
 ## Borrower identity registry
 
 `WildcatBorrowerIdentityRegistry` recognizes contract accounts belonging to registered principals.
@@ -139,6 +141,10 @@ The wrapper has no separate transfer step. If the borrower address changes, the 
 A market transfer does not transfer its hooks or role providers. Hooks may be shared by several markets, and reusable credentials belong to role providers rather than to one market. Hook administration and managed-provider administration therefore need their own explicit transfer paths.
 
 This separation is intentional. A market must not seize a shared hook or credential list merely because its borrower changed.
+
+Hook administration belongs to the principal and uses a separate two-step transfer. Acceptance updates the creating factory's administrator index, but it does not rewrite provider configuration, lender status, hook-local blocks, known-lender state, or hooked-market configuration.
+
+The v2.5 `AccessListRoleProvider` also has an independent two-step administrator transfer. Moving its administration preserves the provider address, membership, and every hook attachment. Other role providers are not assumed to implement that interface.
 
 ## Batching and atomicity
 

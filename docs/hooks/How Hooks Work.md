@@ -3,7 +3,7 @@
 Each of the following is considered a core function on the WildcatMarket contract which we may want a hooks contract to be able to track, impose restrictions on, or otherwise react to in some way:
 
 - `deposit` (+ `depositUpTo`)
-- `queueWithdrawal` (+ `queueFullWithdrawal`)
+- `queueWithdrawal` (+ `queueWithdrawalScaled`, `queueFullWithdrawal`)
 - `executeWithdrawal` (+ `executeWithdrawals`)
 - `transfer` (+ `transferFrom`)
 - `borrow`
@@ -16,6 +16,8 @@ Each of the following is considered a core function on the WildcatMarket contrac
 Each of these functions has a corresponding hook that can be called on the configured hooks contract, as well as a flag in the market's hooks configuration (`HooksConfig`) indicating whether the hook _should_ be called.
 
 When one of these functions on a market is called, the market will check if the corresponding hook is enabled; if it is, it will call the hook function on the configured hooks contract, providing the intermediate state (prior to applying the full effects of the relevant action, but after accruing interest and fees), the relevant data for the action, the caller address (except for borrower-only functions) and an optional `extraData` buffer supplied by the caller.
+
+`onExecuteWithdrawal` also receives the exact expiry of the withdrawal batch being claimed. A hook can not reconstruct this from `state.pendingWithdrawalExpiry`: that field identifies the current batch, while execution can claim any older paid batch and one batched call can execute several different expiries.
 
 Hooks can not modify internal behavior of the market and do not have any privileged access to its state; rather, they are designed to be _reactive to_ and _restrictive of_ market actions. This means, for example, that a hook can not change who receives a transfer or force a lender into a withdrawal, but it can prevent a transfer from occurring or keep some internal state about the withdrawal.
 
