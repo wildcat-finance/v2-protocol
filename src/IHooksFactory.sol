@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import './access/IHooks.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
+import './types/RoleProvider.sol';
 
 struct HooksTemplate {
   /// @dev Asset used to pay origination fee
@@ -25,6 +26,89 @@ struct HooksTemplate {
   string name;
 }
 
+function getHooksInstanceString(
+  address hooksInstance,
+  bytes4 selector
+) view returns (string memory value) {
+  value = '';
+  uint32 selectorWord = uint32(selector);
+  assembly ('memory-safe') {
+    let ptr := mload(0x40)
+    mstore(ptr, shl(224, selectorWord))
+    if staticcall(100000, hooksInstance, ptr, 0x04, ptr, 0x40) {
+      let size := returndatasize()
+      if and(
+        and(iszero(lt(size, 0x40)), iszero(gt(size, 0x1040))),
+        eq(mload(ptr), 0x20)
+      ) {
+        let length := mload(add(ptr, 0x20))
+        if iszero(gt(length, sub(size, 0x40))) {
+          value := ptr
+          mstore(ptr, length)
+          returndatacopy(add(ptr, 0x20), 0x40, length)
+          mstore(0x40, and(add(add(ptr, length), 0x3f), not(0x1f)))
+        }
+      }
+    }
+  }
+}
+
+/// @dev Reads optional access-control metadata through a bounded call.
+function tryGetHooksInstanceRoleProviders(
+  address hooksInstance,
+  bytes4 selector
+) view returns (bool success, RoleProvider[] memory providers) {
+  providers = new RoleProvider[](0);
+  uint32 selectorWord = uint32(selector);
+  assembly ('memory-safe') {
+    let ptr := mload(0x40)
+    mstore(ptr, shl(224, selectorWord))
+    if staticcall(1000000, hooksInstance, ptr, 0x04, ptr, 0x40) {
+      let size := returndatasize()
+      if and(
+        and(iszero(lt(size, 0x40)), iszero(gt(size, 0x2040))),
+        eq(mload(ptr), 0x20)
+      ) {
+        let length := mload(add(ptr, 0x20))
+        if iszero(gt(length, shr(5, sub(size, 0x40)))) {
+          providers := ptr
+          mstore(ptr, length)
+          returndatacopy(add(ptr, 0x20), 0x40, shl(5, length))
+          mstore(0x40, add(add(ptr, 0x20), shl(5, length)))
+          success := 1
+        }
+      }
+    }
+  }
+}
+
+function getHooksInstanceRoleProviders(
+  address hooksInstance
+)
+  view
+  returns (
+    bool metadataAvailable,
+    RoleProvider[] memory pullProviders,
+    RoleProvider[] memory pushProviders
+  )
+{
+  bool hasPullProviderMetadata;
+  bool hasPushProviderMetadata;
+  (hasPullProviderMetadata, pullProviders) = tryGetHooksInstanceRoleProviders(
+    hooksInstance,
+    bytes4(keccak256('getPullProviders()'))
+  );
+  (hasPushProviderMetadata, pushProviders) = tryGetHooksInstanceRoleProviders(
+    hooksInstance,
+    bytes4(keccak256('getPushProviders()'))
+  );
+  metadataAvailable = hasPullProviderMetadata && hasPushProviderMetadata;
+  if (!metadataAvailable) {
+    pullProviders = new RoleProvider[](0);
+    pushProviders = new RoleProvider[](0);
+  }
+}
+
 interface IHooksFactoryEventsAndErrors {
   error FeeMismatch();
   error NotApprovedBorrower();
@@ -43,39 +127,78 @@ interface IHooksFactoryEventsAndErrors {
   error AssetBlacklisted();
   error SetProtocolFeeBipsFailed();
   error InvalidPaginationRange();
+  error InvalidHooksAdministrator();
+  error InvalidHooksInstanceAssociation();
 
-  event HooksInstanceDeployed(address hooksInstance, address hooksTemplate);
+  event HooksInstanceDeployed(
+    address indexed hooksInstance,
+    address indexed hooksTemplate,
+    address indexed administrator,
+    address deployer,
+    string name,
+    string version
+  );
+  event HooksInstanceRoleProviders(
+    address indexed hooksInstance,
+    bool metadataAvailable,
+    RoleProvider[] pullProviders,
+    RoleProvider[] pushProviders
+  );
+  event HooksInstanceAdministratorTransferred(
+    address indexed hooksInstance,
+    address indexed previousAdministrator,
+    address indexed newAdministrator
+  );
   event HooksTemplateAdded(
-    address hooksTemplate,
+    address indexed hooksTemplate,
+    address indexed caller,
     string name,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
   );
-  event HooksTemplateDisabled(address hooksTemplate);
+  event HooksTemplateDisabled(address indexed hooksTemplate, address indexed caller);
   event HooksTemplateFeesUpdated(
-    address hooksTemplate,
-    address feeRecipient,
-    address originationFeeAsset,
-    uint80 originationFeeAmount,
-    uint16 protocolFeeBips
+    address indexed hooksTemplate,
+    address indexed caller,
+    address previousFeeRecipient,
+    address newFeeRecipient,
+    address previousOriginationFeeAsset,
+    address newOriginationFeeAsset,
+    uint80 previousOriginationFeeAmount,
+    uint80 newOriginationFeeAmount,
+    uint16 previousProtocolFeeBips,
+    uint16 newProtocolFeeBips
   );
 
   event MarketDeployed(
     address indexed hooksTemplate,
+    address indexed hooksInstance,
     address indexed market,
+    address borrower,
+    address borrowerPrincipal,
+    address borrowerIdentityRegistry,
     string name,
     string symbol,
     address asset,
+    HooksConfig requestedHooks,
+    HooksConfig hooks
+  );
+  event MarketDeploymentConfig(
+    address indexed market,
     uint256 maxTotalSupply,
     uint256 annualInterestBips,
     uint256 delinquencyFeeBips,
     uint256 withdrawalBatchDuration,
     uint256 reserveRatioBips,
     uint256 delinquencyGracePeriod,
-    HooksConfig hooks
+    address feeRecipient,
+    uint256 protocolFeeBips,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   );
+  event MarketHooksData(address indexed market, bytes hooksData);
 }
 
 interface IHooksFactory is IHooksFactoryEventsAndErrors {
@@ -84,6 +207,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   function sanctionsSentinel() external view returns (address);
 
   function wrapperFactory() external view returns (address);
+
+  function borrowerIdentityRegistry() external view returns (address);
 
   function marketInitCodeStorage() external view returns (address);
 
@@ -137,7 +262,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev Disable a hooks template.
+  /// @dev disables this template for new hook instances. existing instances can still
+  ///      deploy markets; disabling a template isn't a kill switch for immutable hooks.
   ///
   ///      On success:
   ///      - Emits `HooksTemplateDisabled` on success.
@@ -190,7 +316,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///      - Maps the hooks instance to the template address.
   ///
   ///      Reverts if:
-  ///      - The caller is not an approved borrower.
+  ///      - The caller does not resolve to a registered principal.
   ///      - The template does not exist.
   ///      - The template is not enabled.
   ///      - The deployment fails.
@@ -199,9 +325,35 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     bytes calldata constructorArgs
   ) external returns (address hooksDeployment);
 
+  function getHooksAdministrator(address hooks) external view returns (address);
+
+  function getHooksInstanceDeploymentNonce(address administrator) external view returns (uint256);
+
+  function getHooksInstancesForAdministrator(
+    address administrator
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesForAdministrator(
+    address administrator,
+    uint256 start,
+    uint256 end
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesCountForAdministrator(
+    address administrator
+  ) external view returns (uint256);
+
+  /// @dev Compatibility alias for `getHooksInstancesForAdministrator`.
   function getHooksInstancesForBorrower(address borrower) external view returns (address[] memory);
 
+  /// @dev Compatibility alias for `getHooksInstancesCountForAdministrator`.
   function getHooksInstancesCountForBorrower(address borrower) external view returns (uint256);
+
+  /// @dev Called by a hooks instance after accepting a two-step administrator transfer.
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external;
 
   /// @dev Check if a hooks instance was deployed by the factory.
   function isHooksInstance(address hooks) external view returns (bool);
@@ -229,6 +381,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   function getMarketParameters() external view returns (MarketParameters memory parameters);
 
   /// @dev Deploy a market with an existing hooks deployment (in `parameters.hooks`)
+  ///      The caller becomes the market borrower. Its resolved principal is supplied
+  ///      to the hook and stored on the market.
   ///
   ///      On success:
   ///      - Pays the origination fee (if applicable).
@@ -237,7 +391,7 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ///      - Emits `MarketDeployed`.
   ///
   ///      Reverts if:
-  ///      - The caller is not an approved borrower.
+  ///      - The caller does not resolve to a registered principal.
   ///      - The hooks instance does not exist.
   ///      - Payment of origination fee fails.
   ///      - The deployment fails.
@@ -252,9 +406,9 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market);
 
-  /// @dev Deploy a hooks instance for an approved template,then deploy a new market with that
-  ///      instance as its hooks contract.
-  ///      Will call `onCreateMarket` on `parameters.hooks`.
+  /// @dev Deploy a principal-administered hooks instance, then deploy a new market owned by
+  ///      the calling principal or registered account.
+  ///      Will call `onCreateMarket` on the new hooks instance.
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksConstructorArgs,
@@ -265,7 +419,10 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
-  /// @dev Returns the CREATE2 market address for `salt` and this factory's init code.
+  /// @dev returns the CREATE2 market address for `salt` and this factory's init code.
+  ///      the first 20 bytes name the non-zero deployer, and deployment requires that
+  ///      address to call the factory. for borrower accounts, use the account contract,
+  ///      not its principal.
   function computeMarketAddress(bytes32 salt) external view returns (address);
 
   /// @dev Push a template's current protocol fee bips to a market index range.

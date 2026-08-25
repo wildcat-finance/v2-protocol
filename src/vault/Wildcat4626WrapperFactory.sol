@@ -99,13 +99,18 @@ contract Wildcat4626WrapperFactory {
     return declared && rounding == FloorRounding;
   }
 
-  function _isMarketTransferDisabled(address market) internal view returns (bool) {
+  function _validateTransferPolicy(address market) internal view returns (bool) {
     HooksConfig marketHooks = IWrapperAwareMarket(market).hooks();
     address hooksAddress = marketHooks.hooksAddress();
-    try IMarketTransferPolicy(hooksAddress).isMarketTransferDisabled(market) returns (
-      bool transfersDisabled
-    ) {
-      return transfersDisabled;
+    IMarketTransferPolicy transferPolicy = IMarketTransferPolicy(hooksAddress);
+    try transferPolicy.isMarketTransferDisabled(market) returns (bool transfersDisabled) {
+      // ask for both methods the wrapper needs. supporting half the policy interface would
+      // just move this failure into maxDeposit later.
+      try transferPolicy.isMarketTransferRecipientAllowed(market, address(this)) returns (bool) {
+        return transfersDisabled;
+      } catch {
+        revert UnsupportedMarketTransferPolicy(market, hooksAddress);
+      }
     } catch {
       revert UnsupportedMarketTransferPolicy(market, hooksAddress);
     }
@@ -146,7 +151,7 @@ contract Wildcat4626WrapperFactory {
     if (rounding != FloorRounding) revert UnsupportedMarketRounding(market, rounding);
 
     if (!archController.isRegisteredMarket(market)) revert NotRegisteredMarket(market);
-    if (_isMarketTransferDisabled(market)) revert MarketTransfersDisabled(market);
+    if (_validateTransferPolicy(market)) revert MarketTransfersDisabled(market);
 
     wrapper = address(new Wildcat4626Wrapper(market));
     _wrapperForMarket[market] = wrapper;

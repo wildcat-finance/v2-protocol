@@ -23,20 +23,21 @@ abstract contract IHooks {
   function config() external view virtual returns (HooksDeploymentConfig);
 
   /// @dev Factory-only hook called before deploying a market with this hooks contract.
+  ///      `administrator` is the principal authorized to configure this hooks instance.
   ///      Reverts if caller is not the factory.
   ///      Returns the hooks config to store on the market.
   function onCreateMarket(
-    address deployer,
+    address administrator,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
   ) external returns (HooksConfig) {
     if (msg.sender != factory) revert CallerNotFactory();
-    return _onCreateMarket(deployer, marketAddress, parameters, extraData);
+    return _onCreateMarket(administrator, marketAddress, parameters, extraData);
   }
 
   function _onCreateMarket(
-    address deployer,
+    address administrator,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
@@ -59,9 +60,10 @@ abstract contract IHooks {
     bytes calldata extraData
   ) external virtual;
 
-  /// @dev Market hook called before executing a lender withdrawal.
+  /// @dev Market hook called before executing a lender withdrawal from the batch keyed by `expiry`.
   function onExecuteWithdrawal(
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData

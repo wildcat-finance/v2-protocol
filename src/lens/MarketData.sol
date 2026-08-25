@@ -63,6 +63,10 @@ struct OptionalUintDataV2_5 {
 
 struct MarketDataV2_5 {
   MarketData market;
+  address borrowerPrincipal;
+  address pendingBorrower;
+  address pendingBorrowerPrincipal;
+  address borrowerIdentityRegistry;
   OptionalUintDataV2_5 commitmentFeeBips;
   OptionalUintDataV2_5 drawnAmount;
 }
@@ -94,17 +98,54 @@ library MarketDataLib {
   bytes4 internal constant _DRAWN_AMOUNT_SELECTOR = IWildcatMarketRevolving.drawnAmount.selector;
   bytes4 internal constant _TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR =
     bytes4(keccak256('temporaryExcessReserveRatio(address)'));
+  uint256 internal constant _VERSION_SELECTOR = uint32(IVersionedContract.version.selector);
+
+  function _isV2Market(address market) internal view returns (bool isV2) {
+    // version() returns a dynamic string, but we only care whether its first byte is "2". read
+    // the offset, length, and first data word without decoding or copying the rest of the string.
+    uint256 selector = _VERSION_SELECTOR;
+    assembly ('memory-safe') {
+      // borrow the free-memory pointer for the call. nothing needs this buffer after the assembly
+      // block, so leave 0x40 alone.
+      let ptr := mload(0x40)
+
+      // move the four-byte selector to the front of the word so the call can start at ptr.
+      mstore(ptr, shl(224, selector))
+
+      // copy at most three return words into our buffer. returndatasize still tells us how much
+      // the market actually returned, even when staticcall copies less than that.
+      let success := staticcall(gas(), market, ptr, 4, ptr, 0x60)
+      let size := returndatasize()
+      if iszero(success) {
+        // keep the old high-level call behavior: copy the complete market error and bubble it up.
+        returndatacopy(ptr, 0, size)
+        revert(ptr, size)
+      }
+
+      // a normal one-string return starts with offset 0x20, then its length. we need both words
+      // even when the version is empty.
+      if lt(size, 0x40) {
+        revert(0, 0)
+      }
+      if iszero(eq(mload(ptr), 0x20)) {
+        revert(0, 0)
+      }
+      let length := mload(add(ptr, 0x20))
+      if length {
+        // a non-empty string needs its first data word. byte(0, ...) reads the first byte, and
+        // 0x32 is ASCII "2". nothing after that byte changes the answer.
+        if lt(size, 0x60) {
+          revert(0, 0)
+        }
+        isV2 := eq(byte(0, mload(add(ptr, 0x40))), 0x32)
+      }
+    }
+  }
 
   function fill(MarketData memory data, WildcatMarket market) internal view {
     data.marketToken.fill(address(market));
     data.underlyingToken.fill(market.asset());
-    string memory version = market.version();
-    bool isV2;
-    assembly {
-      let versionByte := and(mload(add(version, 1)), 0xff)
-      isV2 := eq(versionByte, 0x32)
-    }
-    if (!isV2) {
+    if (!_isV2Market(address(market))) {
       revert NotV2Market();
     }
     data.fillConfig();
@@ -123,11 +164,20 @@ library MarketDataLib {
     data.delinquencyFeeBips = market.delinquencyFeeBips();
     data.delinquencyGracePeriod = market.delinquencyGracePeriod();
     address hooksAddress = data.hooksConfig.hooksAddress;
-    data.hooks.fill(hooksAddress, IHooksFactory(data.hooksFactory), data.borrower);
+    data.hooks.fill(
+      hooksAddress,
+      IHooksFactory(data.hooksFactory),
+      address(0),
+      data.hooksConfig.kind
+    );
   }
 
   function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
     data.market.fill(market);
+    data.borrowerPrincipal = market.borrowerPrincipal();
+    data.pendingBorrower = market.pendingBorrower();
+    data.pendingBorrowerPrincipal = market.pendingBorrowerPrincipal();
+    data.borrowerIdentityRegistry = market.borrowerIdentityRegistry();
     _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
     _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
   }
@@ -155,31 +205,61 @@ library MarketDataLib {
     address target,
     bytes4 selector
   ) internal view {
-    (bool success, bytes memory result) = target.staticcall(abi.encodeWithSelector(selector));
-    if (!success || result.length < 0x20) {
-      return;
-    }
+    // these getters only exist on some market shapes. a missing method, revert, or short return
+    // means "not present" here; it shouldn't break the rest of the lens result.
+    uint256 selectorWord = uint32(selector);
+    assembly ('memory-safe') {
+      // borrow one word at the free-memory pointer. put the selector in its first four bytes,
+      // then reuse the same word for the return value.
+      let ptr := mload(0x40)
+      mstore(ptr, shl(224, selectorWord))
+      let success := staticcall(gas(), target, ptr, 4, ptr, 0x20)
 
-    data.isPresent = true;
-    assembly {
-      mstore(add(data, 0x20), mload(add(result, 0x20)))
+      // only touch the result struct when the call returned a complete word. data points to
+      // isPresent, and its next word is value. harmless trailing return data stays uncopied.
+      if and(success, iszero(lt(returndatasize(), 0x20))) {
+        mstore(data, 1)
+        mstore(add(data, 0x20), mload(ptr))
+      }
     }
   }
 
   function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
     address marketAddress = data.marketToken.token;
     address hooksAddress = data.hooks.hooksAddress;
-    (bool success, bytes memory result) = hooksAddress.staticcall(
-      abi.encodeWithSelector(_TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR, marketAddress)
-    );
-    if (!success || result.length < 0x60) {
+    uint256 selectorWord = uint32(_TEMPORARY_EXCESS_RESERVE_RATIO_SELECTOR);
+    bool success;
+    uint256 originalAnnualInterestBips;
+    uint256 originalReserveRatioBips;
+    uint256 temporaryReserveRatioExpiry;
+    assembly ('memory-safe') {
+      // borrow enough space for 36 bytes of calldata and the three-word response. nothing needs
+      // the buffer after this block, so leave the free-memory pointer alone.
+      let ptr := mload(0x40)
+
+      // put the selector first, then write marketAddress into the 32-byte ABI slot starting at
+      // ptr + 4. that gives us selector | marketAddress without allocating encoded bytes.
+      mstore(ptr, shl(224, selectorWord))
+      mstore(add(ptr, 4), marketAddress)
+
+      // this getter owes us three complete words. fold the size check into success so a missing,
+      // reverting, or short implementation follows the same quiet "not present" path as before.
+      success := staticcall(gas(), hooksAddress, ptr, 0x24, ptr, 0x60)
+      success := and(success, iszero(lt(returndatasize(), 0x60)))
+      if success {
+        // load the fixed tuple into Solidity locals now that the whole response is available.
+        // anything after these three words doesn't affect the result.
+        originalAnnualInterestBips := mload(ptr)
+        originalReserveRatioBips := mload(add(ptr, 0x20))
+        temporaryReserveRatioExpiry := mload(add(ptr, 0x40))
+      }
+    }
+    if (!success) {
       return;
     }
-    (
-      data.originalAnnualInterestBips,
-      data.originalReserveRatioBips,
-      data.temporaryReserveRatioExpiry
-    ) = abi.decode(result, (uint256, uint256, uint256));
+    data.originalAnnualInterestBips = originalAnnualInterestBips;
+    data.originalReserveRatioBips = originalReserveRatioBips;
+    data.temporaryReserveRatioExpiry = temporaryReserveRatioExpiry;
     data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
   }
 
@@ -260,7 +340,7 @@ library MarketDataLib {
 
   function fill(
     LenderAccountQueryResult memory result,
-    LenderAccountQuery memory query
+    LenderAccountQuery calldata query
   ) internal view {
     WildcatMarket market = WildcatMarket(query.market);
     result.market.fill(market);

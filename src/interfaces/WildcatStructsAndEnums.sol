@@ -26,6 +26,9 @@ struct MarketParameters {
   address archController;
   address sphereXEngine;
   HooksConfig hooks;
+  // Appended so the existing 20 parameter offsets remain unchanged.
+  address borrowerPrincipal;
+  address borrowerIdentityRegistry;
 }
 
 struct DeployMarketInputs {

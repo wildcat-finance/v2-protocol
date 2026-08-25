@@ -67,6 +67,35 @@ function encodeConstructorValues(types: string[], values: PlanValue[]): Hex {
   return encodeAbiParameters(parameters, normalized)
 }
 
+function encodeCall(signature: string, args: PlanValue[]): Hex {
+  const abi = functionAbi(signature)
+  if (abi.inputs.length !== args.length) {
+    throw new Error(`${signature} expects ${abi.inputs.length} argument(s), got ${args.length}.`)
+  }
+  const normalizedArgs = args.map((arg, index) => normalizeForAbi(arg, abi.inputs[index]))
+  return encodeFunctionData({ abi: [abi], args: normalizedArgs })
+}
+
+function forwardedCallData(
+  transaction: Extract<PlanTransaction, { kind: 'call' }> & {
+    forwardedCall: NonNullable<Extract<PlanTransaction, { kind: 'call' }>['forwardedCall']>
+  },
+  outputs: ReadonlyMap<string, Address> | null,
+): Hex {
+  const forwarded = transaction.forwardedCall
+  const targetValue = outputs
+    ? resolveReferences(forwarded.target, outputs)
+    : replaceReferencesWithZero(forwarded.target)
+  if (typeof targetValue !== 'string' || !isAddress(targetValue)) {
+    throw new Error(`${transaction.id}: resolved invalid forwarded target ${String(targetValue)}`)
+  }
+  const innerArgs = outputs
+    ? resolveReferences(forwarded.args, outputs)
+    : forwarded.args.map(replaceReferencesWithZero)
+  const innerData = encodeCall(forwarded.functionSignature, innerArgs)
+  return encodeCall(transaction.functionSignature, [getAddress(targetValue), innerData])
+}
+
 export interface PlanPayload {
   to?: Address
   data: Hex
@@ -93,26 +122,23 @@ export function buildPlanPayload(
     return { data: `${transaction.initCode}${encoded.slice(2)}` as Hex, value }
   }
 
-  const abi = functionAbi(transaction.functionSignature)
-  const unresolvedArgs = transaction.args.map((arg, index) =>
-    normalizeForAbi(replaceReferencesWithZero(arg), abi.inputs[index]),
-  )
-  const unresolvedData = encodeFunctionData({ abi: [abi], args: unresolvedArgs })
+  const unresolvedData = transaction.forwardedCall
+    ? forwardedCallData(transaction, null)
+    : encodeCall(transaction.functionSignature, transaction.args.map(replaceReferencesWithZero))
   if (unresolvedData.toLowerCase() !== transaction.calldata.toLowerCase()) {
     throw new Error(
       `${transaction.id}: function signature and arguments do not reproduce the reviewed calldata.`,
     )
   }
-  const resolvedArgs = resolveReferences(transaction.args, outputs).map((arg, index) =>
-    normalizeForAbi(arg, abi.inputs[index]),
-  )
   const toValue = resolveReferences(transaction.to, outputs)
   if (typeof toValue !== 'string' || !isAddress(toValue)) {
     throw new Error(`${transaction.id}: resolved invalid destination ${String(toValue)}`)
   }
   return {
     to: getAddress(toValue),
-    data: encodeFunctionData({ abi: [abi], args: resolvedArgs }),
+    data: transaction.forwardedCall
+      ? forwardedCallData(transaction, outputs)
+      : encodeCall(transaction.functionSignature, resolveReferences(transaction.args, outputs)),
     value,
   }
 }

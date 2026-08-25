@@ -10,7 +10,9 @@ Markets are configured with the following values:
 - `asset` - The underlying asset for the market
 - `name` - The name of the market (borrower-provided prefix + asset name)
 - `symbol` - The symbol of the market (borrower-provided prefix + asset symbol)
-- `borrower` - Address allowed to borrow from and make changes to the market
+- `borrower` - Current operational address allowed to borrow from and make changes to the market
+- `borrowerPrincipal` - Registered legal principal associated with the market and used as its lender-facing sanctions namespace
+- `borrowerIdentityRegistry` - Registry used to resolve recognized borrower accounts when a transfer is requested or accepted
 - `feeRecipient` - Recipient of protocol fees
 - `sentinel` - Chainalysis wrapper determining whether accounts are sanctioned
 - `maxTotalSupply` - The `totalSupply` at which the market will stop accepting withdrawals
@@ -29,11 +31,23 @@ Markets are configured with the following values:
 V2.5 has two market implementations sharing the behavior described here:
 
 - **Standard markets** (`WildcatMarket`): interest accrues on the full supply at `annualInterestBips`.
-- **Revolving markets** (`WildcatMarketRevolving`): for revolving credit facilities. Lenders earn a commitment fee (fixed at deployment) on the full supply plus the APR on only the drawn portion: `commitmentFee + annualInterestBips * min(drawnAmount, totalSupply) / totalSupply`. The drawn amount rises with borrows (clamped to outstanding debt, so borrowing back self-supplied assets accrues nothing) and falls with repayments. No interest accrues while a revolving market is closed or empty.
+- **Revolving markets** (`WildcatMarketRevolving`): for revolving credit facilities. Lenders earn a commitment fee (fixed at deployment) on the full supply plus the APR on only the drawn portion: `commitmentFee + annualInterestBips * min(drawnAmount, totalSupply) / totalSupply`. Borrow and explicit repayment transitions reconcile drawn amount against outstanding debt. Raw underlying transfers are donations: they affect market liquidity but do not themselves reduce drawn principal. A later borrow cannot double-count donated or previously over-repaid liquidity as a new draw. No interest accrues while a revolving market is closed or empty.
 
 Everything else — collateral obligations, delinquency, withdrawals, closure — is identical between the two.
 
 Conversions between scaled and normalized amounts follow deliberate rounding directions as of v2.5; see [Scale Factor — Rounding](./Scale%20Factor.md#rounding).
+
+## Borrower Identity And Transfer
+
+v2.5 separates the operational borrower from the registered principal. Direct markets begin with `borrower == borrowerPrincipal`, while a recognized contract account may operate a market for a separately recorded principal.
+
+Only the current operational borrower can call borrower-only market functions. A future Borrower Account can therefore enforce its own delegate policy before calling the market without adding delegate logic to the market itself.
+
+Borrower changes use a two-step request and acceptance flow. The current borrower requests or cancels, and only the pending target accepts. Request and acceptance resolve the target through the borrower identity registry and apply current registration and raw sanctions checks. Acceptance changes borrower identity only; market accounting and lifecycle state remain intact.
+
+The canonical ERC-4626 wrapper follows the market's live borrower and principal. Hooks and role providers do not transfer implicitly because they may be shared across markets and have separate authority domains.
+
+See [Borrower Identity and Transfers](./Borrower%20Identity%20and%20Transfers.md) for the full state model, transfer cases, events, and integration requirements.
 
 ## Basic Market Behavior
 
@@ -52,13 +66,17 @@ The total collateral obligation that a borrower is required to maintain in the m
 - accrued protocol fees
 
 ```solidity
-state.normalizeAmount(state.scaledPendingWithdrawals)
+uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
+uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
+
+normalizedPendingWithdrawals
++ normalizedOutstandingSupply.bipMul(state.reserveRatioBips)
 + state.normalizedUnclaimedWithdrawals
-+ state.normalizeAmount(
-    state.scaledTotalSupply - state.scaledPendingWithdrawals
-).bipMul(state.reserveRatioBips)
 + state.accruedProtocolFees
 ```
+
+Outstanding supply is the normalized total supply minus normalized pending withdrawals.
+This keeps the two portions of the supply in the same rounding domain and makes a 100% reserve ratio recombine exactly to `state.totalSupply()`.
 
 
 #### Delinquency
@@ -101,6 +119,8 @@ When a lender requests a withdrawal, they will be entered into the current withd
 From the time a withdrawal batch is created until the time it expires, new lenders may enter the batch by creating a withdrawal request. At the time of the request, the lender is credited for the scaled token amount their withdrawal is equivalent to, giving them pro-rata ownership of the batch according to that scaled amount. These scaled tokens are removed from the lender's balance, but the total supply is [only reduced upon payment](#withdrawal-payment).
 
 Because batch ownership is based on scaled amounts, two equal normalized withdrawal requests added to the same batch at different scale factors may receive slightly different final normalized amounts. This reflects the interest accrued by the batch between queue events; it is not based on the order in which paid withdrawals are later executed.
+
+v2.5 markets also expose `queueWithdrawalScaled(uint256)` for integrations that already hold an exact scaled amount. The function queues only the caller's requested scaled balance and derives its normalized event amount at execution. `queueFullWithdrawal()` still queues the caller's entire direct market-token balance.
 
 Withdrawal *execution*, or the claiming of paid withdrawals, is only possible after expiry.
 

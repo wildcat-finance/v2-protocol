@@ -116,6 +116,14 @@ export function compileSafePlan(plan: DeploymentPlan): CompiledSafePlan {
     }
 
     if (!payload.to) throw new Error(`${transaction.id}: call payload has no destination.`)
+    const logicalTargetValue = transaction.forwardedCall
+      ? resolveReferences(transaction.forwardedCall.target, outputs)
+      : payload.to
+    if (typeof logicalTargetValue !== 'string') {
+      throw new Error(`${transaction.id}: call has an invalid logical target.`)
+    }
+    const logicalTarget = getAddress(logicalTargetValue)
+    const callArgs: PlanValue[] = transaction.forwardedCall?.args ?? transaction.args ?? []
     entries.push({
       planIndex,
       planId: transaction.id,
@@ -123,10 +131,10 @@ export function compileSafePlan(plan: DeploymentPlan): CompiledSafePlan {
       description: transaction.description,
       operation: 0,
       to: payload.to,
-      logicalTarget: payload.to,
+      logicalTarget,
       value: payload.value.toString(),
       data: payload.data,
-      decodedArgs: resolveReferences(transaction.args, outputs),
+      decodedArgs: resolveReferences(callArgs, outputs),
       predicate: resolvePredicate(transaction.predicate, outputs),
       precomputedAddress: null,
       salt: null,

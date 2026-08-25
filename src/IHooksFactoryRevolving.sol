@@ -9,11 +9,15 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   error UnsupportedMarketDataVersion();
   error InvalidCommitmentFeeBips();
 
+  event RevolvingMarketDeployed(address indexed market, uint256 commitmentFeeBips);
+
   function archController() external view returns (address);
 
   function sanctionsSentinel() external view returns (address);
 
   function wrapperFactory() external view returns (address);
+
+  function borrowerIdentityRegistry() external view returns (address);
 
   function marketInitCodeStorage() external view returns (address);
 
@@ -67,7 +71,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev Disable a hooks template.
+  /// @dev disables this template for new hook instances. existing instances can still
+  ///      deploy markets; disabling a template isn't a kill switch for immutable hooks.
   ///
   ///      On success:
   ///      - Emits `HooksTemplateDisabled` on success.
@@ -120,7 +125,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   ///      - Maps the hooks instance to the template address.
   ///
   ///      Reverts if:
-  ///      - The caller is not an approved borrower.
+  ///      - The caller does not resolve to a registered principal.
   ///      - The template does not exist.
   ///      - The template is not enabled.
   ///      - The deployment fails.
@@ -129,9 +134,35 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     bytes calldata constructorArgs
   ) external returns (address hooksDeployment);
 
+  function getHooksAdministrator(address hooks) external view returns (address);
+
+  function getHooksInstanceDeploymentNonce(address administrator) external view returns (uint256);
+
+  function getHooksInstancesForAdministrator(
+    address administrator
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesForAdministrator(
+    address administrator,
+    uint256 start,
+    uint256 end
+  ) external view returns (address[] memory);
+
+  function getHooksInstancesCountForAdministrator(
+    address administrator
+  ) external view returns (uint256);
+
+  /// @dev Compatibility alias for `getHooksInstancesForAdministrator`.
   function getHooksInstancesForBorrower(address borrower) external view returns (address[] memory);
 
+  /// @dev Compatibility alias for `getHooksInstancesCountForAdministrator`.
   function getHooksInstancesCountForBorrower(address borrower) external view returns (uint256);
+
+  /// @dev Called by a hooks instance after accepting a two-step administrator transfer.
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external;
 
   /// @dev Check if a hooks instance was deployed by the factory.
   function isHooksInstance(address hooks) external view returns (bool);
@@ -164,6 +195,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   function getRevolvingMarketCommitmentFeeBips() external view returns (uint16);
 
   /// @dev Deploy a revolving market with an existing hooks deployment (in `parameters.hooks`)
+  ///      The caller becomes the market borrower. Its resolved principal is supplied
+  ///      to the hook and stored on the market.
   ///
   ///      `hooksData` is hook-owned data forwarded unchanged to hooks callbacks.
   ///      `marketData` is factory-owned data decoded by this factory.
@@ -176,7 +209,7 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   ///      - Emits `MarketDeployed`.
   ///
   ///      Reverts if:
-  ///      - The caller is not an approved borrower.
+  ///      - The caller does not resolve to a registered principal.
   ///      - The hooks instance does not exist.
   ///      - `marketData` is malformed or specifies an invalid commitment fee.
   ///      - Payment of origination fee fails.
@@ -193,8 +226,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market);
 
-  /// @dev Deploy a hooks instance for an approved template, then deploy a new
-  ///      revolving market with that instance as its hooks contract.
+  /// @dev Deploy a principal-administered hooks instance, then deploy a new
+  ///      revolving market owned by the calling principal or registered account.
   ///      Will call `onCreateMarket` on the newly deployed hooks instance,
   ///      which replaces the hooks address in `parameters.hooks`.
   ///      `marketData` uses the same encoding as `deployMarket`.
@@ -209,6 +242,10 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
+  /// @dev returns the CREATE2 market address for `salt` and this factory's init code.
+  ///      the first 20 bytes name the non-zero deployer, and deployment requires that
+  ///      address to call the factory. for borrower accounts, use the account contract,
+  ///      not its principal.
   function computeMarketAddress(bytes32 salt) external view returns (address);
 
   function pushProtocolFeeBipsUpdates(

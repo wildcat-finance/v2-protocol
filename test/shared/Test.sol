@@ -7,6 +7,7 @@ import { VmSafe } from 'forge-std/Vm.sol';
 import { Prankster } from 'sol-utils/test/Prankster.sol';
 
 import 'src/WildcatArchController.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 import '../helpers/VmUtils.sol' as VmUtils;
 import '../helpers/Assertions.sol';
 import { MockEngine } from './mocks/MockEngine.sol';
@@ -53,6 +54,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   HooksFactory internal hooksFactory;
   Wildcat4626WrapperFactory internal wrapperFactory;
   WildcatArchController internal archController;
+  WildcatBorrowerIdentityRegistry internal borrowerIdentityRegistry;
   OpenTermHooks internal hooks;
   WildcatMarket internal market;
   MockSanctionsSentinel internal sanctionsSentinel;
@@ -99,6 +101,7 @@ contract Test is ForgeTest, Prankster, Assertions {
   function deployBaseContracts(bool withEngine) internal asSelf {
     deployMockChainalysis();
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
     if (withEngine) {
       deploySphereXEngine();
     } else {
@@ -115,7 +118,8 @@ contract Test is ForgeTest, Prankster, Assertions {
       address(sanctionsSentinel),
       address(wrapperFactory),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
 
     // Register the hooks factory as a controller factory so it can register
@@ -140,6 +144,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
+      address(this),
       'OpenTermHooks',
       address(0),
       address(0),
@@ -150,6 +155,7 @@ contract Test is ForgeTest, Prankster, Assertions {
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       fixedTermHooksTemplate,
+      address(this),
       'FixedTermHooks',
       address(0),
       address(0),
@@ -246,11 +252,11 @@ contract Test is ForgeTest, Prankster, Assertions {
       initCodeHash := keccak256(initCodePointer, initCodeSizeWithArgs)
     }
 
-    uint256 numPreviousInstances = hooksFactory.getHooksInstancesCountForBorrower(borrower);
+    uint256 deploymentNonce = hooksFactory.getHooksInstanceDeploymentNonce(borrower);
     bytes32 salt;
 
     assembly {
-      salt := or(shl(96, borrower), numPreviousInstances)
+      salt := or(shl(96, borrower), deploymentNonce)
     }
 
     return
@@ -282,10 +288,14 @@ contract Test is ForgeTest, Prankster, Assertions {
           parameters.deployHooksConstructorArgs
         )
       );
-      vm.expectEmit(address(hooksFactory));
+      vm.expectEmit(true, true, true, false, address(hooksFactory));
       emit IHooksFactoryEventsAndErrors.HooksInstanceDeployed(
         address(hooksInstance),
-        parameters.hooksTemplate
+        parameters.hooksTemplate,
+        parameters.borrower,
+        parameters.borrower,
+        '',
+        ''
       );
       assertEq(
         hooksFactory.deployHooksInstance(
@@ -340,12 +350,20 @@ contract Test is ForgeTest, Prankster, Assertions {
   );
 
   function updateFeeConfiguration(MarketInputParameters memory parameters) internal asSelf {
+    HooksTemplate memory previousTemplate = hooksFactory.getHooksTemplateDetails(
+      parameters.hooksTemplate
+    );
     vm.expectEmit(address(hooksFactory));
     emit IHooksFactoryEventsAndErrors.HooksTemplateFeesUpdated(
       parameters.hooksTemplate,
+      address(this),
+      previousTemplate.feeRecipient,
       parameters.feeRecipient,
+      previousTemplate.originationFeeAsset,
       address(0),
+      previousTemplate.originationFeeAmount,
       0,
+      previousTemplate.protocolFeeBips,
       parameters.protocolFeeBips
     );
 
@@ -368,7 +386,12 @@ contract Test is ForgeTest, Prankster, Assertions {
       keccak256('OpenTermHooks')
     ) {
       vm.expectEmit(parameters.hooksConfig.hooksAddress());
-      emit OpenTermHooks.MinimumDepositUpdated(expectedMarket, parameters.minimumDeposit);
+      emit OpenTermHooks.MinimumDepositUpdated(
+        expectedMarket,
+        borrowerIdentityRegistry.resolveBorrower(parameters.borrower),
+        0,
+        parameters.minimumDeposit
+      );
     }
 
     vm.expectEmit(expectedMarket);
@@ -432,17 +455,35 @@ contract Test is ForgeTest, Prankster, Assertions {
       vm.expectEmit(address(hooksFactory));
       emit IHooksFactoryEventsAndErrors.MarketDeployed(
         parameters.hooksTemplate,
+        parameters.hooksConfig.hooksAddress(),
         expectedMarket,
+        parameters.borrower,
+        borrowerIdentityRegistry.resolveBorrower(parameters.borrower),
+        address(borrowerIdentityRegistry),
         expectedName,
         expectedSymbol,
         parameters.asset,
+        parameters.hooksConfig,
+        expectedConfig
+      );
+      vm.expectEmit(address(hooksFactory));
+      emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
+        expectedMarket,
         parameters.maxTotalSupply,
         parameters.annualInterestBips,
         parameters.delinquencyFeeBips,
         parameters.withdrawalBatchDuration,
         parameters.reserveRatioBips,
         parameters.delinquencyGracePeriod,
-        expectedConfig
+        parameters.feeRecipient,
+        parameters.protocolFeeBips,
+        address(0),
+        0
+      );
+      vm.expectEmit(address(hooksFactory));
+      emit IHooksFactoryEventsAndErrors.MarketHooksData(
+        expectedMarket,
+        parameters.deployMarketHooksData
       );
     }
   }
@@ -540,6 +581,14 @@ contract Test is ForgeTest, Prankster, Assertions {
     assertEq(market.annualInterestBips(), parameters.annualInterestBips, 'annualInterestBips');
     assertEq(market.reserveRatioBips(), parameters.reserveRatioBips, 'reserveRatioBips');
     assertEq(market.borrower(), parameters.borrower, 'borrower');
+    assertEq(market.borrowerPrincipal(), parameters.borrower, 'borrowerPrincipal');
+    assertEq(market.pendingBorrower(), address(0), 'pendingBorrower');
+    assertEq(market.pendingBorrowerPrincipal(), address(0), 'pendingBorrowerPrincipal');
+    assertEq(
+      market.borrowerIdentityRegistry(),
+      address(borrowerIdentityRegistry),
+      'borrowerIdentityRegistry'
+    );
     assertEq(market.archController(), address(archController), 'archController');
     assertEq(market.feeRecipient(), parameters.feeRecipient, 'feeRecipient');
     assertEq(market.factory(), address(hooksFactory), 'factory');

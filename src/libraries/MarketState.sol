@@ -88,7 +88,8 @@ library MarketStateLib {
   /**
    * @dev Maximum scaled amount that `normalizedAmount` can settle when scaled
    *      tokens are priced with the floor rounding used for batch payments
-   *      (`mulDiv(scaled, scaleFactor, RAY)`): the largest `k` with
+   *      (`mulDiv(scaled, scaleFactor, RAY)`): the largest `k` that fits in
+   *      `uint104` and still satisfies
    *      floor(k * scaleFactor / RAY) <= normalizedAmount.
    *
    *      `scaleAmountDown` can understate this by one scaled token, which
@@ -100,6 +101,11 @@ library MarketStateLib {
     MarketState memory state,
     uint256 normalizedAmount
   ) internal pure returns (uint256) {
+    // withdrawal amounts only get uint104. cap here before multiplying liquidity by RAY;
+    // direct token transfers can make `normalizedAmount` arbitrarily large.
+    uint256 maxScaledAmount = type(uint104).max;
+    uint256 normalizedMaxScaledAmount = MathUtils.mulDiv(maxScaledAmount, state.scaleFactor, RAY);
+    if (normalizedAmount >= normalizedMaxScaledAmount) return maxScaledAmount;
     return MathUtils.mulDivUp(normalizedAmount + 1, RAY, state.scaleFactor) - 1;
   }
 
@@ -124,14 +130,23 @@ library MarketStateLib {
   function liquidityRequired(
     MarketState memory state
   ) internal pure returns (uint256 _liquidityRequired) {
-    uint256 scaledWithdrawals = state.scaledPendingWithdrawals;
-    uint256 scaledRequiredReserves = (state.scaledTotalSupply - scaledWithdrawals).bipMul(
-      state.reserveRatioBips
-    ) + scaledWithdrawals;
+    uint256 reserveRatioBips = state.reserveRatioBips;
+    uint256 normalizedSupplyRequired;
+    // 0% is the usual case, and 100% should recombine exactly to totalSupply.
+    // only intermediate ratios need the normalized pending/outstanding partition.
+    if (reserveRatioBips == 0) {
+      normalizedSupplyRequired = state.normalizeAmount(state.scaledPendingWithdrawals);
+    } else if (reserveRatioBips == BIP) {
+      normalizedSupplyRequired = state.totalSupply();
+    } else {
+      uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
+      uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
+      normalizedSupplyRequired =
+        normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(reserveRatioBips);
+    }
     return
-      state.normalizeAmount(scaledRequiredReserves) +
-      state.accruedProtocolFees +
-      state.normalizedUnclaimedWithdrawals;
+      normalizedSupplyRequired + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
   }
 
   /**

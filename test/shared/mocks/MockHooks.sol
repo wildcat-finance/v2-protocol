@@ -18,6 +18,7 @@ event OnQueueWithdrawalCalled(
 );
 event OnExecuteWithdrawalCalled(
   address lender,
+  uint32 expiry,
   uint128 normalizedAmountWithdrawn,
   MarketState intermediateState,
   bytes extraData
@@ -126,11 +127,12 @@ contract MockHooks is IHooks {
   event AccountAccessGranted(
     address indexed providerAddress,
     address indexed accountAddress,
+    address indexed caller,
     uint32 credentialTimestamp
   );
   // Shim function to work with BaseMarketTest
   function grantRole(address account, uint32 roleGrantedTimestamp) external {
-    emit AccountAccessGranted(msg.sender, account, roleGrantedTimestamp);
+    emit AccountAccessGranted(msg.sender, account, msg.sender, roleGrantedTimestamp);
   }
   // Shim function to work with BaseMarketTest
   function addRoleProvider(address providerAddress, uint32 timeToLive) external {
@@ -173,12 +175,19 @@ contract MockHooks is IHooks {
 
   function onExecuteWithdrawal(
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external virtual override {
     lastCalldataHash = keccak256(msg.data);
-    emit OnExecuteWithdrawalCalled(lender, normalizedAmountWithdrawn, intermediateState, extraData);
+    emit OnExecuteWithdrawalCalled(
+      lender,
+      expiry,
+      normalizedAmountWithdrawn,
+      intermediateState,
+      extraData
+    );
   }
 
   function onTransfer(

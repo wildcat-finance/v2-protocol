@@ -10,7 +10,7 @@ At market creation the borrower configures:
 - `periodDuration` — how often a window recurs
 - `withdrawalWindowDuration` — how long each window stays open (must be shorter than the period)
 
-Windows are start-inclusive and end-exclusive: withdrawals may be queued at `windowStart` and may not at `windowStart + withdrawalWindowDuration`. Between windows, `queueWithdrawal` reverts `WithdrawOutsideWindow`. Withdrawal *batches* still expire on the market's immutable `withdrawalBatchDuration`, independent of the window schedule — the window gates only when a withdrawal can be *queued*.
+Windows are start-inclusive and end-exclusive: withdrawals may be queued at `windowStart` and may not at `windowStart + withdrawalWindowDuration`. Between windows, `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` revert `WithdrawOutsideWindow`. Withdrawal *batches* still expire on the market's immutable `withdrawalBatchDuration`, independent of the window schedule. The window gates only when a withdrawal can be *queued*.
 
 A closed market bypasses the window entirely: once the borrower closes, lenders can exit at any time.
 
@@ -27,6 +27,8 @@ On open markets a borrower can lower the APR at will (subject to the temporary r
 Proposals are cancelled by: proposing again (overwrite), raising the APR through the ordinary setter, or closing the market. Expired proposals cannot be executed and must be re-proposed.
 
 APR *increases* need no proposal and pass straight through to the base constraint hooks.
+
+Deposits and transfers remain open throughout the proposal lifecycle. A new lender does not receive a separate response window: the pending reduction is part of the disclosed entry terms. Market and deposit interfaces must show the current APR, proposed APR, and response-window timing. Once the response window has ended, interfaces should treat the executable proposed APR as the effective entry rate even though the market's stored APR does not change until execution.
 
 ## Configuration notes
 

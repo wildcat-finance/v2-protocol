@@ -40,6 +40,7 @@ import { SAFE_1_4_1_FORK_NETWORKS } from './safeContracts'
 import {
   clampRailWidth,
   DEFAULT_RAIL_WIDTH,
+  eoaCompletionGuidance,
   errorText,
   isRpcUnavailableError,
   MAX_RAIL_WIDTH,
@@ -161,7 +162,8 @@ function isBytesBlob(value: string): boolean {
 }
 
 function decodedValues(transaction: PlanTransaction): PlanValue[] {
-  return transaction.kind === 'deploy' ? transaction.constructorArgs.decoded : transaction.args
+  if (transaction.kind === 'deploy') return transaction.constructorArgs.decoded
+  return transaction.forwardedCall?.args ?? transaction.args ?? []
 }
 
 function parseSignatureTypes(signature: string, count: number): string[] {
@@ -518,7 +520,10 @@ function ArgsTable({
   const types =
     transaction.kind === 'deploy'
       ? transaction.constructorArgs.types
-      : parseSignatureTypes(transaction.functionSignature, values.length)
+      : parseSignatureTypes(
+          transaction.forwardedCall?.functionSignature ?? transaction.functionSignature,
+          values.length,
+        )
   return (
     <table className="argt">
       <thead>
@@ -585,7 +590,8 @@ function CheckAssertion({
   return (
     <span className="assert">
       <TargetValue target={predicate.target} outputs={outputs} /> . {functionName(predicate.call.sig)}
-      ({args})<span className="eq">==</span>
+      ({args}){predicate.type === 'callResultEq' ? `[${predicate.resultIndex}]` : null}
+      <span className="eq">==</span>
       {isReference(predicate.expect) ? (
         <RefValue reference={predicate.expect.$ref} outputs={outputs} />
       ) : typeof predicate.expect === 'string' && isAddressString(predicate.expect) ? (
@@ -1621,7 +1627,7 @@ export default function App() {
                   <div className="state-strip done">
                     ✓ COMPLETE{' '}
                     <span className="sans">
-                      export the run state from the top bar and hand it unchanged to step 08.
+                      {eoaCompletionGuidance(plan.release, plan.network)}
                     </span>
                   </div>
                 </div>
@@ -1785,7 +1791,10 @@ function EoaStepPane({
                     </>
                   ) : (
                     <>
-                      call <code>{transaction.functionSignature}</code>
+                      {transaction.forwardedCall ? 'forward ' : 'call '}
+                      <code>
+                        {transaction.forwardedCall?.functionSignature ?? transaction.functionSignature}
+                      </code>
                     </>
                   )}
                 </span>
@@ -1794,9 +1803,21 @@ function EoaStepPane({
                   {transaction.kind === 'deploy' ? (
                     <RefValue reference={transaction.output} outputs={outputs} />
                   ) : (
-                    <TargetValue target={transaction.to} outputs={outputs} />
+                    <TargetValue
+                      target={transaction.forwardedCall?.target ?? transaction.to}
+                      outputs={outputs}
+                    />
                   )}
                 </span>
+                {transaction.kind === 'call' && transaction.forwardedCall ? (
+                  <>
+                    <span className="k">via helper</span>
+                    <span className="v">
+                      <TargetValue target={transaction.to} outputs={outputs} /> ·{' '}
+                      <code>{transaction.functionSignature}</code>
+                    </span>
+                  </>
+                ) : null}
                 <span className="k">value</span>
                 <span className="v">
                   <code>{transactionValueLabel(transaction.envelope.value)}</code>

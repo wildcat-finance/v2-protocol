@@ -76,7 +76,8 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
 
     archController.registerControllerFactory(address(hooksFactoryRevolving));
@@ -584,7 +585,8 @@ contract MarketLensMultiFactoryTest is BaseMarketTest {
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     MarketLensAggregator aggregator = new MarketLensAggregator(
       address(archController),

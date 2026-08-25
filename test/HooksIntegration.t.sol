@@ -154,6 +154,33 @@ contract HooksIntegrationTest is BaseMarketTest {
     }
   }
 
+  function test_onQueueWithdrawal_queueWithdrawalScaled(
+    StandardHooksConfig memory config,
+    bytes memory extraData
+  ) external {
+    _setUp(config);
+    _deposit(alice, 1e18);
+    MockHooks(address(hooks)).reset();
+    startPrank(alice);
+    MarketState memory state = pendingState();
+    uint256 scaledAmount = 100;
+    bytes memory _calldata = abi.encodePacked(
+      abi.encodeWithSelector(market.queueWithdrawalScaled.selector, scaledAmount),
+      extraData
+    );
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    bytes memory _returndata = abi.encode(expiry);
+    state.pendingWithdrawalExpiry = expiry;
+    if (config.useOnQueueWithdrawal) {
+      vm.expectEmit(address(hooks));
+      emit OnQueueWithdrawalCalled(alice, expiry, scaledAmount, state, extraData);
+    }
+    _callMarket(_calldata, _returndata, 'queueWithdrawalScaled');
+    if (!config.useOnQueueWithdrawal) {
+      assertEq(MockHooks(address(hooks)).lastCalldataHash(), 0);
+    }
+  }
+
   function test_onQueueWithdrawal_nukeFromOrbit(
     StandardHooksConfig memory config,
     bytes memory extraData
@@ -202,7 +229,7 @@ contract HooksIntegrationTest is BaseMarketTest {
     );
     if (config.useOnExecuteWithdrawal) {
       vm.expectEmit(address(hooks));
-      emit OnExecuteWithdrawalCalled(alice, 1e18, state, extraData);
+      emit OnExecuteWithdrawalCalled(alice, expiry, 1e18, state, extraData);
     }
     _callMarket(_calldata, abi.encode(1e18), 'executeWithdrawal');
 
@@ -215,35 +242,52 @@ contract HooksIntegrationTest is BaseMarketTest {
     StandardHooksConfig memory config,
     bytes memory extraData
   ) external {
+    parameters.annualInterestBips = 0;
     _setUp(config);
 
     _deposit(alice, 1e18);
     _deposit(bob, 1e18);
-    _requestWithdrawal(alice, 1e18);
-    _requestWithdrawal(bob, 1e18);
+    uint32 expiry1 = _requestWithdrawal(alice, 0.5e18);
+    _requestWithdrawal(bob, 0.5e18);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    uint32 expiry2 = _requestWithdrawal(alice, 0.5e18);
+    _requestWithdrawal(bob, 0.5e18);
     MockHooks(address(hooks)).reset();
-    uint32 expiry = previousState.pendingWithdrawalExpiry;
     fastForward(parameters.withdrawalBatchDuration + 1);
     MarketState memory state = pendingState();
-    address[] memory accounts = new address[](2);
+    address[] memory accounts = new address[](4);
     accounts[0] = alice;
     accounts[1] = bob;
-    uint32[] memory expiries = new uint32[](2);
-    (expiries[0], expiries[1]) = (expiry, expiry);
+    accounts[2] = alice;
+    accounts[3] = bob;
+    uint32[] memory expiries = new uint32[](4);
+    expiries[0] = expiry1;
+    expiries[1] = expiry1;
+    expiries[2] = expiry2;
+    expiries[3] = expiry2;
     bytes memory _calldata = abi.encodePacked(
       abi.encodeWithSelector(market.executeWithdrawals.selector, accounts, expiries),
       extraData
     );
     if (config.useOnExecuteWithdrawal) {
       vm.expectEmit(address(hooks));
-      emit OnExecuteWithdrawalCalled(alice, 1e18, state, '');
-      _trackExecuteWithdrawal(state, expiry, alice);
+      emit OnExecuteWithdrawalCalled(alice, expiry1, 0.5e18, state, '');
+      _trackExecuteWithdrawal(state, expiry1, alice);
       vm.expectEmit(address(hooks));
-      emit OnExecuteWithdrawalCalled(bob, 1e18, state, '');
-      _trackExecuteWithdrawal(state, expiry, bob);
+      emit OnExecuteWithdrawalCalled(bob, expiry1, 0.5e18, state, '');
+      _trackExecuteWithdrawal(state, expiry1, bob);
+      vm.expectEmit(address(hooks));
+      emit OnExecuteWithdrawalCalled(alice, expiry2, 0.5e18, state, '');
+      _trackExecuteWithdrawal(state, expiry2, alice);
+      vm.expectEmit(address(hooks));
+      emit OnExecuteWithdrawalCalled(bob, expiry2, 0.5e18, state, '');
+      _trackExecuteWithdrawal(state, expiry2, bob);
     }
-    uint256[] memory amounts = new uint256[](2);
-    (amounts[0], amounts[1]) = (1e18, 1e18);
+    uint256[] memory amounts = new uint256[](4);
+    amounts[0] = 0.5e18;
+    amounts[1] = 0.5e18;
+    amounts[2] = 0.5e18;
+    amounts[3] = 0.5e18;
     _callMarket(_calldata, abi.encode(amounts), 'executeWithdrawals');
 
     if (!config.useOnExecuteWithdrawal) {

@@ -4,6 +4,7 @@ pragma solidity >=0.8.20;
 import '../BaseMarketTest.sol';
 import '../shared/mocks/MockHooks.sol';
 import 'src/ReentrancyGuard.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 
 contract ProtocolFeeReadOnDepositHooks is MockHooks {
   bool public protocolFeeReadSucceeded;
@@ -41,7 +42,164 @@ contract ProtocolFeeReadOnDepositHooks is MockHooks {
   }
 }
 
+contract MockMarketParametersFactory {
+  MarketParameters internal _parameters;
+
+  function deployMarket(
+    MarketParameters memory parameters
+  ) external returns (WildcatMarket market) {
+    _parameters = parameters;
+    market = new WildcatMarket();
+  }
+
+  function getMarketParameters() external view returns (MarketParameters memory) {
+    return _parameters;
+  }
+}
+
 contract WildcatMarketBaseTest is BaseMarketTest {
+  function _getConstructorParameters(
+    address operationalBorrower,
+    address principal,
+    address identityRegistry,
+    HooksConfig hooksConfig
+  ) internal view returns (MarketParameters memory) {
+    return
+      MarketParameters({
+        asset: address(asset),
+        decimals: 18,
+        packedNameWord0: bytes32(0),
+        packedNameWord1: bytes32(0),
+        packedSymbolWord0: bytes32(0),
+        packedSymbolWord1: bytes32(0),
+        borrower: operationalBorrower,
+        feeRecipient: feeRecipient,
+        sentinel: address(sanctionsSentinel),
+        wrapperFactory: address(wrapperFactory),
+        maxTotalSupply: uint128(DefaultMaximumSupply),
+        protocolFeeBips: DefaultProtocolFeeBips,
+        annualInterestBips: DefaultInterest,
+        delinquencyFeeBips: DefaultDelinquencyFee,
+        withdrawalBatchDuration: DefaultWithdrawalBatchDuration,
+        reserveRatioBips: DefaultReserveRatio,
+        delinquencyGracePeriod: DefaultGracePeriod,
+        archController: address(archController),
+        sphereXEngine: address(0),
+        hooks: hooksConfig,
+        borrowerPrincipal: principal,
+        borrowerIdentityRegistry: identityRegistry
+      });
+  }
+
+  function test_constructorSupportsDistinctBorrowerAndPrincipal() external {
+    address operationalBorrower = address(0xD00D);
+    address principal = address(0xA11CE);
+    HooksConfig hooksConfig = HooksConfig.wrap((uint256(0xBEEF) << 96) | 0xA5);
+    archController.registerBorrower(principal);
+
+    MarketParameters memory constructorParameters = _getConstructorParameters(
+      operationalBorrower,
+      principal,
+      address(borrowerIdentityRegistry),
+      hooksConfig
+    );
+
+    MockMarketParametersFactory parameterFactory = new MockMarketParametersFactory();
+    WildcatMarket distinctIdentityMarket = parameterFactory.deployMarket(constructorParameters);
+
+    assertEq(distinctIdentityMarket.borrower(), operationalBorrower, 'borrower');
+    assertEq(distinctIdentityMarket.borrowerPrincipal(), principal, 'borrowerPrincipal');
+    assertEq(
+      distinctIdentityMarket.borrowerIdentityRegistry(),
+      address(borrowerIdentityRegistry),
+      'borrowerIdentityRegistry'
+    );
+    assertEq(distinctIdentityMarket.factory(), address(parameterFactory), 'factory');
+    assertFalse(archController.isRegisteredBorrower(operationalBorrower));
+    assertTrue(archController.isRegisteredBorrower(principal));
+
+    (bool success, bytes memory encodedParameters) = address(parameterFactory).staticcall(
+      abi.encodeCall(MockMarketParametersFactory.getMarketParameters, ())
+    );
+    assertTrue(success);
+    assertEq(encodedParameters.length, 0x2c0, 'encoded parameters length');
+
+    uint256 encodedHooks;
+    address encodedPrincipal;
+    address encodedIdentityRegistry;
+    assembly {
+      // The original fields end at `hooks`; identity fields follow them.
+      encodedHooks := mload(add(encodedParameters, 0x280))
+      encodedPrincipal := mload(add(encodedParameters, 0x2a0))
+      encodedIdentityRegistry := mload(add(encodedParameters, 0x2c0))
+    }
+    assertEq(encodedHooks, HooksConfig.unwrap(hooksConfig), 'hooks word');
+    assertEq(encodedPrincipal, principal, 'borrowerPrincipal word');
+    assertEq(
+      encodedIdentityRegistry,
+      address(borrowerIdentityRegistry),
+      'borrowerIdentityRegistry word'
+    );
+  }
+
+  function test_constructorRejectsInvalidBorrowerIdentityRegistry() external {
+    address principal = address(0xA11CE);
+    archController.registerBorrower(principal);
+    MarketParameters memory constructorParameters = _getConstructorParameters(
+      address(0xD00D),
+      principal,
+      address(0),
+      EmptyHooksConfig
+    );
+    MockMarketParametersFactory parameterFactory = new MockMarketParametersFactory();
+
+    vm.expectRevert(IMarketEventsAndErrors.InvalidBorrowerIdentityRegistry.selector);
+    parameterFactory.deployMarket(constructorParameters);
+
+    WildcatArchController otherArchController = new WildcatArchController();
+    WildcatBorrowerIdentityRegistry otherRegistry = new WildcatBorrowerIdentityRegistry(
+      address(otherArchController)
+    );
+    constructorParameters.borrowerIdentityRegistry = address(otherRegistry);
+
+    vm.expectRevert(IMarketEventsAndErrors.InvalidBorrowerIdentityRegistry.selector);
+    parameterFactory.deployMarket(constructorParameters);
+  }
+
+  function test_constructorRejectsZeroOperationalBorrower() external {
+    address principal = address(0xA11CE);
+    archController.registerBorrower(principal);
+    MarketParameters memory constructorParameters = _getConstructorParameters(
+      address(0),
+      principal,
+      address(borrowerIdentityRegistry),
+      EmptyHooksConfig
+    );
+    MockMarketParametersFactory parameterFactory = new MockMarketParametersFactory();
+
+    vm.expectRevert(IMarketEventsAndErrors.InvalidBorrower.selector);
+    parameterFactory.deployMarket(constructorParameters);
+  }
+
+  function test_constructorRejectsUnregisteredBorrowerPrincipal() external {
+    MarketParameters memory constructorParameters = _getConstructorParameters(
+      address(0xD00D),
+      address(0xA11CE),
+      address(borrowerIdentityRegistry),
+      EmptyHooksConfig
+    );
+    MockMarketParametersFactory parameterFactory = new MockMarketParametersFactory();
+
+    vm.expectRevert(IMarketEventsAndErrors.BorrowerPrincipalNotRegistered.selector);
+    parameterFactory.deployMarket(constructorParameters);
+
+    archController.registerBorrower(address(0));
+    constructorParameters.borrowerPrincipal = address(0);
+
+    vm.expectRevert(IMarketEventsAndErrors.BorrowerPrincipalNotRegistered.selector);
+    parameterFactory.deployMarket(constructorParameters);
+  }
+
   // ===================================================================== //
   //                          coverageLiquidity()                          //
   // ===================================================================== //

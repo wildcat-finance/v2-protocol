@@ -20,7 +20,21 @@ description: It's dangerous to go alone - learn these.
 
 * Both:
   * The counterparty that wishes to make use of a credit facility through a Wildcat [market](Terminology.md#market), and
-  * The blockchain address that defines the parameters of a market and deploys [hooks instances](Terminology.md#hooks_instance) and market contracts that use them.
+  * In older or informal usage, the blockchain address that operates a market.
+* In v2.5 contract interfaces, distinguish the [operational borrower](Terminology.md#operational-borrower) from the [borrower principal](Terminology.md#borrower-principal) instead of assuming they are always the same address.
+
+#### **Borrower Account**
+
+* A contract account associated with one current [borrower principal](Terminology.md#borrower-principal) through the borrower identity registry. The principal may change through a two-step transfer.
+* May be the [operational borrower](Terminology.md#operational-borrower) for one or more markets.
+* A principal may have several accounts. Delegate policy belongs to the account, not to the market or identity registry.
+
+#### **Borrower Principal**
+
+* The registered legal borrower identity associated with a v2.5 market.
+* Returned by `market.borrowerPrincipal()`.
+* Used as the lender-facing sanctions and new-escrow namespace.
+* May differ from the [operational borrower](Terminology.md#operational-borrower) when a recognized contract account operates the market.
 
 #### **Capacity**
 
@@ -131,6 +145,12 @@ description: It's dangerous to go alone - learn these.
 * Can only be redeemed by authorised lender addresses (not necessarily the same one that received the market tokens initially).
 * Name and symbol prefixes are customisable in market creation, prepending to the name and symbol of the underlying asset.
 
+#### **Operational Borrower**
+
+* The exact address returned by `market.borrower()` and authorized for borrower-only market actions.
+* May be the registered [borrower principal](Terminology.md#borrower-principal) directly or a recognized [Borrower Account](Terminology.md#borrower-account).
+* Can change through the v2.5 two-step borrower-transfer flow without moving or resetting market accounting state.
+
 #### **Outstanding Supply**
 
 * The amount of market tokens not currently queued for withdrawal.
@@ -226,4 +246,3 @@ description: It's dangerous to go alone - learn these.
 * The request is recorded as a scaled amount. Those scaled tokens are removed from the lender's balance immediately, but remain in the market's total supply until liquidity is reserved to pay the batch.
 * When liquidity is reserved for a batch, the corresponding scaled [market tokens](Terminology.md#market-token) are burned and the underlying assets are moved to the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool), to be [claimed](Terminology.md#claim) after expiry.
 * Any amount requested - whether or not it is in excess of the market reserves - is marked as a [pending withdrawal](Terminology.md#pending-withdrawal), either to be fully honoured at the end of the cycle, or marked as [expired](Terminology.md#expired-withdrawal) and added to the [withdrawal queue](Terminology.md#withdrawal-queue), depending on the actions of the [borrower](Terminology.md#borrower) during the cycle.
-

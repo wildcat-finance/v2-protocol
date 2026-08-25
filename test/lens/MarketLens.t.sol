@@ -18,7 +18,9 @@ import 'src/lens/MarketLensLive.sol';
 import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
 import 'src/lens/MarketLens.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { AccessListRoleProvider } from 'src/providers/AccessListRoleProvider.sol';
 import 'src/IHooksFactory.sol';
+import 'src/interfaces/IBorrowerIdentityRegistry.sol';
 
 enum FuzzConditions {
   Default,
@@ -53,12 +55,70 @@ contract MockV1MarketLike {
   }
 }
 
+contract MarketVersionProbeHarness {
+  function isV2(address target) external view returns (bool) {
+    return MarketDataLib._isV2Market(target);
+  }
+}
+
+contract HooksKindProbeHarness {
+  function kindForHooks(address target) external view returns (HooksInstanceKind) {
+    return HooksConfigDataLib.kindForHooks(target);
+  }
+}
+
+contract EmptyMarketVersion {
+  function version() external pure returns (string memory) {
+    return '';
+  }
+}
+
+contract LongMarketVersion {
+  function version() external pure returns (string memory) {
+    return 'This hooks version is deliberately longer than one word';
+  }
+}
+
+contract RevertingMarketVersion {
+  error VersionReadFailed();
+
+  function version() external pure returns (string memory) {
+    revert VersionReadFailed();
+  }
+}
+
+contract ShortMarketVersion {
+  fallback() external {
+    assembly ('memory-safe') {
+      mstore(0, 0x20)
+      mstore(0x20, 1)
+      return(0, 0x40)
+    }
+  }
+}
+
 contract HooksInstanceDataHarness {
   function fill(
     address hooksAddress,
     IHooksFactory factory
   ) external view returns (HooksInstanceData memory data) {
-    data.fill(hooksAddress, factory);
+    HooksInstanceKind kind = HooksConfigDataLib.kindForHooks(hooksAddress);
+    data.fill(hooksAddress, factory, address(0), kind);
+  }
+}
+
+contract MarketLensBorrowerAccount {}
+
+contract MarketLensBorrowerAccountFactory {
+  IBorrowerIdentityRegistry public immutable registry;
+
+  constructor(address registry_) {
+    registry = IBorrowerIdentityRegistry(registry_);
+  }
+
+  function deployAccount(address principal) external returns (address account) {
+    account = address(new MarketLensBorrowerAccount());
+    registry.registerBorrowerAccount(account, principal);
   }
 }
 
@@ -105,6 +165,60 @@ contract MarketDataTest is BaseMarketTest {
 
     vm.expectRevert(MarketLens.NotV2Market.selector);
     lens.getMarketData(address(v1Market));
+  }
+
+  function test_versionProbe_handlesV2V1AndEmptyVersions() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    assertTrue(harness.isV2(address(market)), 'v2');
+    assertFalse(harness.isV2(address(new MockV1MarketLike(address(asset)))), 'v1');
+    assertFalse(harness.isV2(address(new EmptyMarketVersion())), 'empty');
+  }
+
+  function test_versionProbe_rejectsShortDynamicData() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    ShortMarketVersion target = new ShortMarketVersion();
+    vm.expectRevert();
+    harness.isV2(address(target));
+  }
+
+  function test_versionProbe_bubblesRevertData() external {
+    MarketVersionProbeHarness harness = new MarketVersionProbeHarness();
+    RevertingMarketVersion target = new RevertingMarketVersion();
+    vm.expectRevert(RevertingMarketVersion.VersionReadFailed.selector);
+    harness.isV2(address(target));
+  }
+
+  function test_hooksKindProbe_handlesKnownEmptyAndLongVersions() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    assertEq(
+      uint8(harness.kindForHooks(address(hooks))),
+      uint8(HooksInstanceKind.OpenTerm),
+      'known'
+    );
+    assertEq(
+      uint8(harness.kindForHooks(address(new EmptyMarketVersion()))),
+      uint8(HooksInstanceKind.Unknown),
+      'empty'
+    );
+    assertEq(
+      uint8(harness.kindForHooks(address(new LongMarketVersion()))),
+      uint8(HooksInstanceKind.Unknown),
+      'long'
+    );
+  }
+
+  function test_hooksKindProbe_rejectsShortDynamicData() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    ShortMarketVersion target = new ShortMarketVersion();
+    vm.expectRevert();
+    harness.kindForHooks(address(target));
+  }
+
+  function test_hooksKindProbe_bubblesRevertData() external {
+    HooksKindProbeHarness harness = new HooksKindProbeHarness();
+    RevertingMarketVersion target = new RevertingMarketVersion();
+    vm.expectRevert(RevertingMarketVersion.VersionReadFailed.selector);
+    harness.kindForHooks(address(target));
   }
 
   /// Every function in the aggregator section of the facade must forward to
@@ -349,6 +463,89 @@ contract MarketDataTest is BaseMarketTest {
     assertEq(data.market.originalAnnualInterestBips, 0, 'originalAnnualInterestBips');
     assertEq(data.market.originalReserveRatioBips, 0, 'originalReserveRatioBips');
     assertEq(data.market.temporaryReserveRatioExpiry, 0, 'temporaryReserveRatioExpiry');
+  }
+
+  function test_getMarketDataV2_tracksBorrowerTransferWithoutRelabelingHooks() external {
+    MarketLensBorrowerAccountFactory accountFactory = new MarketLensBorrowerAccountFactory(
+      address(borrowerIdentityRegistry)
+    );
+    borrowerIdentityRegistry.addAccountFactory(address(accountFactory));
+    address nextBorrower = accountFactory.deployAccount(borrower);
+
+    vm.prank(borrower);
+    market.requestBorrowerTransfer(nextBorrower);
+
+    MarketDataV2_5 memory pendingData = lens.getMarketDataV2(address(market));
+    assertEq(pendingData.market.borrower, borrower, 'pending market borrower');
+    assertEq(pendingData.borrowerPrincipal, borrower, 'pending market principal');
+    assertEq(pendingData.pendingBorrower, nextBorrower, 'pending borrower');
+    assertEq(pendingData.pendingBorrowerPrincipal, borrower, 'pending borrower principal');
+    assertEq(
+      pendingData.borrowerIdentityRegistry,
+      address(borrowerIdentityRegistry),
+      'identity registry'
+    );
+    assertEq(pendingData.market.hooks.administrator, borrower, 'pending hook administrator');
+
+    vm.prank(nextBorrower);
+    market.acceptBorrowerTransfer();
+
+    MarketDataV2_5 memory acceptedData = lens.getMarketDataV2(address(market));
+    assertEq(acceptedData.market.borrower, nextBorrower, 'accepted market borrower');
+    assertEq(acceptedData.borrowerPrincipal, borrower, 'accepted market principal');
+    assertEq(acceptedData.pendingBorrower, address(0), 'accepted pending borrower');
+    assertEq(
+      acceptedData.pendingBorrowerPrincipal,
+      address(0),
+      'accepted pending borrower principal'
+    );
+    assertEq(
+      acceptedData.borrowerIdentityRegistry,
+      address(borrowerIdentityRegistry),
+      'accepted identity registry'
+    );
+    assertEq(acceptedData.market.hooks.administrator, borrower, 'accepted hook administrator');
+  }
+
+  function test_getMarketDataV2_tracksSameAccountPrincipalMigration() external {
+    MarketLensBorrowerAccountFactory accountFactory = new MarketLensBorrowerAccountFactory(
+      address(borrowerIdentityRegistry)
+    );
+    borrowerIdentityRegistry.addAccountFactory(address(accountFactory));
+    address account = accountFactory.deployAccount(borrower);
+    address newPrincipal = address(0xB0B);
+    archController.registerBorrower(newPrincipal);
+
+    vm.prank(borrower);
+    market.requestBorrowerTransfer(account);
+    vm.prank(account);
+    market.acceptBorrowerTransfer();
+
+    vm.prank(borrower);
+    borrowerIdentityRegistry.requestBorrowerAccountPrincipalTransfer(account, newPrincipal);
+    vm.prank(newPrincipal);
+    borrowerIdentityRegistry.acceptBorrowerAccountPrincipalTransfer(account);
+    vm.prank(account);
+    market.requestBorrowerTransfer(account);
+
+    MarketDataV2_5 memory pendingData = lens.getMarketDataV2(address(market));
+    assertEq(pendingData.market.borrower, account, 'pending market borrower');
+    assertEq(pendingData.borrowerPrincipal, borrower, 'pending market principal');
+    assertEq(pendingData.pendingBorrower, account, 'pending borrower');
+    assertEq(pendingData.pendingBorrowerPrincipal, newPrincipal, 'pending borrower principal');
+
+    vm.prank(account);
+    market.acceptBorrowerTransfer();
+
+    MarketDataV2_5 memory acceptedData = lens.getMarketDataV2(address(market));
+    assertEq(acceptedData.market.borrower, account, 'accepted market borrower');
+    assertEq(acceptedData.borrowerPrincipal, newPrincipal, 'accepted market principal');
+    assertEq(acceptedData.pendingBorrower, address(0), 'accepted pending borrower');
+    assertEq(
+      acceptedData.pendingBorrowerPrincipal,
+      address(0),
+      'accepted pending borrower principal'
+    );
   }
 
   function test_coreDelegation_forAccountAndWithdrawalReads() external {
@@ -656,6 +853,18 @@ contract MarketDataTest is BaseMarketTest {
       provider.pullProviderIndex(),
       string.concat(labelPrefix, ' pullProviderIndex')
     );
+    assertEq(
+      data.pushProviderIndex,
+      provider.pushProviderIndex(),
+      string.concat(labelPrefix, ' pushProviderIndex')
+    );
+    assertFalse(data.isManaged, string.concat(labelPrefix, ' isManaged'));
+    assertEq(data.administrator, address(0), string.concat(labelPrefix, ' administrator'));
+    assertEq(
+      data.pendingAdministrator,
+      address(0),
+      string.concat(labelPrefix, ' pendingAdministrator')
+    );
   }
 
   function checkPullProviders(RoleProviderData[] memory datas) internal view {
@@ -670,7 +879,8 @@ contract MarketDataTest is BaseMarketTest {
     MarketConfigFuzzInputs memory inputs
   ) internal {
     assertEq(data.hooksAddress, address(hooks), 'hooksAddress');
-    assertEq(data.borrower, borrower, 'borrower');
+    assertEq(data.administrator, borrower, 'administrator');
+    assertEq(data.pendingAdministrator, address(0), 'pendingAdministrator');
     assertEq(
       uint256(data.kind),
       inputs.isOpenTermHooks
@@ -928,7 +1138,7 @@ contract MarketDataTest is BaseMarketTest {
     );
     assertEq(uint256(data.hooks.kind), uint256(HooksInstanceKind.PeriodicTerm), 'hooks kind');
     assertEq(data.hooks.hooksAddress, address(fixture.hooks), 'hooks instance address');
-    assertEq(data.hooks.borrower, borrower, 'hooks borrower');
+    assertEq(data.hooks.administrator, borrower, 'hooks administrator');
     assertEq(data.hooks.totalMarkets, 1, 'hooks totalMarkets');
     assertEq(
       data.hooksConfig.firstWithdrawalWindowStart,
@@ -965,7 +1175,7 @@ contract MarketDataTest is BaseMarketTest {
       if (data[i].hooksAddress == address(fixture.hooks)) {
         found = true;
         assertEq(uint256(data[i].kind), uint256(HooksInstanceKind.PeriodicTerm), 'periodic kind');
-        assertEq(data[i].borrower, borrower, 'periodic borrower');
+        assertEq(data[i].administrator, borrower, 'periodic administrator');
         assertEq(data[i].hooksTemplate.hooksTemplate, fixture.template, 'periodic template');
         assertEq(data[i].hooksTemplate.name, 'PeriodicTermHooks', 'periodic template name');
         HooksDeploymentConfig deploymentConfig = fixture.hooks.config();
@@ -985,13 +1195,50 @@ contract MarketDataTest is BaseMarketTest {
     assertTrue(found, 'periodic hooks instance not found');
   }
 
-  function test_HooksInstanceDataFill_readsBorrowerWhenNotProvided() external {
+  function test_HooksInstanceDataFill_readsAdministratorWhenNotProvided() external {
     HooksInstanceDataHarness harness = new HooksInstanceDataHarness();
 
     HooksInstanceData memory data = harness.fill(address(hooks), hooksFactory);
 
     assertEq(data.hooksAddress, address(hooks), 'hooksAddress');
-    assertEq(data.borrower, borrower, 'borrower');
+    assertEq(data.administrator, borrower, 'administrator');
+    assertEq(data.pendingAdministrator, address(0), 'pendingAdministrator');
+  }
+
+  function test_HooksInstanceDataFill_readsPendingAdministrator() external {
+    address nextAdministrator = address(0xB0B);
+    archController.registerBorrower(nextAdministrator);
+    vm.prank(borrower);
+    hooks.requestAdministratorTransfer(nextAdministrator);
+
+    HooksInstanceDataHarness harness = new HooksInstanceDataHarness();
+    HooksInstanceData memory data = harness.fill(address(hooks), hooksFactory);
+
+    assertEq(data.administrator, borrower, 'administrator');
+    assertEq(data.pendingAdministrator, nextAdministrator, 'pendingAdministrator');
+  }
+
+  function test_HooksInstanceDataFill_readsManagedProviderAdministration() external {
+    AccessListRoleProvider provider = new AccessListRoleProvider(borrower, new address[](0));
+    vm.prank(borrower);
+    hooks.addRoleProvider(address(provider), 7 days);
+
+    address newAdministrator = address(0xB0B);
+    vm.prank(borrower);
+    provider.requestAdministratorTransfer(newAdministrator);
+
+    HooksInstanceDataHarness harness = new HooksInstanceDataHarness();
+    HooksInstanceData memory data = harness.fill(address(hooks), hooksFactory);
+    RoleProviderData memory providerData = data.pullProviders[data.pullProviders.length - 1];
+
+    assertEq(providerData.providerAddress, address(provider), 'provider');
+    assertTrue(providerData.isManaged, 'isManaged');
+    assertEq(providerData.administrator, borrower, 'provider administrator');
+    assertEq(
+      providerData.pendingAdministrator,
+      newAdministrator,
+      'provider pending administrator'
+    );
   }
 
   function test_getMarketsData() external view {

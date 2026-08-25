@@ -44,10 +44,12 @@ picker or mode switch in an embedded build.
 
 EOA mode sends one plan transaction at a time, persists progress by exact
 plan-file hash, re-verifies completed predicates on resume, and halts on any
-failure. The Sepolia plan includes the helper-owner reclaim and compensating
-ownership return as its first and last cards. Plan schema 1.1 records the
-mandatory `deploy` Foundry profile and exact ABI constructor types; the browser
-does not infer ABI types from JSON values.
+failure. The first Sepolia deployment uses three separately locked authority
+packages before activation. The replacement helper remains ArchController owner
+throughout the activation plan, so activation has no reclaim or compensating
+ownership-return card. Plan schema 1.1 records the mandatory `deploy` Foundry
+profile and exact ABI constructor types; the browser does not infer ABI types
+from JSON values.
 
 Safe mode also loads every `bundle-N.manifest.json` plus
 `expected-addresses.json`. Before wallet interaction, it independently rebuilds
@@ -99,8 +101,10 @@ node scripts/plan.js ceremony-package \
 
 Serve or upload `deploy-ui/dist/` as ordinary static files. Relative asset URLs
 allow hosting at any path. Publish the full ceremony digest and short fingerprint
-through the release's independent review channel. After all predicates are green,
-export `run-state-<release>.json` and pass it unchanged to step 08:
+through the release's independent review channel. After all predicates are
+green, export `run-state-<release>.json` unchanged. The UI names the next
+staging command for the three Anvil authority packages and activation. A normal
+release activation passes its run-state to step 08:
 
 ```bash
 export RUN_STATE=/path/to/run-state-v2-5.json

@@ -3,6 +3,7 @@ pragma solidity >=0.8.19;
 
 import 'forge-std/Test.sol';
 import 'src/WildcatArchController.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 import 'src/HooksFactoryRevolving.sol';
 import 'src/libraries/LibStoredInitCode.sol';
 import 'src/market/WildcatMarket.sol';
@@ -17,10 +18,12 @@ import { MockSanctionsSentinel } from '../shared/mocks/MockSanctionsSentinel.sol
 import { deployMockChainalysis } from '../shared/mocks/MockChainalysis.sol';
 
 contract WildcatMarketRevolvingTest is Test {
+  using stdStorage for StdStorage;
   using MathUtils for uint256;
   using FeeMath for MarketState;
 
   WildcatArchController internal archController;
+  WildcatBorrowerIdentityRegistry internal borrowerIdentityRegistry;
   HooksFactoryRevolving internal hooksFactoryRevolving;
   MockSanctionsSentinel internal sanctionsSentinel;
   MockERC20 internal underlying;
@@ -51,6 +54,7 @@ contract WildcatMarketRevolvingTest is Test {
     borrower = address(this);
     deployMockChainalysis();
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
     sanctionsSentinel = new MockSanctionsSentinel(address(archController));
     (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
     hooksFactoryRevolving = new HooksFactoryRevolving(
@@ -58,7 +62,8 @@ contract WildcatMarketRevolvingTest is Test {
       address(sanctionsSentinel),
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(hooksFactoryRevolving));
     hooksFactoryRevolving.registerWithArchController();
@@ -94,7 +99,7 @@ contract WildcatMarketRevolvingTest is Test {
       params,
       bytes(''),
       abi.encode(uint8(1), commitmentFeeBips),
-      bytes32(uint256(1)),
+      bytes32((uint256(uint160(borrower)) << 96) | uint256(1)),
       address(0),
       0
     );
@@ -153,7 +158,7 @@ contract WildcatMarketRevolvingTest is Test {
       params,
       bytes(''),
       abi.encode(uint8(1), targetCommitmentFeeBips),
-      bytes32(nextScenarioSalt++),
+      bytes32((uint256(uint160(borrower)) << 96) | nextScenarioSalt++),
       address(0),
       0
     );
@@ -291,8 +296,35 @@ contract WildcatMarketRevolvingTest is Test {
     assertEq(revolvingMarket.drawnAmount(), 0);
   }
 
+  function test_borrowerPrincipal_initializesToBorrower() external view {
+    assertEq(market.borrowerPrincipal(), borrower);
+  }
+
+  function test_borrowerTransfer_preservesDrawnAmountAndStorageSlot() external {
+    _deposit(lender, 1_000e18);
+    market.borrow(400e18);
+    uint256 drawnAmountSlot = stdstore
+      .target(address(revolvingMarket))
+      .sig(IWildcatMarketRevolving.drawnAmount.selector)
+      .find();
+    bytes32 drawnAmountSlotBefore = vm.load(address(market), bytes32(drawnAmountSlot));
+    address newBorrower = address(0xB0B);
+    archController.registerBorrower(newBorrower);
+
+    market.requestBorrowerTransfer(newBorrower);
+    vm.prank(newBorrower);
+    market.acceptBorrowerTransfer();
+
+    assertEq(market.borrower(), newBorrower);
+    assertEq(market.borrowerPrincipal(), newBorrower);
+    assertEq(revolvingMarket.drawnAmount(), 400e18);
+    assertEq(vm.load(address(market), bytes32(drawnAmountSlot)), drawnAmountSlotBefore);
+  }
+
   function test_borrow_updatesDrawnAmount() external {
     _deposit(lender, 1_000e18);
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(0, 400e18);
     market.borrow(400e18);
     assertEq(revolvingMarket.drawnAmount(), 400e18);
   }
@@ -301,9 +333,13 @@ contract WildcatMarketRevolvingTest is Test {
     _deposit(lender, 1_000e18);
     market.borrow(400e18);
 
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 150e18);
     market.repay(250e18);
     assertEq(revolvingMarket.drawnAmount(), 150e18);
 
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(150e18, 0);
     market.repay(1_000e18);
     assertEq(revolvingMarket.drawnAmount(), 0);
   }
@@ -312,11 +348,34 @@ contract WildcatMarketRevolvingTest is Test {
     _deposit(lender, 1_000e18);
     market.borrow(400e18);
 
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 0);
     market.repay(600e18);
     assertEq(revolvingMarket.drawnAmount(), 0);
 
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(0, 200e18);
     market.borrow(400e18);
     assertEq(revolvingMarket.drawnAmount(), 200e18);
+  }
+
+  function test_borrow_LargeDonationDoesNotWrapDrawnAmount() external {
+    MockERC20 targetUnderlying = new MockERC20('Large Supply', 'MAX', 18);
+    (
+      WildcatMarket targetMarket,
+      IWildcatMarketRevolving targetRevolvingMarket
+    ) = _deployRevolvingMarket(targetUnderlying, 1_000, annualInterestBips, commitmentFeeBips);
+    _deposit(targetMarket, targetUnderlying, lender, 1_000);
+
+    targetMarket.borrow(500);
+    targetUnderlying.transfer(address(targetMarket), 500);
+    targetUnderlying.mint(address(targetMarket), type(uint256).max - 1_000);
+
+    targetMarket.borrow(type(uint256).max - 499);
+
+    assertEq(targetMarket.totalAssets(), 499, 'assets after borrow');
+    assertEq(targetMarket.totalDebts(), 1_000, 'debt after borrow');
+    assertEq(targetRevolvingMarket.drawnAmount(), 501, 'drawn amount must clamp without wrapping');
   }
 
   function test_repay_interestOnlyDoesNotReduceDrawnAmount() external {
@@ -328,9 +387,15 @@ contract WildcatMarketRevolvingTest is Test {
     uint256 accruedDebt = _accruedDebtAboveDrawn();
     assertGt(accruedDebt, 0);
 
+    vm.recordLogs();
     market.repay(accruedDebt);
 
     assertEq(revolvingMarket.drawnAmount(), drawnBefore);
+    bytes32 drawnAmountUpdatedTopic = keccak256('DrawnAmountUpdated(uint256,uint256)');
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    for (uint256 i; i < logs.length; i++) {
+      assertTrue(logs[i].topics[0] != drawnAmountUpdatedTopic, 'unexpected drawn amount event');
+    }
   }
 
   function test_repay_reducesDrawnAmountOnlyAfterAccruedDebt() external {
@@ -341,6 +406,8 @@ contract WildcatMarketRevolvingTest is Test {
     uint256 accruedDebt = _accruedDebtAboveDrawn();
     uint256 principalRepayment = 123e18;
 
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(500e18, 500e18 - principalRepayment);
     market.repay(accruedDebt + principalRepayment);
 
     assertEq(revolvingMarket.drawnAmount(), 500e18 - principalRepayment);
@@ -350,6 +417,8 @@ contract WildcatMarketRevolvingTest is Test {
     _deposit(lender, 1_000e18);
     market.borrow(400e18);
 
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 300e18);
     market.repayAndProcessUnpaidWithdrawalBatches(100e18, 0);
     assertEq(revolvingMarket.drawnAmount(), 300e18);
   }
@@ -365,9 +434,15 @@ contract WildcatMarketRevolvingTest is Test {
     uint256 accruedDebt = _accruedDebtAboveDrawn();
     assertGt(accruedDebt, 0);
 
+    vm.recordLogs();
     market.repayAndProcessUnpaidWithdrawalBatches(accruedDebt, 0);
 
     assertEq(revolvingMarket.drawnAmount(), drawnBefore);
+    bytes32 drawnAmountUpdatedTopic = keccak256('DrawnAmountUpdated(uint256,uint256)');
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    for (uint256 i; i < logs.length; i++) {
+      assertTrue(logs[i].topics[0] != drawnAmountUpdatedTopic, 'unexpected drawn amount event');
+    }
   }
 
   function test_closeMarket_resetsDrawnAmount() external {
@@ -376,6 +451,8 @@ contract WildcatMarketRevolvingTest is Test {
 
     uint256 owed = market.totalDebts() - market.totalAssets();
     underlying.mint(borrower, owed);
+    vm.expectEmit(address(market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 0);
     market.closeMarket();
 
     assertEq(revolvingMarket.drawnAmount(), 0);
@@ -538,7 +615,11 @@ contract WildcatMarketRevolvingTest is Test {
     _deposit(lender, 1_000e18);
 
     // Force drawnAmount > totalSupply so utilization is clamped to 100%.
-    vm.store(address(market), bytes32(uint256(10)), bytes32(uint256(2_000e18)));
+    uint256 drawnAmountSlot = stdstore
+      .target(address(revolvingMarket))
+      .sig(IWildcatMarketRevolving.drawnAmount.selector)
+      .find();
+    vm.store(address(market), bytes32(drawnAmountSlot), bytes32(uint256(2_000e18)));
 
     vm.warp(block.timestamp + 365 days);
     market.updateState();

@@ -53,13 +53,20 @@ contract RevertingHooks is MockHooks {
 
   function onExecuteWithdrawal(
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData
   ) external override {
     if (shouldRevert) revert OnExecuteWithdrawalReverted();
     lastCalldataHash = keccak256(msg.data);
-    emit OnExecuteWithdrawalCalled(lender, normalizedAmountWithdrawn, intermediateState, extraData);
+    emit OnExecuteWithdrawalCalled(
+      lender,
+      expiry,
+      normalizedAmountWithdrawn,
+      intermediateState,
+      extraData
+    );
   }
 
   function onTransfer(

@@ -3,6 +3,7 @@ pragma solidity >=0.8.19;
 
 import 'forge-std/Test.sol';
 import 'src/WildcatArchController.sol';
+import 'src/WildcatBorrowerIdentityRegistry.sol';
 import 'src/HooksFactoryRevolving.sol';
 import 'src/IHooksFactoryRevolving.sol';
 import 'src/libraries/LibStoredInitCode.sol';
@@ -22,8 +23,10 @@ contract BrokenHooksTemplate {
 
 contract HooksFactoryRevolvingTest is Test, Assertions {
   WildcatArchController archController;
+  WildcatBorrowerIdentityRegistry borrowerIdentityRegistry;
   IHooksFactoryRevolving hooksFactoryRevolving;
   address hooksTemplate;
+  address marketTemplate;
   MockERC20 underlying = new MockERC20('Underlying', 'UND', 18);
 
   address internal constant nullAddress = address(0);
@@ -40,16 +43,27 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     initCodeStorage = LibStoredInitCode.deployInitCode(marketInitCode);
   }
 
+  function _marketSalt(uint96 nonce) internal view returns (bytes32) {
+    return _marketSaltFor(address(this), nonce);
+  }
+
+  function _marketSaltFor(address deployer, uint96 nonce) internal pure returns (bytes32) {
+    return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
+  }
+
   function setUp() public {
     archController = new WildcatArchController();
+    borrowerIdentityRegistry = new WildcatBorrowerIdentityRegistry(address(archController));
 
-    (address marketTemplate, uint256 marketInitCodeHash) = _storeMarketInitCode();
+    uint256 marketInitCodeHash;
+    (marketTemplate, marketInitCodeHash) = _storeMarketInitCode();
     hooksFactoryRevolving = new HooksFactoryRevolving(
       address(archController),
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      marketInitCodeHash
+      marketInitCodeHash,
+      address(borrowerIdentityRegistry)
     );
     hooksTemplate = LibStoredInitCode.deployInitCode(type(MockHooks).creationCode);
     archController.registerControllerFactory(address(hooksFactoryRevolving));
@@ -81,6 +95,11 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
   function test_nameAndRegistrationWiring() external view {
     assertEq(hooksFactoryRevolving.name(), 'WildcatHooksFactoryRevolving');
     assertEq(hooksFactoryRevolving.archController(), address(archController));
+    assertEq(
+      hooksFactoryRevolving.borrowerIdentityRegistry(),
+      address(borrowerIdentityRegistry)
+    );
+    assertEq(hooksFactoryRevolving.marketInitCodeStorage(), marketTemplate);
     assertTrue(archController.isRegisteredControllerFactory(address(hooksFactoryRevolving)));
     assertTrue(archController.isRegisteredController(address(hooksFactoryRevolving)));
   }
@@ -90,6 +109,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     vm.expectEmit(address(hooksFactoryRevolving));
     emit IHooksFactoryEventsAndErrors.HooksTemplateAdded(
       hooksTemplate,
+      address(this),
       name_,
       nullAddress,
       nullAddress,
@@ -214,9 +234,14 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     vm.expectEmit(address(hooksFactoryRevolving));
     emit IHooksFactoryEventsAndErrors.HooksTemplateFeesUpdated(
       hooksTemplate,
+      address(this),
+      nullAddress,
       feeRecipient,
+      nullAddress,
       originationFeeAsset,
+      0,
       originationFeeAmount,
+      0,
       protocolFeeBips
     );
     hooksFactoryRevolving.updateHooksTemplateFees(
@@ -318,7 +343,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     );
 
     vm.expectEmit(address(hooksFactoryRevolving));
-    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(hooksTemplate);
+    emit IHooksFactoryEventsAndErrors.HooksTemplateDisabled(hooksTemplate, address(this));
     hooksFactoryRevolving.disableHooksTemplate(hooksTemplate);
 
     HooksTemplate memory details = hooksFactoryRevolving.getHooksTemplateDetails(hooksTemplate);
@@ -437,7 +462,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes('hook-data'),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -456,23 +481,103 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
 
     address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
     DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+    HooksDeploymentConfig deploymentConfig = encodeHooksDeploymentConfig(
+      EmptyHooksConfig,
+      EmptyHooksConfig.setFlag(Bit_Enabled_Borrow)
+    );
+    MockHooks(hooksInstance).setConfig(deploymentConfig);
+    HooksConfig expectedConfig = parameters.hooks.setFlag(Bit_Enabled_Borrow);
     bytes memory hooksData = abi.encodePacked(bytes1(0xAB), bytes('hook-bytes'));
+    address expectedMarket = hooksFactoryRevolving.computeMarketAddress(_marketSalt(1));
+
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryEventsAndErrors.MarketDeployed(
+      hooksTemplate,
+      hooksInstance,
+      expectedMarket,
+      address(this),
+      address(this),
+      address(borrowerIdentityRegistry),
+      'Wildcat Underlying',
+      'wcUND',
+      address(underlying),
+      parameters.hooks,
+      expectedConfig
+    );
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
+      expectedMarket,
+      parameters.maxTotalSupply,
+      parameters.annualInterestBips,
+      parameters.delinquencyFeeBips,
+      parameters.withdrawalBatchDuration,
+      parameters.reserveRatioBips,
+      parameters.delinquencyGracePeriod,
+      nullAddress,
+      0,
+      nullAddress,
+      0
+    );
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryEventsAndErrors.MarketHooksData(expectedMarket, hooksData);
+    vm.expectEmit(address(hooksFactoryRevolving));
+    emit IHooksFactoryRevolving.RevolvingMarketDeployed(
+      expectedMarket,
+      defaultCommitmentFeeBips
+    );
 
     address market = hooksFactoryRevolving.deployMarket(
       parameters,
       hooksData,
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
 
+    assertEq(market, expectedMarket);
     assertTrue(archController.isRegisteredMarket(market));
     assertEq(hooksFactoryRevolving.getMarketsForHooksTemplateCount(hooksTemplate), 1);
     assertEq(hooksFactoryRevolving.getMarketsForHooksInstanceCount(hooksInstance), 1);
 
     bytes memory observedHooksData = MockHooks(hooksInstance).lastCreateMarketHooksData();
     assertEq(observedHooksData, hooksData);
+  }
+
+  function test_deployMarket_ExistingInstanceRemainsAvailableWhenTemplateDisabled() external {
+    hooksFactoryRevolving.addHooksTemplate(
+      hooksTemplate,
+      'revolving-template',
+      nullAddress,
+      nullAddress,
+      0,
+      0
+    );
+    archController.registerBorrower(address(this));
+    address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
+    hooksFactoryRevolving.disableHooksTemplate(hooksTemplate);
+    DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
+
+    address market = hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      _marketSalt(1),
+      nullAddress,
+      0
+    );
+
+    assertTrue(archController.isRegisteredMarket(market), 'market not registered');
+    assertEq(
+      hooksFactoryRevolving.getMarketsForHooksTemplateCount(hooksTemplate),
+      1,
+      'template count'
+    );
+    assertEq(
+      hooksFactoryRevolving.getMarketsForHooksInstanceCount(hooksInstance),
+      1,
+      'instance count'
+    );
   }
 
   function test_deployMarket_NameOrSymbolTooLong() external {
@@ -495,7 +600,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -508,7 +613,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -522,7 +627,8 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       sanctionsSentinel,
       address(this),
       marketTemplate,
-      uint256(keccak256('stale revolving market init code hash'))
+      uint256(keccak256('stale revolving market init code hash')),
+      address(borrowerIdentityRegistry)
     );
     archController.registerControllerFactory(address(badFactory));
     badFactory.registerWithArchController();
@@ -544,7 +650,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -567,7 +673,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -582,7 +688,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -611,6 +717,16 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       nullAddress,
       0
     );
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+    hooksFactoryRevolving.deployMarket(
+      parameters,
+      bytes(''),
+      _defaultMarketData(),
+      bytes32(uint256(123)),
+      nullAddress,
+      0
+    );
   }
 
   function test_deployMarket_PaysOriginationFee() external {
@@ -634,7 +750,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       address(underlying),
       feeAmount
     );
@@ -661,7 +777,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       address(underlying),
       122
     );
@@ -686,7 +802,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -704,7 +820,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     archController.registerBorrower(address(this));
     address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
     DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
-    bytes32 salt = bytes32(uint256(1));
+    bytes32 salt = _marketSalt(1);
 
     hooksFactoryRevolving.deployMarket(
       parameters,
@@ -744,7 +860,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       bytes(''),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -769,7 +885,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       badLengthPayload,
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -793,7 +909,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       abi.encode(uint8(2), defaultCommitmentFeeBips),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -817,7 +933,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       abi.encode(uint8(1), uint16(10_001)),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -843,7 +959,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       bytes(''),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -868,7 +984,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -886,7 +1002,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -936,7 +1052,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes('hook-data'),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -967,7 +1083,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -975,7 +1091,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(2)),
+      _marketSalt(2),
       nullAddress,
       0
     );
@@ -1040,7 +1156,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -1087,7 +1203,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -1165,7 +1281,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(1)),
+      _marketSalt(1),
       nullAddress,
       0
     );
@@ -1173,7 +1289,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
       parameters,
       bytes(''),
       _defaultMarketData(),
-      bytes32(uint256(2)),
+      _marketSalt(2),
       nullAddress,
       0
     );
@@ -1312,7 +1428,7 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
 
     address hooksInstance = hooksFactoryRevolving.deployHooksInstance(hooksTemplate, bytes(''));
     DeployMarketInputs memory parameters = _defaultDeployMarketInputs(hooksInstance);
-    bytes32 salt = bytes32(uint256(123));
+    bytes32 salt = _marketSalt(123);
 
     address expected = hooksFactoryRevolving.computeMarketAddress(salt);
     address deployed = hooksFactoryRevolving.deployMarket(
@@ -1325,6 +1441,24 @@ contract HooksFactoryRevolvingTest is Test, Assertions {
     );
 
     assertEq(deployed, expected);
+  }
+
+  function test_computeMarketAddress_RequiresExplicitNonZeroPrefix() external {
+    address alice = address(0xA11CE);
+    address bob = address(0xB0B);
+    bytes32 zeroPrefixSalt = bytes32(uint256(123));
+    bytes32 aliceScopedSalt = _marketSaltFor(alice, 123);
+
+    vm.expectRevert(IHooksFactoryEventsAndErrors.SaltDoesNotContainSender.selector);
+    vm.prank(alice);
+    hooksFactoryRevolving.computeMarketAddress(zeroPrefixSalt);
+
+    vm.prank(alice);
+    address aliceMarket = hooksFactoryRevolving.computeMarketAddress(aliceScopedSalt);
+    vm.prank(bob);
+    address aliceMarketPredictedByBob = hooksFactoryRevolving.computeMarketAddress(aliceScopedSalt);
+
+    assertEq(aliceMarket, aliceMarketPredictedByBob, 'explicit salts remain publicly predictable');
   }
 
   function test_getRevolvingMarketCommitmentFeeBips_OutsideDeploymentContextReverts() external {

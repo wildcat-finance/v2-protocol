@@ -19,17 +19,27 @@ pragma solidity >=0.8.20;
 import { console } from 'forge-std/console.sol';
 
 import { IHooksFactory } from 'src/IHooksFactory.sol';
+import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegistry.sol';
 
 import '../../common/DeployScriptBase.sol';
 
 contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
   string internal constant MARKET_ARTIFACT = 'src/market/WildcatMarket.sol:WildcatMarket';
   string internal constant FACTORY_ARTIFACT = 'src/HooksFactory.sol:HooksFactory';
+  string internal constant IDENTITY_REGISTRY_ARTIFACT =
+    'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry';
+  string internal constant ACCESS_LIST_FACTORY_ARTIFACT =
+    'src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory';
   string internal constant INIT_CODE_STORAGE_ARTIFACT =
     'script/common/DeployScriptBase.sol:InitCodeStorage';
 
   string internal constant WRAPPER_ENTRY_ID = 'deploy-wildcat-4626-wrapper-factory';
   string internal constant WRAPPER_OUTPUT = 'wildcat-4626-wrapper-factory';
+  string internal constant IDENTITY_REGISTRY_ENTRY_ID = 'deploy-borrower-identity-registry';
+  string internal constant IDENTITY_REGISTRY_OUTPUT = 'borrower-identity-registry';
+  string internal constant ACCESS_LIST_FACTORY_ENTRY_ID =
+    'deploy-access-list-role-provider-factory';
+  string internal constant ACCESS_LIST_FACTORY_OUTPUT = 'access-list-role-provider-factory';
   string internal constant STORAGE_ENTRY_ID = 'deploy-wildcat-market-init-code-storage';
   string internal constant STORAGE_OUTPUT = 'wildcat-market-init-code-storage';
   string internal constant FACTORY_ENTRY_ID = 'deploy-hooks-factory-standard';
@@ -49,6 +59,7 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     address archController,
     address sanctionsSentinel,
     address wrapperFactory,
+    address borrowerIdentityRegistry,
     address initCodeStorage,
     uint256 initCodeHash
   ) internal view {
@@ -76,6 +87,13 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     _verifyAddressCall(
       factory,
       label,
+      'borrowerIdentityRegistry',
+      abi.encodeWithSelector(IHooksFactory.borrowerIdentityRegistry.selector),
+      borrowerIdentityRegistry
+    );
+    _verifyAddressCall(
+      factory,
+      label,
       'marketInitCodeStorage',
       abi.encodeWithSelector(IHooksFactory.marketInitCodeStorage.selector),
       initCodeStorage
@@ -93,10 +111,45 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     Deployments memory deployments,
     DeploymentInputs memory inputs
   ) internal {
+    string[] memory registryAfter = new string[](1);
+    registryAfter[0] = WRAPPER_ENTRY_ID;
+    DeployPlanEntry memory registryEntry;
+    registryEntry.sequence = 2;
+    registryEntry.id = IDENTITY_REGISTRY_ENTRY_ID;
+    registryEntry.artifactName = IDENTITY_REGISTRY_ARTIFACT;
+    registryEntry.decodedConstructorArgs = string.concat(
+      '[',
+      _quoted(vm.toString(inputs.archController)),
+      ']'
+    );
+    registryEntry.output = IDENTITY_REGISTRY_OUTPUT;
+    registryEntry.description = 'Deploy the v2.5 borrower identity registry.';
+    registryEntry.predicate = _planCallEqPredicate(
+      IDENTITY_REGISTRY_OUTPUT,
+      'archController() view returns (address)',
+      '[]',
+      _quoted(vm.toString(inputs.archController))
+    );
+    registryEntry.afterEntries = registryAfter;
+    _planEntry(deployments, registryEntry);
+
+    string[] memory accessListFactoryAfter = new string[](1);
+    accessListFactoryAfter[0] = IDENTITY_REGISTRY_ENTRY_ID;
+    DeployPlanEntry memory accessListFactoryEntry;
+    accessListFactoryEntry.sequence = 3;
+    accessListFactoryEntry.id = ACCESS_LIST_FACTORY_ENTRY_ID;
+    accessListFactoryEntry.artifactName = ACCESS_LIST_FACTORY_ARTIFACT;
+    accessListFactoryEntry.decodedConstructorArgs = '[]';
+    accessListFactoryEntry.output = ACCESS_LIST_FACTORY_OUTPUT;
+    accessListFactoryEntry.description = 'Deploy the v2.5 access-list role-provider factory.';
+    accessListFactoryEntry.predicate = _planCodePresentPredicate(ACCESS_LIST_FACTORY_OUTPUT);
+    accessListFactoryEntry.afterEntries = accessListFactoryAfter;
+    _planEntry(deployments, accessListFactoryEntry);
+
     string[] memory storageAfter = new string[](1);
-    storageAfter[0] = WRAPPER_ENTRY_ID;
+    storageAfter[0] = ACCESS_LIST_FACTORY_ENTRY_ID;
     DeployPlanEntry memory storageEntry;
-    storageEntry.sequence = 2;
+    storageEntry.sequence = 4;
     storageEntry.id = STORAGE_ENTRY_ID;
     storageEntry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
     storageEntry.decodedConstructorArgs = string.concat(
@@ -113,7 +166,7 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     string[] memory factoryAfter = new string[](1);
     factoryAfter[0] = STORAGE_ENTRY_ID;
     DeployPlanEntry memory factoryEntry;
-    factoryEntry.sequence = 3;
+    factoryEntry.sequence = 5;
     factoryEntry.id = FACTORY_ENTRY_ID;
     factoryEntry.artifactName = FACTORY_ARTIFACT;
     factoryEntry.decodedConstructorArgs = string.concat(
@@ -127,6 +180,8 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       _ref(STORAGE_OUTPUT),
       ',',
       _quoted(vm.toString(bytes32(inputs.initCodeHash))),
+      ',',
+      _ref(IDENTITY_REGISTRY_OUTPUT),
       ']'
     );
     factoryEntry.output = FACTORY_OUTPUT;
@@ -146,11 +201,41 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     string memory networkName,
     string memory storageLabel,
     address initCodeStorage,
+    string memory identityRegistryLabel,
+    address borrowerIdentityRegistry,
+    string memory accessListFactoryLabel,
+    address accessListRoleProviderFactory,
     string memory factoryLabel,
     address factory,
     address wrapperFactory,
     uint256 initCodeHash
   ) internal {
+    string memory identityRegistryRecord = string.concat(
+      '{"recordType":"deployment","role":"identityRegistry","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(identityRegistryLabel),
+      ',"address":',
+      _quoted(vm.toString(borrowerIdentityRegistry)),
+      '}'
+    );
+    _inventoryRecord(deployments, 2, identityRegistryLabel, identityRegistryRecord);
+
+    string memory accessListFactoryRecord = string.concat(
+      '{"recordType":"deployment","role":"roleProviderFactory","providerKind":"ACCESS_LIST","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(accessListFactoryLabel),
+      ',"address":',
+      _quoted(vm.toString(accessListRoleProviderFactory)),
+      '}'
+    );
+    _inventoryRecord(deployments, 3, accessListFactoryLabel, accessListFactoryRecord);
+
     string memory storageRecord = string.concat(
       '{"recordType":"initCodeStorage","network":',
       _quoted(networkName),
@@ -164,7 +249,7 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       '}'
     );
-    _inventoryRecord(deployments, 2, storageLabel, storageRecord);
+    _inventoryRecord(deployments, 4, storageLabel, storageRecord);
 
     string memory factoryRecord = string.concat(
       '{"recordType":"hooksFactory","network":',
@@ -177,13 +262,15 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       _quoted(vm.toString(factory)),
       ',"wrapperFactory":',
       _quoted(vm.toString(wrapperFactory)),
+      ',"borrowerIdentityRegistry":',
+      _quoted(vm.toString(borrowerIdentityRegistry)),
       ',"initCodeStorage":',
       _quoted(vm.toString(initCodeStorage)),
       ',"initCodeHash":',
       _quoted(vm.toString(bytes32(initCodeHash))),
       ',"canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 3, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 5, factoryLabel, factoryRecord);
   }
 
   function _writePlanInventoryRecords(
@@ -191,6 +278,34 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     string memory networkName,
     uint256 initCodeHash
   ) internal {
+    string memory identityRegistryLabel = _label('WildcatBorrowerIdentityRegistry');
+    string memory identityRegistryRecord = string.concat(
+      '{"recordType":"deployment","role":"identityRegistry","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(identityRegistryLabel),
+      ',"address":',
+      _ref(IDENTITY_REGISTRY_OUTPUT),
+      '}'
+    );
+    _inventoryRecord(deployments, 2, identityRegistryLabel, identityRegistryRecord);
+
+    string memory accessListFactoryLabel = _label('AccessListRoleProviderFactory');
+    string memory accessListFactoryRecord = string.concat(
+      '{"recordType":"deployment","role":"roleProviderFactory","providerKind":"ACCESS_LIST","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(accessListFactoryLabel),
+      ',"address":',
+      _ref(ACCESS_LIST_FACTORY_OUTPUT),
+      '}'
+    );
+    _inventoryRecord(deployments, 3, accessListFactoryLabel, accessListFactoryRecord);
+
     string memory storageLabel = _label('WildcatMarket_initCodeStorage');
     string memory storageRecord = string.concat(
       '{"recordType":"initCodeStorage","network":',
@@ -205,7 +320,7 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       _quoted(vm.toString(bytes32(initCodeHash))),
       '}'
     );
-    _inventoryRecord(deployments, 2, storageLabel, storageRecord);
+    _inventoryRecord(deployments, 4, storageLabel, storageRecord);
 
     string memory factoryLabel = _label('HooksFactory');
     string memory factoryRecord = string.concat(
@@ -219,13 +334,15 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       _ref(FACTORY_OUTPUT),
       ',"wrapperFactory":',
       _ref(WRAPPER_OUTPUT),
+      ',"borrowerIdentityRegistry":',
+      _ref(IDENTITY_REGISTRY_OUTPUT),
       ',"initCodeStorage":',
       _ref(STORAGE_OUTPUT),
       ',"initCodeHash":',
       _quoted(vm.toString(bytes32(initCodeHash))),
       ',"registerEntryId":"register-hooks-factory-standard","canonicalIntent":true}'
     );
-    _inventoryRecord(deployments, 3, factoryLabel, factoryRecord);
+    _inventoryRecord(deployments, 5, factoryLabel, factoryRecord);
   }
 
   function _runDirect(
@@ -234,8 +351,32 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     DeploymentInputs memory inputs
   ) internal {
     _assertEip1153Supported();
+    string memory identityRegistryLabel = _label('WildcatBorrowerIdentityRegistry');
     string memory storageLabel = _label('WildcatMarket_initCodeStorage');
     string memory factoryLabel = _label('HooksFactory');
+    (address borrowerIdentityRegistry, bool didDeployIdentityRegistry) = _getOrDeployByLabel(
+      deployments,
+      identityRegistryLabel,
+      IDENTITY_REGISTRY_ARTIFACT,
+      _getCreationCode(deployments, IDENTITY_REGISTRY_ARTIFACT),
+      abi.encode(inputs.archController)
+    );
+    _verifyAddressCall(
+      borrowerIdentityRegistry,
+      identityRegistryLabel,
+      'archController',
+      abi.encodeWithSelector(IBorrowerIdentityRegistry.archController.selector),
+      inputs.archController
+    );
+    string memory accessListFactoryLabel = _label('AccessListRoleProviderFactory');
+    (address accessListRoleProviderFactory, bool didDeployAccessListFactory) = _getOrDeployByLabel(
+      deployments,
+      accessListFactoryLabel,
+      ACCESS_LIST_FACTORY_ARTIFACT,
+      _getCreationCode(deployments, ACCESS_LIST_FACTORY_ARTIFACT),
+      abi.encode()
+    );
+    _requireCode(accessListRoleProviderFactory, accessListFactoryLabel);
     (address initCodeStorage, bool didDeployStorage) = _getOrDeployInitCodeStorageByLabel(
       deployments,
       storageLabel,
@@ -247,7 +388,8 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       inputs.sanctionsSentinel,
       inputs.wrapperFactory,
       initCodeStorage,
-      inputs.initCodeHash
+      inputs.initCodeHash,
+      borrowerIdentityRegistry
     );
     bytes memory factoryCreationCode = _getCreationCode(deployments, FACTORY_ARTIFACT);
     (address factory, bool didDeployFactory) = _getOrDeployByLabel(
@@ -263,6 +405,7 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       inputs.archController,
       inputs.sanctionsSentinel,
       inputs.wrapperFactory,
+      borrowerIdentityRegistry,
       initCodeStorage,
       inputs.initCodeHash
     );
@@ -274,12 +417,18 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       networkName,
       storageLabel,
       initCodeStorage,
+      identityRegistryLabel,
+      borrowerIdentityRegistry,
+      accessListFactoryLabel,
+      accessListRoleProviderFactory,
       factoryLabel,
       factory,
       inputs.wrapperFactory,
       inputs.initCodeHash
     );
 
+    console.log('Did deploy WildcatBorrowerIdentityRegistry:', didDeployIdentityRegistry);
+    console.log('Did deploy AccessListRoleProviderFactory:', didDeployAccessListFactory);
     console.log('Did deploy WildcatMarket init-code storage:', didDeployStorage);
     console.log('Did deploy HooksFactory:', didDeployFactory);
   }
@@ -299,6 +448,7 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
       'SANCTIONS_SENTINEL'
     );
     inputs.marketCreationCode = _getCreationCode(deployments, MARKET_ARTIFACT);
+    _requireInitCodeStoragePayloadFits(inputs.marketCreationCode, MARKET_ARTIFACT);
     inputs.initCodeHash = uint256(keccak256(inputs.marketCreationCode));
 
     if (_isPlanMode(ownerMode)) {

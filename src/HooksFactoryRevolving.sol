@@ -11,6 +11,9 @@ import './access/IHooks.sol';
 import './IHooksFactoryRevolving.sol';
 import './types/TransientBytesArray.sol';
 import './spherex/SphereXProtectedRegisteredBase.sol';
+import './access/IHooksAdministrator.sol';
+import './interfaces/IBorrowerIdentityRegistry.sol';
+import './types/RoleProvider.sol';
 
 struct TmpRevolvingMarketParameterStorage {
   address borrower;
@@ -37,6 +40,8 @@ struct TmpRevolvingMarketParameterStorage {
  */
 struct DeployRevolvingMarketRuntimeParameters {
   address hooksTemplate;
+  address borrowerPrincipal;
+  HooksConfig requestedHooks;
   bytes32 salt;
   address originationFeeAsset;
   uint256 originationFeeAmount;
@@ -54,6 +59,9 @@ contract HooksFactoryRevolving is
     TransientBytesArray.wrap(
       uint256(keccak256('Transient:TmpRevolvingMarketParameterStorage')) - 1
     );
+
+  uint256 internal constant _TMP_BORROWER_PRINCIPAL_SLOT =
+    uint256(keccak256('Transient:TmpBorrowerPrincipal')) - 1;
 
   TransientBytesArray internal constant _tmpRevolvingMarketData =
     TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketData')) - 1);
@@ -75,6 +83,8 @@ contract HooksFactoryRevolving is
 
   address public immutable override wrapperFactory;
 
+  address public immutable override borrowerIdentityRegistry;
+
   /**
    * @dev Return the contract name "WildcatHooksFactoryRevolving"
    */
@@ -84,8 +94,22 @@ contract HooksFactoryRevolving is
 
   address[] internal _hooksTemplates;
 
-  /// @dev Mapping from borrower to their deployed hooks instances
-  mapping(address borrower => address[] hooksInstances) internal _hooksInstancesByBorrower;
+  /// @dev Hooks instances currently administered by each address.
+  mapping(address administrator => address[] hooksInstances)
+    internal _hooksInstancesByAdministrator;
+
+  /// @dev Current administrator for each hooks instance deployed by this factory.
+  mapping(address hooksInstance => address administrator)
+    public
+    override getHooksAdministrator;
+
+  /// @dev Position of each hooks instance in its administrator's array.
+  mapping(address hooksInstance => uint256 index) internal _hooksInstanceIndex;
+
+  /// @dev Monotonic deployment nonce used in hook CREATE2 salts.
+  mapping(address administrator => uint256 nonce)
+    public
+    override getHooksInstanceDeploymentNonce;
 
   /**
    * @dev Mapping from hooks template to markets created with it.
@@ -113,13 +137,15 @@ contract HooksFactoryRevolving is
     address _sanctionsSentinel,
     address _wrapperFactory,
     address _marketInitCodeStorage,
-    uint256 _marketInitCodeHash
+    uint256 _marketInitCodeHash,
+    address _borrowerIdentityRegistry
   ) {
     marketInitCodeStorage = _marketInitCodeStorage;
     marketInitCodeHash = _marketInitCodeHash;
     _archController = archController_;
     sanctionsSentinel = _sanctionsSentinel;
     wrapperFactory = _wrapperFactory;
+    borrowerIdentityRegistry = _borrowerIdentityRegistry;
     __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
   }
 
@@ -160,6 +186,20 @@ contract HooksFactoryRevolving is
     _tmpMarketParameters.write(abi.encode(parameters));
   }
 
+  function _getTmpBorrowerPrincipal() internal view returns (address principal) {
+    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
+    assembly {
+      principal := tload(slot)
+    }
+  }
+
+  function _setTmpBorrowerPrincipal(address principal) internal {
+    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
+    assembly {
+      tstore(slot, principal)
+    }
+  }
+
   /**
    * @dev Set the temporary commitment fee in transient storage.
    */
@@ -183,6 +223,17 @@ contract HooksFactoryRevolving is
       revert CallerNotArchControllerOwner();
     }
     _;
+  }
+
+  function _resolveBorrowerPrincipal(
+    address borrower
+  ) internal view returns (address principal) {
+    (bool success, bytes memory returnData) = borrowerIdentityRegistry.staticcall(
+      abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower))
+    );
+    if (!success || returnData.length != 0x20) revert NotApprovedBorrower();
+    principal = abi.decode(returnData, (address));
+    if (principal == address(0)) revert NotApprovedBorrower();
   }
 
   // ========================================================================== //
@@ -214,6 +265,7 @@ contract HooksFactoryRevolving is
     _hooksTemplates.push(hooksTemplate);
     emit HooksTemplateAdded(
       hooksTemplate,
+      msg.sender,
       name_,
       feeRecipient,
       originationFeeAsset,
@@ -257,15 +309,24 @@ contract HooksFactoryRevolving is
     }
     _validateFees(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
     HooksTemplate storage template = _templateDetails[hooksTemplate];
+    address previousFeeRecipient = template.feeRecipient;
+    address previousOriginationFeeAsset = template.originationFeeAsset;
+    uint80 previousOriginationFeeAmount = template.originationFeeAmount;
+    uint16 previousProtocolFeeBips = template.protocolFeeBips;
     template.feeRecipient = feeRecipient;
     template.originationFeeAsset = originationFeeAsset;
     template.originationFeeAmount = originationFeeAmount;
     template.protocolFeeBips = protocolFeeBips;
     emit HooksTemplateFeesUpdated(
       hooksTemplate,
+      msg.sender,
+      previousFeeRecipient,
       feeRecipient,
+      previousOriginationFeeAsset,
       originationFeeAsset,
+      previousOriginationFeeAmount,
       originationFeeAmount,
+      previousProtocolFeeBips,
       protocolFeeBips
     );
   }
@@ -277,7 +338,7 @@ contract HooksFactoryRevolving is
     // The template is only disabled, not removed: `exists` stays true, so it
     // can not be re-added and there is no re-enable path.
     _templateDetails[hooksTemplate].enabled = false;
-    emit HooksTemplateDisabled(hooksTemplate);
+    emit HooksTemplateDisabled(hooksTemplate, msg.sender);
   }
 
   function getHooksTemplateDetails(
@@ -345,29 +406,104 @@ contract HooksFactoryRevolving is
   // ========================================================================== //
 
   /// @dev Deploy a hooks instance for an approved template with constructor args.
-  ///      Callable by approved borrowers on the arch-controller.
+  ///      Hooks are deployed and indexed under the caller's resolved principal.
   ///      Origination fees are not charged here; they are paid when a market
   ///      is deployed with the instance.
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
   ) external override nonReentrant returns (address hooksInstance) {
-    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
-      revert NotApprovedBorrower();
+    address administrator = _resolveBorrowerPrincipal(msg.sender);
+    hooksInstance = _deployHooksInstance(administrator, hooksTemplate, constructorArgs);
+  }
+
+  function getHooksInstancesForAdministrator(
+    address administrator
+  ) external view override returns (address[] memory) {
+    return _hooksInstancesByAdministrator[administrator];
+  }
+
+  function getHooksInstancesForAdministrator(
+    address administrator,
+    uint256 start,
+    uint256 end
+  ) external view override returns (address[] memory arr) {
+    address[] storage hooksInstances = _hooksInstancesByAdministrator[administrator];
+    end = MathUtils.min(end, hooksInstances.length);
+    if (start >= end) return new address[](0);
+    uint256 count = end - start;
+    arr = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      arr[i] = hooksInstances[start + i];
     }
-    hooksInstance = _deployHooksInstance(hooksTemplate, constructorArgs);
+  }
+
+  function getHooksInstancesCountForAdministrator(
+    address administrator
+  ) external view override returns (uint256) {
+    return _hooksInstancesByAdministrator[administrator].length;
   }
 
   function getHooksInstancesForBorrower(
     address borrower
   ) external view override returns (address[] memory) {
-    return _hooksInstancesByBorrower[borrower];
+    return _hooksInstancesByAdministrator[borrower];
   }
 
   function getHooksInstancesCountForBorrower(
     address borrower
   ) external view override returns (uint256) {
-    return _hooksInstancesByBorrower[borrower].length;
+    return _hooksInstancesByAdministrator[borrower].length;
+  }
+
+  /**
+   * @dev Moves a hooks instance to its new administrator's array. Removal uses
+   *      swap-and-pop, so an administrator's enumeration is not ordered.
+   */
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external override nonReentrant {
+    address hooksInstance = msg.sender;
+    if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+    if (
+      previousAdministrator == newAdministrator ||
+      newAdministrator == address(0) ||
+      getHooksAdministrator[hooksInstance] != previousAdministrator ||
+      IHooksAdministrator(hooksInstance).administrator() != newAdministrator ||
+      IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0) ||
+      !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
+    ) {
+      revert InvalidHooksAdministrator();
+    }
+
+    address[] storage previousHooksInstances = _hooksInstancesByAdministrator[
+      previousAdministrator
+    ];
+    uint256 indexToRemove = _hooksInstanceIndex[hooksInstance];
+    uint256 previousCount = previousHooksInstances.length;
+    if (indexToRemove >= previousCount || previousHooksInstances[indexToRemove] != hooksInstance) {
+      revert InvalidHooksInstanceAssociation();
+    }
+    uint256 lastIndex = previousCount - 1;
+    if (indexToRemove != lastIndex) {
+      address movedHooksInstance = previousHooksInstances[lastIndex];
+      previousHooksInstances[indexToRemove] = movedHooksInstance;
+      _hooksInstanceIndex[movedHooksInstance] = indexToRemove;
+    }
+    previousHooksInstances.pop();
+
+    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[newAdministrator].length;
+    _hooksInstancesByAdministrator[newAdministrator].push(hooksInstance);
+    getHooksAdministrator[hooksInstance] = newAdministrator;
+
+    emit HooksInstanceAdministratorTransferred(
+      hooksInstance,
+      previousAdministrator,
+      newAdministrator
+    );
   }
 
   function isHooksInstance(address hooksInstance) external view override returns (bool) {
@@ -375,6 +511,7 @@ contract HooksFactoryRevolving is
   }
 
   function _deployHooksInstance(
+    address administrator,
     address hooksTemplate,
     bytes calldata constructorArgs
   ) internal returns (address hooksInstance) {
@@ -386,17 +523,17 @@ contract HooksFactoryRevolving is
       revert HooksTemplateNotAvailable();
     }
 
-    uint256 numHooksForBorrower = _hooksInstancesByBorrower[msg.sender].length;
+    uint256 deploymentNonce = getHooksInstanceDeploymentNonce[administrator];
     bytes32 salt;
     assembly {
-      salt := or(shl(96, caller()), numHooksForBorrower)
+      salt := or(shl(96, administrator), deploymentNonce)
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(hooksTemplate), 1)
       // Copy code from target address to memory starting at byte 1
       extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
-      // Write the address of the caller as the first parameter
-      mstore(endInitCodePointer, caller())
+      // Write the administrator as the first parameter
+      mstore(endInitCodePointer, administrator)
       // Write the offset to the encoded constructor args
       mstore(add(endInitCodePointer, 0x20), 0x40)
       // Write the length of the encoded constructor args
@@ -413,9 +550,30 @@ contract HooksFactoryRevolving is
         revert(0x1c, 0x04)
       }
     }
-    _hooksInstancesByBorrower[msg.sender].push(hooksInstance);
+    getHooksInstanceDeploymentNonce[administrator] = deploymentNonce + 1;
+    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[administrator].length;
+    _hooksInstancesByAdministrator[administrator].push(hooksInstance);
+    getHooksAdministrator[hooksInstance] = administrator;
 
-    emit HooksInstanceDeployed(hooksInstance, hooksTemplate);
+    emit HooksInstanceDeployed(
+      hooksInstance,
+      hooksTemplate,
+      administrator,
+      msg.sender,
+      getHooksInstanceString(hooksInstance, bytes4(keccak256('name()'))),
+      getHooksInstanceString(hooksInstance, IHooks.version.selector)
+    );
+    (
+      bool metadataAvailable,
+      RoleProvider[] memory pullProviders,
+      RoleProvider[] memory pushProviders
+    ) = getHooksInstanceRoleProviders(hooksInstance);
+    emit HooksInstanceRoleProviders(
+      hooksInstance,
+      metadataAvailable,
+      pullProviders,
+      pushProviders
+    );
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
 
@@ -482,9 +640,12 @@ contract HooksFactoryRevolving is
     parameters.archController = _archController;
     parameters.sphereXEngine = sphereXEngine();
     parameters.hooks = tmp.hooks;
+    parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
+    parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
   }
 
   function computeMarketAddress(bytes32 salt) external view override returns (address) {
+    if (bytes20(salt) == bytes20(0)) revert SaltDoesNotContainSender();
     return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
   }
 
@@ -531,6 +692,44 @@ contract HooksFactoryRevolving is
     commitmentFeeBips = decodedCommitmentFeeBips;
   }
 
+  function _emitMarketDeployment(
+    address market,
+    string memory name,
+    string memory symbol,
+    TmpRevolvingMarketParameterStorage memory tmp,
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams,
+    bytes calldata hooksData
+  ) internal {
+    emit MarketDeployed(
+      runtimeParams.hooksTemplate,
+      runtimeParams.requestedHooks.hooksAddress(),
+      market,
+      tmp.borrower,
+      runtimeParams.borrowerPrincipal,
+      borrowerIdentityRegistry,
+      name,
+      symbol,
+      tmp.asset,
+      runtimeParams.requestedHooks,
+      tmp.hooks
+    );
+    emit MarketDeploymentConfig(
+      market,
+      tmp.maxTotalSupply,
+      tmp.annualInterestBips,
+      tmp.delinquencyFeeBips,
+      tmp.withdrawalBatchDuration,
+      tmp.reserveRatioBips,
+      tmp.delinquencyGracePeriod,
+      tmp.feeRecipient,
+      tmp.protocolFeeBips,
+      runtimeParams.originationFeeAsset,
+      runtimeParams.originationFeeAmount
+    );
+    emit MarketHooksData(market, hooksData);
+    emit RevolvingMarketDeployed(market, runtimeParams.commitmentFeeBips);
+  }
+
   function _deployMarket(
     DeployMarketInputs memory parameters,
     bytes calldata hooksData,
@@ -546,10 +745,7 @@ contract HooksFactoryRevolving is
     }
     address hooksInstance = parameters.hooks.hooksAddress();
 
-    if (
-      !(address(bytes20(runtimeParams.salt)) == msg.sender ||
-        bytes20(runtimeParams.salt) == bytes20(0))
-    ) {
+    if (address(bytes20(runtimeParams.salt)) != msg.sender) {
       revert SaltDoesNotContainSender();
     }
 
@@ -575,7 +771,7 @@ contract HooksFactoryRevolving is
     );
 
     parameters.hooks = IHooks(hooksInstance).onCreateMarket(
-      msg.sender,
+      runtimeParams.borrowerPrincipal,
       market,
       parameters,
       hooksData
@@ -609,6 +805,7 @@ contract HooksFactoryRevolving is
     }
 
     _setTmpMarketParameters(tmp);
+    _setTmpBorrowerPrincipal(runtimeParams.borrowerPrincipal);
     _setTmpCommitmentFeeBips(runtimeParams.commitmentFeeBips);
 
     if (market.code.length != 0) {
@@ -624,25 +821,13 @@ contract HooksFactoryRevolving is
     IWildcatArchController(_archController).registerMarket(market);
 
     _tmpMarketParameters.setEmpty();
+    _setTmpBorrowerPrincipal(address(0));
     _tmpRevolvingMarketData.setEmpty();
 
     _marketsByHooksTemplate[runtimeParams.hooksTemplate].push(market);
     _marketsByHooksInstance[hooksInstance].push(market);
 
-    emit MarketDeployed(
-      runtimeParams.hooksTemplate,
-      market,
-      name,
-      symbol,
-      tmp.asset,
-      tmp.maxTotalSupply,
-      tmp.annualInterestBips,
-      tmp.delinquencyFeeBips,
-      tmp.withdrawalBatchDuration,
-      tmp.reserveRatioBips,
-      tmp.delinquencyGracePeriod,
-      tmp.hooks
-    );
+    _emitMarketDeployment(market, name, symbol, tmp, runtimeParams, hooksData);
   }
 
   /**
@@ -662,9 +847,7 @@ contract HooksFactoryRevolving is
     address originationFeeAsset,
     uint256 originationFeeAmount
   ) external override nonReentrant returns (address market) {
-    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
-      revert NotApprovedBorrower();
-    }
+    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
     uint16 commitmentFeeBips = _decodeMarketData(marketData);
     address hooksTemplate = getHooksTemplateForInstance[parameters.hooks.hooksAddress()];
     if (hooksTemplate == address(0)) {
@@ -673,6 +856,8 @@ contract HooksFactoryRevolving is
     DeployRevolvingMarketRuntimeParameters
       memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
         hooksTemplate: hooksTemplate,
+        borrowerPrincipal: borrowerPrincipal,
+        requestedHooks: parameters.hooks,
         salt: salt,
         originationFeeAsset: originationFeeAsset,
         originationFeeAmount: originationFeeAmount,
@@ -691,21 +876,26 @@ contract HooksFactoryRevolving is
     address originationFeeAsset,
     uint256 originationFeeAmount
   ) external override nonReentrant returns (address market, address hooksInstance) {
-    if (!IWildcatArchController(_archController).isRegisteredBorrower(msg.sender)) {
-      revert NotApprovedBorrower();
-    }
+    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
     DeployRevolvingMarketRuntimeParameters
       memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
         hooksTemplate: hooksTemplate,
+        borrowerPrincipal: borrowerPrincipal,
+        requestedHooks: parameters.hooks,
         salt: salt,
         originationFeeAsset: originationFeeAsset,
         originationFeeAmount: originationFeeAmount,
         commitmentFeeBips: _decodeMarketData(marketData)
       });
     // `_deployHooksInstance` reverts if the template does not exist or is disabled.
-    hooksInstance = _deployHooksInstance(hooksTemplate, hooksConstructorArgs);
+    hooksInstance = _deployHooksInstance(
+      borrowerPrincipal,
+      hooksTemplate,
+      hooksConstructorArgs
+    );
     DeployMarketInputs memory marketInputs = parameters;
     marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
+    runtimeParams.requestedHooks = marketInputs.hooks;
     market = _deployMarket(marketInputs, hooksData, runtimeParams);
   }
 

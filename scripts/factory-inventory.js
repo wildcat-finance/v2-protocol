@@ -9,6 +9,8 @@ const INVENTORY_SCHEMA_VERSION = "1.1.0";
 const INVENTORY_FILE_NAME = "factory-inventory.json";
 const DEFAULT_MARKET_TYPES = ["legacy", "revolving"];
 const LIFECYCLES = new Set(["canonical", "live", "retired"]);
+const AUTHORITY_HELPER_FORWARD_SIGNATURE =
+  "executeProtocolAction(address,bytes)";
 
 const HOOK_FACTORY_FIELDS = new Set([
   "label",
@@ -73,7 +75,15 @@ function printUsage() {
     [--input <path>] [--deployments <path>] [--handoff <path>] [--output <path>]
   node scripts/factory-inventory.js deactivation-targets --network <name>
     [--input <path>] [--exclude <address,address>]
+  node scripts/factory-inventory.js retirement-entries --network <name>
+    --expected-executor <address> [--input <path>] [--deployments <path>]
+  node scripts/factory-inventory.js validate-activation-plan --network <name>
+    --plan <path>
+  node scripts/factory-inventory.js validate-retirement-plan --network <name>
+    --plan <path> [--input <path>] [--deployments <path>]
   node scripts/factory-inventory.js apply-run --network <name> --run-state <path>
+    [--plan <path>] [--rpc-url <url>] [--input <path>] [--deployments <path>]
+  node scripts/factory-inventory.js apply-retirement --network <name> --run-state <path>
     [--plan <path>] [--rpc-url <url>] [--input <path>] [--deployments <path>]
 
 Defaults:
@@ -291,6 +301,15 @@ function addressKey(address) {
   return address.toLowerCase();
 }
 
+function logicalCall(transaction) {
+  if (!transaction || transaction.kind === "deploy") return null;
+  return transaction.forwardedCall || {
+    target: transaction.to,
+    functionSignature: transaction.functionSignature,
+    args: transaction.args,
+  };
+}
+
 function getFactoryDeactivationTargets(inventory, excludedAddresses = []) {
   const excluded = new Set(excludedAddresses.map(addressKey));
   return inventory.hooksFactories
@@ -299,6 +318,55 @@ function getFactoryDeactivationTargets(inventory, excludedAddresses = []) {
         entry.registered === true && !excluded.has(addressKey(entry.address))
     )
     .map((entry) => ({ factory: entry.address, label: entry.label }));
+}
+
+function getFactoryRetirementTargets(inventory) {
+  return inventory.hooksFactories
+    .filter(
+      (entry) =>
+        entry.registered === true &&
+        entry.lifecycle !== "canonical" &&
+        entry.canonical !== true
+    )
+    .map((entry) => ({ factory: entry.address, label: entry.label }));
+}
+
+function getPlanRetirementTargets(plan, inventory, archController) {
+  const targets = [];
+  const seen = new Set();
+  for (const transaction of plan.transactions || []) {
+    const call = logicalCall(transaction);
+    if (call?.functionSignature !== "removeControllerFactory(address)") {
+      continue;
+    }
+    const factory = call.args?.[0];
+    if (
+      !isAddress(call.target) ||
+      addressKey(call.target) !== addressKey(archController) ||
+      !isAddress(factory)
+    ) {
+      throw new Error(`Invalid retirement target in ${transaction.id}`);
+    }
+    const factoryKey = addressKey(factory);
+    if (seen.has(factoryKey)) {
+      throw new Error(`Duplicate retirement target ${factory}`);
+    }
+    seen.add(factoryKey);
+    const entry = inventory.hooksFactories.find(
+      (candidate) => addressKey(candidate.address) === factoryKey
+    );
+    if (!entry) {
+      throw new Error(`Retirement target ${factory} is missing from inventory`);
+    }
+    if (entry.lifecycle === "canonical" || entry.canonical === true) {
+      throw new Error(`Retirement plan targets canonical factory ${entry.label}`);
+    }
+    targets.push({ factory: entry.address, label: entry.label });
+  }
+  if (targets.length === 0) {
+    throw new Error("Retirement plan does not contain any factory targets");
+  }
+  return targets;
 }
 
 function recordFactoryDeactivations(inventory, targets) {
@@ -329,16 +397,15 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
   const controllerPredicate =
     "isRegisteredController(address) view returns (bool)";
   const controllerFactoryCalls = plan.transactions.filter(
-    (transaction) =>
-      transaction.functionSignature === controllerFactorySignature
+    (transaction) => logicalCall(transaction)?.functionSignature === controllerFactorySignature
   );
   const controllerCalls = plan.transactions.filter(
-    (transaction) => transaction.functionSignature === controllerSignature
+    (transaction) => logicalCall(transaction)?.functionSignature === controllerSignature
   );
 
   if (
     plan.transactions.some(
-      (transaction) => transaction.functionSignature === "removeMarket(address)"
+      (transaction) => logicalCall(transaction)?.functionSignature === "removeMarket(address)"
     )
   ) {
     throw new Error(
@@ -355,32 +422,20 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
     );
   }
 
-  const standardRegistrationIndex = plan.transactions.findIndex(
-    (transaction) => transaction.id === "register-hooks-factory-standard"
-  );
-  const revolvingRegistrationIndex = plan.transactions.findIndex(
-    (transaction) => transaction.id === "register-hooks-factory-revolving"
-  );
-  if (
-    standardRegistrationIndex === -1 ||
-    revolvingRegistrationIndex === -1 ||
-    standardRegistrationIndex >= revolvingRegistrationIndex
-  ) {
-    throw new Error(
-      "Plan must register the standard and revolving factories in order before deactivation"
-    );
-  }
-
   function assertRemoval(target, signature, predicateSignature) {
     const matches = plan.transactions
       .map((transaction, index) => ({ transaction, index }))
       .filter(
-        ({ transaction }) =>
-          transaction.functionSignature === signature &&
-          Array.isArray(transaction.args) &&
-          transaction.args.length === 1 &&
-          isAddress(transaction.args[0]) &&
-          addressKey(transaction.args[0]) === addressKey(target.factory)
+        ({ transaction }) => {
+          const call = logicalCall(transaction);
+          return (
+            call?.functionSignature === signature &&
+            Array.isArray(call.args) &&
+            call.args.length === 1 &&
+            isAddress(call.args[0]) &&
+            addressKey(call.args[0]) === addressKey(target.factory)
+          );
+        }
       );
     if (matches.length !== 1) {
       throw new Error(
@@ -388,10 +443,11 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
       );
     }
     const { transaction, index } = matches[0];
+    const call = logicalCall(transaction);
     const predicate = transaction.predicate;
     if (
-      !isAddress(transaction.to) ||
-      addressKey(transaction.to) !== addressKey(archController) ||
+      !isAddress(call.target) ||
+      addressKey(call.target) !== addressKey(archController) ||
       predicate?.type !== "callEq" ||
       !isAddress(predicate.target) ||
       addressKey(predicate.target) !== addressKey(archController) ||
@@ -420,14 +476,328 @@ function assertFactoryDeactivationPlan(plan, targets, archController) {
       controllerSignature,
       controllerPredicate
     );
-    if (
-      controllerFactoryIndex <= revolvingRegistrationIndex ||
-      controllerIndex <= controllerFactoryIndex
-    ) {
+    if (controllerIndex <= controllerFactoryIndex) {
       throw new Error(
         `Unsafe factory deactivation order for ${target.label} (${target.factory})`
       );
     }
+  }
+}
+
+function authorizedHelperContext(network, deployments = null) {
+  const ceremonyConfigPath = path.join(
+    "deployments",
+    network,
+    "ceremony-config.json"
+  );
+  if (!fs.existsSync(ceremonyConfigPath)) return null;
+
+  const ceremonyConfig = readJson(ceremonyConfigPath);
+  if (
+    ceremonyConfig.schemaVersion !== "2.0.0" ||
+    ceremonyConfig.ownership?.type !== "authorized-helper" ||
+    typeof ceremonyConfig.ownership.archControllerKey !== "string" ||
+    typeof ceremonyConfig.ownership.helperOwnerKey !== "string" ||
+    typeof ceremonyConfig.ownership.legacyHelperOwnerKey !== "string" ||
+    typeof ceremonyConfig.ownership.helperVersion !== "string" ||
+    !Array.isArray(ceremonyConfig.ownership.retainedAuthorizedAccounts) ||
+    ceremonyConfig.ownership.retainedAuthorizedAccounts.some(
+      (account) => !isAddress(account)
+    ) ||
+    new Set(
+      ceremonyConfig.ownership.retainedAuthorizedAccounts.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== ceremonyConfig.ownership.retainedAuthorizedAccounts.length ||
+    !Array.isArray(ceremonyConfig.ownership.revokedSphereXEngineOperators) ||
+    ceremonyConfig.ownership.revokedSphereXEngineOperators.some(
+      (account) => !isAddress(account)
+    ) ||
+    new Set(
+      ceremonyConfig.ownership.revokedSphereXEngineOperators.map((account) =>
+        account.toLowerCase()
+      )
+    ).size !== ceremonyConfig.ownership.revokedSphereXEngineOperators.length ||
+    !Array.isArray(ceremonyConfig.ownership.forwardedFunctionSignatures) ||
+    ceremonyConfig.ownership.forwardedFunctionSignatures.length === 0 ||
+    new Set(ceremonyConfig.ownership.forwardedFunctionSignatures).size !==
+      ceremonyConfig.ownership.forwardedFunctionSignatures.length
+  ) {
+    throw new Error(`Invalid authorized-helper ceremony config: ${ceremonyConfigPath}`);
+  }
+  const resolvedDeployments =
+    deployments ||
+    readJson(path.join("deployments", network, "deployments.json"));
+  const archController =
+    resolvedDeployments[ceremonyConfig.ownership.archControllerKey];
+  const helperOwner =
+    resolvedDeployments[ceremonyConfig.ownership.helperOwnerKey];
+  if (!isAddress(archController) || !isAddress(helperOwner)) {
+    throw new Error(
+      `Authorized-helper ceremony config references a missing deployment address: ${ceremonyConfigPath}`
+    );
+  }
+  return {
+    archController,
+    helperOwner,
+    forwardedFunctionSignatures:
+      ceremonyConfig.ownership.forwardedFunctionSignatures,
+  };
+}
+
+function assertAuthorizedHelperBoundary(plan, context) {
+  if (!context) return;
+  const forwardedSignatures = new Set(context.forwardedFunctionSignatures);
+  if (
+    !isAddress(plan.expectedExecutor) ||
+    plan.transactions.some(
+      (transaction) =>
+        transaction.id === "reclaim-arch-controller-ownership" ||
+        transaction.id === "restore-arch-controller-ownership" ||
+        transaction.reverifyUntil !== undefined
+    )
+  ) {
+    throw new Error(
+      "Authorized-helper plan must not contain temporary ownership transactions"
+    );
+  }
+  for (const transaction of plan.transactions) {
+    if (transaction.kind !== "call") continue;
+    const call = logicalCall(transaction);
+    const shouldForward = forwardedSignatures.has(call.functionSignature);
+    const isForwarded = transaction.forwardedCall !== undefined;
+    if (shouldForward !== isForwarded) {
+      throw new Error(
+        `${transaction.id}: authorized-helper forwarding does not match ceremony config`
+      );
+    }
+    if (
+      isForwarded &&
+      (!isAddress(transaction.to) ||
+        addressKey(transaction.to) !== addressKey(context.helperOwner) ||
+        transaction.functionSignature !== AUTHORITY_HELPER_FORWARD_SIGNATURE ||
+        transaction.args !== undefined)
+    ) {
+      throw new Error(
+        `${transaction.id}: invalid authorized-helper forwarding envelope`
+      );
+    }
+  }
+}
+
+function assertActivationPlan(plan, network) {
+  if (!Array.isArray(plan.transactions) || plan.network !== network) {
+    throw new Error(`Activation plan does not belong to network ${network}`);
+  }
+  if (typeof plan.release !== "string" || plan.release.endsWith("-retirement")) {
+    throw new Error("Activation plan must not use the retirement release suffix");
+  }
+  const forbiddenSignatures = new Set([
+    "removeControllerFactory(address)",
+    "removeController(address)",
+    "removeMarket(address)",
+  ]);
+  const forbidden = plan.transactions.find((transaction) =>
+    forbiddenSignatures.has(logicalCall(transaction)?.functionSignature)
+  );
+  if (forbidden) {
+    throw new Error(
+      `Activation plan must not retire factories or markets; found ${logicalCall(forbidden).functionSignature}`
+    );
+  }
+
+  const expectedTransactions = [
+    {
+      id: "deploy-wildcat-4626-wrapper-factory",
+      kind: "deploy",
+      artifactName:
+        "src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory",
+    },
+    {
+      id: "deploy-borrower-identity-registry",
+      kind: "deploy",
+      artifactName:
+        "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
+    },
+    {
+      id: "deploy-access-list-role-provider-factory",
+      kind: "deploy",
+      artifactName:
+        "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+    },
+    {
+      id: "deploy-wildcat-market-init-code-storage",
+      kind: "deploy",
+      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+    },
+    {
+      id: "deploy-hooks-factory-standard",
+      kind: "deploy",
+      artifactName: "src/HooksFactory.sol:HooksFactory",
+    },
+    {
+      id: "deploy-wildcat-market-revolving-init-code-storage",
+      kind: "deploy",
+      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+    },
+    {
+      id: "deploy-hooks-factory-revolving",
+      kind: "deploy",
+      artifactName: "src/HooksFactoryRevolving.sol:HooksFactoryRevolving",
+    },
+    {
+      id: "deploy-market-lens-core",
+      kind: "deploy",
+      artifactName: "src/lens/MarketLensCore.sol:MarketLensCore",
+    },
+    {
+      id: "deploy-market-lens-aggregator",
+      kind: "deploy",
+      artifactName: "src/lens/MarketLensAggregator.sol:MarketLensAggregator",
+    },
+    {
+      id: "deploy-market-lens-live",
+      kind: "deploy",
+      artifactName: "src/lens/MarketLensLive.sol:MarketLensLive",
+    },
+    {
+      id: "deploy-market-lens",
+      kind: "deploy",
+      artifactName: "src/lens/MarketLens.sol:MarketLens",
+    },
+    {
+      id: "deploy-open-term-hooks-init-code-storage",
+      kind: "deploy",
+      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+    },
+    {
+      id: "deploy-fixed-term-hooks-init-code-storage",
+      kind: "deploy",
+      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+    },
+    {
+      id: "deploy-periodic-term-hooks-init-code-storage",
+      kind: "deploy",
+      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+    },
+    {
+      id: "register-controller-factory-standard",
+      kind: "call",
+      functionSignature: "registerControllerFactory(address)",
+    },
+    {
+      id: "register-controller-factory-revolving",
+      kind: "call",
+      functionSignature: "registerControllerFactory(address)",
+    },
+    ...[
+      "add-standard-open-term-template",
+      "add-standard-fixed-term-template",
+      "add-standard-periodic-term-template",
+      "add-revolving-open-term-template",
+      "add-revolving-fixed-term-template",
+      "add-revolving-periodic-term-template",
+    ].map((id) => ({
+      id,
+      kind: "call",
+      functionSignature:
+        "addHooksTemplate(address,string,address,address,uint80,uint16)",
+    })),
+    {
+      id: "register-hooks-factory-standard",
+      kind: "call",
+      functionSignature: "registerWithArchController()",
+    },
+    {
+      id: "register-hooks-factory-revolving",
+      kind: "call",
+      functionSignature: "registerWithArchController()",
+    },
+  ];
+  const authorityHelper = authorizedHelperContext(network);
+  if (plan.transactions.length !== expectedTransactions.length) {
+    throw new Error(
+      `Activation plan must contain exactly ${expectedTransactions.length} transactions; found ${plan.transactions.length}`
+    );
+  }
+  for (const [index, expected] of expectedTransactions.entries()) {
+    const transaction = plan.transactions[index];
+    if (
+      transaction.id !== expected.id ||
+      transaction.kind !== expected.kind ||
+      (expected.artifactName &&
+        transaction.artifactName !== expected.artifactName) ||
+      (expected.functionSignature &&
+        logicalCall(transaction)?.functionSignature !== expected.functionSignature)
+    ) {
+      throw new Error(
+        `Activation transaction ${index + 1} must be ${expected.id}`
+      );
+    }
+  }
+  assertAuthorizedHelperBoundary(plan, authorityHelper);
+
+  const requiredDeployments = [
+    {
+      id: "deploy-borrower-identity-registry",
+      output: "borrower-identity-registry",
+      artifactName:
+        "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
+    },
+    {
+      id: "deploy-access-list-role-provider-factory",
+      output: "access-list-role-provider-factory",
+      artifactName:
+        "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
+    },
+  ];
+  for (const required of requiredDeployments) {
+    const transaction = plan.transactions.find(
+      (candidate) => candidate.id === required.id
+    );
+    if (
+      transaction?.kind !== "deploy" ||
+      transaction.output !== required.output ||
+      transaction.artifactName !== required.artifactName
+    ) {
+      throw new Error(`Activation plan has an invalid ${required.id} deployment`);
+    }
+  }
+
+  const optionalProviderFactoryArtifacts = [
+    "MerkleRoleProviderFactory.sol",
+    "ERC20RoleProviderFactory.sol",
+    "ERC4626AssetsRoleProviderFactory.sol",
+    "ERC721RoleProviderFactory.sol",
+    "ERC1155RoleProviderFactory.sol",
+  ];
+  const optionalProvider = plan.transactions.find(
+    (transaction) =>
+      transaction.kind === "deploy" &&
+      optionalProviderFactoryArtifacts.some((artifact) =>
+        transaction.artifactName?.includes(artifact)
+      )
+  );
+  if (optionalProvider) {
+    throw new Error(
+      `Activation plan includes unsupported optional provider factory ${optionalProvider.artifactName}`
+    );
+  }
+
+  const standardIndex = plan.transactions.findIndex(
+    (transaction) => transaction.id === "register-hooks-factory-standard"
+  );
+  const revolvingIndex = plan.transactions.findIndex(
+    (transaction) => transaction.id === "register-hooks-factory-revolving"
+  );
+  if (
+    standardIndex === -1 ||
+    revolvingIndex === -1 ||
+    standardIndex >= revolvingIndex
+  ) {
+    throw new Error(
+      "Activation plan must register the standard and revolving factories in order"
+    );
   }
 }
 
@@ -1570,6 +1940,232 @@ function runDeactivationTargets(args) {
   );
 }
 
+function runValidateActivationPlan(args) {
+  const network = args.network || process.env.DEPLOYMENTS_NETWORK;
+  if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
+  const planPath = requireArg(args, "plan");
+  const plan = readJson(planPath);
+  assertActivationPlan(plan, network);
+  console.log(`Activation plan valid: ${planPath}`);
+}
+
+function retirementEntryId(role, index) {
+  return `remove-superseded-${role}-${String(index + 1).padStart(2, "0")}`;
+}
+
+function retirementPlanEntry({
+  id,
+  chainId,
+  expectedExecutor,
+  archController,
+  factory,
+  label,
+  removeFactoryRole,
+  after,
+}) {
+  const functionSignature = removeFactoryRole
+    ? "removeControllerFactory(address)"
+    : "removeController(address)";
+  const predicateSignature = removeFactoryRole
+    ? "isRegisteredControllerFactory(address) view returns (bool)"
+    : "isRegisteredController(address) view returns (bool)";
+  return {
+    id,
+    kind: "call",
+    to: archController,
+    functionSignature,
+    args: [factory],
+    description: removeFactoryRole
+      ? `Prevent the superseded hooks factory ${label} at ${factory} from re-registering as a controller.`
+      : `Prevent the superseded hooks factory ${label} at ${factory} from registering new markets.`,
+    envelope: {
+      chainId,
+      expectedExecutor,
+      to: archController,
+      value: "0",
+      data: "functionSignature+args",
+      gasLimitPolicy: "estimate*1.3",
+      nonceCheck: "display-and-confirm",
+    },
+    predicate: {
+      type: "callEq",
+      target: archController,
+      call: { sig: predicateSignature, args: [factory] },
+      expect: false,
+    },
+    after,
+  };
+}
+
+function retirementContext(args) {
+  const network = args.network || process.env.DEPLOYMENTS_NETWORK;
+  if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
+  if (!/^[A-Za-z0-9_-]+$/.test(network)) {
+    throw new Error("Network must contain only letters, digits, dashes, and underscores");
+  }
+  const inventoryPath = resolveInputPath({ ...args, network });
+  const inventory = assertValidInventory(readInventory(inventoryPath), {
+    network,
+  });
+  const deploymentsPath =
+    optionalArg(args, "deployments") ||
+    path.join("deployments", network, "deployments.json");
+  const deployments = readJson(deploymentsPath);
+  const archController = deployments.WildcatArchController;
+  if (!isAddress(archController)) {
+    throw new Error("deployments.json missing valid WildcatArchController");
+  }
+  const targets = getFactoryRetirementTargets(inventory);
+  if (targets.length === 0) {
+    throw new Error("No registered superseded hooks factories are available for retirement");
+  }
+  return {
+    network,
+    inventory,
+    inventoryPath,
+    deployments,
+    deploymentsPath,
+    archController,
+    targets,
+  };
+}
+
+function runRetirementEntries(args) {
+  const context = retirementContext(args);
+  const expectedExecutor = requireArg(args, "expected-executor");
+  if (!isAddress(expectedExecutor)) {
+    throw new Error("--expected-executor must be a valid address");
+  }
+  const outputDirectory = path.join(
+    "deployments",
+    context.network,
+    "retirement-plan-entries"
+  );
+  fs.rmSync(outputDirectory, { recursive: true, force: true });
+  fs.mkdirSync(outputDirectory, { recursive: true });
+
+  let previousEntry = null;
+  let sequence = 1;
+  for (const [index, target] of context.targets.entries()) {
+    const removeFactoryRoleId = retirementEntryId("controller-factory", index);
+    const removeFactoryRole = retirementPlanEntry({
+      id: removeFactoryRoleId,
+      chainId: context.inventory.chainId,
+      expectedExecutor,
+      archController: context.archController,
+      factory: target.factory,
+      label: target.label,
+      removeFactoryRole: true,
+      after: previousEntry ? [previousEntry] : [],
+    });
+    writeJson(
+      path.join(
+        outputDirectory,
+        `${String(sequence).padStart(2, "0")}-${removeFactoryRoleId}.json`
+      ),
+      removeFactoryRole
+    );
+    sequence += 1;
+
+    const removeControllerId = retirementEntryId("controller", index);
+    const removeController = retirementPlanEntry({
+      id: removeControllerId,
+      chainId: context.inventory.chainId,
+      expectedExecutor,
+      archController: context.archController,
+      factory: target.factory,
+      label: target.label,
+      removeFactoryRole: false,
+      after: [removeFactoryRoleId],
+    });
+    writeJson(
+      path.join(
+        outputDirectory,
+        `${String(sequence).padStart(2, "0")}-${removeControllerId}.json`
+      ),
+      removeController
+    );
+    sequence += 1;
+    previousEntry = removeControllerId;
+  }
+
+  console.log(`Retirement entries written: ${outputDirectory}`);
+  console.log(
+    `Retirement targets: ${context.targets.length} factories, ${context.targets.length * 2} calls`
+  );
+}
+
+function assertRetirementPlan(plan, context) {
+  if (plan.network !== context.network) {
+    throw new Error(
+      `Retirement plan network mismatch: expected ${context.network}, got ${plan.network}`
+    );
+  }
+  if (typeof plan.release !== "string" || !plan.release.endsWith("-retirement")) {
+    throw new Error("Retirement plan release must end with -retirement");
+  }
+  if (plan.transactions.some((transaction) => transaction.kind !== "call")) {
+    throw new Error("Retirement plan must contain only calls");
+  }
+
+  const authorityHelper = authorizedHelperContext(
+    context.network,
+    context.deployments
+  );
+  const expectedTransactionCount = context.targets.length * 2;
+  if (plan.transactions.length !== expectedTransactionCount) {
+    throw new Error(
+      `Expected ${expectedTransactionCount} retirement transactions, found ${plan.transactions.length}`
+    );
+  }
+  if (
+    authorityHelper &&
+    addressKey(authorityHelper.archController) !==
+      addressKey(context.archController)
+  ) {
+    throw new Error("Authority-helper ArchController does not match deployments.json");
+  }
+  assertAuthorizedHelperBoundary(plan, authorityHelper);
+  assertFactoryDeactivationPlan(
+    plan,
+    context.targets,
+    context.archController
+  );
+  for (const [index, target] of context.targets.entries()) {
+    const removeFactoryRole = plan.transactions[index * 2];
+    const removeController = plan.transactions[index * 2 + 1];
+    const removeFactoryRoleCall = logicalCall(removeFactoryRole);
+    const removeControllerCall = logicalCall(removeController);
+    if (
+      removeFactoryRole?.id !== retirementEntryId("controller-factory", index) ||
+      removeFactoryRoleCall?.functionSignature !== "removeControllerFactory(address)" ||
+      removeFactoryRoleCall.args?.length !== 1 ||
+      !isAddress(removeFactoryRoleCall.args[0]) ||
+      addressKey(removeFactoryRoleCall.args[0]) !== addressKey(target.factory) ||
+      removeController?.id !== retirementEntryId("controller", index) ||
+      removeControllerCall?.functionSignature !== "removeController(address)" ||
+      removeControllerCall.args?.length !== 1 ||
+      !isAddress(removeControllerCall.args[0]) ||
+      addressKey(removeControllerCall.args[0]) !== addressKey(target.factory)
+    ) {
+      throw new Error(
+        `Retirement plan must remove both roles for ${target.label} in the generated order`
+      );
+    }
+  }
+}
+
+function runValidateRetirementPlan(args) {
+  const context = retirementContext(args);
+  const planPath = requireArg(args, "plan");
+  const plan = readJson(planPath);
+  assertRetirementPlan(plan, context);
+  console.log(`Retirement plan valid: ${planPath}`);
+  console.log(
+    `Retirement targets: ${context.targets.length} factories, ${context.targets.length * 2} removal calls`
+  );
+}
+
 async function runReconcile(args) {
   const network = args.network || process.env.DEPLOYMENTS_NETWORK;
   if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
@@ -1841,18 +2437,15 @@ async function runApplyRun(args) {
     network,
   });
   const deployments = readJson(deploymentsPath);
-  const deactivationTargets = getFactoryDeactivationTargets(inventory);
-  assertFactoryDeactivationPlan(
-    plan,
-    deactivationTargets,
-    deployments.WildcatArchController
-  );
+  assertActivationPlan(plan, network);
   const originalRecordCount = inventory.recordCount;
   let addedRecords = 0;
   let standardFactory = null;
   let revolvingFactory = null;
   let wrapperFactory = null;
   let marketLens = null;
+  let borrowerIdentityRegistry = null;
+  let accessListRoleProviderFactory = null;
 
   for (const fileName of pendingFiles) {
     const filePath = path.join(pendingDirectory, fileName);
@@ -1933,11 +2526,31 @@ async function runApplyRun(args) {
     if (record.recordType === "deployment" && record.role === "facade") {
       marketLens = record.address;
     }
+    if (
+      record.recordType === "deployment" &&
+      record.role === "identityRegistry"
+    ) {
+      borrowerIdentityRegistry = record.address;
+    }
+    if (
+      record.recordType === "deployment" &&
+      record.role === "roleProviderFactory" &&
+      record.providerKind === "ACCESS_LIST"
+    ) {
+      accessListRoleProviderFactory = record.address;
+    }
   }
 
-  if (!standardFactory || !revolvingFactory || !wrapperFactory || !marketLens) {
+  if (
+    !standardFactory ||
+    !revolvingFactory ||
+    !wrapperFactory ||
+    !marketLens ||
+    !borrowerIdentityRegistry ||
+    !accessListRoleProviderFactory
+  ) {
     throw new Error(
-      "Pending records must resolve standard/revolving hooks factories, wrapper factory, and MarketLens"
+      "Pending records must resolve standard/revolving hooks factories, wrapper factory, borrower identity registry, access-list role-provider factory, and MarketLens"
     );
   }
   if (addedRecords !== 3) {
@@ -1953,21 +2566,104 @@ async function runApplyRun(args) {
     );
   }
 
-  recordFactoryDeactivations(inventory, deactivationTargets);
-
   deployments.HooksFactory = standardFactory;
   deployments.HooksFactoryRevolving = revolvingFactory;
   deployments.MarketLens = marketLens;
   deployments.Wildcat4626WrapperFactory = wrapperFactory;
+  deployments.WildcatBorrowerIdentityRegistry = borrowerIdentityRegistry;
+  deployments.AccessListRoleProviderFactory = accessListRoleProviderFactory;
   writeInventory(inventoryPath, inventory);
   writeJsonAtomic(deploymentsPath, deployments);
   console.log(
     `Applied ${addedRecords} append-only factory records; recordCount ${originalRecordCount} -> ${inventory.recordCount}`
   );
-  console.log(
-    `Recorded ${deactivationTargets.length} superseded hooks factories as unregistered`
-  );
+  console.log("Superseded hooks factories remain registered until the retirement ceremony");
   console.log(`Canonical aliases updated: ${deploymentsPath}`);
+
+  await runReconcile({
+    network,
+    input: inventoryPath,
+    deployments: deploymentsPath,
+    handoff: optionalArg(args, "handoff"),
+    output:
+      optionalArg(args, "output") ||
+      path.join("deployments", network, "reconcile-report.json"),
+    "rpc-url": optionalArg(args, "rpc-url"),
+  });
+}
+
+async function runApplyRetirement(args) {
+  const network = args.network || process.env.DEPLOYMENTS_NETWORK;
+  if (!network) throw new Error("Missing --network or DEPLOYMENTS_NETWORK.");
+  const runStatePath = requireArg(args, "run-state");
+  const planPath = inferPlanPath(
+    network,
+    runStatePath,
+    optionalArg(args, "plan")
+  );
+  const inventoryPath = resolveInputPath({ ...args, network });
+  const deploymentsPath =
+    optionalArg(args, "deployments") ||
+    path.join("deployments", network, "deployments.json");
+  const inventory = assertValidInventory(readInventory(inventoryPath), {
+    network,
+  });
+  const deployments = readJson(deploymentsPath);
+  const archController = deployments.WildcatArchController;
+  if (!isAddress(archController)) {
+    throw new Error("deployments.json missing valid WildcatArchController");
+  }
+  const plan = readJson(planPath);
+  const runState = readJson(runStatePath);
+  const targets = getPlanRetirementTargets(plan, inventory, archController);
+  const context = {
+    network,
+    inventory,
+    inventoryPath,
+    deployments,
+    deploymentsPath,
+    archController,
+    targets,
+  };
+
+  assertRetirementPlan(plan, context);
+  assertVerifiedRunState(plan, runState);
+
+  const planTargetKeys = new Set(targets.map((target) => addressKey(target.factory)));
+  const unexpectedCurrentTargets = getFactoryRetirementTargets(inventory).filter(
+    (target) => !planTargetKeys.has(addressKey(target.factory))
+  );
+  if (unexpectedCurrentTargets.length > 0) {
+    throw new Error(
+      `Retirement plan is stale; ${unexpectedCurrentTargets.length} registered superseded factories are missing`
+    );
+  }
+  const registrationStates = new Set(
+    targets.map((target) => {
+      const entry = inventory.hooksFactories.find(
+        (candidate) =>
+          addressKey(candidate.address) === addressKey(target.factory)
+      );
+      return entry.registered;
+    })
+  );
+  if (registrationStates.size !== 1) {
+    throw new Error(
+      "Retirement inventory is partially applied; reconcile it before retrying"
+    );
+  }
+  if (registrationStates.has(true)) {
+    recordFactoryDeactivations(inventory, targets);
+    writeInventory(inventoryPath, inventory);
+    console.log(
+      `Recorded ${targets.length} superseded hooks factories as unregistered`
+    );
+  } else {
+    console.log(
+      `Retirement inventory already records ${targets.length} superseded hooks factories as unregistered`
+    );
+  }
+  console.log("Canonical deployment aliases were not changed");
 
   await runReconcile({
     network,
@@ -2199,8 +2895,24 @@ async function main() {
     runDeactivationTargets(args);
     return;
   }
+  if (command === "retirement-entries") {
+    runRetirementEntries(args);
+    return;
+  }
+  if (command === "validate-activation-plan") {
+    runValidateActivationPlan(args);
+    return;
+  }
+  if (command === "validate-retirement-plan") {
+    runValidateRetirementPlan(args);
+    return;
+  }
   if (command === "apply-run") {
     await runApplyRun(args);
+    return;
+  }
+  if (command === "apply-retirement") {
+    await runApplyRetirement(args);
     return;
   }
 
@@ -2223,11 +2935,15 @@ module.exports = {
   getCanonicalFactory,
   getCanonicalWrapperFactory,
   getFactoryDeactivationTargets,
+  getFactoryRetirementTargets,
+  getPlanRetirementTargets,
   getIndexedFactories,
   inventoryPathForNetwork,
   migrateInventory,
   lintDeployments,
   assertFactoryDeactivationPlan,
+  assertActivationPlan,
+  assertRetirementPlan,
   reconcileCanonicalAliases,
   readInventory,
   readInventoryOrCreate,

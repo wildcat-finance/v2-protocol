@@ -128,6 +128,7 @@ contract HooksConfigTest is Test, Assertions {
     MarketStateFuzzInputs memory stateInput,
     StandardHooksConfig memory configInput,
     address lender,
+    uint32 expiry,
     uint128 normalizedAmountWithdrawn,
     bytes memory extraData
   ) external {
@@ -140,13 +141,14 @@ contract HooksConfigTest is Test, Assertions {
       abi.encodeWithSelector(
         mockHookCaller.executeWithdrawal.selector,
         lender,
+        expiry,
         normalizedAmountWithdrawn
       ),
       extraData
     );
     if (config.useOnExecuteWithdrawal()) {
       vm.expectEmit();
-      emit OnExecuteWithdrawalCalled(lender, normalizedAmountWithdrawn, state, extraData);
+      emit OnExecuteWithdrawalCalled(lender, expiry, normalizedAmountWithdrawn, state, extraData);
     }
     _callMockHookCaller(_calldata);
 

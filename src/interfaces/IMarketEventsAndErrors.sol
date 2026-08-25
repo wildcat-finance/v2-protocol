@@ -82,6 +82,26 @@ interface IMarketEventsAndErrors {
 
   error ProtocolFeeTooHigh();
 
+  error InvalidBorrower();
+
+  error InvalidBorrowerIdentityRegistry();
+
+  error InvalidBorrowerTransferTarget();
+
+  error NoPendingBorrowerTransfer();
+
+  error NotPendingBorrower();
+
+  error PendingBorrowerPrincipalChanged(address expectedPrincipal, address actualPrincipal);
+
+  error BorrowerIdentityNotFound();
+
+  error BorrowerPrincipalNotRegistered();
+
+  error AmbiguousBorrowerIdentity();
+
+  error BorrowerTransferWhileSanctioned(address account);
+
   /// @dev Error thrown when reserve ratio is set to a value
   ///      that would make the market delinquent.
   error InsufficientReservesForNewLiquidityRatio();
@@ -94,13 +114,25 @@ interface IMarketEventsAndErrors {
 
   event Approval(address indexed owner, address indexed spender, uint256 value);
 
-  event MaxTotalSupplyUpdated(uint256 assets);
+  event MaxTotalSupplyUpdated(
+    address indexed caller,
+    uint256 previousMaxTotalSupply,
+    uint256 newMaxTotalSupply
+  );
 
-  event ProtocolFeeBipsUpdated(uint256 protocolFeeBips);
+  event ProtocolFeeBipsUpdated(
+    address indexed caller,
+    uint256 previousProtocolFeeBips,
+    uint256 newProtocolFeeBips
+  );
 
-  event AnnualInterestBipsUpdated(uint256 annualInterestBipsUpdated);
-
-  event ReserveRatioBipsUpdated(uint256 reserveRatioBipsUpdated);
+  event AnnualInterestAndReserveRatioBipsUpdated(
+    address indexed caller,
+    uint256 previousAnnualInterestBips,
+    uint256 newAnnualInterestBips,
+    uint256 previousReserveRatioBips,
+    uint256 newReserveRatioBips
+  );
 
   event SanctionedAccountAssetsQueuedForWithdrawal(
     address indexed account,
@@ -111,13 +143,17 @@ interface IMarketEventsAndErrors {
 
   event Deposit(address indexed account, uint256 assetAmount, uint256 scaledAmount);
 
-  event Borrow(uint256 assetAmount);
+  event Borrow(address indexed borrower, uint256 assetAmount);
 
   event DebtRepaid(address indexed from, uint256 assetAmount);
 
-  event MarketClosed(uint256 timestamp);
+  event MarketClosed(address indexed borrower, uint256 timestamp);
 
-  event FeesCollected(uint256 assets);
+  event FeesCollected(
+    address indexed collector,
+    address indexed feeRecipient,
+    uint256 assets
+  );
 
   event StateUpdated(uint256 scaleFactor, bool isDelinquent);
 
@@ -130,9 +166,30 @@ interface IMarketEventsAndErrors {
     uint256 protocolFees
   );
 
-  event AccountSanctioned(address indexed account);
-
   event WrapperRegistered(address indexed wrapper);
+
+  event BorrowerTransferRequested(
+    address indexed borrower,
+    address indexed previousPendingBorrower,
+    address indexed pendingBorrower,
+    address borrowerPrincipal,
+    address previousPendingBorrowerPrincipal,
+    address pendingBorrowerPrincipal
+  );
+
+  event BorrowerTransferCancelled(
+    address indexed borrower,
+    address indexed cancelledPendingBorrower,
+    address borrowerPrincipal,
+    address cancelledPendingBorrowerPrincipal
+  );
+
+  event BorrowerTransferred(
+    address indexed previousBorrower,
+    address indexed newBorrower,
+    address previousBorrowerPrincipal,
+    address indexed newBorrowerPrincipal
+  );
 
   // =====================================================================//
   //                          Withdrawl Events                            //

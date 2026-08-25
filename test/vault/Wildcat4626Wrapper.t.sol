@@ -6,6 +6,7 @@ import 'forge-std/Test.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { IWildcatMarketToken } from 'src/vault/Wildcat4626Wrapper.sol';
+import { HooksConfig, EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 
 contract MockSanctionsSentinel {
   mapping(address => bool) public sanctioned;
@@ -53,6 +54,22 @@ contract MockErc20 {
   }
 }
 
+contract SpoofSanctionsEscrow {
+  address public immutable borrower;
+
+  constructor(address borrower_) {
+    borrower = borrower_;
+  }
+
+  function transferShares(
+    Wildcat4626Wrapper wrapper,
+    address to,
+    uint256 amount
+  ) external {
+    wrapper.transfer(to, amount);
+  }
+}
+
 contract MockMarketToken is IWildcatMarketToken {
   using MathUtils for uint256;
 
@@ -61,7 +78,8 @@ contract MockMarketToken is IWildcatMarketToken {
   uint8 public immutable override decimals;
 
   uint256 public override scaleFactor;
-  address public immutable override borrower;
+  address public override borrower;
+  address public override borrowerPrincipal;
   address public immutable override sentinel;
   address public immutable override wrapperFactory;
 
@@ -74,12 +92,21 @@ contract MockMarketToken is IWildcatMarketToken {
     decimals = tokenDecimals;
     scaleFactor = RAY;
     borrower = borrower_;
+    borrowerPrincipal = borrower_;
     sentinel = sentinel_;
     wrapperFactory = msg.sender;
   }
 
   function balanceOf(address account) public view override returns (uint256) {
     return _scaledBalances[account].rayMul(scaleFactor);
+  }
+
+  function hooks() external view override returns (HooksConfig) {
+    return EmptyHooksConfig.setHooksAddress(address(this));
+  }
+
+  function isMarketTransferRecipientAllowed(address market, address) external view returns (bool) {
+    return market == address(this);
   }
 
   function totalSupply() external view returns (uint256) {
@@ -97,6 +124,11 @@ contract MockMarketToken is IWildcatMarketToken {
   function setScaleFactor(uint256 newScaleFactor) external {
     require(newScaleFactor != 0, 'ZERO_FACTOR');
     scaleFactor = newScaleFactor;
+  }
+
+  function setBorrower(address borrower_, address principal_) external {
+    borrower = borrower_;
+    borrowerPrincipal = principal_;
   }
 
   function nukeFromOrbit(address) external {
@@ -344,6 +376,28 @@ contract Wildcat4626WrapperTest is Test {
     vm.expectRevert(Wildcat4626Wrapper.NotMarketOwner.selector);
     vm.prank(FED);
     wrapper.sweep(address(stray), FED);
+  }
+
+  function testFuzz_sweepAuthorityFollowsCurrentBorrower(
+    uint160 borrowerSeed,
+    uint96 amountSeed
+  ) external {
+    address nextBorrower = address(uint160(bound(borrowerSeed, 1, type(uint160).max)));
+    vm.assume(nextBorrower != BORROWER);
+    uint256 amount = bound(amountSeed, 1, type(uint96).max);
+    MockErc20 stray = new MockErc20();
+    stray.mint(address(wrapper), amount);
+    market.setBorrower(nextBorrower, BORROWER);
+
+    assertEq(wrapper.marketOwner(), nextBorrower, 'market owner did not follow borrower');
+
+    vm.expectRevert(Wildcat4626Wrapper.NotMarketOwner.selector);
+    vm.prank(BORROWER);
+    wrapper.sweep(address(stray), BORROWER);
+
+    vm.prank(nextBorrower);
+    assertEq(wrapper.sweep(address(stray), nextBorrower), amount, 'wrong swept amount');
+    assertEq(stray.balanceOf(nextBorrower), amount, 'new borrower did not receive sweep');
   }
 
   function test_sweepMarketAssetRevertsWhenNoStrandedBalance() external {
@@ -704,6 +758,18 @@ contract Wildcat4626WrapperTest is Test {
     wrapper.transfer(BOB, 1e18);
   }
 
+  function test_transferRejectsSpoofedOldEscrow() external {
+    SpoofSanctionsEscrow spoof = new SpoofSanctionsEscrow(BORROWER);
+    vm.startPrank(FED);
+    wrapper.deposit(5e18, FED);
+    wrapper.transfer(address(spoof), 1e18);
+    vm.stopPrank();
+    sanctionsSentinel.sanction(BOB);
+
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
+    spoof.transferShares(wrapper, BOB, 1e18);
+  }
+
   function test_mint_revertsForSanctionedCaller() external {
     sanctionsSentinel.sanction(FED);
     vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
@@ -821,6 +887,13 @@ contract Wildcat4626WrapperTest is Test {
   function test_constructor_revertsForZeroBorrower() external {
     // Deploy a market with zero borrower
     MockMarketToken badMarket = new MockMarketToken(18, address(0), address(sanctionsSentinel));
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    new Wildcat4626Wrapper(address(badMarket));
+  }
+
+  function test_constructor_revertsForZeroPrincipal() external {
+    MockMarketToken badMarket = new MockMarketToken(18, BORROWER, address(sanctionsSentinel));
+    badMarket.setBorrower(BORROWER, address(0));
     vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
     new Wildcat4626Wrapper(address(badMarket));
   }

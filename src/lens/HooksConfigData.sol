@@ -63,8 +63,7 @@ struct MarketHooksData {
 library HooksConfigDataLib {
   using HooksConfigDataLib for *;
 
-  function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
-    bytes32 versionHash = keccak256(bytes(version));
+  function _kindForVersionHash(bytes32 versionHash) private pure returns (HooksInstanceKind) {
     if (versionHash == keccak256(bytes('OpenTermHooks'))) {
       return HooksInstanceKind.OpenTerm;
     } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
@@ -75,12 +74,67 @@ library HooksConfigDataLib {
     return HooksInstanceKind.Unknown;
   }
 
+  function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
+    return _kindForVersionHash(keccak256(bytes(version)));
+  }
+
+  function kindForHooks(address hooksAddress) internal view returns (HooksInstanceKind) {
+    // every known hooks version fits in one word. longer names are still valid, but they can go
+    // straight to Unknown without making us copy and hash the whole string.
+    uint256 selectorWord = uint32(IHooks.version.selector);
+    bytes32 versionHash;
+    assembly ('memory-safe') {
+      // borrow three words at the free-memory pointer: the dynamic offset, string length, and
+      // first word of version data. nothing needs this buffer after the block.
+      let ptr := mload(0x40)
+
+      // put the selector in the first four bytes, then reuse the same buffer for the response.
+      mstore(ptr, shl(224, selectorWord))
+      let success := staticcall(gas(), hooksAddress, ptr, 4, ptr, 0x60)
+      let size := returndatasize()
+      if iszero(success) {
+        // version() is required here, so preserve the hook's full revert instead of treating it
+        // like one of the optional lens probes.
+        returndatacopy(ptr, 0, size)
+        revert(ptr, size)
+      }
+
+      // one dynamic return starts with offset 0x20 and its length. reject anything too short or
+      // shaped differently before reading the data word.
+      if lt(size, 0x40) {
+        revert(0, 0)
+      }
+      if iszero(eq(mload(ptr), 0x20)) {
+        revert(0, 0)
+      }
+      let length := mload(add(ptr, 0x20))
+
+      // round the claimed length up to a full ABI word, then catch both arithmetic wraparound
+      // and truncated return data. returndatasize covers the complete response even though we
+      // only copied its first three words.
+      let paddedLength := and(add(length, 0x1f), not(0x1f))
+      if lt(paddedLength, length) {
+        revert(0, 0)
+      }
+      if gt(paddedLength, sub(size, 0x40)) {
+        revert(0, 0)
+      }
+
+      // known names fit in the first data word. hash those exactly; leave versionHash at zero
+      // for longer valid names so _kindForVersionHash returns Unknown.
+      if iszero(gt(length, 0x20)) {
+        versionHash := keccak256(add(ptr, 0x40), length)
+      }
+    }
+    return _kindForVersionHash(versionHash);
+  }
+
   function fill(MarketHooksData memory data, address marketAddress) internal view {
     WildcatMarket market = WildcatMarket(marketAddress);
     HooksConfig encodedHooksConfig = market.hooks();
     data.hooksAddress = encodedHooksConfig.hooksAddress();
     data.flags.fill(encodedHooksConfig);
-    data.kind = kindForVersion(IHooks(encodedHooksConfig.hooksAddress()).version());
+    data.kind = kindForHooks(data.hooksAddress);
     if (data.kind == HooksInstanceKind.OpenTerm) {
       OpenTermHooks hooks = OpenTermHooks(data.hooksAddress);
       OpenTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);

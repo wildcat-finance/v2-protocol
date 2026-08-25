@@ -196,6 +196,131 @@ contract WithdrawalsTest is BaseMarketTest {
   }
 
   /* -------------------------------------------------------------------------- */
+  /*                         queueWithdrawalScaled()                          */
+  /* -------------------------------------------------------------------------- */
+
+  function test_queueWithdrawalScaled_NullBurnAmount() external asAccount(alice) {
+    vm.expectRevert(IMarketEventsAndErrors.NullBurnAmount.selector);
+    market.queueWithdrawalScaled(0);
+  }
+
+  function test_queueWithdrawalScaled_AmountExceedsUint104() external asAccount(alice) {
+    vm.expectRevert(abi.encodePacked(uint32(Panic_ErrorSelector), Panic_Arithmetic));
+    market.queueWithdrawalScaled(uint256(type(uint104).max) + 1);
+  }
+
+  function test_queueWithdrawalScaled_InsufficientBalanceDoesNotChangeState() external {
+    _deposit(alice, 1e18);
+    MarketState memory stateBefore = market.currentState();
+    uint256 scaledBalanceBefore = market.scaledBalanceOf(alice);
+
+    vm.prank(alice);
+    vm.expectRevert(abi.encodePacked(uint32(Panic_ErrorSelector), Panic_Arithmetic));
+    market.queueWithdrawalScaled(scaledBalanceBefore + 1);
+
+    assertEq(market.scaledBalanceOf(alice), scaledBalanceBefore, 'scaled balance changed');
+    assertEq(
+      keccak256(abi.encode(market.currentState())),
+      keccak256(abi.encode(stateBefore)),
+      'market state changed'
+    );
+  }
+
+  function test_queueWithdrawalScaled(
+    uint104 userBalance,
+    uint104 scaledAmount
+  ) external asAccount(alice) {
+    userBalance = uint104(bound(userBalance, 2, type(uint104).max));
+    scaledAmount = uint104(bound(scaledAmount, 1, userBalance));
+    _deposit(alice, userBalance);
+    _requestWithdrawalScaled(alice, scaledAmount);
+  }
+
+  function test_queueWithdrawalScaled_UsesExecutionTimeScaleFactor() external {
+    _deposit(alice, 100e18);
+    uint104 scaledAmount = 25e18;
+
+    fastForward(30 days);
+    MarketState memory state = pendingState(false);
+    uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
+    assertGt(normalizedAmount, scaledAmount, 'scale factor did not increase');
+
+    _requestWithdrawalScaled(alice, scaledAmount);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    AccountWithdrawalStatus memory status = market.getAccountWithdrawalStatus(alice, expiry);
+    assertEq(status.scaledAmount, scaledAmount, 'queued scaled amount');
+  }
+
+  function test_queueWithdrawalScaled_AfterMarketClosed(uint104 userBalance) external {
+    userBalance = uint104(bound(userBalance, 2, type(uint104).max));
+    _deposit(alice, userBalance);
+    _closeMarket();
+    _requestWithdrawalScaled(alice, userBalance);
+
+    MarketState memory state = previousState;
+    assertEq(state.scaledPendingWithdrawals, 0, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, 0, 'scaledTotalSupply');
+    assertEq(state.normalizedUnclaimedWithdrawals, userBalance, 'unclaimed withdrawals');
+  }
+
+  function test_queueWithdrawalScaled_BurnPartial(
+    uint104 userBalance,
+    uint104 borrowAmount
+  ) external {
+    userBalance = uint104(bound(userBalance, 2, type(uint104).max));
+    borrowAmount = uint104(
+      bound(borrowAmount, 1, uint256(userBalance).bipMul(10000 - parameters.reserveRatioBips))
+    );
+    _deposit(alice, userBalance);
+    _borrow(borrowAmount);
+    _requestWithdrawalScaled(alice, userBalance);
+
+    MarketState memory state = previousState;
+    assertEq(state.scaledPendingWithdrawals, borrowAmount, 'scaledPendingWithdrawals');
+    assertEq(state.scaledTotalSupply, borrowAmount, 'scaledTotalSupply');
+    assertEq(
+      state.normalizedUnclaimedWithdrawals,
+      userBalance - borrowAmount,
+      'normalizedUnclaimedWithdrawals'
+    );
+  }
+
+  function test_queueWithdrawalScaled_EquivalentToFullWithdrawal() external {
+    _deposit(alice, 100e18);
+    _borrow(60e18);
+    fastForward(30 days);
+
+    uint256 scaledBalance = market.scaledBalanceOf(alice);
+    uint256 snapshot = vm.snapshot();
+
+    vm.prank(alice);
+    uint32 fullExpiry = market.queueFullWithdrawal();
+    bytes32 fullStateHash = keccak256(abi.encode(market.currentState()));
+    bytes32 fullBatchHash = keccak256(abi.encode(market.getWithdrawalBatch(fullExpiry)));
+    bytes32 fullStatusHash = keccak256(
+      abi.encode(market.getAccountWithdrawalStatus(alice, fullExpiry))
+    );
+
+    vm.revertToAndDelete(snapshot);
+
+    vm.prank(alice);
+    uint32 scaledExpiry = market.queueWithdrawalScaled(scaledBalance);
+    assertEq(scaledExpiry, fullExpiry, 'expiry');
+    assertEq(keccak256(abi.encode(market.currentState())), fullStateHash, 'market state');
+    assertEq(
+      keccak256(abi.encode(market.getWithdrawalBatch(scaledExpiry))),
+      fullBatchHash,
+      'withdrawal batch'
+    );
+    assertEq(
+      keccak256(abi.encode(market.getAccountWithdrawalStatus(alice, scaledExpiry))),
+      fullStatusHash,
+      'account withdrawal status'
+    );
+    assertEq(market.scaledBalanceOf(alice), 0, 'scaled balance');
+  }
+
+  /* -------------------------------------------------------------------------- */
   /*                              queueFullWithdrawal()                             */
   /* -------------------------------------------------------------------------- */
 
@@ -529,6 +654,27 @@ contract WithdrawalsTest is BaseMarketTest {
     assertEq(market.getUnpaidBatchExpiries().length, 1);
     updateState(state);
     _checkState();
+  }
+
+  function test_processUnpaidWithdrawalBatch_LargeDonationDoesNotOverflow() external {
+    parameters.protocolFeeBips = 0;
+    parameters.reserveRatioBips = 0;
+    parameters.annualInterestBips = 0;
+    parameters.delinquencyFeeBips = 0;
+    setUp();
+
+    _depositBorrowWithdraw(alice, 1e18, 1e18, 1e18);
+    uint32 expiry = uint32(block.timestamp + parameters.withdrawalBatchDuration);
+    fastForward(parameters.withdrawalBatchDuration + 1);
+    market.updateState();
+    assertEq(market.getUnpaidBatchExpiries().length, 1, 'unpaid batch count');
+
+    uint256 overflowingLiquidity = type(uint256).max / RAY;
+    asset.mint(address(market), overflowingLiquidity);
+    market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+
+    _checkBatch(expiry, 1e18, 1e18, 1e18);
+    assertEq(market.getUnpaidBatchExpiries().length, 0, 'unpaid batch count');
   }
 
   function test_processUnpaidWithdrawalBatch_ZeroScaledBurnEmitsNoPayment() external {

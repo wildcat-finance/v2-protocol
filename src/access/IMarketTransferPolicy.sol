@@ -8,4 +8,14 @@ pragma solidity ^0.8.20;
  */
 interface IMarketTransferPolicy {
   function isMarketTransferDisabled(address market) external view returns (bool);
+
+  /**
+   * @dev says whether `recipient` can receive `market` tokens right now without extra hook data.
+   *      this doesn't pretend to check balance, allowance, or amount-specific failures. return
+   *      false for an ordinary policy denial; integrations can treat a revert as unavailable.
+   */
+  function isMarketTransferRecipientAllowed(
+    address market,
+    address recipient
+  ) external view returns (bool);
 }

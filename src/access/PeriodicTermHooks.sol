@@ -16,7 +16,6 @@ using SafeCastLib for uint256;
  *      open/fixed templates' equivalents are single-slot.
  *      `minimumDeposit` is uint96 (max ~7.9e28) to stay under 32 bytes
  *      external `setMinimumDeposit(address,uint128)` signature unchanged
- *      `MinimumDepositUpdated(address,uint128)` event unchanged
  *      checked downcast at the boundary
  */
 struct HookedMarket {
@@ -72,14 +71,20 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   //                                   Events                                   //
   // ========================================================================== //
 
-  event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
+  event MinimumDepositUpdated(
+    address indexed market,
+    address indexed caller,
+    uint128 previousMinimumDeposit,
+    uint128 newMinimumDeposit
+  );
   event PeriodicTermUpdated(
-    address market,
+    address indexed market,
+    address indexed administrator,
     uint32 firstWithdrawalWindowStart,
     uint32 periodDuration,
     uint32 withdrawalWindowDuration
   );
-  event PeriodicTermClosed(address market);
+  event PeriodicTermClosed(address indexed market);
   event AnnualInterestBipsReductionProposed(
     address indexed market,
     uint16 annualInterestBips,
@@ -144,11 +149,14 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   // ========================================================================== //
 
   /**
-   * @param _deployer Address of the account that called the factory.
+   * @param _administrator Initial administrator for the hooks instance.
    * @param args Optional abi-encoded `NameAndProviderInputs` struct to initialize
    *             the providers and name for the hooks instance.
    */
-  constructor(address _deployer, bytes memory args) BaseAccessControls(_deployer) IHooks() {
+  constructor(
+    address _administrator,
+    bytes memory args
+  ) BaseAccessControls(_administrator) IHooks() {
     HooksConfig optionalFlags = encodeHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
@@ -222,8 +230,8 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   /**
    * @dev Called when market is deployed using this contract as its `hooks`.
    *
-   *     @param deployer      Address of the account that called the factory - must
-   *                          match the borrower address.
+   *     @param administrator_ Principal supplied by the factory. Must match the
+   *                           hooks administrator.
    *     @param marketAddress Address of the market being deployed.
    *     @param parameters    Parameters used to deploy the market.
    *     @param hooksData     Extra data passed to the market deployment function containing
@@ -245,13 +253,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
    *      so no need to verify the caller is the factory.
    */
   function _onCreateMarket(
-    address deployer,
+    address administrator_,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override returns (HooksConfig marketHooksConfig) {
-    super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
-    if (deployer != borrower) revert CallerNotBorrower();
+    super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
+    if (administrator_ != administrator) revert CallerNotAdministrator();
     if (hooksData.length < 0x60) revert PeriodicWindowNotProvided();
 
     marketHooksConfig = parameters.hooks;
@@ -268,6 +276,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     );
     emit PeriodicTermUpdated(
       marketAddress,
+      administrator_,
       firstWithdrawalWindowStart,
       periodDuration,
       withdrawalWindowDuration
@@ -301,7 +310,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
 
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
+      emit MinimumDepositUpdated(
+        marketAddress,
+        administrator_,
+        0,
+        hookedMarket.minimumDeposit
+      );
     }
     if (hookedMarket.transfersDisabled) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
@@ -330,19 +344,20 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
    *      later adopt a positive minimum.
    *      Reverts if `market` was not created with this hooks instance.
    */
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
+  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (newMinimumDeposit > 0 && !hookedMarket.depositHookEnabled) revert DepositHookNotEnabled();
     // External signature kept as uint128 for ABI stability; storage is uint96.
+    uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
     hookedMarket.minimumDeposit = uint256(newMinimumDeposit).toUint96();
-    emit MinimumDepositUpdated(market, newMinimumDeposit);
+    emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
 
   function proposeAnnualInterestBips(
     address market,
     uint16 annualInterestBips
-  ) external onlyBorrower {
+  ) external onlyAdministrator {
     HookedMarket memory hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (hookedMarket.isClosed) revert AprReductionProposalOnClosedMarket();
@@ -393,6 +408,17 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     HookedMarket storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return market.transfersDisabled;
+  }
+
+  function isMarketTransferRecipientAllowed(
+    address marketAddress,
+    address recipient
+  ) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return
+      !market.transfersDisabled &&
+      _isMarketTransferRecipientAllowed(marketAddress, recipient, market.transferRequiresAccess);
   }
 
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
@@ -575,6 +601,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
    */
   function onExecuteWithdrawal(
     address /* lender */,
+    uint32 /* expiry */,
     uint128 /* normalizedAmountWithdrawn */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
