@@ -116,6 +116,53 @@ contract FeeMathTest is TestKernel {
     assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
   }
 
+  function test_updateScaleFactorAndFees_ZeroDelinquencyFeeAccumulatesTime() external pure {
+    MarketState memory state;
+    state.isDelinquent = true;
+    state.timeDelinquent = 1 days;
+    state.scaleFactor = uint112(RAY);
+    state.lastInterestAccruedTimestamp = uint32(10 days);
+
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      0,
+      2 days,
+      10 days + 6 hours
+    );
+
+    assertEq(state.timeDelinquent, 1 days + 6 hours, 'incorrect accumulated delinquency time');
+    assertEq(state.lastInterestAccruedTimestamp, 10 days + 6 hours, 'incorrect update timestamp');
+    assertEq(state.scaleFactor, RAY, 'zero fee changed scale factor');
+    assertEq(baseInterestRay, 0, 'unexpected base interest');
+    assertEq(delinquencyFeeRay, 0, 'unexpected delinquency fee');
+    assertEq(protocolFee, 0, 'unexpected protocol fee');
+  }
+
+  function test_updateScaleFactorAndFees_ZeroDelinquencyFeeDecaysTime() external pure {
+    MarketState memory state;
+    state.timeDelinquent = 2 days;
+    state.scaleFactor = uint112(RAY);
+    state.lastInterestAccruedTimestamp = uint32(10 days);
+
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      0,
+      1 days,
+      10 days + 6 hours
+    );
+
+    assertEq(state.timeDelinquent, 1 days + 18 hours, 'incorrect recovered delinquency time');
+    assertEq(state.lastInterestAccruedTimestamp, 10 days + 6 hours, 'incorrect update timestamp');
+    assertEq(state.scaleFactor, RAY, 'zero fee changed scale factor');
+    assertEq(baseInterestRay, 0, 'unexpected base interest');
+    assertEq(delinquencyFeeRay, 0, 'unexpected delinquency fee');
+    assertEq(protocolFee, 0, 'unexpected protocol fee');
+  }
+
   function test_updateScaleFactorAndFees_AcceptedUint112LimitReverts() external {
     MarketState memory state;
     // Exact last-safe value after 2,829 daily updates at 100% APR plus a
