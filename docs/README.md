@@ -41,7 +41,7 @@ alone.
   capabilities and construction paths.
 - [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md) covers wrapping, redemption, rounding,
   sanctions, and integration constraints.
-- [Event model](./v2.5%20Event%20Model.md) covers ABI families, event ordering,
+- [Event model](./integrations/events.md) covers ABI families, event ordering,
   deployment discovery, and indexer replay.
 
 ## Releases and Operations

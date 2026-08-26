@@ -52,7 +52,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 - Hook instance deployment records the initial administrator, deploying borrower address, instance name, implementation version, and a bounded initial role-provider snapshot so borrower-account origination and constructor-time provider configuration can be indexed without a historical state call.
 - Mutable market, hook, provider, fee, and lender-access events now identify the acting address and carry old/new values where replay requires them. Market closure records its implicit APR and reserve-ratio transition.
 - Revolving markets emit drawn-principal changes separately from borrow proceeds and repayments. This preserves over-repayment and interest-only repayment semantics without adding fee-on-draw accounting.
-- Custom assembly market emitters have direct parity tests against ordinary Solidity event encoding. See [v2.5 Event Model](./v2.5%20Event%20Model.md).
+- Custom assembly market emitters have direct parity tests against ordinary Solidity event encoding. See [v2.5 Event Model](./integrations/events.md).
 
 ### Factories and access control
 
