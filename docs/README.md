@@ -20,11 +20,11 @@ alone.
 
 ## Protocol
 
-- [Core behavior](./Core%20Behavior.md) covers market configuration, lifecycle,
+- [Core behavior](./protocol/markets.md) covers market configuration, lifecycle,
   borrowing, repayment, and withdrawals.
-- [Scaling](./Scale%20Factor.md) explains normalized accounting, scaled balances,
+- [Scaling](./protocol/scaling-and-rounding.md) explains normalized accounting, scaled balances,
   and rounding.
-- [Borrower identity and transfers](./Borrower%20Identity%20and%20Transfers.md)
+- [Borrower identity and transfers](./protocol/borrower-identity.md)
   covers principals, operational accounts, registry state, and authority moves.
 - [Terminology](./Terminology.md) defines protocol-specific terms.
 

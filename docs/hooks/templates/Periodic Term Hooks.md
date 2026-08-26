@@ -32,6 +32,6 @@ Deposits and transfers remain open throughout the proposal lifecycle. A new lend
 
 ## Configuration notes
 
-- `minimumDeposit` and `transfersDisabled` behave as in the other templates, except that this template stores the minimum as `uint96` (checked downcast; the external `setMinimumDeposit(address,uint128)` ABI is unchanged) to keep its market config in one storage slot. The minimum-deposit check compares in scaled units (see [Scale Factor — Rounding](../../Scale%20Factor.md#rounding)), so depositing exactly the minimum always succeeds.
+- `minimumDeposit` and `transfersDisabled` behave as in the other templates, except that this template stores the minimum as `uint96` (checked downcast; the external `setMinimumDeposit(address,uint128)` ABI is unchanged) to keep its market config in one storage slot. The minimum-deposit check compares in scaled units (see [Scale Factor — Rounding](../../protocol/scaling-and-rounding.md#rounding)), so depositing exactly the minimum always succeeds.
 - The template rejects inconsistent access configurations at market creation: withdrawal access control requires deposit access control, and transfer access control unless transfers are disabled.
 - `pendingAprChanges(market)` retains the ABI of the first template revision; `getPendingAprChange(market)` additionally returns the response window bounds. `templateVersion()` distinguishes template revisions while `version()` remains `'PeriodicTermHooks'` for subgraph matching.

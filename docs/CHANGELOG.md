@@ -23,7 +23,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 - `onExecuteWithdrawal` now receives the exact batch expiry used by the market. Hooks can attribute claims from historical batches without guessing from the current market state, including when one `executeWithdrawals` call spans several batches.
 - Withdrawal batch payments settle up to the exact floor-priced capacity (`maxScaledSettleableAmount`), capped at the largest representable `uint104` batch amount before processing an unbounded underlying balance, so fully-funded closes always settle their batches and nothing strands on closed markets.
 - Hook minimum-deposit checks compare in scaled units, so depositing exactly the advertised minimum succeeds at any scale factor.
-- The half-up `MarketState.scaleAmount` was removed; rounding directions are documented in [Scale Factor](./Scale%20Factor.md#rounding).
+- The half-up `MarketState.scaleAmount` was removed; rounding directions are documented in [Scale Factor](./protocol/scaling-and-rounding.md#rounding).
 
 ### Borrower identity and market transfers
 
@@ -33,7 +33,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 - Transfers support direct principals, same-principal account rotation, and principal migration. They preserve balances, lender claims, accrued fees, market terms, revolving drawn amount, delinquency, and lifecycle state.
 - Market construction now supports different initial borrower and principal addresses so future account-aware or deferred-origination factories can use the same identity seam without changing ordinary v2.5 factories.
 - Wrapper sweep authority now resolves the live market borrower, and wrapper sanctions checks resolve the live market principal. Hooks and role providers do not move implicitly with a market transfer.
-- Added borrower transfer events and v2.5 lens fields for current and pending principals, pending borrower, and identity-registry discovery. See [Borrower Identity and Transfers](./Borrower%20Identity%20and%20Transfers.md).
+- Added borrower transfer events and v2.5 lens fields for current and pending principals, pending borrower, and identity-registry discovery. See [Borrower Identity and Transfers](./protocol/borrower-identity.md).
 
 ### ERC-4626 wrapper
 

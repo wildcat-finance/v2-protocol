@@ -1,6 +1,16 @@
 # Borrower Identity and Transfers
 
-v2.5 separates the address that operates a market from the legal borrower identity registered through the ArchController. This lets a market move from an EOA to a Safe, from one Safe to another, or to a future Borrower Account without replacing the market or resetting its state.
+v2.5 stores the address that operates a market separately from the legal borrower identity registered through the ArchController. This supports two-step borrower transfers without replacing the market or resetting its state.
+
+## V2.5 Release Boundary
+
+Supported v2.5 factories and deployments originate markets for direct registered principals. Supported transfers also resolve to direct registered principals, so every supported v2.5 market maintains:
+
+```text
+borrower() == borrowerPrincipal()
+```
+
+The source and ABI also implement an account-aware path where those identities may differ. No supported borrower-account factory is part of the v2.5 release. The path is planned for v2.6 and is documented here so auditors and integrators can review the compatibility seam already present in source.
 
 ## Identity model
 
@@ -9,7 +19,7 @@ Each market exposes two identities:
 - `borrower()` is the current operational borrower. It is the exact address authorized for borrower-only market calls.
 - `borrowerPrincipal()` is the registered legal principal associated with the market. It is also the borrower namespace used for lender-facing sanctions checks and new sanctions escrows.
 
-For a market operated directly by its principal, both addresses are the same. A market operated by a recognized contract account may instead have:
+For a supported v2.5 market, both addresses are the same before and after a transfer. The account-aware path may instead have:
 
 ```text
 borrower()          = account A
@@ -22,7 +32,7 @@ Borrower, principal, pending-transfer, and wrapper pointers use the final five E
 
 ## Borrower identity registry
 
-`WildcatBorrowerIdentityRegistry` recognizes contract accounts belonging to registered principals.
+`WildcatBorrowerIdentityRegistry` resolves direct ArchController-registered principals and recognizes contract accounts belonging to registered principals.
 
 - The current ArchController owner may approve or remove account factories.
 - An approved factory may associate a deployed contract account with an initial registered principal.

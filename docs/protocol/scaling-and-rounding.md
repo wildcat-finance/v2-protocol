@@ -24,7 +24,7 @@ Markets before v2.5 rounded transfers half-up. v2.5+ markets declare their conve
 
 In the codebase, the scale factor is stored as a ray value, meaning it has a base unit of 1e27, so 1.1e27 is 1.1.
 
-The [MathUtils](../src/libraries/MathUtils.sol) library contains the math functions for dividing / multiplying ray values.
+The [MathUtils](../../src/libraries/MathUtils.sol) library contains the math functions for dividing / multiplying ray values.
 
 ## Scaled Tokens
 
