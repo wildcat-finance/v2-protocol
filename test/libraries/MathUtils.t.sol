@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
 import './wrappers/MathUtilsExternal.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 // Uses an external wrapper library to make forge coverage work for MathUtils.
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
-contract MathUtilsExternalTest is Test {
-  bytes4 constant Panic_ErrorSelector = 0x4e487b71;
-  uint256 constant Panic_Arithmetic = 0x11;
-  bytes internal ArithmeticError = abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic);
+contract MathUtilsExternalTest is TestKernel {
+  bytes4 constant TestPanicErrorSelector = 0x4e487b71;
+  uint256 constant TestPanicArithmetic = 0x11;
+  bytes internal ArithmeticError = abi.encodePacked(TestPanicErrorSelector, TestPanicArithmetic);
 
-  function test_calculateLinearInterestFromBips(uint256 bips, uint256 delta) external {
+  function test_calculateLinearInterestFromBips(uint256 bips, uint256 delta) external pure {
     bips = bound(bips, 0, 10000);
     delta = bound(delta, 0, type(uint32).max);
     uint256 interest = delta == 0
@@ -22,11 +22,11 @@ contract MathUtilsExternalTest is Test {
     assertEq(MathUtilsExternal.calculateLinearInterestFromBips(bips, delta), interest);
   }
 
-  function test_calculateLinearInterestFromBips() external {
+  function test_calculateLinearInterestFromBips() external pure {
     assertEq(MathUtilsExternal.calculateLinearInterestFromBips(1000, 365 days), 1e26);
   }
 
-  function test_satSub(uint256 a, uint256 b) external {
+  function test_satSub(uint256 a, uint256 b) external pure {
     if (b > a) {
       assertEq(MathUtilsExternal.satSub(a, b), 0);
     } else {
@@ -34,7 +34,7 @@ contract MathUtilsExternalTest is Test {
     }
   }
 
-  function test_satAdd(uint256 a, uint256 b, uint256 maxValue) external {
+  function test_satAdd(uint256 a, uint256 b, uint256 maxValue) external pure {
     uint256 expected;
     if (a >= maxValue || b >= maxValue - a) {
       expected = maxValue;
@@ -44,7 +44,7 @@ contract MathUtilsExternalTest is Test {
     assertEq(MathUtilsExternal.satAdd(a, b, maxValue), expected);
   }
 
-  function test_satAdd_OverflowReturnsMaximum() external {
+  function test_satAdd_OverflowReturnsMaximum() external pure {
     assertEq(MathUtilsExternal.satAdd(type(uint256).max, 1, type(uint256).max), type(uint256).max);
   }
 
@@ -67,7 +67,7 @@ contract MathUtilsExternalTest is Test {
     }
   }
 
-  function test_rayMul() external {
+  function test_rayMul() external pure {
     assertEq(MathUtilsExternal.rayMul(RAY, RAY), RAY);
     assertEq(MathUtilsExternal.rayMul(100, 1.99e26), 20);
   }
@@ -81,7 +81,7 @@ contract MathUtilsExternalTest is Test {
     }
   }
 
-  function test_rayDiv() external {
+  function test_rayDiv() external pure {
     assertEq(MathUtilsExternal.rayDiv(RAY, RAY), RAY);
     assertEq(MathUtilsExternal.rayDiv(1, 2), 5e26);
   }
@@ -116,7 +116,7 @@ contract MathUtilsExternalTest is Test {
     }
   }
 
-  function test_bipMul() external {
+  function test_bipMul() external pure {
     assertEq(MathUtilsExternal.bipMul(BIP, BIP), BIP);
     assertEq(MathUtilsExternal.bipMul(100, 1999), 20);
   }
@@ -139,7 +139,7 @@ contract MathUtilsExternalTest is Test {
     }
   }
 
-  function test_max(uint256 a, uint256 b) external {
+  function test_max(uint256 a, uint256 b) external pure {
     assertEq(MathUtilsExternal.max(a, b), a > b ? a : b);
   }
 }

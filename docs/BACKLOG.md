@@ -17,8 +17,10 @@ The source-driven ceremony has been regenerated from the post-audit integration 
 ## prettier-plugin-solidity upgrade
 
 `prettier-plugin-solidity` is pinned at 1.1.3 (2023). It cannot parse
-file-level events (solidity 0.8.22+), which forced a `.prettierignore` entry
-for `test/shared/mocks/MockHooks.sol`.
+file-level events introduced after its release. The legacy test file that
+triggered the parser failure was removed with the frozen suite, but the plugin
+still needs an independently reviewed upgrade before repository-wide
+formatting.
 
 - Upgrade prettier + the plugin, re-run formatting over the repo, and verify
   the reformat is bytecode-identical (`forge build` artifact hash comparison,
@@ -26,40 +28,28 @@ for `test/shared/mocks/MockHooks.sol`.
 - Supply-chain caution: pin exact versions, review the published tarballs and
   their provenance before installing, and avoid installing during an active
   npm incident window.
-- Remove the `MockHooks.sol` entry from `.prettierignore` afterward.
 
-## Wildcat4626Wrapper branch-coverage test pass — DONE
-
-Completed in `test/vault/Wildcat4626WrapperGuards.t.sol` (50 tests): 37/41
-branches. The four residuals are accounted for: three revert guards proven
-unreachable for `scaleFactor >= RAY` (mint round-trip at Wildcat4626Wrapper
-~L294, redeem ceil-to-zero ~L359, sweep ceil-to-zero ~L391 — each pinned
-positively instead), and one forge-coverage attribution artifact on
-`_beforeTokenTransfer`'s zero-amount early return, whose both behaviors are
-directly asserted by passing tests. `_useVirtualShares`/`_underlyingDecimals`
-are structurally required base-class overrides with no reachable call path
-(all conversion entry points are overridden).
-
-### Running coverage
+## Focused coverage tooling
 
 `forge coverage` cannot parse `SphereXProtectedRegisteredBase.sol` as written
 (its analyzer cannot resolve a modifier that takes the function's named return
 value as an argument). A semantically identical inline of that modifier is
 kept as `docs/coverage-spherex.patch` — it is deliberately never committed to
 the source file because it is not bytecode-identical. The tracked coverage
-command applies the patch temporarily and verifies that the source is restored. Run it against a
-focused family whose production graph the coverage compiler supports, for example:
+command applies the patch temporarily and verifies that the source is restored.
+Run it against a focused family whose production graph the coverage compiler
+supports, for example:
 
 ```
-FOUNDRY_TEST=test-next/sanctions yarn coverage --match-contract SanctionsTest
+FOUNDRY_TEST=test/sanctions yarn coverage --match-contract SanctionsTest
 ```
 
 The run caps keep the instrumented build tractable; the anchored exclusion
 regex matters (an unanchored `lib` also excludes `src/libraries`). Remove the
 patch if a future Foundry release fixes the analyzer. Production graphs that
 include `HooksFactoryRevolving` still exceed Forge's non-IR coverage compiler;
-their canonical via-IR tests and focused coverage status are recorded in the
-replacement parity ledgers.
+canonical via-IR tests remain the release gate. Historical branch-coverage and
+suite-replacement evidence remains available in repository history.
 
 ## Minimum-deposit check consolidation
 

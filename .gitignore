@@ -1,13 +1,9 @@
 broadcast
 out/
-out-test-next/
-out-test-next-coverage/
-out-legacy/
+out-coverage/
 ir-out/
 cache/
-cache-test-next/
-cache-test-next-coverage/
-cache-legacy/
+cache-coverage/
 ir-cache/
 deploy-out/
 deploy-cache/

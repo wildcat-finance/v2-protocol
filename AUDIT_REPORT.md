@@ -80,7 +80,7 @@ A focused Foundry regression demonstrated that a direct transfer to the sanction
 
 The wrapper now records the escrow returned by the Sentinel during `nukeFromOrbit` before transferring the sanctioned holder's shares. `_isEscrowRelease` requires that wrapper-local authorization before applying the existing deterministic-address check against the escrow's original principal namespace. A genuine escrow created and funded only through an unrelated principal therefore no longer receives the release exception, while an escrow precreated under the current principal becomes authorized when the wrapper actually funds it.
 
-Canonical `test-next` regressions cover rejection of a foreign-principal release, authorization of a precreated current-principal escrow through `nukeFromOrbit`, and release of a wrapper-funded escrow after principal migration. These changes remediate the assessed revision after the audit; the focused Foundry regression and SP-43 counterexample above remain evidence of the original finding, not post-fix failures. The change adds one private provenance mapping and does not alter the wrapper's external ABI.
+Canonical `test` regressions cover rejection of a foreign-principal release, authorization of a precreated current-principal escrow through `nukeFromOrbit`, and release of a wrapper-funded escrow after principal migration. These changes remediate the assessed revision after the audit; the focused Foundry regression and SP-43 counterexample above remain evidence of the original finding, not post-fix failures. The change adds one private provenance mapping and does not alter the wrapper's external ABI.
 
 ### F-02 — Checkpoint-Based Delinquency Transitions Require State Writes
 
@@ -156,7 +156,7 @@ Fizz global property GL-08 and positive-borrow property SP-20 reproduced the dis
 
 `liquidityRequired` now calculates pending withdrawals and outstanding supply in normalized units before applying the reserve ratio to the outstanding portion. Dedicated branches preserve the ordinary 0% reserve path and make a 100% reserve ratio recombine exactly to `totalSupply()`. Accrued protocol fees and unclaimed withdrawals are added afterward as before. The change does not alter storage or any external ABI.
 
-Canonical `test-next` regressions cover the normalized partition across scale factors and reserve ratios, the original high-scale one-share counterexample, `borrowableAssets`, and exact 0% and 100% behavior. The focused `MarketStateTest` suite passed all 13 tests, and the 74-test `WildcatMarketTest` suite passed with 1,000 fuzz runs per fuzzed case. The high-scale 4,999-bip case now reserves 2,096,733 underlying units, and 100% reserves equal `totalDebts()` exactly.
+Canonical `test` regressions cover the normalized partition across scale factors and reserve ratios, the original high-scale one-share counterexample, `borrowableAssets`, and exact 0% and 100% behavior. The focused `MarketStateTest` suite passed all 13 tests, and the 74-test `WildcatMarketTest` suite passed with 1,000 fuzz runs per fuzzed case. The high-scale 4,999-bip case now reserves 2,096,733 underlying units, and 100% reserves equal `totalDebts()` exactly.
 
 ### F-05 — Factory-Admitted `bytes32` Metadata Can Revert Lens Batches
 
@@ -176,7 +176,7 @@ This is a read-only availability and integration failure. It can prevent applica
 
 #### Validation
 
-The source discrepancy was confirmed against the repository's legacy metadata helpers and fixtures. New `test-next` regressions exercise direct token reads, mixed string/`bytes32` token batches, market data, factory-wide market batches, and aggregated multi-factory batches. The original `bytes32` trigger now succeeds through each lens surface. Existing tests continue to reject truncated and noncanonical dynamic-string encodings while accepting canonical strings, legacy `bytes32`, high-bit final bytes, and harmless trailing data.
+The source discrepancy was confirmed against the repository's legacy metadata helpers and fixtures. New `test` regressions exercise direct token reads, mixed string/`bytes32` token batches, market data, factory-wide market batches, and aggregated multi-factory batches. The original `bytes32` trigger now succeeds through each lens surface. Existing tests continue to reject truncated and noncanonical dynamic-string encodings while accepting canonical strings, legacy `bytes32`, high-bit final bytes, and harmless trailing data.
 
 #### Audit Resolution
 
@@ -210,7 +210,7 @@ Fizz property SP-14 reproduced the `7,501 -> 5,625` APR transition: the implemen
 
 `_calculateTemporaryReserveRatioBips` now evaluates `floor(2 * BIP * reduction / originalAPR)` and then caps the result at 10,000 bips. This applies the documented floor once instead of doubling an already rounded ratio. The exact 25% trigger comparison, the existing reserve-ratio floor, the 100% cap, and the two-week activation, update, cancellation, and expiry behavior are unchanged. The change does not alter storage or any external ABI.
 
-Canonical `test-next` coverage includes the exact 25% boundary, the non-zero-remainder `7,501 -> 5,625` transition, fuzzed APR and reserve combinations, consecutive reductions, partial recovery, cancellation, and expiry. The original transition now produces the intended 5,001-bip temporary reserve. The focused constraint-hook, periodic-hook, and market suites passed all 104 tests, with 1,000 fuzz runs per fuzzed case.
+Canonical `test` coverage includes the exact 25% boundary, the non-zero-remainder `7,501 -> 5,625` transition, fuzzed APR and reserve combinations, consecutive reductions, partial recovery, cancellation, and expiry. The original transition now produces the intended 5,001-bip temporary reserve. The focused constraint-hook, periodic-hook, and market suites passed all 104 tests, with 1,000 fuzz runs per fuzzed case.
 
 ### F-07 — `closeMarket` Returns Only Unencumbered Surplus
 

@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
 import 'src/libraries/Withdrawal.sol';
 import './wrappers/WithdrawalLibExternal.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 // Uses an external wrapper library to make forge coverage work for WithdrawalLib.
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
-contract WithdrawalTest is Test {
-  WithdrawalData internal _withdrawalData;
-
+contract WithdrawalTest is TestKernel {
   using WithdrawalLibExternal for WithdrawalBatch;
 
   function test_availableLiquidityForPendingBatch(
@@ -21,7 +19,7 @@ contract WithdrawalTest is Test {
     uint128 normalizedUnclaimedWithdrawals,
     uint96 scaleFactor,
     uint128 accruedProtocolFees
-  ) external {
+  ) external pure {
     scaledTotalPendingWithdrawals = uint104(
       bound(scaledTotalPendingWithdrawals, 1, type(uint104).max)
     );
