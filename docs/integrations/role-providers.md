@@ -1,87 +1,256 @@
-# Role Provider Inventory
+# Role Providers
 
-This is the repository-scoped inventory for the v2.5 provider migration. It distinguishes production contracts from test fixtures and examples. `IRoleProvider` remains ownership-agnostic; administration is a capability of a particular provider, not a property the hook assumes.
+Role providers supply credential timestamps to Wildcat access-control hooks.
+Each hook chooses which providers to accept and how long to cache their results.
+[`IRoleProvider`](../../src/access/IRoleProvider.sol) defines credential calls;
+it does not define administration, deployment provenance, or product support.
 
-| Provider | Location | Status | Credential model | Administration |
-| --- | --- | --- | --- | --- |
-| `AccessListRoleProvider` | `src/providers/AccessListRoleProvider.sol` | v2.5 production candidate | Pull provider. Returns the current timestamp while an account is a member and zero otherwise. | `IManagedRoleProvider` two-step administrator transfer. Membership and provider address survive transfer. |
-| `ERC20RoleProvider` | `src/providers/ERC20RoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Requires a configured token balance at or above `minBalance`. | Ownerless. Token and threshold are immutable. |
-| `ERC4626AssetsRoleProvider` | `src/providers/ERC4626AssetsRoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Converts the account's vault shares to assets and requires at least `minAssets`. | Ownerless. Vault and threshold are immutable. |
-| `ERC721RoleProvider` | `src/providers/ERC721RoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Requires a non-zero balance in the configured collection. | Ownerless. Collection is immutable. |
-| `ERC1155RoleProvider` | `src/providers/ERC1155RoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Pull provider. Requires a non-zero balance of one configured token ID. | Ownerless. Collection and token ID are immutable. |
-| `ERC5192RoleProvider` | `src/providers/ERC5192RoleProvider.sol` | Exploratory | Validation provider. Checks ownership of the token ID supplied in hooks data and can require the token to be locked. | Ownerless. Collection and lock requirement are immutable. |
-| `ERC5484RoleProvider` | `src/providers/ERC5484RoleProvider.sol` | Exploratory | Validation provider. Checks ownership of the token ID supplied in hooks data and an allowed burn-authorization mask. | Ownerless. Collection and mask are immutable. |
-| `MerkleRoleProvider` | `src/providers/MerkleRoleProvider.sol` | v2.5 production candidate, not scheduled for deployment | Validation provider. Verifies a sorted-pair proof for `keccak256(abi.encode(account))`. | `IManagedRoleProvider` two-step administrator transfer. The administrator can update the root. |
-| `UniversalProvider` | `script/mock/UniversalProvider.sol` | Local deployment mock | Pull and validation provider. Always returns the current timestamp. | Ownerless and immutable. |
-| `MockRoleProvider` | `test/mocks/MockRoleProvider.sol` | Test fixture | Configurable pull, push, stored credential, or signature-validation behavior. | Unrestricted test setters; not a production authority model. |
-| EOA, Safe, or smart-account push provider | No provider contract required | Supported integration shape | Calls `grantRole` or `grantRoles` on a hook directly. The hook stores the pushed timestamp and TTL. | Defined by the calling account, not by `IRoleProvider`. |
+This page distinguishes the supported V2.5 surface from additional contracts
+present in the repository. Source presence alone does not imply deployment or
+support.
 
-The remaining NFT validation providers are compatibility proofs and are not part of the v2.5 deployment ceremony. They have no bundled factories, SDK encoders, or app flows. Each can be deployed independently and attached through `addRoleProvider`. They need separate product, security, and integration review before production use.
+## V2.5 status
 
-`MerkleRoleProvider`, `ERC20RoleProvider`, `ERC721RoleProvider`, `ERC1155RoleProvider`, and `ERC4626AssetsRoleProvider` are production candidates with their own factories, but none are scheduled for the v2.5 deployment ceremony. They still need subgraph, SDK, app, and release integration before they can be treated as supported products.
+| Provider | Status | Deployment |
+| --- | --- | --- |
+| Access list | Supported | Sepolia factory |
+| Merkle | Source only | — |
+| ERC-20 | Source only | — |
+| ERC-4626 | Source only | — |
+| ERC-721 | Source only | — |
+| ERC-1155 | Source only | — |
+| ERC-5192 | Exploratory | — |
+| ERC-5484 | Exploratory | — |
+| Universal | Development | Sepolia mock |
+| Mock | Test only | — |
 
-ERC20 and ERC4626 thresholds must be greater than zero. Providers that check ERC165 reject contracts with invalid ERC165 behavior unless interface checking is explicitly skipped. Skipping the constructor check does not make an incompatible token valid; later credential checks still fail if the required token call is unavailable.
+`Deployment` means an address recorded in [`deployments/`](../../deployments/),
+not every provider instance created permissionlessly. At this source commit,
+the tracked inventories contain no V2.5 role-provider deployment on mainnet.
 
-Token and vault providers prove only the state visible during a credential check. They do not prove how long an account held an asset or prevent it from returning borrowed assets later in the transaction. The ERC20, ERC721, and ERC1155 providers trust the configured token's `balanceOf` result, and the ERC4626 provider trusts the configured vault's `convertToAssets` result. None of these providers proves price or holding history. Provider selection and TTL must account for those properties.
+The [Sepolia inventory](../../deployments/sepolia/deployments.json) records:
 
-Membership and configuration changes follow the TTL selected for that provider on each hook. A zero TTL rechecks pull-provider membership on every access check and requires validation providers to supply fresh data after the current timestamp. A positive TTL deliberately allows a previously granted credential to remain cached until it expires. Dynamic token balances, token ownership, and Merkle roots should use zero or a deliberately short TTL unless delayed revocation is acceptable.
+- `AccessListRoleProviderFactory` at
+  `0x92995EA2ba572E4Cb8bB41E30f813BeB77FD4974`.
+- `UniversalProvider`, a development mock, at
+  `0x9aCdE253F7A51456c48604185C0ceA4Fc9e58E3a`.
 
-`ERC5192RoleProvider` and `ERC5484RoleProvider` expect `abi.encode(tokenId)` after the packed provider address. `MerkleRoleProvider` expects `abi.encode(proof)` after the provider address. Malformed validation data fails closed.
+Source-only and exploratory providers require product and security review plus
+SDK, subgraph, app, and release integration before they become supported.
 
-External providers may use different persistence and authority models, so SDK and migration tooling must probe optional capabilities rather than infer them from `IRoleProvider`.
+## Hook model
+
+A hook administrator attaches each provider with a provider-specific
+time-to-live (TTL). The same provider may be attached to several hooks with
+different TTLs.
+
+- **Pull providers** return a grant timestamp from `getCredential(account)`.
+  Hooks can refresh them without user-supplied data.
+- **Validation providers** return a grant timestamp from
+  `validateCredential(account, data)`. The caller supplies the data after the
+  packed provider address in `hooksData`.
+- **Push providers** call `grantRole` or `grantRoles` on the hook. An EOA, Safe,
+  or smart account can be a push provider without implementing
+  `IRoleProvider`.
+
+Only an exact `true` response from `isPullProvider()` classifies an address as
+pull-based. A revert, false value, short response, or malformed boolean
+classifies it as push-based.
+
+`IRoleProvider` is deliberately ownership-agnostic. Managed providers may also
+implement
+[`IManagedRoleProvider`](../../src/access/IManagedRoleProvider.sol), which the
+hooks do not require.
+
+## Credential lifetime and failure
+
+A provider returns the timestamp when it granted the credential. Zero means no
+credential. Future timestamps are invalid. The hook adds the provider TTL and
+caps the result at `type(uint32).max`.
+
+A zero-TTL pull credential is rechecked on every gated interaction, including
+another interaction in the same block. A positive TTL deliberately allows a
+cached credential to survive membership, balance, ownership, or root changes
+until expiry. Removing a provider prevents its cached credential from being
+used by later checks.
+
+A provider revert or invalid timestamp grants nothing on the ordinary hook
+path, and a later provider may still succeed. A successful stateful validation
+call that returns less than one word reverts so its side effects cannot survive
+without a usable result.
+
+## Factory model
+
+The access-list, Merkle, ERC-20, ERC-4626, ERC-721, and ERC-1155 providers each
+have a CREATE2 factory. Every factory:
+
+- namespaces the supplied salt by the factory caller;
+- exposes deterministic address calculation;
+- emits a typed event containing the initial configuration; and
+- retains no ownership, upgrade path, or authority over the provider.
+
+The resulting address depends on the factory, caller, supplied salt, and
+constructor inputs. Only the access-list factory is part of the tracked V2.5
+deployment surface.
+
+## Providers
+
+### `AccessListRoleProvider`
+
+**Status:** supported. Its
+[`AccessListRoleProviderFactory`](../../src/providers/AccessListRoleProviderFactory.sol)
+is deployed on Sepolia.
+
+[`AccessListRoleProvider`](../../src/providers/AccessListRoleProvider.sol) is a
+pull provider. It returns the current timestamp while an account is a member
+and zero otherwise.
+
+The administrator can add or remove members and enumerate the current set.
+Administration moves through the optional two-step managed-provider interface.
+The provider address and membership survive an administrator transfer.
+
+### `MerkleRoleProvider`
+
+**Status:** source only. Its
+[`MerkleRoleProviderFactory`](../../src/providers/MerkleRoleProviderFactory.sol)
+has no tracked deployment.
+
+[`MerkleRoleProvider`](../../src/providers/MerkleRoleProvider.sol) is a
+validation provider. It verifies a sorted-pair proof for
+`keccak256(abi.encode(account))`. The validation payload is
+`abi.encode(bytes32[] proof)` after the packed provider address. Malformed
+payloads return no credential.
+
+The administrator can update the root and transfer administration through the
+two-step managed-provider interface. The provider cannot enumerate members or
+recover the source list. Operators must retain the canonical list and proof
+data offchain.
+
+### `ERC20RoleProvider`
+
+**Status:** source only. Its
+[`ERC20RoleProviderFactory`](../../src/providers/ERC20RoleProviderFactory.sol)
+has no tracked deployment.
+
+[`ERC20RoleProvider`](../../src/providers/ERC20RoleProvider.sol) is a pull
+provider. An account qualifies when `balanceOf(account) >= minBalance`.
+`minBalance` is nonzero and expressed in token base units.
+
+The token and threshold are immutable. The provider has no administrator. It
+checks that the token address contains code but cannot verify ERC-20 behavior.
+
+### `ERC4626AssetsRoleProvider`
+
+**Status:** source only. Its
+[`ERC4626AssetsRoleProviderFactory`](../../src/providers/ERC4626AssetsRoleProviderFactory.sol)
+has no tracked deployment.
+
+[`ERC4626AssetsRoleProvider`](../../src/providers/ERC4626AssetsRoleProvider.sol)
+is a pull provider. It qualifies an account when
+`convertToAssets(balanceOf(account)) >= minAssets`. `minAssets` is nonzero and
+expressed in underlying-asset base units.
+
+The vault and threshold are immutable. The provider has no administrator. It
+does not check redeemability, liquidity, fees, price, or holding history.
+
+### `ERC721RoleProvider`
+
+**Status:** source only. Its
+[`ERC721RoleProviderFactory`](../../src/providers/ERC721RoleProviderFactory.sol)
+has no tracked deployment.
+
+[`ERC721RoleProvider`](../../src/providers/ERC721RoleProvider.sol) is a pull
+provider. Any positive collection balance qualifies; no particular token ID is
+required.
+
+The collection is immutable and the provider has no administrator. The normal
+constructor path verifies ERC-165 and ERC-721 support. `skipInterfaceCheck`
+bypasses deployment-time detection only; it does not repair an incompatible
+`balanceOf` implementation.
+
+### `ERC1155RoleProvider`
+
+**Status:** source only. Its
+[`ERC1155RoleProviderFactory`](../../src/providers/ERC1155RoleProviderFactory.sol)
+has no tracked deployment.
+
+[`ERC1155RoleProvider`](../../src/providers/ERC1155RoleProvider.sol) is a pull
+provider. Any positive balance of one configured token ID qualifies. Balances
+of other token IDs do not.
+
+The collection and token ID are immutable. The provider has no administrator.
+The normal constructor path verifies ERC-165 and ERC-1155 support.
+`skipInterfaceCheck` has the same narrow behavior as the ERC-721 provider.
+
+### `ERC5192RoleProvider`
+
+**Status:** exploratory. It has no bundled factory.
+
+[`ERC5192RoleProvider`](../../src/providers/ERC5192RoleProvider.sol) is a
+validation provider. It verifies ownership of a supplied token ID and may also
+require `locked(tokenId)` to return true. The validation payload is
+`abi.encode(tokenId)` after the packed provider address.
+
+The collection and lock requirement are immutable. The provider has no
+administrator. The normal constructor path verifies ERC-165, ERC-721, and
+ERC-5192 support; the interface check may be skipped.
+
+### `ERC5484RoleProvider`
+
+**Status:** exploratory. It has no bundled factory.
+
+[`ERC5484RoleProvider`](../../src/providers/ERC5484RoleProvider.sol) is a
+validation provider. It verifies ownership of a supplied token ID and requires
+its burn-authorization value to match an immutable four-bit allow mask. The
+validation payload is `abi.encode(tokenId)` after the packed provider address.
+
+The collection and mask are immutable. The provider has no administrator. The
+normal constructor path verifies ERC-165, ERC-721, and ERC-5484 support; the
+interface check may be skipped.
+
+## Integration constraints
+
+Token and vault providers observe current contract state only. They do not
+prove holding duration or prevent an account from returning temporarily
+borrowed assets later in the transaction. They trust the configured token or
+vault to report balances and conversions honestly.
+
+An ERC-20 market token or Wildcat ERC-4626 wrapper for Market A can authorize
+access to Market B. It cannot authorize a state-changing action against its own
+underlying Market A: the credential check would reenter Market A through a
+guarded view and fail.
+
+External providers may use different state, failure, and authority models.
+Integrations must probe optional capabilities rather than infer them from
+`IRoleProvider`.
 
 ## Lens and indexer boundary
 
-The v2.5 lens treats role providers generically. For each hook attachment it returns the provider address, TTL, pull and push indexes, and optional current and pending administration. It does not hardcode provider kinds or copy provider-specific configuration into the lens ABI.
+The V2.5 lens reports each attached provider's address, TTL, pull and push
+indexes, and optional managed-provider administration. It does not infer a
+provider kind or copy provider-specific configuration into the lens ABI.
 
-Deployment events from known factory addresses identify the supported provider kind and initial configuration. Later membership, root, and administrator events carry mutable history. Immutable providers also expose typed getters for current validation. An attached provider without known factory provenance remains visible by address and is classified as unknown downstream instead of being guessed from selectors.
+Indexers should classify supported provider kinds from events emitted by known
+factory addresses. Mutable provider events supply later membership, root, and
+administrator history. An attached provider without known factory provenance
+remains visible by address and should be classified as unknown.
 
-This split is intentional. Hooks own attachment and credential-cache policy. Providers own credentials and provider-specific configuration. The indexer owns typed historical projection. Adding another provider does not require replacing the hook or lens.
+Hooks own provider attachment and credential caching. Providers own credential
+logic and provider-specific configuration. Indexers own typed historical
+projection.
 
-## Access-list factory provenance
+## Development contracts
 
-`AccessListRoleProviderFactory` emits the provider address, intended administrator, actual factory caller, caller-scoped salt, and initial member list. It has no owner, registry role, upgrade path, or callable authority over a deployed provider. The provider itself exposes current membership and paginated enumeration, so current state does not depend on replaying factory or membership events.
+[`UniversalProvider`](../../script/mock/UniversalProvider.sol) always returns
+the current timestamp. It is a deployment helper, not a production authority
+model, even though an instance is recorded in the Sepolia inventory.
 
-## Merkle provider construction
+[`MockRoleProvider`](../../test/mocks/MockRoleProvider.sol) exposes unrestricted
+test setters and configurable failure behavior. It is a test fixture only.
 
-`MerkleRoleProviderFactory` follows the same authority and CREATE2 rules as the access-list factory. It emits the provider address, intended administrator, actual factory caller, caller-scoped salt, and initial root. It has no owner, registry role, upgrade path, or callable authority over a deployed provider.
+Provider behavior is covered by:
 
-The leaf for an account is `keccak256(abi.encode(account))`. Each tree level hashes the two child values in ascending byte order. `validateCredential` accepts only the canonical `abi.encode(bytes32[] proof)` payload after the packed provider address. A zero root is allowed and behaves as an empty list unless somebody can produce a proof for it.
-
-The provider stores only the root. It cannot enumerate members or recover the source list, so the administrator must keep the canonical list and proof-generation data somewhere else. Root updates and administrator transfers are observable onchain, but the list itself is not. A zero-TTL credential remains usable for the rest of its block timestamp and needs a fresh proof once the timestamp advances.
-
-## ERC20 provider construction
-
-`ERC20RoleProviderFactory` deploys one immutable provider configuration from a token, a minimum balance, and a caller-scoped salt. The factory and provider have no administrator, upgrade path, or authority to change the token or threshold after deployment. The deployment event records the provider, token, factory caller, supplied salt, and threshold.
-
-Eligibility is `token.balanceOf(account) >= minBalance`. The threshold is inclusive and uses the token's base units. The constructor checks that the token address has code, but ERC20 has no ERC165 interface to probe. The hook administrator is responsible for trusting the selected token. A malicious or nonconforming token can lie or revert, and a rebasing token can change eligibility without a transfer.
-
-The provider checks current balance, not holding time. A temporary or borrowed balance can satisfy the threshold during a check. TTL `0` rechecks the balance on every gated interaction, including another interaction in the same block. A positive TTL deliberately lets access survive until the cached credential expires after the account transfers the tokens. If `balanceOf` reverts, the hook treats that provider as granting no credential and may still accept a later provider.
-
-A Wildcat market token for Market A can authorize access to Market B as the lender's claim grows with interest. It cannot authorize a state-changing action on Market A itself. That path calls Market A's guarded `balanceOf` while Market A is already executing, so the view reentrancy guard rejects it. This limit is intentional. The provider does not weaken the market guard.
-
-## ERC721 provider construction
-
-`ERC721RoleProviderFactory` deploys one immutable provider configuration from a collection, an interface-check setting, and a caller-scoped salt. The factory and provider have no administrator, upgrade path, or authority to change the collection after deployment. The deployment event records the provider, collection, factory caller, supplied salt, and whether the constructor skipped its ERC165 check.
-
-Eligibility is `token.balanceOf(account) > 0`. Any token ID in the configured collection qualifies. The normal constructor path checks ERC165, ERC721 support, and the ERC165 invalid-interface rule. `skipInterfaceCheck` supports collections with a usable ERC721-style `balanceOf` that do not advertise ERC165. It bypasses only constructor detection. It does not make a missing or incompatible `balanceOf` call work later.
-
-The provider trusts the collection's reported balance. A malicious or nonconforming collection can lie or revert, and custom collection logic can change eligibility without an ordinary transfer. A temporary or borrowed token can satisfy the check. TTL `0` follows live balances on every gated interaction, including another interaction in the same block. A positive TTL deliberately lets access survive until the cached credential expires after the account transfers or loses its last token. If `balanceOf` reverts, the hook treats that provider as granting no credential and may still accept a later provider.
-
-## ERC1155 provider construction
-
-`ERC1155RoleProviderFactory` deploys one immutable provider configuration from a collection, one token ID, an interface-check setting, and a caller-scoped salt. The factory and provider have no administrator, upgrade path, or authority to change the collection or token ID after deployment. The deployment event records the provider, collection, factory caller, supplied salt, token ID, and whether the constructor skipped its ERC165 check.
-
-Eligibility is `token.balanceOf(account, tokenId) > 0`. Any positive balance of the configured token ID qualifies; balances of other token IDs do not. The normal constructor path checks ERC165, ERC1155 support, and the ERC165 invalid-interface rule. `skipInterfaceCheck` has the same narrow purpose as the ERC721 setting. The configured contract still needs a compatible `balanceOf(address,uint256)` call when credentials are checked.
-
-The provider trusts the collection's reported balance and does not prove holding time. A temporary or borrowed balance can qualify. TTL `0` follows the configured token balance on every gated interaction. A positive TTL deliberately lets access survive until the cached credential expires after the account transfers or burns its balance. If `balanceOf` reverts, the hook treats that provider as granting no credential and may still accept a later provider.
-
-## ERC-4626 assets provider construction
-
-`ERC4626AssetsRoleProviderFactory` deploys one immutable provider configuration from a vault, a minimum asset threshold, and a caller-scoped salt. The factory and provider have no administrator, upgrade path, or authority to change the vault or threshold after deployment. The deployment event records the provider, vault, factory caller, supplied salt, and threshold.
-
-Eligibility is `vault.convertToAssets(vault.balanceOf(account)) >= minAssets`. The threshold is inclusive and uses the underlying asset's base units. It measures the vault's current ideal conversion for the shares held directly by the account. It does not check `maxRedeem`, liquidity, fees, holding time, or whether the shares were borrowed. A malicious or nonconforming vault can report a misleading value, so the hook administrator is responsible for trusting the selected vault.
-
-TTL `0` rechecks the share balance and conversion on every gated interaction, including another interaction in the same block. A positive TTL deliberately lets access survive until the cached credential expires after the account transfers or redeems its shares. If the vault reverts, the provider call reverts. The hook treats that as no credential and may still accept a later provider.
-
-A Wildcat wrapper for Market A can authorize access to Market B as the wrapped claim grows with interest. The wrapper cannot authorize a state-changing action on its own wrapped market. That path would read Market A's `scaleFactor()` while Market A is already executing, and the market's view reentrancy guard rejects it. This limit is intentional. The provider does not weaken the market guard.
+- [`ManagedRoleProviders.t.sol`](../../test/providers/ManagedRoleProviders.t.sol)
+- [`RoleProviderFactories.t.sol`](../../test/providers/RoleProviderFactories.t.sol)
+- [`RoleProviderHookIntegration.t.sol`](../../test/providers/RoleProviderHookIntegration.t.sol)
+- [`TokenRoleProviders.t.sol`](../../test/providers/TokenRoleProviders.t.sol)
