@@ -39,7 +39,7 @@ alone.
   behavior.
 - [Role providers](./Role%20Provider%20Inventory.md) covers credential-provider
   capabilities and construction paths.
-- [ERC-4626 wrapper](./EIP-4626.md) covers wrapping, redemption, rounding,
+- [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md) covers wrapping, redemption, rounding,
   sanctions, and integration constraints.
 - [Event model](./v2.5%20Event%20Model.md) covers ABI families, event ordering,
   deployment discovery, and indexer replay.

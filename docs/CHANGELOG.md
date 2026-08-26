@@ -38,7 +38,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 ### ERC-4626 wrapper
 
 - Wrapper execution paths converted to floor-consistent arithmetic matching v2.5 market transfers (previews keep their spec rounding); `maxDeposit`/`maxMint`/`maxWithdraw` are exact and executable whenever nonzero. Deposit and mint limits now report zero while the wrapper cannot pass the market hook's recipient-side transfer policy, without changing preview semantics.
-- `Wildcat4626WrapperFactory` is now a permanent generation facade: it wraps floor-rounding (v2.5+) markets locally, forwards pre-v2.5 markets to the previously deployed v1 factory for creation and discovery, and rejects unknown future rounding markers. See [EIP-4626](./EIP-4626.md).
+- `Wildcat4626WrapperFactory` is now a permanent generation facade: it wraps floor-rounding (v2.5+) markets locally, forwards pre-v2.5 markets to the previously deployed v1 factory for creation and discovery, and rejects unknown future rounding markers. See [EIP-4626](./integrations/erc-4626-wrapper.md).
 - Canonical wrapper creation fails closed unless a v2.5 market's hooks expose both the global-disable and recipient-readiness transfer-policy capabilities, and rejects markets whose transfers are permanently disabled.
 
 ### Lens
@@ -82,7 +82,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 - Added `Wildcat4626Wrapper`, a non-rebasing ERC-4626 share token for Wildcat market debt tokens that tracks the market's scaled accounting.
 - Added `Wildcat4626WrapperFactory`, which permissionlessly deploys at most one wrapper per registered market.
-- Wrapper behavior is documented in [`docs/EIP-4626.md`](./EIP-4626.md), including scaling-based conversions, sanctions checks, per-wrapper capacity limits, and handling of direct market-token donations.
+- Wrapper behavior is documented in [`docs/integrations/erc-4626-wrapper.md`](./integrations/erc-4626-wrapper.md), including scaling-based conversions, sanctions checks, per-wrapper capacity limits, and handling of direct market-token donations.
 
 ### Lens
 
