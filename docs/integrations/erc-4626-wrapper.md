@@ -1,36 +1,42 @@
 # Wildcat ERC-4626 Wrapper (EIP-4626)
 
-This repo includes an ERC‑4626 wrapper for Wildcat V2 market debt tokens. It is designed to turn a **rebasing** Wildcat market token into a **non‑rebasing** ERC‑4626 “share” token whose balance tracks the market’s **scaled** accounting.
+This repository includes an [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626)
+wrapper for Wildcat market tokens. It turns a rebasing market token into a
+non-rebasing share token whose balance tracks the market's scaled accounting.
 
 ## TL;DR
 
-- **Asset** (`IERC4626.asset()`): the Wildcat **market token** (the debt token, which rebases with interest).
-- **Shares** (`IERC4626` vault token): a **non‑rebasing** ERC‑20 that tracks the market’s **scaled** balances.
-- **Exchange rate**: `assetsPerShare = market.scaleFactor()` (ray, `1e27`).
-- **Conversions** use `scaleFactor` (not `totalAssets/totalSupply` ratio).
-- **Direct transfers** of the market token to the wrapper do **not** mint shares; they create a **stranded scaled surplus** that can be swept by the market owner.
-- **Sanctions** are enforced via the market’s `sentinel()` for mints/burns/transfers and all ERC‑4626 entrypoints.
+- **Asset:** the rebasing Wildcat market token returned by `asset()`.
+- **Shares:** a non-rebasing ERC-20 balance equal to scaled market-token
+  ownership.
+- **Exchange rate:** `market.scaleFactor()`; conversions do not use the
+  `totalAssets() / totalSupply()` ratio.
+- **Direct market-token transfers:** mint no shares. They restore missing
+  backing or create surplus that the operational borrower may sweep.
+- **Execution guards:** state-changing ERC-4626 methods and share transfers
+  enforce sanctions and scaled-backing solvency.
 
 ## Where it lives in the repo
 
-- `src/vault/Wildcat4626Wrapper.sol`
-- `src/vault/Wildcat4626WrapperFactory.sol`
+- [`src/vault/Wildcat4626Wrapper.sol`](../../src/vault/Wildcat4626Wrapper.sol)
+- [`src/vault/Wildcat4626WrapperFactory.sol`](../../src/vault/Wildcat4626WrapperFactory.sol)
 - Tests:
-  - `test/vault/Wildcat4626Wrapper.t.sol`
-  - `test/vault/Wildcat4626WrapperFactory.t.sol`
-  - `test/integration/Wildcat4626WrapperIntegration.t.sol`
+  - [`test/vault/Wildcat4626Wrapper.t.sol`](../../test/vault/Wildcat4626Wrapper.t.sol)
+  - [`test/vault/Wildcat4626WrapperFactory.t.sol`](../../test/vault/Wildcat4626WrapperFactory.t.sol)
+  - [`test/integration/Wildcat4626WrapperIntegration.t.sol`](../../test/integration/Wildcat4626WrapperIntegration.t.sol)
 
 ## Background: Wildcat scaling in 60 seconds
 
 Wildcat markets use “scaled” balances internally and expose “normalized” ERC‑20 balances externally:
 
-- **Scaled amounts**: “share count” that only changes on deposit/withdraw/transfer.
-- **Normalized amounts**: what `balanceOf` / `transfer` / ERC‑20 functions use; this **rebases** as interest accrues.
+- **Scaled amounts** are ownership units that do not grow as interest accrues.
+- **Normalized amounts** are the values used by `balanceOf`, `transfer`, and
+  other ERC-20 functions; they rebase as interest accrues.
 - The conversion is controlled by `scaleFactor` (ray, `1e27`):
   - `normalized = scaled * scaleFactor / 1e27`
   - `scaled = normalized * 1e27 / scaleFactor`
 
-More detail: `docs/protocol/scaling-and-rounding.md`.
+See [Scaling and Rounding](../protocol/scaling-and-rounding.md).
 
 ## Contracts
 
@@ -48,19 +54,30 @@ An ERC‑4626 vault where:
 - `decimals()` = `wrappedMarket.decimals()` (same decimals as the market token / underlying asset)
 - Shares also support EIP‑2612 `permit` (inherited from Solady `ERC20`).
 
+#### Construction
+
+Only the address returned by `market.wrapperFactory()` can deploy the wrapper.
+Construction rejects a zero market, borrower, principal, or sentinel and
+malformed market metadata. It captures the market, sentinel, transfer-policy,
+decimals, name, and symbol dependencies. Borrower and principal remain live
+market reads.
+
 #### Key view helpers
 
-- `market() -> address`: address of the wrapped market token.
-- `asset() -> address`: alias for `market()` (ERC‑4626 asset).
-- `totalAssets() -> uint256`: `wrappedMarket.balanceOf(address(this))` (normalized amount; increases as the market rebases).
-- `assetsPerShareRay() -> uint256`: current `scaleFactor` (ray).
-- `sharesPerAssetRay() -> uint256`: `1/scaleFactor` (ray), i.e. `1e27 * 1e27 / scaleFactor`.
+| View | Meaning |
+| --- | --- |
+| `wrappedMarket()`, `market()`, `asset()` | The wrapped market token. `asset()` is the ERC-4626 asset getter. |
+| `sanctionsSentinel()` | Sentinel captured from the market at construction. |
+| `marketOwner()` | Compatibility getter for the market's current operational borrower. |
+| `totalAssets()` | Normalized `wrappedMarket.balanceOf(address(this))`; grows as the market token rebases. |
+| `assetsPerShareRay()` | Current market `scaleFactor`, in ray units. |
+| `sharesPerAssetRay()` | Floored ray inverse: `RAY * RAY / scaleFactor`. |
 
 #### Conversions & rounding
 
 All conversions are derived from the market’s `scaleFactor` (ray, `1e27`), not from `totalAssets/totalSupply`.
 
-**Spec‑compliant previews**
+**ERC-4626 preview rounding**
 
 | Method | Rounding |
 | --- | --- |
@@ -91,34 +108,87 @@ As of v2.5, Wildcat market transfers move `floor(amount * RAY / scaleFactor)` sc
 
 Because normalized amounts are labels over exact scaled accounting, the `assets` figure returned by `redeem` (or passed to `withdraw`) can exceed the receiver's `balanceOf` delta by up to one scaled token's value: the market's rebasing balance view rounds independently of its transfer. Integrators should reconcile against `scaledBalanceOf` deltas, not `balanceOf`.
 
-#### Deposit/mint limits (capacity)
+#### ERC-4626 limits and capacity
 
-The wrapper enforces a per‑wrapper cap based on the market’s configured capacity and its current ability to receive market tokens:
+The wrapper applies the market's `maxTotalSupply` as a cap on normalized market
+tokens held by this wrapper, not as a cap on aggregate market supply.
 
-- `maxDeposit(receiver)` is `max(0, market.maxTotalSupply() - totalAssets())`, clamped to `0` when the remaining capacity would mint zero shares under floor scaling. It also returns `0` for sanctioned receivers or while the wrapper fails the market hook's recipient-side transfer policy. Whenever `maxDeposit(receiver)` is nonzero, the wrapper has passed every global condition it can query before execution (a zero max signals nothing depositable; `deposit(0)` reverts per spec).
-- `maxMint(receiver)` converts the remaining deposit capacity to shares with floor rounding, matching `mint`'s cap check.
-- `maxWithdraw(owner)` is the largest amount whose floor‑rounded scaling burns no more than the owner's shares; when nonzero, withdrawing it burns exactly those shares.
+| View | Result under ordinary dependency behavior |
+| --- | --- |
+| `maxDeposit(receiver)` | `max(0, market.maxTotalSupply() - totalAssets())`, or zero if the receiver or wrapper is sanctioned, the wrapper is under-backed, recipient policy denies or fails, or the remainder would mint zero shares. |
+| `maxMint(receiver)` | The remaining deposit capacity converted to shares with floor rounding. |
+| `maxWithdraw(owner)` | The largest normalized amount whose floor-scaled transfer burns no more than the owner's shares; a nonzero maximum burns all of them. |
+| `maxRedeem(owner)` | The owner's share balance, or zero when the owner or wrapper is sanctioned or the wrapper is under-backed. |
+
+The four ERC-4626 execution methods reject zero assets or shares. ERC-4626 does
+not require that implementation choice.
 
 Notes:
 
-- Wrapper creation remains permissionless. An open-transfer market reports deposit capacity immediately after creation. If market-token transfers require access, `maxDeposit` and `maxMint` remain zero until the wrapper has a valid credential or has become a known lender on that market.
-- `previewDeposit` and `previewMint` remain pure conversion quotes and deliberately do not consult sanctions, capacity, or transfer readiness. Integrations should use the corresponding `max*` function to determine current executability.
-- The readiness query covers recipient-side policy without extra hook data. It cannot predict sender balance, allowance, amount-dependent custom policy, or state changes between the read and the transaction. A failed policy query is treated conservatively as zero capacity so ERC-4626 limit reads do not revert.
-- `maxTotalSupply` is in **normalized** units and (in Wildcat markets) can be exceeded by interest accrual; the wrapper mirrors this behavior by computing remaining capacity from `totalAssets()` (which rebases).
-- Because the wrapper’s cap is computed against *its own holdings*, it is possible for the wrapper to report `maxDeposit == 0` even while the market has outstanding tokens elsewhere.
+- Wrapper creation is permissionless. If market-token transfers require access,
+  `maxDeposit` and `maxMint` remain zero until the wrapper can receive tokens.
+- Preview methods are conversion-only views. They deliberately ignore
+  sanctions, capacity, and transfer readiness.
+- The readiness query cannot predict sender balance, allowance,
+  amount-dependent policy, or later state changes. Policy failure returns zero.
+- Market and sentinel reads otherwise fail closed by bubbling reverts or
+  malformed responses. The `max*` views are therefore not total under external
+  dependency failure, despite ERC-4626's non-reverting requirement.
+- `maxTotalSupply` and `totalAssets()` are normalized and can grow apart from
+  deposits. The wrapper can be at its cap while market tokens remain elsewhere.
+
+#### Backing invariant
+
+Operational ERC-4626 paths require:
+
+```text
+wrappedMarket.scaledBalanceOf(wrapper) >= wrapper.totalSupply()
+```
+
+When backing equals supply, canonical deposit, mint, withdraw, and redeem paths
+preserve equality. Direct market-token transfers may create surplus backing.
+If backing falls below share supply, ERC-4626 state changes and share transfers revert with
+`InsolventWrapper`, while all four `max*` views return zero. Restoring scaled
+backing clears the solvency failure; sanctions and transfer policy remain
+independent.
 
 #### Sanctions enforcement
 
-The wrapper reads the market’s current `borrowerPrincipal()` for sanctions checks and keeps only the market and sentinel addresses at construction:
+The wrapper reads the market's current `borrowerPrincipal()` for each sanctions
+check. It stores the market and sentinel addresses at construction, but does not
+cache borrower identity.
 
 - ERC‑4626 entrypoints (`deposit/mint/withdraw/redeem`) check:
   - `msg.sender` (always),
   - `receiver` (for `withdraw/redeem`, and for `deposit/mint` via mint hook),
   - `owner` (for `withdraw/redeem` via burn hook).
-- ERC‑20 share transfers (`transfer/transferFrom`) revert if either `from` or `to` is sanctioned.
-- `maxDeposit/maxMint/maxWithdraw/maxRedeem` return `0` when the relevant account is sanctioned (per ERC‑4626 expectations).
+- Ordinary ERC-20 share transfers reject a sanctioned sender or receiver.
+  Sanctions escrows have the narrow exceptions described below.
+- `maxDeposit`, `maxMint`, `maxWithdraw`, and `maxRedeem` return zero when the
+  relevant account or the wrapper itself is sanctioned.
 
-Sanctions checks are performed via `sanctionsSentinel.isSanctioned(borrowerPrincipal, account)`. Same-principal account rotation therefore preserves overrides, while principal migration starts a new namespace. Existing wrapper-share escrows remain releasable under the principal namespace they were created with.
+Sanctions checks call
+`sanctionsSentinel.isSanctioned(borrowerPrincipal, account)`. Overrides are
+keyed by principal: changing the principal starts a new namespace, while an
+operational-address change that preserves the principal does not. Existing
+wrapper-share escrows remain releasable under their original namespace.
+
+#### Sanctioned-share quarantine
+
+Anyone may call `nukeFromOrbit(account)` for an account sanctioned under the
+market's current principal.
+
+- The wrapper forwards the complete call, including trailing hook data, to the
+  market's `nukeFromOrbit` path for the account's direct market-token position.
+- If the account owns wrapper shares, the wrapper creates the corresponding
+  sanctions escrow, authorizes it, and moves the account's full share balance.
+  A sanctioned holder can otherwise send shares only to that deterministic
+  escrow; `nukeFromOrbit` is the supported path because it authorizes release.
+- The wrapper itself cannot be nuked. A v2.5 market also rejects nuking its
+  registered canonical wrapper, protecting the wrapper's pooled backing.
+- An authorized escrow may return shares only when releasable under the
+  principal namespace that created it. Foreign or spoofed escrows receive no
+  release exception.
 
 #### Sweeping stray tokens
 
@@ -130,7 +200,8 @@ Sanctions checks are performed via `sanctionsSentinel.isSanctioned(borrowerPrinc
 - For the wrapped market token, sweeps only the **stranded scaled surplus**:
   - `strandedScaled = scaledBalanceOf(wrapper) - totalSupply()`
   - transfer amount is derived from current `scaleFactor`
-  - post-transfer, requires `scaledBalanceOf(wrapper) == totalSupply()`
+  - verifies that the transfer removed exactly `strandedScaled`, leaving
+    backing equal to share supply
 - Emits `TokensSwept(token, to, amount)`.
 
 #### Events
@@ -140,36 +211,54 @@ In addition to standard ERC‑20 events, the wrapper emits:
 - `Deposit(caller, receiver, assets, shares)` (ERC‑4626)
 - `Withdraw(caller, receiver, owner, assets, shares)` (ERC‑4626)
 - `TokensSwept(token, to, amount)` (wrapper‑specific)
+- `SanctionedAccountSharesSentToEscrow(account, escrow, shares)`
 
 #### Errors (wrapper‑specific)
 
-- `ZeroAddress()` — constructor or args included `address(0)`.
-- `ZeroAssets()` / `ZeroShares()` — the action would be a no‑op per ERC‑4626.
-- `CapExceeded()` — wrapper capacity (based on `maxTotalSupply`) exceeded.
-- `SharesMismatch(expected, actual)` — observed market scaled delta did not match expectations.
-- `NotMarketOwner()` — `sweep` caller is not the market borrower.
-- `SanctionedAccount(account)` — a sanctioned account was involved.
+- Inputs and limits: `ZeroAddress`, `ZeroAssets`, `ZeroShares`, `CapExceeded`.
+- Backing: `SharesMismatch(expected, actual)` and
+  `InsolventWrapper(scaledBacking, shareSupply)`.
+- Authority: `NotMarketOwner` and `NotWrapperFactory`.
+- Sanctions: `SanctionedAccount(account)`, `AccountNotSanctioned(account)`, and
+  `CannotNukeWrapper`.
 
 ### `Wildcat4626WrapperFactory`
 
-Permissionless factory that deploys **at most one** wrapper per market, and the single entry point for wrappers across market generations. Wrapper execution arithmetic is coupled to the market's transfer rounding: v2.5+ markets round scaled amounts down and declare it via `scaledTransferRounding() == keccak256('scaleAmountDown')`, while earlier markets round half‑up and lack that function. Mispairing a wrapper with the wrong generation makes its `SharesMismatch` guards revert on roughly half of all scale‑factor states.
+This permissionless factory is the discovery and creation facade across wrapper
+generations. Wrapper arithmetic is coupled to market transfer rounding: v2.5
+markets declare `keccak256('scaleAmountDown')`, while earlier markets use
+half-up rounding and lack the declaration. A mismatched wrapper can trip
+`SharesMismatch` whenever those rounding rules diverge.
 
-- Constructor: `Wildcat4626WrapperFactory(address archController, address v1Factory)`. Both are immutable; `v1Factory` is the previously deployed wrapper factory for half‑up markets (zero on chains with no legacy deployment) and is sanity‑checked at construction.
-- Storage:
-  - `archController`: used to validate markets.
-  - `wrapperForMarket(market) -> wrapper` (routing view, see below).
+#### Construction and views
+
+- `Wildcat4626WrapperFactory(archController, v1Factory)` stores both as
+  immutables. A nonzero legacy factory must successfully answer
+  `wrapperForMarket(address(0))` with at least one return word.
+- `isFloorRoundingMarket(market)` returns true only for the supported floor
+  marker. Failed, short, codeless, and unknown responses return false.
+- `wrapperForMarket(market)` returns a local wrapper first. Declared markets do
+  not fall through to the legacy registry; undeclared markets do when a legacy
+  factory is configured.
 
 #### `createWrapper(market) -> wrapper`
 
 - Reverts if `market == address(0)` or a wrapper is already recorded locally.
 - Markets that do not declare a transfer rounding (pre‑v2.5) are **forwarded to the v1 factory**, which performs its own checks (`LegacyMarketsNotSupported` if no v1 factory is configured).
 - Markets declaring a rounding other than floor (a hypothetical future generation) revert `UnsupportedMarketRounding` rather than being mispaired.
-- Floor‑declaring markets are validated against `archController.isRegisteredMarket` and their hooks' generic transfer-policy capability. Markets whose hooks permanently disable transfers, or do not expose that capability, are rejected rather than receiving an unusable wrapper.
-- Eligible floor‑declaring markets are wrapped locally and recorded. Emits `WrapperDeployed(market, wrapper)`.
+- Floor-declaring markets must be registered, expose the complete generic
+  transfer-policy interface, permit transfers globally, and designate this
+  factory through `market.wrapperFactory()`.
+- The factory deploys and records the wrapper, then calls
+  `market.registerWrapper(wrapper)`. Registration is one-time and emits
+  `WrapperDeployed(market, wrapper)` from the factory.
 
 #### `wrapperForMarket(market) -> wrapper`
 
-Discovery routes like creation: locally recorded wrappers always resolve; markets declaring any rounding resolve only from the local registry (so a mispaired wrapper created by calling the v1 factory directly is quarantined and never surfaced); undeclared markets read through to the v1 factory.
+Discovery routes like creation: locally recorded wrappers always resolve;
+markets declaring any rounding resolve only from the local registry, so a
+mispaired legacy-factory wrapper is quarantined from canonical discovery.
+Undeclared markets read through to the legacy factory.
 
 ## Usage guide (integration)
 
@@ -188,31 +277,45 @@ Discovery routes like creation: locally recorded wrappers always resolve; market
 
 ### Exiting to the underlying asset (important)
 
-Redeeming from the wrapper returns the **market token**, not the market’s underlying asset. To exit to the underlying asset you must follow the Wildcat market’s withdrawal flow (withdrawal request → batch expiry and payment → execution). See `docs/protocol/withdrawals.md` and `docs/protocol/glossary.md` (“Withdrawal Request”, “Withdrawal Payment”, and “Withdrawal Execution”).
+Redeeming from the wrapper returns the **market token**, not the market's
+underlying asset. Exiting to the underlying asset then follows the
+[market withdrawal flow](../protocol/withdrawals.md): request, batch expiry and
+payment, then execution. The [glossary](../protocol/glossary.md) defines those
+stages.
 
-For v2.5 markets, canonical wrapper shares equal the wrapper's exact scaled market-token backing. A Safe can atomically redeem and queue an exact share amount with `wrapper.redeem(shares, safe, safe)` followed by `market.queueWithdrawalScaled(shares)`. The scaled amount stays exact while the Safe transaction waits for signatures, even though its normalized value continues to grow with interest. If the Safe already owns direct market tokens, this flow leaves that direct scaled balance unchanged.
+For v2.5 markets, one wrapper share represents one scaled market-token unit. A
+Safe can atomically redeem and queue an exact share amount with
+`wrapper.redeem(shares, safe, safe)` followed by
+`market.queueWithdrawalScaled(shares)`. The Safe must be eligible to receive
+market tokens under the market's transfer policy. The scaled amount stays exact
+while the transaction waits for signatures, and any direct market-token balance
+held by the Safe remains separate.
 
-`queueWithdrawalScaled` is not available on existing v1/v2 markets. Integrations must select the ABI from the deployed market generation. The scaled entry point is intentionally low-level and should not be presented as an interchangeable normalized withdrawal amount.
+`queueWithdrawalScaled` is not available on pre-v2.5 markets. Integrations must
+select the ABI from the deployed market generation. The scaled entry point is
+not interchangeable with a normalized withdrawal amount.
 
 ## Gotchas / integration notes
 
-- **Do not transfer market tokens directly to the wrapper unless you intend to donate them.** Direct transfers mint no wrapper shares. The market owner can sweep only the surplus above share backing (`scaledBalanceOf(wrapper) - totalSupply()`), and cannot sweep assets backing existing shares.
-- **`totalAssets()` may not equal `convertToAssets(totalSupply())`.** Stranded donations make `totalAssets()` larger without increasing shares; conversions intentionally ignore the `totalAssets/totalSupply` ratio.
-- **Capacity can hit zero due to rebasing.** Because the asset rebases upward with interest, `maxDeposit` can decrease over time even with no new deposits.
-- **Wrapper generations must match market generations.** This wrapper only functions against floor‑rounding (v2.5+) markets; the previously deployed v1 wrapper only functions against half‑up markets. Always create and discover wrappers through the current factory, which routes both generations correctly. Calling the old v1 factory directly with a v2.5 market produces a wrapper that reverts intermittently — it is quarantined from discovery but cannot be prevented on‑chain.
+- **Direct transfers do not mint shares.** They may restore missing backing or
+  create a donation. `totalAssets()` can then exceed
+  `convertToAssets(totalSupply())`; the operational borrower can sweep only
+  scaled surplus above share supply.
+- **Wrapper generations must match market generations.** Use the current
+  factory for creation and discovery. It routes legacy markets when configured
+  and quarantines a mispaired legacy-factory wrapper from discovery.
+- **Legacy wrappers require an operational sanctions override.** Pre-v2.5
+  markets cannot register their canonical wrapper. The borrower principal
+  should keep a sentinel override for that wrapper while it is in use, so
+  market-level sanctions handling cannot remove pooled backing while wrapper
+  shares remain outstanding. The override does not exempt shareholders.
 - **A market cannot use its own wrapper as an access credential.** The role provider must read the wrapper conversion during the market's state-changing hook call, and that conversion reads the same market's guarded `scaleFactor()`. A wrapper for one market can still authorize access to another market.
 - **Do not replace a wrapped-only withdrawal with `queueFullWithdrawal()` when the account also owns market tokens directly.** Full withdrawal queues both positions. Use the v2.5 scaled route to preserve the direct position.
 
 ## Dev notes (for working on this code)
 
-- Core logic lives in `src/vault/Wildcat4626Wrapper.sol`; most interesting behavior is in:
-  - conversion helpers (`_convertTo*`),
-  - execution paths (scaled delta verification),
-  - sanctions hook (`_beforeTokenTransfer`),
-  - cap computation (`_remainingCapacityAssets`).
-- Factory is intentionally minimal: `src/vault/Wildcat4626WrapperFactory.sol`.
-- Rounding and ERC-4626 surface expectations are asserted in
-  `test/vault/Wildcat4626Wrapper.t.sol`.
-- Production market behavior is checked in
-  `test/integration/Wildcat4626WrapperIntegration.t.sol`.
-- Local test command: `yarn test` (runs `forge test`).
+- Wrapper behavior is split between the explicit ERC-4626 methods and the
+  inherited ERC-20 `_beforeTokenTransfer` guard. Review both.
+- The focused command is
+  `forge test --match-contract '^Wildcat4626Wrapper(Factory|Integration)?Test$'`.
+- [`TESTS.md`](../../TESTS.md) defines the repository-wide test contract.
