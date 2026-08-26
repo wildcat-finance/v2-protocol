@@ -1,6 +1,6 @@
 # Periodic Term Hooks
 
-`PeriodicTermHooks` restricts withdrawals to a recurring scheduled window, sitting between the open template (withdraw any time) and the fixed template (withdraw only after a single end date). It inherits the same access-control machinery as the other templates (see [Access Control Hooks](./Access%20Control%20Hooks.md)) and adds two mechanisms: withdrawal windows and gated APR reductions.
+`PeriodicTermHooks` restricts withdrawals to a recurring scheduled window, sitting between the open template (withdraw any time) and the fixed template (withdraw only after a single end date). It inherits the same access-control machinery as the other templates (see [Access Control Hooks](../../integrations/access-control.md)) and adds two mechanisms: withdrawal windows and gated APR reductions.
 
 ## Withdrawal windows
 
