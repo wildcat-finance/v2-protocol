@@ -20,10 +20,13 @@ alone.
 
 ## Protocol
 
-- [Core behavior](./protocol/markets.md) covers market configuration, lifecycle,
-  borrowing, repayment, and withdrawals.
-- [Scaling](./protocol/scaling-and-rounding.md) explains normalized accounting, scaled balances,
-  and rounding.
+- [Markets](./protocol/markets.md) covers market configuration, implementations,
+  and borrower authority.
+- [Accounting](./protocol/accounting.md) and
+  [scaling](./protocol/scaling-and-rounding.md) cover collateral obligations,
+  interest, fees, balances, and rounding.
+- [Withdrawals](./protocol/withdrawals.md) covers batch ownership, payment
+  priority, and execution.
 - [Borrower identity and transfers](./protocol/borrower-identity.md)
   covers principals, operational accounts, registry state, and authority moves.
 - [Terminology](./Terminology.md) defines protocol-specific terms.
