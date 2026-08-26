@@ -1,192 +1,278 @@
-# v2.5 Event Model
+# Events
 
-v2.5 is a hard event-ABI cut from V2 and V2.1. Historical deployments keep their existing ABI families. Consumers must select an ABI from the emitting deployment, not from a package version, tag, template label, or guessed contract shape.
+V2.5 changes several factory, market, access-control, and authority event ABIs.
+Historical V2 and V2.1 deployments retain their original ABI families. Select
+the ABI from the emitting address and its deployment generation, not from a
+package version, template name, or guessed contract shape.
 
-The v2.5 events have two jobs. They provide useful context for operators reviewing a transaction, and they let the indexer reconstruct deployment identity, authority, configuration, fee activity, lender access, and revolving drawn principal without transaction traces or historical contract calls.
+This is a curated integration reference, not a complete event catalogue. It
+covers events whose signatures, emitters, or ordering matter when reconstructing
+V2.5 state. A complete release catalogue should be generated separately from
+the final release ABIs and pinned to the release source commit.
 
-## Ordering
+## Log identity and ordering
 
-Consumers must apply logs in `(block number, transaction index, log index)` order and retain the emitting contract address. The emitter identifies the factory, market, hook, provider, wrapper, registry, or ArchController whose state changed.
+Retain the emitting address and apply logs in `(block number, transaction index,
+log index)` order. The same signature from an unknown emitter is not evidence
+that the emitter belongs to a known factory, market, hook, provider, wrapper,
+registry, or ArchController generation.
 
-A transaction that reverts produces no durable events. Factory deployment events are emitted only after the deployed market has been registered and the factory's market associations have been written.
+A reverted transaction produces no durable logs. During market creation, hook
+initialization events may be emitted before the market exists. The market is
+then deployed and registered, causing `WildcatArchController.MarketAdded`.
+Only after registration and factory association writes does the factory emit
+its market deployment bundle.
 
-`WildcatArchController.MarketAdded` is emitted during that registration and therefore precedes the factory deployment bundle. It proves registration, not complete market initialization metadata. Indexers should upsert the market and finish initialization from the later factory events in the same transaction.
+`MarketAdded` proves registration. It does not contain enough data to initialize
+a market entity. Upsert the address, then complete initialization from the later
+factory events in the same transaction.
 
-## Hook Instance Deployment
+## Hook instance creation
 
-`HooksInstanceDeployed` records the instance, template, initial administrator, deploying borrower address, instance name, and the value returned by `version()`. The deployer and administrator may differ when a borrower account acts for its principal. The template address is the canonical implementation identity. Names are administrator-supplied display metadata, and different template revisions may intentionally return the same version string. An empty name or version is not proof that the instance returned an empty string because the bounded optional read may also have failed.
-
-`HooksInstanceRoleProviders` is the initial provider snapshot for access-control hooks. Constructor-time `RoleProviderAdded` logs are emitted before a dynamic hook data source can be created, so the indexer must initialize the provider set from this factory event and then apply later hook events in log order.
-
-If `metadataAvailable` is `false`, the empty arrays mean that the factory could not read a bounded provider snapshot. They do not prove that the hook has no providers. The production v2.5 access-control hooks expose the expected provider getters and produce `metadataAvailable == true` while their initial provider lists fit the documented bounds. Generic hooks are allowed to omit them.
-
-The factory bounds optional metadata reads. It records instance names and versions only when the returned string is at most 4,096 bytes. Each provider array is limited to 256 entries and a one-million-gas static call. Optional metadata failure does not make an otherwise valid hook deployment fail.
-
-## Role Provider Deployment And Configuration
-
-Hook attachment and provider configuration are separate records. `RoleProviderAdded` identifies the provider attached to one hook, its TTL, and its pull and push indexes. It does not identify the provider kind or duplicate that provider's configuration.
-
-Supported provider factories emit the provider address, the actual factory caller, the caller-scoped salt, and the complete initial configuration:
+The factory emits these events after deploying and indexing a hook instance:
 
 ```solidity
-event AccessListRoleProviderDeployed(address indexed provider, address indexed administrator, address indexed deployer, bytes32 salt, address[] initialMembers);
-event MerkleRoleProviderDeployed(address indexed provider, address indexed administrator, address indexed deployer, bytes32 salt, bytes32 root);
-event ERC20RoleProviderDeployed(address indexed provider, address indexed token, address indexed deployer, bytes32 salt, uint256 minBalance);
-event ERC4626AssetsRoleProviderDeployed(address indexed provider, address indexed vault, address indexed deployer, bytes32 salt, uint256 minAssets);
-event ERC721RoleProviderDeployed(address indexed provider, address indexed token, address indexed deployer, bytes32 salt, bool skipInterfaceCheck);
-event ERC1155RoleProviderDeployed(address indexed provider, address indexed token, address indexed deployer, bytes32 salt, uint256 tokenId, bool skipInterfaceCheck);
+event HooksInstanceDeployed(
+  address indexed hooksInstance,
+  address indexed hooksTemplate,
+  address indexed administrator,
+  address deployer,
+  string name,
+  string version
+);
+event HooksInstanceRoleProviders(
+  address indexed hooksInstance,
+  bool metadataAvailable,
+  RoleProvider[] pullProviders,
+  RoleProvider[] pushProviders
+);
 ```
 
-The known emitting factory address and its deployment event are the canonical provider-kind and deployment-provenance signal. Matching an event signature from an arbitrary emitter is not enough. Consumers must not infer a provider kind from a package version, attachment position, or selector probe.
+`administrator` is the registered principal resolved by the factory. `deployer`
+is the immediate factory caller. The template address, not its display name or
+version string, identifies the implementation.
 
-The constructor boundary applies to provider state as well as hook attachment. `AccessListRoleProviderDeployed.initialMembers` is the initial membership snapshot because constructor-time `MemberAdded` logs precede provider discovery. Later `MemberAdded` and `MemberRemoved` events supersede it. `MerkleRoleProviderDeployed.root` is the initial root, and later `RootUpdated` events carry the previous and new roots. Access-list and Merkle administration follows the shared managed-provider two-step event family.
+Constructor-time `RoleProviderAdded` events may precede factory discovery of
+the hook. `HooksInstanceRoleProviders` therefore supplies the initial provider
+snapshot. If `metadataAvailable` is false, empty arrays mean unknown metadata,
+not an empty provider set.
 
-The ERC20, ERC4626, ERC721, and ERC1155 provider configurations are immutable. Their deployment events contain everything needed to reconstruct the configuration without calling the provider. Typed getters remain available for current-state validation.
+Optional metadata reads are bounded and fail open with respect to deployment.
+Names and versions are retained only when the returned string fits within
+4,096 bytes. Each provider array is limited to 256 entries and read with a
+one-million-gas static call. Failure to read optional metadata does not revert
+an otherwise valid deployment.
 
-A provider attached without a known factory deployment event remains valid protocol input. The hook and lens still expose its address, TTL, pull or push classification, and optional managed-provider administration. Its kind and provider-specific configuration remain unknown unless a consumer has separate trusted provenance. This is deliberate. Adding a new provider must not require another lens generation.
+See [`IHooksFactory.sol`](../../src/IHooksFactory.sol) for the event ABI and
+bounded metadata readers.
 
-## Market Deployment
+## Market creation
 
-Each standard market deployment produces this factory event bundle:
-
-1. `MarketDeployed` records the template, hook instance, market, operational borrower, legal principal, borrower identity registry, name, symbol, asset, requested hook flags, and final market hook flags.
-2. `MarketDeploymentConfig` records the initial capacity, APR, delinquency terms, withdrawal duration, reserve ratio, fee recipient, protocol fee, and origination fee terms.
-3. `MarketHooksData` records the hook-specific deployment payload accepted by `onCreateMarket`.
-
-Revolving deployments add `RevolvingMarketDeployed`, which records the initial commitment fee. The factory address and this event select the revolving ABI without probing the market.
-
-`MarketHooksData` is intentionally opaque to the factory. Consumers must store the raw value and decode it only against the exact approved hook template revision. A successful market deployment proves that the hook accepted the payload, but it does not make an unknown payload safe to guess. Current v2.5 access-control template layouts are:
-
-| Hook template | Accepted deployment payload |
-| --- | --- |
-| `OpenTermHooks` | `(uint128 minimumDeposit, bool transfersDisabled)`, with missing trailing values read as zero |
-| `FixedTermHooks` | `(uint32 fixedTermEndTime, uint128 minimumDeposit, bool transfersDisabled, bool allowClosureBeforeTerm, bool allowTermReduction)` |
-| `PeriodicTermHooks` | `(uint32 firstWithdrawalWindowStart, uint32 periodDuration, uint32 withdrawalWindowDuration, uint96 minimumDeposit, bool transfersDisabled)` |
-
-These layouts are word-based manual decoders, not a promise that `abi.decode` accepts every payload the hook accepts. Boolean fields use the low bit of their 32-byte word, and missing optional trailing words read as zero. Indexer decoding must match the exact hook implementation.
-
-The indexed `hooksInstance` and the address in `requestedHooks` identify the factory-associated hook called during deployment. `requestedHooks` also records the borrower-selected flags passed to `onCreateMarket`, which the access-control hooks use to remember whether deposits, transfers, and withdrawals require credentials. `hooks` records the final address and callbacks returned by that hook and installed on the market, including required callbacks and callbacks implied by the deployment payload.
-
-The borrower identity registry is the factory's immutable registry and the same address installed on the market. It remains the market's identity domain after borrower transfers, so indexers must store it from the deployment event rather than infer it from the current borrower or principal.
-
-Hook initialization events can be emitted during `onCreateMarket`, before the factory emits `MarketDeployed` and before an indexer has created the market entity. `MarketHooksData` is the authoritative initial snapshot for those hook-specific fields. Later hook configuration events supersede it in log order.
-
-## Changed Event ABI
-
-These are the v2.5 factory deployment and template events changed by this pass:
+Standard market creation ends with this factory event bundle:
 
 ```solidity
-event HooksTemplateAdded(address indexed hooksTemplate, address indexed caller, string name, address feeRecipient, address originationFeeAsset, uint80 originationFeeAmount, uint16 protocolFeeBips);
-event HooksTemplateDisabled(address indexed hooksTemplate, address indexed caller);
-event HooksTemplateFeesUpdated(address indexed hooksTemplate, address indexed caller, address previousFeeRecipient, address newFeeRecipient, address previousOriginationFeeAsset, address newOriginationFeeAsset, uint80 previousOriginationFeeAmount, uint80 newOriginationFeeAmount, uint16 previousProtocolFeeBips, uint16 newProtocolFeeBips);
-event HooksInstanceDeployed(address indexed hooksInstance, address indexed hooksTemplate, address indexed administrator, address deployer, string name, string version);
-event HooksInstanceRoleProviders(address indexed hooksInstance, bool metadataAvailable, RoleProvider[] pullProviders, RoleProvider[] pushProviders);
-event MarketDeployed(address indexed hooksTemplate, address indexed hooksInstance, address indexed market, address borrower, address borrowerPrincipal, address borrowerIdentityRegistry, string name, string symbol, address asset, HooksConfig requestedHooks, HooksConfig hooks);
-event MarketDeploymentConfig(address indexed market, uint256 maxTotalSupply, uint256 annualInterestBips, uint256 delinquencyFeeBips, uint256 withdrawalBatchDuration, uint256 reserveRatioBips, uint256 delinquencyGracePeriod, address feeRecipient, uint256 protocolFeeBips, address originationFeeAsset, uint256 originationFeeAmount);
+event MarketDeployed(
+  address indexed hooksTemplate,
+  address indexed hooksInstance,
+  address indexed market,
+  address borrower,
+  address borrowerPrincipal,
+  address borrowerIdentityRegistry,
+  string name,
+  string symbol,
+  address asset,
+  HooksConfig requestedHooks,
+  HooksConfig hooks
+);
+event MarketDeploymentConfig(
+  address indexed market,
+  uint256 maxTotalSupply,
+  uint256 annualInterestBips,
+  uint256 delinquencyFeeBips,
+  uint256 withdrawalBatchDuration,
+  uint256 reserveRatioBips,
+  uint256 delinquencyGracePeriod,
+  address feeRecipient,
+  uint256 protocolFeeBips,
+  address originationFeeAsset,
+  uint256 originationFeeAmount
+);
 event MarketHooksData(address indexed market, bytes hooksData);
+```
+
+Revolving factories then emit:
+
+```solidity
 event RevolvingMarketDeployed(address indexed market, uint256 commitmentFeeBips);
 ```
 
-These are the changed market events:
+`MarketDeployed` owns deployment identity and the installed hook configuration.
+`MarketDeploymentConfig` owns initial economic configuration.
+`MarketHooksData` owns the opaque payload accepted by `onCreateMarket`.
+`RevolvingMarketDeployed` selects the revolving market family and records its
+initial commitment fee.
+
+Decode `hooksData` only against the exact approved hook template revision. The
+current built-in template layouts are:
+
+| Template | Deployment payload |
+| --- | --- |
+| `OpenTermHooks` | `(uint128 minimumDeposit, bool transfersDisabled)`; both words are optional |
+| `FixedTermHooks` | `(uint32 fixedTermEndTime, uint128 minimumDeposit, bool transfersDisabled, bool allowClosureBeforeTerm, bool allowTermReduction)`; only the first word is required |
+| `PeriodicTermHooks` | `(uint32 firstWithdrawalWindowStart, uint32 periodDuration, uint32 withdrawalWindowDuration, uint96 minimumDeposit, bool transfersDisabled)`; the first three words are required |
+
+These hooks use word-based manual readers. Missing optional words read as zero,
+and booleans use the low bit of their word. This is not a promise that
+`abi.decode` accepts every payload the hook accepts.
+
+`requestedHooks` records the borrower-selected hook address and flags passed to
+`onCreateMarket`. `hooks` records the final address and callbacks returned by
+the hook and installed on the market. Preserve both. Preserve the factory's
+`borrowerIdentityRegistry`; do not infer it from the current borrower or
+principal.
+
+See [`HooksFactory.sol`](../../src/HooksFactory.sol) and
+[`HooksFactoryRevolving.sol`](../../src/HooksFactoryRevolving.sol) for the
+ordering and payload emitters.
+
+## Authority and access history
+
+Template admission and fee history use `HooksTemplateAdded`,
+`HooksTemplateDisabled`, and `HooksTemplateFeesUpdated`. Hook administration
+uses the hook's request, cancellation, and completion events; the factory then
+emits `HooksInstanceAdministratorTransferred` after updating its enumeration.
+
+Built-in hook state is reconstructed from `MinimumDepositUpdated`,
+`FixedTermUpdated`, `PeriodicTermUpdated`, `PeriodicTermClosed`, the three
+`AnnualInterestBipsReduction*` events, and the four
+`TemporaryExcessReserveRatio*` events. These events belong to the current
+OpenTerm, FixedTerm, and PeriodicTerm template families.
+
+Market borrower transfer uses these integration-critical events:
 
 ```solidity
-event MaxTotalSupplyUpdated(address indexed caller, uint256 previousMaxTotalSupply, uint256 newMaxTotalSupply);
-event ProtocolFeeBipsUpdated(address indexed caller, uint256 previousProtocolFeeBips, uint256 newProtocolFeeBips);
-event AnnualInterestAndReserveRatioBipsUpdated(address indexed caller, uint256 previousAnnualInterestBips, uint256 newAnnualInterestBips, uint256 previousReserveRatioBips, uint256 newReserveRatioBips);
-event Borrow(address indexed borrower, uint256 assetAmount);
-event MarketClosed(address indexed borrower, uint256 timestamp);
-event FeesCollected(address indexed collector, address indexed feeRecipient, uint256 assets);
-event DrawnAmountUpdated(uint256 previousDrawnAmount, uint256 newDrawnAmount);
+event BorrowerTransferRequested(
+  address indexed borrower,
+  address indexed previousPendingBorrower,
+  address indexed pendingBorrower,
+  address borrowerPrincipal,
+  address previousPendingBorrowerPrincipal,
+  address pendingBorrowerPrincipal
+);
+event BorrowerTransferCancelled(
+  address indexed borrower,
+  address indexed cancelledPendingBorrower,
+  address borrowerPrincipal,
+  address cancelledPendingBorrowerPrincipal
+);
+event BorrowerTransferred(
+  address indexed previousBorrower,
+  address indexed newBorrower,
+  address previousBorrowerPrincipal,
+  address indexed newBorrowerPrincipal
+);
 ```
 
-These are the changed hook and borrower-registry events:
+A pending borrower has no market authority. Consumers must retain operational
+borrower and legal principal as separate fields. See
+[`borrower-identity.md`](../protocol/borrower-identity.md) for the state machine.
+Borrower-account factory and principal-transfer events exist in source for
+forward compatibility, but no account factory is part of the current V2.5
+release surface.
+
+Hook access state is reconstructed from three related families:
+
+- `RoleProviderAdded`, `RoleProviderUpdated`, and `RoleProviderRemoved` own
+  attachment, TTL, and pull/push indexes.
+- `AccountAccessGranted` and `AccountAccessRevoked` own stored credentials.
+- `AccountBlockedFromDeposits`, `AccountUnblockedFromDeposits`, and
+  `AccountMadeFirstDeposit` own hook-local lender state.
+
+Provider removal does not emit synthetic revocations or delete every stored
+credential. Effective access depends on current attachment, TTL, credential
+timestamp, and hook-local blocking state.
+
+For V2.5, only `AccessListRoleProviderFactory` is part of the supported
+provider-factory surface:
 
 ```solidity
-event AccountFactoryAdded(address indexed administrator, address indexed accountFactory);
-event AccountFactoryRemoved(address indexed administrator, address indexed accountFactory);
-event RoleProviderAdded(address indexed administrator, address indexed providerAddress, uint32 timeToLive, uint24 pullProviderIndex, uint24 pushProviderIndex);
-event RoleProviderUpdated(address indexed administrator, address indexed providerAddress, uint32 previousTimeToLive, uint32 newTimeToLive, uint24 previousPullProviderIndex, uint24 newPullProviderIndex, uint24 previousPushProviderIndex, uint24 newPushProviderIndex);
-event RoleProviderRemoved(address indexed administrator, address indexed providerAddress, uint32 timeToLive, uint24 pullProviderIndex, uint24 pushProviderIndex);
-event AccountBlockedFromDeposits(address indexed administrator, address indexed accountAddress);
-event AccountUnblockedFromDeposits(address indexed administrator, address indexed accountAddress);
-event AccountAccessGranted(address indexed providerAddress, address indexed accountAddress, address indexed caller, uint32 credentialTimestamp);
-event AccountAccessRevoked(address indexed providerAddress, address indexed accountAddress, address indexed caller);
-event NameUpdated(address indexed administrator, string previousName, string newName);
-event MinimumDepositUpdated(address indexed market, address indexed caller, uint128 previousMinimumDeposit, uint128 newMinimumDeposit);
-event FixedTermUpdated(address indexed market, address indexed caller, uint32 previousFixedTermEndTime, uint32 newFixedTermEndTime);
-event PeriodicTermUpdated(address indexed market, address indexed administrator, uint32 firstWithdrawalWindowStart, uint32 periodDuration, uint32 withdrawalWindowDuration);
-event PeriodicTermClosed(address indexed market);
-```
-
-These are the provider-specific deployment and mutable-configuration events added to the v2.5 source tree:
-
-```solidity
-event AccessListRoleProviderDeployed(address indexed provider, address indexed administrator, address indexed deployer, bytes32 salt, address[] initialMembers);
+event AccessListRoleProviderDeployed(
+  address indexed provider,
+  address indexed administrator,
+  address indexed deployer,
+  bytes32 salt,
+  address[] initialMembers
+);
 event MemberAdded(address indexed administrator, address indexed account);
 event MemberRemoved(address indexed administrator, address indexed account);
-event MerkleRoleProviderDeployed(address indexed provider, address indexed administrator, address indexed deployer, bytes32 salt, bytes32 root);
-event RootUpdated(address indexed administrator, bytes32 previousRoot, bytes32 newRoot);
-event ERC20RoleProviderDeployed(address indexed provider, address indexed token, address indexed deployer, bytes32 salt, uint256 minBalance);
-event ERC4626AssetsRoleProviderDeployed(address indexed provider, address indexed vault, address indexed deployer, bytes32 salt, uint256 minAssets);
-event ERC721RoleProviderDeployed(address indexed provider, address indexed token, address indexed deployer, bytes32 salt, bool skipInterfaceCheck);
-event ERC1155RoleProviderDeployed(address indexed provider, address indexed token, address indexed deployer, bytes32 salt, uint256 tokenId, bool skipInterfaceCheck);
 ```
 
-Borrower, hook-administrator, and managed-provider two-step event signatures are documented with their state machines in [Borrower Identity and Transfers](./protocol/borrower-identity.md) and [Role Provider Inventory](./Role%20Provider%20Inventory.md). `AccountSanctioned` was removed because no production path emitted it.
+The deployment event is the initial membership snapshot. Later membership
+events supersede it in log order. Classify the provider only when both the
+event and its known factory emitter match. An attached provider without trusted
+factory provenance remains valid protocol input but has unknown type.
 
-## Factory And Authority History
+Other provider factories present in source are not scheduled or supported in
+the current V2.5 release surface and are intentionally omitted here. Their
+source status belongs in [`Role Provider Inventory.md`](../Role%20Provider%20Inventory.md),
+not in the current integration event set.
 
-Template and account-factory admission events identify the acting ArchController owner. Template fee changes also include complete old/new fee context. Hook, provider, borrower-account, and market authority use their component-specific two-step events. A pending target has no authority. Completion events identify the previous and new authority, and market borrower events preserve the separate operational borrower and legal principal values.
+## Market accounting and configuration
 
-Hook provider events are replayable as an ordered collection:
+The relevant market state families are:
 
-- `RoleProviderAdded` records administrator, provider, TTL, and initial pull/push indexes.
-- `RoleProviderUpdated` records administrator and the previous/new TTL and indexes. Swap-and-pop index repair is therefore visible.
-- `RoleProviderRemoved` records administrator and the removed provider's final TTL and indexes.
+- `Deposit`, `Borrow`, and `DebtRepaid` record asset and debt movement.
+- `MaxTotalSupplyUpdated`, `ProtocolFeeBipsUpdated`, and
+  `AnnualInterestAndReserveRatioBipsUpdated` record mutable configuration with
+  previous and new values.
+- `InterestAndFeesAccrued` and `StateUpdated` record accrual and its persisted
+  scale factor and delinquency state.
+- `FeesCollected` and `MarketClosed` record fee withdrawal and closure.
+- `DrawnAmountUpdated` records revolving drawn-principal changes.
 
-Provider administration and hook attachment are different state. Transferring a managed provider does not change its address or its hook attachments. Transferring a hook administrator does not transfer or rewrite any attached provider.
+APR and reserve ratio are one transition because a hook may transform both.
+Closing sets APR to zero and reserve ratio to 10,000, then emits
+`MarketClosed`. `InterestAndFeesAccrued` records time-based accrual;
+`StateUpdated` records the persisted scale factor and delinquency flag;
+`FeesCollected` records asset transfer from the market.
 
-Credential events distinguish the provider that owns the credential domain, the lender account, and the immediate caller that caused the hook to persist the change. Hook-local deposit blocks identify the administrator and account separately.
+`Borrow` records proceeds. Revolving markets separately emit
+`DrawnAmountUpdated` when drawn principal changes. These are deliberately
+independent: a borrow after over-repayment may transfer assets without
+increasing drawn principal, and an interest-only repayment may emit
+`DebtRepaid` without reducing drawn principal.
 
-Provider removal does not iterate lender records or emit synthetic revocations for every account. It makes credentials from that provider unusable while the provider is detached, but the stored `LenderStatus` remains until a later successful state transition replaces or clears it. An indexer should retain the last credential record and calculate effective access from the current provider attachment, its current TTL, the credential timestamp, and the hook-local block. Reattaching the same provider can make an otherwise unexpired stored credential usable again.
+See [`IMarketEventsAndErrors.sol`](../../src/interfaces/IMarketEventsAndErrors.sol)
+and [`IWildcatMarketRevolving.sol`](../../src/interfaces/IWildcatMarketRevolving.sol).
 
-Removing a member from a pull provider is different from detaching the provider from a hook. With a positive hook TTL, an already cached credential remains usable until its calculated expiry. TTL zero forces the hook to query the provider on every credential-gated interaction.
+## Wrappers, withdrawals, and sanctions
 
-## Market Configuration And Fees
+Canonical V2.5 wrapper creation emits `WrapperRegistered` from the market,
+followed by `WrapperDeployed` from the wrapper factory. Standard ERC-20 and
+ERC-4626 `Transfer`, `Approval`, `Deposit`, and `Withdraw` events remain part
+of the wrapper ABI. See [`erc-4626-wrapper.md`](./erc-4626-wrapper.md).
 
-Mutable configuration events carry the immediate caller plus previous and new values:
+The market withdrawal family includes `WithdrawalBatchCreated`,
+`WithdrawalQueued`, `WithdrawalBatchPayment`, `WithdrawalBatchExpired`,
+`WithdrawalBatchClosed`, and `WithdrawalExecuted`. `queueWithdrawalScaled`
+uses this existing family; it adds no event or indexer state.
 
-- `MaxTotalSupplyUpdated`
-- `ProtocolFeeBipsUpdated`
-- `AnnualInterestAndReserveRatioBipsUpdated`
+Withdrawal and wrapper quarantine may also emit
+`SanctionedAccountAssetsQueuedForWithdrawal`,
+`SanctionedAccountWithdrawalSentToEscrow`,
+`SanctionedAccountSharesSentToEscrow`, `NewSanctionsEscrow`, and
+`EscrowReleased`. Retain the emitter: market-token escrow, underlying-asset
+escrow, and wrapper-share escrow are different assets and state transitions.
 
-APR and reserve ratio are one atomic configuration transition because the hook may transform both values together. Closing a market also sets APR to zero and reserve ratio to 10,000, so `closeMarket` emits this configuration event before `MarketClosed`.
+## Indexer rules
 
-`FeesCollected` identifies the caller, fee recipient, and asset amount. `InterestAndFeesAccrued` remains the source for time-based protocol-fee accrual. There is no fee-on-draw state or event in v2.5.
-
-## Standard And Revolving Borrowing
-
-`Borrow` identifies the operational borrower and asset proceeds. Revolving markets separately emit `DrawnAmountUpdated(previousDrawnAmount, newDrawnAmount)` whenever drawn principal actually changes.
-
-The events are deliberately independent. A borrow after an over-repayment can transfer proceeds without increasing drawn principal, and an interest-only repayment can emit `DebtRepaid` without reducing drawn principal. Closing a revolving market emits the final drawn-principal transition to zero when necessary.
-
-## Withdrawals
-
-The withdrawal event family is unchanged. `Transfer`, `WithdrawalQueued`, `WithdrawalBatchCreated`, `WithdrawalBatchPayment`, `WithdrawalBatchExpired`, `WithdrawalBatchClosed`, `WithdrawalExecuted`, and the sanctions escrow events already expose the account, batch, scaled amount, normalized amount, and settlement transitions needed for replay.
-
-`queueFullWithdrawal()` remains the exact protocol-level "all" operation. `queueWithdrawalScaled(uint256)` queues an exact scaled amount for wrapper and other low-level integrations, then derives the normalized `Transfer` and `WithdrawalQueued` amount from the execution-time scale factor. It uses the existing event family and does not add indexer state.
-
-Interest-only withdrawal is downstream accounting and uses the ordinary withdrawal path; it does not add a v2.5 market event or accounting field.
-
-## Indexer Rules
-
-1. Select the ABI family from known deployment addresses and explicit deployment events.
-2. Initialize a hook from `HooksInstanceDeployed` and `HooksInstanceRoleProviders`; do not query mutable hook state at the current block to infer its historical deployment state.
-3. Classify a supported provider from its known factory emitter and deployment event. Preserve an attached provider with unknown provenance as unknown rather than guessing its kind.
-4. Initialize a market from the complete factory event bundle, keyed by market address.
-5. Decode hook deployment data only for an exact known template revision. Preserve unknown payloads without guessing.
-6. Apply component events in log order. Do not collapse the operational borrower into the legal principal.
-7. Treat `metadataAvailable == false` as unknown metadata, not an empty provider set.
-8. Apply APR and reserve ratio as one transition, including the close transition.
-9. Track revolving borrow proceeds and drawn principal separately.
-10. Keep V2, V2.1, and v2.5 event handlers and generated ABIs separate.
+1. Resolve the ABI family from known deployment provenance and retain the
+   emitter on every record.
+2. Initialize hooks and markets from their factory bundles, then apply later
+   component events in log order.
+3. Decode hook deployment data only for an exact known template revision;
+   preserve unknown payloads unchanged.
+4. Classify providers only from trusted factory provenance; keep arbitrary
+   attached providers visible as unknown.
+5. Keep operational borrower separate from legal principal, and revolving
+   borrow proceeds separate from drawn principal.
