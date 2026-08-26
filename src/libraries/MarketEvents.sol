@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 uint256 constant InterestAndFeesAccrued_abi_head_size = 0xc0;
 uint256 constant InterestAndFeesAccrued_toTimestamp_offset = 0x20;

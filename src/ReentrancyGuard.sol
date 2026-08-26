@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 /// @dev Selector for `error NoReentrantCalls()`
 uint256 constant NoReentrantCalls_ErrorSelector = 0x7fa8a987;

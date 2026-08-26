@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { ERC4626 } from 'solady/tokens/ERC4626.sol';
 import { IERC20Metadata } from 'openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';

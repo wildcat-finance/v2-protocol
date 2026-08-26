@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 uint256 constant Panic_CompilerPanic = 0x00;
 uint256 constant Panic_AssertFalse = 0x01;

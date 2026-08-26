@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 import { FeeMath, MathUtils, MarketState } from 'src/libraries/FeeMath.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';

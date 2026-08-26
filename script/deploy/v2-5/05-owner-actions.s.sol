@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 /**
  * deploy the v2.5 hooks template init-code storages, then do the owner work

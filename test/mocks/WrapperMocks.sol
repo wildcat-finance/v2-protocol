@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { IMarketTransferPolicy } from 'src/access/IMarketTransferPolicy.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 contract RoleProviderTokenMock {
   bytes4 internal constant ERC165InterfaceId = 0x01ffc9a7;

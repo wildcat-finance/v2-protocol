@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { BoolUtils } from 'src/libraries/BoolUtils.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

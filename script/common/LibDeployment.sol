@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.19;
+pragma solidity 0.8.25;
 
 import { Vm as ForgeVM } from 'forge-std/Vm.sol';
 import { console } from 'forge-std/console.sol';

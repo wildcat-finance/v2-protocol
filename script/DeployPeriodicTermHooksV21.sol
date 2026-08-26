@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 // DEPRECATED: v2.1 rollout script, not used for the v2.5 release. It predates
 // the five-argument MarketLens constructor and will fail if run. Kept for

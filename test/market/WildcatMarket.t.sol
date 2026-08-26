@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';

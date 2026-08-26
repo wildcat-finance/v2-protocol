@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.25;
+pragma solidity 0.8.25;
 
 import 'src/types/TransientBytesArray.sol';
 import { PRNG, seedPRNG } from '../shared/PRNG.sol';

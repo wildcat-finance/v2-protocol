@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { IRoleProvider } from 'src/access/IRoleProvider.sol';
 import { ERC20RoleProvider } from 'src/providers/ERC20RoleProvider.sol';

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
