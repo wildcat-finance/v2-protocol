@@ -1,0 +1,58 @@
+name: Forge tests
+
+on:
+  pull_request:
+    branches:
+      - release/v2.5
+  push:
+    branches:
+      - release/v2.5
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forge-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_PROFILE: default
+
+jobs:
+  forge-test:
+    name: Forge test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Initialize submodules
+        run: git submodule update --init --depth 1
+
+      - name: Verify submodule inventory
+        run: |
+          test "$(git config --file .gitmodules --get-regexp '^submodule\..*\.path$' | wc -l)" -eq 4
+          test "$(git submodule status | wc -l)" -eq 4
+          ! git submodule status | grep -Eq '^[-+U]'
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+        with:
+          version: v1.7.1
+          cache: false
+
+      - name: Verify toolchain contract
+        run: |
+          forge --version
+          forge config --json | jq -e '.solc == "0.8.25"'
+          all_sources="$(find src script test -type f -name '*.sol' | wc -l)"
+          pinned_sources="$(grep -rlx --include='*.sol' 'pragma solidity 0.8.25;' src script test | wc -l)"
+          test "$all_sources" -eq "$pinned_sources"
+
+      - name: Run canonical test suite
+        run: forge test --summary
