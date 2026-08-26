@@ -29,7 +29,7 @@ alone.
   priority, and execution.
 - [Borrower identity and transfers](./protocol/borrower-identity.md)
   covers principals, operational accounts, registry state, and authority moves.
-- [Terminology](./Terminology.md) defines protocol-specific terms.
+- [Terminology](./protocol/Terminology.md) defines protocol-specific terms.
 
 ## Integrations
 

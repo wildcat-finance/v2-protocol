@@ -6,7 +6,7 @@ description: It's dangerous to go alone - learn these.
 
 #### **Archcontroller**
 
-* Smart contract which doubles up as a registry and permission gate. [Borrowers](Terminology.md#borrower) are added or removed from the archcontroller by the operators of the protocol itself (granting/rescinding the ability to deploy [hooks](Terminology.md#hooks-instance) and/or [markets](Terminology.md#market)), and the addresses of any factories, market controllers or markets that get deployed through the protocol are stored here.
+* Registry and permission gate for borrower principals, factories, controllers, and markets. Wildcat Foundation, a separate entity that manages the associated KYC/KYB process, registers and removes borrower principals. Wildcat Labs has no administrative control over the ArchController. Registration permits a principal to use approved factory paths, and deployed protocol components are recorded in the registry.
 
 #### **Base APR**
 
@@ -220,7 +220,7 @@ description: It's dangerous to go alone - learn these.
 #### **Vault**
 
 * In core Wildcat docs, this has historically been loose shorthand for a [market](Terminology.md#market), and should usually be read that way unless the context explicitly says otherwise.
-* Exception: the ERC-4626 wrapper introduced in [`docs/EIP-4626.md`](./EIP-4626.md) is an actual vault, so "vault" is intentional in that context.
+* Exception: the ERC-4626 wrapper introduced in [`docs/EIP-4626.md`](../EIP-4626.md) is an actual vault, so "vault" is intentional in that context.
 
 #### **Withdrawal Cycle**
 
