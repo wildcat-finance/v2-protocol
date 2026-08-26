@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 // (c) SphereX 2023 Terms&Conditions
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 import { ISphereXEngine, ModifierLocals } from './ISphereXEngine.sol';
 import './SphereXProtectedEvents.sol';

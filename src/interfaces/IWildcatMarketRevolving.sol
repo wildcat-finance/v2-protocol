@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 interface IWildcatMarketRevolving {
   event DrawnAmountUpdated(uint256 previousDrawnAmount, uint256 newDrawnAmount);

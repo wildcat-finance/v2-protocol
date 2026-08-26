@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { HooksConfigData, HooksConfigDataLib } from 'src/lens/HooksConfigData.sol';
 import { HooksInstanceKind } from 'src/lens/HooksConfigData.sol';

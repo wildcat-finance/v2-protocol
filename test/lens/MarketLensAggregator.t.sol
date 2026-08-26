@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { FactoryScopedHooksTemplateData } from 'src/lens/FactoryScopedHooksTemplateData.sol';
 import { HooksDataForBorrower } from 'src/lens/HooksDataForBorrower.sol';

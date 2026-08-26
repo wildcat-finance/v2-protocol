@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 interface IWildcatSanctionsEscrow {
   event EscrowReleased(address indexed account, address indexed asset, uint256 amount);
