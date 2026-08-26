@@ -75,6 +75,10 @@ contract BaseAccessControls is IHooksAdministrator {
     address indexed previousAdministrator,
     address indexed newAdministrator
   );
+  event RoleProviderConfigurationSealed(
+    address indexed administrator,
+    address indexed providerAddress
+  );
 
   // ========================================================================== //
   //                                   Errors                                   //
@@ -100,6 +104,8 @@ contract BaseAccessControls is IHooksAdministrator {
   error InvalidArrayLength();
   error RoleProviderFactoryRequired();
   error CreateRoleProviderFailed();
+  error RoleProviderConfigurationAlreadySealed();
+  error RoleProviderConfigurationInvalid();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -117,6 +123,7 @@ contract BaseAccessControls is IHooksAdministrator {
   RoleProvider[] internal _pullProviders;
   RoleProvider[] internal _pushProviders;
   mapping(address => RoleProvider) internal _roleProviders;
+  bool public roleProviderConfigurationSealed;
 
   // ========================================================================== //
   //                                  Modifiers                                 //
@@ -124,6 +131,11 @@ contract BaseAccessControls is IHooksAdministrator {
 
   modifier onlyAdministrator() {
     if (msg.sender != administrator) revert CallerNotAdministrator();
+    _;
+  }
+
+  modifier onlyUnsealedRoleProviderConfiguration() {
+    if (roleProviderConfigurationSealed) revert RoleProviderConfigurationAlreadySealed();
     _;
   }
 
@@ -234,7 +246,7 @@ contract BaseAccessControls is IHooksAdministrator {
     address providerFactory,
     uint32 timeToLive,
     bytes memory data
-  ) external onlyAdministrator {
+  ) external onlyAdministrator onlyUnsealedRoleProviderConfiguration {
     _createRoleProvider(IRoleProviderFactory(providerFactory), timeToLive, data);
   }
 
@@ -255,7 +267,11 @@ contract BaseAccessControls is IHooksAdministrator {
    *      otherwise, it is added to `pushProviders`.
    *      If the provider is already approved, only updates `timeToLive`.
    */
-  function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyAdministrator {
+  function addRoleProvider(address providerAddress, uint32 timeToLive)
+    external
+    onlyAdministrator
+    onlyUnsealedRoleProviderConfiguration
+  {
     _addRoleProvider(providerAddress, timeToLive);
   }
 
@@ -341,7 +357,11 @@ contract BaseAccessControls is IHooksAdministrator {
    * @dev Removes a role provider from the `_roleProviders` mapping and, if it is a
    *      pull provider, from the `_pullProviders` array.
    */
-  function removeRoleProvider(address providerAddress) external onlyAdministrator {
+  function removeRoleProvider(address providerAddress)
+    external
+    onlyAdministrator
+    onlyUnsealedRoleProviderConfiguration
+  {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) revert ProviderNotFound();
     // Remove the provider from `_roleProviders`
@@ -359,6 +379,21 @@ contract BaseAccessControls is IHooksAdministrator {
     } else {
       _removePushProvider(provider.pushProviderIndex());
     }
+  }
+
+  /// @dev Locks role-provider membership after verifying the singleton shape.
+  ///      Kept internal so an immutable hooks template can seal during construction,
+  ///      before a market is deployed against the hooks instance.
+  function _sealRoleProviderConfiguration() internal {
+    if (roleProviderConfigurationSealed) revert RoleProviderConfigurationAlreadySealed();
+    if (
+      _pullProviders.length != 1 ||
+      _pushProviders.length != 0 ||
+      _pullProviders[0].timeToLive() != 0
+    ) revert RoleProviderConfigurationInvalid();
+
+    roleProviderConfigurationSealed = true;
+    emit RoleProviderConfigurationSealed(administrator, _pullProviders[0].providerAddress());
   }
 
   /**

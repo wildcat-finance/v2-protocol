@@ -122,7 +122,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     }
   }
 
-  function version() external pure override returns (string memory) {
+  function version() external pure virtual override returns (string memory) {
     return 'FixedTermHooks';
   }
 
@@ -175,7 +175,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal override returns (HooksConfig marketHooksConfig) {
+  ) internal virtual override returns (HooksConfig marketHooksConfig) {
     // Validate the deploy parameters
     super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
     if (administrator_ != administrator) revert CallerNotAdministrator();
@@ -414,6 +414,13 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     bytes calldata hooksData
   ) external override {}
 
+  /// @dev Hook-specific transfer recipient exemption. FixedTermHooks has no
+  ///      exemptions; specialized sealed hooks may override this for protocol
+  ///      components whose identity is authenticated by the market.
+  function _isTransferRecipientExempt(address, address) internal view virtual returns (bool) {
+    return false;
+  }
+
   /**
    * @dev Called when a lender attempts to transfer market tokens on a market
    *      that requires credentials for either transfers or withdrawals.
@@ -442,6 +449,8 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTra
     if (market.transfersDisabled) {
       revert TransfersDisabled();
     }
+
+    if (_isTransferRecipientExempt(msg.sender, to)) return;
 
     // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {
