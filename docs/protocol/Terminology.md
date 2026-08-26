@@ -1,248 +1,216 @@
----
-description: It's dangerous to go alone - learn these.
----
+# Glossary
 
-# Terminology
+These terms describe the supported v2.5 protocol. Identifiers in `code` match
+the source. Rates use basis points (`bips`), where 10,000 bips is 100%.
 
-#### **Archcontroller**
+For full mechanics, see [markets](./markets.md),
+[accounting](./accounting.md), [scaling and rounding](./scaling-and-rounding.md),
+[withdrawals](./withdrawals.md), and
+[borrower identity](./borrower-identity.md).
 
-* Registry and permission gate for borrower principals, factories, controllers, and markets. Wildcat Foundation, a separate entity that manages the associated KYC/KYB process, registers and removes borrower principals. Wildcat Labs has no administrative control over the ArchController. Registration permits a principal to use approved factory paths, and deployed protocol components are recorded in the registry.
+## Authority and Identity
 
-#### **Base APR**
+### ArchController
 
-* The interest rate that lenders receive on [assets](Terminology.md#underlying-asset) that they have deposited into a particular [market](Terminology.md#market), in the absence of the [penalty APR](Terminology.md#penalty-apr) being enforced.
+The protocol registry and permission boundary for registered borrower
+principals, approved deployment components, deployed markets, and blacklisted
+assets. Wildcat Foundation, a separate entity that manages KYC/KYB, registers
+and removes borrower principals. Wildcat Labs has no administrative control
+over the ArchController.
 
-#### **Borrow**
+### Borrower
 
-* To withdraw [assets](Terminology.md#underlying-asset) from a [market](Terminology.md#market) that has a non-zero [supply](Terminology.md#supply) and [reserve ratio](Terminology.md#reserve-ratio) less than 100%, with the intent of repaying the assets (plus any accrued interest) to the market either when the required purpose of using the assets has concluded or as a response to [withdrawal requests](Terminology.md#withdrawal-request).
+The legal and economic counterparty using a Wildcat credit facility. Because
+the word is overloaded, source-facing documentation distinguishes the borrower
+principal from the operational borrower address.
 
-#### **Borrower**
+### Borrower Principal
 
-* Both:
-  * The counterparty that wishes to make use of a credit facility through a Wildcat [market](Terminology.md#market), and
-  * In older or informal usage, the blockchain address that operates a market.
-* In v2.5 contract interfaces, distinguish the [operational borrower](Terminology.md#operational-borrower) from the [borrower principal](Terminology.md#borrower-principal) instead of assuming they are always the same address.
+The registered legal borrower identity recorded for a market and returned by
+`market.borrowerPrincipal()`. It is the lender-facing namespace for sanctions
+checks and new sanctions escrows.
 
-#### **Borrower Account**
+### Operational Borrower
 
-* A contract account associated with one current [borrower principal](Terminology.md#borrower-principal) through the borrower identity registry. The principal may change through a two-step transfer.
-* May be the [operational borrower](Terminology.md#operational-borrower) for one or more markets.
-* A principal may have several accounts. Delegate policy belongs to the account, not to the market or identity registry.
+The exact address returned by `market.borrower()` and authorized for
+borrower-only market actions. Supported v2.5 markets maintain
+`borrower() == borrowerPrincipal()` at origination and after transfer.
 
-#### **Borrower Principal**
+### Borrower Account
 
-* The registered legal borrower identity associated with a v2.5 market.
-* Returned by `market.borrowerPrincipal()`.
-* Used as the lender-facing sanctions and new-escrow namespace.
-* May differ from the [operational borrower](Terminology.md#operational-borrower) when a recognized contract account operates the market.
+A contract account associated with a registered principal through the borrower
+identity registry. The account-aware path exists in the source and ABI, but no
+supported v2.5 factory or deployment uses it. It is planned for v2.6.
 
-#### **Capacity**
+### Lender
 
-* Parameter required of [borrower](Terminology.md#borrower) when creating a new [market](Terminology.md#market).
-* The `maxTotalSupply` field in the state.
-* The _maximum_ amount of an asset that a borrower is looking to source via a market - the threshold for `totalSupply` after which the market will stop accepting deposits on.
-* Can be exceeded by the market's `totalSupply` due to interest accrual.
+A counterparty that supplies the market's underlying asset. Onchain, a lender
+account may hold market tokens, withdrawal-batch ownership, or both.
 
-#### **Claim**
+## Markets and Access
 
-* Removing [assets](Terminology.md#underlying-asset) from the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool) that were requested for withdrawal by a [lender](Terminology.md#lender).
-* Can only occur after a [withdrawal cycle](Terminology.md#withdrawal-cycle) expires.
-* Note that retrieving [deposits](Terminology.md#deposit) from a Wildcat market requires a [withdrawal request](Terminology.md#withdrawal-request) and _then_ a claim - it is a two transaction process with the conclusion of one withdrawal cycle in between.
+### Market
 
-#### **Collateral Obligation**
+An isolated lending facility for one borrower principal and one underlying
+asset. A market accepts lender deposits, issues market tokens, and makes credit
+available to its operational borrower subject to its reserve and withdrawal
+rules.
 
-* The minimum amount of [assets](Terminology.md#underlying-asset) that the borrower is obligated to keep in the market in order to avoid delinquency.
-* Is the sum of:
-  * The [reserves](Terminology.md#required-reserves) needed to meet the reserve ratio for the [outstanding supply](Terminology.md#outstanding-supply)
-  * The market's [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool)
-  * The normalized value of the market's [pending](Terminology.md#pending-withdrawal) and [expired](Terminology.md#expired-withdrawal) withdrawals
-  * The unclaimed [protocol fees](Terminology.md#protocol-apr)
+### Standard Market
 
-#### **Controller**
+A `WildcatMarket` instance. While the market is open, its
+`annualInterestBips` rate accrues on the full supply.
 
-* Smart contract deployed by a [borrower](Terminology.md#borrower) which contains the list of addresses which are authorised to [deposit](Terminology.md#deposit) to any [markets](Terminology.md#market) deployed through it.
-* Contains logic concerning parameters of markets deployed through it (e.g. maximum [grace period](Terminology.md#grace-period), minimum [penalty APR](Terminology.md#penalty-apr)).
-* Controls APR adjustments and enforces [reserve ratios](Terminology.md#reserve-ratio) of markets.
-* Imposes protocol fees (either lump-sum origination or APR-based) on markets.
+### Revolving Market
 
-#### **Delinquency**
+A `WildcatMarketRevolving` instance. While the market is open, lenders earn the
+fixed commitment fee on the full supply and the annual interest rate on the
+lesser of `drawnAmount` and total supply. Explicit borrows and repayments
+update `drawnAmount`; raw underlying transfers do not.
 
-* A [market](Terminology.md#market) state wherein there are insufficient [assets](Terminology.md#underlying-asset) in the market to meet the market's [collateral obligations](Terminology.md#collateral-obligation).
-* Arises via the passage of time through interest if the borrower borrows right up to their reserve ratio.
-* Can also arise if a [lender](Terminology.md#lender) makes a [withdrawal request](Terminology.md#withdrawal-request) that exceeds the market's [available liquidity](Terminology.md#liquid-reserves).
-* A market being delinquent for an extended period of time (as specified by the [grace period](Terminology.md#grace-period)) results in the [penalty APR](Terminology.md#penalty-apr) being enforced in addition to the [base APR](Terminology.md#base-apr) and any [protocol APR](Terminology.md#protocol-apr) that may apply.
-* 'Cured' by [depositing](Terminology.md#deposit) sufficient assets into the market as to reattain the required collateral obligation.
+### Underlying Asset
 
-#### **Deposit**
+The ERC-20 configured when a market is deployed. Implementing the ERC-20
+interface does not by itself make an asset compatible or supported; token
+behavior and deployment policy also matter.
 
-* Both:
-  * The act of sending [assets](Terminology.md#underlying-asset) as a [lender](Terminology.md#lender) to a [market](Terminology.md#market) for the purposes of being [borrowed](Terminology.md#borrow) by the [borrower](Terminology.md#borrower),
-  * The act of sending assets as a borrower to a market for the purposes of being [withdrawn](Terminology.md#withdrawal-request) by lenders,
-  * A term for the lenders' assets themselves once in a market.
+### Market Token
 
-#### **Escrow Contract**
+The ERC-20-compatible lender claim issued by a market. Account balances are
+stored in scaled units and reported in normalized units. Queueing a withdrawal
+moves scaled ownership from the lender to a batch; payment burns it.
 
-* An auxiliary smart contract that is deployed in the event that the [sentinel](Terminology.md#sentinel) detects that a [lender](Terminology.md#lender) address has been added to a sanctioned list such as the OFAC SDN: this check is performed through the [**Chainalysis oracle**](https://go.chainalysis.com/chainalysis-oracle-docs.html).
-* Used to hold [underlying assets](Terminology.md#underlying-asset) owed to a sanctioned lender outside of the [market](Terminology.md#market) until they can be released.
-* In V2, a call to `nukeFromOrbit` queues the sanctioned account's remaining market-token balance into withdrawal processing rather than transferring those market tokens directly to escrow. The queued amount follows normal withdrawal-batch accounting until the batch is paid.
-* When a paid withdrawal is executed for an account that is still sanctioned, the underlying assets owed to that account are transferred to the escrow contract instead of to the account. Interest ceases to accrue on those assets once they have been reserved for the paid withdrawal batch.
-* Assets can only be released to the lender in the event that a) they are no longer tagged as sanctioned by the Chainalysis oracle, or b) the borrower specifically overrides the sanction.
+### Hooks Template
 
-#### Expired Withdrawal
+An implementation approved in a hooks factory as the basis for hooks
+instances. The factory records its availability and fee configuration.
 
-* A [withdrawal request](Terminology.md#withdrawal-request) that could not be fully honoured by [assets](Terminology.md#underlying-asset) in the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool) within a single [withdrawal cycle](Terminology.md#withdrawal-cycle).
+### Hooks Instance
 
-#### **Grace Period**
+A contract attached to a market that implements its configured callbacks.
+Enabled hooks may validate, constrain, or account for specific market actions.
 
-* Parameter required of [borrower](Terminology.md#borrower) when creating a new [market](Terminology.md#market).
-* Rolling period of time for which a market can be [delinquent](Terminology.md#delinquency) before the [penalty APR](Terminology.md#penalty-apr) of the market activates.
-* Note that the grace period does not 'reset' to zero when delinquency is cured. See [grace tracker](Terminology.md#grace-tracker) below for details.
+### Role Provider
 
-#### **Grace Tracker**
+A credential source used by access-control hooks. A provider may push
+credentials, be queried, or validate caller-supplied data. Credential lifetime
+is configured per hook attachment; provider administration is
+provider-specific.
 
-* Internal [market](Terminology.md#market) parameter associated with the [grace period](Terminology.md#grace-period)
-* `timeDelinquent` in the market state.
-* Once a market becomes [delinquent](Terminology.md#delinquency), begins counting seconds up from zero - when the value of the grace tracker exceeds the grace period, the [penalty APR](Terminology.md#penalty-apr) activates.
-* Once a market is cured of delinquency, begins counting seconds down to zero - the penalty APR continues to apply _until the grace tracker value is below the grace period value_.
-* Enforces the rolling nature of the grace period.
+### Sanctions Sentinel
 
-#### **Hook**
-* A function on a [hooks instance](Terminology.md#hooks-instance) which is executed when a particular action occurs on a [market](Terminology.md#market).
-* Corresponds to a specific market action, such as the `onCloseMarket` hook which is called when `closeMarket` is called on a market.
+The contract that wraps the sanctions oracle, applies borrower-scoped
+overrides to lender checks, and derives sanctions escrows.
 
-#### **Hooks Instance**
-* Contract that defines the [hook functions](Terminology.md#hook) for a market.
-* Deployed by an approved borrower as an instance of a particular [hooks template](Terminology.md#hooks-template).
-* Configured in the market parameters at market deployment.
+### Sanctions Escrow
 
-#### **Hooks Template**
-* A base contract defining behavior for a kind of [hooks contract](Terminology.md#hooks-instance) approved by the factory operators.
-* Copied when borrowers deploy hooks instances.
+A contract that holds underlying assets owed when a paid withdrawal is
+executed for a sanctioned lender account. The assets become releasable if the
+oracle clears the account or the borrower applies an override.
 
-#### **Lender**
+### Vault
 
-* Both:
-  * A counterparty that wishes to provide a credit facility through a Wildcat [market](Terminology.md#market), and
-  * The blockchain address associated with that counterparty which [deposits](Terminology.md#deposit) [assets](Terminology.md#underlying-asset) to a market for the purposes of being [borrowed](Terminology.md#borrow) by the [borrower](Terminology.md#borrower).
+Not a synonym for a Wildcat market in current documentation. It refers to an
+ERC-4626 contract, including the canonical Wildcat wrapper where applicable.
 
-#### **Liquid Reserves**
+## Balances and Capacity
 
-* The amount of [underlying assets](Terminology.md#underlying-asset) currently counting towards the market's [required reserves](Terminology.md#required-reserves).
-* Comprises the liquidity that can be made available for new withdrawals.
-* Is equal to the total assets in the market minus the [unclaimed withdrawals](Terminology.md#unclaimed-withdrawals-pool), [pending withdrawals](Terminology.md#pending-withdrawal), [expired withdrawals](Terminology.md#expired-withdrawal) and [accrued protocol fees](Terminology.md#protocol-apr).
+### Scaled Amount
 
-#### **Market**
+An internal ownership unit that remains stable while interest accrues.
+Multiplying it by the current scale factor produces a normalized amount,
+subject to the operation's specified rounding direction.
 
-* Smart contract that accepts [underlying assets](Terminology.md#underlying-asset), issuing [market tokens](Terminology.md#market-token) in return.
-* Deployed by [borrower](Terminology.md#borrower) through the factory.
-* Holds assets in escrow pending either being [borrowed](Terminology.md#borrow) by the borrower or [withdrawn](Terminology.md#withdrawal-request) by a [lender](Terminology.md#lender).
+### Normalized Amount
 
-#### **Market Token**
+An underlying-denominated value derived from a scaled amount and the current
+scale factor. A normalized claim is not necessarily underlying currently held
+by the market.
 
-* ERC-20 token indicating a [claim](Terminology.md#claim) on the [underlying assets](Terminology.md#underlying-asset) in a [market](Terminology.md#market).
-* Issued to [lenders](Terminology.md#lender) after a [deposit](Terminology.md#deposit).
-* [Supply](Terminology.md#supply) rebases after every non-static call to the market contract depending on the total current APR of the market.
-* Can only be redeemed by authorised lender addresses (not necessarily the same one that received the market tokens initially).
-* Name and symbol prefixes are customisable in market creation, prepending to the name and symbol of the underlying asset.
+### Scale Factor
 
-#### **Operational Borrower**
+The conversion rate from scaled to normalized amounts. The applicable lender
+rate increases it; for revolving markets, that rate includes the commitment
+fee. Delinquency fees also increase it. Protocol fees accrue separately and do
+not.
 
-* The exact address returned by `market.borrower()` and authorized for borrower-only market actions.
-* May be the registered [borrower principal](Terminology.md#borrower-principal) directly or a recognized [Borrower Account](Terminology.md#borrower-account).
-* Can change through the v2.5 two-step borrower-transfer flow without moving or resetting market accounting state.
+### Total Supply
 
-#### **Outstanding Supply**
+The normalized value of `scaledTotalSupply`. It includes ownership assigned
+to current and expired unpaid withdrawal batches until payment burns that
+ownership. It is not the market's underlying-asset balance.
 
-* The amount of market tokens not currently queued for withdrawal.
-* Equal to the market's [supply](Terminology.md#supply) minus its [pending](Terminology.md#pending-withdrawal) and [expired](Terminology.md#expired-withdrawal) withdrawals.
+### Outstanding Supply
 
-#### **Penalty APR**
+Total supply excluding ownership assigned to current and expired unpaid
+withdrawal batches. The reserve ratio applies to outstanding supply.
 
-* Parameter required of [borrower](Terminology.md#borrower) when creating a new [market](Terminology.md#market).
-* Additional interest rate (above and beyond the [base APR](Terminology.md#base-apr) and any [protocol APR](Terminology.md#protocol-apr) imposed by a market [controller](Terminology.md#controller)) that is applied for as long as the [grace tracker](Terminology.md#grace-tracker) value for a market is in excess of the specified [grace period](Terminology.md#grace-period).
-* Encourages borrower to responsibly monitor the [reserve ratio](Terminology.md#reserve-ratio) of a market.
-* No part of the penalty APR is receivable by the Wildcat protocol itself (does not inflate the protocol APR if present).
+### Capacity
 
-#### **Pending Withdrawal**
+`maxTotalSupply`, the cap used when accepting new deposits. Interest may
+increase total supply above it, and the borrower may lower it below current
+supply. It does not restrict withdrawals.
 
-* A [withdrawal request](Terminology.md#withdrawal-request) that has not yet [expired](Terminology.md#expired-withdrawal) (i.e. was created in the current [withdrawal cycle](../technical-deep-dive/component-overview/wildcat-market-overview/wildcatmarketwithdrawals.sol.md#processunpaidwithdrawalbatch)).
+## Credit, Liquidity, and Fees
 
-#### **Protocol APR**
+### Borrow and Repay
 
-* Percentage of [base APR](Terminology.md#base-apr) that accrues to the Wildcat protocol itself.
-* Parameter configured by the factory operator for each [hooks template](Terminology.md#hooks-template), applying to all [markets](Terminology.md#market) deployed with an instance of said template.
-* Can be zero.
-* Does not increase in the presence of an active [penalty APR](Terminology.md#penalty-apr) (which only increases the APR accruing to [lenders](Terminology.md#lender)).
-* Example: market with base APR of 10% and protocol APR of 20% results in borrower paying 12% when penalty APR is not active.
+`borrow(amount)` transfers available underlying assets to the operational
+borrower. `repay(amount)` transfers underlying assets from its caller into the
+market and has no borrower-only gate. In revolving markets, only explicit
+borrow and repay calls update `drawnAmount`; a raw token transfer is a donation.
 
+### Reserve Ratio
 
-#### **Required Reserves**
+`reserveRatioBips`, the fraction of outstanding supply that contributes to
+the market's required liquid balance.
 
-* Amount of [underlying assets](Terminology.md#underlying-asset) that must be made available for new withdrawals according to the configured [reserve ratio](Terminology.md#reserve-ratio).
-* Equal to the reserve ratio times the [outstanding supply](Terminology.md#outstanding-supply)
+### Collateral Obligation
 
-#### **Reserve Ratio**
+`liquidityRequired()`, the minimum underlying balance needed for a healthy
+market. It combines pending withdrawals, paid but unclaimed withdrawals,
+reserve-ratio coverage of outstanding supply, and accrued protocol fees.
 
-* Parameter required of [borrower](Terminology.md#borrower) when creating a new [market](Terminology.md#market).
-* Percentage of current [outstanding supply](Terminology.md#outstanding-supply) that must be kept in the market (but still accrue interest).
-* Intended to provide a [liquid buffer](Terminology.md#liquid-reserves) for [lenders](Terminology.md#lender) to make [withdrawal requests](Terminology.md#withdrawal-request) against, partially 'collateralising' the credit facility through lenders' deposits.
-* Increases temporarily when a borrower reduces the [base APR](Terminology.md#base-apr) of a [market](Terminology.md#market) (fixed-term increase)
-* A market which has insufficient assets in the market to meet the reserve ratio is said to be [delinquent](Terminology.md#delinquency), with the [penalty APR](Terminology.md#penalty-apr) potentially being enforced if the delinquency is not cured before the [grace tracker](Terminology.md#grace-tracker) value exceeds that of the [grace period](Terminology.md#grace-period) for that particular market.
+### Delinquency
 
+The state in which the market's underlying balance is below
+`liquidityRequired()`. `timeDelinquent` rises while the shortfall persists
+and decays while the market is healthy. The delinquency fee applies while the
+timer exceeds `delinquencyGracePeriod`.
 
-#### **Sentinel**
+### Interest and Fees
 
-* Smart contract that ensures that addresses which interact with the protocol are not flagged by the [**Chainalysis oracle**](https://go.chainalysis.com/chainalysis-oracle-docs.html) for sanctions.
-* Can deploy escrow contracts to excise a [lender](Terminology.md#lender) flagged by the oracle from a wider [market](Terminology.md#market).
+- `annualInterestBips` is the base annual rate paid to lenders.
+- `commitmentFeeBips` is the fixed rate paid on the full supply of a
+  revolving market.
+- `delinquencyFeeBips` is the additional lender rate applied during
+  penalized delinquency.
+- `protocolFeeBips` is the protocol's fraction of base interest, charged in
+  addition to lender interest and accrued separately.
 
-#### **Supply**
+## Withdrawals
 
-* Current amount of [underlying asset](Terminology.md#underlying-asset) [deposited](Terminology.md#deposit) in a [market](Terminology.md#market).
-* Tied 1:1 with the supply of [market tokens](Terminology.md#market-token) (rate of growth APR dependent).
-* Can only be reduced by burning market tokens, including when liquidity is reserved to pay a [withdrawal request](Terminology.md#withdrawal-request).
-* [Reserve ratios](Terminology.md#reserve-ratio) are enforced against the supply of a market, _not_ its [capacity](Terminology.md#capacity).
-* [Capacity](Terminology.md#capacity) can be reduced below current supply by a [borrower](Terminology.md#borrower), but this only prevents the further deposit of assets until the supply is once again below capacity.
+### Withdrawal Request
 
+An instruction that moves scaled ownership from a lender account into the
+current withdrawal batch. Queueing does not burn the ownership or reduce total
+supply.
 
+### Withdrawal Batch
 
-#### **Unclaimed Withdrawals Pool**
+The shared accounting unit for requests submitted during one withdrawal
+period. A batch may be current, expired and unpaid, or paid. Expired unpaid
+batches receive liquidity in FIFO order; lenders within one batch participate
+pro rata by scaled ownership.
 
-* A sequestered pool of [underlying assets](Terminology.md#underlying-asset) which are pending their [claim](Terminology.md#claim) by [lenders](Terminology.md#lender) following a [withdrawal request](Terminology.md#withdrawal-request).
-* Assets are moved from market reserves to the unclaimed withdrawals pool when a withdrawal batch is paid. The corresponding scaled [market tokens](Terminology.md#market-token) are burned at that time, reducing the [supply](Terminology.md#supply) of the market.
-* Assets within the unclaimed withdrawals pool do not accrue interest, but similarly cannot be [borrowed](Terminology.md#borrow) by the [borrower](Terminology.md#borrower) - they are considered out of reach.
+### Withdrawal Payment
 
-#### **Underlying Asset**
+The reservation of underlying assets for a batch. Payment burns the batch's
+scaled market-token ownership, stops its interest accrual, and records the
+underlying as unclaimed withdrawals.
 
-* Parameter required of [borrower](onboarding.md#borrowers) when creating a new [market](Terminology.md#market).
-* The asset which the borrower is seeking to [borrow](Terminology.md#borrow) by deploying a market - for example DAI (Dai Stablecoin) or WETH (Wrapped Ether).
-* Can be _any_ ERC-20 token.
+### Withdrawal Execution
 
-#### **Vault**
-
-* In core Wildcat docs, this has historically been loose shorthand for a [market](Terminology.md#market), and should usually be read that way unless the context explicitly says otherwise.
-* Exception: the ERC-4626 wrapper introduced in [`docs/EIP-4626.md`](../EIP-4626.md) is an actual vault, so "vault" is intentional in that context.
-
-#### **Withdrawal Cycle**
-
-* Parameter required of [borrower](Terminology.md#borrower) when creating a new [market](Terminology.md#market).
-* Period of time that must elapse between the first [withdrawal request](Terminology.md#withdrawal-request) of a 'wave' of withdrawals and [assets](Terminology.md#underlying-asset) in the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool) being made available to [claim](Terminology.md#claim).
-* Withdrawal cycles do not work on a rolling basis - at the end of one withdrawal cycle, the next cycle will not start until the next withdrawal request.
-* In the event that the amount being claimed in the same cycle across all lenders is in excess of the reserves currently within a market, all [lenders](Terminology.md#lender) requests within that cycle will be honoured _pro rata_ according to each lender's scaled ownership of the withdrawal batch.
-* Because withdrawal requests are credited as scaled amounts at the scale factor in effect when each request is queued, equal normalized requests added to the same batch at different times may receive slightly different final normalized amounts.
-* Intended to prevent a run on a given market (mass withdrawal requests) leading to slower lenders receiving nothing.
-* Can have a value of zero, in which case each withdrawal request is processed - and potentially added to the [withdrawal queue](Terminology.md#withdrawal-queue) - as a standalone batch.
-
-#### **Withdrawal Queue**
-
-* Internal data structure of a [market](Terminology.md#market).
-* All [withdrawal requests](Terminology.md#withdrawal-request) that could not be fully honoured at the end of their [withdrawal cycle](Terminology.md#withdrawal-cycle) are batched together, marked as [expired](Terminology.md#expired-withdrawal) and added to the withdrawal queue.
-* Tracks the order and amounts of [lender](Terminology.md#lender) [claims](Terminology.md#claim).
-* FIFO (First-In-First-Out): expired unpaid batches are paid oldest first when the unpaid queue is processed.
-* A plain borrower `repay` returns assets to the market and updates state, but does not iterate through expired unpaid withdrawal batches. To immediately route available liquidity through the unpaid queue, callers must use `repayAndProcessUnpaidWithdrawalBatches`.
-
-#### Withdrawal Request
-
-* An instruction to a [market](Terminology.md#market) to move a lender's market-token balance into the current withdrawal batch.
-* The request is recorded as a scaled amount. Those scaled tokens are removed from the lender's balance immediately, but remain in the market's total supply until liquidity is reserved to pay the batch.
-* When liquidity is reserved for a batch, the corresponding scaled [market tokens](Terminology.md#market-token) are burned and the underlying assets are moved to the [unclaimed withdrawals pool](Terminology.md#unclaimed-withdrawals-pool), to be [claimed](Terminology.md#claim) after expiry.
-* Any amount requested - whether or not it is in excess of the market reserves - is marked as a [pending withdrawal](Terminology.md#pending-withdrawal), either to be fully honoured at the end of the cycle, or marked as [expired](Terminology.md#expired-withdrawal) and added to the [withdrawal queue](Terminology.md#withdrawal-queue), depending on the actions of the [borrower](Terminology.md#borrower) during the cycle.
+The transfer of a lender's share from a paid batch after expiry. Execution is
+permissionless for an account and batch. Assets owed to a sanctioned account
+are sent to its sanctions escrow.
