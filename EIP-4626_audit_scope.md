@@ -26,7 +26,7 @@ The v2.5 pre-release cycle made further post-audit changes (see docs/v2.5-audit-
 - Execution-path arithmetic migrated from half-up to floor-consistent conversions to match the v2.5 market's `scaleAmountDown` transfer rounding (the audited half-up arithmetic reverts with `SharesMismatch` on ~half of fractional scale-factor states against v2.5 markets). Previews unchanged.
 - `maxWithdraw` and `maxDeposit` re-derived for floor semantics so both are exact and always executable.
 - `Wildcat4626WrapperFactory` rebuilt as a generation facade: constructor takes `(archController, v1Factory)`, wraps floor-declaring markets locally, forwards pre-v2.5 markets to the v1 factory, rejects unknown rounding markers; discovery routes identically and quarantines mispaired wrappers.
-- The wrapper's rounding identities were verified by exact-integer search (see the audit delta document) and the branch-coverage suite `test/vault/Wildcat4626WrapperGuards.t.sol` was added.
+- The wrapper's rounding identities were verified by exact-integer search (see the audit delta document), with the retained regression coverage consolidated in `test/vault/Wildcat4626Wrapper.t.sol`.
 
 ## Audit Scope
 | Filepath | nSLOC |

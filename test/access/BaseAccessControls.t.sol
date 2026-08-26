@@ -1,35 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
-import 'src/access/BaseAccessControls.sol';
-import 'src/access/IRoleProvider.sol';
-import 'src/WildcatArchController.sol';
-import { LibString } from 'solady/utils/LibString.sol';
-import '../shared/mocks/MockRoleProvider.sol';
-import '../shared/mocks/MockRoleProviderFactory.sol';
-import '../helpers/Assertions.sol';
-import { bound, warp } from '../helpers/VmUtils.sol';
-import { AccessControlHooksFuzzInputs, AccessControlHooksFuzzContext, OpenTermHooks, createAccessControlHooksFuzzContext, FunctionKind } from '../helpers/fuzz/AccessControlHooksFuzzContext.sol';
-import { Prankster } from 'sol-utils/test/Prankster.sol';
-import { getTimestamp, fastForward } from '../helpers/VmUtils.sol';
+import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
+import { IRoleProvider } from 'src/access/IRoleProvider.sol';
+import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
+import { MathUtils } from 'src/libraries/MathUtils.sol';
+import { LenderStatus } from 'src/types/LenderStatus.sol';
+import { NullProviderIndex, RoleProvider } from 'src/types/RoleProvider.sol';
+import { BaseAccessControlsHarness } from './BaseAccessControlsHarness.sol';
+import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
+import { MockRoleProviderFactory } from '../mocks/MockRoleProviderFactory.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
+import { StandardRoleProvider } from '../shared/TestStructs.sol';
 
-using LibString for uint256;
-using LibString for address;
 using MathUtils for uint256;
-
-abstract contract MockBaseAccessControls is BaseAccessControls {
-  function tryValidateAccess(
-    address accountAddress,
-    bytes calldata hooksData
-  ) external virtual returns (bool hasValidCredential, bool wasUpdated);
-
-  function setIsKnownLender(
-    address accountAddress,
-    address marketAddress,
-    bool isKnownLender
-  ) external virtual;
-}
 
 contract MockPullProviderResponse {
   uint256 internal immutable _value;
@@ -53,32 +37,50 @@ contract MockPullProviderResponse {
   }
 }
 
-abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
+contract BaseAccessControlsTest is TestKernel {
   error AdministratorTransferCallbackFailed();
 
   uint24 internal numPullProviders;
   uint24 internal numPushProviders;
   StandardRoleProvider[] internal expectedRoleProviders;
-  MockBaseAccessControls internal baseHooks;
-  MockRoleProvider internal mockProvider1 = new MockRoleProvider();
-  MockRoleProvider internal mockProvider2 = new MockRoleProvider();
-  MockRoleProviderFactory internal providerFactory = new MockRoleProviderFactory();
-  WildcatArchController internal hookArchController;
+  BaseAccessControlsHarness internal baseHooks;
+  MockRoleProvider internal mockProvider1;
+  MockRoleProvider internal mockProvider2;
+  MockRoleProviderFactory internal providerFactory;
+  mapping(address account => bool registered) internal registeredBorrowers;
   bool internal failAdministratorTransferCallback;
   address internal callbackPreviousAdministrator;
   address internal callbackNewAdministrator;
 
-  bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
-  uint256 internal constant Panic_Arithmetic = 0x11;
+  function setUp() external {
+    // expired-credential cases need two valid timestamps before the current block
+    if (block.timestamp < 3) vm.warp(3);
 
-  function _setUpBaseHooks(MockBaseAccessControls _baseHooks) internal {
-    baseHooks = _baseHooks;
-    hookArchController = new WildcatArchController();
-    hookArchController.registerBorrower(address(this));
+    mockProvider1 = MockRoleProvider(
+      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
+    );
+    mockProvider2 = MockRoleProvider(
+      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
+    );
+    providerFactory = MockRoleProviderFactory(
+      _deployCode('test/mocks/MockRoleProviderFactory.sol:MockRoleProviderFactory')
+    );
+    registeredBorrowers[address(this)] = true;
+    NameAndProviderInputs memory inputs;
+    baseHooks = BaseAccessControlsHarness(
+      _deployCode(
+        'test/access/BaseAccessControlsHarness.sol:BaseAccessControlsHarness',
+        abi.encode(address(this), inputs)
+      )
+    );
   }
 
   function archController() external view returns (address) {
-    return address(hookArchController);
+    return address(this);
+  }
+
+  function isRegisteredBorrower(address account) external view returns (bool) {
+    return registeredBorrowers[account];
   }
 
   function onHooksAdministratorTransferred(
@@ -92,9 +94,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   }
 
   function _registerAdministrator(address account) internal {
-    if (!hookArchController.isRegisteredBorrower(account)) {
-      hookArchController.registerBorrower(account);
-    }
+    registeredBorrowers[account] = true;
   }
 
   function _transferAdministrator(address newAdministrator) internal {
@@ -102,10 +102,6 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     baseHooks.requestAdministratorTransfer(newAdministrator);
     vm.prank(newAdministrator);
     baseHooks.acceptAdministratorTransfer();
-  }
-
-  function _getIsKnownLenderStatus(AccessControlHooksFuzzContext memory context) internal {
-    baseHooks.setIsKnownLender(context.account, context.market, true);
   }
 
   // ========================================================================== //
@@ -133,38 +129,24 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     return expectedRoleProviders[expectedRoleProviders.length - 1];
   }
 
-  function _validateRoleProviders() internal {
+  function _validateRoleProviders() internal view {
     RoleProvider[] memory pullProviders = baseHooks.getPullProviders();
     RoleProvider[] memory pushProviders = baseHooks.getPushProviders();
     uint256 pullIndex;
     uint256 pushIndex;
     for (uint i; i < expectedRoleProviders.length; i++) {
       if (expectedRoleProviders[i].pullProviderIndex != NullProviderIndex) {
-        if (pullIndex >= pullProviders.length) {
-          emit log('Error: provider with pullProviderIndex not found');
-          fail();
-        }
-        // Check pull provider matches expected provider
-        string memory label = string.concat('pullProviders[', pullIndex.toString(), '].');
-        assertEq(pullProviders[pullIndex++], expectedRoleProviders[i], label);
+        assertTrue(pullIndex < pullProviders.length, 'missing pull provider');
+        assertEq(pullProviders[pullIndex++], expectedRoleProviders[i], 'pull provider');
       }
       if (expectedRoleProviders[i].pushProviderIndex != NullProviderIndex) {
-        if (pushIndex >= pushProviders.length) {
-          emit log('Error: provider with pushProviderIndex not found');
-          fail();
-        }
-        // Check pull provider matches expected provider
-        string memory label = string.concat('pushProviders[', pushIndex.toString(), '].');
-        assertEq(pushProviders[pushIndex++], expectedRoleProviders[i], label);
+        assertTrue(pushIndex < pushProviders.length, 'missing push provider');
+        assertEq(pushProviders[pushIndex++], expectedRoleProviders[i], 'push provider');
       }
       address providerAddress = expectedRoleProviders[i].providerAddress;
       // Check _roleProviders[provider] matches expected provider
       RoleProvider provider = baseHooks.getRoleProvider(providerAddress);
-      assertEq(
-        provider,
-        expectedRoleProviders[i],
-        string.concat('getRoleProvider(', providerAddress.toHexString(), ').')
-      );
+      assertEq(provider, expectedRoleProviders[i], 'provider mapping');
     }
     assertEq(pullIndex, pullProviders.length, 'pullProviders.length');
     assertEq(pushIndex, pushProviders.length, 'pushProviders.length');
@@ -240,6 +222,25 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     uint256 minTimestamp = block.timestamp.satSub(timeToLive);
     if (minTimestamp == 0) minTimestamp = 1;
     return uint32(bound(timestamp, minTimestamp, block.timestamp));
+  }
+
+  function assertEq(
+    RoleProvider actual,
+    StandardRoleProvider memory expected,
+    string memory message
+  ) internal pure {
+    assertEq(actual.providerAddress(), expected.providerAddress, message);
+    assertEq(actual.timeToLive(), expected.timeToLive, message);
+    assertEq(actual.pullProviderIndex(), expected.pullProviderIndex, message);
+    assertEq(actual.pushProviderIndex(), expected.pushProviderIndex, message);
+  }
+
+  function assertEq(
+    LenderStatus memory actual,
+    LenderStatus memory expected,
+    string memory message
+  ) internal pure {
+    assertEq(keccak256(abi.encode(actual)), keccak256(abi.encode(expected)), message);
   }
 
   // ========================================================================== //
@@ -370,7 +371,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     address newAdministrator = address(0xA11CE);
     _registerAdministrator(newAdministrator);
     baseHooks.requestAdministratorTransfer(newAdministrator);
-    hookArchController.removeBorrower(newAdministrator);
+    registeredBorrowers[newAdministrator] = false;
 
     vm.prank(newAdministrator);
     vm.expectRevert(BaseAccessControls.AdministratorNotRegistered.selector);
@@ -508,10 +509,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   //                          Role provider management                          //
   // ========================================================================== //
 
-  function test_createRoleProvider_CallerNotAdministrator(
-    bool isPullProvider,
-    uint32 timeToLive
-  ) external {
+  function test_createRoleProvider_CallerNotAdministrator() external {
     vm.prank(address(1));
     vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     baseHooks.createRoleProvider(address(1), 0, '');
@@ -537,7 +535,6 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   ) external {
     bytes32 salt = bytes32(uint256(1));
     bytes memory factoryInput = abi.encode(salt, isPullProvider);
-    address expectedProviderAddress = providerFactory.computeProviderAddress(salt);
     providerFactory.setNextProviderAddress(address(0));
     vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
     baseHooks.createRoleProvider(address(providerFactory), timeToLive, factoryInput);
@@ -822,7 +819,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   // ========================================================================== //
 
   /// @dev `grantRole` reverts if the provider is not found.
-  function test_grantRole_ProviderNotFound(address account, uint32 timestamp) external {
+  function test_grantRole_ProviderNotFound(uint32 timestamp) external {
     vm.prank(address(1));
     vm.expectRevert(BaseAccessControls.ProviderNotFound.selector);
     baseHooks.grantRole(address(2), timestamp);
@@ -838,11 +835,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     uint256 maxExpiry = block.timestamp - 1;
     timeToLive = uint32(bound(timeToLive, 0, maxExpiry - 1));
     timestamp = uint32(bound(timestamp, 1, maxExpiry - timeToLive));
-    StandardRoleProvider storage provider = _addExpectedProvider(
-      mockProvider1,
-      timeToLive,
-      isPullProvider
-    );
+    _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
 
     vm.prank(address(mockProvider1));
@@ -899,7 +892,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   ) external {
     timeToLive1 = uint32(bound(timeToLive1, 0, type(uint32).max - 2));
     timeToLive2 = uint32(bound(timeToLive2, timeToLive1 + 1, type(uint32).max));
-    // Make sure the timestamp will result in provider 1 granting expiry that will expire (not max uint32)
+    // Keep provider 1's expiry below max uint32 so provider 2 can extend it.
     uint256 minTimestamp = block.timestamp.satSub(timeToLive1);
     if (minTimestamp == 0) minTimestamp = 1;
     uint256 maxTimestamp = uint(type(uint32).max).satSub(timeToLive1) - 1;
@@ -924,8 +917,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     uint32 timeToLive2,
     uint32 timestamp
   ) external {
-    // Make sure the second TTL is less than the first so that we know the reason it works isn't that
-    // the expiry is newer.
+    // Keep the second TTL shorter so removing provider 1 is the reason replacement works.
     timeToLive2 = uint32(bound(timeToLive2, 0, type(uint32).max - 2));
     timeToLive1 = uint32(bound(timeToLive1, timeToLive2 + 1, type(uint32).max));
     // Make sure the timestamp won't result in an expired credential
@@ -1044,41 +1036,160 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   //                           getOrValidateCredential                          //
   // ========================================================================== //
 
-  function test_fuzz_getOrValidateCredential(
-    AccessControlHooksFuzzInputs memory fuzzInputs
-  ) external {
-    AccessControlHooksFuzzContext memory context = createAccessControlHooksFuzzContext(
-      fuzzInputs,
-      address(1),
-      OpenTermHooks(address(baseHooks)),
-      mockProvider1,
-      mockProvider2,
-      address(50),
-      FunctionKind.HooksFunction,
-      0,
-      _getIsKnownLenderStatus,
-      0
-    );
-    context.registerExpectations(true);
-    if (context.expectations.expectedError != 0) {
-      baseHooks.tryValidateAccess(context.account, context.hooksData);
+  function _grantExpiredCredential(MockRoleProvider provider, address account) internal {
+    uint256 currentTimestamp = getTimestamp();
+    provider.setIsPullProvider(true);
+    baseHooks.addRoleProvider(address(provider), 1);
+    warp(currentTimestamp - 2);
+    vm.prank(address(provider));
+    baseHooks.grantRole(account, uint32(currentTimestamp - 2));
+    warp(currentTimestamp);
+  }
+
+  function test_fuzz_getOrValidateCredential(uint8 scenarioSeed) external {
+    uint256 scenario = scenarioSeed % 12;
+    address account = address(50);
+    uint32 currentTimestamp = uint32(getTimestamp());
+    address expectedProvider;
+    uint32 expectedTimestamp;
+    address revokedProvider;
+    bool expectedValid;
+    bool expectedUpdated;
+    bool expectedCanRefresh;
+    bytes memory hooksData;
+
+    if (scenario == 0) {
+      // A supported, unexpired credential wins before hooks data is considered.
+      baseHooks.addRoleProvider(address(mockProvider1), 1 days);
+      vm.prank(address(mockProvider1));
+      baseHooks.grantRole(account, currentTimestamp);
+      hooksData = abi.encodePacked(address(mockProvider2), hex'aabbcc');
+      expectedProvider = address(mockProvider1);
+      expectedTimestamp = currentTimestamp;
+      expectedValid = true;
+    } else if (scenario == 1) {
+      // Data after the provider address uses validateCredential, including for push providers.
+      bytes memory credentialData = hex'aabbcc';
+      baseHooks.addRoleProvider(address(mockProvider2), 1 days);
+      mockProvider2.approveCredentialData(keccak256(credentialData), currentTimestamp);
+      hooksData = abi.encodePacked(address(mockProvider2), credentialData);
+      expectedProvider = address(mockProvider2);
+      expectedTimestamp = currentTimestamp;
+      expectedValid = true;
+      expectedUpdated = true;
+    } else if (scenario == 2) {
+      // A bare provider address selects getCredential, but only for a pull provider.
+      mockProvider2.setIsPullProvider(true);
+      mockProvider2.setCredential(account, currentTimestamp);
+      baseHooks.addRoleProvider(address(mockProvider2), 1 days);
+      hooksData = abi.encodePacked(address(mockProvider2));
+      expectedProvider = address(mockProvider2);
+      expectedTimestamp = currentTimestamp;
+      expectedValid = true;
+      expectedUpdated = true;
+      expectedCanRefresh = true;
+    } else if (scenario == 3) {
+      // An expired credential refreshes from its previous pull provider.
+      _grantExpiredCredential(mockProvider1, account);
+      mockProvider1.setCredential(account, currentTimestamp);
+      expectedProvider = address(mockProvider1);
+      expectedTimestamp = currentTimestamp;
+      expectedValid = true;
+      expectedUpdated = true;
+      expectedCanRefresh = true;
+    } else if (scenario == 4) {
+      // With no selected provider, the pull-provider list is searched in order.
+      mockProvider1.setIsPullProvider(true);
+      mockProvider2.setIsPullProvider(true);
+      mockProvider2.setCredential(account, currentTimestamp);
+      baseHooks.addRoleProvider(address(mockProvider1), 1 days);
+      baseHooks.addRoleProvider(address(mockProvider2), 1 days);
+      expectedProvider = address(mockProvider2);
+      expectedTimestamp = currentTimestamp;
+      expectedValid = true;
+      expectedUpdated = true;
+      expectedCanRefresh = true;
+    } else if (scenario == 5) {
+      // Unknown providers in hooks data are ignored.
+      hooksData = abi.encodePacked(address(0xBAD), hex'aabbcc');
+    } else if (scenario == 6) {
+      // Provider reverts are treated as failed credentials, not bubbled reverts.
+      baseHooks.addRoleProvider(address(mockProvider2), 1 days);
+      mockProvider2.setCallShouldRevert(true);
+      hooksData = abi.encodePacked(address(mockProvider2), hex'aabbcc');
+    } else if (scenario == 7) {
+      // A successful stateful validation must return a complete word.
+      baseHooks.addRoleProvider(address(mockProvider2), 1 days);
+      mockProvider2.setCallShouldReturnCorruptedData(true);
+      hooksData = abi.encodePacked(address(mockProvider2), hex'aabbcc');
+      vm.expectRevert(BaseAccessControls.InvalidCredentialReturned.selector);
+      baseHooks.tryValidateAccess(account, hooksData);
+      return;
+    } else if (scenario == 8) {
+      // A correctly encoded credential is still rejected when its TTL has elapsed.
+      bytes memory credentialData = hex'aabbcc';
+      baseHooks.addRoleProvider(address(mockProvider2), 1);
+      mockProvider2.approveCredentialData(keccak256(credentialData), currentTimestamp - 2);
+      hooksData = abi.encodePacked(address(mockProvider2), credentialData);
+    } else if (scenario == 9) {
+      // An expired credential from a push provider is cleared when no replacement exists.
+      uint256 nowBeforeWarp = getTimestamp();
+      baseHooks.addRoleProvider(address(mockProvider1), 1);
+      warp(nowBeforeWarp - 2);
+      vm.prank(address(mockProvider1));
+      baseHooks.grantRole(account, uint32(nowBeforeWarp - 2));
+      warp(nowBeforeWarp);
+      revokedProvider = address(mockProvider1);
+      expectedUpdated = true;
+    } else if (scenario == 10) {
+      // A failed hooks-data pull does not prevent a different provider from succeeding.
+      mockProvider1.setIsPullProvider(true);
+      mockProvider2.setIsPullProvider(true);
+      mockProvider1.setCredential(account, currentTimestamp);
+      baseHooks.addRoleProvider(address(mockProvider1), 1 days);
+      baseHooks.addRoleProvider(address(mockProvider2), 1 days);
+      hooksData = abi.encodePacked(address(mockProvider2));
+      expectedProvider = address(mockProvider1);
+      expectedTimestamp = currentTimestamp;
+      expectedValid = true;
+      expectedUpdated = true;
+      expectedCanRefresh = true;
     } else {
-      (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(
-        context.account,
-        context.hooksData
-      );
-      assertEq(hasValidCredential, context.expectations.hasValidCredential, 'hasValidCredential');
-      assertEq(wasUpdated, context.expectations.wasUpdated, 'wasUpdated');
-      LenderStatus memory status = baseHooks.getLenderStatus(context.account);
-      assertEq(status, baseHooks.getPreviousLenderStatus(context.account), 'status');
-      assertEq(status.lastProvider, context.expectations.lastProvider, 'lastProvider');
-      assertEq(
-        status.lastApprovalTimestamp,
-        context.expectations.lastApprovalTimestamp,
-        'lastApprovalTimestamp'
-      );
+      // A failed refresh skips the previous provider, then continues through the list.
+      _grantExpiredCredential(mockProvider1, account);
+      mockProvider2.setIsPullProvider(true);
+      mockProvider2.setCredential(account, currentTimestamp);
+      baseHooks.addRoleProvider(address(mockProvider2), 1 days);
+      expectedProvider = address(mockProvider2);
+      expectedTimestamp = currentTimestamp;
+      expectedValid = true;
+      expectedUpdated = true;
+      expectedCanRefresh = true;
     }
-    context.validate();
+
+    if (expectedUpdated) {
+      vm.expectEmit(address(baseHooks));
+      if (expectedValid) {
+        emit BaseAccessControls.AccountAccessGranted(
+          expectedProvider,
+          account,
+          address(this),
+          expectedTimestamp
+        );
+      } else {
+        emit BaseAccessControls.AccountAccessRevoked(revokedProvider, account, address(this));
+      }
+    }
+
+    (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
+    assertEq(hasValidCredential, expectedValid, 'hasValidCredential');
+    assertEq(wasUpdated, expectedUpdated, 'wasUpdated');
+
+    LenderStatus memory status = baseHooks.getPreviousLenderStatus(account);
+    assertEq(status.lastProvider, expectedProvider, 'lastProvider');
+    assertEq(status.lastApprovalTimestamp, expectedTimestamp, 'lastApprovalTimestamp');
+    assertEq(status.canRefresh, expectedCanRefresh, 'canRefresh');
+    assertFalse(status.isBlockedFromDeposits, 'isBlockedFromDeposits');
   }
 
   // ========================================================================== //
@@ -1213,6 +1324,41 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
     assertFalse(wasUpdated, 'wasUpdated');
   }
 
+  function test_isMarketTransferRecipientAllowed() external {
+    address market = address(0xCAFE);
+    address unrestricted = address(0xA11CE);
+    address knownLender = address(0xB0B);
+    address blockedLender = address(0xBAD);
+    address credentialedLender = address(0xC0FFEE);
+
+    baseHooks.setIsKnownLender(knownLender, market, true);
+    baseHooks.blockFromDeposits(blockedLender);
+    mockProvider1.setIsPullProvider(true);
+    mockProvider1.setCredential(credentialedLender, uint32(block.timestamp));
+    baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
+
+    assertTrue(
+      baseHooks.isMarketTransferRecipientAllowed(market, unrestricted, false),
+      'open transfer'
+    );
+    assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(market, unrestricted, true),
+      'unknown lender'
+    );
+    assertTrue(
+      baseHooks.isMarketTransferRecipientAllowed(market, knownLender, true),
+      'known lender'
+    );
+    assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(market, blockedLender, true),
+      'blocked lender'
+    );
+    assertTrue(
+      baseHooks.isMarketTransferRecipientAllowed(market, credentialedLender, true),
+      'credentialed lender'
+    );
+  }
+
   // ========================================================================== //
   //                                 grantRoles                                 //
   // ========================================================================== //
@@ -1259,7 +1405,7 @@ abstract contract BaseAccessControlsTest is Test, Assertions, Prankster {
   }
 
   /// @dev `grantRole` reverts if the provider is not found.
-  function test_grantRoles_ProviderNotFound(address account, uint32 timestamp) external {
+  function test_grantRoles_ProviderNotFound() external {
     address[] memory accounts = new address[](1);
     uint32[] memory timestamps = new uint32[](1);
     vm.prank(address(1));

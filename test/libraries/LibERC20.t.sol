@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
 import 'src/libraries/LibERC20.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 contract LibERC20External {
   using LibERC20 for address;
@@ -93,8 +93,12 @@ contract LibERC20BalanceFalseTransferToken {
 
 contract LibERC20MissingDecimalsToken {}
 
-contract LibERC20Test is Test {
-  LibERC20External internal wrapper = new LibERC20External();
+contract LibERC20Test is TestKernel {
+  LibERC20External internal wrapper;
+
+  function setUp() external {
+    wrapper = LibERC20External(_deployCode('test/libraries/LibERC20.t.sol:LibERC20External'));
+  }
 
   function test_nameAndSymbol_Bytes32Metadata() external {
     LibERC20Bytes32Metadata token = new LibERC20Bytes32Metadata();

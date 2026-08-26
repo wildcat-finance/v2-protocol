@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
 import 'src/libraries/StringQuery.sol';
 import 'src/libraries/LibERC20.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 contract Bytes32Metadata {
   bytes32 public constant name = 'TestA';
@@ -29,7 +29,7 @@ contract BadStrings {
     giveRevertData = _giveRevertData;
   }
 
-  function name() external {
+  function name() external view {
     if (giveRevertData) {
       revert('name');
     } else {
@@ -37,7 +37,7 @@ contract BadStrings {
     }
   }
 
-  function symbol() external {
+  function symbol() external view {
     if (giveRevertData) {
       revert('symbol');
     } else {
@@ -78,15 +78,31 @@ contract TrailingStringMetadata {
   }
 }
 
-contract StringQueryTest is Test {
+contract StringQueryTest is TestKernel {
   using LibERC20 for address;
-  Bytes32Metadata internal immutable bytes32Metadata = new Bytes32Metadata();
-  StringMetadata internal immutable stringMetadata = new StringMetadata();
-  LongStrings internal immutable longStrings = new LongStrings();
-  BadStrings internal immutable badStrings = new BadStrings();
-  MalformedStringMetadata internal immutable malformedStringMetadata =
-    new MalformedStringMetadata();
-  TrailingStringMetadata internal immutable trailingStringMetadata = new TrailingStringMetadata();
+  Bytes32Metadata internal bytes32Metadata;
+  StringMetadata internal stringMetadata;
+  LongStrings internal longStrings;
+  BadStrings internal badStrings;
+  MalformedStringMetadata internal malformedStringMetadata;
+  TrailingStringMetadata internal trailingStringMetadata;
+
+  function setUp() external {
+    bytes32Metadata = Bytes32Metadata(
+      _deployCode('test/libraries/StringQuery.t.sol:Bytes32Metadata')
+    );
+    stringMetadata = StringMetadata(
+      _deployCode('test/libraries/StringQuery.t.sol:StringMetadata')
+    );
+    longStrings = LongStrings(_deployCode('test/libraries/StringQuery.t.sol:LongStrings'));
+    badStrings = BadStrings(_deployCode('test/libraries/StringQuery.t.sol:BadStrings'));
+    malformedStringMetadata = MalformedStringMetadata(
+      _deployCode('test/libraries/StringQuery.t.sol:MalformedStringMetadata')
+    );
+    trailingStringMetadata = TrailingStringMetadata(
+      _deployCode('test/libraries/StringQuery.t.sol:TrailingStringMetadata')
+    );
+  }
 
   function queryName(address token) external view returns (string memory) {
     return token.name();
@@ -128,7 +144,7 @@ contract StringQueryTest is Test {
     this.querySymbol(address(badStrings));
   }
 
-  function test_bytes32ToString_DoesNotDropHighBitFinalByte() external {
+  function test_bytes32ToString_DoesNotDropHighBitFinalByte() external pure {
     bytes32 value = 0xc380000000000000000000000000000000000000000000000000000000000000;
     assertEq(bytes(bytes32ToString(value)), hex'c380');
   }

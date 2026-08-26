@@ -80,8 +80,8 @@ export function withCurrentFixtureBytecode(
       contractName: 'MockERC20',
     },
     'deploy-market': {
-      name: 'test-next/mocks/LensMocks.sol:LensV1MarketMock',
-      sourceName: 'test-next/mocks/LensMocks.sol',
+      name: 'test/mocks/LensMocks.sol:LensV1MarketMock',
+      sourceName: 'test/mocks/LensMocks.sol',
       contractName: 'LensV1MarketMock',
     },
   }

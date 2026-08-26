@@ -1,16 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
 import 'src/interfaces/IMarketEventsAndErrors.sol';
 import 'src/libraries/MarketEvents.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 contract MarketEventsHarness {
-  function emitMaxTotalSupplyUpdated(address caller, uint256 previousValue, uint256 newValue) external {
+  function emitMaxTotalSupplyUpdated(
+    address caller,
+    uint256 previousValue,
+    uint256 newValue
+  ) external {
     emit_MaxTotalSupplyUpdated(caller, previousValue, newValue);
   }
 
-  function emitProtocolFeeBipsUpdated(address caller, uint256 previousValue, uint256 newValue) external {
+  function emitProtocolFeeBipsUpdated(
+    address caller,
+    uint256 previousValue,
+    uint256 newValue
+  ) external {
     emit_ProtocolFeeBipsUpdated(caller, previousValue, newValue);
   }
 
@@ -47,10 +55,16 @@ contract MarketEventsHarness {
   }
 }
 
-contract MarketEventsTest is Test, IMarketEventsAndErrors {
+contract MarketEventsTest is TestKernel, IMarketEventsAndErrors {
   event DrawnAmountUpdated(uint256 previousDrawnAmount, uint256 newDrawnAmount);
 
-  MarketEventsHarness internal harness = new MarketEventsHarness();
+  MarketEventsHarness internal harness;
+
+  function setUp() external {
+    harness = MarketEventsHarness(
+      _deployCode('test/libraries/MarketEvents.t.sol:MarketEventsHarness')
+    );
+  }
 
   function test_emitMaxTotalSupplyUpdated_matchesSolidityEncoding() external {
     address caller = address(0xCA11E2);

@@ -1,24 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import { FeeMath, MathUtils, SafeCastLib, MarketState } from 'src/libraries/FeeMath.sol';
-import '../helpers/fuzz/MarketConfigFuzzInputs.sol';
-import '../helpers/fuzz/MarketStateFuzzInputs.sol';
-import '../shared/Test.sol';
+import { FeeMath, MathUtils, MarketState } from 'src/libraries/FeeMath.sol';
+import { RAY } from 'src/libraries/MathUtils.sol';
 import './wrappers/FeeMathExternal.sol';
-
-function maxRayMulRhs(uint256 left) pure returns (uint256 maxRight) {
-  if (left == 0) return type(uint256).max;
-  maxRight = (type(uint256).max - HALF_RAY) / left;
-}
+import { TestKernel } from '../shared/TestKernel.sol';
 
 // Uses an external wrapper library to make forge coverage work for FeeMath.
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
-contract FeeMathTest is Test {
+contract FeeMathTest is TestKernel {
   using MathUtils for uint256;
-  using SafeCastLib for uint256;
   using FeeMathExternal for MarketState;
 
   function test_updateScaleFactorAndFees_WithFees() external {
@@ -123,6 +116,53 @@ contract FeeMathTest is Test {
     assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
   }
 
+  function test_updateScaleFactorAndFees_ZeroDelinquencyFeeAccumulatesTime() external pure {
+    MarketState memory state;
+    state.isDelinquent = true;
+    state.timeDelinquent = 1 days;
+    state.scaleFactor = uint112(RAY);
+    state.lastInterestAccruedTimestamp = uint32(10 days);
+
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      0,
+      2 days,
+      10 days + 6 hours
+    );
+
+    assertEq(state.timeDelinquent, 1 days + 6 hours, 'incorrect accumulated delinquency time');
+    assertEq(state.lastInterestAccruedTimestamp, 10 days + 6 hours, 'incorrect update timestamp');
+    assertEq(state.scaleFactor, RAY, 'zero fee changed scale factor');
+    assertEq(baseInterestRay, 0, 'unexpected base interest');
+    assertEq(delinquencyFeeRay, 0, 'unexpected delinquency fee');
+    assertEq(protocolFee, 0, 'unexpected protocol fee');
+  }
+
+  function test_updateScaleFactorAndFees_ZeroDelinquencyFeeDecaysTime() external pure {
+    MarketState memory state;
+    state.timeDelinquent = 2 days;
+    state.scaleFactor = uint112(RAY);
+    state.lastInterestAccruedTimestamp = uint32(10 days);
+
+    uint256 baseInterestRay;
+    uint256 delinquencyFeeRay;
+    uint256 protocolFee;
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
+      0,
+      1 days,
+      10 days + 6 hours
+    );
+
+    assertEq(state.timeDelinquent, 1 days + 18 hours, 'incorrect recovered delinquency time');
+    assertEq(state.lastInterestAccruedTimestamp, 10 days + 6 hours, 'incorrect update timestamp');
+    assertEq(state.scaleFactor, RAY, 'zero fee changed scale factor');
+    assertEq(baseInterestRay, 0, 'unexpected base interest');
+    assertEq(delinquencyFeeRay, 0, 'unexpected delinquency fee');
+    assertEq(protocolFee, 0, 'unexpected protocol fee');
+  }
+
   function test_updateScaleFactorAndFees_AcceptedUint112LimitReverts() external {
     MarketState memory state;
     // Exact last-safe value after 2,829 daily updates at 100% APR plus a
@@ -133,11 +173,11 @@ contract FeeMathTest is Test {
     state.isDelinquent = true;
     state.timeDelinquent = 1;
 
-    vm.expectRevert(stdError.arithmeticError);
+    vm.expectRevert(abi.encodeWithSelector(bytes4(0x4e487b71), uint256(0x11)));
     state.$updateScaleFactorAndFees(10_000, 0, 1 days + 1);
   }
 
-  function test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate() external {
+  function test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate() external pure {
     MarketState memory state;
     state.scaleFactor = type(uint112).max;
     state.lastInterestAccruedTimestamp = 1;
@@ -158,22 +198,19 @@ contract FeeMathTest is Test {
     assertEq(protocolFee, 0, 'incorrect protocolFee');
   }
 
-  MarketInputParameters parameters;
-
   function test_updateScaleFactorAndFees_NoTimeDelta(
-    MarketConfigFuzzInputs calldata configInputs,
-    MarketStateFuzzInputs calldata stateInputs
-  ) external {
-    configInputs.updateParameters(parameters, hooksTemplate, fixedTermHooksTemplate);
-    MarketState memory state = stateInputs.toState();
-    state.protocolFeeBips = parameters.protocolFeeBips;
+    MarketState calldata stateInput,
+    uint16 delinquencyFeeBips,
+    uint32 delinquencyGracePeriod
+  ) external pure {
+    MarketState memory state = stateInput;
     bytes32 stateHash = keccak256(abi.encode(state));
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
     (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      parameters.delinquencyFeeBips,
-      parameters.delinquencyGracePeriod,
+      delinquencyFeeBips,
+      delinquencyGracePeriod,
       state.lastInterestAccruedTimestamp
     );
     assertEq(baseInterestRay, 0, 'incorrect baseInterestRay');
@@ -187,7 +224,7 @@ contract FeeMathTest is Test {
     uint32 previousTimeDelinquent,
     uint32 timeDelta,
     uint32 delinquencyGracePeriod
-  ) external {
+  ) external pure {
     MarketState memory state;
     state.isDelinquent = isCurrentlyDelinquent;
     previousTimeDelinquent = uint32(bound(previousTimeDelinquent, 0, type(uint32).max - timeDelta));
@@ -203,7 +240,8 @@ contract FeeMathTest is Test {
         // If already past grace period, full delta incurs penalty
         assertEq(timeWithPenalty, timeDelta, 'should be full delta when past grace period');
       } else if (previousTimeDelinquent + timeDelta >= delinquencyGracePeriod) {
-        // If delta crosses grace period, only the portion of the delta that is past the grace period incurs penalty
+        // If delta crosses the grace period, only the portion after it incurs
+        // a penalty.
         assertEq(
           timeWithPenalty,
           (previousTimeDelinquent + timeDelta) - delinquencyGracePeriod,
@@ -229,7 +267,8 @@ contract FeeMathTest is Test {
             'should be full delta when time left with penalty is >= delta'
           );
         } else {
-          // If time left with penalty is less than delta, only the portion of the delta that is past the grace period incurs penalty
+          // If the penalty time is shorter than the delta, only that portion
+          // incurs a penalty.
           assertEq(
             timeWithPenalty,
             timeLeftWithPenalty,
@@ -253,7 +292,7 @@ contract FeeMathTest is Test {
     }
   }
 
-  function testUpdateTimeDelinquentAndGetPenaltyTime() external {
+  function testUpdateTimeDelinquentAndGetPenaltyTime() external pure {
     MarketState memory state;
     uint256 timeWithPenalty;
     // Within grace period, no penalty

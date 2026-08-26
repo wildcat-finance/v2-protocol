@@ -64,4 +64,8 @@ library MarketStateLibExternal {
   ) external pure returns (uint256) {
     return MarketStateLib.withdrawableProtocolFees(state, totalAssets);
   }
+
+  function $totalDebts(MarketState memory state) external pure returns (uint256) {
+    return MarketStateLib.totalDebts(state);
+  }
 }

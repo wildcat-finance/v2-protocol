@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
 import 'src/libraries/FIFOQueue.sol';
 import './wrappers/FIFOQueueLibExternal.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 // Uses an external wrapper library to make forge coverage work for FIFOQueueLib.
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
-contract FIFOQueueTest is Test {
+contract FIFOQueueTest is TestKernel {
   FIFOQueue internal arr;
 
   using FIFOQueueLibExternal for FIFOQueue;
@@ -217,7 +217,7 @@ contract FIFOQueueTest is Test {
     }
   }
 
-  function assertEq(uint32[] memory a, uint32[] memory b) internal {
+  function assertEq(uint32[] memory a, uint32[] memory b) internal pure {
     assertEq(a.length, b.length, 'length');
     for (uint256 i = 0; i < a.length; i++) {
       assertEq(a[i], b[i]);

@@ -2,8 +2,8 @@
 pragma solidity >=0.8.25;
 
 import 'src/types/TransientBytesArray.sol';
-import 'forge-std/Test.sol';
-import '../helpers/PRNG.sol';
+import { PRNG, seedPRNG } from '../shared/PRNG.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 contract TransientBytesArrayExternal {
   TransientBytesArray internal array = TransientBytesArray.wrap(0);
@@ -16,10 +16,10 @@ contract TransientBytesArrayExternal {
   }
 }
 
-contract TransientBytesArrayTest is Test {
+contract TransientBytesArrayTest is TestKernel {
   TransientBytesArray internal array = TransientBytesArray.wrap(0);
-  bytes4 internal constant Panic_ErrorSelector = 0x4e487b71;
-  uint256 internal constant Panic_InvalidStorageByteArray = 0x22;
+  bytes4 internal constant TestPanicErrorSelector = 0x4e487b71;
+  uint256 internal constant TestPanicInvalidStorageByteArray = 0x22;
 
   function test_smallBytes(uint seed, uint length) external {
     length = bound(length, 0, 31);
@@ -59,11 +59,13 @@ contract TransientBytesArrayTest is Test {
   function test_read_InvalidShortEncodingLengthReverts() external {
     TransientBytesArrayExternal externalArray = new TransientBytesArrayExternal();
 
-    vm.expectRevert(abi.encodeWithSelector(Panic_ErrorSelector, Panic_InvalidStorageByteArray));
+    vm.expectRevert(
+      abi.encodeWithSelector(TestPanicErrorSelector, TestPanicInvalidStorageByteArray)
+    );
     externalArray.readInvalidShortEncoding();
   }
 
-  function test_nextBytes(uint seed, uint length) external {
+  function test_nextBytes(uint seed, uint length) external pure {
     length = bound(length, 0, 512);
     PRNG prng = seedPRNG(seed);
     uint freePointer;

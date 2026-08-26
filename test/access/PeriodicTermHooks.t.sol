@@ -1,62 +1,130 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.20;
 
-import 'forge-std/Test.sol';
-import '../shared/mocks/MockPeriodicTermHooks.sol';
-import { warp } from '../helpers/VmUtils.sol';
-import './BaseAccessControls.t.sol';
+import { Vm } from 'forge-std/Vm.sol';
+import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
+import { HookedMarket } from 'src/access/PeriodicTermHooks.sol';
+import { PendingAprChange } from 'src/access/PeriodicTermHooks.sol';
+import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { IHooks } from 'src/access/IHooks.sol';
+import { CreateProviderInputs } from 'src/access/ProviderStructs.sol';
+import { ExistingProviderInputs } from 'src/access/ProviderStructs.sol';
+import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
+import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { MarketParameterConstraints } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { MarketState } from 'src/libraries/MarketState.sol';
+import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
+import { Bit_Enabled_CloseMarket } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_ExecutePendingAnnualInterestBipsReduction } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_SetAnnualInterestAndReserveRatioBips } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
+import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
+import { HooksConfig } from 'src/types/HooksConfig.sol';
+import { HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
+import { encodeHooksDeploymentConfig } from 'src/types/HooksConfig.sol';
+import { NullProviderIndex } from 'src/types/RoleProvider.sol';
+import { RoleProvider } from 'src/types/RoleProvider.sol';
+import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
+import { MockRoleProviderFactory } from '../mocks/MockRoleProviderFactory.sol';
+import { PeriodicAprMarketMock } from '../mocks/PeriodicAprMarketMock.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
-using MathUtils for uint256;
-using BoolUtils for bool;
+contract PeriodicTermHooksTest is TestKernel {
+  address internal constant MarketA = address(0x3001);
+  address internal constant MarketB = address(0x3002);
+  address internal constant MarketC = address(0x3003);
+  address internal constant MarketD = address(0x3004);
+  address internal constant Lender = address(0xA11CE);
+  address internal constant SecondLender = address(0xB0B);
+  address internal constant ThirdLender = address(0xCA401);
+  address internal constant NewAdministrator = address(0xAD011);
 
-contract MockAprMarket {
-  uint256 public annualInterestBips;
-
-  constructor(uint256 _annualInterestBips) {
-    annualInterestBips = _annualInterestBips;
-  }
-
-  function setAnnualInterestBips(uint256 _annualInterestBips) external {
-    annualInterestBips = _annualInterestBips;
-  }
-}
-
-contract PeriodicTermHooksTest is BaseAccessControlsTest {
-  MockPeriodicTermHooks internal hooks;
-
-  uint32 internal constant PeriodStart = 1_714_737_030;
+  uint32 internal constant PeriodStart = 1_724_284_800;
   uint32 internal constant PeriodDuration = 30 days;
   uint32 internal constant WithdrawalWindowDuration = 3 days;
   uint32 internal constant FirstWithdrawalWindowStart =
     PeriodStart + PeriodDuration - WithdrawalWindowDuration;
-  address internal constant Market = address(1);
-  address internal constant Lender = address(2);
+  bytes4 internal constant PanicSelector = 0x4e487b71;
+  uint256 internal constant PanicArithmetic = 0x11;
+  bytes32 internal constant ProposalCancelledTopic =
+    keccak256('AnnualInterestBipsReductionProposalCancelled(address)');
+
+  PeriodicTermHooks internal hooks;
+  MockRoleProvider internal provider1;
+  MockRoleProvider internal provider2;
+  MockRoleProviderFactory internal providerFactory;
+  mapping(address account => bool registered) internal registeredBorrowers;
+  address internal callbackPreviousAdministrator;
+  address internal callbackNewAdministrator;
 
   function setUp() external {
-    hooks = new MockPeriodicTermHooks(address(this));
-    _setUpBaseHooks(MockBaseAccessControls(address(hooks)));
-    assertEq(hooks.factory(), address(this), 'factory');
-    assertEq(hooks.administrator(), address(this), 'administrator');
-    _validateRoleProviders();
-    warp(PeriodStart);
+    vm.warp(PeriodStart);
+    registeredBorrowers[address(this)] = true;
+    provider1 = MockRoleProvider(
+      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
+    );
+    provider2 = MockRoleProvider(
+      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
+    );
+    providerFactory = MockRoleProviderFactory(
+      _deployCode('test/mocks/MockRoleProviderFactory.sol:MockRoleProviderFactory')
+    );
+    hooks = _newHooks(address(this));
   }
 
-  function _encodeHooksData() internal pure returns (bytes memory) {
+  function archController() external view returns (address) {
+    return address(this);
+  }
+
+  function isRegisteredBorrower(address account) external view returns (bool) {
+    return registeredBorrowers[account];
+  }
+
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  ) external {
+    assertEq(msg.sender, address(hooks), 'callback caller');
+    callbackPreviousAdministrator = previousAdministrator;
+    callbackNewAdministrator = newAdministrator;
+  }
+
+  function _newHooks(address administrator) internal returns (PeriodicTermHooks deployed) {
+    deployed = PeriodicTermHooks(
+      _deployCode(
+        'src/access/PeriodicTermHooks.sol:PeriodicTermHooks',
+        abi.encode(administrator, bytes(''))
+      )
+    );
+  }
+
+  function _newHooks(
+    address administrator,
+    NameAndProviderInputs memory inputs
+  ) internal returns (PeriodicTermHooks deployed) {
+    deployed = PeriodicTermHooks(
+      _deployCode(
+        'src/access/PeriodicTermHooks.sol:PeriodicTermHooks',
+        abi.encode(administrator, abi.encode(inputs))
+      )
+    );
+  }
+
+  function _newAprMarket(uint16 annualInterestBips) internal returns (address market) {
+    market = _deployCode(
+      'test/mocks/PeriodicAprMarketMock.sol:PeriodicAprMarketMock',
+      abi.encode(uint256(annualInterestBips))
+    );
+  }
+
+  function _hooksData() internal pure returns (bytes memory) {
     return abi.encode(FirstWithdrawalWindowStart, PeriodDuration, WithdrawalWindowDuration);
   }
 
-  function _encodeHooksData(uint128 minimumDeposit) internal pure returns (bytes memory) {
-    return
-      abi.encode(
-        FirstWithdrawalWindowStart,
-        PeriodDuration,
-        WithdrawalWindowDuration,
-        minimumDeposit
-      );
-  }
-
-  function _encodeHooksData(
-    uint128 minimumDeposit,
+  function _hooksData(
+    uint96 minimumDeposit,
     bool transfersDisabled
   ) internal pure returns (bytes memory) {
     return
@@ -69,37 +137,65 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
       );
   }
 
-  function _createMarket(HooksConfig inputConfig, bytes memory hooksData) internal {
-    _createMarket(Market, inputConfig, hooksData);
+  function _requestedConfig(
+    PeriodicTermHooks target,
+    bool deposit,
+    bool queueWithdrawal,
+    bool transfer
+  ) internal pure returns (HooksConfig config) {
+    config = EmptyHooksConfig.setHooksAddress(address(target));
+    if (deposit) config = config.setFlag(Bit_Enabled_Deposit);
+    if (queueWithdrawal) config = config.setFlag(Bit_Enabled_QueueWithdrawal);
+    if (transfer) config = config.setFlag(Bit_Enabled_Transfer);
   }
 
-  function _createMarket(address market, HooksConfig inputConfig, bytes memory hooksData) internal {
+  function _createMarket(
+    PeriodicTermHooks target,
+    address market,
+    HooksConfig requestedConfig,
+    bytes memory hooksData
+  ) internal returns (HooksConfig effectiveConfig) {
     DeployMarketInputs memory inputs;
-    inputs.hooks = inputConfig.setHooksAddress(address(hooks));
-    hooks.onCreateMarket(address(this), market, inputs, hooksData);
+    inputs.hooks = requestedConfig;
+    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
   }
 
-  function _createMarket() internal {
-    _createMarket(EmptyHooksConfig, _encodeHooksData());
+  function _createMarket(address market) internal returns (HooksConfig effectiveConfig) {
+    return _createMarket(hooks, market, _requestedConfig(hooks, false, false, false), _hooksData());
   }
 
-  function _expectedWindowOpen(uint256 timestamp) internal pure returns (bool) {
-    if (timestamp < FirstWithdrawalWindowStart) return false;
-    return (timestamp - FirstWithdrawalWindowStart) % PeriodDuration < WithdrawalWindowDuration;
+  function _assertConfig(
+    HooksConfig actual,
+    HooksConfig expected,
+    string memory message
+  ) internal pure {
+    assertEq(HooksConfig.unwrap(actual), HooksConfig.unwrap(expected), message);
   }
 
-  function _expectedNextWindowStartAfter(uint256 timestamp) internal pure returns (uint256) {
-    if (timestamp < FirstWithdrawalWindowStart) return FirstWithdrawalWindowStart;
-    uint256 periodsElapsed = (timestamp - FirstWithdrawalWindowStart) / PeriodDuration;
-    return FirstWithdrawalWindowStart + ((periodsElapsed + 1) * PeriodDuration);
-  }
-
-  function _aprReductionProposalExpiry(
-    uint32 responseWindowStart,
-    uint32 periodDuration
-  ) internal view returns (uint256) {
-    return
-      responseWindowStart + uint256(periodDuration) * hooks.AprReductionProposalValidityPeriods();
+  function _assertProvider(
+    PeriodicTermHooks target,
+    address providerAddress,
+    uint32 timeToLive,
+    bool isPullProvider,
+    uint24 providerIndex
+  ) internal view {
+    RoleProvider provider = target.getRoleProvider(providerAddress);
+    assertEq(provider.providerAddress(), providerAddress, 'provider address');
+    assertEq(provider.timeToLive(), timeToLive, 'provider ttl');
+    assertEq(
+      provider.pullProviderIndex(),
+      isPullProvider ? providerIndex : NullProviderIndex,
+      'pull index'
+    );
+    assertEq(
+      provider.pushProviderIndex(),
+      isPullProvider ? NullProviderIndex : providerIndex,
+      'push index'
+    );
+    RoleProvider[] memory providers = isPullProvider
+      ? target.getPullProviders()
+      : target.getPushProviders();
+    assertEq(providers[providerIndex].providerAddress(), providerAddress, 'provider list');
   }
 
   function _assertPendingAprChange(
@@ -110,488 +206,64 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     uint32 responseWindowEnd
   ) internal view {
     (
-      PendingAprChange memory pendingAprChange,
+      PendingAprChange memory pending,
       uint32 actualResponseWindowStart,
       uint32 actualResponseWindowEnd
     ) = hooks.getPendingAprChange(market);
-    assertEq(pendingAprChange.annualInterestBips, annualInterestBips, 'pending annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, proposalTimestamp, 'pending proposalTimestamp');
-    assertEq(actualResponseWindowStart, responseWindowStart, 'responseWindowStart');
-    assertEq(actualResponseWindowEnd, responseWindowEnd, 'responseWindowEnd');
+    assertEq(pending.annualInterestBips, annualInterestBips, 'pending APR');
+    assertEq(pending.proposalTimestamp, proposalTimestamp, 'proposal timestamp');
+    assertEq(actualResponseWindowStart, responseWindowStart, 'response window start');
+    assertEq(actualResponseWindowEnd, responseWindowEnd, 'response window end');
   }
 
   function _assertNoPendingAprChange(address market) internal view {
-    (
-      PendingAprChange memory pendingAprChange,
-      uint32 responseWindowStart,
-      uint32 responseWindowEnd
-    ) = hooks.getPendingAprChange(market);
-    assertEq(pendingAprChange.annualInterestBips, 0, 'pending annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, 0, 'pending proposalTimestamp');
-    assertEq(responseWindowStart, 0, 'responseWindowStart');
-    assertEq(responseWindowEnd, 0, 'responseWindowEnd');
+    _assertPendingAprChange(market, 0, 0, 0, 0);
+    (uint16 annualInterestBips, uint32 proposalTimestamp) = hooks.pendingAprChanges(market);
+    assertEq(annualInterestBips, 0, 'getter APR');
+    assertEq(proposalTimestamp, 0, 'getter timestamp');
   }
 
-  // ========================================================================== //
-  //                                 Constructor                                //
-  // ========================================================================== //
-
-  function test_constructor_ExistingProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'PeriodicTermHooks Name';
-    inputs.existingProviders = new ExistingProviderInputs[](2);
-    inputs.existingProviders[0] = ExistingProviderInputs({
-      providerAddress: address(mockProvider1),
-      timeToLive: ttl1
-    });
-    inputs.existingProviders[1] = ExistingProviderInputs({
-      providerAddress: address(mockProvider2),
-      timeToLive: ttl2
-    });
-    mockProvider1.setIsPullProvider(isPullProvider1);
-    mockProvider2.setIsPullProvider(isPullProvider2);
-    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
-    _addExpectedProvider(mockProvider2, ttl2, isPullProvider2);
-    hooks = MockPeriodicTermHooks(
-      address(new PeriodicTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
+  function _assertNoCancelledEventRecorded() internal {
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    for (uint256 i; i < logs.length; i++) {
+      assertTrue(logs[i].topics[0] != ProposalCancelledTopic, 'unexpected cancellation event');
+    }
   }
 
-  function test_constructor_NewProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
-    bytes32 salt1 = bytes32(uint256(1));
-    bytes32 salt2 = bytes32(uint256(2));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'PeriodicTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](2);
-    inputs.newProviderInputs[0] = CreateProviderInputs({
-      providerFactoryCalldata: abi.encode(salt1, isPullProvider1),
-      timeToLive: ttl1
-    });
-    inputs.newProviderInputs[1] = CreateProviderInputs({
-      providerFactoryCalldata: abi.encode(salt2, isPullProvider2),
-      timeToLive: ttl2
-    });
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt1)),
-      ttl1,
-      isPullProvider1
-    );
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt2)),
-      ttl2,
-      isPullProvider2
-    );
-    hooks = MockPeriodicTermHooks(
-      address(new PeriodicTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
+  function _addPullProvider(PeriodicTermHooks target) internal {
+    provider1.setIsPullProvider(true);
+    target.addRoleProvider(address(provider1), type(uint32).max);
   }
 
-  function test_constructor_NewAndExistingProviders(
-    bool isPullProvider1,
-    uint32 ttl1,
-    bool isPullProvider2,
-    uint32 ttl2
-  ) external {
-    bytes32 salt = bytes32(uint256(1));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'PeriodicTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](1);
-    inputs.existingProviders = new ExistingProviderInputs[](1);
-    inputs.existingProviders[0].timeToLive = ttl1;
-    inputs.existingProviders[0].providerAddress = address(mockProvider1);
-    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(salt, isPullProvider2);
-    inputs.newProviderInputs[0].timeToLive = ttl2;
-
-    _addExpectedProvider(mockProvider1, ttl1, isPullProvider1);
-    _addExpectedProvider(
-      MockRoleProvider(providerFactory.computeProviderAddress(salt)),
-      ttl2,
-      isPullProvider2
-    );
-    hooks = MockPeriodicTermHooks(
-      address(new PeriodicTermHooks(address(this), abi.encode(inputs)))
-    );
-    baseHooks = MockBaseAccessControls(address(hooks));
-    _validateRoleProviders();
-    assertEq(hooks.name(), inputs.name, 'name');
+  function _credentialData(bytes memory credential) internal view returns (bytes memory) {
+    return abi.encodePacked(address(provider1), credential);
   }
 
-  function test_constructor_NewProviders_CreateRoleProviderFailed() external {
-    providerFactory.setNextProviderAddress(address(0));
-    NameAndProviderInputs memory inputs;
-    inputs.name = 'PeriodicTermHooks Name';
-    inputs.roleProviderFactory = address(providerFactory);
-    inputs.newProviderInputs = new CreateProviderInputs[](1);
-    inputs.newProviderInputs[0].timeToLive = 1 days;
-    inputs.newProviderInputs[0].providerFactoryCalldata = abi.encode(bytes32(0), false);
-    vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
-    new PeriodicTermHooks(address(this), abi.encode(inputs));
+  function _expectedWindowOpen(uint256 timestamp) internal pure returns (bool) {
+    if (timestamp < FirstWithdrawalWindowStart) return false;
+    return (timestamp - FirstWithdrawalWindowStart) % PeriodDuration < WithdrawalWindowDuration;
   }
 
-  // ========================================================================== //
-  //                               onCreateMarket                               //
-  // ========================================================================== //
-
-  function test_onCreateMarket_CallerNotFactory() external asAccount(address(1)) {
-    vm.expectRevert(IHooks.CallerNotFactory.selector);
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(1), Market, inputs, '');
+  function _expectedNextWindowStart(uint256 timestamp) internal pure returns (uint256) {
+    if (timestamp < FirstWithdrawalWindowStart) return FirstWithdrawalWindowStart;
+    uint256 periodsElapsed = (timestamp - FirstWithdrawalWindowStart) / PeriodDuration;
+    return FirstWithdrawalWindowStart + ((periodsElapsed + 1) * PeriodDuration);
   }
 
-  function test_onCreateMarket_CallerNotAdministrator() external {
-    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(1), Market, inputs, '');
-  }
+  function test_metadataConfigAndConstraints_AreCanonical() external view {
+    assertEq(hooks.factory(), address(this), 'factory');
+    assertEq(hooks.administrator(), address(this), 'administrator');
+    assertEq(hooks.version(), 'PeriodicTermHooks', 'version');
+    assertEq(hooks.templateVersion(), 2, 'template version');
+    assertEq(hooks.MinimumPeriodDuration(), 6 minutes, 'minimum period');
+    assertEq(hooks.MaximumPeriodDuration(), 365 days, 'maximum period');
+    assertEq(hooks.MinimumWithdrawalWindowDuration(), 1 minutes, 'minimum window');
+    assertEq(hooks.MaximumInitialWithdrawalWindowDelay(), 365 days, 'maximum delay');
+    assertEq(hooks.AprReductionProposalValidityPeriods(), 1, 'proposal periods');
 
-  function test_acceptAdministratorTransfer_PreservesHookedMarketConfiguration() external {
-    address newAdministrator = address(0xA11CE);
-    _createMarket(EmptyHooksConfig, _encodeHooksData(100, true));
-    bytes32 marketBefore = keccak256(abi.encode(hooks.getHookedMarket(Market)));
-
-    _transferAdministrator(newAdministrator);
-
-    assertEq(
-      keccak256(abi.encode(hooks.getHookedMarket(Market))),
-      marketBefore,
-      'hooked market'
+    HooksConfig optionalFlags = EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(
+      Bit_Enabled_Transfer
     );
-    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
-    hooks.setMinimumDeposit(Market, 200);
-    vm.prank(newAdministrator);
-    hooks.setMinimumDeposit(Market, 200);
-    assertEq(hooks.getHookedMarket(Market).minimumDeposit, 200, 'minimum deposit');
-  }
-
-  function test_onCreateMarket_PeriodicWindowNotProvided() external {
-    vm.expectRevert(PeriodicTermHooks.PeriodicWindowNotProvided.selector);
-    DeployMarketInputs memory inputs;
-    hooks.onCreateMarket(address(this), Market, inputs, abi.encode(PeriodStart, PeriodDuration));
-  }
-
-  function test_onCreateMarket_FirstWithdrawalWindowStartInFuture() external {
-    DeployMarketInputs memory inputs;
-    uint32 futureFirstWithdrawalWindowStart = FirstWithdrawalWindowStart + 7 days;
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(futureFirstWithdrawalWindowStart, PeriodDuration, WithdrawalWindowDuration)
-    );
-
-    HookedMarket memory market = hooks.getHookedMarket(Market);
-    assertEq(
-      market.firstWithdrawalWindowStart,
-      futureFirstWithdrawalWindowStart,
-      'firstWithdrawalWindowStart'
-    );
-    assertFalse(
-      hooks.isWithdrawalWindowOpen(Market),
-      'window closed before future first window start'
-    );
-  }
-
-  function test_onCreateMarket_InitialWithdrawalWindowTooFarInFuture() external {
-    uint32 maximumInitialWithdrawalWindowDelay = hooks.MaximumInitialWithdrawalWindowDelay();
-    DeployMarketInputs memory inputs;
-    uint32 firstWithdrawalWindowStart = PeriodStart + maximumInitialWithdrawalWindowDelay;
-
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(firstWithdrawalWindowStart, PeriodDuration, WithdrawalWindowDuration)
-    );
-
-    vm.expectRevert(PeriodicTermHooks.InitialWithdrawalWindowTooFarInFuture.selector);
-    hooks.onCreateMarket(
-      address(this),
-      address(2),
-      inputs,
-      abi.encode(firstWithdrawalWindowStart + 1, PeriodDuration, WithdrawalWindowDuration)
-    );
-  }
-
-  function test_fuzz_onCreateMarket_InitialWithdrawalWindowTooFarInFuture(
-    uint32 extraDelay
-  ) external {
-    extraDelay = uint32(bound(extraDelay, 1, 365 days));
-
-    DeployMarketInputs memory inputs;
-    uint32 firstWithdrawalWindowStart = PeriodStart +
-      hooks.MaximumInitialWithdrawalWindowDelay() +
-      extraDelay;
-
-    vm.expectRevert(PeriodicTermHooks.InitialWithdrawalWindowTooFarInFuture.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(firstWithdrawalWindowStart, PeriodDuration, WithdrawalWindowDuration)
-    );
-  }
-
-  function test_onCreateMarket_InvalidPeriodDuration() external {
-    DeployMarketInputs memory inputs;
-    uint32 minimumPeriodDuration = hooks.MinimumPeriodDuration();
-    uint32 maximumPeriodDuration = hooks.MaximumPeriodDuration();
-
-    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(FirstWithdrawalWindowStart, uint32(0), WithdrawalWindowDuration)
-    );
-
-    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(FirstWithdrawalWindowStart, minimumPeriodDuration - 1, WithdrawalWindowDuration)
-    );
-
-    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(FirstWithdrawalWindowStart, maximumPeriodDuration + 1, WithdrawalWindowDuration)
-    );
-  }
-
-  function test_onCreateMarket_InvalidWithdrawalWindow() external {
-    DeployMarketInputs memory inputs;
-    uint32 minimumWithdrawalWindowDuration = hooks.MinimumWithdrawalWindowDuration();
-
-    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(FirstWithdrawalWindowStart, PeriodDuration, uint32(0))
-    );
-
-    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(FirstWithdrawalWindowStart, PeriodDuration, minimumWithdrawalWindowDuration - 1)
-    );
-
-    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(FirstWithdrawalWindowStart, PeriodDuration, PeriodDuration)
-    );
-
-    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(FirstWithdrawalWindowStart, PeriodDuration, PeriodDuration + 1)
-    );
-  }
-
-  function test_onCreateMarket_SepoliaSizedWindow() external {
-    DeployMarketInputs memory inputs;
-    uint32 periodDuration = 6 minutes;
-    uint32 withdrawalWindowDuration = 1 minutes;
-    uint32 firstWithdrawalWindowStart = PeriodStart + periodDuration - withdrawalWindowDuration;
-
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration)
-    );
-
-    HookedMarket memory market = hooks.getHookedMarket(Market);
-    assertEq(
-      market.firstWithdrawalWindowStart,
-      firstWithdrawalWindowStart,
-      'firstWithdrawalWindowStart'
-    );
-    assertEq(market.periodDuration, periodDuration, 'periodDuration');
-    assertEq(market.withdrawalWindowDuration, withdrawalWindowDuration, 'withdrawalWindowDuration');
-  }
-
-  function test_onCreateMarket_setMinimumDeposit() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
-
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.PeriodicTermUpdated(
-      Market,
-      address(this),
-      FirstWithdrawalWindowStart,
-      PeriodDuration,
-      WithdrawalWindowDuration
-    );
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.MinimumDepositUpdated(Market, address(this), 0, 1e18);
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      _encodeHooksData(1e18)
-    );
-
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: false,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    }).setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
-    HookedMarket memory market = hooks.getHookedMarket(Market);
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
-    assertEq(
-      market.firstWithdrawalWindowStart,
-      FirstWithdrawalWindowStart,
-      'firstWithdrawalWindowStart'
-    );
-    assertEq(market.periodDuration, PeriodDuration, 'periodDuration');
-    assertEq(market.withdrawalWindowDuration, WithdrawalWindowDuration, 'withdrawalWindowDuration');
-    assertFalse(hooks.isMarketTransferDisabled(Market), 'transfer policy');
-  }
-
-  function test_onCreateMarket_disableTransfers() external {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      _encodeHooksData(1e18, true)
-    );
-
-    HooksConfig expectedConfig = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: true,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: true,
-      useOnSetProtocolFeeBips: false
-    }).setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
-    HookedMarket memory market = hooks.getHookedMarket(Market);
-    assertEq(config, expectedConfig, 'config');
-    assertEq(market.transfersDisabled, true, 'transfersDisabled');
-    assertTrue(config.useOnTransfer(), 'useOnTransfer');
-    assertTrue(hooks.isMarketTransferDisabled(Market), 'transfer policy');
-  }
-
-  function test_onCreateMarket_InvalidAccessConfiguration() external {
-    DeployMarketInputs memory inputs;
-
-    inputs.hooks = EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setHooksAddress(
-      address(hooks)
-    );
-    vm.expectRevert(PeriodicTermHooks.InvalidAccessConfiguration.selector);
-    hooks.onCreateMarket(address(this), address(1), inputs, _encodeHooksData());
-
-    inputs.hooks = EmptyHooksConfig
-      .setFlag(Bit_Enabled_QueueWithdrawal)
-      .setFlag(Bit_Enabled_Deposit)
-      .setHooksAddress(address(hooks));
-    vm.expectRevert(PeriodicTermHooks.InvalidAccessConfiguration.selector);
-    hooks.onCreateMarket(address(this), address(2), inputs, _encodeHooksData());
-
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      address(3),
-      inputs,
-      _encodeHooksData(0, true)
-    );
-    HookedMarket memory market = hooks.getHookedMarket(address(3));
-    assertTrue(config.useOnTransfer(), 'useOnTransfer');
-    assertEq(market.depositRequiresAccess, true, 'depositRequiresAccess');
-    assertEq(market.transferRequiresAccess, false, 'transferRequiresAccess');
-    assertEq(market.withdrawalRequiresAccess, true, 'withdrawalRequiresAccess');
-    assertEq(market.transfersDisabled, true, 'transfersDisabled');
-  }
-
-  function test_onTransfer_TransfersDisabled() external {
-    _createMarket(EmptyHooksConfig, _encodeHooksData(1e18, true));
-    vm.expectRevert(PeriodicTermHooks.TransfersDisabled.selector);
-    MarketState memory state;
-    vm.prank(Market);
-    hooks.onTransfer(address(1), address(2), address(3), 100, state, '');
-  }
-
-  function test_onCreateMarket_MinimumDepositOverflow() external {
-    DeployMarketInputs memory inputs;
-    vm.expectRevert(abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic));
-    hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      abi.encode(
-        FirstWithdrawalWindowStart,
-        PeriodDuration,
-        WithdrawalWindowDuration,
-        type(uint136).max
-      )
-    );
-  }
-
-  function test_version() external {
-    assertEq(hooks.version(), 'PeriodicTermHooks');
-  }
-
-  function test_config() external {
-    HooksConfig optionalFlags = StandardHooksConfig({
-      hooksAddress: address(0),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: false,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    }).toHooksConfig();
     HooksConfig requiredFlags = EmptyHooksConfig
       .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
       .setFlag(Bit_Enabled_QueueWithdrawal)
@@ -601,585 +273,634 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
       optionalFlags,
       requiredFlags
     );
-    assertEq(hooks.config(), expectedConfig, 'config.');
+    assertEq(
+      HooksDeploymentConfig.unwrap(hooks.config()),
+      HooksDeploymentConfig.unwrap(expectedConfig),
+      'deployment config'
+    );
+
+    MarketParameterConstraints memory constraints = hooks.getParameterConstraints();
+    assertEq(constraints.minimumDelinquencyGracePeriod, 0, 'minimum grace period');
+    assertEq(constraints.maximumDelinquencyGracePeriod, 90 days, 'maximum grace period');
+    assertEq(constraints.minimumReserveRatioBips, 0, 'minimum reserve ratio');
+    assertEq(constraints.maximumReserveRatioBips, 10_000, 'maximum reserve ratio');
+    assertEq(constraints.minimumDelinquencyFeeBips, 0, 'minimum delinquency fee');
+    assertEq(constraints.maximumDelinquencyFeeBips, 10_000, 'maximum delinquency fee');
+    assertEq(constraints.minimumWithdrawalBatchDuration, 0, 'minimum batch duration');
+    assertEq(constraints.maximumWithdrawalBatchDuration, 365 days, 'maximum batch duration');
+    assertEq(constraints.minimumAnnualInterestBips, 0, 'minimum APR');
+    assertEq(constraints.maximumAnnualInterestBips, 10_000, 'maximum APR');
+
+    (uint16 pendingApr, uint32 pendingTimestamp) = hooks.pendingAprChanges(MarketA);
+    assertEq(pendingApr, 0, 'initial pending APR');
+    assertEq(pendingTimestamp, 0, 'initial pending timestamp');
   }
 
-  function test_onCreateMarket_config(
-    bool useOnQueueWithdrawal,
-    bool useOnDeposit,
-    bool useOnTransfer,
-    uint128 minimumDeposit
+  function test_constructor_InitializesEveryProviderShape(
+    bool firstIsPull,
+    bool secondIsPull,
+    uint32 firstTtl,
+    uint32 secondTtl
   ) external {
-    // minimumDeposit storage is uint96 (single-slot HookedMarket); values
-    // above that revert in the checked downcast at creation.
-    minimumDeposit = uint128(bound(minimumDeposit, 0, type(uint96).max));
-    DeployMarketInputs memory inputs;
-    inputs.hooks = encodeHooksConfig({
-      hooksAddress: address(hooks),
-      useOnQueueWithdrawal: useOnQueueWithdrawal,
-      useOnDeposit: useOnDeposit,
-      useOnTransfer: useOnTransfer,
-      useOnExecuteWithdrawal: false,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
-    StandardHooksConfig memory expectedStandardConfig;
-    expectedStandardConfig.hooksAddress = address(hooks);
-    expectedStandardConfig.useOnQueueWithdrawal = true;
-    expectedStandardConfig.useOnCloseMarket = true;
-    expectedStandardConfig.useOnTransfer = useOnTransfer || useOnQueueWithdrawal;
-    expectedStandardConfig.useOnDeposit =
-      useOnDeposit ||
-      useOnQueueWithdrawal ||
-      minimumDeposit > 0;
-    expectedStandardConfig.useOnSetAnnualInterestAndReserveRatioBips = true;
+    provider1.setIsPullProvider(firstIsPull);
+    provider2.setIsPullProvider(secondIsPull);
+    _assertExistingProviderConstructor(firstIsPull, secondIsPull, firstTtl, secondTtl);
+    _assertNewProviderConstructor(firstIsPull, secondIsPull, firstTtl, secondTtl);
+    _assertMixedProviderConstructor(firstIsPull, secondIsPull, firstTtl, secondTtl);
+  }
 
-    if (useOnQueueWithdrawal && !(useOnDeposit && useOnTransfer)) {
+  function _assertExistingProviderConstructor(
+    bool firstIsPull,
+    bool secondIsPull,
+    uint32 firstTtl,
+    uint32 secondTtl
+  ) internal {
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'existing providers';
+    inputs.existingProviders = new ExistingProviderInputs[](2);
+    inputs.existingProviders[0] = ExistingProviderInputs(address(provider1), firstTtl);
+    inputs.existingProviders[1] = ExistingProviderInputs(address(provider2), secondTtl);
+    PeriodicTermHooks deployed = _newHooks(address(this), inputs);
+    _assertProvider(deployed, address(provider1), firstTtl, firstIsPull, 0);
+    _assertProvider(
+      deployed,
+      address(provider2),
+      secondTtl,
+      secondIsPull,
+      firstIsPull == secondIsPull ? 1 : 0
+    );
+    assertEq(deployed.name(), inputs.name, 'existing name');
+  }
+
+  function _assertNewProviderConstructor(
+    bool firstIsPull,
+    bool secondIsPull,
+    uint32 firstTtl,
+    uint32 secondTtl
+  ) internal {
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'new providers';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](2);
+    inputs.newProviderInputs[0] = CreateProviderInputs(
+      firstTtl,
+      abi.encode(bytes32(uint256(1)), firstIsPull)
+    );
+    inputs.newProviderInputs[1] = CreateProviderInputs(
+      secondTtl,
+      abi.encode(bytes32(uint256(2)), secondIsPull)
+    );
+    address firstProvider = providerFactory.computeProviderAddress(bytes32(uint256(1)));
+    address secondProvider = providerFactory.computeProviderAddress(bytes32(uint256(2)));
+    PeriodicTermHooks deployed = _newHooks(address(this), inputs);
+    _assertProvider(deployed, firstProvider, firstTtl, firstIsPull, 0);
+    _assertProvider(
+      deployed,
+      secondProvider,
+      secondTtl,
+      secondIsPull,
+      firstIsPull == secondIsPull ? 1 : 0
+    );
+    assertEq(deployed.name(), inputs.name, 'new name');
+  }
+
+  function _assertMixedProviderConstructor(
+    bool firstIsPull,
+    bool secondIsPull,
+    uint32 firstTtl,
+    uint32 secondTtl
+  ) internal {
+    NameAndProviderInputs memory inputs;
+    inputs.name = 'mixed providers';
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.existingProviders = new ExistingProviderInputs[](1);
+    inputs.existingProviders[0] = ExistingProviderInputs(address(provider1), firstTtl);
+    inputs.newProviderInputs = new CreateProviderInputs[](1);
+    inputs.newProviderInputs[0] = CreateProviderInputs(
+      secondTtl,
+      abi.encode(bytes32(uint256(3)), secondIsPull)
+    );
+    address newProvider = providerFactory.computeProviderAddress(bytes32(uint256(3)));
+    PeriodicTermHooks deployed = _newHooks(address(this), inputs);
+    _assertProvider(deployed, address(provider1), firstTtl, firstIsPull, 0);
+    _assertProvider(
+      deployed,
+      newProvider,
+      secondTtl,
+      secondIsPull,
+      firstIsPull == secondIsPull ? 1 : 0
+    );
+    assertEq(deployed.name(), inputs.name, 'mixed name');
+  }
+
+  function test_constructor_RejectsFailedProviderCreation() external {
+    providerFactory.setNextProviderAddress(address(0));
+    NameAndProviderInputs memory inputs;
+    inputs.roleProviderFactory = address(providerFactory);
+    inputs.newProviderInputs = new CreateProviderInputs[](1);
+    vm.expectRevert(BaseAccessControls.CreateRoleProviderFailed.selector);
+    _newHooks(address(this), inputs);
+  }
+
+  function test_onCreateMarket_AuthenticatesAndRequiresPeriodicData() external {
+    DeployMarketInputs memory inputs;
+    vm.prank(address(0xBAD));
+    vm.expectRevert(IHooks.CallerNotFactory.selector);
+    hooks.onCreateMarket(address(this), MarketA, inputs, '');
+
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.onCreateMarket(address(0xBAD), MarketA, inputs, _hooksData());
+
+    vm.expectRevert(PeriodicTermHooks.PeriodicWindowNotProvided.selector);
+    hooks.onCreateMarket(
+      address(this),
+      MarketA,
+      inputs,
+      abi.encode(FirstWithdrawalWindowStart, PeriodDuration)
+    );
+  }
+
+  function test_onCreateMarket_ValidatesScheduleBounds() external {
+    DeployMarketInputs memory inputs;
+    uint32 minimumPeriod = hooks.MinimumPeriodDuration();
+    uint32 maximumPeriod = hooks.MaximumPeriodDuration();
+    uint32 minimumWindow = hooks.MinimumWithdrawalWindowDuration();
+    uint32 maximumDelay = hooks.MaximumInitialWithdrawalWindowDelay();
+
+    hooks.onCreateMarket(
+      address(this),
+      MarketA,
+      inputs,
+      abi.encode(PeriodStart + maximumDelay, minimumPeriod, minimumWindow)
+    );
+    hooks.onCreateMarket(
+      address(this),
+      MarketB,
+      inputs,
+      abi.encode(PeriodStart - maximumPeriod, maximumPeriod, maximumPeriod - 1)
+    );
+
+    vm.expectRevert(PeriodicTermHooks.InitialWithdrawalWindowTooFarInFuture.selector);
+    hooks.onCreateMarket(
+      address(this),
+      MarketC,
+      inputs,
+      abi.encode(PeriodStart + maximumDelay + 1, PeriodDuration, WithdrawalWindowDuration)
+    );
+    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
+    hooks.onCreateMarket(
+      address(this),
+      MarketC,
+      inputs,
+      abi.encode(FirstWithdrawalWindowStart, minimumPeriod - 1, minimumWindow)
+    );
+    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
+    hooks.onCreateMarket(
+      address(this),
+      MarketC,
+      inputs,
+      abi.encode(FirstWithdrawalWindowStart, maximumPeriod + 1, minimumWindow)
+    );
+    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
+    hooks.onCreateMarket(
+      address(this),
+      MarketC,
+      inputs,
+      abi.encode(FirstWithdrawalWindowStart, PeriodDuration, minimumWindow - 1)
+    );
+    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
+    hooks.onCreateMarket(
+      address(this),
+      MarketC,
+      inputs,
+      abi.encode(FirstWithdrawalWindowStart, PeriodDuration, PeriodDuration)
+    );
+  }
+
+  function test_onCreateMarket_ConfigMatrix(
+    bool deposit,
+    bool queueWithdrawal,
+    bool transfer,
+    uint96 minimumDeposit,
+    bool transfersDisabled
+  ) external {
+    HooksConfig requested = _requestedConfig(hooks, deposit, queueWithdrawal, transfer);
+    bytes memory data = _hooksData(minimumDeposit, transfersDisabled);
+    if (queueWithdrawal && (!deposit || (!transfersDisabled && !transfer))) {
       vm.expectRevert(PeriodicTermHooks.InvalidAccessConfiguration.selector);
-      hooks.onCreateMarket(address(this), Market, inputs, _encodeHooksData(minimumDeposit));
+      _createMarket(hooks, MarketA, requested, data);
       return;
     }
 
-    HooksConfig config = hooks.onCreateMarket(
-      address(this),
-      Market,
-      inputs,
-      _encodeHooksData(minimumDeposit)
-    );
-    HooksConfig expectedConfig = expectedStandardConfig.toHooksConfig().setFlag(
-      Bit_Enabled_ExecutePendingAnnualInterestBipsReduction
-    );
-    assertEq(config, expectedConfig, 'config');
-    HookedMarket memory market = hooks.getHookedMarket(Market);
-    assertEq(market.isHooked, true, 'isHooked');
-    assertEq(market.transferRequiresAccess, useOnTransfer, 'transferRequiresAccess');
-    assertEq(market.depositRequiresAccess, useOnDeposit, 'depositRequiresAccess');
-    assertEq(market.withdrawalRequiresAccess, useOnQueueWithdrawal, 'withdrawalRequiresAccess');
-    assertEq(market.depositHookEnabled, expectedStandardConfig.useOnDeposit, 'depositHookEnabled');
-    assertEq(market.minimumDeposit, minimumDeposit, 'minimumDeposit');
+    HooksConfig actual = _createMarket(hooks, MarketA, requested, data);
+    HooksConfig expected = requested;
+    if (minimumDeposit > 0) expected = expected.setFlag(Bit_Enabled_Deposit);
+    if (transfersDisabled) expected = expected.setFlag(Bit_Enabled_Transfer);
+    if (queueWithdrawal) {
+      expected = expected.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
+    }
+    expected = expected
+      .setFlag(Bit_Enabled_QueueWithdrawal)
+      .setFlag(Bit_Enabled_CloseMarket)
+      .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+      .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
+    _assertConfig(actual, expected, 'effective config');
+
+    HookedMarket memory market = hooks.getHookedMarket(MarketA);
+    assertTrue(market.isHooked, 'is hooked');
+    assertEq(market.transferRequiresAccess, transfer, 'transfer access');
+    assertEq(market.depositRequiresAccess, deposit, 'deposit access');
+    assertEq(market.withdrawalRequiresAccess, queueWithdrawal, 'withdrawal access');
     assertEq(
-      market.firstWithdrawalWindowStart,
-      FirstWithdrawalWindowStart,
-      'firstWithdrawalWindowStart'
+      market.depositHookEnabled,
+      deposit || queueWithdrawal || minimumDeposit > 0,
+      'deposit hook'
     );
-    assertEq(market.periodDuration, PeriodDuration, 'periodDuration');
-    assertEq(market.withdrawalWindowDuration, WithdrawalWindowDuration, 'withdrawalWindowDuration');
-    assertEq(market.transfersDisabled, false, 'transfersDisabled');
+    assertEq(market.minimumDeposit, minimumDeposit, 'minimum deposit');
+    assertEq(market.firstWithdrawalWindowStart, FirstWithdrawalWindowStart, 'first window');
+    assertEq(market.periodDuration, PeriodDuration, 'period duration');
+    assertEq(market.withdrawalWindowDuration, WithdrawalWindowDuration, 'window duration');
+    assertEq(market.transfersDisabled, transfersDisabled, 'transfers disabled');
+    assertFalse(market.isClosed, 'is closed');
+    assertEq(hooks.isMarketTransferDisabled(MarketA), transfersDisabled, 'transfer policy');
   }
 
-  function test_getHookedMarkets() external {
-    address otherMarket = address(2);
-    _createMarket(Market, EmptyHooksConfig, _encodeHooksData(1e18));
-    _createMarket(otherMarket, EmptyHooksConfig, _encodeHooksData(2e18, true));
+  function test_onCreateMarket_EmitsConfigurationAndBatchesReads() external {
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.PeriodicTermUpdated(
+      MarketA,
+      address(this),
+      FirstWithdrawalWindowStart,
+      PeriodDuration,
+      WithdrawalWindowDuration
+    );
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.MinimumDepositUpdated(MarketA, address(this), 0, 100);
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      _hooksData(100, false)
+    );
+    _createMarket(
+      hooks,
+      MarketB,
+      _requestedConfig(hooks, false, false, false),
+      _hooksData(200, true)
+    );
 
     address[] memory markets = new address[](3);
-    markets[0] = Market;
-    markets[1] = otherMarket;
-    markets[2] = address(3);
+    markets[0] = MarketA;
+    markets[1] = MarketB;
+    markets[2] = MarketC;
+    HookedMarket[] memory configs = hooks.getHookedMarkets(markets);
+    assertEq(configs.length, 3, 'market count');
+    assertEq(configs[0].minimumDeposit, 100, 'first minimum');
+    assertEq(configs[1].minimumDeposit, 200, 'second minimum');
+    assertTrue(configs[1].transfersDisabled, 'second transfers');
+    assertFalse(configs[2].isHooked, 'unknown market');
 
-    HookedMarket[] memory hookedMarkets = hooks.getHookedMarkets(markets);
-    assertEq(hookedMarkets.length, markets.length, 'length');
-    assertEq(
-      keccak256(abi.encode(hookedMarkets[0])),
-      keccak256(abi.encode(hooks.getHookedMarket(markets[0]))),
-      'market 0'
+    DeployMarketInputs memory inputs;
+    vm.expectRevert(abi.encodePacked(PanicSelector, PanicArithmetic));
+    hooks.onCreateMarket(
+      address(this),
+      MarketD,
+      inputs,
+      abi.encode(
+        FirstWithdrawalWindowStart,
+        PeriodDuration,
+        WithdrawalWindowDuration,
+        uint256(type(uint96).max) + 1
+      )
     );
-    assertEq(
-      keccak256(abi.encode(hookedMarkets[1])),
-      keccak256(abi.encode(hooks.getHookedMarket(markets[1]))),
-      'market 1'
+  }
+
+  function test_administratorTransfer_PreservesConfigurationAndMovesAuthority() external {
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      _hooksData(100, true)
     );
-    assertEq(
-      keccak256(abi.encode(hookedMarkets[2])),
-      keccak256(abi.encode(hooks.getHookedMarket(markets[2]))),
-      'unknown market'
+    bytes32 configBefore = keccak256(abi.encode(hooks.getHookedMarket(MarketA)));
+    registeredBorrowers[NewAdministrator] = true;
+    hooks.requestAdministratorTransfer(NewAdministrator);
+    vm.prank(NewAdministrator);
+    hooks.acceptAdministratorTransfer();
+
+    assertEq(hooks.administrator(), NewAdministrator, 'administrator');
+    assertEq(callbackPreviousAdministrator, address(this), 'previous administrator');
+    assertEq(callbackNewAdministrator, NewAdministrator, 'new administrator');
+    assertEq(keccak256(abi.encode(hooks.getHookedMarket(MarketA))), configBefore, 'market config');
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.setMinimumDeposit(MarketA, 200);
+    vm.prank(NewAdministrator);
+    hooks.setMinimumDeposit(MarketA, 200);
+    assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
+  }
+
+  function test_setMinimumDeposit_EnforcesDispatchWidthMarketAndAuthority() external {
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      _hooksData(100, false)
     );
-    assertFalse(hookedMarkets[2].isHooked, 'unknown market isHooked');
-  }
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.MinimumDepositUpdated(MarketA, address(this), 100, 200);
+    hooks.setMinimumDeposit(MarketA, 200);
+    assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
 
-  // ========================================================================== //
-  //                              Withdrawal Window                             //
-  // ========================================================================== //
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), _hooksData());
+    vm.expectRevert(PeriodicTermHooks.DepositHookNotEnabled.selector);
+    hooks.setMinimumDeposit(MarketB, 1);
+    hooks.setMinimumDeposit(MarketB, 0);
 
-  function test_isWithdrawalWindowOpen() external {
-    _createMarket();
-    assertFalse(hooks.isWithdrawalWindowOpen(Market), 'window closed before first window');
-
-    vm.warp(FirstWithdrawalWindowStart - 1);
-    assertFalse(hooks.isWithdrawalWindowOpen(Market), 'window closed before window start');
-
-    vm.warp(FirstWithdrawalWindowStart);
-    assertTrue(hooks.isWithdrawalWindowOpen(Market), 'window open at window start');
-
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
-    assertTrue(hooks.isWithdrawalWindowOpen(Market), 'window open at last second');
-
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    assertFalse(hooks.isWithdrawalWindowOpen(Market), 'window closed at window end');
-
-    vm.warp(FirstWithdrawalWindowStart + PeriodDuration);
-    assertTrue(hooks.isWithdrawalWindowOpen(Market), 'window open in next period');
-  }
-
-  function test_isWithdrawalWindowOpen_BeforeFirstWindowStart() external {
-    _createMarket();
-    vm.warp(FirstWithdrawalWindowStart - 1);
-    assertFalse(hooks.isWithdrawalWindowOpen(Market), 'window closed before first window start');
-  }
-
-  function test_isWithdrawalWindowOpen_MissedWindows() external {
-    _createMarket();
-
-    vm.warp(FirstWithdrawalWindowStart + (PeriodDuration * 3) - 1);
-    assertFalse(hooks.isWithdrawalWindowOpen(Market), 'window closed before later window');
-
-    vm.warp(FirstWithdrawalWindowStart + (PeriodDuration * 3));
-    assertTrue(hooks.isWithdrawalWindowOpen(Market), 'window open after missed windows');
-  }
-
-  function test_onCreateMarket_DuringWindow() external {
-    vm.warp(FirstWithdrawalWindowStart + 1);
-    _createMarket();
-
-    assertTrue(hooks.isWithdrawalWindowOpen(Market), 'window open immediately after deploy');
-  }
-
-  function test_onCreateMarket_AfterMissedWindows() external {
-    vm.warp(FirstWithdrawalWindowStart + (PeriodDuration * 3) - 1);
-    _createMarket();
-
-    assertFalse(hooks.isWithdrawalWindowOpen(Market), 'window closed before next scheduled window');
-
-    vm.warp(FirstWithdrawalWindowStart + (PeriodDuration * 3));
-    assertTrue(hooks.isWithdrawalWindowOpen(Market), 'window open at next scheduled window');
-  }
-
-  function test_isWithdrawalWindowOpen_NotHookedMarket() external {
     vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    hooks.isWithdrawalWindowOpen(Market);
+    hooks.setMinimumDeposit(MarketC, 1);
+    vm.prank(address(0xBAD));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.setMinimumDeposit(MarketA, 1);
+
+    vm.expectRevert(abi.encodePacked(PanicSelector, PanicArithmetic));
+    hooks.setMinimumDeposit(MarketA, uint128(uint256(type(uint96).max) + 1));
   }
 
-  function test_fuzz_isWithdrawalWindowOpen_matchesExplicitWindowMath(
+  function test_withdrawalWindow_TracksEveryBoundaryAndRecurringPeriod(
     uint256 periodIndex,
     uint256 offsetInPeriod
   ) external {
-    periodIndex = bound(periodIndex, 0, 1_000);
+    periodIndex = bound(periodIndex, 0, 900);
     offsetInPeriod = bound(offsetInPeriod, 0, PeriodDuration - 1);
+    _createMarket(MarketA);
 
-    _createMarket();
-    uint256 timestamp = FirstWithdrawalWindowStart +
-      (periodIndex * PeriodDuration) +
-      offsetInPeriod;
+    vm.warp(FirstWithdrawalWindowStart - 1);
+    assertFalse(hooks.isWithdrawalWindowOpen(MarketA), 'before first window');
+    vm.warp(FirstWithdrawalWindowStart);
+    assertTrue(hooks.isWithdrawalWindowOpen(MarketA), 'window start');
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
+    assertTrue(hooks.isWithdrawalWindowOpen(MarketA), 'last open second');
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+    assertFalse(hooks.isWithdrawalWindowOpen(MarketA), 'window end');
+
+    uint256 timestamp = FirstWithdrawalWindowStart + periodIndex * PeriodDuration + offsetInPeriod;
     vm.warp(timestamp);
+    assertEq(
+      hooks.isWithdrawalWindowOpen(MarketA),
+      _expectedWindowOpen(timestamp),
+      'window oracle'
+    );
 
-    assertEq(hooks.isWithdrawalWindowOpen(Market), _expectedWindowOpen(timestamp), 'window oracle');
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.isWithdrawalWindowOpen(MarketB);
   }
 
-  function test_fuzz_onQueueWithdrawal_matchesWindowAndClosedState(
+  function test_onCreateMarket_PreservesPastAndCurrentSchedules() external {
+    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 3 - 1);
+    _createMarket(MarketA);
+    assertFalse(hooks.isWithdrawalWindowOpen(MarketA), 'before recurring window');
+    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 3);
+    assertTrue(hooks.isWithdrawalWindowOpen(MarketA), 'recurring window');
+
+    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 4 + 1);
+    _createMarket(MarketB);
+    assertTrue(hooks.isWithdrawalWindowOpen(MarketB), 'deployed during recurring window');
+  }
+
+  function test_onQueueWithdrawal_EnforcesWindowClosedStateAndRequestedAccess(
     uint256 periodIndex,
     uint256 offsetInPeriod,
     bool stateIsClosed
   ) external {
-    periodIndex = bound(periodIndex, 0, 1_000);
+    periodIndex = bound(periodIndex, 0, 900);
     offsetInPeriod = bound(offsetInPeriod, 0, PeriodDuration - 1);
-
-    _createMarket();
-    uint256 timestamp = FirstWithdrawalWindowStart +
-      (periodIndex * PeriodDuration) +
-      offsetInPeriod;
-    vm.warp(timestamp);
-
+    _createMarket(MarketA);
     MarketState memory state;
     state.isClosed = stateIsClosed;
+    uint256 timestamp = FirstWithdrawalWindowStart + periodIndex * PeriodDuration + offsetInPeriod;
+    vm.warp(timestamp);
 
     bool shouldAllow = stateIsClosed || _expectedWindowOpen(timestamp);
-    vm.prank(Market);
-    if (!shouldAllow) {
-      vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
-    }
+    vm.prank(MarketA);
+    if (!shouldAllow) vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-  }
 
-  function test_onQueueWithdrawal_WithdrawOutsideWindow() external {
-    _createMarket();
-    MarketState memory state;
-    vm.prank(Market);
-    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-  }
-
-  function test_onQueueWithdrawal() external {
-    _createMarket();
-    vm.warp(FirstWithdrawalWindowStart);
-    vm.prank(Market);
-    MarketState memory state;
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-  }
-
-  function test_onQueueWithdrawal_NotHookedMarket() external {
     vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    MarketState memory state;
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
   }
 
-  function test_onQueueWithdrawal_WithdrawalRequiresAccess() external {
-    _createMarket(
-      EmptyHooksConfig.setFlag(Bit_Enabled_QueueWithdrawal).setFlag(Bit_Enabled_Deposit).setFlag(
-        Bit_Enabled_Transfer
-      ),
-      _encodeHooksData()
-    );
+  function test_onQueueWithdrawal_ValidatesCredentialsAndPreservesKnownLenders() external {
+    address market = _newAprMarket(1_000);
+    _createMarket(hooks, market, _requestedConfig(hooks, true, true, true), _hooksData());
     vm.warp(FirstWithdrawalWindowStart);
     MarketState memory state;
+    state.scaleFactor = uint112(RAY);
 
-    vm.prank(Market);
+    vm.prank(market);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
 
-    hooks.setIsKnownLender(Lender, Market, true);
-    vm.prank(Market);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    _addPullProvider(hooks);
+    bytes memory queueCredential = abi.encode('queue');
+    provider1.approveCredentialData(keccak256(queueCredential), uint32(block.timestamp));
+    vm.prank(market);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, _credentialData(queueCredential));
+
+    bytes memory depositCredential = abi.encode('deposit');
+    provider1.approveCredentialData(keccak256(depositCredential), uint32(block.timestamp));
+    vm.prank(market);
+    hooks.onDeposit(SecondLender, 1, state, _credentialData(depositCredential));
+    assertTrue(hooks.isKnownLenderOnMarket(SecondLender, market), 'known lender');
+    vm.prank(address(provider1));
+    hooks.revokeRole(SecondLender);
+    vm.prank(market);
+    hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
   }
 
-  function test_onExecuteWithdrawal_OutsideWindow() external {
-    _createMarket();
-    MarketState memory state;
-    vm.prank(Market);
-    hooks.onExecuteWithdrawal(Lender, 0, 1, state, '');
-  }
-
-  function test_onCloseMarket_OpensWithdrawals() external {
-    _createMarket();
-    assertFalse(hooks.isWithdrawalWindowOpen(Market), 'window closed before close');
+  function test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle() external {
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
+    assertFalse(hooks.isWithdrawalWindowOpen(market), 'window before close');
 
     MarketState memory state;
-    vm.prank(Market);
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.PeriodicTermClosed(Market);
+    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(market);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.PeriodicTermClosed(market);
+    vm.prank(market);
     hooks.onCloseMarket(state, '');
+    assertTrue(hooks.getHookedMarket(market).isClosed, 'hook state closed');
+    assertTrue(hooks.isWithdrawalWindowOpen(market), 'withdrawals open');
+    _assertNoPendingAprChange(market);
 
-    HookedMarket memory market = hooks.getHookedMarket(Market);
-    assertTrue(market.isClosed, 'isClosed');
-    assertTrue(hooks.isWithdrawalWindowOpen(Market), 'window open after close');
-
-    vm.prank(Market);
+    vm.prank(market);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-  }
+    vm.expectRevert(PeriodicTermHooks.AprReductionProposalOnClosedMarket.selector);
+    hooks.proposeAnnualInterestBips(market, 800);
 
-  function test_onQueueWithdrawal_ClosedStateBypassesWindow() external {
-    _createMarket();
-    MarketState memory state;
-    state.isClosed = true;
-    vm.prank(Market);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-  }
+    _createMarket(MarketA);
+    vm.recordLogs();
+    vm.prank(MarketA);
+    hooks.onCloseMarket(state, '');
+    _assertNoCancelledEventRecorded();
 
-  function test_onCloseMarket_NotHookedMarket() external {
-    MarketState memory state;
     vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
     hooks.onCloseMarket(state, '');
   }
 
-  // ========================================================================== //
-  //                                  Deposits                                  //
-  // ========================================================================== //
-
-  function test_onDeposit_OutsideWindow() external {
-    _createMarket(EmptyHooksConfig, _encodeHooksData(1e18));
+  function test_onDeposit_EnforcesMinimumBlockAndCredentialPolicies() external {
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      _hooksData(100, false)
+    );
     MarketState memory state;
-    state.scaleFactor = uint112(RAY);
-
-    vm.prank(Market);
-    hooks.onDeposit(Lender, 1e18, state, '');
-  }
-
-  function test_onDeposit_BelowMinimum() external {
-    _createMarket(EmptyHooksConfig, _encodeHooksData(1e18));
-    MarketState memory state;
-    state.scaleFactor = uint112(RAY);
-
-    vm.prank(Market);
+    state.scaleFactor = uint112((RAY * 3) / 2);
+    uint256 scaledMinimum = MathUtils.mulDiv(100, RAY, state.scaleFactor);
+    vm.prank(MarketA);
     vm.expectRevert(PeriodicTermHooks.DepositBelowMinimum.selector);
-    hooks.onDeposit(Lender, 1e18 - 1, state, '');
-  }
+    hooks.onDeposit(Lender, scaledMinimum - 1, state, '');
+    vm.prank(MarketA);
+    hooks.onDeposit(Lender, scaledMinimum, state, '');
 
-  function test_onDeposit_BlockedFromDeposits() external {
-    _createMarket();
-    hooks.blockFromDeposits(Lender);
-    MarketState memory state;
-    state.scaleFactor = uint112(RAY);
-
-    vm.prank(Market);
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), _hooksData());
+    hooks.blockFromDeposits(SecondLender);
+    vm.prank(MarketB);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onDeposit(Lender, 1e18, state, '');
-  }
+    hooks.onDeposit(SecondLender, 1, state, '');
 
-  function test_onDeposit_DepositRequiresAccessWithoutCredential() external {
-    _createMarket(EmptyHooksConfig.setFlag(Bit_Enabled_Deposit), _encodeHooksData());
-    MarketState memory state;
-    state.scaleFactor = uint112(RAY);
-
-    vm.prank(Market);
+    _createMarket(hooks, MarketC, _requestedConfig(hooks, true, false, false), _hooksData());
+    vm.prank(MarketC);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onDeposit(Lender, 1e18, state, '');
-  }
+    hooks.onDeposit(ThirdLender, 1, state, '');
 
-  function test_onDeposit_NotHookedMarket() external {
-    MarketState memory state;
+    _addPullProvider(hooks);
+    bytes memory credential = abi.encode('periodic deposit');
+    provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
+    vm.prank(MarketC);
+    hooks.onDeposit(ThirdLender, 1, state, _credentialData(credential));
+    assertTrue(hooks.isKnownLenderOnMarket(ThirdLender, MarketC), 'restricted known lender');
+
     vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
     hooks.onDeposit(Lender, 0, state, '');
   }
 
-  // ========================================================================== //
-  //                                  Transfers                                 //
-  // ========================================================================== //
-
-  function test_onTransfer_NotHookedMarket() external {
+  function test_onTransfer_EnforcesDisabledCredentialAndKnownLenderPolicies() external {
     MarketState memory state;
-    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
-  }
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      _hooksData(0, true)
+    );
+    vm.prank(MarketA);
+    vm.expectRevert(PeriodicTermHooks.TransfersDisabled.selector);
+    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
+    assertFalse(hooks.isMarketTransferRecipientAllowed(MarketA, SecondLender), 'disabled policy');
 
-  function test_onTransfer_KnownLenderSkipsAccessChecks() external {
-    _createMarket(EmptyHooksConfig.setFlag(Bit_Enabled_Transfer), _encodeHooksData());
-    hooks.setIsKnownLender(Lender, Market, true);
-    hooks.blockFromDeposits(Lender);
-
-    MarketState memory state;
-    vm.prank(Market);
-    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
-  }
-
-  function test_onTransfer_BlockedRecipient() external {
-    _createMarket();
-    hooks.blockFromDeposits(Lender);
-
-    MarketState memory state;
-    vm.prank(Market);
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, true), _hooksData());
+    vm.prank(MarketB);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
-  }
+    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
+    assertFalse(hooks.isMarketTransferRecipientAllowed(MarketB, SecondLender), 'unknown policy');
 
-  function test_onTransfer_TransferRequiresAccessWithoutCredential() external {
-    _createMarket(EmptyHooksConfig.setFlag(Bit_Enabled_Transfer), _encodeHooksData());
+    _addPullProvider(hooks);
+    bytes memory credential = abi.encode('periodic transfer');
+    provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
+    vm.prank(MarketB);
+    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, _credentialData(credential));
+    assertTrue(hooks.isKnownLenderOnMarket(SecondLender, MarketB), 'known recipient');
+    assertTrue(hooks.isMarketTransferRecipientAllowed(MarketB, SecondLender), 'known policy');
 
-    MarketState memory state;
-    vm.prank(Market);
+    vm.prank(address(provider1));
+    hooks.revokeRole(SecondLender);
+    hooks.blockFromDeposits(SecondLender);
+    vm.prank(MarketB);
+    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
+    assertTrue(
+      hooks.isMarketTransferRecipientAllowed(MarketB, SecondLender),
+      'blocked known policy'
+    );
+
+    _createMarket(hooks, MarketC, _requestedConfig(hooks, false, false, false), _hooksData());
+    assertTrue(hooks.isMarketTransferRecipientAllowed(MarketC, ThirdLender), 'open policy');
+    vm.prank(MarketC);
+    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
+
+    hooks.blockFromDeposits(ThirdLender);
+    vm.prank(MarketB);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onTransfer(address(this), address(3), Lender, 1, state, '');
-  }
-
-  // ========================================================================== //
-  //                           getParameterConstraints                          //
-  // ========================================================================== //
-
-  function test_getParameterConstraints() external view {
-    MarketParameterConstraints memory constraints = hooks.getParameterConstraints();
-    assertEq(constraints.minimumDelinquencyGracePeriod, 0, 'minimumDelinquencyGracePeriod');
-    assertEq(constraints.maximumDelinquencyGracePeriod, 90 days, 'maximumDelinquencyGracePeriod');
-    assertEq(constraints.minimumReserveRatioBips, 0, 'minimumReserveRatioBips');
-    assertEq(constraints.maximumReserveRatioBips, 10_000, 'maximumReserveRatioBips');
-    assertEq(constraints.minimumDelinquencyFeeBips, 0, 'minimumDelinquencyFeeBips');
-    assertEq(constraints.maximumDelinquencyFeeBips, 10_000, 'maximumDelinquencyFeeBips');
-    assertEq(constraints.minimumWithdrawalBatchDuration, 0, 'minimumWithdrawalBatchDuration');
-    assertEq(
-      constraints.maximumWithdrawalBatchDuration,
-      365 days,
-      'maximumWithdrawalBatchDuration'
-    );
-    assertEq(constraints.minimumAnnualInterestBips, 0, 'minimumAnnualInterestBips');
-    assertEq(constraints.maximumAnnualInterestBips, 10_000, 'maximumAnnualInterestBips');
-  }
-
-  // ========================================================================== //
-  //                              setMinimumDeposit                             //
-  // ========================================================================== //
-
-  function test_setMinimumDeposit() external {
-    _createMarket(EmptyHooksConfig, _encodeHooksData(1e18));
-    HookedMarket memory market = hooks.getHookedMarket(Market);
-    assertEq(market.minimumDeposit, 1e18, 'minimumDeposit');
-
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.MinimumDepositUpdated(Market, address(this), 1e18, 2e18);
-    hooks.setMinimumDeposit(Market, 2e18);
-    assertEq(hooks.getHookedMarket(Market).minimumDeposit, 2e18, 'minimumDeposit');
-  }
-
-  function test_setMinimumDeposit_DepositHookNotEnabled() external {
-    _createMarket();
-
-    vm.expectRevert(PeriodicTermHooks.DepositHookNotEnabled.selector);
-    hooks.setMinimumDeposit(Market, 1);
-
-    hooks.setMinimumDeposit(Market, 0);
-  }
-
-  function test_setMinimumDeposit_CallerNotAdministrator() external asAccount(address(1)) {
-    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
-    hooks.setMinimumDeposit(Market, 1);
-  }
-
-  function test_setMinimumDeposit_NotHookedMarket() external {
-    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    hooks.setMinimumDeposit(Market, 1);
-  }
-
-  // ========================================================================== //
-  //                         proposeAnnualInterestBips                          //
-  // ========================================================================== //
-
-  function test_proposeAnnualInterestBips() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposed(
-      address(market),
-      900,
-      PeriodStart,
-      FirstWithdrawalWindowStart,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    (
-      PendingAprChange memory pendingAprChange,
-      uint32 responseWindowStart,
-      uint32 responseWindowEnd
-    ) = hooks.getPendingAprChange(address(market));
-    assertEq(pendingAprChange.annualInterestBips, 900, 'annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, PeriodStart, 'proposalTimestamp');
-    assertEq(responseWindowStart, FirstWithdrawalWindowStart, 'responseWindowStart');
-    assertEq(
-      responseWindowEnd,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration,
-      'responseWindowEnd'
-    );
-  }
-
-  function test_pendingAprChanges() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    (uint16 getterAnnualInterestBips, uint32 getterProposalTimestamp) = hooks.pendingAprChanges(
-      address(market)
-    );
-    assertEq(getterAnnualInterestBips, 0, 'initial getter annualInterestBips');
-    assertEq(getterProposalTimestamp, 0, 'initial getter proposalTimestamp');
-
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    (
-      PendingAprChange memory pendingAprChange,
-      uint32 responseWindowStart,
-      uint32 responseWindowEnd
-    ) = hooks.getPendingAprChange(address(market));
-    (getterAnnualInterestBips, getterProposalTimestamp) = hooks.pendingAprChanges(address(market));
-
-    assertEq(getterAnnualInterestBips, pendingAprChange.annualInterestBips, 'annualInterestBips');
-    assertEq(getterProposalTimestamp, pendingAprChange.proposalTimestamp, 'proposalTimestamp');
-    assertEq(responseWindowStart, FirstWithdrawalWindowStart, 'responseWindowStart');
-    assertEq(
-      responseWindowEnd,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration,
-      'responseWindowEnd'
-    );
-  }
-
-  function test_proposeAnnualInterestBips_OneSecondBeforeWindowUsesImmediateWindow() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    uint32 proposalTimestamp = FirstWithdrawalWindowStart - 1;
-    vm.warp(proposalTimestamp);
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    _assertPendingAprChange(
-      address(market),
-      900,
-      proposalTimestamp,
-      FirstWithdrawalWindowStart,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-  }
-
-  function test_proposeAnnualInterestBips_CallerNotAdministrator() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    vm.prank(address(1));
-    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
-    hooks.proposeAnnualInterestBips(address(market), 900);
-  }
-
-  function test_proposeAnnualInterestBips_NotHookedMarket() external {
-    MockAprMarket market = new MockAprMarket(1_000);
+    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
 
     vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    hooks.proposeAnnualInterestBips(address(market), 900);
+    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.isMarketTransferDisabled(MarketD);
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.isMarketTransferRecipientAllowed(MarketD, Lender);
   }
 
-  function test_proposeAnnualInterestBips_DuringWithdrawalWindow() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+  function test_unrestrictedCallbacks_AreNoOps() external {
+    MarketState memory state;
+    bytes memory extraData = abi.encode('unused');
+    vm.startPrank(MarketA);
+    hooks.onExecuteWithdrawal(Lender, 1, 2, state, extraData);
+    hooks.onBorrow(3, state, extraData);
+    hooks.onRepay(4, state, extraData);
+    hooks.onNukeFromOrbit(Lender, state, extraData);
+    hooks.onSetMaxTotalSupply(5, state, extraData);
+    hooks.onSetProtocolFeeBips(6, state, extraData);
+    vm.stopPrank();
+  }
+
+  function test_proposeAnnualInterestBips_AuthenticatesAndRejectsInvalidReductions() external {
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+
+    vm.prank(address(0xBAD));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.proposeAnnualInterestBips(market, 900);
+
+    address unknownMarket = _newAprMarket(1_000);
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.proposeAnnualInterestBips(unknownMarket, 900);
+
+    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+    hooks.proposeAnnualInterestBips(market, 1_000);
+    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+    hooks.proposeAnnualInterestBips(market, 1_001);
+
+    address highAprMarket = _newAprMarket(20_000);
+    _createMarket(highAprMarket);
+    vm.expectRevert(bytes4(keccak256('AnnualInterestBipsOutOfBounds()')));
+    hooks.proposeAnnualInterestBips(highAprMarket, 10_001);
 
     vm.warp(FirstWithdrawalWindowStart);
     vm.expectRevert(PeriodicTermHooks.AprReductionProposalDuringWithdrawalWindow.selector);
-    hooks.proposeAnnualInterestBips(address(market), 900);
-  }
-
-  function test_fuzz_proposeAnnualInterestBips_BlockedAtEveryWindowOffset(
-    uint256 periodIndex,
-    uint256 offsetInWindow,
-    uint16 currentAnnualInterestBips,
-    uint16 proposedAnnualInterestBips
-  ) external {
-    currentAnnualInterestBips = uint16(bound(currentAnnualInterestBips, 1, 10_000));
-    proposedAnnualInterestBips = uint16(
-      bound(proposedAnnualInterestBips, 0, currentAnnualInterestBips - 1)
-    );
-    periodIndex = bound(periodIndex, 0, 900);
-    offsetInWindow = bound(offsetInWindow, 0, WithdrawalWindowDuration - 1);
-
-    MockAprMarket market = new MockAprMarket(currentAnnualInterestBips);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    vm.warp(FirstWithdrawalWindowStart + (periodIndex * PeriodDuration) + offsetInWindow);
+    hooks.proposeAnnualInterestBips(market, 900);
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
     vm.expectRevert(PeriodicTermHooks.AprReductionProposalDuringWithdrawalWindow.selector);
-    hooks.proposeAnnualInterestBips(address(market), proposedAnnualInterestBips);
+    hooks.proposeAnnualInterestBips(market, 900);
+
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.getPendingAprChange(MarketA);
   }
 
-  function test_proposeAnnualInterestBips_NotReduction() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
-    hooks.proposeAnnualInterestBips(address(market), 1_000);
-
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
-    hooks.proposeAnnualInterestBips(address(market), 1_001);
-  }
-
-  function test_fuzz_proposeAnnualInterestBips_StrictReductionGate(
+  function test_proposeAnnualInterestBips_EnforcesStrictReduction(
     uint16 currentAnnualInterestBips,
     uint16 proposedAnnualInterestBips
   ) external {
     currentAnnualInterestBips = uint16(bound(currentAnnualInterestBips, 0, 10_000));
     proposedAnnualInterestBips = uint16(bound(proposedAnnualInterestBips, 0, 10_000));
-
-    MockAprMarket market = new MockAprMarket(currentAnnualInterestBips);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+    address market = _newAprMarket(currentAnnualInterestBips);
+    _createMarket(market);
 
     if (proposedAnnualInterestBips < currentAnnualInterestBips) {
-      hooks.proposeAnnualInterestBips(address(market), proposedAnnualInterestBips);
+      hooks.proposeAnnualInterestBips(market, proposedAnnualInterestBips);
       _assertPendingAprChange(
-        address(market),
+        market,
         proposedAnnualInterestBips,
         PeriodStart,
         FirstWithdrawalWindowStart,
@@ -1187,183 +908,92 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
       );
     } else {
       vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
-      hooks.proposeAnnualInterestBips(address(market), proposedAnnualInterestBips);
+      hooks.proposeAnnualInterestBips(market, proposedAnnualInterestBips);
     }
   }
 
-  function test_proposeAnnualInterestBips_BetweenWindows() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    uint32 proposalTimestamp = FirstWithdrawalWindowStart + WithdrawalWindowDuration;
-    vm.warp(proposalTimestamp);
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    (
-      PendingAprChange memory pendingAprChange,
-      uint32 responseWindowStart,
-      uint32 responseWindowEnd
-    ) = hooks.getPendingAprChange(address(market));
-    assertEq(pendingAprChange.annualInterestBips, 900, 'annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, proposalTimestamp, 'proposalTimestamp');
-    assertEq(
-      responseWindowStart,
-      FirstWithdrawalWindowStart + PeriodDuration,
-      'responseWindowStart'
-    );
-    assertEq(
-      responseWindowEnd,
-      FirstWithdrawalWindowStart + PeriodDuration + WithdrawalWindowDuration,
-      'responseWindowEnd'
-    );
-  }
-
-  function test_proposeAnnualInterestBips_AfterMissedWindows() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    uint32 proposalTimestamp = FirstWithdrawalWindowStart +
-      (PeriodDuration * 2) +
-      WithdrawalWindowDuration;
-    vm.warp(proposalTimestamp);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    (
-      PendingAprChange memory pendingAprChange,
-      uint32 responseWindowStart,
-      uint32 responseWindowEnd
-    ) = hooks.getPendingAprChange(address(market));
-    assertEq(pendingAprChange.annualInterestBips, 900, 'annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, proposalTimestamp, 'proposalTimestamp');
-    assertEq(
-      responseWindowStart,
-      FirstWithdrawalWindowStart + (PeriodDuration * 3),
-      'responseWindowStart'
-    );
-    assertEq(
-      responseWindowEnd,
-      FirstWithdrawalWindowStart + (PeriodDuration * 3) + WithdrawalWindowDuration,
-      'responseWindowEnd'
-    );
-  }
-
-  function test_proposeAnnualInterestBips_Overwrite() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    hooks.proposeAnnualInterestBips(address(market), 900);
-    uint32 secondProposalTimestamp = PeriodStart + 1;
-    vm.warp(secondProposalTimestamp);
-    hooks.proposeAnnualInterestBips(address(market), 800);
-
-    (
-      PendingAprChange memory pendingAprChange,
-      uint32 responseWindowStart,
-      uint32 responseWindowEnd
-    ) = hooks.getPendingAprChange(address(market));
-    assertEq(pendingAprChange.annualInterestBips, 800, 'annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, secondProposalTimestamp, 'proposalTimestamp');
-    assertEq(responseWindowStart, FirstWithdrawalWindowStart, 'responseWindowStart');
-    assertEq(
-      responseWindowEnd,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration,
-      'responseWindowEnd'
-    );
-  }
-
-  function test_fuzz_proposeAnnualInterestBips_ResponseWindowIsNextScheduledWindow(
+  function test_proposalTiming_UsesNextScheduledWindowAndOverwriteEvents(
     uint256 periodIndex,
-    uint256 offsetAfterWindow,
-    uint16 currentAnnualInterestBips,
-    uint16 proposedAnnualInterestBips
+    uint256 offsetAfterWindow
   ) external {
-    currentAnnualInterestBips = uint16(bound(currentAnnualInterestBips, 1, 10_000));
-    proposedAnnualInterestBips = uint16(
-      bound(proposedAnnualInterestBips, 0, currentAnnualInterestBips - 1)
-    );
     periodIndex = bound(periodIndex, 0, 900);
     offsetAfterWindow = bound(offsetAfterWindow, WithdrawalWindowDuration, PeriodDuration - 1);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
 
-    MockAprMarket market = new MockAprMarket(currentAnnualInterestBips);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
+    vm.recordLogs();
+    hooks.proposeAnnualInterestBips(market, 900);
+    _assertNoCancelledEventRecorded();
+    _assertPendingAprChange(
+      market,
+      900,
+      PeriodStart,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+    (uint16 getterApr, uint32 getterTimestamp) = hooks.pendingAprChanges(market);
+    assertEq(getterApr, 900, 'mapping getter APR');
+    assertEq(getterTimestamp, PeriodStart, 'mapping getter timestamp');
 
     uint256 proposalTimestamp = FirstWithdrawalWindowStart +
-      (periodIndex * PeriodDuration) +
+      periodIndex *
+      PeriodDuration +
       offsetAfterWindow;
-    uint256 expectedResponseWindowStart = _expectedNextWindowStartAfter(proposalTimestamp);
-    uint256 expectedResponseWindowEnd = expectedResponseWindowStart + WithdrawalWindowDuration;
-
+    uint256 responseWindowStart = _expectedNextWindowStart(proposalTimestamp);
+    uint256 responseWindowEnd = responseWindowStart + WithdrawalWindowDuration;
     vm.warp(proposalTimestamp);
-    hooks.proposeAnnualInterestBips(address(market), proposedAnnualInterestBips);
-
-    _assertPendingAprChange(
-      address(market),
-      proposedAnnualInterestBips,
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(market);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.AnnualInterestBipsReductionProposed(
+      market,
+      800,
       uint32(proposalTimestamp),
-      uint32(expectedResponseWindowStart),
-      uint32(expectedResponseWindowEnd)
+      uint32(responseWindowStart),
+      uint32(responseWindowEnd)
+    );
+    hooks.proposeAnnualInterestBips(market, 800);
+    _assertPendingAprChange(
+      market,
+      800,
+      uint32(proposalTimestamp),
+      uint32(responseWindowStart),
+      uint32(responseWindowEnd)
     );
   }
 
-  function test_getPendingAprChange_NotHookedMarket() external {
-    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    hooks.getPendingAprChange(Market);
+  function test_aprReduction_EnforcesExecutionStateMachine() external {
+    _assertReductionWithoutProposalReverts();
+    _assertMismatchedReductionReverts();
+    _assertEarlyReductionReverts();
+    _assertUnpaidWithdrawalReductionReverts();
+    _assertExpiredReductionReverts();
+    _assertReductionAtLastValidSecondExecutes();
   }
 
-  // ========================================================================== //
-  //                  setAnnualInterestAndReserveRatioBips                      //
-  // ========================================================================== //
-
-  function test_setAnnualInterestAndReserveRatioBips_ReductionWithoutProposal() external {
-    _createMarket();
-
+  function _assertReductionWithoutProposalReverts() internal {
+    vm.warp(PeriodStart);
+    _createMarket(MarketA);
     MarketState memory state;
     state.annualInterestBips = 1_000;
-
-    vm.prank(Market);
-    vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
-  }
-
-  function test_setAnnualInterestAndReserveRatioBips_IncreaseClearsPendingProposal() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    vm.prank(address(market));
-    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
-      .onSetAnnualInterestAndReserveRatioBips(1_001, 0, state, '');
-
-    assertEq(annualInterestBips, 1_001, 'annualInterestBips');
-    assertEq(reserveRatioBips, 0, 'reserveRatioBips');
-
-    (PendingAprChange memory pendingAprChange, , ) = hooks.getPendingAprChange(address(market));
-    assertEq(pendingAprChange.annualInterestBips, 0, 'pending annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, 0, 'pending proposalTimestamp');
-
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(address(market));
+    vm.prank(MarketA);
     vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_ReductionDoesNotMatchProposal() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
+  function _assertMismatchedReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
     MarketState memory state;
     state.annualInterestBips = 1_000;
-
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(address(market));
+    vm.prank(market);
     vm.expectRevert(PeriodicTermHooks.AprChangeDoesNotMatchProposal.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(899, 0, state, '');
-
     _assertPendingAprChange(
-      address(market),
+      market,
       900,
       PeriodStart,
       FirstWithdrawalWindowStart,
@@ -1371,21 +1001,19 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     );
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_ReductionBeforeWindowCloses() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
+  function _assertEarlyReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
     MarketState memory state;
     state.annualInterestBips = 1_000;
-
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
-    vm.prank(address(market));
+    vm.prank(market);
     vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-
     _assertPendingAprChange(
-      address(market),
+      market,
       900,
       PeriodStart,
       FirstWithdrawalWindowStart,
@@ -1393,22 +1021,20 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     );
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_ReductionWithUnpaidWithdrawals() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
+  function _assertUnpaidWithdrawalReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
     MarketState memory state;
     state.annualInterestBips = 1_000;
     state.scaledPendingWithdrawals = 1;
-
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(address(market));
+    vm.prank(market);
     vm.expectRevert(PeriodicTermHooks.UnpaidWithdrawalsExist.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-
     _assertPendingAprChange(
-      address(market),
+      market,
       900,
       PeriodStart,
       FirstWithdrawalWindowStart,
@@ -1416,414 +1042,138 @@ contract PeriodicTermHooksTest is BaseAccessControlsTest {
     );
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_ReductionAfterWindowCloses() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 500);
-
+  function _assertExpiredReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
     MarketState memory state;
     state.annualInterestBips = 1_000;
-    state.reserveRatioBips = 1_000;
-
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(address(market));
-    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
-      .onSetAnnualInterestAndReserveRatioBips(500, 0, state, '');
-
-    assertEq(annualInterestBips, 500, 'annualInterestBips');
-    assertEq(reserveRatioBips, 1_000, 'reserveRatioBips');
-
-    (PendingAprChange memory pendingAprChange, , ) = hooks.getPendingAprChange(address(market));
-    assertEq(pendingAprChange.annualInterestBips, 0, 'pending annualInterestBips');
-    assertEq(pendingAprChange.proposalTimestamp, 0, 'pending proposalTimestamp');
-
-    (, , uint32 temporaryReserveRatioExpiry) = hooks.temporaryExcessReserveRatio(address(market));
-    assertEq(temporaryReserveRatioExpiry, 0, 'temporaryReserveRatioExpiry');
-  }
-
-  function test_setAnnualInterestAndReserveRatioBips_ReductionAtResponseWindowStartIsNotReady()
-    external
-  {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    vm.warp(FirstWithdrawalWindowStart);
-    vm.prank(address(market));
-    vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
+    uint256 expiry = FirstWithdrawalWindowStart +
+      uint256(PeriodDuration) *
+      hooks.AprReductionProposalValidityPeriods();
+    vm.warp(expiry);
+    vm.prank(market);
+    vm.expectRevert(PeriodicTermHooks.AprReductionProposalExpired.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+    _assertPendingAprChange(
+      market,
+      900,
+      PeriodStart,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
   }
 
-  function test_fuzz_setAnnualInterestAndReserveRatioBips_ReductionGateSpec(
-    uint16 currentAnnualInterestBips,
-    uint16 proposedAnnualInterestBips,
-    uint16 currentReserveRatioBips,
-    uint16 requestedReserveRatioBips,
-    uint104 scaledPendingWithdrawals
-  ) external {
-    currentAnnualInterestBips = uint16(bound(currentAnnualInterestBips, 1, 10_000));
-    proposedAnnualInterestBips = uint16(
-      bound(proposedAnnualInterestBips, 0, currentAnnualInterestBips - 1)
-    );
-    currentReserveRatioBips = uint16(bound(currentReserveRatioBips, 0, 10_000));
-    scaledPendingWithdrawals = uint104(bound(scaledPendingWithdrawals, 1, type(uint104).max));
-
-    MockAprMarket market = new MockAprMarket(currentAnnualInterestBips);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), proposedAnnualInterestBips);
-
+  function _assertReductionAtLastValidSecondExecutes() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
     MarketState memory state;
-    state.annualInterestBips = currentAnnualInterestBips;
-    state.reserveRatioBips = currentReserveRatioBips;
-
-    uint256 responseWindowEnd = FirstWithdrawalWindowStart + WithdrawalWindowDuration;
-    vm.warp(responseWindowEnd - 1);
-    vm.prank(address(market));
-    vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(
-      proposedAnnualInterestBips,
-      requestedReserveRatioBips,
-      state,
-      ''
-    );
-
-    _assertPendingAprChange(
-      address(market),
-      proposedAnnualInterestBips,
-      PeriodStart,
-      FirstWithdrawalWindowStart,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-
-    vm.warp(responseWindowEnd);
-    state.scaledPendingWithdrawals = scaledPendingWithdrawals;
-    vm.prank(address(market));
-    vm.expectRevert(PeriodicTermHooks.UnpaidWithdrawalsExist.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(
-      proposedAnnualInterestBips,
-      requestedReserveRatioBips,
-      state,
-      ''
-    );
-
-    _assertPendingAprChange(
-      address(market),
-      proposedAnnualInterestBips,
-      PeriodStart,
-      FirstWithdrawalWindowStart,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-
-    state.scaledPendingWithdrawals = 0;
-    vm.prank(address(market));
+    state.annualInterestBips = 1_000;
+    state.reserveRatioBips = 1_000;
+    uint256 expiry = FirstWithdrawalWindowStart +
+      uint256(PeriodDuration) *
+      hooks.AprReductionProposalValidityPeriods();
+    vm.warp(expiry - 1);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(market, 900);
+    vm.prank(market);
     (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
-      .onSetAnnualInterestAndReserveRatioBips(
-        proposedAnnualInterestBips,
-        requestedReserveRatioBips,
-        state,
-        ''
-      );
-
-    assertEq(annualInterestBips, proposedAnnualInterestBips, 'annualInterestBips');
-    assertEq(reserveRatioBips, currentReserveRatioBips, 'reserveRatioBips');
-    _assertNoPendingAprChange(address(market));
-
-    (
-      uint16 originalAnnualInterestBips,
-      uint16 originalReserveRatioBips,
-      uint32 temporaryReserveRatioExpiry
-    ) = hooks.temporaryExcessReserveRatio(address(market));
-    assertEq(originalAnnualInterestBips, 0, 'temporary originalAnnualInterestBips');
-    assertEq(originalReserveRatioBips, 0, 'temporary originalReserveRatioBips');
-    assertEq(temporaryReserveRatioExpiry, 0, 'temporaryReserveRatioExpiry');
+      .onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+    assertEq(annualInterestBips, 900, 'executed APR');
+    assertEq(reserveRatioBips, 1_000, 'preserved reserve ratio');
+    _assertNoPendingAprChange(market);
+    (uint16 originalApr, uint16 originalReserve, uint32 temporaryExpiry) = hooks
+      .temporaryExcessReserveRatio(market);
+    assertEq(originalApr, 0, 'temporary original APR');
+    assertEq(originalReserve, 0, 'temporary original reserve');
+    assertEq(temporaryExpiry, 0, 'temporary expiry');
   }
 
-  function test_setAnnualInterestAndReserveRatioBips_NotHookedMarket() external {
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
-  }
-
-  // ========================================================================== //
-  //                       proposal lifecycle events                            //
-  // ========================================================================== //
-
-  function test_proposeAnnualInterestBips_OverwriteEmitsProposalCancelled() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(address(market));
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposed(
-      address(market),
-      800,
-      PeriodStart,
-      FirstWithdrawalWindowStart,
-      FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-    hooks.proposeAnnualInterestBips(address(market), 800);
-  }
-
-  function test_proposeAnnualInterestBips_FirstProposalEmitsNoCancelled() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    vm.recordLogs();
-    hooks.proposeAnnualInterestBips(address(market), 900);
-    _assertNoCancelledEventRecorded();
-  }
-
-  function test_setAnnualInterestAndReserveRatioBips_IncreaseEmitsProposalCancelled() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    vm.prank(address(market));
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(address(market));
-    hooks.onSetAnnualInterestAndReserveRatioBips(1_001, 0, state, '');
-  }
-
-  function test_setAnnualInterestAndReserveRatioBips_IncreaseWithoutProposalEmitsNoCancelled()
-    external
-  {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    vm.recordLogs();
-    vm.prank(address(market));
-    hooks.onSetAnnualInterestAndReserveRatioBips(1_001, 0, state, '');
-    _assertNoCancelledEventRecorded();
-  }
-
-  function test_setAnnualInterestAndReserveRatioBips_ReductionEmitsExecuted() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    state.reserveRatioBips = 1_000;
-
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(address(market));
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(address(market), 900);
-    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-
-    _assertNoPendingAprChange(address(market));
-  }
-
-  function test_executePendingAnnualInterestBipsReduction() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    state.reserveRatioBips = 1_000;
-
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(address(market));
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(address(market), 900);
-    uint16 annualInterestBips = hooks.executePendingAnnualInterestBipsReduction(state);
-
-    assertEq(annualInterestBips, 900, 'annualInterestBips');
-    _assertNoPendingAprChange(address(market));
-  }
-
-  function test_executePendingAnnualInterestBipsReduction_NotReduction() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 900;
-
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(address(market));
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
-    hooks.executePendingAnnualInterestBipsReduction(state);
-  }
-
-  function test_executePendingAnnualInterestBipsReduction_NotHookedMarket() external {
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
-    hooks.executePendingAnnualInterestBipsReduction(state);
-  }
-
-  function test_executePendingAnnualInterestBipsReduction_NoPendingProposal() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    vm.prank(address(market));
-    vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
-    hooks.executePendingAnnualInterestBipsReduction(state);
-  }
-
-  function test_executePendingAnnualInterestBipsReduction_BeforeWindowCloses() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
+  function test_executePendingAnnualInterestBipsReduction_UsesTheSameGates() external {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
     MarketState memory state;
     state.annualInterestBips = 1_000;
 
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
-    vm.prank(address(market));
+    vm.prank(market);
     vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
+    hooks.executePendingAnnualInterestBipsReduction(state);
+
+    state.annualInterestBips = 900;
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+    vm.prank(market);
+    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+    hooks.executePendingAnnualInterestBipsReduction(state);
+
+    state.annualInterestBips = 1_000;
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(market, 900);
+    vm.prank(market);
+    uint16 annualInterestBips = hooks.executePendingAnnualInterestBipsReduction(state);
+    assertEq(annualInterestBips, 900, 'executed APR');
+    _assertNoPendingAprChange(market);
+
+    vm.prank(market);
+    vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
+    hooks.executePendingAnnualInterestBipsReduction(state);
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
     hooks.executePendingAnnualInterestBipsReduction(state);
   }
 
-  // ========================================================================== //
-  //                  template v2: expiry, closed markets, version              //
-  // ========================================================================== //
-
-  function test_templateVersion() external {
-    assertEq(hooks.templateVersion(), 2, 'templateVersion');
-  }
-
-  function test_proposeAnnualInterestBips_MarketClosed() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    MarketState memory state;
-    vm.prank(address(market));
-    hooks.onCloseMarket(state, '');
-
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalOnClosedMarket.selector);
-    hooks.proposeAnnualInterestBips(address(market), 900);
-  }
-
-  function test_onCloseMarket_CancelsPendingProposal() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    vm.prank(address(market));
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(address(market));
-    hooks.onCloseMarket(state, '');
-
-    _assertNoPendingAprChange(address(market));
-  }
-
-  function test_onCloseMarket_WithoutProposalEmitsNoCancelled() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-
-    MarketState memory state;
-    vm.recordLogs();
-    vm.prank(address(market));
-    hooks.onCloseMarket(state, '');
-    _assertNoCancelledEventRecorded();
-  }
-
-  function test_setAnnualInterestAndReserveRatioBips_ReductionExpired() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
+  function test_onSetAnnualInterestBips_IncreasesAndEqualityDelegateAndCancelPrecisely() external {
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
     MarketState memory state;
     state.annualInterestBips = 1_000;
+    state.reserveRatioBips = 1_000;
 
-    uint256 expiry = _aprReductionProposalExpiry(FirstWithdrawalWindowStart, PeriodDuration);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(market);
+    vm.prank(market);
+    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
+      .onSetAnnualInterestAndReserveRatioBips(1_001, 500, state, '');
+    assertEq(annualInterestBips, 1_001, 'increased APR');
+    assertEq(reserveRatioBips, 1_000, 'increased reserve ratio');
+    _assertNoPendingAprChange(market);
 
-    vm.warp(expiry);
-    vm.prank(address(market));
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalExpired.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+    vm.recordLogs();
+    vm.prank(market);
+    (annualInterestBips, reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(
+      1_001,
+      500,
+      state,
+      ''
+    );
+    _assertNoCancelledEventRecorded();
+    assertEq(annualInterestBips, 1_001, 'second increased APR');
+    assertEq(reserveRatioBips, 1_000, 'second reserve ratio');
 
-    // proposal survives an expired execution attempt; replacing it works
+    hooks.proposeAnnualInterestBips(market, 900);
+    vm.prank(market);
+    (annualInterestBips, reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(
+      1_000,
+      500,
+      state,
+      ''
+    );
+    assertEq(annualInterestBips, 1_000, 'unchanged APR');
+    assertEq(reserveRatioBips, 1_000, 'unchanged reserve ratio');
     _assertPendingAprChange(
-      address(market),
+      market,
       900,
       PeriodStart,
       FirstWithdrawalWindowStart,
       FirstWithdrawalWindowStart + WithdrawalWindowDuration
     );
-  }
 
-  function test_setAnnualInterestAndReserveRatioBips_ReductionExpiredAtOffsetWindowStart()
-    external
-  {
-    MockAprMarket market = new MockAprMarket(1_000);
-    uint32 firstWithdrawalWindowStart = PeriodStart + 11 days;
-    uint32 periodDuration = 30 days;
-    uint32 withdrawalWindowDuration = 4 days;
-    _createMarket(
-      address(market),
-      EmptyHooksConfig,
-      abi.encode(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration)
-    );
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-
-    uint256 expiry = _aprReductionProposalExpiry(firstWithdrawalWindowStart, periodDuration);
-
-    vm.warp(expiry);
-    vm.prank(address(market));
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalExpired.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-
-    _assertPendingAprChange(
-      address(market),
-      900,
-      PeriodStart,
-      firstWithdrawalWindowStart,
-      firstWithdrawalWindowStart + withdrawalWindowDuration
-    );
-  }
-
-  function test_setAnnualInterestAndReserveRatioBips_ReductionJustBeforeExpiry() external {
-    MockAprMarket market = new MockAprMarket(1_000);
-    _createMarket(address(market), EmptyHooksConfig, _encodeHooksData());
-    hooks.proposeAnnualInterestBips(address(market), 900);
-
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    state.reserveRatioBips = 1_000;
-
-    uint256 expiry = _aprReductionProposalExpiry(FirstWithdrawalWindowStart, PeriodDuration);
-
-    vm.warp(expiry - 1);
-    vm.prank(address(market));
-    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
-      .onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-
-    assertEq(annualInterestBips, 900, 'annualInterestBips');
-    assertEq(reserveRatioBips, 1_000, 'reserveRatioBips');
-    _assertNoPendingAprChange(address(market));
-  }
-
-  function _assertNoCancelledEventRecorded() internal {
-    Vm.Log[] memory logs = vm.getRecordedLogs();
-    bytes32 cancelledTopic = keccak256('AnnualInterestBipsReductionProposalCancelled(address)');
-    for (uint256 i; i < logs.length; i++) {
-      assertTrue(logs[i].topics[0] != cancelledTopic, 'unexpected ProposalCancelled event');
-    }
+    vm.expectRevert(PeriodicTermHooks.NotHookedMarket.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
   }
 }
