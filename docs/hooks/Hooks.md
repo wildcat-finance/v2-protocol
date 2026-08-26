@@ -32,4 +32,4 @@ Once a market is deployed, its hooks instance can not be edited, nor can the set
 
 [Factory](Hooks%20150b66c642c643f3927a464a9fe6b5d7/Factory%20f48e841f20ea46a88d9c9e26a0220378.md)
 
-[How hooks work](./How%20Hooks%20Work.md)
+[How hooks work](../integrations/hooks.md)

@@ -33,7 +33,7 @@ alone.
 
 ## Integrations
 
-- [Hooks](./hooks/How%20Hooks%20Work.md) covers callback dispatch and `extraData`;
+- [Hooks](./integrations/hooks.md) covers callback dispatch and `extraData`;
   see [access control](./hooks/templates/Access%20Control%20Hooks.md) and
   [periodic term hooks](./hooks/templates/Periodic%20Term%20Hooks.md) for template
   behavior.
