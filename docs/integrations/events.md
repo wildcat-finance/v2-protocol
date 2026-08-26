@@ -214,7 +214,7 @@ factory provenance remains valid protocol input but has unknown type.
 
 Other provider factories present in source are not scheduled or supported in
 the current V2.5 release surface and are intentionally omitted here. Their
-source status belongs in [`Role Provider Inventory.md`](../Role%20Provider%20Inventory.md),
+source status belongs in [`role-providers.md`](./role-providers.md),
 not in the current integration event set.
 
 ## Market accounting and configuration
