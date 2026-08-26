@@ -2,6 +2,12 @@
 
 > Wildcat V2.5 | 13,444 in-scope nSLOC | 215f441 (`feat/v2.5-gas-optimizations-reviewed`) | Foundry / Solidity 0.8.25 / Cancun | 21/08/26
 
+Post-report repository note (2026-08-25): the orphaned
+`ethereum-access-token` and `sol-utils` dependencies were removed after their
+callers had already left the source tree. The dependency table below remains
+the exact `215f441` snapshot rather than retroactively rewriting that audit
+boundary.
+
 ---
 
 ## 1. Protocol Overview
