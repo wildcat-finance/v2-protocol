@@ -177,7 +177,9 @@ stage status | tee deployments/sepolia/status-v2-5.txt
 
 ```bash
 printf '%s\n' "$DEPLOYMENT_COMMIT" > deployments/sepolia/source-commit-v2-5.txt
-EVIDENCE_ARCHIVE="v2-5-sepolia-live-$(date -u '+%Y%m%dT%H%M%SZ').tar.gz"
+EVIDENCE_DIR="${EVIDENCE_DIR:?set EVIDENCE_DIR to a durable path outside this repository}"
+mkdir -p "$EVIDENCE_DIR"
+EVIDENCE_ARCHIVE="$EVIDENCE_DIR/v2-5-sepolia-live-$(date -u '+%Y%m%dT%H%M%SZ').tar.gz"
 COPYFILE_DISABLE=1 tar -czf "$EVIDENCE_ARCHIVE" deployments/sepolia
 shasum -a 256 "$EVIDENCE_ARCHIVE"
 ```
@@ -187,7 +189,9 @@ shasum -a 256 "$EVIDENCE_ARCHIVE"
       helper and code hash; final inventory; reconciliation; preflight;
       handoff; and explorer compiler inputs.
 - [ ] Review the evidence for private keys, mnemonics, RPC credentials, and
-      bearer tokens before committing it.
+      bearer tokens before retaining it. Do not commit ceremony archives to
+      the protocol repository; promote selected evidence to the reviewed
+      release evidence store.
 - [ ] Validate the new generation through the subgraph, SDK, and app while the
       old factories remain live. Stop the preview. Do not generate retirement.
 

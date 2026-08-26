@@ -201,7 +201,9 @@ kill "$(cat deployments/anvil/anvil.pid)"
 - [ ] Archive the unedited evidence and record its digest:
 
 ```bash
-EVIDENCE_ARCHIVE="v2-5-sepolia-rehearsal-$(date -u '+%Y%m%dT%H%M%SZ').tar.gz"
+EVIDENCE_DIR="${EVIDENCE_DIR:?set EVIDENCE_DIR to a durable path outside this repository}"
+mkdir -p "$EVIDENCE_DIR"
+EVIDENCE_ARCHIVE="$EVIDENCE_DIR/v2-5-sepolia-rehearsal-$(date -u '+%Y%m%dT%H%M%SZ').tar.gz"
 COPYFILE_DISABLE=1 tar -czf "$EVIDENCE_ARCHIVE" deployments/anvil
 shasum -a 256 "$EVIDENCE_ARCHIVE"
 ```
@@ -210,7 +212,9 @@ shasum -a 256 "$EVIDENCE_ARCHIVE"
       run-states, delay evidence, checkpoint, transaction hashes, final
       inventory, reconciliation, preflight, handoff, Anvil state, and log.
 - [ ] Review the archive for private keys, mnemonics, RPC credentials, and
-      bearer tokens before committing it.
+      bearer tokens before retaining it. Do not commit ceremony archives to
+      the protocol repository; promote selected evidence to the reviewed
+      release evidence store.
 
 ## Recovery
 
