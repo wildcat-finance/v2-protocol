@@ -5,7 +5,7 @@ repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
 spherex_source='src/spherex/SphereXProtectedRegisteredBase.sol'
-coverage_patch='docs/coverage-spherex.patch'
+coverage_patch='scripts/coverage-spherex.patch'
 patch_applied=false
 
 if [[ -z "${FOUNDRY_TEST:-}" ]]; then

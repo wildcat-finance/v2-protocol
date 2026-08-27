@@ -4,8 +4,8 @@ resolve a modifier that takes the function's named return value as an
 argument). Semantically identical but NOT bytecode-identical, so this is
 never committed to the source file. Usage:
 
-  git apply docs/coverage-spherex.patch
-  <run forge coverage — see docs/BACKLOG.md for flags>
+  git apply scripts/coverage-spherex.patch
+  <run focused forge coverage — see test/README.md for flags>
   git checkout -- src/spherex/SphereXProtectedRegisteredBase.sol
 
 diff --git a/src/spherex/SphereXProtectedRegisteredBase.sol b/src/spherex/SphereXProtectedRegisteredBase.sol

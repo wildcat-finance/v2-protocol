@@ -55,7 +55,7 @@ Those counts are a historical baseline, not a growth limit.
 
 ## Coverage Boundary
 
-`scripts/coverage.sh` temporarily applies `docs/coverage-spherex.patch`, runs a
+`scripts/coverage.sh` temporarily applies `scripts/coverage-spherex.patch`, runs a
 focused non-via-IR coverage build, restores the source on every exit path, and
 verifies the source stayed clean. Set `FOUNDRY_TEST` to a narrow test directory;
 whole-suite accurate coverage is not supported because production graphs that
