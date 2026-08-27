@@ -1342,12 +1342,21 @@ contract BaseAccessControlsTest is TestKernel {
       'open transfer'
     );
     assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(market, blockedLender, false),
+      'blocked open transfer'
+    );
+    assertFalse(
       baseHooks.isMarketTransferRecipientAllowed(market, unrestricted, true),
       'unknown lender'
     );
     assertTrue(
       baseHooks.isMarketTransferRecipientAllowed(market, knownLender, true),
       'known lender'
+    );
+    baseHooks.blockFromDeposits(knownLender);
+    assertTrue(
+      baseHooks.isMarketTransferRecipientAllowed(market, knownLender, true),
+      'blocked known lender'
     );
     assertFalse(
       baseHooks.isMarketTransferRecipientAllowed(market, blockedLender, true),

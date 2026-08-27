@@ -830,6 +830,14 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
 
     hooks.blockFromDeposits(ThirdLender);
+    assertFalse(
+      hooks.isMarketTransferRecipientAllowed(MarketC, ThirdLender),
+      'blocked open policy'
+    );
+    vm.prank(MarketC);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
+
     vm.prank(MarketB);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
     hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');

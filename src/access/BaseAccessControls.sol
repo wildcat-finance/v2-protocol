@@ -519,9 +519,9 @@ contract BaseAccessControls is IHooksAdministrator {
     address recipient,
     bool transferRequiresAccess
   ) internal view returns (bool) {
-    if (!transferRequiresAccess) return true;
     if (isKnownLenderOnMarket[recipient][market]) return true;
     if (_lenderStatus[recipient].isBlockedFromDeposits) return false;
+    if (!transferRequiresAccess) return true;
     return getLenderStatus(recipient).hasCredential();
   }
 

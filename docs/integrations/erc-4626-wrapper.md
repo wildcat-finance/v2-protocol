@@ -121,7 +121,9 @@ tokens held by this wrapper, not as a cap on aggregate market supply.
 | `maxRedeem(owner)` | The owner's share balance, or zero when the owner or wrapper is sanctioned or the wrapper is under-backed. |
 
 The four ERC-4626 execution methods reject zero assets or shares. ERC-4626 does
-not require that implementation choice.
+not require that implementation choice. The wrapper permits minting or
+transferring shares to `address(0)`; those shares remain fully backed but cannot
+be recovered.
 
 Notes:
 
@@ -130,10 +132,10 @@ Notes:
 - Preview methods are conversion-only views. They deliberately ignore
   sanctions, capacity, and transfer readiness.
 - The readiness query cannot predict sender balance, allowance,
-  amount-dependent policy, or later state changes. Policy failure returns zero.
-- Market and sentinel reads otherwise fail closed by bubbling reverts or
-  malformed responses. The `max*` views are therefore not total under external
-  dependency failure, despite ERC-4626's non-reverting requirement.
+  amount-dependent policy, or later state changes.
+- The `max*` views fail closed to zero when a required market, sentinel, or
+  transfer-policy read reverts or returns malformed data. Conversion previews
+  and execution paths remain strict and propagate dependency failures.
 - `maxTotalSupply` and `totalAssets()` are normalized and can grow apart from
   deposits. The wrapper can be at its cap while market tokens remain elsewhere.
 

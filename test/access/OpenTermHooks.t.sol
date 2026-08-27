@@ -560,6 +560,12 @@ contract OpenTermHooksTest is TestKernel {
     vm.prank(MarketB);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
     hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
+
+    _createMarket(hooks, MarketC, _requestedConfig(hooks, false, false, false), '');
+    assertFalse(hooks.isMarketTransferRecipientAllowed(MarketC, ThirdLender));
+    vm.prank(MarketC);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
   }
 
   function test_unrestrictedCallbacks_AreNoOpsAndAprDelegates() external {

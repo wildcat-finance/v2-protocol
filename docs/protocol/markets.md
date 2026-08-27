@@ -14,7 +14,8 @@ Markets are configured with the following values:
 - `borrower` - Current operational address allowed to borrow from and make changes to the market. In supported v2.5 markets, this is always the same address as `borrowerPrincipal`.
 - `borrowerPrincipal` - Registered legal principal associated with the market and used as its lender-facing sanctions namespace. Separate storage supports the account-aware identity model planned for v2.6.
 - `borrowerIdentityRegistry` - Registry used to resolve and validate transfer targets. V2.5 uses it for direct registered principals; account resolution is implemented in source but is not part of the supported v2.5 release.
-- `feeRecipient` - Recipient of protocol fees
+- `feeRecipient` - Immutable recipient of protocol fees. A zero-recipient market
+  cannot adopt a positive protocol fee later.
 - `sentinel` - Chainalysis wrapper determining whether accounts are sanctioned
 - `maxTotalSupply` - Cap on normalized market-token supply used to limit new deposits. It does not restrict withdrawals.
 - `protocolFeeBips` - A fraction of `annualInterestBips` which accrues to the protocol (in excess of the rate paid to lenders, not subtracted from it). This is not affected by delinquency fees.
