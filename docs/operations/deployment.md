@@ -10,6 +10,10 @@ The current release implementation is under
 not a reusable checklist. Read the scripts and generated plan for the exact
 contracts, authority path, and ordering of a deployment.
 
+The Sepolia post-release factory replacement has its own
+[`v2.5.3 fix-1 runbook`](./sepolia-v2-5-fix-1.md). It does not repeat the original
+V2.5 authority ceremony.
+
 ## Machine-readable authority
 
 | Artifact | Authority |

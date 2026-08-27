@@ -1,0 +1,49 @@
+{
+  "id": "deploy-market-lens",
+  "kind": "deploy",
+  "artifactName": "src/lens/MarketLens.sol:MarketLens",
+  "constructorArgs": {
+    "decoded": [
+      "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+      {
+        "$ref": "hooks-factory-standard"
+      },
+      {
+        "$ref": "market-lens-core"
+      },
+      {
+        "$ref": "market-lens-aggregator"
+      },
+      {
+        "$ref": "market-lens-live"
+      }
+    ]
+  },
+  "output": "market-lens",
+  "description": "Deploy the replacement Sepolia v2.5.3 market-lens facade.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": null,
+    "value": "0",
+    "data": "initCode+constructorArgs",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "callEq",
+    "target": {
+      "$ref": "market-lens"
+    },
+    "call": {
+      "sig": "aggregationHelper() view returns (address)",
+      "args": []
+    },
+    "expect": {
+      "$ref": "market-lens-aggregator"
+    }
+  },
+  "after": [
+    "deploy-market-lens-live"
+  ]
+}
