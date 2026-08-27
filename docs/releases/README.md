@@ -5,6 +5,10 @@ releases. They are not deployment attestations. Current addresses, factory
 lifecycle, and receipt provenance are owned by
 [`deployments/`](../../deployments/).
 
+Generated [contract inventories](./inventory/README.md) pin every first-party
+source unit and ABI-bearing declaration to its release commit. V2.5 will receive
+one after source freeze.
+
 ## V2.5
 
 [V2.5](./v2.5.md) is the active release line. Its final tag and source commit
@@ -18,9 +22,6 @@ routes detailed behavior to the current technical documentation.
 `c7be4039f8f383a9dda4e45f63331c17d63f9ed9`. It adds the first canonical
 ERC-4626 wrapper and wrapper factory to V2.0 without changing core market or
 hook source.
-
-`aleph-v2.1.0` points to the same commit. It is an audit-corpus pin, not a
-separate protocol release.
 
 ## V2.0
 
