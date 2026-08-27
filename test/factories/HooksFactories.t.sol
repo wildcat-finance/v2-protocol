@@ -1277,6 +1277,73 @@ contract HooksFactoriesTest is TestKernel {
     }
   }
 
+  function test_pushProtocolFeeBipsUpdates_RejectsPositiveFeeForZeroRecipientMarketsAcrossFactories()
+    external
+  {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    FeeConfig memory fees = FeeConfig({
+      recipient: FeeRecipient,
+      asset: address(0),
+      amount: 0,
+      protocolFeeBips: 100
+    });
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', fees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      DeployMarketInputs memory parameters = _marketInputs(fixture, hooksInstance);
+      address validMarket = _deployMarket(
+        FactoryKind(i),
+        factory,
+        parameters,
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+
+      factory.updateHooksTemplateFees(fixture.firstTemplate, address(0), address(0), 0, 0);
+      address zeroRecipientMarket = _deployMarket(
+        FactoryKind(i),
+        factory,
+        parameters,
+        '',
+        _marketSalt(address(this), 2),
+        address(0),
+        0
+      );
+      assertEq(WildcatMarket(validMarket).feeRecipient(), FeeRecipient, 'valid recipient');
+      assertEq(
+        WildcatMarket(zeroRecipientMarket).feeRecipient(),
+        address(0),
+        'zero recipient'
+      );
+      vm.startPrank(address(factory));
+      vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeRecipientRequired.selector);
+      WildcatMarket(zeroRecipientMarket).setProtocolFeeBips(1);
+      vm.stopPrank();
+
+      factory.updateHooksTemplateFees(fixture.firstTemplate, FeeRecipient, address(0), 0, 500);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.SetProtocolFeeBipsFailed.selector);
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate);
+      assertEq(uint256(WildcatMarket(validMarket).previousState().protocolFeeBips), 100);
+      assertEq(uint256(WildcatMarket(zeroRecipientMarket).previousState().protocolFeeBips), 0);
+
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate, 0, 1);
+      assertEq(uint256(WildcatMarket(validMarket).previousState().protocolFeeBips), 500);
+      vm.expectRevert(IHooksFactoryEventsAndErrors.SetProtocolFeeBipsFailed.selector);
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate, 1, 2);
+      assertEq(uint256(WildcatMarket(zeroRecipientMarket).previousState().protocolFeeBips), 0);
+
+      factory.updateHooksTemplateFees(fixture.firstTemplate, address(0), address(0), 0, 0);
+      factory.pushProtocolFeeBipsUpdates(fixture.firstTemplate);
+      assertEq(uint256(WildcatMarket(validMarket).previousState().protocolFeeBips), 0);
+      assertEq(uint256(WildcatMarket(zeroRecipientMarket).previousState().protocolFeeBips), 0);
+    }
+  }
+
   function test_pushProtocolFeeBipsUpdates_HandlesEmptyAndInvalidRangesAcrossFactories() external {
     Fixture memory fixture = _newFixture();
     FeeConfig memory fees = FeeConfig({

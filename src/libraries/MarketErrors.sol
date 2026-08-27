@@ -393,6 +393,16 @@ function revert_ProtocolFeeTooHigh() pure {
   }
 }
 
+uint256 constant ProtocolFeeRecipientRequired_ErrorSelector = 0x84247ce2;
+
+/// @dev Equivalent to `revert ProtocolFeeRecipientRequired()`
+function revert_ProtocolFeeRecipientRequired() pure {
+  assembly {
+    mstore(0, 0x84247ce2)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant ProtocolFeeChangeOnClosedMarket_ErrorSelector = 0x37f1a75f;
 
 /// @dev Equivalent to `revert ProtocolFeeChangeOnClosedMarket()`

@@ -238,13 +238,16 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /**
    * @dev Updates protocol fee bips from the factory.
    *      Reverts if caller is not factory, fee is above 1,000 bips, market is closed,
-   *      or the hooks contract rejects the change.
+   *      a positive fee has no recipient, or the hooks contract rejects the change.
    */
   function setProtocolFeeBips(uint16 _protocolFeeBips) external nonReentrant sphereXGuardExternal {
     if (msg.sender != factory) revert_NotFactory();
     if (_protocolFeeBips > 1_000) revert_ProtocolFeeTooHigh();
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_ProtocolFeeChangeOnClosedMarket();
+    if (_protocolFeeBips > 0 && feeRecipient == address(0)) {
+      revert_ProtocolFeeRecipientRequired();
+    }
     if (_protocolFeeBips != state.protocolFeeBips) {
       uint256 previousProtocolFeeBips = state.protocolFeeBips;
       hooks.onSetProtocolFeeBips(_protocolFeeBips, state);
