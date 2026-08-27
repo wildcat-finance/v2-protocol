@@ -96,6 +96,42 @@ The pending-APR-reduction path is specialized behavior defined by
 [`IPeriodicTermAprReductionHooks`](../../src/market/WildcatMarketConfig.sol), not
 an `IHooks.on*` callback.
 
+## Built-in parameter constraints
+
+`OpenTermHooks`, `FixedTermHooks`, and `PeriodicTermHooks` inherit the same
+creation-time bounds:
+
+```text
+annualInterestBips          0 .. 10_000
+delinquencyFeeBips          0 .. 10_000
+withdrawalBatchDuration     0 .. 365 days
+reserveRatioBips            0 .. 10_000
+delinquencyGracePeriod      0 .. 90 days
+```
+
+For ordinary APR updates, the built-in hooks ignore the borrower-supplied
+reserve ratio. They preserve the current reserve ratio unless the shared APR
+reduction policy below replaces it.
+
+An APR reduction starts a two-week update period anchored to the APR and
+reserve ratio before the first reduction. A reduction of at most 25% preserves
+that original reserve ratio. A larger reduction sets the temporary ratio to:
+
+```text
+max(original reserve ratio, min(100%, 2 * relative APR reduction))
+```
+
+A further reduction starts a fresh two-week period. A partial recovery below
+the original APR keeps the existing expiry. Returning to or above the original
+APR cancels the period and restores the original reserve ratio. At or after
+expiry, a non-decreasing update expires the period and restores the original
+ratio; a further reduction starts another period against the stored original
+values.
+
+Fixed-term markets reject reductions before maturity, then use this shared
+policy. Periodic-term reductions instead use their proposal path and preserve
+the current reserve ratio; unchanged APRs and increases use the shared path.
+
 ## Intermediate-state ordering
 
 The market normally accrues interest and fees and processes expired withdrawal
@@ -160,13 +196,18 @@ string is metadata, not implementation identity. See
 [`events.md`](./events.md) for event ordering and provenance rules.
 
 Access-control credential behavior is documented in
-[`role-providers.md`](./role-providers.md). Template-specific behavior belongs
-in the access-control and periodic-term integration references.
+[`role-providers.md`](./role-providers.md). See
+[`access-control.md`](./access-control.md),
+[`fixed-term-hooks.md`](./fixed-term-hooks.md), and
+[`periodic-term-hooks.md`](./periodic-term-hooks.md) for template-specific
+behavior.
 
 ## Tests
 
 - [`HooksConfig.t.sol`](../../test/types/HooksConfig.t.sol) covers flag packing,
   optional and required merging, and callback encoding.
+- [`MarketConstraintHooks.t.sol`](../../test/access/MarketConstraintHooks.t.sol)
+  covers creation bounds and APR/reserve-ratio transitions.
 - [`HooksFactories.t.sol`](../../test/factories/HooksFactories.t.sol) covers
   templates, instances, identity resolution, market binding, and provenance.
 - [`WildcatMarket.t.sol`](../../test/market/WildcatMarket.t.sol) covers callback

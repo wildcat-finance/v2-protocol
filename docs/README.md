@@ -34,7 +34,8 @@ alone.
 ## Integrations
 
 - [Hooks](./integrations/hooks.md) covers callback dispatch and `extraData`;
-  see [access control](./integrations/access-control.md) and
+  see [access control](./integrations/access-control.md),
+  [fixed term hooks](./integrations/fixed-term-hooks.md), and
   [periodic term hooks](./integrations/periodic-term-hooks.md) for template
   behavior.
 - [Role providers](./integrations/role-providers.md) covers credential-provider

@@ -19,7 +19,7 @@ Markets are configured with the following values:
 - `maxTotalSupply` - Cap on normalized market-token supply used to limit new deposits. It does not restrict withdrawals.
 - `protocolFeeBips` - A fraction of `annualInterestBips` which accrues to the protocol (in excess of the rate paid to lenders, not subtracted from it). This is not affected by delinquency fees.
 - `annualInterestBips` - The base interest rate set by the borrower. Accrues solely to lenders.
-- `delinquencyFeeBips` - Penalty fee added to the interest rate when the borrower is delinquent for too long. . Accrues solely to lenders.
+- `delinquencyFeeBips` - Penalty fee added to the interest rate when the borrower is delinquent beyond the grace period. Accrues solely to lenders.
 - `withdrawalBatchDuration` - The length of a withdrawal cycle.
 - `reserveRatioBips` - The fraction of outstanding debt which the borrower is obligated to keep in liquid reserves.
 - `delinquencyGracePeriod` - The amount of time a borrower has before incurring penalties for a delinquent market.

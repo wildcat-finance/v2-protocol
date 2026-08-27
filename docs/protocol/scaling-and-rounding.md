@@ -4,11 +4,10 @@
 
 This page is fairly long as we get a lot of questions about the scaling mechanics and wanted to be thorough, but here's the condensed version:
 
-- Wildcat markets have _scaled token amounts_ and _market token amounts_, where scaled tokens represent shares in the market that only change upon deposit or withdrawal, and market tokens represent debt owed by the borrower in units of the base asset.
+- Wildcat markets have _scaled token amounts_ and _market token amounts_. Scaled amounts represent shares; market token amounts represent their current debt value in units of the underlying asset.
 - The _scale factor_ is the ratio between scaled and market token amounts. 1 wTKN is worth `1 * scaleFactor` TKN
-- The scale factor constantly grows with interest, causing the market token to rebase as debt accrues.
-- All the standard market functions (`balanceOf`, `totalSupply`, `transfer`, `deposit`, `withdraw`, etc.) use _market token amounts_.
-- The scaled query functions (`scaledBalanceOf`, `scaledTotalSupply`) return _scaled token amounts_, equivalent to market shares.
+- The scale factor does not decrease. It grows when lender interest or delinquency fees accrue and otherwise remains flat.
+- Standard token and deposit surfaces use _market token amounts_. Explicit scaled surfaces, including `scaledBalanceOf`, `scaledTotalSupply`, and `queueWithdrawalScaled`, use _scaled token amounts_.
 
 ### Rounding
 
@@ -48,7 +47,7 @@ So in a typical vault, you have shares which are your balance in the vault and y
 
 ### Wildcat Markets
 
-Wildcat's scaling mechanism works in a similar way, except that wildcat market tokens represent the _value_ of shares rather than the _number_ of shares, and wildcat markets constantly rebase with interest.
+Wildcat's scaling mechanism works in a similar way, except that wildcat market tokens represent the _value_ of shares rather than the _number_ of shares. Their normalized value rebases as interest accrues.
 
 **Scaled Token Amounts**
 
@@ -76,29 +75,29 @@ WUSDC.totalSupply() = 200
 
 **Rebasing with interest**
 
-The second important distinction is that Wildcat markets constantly rebase with interest, and markets do not always hold all of the assets that shares are worth.
+The second important distinction is that Wildcat market tokens rebase when interest accrues, and markets do not always hold all of the assets that shares are worth.
 
 An ERC4626 would typically hold all of its underlying assets in some liquid form, meaning Alice can always burn her 1 VUSDC and immediately receive 2 USDC back. `VUSDC.totalAssets()` will always report the amount of USDC that the vault is worth, and that is always equivalent to the amount of USDC that it has immediate access to (for the sake of this comparison). `ERC4626.convertToAssets(shares)` is just `shares * totalAssets / totalShares`.
 
 Wildcat markets are uncollateralized lending markets, which adds two other factors to this equation:
 
-- Interest is always accruing from the borrower. 1 WUSDC in block `n` is worth more than 1 WUSDC in block `n - 1`, even though the market contract has not received any more USDC.
-- The market may not always have the assets that shares are worth in a liquid form, both because the underlying assets can be borrowed and because the constant interest accrual is always increasing the borrower's debt. This makes `totalAssets` useless for determining the value of 1 WUSDC.
+- While an open market has supply and a nonzero effective lender rate, normalized value increases with elapsed time even though the market contract has not received more underlying assets. It does not increase twice at the same timestamp, and zero-rate or empty markets may remain flat.
+- The market may not always have the assets that shares are worth in a liquid form, both because the underlying assets can be borrowed and because accrued interest increases the borrower's debt. This makes `totalAssets` unsuitable for determining the value of 1 WUSDC.
 
-The way this is handled is with the `scaleFactor` - the ratio between the number of shares and the amount of underlying assets that shares are worth (but not necessarily instantly redeemable for). Every time the market is updated for the first time in a block, the scale factor is multiplied by the amount of interest that has accrued since the last update (Wildcat interest rates are auto-compounding).
+The way this is handled is with the `scaleFactor` - the ratio between the number of shares and the amount of underlying assets that shares are worth (but not necessarily instantly redeemable for). When a state-changing path or current-state view calculates state at a later timestamp, it compounds interest accrued since the last stored update. Repeated calculations at the same timestamp add no interest.
 
 To mint market tokens, lenders use the deposit function, which takes a normalized (underlying) token amount that the lender wants to transfer. This is divided by the `scaleFactor`, yielding the number of scaled tokens / shares they have minted.
 
-Similarly, when a lender withdraws an amount of their market tokens, they must burn `scaledAmountToBurn = normalizedAmount / scaleFactor`.
+When a lender queues a normalized withdrawal, the market rounds the amount down to scaled units and moves that exact scaled balance into the withdrawal batch. It does not burn those tokens at queue time. Scaled supply is burned only as underlying liquidity is reserved for the batch; the lender later claims their allocation of the reserved assets.
 
 The result of all of this is that the market token represents _the amount of debt owed by the borrower at a given point in time_, and is thus a measure of an eventual amount of underlying tokens assuming the borrower repays their debts. It does not measure the shares owned by an account or the amount of underlying assets those shares are instantly redeemable for.
 
 Just to reiterate the terminology here:
 
 - the scale factor is the ratio of debt owed by the borrower to shares in the market. If the scaleFactor is 2, 1 scaled token equals 2 market tokens.
-- "normalized amount" is any amount denominated in units of the base asset (e.g. USDC). All market functions that use token amounts (other than `scaledBalanceOf, scaledTotalSupply`) use normalized amounts.
+- "normalized amount" is any amount denominated in units of the base asset (e.g. USDC). Most market token and deposit surfaces use normalized amounts; explicitly scaled surfaces are exceptions.
 - "market tokens" are normalized amounts of scaled tokens, and represent the underlying assets the borrower is obligated to eventually repay
-- `scaleAmount(x)` divides a normalized amount `x` by the scale factor
+- `scaleAmountDown(x)` divides a normalized amount `x` by the scale factor and rounds down
 - `normalizeAmount(x)` multiplies a scaled amount `x` by the scale factor
 
 **Basic Example**

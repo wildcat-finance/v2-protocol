@@ -156,8 +156,8 @@ without a usable result. Returned words are read as `uint32` timestamps.
 
 ## Market-facing policy
 
-The templates share the access behavior below. Fixed-term and periodic-term
-constraints are applied separately.
+The templates share the access behavior below. [Fixed-term](./fixed-term-hooks.md)
+and [periodic-term](./periodic-term-hooks.md) constraints are applied separately.
 
 ### Deposits
 
