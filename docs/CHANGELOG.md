@@ -2,8 +2,8 @@
 
 ## V2.5 Changelog
 
-Changes between deployed V2 and the V2.5 release. The full pre-audit change
-inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delta.md).
+Changes between deployed V2 and the current V2.5 source line. This is a
+behavior summary, not a file-by-file audit scope or deployment attestation.
 
 ### Revolving credit markets
 
