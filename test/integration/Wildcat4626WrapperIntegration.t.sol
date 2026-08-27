@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
+import { IMarketTransferPolicy } from 'src/access/IMarketTransferPolicy.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
@@ -98,12 +99,18 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   }
 
   function _requestedHooks(address hooks) private pure returns (HooksConfig config) {
-    return
-      EmptyHooksConfig
-        .setHooksAddress(hooks)
-        .setFlag(Bit_Enabled_Deposit)
-        .setFlag(Bit_Enabled_QueueWithdrawal)
-        .setFlag(Bit_Enabled_Transfer);
+    return _requestedHooks(hooks, true);
+  }
+
+  function _requestedHooks(
+    address hooks,
+    bool transferRequiresAccess
+  ) private pure returns (HooksConfig config) {
+    config = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
+    if (transferRequiresAccess) {
+      config = config.setFlag(Bit_Enabled_QueueWithdrawal).setFlag(Bit_Enabled_Transfer);
+    }
+    return config;
   }
 
   function _marketParameters(
@@ -148,6 +155,14 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   }
 
   function _newFixture(HooksKind kind, bool revolving) private returns (Fixture memory fixture) {
+    return _newFixture(kind, revolving, true);
+  }
+
+  function _newFixture(
+    HooksKind kind,
+    bool revolving,
+    bool transferRequiresAccess
+  ) private returns (Fixture memory fixture) {
     fixture.archController = WildcatArchController(
       _deployCode('src/WildcatArchController.sol:WildcatArchController')
     );
@@ -195,7 +210,10 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.archController.registerBorrower(Borrower);
     fixture.registry.addAccountFactory(address(fixture.accountFactory));
 
-    HooksConfig requestedHooks = _requestedHooks(address(fixture.hooks));
+    HooksConfig requestedHooks = _requestedHooks(
+      address(fixture.hooks),
+      transferRequiresAccess
+    );
     HooksConfig marketHooks = requestedHooks.mergeFlags(IHooks(address(fixture.hooks)).config());
     fixture.marketFactory.setMarketParameters(_marketParameters(fixture, marketHooks));
     bytes memory marketCreationCode = revolving
@@ -363,6 +381,25 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       vm.expectRevert(IMarketEventsAndErrors.WrapperAlreadyRegistered.selector);
       fixture.market.registerWrapper(address(0xBEEF));
     }
+  }
+
+  function test_depositLimitsRejectLocallyBlockedWrapperOnUnrestrictedMarket() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false, false);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
+    assertTrue(wrapper.maxDeposit(Lender) > 0, 'open transfer readiness');
+
+    vm.prank(Borrower);
+    fixture.hooks.blockFromDeposits(address(wrapper));
+
+    assertFalse(
+      IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
+        address(fixture.market),
+        address(wrapper)
+      ),
+      'blocked wrapper policy'
+    );
+    assertEq(wrapper.maxDeposit(Lender), 0, 'blocked wrapper deposit limit');
+    assertEq(wrapper.maxMint(Lender), 0, 'blocked wrapper mint limit');
   }
 
   function test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes() external {

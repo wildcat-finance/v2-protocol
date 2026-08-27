@@ -210,13 +210,8 @@ deposit block still prevents new deposits.
 - `getRoleProvider`, `getPullProviders`, and `getPushProviders` expose the
   current provider configuration. Provider-array order is not stable.
 - `isMarketTransferRecipientAllowed(market, recipient)` rejects disabled
-  transfers, accepts unrestricted transfers, and otherwise accepts known or
-  currently credentialed recipients while rejecting unknown blocked recipients.
-
-There is one current boundary to note: for a market that does not require
-transfer access, `isMarketTransferRecipientAllowed` returns `true` before
-checking the local deposit block. The state-changing `onTransfer` path still
-rejects an unknown blocked recipient.
+  transfers and unknown blocked recipients. It otherwise accepts unrestricted
+  transfers, known lenders, or recipients with a current credential.
 
 ## Tests
 
