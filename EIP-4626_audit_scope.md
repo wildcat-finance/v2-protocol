@@ -13,7 +13,7 @@
 - Wildcat4626WrapperFactory (v2-protocol/src/vault/Wildcat4626WrapperFactory.sol) permissionlessly deploys at most one wrapper per registered market via `archController.isRegisteredMarket`, stored in `wrapperForMarket`.
 - Tests (`test/vault/Wildcat4626Wrapper*.t.sol`) cover metadata, rounding rules, scale-factor changes, sanctions, cap, donation/inflation resistance, fuzzed execution, and a full ERC-4626 standard test suite against a real WildcatMarket.
 
-Full documentation can be found in `docs/EIP-4626.md`
+Full documentation can be found in `docs/integrations/erc-4626-wrapper.md`
 
 ## Audited Commit
 https://github.com/wildcat-finance/v2-protocol/commit/f8d8b9babbe02e5c4d4294abbd8661bb7cf57c10
@@ -22,11 +22,11 @@ Post-audit follow-up commits on this branch changed the wrapper after that snaps
 - `b267afb` adjusted `maxWithdraw` preview accuracy.
 - `609c1a8` expanded `sweep` to allow reclaiming surplus wrapped market tokens above share backing.
 
-The v2.5 pre-release cycle made further post-audit changes (see docs/v2.5-audit-delta.md):
+The v2.5 pre-release cycle made further changes outside the audited commit:
 - Execution-path arithmetic migrated from half-up to floor-consistent conversions to match the v2.5 market's `scaleAmountDown` transfer rounding (the audited half-up arithmetic reverts with `SharesMismatch` on ~half of fractional scale-factor states against v2.5 markets). Previews unchanged.
 - `maxWithdraw` and `maxDeposit` re-derived for floor semantics so both are exact and always executable.
 - `Wildcat4626WrapperFactory` rebuilt as a generation facade: constructor takes `(archController, v1Factory)`, wraps floor-declaring markets locally, forwards pre-v2.5 markets to the v1 factory, rejects unknown rounding markers; discovery routes identically and quarantines mispaired wrappers.
-- The wrapper's rounding identities were verified by exact-integer search (see the audit delta document), with the retained regression coverage consolidated in `test/vault/Wildcat4626Wrapper.t.sol`.
+- The wrapper's rounding identities were verified by exact-integer search, with the retained regression coverage consolidated in `test/vault/Wildcat4626Wrapper.t.sol`.
 
 ## Audit Scope
 | Filepath | nSLOC |

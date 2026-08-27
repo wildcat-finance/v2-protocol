@@ -43,9 +43,13 @@ deployments/*/run-state-authority-helper-phase-*.json
 deployments/*/ceremony-authority-helper-phase-*.json
 deployments/anvil/
 deployments/*/reconcile-report.json
-audits/
+# The curated audit index is tracked; local audit outputs remain ignored.
+audits/*
+!audits/README.md
 
 # Local audit/fuzzing artifacts
+AUDIT_REPORT.md
+x-ray/
 PROPERTIES.md
 echidna.yaml
 medusa.json

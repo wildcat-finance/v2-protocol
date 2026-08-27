@@ -6,10 +6,10 @@ accepts editable calldata.
 
 ## Run locally or on a fork
 
-For the release-acceptance path, follow
-[`../docs/anvil-v2-5-rehearsal.md`](../docs/anvil-v2-5-rehearsal.md). It uses an
-embedded package and production preview. The file loader below is retained for
-development/debugging only.
+Release acceptance uses the reviewed release package and operator runbook. The
+durable artifact and verification model is documented in
+[`../docs/operations/deployment.md`](../docs/operations/deployment.md). The file
+loader below is retained for development and debugging only.
 
 ```bash
 cd deploy-ui
@@ -17,7 +17,7 @@ npm ci
 npm run dev
 ```
 
-Start the fork separately, following `docs/deployment.md` section 5:
+Start a pinned target-chain fork separately:
 
 ```bash
 anvil --fork-url "$SEPOLIA_RPC_URL" --host 127.0.0.1 --port 8545
