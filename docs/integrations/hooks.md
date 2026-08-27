@@ -76,8 +76,9 @@ state and authority domain across its markets.
   repayment amount is nonzero.
 - `closeMarket` calls `onCloseMarket`. If the market must pull a final repayment
   first, it calls `onRepay` before `onCloseMarket`.
-- `nukeFromOrbit` calls `onNukeFromOrbit` before blocking the sanctioned lender
-  and moving its market-token balance into the withdrawal process.
+- `nukeFromOrbit` calls `onNukeFromOrbit`, then queues the sanctioned lender's
+  balance through the ordinary `onQueueWithdrawal` path. Term and withdrawal-
+  window restrictions can therefore defer quarantine.
 
 ### Parameter paths
 
@@ -114,6 +115,12 @@ Important boundaries:
   Ordinary callbacks can reject an action but cannot replace its arguments.
 - the periodic APR-reduction hook returns one APR through its specialized path;
   the market preserves the existing reserve ratio.
+
+Callbacks are not a complete external accounting ledger. In particular,
+partial payments to withdrawal batches have no dedicated hook. A hook that
+needs exact pending or unpaid withdrawal state must query the market and apply
+the market's accounting rules rather than reconstructing it from callbacks
+alone.
 
 ## `extraData`
 

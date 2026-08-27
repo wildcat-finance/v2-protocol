@@ -25,6 +25,19 @@ Markdown handoffs are reading aids; the matching JSON remains the integration
 artifact. A predicted address or generated plan is not deployment evidence
 without a verified receipt.
 
+## Runtime Requirements
+
+Wildcat V2 bytecode uses EIP-1153 transient storage. A target chain must support
+`TSTORE` and `TLOAD` on every execution path; successful bytecode deployment is
+not sufficient evidence. The release tooling probes this capability, and manual
+or third-party deployments must enforce the same Cancun-compatible boundary.
+
+SphereX-protected factories cache an engine and pass it into newly deployed
+markets. An engine rotation must prevent market creation while the
+ArchController and market-deploying factories disagree. Keep the prior engine
+operational, update the controller and factories as one cutover, then migrate
+existing registered contracts in bounded batches.
+
 ## Release workflow
 
 1. **Prepare.** Freeze the source commit and `deploy` Foundry profile. Build and
@@ -64,6 +77,14 @@ dependencies, and on-chain completion predicate.
   tooling calls deactivation a retirement, but it removes only controller
   factory and controller registrations. It does not remove markets or
   automatically change lifecycle and indexing records.
+
+Before any registry write, verify deployed code, expected interfaces, and the
+factory/controller/market relationship. The deployed ArchController singleton
+does not use registry insertion as full runtime interface validation.
+
+Registry pagination uses half-open ranges. Callers must ensure
+`start <= min(end, count)`; malformed ranges on the deployed singleton can
+revert with arithmetic panic.
 
 [`factory-inventory.js`](../../scripts/factory-inventory.js) owns validation,
 linting, live reconciliation, activation finalization, retirement generation,

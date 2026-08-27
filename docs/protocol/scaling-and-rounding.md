@@ -20,6 +20,14 @@ As of v2.5, rounding directions are deliberate and asymmetric:
 
 Markets before v2.5 rounded transfers half-up. v2.5+ markets declare their convention via `scaledTransferRounding()`, which rounding-sensitive integrations (e.g. the ERC-4626 wrapper factory) key on.
 
+### Finite scale-factor representation
+
+`MarketState.scaleFactor` is stored as a `uint112`. Accrual uses a checked cast:
+an extreme, long-lived compounded rate that reaches the representation ceiling
+reverts instead of truncating or wrapping. Ordinary state-changing paths cannot
+advance a market after that ceiling is reached, so supported market lifecycle
+must close or migrate a market before it approaches the bound.
+
 ### Relevant Code
 
 In the codebase, the scale factor is stored as a ray value, meaning it has a base unit of 1e27, so 1.1e27 is 1.1.

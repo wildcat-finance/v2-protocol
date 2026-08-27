@@ -48,6 +48,12 @@ Because the timer decays rather than resetting immediately, a borrower that
 remains beyond the grace period is penalized both while the timer rises and
 while the excess later decays.
 
+Accrual classifies each elapsed interval using the previously stored
+`isDelinquent` value. The final state write compares the updated liquidity
+requirement with the market's current underlying balance and stores the status
+used by the next interval. There is no autonomous state transition between
+writes.
+
 ## Interest and Fees
 
 Accrual uses two lender rates and one protocol-fee fraction:
@@ -62,6 +68,11 @@ Base interest and delinquency fees increase `scaleFactor`. Protocol fees are
 calculated from base interest and added separately to `accruedProtocolFees`;
 they do not increase the lender scale factor. See
 [`FeeMath.updateScaleFactorAndFees`](../../src/libraries/FeeMath.sol).
+
+Each accrual interval rounds its protocol fee independently to the underlying
+asset's atomic unit. Fractional remainders are not carried between updates.
+Transaction cadence can therefore change the aggregate fee through repeated
+rounding. This does not change lender interest.
 
 ## State Updates
 

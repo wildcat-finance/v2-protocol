@@ -44,6 +44,13 @@ alone.
 - [Event model](./integrations/events.md) covers ABI families, event ordering,
   deployment discovery, and indexer replay.
 
+## Security Model
+
+- [Security assumptions](./security/assumptions.md) defines credit, authority,
+  hook, sanctions, and asset boundaries.
+- [`SECURITY.md`](../SECURITY.md) defines private vulnerability reporting.
+- [`audits/`](../audits/README.md) indexes publishable external review evidence.
+
 ## Releases and Operations
 
 - [Changelog](./CHANGELOG.md) describes protocol release boundaries.

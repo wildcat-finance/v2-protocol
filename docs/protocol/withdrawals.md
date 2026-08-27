@@ -71,6 +71,11 @@ Payment may occur:
 - during a state update for the current batch; or
 - through `repayAndProcessUnpaidWithdrawalBatches` for expired unpaid batches.
 
+Each partial payment converts available underlying into a settleable scaled
+amount. Its normalized payment value is rounded down independently, discarding
+less than one atomic unit of the underlying. Fractional remainders are not
+carried between payments.
+
 Plain `repay` transfers assets into the market and updates state, but does not
 walk the unpaid queue. Callers that want the same transaction to route new
 liquidity through that queue must use
@@ -84,3 +89,18 @@ escrow instead.
 See
 [`WildcatMarketWithdrawals`](../../src/market/WildcatMarketWithdrawals.sol) for
 queueing, payment, and execution.
+
+## Representation Limits
+
+Batch totals, paid scaled amounts, and each account's queued amount are stored as
+`uint104`. Totals are cumulative for one expiry and do not shrink when paid
+shares are executed. Checked arithmetic reverts rather than wrapping if a batch
+or account reaches the representation limit.
+
+## Closing a Market
+
+`closeMarket()` processes every unpaid withdrawal batch before marking the
+market closed. Gas cost therefore grows with the unpaid queue. A caller can
+bound that work beforehand with
+`repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)`, then close after the
+queue is small enough for one transaction.

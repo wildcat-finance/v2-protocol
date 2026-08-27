@@ -38,6 +38,17 @@ Everything else — collateral obligations, delinquency, withdrawals, closure �
 
 Conversions between scaled and normalized amounts follow deliberate rounding directions as of v2.5; see [Scale Factor — Rounding](./scaling-and-rounding.md#rounding).
 
+## Closure
+
+`closeMarket()` first accrues the market through the closure timestamp and
+settles the remaining debt from or to the borrower. It then sets APR to zero,
+reserve ratio to 100%, clears the delinquency timer, and marks the market closed.
+No interest or delinquency fee accrues after closure.
+
+Closure also pays the current batch and walks every unpaid withdrawal batch.
+Markets with long unpaid queues should process them incrementally before
+closure; see [Withdrawals](./withdrawals.md#closing-a-market).
+
 ## Borrower Identity And Transfer
 
 v2.5 stores the operational borrower separately from the registered principal and supports two-step direct-principal transfers. Supported v2.5 factories and deployments maintain `borrower == borrowerPrincipal` at origination and after transfer.
