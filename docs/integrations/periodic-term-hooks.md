@@ -1,6 +1,6 @@
 # Periodic Term Hooks
 
-`PeriodicTermHooks` restricts withdrawals to a recurring scheduled window, sitting between the open template (withdraw any time) and the fixed template (withdraw only after a single end date). It inherits the same access-control machinery as the other templates (see [Access Control Hooks](../../integrations/access-control.md)) and adds two mechanisms: withdrawal windows and gated APR reductions.
+`PeriodicTermHooks` restricts withdrawals to a recurring scheduled window, sitting between the open template (withdraw any time) and the fixed template (withdraw only after a single end date). It inherits the same access-control machinery as the other templates (see [Access Control Hooks](./access-control.md)) and adds two mechanisms: withdrawal windows and gated APR reductions.
 
 ## Withdrawal windows
 
@@ -32,6 +32,6 @@ Deposits and transfers remain open throughout the proposal lifecycle. A new lend
 
 ## Configuration notes
 
-- `minimumDeposit` and `transfersDisabled` behave as in the other templates, except that this template stores the minimum as `uint96` (checked downcast; the external `setMinimumDeposit(address,uint128)` ABI is unchanged) to keep its market config in one storage slot. The minimum-deposit check compares in scaled units (see [Scale Factor — Rounding](../../protocol/scaling-and-rounding.md#rounding)), so depositing exactly the minimum always succeeds.
+- `minimumDeposit` and `transfersDisabled` behave as in the other templates, except that this template stores the minimum as `uint96` (checked downcast; the external `setMinimumDeposit(address,uint128)` ABI is unchanged) to keep its market config in one storage slot. The minimum-deposit check compares in scaled units (see [Scale Factor — Rounding](../protocol/scaling-and-rounding.md#rounding)), so depositing exactly the minimum always succeeds.
 - The template rejects inconsistent access configurations at market creation: withdrawal access control requires deposit access control, and transfer access control unless transfers are disabled.
 - `pendingAprChanges(market)` retains the ABI of the first template revision; `getPendingAprChange(market)` additionally returns the response window bounds. `templateVersion()` distinguishes template revisions while `version()` remains `'PeriodicTermHooks'` for subgraph matching.

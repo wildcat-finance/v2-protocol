@@ -13,7 +13,7 @@ inventory with per-file provenance is in [v2.5-audit-delta.md](./v2.5-audit-delt
 
 ### Periodic-term hooks
 
-- Added `PeriodicTermHooks`: withdrawals may only be queued during a recurring scheduled window (closed markets bypass the window). See [Periodic Term Hooks](./hooks/templates/Periodic%20Term%20Hooks.md).
+- Added `PeriodicTermHooks`: withdrawals may only be queued during a recurring scheduled window (closed markets bypass the window). See [Periodic Term Hooks](./integrations/periodic-term-hooks.md).
 - APR reductions on periodic markets must be proposed in advance: lenders get the next withdrawal window to exit, then the reduction is executable — including **permissionlessly** through the market's new `executePendingAnnualInterestBipsReduction`, gated by a new hook flag. Increases and market closure cancel pending proposals; proposals expire after a validity period.
 
 ### Scaled-amount rounding (all markets)
