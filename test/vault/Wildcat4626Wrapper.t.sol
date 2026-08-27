@@ -91,6 +91,18 @@ contract Wildcat4626WrapperTest is TestKernel {
     vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, account));
   }
 
+  function _assertAllLimitsZero(Fixture memory fixture) private view {
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
+    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'max withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'max redeem');
+  }
+
+  function _assertEntryLimitsZero(Fixture memory fixture) private view {
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
+    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
+  }
+
   function test_constructorAndMetadataValidateMarketDependencies() external {
     Fixture memory fixture = _newFixture();
 
@@ -615,6 +627,137 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertTrue(_absoluteDifference(sharesBurned, 1e12) <= 1, 'tiny offset variance');
   }
 
+  function test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 10 * Unit);
+    address market = address(fixture.market);
+    address sentinel = address(fixture.sentinel);
+    bytes memory principalCall = abi.encodeWithSignature('borrowerPrincipal()');
+
+    vm.mockCallRevert(market, principalCall, hex'deadbeef');
+    _assertAllLimitsZero(fixture);
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'deadbeef'));
+    fixture.wrapper.redeem(Unit, Holder, Holder);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, principalCall, hex'01');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, principalCall, abi.encode((uint256(1) << 160) | uint160(Borrower)));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, principalCall, abi.encode(address(0)));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    bytes memory holderSanctionsCall = abi.encodeWithSignature(
+      'isSanctioned(address,address)',
+      Borrower,
+      Holder
+    );
+    vm.mockCall(sentinel, holderSanctionsCall, hex'01');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinel, holderSanctionsCall, abi.encode(uint256(2)));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCallRevert(sentinel, holderSanctionsCall, hex'feedface');
+    _assertAllLimitsZero(fixture);
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.redeem(Unit, Holder, Holder);
+    vm.clearMockedCalls();
+
+    bytes memory wrapperSanctionsCall = abi.encodeWithSignature(
+      'isSanctioned(address,address)',
+      Borrower,
+      address(fixture.wrapper)
+    );
+    vm.mockCallRevert(sentinel, wrapperSanctionsCall, hex'cafebabe');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+  }
+
+  function test_maxLimitsFailClosedOnMarketAccountingDependencyFailures() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 10 * Unit);
+    address market = address(fixture.market);
+    bytes memory scaledBalanceCall = abi.encodeWithSignature(
+      'scaledBalanceOf(address)',
+      address(fixture.wrapper)
+    );
+
+    vm.mockCallRevert(market, scaledBalanceCall, hex'deadbeef');
+    _assertAllLimitsZero(fixture);
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'deadbeef'));
+    fixture.wrapper.redeem(Unit, Holder, Holder);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaledBalanceCall, hex'01');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaledBalanceCall, abi.encode(uint256(type(uint104).max) + 1));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    bytes memory maxTotalSupplyCall = abi.encodeWithSignature('maxTotalSupply()');
+    vm.mockCallRevert(market, maxTotalSupplyCall, hex'feedface');
+    _assertEntryLimitsZero(fixture);
+    assertTrue(fixture.wrapper.maxWithdraw(Holder) > 0, 'cap-independent withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 10 * Unit, 'cap-independent redeem');
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.deposit(Unit, Holder);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, maxTotalSupplyCall, abi.encode(type(uint256).max));
+    _assertEntryLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    bytes memory balanceCall = abi.encodeWithSignature(
+      'balanceOf(address)',
+      address(fixture.wrapper)
+    );
+    vm.mockCallRevert(market, balanceCall, hex'cafebabe');
+    _assertEntryLimitsZero(fixture);
+    assertTrue(fixture.wrapper.maxWithdraw(Holder) > 0, 'balance-independent withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 10 * Unit, 'balance-independent redeem');
+    vm.expectRevert(bytes(hex'cafebabe'));
+    fixture.wrapper.totalAssets();
+    vm.clearMockedCalls();
+
+    bytes memory scaleCall = abi.encodeWithSignature('scaleFactor()');
+    vm.mockCallRevert(market, scaleCall, hex'01020304');
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'scale-dependent withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 10 * Unit, 'scale-independent redeem');
+    vm.expectRevert(bytes(hex'01020304'));
+    fixture.wrapper.convertToShares(Unit);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaleCall, hex'01');
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'short-scale withdraw');
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaleCall, abi.encode(RAY - 1));
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'low-scale withdraw');
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaleCall, abi.encode(uint256(type(uint112).max) + 1));
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'wide-scale withdraw');
+    vm.clearMockedCalls();
+  }
+
   function test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows() external {
     Fixture memory fixture = _newFixture();
     _deposit(fixture, Holder, 10 * Unit);
@@ -626,16 +769,13 @@ contract Wildcat4626WrapperTest is TestKernel {
       Holder
     );
     vm.mockCall(sentinel, sanctionsCall, hex'01');
-    vm.expectRevert();
-    fixture.wrapper.maxRedeem(Holder);
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'short sanctions response');
     vm.clearMockedCalls();
     vm.mockCall(sentinel, sanctionsCall, abi.encode(uint256(2)));
-    vm.expectRevert();
-    fixture.wrapper.maxRedeem(Holder);
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'dirty sanctions response');
     vm.clearMockedCalls();
     vm.mockCallRevert(sentinel, sanctionsCall, hex'deadbeef');
-    vm.expectRevert(bytes(hex'deadbeef'));
-    fixture.wrapper.maxRedeem(Holder);
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'reverting sanctions response');
     vm.clearMockedCalls();
     vm.mockCall(sentinel, sanctionsCall, bytes.concat(abi.encode(true), hex'deadbeef'));
     assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'long sanctions response');
