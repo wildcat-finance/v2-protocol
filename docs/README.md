@@ -47,9 +47,9 @@ alone.
 ## Releases and Operations
 
 - [Changelog](./CHANGELOG.md) describes protocol release boundaries.
-- [Deployment](./deployment.md) describes the deployment inventory and ceremony
-  model. Machine-readable state in [`deployments/`](../deployments/) remains the
-  authority for deployment facts.
+- [Deployment](./operations/deployment.md) describes the deployment inventory,
+  plan, ceremony, verification, and handoff model. Machine-readable state in
+  [`deployments/`](../deployments/) remains the authority for deployment facts.
 
 Historical checklists, completed ceremony records, generated tool output, and
 internal audit-preparation papers are not protocol specifications.
