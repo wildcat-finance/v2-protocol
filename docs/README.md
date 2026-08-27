@@ -53,7 +53,8 @@ alone.
 
 ## Releases and Operations
 
-- [Changelog](./CHANGELOG.md) describes protocol release boundaries.
+- [Release notes](./releases/README.md) define the V2.0, V2.1, and V2.5 source
+  boundaries and compatibility deltas.
 - [Deployment](./operations/deployment.md) describes the deployment inventory,
   plan, ceremony, verification, and handoff model. Machine-readable state in
   [`deployments/`](../deployments/) remains the authority for deployment facts.
