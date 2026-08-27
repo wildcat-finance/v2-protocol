@@ -2689,6 +2689,48 @@ contract WildcatMarketTest is MarketFixture {
     );
   }
 
+  function test_zeroDelinquencyFeeStillTracksClockAcrossMarketTypes() external {
+    uint256 initialTimestamp = vm.getBlockTimestamp();
+    for (uint256 marketKind; marketKind < 2; marketKind++) {
+      vm.warp(initialTimestamp);
+      Options memory options = _defaultOptions(HooksKind.OpenTerm);
+      options.revolving = marketKind == 1;
+      options.protocolFeeBips = 0;
+      options.annualInterestBips = 0;
+      options.delinquencyFeeBips = 0;
+      options.commitmentFeeBips = 0;
+      Fixture memory fixture = _newMarket(options);
+      _deposit(fixture, Holder, 1e18);
+      _approveBorrower(fixture);
+      vm.prank(Borrower);
+      fixture.market.borrow(8e17);
+      vm.prank(Holder);
+      fixture.market.queueFullWithdrawal();
+      assertTrue(fixture.market.currentState().isDelinquent, 'initial delinquency');
+
+      vm.warp(initialTimestamp + 2_000);
+      MarketState memory current = fixture.market.currentState();
+      assertEq(current.timeDelinquent, 2_000, 'current delinquency clock');
+      assertEq(current.scaleFactor, RAY, 'zero-fee scale factor');
+      fixture.market.updateState();
+      assertEq(fixture.market.previousState().timeDelinquent, 2_000, 'stored delinquency clock');
+
+      vm.prank(Borrower);
+      fixture.market.repay(8e17);
+      assertFalse(fixture.market.currentState().isDelinquent, 'repaid delinquency');
+
+      vm.warp(initialTimestamp + 2_500);
+      current = fixture.market.currentState();
+      assertEq(current.timeDelinquent, 1_500, 'current recovery clock');
+      fixture.market.updateState();
+      assertEq(fixture.market.previousState().timeDelinquent, 1_500, 'stored recovery clock');
+
+      vm.warp(initialTimestamp + 4_500);
+      fixture.market.updateState();
+      assertEq(fixture.market.previousState().timeDelinquent, 0, 'recovered clock');
+    }
+  }
+
   function test_revolvingAccrualHandlesFeeOnlyZeroSupplyAndZeroTime() external {
     Options memory options = _revolvingOptions(500, 1_000, 0);
     Fixture memory feeOnlyFixture = _newMarket(options);

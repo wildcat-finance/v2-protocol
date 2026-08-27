@@ -178,13 +178,11 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
       protocolFee = state.applyProtocolFee(baseInterestRay);
     }
 
-    if (delinquencyFeeBips > 0) {
-      delinquencyFeeRay = state.updateDelinquency(
-        timestamp,
-        delinquencyFeeBips,
-        delinquencyGracePeriod
-      );
-    }
+    delinquencyFeeRay = state.updateDelinquency(
+      timestamp,
+      delinquencyFeeBips,
+      delinquencyGracePeriod
+    );
 
     uint256 prevScaleFactor = state.scaleFactor;
     uint256 scaleFactorDelta = prevScaleFactor.rayMul(baseInterestRay + delinquencyFeeRay);
