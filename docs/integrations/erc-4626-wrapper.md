@@ -121,7 +121,9 @@ tokens held by this wrapper, not as a cap on aggregate market supply.
 | `maxRedeem(owner)` | The owner's share balance, or zero when the owner or wrapper is sanctioned or the wrapper is under-backed. |
 
 The four ERC-4626 execution methods reject zero assets or shares. ERC-4626 does
-not require that implementation choice.
+not require that implementation choice. The wrapper permits minting or
+transferring shares to `address(0)`; those shares remain fully backed but cannot
+be recovered.
 
 Notes:
 
