@@ -1,37 +1,138 @@
 # Periodic Term Hooks
 
-`PeriodicTermHooks` restricts withdrawals to a recurring scheduled window, sitting between the open template (withdraw any time) and the fixed template (withdraw only after a single end date). It inherits the same access-control machinery as the other templates (see [Access Control Hooks](./access-control.md)) and adds two mechanisms: withdrawal windows and gated APR reductions.
+[`PeriodicTermHooks`](../../src/access/PeriodicTermHooks.sol) adds recurring
+withdrawal windows and advance notice for APR reductions. It shares the
+credential and lender-policy system described in [access control](./access-control.md).
 
-## Withdrawal windows
+## Withdrawal schedule
 
-At market creation the borrower configures:
+### Configuration
 
-- `firstWithdrawalWindowStart` — when the first window opens (at most one maximum period in the future)
-- `periodDuration` — how often a window recurs
-- `withdrawalWindowDuration` — how long each window stays open (must be shorter than the period)
+Market creation supplies three required ABI words, followed by two optional
+words:
 
-Windows are start-inclusive and end-exclusive: withdrawals may be queued at `windowStart` and may not at `windowStart + withdrawalWindowDuration`. Between windows, `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` revert `WithdrawOutsideWindow`. Withdrawal *batches* still expire on the market's immutable `withdrawalBatchDuration`, independent of the window schedule. The window gates only when a withdrawal can be *queued*.
+```text
+uint32 firstWithdrawalWindowStart
+uint32 periodDuration
+uint32 withdrawalWindowDuration
+uint96 minimumDeposit       // optional; defaults to zero
+bool transfersDisabled      // optional; defaults to false
+```
 
-A closed market bypasses the window entirely: once the borrower closes, lenders can exit at any time.
+`firstWithdrawalWindowStart` is the schedule anchor. It may be in the past. If
+it is in the future, it cannot be more than
+`MaximumInitialWithdrawalWindowDelay` after market creation.
 
-Because `nukeFromOrbit` routes through the ordinary withdrawal path (see Known Issues, CAF-03), sanctioned accounts on a periodic market can only be quarantined while a window is open. This recurs each period and was reviewed and accepted as the same trade-off as a long fixed term.
+The current bounds are:
+
+| Parameter | Value |
+| --- | ---: |
+| `MinimumPeriodDuration` | 6 minutes |
+| `MaximumPeriodDuration` | 365 days |
+| `MinimumWithdrawalWindowDuration` | 1 minute |
+| `MaximumInitialWithdrawalWindowDelay` | 365 days |
+
+The window duration must also be strictly shorter than the period. These are
+the values enforced by this source revision. The contract marks all four for
+finalization before mainnet; they are not a mainnet parameter commitment.
+
+### Queueing and execution
+
+For an open market, a window is active when:
+
+```text
+timestamp >= anchor && (timestamp - anchor) % periodDuration < windowDuration
+```
+
+The start is inclusive and the end is exclusive. `queueWithdrawal`,
+`queueWithdrawalScaled`, and `queueFullWithdrawal` revert with
+`WithdrawOutsideWindow` at every other time.
+
+The window gates queueing only. Existing batches retain the market's immutable
+`withdrawalBatchDuration`, and executing a queued withdrawal is not
+window-gated. Closing a market removes the queueing restriction and cancels any
+pending APR-reduction proposal.
+
+### Sanctioned accounts
+
+`nukeFromOrbit` moves a sanctioned account's full balance through the ordinary
+queue-withdrawal path. On an open periodic market it therefore reverts outside
+a withdrawal window. It can succeed when a window opens or after the market is
+closed. This is deliberate current behavior, not an administrative bypass of
+the term policy.
 
 ## APR reductions
 
-On open markets a borrower can lower the APR at will (subject to the temporary reserve-ratio penalty in `MarketConstraintHooks`). On periodic markets, lenders can only respond during windows — so APR reductions are gated behind a proposal flow that guarantees lenders one full withdrawal window to exit at the old rate:
+The hooks administrator may propose a reduction. The market's stored APR does
+not change until the proposal is executed.
 
-1. **Propose.** The borrower calls `proposeAnnualInterestBips(market, newBips)` with a value strictly below the current APR, outside a withdrawal window and on an open market. The response window is fixed at proposal time: the next scheduled withdrawal window.
-2. **Respond.** Lenders who object exit during that window at the unreduced APR.
-3. **Execute.** After the response window ends — and before the proposal expires (`AprReductionProposalValidityPeriods` periods after the response window starts) — the reduction can be executed, provided there are no unpaid withdrawal batches. Execution happens either through the borrower calling the market's `setAnnualInterestAndReserveRatioBips` with the exact proposed value, or **permissionlessly by anyone** through the market's `executePendingAnnualInterestBipsReduction`, so a proposal that lenders implicitly accepted cannot be held hostage by borrower inaction.
+1. **Propose.** The market must be open, the call must occur outside a
+   withdrawal window, and the proposed APR must be in range and strictly below
+   the market's current APR. The next scheduled window is stored as the lender
+   response window. A new proposal cancels and replaces the previous one.
+2. **Respond.** Lenders may queue withdrawals during the stored response
+   window while the old APR remains active.
+3. **Execute.** Execution begins at the response window's end and remains
+   available until the next window begins. It requires the exact proposed APR,
+   a rate still below the market's current APR, and zero
+   `scaledPendingWithdrawals`.
 
-Proposals are cancelled by: proposing again (overwrite), raising the APR through the ordinary setter, or closing the market. Expired proposals cannot be executed and must be re-proposed.
+With the current `AprReductionProposalValidityPeriods == 1`, the execution
+interval is:
 
-APR *increases* need no proposal and pass straight through to the base constraint hooks.
+```text
+[responseWindowEnd, responseWindowStart + periodDuration)
+```
 
-Deposits and transfers remain open throughout the proposal lifecycle. A new lender does not receive a separate response window: the pending reduction is part of the disclosed entry terms. Market and deposit interfaces must show the current APR, proposed APR, and response-window timing. Once the response window has ended, interfaces should treat the executable proposed APR as the effective entry rate even though the market's stored APR does not change until execution.
+Either path applies the same gates:
 
-## Configuration notes
+- anyone may call the market's
+  `executePendingAnnualInterestBipsReduction`; or
+- the market borrower may call
+  `setAnnualInterestAndReserveRatioBips` with the exact proposed APR.
 
-- `minimumDeposit` and `transfersDisabled` behave as in the other templates, except that this template stores the minimum as `uint96` (checked downcast; the external `setMinimumDeposit(address,uint128)` ABI is unchanged) to keep its market config in one storage slot. The minimum-deposit check compares in scaled units (see [Scale Factor — Rounding](../protocol/scaling-and-rounding.md#rounding)), so depositing exactly the minimum always succeeds.
-- The template rejects inconsistent access configurations at market creation: withdrawal access control requires deposit access control, and transfer access control unless transfers are disabled.
-- `pendingAprChanges(market)` retains the ABI of the first template revision; `getPendingAprChange(market)` additionally returns the response window bounds. `templateVersion()` distinguishes template revisions while `version()` remains `'PeriodicTermHooks'` for subgraph matching.
+Both paths preserve the market's current reserve ratio. A reserve-ratio value
+supplied with the borrower path is not applied to the reduction.
+
+An APR increase needs no proposal and cancels a pending reduction. Setting the
+APR to its current value does not cancel one. Market closure cancels one.
+Expiry prevents execution but does not clear storage; an expired proposal
+remains readable until another cancelling transition occurs.
+
+### Lender-facing state
+
+A pending proposal adds no deposit or transfer restriction; the market's
+ordinary access, minimum-deposit, transfer, and capacity rules still apply. A
+lender entering after proposal receives no separate response window.
+
+Interfaces should show the current APR, proposed APR, and stored response-window
+bounds. After the response window ends, an executable proposed APR should be
+treated as the effective entry rate even though the stored market APR changes
+only on execution.
+
+`pendingAprChanges(market)` preserves the first template revision's two-value
+ABI. `getPendingAprChange(market)` also returns the stored response-window
+bounds. `templateVersion()` returns `2`; `version()` remains
+`'PeriodicTermHooks'` for integration compatibility.
+
+## Other market policy
+
+`minimumDeposit` is stored as `uint96`; the existing
+`setMinimumDeposit(address,uint128)` input is checked before downcasting. A
+positive initial minimum enables the deposit callback. A market created with a
+zero minimum and no deposit callback cannot later adopt a positive minimum.
+
+The hook compares the configured minimum and tendered amount after flooring
+both to scaled units. The market's independent nonzero-mint, supply-cap,
+balance, and allowance checks still apply.
+
+Withdrawal access requires deposit access and either transfer access or
+disabled transfers. See [access control](./access-control.md) for credential,
+known-lender, deposit-block, and transfer behavior.
+
+## Tests
+
+- [`PeriodicTermHooks.t.sol`](../../test/access/PeriodicTermHooks.t.sol) covers
+  schedule boundaries, configuration, proposal transitions, and hook policy.
+- [`ProductionMatrixScenarios.t.sol`](../../test/integration/ProductionMatrixScenarios.t.sol)
+  covers the periodic template through deployed standard and revolving markets.
