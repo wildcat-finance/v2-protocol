@@ -19,6 +19,8 @@ const PREVIOUS_PLAN_PATH = path.join(
   "deployments/sepolia/plan-v2-5.json"
 );
 const DEFAULT_RPC_URL = "https://eth-sep.hinterlight.net";
+const ANVIL_CHAIN_ID = 31337;
+const REHEARSAL_SUFFIX = "-rehearsal";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const AUTHORITY_HELPER_FORWARD_SIGNATURE =
   "executeProtocolAction(address,bytes)";
@@ -182,10 +184,14 @@ const EXPECTED_IDS = [
 function usage() {
   console.log(`Usage:
   node scripts/sepolia-v2-5-fix-rotation.js generate
+  node scripts/sepolia-v2-5-fix-rotation.js generate-rehearsal
+    [--plan <path>] [--package <path>]
   node scripts/sepolia-v2-5-fix-rotation.js validate
-  node scripts/sepolia-v2-5-fix-rotation.js preflight [--rpc-url <url>] [--out <path>]
+  node scripts/sepolia-v2-5-fix-rotation.js preflight
+    [--rehearsal] [--rpc-url <url>] [--out <path>]
   node scripts/sepolia-v2-5-fix-rotation.js verify-activation
-    --run-state <path> [--preflight <path>] [--rpc-url <url>] [--out <path>]
+    --run-state <path> [--rehearsal] [--plan <path>]
+    [--preflight <path>] [--rpc-url <url>] [--out <path>]
 
 All commands are read-only with respect to Sepolia. generate writes local plan
 artifacts and never signs or broadcasts a transaction.`);
@@ -1116,6 +1122,85 @@ function validate() {
   );
 }
 
+function buildRehearsalPlan(plan) {
+  const rehearsal = JSON.parse(JSON.stringify(plan));
+  rehearsal.network = "anvil";
+  rehearsal.chainId = ANVIL_CHAIN_ID;
+  rehearsal.release = `${plan.release}${REHEARSAL_SUFFIX}`;
+  for (const transaction of rehearsal.transactions) {
+    transaction.envelope.chainId = ANVIL_CHAIN_ID;
+  }
+  return rehearsal;
+}
+
+function assertRehearsalPlan(plan, canonicalPlan) {
+  const generic = validatePlan(plan);
+  if (!generic.ok) {
+    throw new Error(
+      `Invalid rehearsal plan:\n${generic.errors
+        .map((error) => `- ${error}`)
+        .join("\n")}`
+    );
+  }
+  assertEqual(
+    plan,
+    buildRehearsalPlan(canonicalPlan),
+    "Anvil rehearsal transform"
+  );
+}
+
+function generateRehearsal(args) {
+  const rotation = config();
+  assertContractSourceBoundary(rotation);
+  const artifacts = loadArtifacts();
+  const canonicalPlanPath = path.join(
+    REPO_ROOT,
+    `deployments/sepolia/plan-${rotation.release}.json`
+  );
+  const canonicalPlan = readJson(canonicalPlanPath);
+  assertRotationPlan(canonicalPlan, rotation, artifacts);
+
+  const rehearsalRelease = `${rotation.release}${REHEARSAL_SUFFIX}`;
+  const planPath = resolveOutputPath(
+    args.plan,
+    `deployments/anvil/plan-${rehearsalRelease}.json`
+  );
+  const packagePath = resolveOutputPath(
+    args.package,
+    `deployments/anvil/ceremony-${rehearsalRelease}-eoa.json`
+  );
+  const plan = buildRehearsalPlan(canonicalPlan);
+  assertRehearsalPlan(plan, canonicalPlan);
+  writeJson(planPath, plan);
+
+  const packageOutput = execFileSync(
+    process.execPath,
+    [
+      "scripts/plan.js",
+      "ceremony-package",
+      "--plan",
+      planPath,
+      "--mode",
+      "eoa",
+      "--out",
+      packagePath,
+    ],
+    { cwd: REPO_ROOT, encoding: "utf8" }
+  );
+  process.stdout.write(packageOutput);
+  fs.writeFileSync(
+    packagePath.replace(/\.json$/, ".digest.txt"),
+    packageOutput,
+    "utf8"
+  );
+  console.log(
+    `Anvil rehearsal twin generated from ${path.relative(
+      REPO_ROOT,
+      canonicalPlanPath
+    )}; only network, chain ID, release label, and envelope chain IDs differ`
+  );
+}
+
 function sameAddress(actual, expected, context) {
   if (getAddress(actual) !== getAddress(expected)) {
     throw new Error(`${context}: expected ${expected}, got ${actual}`);
@@ -1246,12 +1331,21 @@ async function authoritySnapshot(provider, rotation) {
 async function preflight(args) {
   const rotation = config();
   assertContractSourceBoundary(rotation);
+  const rehearsal = args.rehearsal === true;
+  if (args.rehearsal !== undefined && !rehearsal) {
+    throw new Error("--rehearsal does not take a value");
+  }
+  const executionNetwork = rehearsal ? "anvil" : rotation.network;
+  const executionChainId = rehearsal ? ANVIL_CHAIN_ID : rotation.chainId;
+  const executionRelease = rehearsal
+    ? `${rotation.release}${REHEARSAL_SUFFIX}`
+    : rotation.release;
   const rpcUrl = args["rpc-url"] || process.env.RPC_URL || DEFAULT_RPC_URL;
-  const provider = new JsonRpcProvider(rpcUrl, rotation.chainId);
+  const provider = new JsonRpcProvider(rpcUrl, executionChainId);
   const network = await provider.getNetwork();
-  if (Number(network.chainId) !== rotation.chainId) {
+  if (Number(network.chainId) !== executionChainId) {
     throw new Error(
-      `RPC chain ID is ${network.chainId}, expected ${rotation.chainId}`
+      `RPC chain ID is ${network.chainId}, expected ${executionChainId}`
     );
   }
   const block = await provider.getBlock("latest");
@@ -1395,10 +1489,14 @@ async function preflight(args) {
   );
   const report = {
     schemaVersion: "1.0.0",
-    release: rotation.release,
+    release: executionRelease,
     protocolVersion: rotation.protocolVersion,
-    network: rotation.network,
-    chainId: rotation.chainId,
+    network: executionNetwork,
+    chainId: executionChainId,
+    targetRelease: rotation.release,
+    targetNetwork: rotation.network,
+    targetChainId: rotation.chainId,
+    rehearsal,
     checkedAt: new Date(Number(block.timestamp) * 1000).toISOString(),
     blockNumber: block.number,
     blockHash: block.hash,
@@ -1419,11 +1517,13 @@ async function preflight(args) {
   };
   const outputPath = resolveOutputPath(
     args.out,
-    `deployments/sepolia/preflight-${rotation.release}.json`
+    `deployments/${executionNetwork}/preflight-${executionRelease}.json`
   );
   writeJson(outputPath, report);
   console.log(
-    `Sepolia factory-replacement preflight GREEN at block ${
+    `${
+      rehearsal ? "Anvil rehearsal" : "Sepolia"
+    } factory-replacement preflight GREEN at block ${
       block.number
     }: ${path.relative(REPO_ROOT, outputPath)}`
   );
@@ -1589,17 +1689,38 @@ async function verifyActivation(args) {
   const rotation = config();
   assertContractSourceBoundary(rotation);
   const artifacts = loadArtifacts();
-  const planPath = path.join(
+  const canonicalPlanPath = path.join(
     REPO_ROOT,
     `deployments/sepolia/plan-${rotation.release}.json`
   );
+  const canonicalPlan = readJson(canonicalPlanPath);
+  assertRotationPlan(canonicalPlan, rotation, artifacts);
+  const rehearsal = args.rehearsal === true;
+  if (args.rehearsal !== undefined && !rehearsal) {
+    throw new Error("--rehearsal does not take a value");
+  }
+  const executionNetwork = rehearsal ? "anvil" : rotation.network;
+  const executionChainId = rehearsal ? ANVIL_CHAIN_ID : rotation.chainId;
+  const executionRelease = rehearsal
+    ? `${rotation.release}${REHEARSAL_SUFFIX}`
+    : rotation.release;
+  const planPath = rehearsal
+    ? resolveOutputPath(
+        args.plan,
+        `deployments/anvil/plan-${executionRelease}.json`
+      )
+    : canonicalPlanPath;
   const plan = readJson(planPath);
-  assertRotationPlan(plan, rotation, artifacts);
+  if (rehearsal) {
+    assertRehearsalPlan(plan, canonicalPlan);
+  } else {
+    assertEqual(plan, canonicalPlan, "Live activation plan");
+  }
 
   const runStatePath = requiredPathArg(args, "run-state");
   const preflightPath = resolveOutputPath(
     args.preflight,
-    `deployments/sepolia/preflight-${rotation.release}.json`
+    `deployments/${executionNetwork}/preflight-${executionRelease}.json`
   );
   if (!fs.existsSync(runStatePath)) {
     throw new Error(`Run state not found: ${runStatePath}`);
@@ -1610,7 +1731,13 @@ async function verifyActivation(args) {
   const runState = readJson(runStatePath);
   const preflightReport = readJson(preflightPath);
   if (
-    preflightReport.release !== rotation.release ||
+    preflightReport.release !== executionRelease ||
+    preflightReport.network !== executionNetwork ||
+    preflightReport.chainId !== executionChainId ||
+    preflightReport.targetRelease !== rotation.release ||
+    preflightReport.targetNetwork !== rotation.network ||
+    preflightReport.targetChainId !== rotation.chainId ||
+    preflightReport.rehearsal !== rehearsal ||
     preflightReport.status !== "green" ||
     preflightReport.authority?.policy !== "fixed"
   ) {
@@ -1618,11 +1745,11 @@ async function verifyActivation(args) {
   }
 
   const rpcUrl = args["rpc-url"] || process.env.RPC_URL || DEFAULT_RPC_URL;
-  const provider = new JsonRpcProvider(rpcUrl, rotation.chainId);
+  const provider = new JsonRpcProvider(rpcUrl, executionChainId);
   const network = await provider.getNetwork();
-  if (Number(network.chainId) !== rotation.chainId) {
+  if (Number(network.chainId) !== executionChainId) {
     throw new Error(
-      `RPC chain ID is ${network.chainId}, expected ${rotation.chainId}`
+      `RPC chain ID is ${network.chainId}, expected ${executionChainId}`
     );
   }
 
@@ -1779,10 +1906,14 @@ async function verifyActivation(args) {
     throw new Error("Could not read the activation verification block");
   const report = {
     schemaVersion: "1.0.0",
-    release: rotation.release,
+    release: executionRelease,
     protocolVersion: rotation.protocolVersion,
-    network: rotation.network,
-    chainId: rotation.chainId,
+    network: executionNetwork,
+    chainId: executionChainId,
+    targetRelease: rotation.release,
+    targetNetwork: rotation.network,
+    targetChainId: rotation.chainId,
+    rehearsal,
     verifiedAt: new Date(Number(block.timestamp) * 1000).toISOString(),
     blockNumber: block.number,
     blockHash: block.hash,
@@ -1797,11 +1928,13 @@ async function verifyActivation(args) {
   };
   const outputPath = resolveOutputPath(
     args.out,
-    `deployments/sepolia/post-activation-${rotation.release}.json`
+    `deployments/${executionNetwork}/post-activation-${executionRelease}.json`
   );
   writeJson(outputPath, report);
   console.log(
-    `Sepolia factory-replacement activation GREEN with fixed authority at block ${
+    `${
+      rehearsal ? "Anvil rehearsal" : "Sepolia"
+    } factory-replacement activation GREEN with fixed authority at block ${
       block.number
     }: ${path.relative(REPO_ROOT, outputPath)}`
   );
@@ -1815,6 +1948,7 @@ async function main() {
   }
   const args = parseArgs(argv);
   if (command === "generate") return generate();
+  if (command === "generate-rehearsal") return generateRehearsal(args);
   if (command === "validate") return validate();
   if (command === "preflight") return preflight(args);
   if (command === "verify-activation") return verifyActivation(args);
@@ -1832,6 +1966,8 @@ module.exports = {
   ARTIFACTS,
   EXPECTED_IDS,
   assertRotationPlan,
+  assertRehearsalPlan,
+  buildRehearsalPlan,
   buildEntries,
   stripMetadata,
 };
