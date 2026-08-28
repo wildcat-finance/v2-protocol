@@ -1,19 +1,21 @@
-# Accounting and State Updates
+# Accounting and state updates
 
 Wildcat markets use scaled balances so lender interest can accrue without
-updating every account. See [Scaling and Rounding](./scaling-and-rounding.md)
-for the conversion rules.
+updating every account. [Scaling and rounding](./scaling-and-rounding.md) covers
+the conversion rules.
 
-## Collateral Obligation
+## Collateral obligation
 
-Market tokens in a current or expired unpaid withdrawal batch must be covered
-100% by underlying assets. Tokens that are not pending withdrawal are covered
-at the configured reserve ratio. The latter are the market's *outstanding
-supply*.
+The market must hold enough underlying assets to cover:
 
-Paid but unclaimed withdrawals must remain fully reserved until execution.
-Accrued protocol fees are also part of the market's obligation. Neither balance
-earns lender interest.
+- 100% of market tokens in the current withdrawal batch;
+- 100% of market tokens in expired, unpaid batches;
+- the configured reserve ratio for every other market token; and
+- accrued protocol fees.
+
+Tokens outside a withdrawal batch make up the market's _outstanding supply_.
+Paid but unclaimed withdrawals remain fully reserved until execution. Neither
+that balance nor accrued protocol fees earns lender interest.
 
 `state.liquidityRequired()` is the sum of:
 
@@ -32,53 +34,53 @@ normalizedPendingWithdrawals
 + state.accruedProtocolFees
 ```
 
-Outstanding supply and pending withdrawals are kept in the same rounding
-domain. At a 100% reserve ratio they recombine exactly to `state.totalSupply()`.
-See [`MarketState.liquidityRequired`](../../src/libraries/MarketState.sol) for
-the implementation.
+Outstanding supply and pending withdrawals use the same rounding domain. At a
+100% reserve ratio, they add back to exactly `state.totalSupply()`. See
+[`MarketState.liquidityRequired`](../../src/libraries/MarketState.sol).
 
 ## Delinquency
 
-A market is delinquent when its underlying assets are below
-`state.liquidityRequired()`. While delinquent, `state.timeDelinquent` increases
-once per second. While healthy, it decreases toward zero.
+A market is delinquent when its underlying balance is below
+`state.liquidityRequired()`.
 
-The delinquency fee applies for time spent above `delinquencyGracePeriod`.
-Because the timer decays rather than resetting immediately, a borrower that
-remains beyond the grace period is penalized both while the timer rises and
-while the excess later decays.
+- While delinquent, `state.timeDelinquent` increases once per second.
+- While healthy, it decreases toward zero.
 
-Accrual classifies each elapsed interval using the previously stored
-`isDelinquent` value. The final state write compares the updated liquidity
-requirement with the market's current underlying balance and stores the status
-used by the next interval. There is no autonomous state transition between
-writes.
+The delinquency fee applies to time above `delinquencyGracePeriod`. The timer
+decays instead of resetting. Once it passes the grace period, the borrower pays
+the penalty while the timer rises and while the excess later decays.
 
-## Interest and Fees
+Each accrual interval uses the previously stored `isDelinquent` value. The final
+state write compares the updated liquidity requirement with the current
+underlying balance. That result becomes the status for the next interval.
+
+Nothing changes autonomously between state writes.
+
+## Interest and fees
 
 Accrual uses two lender rates and one protocol-fee fraction:
 
 - `annualInterestBips` is the base annual rate paid to lenders;
 - `delinquencyFeeBips` is added while the market is in penalized delinquency;
   and
-- `protocolFeeBips` is the protocol's fraction of base interest, charged in
-  addition to lender interest.
+- `protocolFeeBips` is the protocol's fraction of base interest, charged on top
+  of lender interest.
 
 Base interest and delinquency fees increase `scaleFactor`. Protocol fees are
-calculated from base interest and added separately to `accruedProtocolFees`;
-they do not increase the lender scale factor. See
+calculated from base interest and added to `accruedProtocolFees`. They do not
+increase the lender scale factor. See
 [`FeeMath.updateScaleFactorAndFees`](../../src/libraries/FeeMath.sol).
 
-Each accrual interval rounds its protocol fee independently to the underlying
-asset's atomic unit. Fractional remainders are not carried between updates.
-Transaction cadence can therefore change the aggregate fee through repeated
-rounding. This does not change lender interest.
+Each accrual interval rounds its protocol fee to the underlying asset's atomic
+unit. Fractional remainders do not carry into the next update. More frequent
+updates can therefore change the aggregate protocol fee through repeated
+rounding. Lender interest is unaffected.
 
-## State Updates
+## State updates
 
-State-changing market functions calculate updated market state before applying
-their own action. Interest and fee accrual advance only when the timestamp has
-changed, so later calls in the same timestamp do not accrue the interval again.
+Every state-changing market function updates market state before applying its
+own action. Interest and fees only advance when the timestamp changes. Later
+calls in the same timestamp do not accrue the interval again.
 
 Without an expired batch, an update:
 
@@ -86,13 +88,18 @@ Without an expired batch, an update:
 2. advances or decays the delinquency timer; and
 3. applies available liquidity to the current withdrawal batch.
 
-If the current batch expired between updates, accrual is split at its expiry.
-The market accrues to the expiry, processes the batch, accrues from the expiry
-to the current timestamp, then applies liquidity to any remaining current
-batch. This prevents the borrower from paying interest after assets could have
-been reserved for an expiring withdrawal.
+If the current batch expired between updates, the market splits accrual at the
+expiry:
 
-The final state write recalculates delinquency from the updated liquidity
-requirement and current underlying balance. See
+1. accrue to the batch expiry;
+2. process the batch;
+3. accrue from expiry to the current timestamp; and
+4. apply liquidity to any remaining current batch.
+
+The borrower does not pay interest on assets after they could have been reserved
+for the expiring withdrawal.
+
+The final write recalculates delinquency from the updated liquidity requirement
+and current underlying balance. See
 [`WildcatMarketBase._getUpdatedState`](../../src/market/WildcatMarketBase.sol)
 and [Withdrawals](./withdrawals.md).

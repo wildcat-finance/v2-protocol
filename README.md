@@ -1,14 +1,14 @@
 # Wildcat Protocol
 
-Smart contracts, tests, and deployment tooling for the Wildcat Protocol.
+Smart contracts, tests, and deployment tooling for Wildcat Protocol.
 
 [Whitepaper v2.0](https://github.com/wildcat-finance/wildcat-whitepaper/blob/main/whitepaper_v2.0.pdf)
 · [The Wildcat Manifesto](https://medium.com/@wildcatprotocol/the-wildcat-manifesto-db23d4b9484d)
 
-Product and user documentation is published at
+Product and user documentation lives at
 [docs.wildcat.finance](https://docs.wildcat.finance/).
 
-## Build and Test
+## Build and test
 
 [Foundry](https://book.getfoundry.sh/getting-started/installation) is required.
 
@@ -18,11 +18,10 @@ forge build
 forge test
 ```
 
-The repository pins Solidity `0.8.25` and the Cancun EVM target in
-[`foundry.toml`](./foundry.toml). See [`TESTS.md`](./TESTS.md) for the complete
-testing contract.
+[`foundry.toml`](./foundry.toml) pins Solidity `0.8.25` and the Cancun EVM
+target. [`TESTS.md`](./TESTS.md) covers the full test setup.
 
-## Start Here
+## Start here
 
 - [Technical documentation](./docs/README.md)
 - [External security reviews](./audits/README.md)
@@ -30,5 +29,5 @@ testing contract.
 - [Contribution policy](./CONTRIBUTING.md)
 - [License](./LICENSE.md)
 
-Previous releases are preserved in Git tags. Documentation on the active
-release branch describes that release's supported source.
+Previous releases live in Git tags. Documentation on a release branch describes
+the source on that branch.
