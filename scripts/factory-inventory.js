@@ -1594,6 +1594,16 @@ function expectedCanonicalAliases(inventory, handoff) {
   return aliases;
 }
 
+function handoffMarketLensAddress(handoff) {
+  for (const address of [
+    handoff?.canonicalAddresses?.marketLens,
+    handoff?.addresses?.marketLensLatest,
+  ]) {
+    if (isAddress(address)) return address;
+  }
+  return null;
+}
+
 function lintDeployments({ inventory, deployments, handoff, legacyKeys }) {
   const errors = [];
   const warnings = [];
@@ -2256,16 +2266,16 @@ async function runReconcile(args) {
   });
   const aliases = reconcileCanonicalAliases(inventory, deployments, handoff);
   errors.push(...aliases.errors);
+  const handoffMarketLens = handoffMarketLensAddress(handoff);
   if (
-    isAddress(handoff?.addresses?.marketLensLatest) &&
+    handoffMarketLens &&
     deployments.MarketLens &&
-    deployments.MarketLens.toLowerCase() !==
-      handoff.addresses.marketLensLatest.toLowerCase()
+    deployments.MarketLens.toLowerCase() !== handoffMarketLens.toLowerCase()
   ) {
     warnings.push(
-      `MarketLens alias (${deployments.MarketLens}) is newer than the last release handoff's marketLensLatest (${handoff.addresses.marketLensLatest}); expected between releases`
+      `MarketLens alias (${deployments.MarketLens}) is newer than the handoff address (${handoffMarketLens}); expected between releases`
     );
-  } else if (!handoff?.addresses?.marketLensLatest && deployments.MarketLens) {
+  } else if (!handoffMarketLens && deployments.MarketLens) {
     warnings.push(
       "MarketLens canonical check skipped because no handoff marketLensLatest is available"
     );

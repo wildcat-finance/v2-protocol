@@ -478,12 +478,21 @@ finalize_inventory() {
   fi
   assert_clean_pushed_source
   assert_rpc
-  local evidence_dir run_state post_activation handoff
+  local evidence_dir evidence_run_state run_state post_activation handoff
   evidence_dir="$(current_session)"
-  run_state="$evidence_dir/run-state.json"
+  evidence_run_state="$evidence_dir/run-state.json"
+  run_state="deployments/sepolia/run-state-${RELEASE}.json"
   post_activation="$evidence_dir/post-activation.json"
   handoff="deployments/sepolia/handoff-${RELEASE}.json"
-  test -f "$run_state" || { echo "Missing verified run-state: $run_state" >&2; exit 1; }
+  test -f "$evidence_run_state" || {
+    echo "Missing verified evidence run-state: $evidence_run_state" >&2
+    exit 1
+  }
+  test -f "$run_state" || { echo "Missing stable run-state: $run_state" >&2; exit 1; }
+  if [[ "$(sha256_file "$evidence_run_state")" != "$(sha256_file "$run_state")" ]]; then
+    echo 'Stable run-state differs from the verified evidence copy.' >&2
+    exit 1
+  fi
   test -d "$PENDING_INVENTORY" || {
     echo "Missing release inventory records: $PENDING_INVENTORY" >&2
     exit 1
