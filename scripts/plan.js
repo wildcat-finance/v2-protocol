@@ -44,7 +44,7 @@ function printUsage() {
     [--entries <directory-name>]
   node scripts/plan.js validate --plan <path>
   node scripts/plan.js execute --plan <path> --rpc <url>
-    [--private-key <key> | --impersonate <address>] [--yes]
+    [--private-key <key> | --impersonate <address>] [--run-state <path>] [--yes]
   node scripts/plan.js verify --plan <path> --run-state <path> --rpc <url>
   node scripts/plan.js verify-eoa-run-state --plan <path> --run-state <path>
     --rpc <url>
@@ -66,7 +66,7 @@ deployments/<network>/plan-<release>.json.
 const KNOWN_FLAGS = {
   assemble: ["network", "release", "entries"],
   validate: ["plan"],
-  execute: ["plan", "rpc", "private-key", "impersonate", "yes"],
+  execute: ["plan", "rpc", "private-key", "impersonate", "run-state", "yes"],
   verify: ["plan", "run-state", "rpc"],
   "verify-eoa-run-state": ["plan", "run-state", "rpc"],
   "render-safe": ["plan"],
@@ -1676,7 +1676,7 @@ async function executePlan(args) {
     );
   }
 
-  const statePath = runStatePath(plan);
+  const statePath = args["run-state"] || runStatePath(plan);
   const runState = readRunState(statePath);
   const transactionIds = new Set(
     plan.transactions.map((transaction) => transaction.id)

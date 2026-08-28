@@ -6,7 +6,7 @@
     "legacy",
     "revolving"
   ],
-  "recordCount": 13,
+  "recordCount": 16,
   "hooksFactories": [
     {
       "label": "legacy-v2",
@@ -135,8 +135,8 @@
       "marketType": "legacy",
       "address": "0xbFbDaFc91977eE599a61B30D9e75788565Ad6d18",
       "startBlock": 11559133,
-      "canonical": true,
-      "lifecycle": "canonical",
+      "canonical": false,
+      "lifecycle": "live",
       "indexed": true,
       "registered": true,
       "deploymentKey": "HooksFactory_v2-5",
@@ -151,8 +151,8 @@
       "marketType": "revolving",
       "address": "0x190B42942fe9492df9CeA441dA5c43309840E93A",
       "startBlock": 11559137,
-      "canonical": true,
-      "lifecycle": "canonical",
+      "canonical": false,
+      "lifecycle": "live",
       "indexed": true,
       "registered": true,
       "deploymentKey": "HooksFactoryRevolving_v2-5",
@@ -161,6 +161,38 @@
       "wrapperFactory": "0x6B1DD93453584346C530A1646e98aB306fD6D37C",
       "initCodeStorage": "0x56B4E1A4161Decf4224cB16B037f2696698dBa34",
       "initCodeHash": "0x26f4a47d1267c99a56e00bb0ad593cd0436df7108bffd099e4c997332ea2f083"
+    },
+    {
+      "label": "HooksFactory_v2-5-sepolia-fix-1",
+      "marketType": "legacy",
+      "address": "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+      "startBlock": 11581361,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactory_v2-5-sepolia-fix-1",
+      "deployTxHash": "0x9dab6896f934b1cc44291a7bb1866ad7fd577b6f6ef4a487df6448c948d09871",
+      "registerTxHash": "0xbfc7bb95a652658e5cfea5f4a601ba24e83379f548bd51b66b34be6e0229763e",
+      "wrapperFactory": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "initCodeStorage": "0x0514795F0A7CBb754f0B7Da92e1B2ce2FD13Bd90",
+      "initCodeHash": "0xbcd4a2afc72b667a3c3d6056c93d69091092d63aa6e737cfd29f3b3be5fea2cb"
+    },
+    {
+      "label": "HooksFactoryRevolving_v2-5-sepolia-fix-1",
+      "marketType": "revolving",
+      "address": "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C",
+      "startBlock": 11581363,
+      "canonical": true,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "registered": true,
+      "deploymentKey": "HooksFactoryRevolving_v2-5-sepolia-fix-1",
+      "deployTxHash": "0x5fef7eed5e56fe6906864ffb31d568f51bdd13b5bcd0e16916ae6c40ba1110e0",
+      "registerTxHash": "0x4ef3d6f8c74a48b788c3869f8ef5e5ca7a976fb7440342397f94ca91d02cf33a",
+      "wrapperFactory": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "initCodeStorage": "0x3B6eBDb29c937340568Ee90a4577BB0bB7535447",
+      "initCodeHash": "0xb40d6920a021778e078f0fa9013f7d9166d285315ae92d4e5d0addddb308f6ae"
     }
   ],
   "wrapperFactories": [
@@ -178,9 +210,18 @@
       "label": "Wildcat4626WrapperFactory_v2-5",
       "address": "0x6B1DD93453584346C530A1646e98aB306fD6D37C",
       "startBlock": 11559124,
-      "lifecycle": "canonical",
+      "lifecycle": "live",
       "indexed": true,
       "deployTxHash": "0x61d1d18313b211f55740243d96bcc3d6c03d658294e708f0b0647aa6435413c3",
+      "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843"
+    },
+    {
+      "label": "Wildcat4626WrapperFactory_v2-5-sepolia-fix-1",
+      "address": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "startBlock": 11581359,
+      "lifecycle": "canonical",
+      "indexed": true,
+      "deployTxHash": "0x9781e2ed943622ce0627485dd83f5ca16c579b7bd1757564cb235a15c579564b",
       "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843"
     }
   ]
