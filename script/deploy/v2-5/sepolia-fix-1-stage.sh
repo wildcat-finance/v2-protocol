@@ -286,6 +286,22 @@ print_ready() {
     "fingerprint: \(.fingerprint)\n" +
     "evidence:    '"$evidence_dir"'"
   ' "$evidence_dir/identity.json"
+  if [[ "$DEPLOYMENTS_NETWORK" == 'anvil' ]]; then
+    cat <<EOF
+
+Wallet network:
+  name:    Anvil
+  RPC URL: $RPC_URL
+  chain:   $EXPECTED_CHAIN_ID
+EOF
+  else
+    cat <<EOF
+
+Wallet network:
+  name:  Sepolia
+  chain: $EXPECTED_CHAIN_ID
+EOF
+  fi
   cat <<'EOF'
 
 In a second terminal:
