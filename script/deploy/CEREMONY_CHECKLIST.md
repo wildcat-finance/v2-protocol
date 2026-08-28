@@ -111,9 +111,11 @@ unset RPC_URL
 stage activation
 ```
 
-The stage refuses to proceed unless the cold gates and accepted real-wallet
-rehearsal match the current pushed source, reviewed live plan, and live package
-digest. It reruns the live preflight immediately before building the UI.
+The stage refuses to proceed unless the cold gates match the current pushed
+source. The accepted real-wallet rehearsal may come from an earlier commit only
+when the tracked config, plan, protocol version, and complete `deploy-ui` tree
+are unchanged and the live package digest still matches. It reruns the live
+preflight immediately before building the UI.
 
 - [ ] Restart the same preview command from section 2.
 - [ ] Open `http://127.0.0.1:4173`. Connect the expected executor to Sepolia.

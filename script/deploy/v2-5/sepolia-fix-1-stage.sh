@@ -136,26 +136,54 @@ assert_cold_gate() {
     "$COLD_GATE" >/dev/null || {
       echo 'Cold gate evidence does not match the current source commit.' >&2
       exit 1
-    }
+  }
+}
+
+assert_rehearsed_input_unchanged() {
+  local rehearsal_source="$1" tracked_path="$2" rehearsal_object current_object
+  rehearsal_object="$(git rev-parse "${rehearsal_source}:${tracked_path}" 2>/dev/null)" || {
+    echo "Accepted rehearsal source does not contain $tracked_path." >&2
+    exit 1
+  }
+  current_object="$(git rev-parse "HEAD:${tracked_path}")"
+  if [[ "$rehearsal_object" != "$current_object" ]]; then
+    echo "Accepted rehearsal does not match the current $tracked_path." >&2
+    exit 1
+  fi
 }
 
 assert_rehearsal_accepted() {
+  local rehearsal_source current_source tracked_path
   test -f "$REHEARSAL_ACCEPTANCE" || {
     echo 'Accepted real-wallet rehearsal evidence is missing.' >&2
     exit 1
   }
+  rehearsal_source="$(jq -er '.sourceCommit' "$REHEARSAL_ACCEPTANCE")" || {
+    echo 'Accepted rehearsal is missing its source commit.' >&2
+    exit 1
+  }
+  git cat-file -e "${rehearsal_source}^{commit}" 2>/dev/null || {
+    echo "Accepted rehearsal source commit is unavailable: $rehearsal_source" >&2
+    exit 1
+  }
   jq -e \
-    --arg source_commit "$(git rev-parse HEAD)" \
     --arg plan_sha256 "$(sha256_file "$LIVE_PLAN")" \
     --arg package_digest "$(jq -er '.digest' "$LIVE_PACKAGE")" \
     '.status == "green" and
-     .sourceCommit == $source_commit and
      .livePlanSha256 == $plan_sha256 and
      .livePackageDigest == $package_digest' \
     "$REHEARSAL_ACCEPTANCE" >/dev/null || {
-      echo 'Accepted rehearsal does not match the current source, plan, or live package.' >&2
+      echo 'Accepted rehearsal does not match the current plan or live package.' >&2
       exit 1
     }
+  for tracked_path in "$CONFIG" "$LIVE_PLAN" package.json deploy-ui; do
+    assert_rehearsed_input_unchanged "$rehearsal_source" "$tracked_path"
+  done
+  current_source="$(git rev-parse HEAD)"
+  if [[ "$rehearsal_source" != "$current_source" ]]; then
+    echo "Accepted rehearsal carried forward from $rehearsal_source."
+    echo 'Config, plan, package digest, protocol version, and deploy-ui tree are unchanged.'
+  fi
 }
 
 create_live_session() {
