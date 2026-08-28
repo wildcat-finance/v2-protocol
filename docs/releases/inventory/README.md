@@ -1,19 +1,25 @@
-# Contract Inventories
+# Contract inventories
 
-These generated files pin the first-party Solidity source and ABI surface for
-each release. They record:
+Each generated inventory pins the first-party Solidity source and ABI surface
+for one release. It records:
 
-- every `src/` source unit, Git blob, content hash, and declaration;
-- compiler settings and exact submodule commits used to extract the ABIs; and
-- canonical ABI hashes, function and error selectors, and event topics.
+- Every `src/` source unit, Git blob, content hash, and declaration.
+- Compiler settings and exact submodule commits used to extract the ABIs.
+- Canonical ABI hashes, function selectors, error selectors, and event topics.
 
-The generator rejects missing or duplicate artifacts and any source hash that
-does not match the requested commit or its pinned submodules. The recorded
-compiler settings describe ABI extraction. They do not attest to deployed
-bytecode.
+The generator rejects:
 
-Build the exact release checkout, then run the generator from a current checkout
-that contains [`generate-contract-inventory.js`](../../../scripts/generate-contract-inventory.js):
+- Missing artifacts.
+- Duplicate artifacts.
+- Source hashes that do not match the requested commit or its pinned
+  submodules.
+
+Recorded compiler settings describe ABI extraction. They do not attest to
+deployed bytecode.
+
+Build the exact release checkout first. Then run the generator from a current
+checkout containing
+[`generate-contract-inventory.js`](../../../scripts/generate-contract-inventory.js):
 
 ```console
 FOUNDRY_PROFILE=default FOUNDRY_LINT_LINT_ON_BUILD=false forge build \
@@ -27,5 +33,4 @@ yarn inventory:contracts \
   --output docs/releases/inventory/<release>.json
 ```
 
-Use `--check` with the same arguments to verify an existing inventory without
-rewriting it.
+Add `--check` to verify an existing inventory without rewriting it.

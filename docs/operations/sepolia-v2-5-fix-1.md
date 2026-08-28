@@ -1,12 +1,13 @@
 # Sepolia V2.5.3 fix-1 factory replacement
 
-This ceremony deploys protocol source version `2.5.3`. It replaces the V2.5
-contracts affected by the post-release fixes.
-It runs only on Ethereum Sepolia (`11155111`).
+This ceremony deploys protocol source version `2.5.3` on Ethereum Sepolia
+(`11155111`). It replaces the V2.5 contracts affected by the post-release fixes.
 
-It does not rotate authority. The existing ArchController owner, authority
-helper, helper authorization set, SphereX engine, SphereX admin, and SphereX
-operator must remain unchanged.
+It does not rotate authority. These must remain unchanged:
+
+- ArchController owner.
+- Authority helper and its authorization set.
+- SphereX engine, admin, and operator.
 
 ## Locked boundary
 
@@ -18,13 +19,19 @@ operator must remain unchanged.
 - Ceremony digest: `0x429707c55c4f163eddc33beca3e62671598aa2a6396decb8f3f0d7bf134dd14e`
 - Call-time fingerprint: `4297-07C5-5C4F`
 
-The plan contains 12 deployments and 10 activation calls. It replaces the
-wrapper factory, both market init-code stores and hooks factories, three hook
-template stores, and four lens contracts. It reuses the borrower identity
-registry and access-list role-provider factory.
+The plan contains 12 deployments and 10 activation calls.
+
+It replaces:
+
+- The wrapper factory.
+- Both market init-code stores and hooks factories.
+- Three hook template stores.
+- Four lens contracts.
+
+It reuses the borrower identity registry and access-list role-provider factory.
 
 The activation plan registers the replacement factories and templates. It does
-not remove a factory, controller, market, authorization, or owner.
+not remove any factory, controller, market, authorization, or owner.
 
 ## Prepare
 
@@ -39,9 +46,12 @@ node scripts/sepolia-v2-5-fix-rotation.js validate
 node scripts/sepolia-v2-5-fix-rotation.js preflight --rpc-url "$RPC_URL"
 ```
 
-Confirm the generated digest and fingerprint against the locked boundary above.
-The preflight must be green and report `authority.policy` as `fixed`, with no
-pending ArchController or SphereX admin transfer.
+Confirm the generated digest and fingerprint against the locked boundary.
+Preflight must be green and report:
+
+- `authority.policy` as `fixed`.
+- No pending ArchController transfer.
+- No pending SphereX admin transfer.
 
 Rehearse the exact plan against a pinned Sepolia fork:
 
@@ -51,8 +61,11 @@ FORK_RPC_URL="$RPC_URL" \
 ```
 
 The rehearsal must pass all 22 predicates and receipt-provenance checks. Its
-post-activation report must show `authorityChanged: false`, both replacement
-factories registered, and both predecessor factories still registered.
+post-activation report must show:
+
+- `authorityChanged: false`.
+- Both replacement factories registered.
+- Both predecessor factories still registered.
 
 ## Build the executor
 
@@ -66,16 +79,23 @@ export PACKAGE="$REPO_ROOT/deployments/sepolia/ceremony-v2-5-sepolia-fix-1-eoa.j
 ```
 
 Serve `deploy-ui/dist/` locally. The embedded build has no file picker or
-editable calldata. Confirm chain `11155111`, executor, full digest, and short
-fingerprint before connecting the wallet.
+editable calldata.
+
+Before connecting the wallet, confirm:
+
+- Chain `11155111`.
+- Executor.
+- Full digest.
+- Short fingerprint.
 
 ## Execute and verify
 
-Run the preflight again immediately before execution. Stop if its authority
-snapshot differs from the reviewed baseline or if the executor nonce changes
-after the UI displays it.
+Run preflight again immediately before execution. Stop if:
 
-Execute the 22 cards in order. Stop on any failed predicate. Do not repair,
+- Its authority snapshot differs from the reviewed baseline.
+- The executor nonce changes after the UI displays it.
+
+Execute all 22 cards in order. Stop on any failed predicate. Do not repair,
 skip, or replace a card in the live package.
 
 Export the UI run state unchanged as:
@@ -84,8 +104,12 @@ Export the UI run state unchanged as:
 deployments/sepolia/run-state-v2-5-sepolia-fix-1.json
 ```
 
-Then verify receipts, calldata, deployed bindings, template configuration,
-lenses, predecessor registrations, and the unchanged authority snapshot:
+Then verify:
+
+- Receipts and calldata.
+- Deployed bindings and template configuration.
+- Lenses and predecessor registrations.
+- The unchanged authority snapshot.
 
 ```sh
 node scripts/sepolia-v2-5-fix-rotation.js verify-activation \
@@ -98,9 +122,11 @@ The command must finish green with `authorityChanged: false` and
 
 ## After activation
 
-Do not retire either predecessor in this ceremony. First deploy and exercise
-standard and revolving canary markets, publish the replacement addresses to
-downstream consumers, and reconcile the append-only deployment inventory.
+Do not retire either predecessor in this ceremony. First:
+
+1. Deploy and exercise standard and revolving canary markets.
+2. Publish replacement addresses to downstream consumers.
+3. Reconcile the append-only deployment inventory.
 
 Factory retirement is a later, separately generated package. It may remove
 only the factory and controller registrations for:

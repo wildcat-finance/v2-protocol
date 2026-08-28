@@ -1,25 +1,27 @@
 # Contributions
 
-This repository is public for transparency, integration work, independent
-review, and reuse under its license. Contributions are welcome, although most
-development is expected to remain maintainer-led.
+This repository is public so people can inspect the protocol, build
+integrations, review the code, and reuse it under its license.
 
-Core contracts are deployed immutably and handle lender funds, so substantive
-changes carry a high review burden. Discuss the approach with a maintainer
-before investing heavily. Changes should be narrowly scoped, well tested, and
-consistent with the repository's design and security requirements.
+Contributions are welcome. Most development will still be maintainer-led, and
+the review bar for core contracts is high. They are deployed immutably and
+handle lender funds.
+
+Talk through a substantial change with a maintainer before investing heavily
+in it. Keep changes narrow, test them properly, and follow the repository's
+existing design and security constraints.
 
 Report suspected vulnerabilities privately as described in
 [`SECURITY.md`](./SECURITY.md), not through a public issue or pull request.
 
-## Repository-specific Cautions
+## Things to check before changing contracts
 
-Type definitions may be accessed directly from assembly. When changing a type,
-check every assembly use of its memory layout.
+- Some type definitions are accessed directly from assembly. If you change a
+  type, check every assembly use of its memory layout.
 
-Many events and errors use custom emitter functions whose behavior depends on
-the order of parameters in their definitions. Treat parameter reordering as a
-behavioral change.
+- Many events and errors use custom emitter functions. Those functions depend
+  on the parameter order in the definition, so reordering parameters is a
+  behavioral change.
 
-Product and user documentation is maintained separately at
+Product and user documentation is maintained at
 [docs.wildcat.finance](https://docs.wildcat.finance/).
