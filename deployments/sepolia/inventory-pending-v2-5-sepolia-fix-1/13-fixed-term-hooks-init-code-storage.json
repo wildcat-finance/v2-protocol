@@ -1,0 +1,10 @@
+{
+  "recordType": "initCodeStorage",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "FixedTermHooks_initCodeStorage_v2-5-sepolia-fix-1",
+  "address": {
+    "$ref": "fixed-term-hooks-init-code-storage"
+  },
+  "initCodeHash": "0x61726411c8e1c1ae6b822c0c25ca6ed389dd3370e92e6dfd59ed188b2b68cc6e"
+}

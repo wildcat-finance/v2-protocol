@@ -20,13 +20,14 @@ readonly COLD_GATE="deployments/anvil/${RELEASE}-cold-gate.json"
 readonly REHEARSAL_ACCEPTANCE="deployments/anvil/${RELEASE}-accepted-rehearsal.json"
 readonly ANVIL_SESSION_FILE="deployments/anvil/${RELEASE}-active-session"
 readonly LIVE_SESSION_FILE="deployments/sepolia/ceremony-evidence/${RELEASE}-active-session"
+readonly PENDING_INVENTORY="deployments/sepolia/inventory-pending-${RELEASE}"
 readonly DEFAULT_SEPOLIA_RPC='https://eth-sep.hinterlight.net'
 
 stage="${1:-}"
 case "$stage" in
-  check|activation|finalize-activation|status) ;;
+  check|activation|finalize-activation|finalize-inventory|status) ;;
   *)
-    echo 'usage: sepolia-fix-1-stage.sh <check|activation|finalize-activation|status>' >&2
+    echo 'usage: sepolia-fix-1-stage.sh <check|activation|finalize-activation|finalize-inventory|status>' >&2
     exit 1
     ;;
 esac
@@ -470,6 +471,71 @@ finalize_activation() {
   fi
 }
 
+finalize_inventory() {
+  if [[ "$DEPLOYMENTS_NETWORK" != 'sepolia' ]]; then
+    echo 'Inventory finalization is only valid for the live Sepolia activation.' >&2
+    exit 1
+  fi
+  assert_clean_pushed_source
+  assert_rpc
+  local evidence_dir run_state post_activation handoff
+  evidence_dir="$(current_session)"
+  run_state="$evidence_dir/run-state.json"
+  post_activation="$evidence_dir/post-activation.json"
+  handoff="deployments/sepolia/handoff-${RELEASE}.json"
+  test -f "$run_state" || { echo "Missing verified run-state: $run_state" >&2; exit 1; }
+  test -d "$PENDING_INVENTORY" || {
+    echo "Missing release inventory records: $PENDING_INVENTORY" >&2
+    exit 1
+  }
+  jq -e \
+    --arg plan_sha256 "$(sha256_file "$LIVE_PLAN")" \
+    --arg package_digest "$(jq -er '.digest' "$LIVE_PACKAGE")" \
+    '.status == "ready" and
+     .network == "sepolia" and
+     .chainId == 11155111 and
+     .planSha256 == $plan_sha256 and
+     .packageDigest == $package_digest and
+     .transactionCount == 22' \
+    "$evidence_dir/identity.json" >/dev/null || {
+      echo 'Live evidence does not match the reviewed plan and package.' >&2
+      exit 1
+    }
+  jq -e \
+    '.status == "green" and
+     .network == "sepolia" and
+     .chainId == 11155111 and
+     .authorityChanged == false and
+     .predecessorsRemainRegistered == true and
+     .retirementExecuted == false' \
+    "$post_activation" >/dev/null || {
+      echo 'Live activation has not passed the expected postconditions.' >&2
+      exit 1
+    }
+  node scripts/factory-inventory.js apply-run \
+    --network sepolia \
+    --run-state "$run_state" \
+    --plan "$LIVE_PLAN" \
+    --pending-directory "$PENDING_INVENTORY" \
+    --rpc-url "$RPC_URL"
+  node scripts/generate-handoff.js \
+    --network sepolia \
+    --release "$RELEASE" \
+    --run-state "$run_state" \
+    --plan "$LIVE_PLAN"
+  node scripts/generate-handoff.js \
+    --network sepolia \
+    --release "$RELEASE" \
+    --run-state "$run_state" \
+    --plan "$LIVE_PLAN" \
+    --check
+  node scripts/factory-inventory.js reconcile \
+    --network sepolia \
+    --rpc-url "$RPC_URL" \
+    --handoff "$handoff"
+  echo "Sepolia inventory and handoff finalized from block $(jq -er '.blockNumber' "$post_activation")."
+}
+
 print_status() {
   assert_rpc
   local evidence_dir
@@ -488,5 +554,6 @@ case "$stage" in
   check) run_check ;;
   activation) prepare_activation ;;
   finalize-activation) finalize_activation ;;
+  finalize-inventory) finalize_inventory ;;
   status) print_status ;;
 esac

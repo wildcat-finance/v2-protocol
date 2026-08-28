@@ -82,7 +82,8 @@ function printUsage() {
   node scripts/factory-inventory.js validate-retirement-plan --network <name>
     --plan <path> [--input <path>] [--deployments <path>]
   node scripts/factory-inventory.js apply-run --network <name> --run-state <path>
-    [--plan <path>] [--rpc-url <url>] [--input <path>] [--deployments <path>]
+    [--plan <path>] [--pending-directory <path>] [--rpc-url <url>]
+    [--input <path>] [--deployments <path>]
   node scripts/factory-inventory.js apply-retirement --network <name> --run-state <path>
     [--plan <path>] [--rpc-url <url>] [--input <path>] [--deployments <path>]
 
@@ -585,7 +586,7 @@ function assertAuthorizedHelperBoundary(plan, context) {
   }
 }
 
-function assertActivationPlan(plan, network) {
+function assertActivationPlan(plan, network, options = {}) {
   if (!Array.isArray(plan.transactions) || plan.network !== network) {
     throw new Error(`Activation plan does not belong to network ${network}`);
   }
@@ -606,7 +607,7 @@ function assertActivationPlan(plan, network) {
     );
   }
 
-  const expectedTransactions = [
+  const allExpectedTransactions = [
     {
       id: "deploy-wildcat-4626-wrapper-factory",
       kind: "deploy",
@@ -714,6 +715,16 @@ function assertActivationPlan(plan, network) {
       functionSignature: "registerWithArchController()",
     },
   ];
+  const omittedDeploymentIds = new Set();
+  if (options.reuseIdentityRegistry === true) {
+    omittedDeploymentIds.add("deploy-borrower-identity-registry");
+  }
+  if (options.reuseAccessListRoleProviderFactory === true) {
+    omittedDeploymentIds.add("deploy-access-list-role-provider-factory");
+  }
+  const expectedTransactions = allExpectedTransactions.filter(
+    ({ id }) => !omittedDeploymentIds.has(id)
+  );
   const authorityHelper = authorizedHelperContext(network);
   if (plan.transactions.length !== expectedTransactions.length) {
     throw new Error(
@@ -741,12 +752,14 @@ function assertActivationPlan(plan, network) {
     {
       id: "deploy-borrower-identity-registry",
       output: "borrower-identity-registry",
+      reuseOption: "reuseIdentityRegistry",
       artifactName:
         "src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry",
     },
     {
       id: "deploy-access-list-role-provider-factory",
       output: "access-list-role-provider-factory",
+      reuseOption: "reuseAccessListRoleProviderFactory",
       artifactName:
         "src/providers/AccessListRoleProviderFactory.sol:AccessListRoleProviderFactory",
     },
@@ -755,6 +768,14 @@ function assertActivationPlan(plan, network) {
     const transaction = plan.transactions.find(
       (candidate) => candidate.id === required.id
     );
+    if (options[required.reuseOption] === true) {
+      if (transaction !== undefined) {
+        throw new Error(
+          `Activation plan deploys ${required.id} despite its reused inventory record`
+        );
+      }
+      continue;
+    }
     if (
       transaction?.kind !== "deploy" ||
       transaction.output !== required.output ||
@@ -2364,6 +2385,13 @@ function deploymentOutputsFromRunState(plan, runState) {
 
 function deploymentStateForPendingRecord(plan, runState, rawRecord, filePath) {
   if (!isRunStateReference(rawRecord.address)) {
+    const isSupportedReuse =
+      rawRecord.reused === true &&
+      rawRecord.recordType === "deployment" &&
+      (rawRecord.role === "identityRegistry" ||
+        (rawRecord.role === "roleProviderFactory" &&
+          rawRecord.providerKind === "ACCESS_LIST"));
+    if (isSupportedReuse && isAddress(rawRecord.address)) return null;
     throw new Error(`${filePath}: pending address must be a plan $ref`);
   }
   const transaction = plan.transactions.find(
@@ -2405,21 +2433,31 @@ async function runApplyRun(args) {
   const deploymentsPath =
     optionalArg(args, "deployments") ||
     path.join("deployments", network, "deployments.json");
-  const pendingDirectory = path.join(
+  const plan = readJson(planPath);
+  if (!Array.isArray(plan.transactions) || plan.network !== network) {
+    throw new Error(`Plan ${planPath} does not belong to network ${network}`);
+  }
+  const releasePendingDirectory = path.join(
+    "deployments",
+    network,
+    `inventory-pending-${plan.release}`
+  );
+  const legacyPendingDirectory = path.join(
     "deployments",
     network,
     "inventory-pending"
   );
+  const pendingDirectory =
+    optionalArg(args, "pending-directory") ||
+    (fs.existsSync(releasePendingDirectory)
+      ? releasePendingDirectory
+      : legacyPendingDirectory);
   if (!fs.existsSync(pendingDirectory)) {
     throw new Error(
       `Pending inventory directory not found: ${pendingDirectory}`
     );
   }
 
-  const plan = readJson(planPath);
-  if (!Array.isArray(plan.transactions) || plan.network !== network) {
-    throw new Error(`Plan ${planPath} does not belong to network ${network}`);
-  }
   const runState = readJson(runStatePath);
   assertVerifiedRunState(plan, runState);
   const outputs = deploymentOutputsFromRunState(plan, runState);
@@ -2432,12 +2470,53 @@ async function runApplyRun(args) {
       `No pending inventory records found in ${pendingDirectory}`
     );
   }
+  const pendingRecords = pendingFiles.map((fileName) => {
+    const filePath = path.join(pendingDirectory, fileName);
+    return { filePath, rawRecord: readJson(filePath) };
+  });
+  const reusedIdentityRecords = pendingRecords.filter(
+    ({ rawRecord }) =>
+      rawRecord.reused === true && rawRecord.role === "identityRegistry"
+  );
+  const reusedAccessListRecords = pendingRecords.filter(
+    ({ rawRecord }) =>
+      rawRecord.reused === true &&
+      rawRecord.role === "roleProviderFactory" &&
+      rawRecord.providerKind === "ACCESS_LIST"
+  );
+  if (
+    reusedIdentityRecords.length > 1 ||
+    reusedAccessListRecords.length > 1
+  ) {
+    throw new Error(
+      "Pending inventory contains duplicate reused deployment records"
+    );
+  }
 
   let inventory = assertValidInventory(readInventory(inventoryPath), {
     network,
   });
   const deployments = readJson(deploymentsPath);
-  assertActivationPlan(plan, network);
+  for (const [records, deploymentKey] of [
+    [reusedIdentityRecords, "WildcatBorrowerIdentityRegistry"],
+    [reusedAccessListRecords, "AccessListRoleProviderFactory"],
+  ]) {
+    if (
+      records.length === 1 &&
+      (!isAddress(deployments[deploymentKey]) ||
+        !isAddress(records[0].rawRecord.address) ||
+        addressKey(deployments[deploymentKey]) !==
+          addressKey(records[0].rawRecord.address))
+    ) {
+      throw new Error(
+        `Reused ${deploymentKey} does not match its current deployment alias`
+      );
+    }
+  }
+  assertActivationPlan(plan, network, {
+    reuseIdentityRegistry: reusedIdentityRecords.length === 1,
+    reuseAccessListRoleProviderFactory: reusedAccessListRecords.length === 1,
+  });
   const originalRecordCount = inventory.recordCount;
   let addedRecords = 0;
   let standardFactory = null;
@@ -2447,9 +2526,7 @@ async function runApplyRun(args) {
   let borrowerIdentityRegistry = null;
   let accessListRoleProviderFactory = null;
 
-  for (const fileName of pendingFiles) {
-    const filePath = path.join(pendingDirectory, fileName);
-    const rawRecord = readJson(filePath);
+  for (const { filePath, rawRecord } of pendingRecords) {
     if (
       rawRecord.network !== network ||
       rawRecord.chainId !== inventory.chainId
@@ -2475,6 +2552,11 @@ async function runApplyRun(args) {
     deployments[record.deploymentKey] = record.address;
 
     if (record.recordType === "hooksFactory") {
+      if (!deployState) {
+        throw new Error(
+          `${filePath}: hooks factory must be deployed by the plan`
+        );
+      }
       const registerState = runState[record.registerEntryId];
       if (
         registerState?.status !== "verified" ||
@@ -2507,6 +2589,11 @@ async function runApplyRun(args) {
     }
 
     if (record.recordType === "wrapperFactory") {
+      if (!deployState) {
+        throw new Error(
+          `${filePath}: wrapper factory must be deployed by the plan`
+        );
+      }
       const entry = {
         label: record.deploymentKey,
         address: record.address,

@@ -184,6 +184,7 @@ const EXPECTED_IDS = [
 function usage() {
   console.log(`Usage:
   node scripts/sepolia-v2-5-fix-rotation.js generate
+  node scripts/sepolia-v2-5-fix-rotation.js generate-inventory-pending
   node scripts/sepolia-v2-5-fix-rotation.js generate-rehearsal
     [--plan <path>] [--package <path>]
   node scripts/sepolia-v2-5-fix-rotation.js validate
@@ -1020,6 +1021,189 @@ function cleanGeneratedDirectory(directory) {
   }
 }
 
+function buildInventoryPendingRecords(rotation, artifacts) {
+  const deploymentKey = (name) => `${name}_${rotation.release}`;
+  const ref = (output) => ({ $ref: output });
+  const common = {
+    network: rotation.network,
+    chainId: rotation.chainId,
+  };
+  const initCodeStorage = (name, output, artifact) => ({
+    recordType: "initCodeStorage",
+    ...common,
+    deploymentKey: deploymentKey(name),
+    address: ref(output),
+    initCodeHash: keccak256(artifact.bytecode),
+  });
+  const deployment = (name, output, role) => ({
+    recordType: "deployment",
+    ...(role ? { role } : {}),
+    ...common,
+    deploymentKey: deploymentKey(name),
+    address: ref(output),
+  });
+
+  return [
+    {
+      fileName: "01-wildcat-borrower-identity-registry.json",
+      value: {
+        recordType: "deployment",
+        role: "identityRegistry",
+        ...common,
+        deploymentKey: deploymentKey("WildcatBorrowerIdentityRegistry"),
+        address: rotation.reused.borrowerIdentityRegistry,
+        reused: true,
+      },
+    },
+    {
+      fileName: "02-access-list-role-provider-factory.json",
+      value: {
+        recordType: "deployment",
+        role: "roleProviderFactory",
+        providerKind: "ACCESS_LIST",
+        ...common,
+        deploymentKey: deploymentKey("AccessListRoleProviderFactory"),
+        address: rotation.reused.accessListRoleProviderFactory,
+        reused: true,
+      },
+    },
+    {
+      fileName: "03-wildcat-market-init-code-storage.json",
+      value: initCodeStorage(
+        "WildcatMarket_initCodeStorage",
+        "wildcat-market-init-code-storage",
+        artifacts.standardMarket
+      ),
+    },
+    {
+      fileName: "04-hooks-factory-standard.json",
+      value: {
+        recordType: "hooksFactory",
+        ...common,
+        marketType: "legacy",
+        deploymentKey: deploymentKey("HooksFactory"),
+        address: ref("hooks-factory-standard"),
+        wrapperFactory: ref("wildcat-4626-wrapper-factory"),
+        borrowerIdentityRegistry: rotation.reused.borrowerIdentityRegistry,
+        initCodeStorage: ref("wildcat-market-init-code-storage"),
+        initCodeHash: keccak256(artifacts.standardMarket.bytecode),
+        registerEntryId: "register-hooks-factory-standard",
+        canonicalIntent: true,
+      },
+    },
+    {
+      fileName: "05-wildcat-market-revolving-init-code-storage.json",
+      value: initCodeStorage(
+        "WildcatMarketRevolving_initCodeStorage",
+        "wildcat-market-revolving-init-code-storage",
+        artifacts.revolvingMarket
+      ),
+    },
+    {
+      fileName: "06-hooks-factory-revolving.json",
+      value: {
+        recordType: "hooksFactory",
+        ...common,
+        marketType: "revolving",
+        deploymentKey: deploymentKey("HooksFactoryRevolving"),
+        address: ref("hooks-factory-revolving"),
+        wrapperFactory: ref("wildcat-4626-wrapper-factory"),
+        borrowerIdentityRegistry: rotation.reused.borrowerIdentityRegistry,
+        initCodeStorage: ref("wildcat-market-revolving-init-code-storage"),
+        initCodeHash: keccak256(artifacts.revolvingMarket.bytecode),
+        registerEntryId: "register-hooks-factory-revolving",
+        canonicalIntent: true,
+      },
+    },
+    {
+      fileName: "07-market-lens-core.json",
+      value: deployment("MarketLensCore", "market-lens-core", "core"),
+    },
+    {
+      fileName: "08-market-lens-aggregator.json",
+      value: deployment(
+        "MarketLensAggregator",
+        "market-lens-aggregator",
+        "aggregator"
+      ),
+    },
+    {
+      fileName: "09-market-lens-live.json",
+      value: deployment("MarketLensLive", "market-lens-live", "live"),
+    },
+    {
+      fileName: "10-market-lens.json",
+      value: deployment("MarketLens", "market-lens", "facade"),
+    },
+    {
+      fileName: "11-wildcat-4626-wrapper-factory.json",
+      value: {
+        recordType: "wrapperFactory",
+        ...common,
+        deploymentKey: deploymentKey("Wildcat4626WrapperFactory"),
+        address: ref("wildcat-4626-wrapper-factory"),
+        v1Factory: rotation.reused.v1WrapperFactory,
+        canonicalIntent: true,
+      },
+    },
+    {
+      fileName: "12-open-term-hooks-init-code-storage.json",
+      value: initCodeStorage(
+        "OpenTermHooks_initCodeStorage",
+        "open-term-hooks-init-code-storage",
+        artifacts.openTermHooks
+      ),
+    },
+    {
+      fileName: "13-fixed-term-hooks-init-code-storage.json",
+      value: initCodeStorage(
+        "FixedTermHooks_initCodeStorage",
+        "fixed-term-hooks-init-code-storage",
+        artifacts.fixedTermHooks
+      ),
+    },
+    {
+      fileName: "14-periodic-term-hooks-init-code-storage.json",
+      value: initCodeStorage(
+        "PeriodicTermHooks_initCodeStorage",
+        "periodic-term-hooks-init-code-storage",
+        artifacts.periodicTermHooks
+      ),
+    },
+  ];
+}
+
+function writeInventoryPending(rotation, artifacts) {
+  const directory = path.join(
+    REPO_ROOT,
+    "deployments/sepolia",
+    `inventory-pending-${rotation.release}`
+  );
+  cleanGeneratedDirectory(directory);
+  const records = buildInventoryPendingRecords(rotation, artifacts);
+  for (const { fileName, value } of records) {
+    writeJson(path.join(directory, fileName), value);
+  }
+  return { directory, recordCount: records.length };
+}
+
+function generateInventoryPending() {
+  const rotation = config();
+  assertContractSourceBoundary(rotation);
+  const artifacts = loadArtifacts();
+  const planPath = path.join(
+    REPO_ROOT,
+    `deployments/sepolia/plan-${rotation.release}.json`
+  );
+  assertRotationPlan(readJson(planPath), rotation, artifacts);
+  const pending = writeInventoryPending(rotation, artifacts);
+  console.log(
+    `Generated ${
+      pending.recordCount
+    } release inventory records: ${path.relative(REPO_ROOT, pending.directory)}`
+  );
+}
+
 function generate() {
   const rotation = config();
   assertContractSourceBoundary(rotation);
@@ -1071,6 +1255,7 @@ function generate() {
   );
   const plan = readJson(planPath);
   assertRotationPlan(plan, rotation, artifacts);
+  writeInventoryPending(rotation, artifacts);
   writeImpactReport(rotation, artifacts);
   writeSourcePin(rotation);
 
@@ -1948,6 +2133,8 @@ async function main() {
   }
   const args = parseArgs(argv);
   if (command === "generate") return generate();
+  if (command === "generate-inventory-pending")
+    return generateInventoryPending();
   if (command === "generate-rehearsal") return generateRehearsal(args);
   if (command === "validate") return validate();
   if (command === "preflight") return preflight(args);

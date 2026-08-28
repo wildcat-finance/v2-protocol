@@ -130,12 +130,23 @@ stage finalize-activation
 stage status
 ```
 
+- [ ] Finalize the append-only inventory and generate the downstream handoff:
+
+```sh
+stage finalize-inventory
+```
+
 The verified run-state, preflight, post-activation report, package identity, and
 operator evidence remain under the ignored
 `deployments/sepolia/ceremony-evidence/` session directory. The verified
 run-state is also copied to
 `deployments/sepolia/run-state-v2-5-sepolia-fix-1.json` for final inventory and
 downstream handoff work.
+
+`finalize-inventory` sends no transactions. It appends the replacement factory
+generations, updates canonical deployment aliases, writes the release handoff,
+and reconciles those records against Sepolia. The predecessor factories remain
+registered and indexed.
 
 Stop the preview after verification. Do not retire either predecessor factory
 in this ceremony.
