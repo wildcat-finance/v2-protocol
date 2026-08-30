@@ -4,12 +4,13 @@ pragma solidity 0.8.25;
 import './MerkleRoleProvider.sol';
 import './IMerkleRoleProviderFactory.sol';
 
-/**
- * @dev Deploys Merkle providers without retaining any authority over them.
- *      Salts are namespaced by the caller so another caller cannot consume a
- *      deployment address first.
- */
+/// @notice deterministic deployer for mutable-root Merkle providers.
+/// @dev the user salt is namespaced by `msg.sender`, so another caller can't consume the predicted
+///      address first. the provider's configured administrator owns it; this factory retains
+///      nothing.
 contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
+  /// @notice decodes `MerkleRoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(
     bytes calldata data
   ) external override returns (address provider) {
@@ -20,6 +21,7 @@ contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
+  /// @notice deploys a Merkle provider in `msg.sender`'s CREATE2 namespace.
   function createMerkleRoleProvider(
     MerkleRoleProviderFactoryInputs calldata inputs
   ) external override returns (address provider) {
@@ -45,6 +47,7 @@ contract MerkleRoleProviderFactory is IMerkleRoleProviderFactory {
     );
   }
 
+  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     MerkleRoleProviderFactoryInputs calldata inputs

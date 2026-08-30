@@ -4,12 +4,13 @@ pragma solidity 0.8.25;
 import './AccessListRoleProvider.sol';
 import './IAccessListRoleProviderFactory.sol';
 
-/**
- * @dev Deploys access-list providers without retaining any authority over them.
- *      Salts are namespaced by the caller so another caller cannot consume a
- *      deployment address first.
- */
+/// @notice deterministic deployer for reusable access-list providers.
+/// @dev the user salt is namespaced by `msg.sender`, so another caller can't consume the predicted
+///      address first. the provider's configured administrator owns it; this factory retains
+///      nothing.
 contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
+  /// @notice decodes `AccessListRoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(
     bytes calldata data
   ) external override returns (address provider) {
@@ -20,6 +21,7 @@ contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
+  /// @notice deploys an access-list provider in `msg.sender`'s CREATE2 namespace.
   function createAccessListRoleProvider(
     AccessListRoleProviderFactoryInputs calldata inputs
   ) external override returns (address provider) {
@@ -45,6 +47,7 @@ contract AccessListRoleProviderFactory is IAccessListRoleProviderFactory {
     );
   }
 
+  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     AccessListRoleProviderFactoryInputs calldata inputs

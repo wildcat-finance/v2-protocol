@@ -2,6 +2,8 @@
 pragma solidity 0.8.25;
 import { Panic_ErrorSelector, Panic_ErrorCodePointer, Panic_InvalidStorageByteArray, Error_SelectorPointer, Panic_ErrorLength } from '../libraries/Errors.sol';
 
+/// @notice transient-storage slot holding bytes in Solidity's storage encoding.
+/// @dev contents only survive the current transaction.
 type TransientBytesArray is uint256;
 
 using LibTransientBytesArray for TransientBytesArray global;
@@ -64,6 +66,7 @@ library LibTransientBytesArray {
     }
   }
 
+  /// @dev decodes the transient byte array into newly allocated memory.
   function read(TransientBytesArray transientSlot) internal view returns (bytes memory data) {
     uint256 dataPointer;
     assembly {
@@ -112,6 +115,7 @@ library LibTransientBytesArray {
     }
   }
 
+  /// @dev writes the empty-array encoding; a later call can overwrite it in the same transaction.
   function setEmpty(TransientBytesArray transientSlot) internal {
     assembly {
       tstore(transientSlot, 0)

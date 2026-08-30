@@ -5,10 +5,11 @@ import { EnumerableSet } from 'openzeppelin/contracts/utils/structs/EnumerableSe
 import './interfaces/IBorrowerIdentityRegistry.sol';
 import './interfaces/IWildcatArchController.sol';
 
-/**
- * @dev Resolves borrower accounts to registered principals. The current ArchController
- *      owner may approve factories, but account principals manage their own transfers.
- */
+/// @title Wildcat borrower identity registry
+/// @notice resolves borrower accounts to registered principals without giving the registry control
+///         over either one.
+/// @dev the current ArchController owner manages account factories. account principals manage their
+///      own two-step transfers, and those transfers do not rewrite any market.
 contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
   using EnumerableSet for EnumerableSet.AddressSet;
 

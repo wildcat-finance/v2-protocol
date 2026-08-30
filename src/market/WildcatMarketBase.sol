@@ -14,6 +14,7 @@ import '../libraries/FunctionTypeCasts.sol';
 import '../libraries/LibERC20.sol';
 import '../types/HooksConfig.sol';
 
+/// @notice shared market storage, accounting, identity, sanctions, and state-update machinery.
 contract WildcatMarketBase is
   SphereXProtectedRegisteredBase,
   ReentrancyGuard,
@@ -29,9 +30,8 @@ contract WildcatMarketBase is
   // ==================================================================== //
 
   /**
-   * @dev Return the contract version string "2.5".
-   *
-   *      Bumped from "2" for the v2.5 release: transfer and deposit scaling
+   * @notice returns the market implementation version, `2.5`.
+   * @dev bumped from "2" for the v2.5 release: transfer and deposit scaling
    *      changed from half-up to floor rounding, so v2.5 markets must be
    *      distinguishable from earlier deployments. Consumers that only check
    *      the major version read the first byte, which remains '2'.
@@ -47,6 +47,7 @@ contract WildcatMarketBase is
   }
 
   /**
+   * @notice identifies floor rounding for normalized-to-scaled transfers and deposits.
    * @dev Rounding convention for scaled amounts in transfers and deposits
    *      (`MarketState.scaleAmountDown`). Rounding-sensitive integrations,
    *      e.g. the 4626 wrapper factory, key on this rather than on version
@@ -57,21 +58,22 @@ contract WildcatMarketBase is
     return keccak256('scaleAmountDown');
   }
 
+  /// @notice installed hook address and enabled callback flags.
   HooksConfig public immutable hooks;
 
-  /// @dev Account with blacklist control, used for blocking sanctioned addresses.
+  /// @notice sanctions sentinel used for borrower/lender checks and escrow deployment.
   address public immutable sentinel;
 
-  /// @dev Factory that deployed the market. Has the ability to update the protocol fee.
+  /// @notice factory that deployed the market and can update its protocol fee.
   address public immutable factory;
 
-  /// @dev Account that receives protocol fees.
+  /// @notice immutable account that receives protocol fees.
   address public immutable feeRecipient;
 
-  /// @dev Canonical factory allowed to register this market's optional ERC-4626 wrapper.
+  /// @notice canonical factory allowed to register this market's optional ERC-4626 wrapper.
   address public immutable wrapperFactory;
 
-  /// @dev Registry that resolves borrower accounts to registered principals.
+  /// @notice registry that resolves borrower accounts to registered principals.
   address public immutable borrowerIdentityRegistry;
 
   /// @dev Reserved slots for borrower transfer and wrapper state. These are
@@ -95,19 +97,19 @@ contract WildcatMarketBase is
   /// @dev ABI-encoded size of `MarketParameters`, which has 22 static fields.
   uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2c0;
 
-  /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
+  /// @notice annual penalty rate added to lender interest during penalized delinquency, in bips.
   uint public immutable delinquencyFeeBips;
 
-  /// @dev Time after which delinquency incurs penalty fee.
+  /// @notice delinquent time before the penalty rate applies, in seconds.
   uint public immutable delinquencyGracePeriod;
 
-  /// @dev Time before withdrawal batches are processed.
+  /// @notice duration of each withdrawal batch, in seconds.
   uint public immutable withdrawalBatchDuration;
 
-  /// @dev Token decimals (same as underlying asset).
+  /// @notice market-token decimals copied from the underlying asset.
   uint8 public immutable decimals;
 
-  /// @dev Address of the underlying asset.
+  /// @notice underlying ERC-20 asset.
   address public immutable asset;
 
   bytes32 internal immutable PACKED_NAME_WORD_0;
@@ -115,6 +117,7 @@ contract WildcatMarketBase is
   bytes32 internal immutable PACKED_SYMBOL_WORD_0;
   bytes32 internal immutable PACKED_SYMBOL_WORD_1;
 
+  /// @notice returns the market-token symbol set at deployment.
   function symbol() external view returns (string memory) {
     bytes32 symbolWord0 = PACKED_SYMBOL_WORD_0;
     bytes32 symbolWord1 = PACKED_SYMBOL_WORD_1;
@@ -135,6 +138,7 @@ contract WildcatMarketBase is
     }
   }
 
+  /// @notice returns the market-token name set at deployment.
   function name() external view returns (string memory) {
     bytes32 nameWord0 = PACKED_NAME_WORD_0;
     bytes32 nameWord1 = PACKED_NAME_WORD_1;
@@ -155,7 +159,7 @@ contract WildcatMarketBase is
     }
   }
 
-  /// @dev Returns immutable arch-controller address.
+  /// @notice returns the protocol registry that authorized this market.
   function archController() external view returns (address) {
     return _archController;
   }
@@ -199,6 +203,7 @@ contract WildcatMarketBase is
   //                             Constructor                               //
   // ===================================================================== //
 
+  /// @dev allocates and fills the static `MarketParameters` block from the deploying factory.
   function _getMarketParameters() internal view returns (uint256 marketParametersPointer) {
     assembly {
       marketParametersPointer := mload(0x40)
@@ -355,6 +360,7 @@ contract WildcatMarketBase is
   //                         Borrower Transfer                             //
   // ===================================================================== //
 
+  /// @dev returns the first raw Chainalysis-flagged identity, ignoring sentinel overrides.
   function _flaggedBorrowerIdentity(
     address operationalBorrower,
     address principal
@@ -363,6 +369,7 @@ contract WildcatMarketBase is
     if (principal != operationalBorrower && _isFlaggedByChainalysis(principal)) return principal;
   }
 
+  /// @dev reverts if either borrower identity is raw-flagged by Chainalysis.
   function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
     address flaggedIdentity = _flaggedBorrowerIdentity(operationalBorrower, principal);
     if (flaggedIdentity != address(0)) {
@@ -370,6 +377,8 @@ contract WildcatMarketBase is
     }
   }
 
+  /// @dev resolves a transfer target, binds an expected principal on acceptance, rejects an exact
+  ///      identity no-op, and checks raw sanctions on both sides of the transfer.
   function _validateBorrowerTransferTarget(
     address newBorrower,
     address expectedPrincipal
@@ -456,6 +465,10 @@ contract WildcatMarketBase is
     _checkBorrowerNotSanctioned(newBorrower, newBorrowerPrincipal);
   }
 
+  /// @notice requests transfer of borrower authority to `newBorrower`.
+  /// @dev only the current borrower can call. a new request replaces any pending target. the
+  ///      identity registry pins the target's principal, and raw sanctions block either side.
+  /// @param newBorrower operational address that may later accept the transfer.
   function requestBorrowerTransfer(
     address newBorrower
   ) external onlyBorrower nonReentrant sphereXGuardExternal {
@@ -477,6 +490,7 @@ contract WildcatMarketBase is
     );
   }
 
+  /// @notice clears the pending borrower transfer without changing current authority.
   function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
     address cancelledPendingBorrower = pendingBorrower();
     if (cancelledPendingBorrower == address(0)) revert_NoPendingBorrowerTransfer();
@@ -491,6 +505,9 @@ contract WildcatMarketBase is
     );
   }
 
+  /// @notice accepts borrower authority for the pending operational address and pinned principal.
+  /// @dev only the pending borrower can call. the target is resolved and sanctions are checked
+  ///      again; a principal change since request makes the caller request a fresh transfer.
   function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
     address newBorrower = pendingBorrower();
     if (msg.sender != newBorrower) revert_NotPendingBorrower();
@@ -520,18 +537,14 @@ contract WildcatMarketBase is
   //                       Internal State Getters                          //
   // ===================================================================== //
 
-  /**
-   * @dev Retrieve an account from storage.
-   *
-   *      Reverts if account is sanctioned.
-   */
+  /// @dev loads an account and reverts if it is currently sanctioned for this borrower principal.
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
     if (_isSanctioned(accountAddress)) revert_AccountBlocked();
   }
 
   /**
-   * @dev Checks if `account` is flagged as a sanctioned entity by Chainalysis.
+   * @dev checks whether `account` is sanctioned in this market's current principal namespace.
    *      If an account is flagged mistakenly, the principal can override their
    *      status on the sentinel and allow them to interact with the market.
    */
@@ -560,58 +573,38 @@ contract WildcatMarketBase is
   //                       External State Getters                          //
   // ===================================================================== //
 
-  /**
-   * @dev Returns the amount of underlying assets the borrower is obligated
-   *      to maintain in the market to avoid delinquency.
-   */
+  /// @notice returns the current collateral obligation in underlying-asset units.
   function coverageLiquidity() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().liquidityRequired();
   }
 
-  /**
-   * @dev Returns the scale factor (in ray) used to convert scaled balances
-   *      to normalized balances.
-   */
+  /// @notice returns the current ray-scaled ratio from scaled shares to normalized tokens.
   function scaleFactor() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().scaleFactor;
   }
 
-  /**
-   * @dev Total balance in underlying asset.
-   */
+  /// @notice returns the market contract's raw underlying-asset balance.
+  /// @dev this includes reserves, protocol fees, and paid-but-unclaimed withdrawals.
   function totalAssets() public view returns (uint256) {
     return asset.balanceOf(address(this));
   }
 
-  /**
-   * @dev Returns the amount of underlying assets the borrower is allowed
-   *      to borrow.
-   *
-   *      This is the balance of underlying assets minus:
-   *      - pending (unpaid) withdrawals
-   *      - paid withdrawals
-   *      - reserve ratio times the portion of the supply not pending withdrawal
-   *      - protocol fees
-   */
+  /// @notice returns underlying assets left after the market's full collateral obligation.
   function borrowableAssets() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().borrowableAssets(totalAssets());
   }
 
-  /**
-   * @dev Returns the amount of protocol fees (in underlying asset amount)
-   *      that have accrued and are pending withdrawal.
-   */
+  /// @notice returns all accrued protocol fees, including any not currently withdrawable.
   function accruedProtocolFees() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().accruedProtocolFees;
   }
 
+  /// @notice returns normalized lender supply, unclaimed withdrawals, and protocol fees.
   function totalDebts() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts();
   }
 
-  /**
-   * @dev Returns the state of the market as of the last update.
-   */
+  /// @notice returns stored state without applying time or withdrawal-batch changes.
   function previousState() external view returns (MarketState memory) {
     MarketState memory state = _state;
 
@@ -620,11 +613,8 @@ contract WildcatMarketBase is
     }
   }
 
-  /**
-   * @dev Return the state the market would have at the current block after applying
-   *      interest and fees accrued since the last update and processing the pending
-   *      withdrawal batch if it is expired.
-   */
+  /// @notice returns the state calculable through this block without writing storage.
+  /// @dev includes accrued interest and fees plus any current-batch expiry and payment.
   function currentState() external view nonReentrantView returns (MarketState memory state) {
     state = _calculateCurrentStatePointers.asReturnsMarketState()();
     assembly {
@@ -643,26 +633,17 @@ contract WildcatMarketBase is
     (state, , ) = _calculateCurrentState.asReturnsPointers()();
   }
 
-  /**
-   * @dev Returns the scaled total supply the vaut would have at the current block
-   *      after applying interest and fees accrued since the last update and burning
-   *      market tokens for the pending withdrawal batch if it is expired.
-   */
+  /// @notice returns current scaled supply after any calculable withdrawal-batch payment.
   function scaledTotalSupply() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().scaledTotalSupply;
   }
 
-  /**
-   * @dev Returns the scaled balance of `account`
-   */
+  /// @notice returns `account`'s direct share-like balance without applying the scale factor.
   function scaledBalanceOf(address account) external view nonReentrantView returns (uint256) {
     return _accounts[account].scaledBalance;
   }
 
-  /**
-   * @dev Returns the amount of protocol fees that are currently
-   *      withdrawable by the fee recipient.
-   */
+  /// @notice returns protocol fees withdrawable after reserving paid lender claims.
   function withdrawableProtocolFees() external view nonReentrantView returns (uint128) {
     return
       _calculateCurrentStatePointers.asReturnsMarketState()().withdrawableProtocolFees(
@@ -674,8 +655,10 @@ contract WildcatMarketBase is
   //                     Internal State Handlers
   // //////////////////////////////////////////////////////////////*/
 
+  /// @dev derived market hook for quarantining a sanctioned lender's balance.
   function _blockAccount(MarketState memory state, address accountAddress) internal virtual {}
 
+  /// @dev accrues standard-market interest and fees through `timestamp` into cached state.
   function _updateScaleFactorAndFees(
     MarketState memory state,
     uint256 timestamp
@@ -688,16 +671,19 @@ contract WildcatMarketBase is
     return state.updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, timestamp);
   }
 
+  /// @dev derived-market accounting hook called before borrowed assets leave the market.
   function _onBorrow(MarketState memory state, uint256 amount) internal virtual {
     state;
     amount;
   }
 
+  /// @dev derived-market accounting hook called after repaid assets reach the market.
   function _onRepay(MarketState memory state, uint256 amount) internal virtual {
     state;
     amount;
   }
 
+  /// @dev runs derived repayment accounting and returns the post-transfer underlying balance.
   function _onRepayAndGetTotalAssets(
     MarketState memory state,
     uint256 amount
@@ -706,6 +692,7 @@ contract WildcatMarketBase is
     currentTotalAssets = totalAssets();
   }
 
+  /// @dev derived-market accounting hook after closure fully funds debt and queued withdrawals.
   function _onCloseMarket() internal virtual {}
 
   /**
@@ -1064,6 +1051,7 @@ contract WildcatMarketBase is
     }
   }
 
+  /// @dev checks the raw Chainalysis list directly and ignores borrower overrides.
   function _isFlaggedByChainalysis(address account) internal view returns (bool isFlagged) {
     address sentinelAddress = address(sentinel);
     assembly {
@@ -1079,6 +1067,7 @@ contract WildcatMarketBase is
     }
   }
 
+  /// @dev gets or deploys the lender's escrow for the current principal and underlying asset.
   function _createEscrowForUnderlyingAsset(
     address accountAddress
   ) internal returns (address escrow) {

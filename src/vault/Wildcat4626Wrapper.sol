@@ -11,51 +11,72 @@ import { MathUtils, RAY } from '../libraries/MathUtils.sol';
 import { LibERC20 } from '../libraries/LibERC20.sol';
 import { HooksConfig, LibHooksConfig } from '../types/HooksConfig.sol';
 
+/// @notice market-token surface the wrapper needs for scaled accounting and live borrower identity.
 interface IWildcatMarketToken is IERC20Metadata {
+  /// @notice packed hook address and enabled callbacks installed on the market.
   function hooks() external view returns (HooksConfig);
 
+  /// @notice current ray-scaled conversion ratio from scaled shares to normalized tokens.
   function scaleFactor() external view returns (uint256);
 
+  /// @notice direct scaled market-token balance for `account`.
   function scaledBalanceOf(address account) external view returns (uint256);
 
+  /// @notice current operational borrower.
   function borrower() external view returns (address);
 
+  /// @notice current registered borrower principal.
   function borrowerPrincipal() external view returns (address);
 
+  /// @notice normalized market deposit cap.
   function maxTotalSupply() external view returns (uint256);
 
+  /// @notice sanctions sentinel used by the market.
   function sentinel() external view returns (address);
 
+  /// @notice canonical factory allowed to register this market's wrapper.
   function wrapperFactory() external view returns (address);
 }
 
-/**
- * @title Wildcat4626Wrapper
- * @notice Wraps a debt token with an erc-4626 non-rebasing share token.
- *  Shares mirror the market's scaled balance.
- * @dev Only compatible with markets whose transfers round scaled amounts
- *      down (v2.5+). Earlier markets round half-up, which trips the
- *      SharesMismatch guards; pair wrappers with markets through
- *      Wildcat4626WrapperFactory, which enforces the market generation.
- */
+/// @title Wildcat ERC-4626 wrapper
+/// @notice turns a rebasing Wildcat market token into non-rebasing shares equal to scaled
+///         ownership.
+/// @dev conversions use the market scale factor, not `totalAssets() / totalSupply()`. execution is
+///      only compatible with markets whose transfers round scaled amounts down. pre-V2.5 markets
+///      round half-up and trip `SharesMismatch`, so wrappers must come through the generation-aware
+///      `Wildcat4626WrapperFactory`.
 contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   using LibHooksConfig for HooksConfig;
   using MathUtils for uint256;
   using LibERC20 for address;
 
+  /// @dev a required market, borrower, principal, or sentinel address is zero.
   error ZeroAddress();
+  /// @dev an asset-denominated action resolves to zero assets.
   error ZeroAssets();
+  /// @dev an asset-denominated action resolves to zero wrapper shares.
   error ZeroShares();
+  /// @dev the deposit would exceed the wrapped market's normalized supply cap.
   error CapExceeded();
+  /// @dev the market moved a different scaled amount than the wrapper expected.
   error SharesMismatch(uint256 expected, uint256 actual);
+  /// @dev the caller is not the market's current operational borrower.
   error NotMarketOwner();
+  /// @dev the requested account is currently sanctioned in the live borrower namespace.
   error SanctionedAccount(address account);
+  /// @dev the requested account is not currently sanctioned in the live borrower namespace.
   error AccountNotSanctioned(address account);
+  /// @dev the wrapper cannot quarantine its own wrapper-share balance.
   error CannotNukeWrapper();
+  /// @dev the deployer is not the wrapper factory reported by the market.
   error NotWrapperFactory();
+  /// @dev scaled market-token backing is below outstanding wrapper shares.
   error InsolventWrapper(uint256 scaledBacking, uint256 shareSupply);
 
+  /// @notice rebasing market token held as the ERC-4626 asset.
   IWildcatMarketToken public immutable wrappedMarket;
+
+  /// @notice sanctions sentinel captured from the market at deployment.
   IWildcatSanctionsSentinel public immutable sanctionsSentinel;
   IMarketTransferPolicy internal immutable _transferPolicy;
 
@@ -66,9 +87,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   /// @dev remembers which escrows this wrapper actually used to quarantine sanctioned shares.
   mapping(address escrow => bool authorized) private _authorizedEscrows;
 
-  /**
-   * @param marketAddress the wildcat market (debt token) address to wrap
-   */
+  /// @param marketAddress Wildcat market token to wrap.
+  /// @dev only the wrapper factory reported by the market can deploy this contract.
   constructor(address marketAddress) {
     if (marketAddress == address(0)) revert ZeroAddress();
 
@@ -137,8 +157,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // Events
   // -------------------------------------------------------------------------
 
+  /// @notice emitted when the operational borrower recovers an ERC-20 balance or backing surplus.
   event TokensSwept(address indexed token, address indexed to, uint256 amount);
 
+  /// @notice emitted when sanctioned wrapper shares move into their deterministic escrow.
   event SanctionedAccountSharesSentToEscrow(
     address indexed account,
     address indexed escrow,
@@ -149,55 +171,59 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // ERC4626 View Interface
   // -------------------------------------------------------------------------
 
-  /// @notice Address of the wrapped Wildcat market token.
+  /// @notice returns the wrapped Wildcat market token.
   function market() public view returns (address) {
     return address(wrappedMarket);
   }
 
-  /// @notice Current operational borrower of the wrapped market.
+  /// @notice returns the market's current operational borrower.
+  /// @dev retained as a compatibility getter; sweep authorization reads the same live value.
   function marketOwner() public view returns (address) {
     return _readMarketAddress(IWildcatMarketToken.borrower.selector);
   }
 
-  /// @notice Alias for the wrapped market so integrators can treat it as the ERC-4626 asset.
+  /// @notice returns the wrapped market as the ERC-4626 asset.
   function asset() public view override returns (address) {
     return address(wrappedMarket);
   }
 
-  /// @notice Total normalized market tokens the wrapper currently custodies.
+  /// @notice returns the normalized market-token balance currently held by the wrapper.
+  /// @dev direct market-token transfers increase this without minting shares.
   function totalAssets() public view override returns (uint256) {
     return _readMarketWord(IERC20.balanceOf.selector, address(this));
   }
 
-  /// @notice Preview how many shares a deposit of `assets` would mint (rounded down per erc4626)
+  /// @notice converts normalized `assets` to scaled shares, rounding down.
+  /// @dev this is a pure exchange-rate quote; it ignores sanctions, capacity, and transfer policy.
   function convertToShares(uint256 assets) public view override returns (uint256) {
     if (assets == 0) return 0;
     uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
     return _convertToSharesDown(assets, scaleFactor);
   }
 
-  /// @notice Preview how many assets burning `shares` yields (rounded down per ERC-4626)
+  /// @notice converts scaled `shares` to normalized assets, rounding down.
+  /// @dev this is a pure exchange-rate quote; it ignores sanctions and wrapper solvency.
   function convertToAssets(uint256 shares) public view override returns (uint256) {
     if (shares == 0) return 0;
     uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
     return _convertToAssetsDown(shares, scaleFactor);
   }
 
-  /// @notice normalized assets the wrapper can accept right now.
-  /// @dev returns 0 if sanctions, wrapper health, market capacity, rounding, or the market's
+  /// @notice returns the normalized assets the wrapper can accept for `receiver` right now.
+  /// @dev returns zero if sanctions, wrapper health, wrapper capacity, rounding, or the market's
   ///      recipient policy would make the deposit fail.
   function maxDeposit(address receiver) public view override returns (uint256) {
     (uint256 capacity, ) = _maxDepositAndScaleFactor(receiver);
     return capacity;
   }
 
-  /// @notice Shares minted for depositing `assets`, rounded down per spec.
+  /// @notice returns shares quoted for depositing `assets`, rounded down.
   function previewDeposit(uint256 assets) public view override returns (uint256) {
     return convertToShares(assets);
   }
 
-  /// @notice shares the wrapper can mint right now.
-  /// @dev reads capacity and scale together so a broken second read can't make this revert.
+  /// @notice returns shares the wrapper can mint for `receiver` right now.
+  /// @dev reads capacity and scale together. dependency failures close the limit to zero.
   function maxMint(address receiver) public view override returns (uint256) {
     (uint256 capAssets, uint256 scaleFactor) = _maxDepositAndScaleFactor(receiver);
     if (capAssets == 0) return 0;
@@ -206,15 +232,16 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return _convertToSharesDown(capAssets, scaleFactor);
   }
 
-  /// @notice Assets required to mint `shares`, rounded up (ceiling) per ERC4626
+  /// @notice returns assets required to mint `shares`, rounded up.
   function previewMint(uint256 shares) public view override returns (uint256) {
     if (shares == 0) return 0;
     uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
     return _convertToAssetsUp(shares, scaleFactor);
   }
 
-  /// @notice maximum executable normalized amount `owner_` can pull via `withdraw`.
-  /// @dev returns 0 if the owner is sanctioned or a dependency doesn't give us a usable answer.
+  /// @notice returns the largest normalized amount `owner_` can pull through `withdraw`.
+  /// @dev returns zero if sanctions, insolvency, or a dependency read closes the limit. a nonzero
+  ///      result consumes the owner's complete share balance under market floor rounding.
   function maxWithdraw(address owner_) public view override returns (uint256) {
     if (!_isLimitOperational(owner_)) return 0;
     uint256 shares = balanceOf(owner_);
@@ -227,35 +254,33 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return MathUtils.mulDivUp(shares + 1, scaleFactor, RAY) - 1;
   }
 
-  /// @notice Shares that would be burned to withdraw `assets`, rounded up (ceiling) per ERC-4626
+  /// @notice returns the ERC-4626 preview of shares for `assets`, rounded up.
   function previewWithdraw(uint256 assets) public view override returns (uint256) {
     if (assets == 0) return 0;
     uint256 scaleFactor = _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
     return _convertToSharesUp(assets, scaleFactor);
   }
 
-  /// @notice All shares `owner_` currently holds.
-  /// @dev returns 0 if the owner is sanctioned or a dependency doesn't give us a usable answer.
+  /// @notice returns all shares `owner_` can currently redeem.
+  /// @dev returns zero if sanctions, insolvency, or a dependency read closes the limit.
   function maxRedeem(address owner_) public view override returns (uint256) {
     if (!_isLimitOperational(owner_)) return 0;
     return balanceOf(owner_);
   }
 
-  /// @notice Assets returned when redeeming `shares`, rounded down per spec
+  /// @notice returns the ERC-4626 preview of assets for `shares`, rounded down.
   function previewRedeem(uint256 shares) public view override returns (uint256) {
     return convertToAssets(shares);
   }
 
-  /// @notice Returns the current exchange rate of assets per share, scaled by RAY (1e27)
-  /// @dev This is equivalent to the market's scale factor. Useful for integrators to see
-  ///      the exchange rate without needing to pick a sample share size.
+  /// @notice returns assets per share as a ray (`1e27`).
+  /// @dev exactly the market scale factor.
   function assetsPerShareRay() external view returns (uint256) {
     return _readMarketWord(IWildcatMarketToken.scaleFactor.selector);
   }
 
-  /// @notice Returns the current exchange rate of shares per asset, scaled by RAY (1e27).
-  /// @dev This is the inverse of the scale factor to see
-  ///      how many shares a given asset amount would yield.
+  /// @notice returns shares per asset as a ray (`1e27`), rounded down.
+  /// @dev the floored ray inverse of the market scale factor.
   function sharesPerAssetRay() external view returns (uint256) {
     return MathUtils.mulDiv(RAY, RAY, _readMarketWord(IWildcatMarketToken.scaleFactor.selector));
   }
@@ -281,7 +306,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   // because the market's rebasing balance view rounds independently of its
   // transfer. Reconcile against `scaledBalanceOf` deltas, not `balanceOf`.
 
-  /// @notice Pull `assets` from the caller and mint the resulting shares to `receiver`.
+  /// @notice pulls `assets` from the caller and mints the exact observed scaled increase to
+  ///         `receiver`.
+  /// @dev reverts on zero input, sanctions, insolvency, cap failure, or a scaled-balance mismatch.
+  /// @return shares nonzero scaled market tokens credited by the transfer.
   function deposit(
     uint256 assets,
     address receiver
@@ -317,7 +345,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     return shares;
   }
 
-  /// @notice Mint exactly `shares` to `receiver`, pulling the minimum required assets from caller
+  /// @notice mints exactly `shares` to `receiver` and pulls the minimum matching asset amount.
+  /// @return assets normalized market tokens pulled from the caller.
   function mint(
     uint256 shares,
     address receiver
@@ -358,8 +387,11 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     emit Deposit(msg.sender, receiver, assets, shares);
   }
 
-  /// @notice Withdraw `assets` to `receiver`, burning from `owner_` exactly the
-  ///         shares the market's floor-rounded transfer moves
+  /// @notice sends `assets` to `receiver` and burns the exact scaled amount the market transfer
+  ///         moves.
+  /// @dev delegated callers spend `owner_` allowance against the execution amount, which rounds
+  ///      down.
+  /// @return shares scaled wrapper shares burned from `owner_`.
   function withdraw(
     uint256 assets,
     address receiver,
@@ -396,9 +428,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
   }
 
-  /// @notice Redeem exactly `shares` from `owner_` and send the corresponding assets to `receiver`
-  /// @dev Rounds assets up: the smallest normalized amount whose floor-rounded
-  ///      scaling in the market's transfer moves exactly `shares`
+  /// @notice burns exactly `shares` from `owner_` and sends the matching assets to `receiver`.
+  /// @dev execution rounds assets up to the smallest normalized amount whose floor-rounded market
+  ///      transfer moves exactly `shares`. delegated callers spend the owner's allowance.
+  /// @return assets normalized market tokens sent to `receiver`.
   function redeem(
     uint256 shares,
     address receiver,
@@ -436,9 +469,10 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     emit Withdraw(msg.sender, receiver, owner_, assets, shares);
   }
 
-  /// @notice Quarantine a sanctioned holder's direct market position and wrapper shares.
-  /// @dev The optional wrapper coordinates into the already-deployed market and forwards any
-  ///      trailing hook data, so the market never depends on wrapper deployment.
+  /// @notice quarantines a sanctioned holder's direct market position and wrapper shares.
+  /// @dev anyone can call this. the wrapper forwards the complete calldata, including trailing hook
+  ///      data, to the market before moving all wrapper shares to their deterministic escrow.
+  /// @param account sanctioned holder to quarantine.
   function nukeFromOrbit(address account) external nonReentrant {
     if (account == address(this)) revert CannotNukeWrapper();
     if (!_isSanctioned(account)) revert AccountNotSanctioned(account);
@@ -466,8 +500,12 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     emit SanctionedAccountSharesSentToEscrow(account, escrow, shares);
   }
 
-  /// @notice Sweep arbitrary ERC20 balances and any stranded wrapped market tokens.
-  /// @dev For wrapped market sweeps, only the surplus over total supply is sweepable.
+  /// @notice sweeps an ERC-20 balance to `to` for the market's current operational borrower.
+  /// @dev other tokens sweep in full. the market token only sweeps scaled backing above share
+  ///      supply and verifies that exact surplus moved. `to` must not be sanctioned.
+  /// @param token ERC-20 to recover. use the market token to recover only scaled backing surplus.
+  /// @param to recipient of the recovered tokens.
+  /// @return amount token units sent to `to`.
   function sweep(address token, address to) external nonReentrant returns (uint256 amount) {
     if (msg.sender != _readMarketAddress(IWildcatMarketToken.borrower.selector)) {
       revert NotMarketOwner();
@@ -936,6 +974,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     }
   }
 
+  /// @dev enforces solvency and sanctions on share moves. a sanctioned holder may only move to its
+  ///      deterministic escrow; an authorized escrow may release back under its original principal.
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
     address principal = _readMarketAddress(IWildcatMarketToken.borrowerPrincipal.selector);
     bool fromIsSanctioned = _isSanctioned(from, principal);

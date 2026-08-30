@@ -6,6 +6,8 @@ import '../types/RoleProvider.sol';
 
 using RoleProviderDataLib for RoleProviderData global;
 
+/// @notice decoded role-provider configuration with optional administration metadata.
+/// @dev `isManaged` is true only when both administrator probes return canonical addresses.
 struct RoleProviderData {
   uint32 timeToLive;
   address providerAddress;
@@ -16,6 +18,7 @@ struct RoleProviderData {
   address pendingAdministrator;
 }
 
+/// @notice decoders and bounded metadata probes for packed role providers.
 library RoleProviderDataLib {
   function _tryReadAddress(
     address target,
@@ -37,6 +40,7 @@ library RoleProviderDataLib {
     value = address(uint160(word));
   }
 
+  /// @notice decodes a packed provider and probes the optional managed-provider interface.
   function fill(RoleProviderData memory data, RoleProvider provider) internal view {
     (
       data.timeToLive,
@@ -62,6 +66,7 @@ library RoleProviderDataLib {
     }
   }
 
+  /// @notice decodes each packed provider while preserving input order.
   function toRoleProviderDatas(
     RoleProvider[] memory providers
   ) internal view returns (RoleProviderData[] memory data) {

@@ -4,46 +4,52 @@ pragma solidity 0.8.25;
 import './IHooksFactory.sol';
 import './interfaces/WildcatStructsAndEnums.sol';
 
+/// @title Wildcat revolving hooks factory
+/// @notice standard hooks-template and instance registry with revolving-market deployment data.
+/// @dev `marketData` belongs to the factory, not the hooks instance. the current encoding is
+///      `abi.encode(uint8(1), uint16 commitmentFeeBips)`.
 interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
+  /// @dev `marketData` does not have the expected static encoding length.
   error InvalidMarketData();
+  /// @dev `marketData` uses a version this factory does not understand.
   error UnsupportedMarketDataVersion();
+  /// @dev the commitment fee exceeds 10,000 bips.
   error InvalidCommitmentFeeBips();
 
+  /// @notice emitted with the fixed commitment fee captured by a new revolving market.
   event RevolvingMarketDeployed(address indexed market, uint256 commitmentFeeBips);
 
+  /// @notice ArchController that authorizes this factory and receives market registrations.
   function archController() external view returns (address);
 
+  /// @notice sanctions sentinel written into newly deployed markets.
   function sanctionsSentinel() external view returns (address);
 
+  /// @notice wrapper factory written into newly deployed markets.
   function wrapperFactory() external view returns (address);
 
+  /// @notice registry used to resolve callers to registered borrower principals.
   function borrowerIdentityRegistry() external view returns (address);
 
+  /// @notice contract holding the revolving-market creation code.
   function marketInitCodeStorage() external view returns (address);
 
+  /// @notice hash of the revolving-market initcode held by `marketInitCodeStorage`.
   function marketInitCodeHash() external view returns (uint256);
 
-  /// @dev Set-up function to register the factory as a controller with the arch-controller.
-  ///      This enables the factory to register new markets.
+  /// @notice registers this factory as an ArchController controller.
+  /// @dev permissionless to trigger once this contract is an approved controller factory.
   function registerWithArchController() external;
 
+  /// @notice stable factory name used by discovery tooling.
   function name() external view returns (string memory);
 
   // ========================================================================== //
   //                               Hooks Templates                              //
   // ========================================================================== //
 
-  /// @dev Add a hooks template that stores the initcode for the template.
-  ///
-  ///      On success:
-  ///      - Emits `HooksTemplateAdded` on success.
-  ///      - Adds the template to the list of templates.
-  ///      - Creates `HooksTemplate` struct with the given parameters mapped to the template address.
-  ///
-  ///      Reverts if:
-  ///      - The caller is not the owner of the arch-controller.
-  ///      - The template already exists.
-  ///      - The fee settings are invalid.
+  /// @notice registers a hooks template and its fee configuration.
+  /// @dev only the ArchController owner can call this.
   function addHooksTemplate(
     address hooksTemplate,
     string calldata name,
@@ -53,16 +59,9 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev Update the fees for a hooks template.
-  ///
-  ///      On success:
-  ///      - Emits `HooksTemplateFeesUpdated` on success.
-  ///      - Updates the fees for the `HooksTemplate` struct mapped to the template address.
-  ///
-  ///      Reverts if:
-  ///      - The caller is not the owner of the arch-controller.
-  ///      - The template does not exist.
-  ///      - The fee settings are invalid.
+  /// @notice updates the fees used by future markets for `hooksTemplate`.
+  /// @dev only the ArchController owner can call this. existing market protocol fees change only
+  ///      after a fee-push call.
   function updateHooksTemplateFees(
     address hooksTemplate,
     address feeRecipient,
@@ -71,152 +70,132 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint16 protocolFeeBips
   ) external;
 
-  /// @dev disables this template for new hook instances. existing instances can still
-  ///      deploy markets; disabling a template isn't a kill switch for immutable hooks.
-  ///
-  ///      On success:
-  ///      - Emits `HooksTemplateDisabled` on success.
-  ///      - Disables the `HooksTemplate` struct mapped to the template address.
-  ///
-  ///      Reverts if:
-  ///      - The caller is not the owner of the arch-controller.
-  ///      - The template does not exist.
+  /// @notice disables new instance deployments from `hooksTemplate`.
+  /// @dev only the ArchController owner can call this. existing instances may still deploy markets;
+  ///      there is no re-enable path.
   function disableHooksTemplate(address hooksTemplate) external;
 
-  /// @dev Get the name and fee configuration for an approved hooks template.
+  /// @notice returns the factory metadata for `hooksTemplate`.
   function getHooksTemplateDetails(
     address hooksTemplate
   ) external view returns (HooksTemplate memory);
 
-  /// @dev Check if a hooks template is approved.
+  /// @notice returns whether `hooksTemplate` was registered, including if it is disabled.
   function isHooksTemplate(address hooksTemplate) external view returns (bool);
 
-  /// @dev Get the list of approved hooks templates.
+  /// @notice returns all registered hooks templates in insertion order.
   function getHooksTemplates() external view returns (address[] memory);
 
+  /// @notice returns templates in `[start, min(end, count))`.
   function getHooksTemplates(
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr);
 
+  /// @notice returns the number of registered hooks templates.
   function getHooksTemplatesCount() external view returns (uint256);
 
+  /// @notice returns every market deployed from any instance of `hooksTemplate`.
   function getMarketsForHooksTemplate(
     address hooksTemplate
   ) external view returns (address[] memory);
 
+  /// @notice returns template markets in `[start, min(end, count))`.
   function getMarketsForHooksTemplate(
     address hooksTemplate,
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr);
 
+  /// @notice returns the number of markets deployed from `hooksTemplate`.
   function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256);
 
   // ========================================================================== //
   //                               Hooks Instances                              //
   // ========================================================================== //
 
-  /// @dev Deploy a hooks instance for an approved template with constructor args.
-  ///
-  ///      On success:
-  ///      - Emits `HooksInstanceDeployed`.
-  ///      - Deploys a new hooks instance with the given templates and constructor args.
-  ///      - Maps the hooks instance to the template address.
-  ///
-  ///      Reverts if:
-  ///      - The caller does not resolve to a registered principal.
-  ///      - The template does not exist.
-  ///      - The template is not enabled.
-  ///      - The deployment fails.
+  /// @notice deploys a hooks instance administered by the caller's resolved principal.
+  /// @dev this does not charge an origination fee.
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
   ) external returns (address hooksDeployment);
 
+  /// @notice returns the administrator tracked by the factory for `hooks`.
   function getHooksAdministrator(address hooks) external view returns (address);
 
+  /// @notice next CREATE2 deployment nonce for `administrator`.
   function getHooksInstanceDeploymentNonce(address administrator) external view returns (uint256);
 
+  /// @notice returns every hooks instance currently indexed to `administrator`.
   function getHooksInstancesForAdministrator(
     address administrator
   ) external view returns (address[] memory);
 
+  /// @notice returns administrator instances in `[start, min(end, count))`.
   function getHooksInstancesForAdministrator(
     address administrator,
     uint256 start,
     uint256 end
   ) external view returns (address[] memory);
 
+  /// @notice returns the number of hooks instances indexed to `administrator`.
   function getHooksInstancesCountForAdministrator(
     address administrator
   ) external view returns (uint256);
 
-  /// @dev Compatibility alias for `getHooksInstancesForAdministrator`.
+  /// @notice compatibility alias for `getHooksInstancesForAdministrator`.
   function getHooksInstancesForBorrower(address borrower) external view returns (address[] memory);
 
-  /// @dev Compatibility alias for `getHooksInstancesCountForAdministrator`.
+  /// @notice compatibility alias for `getHooksInstancesCountForAdministrator`.
   function getHooksInstancesCountForBorrower(address borrower) external view returns (uint256);
 
-  /// @dev Called by a hooks instance after accepting a two-step administrator transfer.
+  /// @notice updates the factory index after a hooks instance accepts an administrator transfer.
+  /// @dev only the hooks instance itself can make a valid call.
   function onHooksAdministratorTransferred(
     address previousAdministrator,
     address newAdministrator
   ) external;
 
-  /// @dev Check if a hooks instance was deployed by the factory.
+  /// @notice returns whether `hooks` was deployed by this factory.
   function isHooksInstance(address hooks) external view returns (bool);
 
-  /// @dev Get the template that was used to deploy a hooks instance.
+  /// @notice returns the template used to deploy `hooks`, or zero if it is unknown.
   function getHooksTemplateForInstance(address hooks) external view returns (address);
 
   // ========================================================================== //
   //                                   Markets                                  //
   // ========================================================================== //
 
+  /// @notice returns every market attached to `hooksInstance`.
   function getMarketsForHooksInstance(
     address hooksInstance
   ) external view returns (address[] memory);
 
+  /// @notice returns instance markets in `[start, min(end, count))`.
   function getMarketsForHooksInstance(
     address hooksInstance,
     uint256 start,
     uint256 end
   ) external view returns (address[] memory arr);
 
+  /// @notice returns the number of markets attached to `hooksInstance`.
   function getMarketsForHooksInstanceCount(address hooksInstance) external view returns (uint256);
 
-  /// @dev Get the temporarily stored market parameters for a market that is
-  ///      currently being deployed.
+  /// @notice returns constructor parameters for the market currently being deployed.
+  /// @dev only valid during the market constructor call. outside deployment, decoding the empty
+  ///      transient parameter array reverts.
   function getMarketParameters() external view returns (MarketParameters memory parameters);
 
-  /// @dev Temporary deployment data read by `WildcatMarketRevolving` constructor.
-  ///      Only valid during market deployment.
+  /// @notice commitment fee for the revolving market currently being constructed.
+  /// @dev only valid during market deployment; it reverts after transient state is cleared.
   function getRevolvingMarketCommitmentFeeBips() external view returns (uint16);
 
-  /// @dev Deploy a revolving market with an existing hooks deployment (in `parameters.hooks`)
-  ///      The caller becomes the market borrower. Its resolved principal is supplied
-  ///      to the hook and stored on the market.
-  ///
-  ///      `hooksData` is hook-owned data forwarded unchanged to hooks callbacks.
-  ///      `marketData` is factory-owned data decoded by this factory.
-  ///      Current expected shape: `abi.encode(uint8 version, uint16 commitmentFeeBips)`.
-  ///
-  ///      On success:
-  ///      - Pays the origination fee (if applicable).
-  ///      - Calls `onCreateMarket` on the hooks contract.
-  ///      - Deploys a new market with the given parameters.
-  ///      - Emits `MarketDeployed`.
-  ///
-  ///      Reverts if:
-  ///      - The caller does not resolve to a registered principal.
-  ///      - The hooks instance does not exist.
-  ///      - `marketData` is malformed or specifies an invalid commitment fee.
-  ///      - Payment of origination fee fails.
-  ///      - The deployment fails.
-  ///      - The call to `onCreateMarket` fails.
-  ///      - `originationFeeAsset` does not match the hook template's
-  ///      - `originationFeeAmount` does not match the hook template's
+  /// @notice deploys a revolving market using the existing instance in `parameters.hooks`.
+  /// @dev the caller becomes the operational borrower. its resolved principal is passed to the
+  ///      hooks and market, fee arguments must match the template, and `salt` binds to the caller.
+  /// @param hooksData opaque data forwarded to the hooks instance.
+  /// @param marketData `abi.encode(uint8 version, uint16 commitmentFeeBips)`; current version is 1.
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
@@ -226,11 +205,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market);
 
-  /// @dev Deploy a principal-administered hooks instance, then deploy a new
-  ///      revolving market owned by the calling principal or registered account.
-  ///      Will call `onCreateMarket` on the newly deployed hooks instance,
-  ///      which replaces the hooks address in `parameters.hooks`.
-  ///      `marketData` uses the same encoding as `deployMarket`.
+  /// @notice deploys a principal-administered hooks instance and a revolving market using it.
+  /// @dev both deployments are atomic. `marketData` uses the same encoding as `deployMarket`.
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksConstructorArgs,
@@ -242,17 +218,21 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
     uint256 originationFeeAmount
   ) external returns (address market, address hooks);
 
-  /// @dev returns the CREATE2 market address for `salt` and this factory's init code.
-  ///      the first 20 bytes name the non-zero deployer, and deployment requires that
-  ///      address to call the factory. for borrower accounts, use the account contract,
-  ///      not its principal.
+  /// @notice returns the CREATE2 market address for `salt` and this factory's initcode.
+  /// @dev the first 20 bytes must name the nonzero caller. borrower accounts use the account
+  ///      address here, not the resolved principal.
   function computeMarketAddress(bytes32 salt) external view returns (address);
 
+  /// @notice pushes a template's current protocol fee to markets in an index range.
+  /// @dev permissionless. `marketEndIndex` is clamped to the market count; after that, equal bounds
+  ///      are a no-op and `marketStartIndex > marketEndIndex` reverts.
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
     uint marketStartIndex,
     uint marketEndIndex
   ) external;
 
+  /// @notice pushes a template's current protocol fee to all of its markets.
+  /// @dev permissionless. one market failure reverts the whole call.
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external;
 }

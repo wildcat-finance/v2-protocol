@@ -4,17 +4,22 @@ pragma solidity 0.8.25;
 import '../access/IHooks.sol';
 import '../libraries/MarketState.sol';
 
+/// @notice packed hook address and enabled market-callback flags.
+/// @dev the address occupies the high 160 bits. callback flags sit below it.
 type HooksConfig is uint256;
 
+// zero address with every callback disabled.
 HooksConfig constant EmptyHooksConfig = HooksConfig.wrap(0);
 
 using LibHooksConfig for HooksConfig global;
 using LibHooksConfig for HooksDeploymentConfig global;
 
-// Type that contains only the flags for a specific hooks contract, with one
-// set of flags for optional hooks and one set of flags for required hooks.
+/// @notice optional and required callback masks advertised by a hooks template.
+/// @dev optional flags occupy the low 16 bits and required flags occupy the next 16.
 type HooksDeploymentConfig is uint256;
 
+/// @notice packs optional and required callback masks for a hooks template.
+/// @dev ignores the address and any bits outside the callback range in each input.
 function encodeHooksDeploymentConfig(
   HooksConfig optionalFlags,
   HooksConfig requiredFlags
@@ -45,6 +50,9 @@ uint256 constant Bit_Enabled_ExecutePendingAnnualInterestBipsReduction = 84;
 
 uint256 constant MarketStateSize = 0x01c0;
 
+/// @notice packs a hook address and the callback flags accepted by this legacy-shaped helper.
+/// @dev the periodic APR execution flag isn't an argument here and remains disabled unless set
+///      separately.
 function encodeHooksConfig(
   address hooksAddress,
   bool useOnDeposit,
@@ -105,6 +113,7 @@ library LibHooksConfig {
     }
   }
 
+  /// @dev returns `hooks` with its address replaced and every flag left alone.
   function setHooksAddress(
     HooksConfig hooks,
     address _hooksAddress
@@ -148,6 +157,8 @@ library LibHooksConfig {
     }
   }
 
+  /// @dev keeps requested flags that are optional, enables every required flag, and preserves the
+  ///      address from `config`.
   function mergeFlags(
     HooksConfig config,
     HooksDeploymentConfig flags
@@ -167,12 +178,14 @@ library LibHooksConfig {
     }
   }
 
+  /// @dev extracts optional callback flags into their `HooksConfig` bit positions.
   function optionalFlags(HooksDeploymentConfig flags) internal pure returns (HooksConfig config) {
     assembly {
       config := shl(0x50, and(flags, 0xffff))
     }
   }
 
+  /// @dev extracts required callback flags into their `HooksConfig` bit positions.
   function requiredFlags(HooksDeploymentConfig flags) internal pure returns (HooksConfig config) {
     assembly {
       config := shl(0x40, and(flags, 0xffff0000))
@@ -183,12 +196,14 @@ library LibHooksConfig {
   //                              Parameter Readers                             //
   // ========================================================================== //
 
+  /// @dev reads the flag at `bitsAfter`; callers must supply a valid callback offset.
   function readFlag(HooksConfig hooks, uint256 bitsAfter) internal pure returns (bool flagged) {
     assembly {
       flagged := and(shr(bitsAfter, hooks), 1)
     }
   }
 
+  /// @dev returns `hooks` with the flag at `bitsAfter` enabled.
   function setFlag(
     HooksConfig hooks,
     uint256 bitsAfter
@@ -198,6 +213,7 @@ library LibHooksConfig {
     }
   }
 
+  /// @dev returns `hooks` with the flag at `bitsAfter` disabled.
   function clearFlag(
     HooksConfig hooks,
     uint256 bitsAfter
@@ -291,6 +307,7 @@ library LibHooksConfig {
   uint256 internal constant DepositHook_ExtraData_Length_Offset = 0x0220;
   uint256 internal constant DepositHook_ExtraData_TailOffset = 0x0240;
 
+  /// @dev calls `onDeposit` when enabled and forwards bytes appended after the deposit arguments.
   function onDeposit(
     HooksConfig self,
     address lender,
@@ -348,6 +365,7 @@ library LibHooksConfig {
   uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset = 0x0240;
   uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset = 0x0260;
 
+  /// @dev calls `onQueueWithdrawal` when enabled and forwards trailing `extraData` unchanged.
   function onQueueWithdrawal(
     HooksConfig self,
     address lender,
@@ -409,6 +427,7 @@ library LibHooksConfig {
   uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0240;
   uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0260;
 
+  /// @dev calls `onExecuteWithdrawal` when enabled and forwards trailing `extraData` unchanged.
   function onExecuteWithdrawal(
     HooksConfig self,
     address lender,
@@ -474,6 +493,7 @@ library LibHooksConfig {
   uint256 internal constant TransferHook_ExtraData_Length_Offset = 0x0260;
   uint256 internal constant TransferHook_ExtraData_TailOffset = 0x0280;
 
+  /// @dev calls `onTransfer` when enabled and reports the original market caller to the hook.
   function onTransfer(
     HooksConfig self,
     address from,
@@ -536,6 +556,7 @@ library LibHooksConfig {
   uint256 internal constant BorrowHook_ExtraData_Length_Offset = 0x0200;
   uint256 internal constant BorrowHook_ExtraData_TailOffset = 0x0220;
 
+  /// @dev calls `onBorrow` when enabled and forwards bytes appended after the borrow amount.
   function onBorrow(HooksConfig self, uint256 normalizedAmount, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onBorrowSelector = uint32(IHooks.onBorrow.selector);
@@ -584,6 +605,7 @@ library LibHooksConfig {
   uint256 internal constant RepayHook_ExtraData_Length_Offset = 0x0200;
   uint256 internal constant RepayHook_ExtraData_TailOffset = 0x0220;
 
+  /// @dev calls `onRepay` when enabled and forwards trailing `extraData` unchanged.
   function onRepay(
     HooksConfig self,
     uint256 normalizedAmount,
@@ -636,6 +658,7 @@ library LibHooksConfig {
   uint256 internal constant CloseMarketHook_ExtraData_Length_Offset = 0x01e0;
   uint256 internal constant CloseMarketHook_ExtraData_TailOffset = 0x0200;
 
+  /// @dev calls `onCloseMarket` when enabled and forwards trailing `extraData` unchanged.
   function onCloseMarket(HooksConfig self, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onCloseMarketSelector = uint32(IHooks.onCloseMarket.selector);
@@ -683,6 +706,7 @@ library LibHooksConfig {
   uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Length_Offset = 0x0200;
   uint256 internal constant SetMaxTotalSupplyHook_ExtraData_TailOffset = 0x0220;
 
+  /// @dev calls `onSetMaxTotalSupply` when enabled; the hook may accept or revert, not rewrite it.
   function onSetMaxTotalSupply(
     HooksConfig self,
     uint256 maxTotalSupply,
@@ -738,6 +762,8 @@ library LibHooksConfig {
     0x0220;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset = 0x0240;
 
+  /// @dev calls the term-change hook when enabled and returns its final APR and reserve ratio.
+  ///      returns the caller's values unchanged when the hook is disabled.
   function onSetAnnualInterestAndReserveRatioBips(
     HooksConfig self,
     uint16 annualInterestBips,
@@ -819,6 +845,7 @@ library LibHooksConfig {
   uint256 internal constant SetProtocolFeeBips_ExtraData_Length_Offset = 0x0200;
   uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset = 0x0220;
 
+  /// @dev calls `onSetProtocolFeeBips` when enabled and bubbles any hook revert.
   function onSetProtocolFeeBips(
     HooksConfig self,
     uint protocolFeeBips,
@@ -872,6 +899,7 @@ library LibHooksConfig {
   uint256 internal constant NukeFromOrbit_ExtraData_Length_Offset = 0x0200;
   uint256 internal constant NukeFromOrbit_ExtraData_TailOffset = 0x0220;
 
+  /// @dev calls `onNukeFromOrbit` before the market quarantines a sanctioned lender.
   function onNukeFromOrbit(HooksConfig self, address lender, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onNukeFromOrbitSelector = uint32(IHooks.onNukeFromOrbit.selector);

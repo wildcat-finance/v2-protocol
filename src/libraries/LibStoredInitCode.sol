@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+/// @notice deploys and reuses large creation bytecode through inert code-storage contracts.
 library LibStoredInitCode {
+  /// @notice deploying the inert init-code storage contract failed.
   error InitCodeDeploymentFailed();
+
+  /// @notice CREATE or CREATE2 using stored init code failed.
   error DeploymentFailed();
 
+  /// @notice deploys `data` as inert runtime code and returns its storage contract.
+  /// @dev runtime code is `STOP || data`; deployment helpers skip the leading byte.
   function deployInitCode(bytes memory data) internal returns (address initCodeStorage) {
     assembly {
       let size := mload(data)
@@ -58,6 +64,8 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev calculates the CREATE2 address from a prefix returned by `getCreate2Prefix`, `salt`,
+  ///      and the full init-code hash.
   function calculateCreate2Address(
     uint256 create2Prefix,
     bytes32 salt,
@@ -84,10 +92,12 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev deploys stored init code with CREATE and no ETH.
   function createWithStoredInitCode(address initCodeStorage) internal returns (address deployment) {
     deployment = createWithStoredInitCode(initCodeStorage, 0);
   }
 
+  /// @dev deploys stored init code with CREATE and forwards `value` wei.
   function createWithStoredInitCode(
     address initCodeStorage,
     uint256 value
@@ -105,6 +115,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev deploys stored init code with CREATE2, `salt`, and no ETH.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt
@@ -112,6 +123,7 @@ library LibStoredInitCode {
     deployment = create2WithStoredInitCode(initCodeStorage, salt, 0);
   }
 
+  /// @dev deploys stored init code with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt,
@@ -130,6 +142,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev appends memory `constructorArgs`, then deploys with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt,
@@ -153,6 +166,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev appends memory `constructorArgs`, then deploys with CREATE2 and no ETH.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt,
@@ -161,6 +175,7 @@ library LibStoredInitCode {
     return create2WithStoredInitCode(initCodeStorage, salt, 0, constructorArgs);
   }
 
+  /// @dev appends calldata `constructorArgs`, then deploys with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCodeCD(
     address initCodeStorage,
     bytes32 salt,
@@ -184,6 +199,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev appends calldata `constructorArgs`, then deploys with CREATE2 and no ETH.
   function create2WithStoredInitCodeCD(
     address initCodeStorage,
     bytes32 salt,

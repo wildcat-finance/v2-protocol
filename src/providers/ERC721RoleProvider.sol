@@ -7,8 +7,10 @@ import { IERC165SupportsInterface, IERC721BalanceOf } from './TokenInterfaces.so
 
 using SafeCastLib for uint256;
 
-/// @notice Grants credentials while an account holds a token from an ERC721 collection.
-/// @dev Deploy with `skipInterfaceCheck` for collections that do not implement ERC165.
+/// @notice grants credentials while an account holds any token from one ERC721 collection.
+/// @dev the collection is immutable and no specific token ID is required. `skipInterfaceCheck`
+///      skips deployment-time ERC165 and ERC721 checks; it can't repair an incompatible
+///      `balanceOf`.
 contract ERC721RoleProvider is IERC721RoleProvider {
   bool public constant override isPullProvider = true;
 
@@ -18,6 +20,8 @@ contract ERC721RoleProvider is IERC721RoleProvider {
 
   address public immutable override token;
 
+  /// @param token_ collection queried for balances.
+  /// @param skipInterfaceCheck whether to skip ERC165 and ERC721 checks during deployment.
   constructor(address token_, bool skipInterfaceCheck) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
     if (
@@ -33,6 +37,7 @@ contract ERC721RoleProvider is IERC721RoleProvider {
     return _credentialTimestamp(account);
   }
 
+  /// @notice runs the live collection-balance check for `account`; caller data is ignored.
   function validateCredential(
     address account,
     bytes calldata

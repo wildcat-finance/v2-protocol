@@ -8,6 +8,8 @@ import { HookedMarket as FixedTermHookedMarket, FixedTermHooks } from '../access
 import { HookedMarket as PeriodicTermHookedMarket, PeriodicTermHooks } from '../access/PeriodicTermHooks.sol';
 import { WildcatMarket } from '../market/WildcatMarket.sol';
 
+/// @notice hook families the lens knows how to decode beyond their common interface.
+/// @dev `Unknown` can still be a valid hooks implementation; it just gets no family-specific data.
 enum HooksInstanceKind {
   Unknown,
   OpenTerm,
@@ -19,6 +21,7 @@ using HooksConfigDataLib for HooksConfigData global;
 using HooksConfigDataLib for HooksDeploymentFlags global;
 using HooksConfigDataLib for MarketHooksData global;
 
+/// @notice expanded callback flags from a packed `HooksConfig`.
 struct HooksConfigData {
   bool useOnDeposit;
   bool useOnQueueWithdrawal;
@@ -34,11 +37,14 @@ struct HooksConfigData {
   bool useOnExecutePendingAnnualInterestBipsReduction;
 }
 
+/// @notice optional and required callbacks advertised by a hooks instance.
 struct HooksDeploymentFlags {
   HooksConfigData optional;
   HooksConfigData required;
 }
 
+/// @notice callback flags and supported family-specific configuration for one market.
+/// @dev fields that do not belong to the detected hook family stay at their zero value.
 struct MarketHooksData {
   address hooksAddress;
   HooksConfigData flags;
@@ -60,6 +66,7 @@ struct MarketHooksData {
   bool periodicTermClosed;
 }
 
+/// @notice decodes packed hook flags and supported family-specific market settings.
 library HooksConfigDataLib {
   using HooksConfigDataLib for *;
 
@@ -74,10 +81,13 @@ library HooksConfigDataLib {
     return HooksInstanceKind.Unknown;
   }
 
+  /// @notice classifies a hooks version string without making an external call.
   function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
     return _kindForVersionHash(keccak256(bytes(version)));
   }
 
+  /// @notice reads `version()` and classifies a hooks instance.
+  /// @dev a failed or malformed required response reverts. unknown valid strings return `Unknown`.
   function kindForHooks(address hooksAddress) internal view returns (HooksInstanceKind) {
     // every known hooks version fits in one word. longer names are still valid, but they can go
     // straight to Unknown without making us copy and hash the whole string.
@@ -129,6 +139,8 @@ library HooksConfigDataLib {
     return _kindForVersionHash(versionHash);
   }
 
+  /// @notice fills callback flags and supported typed configuration for `marketAddress`.
+  /// @dev family-specific getters are strict once `version()` identifies a known implementation.
   function fill(MarketHooksData memory data, address marketAddress) internal view {
     WildcatMarket market = WildcatMarket(marketAddress);
     HooksConfig encodedHooksConfig = market.hooks();
@@ -169,6 +181,7 @@ library HooksConfigDataLib {
     }
   }
 
+  /// @notice expands the callback flags packed into `hooksConfig`.
   function fill(HooksConfigData memory data, HooksConfig hooksConfig) internal pure {
     data.useOnDeposit = hooksConfig.useOnDeposit();
     data.useOnQueueWithdrawal = hooksConfig.useOnQueueWithdrawal();
@@ -186,6 +199,7 @@ library HooksConfigDataLib {
       .useOnExecutePendingAnnualInterestBipsReduction();
   }
 
+  /// @notice expands the optional and required callback flags in `config`.
   function fill(HooksDeploymentFlags memory data, HooksDeploymentConfig config) internal pure {
     data.optional.fill(config.optionalFlags());
     data.required.fill(config.requiredFlags());
