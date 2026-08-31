@@ -52,6 +52,31 @@ contract MarketStateTest is TestKernel {
     assertEq(state.$maxScaledSettleableAmount(type(uint104).max - 1), type(uint104).max - 1);
   }
 
+  function test_maxScaledSettleableAmount_IsMaximal(
+    uint112 scaleFactor,
+    uint256 availableLiquidity
+  ) external pure {
+    scaleFactor = uint112(bound(scaleFactor, RAY, type(uint112).max));
+    MarketState memory state;
+    state.scaleFactor = scaleFactor;
+
+    uint256 scaledAmount = state.$maxScaledSettleableAmount(availableLiquidity);
+    uint256 maxScaledAmount = type(uint104).max;
+
+    assertTrue(scaledAmount <= maxScaledAmount, 'uint104 cap');
+    assertTrue(
+      MathUtils.mulDiv(scaledAmount, scaleFactor, RAY) <= availableLiquidity,
+      'returned amount fits liquidity'
+    );
+
+    if (scaledAmount < maxScaledAmount) {
+      assertTrue(
+        MathUtils.mulDiv(scaledAmount + 1, scaleFactor, RAY) > availableLiquidity,
+        'next scaled unit does not fit'
+      );
+    }
+  }
+
   function test_totalSupply(uint112 scaleFactor, uint104 scaledTotalSupply) external pure {
     scaleFactor = uint112(bound(scaleFactor, RAY, type(uint112).max));
     MarketState memory state;

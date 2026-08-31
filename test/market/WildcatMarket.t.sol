@@ -226,6 +226,17 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(state.timeDelinquent, 0, 'closed delinquency time');
   }
 
+  function _storedMarketStateHash(Fixture memory fixture) private view returns (bytes32) {
+    return keccak256(abi.encode(fixture.market.previousState()));
+  }
+
+  function _temporaryReserveRatioHash(Fixture memory fixture) private view returns (bytes32) {
+    (uint16 originalApr, uint16 originalReserveRatio, uint32 expiry) = MarketConstraintHooks(
+      address(fixture.hooks)
+    ).temporaryExcessReserveRatio(address(fixture.market));
+    return keccak256(abi.encode(originalApr, originalReserveRatio, expiry));
+  }
+
   function _borrow(Fixture memory fixture, uint256 amount) private {
     vm.prank(Borrower);
     fixture.market.borrow(amount);
@@ -272,6 +283,77 @@ contract WildcatMarketTest is MarketFixture {
     vm.warp(uint256(secondExpiry) + 1);
     fixture.market.updateState();
     assertEq(fixture.market.getUnpaidBatchExpiries().length, 2, 'two unpaid batches');
+  }
+
+  function _assertLargeFifoDrainToClose(bool revolving) private {
+    uint256 batchCount = 32;
+    uint256 batchAmount = 1e18;
+    uint256 maxBatches = 7;
+
+    Options memory options = _withdrawalOptions(HooksKind.OpenTerm);
+    options.reserveRatioBips = 0;
+    options.withdrawalBatchDuration = 1;
+    options.revolving = revolving;
+    options.commitmentFeeBips = 0;
+    Fixture memory fixture = _newMarket(options);
+
+    uint256 totalAmount = batchCount * batchAmount;
+    _deposit(fixture, Holder, totalAmount);
+    _borrow(fixture, totalAmount);
+
+    uint32[] memory expectedExpiries = new uint32[](batchCount);
+    for (uint256 i; i < batchCount; i++) {
+      vm.prank(Holder);
+      uint32 expiry = fixture.market.queueWithdrawal(batchAmount);
+      if (i > 0) assertTrue(expiry > expectedExpiries[i - 1], 'strict expiry order');
+      expectedExpiries[i] = expiry;
+      vm.warp(uint256(expiry) + 1);
+      fixture.market.updateState();
+    }
+
+    uint32[] memory unpaidExpiries = fixture.market.getUnpaidBatchExpiries();
+    assertEq(unpaidExpiries.length, batchCount, 'large unpaid queue');
+    for (uint256 i; i < batchCount; i++) {
+      assertEq(unpaidExpiries[i], expectedExpiries[i], 'initial FIFO order');
+      _assertBatch(fixture, expectedExpiries[i], batchAmount, 0, 0);
+    }
+
+    _fundAndApprove(fixture, Borrower, totalAmount);
+    uint256 processed;
+    while (processed < batchCount) {
+      uint256 previousLength = unpaidExpiries.length;
+      uint256 chunkSize = MathUtils.min(maxBatches, previousLength);
+
+      if (processed == 0) {
+        vm.prank(Borrower);
+        fixture.market.repayAndProcessUnpaidWithdrawalBatches(totalAmount, maxBatches);
+      } else {
+        fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, maxBatches);
+      }
+
+      processed += chunkSize;
+      unpaidExpiries = fixture.market.getUnpaidBatchExpiries();
+      assertTrue(unpaidExpiries.length < previousLength, 'queue shrinks monotonically');
+      assertEq(unpaidExpiries.length, batchCount - processed, 'bounded chunk size');
+
+      for (uint256 i; i < processed; i++) {
+        _assertBatch(fixture, expectedExpiries[i], batchAmount, batchAmount, batchAmount);
+      }
+      for (uint256 i; i < unpaidExpiries.length; i++) {
+        assertEq(unpaidExpiries[i], expectedExpiries[processed + i], 'remaining FIFO order');
+        _assertBatch(fixture, unpaidExpiries[i], batchAmount, 0, 0);
+      }
+    }
+
+    MarketState memory drainedState = fixture.market.previousState();
+    assertEq(drainedState.scaledPendingWithdrawals, 0, 'drained pending withdrawals');
+    assertEq(drainedState.scaledTotalSupply, 0, 'drained total supply');
+    if (revolving) assertEq(_revolving(fixture).drawnAmount(), 0, 'drained drawn amount');
+
+    vm.prank(Borrower);
+    fixture.market.closeMarket();
+    _assertClosedMarket(fixture);
+    assertEq(fixture.market.getUnpaidBatchExpiries().length, 0, 'closed unpaid queue');
   }
 
   function _assertNoWithdrawalPayment(Vm.Log[] memory logs) private pure {
@@ -998,6 +1080,65 @@ contract WildcatMarketTest is MarketFixture {
     healthyFixture.market.setAnnualInterestAndReserveRatioBips(1_000, 1);
     assertEq(healthyFixture.market.reserveRatioBips(), 2_000, 'borrower reserve input ignored');
     assertFalse(healthyFixture.market.currentState().isDelinquent, 'healthy after APR update');
+  }
+
+  function test_setAprRollsBackMarketAndHookStateWhenPostHookLiquidityCheckReverts() external {
+    Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
+    _deposit(fixture, Holder, 1e18);
+    _borrow(fixture, 5e17);
+
+    bytes32 marketStateBefore = _storedMarketStateHash(fixture);
+    bytes32 hookStateBefore = _temporaryReserveRatioHash(fixture);
+    uint256 marketAssetsBefore = fixture.asset.balanceOf(address(fixture.market));
+
+    vm.prank(Borrower);
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForNewLiquidityRatio.selector);
+    fixture.market.setAnnualInterestAndReserveRatioBips(500, 0);
+
+    assertEq(_storedMarketStateHash(fixture), marketStateBefore, 'market state rollback');
+    assertEq(_temporaryReserveRatioHash(fixture), hookStateBefore, 'hook state rollback');
+    assertEq(
+      fixture.asset.balanceOf(address(fixture.market)),
+      marketAssetsBefore,
+      'market assets rollback'
+    );
+  }
+
+  function test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts()
+    external
+  {
+    Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
+    _deposit(fixture, Holder, 1e18);
+
+    vm.prank(Borrower);
+    fixture.market.setAnnualInterestAndReserveRatioBips(500, 0);
+    assertEq(fixture.market.reserveRatioBips(), 10_000, 'temporary reserve ratio');
+
+    (, , uint32 originalExpiry) = MarketConstraintHooks(address(fixture.hooks))
+      .temporaryExcessReserveRatio(address(fixture.market));
+    fixture.asset.burn(address(fixture.market), 1e17);
+    vm.warp(vm.getBlockTimestamp() + 1 days);
+    assertTrue(originalExpiry > vm.getBlockTimestamp(), 'temporary window active');
+    assertTrue(
+      originalExpiry < vm.getBlockTimestamp() + 2 weeks,
+      'further reduction would extend window'
+    );
+
+    bytes32 marketStateBefore = _storedMarketStateHash(fixture);
+    bytes32 hookStateBefore = _temporaryReserveRatioHash(fixture);
+    uint256 marketAssetsBefore = fixture.asset.balanceOf(address(fixture.market));
+
+    vm.prank(Borrower);
+    vm.expectRevert(IMarketEventsAndErrors.InsufficientReservesForOldLiquidityRatio.selector);
+    fixture.market.setAnnualInterestAndReserveRatioBips(400, 0);
+
+    assertEq(_storedMarketStateHash(fixture), marketStateBefore, 'active market state rollback');
+    assertEq(_temporaryReserveRatioHash(fixture), hookStateBefore, 'active hook state rollback');
+    assertEq(
+      fixture.asset.balanceOf(address(fixture.market)),
+      marketAssetsBefore,
+      'active market assets rollback'
+    );
   }
 
   function test_executePendingAnnualInterestBipsReductionIsPermissionlessAndUsesHookState()
@@ -2342,6 +2483,14 @@ contract WildcatMarketTest is MarketFixture {
       completeFixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 10);
       assertEq(completeFixture.market.getUnpaidBatchExpiries().length, 0, 'both batches paid');
     }
+  }
+
+  function test_repayAndProcessDrainsLargeFifoQueueInBoundedChunksThenCloses() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+    _assertLargeFifoDrainToClose(false);
+
+    vm.warp(initialBlockTimestamp);
+    _assertLargeFifoDrainToClose(true);
   }
 
   function test_repayAndProcessIncludesRepayAndRejectsClosedMarket_AcrossHookKinds() external {

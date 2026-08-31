@@ -6,14 +6,19 @@ receipt provenance live in
 [`deployments/`](../../deployments/).
 
 Generated [contract inventories](./inventory/README.md) pin each first-party
-source unit and ABI-bearing declaration to a release commit. The V2.5 inventory
-will be generated after source freeze.
+source unit and ABI-bearing declaration to a release commit.
 
 ## V2.5
 
 [V2.5](./v2.5.md) is the active release line.
 
 - The final tag and source commit will be recorded after source freeze.
+- The candidate [contract inventory](./inventory/v2.5.json) pins the current
+  source and ABI boundary.
+- The [audit scope](./v2.5-audit-scope.md) records candidate provenance,
+  priority surfaces, properties, and freeze gates.
+- The [pre-freeze receipt](./v2.5-verification.md) records the current local
+  build, test, inventory, size, and lint evidence.
 - The release page describes changes from V2.1.
 - Current technical docs define the detailed behavior.
 

@@ -74,7 +74,13 @@ increase the lender scale factor. See
 Each accrual interval rounds its protocol fee to the underlying asset's atomic
 unit. Fractional remainders do not carry into the next update. More frequent
 updates can therefore change the aggregate protocol fee through repeated
-rounding. Lender interest is unaffected.
+rounding. This fee rounding does not change lender balances.
+
+Base lender interest is linear within one accrual interval and is applied to
+the scale factor stored at the interval's start. More frequent checkpoints split
+the same wall-clock span into more compounding intervals, so checkpoint cadence
+can change aggregate lender interest. This is separate from protocol fee
+rounding.
 
 ## State updates
 
