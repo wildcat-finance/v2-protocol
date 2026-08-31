@@ -15,6 +15,7 @@ import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
 import './types/RoleProvider.sol';
 
+/// @dev constructor parameters exposed to the revolving market through transient storage.
 struct TmpRevolvingMarketParameterStorage {
   address borrower;
   address asset;
@@ -34,10 +35,7 @@ struct TmpRevolvingMarketParameterStorage {
   HooksConfig hooks;
 }
 
-/**
- * @dev Deployment parameters that are not part of `DeployMarketInputs`,
- *      bundled to avoid stack-too-deep in `_deployMarket`.
- */
+/// @dev deployment values outside `DeployMarketInputs`, grouped to stay within the stack limit.
 struct DeployRevolvingMarketRuntimeParameters {
   address hooksTemplate;
   address borrowerPrincipal;
@@ -48,6 +46,10 @@ struct DeployRevolvingMarketRuntimeParameters {
   uint16 commitmentFeeBips;
 }
 
+/// @title Wildcat revolving hooks factory
+/// @notice mirrors `HooksFactory`, with an extra fixed commitment fee passed to revolving markets.
+/// @dev factory-owned `marketData` is versioned separately from hook-owned `hooksData`.
+///      constructors read both ordinary and revolving parameters from transient storage.
 contract HooksFactoryRevolving is
   SphereXProtectedRegisteredBase,
   ReentrancyGuard,
@@ -85,9 +87,7 @@ contract HooksFactoryRevolving is
 
   address public immutable override borrowerIdentityRegistry;
 
-  /**
-   * @dev Return the contract name "WildcatHooksFactoryRevolving"
-   */
+  /// @notice returns the stable factory name `WildcatHooksFactoryRevolving`.
   function name() external pure override returns (string memory) {
     return 'WildcatHooksFactoryRevolving';
   }
@@ -98,7 +98,7 @@ contract HooksFactoryRevolving is
   mapping(address administrator => address[] hooksInstances)
     internal _hooksInstancesByAdministrator;
 
-  /// @dev Current administrator for each hooks instance deployed by this factory.
+  /// @notice current administrator tracked for each hooks instance, or zero if unknown.
   mapping(address hooksInstance => address administrator)
     public
     override getHooksAdministrator;
@@ -106,7 +106,7 @@ contract HooksFactoryRevolving is
   /// @dev Position of each hooks instance in its administrator's array.
   mapping(address hooksInstance => uint256 index) internal _hooksInstanceIndex;
 
-  /// @dev Monotonic deployment nonce used in hook CREATE2 salts.
+  /// @notice next CREATE2 deployment nonce for each hooks administrator.
   mapping(address administrator => uint256 nonce)
     public
     override getHooksInstanceDeploymentNonce;
@@ -240,6 +240,7 @@ contract HooksFactoryRevolving is
   //                               Hooks Templates                              //
   // ========================================================================== //
 
+  /// @inheritdoc IHooksFactoryRevolving
   function addHooksTemplate(
     address hooksTemplate,
     string calldata name_,
@@ -506,6 +507,7 @@ contract HooksFactoryRevolving is
     );
   }
 
+  /// @inheritdoc IHooksFactoryRevolving
   function isHooksInstance(address hooksInstance) external view override returns (bool) {
     return getHooksTemplateForInstance[hooksInstance] != address(0);
   }
@@ -830,15 +832,12 @@ contract HooksFactoryRevolving is
     _emitMarketDeployment(market, name, symbol, tmp, runtimeParams, hooksData);
   }
 
-  /**
-   * @dev Commitment fee for the revolving market currently being deployed.
-   *      Read by the `WildcatMarketRevolving` constructor; only valid during
-   *      market deployment.
-   */
+  /// @inheritdoc IHooksFactoryRevolving
   function getRevolvingMarketCommitmentFeeBips() external view override returns (uint16) {
     return _getTmpCommitmentFeeBips();
   }
 
+  /// @inheritdoc IHooksFactoryRevolving
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
@@ -866,6 +865,7 @@ contract HooksFactoryRevolving is
     market = _deployMarket(parameters, hooksData, runtimeParams);
   }
 
+  /// @inheritdoc IHooksFactoryRevolving
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksConstructorArgs,
@@ -899,12 +899,7 @@ contract HooksFactoryRevolving is
     market = _deployMarket(marketInputs, hooksData, runtimeParams);
   }
 
-  /**
-   * @dev Push any changes to the fee configuration of `hooksTemplate` to markets
-   *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
-   *      Starts at `marketStartIndex` and ends one before `marketEndIndex` or markets.length,
-   *      whichever is lower.
-   */
+  /// @inheritdoc IHooksFactoryRevolving
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
     uint marketStartIndex,

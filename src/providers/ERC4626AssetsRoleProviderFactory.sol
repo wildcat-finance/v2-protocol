@@ -4,12 +4,12 @@ pragma solidity 0.8.25;
 import './ERC4626AssetsRoleProvider.sol';
 import './IERC4626AssetsRoleProviderFactory.sol';
 
-/**
- * @dev Deploys ERC4626 assets providers without retaining any authority over them.
- *      Salts are namespaced by the caller so another caller cannot consume a
- *      deployment address first.
- */
+/// @notice deterministic deployer for immutable ERC4626 asset-value providers.
+/// @dev the user salt is namespaced by `msg.sender`, so another caller can't consume the predicted
+///      address first. the provider has no administrator and this factory retains no authority.
 contract ERC4626AssetsRoleProviderFactory is IERC4626AssetsRoleProviderFactory {
+  /// @notice decodes `ERC4626AssetsRoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(
     bytes calldata data
   ) external override returns (address provider) {
@@ -20,6 +20,7 @@ contract ERC4626AssetsRoleProviderFactory is IERC4626AssetsRoleProviderFactory {
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
+  /// @notice deploys an ERC4626 provider in `msg.sender`'s CREATE2 namespace.
   function createERC4626AssetsRoleProvider(
     ERC4626AssetsRoleProviderFactoryInputs calldata inputs
   ) external override returns (address provider) {
@@ -45,6 +46,7 @@ contract ERC4626AssetsRoleProviderFactory is IERC4626AssetsRoleProviderFactory {
     );
   }
 
+  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     ERC4626AssetsRoleProviderFactoryInputs calldata inputs

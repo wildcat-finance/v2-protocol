@@ -15,6 +15,7 @@ import './access/IHooksAdministrator.sol';
 import './interfaces/IBorrowerIdentityRegistry.sol';
 import './types/RoleProvider.sol';
 
+/// @dev constructor parameters exposed to the market through transient storage during deployment.
 struct TmpMarketParameterStorage {
   address borrower;
   address asset;
@@ -34,7 +35,7 @@ struct TmpMarketParameterStorage {
   HooksConfig hooks;
 }
 
-/// @dev Deployment values outside `DeployMarketInputs`, grouped to stay within the stack limit.
+/// @dev deployment values outside `DeployMarketInputs`, grouped to stay within the stack limit.
 struct DeployMarketRuntimeParameters {
   address borrowerPrincipal;
   address hooksTemplate;
@@ -44,6 +45,11 @@ struct DeployMarketRuntimeParameters {
   uint256 originationFeeAmount;
 }
 
+/// @title Wildcat hooks factory
+/// @notice manages hooks templates and instances, then deploys standard Wildcat markets with them.
+/// @dev market constructors read their parameters back from transient storage. templates hold
+///      stored initcode with a leading non-executable byte; this factory skips it during CREATE2
+///      deployment.
 contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactory {
   using LibERC20 for address;
 
@@ -65,9 +71,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
   address public immutable override borrowerIdentityRegistry;
 
-  /**
-   * @dev Return the contract name "WildcatHooksFactory"
-   */
+  /// @notice returns the stable factory name `WildcatHooksFactory`.
   function name() external pure override returns (string memory) {
     // Use yul to avoid duplicate memory allocation and reduce code size
     // Uses words at 0x20, 0x40, 0x60
@@ -89,7 +93,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   mapping(address administrator => address[] hooksInstances)
     internal _hooksInstancesByAdministrator;
 
-  /// @dev Current administrator for each hooks instance deployed by this factory.
+  /// @notice current administrator tracked for each hooks instance, or zero if unknown.
   mapping(address hooksInstance => address administrator)
     public
     override getHooksAdministrator;
@@ -97,7 +101,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   /// @dev Position of each hooks instance in its administrator's array.
   mapping(address hooksInstance => uint256 index) internal _hooksInstanceIndex;
 
-  /// @dev Monotonic deployment nonce used in hook CREATE2 salts.
+  /// @notice next CREATE2 deployment nonce for each hooks administrator.
   mapping(address administrator => uint256 nonce)
     public
     override getHooksInstanceDeploymentNonce;
@@ -140,13 +144,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
   }
 
-  /**
-   * @dev Registers the factory as a controller with the arch-controller, allowing
-   *      it to register new markets.
-   *      Needs to be executed once at deployment.
-   *      Does not need checks for whether it has already been registered as the
-   *      arch-controller will revert if it is already registered.
-   */
+  /// @inheritdoc IHooksFactory
   function registerWithArchController() external override {
     IWildcatArchController(_archController).registerController(address(this));
   }
@@ -272,10 +270,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
   }
 
-  /// @dev Update the fees for a hooks template
-  /// Note: The new fee structure will apply to all NEW markets created with existing
-  ///       or future instances of the hooks template, and the protocol fee can be pushed
-  ///       to existing markets using `pushProtocolFeeBipsUpdates`.
+  /// @inheritdoc IHooksFactory
   function updateHooksTemplateFees(
     address hooksTemplate,
     address feeRecipient,
@@ -437,10 +432,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     return _hooksInstancesByAdministrator[borrower].length;
   }
 
-  /**
-   * @dev Moves a hooks instance to its new administrator's array. Removal uses
-   *      swap-and-pop, so an administrator's enumeration is not ordered.
-   */
+  /// @inheritdoc IHooksFactory
   function onHooksAdministratorTransferred(
     address previousAdministrator,
     address newAdministrator
@@ -487,6 +479,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     );
   }
 
+  /// @inheritdoc IHooksFactory
   function isHooksInstance(address hooksInstance) external view override returns (bool) {
     return getHooksTemplateForInstance[hooksInstance] != address(0);
   }
@@ -589,10 +582,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     return _marketsByHooksInstance[hooksInstance].length;
   }
 
-  /**
-   * @dev Get the temporarily stored market parameters for a market that is
-   *      currently being deployed.
-   */
+  /// @inheritdoc IHooksFactory
   function getMarketParameters()
     external
     view
@@ -785,8 +775,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _emitMarketDeployment(market, name, symbol, tmp, runtimeParams, hooksData);
   }
 
-  /// @dev Deploy a market for a recognized borrower identity using an existing hooks instance.
-  ///      Reverts if identity, hooks instance, fees, asset or deployment checks fail.
+  /// @inheritdoc IHooksFactory
   function deployMarket(
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
@@ -811,8 +800,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     market = _deployMarket(parameters, hooksData, runtimeParams);
   }
 
-  /// @dev Deploy a principal-administered hooks instance, then deploy a market for the caller.
-  ///      Reverts if identity, template, fees, asset or deployment checks fail.
+  /// @inheritdoc IHooksFactory
   function deployMarketAndHooks(
     address hooksTemplate,
     bytes calldata hooksTemplateArgs,
@@ -844,12 +832,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     market = _deployMarket(parameters, hooksData, runtimeParams);
   }
 
-  /**
-   * @dev Push any changes to the fee configuration of `hooksTemplate` to markets
-   *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
-   *      Starts at `marketStartIndex` and ends one before `marketEndIndex`  or markets.length,
-   *      whichever is lowest.
-   */
+  /// @inheritdoc IHooksFactory
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
     uint marketStartIndex,
@@ -891,10 +874,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
   }
 
-  /**
-   * @dev Push any changes to the fee configuration of `hooksTemplate` to all markets
-   *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
-   */
+  /// @inheritdoc IHooksFactory
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external override {
     pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
   }

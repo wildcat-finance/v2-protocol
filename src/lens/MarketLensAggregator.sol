@@ -9,8 +9,14 @@ import './HooksTemplateData.sol';
 import './MarketData.sol';
 import './interfaces/IMarketLensAggregator.sol';
 
+/// @title hooks-factory aggregation lens helper
+/// @notice gathers hooks and market data across the default factory or active factory generations.
+/// @dev active factories are registered controllers that answer the hooks-factory probe, plus the
+///      configured default when needed. discovery is interface-based, not provenance.
 contract MarketLensAggregator is IMarketLensAggregator {
+  /// @notice ArchController used to discover active controller factories.
   WildcatArchController public immutable archController;
+  /// @notice default hooks factory included in aggregation results.
   IHooksFactory public immutable hooksFactory;
 
   constructor(address _archController, address _hooksFactory) {
@@ -59,6 +65,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     return false;
   }
 
+  /// @dev treats any contract that answers `getHooksTemplatesCount()` as a factory candidate.
   function _isHooksFactory(address candidate) internal view returns (bool isFactory) {
     try IHooksFactory(candidate).getHooksTemplatesCount() returns (uint256) {
       return true;
@@ -107,6 +114,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     return arr;
   }
 
+  /// @dev collects template addresses best-effort; a factory that reverts contributes no rows.
   function _collectHooksTemplatesByFactory(
     address[] memory factories
   ) internal view returns (address[][] memory templatesByFactory, uint256 totalTemplates) {
@@ -302,6 +310,8 @@ contract MarketLensAggregator is IMarketLensAggregator {
   //                     Aggregated queries (all factories)                     //
   // ========================================================================== //
 
+  /// @notice returns discoverable hooks factories in ArchController order.
+  /// @dev appends the configured default if it is valid and not already registered.
   function getActiveHooksFactories() public view returns (address[] memory factories) {
     address[] memory controllers = archController.getRegisteredControllers();
     address[] memory tmp = new address[](controllers.length + 1);
@@ -322,6 +332,9 @@ contract MarketLensAggregator is IMarketLensAggregator {
     return _shrinkAddressArray(tmp, count);
   }
 
+  /// @notice combines borrower-indexed instances from a supplied factory list.
+  /// @dev factory enumeration failures are skipped. duplicate instances use the first factory that
+  ///      reported them, and malformed instance metadata can still revert the complete call.
   function getAggregatedHooksInstancesForBorrowerWithFactories(
     address borrower,
     address[] memory factories
@@ -375,6 +388,8 @@ contract MarketLensAggregator is IMarketLensAggregator {
     return _shrinkHooksInstanceArray(arr, uniqueCount);
   }
 
+  /// @notice combines templates from a supplied factory list, deduplicated by template address.
+  /// @dev the first factory reporting a duplicate supplies its metadata and fee readiness.
   function getAggregatedAllHooksTemplatesForBorrowerWithFactories(
     address borrower,
     address[] memory factories
@@ -473,6 +488,7 @@ contract MarketLensAggregator is IMarketLensAggregator {
     return _shrinkFactoryScopedHooksTemplateArray(data, count);
   }
 
+  /// @dev collects markets best-effort and deduplicates them by address in first-seen order.
   function _getAggregatedMarketsForHooksTemplate(
     address hooksTemplate
   ) internal view returns (address[] memory markets) {

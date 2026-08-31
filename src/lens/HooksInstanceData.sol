@@ -13,6 +13,9 @@ import './RoleProviderData.sol';
 
 using HooksInstanceDataLib for HooksInstanceData global;
 
+/// @notice factory provenance, administration, providers, and market count for one hooks instance.
+/// @dev unknown hook families still return common factory and callback data. typed fields remain
+///      empty when their interface is not known.
 struct HooksInstanceData {
   address hooksAddress;
   address administrator;
@@ -27,6 +30,7 @@ struct HooksInstanceData {
   uint256 totalMarkets;
 }
 
+/// @notice builds hooks-instance views from factory records and bounded optional probes.
 library HooksInstanceDataLib {
   using RoleProviderDataLib for *;
 
@@ -52,6 +56,9 @@ library HooksInstanceDataLib {
     value = address(uint160(word));
   }
 
+  /// @notice fills one hooks instance using factory data and optional typed probes.
+  /// @param administrator trusted factory-index key, or zero to probe the hooks instance.
+  /// @param kind family already identified from `version()`.
   function fill(
     HooksInstanceData memory data,
     address hooksAddress,

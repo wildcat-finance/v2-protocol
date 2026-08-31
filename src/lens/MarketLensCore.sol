@@ -7,8 +7,13 @@ import './MarketData.sol';
 import './TokenData.sol';
 import './interfaces/IMarketLensCore.sol';
 
+/// @title core market lens helper
+/// @notice implements strict token, market, lender, and withdrawal reads for the `MarketLens`
+///         facade.
 contract MarketLensCore is IMarketLensCore {
+  /// @notice ArchController configured for this helper.
   WildcatArchController public immutable archController;
+  /// @notice default hooks factory configured for this helper.
   IHooksFactory public immutable hooksFactory;
 
   constructor(address _archController, address _hooksFactory) {

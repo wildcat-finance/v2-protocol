@@ -3,15 +3,25 @@ pragma solidity 0.8.25;
 
 import '../libraries/MathUtils.sol';
 
+/// @notice packed provider address, credential TTL, and positions in the pull/push arrays.
+/// @dev layout from most to least significant: 32-bit TTL, 160-bit address, two 24-bit indexes,
+///      then 16 unused bits. `NullProviderIndex` marks absence from either provider array.
 type RoleProvider is uint256;
+
+// index sentinel for a provider that isn't present in the corresponding array.
 uint24 constant NullProviderIndex = type(uint24).max;
+
+// zero-value provider used where no provider is configured.
 RoleProvider constant EmptyRoleProvider = RoleProvider.wrap(0);
 
 using LibRoleProvider for RoleProvider global;
 
-/**
- * @dev Create a `RoleProvider` from its members.
- */
+/// @notice packs provider metadata into a `RoleProvider` word.
+/// @param timeToLive credential lifetime in seconds; expiry saturates at `type(uint32).max`.
+/// @param providerAddress contract that grants or verifies the credential.
+/// @param pullProviderIndex position in the pull-provider array, or `NullProviderIndex`.
+/// @param pushProviderIndex position in the push-provider array, or `NullProviderIndex`.
+/// @return provider packed provider word.
 function encodeRoleProvider(
   uint32 timeToLive,
   address providerAddress,

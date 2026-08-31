@@ -4,12 +4,12 @@ pragma solidity 0.8.25;
 import './ERC20RoleProvider.sol';
 import './IERC20RoleProviderFactory.sol';
 
-/**
- * @dev Deploys ERC20 providers without retaining any authority over them.
- *      Salts are namespaced by the caller so another caller cannot consume a
- *      deployment address first.
- */
+/// @notice deterministic deployer for immutable ERC20 balance providers.
+/// @dev the user salt is namespaced by `msg.sender`, so another caller can't consume the predicted
+///      address first. the provider has no administrator and this factory retains no authority.
 contract ERC20RoleProviderFactory is IERC20RoleProviderFactory {
+  /// @notice decodes `ERC20RoleProviderFactoryInputs` and deploys for `msg.sender`.
+  /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(
     bytes calldata data
   ) external override returns (address provider) {
@@ -20,6 +20,7 @@ contract ERC20RoleProviderFactory is IERC20RoleProviderFactory {
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
+  /// @notice deploys an ERC20 provider in `msg.sender`'s CREATE2 namespace.
   function createERC20RoleProvider(
     ERC20RoleProviderFactoryInputs calldata inputs
   ) external override returns (address provider) {
@@ -43,6 +44,7 @@ contract ERC20RoleProviderFactory is IERC20RoleProviderFactory {
     );
   }
 
+  /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     ERC20RoleProviderFactoryInputs calldata inputs

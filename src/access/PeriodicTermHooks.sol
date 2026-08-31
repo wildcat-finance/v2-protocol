@@ -10,14 +10,9 @@ using BoolUtils for bool;
 using MathUtils for uint256;
 using SafeCastLib for uint256;
 
-/**
- * @dev sized to fit one storage slot (31 bytes)
- *      hooks (deposit, transfer, queueWithdrawal) load the whole struct
- *      open/fixed templates' equivalents are single-slot.
- *      `minimumDeposit` is uint96 (max ~7.9e28) to stay under 32 bytes
- *      external `setMinimumDeposit(address,uint128)` signature unchanged
- *      checked downcast at the boundary
- */
+/// @dev per-market schedule and access settings, packed into 31 bytes so the hot callbacks need one
+///      storage slot. `minimumDeposit` is `uint96`; the external setter keeps its older `uint128`
+///      ABI and checks the downcast.
 struct HookedMarket {
   bool isHooked;
   bool transferRequiresAccess;
@@ -32,18 +27,14 @@ struct HookedMarket {
   bool isClosed;
 }
 
+/// @notice compatibility view of an APR reduction proposal.
 struct PendingAprChange {
   uint16 annualInterestBips;
   uint32 proposalTimestamp;
 }
 
-/**
- * @dev Storage layout for pending APR reduction proposals. Fits one slot.
- *      Response window bounds are fixed at proposal time.
- *      Kept separate from `PendingAprChange` so the external ABI of
- *      `pendingAprChanges` and `getPendingAprChange` is unchanged from the
- *      first template version.
- */
+/// @dev one-slot proposal state. response-window bounds are fixed at proposal time. this stays
+///      separate from `PendingAprChange` to preserve the first template version's external tuple.
 struct PendingAprChangeStorage {
   uint16 annualInterestBips;
   uint32 proposalTimestamp;
@@ -51,32 +42,32 @@ struct PendingAprChangeStorage {
   uint32 responseWindowEnd;
 }
 
+/// @dev narrow market query used to prove a proposal is a strict reduction when it is created.
 interface IMarketApr {
+  /// @notice returns the market's current base annual interest rate, in bips.
   function annualInterestBips() external view returns (uint256);
 }
 
-/**
- * @title PeriodicTermHooks
- * @dev Hooks contract for markets where withdrawals may only be queued during
- *      a recurring scheduled window. Withdrawal batches still expire using
- *      the market's immutable `withdrawalBatchDuration`.
- *
- *      APR reductions must be proposed in advance: lenders have the next
- *      withdrawal window to exit in response, and the reduction is only
- *      applied after that window ends, before the proposal expires and with
- *      no unpaid withdrawal batches outstanding.
- */
+/// @title PeriodicTermHooks
+/// @notice credential policy with recurring windows for queueing withdrawals.
+/// @dev closing a market removes the window restriction. APR reductions need advance notice: the
+///      next window is fixed as the lender response window, and execution is available after it
+///      closes until the following window begins, provided no pending withdrawals remain unpaid.
+///      entry with a valid credential permanently marks a lender known on that market. the hooks
+///      administrator can block deposits wherever `onDeposit` is enabled.
 contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
 
+  /// @notice emitted when a hooked market's minimum deposit changes.
   event MinimumDepositUpdated(
     address indexed market,
     address indexed caller,
     uint128 previousMinimumDeposit,
     uint128 newMinimumDeposit
   );
+  /// @notice emitted when a market's recurring withdrawal schedule is fixed at deployment.
   event PeriodicTermUpdated(
     address indexed market,
     address indexed administrator,
@@ -84,7 +75,9 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     uint32 periodDuration,
     uint32 withdrawalWindowDuration
   );
+  /// @notice emitted when market closure permanently opens withdrawal queueing.
   event PeriodicTermClosed(address indexed market);
+  /// @notice emitted when an APR reduction fixes its lender response window.
   event AnnualInterestBipsReductionProposed(
     address indexed market,
     uint16 annualInterestBips,
@@ -92,30 +85,50 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     uint32 responseWindowStart,
     uint32 responseWindowEnd
   );
+  /// @notice emitted when a pending APR reduction is replaced or cancelled.
   event AnnualInterestBipsReductionProposalCancelled(address indexed market);
+  /// @notice emitted when the market applies a matured APR reduction.
   event AnnualInterestBipsReductionExecuted(address indexed market, uint16 annualInterestBips);
 
   // ========================================================================== //
   //                                   Errors                                   //
   // ========================================================================== //
 
+  /// @dev the caller supplied a market not bound to this hooks instance.
   error NotHookedMarket();
+  /// @dev the scaled deposit is below the market's configured minimum.
   error DepositBelowMinimum();
+  /// @dev transfers are disabled for this market.
   error TransfersDisabled();
+  /// @dev the requested hook flags leave an uncredentialed path into a gated withdrawal policy.
   error InvalidAccessConfiguration();
+  /// @dev market-creation hook data omitted the required periodic schedule.
   error PeriodicWindowNotProvided();
+  /// @dev the first future withdrawal window is beyond the configured maximum delay.
   error InitialWithdrawalWindowTooFarInFuture();
+  /// @dev the period duration is outside this template's inclusive bounds.
   error PeriodDurationOutOfBounds();
+  /// @dev the withdrawal window is too short or not shorter than its period.
   error WithdrawalWindowDurationOutOfBounds();
+  /// @dev a positive minimum was requested for a market without the deposit callback.
   error DepositHookNotEnabled();
+  /// @dev an open market tried to queue a withdrawal outside its current window.
   error WithdrawOutsideWindow();
+  /// @dev an APR reduction was proposed while its market's withdrawal window was open.
   error AprReductionProposalDuringWithdrawalWindow();
+  /// @dev the proposed APR is not below the market's current APR.
   error AprReductionProposalNotReduction();
+  /// @dev no APR reduction is pending for this market.
   error NoPendingAprChange();
+  /// @dev the APR being executed does not exactly match the pending proposal.
   error AprChangeDoesNotMatchProposal();
+  /// @dev the pending reduction's lender response window has not ended.
   error AprChangeNotReady();
+  /// @dev the pending reduction reached its next withdrawal window before execution.
   error AprReductionProposalExpired();
+  /// @dev APR reductions cannot be proposed after market closure.
   error AprReductionProposalOnClosedMarket();
+  /// @dev scaled pending withdrawals remain unpaid.
   error UnpaidWithdrawalsExist();
 
   // ========================================================================== //
@@ -125,20 +138,21 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   HooksDeploymentConfig public immutable override config;
 
   // TODO FOR MAINNET: Finalize the minimum period duration with the team.
+  /// @notice shortest supported time between withdrawal-window starts.
   uint32 public constant MinimumPeriodDuration = 6 minutes;
   // TODO FOR MAINNET: Finalize the maximum period duration with the team.
+  /// @notice longest supported time between withdrawal-window starts.
   uint32 public constant MaximumPeriodDuration = 365 days;
   // TODO FOR MAINNET: Finalize the minimum withdrawal window duration with the team.
+  /// @notice shortest supported withdrawal window.
   uint32 public constant MinimumWithdrawalWindowDuration = 1 minutes;
   // TODO FOR MAINNET: Finalize the maximum initial withdrawal window delay with the team.
+  /// @notice longest delay allowed before the first withdrawal window starts.
   uint32 public constant MaximumInitialWithdrawalWindowDelay = MaximumPeriodDuration;
 
-  /**
-   * @dev Number of periods after the response window starts during which a
-   *      proposed APR reduction remains executable. A value of one means the
-   *      proposal can be executed after the response window ends until the next
-   *      withdrawal window starts.
-   */
+  /// @notice number of periods from response-window start until an APR proposal expires.
+  /// @dev number of periods from response-window start before a proposal expires. one makes the
+  ///      execution interval `[responseWindowEnd, nextWindowStart)`.
   uint32 public constant AprReductionProposalValidityPeriods = 1;
 
   mapping(address => HookedMarket) internal _hookedMarkets;
@@ -148,11 +162,8 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   //                                 Constructor                                //
   // ========================================================================== //
 
-  /**
-   * @param _administrator Initial administrator for the hooks instance.
-   * @param args Optional abi-encoded `NameAndProviderInputs` struct to initialize
-   *             the providers and name for the hooks instance.
-   */
+  /// @param _administrator initial hooks administrator. this does not grant provider authority.
+  /// @param args optional ABI-encoded `NameAndProviderInputs` for the name and initial providers.
   constructor(
     address _administrator,
     bytes memory args
@@ -188,16 +199,14 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     return 'PeriodicTermHooks';
   }
 
-  /**
-   * @dev Template revision. `version()` stays 'PeriodicTermHooks' because
-   *      the subgraph matches templates by that exact string.
-   */
+  /// @notice returns this template's ABI revision.
+  /// @dev `version()` stays `PeriodicTermHooks` because integrations match that exact string.
   function templateVersion() external pure returns (uint256) {
     return 2;
   }
 
-  /// @dev Same selector and return shape as the public-mapping getter
-  ///      from the first template version.
+  /// @notice returns the proposed APR and proposal time in the first template version's ABI.
+  /// @dev use `getPendingAprChange` when the fixed response-window bounds are also needed.
   function pendingAprChanges(
     address market
   ) external view returns (uint16 annualInterestBips, uint32 proposalTimestamp) {
@@ -227,31 +236,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     return _value.toUint96();
   }
 
-  /**
-   * @dev Called when market is deployed using this contract as its `hooks`.
-   *
-   *     @param administrator_ Principal supplied by the factory. Must match the
-   *                           hooks administrator.
-   *     @param marketAddress Address of the market being deployed.
-   *     @param parameters    Parameters used to deploy the market.
-   *     @param hooksData     Extra data passed to the market deployment function containing
-   *                          the parameters for the hooks.
-   *
-   *     `hooksData` is a tuple of (
-   *        uint32 firstWithdrawalWindowStart,
-   *        uint32 periodDuration,
-   *        uint32 withdrawalWindowDuration,
-   *        uint128? minimumDeposit,
-   *        bool? transfersDisabled
-   *     )
-   *     Where only the first three parameters are mandatory.
-   *
-   *      Withdrawal windows begin at `firstWithdrawalWindowStart` and recur
-   *      every `periodDuration` seconds.
-   *
-   *      Note: Called inside the root `onCreateMarket` in the base contract,
-   *      so no need to verify the caller is the factory.
-   */
+  /// @dev binds one market to this instance. `administrator_` must be the current hooks
+  ///      administrator. `hooksData` is `(uint32 firstWithdrawalWindowStart, uint32 periodDuration,
+  ///      uint32 withdrawalWindowDuration, uint96 minimumDeposit?, bool transfersDisabled?)`.
+  ///      the first three words are required; optional missing words read as zero. withdrawal
+  ///      gating is accepted only when deposits are gated and transfers are gated or disabled,
+  ///      otherwise an uncredentialed entry path could trap the recipient.
   function _onCreateMarket(
     address administrator_,
     address marketAddress,
@@ -335,15 +325,12 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   //                              Market Management                             //
   // ========================================================================== //
 
-  /**
-   * @notice Sets the minimum deposit for a market created by this hooks instance.
-   * @dev Market hook dispatch flags are immutable after deployment. A positive
-   *      minimum is enforceable only if `onDeposit` was enabled when the market
-   *      was created. A positive initial minimum enables it automatically. A
-   *      market created with a zero minimum and `onDeposit` disabled cannot
-   *      later adopt a positive minimum.
-   *      Reverts if `market` was not created with this hooks instance.
-   */
+  /// @notice updates a hooked market's minimum deposit.
+  /// @dev callback flags are immutable. a positive initial minimum enables `onDeposit`, but a
+  ///      market created with no minimum and no deposit callback can't add a positive minimum
+  ///      later.
+  ///      values above `uint96` revert even though the compatibility ABI accepts `uint128`.
+  /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
@@ -354,6 +341,11 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
 
+  /// @notice proposes a strict APR reduction and fixes the next window as the lender response
+  ///         window.
+  /// @dev only the hooks administrator may propose. the market must be hooked, open, and outside a
+  ///      withdrawal window. a new valid proposal replaces the old one and emits its cancellation.
+  /// @param annualInterestBips proposed APR in basis points, below the market's current APR.
   function proposeAnnualInterestBips(
     address market,
     uint16 annualInterestBips
@@ -404,12 +396,19 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   //                               Market Queries                               //
   // ========================================================================== //
 
+  /// @notice says whether every market-token transfer is disabled for this market.
+  /// @dev reverts for a market not bound to this hooks instance. false is permanent because this
+  ///      template has no setter for the deployment-time flag.
   function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
     HookedMarket storage market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return market.transfersDisabled;
   }
 
+  /// @notice says whether `recipient` can receive tokens now without hook data.
+  /// @dev returns false for disabled transfers, an unknown blocked recipient, or a required
+  ///      credential that cannot be resolved from cache or pull providers. reverts for an unknown
+  ///      market.
   function isMarketTransferRecipientAllowed(
     address marketAddress,
     address recipient
@@ -421,10 +420,13 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
       _isMarketTransferRecipientAllowed(marketAddress, recipient, market.transferRequiresAccess);
   }
 
+  /// @notice returns the periodic-term configuration stored for `marketAddress`.
+  /// @dev an unattached market returns the zero-value struct.
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
     return _hookedMarkets[marketAddress];
   }
 
+  /// @notice batch version of `getHookedMarket`, preserving input order.
   function getHookedMarkets(
     address[] calldata marketAddresses
   ) external view returns (HookedMarket[] memory hookedMarkets) {
@@ -434,12 +436,18 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     }
   }
 
+  /// @notice says whether withdrawals may be queued at the current timestamp.
+  /// @dev closed markets always return true. for open markets, window start is inclusive and end is
+  ///      exclusive. reverts for a market not bound to this hooks instance.
   function isWithdrawalWindowOpen(address marketAddress) external view returns (bool) {
     HookedMarket memory market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
     return _isWithdrawalWindowOpen(market, block.timestamp);
   }
 
+  /// @notice returns a proposal and the response-window bounds fixed when it was created.
+  /// @dev an expired proposal remains readable until it is replaced, cancelled by an APR increase
+  ///      or closure, or executed.
   function getPendingAprChange(
     address marketAddress
   )
@@ -489,6 +497,8 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     return market.firstWithdrawalWindowStart + ((periodsElapsed + 1) * market.periodDuration);
   }
 
+  /// @dev the schedule anchor may be in the past. a future anchor can't exceed the configured
+  ///      maximum delay, and each withdrawal window must be nonzero and shorter than its period.
   function _validatePeriodicTerm(
     uint32 firstWithdrawalWindowStart,
     uint32 periodDuration,
@@ -517,12 +527,10 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   //                                    Hooks                                   //
   // ========================================================================== //
 
-  /**
-   * @dev Called when a lender attempts to deposit.
-   *      Passes the check if the deposit amount is at least the minimum deposit
-   *      amount, the lender is not blocked from depositing, and either the lender
-   *      has a valid credential or the market does not require access for deposits.
-   */
+  /// @notice enforces the market's minimum deposit and lender entry policy.
+  /// @dev the minimum is compared in scaled units using the same floor as the market. a valid
+  ///      credential marks the lender permanently known on this market, even when deposit access
+  ///      itself is optional.
   function onDeposit(
     address lender,
     uint scaledAmount,
@@ -566,13 +574,9 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
   }
 
-  /**
-   * @dev Called when a lender attempts to queue a withdrawal.
-   *      Reverts if the market is open and no withdrawal window is active.
-   *      If the market requires access for withdrawals, passes the check if
-   *      the lender is a known lender or has a valid credential from an
-   *      approved role provider.
-   */
+  /// @notice limits queueing to scheduled windows while the market is open.
+  /// @dev window start is inclusive and end is exclusive. a closed market may queue at any time.
+  ///      gated withdrawals additionally need market-specific known status or a current credential.
   function onQueueWithdrawal(
     address lender,
     uint32 /* expiry */,
@@ -596,9 +600,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     }
   }
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev execution is not window-gated once the lender has queued the withdrawal.
   function onExecuteWithdrawal(
     address /* lender */,
     uint32 /* expiry */,
@@ -607,19 +609,10 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     bytes calldata /* hooksData */
   ) external override {}
 
-  /**
-   * @dev Called when a lender attempts to transfer market tokens on a market
-   *      that requires credentials for either transfers or withdrawals.
-   *
-   *      Allows the transfer if the recipient:
-   *      - is a known lender OR
-   *      - is not blocked AND
-   *        - has a valid credential OR
-   *        - market does not require a credential for transfers
-   *
-   *    If the recipient is not a known lender but does have a valid
-   *    credential, they will be marked as a known lender.
-   */
+  /// @notice enforces the recipient side of the market's transfer policy.
+  /// @dev known recipients bypass later credential and deposit-block checks. an unknown recipient
+  ///      must not be blocked and, when transfers are gated, must supply or resolve a credential.
+  ///      successful credential validation permanently marks the recipient known on this market.
   function onTransfer(
     address /* caller */,
     address /* from */,
@@ -656,24 +649,22 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     }
   }
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev periodic-term policy does not constrain borrower draws.
   function onBorrow(
     uint /* normalizedAmount */,
     MarketState calldata /* state */,
     bytes calldata /* extraData */
   ) external override {}
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev periodic-term policy does not constrain repayments.
   function onRepay(
     uint /* normalizedAmount */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /// @notice marks the schedule closed and cancels any pending APR reduction.
+  /// @dev closing permanently opens withdrawal queueing; this template has no reopen transition.
   function onCloseMarket(
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
@@ -690,30 +681,23 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     emit PeriodicTermClosed(msg.sender);
   }
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev quarantine reaches the window check in the ordinary queue callback that follows.
   function onNukeFromOrbit(
     address /* lender */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev this template adds no supply-cap policy.
   function onSetMaxTotalSupply(
     uint256 /* maxTotalSupply */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
-  /**
-   * @dev Applies a pending APR reduction proposal for the market (msg.sender).
-   *      Reverts unless `annualInterestBips` matches the proposal, the response
-   *      window has ended, the proposal has not expired and there are no
-   *      unpaid withdrawal batches.
-   */
+  /// @dev applies an exact pending reduction after its response window and before expiry. the APR
+  ///      must still be a strict reduction, and all scaled pending withdrawals must be paid first.
+  ///      success deletes the proposal.
   function _executePendingAnnualInterestBipsReduction(
     HookedMarket memory hookedMarket,
     MarketState calldata intermediateState,
@@ -751,12 +735,9 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     updatedAnnualInterestBips = annualInterestBips;
   }
 
-  /**
-   * @dev Called when the market's permissionless
-   *      `executePendingAnnualInterestBipsReduction` is invoked, letting
-   *      anyone apply a matured reduction proposal without the borrower
-   *      calling `setAnnualInterestAndReserveRatioBips`.
-   */
+  /// @notice lets a hooked market apply its matured APR reduction through the permissionless path.
+  /// @dev users call the market; the market calls this hook and keeps its current reserve ratio.
+  /// @return annualInterestBips exact proposed APR for the market to apply.
   function executePendingAnnualInterestBipsReduction(
     MarketState calldata intermediateState
   ) external returns (uint16 annualInterestBips) {
@@ -771,11 +752,10 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     );
   }
 
-  /**
-   * @dev Called when the borrower changes the market's APR or reserve ratio.
-   *      An increase cancels any pending reduction proposal; a reduction must
-   *      execute a matured proposal; an unchanged APR defers to the parent.
-   */
+  /// @notice handles borrower-initiated APR updates under the periodic notice policy.
+  /// @dev an increase cancels a pending reduction. a decrease must exactly match a matured proposal
+  ///      and keeps the current reserve ratio. an unchanged APR uses the shared reserve policy and
+  ///      does not cancel the proposal.
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
@@ -817,9 +797,7 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
       );
   }
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev this template adds no protocol-fee policy.
   function onSetProtocolFeeBips(
     uint16 /* protocolFeeBips */,
     MarketState memory /* intermediateState */,

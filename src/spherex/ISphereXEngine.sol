@@ -2,7 +2,7 @@
 // (c) SphereX 2023 Terms&Conditions
 pragma solidity 0.8.25;
 
-/// @dev this struct is used to reduce the stack usage of the modifiers.
+/// @dev state carried between the pre- and post-validation halves of a protected call.
 struct ModifierLocals {
   bytes32[] storageSlots;
   bytes32[] valuesBefore;
@@ -10,17 +10,20 @@ struct ModifierLocals {
   address engine;
 }
 
-/// @title Interface for SphereXEngine - definitions of core functionality
+/// @title SphereX engine interface
 /// @author SphereX Technologies ltd
-/// @notice This interface is imported by SphereXProtected, so that SphereXProtected can call functions from SphereXEngine
-/// @dev Full docs of these functions can be found in SphereXEngine
+/// @notice validation surface called by SphereX-protected contracts around external and internal
+///         work.
+/// @dev complete rule semantics live in the configured engine implementation.
 interface ISphereXEngine {
+  /// @notice starts validation for an external call and returns storage slots to snapshot.
   function sphereXValidatePre(
     int256 num,
     address sender,
     bytes calldata data
   ) external returns (bytes32[] memory);
 
+  /// @notice completes validation for an external call using before and after storage values.
   function sphereXValidatePost(
     int256 num,
     uint256 gas,
@@ -28,8 +31,10 @@ interface ISphereXEngine {
     bytes32[] calldata valuesAfter
   ) external;
 
+  /// @notice starts validation for an engine-identified internal call.
   function sphereXValidateInternalPre(int256 num) external returns (bytes32[] memory);
 
+  /// @notice completes validation for an engine-identified internal call.
   function sphereXValidateInternalPost(
     int256 num,
     uint256 gas,
@@ -37,14 +42,12 @@ interface ISphereXEngine {
     bytes32[] calldata valuesAfter
   ) external;
 
+  /// @notice allows a protected contract to send validation calls to the engine.
   function addAllowedSenderOnChain(address sender) external;
 
-  /// This function is taken as is from OZ IERC165, we don't inherit from OZ
-  /// to avoid collisions with the customer OZ version.
-  /// @dev Returns true if this contract implements the interface defined by
-  /// `interfaceId`. See the corresponding
-  /// https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
-  /// to learn more about how these ids are created.
-  /// This function call must use less than 30 000 gas.
+  /// @notice returns whether the engine implements `interfaceId` under ERC-165.
+  /// @dev copied into this interface instead of importing OpenZeppelin to avoid version collisions.
+  ///      the call must use less than 30,000 gas. see
+  ///      https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified.
   function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }

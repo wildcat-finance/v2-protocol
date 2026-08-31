@@ -12,15 +12,24 @@ import './interfaces/IMarketLensAggregator.sol';
 import './interfaces/IMarketLensCore.sol';
 import './interfaces/IMarketLensLive.sol';
 
+/// @title Wildcat market lens
+/// @notice stable read facade over separate core, aggregation, and live-data helpers.
+/// @dev each function forwards its original calldata by `staticcall` and passes the helper's exact
+///      result through. splitting the implementation keeps the facade under the code-size limit.
 contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   /// @dev Declared for ABI completeness: raised in the data-filling libraries
   ///      and bubbled up to callers through `_delegate`.
   error NotV2Market();
 
+  /// @notice ArchController configured for this facade.
   WildcatArchController public immutable archController;
+  /// @notice default hooks factory configured for this facade.
   IHooksFactory public immutable hooksFactory;
+  /// @notice helper used for strict market, token, and lender reads.
   IMarketLensCore public immutable coreHelper;
+  /// @notice helper used for cross-factory aggregation reads.
   IMarketLensAggregator public immutable aggregationHelper;
+  /// @notice helper used for compact accrued-state reads.
   IMarketLensLive public immutable liveHelper;
 
   constructor(
@@ -41,11 +50,8 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   //                              Internal helpers                              //
   // ========================================================================== //
 
-  /**
-   * @dev Forward the entire calldata to `helper` via staticcall and return
-   *      (or bubble up the revert from) whatever it returns. The helper must
-   *      expose a function with the same signature as the caller.
-   */
+  /// @dev forwards the original calldata to `helper` and passes its complete result through.
+  ///      the helper has to expose the same function signature. there is no fallback routing.
   function _delegate(address helper) internal view {
     assembly ('memory-safe') {
       let ptr := mload(0x40)
@@ -112,8 +118,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     _delegateAggregationHelper();
   }
 
-  // Dedupes by hooks instance address while preserving first-seen order:
-  // controller order from ArchController, then per-factory instance order.
+  /// @inheritdoc IMarketLensAggregator
   function getAggregatedHooksInstancesForBorrower(
     address borrower
   ) external view returns (HooksInstanceData[] memory arr) {
@@ -167,17 +172,14 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     _delegateAggregationHelper();
   }
 
-  // Dedupes by hooks template address while preserving first-seen order:
-  // controller order from ArchController, then per-factory template order.
+  /// @inheritdoc IMarketLensAggregator
   function getAggregatedAllHooksTemplatesForBorrower(
     address borrower
   ) external view returns (HooksTemplateData[] memory data) {
     _delegateAggregationHelper();
   }
 
-  // Returns one row per (factory, hooksTemplate) pair with factory-scoped template data.
-  // Unlike `getAggregatedAllHooksTemplatesForBorrower`, this intentionally does not
-  // dedupe across factories.
+  /// @inheritdoc IMarketLensAggregator
   function getAggregatedHooksTemplatesForBorrowerWithFactory(
     address borrower
   ) external view returns (FactoryScopedHooksTemplateData[] memory data) {

@@ -46,6 +46,8 @@ review coverage, or remediation status from source ancestry alone.
 
 - [Security assumptions](./security/assumptions.md): credit, authority, hook,
   sanctions, and asset boundaries
+- [Known limitations](./security/known-issues.md): accepted accounting,
+  liveness, dependency, and legacy behavior
 - [`SECURITY.md`](../SECURITY.md): private vulnerability reporting
 - [`audits/`](../audits/README.md): published external review evidence
 
@@ -53,6 +55,10 @@ review coverage, or remediation status from source ancestry alone.
 
 - [Release notes](./releases/README.md): V2.0, V2.1, and V2.5 source boundaries
   and compatibility changes
+- [V2.5 audit scope](./releases/v2.5-audit-scope.md): candidate provenance,
+  review boundary, properties, and freeze gates
+- [V2.5 verification receipt](./releases/v2.5-verification.md): pre-freeze build,
+  test, inventory, size, and lint evidence
 - [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
   verification, and handoffs
 

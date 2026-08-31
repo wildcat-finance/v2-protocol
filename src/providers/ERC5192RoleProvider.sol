@@ -8,12 +8,15 @@ import {
   IERC721OwnerOf
 } from './TokenInterfaces.sol';
 
-/// @notice Validates ownership of a supplied token ID from an ERC5192 collection.
-/// @dev If `requireLocked` is true, `locked(tokenId)` must return true.
-///      hooksData must be `abi.encodePacked(provider, abi.encode(tokenId))`.
-///      Deploy with `skipInterfaceCheck` for collections that do not implement ERC165.
+/// @notice validates ownership of a caller-supplied token ID from one ERC5192 collection.
+/// @dev hook data is `abi.encodePacked(provider, abi.encode(tokenId))`. when `requireLocked` is
+///      true, the token must also report itself locked. malformed input, missing tokens, and failed
+///      token queries return zero. `skipInterfaceCheck` skips deployment-time ERC165, ERC721, and
+///      ERC5192 checks.
 contract ERC5192RoleProvider is IRoleProvider {
+  /// @dev the token address has no code.
   error InvalidTokenAddress();
+  /// @dev the token failed the deployment-time ERC165, ERC721, or ERC5192 checks.
   error InvalidERC5192();
 
   bytes4 private constant ERC165_INTERFACE_ID = 0x01ffc9a7;
@@ -21,9 +24,14 @@ contract ERC5192RoleProvider is IRoleProvider {
   bytes4 private constant ERC5192_INTERFACE_ID = 0xb45a3c0e;
   bytes4 private constant INVALID_INTERFACE_ID = 0xffffffff;
 
+  /// @notice collection queried for ownership and lock status.
   address public immutable token;
+  /// @notice whether a qualifying token must currently report itself locked.
   bool public immutable requireLocked;
 
+  /// @param token_ collection queried for ownership and lock status.
+  /// @param requireLocked_ whether a qualifying token must report `locked(tokenId) == true`.
+  /// @param skipInterfaceCheck whether to skip ERC165, ERC721, and ERC5192 checks.
   constructor(address token_, bool requireLocked_, bool skipInterfaceCheck) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
     if (
@@ -38,14 +46,18 @@ contract ERC5192RoleProvider is IRoleProvider {
     requireLocked = requireLocked_;
   }
 
+  /// @dev callers must supply a token ID, so this provider cannot use the pull path.
   function isPullProvider() external pure override returns (bool) {
     return false;
   }
 
+  /// @dev token ownership can't be checked without caller-supplied data.
   function getCredential(address) external pure override returns (uint32 timestamp) {
     return 0;
   }
 
+  /// @return timestamp current timestamp when `account` owns the supplied qualifying token, else
+  ///         zero.
   function validateCredential(
     address account,
     bytes calldata data

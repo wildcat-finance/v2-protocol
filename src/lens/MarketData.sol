@@ -18,8 +18,11 @@ using MarketDataLib for MarketDataV2_5 global;
 using MarketDataLib for MarketDataWithLenderStatus global;
 using MarketDataLib for LenderAccountQueryResult global;
 
+/// @notice full static configuration, hooks metadata, and accrued state for one V2 market.
+/// @dev this is the compatibility tuple used across V2 generations. use `MarketDataV2_5` for the
+///      borrower-principal and revolving-market extensions.
 struct MarketData {
-  // -- Tokens metadata --
+  // -- token metadata --
   TokenMetadata marketToken;
   TokenMetadata underlyingToken;
   address hooksFactory;
@@ -30,12 +33,13 @@ struct MarketData {
   uint256 delinquencyFeeBips;
   uint256 delinquencyGracePeriod;
   HooksInstanceData hooks;
-  // -- Temporary excess reserve ratio --
+  // -- temporary excess reserve ratio --
+  /// @dev true when the hooks expose a nonzero temporary reserve-ratio record for this market.
   bool temporaryReserveRatio;
   uint256 originalAnnualInterestBips;
   uint256 originalReserveRatioBips;
   uint256 temporaryReserveRatioExpiry;
-  // -- Market state --
+  // -- market state --
   bool isClosed;
   uint256 protocolFeeBips;
   uint256 reserveRatioBips;
@@ -45,22 +49,28 @@ struct MarketData {
   uint256 maxTotalSupply;
   uint256 scaledTotalSupply;
   uint256 totalAssets;
+  /// @dev uncollected accrued protocol fees. the field name is retained for ABI stability.
   uint256 lastAccruedProtocolFees;
   uint256 normalizedUnclaimedWithdrawals;
   uint256 scaledPendingWithdrawals;
+  /// @dev current batch expiry, or an expired stored batch that the accrued view can fully fund.
   uint256 pendingWithdrawalExpiry;
   bool isDelinquent;
   uint256 timeDelinquent;
   uint256 lastInterestAccruedTimestamp;
   uint32[] unpaidWithdrawalBatchExpiries;
+  /// @dev underlying liquidity required to cover reserves, withdrawals, and protocol fees.
   uint256 coverageLiquidity;
 }
 
+/// @notice optional numeric field that distinguishes an absent getter from a real zero value.
 struct OptionalUintDataV2_5 {
   bool isPresent;
   uint256 value;
 }
 
+/// @notice V2.5 market data layered on the stable `MarketData` tuple.
+/// @dev revolving-only values are absent for standard markets instead of being reported as zero.
 struct MarketDataV2_5 {
   MarketData market;
   address borrowerPrincipal;
@@ -71,23 +81,27 @@ struct MarketDataV2_5 {
   OptionalUintDataV2_5 drawnAmount;
 }
 
+/// @notice full market data paired with one lender's current status.
 struct MarketDataWithLenderStatus {
   MarketData market;
   LenderAccountData lenderStatus;
 }
 
+/// @notice one combined market, lender, and withdrawal-batch lens request.
 struct LenderAccountQuery {
   address lender;
   address market;
   uint32[] withdrawalBatchExpiries;
 }
 
+/// @notice result for one `LenderAccountQuery`.
 struct LenderAccountQueryResult {
   MarketData market;
   LenderAccountData lenderStatus;
   WithdrawalBatchDataWithLenderStatus[] withdrawalBatches;
 }
 
+/// @notice data fillers used by the core, aggregation, and live lens contracts.
 library MarketDataLib {
   using MathUtils for uint256;
 
@@ -142,6 +156,8 @@ library MarketDataLib {
     }
   }
 
+  /// @notice fills the complete compatibility tuple for a V2 market.
+  /// @dev required token, market, and known-hooks reads are strict and may revert.
   function fill(MarketData memory data, WildcatMarket market) internal view {
     data.marketToken.fill(address(market));
     data.underlyingToken.fill(market.asset());
@@ -172,6 +188,7 @@ library MarketDataLib {
     );
   }
 
+  /// @notice fills V2.5 identity fields and optional revolving-market fields.
   function fill(MarketDataV2_5 memory data, WildcatMarket market) internal view {
     data.market.fill(market);
     data.borrowerPrincipal = market.borrowerPrincipal();
@@ -182,6 +199,7 @@ library MarketDataLib {
     _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
   }
 
+  /// @notice fills compatibility data for each market in input order.
   function fillMarketsData(
     address[] memory markets
   ) internal view returns (MarketData[] memory data) {
@@ -191,6 +209,7 @@ library MarketDataLib {
     }
   }
 
+  /// @notice fills V2.5 data for each market in input order.
   function fillMarketsDataV2(
     address[] memory markets
   ) internal view returns (MarketDataV2_5[] memory data) {
@@ -224,6 +243,8 @@ library MarketDataLib {
     }
   }
 
+  /// @notice probes optional temporary reserve-ratio state on the market's hooks instance.
+  /// @dev a missing, reverting, or short getter leaves the related fields empty.
   function fillTemporaryExcessReserveRatio(MarketData memory data) internal view {
     address marketAddress = data.marketToken.token;
     address hooksAddress = data.hooks.hooksAddress;
@@ -263,6 +284,7 @@ library MarketDataLib {
     data.temporaryReserveRatio = data.temporaryReserveRatioExpiry > 0;
   }
 
+  /// @notice fills accrued accounting state and unpaid withdrawal expiries.
   function fillState(MarketData memory data) internal view {
     WildcatMarket market = WildcatMarket(data.marketToken.token);
     data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
@@ -309,6 +331,7 @@ library MarketDataLib {
     data.coverageLiquidity = state.liquidityRequired();
   }
 
+  /// @notice expands the expiries already stored in `data` into withdrawal batch records.
   function getUnpaidAndPendingWithdrawalBatches(
     MarketData memory data
   ) internal view returns (WithdrawalBatchData[] memory unpaidAndPendingWithdrawalBatches) {

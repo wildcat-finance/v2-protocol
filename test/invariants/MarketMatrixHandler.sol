@@ -5,9 +5,10 @@ import { Vm } from 'forge-std/Vm.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
+import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
-import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
+import { AccountWithdrawalStatus, WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { HookDispatchSentinelMock } from '../mocks/HookDispatchMocks.sol';
 
@@ -17,12 +18,21 @@ import { HookDispatchSentinelMock } from '../mocks/HookDispatchMocks.sol';
 ///      unexpected result is recorded in a ghost counter and asserted by the
 ///      invariant contract after the generated sequence finishes.
 contract MarketMatrixHandler {
+  using FeeMath for MarketState;
   using MathUtils for uint256;
+
+  struct ProtocolFeeSnapshot {
+    uint256 accrued;
+    uint256 recipientBalance;
+    uint256 marketAssets;
+  }
 
   uint8 internal constant OpenTerm = 0;
   uint8 internal constant FixedTerm = 1;
   uint8 internal constant PeriodicTerm = 2;
   uint256 internal constant MaximumActionAmount = 50_000e18;
+  bytes32 internal constant InterestAndFeesAccruedTopic =
+    0x18247a393d0531b65fbd94f5e78bc5639801a4efda62ae7b43533c4442116c3a;
 
   address internal constant VmAddress = address(uint160(uint256(keccak256('hevm cheat code'))));
   Vm internal constant vm = Vm(VmAddress);
@@ -36,6 +46,8 @@ contract MarketMatrixHandler {
   uint32[] internal fixedTermEnds;
   uint16[] internal commitmentFeeBips;
   uint256[] internal lastScaleFactors;
+  uint256[] internal initialProtocolFeeLiabilities;
+  uint256[] internal observedProtocolFeesAccrued;
   address[] internal actors;
 
   mapping(uint256 cellIndex => uint32[] expiries) internal trackedExpiries;
@@ -50,6 +62,10 @@ contract MarketMatrixHandler {
   uint256 public drawnAmountFailures;
   uint256 public utilizationInterestFailures;
   uint256 public arithmeticPanicCount;
+  uint256 public protocolFeeConservationFailures;
+  uint256 public nonzeroProtocolFeeAccruals;
+  uint256 public nonzeroProtocolFeeCollections;
+  uint256 public partialProtocolFeeCollections;
   uint256 public sanctionsFailures;
   uint256 public unexpectedActionFailures;
 
@@ -88,6 +104,11 @@ contract MarketMatrixHandler {
       fixedTermEnds.push(fixedTermEnds_[i]);
       commitmentFeeBips.push(commitmentFeeBips_[i]);
       lastScaleFactors.push(market.scaleFactor());
+      initialProtocolFeeLiabilities.push(
+        market.previousState().accruedProtocolFees +
+          MockERC20(assets_[i]).balanceOf(market.feeRecipient())
+      );
+      observedProtocolFeesAccrued.push(0);
     }
     actors = actors_;
   }
@@ -98,6 +119,76 @@ contract MarketMatrixHandler {
 
   function marketAt(uint256 cellIndex) external view returns (address) {
     return address(markets[cellIndex]);
+  }
+
+  function seedAccountingCoverage() external {
+    require(nonzeroProtocolFeeAccruals == 0, 'accounting already seeded');
+
+    vm.warp(vm.getBlockTimestamp() + 1 days);
+    for (uint256 i; i < markets.length; i++) {
+      (bool updated, ) = _callAs(
+        i,
+        address(this),
+        address(markets[i]),
+        abi.encodeCall(WildcatMarket.updateState, ())
+      );
+      require(updated, 'seed update');
+      (bool collected, ) = _callAs(
+        i,
+        address(this),
+        address(markets[i]),
+        abi.encodeCall(WildcatMarket.collectFees, ())
+      );
+      require(collected, 'seed collection');
+    }
+    require(nonzeroProtocolFeeAccruals == markets.length, 'seed accrual coverage');
+    require(nonzeroProtocolFeeCollections == markets.length, 'seed collection coverage');
+
+    WildcatMarket market = markets[0];
+    uint256 borrowable = market.borrowableAssets();
+    (bool borrowed, ) = _callAs(
+      0,
+      _borrower(),
+      address(market),
+      abi.encodeCall(WildcatMarket.borrow, (borrowable))
+    );
+    require(borrowed, 'seed borrow');
+
+    (bool queued, bytes memory result) = _callAs(
+      0,
+      actors[0],
+      address(market),
+      abi.encodeWithSignature('queueFullWithdrawal()')
+    );
+    require(queued && result.length == 32, 'seed queue');
+    _trackExpiry(0, abi.decode(result, (uint32)));
+
+    vm.warp(vm.getBlockTimestamp() + 1 days);
+    (bool updated, ) = _callAs(
+      0,
+      address(this),
+      address(market),
+      abi.encodeCall(WildcatMarket.updateState, ())
+    );
+    require(updated, 'underfunded update');
+
+    uint256 partialFeePayment = market.previousState().accruedProtocolFees / 2;
+    require(partialFeePayment != 0, 'zero partial fee');
+    _fundBorrower(0, partialFeePayment);
+    (bool repaid, ) = _callAs(
+      0,
+      _borrower(),
+      address(market),
+      abi.encodeCall(WildcatMarket.repay, (partialFeePayment))
+    );
+    require(repaid, 'seed repay');
+    (bool partiallyCollected, ) = _callAs(
+      0,
+      address(this),
+      address(market),
+      abi.encodeCall(WildcatMarket.collectFees, ())
+    );
+    require(partiallyCollected && partialProtocolFeeCollections != 0, 'partial collection');
   }
 
   // ----------------------------------------------------------------------- //
@@ -512,23 +603,84 @@ contract MarketMatrixHandler {
     for (uint256 i; i < markets.length; i++) {
       MarketState memory state = markets[i].currentState();
       uint256 scaledPending;
-      uint256 available;
+      uint256 normalizedLiabilities;
       uint32[] storage expiries = trackedExpiries[i];
       for (uint256 j; j < expiries.length; j++) {
         WithdrawalBatch memory batch = markets[i].getWithdrawalBatch(expiries[j]);
         if (batch.scaledAmountBurned > batch.scaledTotalAmount) return false;
         scaledPending += batch.scaledTotalAmount - batch.scaledAmountBurned;
-        if (expiries[j] >= vm.getBlockTimestamp()) continue;
-        for (uint256 k; k < actors.length; k++) {
-          try markets[i].getAvailableWithdrawalAmount(actors[k], expiries[j]) returns (
-            uint256 amount
-          ) {
-            available += amount;
-          } catch {}
-        }
+        (bool valid, uint256 normalizedLiability) = _batchLiabilityMatchesAccounts(
+          i,
+          expiries[j],
+          batch
+        );
+        if (!valid) return false;
+        normalizedLiabilities += normalizedLiability;
       }
       if (scaledPending != state.scaledPendingWithdrawals) return false;
-      if (available > state.normalizedUnclaimedWithdrawals) return false;
+      if (normalizedLiabilities != state.normalizedUnclaimedWithdrawals) return false;
+    }
+    return true;
+  }
+
+  function _batchLiabilityMatchesAccounts(
+    uint256 cellIndex,
+    uint32 expiry,
+    WithdrawalBatch memory batch
+  ) internal view returns (bool valid, uint256 normalizedLiability) {
+    uint256 accountScaledTotal;
+    uint256 accountWithdrawnTotal;
+    uint256 accountAllocatedTotal;
+    uint256 participants;
+    for (uint256 i; i < actors.length; i++) {
+      AccountWithdrawalStatus memory status = markets[cellIndex].getAccountWithdrawalStatus(
+        actors[i],
+        expiry
+      );
+      accountScaledTotal += status.scaledAmount;
+      accountWithdrawnTotal += status.normalizedAmountWithdrawn;
+      if (status.scaledAmount == 0) continue;
+
+      participants++;
+      uint256 allocated = MathUtils.mulDiv(
+        batch.normalizedAmountPaid,
+        status.scaledAmount,
+        batch.scaledTotalAmount
+      );
+      if (status.normalizedAmountWithdrawn > allocated) return (false, 0);
+      if (expiry < vm.getBlockTimestamp()) {
+        try markets[cellIndex].getAvailableWithdrawalAmount(actors[i], expiry) returns (
+          uint256 available
+        ) {
+          if (available != allocated - status.normalizedAmountWithdrawn) return (false, 0);
+        } catch {
+          return (false, 0);
+        }
+      }
+      accountAllocatedTotal += allocated;
+    }
+    if (
+      accountScaledTotal != batch.scaledTotalAmount ||
+      accountWithdrawnTotal > batch.normalizedAmountPaid
+    ) return (false, 0);
+
+    uint256 allocationDust = batch.normalizedAmountPaid - accountAllocatedTotal;
+    if (allocationDust > (participants == 0 ? 0 : participants - 1)) return (false, 0);
+    return (true, batch.normalizedAmountPaid - accountWithdrawnTotal);
+  }
+
+  function protocolFeesAreConserved() external view returns (bool) {
+    if (protocolFeeConservationFailures != 0) return false;
+    if (
+      nonzeroProtocolFeeAccruals < markets.length ||
+      nonzeroProtocolFeeCollections < markets.length ||
+      partialProtocolFeeCollections == 0
+    ) return false;
+    for (uint256 i; i < markets.length; i++) {
+      uint256 liveLiability = markets[i].previousState().accruedProtocolFees +
+        assets[i].balanceOf(markets[i].feeRecipient());
+      if (liveLiability != initialProtocolFeeLiabilities[i] + observedProtocolFeesAccrued[i])
+        return false;
     }
     return true;
   }
@@ -557,14 +709,7 @@ contract MarketMatrixHandler {
     // close, settle each historical batch, and let every lender leave.
     for (uint256 i; i < markets.length; i++) {
       WildcatMarket market = markets[i];
-      MockERC20 asset = assets[i];
-      if (!market.isClosed()) {
-        vm.startPrank(_borrower());
-        asset.mint(_borrower(), market.totalDebts());
-        asset.approve(address(market), type(uint256).max);
-        market.closeMarket();
-        vm.stopPrank();
-      }
+      if (!_closeCell(i)) return (i, 5);
       for (uint256 j; j < actors.length; j++) {
         address actor = actors[j];
         if (market.scaledBalanceOf(actor) == 0) continue;
@@ -589,13 +734,45 @@ contract MarketMatrixHandler {
         }
       }
 
+      if (!_collectFeesAfterDrain(i)) return (i, 6);
+
       if (market.getUnpaidBatchExpiries().length != 0) return (i, 1);
       if (market.scaledTotalSupply() != 0) return (i, 2);
       uint256 dustBound = (expiries.length + 1) * actors.length;
       if (market.totalDebts() > dustBound) return (i, 3);
       if (assets[i].balanceOf(address(market)) > dustBound) return (i, 4);
+      if (!_protocolFeesAreConserved(i)) return (i, 7);
     }
     return (type(uint256).max, 0);
+  }
+
+  function _closeCell(uint256 cellIndex) internal returns (bool) {
+    WildcatMarket market = markets[cellIndex];
+    if (market.isClosed()) return true;
+
+    MockERC20 asset = assets[cellIndex];
+    asset.mint(_borrower(), market.totalDebts());
+    vm.prank(_borrower());
+    asset.approve(address(market), type(uint256).max);
+    (bool success, ) = _callAs(
+      cellIndex,
+      _borrower(),
+      address(market),
+      abi.encodeCall(WildcatMarket.closeMarket, ())
+    );
+    return success;
+  }
+
+  function _collectFeesAfterDrain(uint256 cellIndex) internal returns (bool) {
+    WildcatMarket market = markets[cellIndex];
+    if (market.previousState().accruedProtocolFees == 0) return true;
+    (bool success, ) = _callAs(
+      cellIndex,
+      address(this),
+      address(market),
+      abi.encodeCall(WildcatMarket.collectFees, ())
+    );
+    return success;
   }
 
   // ----------------------------------------------------------------------- //
@@ -772,6 +949,7 @@ contract MarketMatrixHandler {
       uint256 drawnClamped = MathUtils.min(drawn, totalSupply);
       baseInterestRay += MathUtils.mulDiv(annualInterestRay, drawnClamped, totalSupply);
     }
+    if (state.protocolFeeBips != 0) state.applyProtocolFee(baseInterestRay);
     state.scaleFactor = uint112(
       uint256(state.scaleFactor) + uint256(state.scaleFactor).rayMul(baseInterestRay)
     );
@@ -782,14 +960,86 @@ contract MarketMatrixHandler {
   // ----------------------------------------------------------------------- //
 
   function _callAs(
-    uint256,
+    uint256 cellIndex,
     address caller,
     address target,
     bytes memory data
   ) internal returns (bool success, bytes memory result) {
+    WildcatMarket market = markets[cellIndex];
+    ProtocolFeeSnapshot memory beforeCall = ProtocolFeeSnapshot({
+      accrued: market.previousState().accruedProtocolFees,
+      recipientBalance: assets[cellIndex].balanceOf(market.feeRecipient()),
+      marketAssets: assets[cellIndex].balanceOf(address(market))
+    });
+
+    vm.recordLogs();
     vm.prank(caller);
     (success, result) = target.call(data);
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+
+    if (success) _recordProtocolFeeTransition(cellIndex, target, data, logs, beforeCall);
     if (!success && _isArithmeticPanic(result)) arithmeticPanicCount++;
+  }
+
+  function _recordProtocolFeeTransition(
+    uint256 cellIndex,
+    address target,
+    bytes memory data,
+    Vm.Log[] memory logs,
+    ProtocolFeeSnapshot memory beforeCall
+  ) internal {
+    WildcatMarket market = markets[cellIndex];
+    uint256 newlyAccrued = _protocolFeesFromLogs(logs, address(market));
+    observedProtocolFeesAccrued[cellIndex] += newlyAccrued;
+    if (newlyAccrued != 0) nonzeroProtocolFeeAccruals++;
+
+    MarketState memory stateAfter = market.previousState();
+    uint256 recipientBalanceAfter = assets[cellIndex].balanceOf(market.feeRecipient());
+    if (
+      beforeCall.accrued + beforeCall.recipientBalance + newlyAccrued !=
+      stateAfter.accruedProtocolFees + recipientBalanceAfter
+    ) protocolFeeConservationFailures++;
+
+    if (target == address(market) && _selector(data) == WildcatMarket.collectFees.selector) {
+      uint256 collected = recipientBalanceAfter - beforeCall.recipientBalance;
+      uint256 available = beforeCall.marketAssets.satSub(stateAfter.normalizedUnclaimedWithdrawals);
+      uint256 expected = MathUtils.min(available, beforeCall.accrued + newlyAccrued);
+      if (collected != expected) protocolFeeConservationFailures++;
+      if (collected != 0) {
+        nonzeroProtocolFeeCollections++;
+        if (collected < beforeCall.accrued + newlyAccrued) partialProtocolFeeCollections++;
+      }
+    }
+  }
+
+  function _protocolFeesFromLogs(
+    Vm.Log[] memory logs,
+    address market
+  ) internal pure returns (uint256 total) {
+    for (uint256 i; i < logs.length; i++) {
+      if (
+        logs[i].emitter != market ||
+        logs[i].topics.length == 0 ||
+        logs[i].topics[0] != InterestAndFeesAccruedTopic
+      ) continue;
+      uint256[6] memory fields = abi.decode(logs[i].data, (uint256[6]));
+      total += fields[5];
+    }
+  }
+
+  function _protocolFeesAreConserved(uint256 cellIndex) internal view returns (bool) {
+    WildcatMarket market = markets[cellIndex];
+    return
+      market.previousState().accruedProtocolFees +
+        assets[cellIndex].balanceOf(market.feeRecipient()) ==
+      initialProtocolFeeLiabilities[cellIndex] + observedProtocolFeesAccrued[cellIndex];
+  }
+
+  function _selector(bytes memory data) internal pure returns (bytes4 selector) {
+    if (data.length < 4) return bytes4(0);
+    assembly ('memory-safe') {
+      selector := mload(add(data, 0x20))
+    }
   }
 
   function _isArithmeticPanic(bytes memory result) internal pure returns (bool) {

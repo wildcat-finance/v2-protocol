@@ -4,12 +4,17 @@ pragma solidity 0.8.25;
 import './WildcatMarketBase.sol';
 import '../libraries/SafeCastLib.sol';
 
+/// @dev narrow callback used to execute a pending periodic-term APR reduction.
 interface IPeriodicTermAprReductionHooks {
+  /// @dev validates the pending proposal against `intermediateState` and consumes it.
+  /// @param intermediateState market state after current accrual and batch processing.
+  /// @return annualInterestBips exact reduced APR the market should apply, in bips.
   function executePendingAnnualInterestBipsReduction(
     MarketState calldata intermediateState
   ) external returns (uint16 annualInterestBips);
 }
 
+/// @notice market configuration, sanctions quarantine, and term-change entry points.
 contract WildcatMarketConfig is WildcatMarketBase {
   using SafeCastLib for uint256;
   using FunctionTypeCasts for *;
@@ -18,40 +23,32 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //                      External Config Getters                          //
   // ===================================================================== //
 
-  /**
-   * @dev Returns whether or not a market has been closed.
-   */
+  /// @notice returns whether the market has been permanently closed.
   function isClosed() external view returns (bool) {
     // Use stored state because the state update can not affect whether
     // the market is closed.
     return _state.isClosed;
   }
 
-  /**
-   * @dev Returns the maximum amount of underlying asset that can
-   *      currently be deposited to the market.
-   */
+  /// @notice returns the most underlying assets a deposit can currently add.
+  /// @dev includes interest accrued through this block and saturates at zero.
   function maximumDeposit() external view returns (uint256) {
     MarketState memory state = _calculateCurrentStatePointers.asReturnsMarketState()();
     return state.maximumDeposit();
   }
 
-  /**
-   * @dev Returns the maximum supply the market can reach via
-   *      deposits (does not apply to interest accrual).
-   */
+  /// @notice returns the normalized supply cap applied to deposits.
+  /// @dev interest can grow total supply above this value.
   function maxTotalSupply() external view returns (uint256) {
     return _state.maxTotalSupply;
   }
 
-  /**
-   * @dev Returns the annual interest rate earned by lenders
-   *      in bips.
-   */
+  /// @notice returns the stored base annual lender rate, in bips.
   function annualInterestBips() external view returns (uint256) {
     return _state.annualInterestBips;
   }
 
+  /// @notice returns the stored reserve requirement on outstanding supply, in bips.
   function reserveRatioBips() external view returns (uint256) {
     return _state.reserveRatioBips;
   }
@@ -60,8 +57,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //                                  Sanctions                                 //
   // ========================================================================== //
 
-  /// @dev Register the optional canonical ERC-4626 wrapper. The wrapper factory
-  ///      calls this atomically during permissionless wrapper deployment.
+  /// @notice stores the canonical ERC-4626 wrapper supplied by `wrapperFactory`.
+  /// @dev normally called during wrapper deployment. a nonzero stored wrapper blocks replacement.
+  /// @param wrapper canonical wrapper address to store.
   function registerWrapper(address wrapper) external {
     if (msg.sender != wrapperFactory) revert_NotWrapperFactory();
     if (registeredWrapper() != address(0)) revert_WrapperAlreadyRegistered();
@@ -69,8 +67,10 @@ contract WildcatMarketConfig is WildcatMarketBase {
     emit WrapperRegistered(wrapper);
   }
 
-  /// @dev Block a sanctioned account from interacting with the market
-  ///      and transfer its balance to an escrow contract.
+  /// @notice quarantines a sanctioned lender by queueing its full direct balance for withdrawal.
+  /// @dev permissionless. the target must still pass the normal queue-withdrawal hook, so a term
+  ///      policy can defer quarantine until withdrawals open. the canonical wrapper is excluded.
+  /// @param accountAddress sanctioned lender to quarantine.
   // ******************************************************************
   //          *  |\**/|  *          *                                *
   //          *  \ == /  *          *                                *
@@ -108,13 +108,10 @@ contract WildcatMarketConfig is WildcatMarketBase {
   //                           External Config Setters                          //
   // ========================================================================== //
 
-  /**
-   * @dev Sets the maximum total supply - this only limits deposits and
-   *      does not affect interest accrual.
-   *
-   *      The hooks contract may block the change but can not modify the
-   *      value being set.
-   */
+  /// @notice sets the normalized supply cap for future deposits.
+  /// @dev only the borrower can call. the hook may accept or revert but can't rewrite the value.
+  ///      this does not cap interest growth or force existing supply down.
+  /// @param _maxTotalSupply new normalized deposit cap.
   function setMaxTotalSupply(
     uint256 _maxTotalSupply
   ) external onlyBorrower nonReentrant sphereXGuardExternal {
@@ -128,6 +125,8 @@ contract WildcatMarketConfig is WildcatMarketBase {
     emit_MaxTotalSupplyUpdated(msg.sender, previousMaxTotalSupply, _maxTotalSupply);
   }
 
+  /// @dev when the ratio stays flat or falls, the market must be healthy under the current ratio.
+  ///      when it rises, the market must remain healthy under the new ratio.
   function _applyAnnualInterestAndReserveRatioBips(
     MarketState memory state,
     uint16 _annualInterestBips,
@@ -168,16 +167,12 @@ contract WildcatMarketConfig is WildcatMarketBase {
     );
   }
 
-  /**
-   * @dev Sets the annual interest rate earned by lenders in bips.
-   *
-   *      If the new reserve ratio is lower than the old ratio,
-   *      asserts that the market is not currently delinquent.
-   *
-   *      If the new reserve ratio is higher than the old ratio,
-   *      asserts that the market will not become delinquent
-   *      because of the change.
-   */
+  /// @notice asks the market hook to apply new lender APR and reserve-ratio values.
+  /// @dev only the borrower can call. the hook may rewrite both values and each result must stay at
+  ///      or below 10,000 bips. a flat or lower reserve ratio requires the market to be healthy
+  ///      already; a higher ratio must leave it healthy.
+  /// @param _annualInterestBips proposed base annual lender rate, in bips.
+  /// @param _reserveRatioBips proposed reserve requirement, in bips.
   function setAnnualInterestAndReserveRatioBips(
     uint16 _annualInterestBips,
     uint16 _reserveRatioBips
@@ -201,16 +196,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
     );
   }
 
-  /**
-   * @dev Permissionlessly applies an already-proposed periodic-term APR reduction.
-   *
-   *      This does not let the caller choose a new APR or reserve ratio. The
-   *      borrower must have proposed the reduction through PeriodicTermHooks,
-   *      the response withdrawal window must have elapsed, the proposal must not
-   *      have expired, and all outstanding withdrawal obligations must be paid.
-   *      Non-periodic markets revert because their hooks config does not enable
-   *      the periodic-term execution hook.
-   */
+  /// @notice permissionlessly applies an executable periodic-term APR reduction.
+  /// @dev the hook supplies the APR. the caller can't choose it or change the reserve ratio. the
+  ///      hook enforces proposal timing and withdrawal conditions; non-periodic markets revert.
   function executePendingAnnualInterestBipsReduction() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_AprChangeOnClosedMarket();
@@ -235,11 +223,10 @@ contract WildcatMarketConfig is WildcatMarketBase {
     );
   }
 
-  /**
-   * @dev Updates protocol fee bips from the factory.
-   *      Reverts if caller is not factory, fee is above 1,000 bips, market is closed,
-   *      a positive fee has no recipient, or the hooks contract rejects the change.
-   */
+  /// @notice updates the protocol share of base interest from the deploying factory.
+  /// @dev capped at 1,000 bips. a positive fee needs a nonzero immutable recipient, and the hook
+  ///      may reject the update. closed markets can't change fees.
+  /// @param _protocolFeeBips new protocol share of base interest, in bips.
   function setProtocolFeeBips(uint16 _protocolFeeBips) external nonReentrant sphereXGuardExternal {
     if (msg.sender != factory) revert_NotFactory();
     if (_protocolFeeBips > 1_000) revert_ProtocolFeeTooHigh();

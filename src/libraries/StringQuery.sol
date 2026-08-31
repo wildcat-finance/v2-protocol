@@ -5,6 +5,8 @@ import { LibBit } from 'solady/utils/LibBit.sol';
 
 using LibBit for uint256;
 
+/// @notice converts a left-aligned, null-padded `bytes32` string to dynamic form.
+/// @dev embedded nulls are preserved; only trailing zero bytes are removed.
 function bytes32ToString(bytes32 value) pure returns (string memory str) {
   uint256 size;
   unchecked {
@@ -23,6 +25,12 @@ function bytes32ToString(bytes32 value) pure returns (string memory str) {
   }
 }
 
+/// @notice reads token metadata that may return either `string` or legacy `bytes32`.
+/// @dev bubbles target revert data when present. malformed successful returndata reverts with
+///      `InvalidReturnDataString`; an empty target revert uses `leftPaddedGenericErrorSelector`.
+/// @param target contract queried with a no-argument static call.
+/// @param leftPaddedFunctionSelector selector stored in the low four bytes of a word.
+/// @param leftPaddedGenericErrorSelector fallback custom-error selector in the low four bytes.
 function queryStringOrBytes32AsString(
   address target,
   uint256 leftPaddedFunctionSelector,

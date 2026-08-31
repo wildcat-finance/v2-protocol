@@ -27,6 +27,7 @@ library FeeMath {
     }
   }
 
+  /// @dev returns linear base interest from the last accrual timestamp through `timestamp`, in ray.
   function calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
@@ -37,6 +38,8 @@ library FeeMath {
     );
   }
 
+  /// @dev accrues the protocol's fee on base interest without increasing lender balances.
+  /// @return protocolFee normalized fee added to `state.accruedProtocolFees`.
   function applyProtocolFee(
     MarketState memory state,
     uint256 baseInterestRay
@@ -49,6 +52,8 @@ library FeeMath {
     state.accruedProtocolFees = (state.accruedProtocolFees + protocolFee).toUint128();
   }
 
+  /// @dev advances or decays the delinquency timer and returns the fee rate accrued over the
+  ///      interval's penalized seconds, in ray.
   function updateDelinquency(
     MarketState memory state,
     uint256 timestamp,

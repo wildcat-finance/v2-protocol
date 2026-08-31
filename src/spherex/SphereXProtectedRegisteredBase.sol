@@ -53,9 +53,12 @@ abstract contract SphereXProtectedRegisteredBase {
   //                              Events and Errors                             //
   // ========================================================================== //
 
+  /// @dev the caller is not the immutable ArchController operator.
   error SphereXOperatorRequired();
 
+  /// @notice emitted when this registered contract records its ArchController operator.
   event ChangedSpherexOperator(address oldSphereXAdmin, address newSphereXAdmin);
+  /// @notice emitted when the active SphereX engine changes.
   event ChangedSpherexEngineAddress(address oldEngineAddress, address newEngineAddress);
 
   // ========================================================================== //
@@ -90,26 +93,19 @@ abstract contract SphereXProtectedRegisteredBase {
   //                                 Management                                 //
   // ========================================================================== //
 
-  /// @dev Returns the current operator address.
+  /// @notice returns the immutable ArchController operator.
   function sphereXOperator() public view returns (address) {
     return _archController;
   }
 
-  /// @dev Returns the current engine address.
+  /// @notice returns the active engine, or zero when protection is disabled.
   function sphereXEngine() public view returns (address) {
     return _getAddress(SPHEREX_ENGINE_STORAGE_SLOT);
   }
 
-  /**
-   * @dev  Change the address of the SphereX engine.
-   *
-   *       This is also used to enable SphereX protection, which is disabled
-   *       when the engine address is 0.
-   *
-   * Note: The new engine is not validated as it would be in `SphereXProtectedBase`
-   *       because the operator is the arch controller, which validates the engine
-   *       address prior to updating it here.
-   */
+  /// @notice replaces the SphereX engine, or disables protection when set to zero.
+  /// @dev only the immutable ArchController can call this. it validates the engine before
+  ///      forwarding the update, so this size-reduced base does not validate it again.
   function changeSphereXEngine(address newSphereXEngine) external spherexOnlyOperator {
     address oldEngine = _getAddress(SPHEREX_ENGINE_STORAGE_SLOT);
     _setAddress(SPHEREX_ENGINE_STORAGE_SLOT, newSphereXEngine);

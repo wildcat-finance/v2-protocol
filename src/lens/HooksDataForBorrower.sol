@@ -8,6 +8,8 @@ import '../WildcatArchController.sol';
 
 using HooksDataForBorrowerLib for HooksDataForBorrower global;
 
+/// @notice borrower-facing hooks templates and instances from one factory.
+/// @dev `isRegisteredBorrower` checks the address directly. it does not resolve borrower accounts.
 struct HooksDataForBorrower {
   address borrower;
   bool isRegisteredBorrower;
@@ -15,7 +17,9 @@ struct HooksDataForBorrower {
   HooksInstanceData[] hooksInstances;
 }
 
+/// @notice builds one-factory hooks views for a borrower address.
 library HooksDataForBorrowerLib {
+  /// @notice fills borrower status plus every template and borrower-indexed instance in `factory`.
   function fill(
     HooksDataForBorrower memory data,
     WildcatArchController archController,

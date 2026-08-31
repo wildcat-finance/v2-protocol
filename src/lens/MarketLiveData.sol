@@ -8,6 +8,8 @@ import './MarketData.sol';
 using MarketLiveDataLib for MarketLiveDataV2_5 global;
 using MarketLiveDataLib for MarketLiveDataWithLenderStatusV2_5 global;
 
+/// @notice compact current accounting state for a V2.5 market.
+/// @dev omits expensive static configuration, hook metadata, and unpaid-batch enumeration.
 struct MarketLiveDataV2_5 {
   address market;
   bool isClosed;
@@ -19,9 +21,11 @@ struct MarketLiveDataV2_5 {
   uint256 maxTotalSupply;
   uint256 scaledTotalSupply;
   uint256 totalAssets;
+  /// @dev uncollected accrued protocol fees. the field name is retained for ABI stability.
   uint256 lastAccruedProtocolFees;
   uint256 normalizedUnclaimedWithdrawals;
   uint256 scaledPendingWithdrawals;
+  /// @dev current batch expiry, or an expired stored batch that the accrued view can fully fund.
   uint256 pendingWithdrawalExpiry;
   bool isDelinquent;
   uint256 timeDelinquent;
@@ -31,12 +35,15 @@ struct MarketLiveDataV2_5 {
   OptionalUintDataV2_5 drawnAmount;
 }
 
+/// @notice compact market state paired with one lender's current status.
 struct MarketLiveDataWithLenderStatusV2_5 {
   MarketLiveDataV2_5 market;
   LenderAccountData lenderStatus;
 }
 
+/// @notice fillers for compact live market reads.
 library MarketLiveDataLib {
+  /// @notice fills accounting state using the market's accrued `currentState()` view.
   function fill(MarketLiveDataV2_5 memory data, WildcatMarket market) internal view {
     data.market = address(market);
 

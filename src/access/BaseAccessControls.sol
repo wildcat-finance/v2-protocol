@@ -12,11 +12,17 @@ import '../interfaces/IWildcatArchController.sol';
 
 using BoolUtils for bool;
 
+/// @notice shared provider, credential, and lender-policy state for built-in access hooks.
+/// @dev provider attachments and lender credentials belong to the hooks instance, which may serve
+///      several markets. known-lender status is permanent and scoped to one lender and market.
+///      the hooks administrator manages attachments and local deposit blocks; that authority does
+///      not make the administrator a credential provider.
 contract BaseAccessControls is IHooksAdministrator {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
 
+  /// @notice emitted when a provider's TTL changes or swap-removal moves its array index.
   event RoleProviderUpdated(
     address indexed administrator,
     address indexed providerAddress,
@@ -27,6 +33,7 @@ contract BaseAccessControls is IHooksAdministrator {
     uint24 previousPushProviderIndex,
     uint24 newPushProviderIndex
   );
+  /// @notice emitted when the administrator attaches a credential provider.
   event RoleProviderAdded(
     address indexed administrator,
     address indexed providerAddress,
@@ -34,6 +41,7 @@ contract BaseAccessControls is IHooksAdministrator {
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
   );
+  /// @notice emitted when the administrator detaches a credential provider.
   event RoleProviderRemoved(
     address indexed administrator,
     address indexed providerAddress,
@@ -41,36 +49,47 @@ contract BaseAccessControls is IHooksAdministrator {
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
   );
+  /// @notice emitted when the administrator blocks an account from making new deposits.
   event AccountBlockedFromDeposits(
     address indexed administrator,
     address indexed accountAddress
   );
+  /// @notice emitted when the administrator removes an account's deposit block.
   event AccountUnblockedFromDeposits(
     address indexed administrator,
     address indexed accountAddress
   );
+  /// @notice emitted when this hooks instance stores a new lender credential.
   event AccountAccessGranted(
     address indexed providerAddress,
     address indexed accountAddress,
     address indexed caller,
     uint32 credentialTimestamp
   );
+  /// @notice emitted when this hooks instance clears a stored lender credential.
   event AccountAccessRevoked(
     address indexed providerAddress,
     address indexed accountAddress,
     address indexed caller
   );
+  /// @notice emitted the first time an account becomes known on a market.
+  /// @dev the legacy name is broader than it sounds: receiving market tokens with a valid
+  ///      credential can also make the account known.
   event AccountMadeFirstDeposit(address indexed market, address indexed accountAddress);
+  /// @notice emitted when the hooks-instance display name changes.
   event NameUpdated(address indexed administrator, string previousName, string newName);
+  /// @notice emitted when the administrator starts or replaces a two-step transfer.
   event AdministratorTransferRequested(
     address indexed administrator,
     address indexed previousPendingAdministrator,
     address indexed pendingAdministrator
   );
+  /// @notice emitted when the administrator cancels a pending transfer.
   event AdministratorTransferCancelled(
     address indexed administrator,
     address indexed cancelledPendingAdministrator
   );
+  /// @notice emitted when the pending administrator accepts authority.
   event AdministratorTransferred(
     address indexed previousAdministrator,
     address indexed newAdministrator
@@ -80,25 +99,35 @@ contract BaseAccessControls is IHooksAdministrator {
   //                                   Errors                                   //
   // ========================================================================== //
 
+  /// @dev the caller is not the current hooks administrator.
   error CallerNotAdministrator();
+  /// @dev the proposed administrator is zero or unchanged.
   error InvalidAdministratorTransferTarget();
+  /// @dev the proposed or pending administrator is no longer a registered borrower.
   error AdministratorNotRegistered();
+  /// @dev no hooks-administrator transfer is pending.
   error NoPendingAdministratorTransfer();
+  /// @dev the caller is not the pending hooks administrator.
   error NotPendingAdministrator();
+  /// @dev the requested provider is not attached to this hooks instance.
   error ProviderNotFound();
+  /// @dev the provider is not allowed to replace the lender's current credential.
   error ProviderCanNotReplaceCredential();
+  /// @dev the provider is not allowed to revoke the lender's current credential.
   error ProviderCanNotRevokeCredential();
-  /// @dev Error thrown when a provider grants a credential with a null or future timestamp.
+  /// @dev an attached provider supplied a null or future credential timestamp.
   error InvalidCredentialTimestamp();
-  /// @dev Error thrown when a provider grants a credential that is already expired.
+  /// @dev an attached provider supplied a credential already expired under its current TTL.
   error GrantedCredentialExpired();
-  /// @dev Error thrown when a provider is called to validate a credential and the
-  ///      returndata can not be decoded as a uint.
+  /// @dev a successful stateful validation returned less than one word.
   error InvalidCredentialReturned();
-  /// @dev Error thrown when a user does not have a valid credential
+  /// @dev an action required a lender credential and none could be found.
   error NotApprovedLender();
+  /// @dev parallel input arrays have different lengths.
   error InvalidArrayLength();
+  /// @dev new-provider inputs were supplied without a provider factory.
   error RoleProviderFactoryRequired();
+  /// @dev the provider factory returned the zero address.
   error CreateRoleProviderFailed();
 
   // ========================================================================== //
@@ -108,11 +137,11 @@ contract BaseAccessControls is IHooksAdministrator {
   address public override administrator;
   address public override pendingAdministrator;
   address internal immutable _hooksFactory;
-  // Name of the hooks instance
+  /// @notice display name for this hooks instance.
   string public name;
-  // Credentials by lender address
+  // credentials are hooks-wide; the market-specific known-lender bit lives below.
   mapping(address => LenderStatus) internal _lenderStatus;
-  // Whether an account is a known lender for a given market
+  /// @notice whether a lender permanently passed the entry policy for a given market.
   mapping(address lender => mapping(address market => bool)) public isKnownLenderOnMarket;
   RoleProvider[] internal _pullProviders;
   RoleProvider[] internal _pushProviders;
@@ -131,11 +160,14 @@ contract BaseAccessControls is IHooksAdministrator {
   //                                 Constructor                                //
   // ========================================================================== //
 
+  /// @param _administrator initial authority over hooks configuration, not provider credentials.
   constructor(address _administrator) {
     administrator = _administrator;
     _hooksFactory = msg.sender;
   }
 
+  /// @dev stores the instance name, attaches existing providers, then creates any new providers.
+  ///      all new providers use the one factory supplied in `inputs`.
   function _initialize(NameAndProviderInputs memory inputs) internal {
     if (inputs.roleProviderFactory == address(0) && inputs.newProviderInputs.length > 0) {
       revert RoleProviderFactoryRequired();
@@ -158,7 +190,8 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /// @dev Compatibility alias for integrations that still call the hook administrator `borrower`.
+  /// @notice compatibility alias for integrations that still call the hooks administrator
+  ///         `borrower`.
   function borrower() external view returns (address) {
     return administrator;
   }
@@ -177,6 +210,9 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
+  /// @notice starts or replaces a hooks-administrator transfer.
+  /// @dev the target must be a registered borrower now and again when it accepts. pending status
+  ///      grants no authority.
   function requestAdministratorTransfer(
     address newAdministrator
   ) external override onlyAdministrator {
@@ -190,6 +226,7 @@ contract BaseAccessControls is IHooksAdministrator {
     );
   }
 
+  /// @notice cancels the pending transfer without changing hooks authority.
   function cancelAdministratorTransfer() external override onlyAdministrator {
     address cancelledPendingAdministrator = pendingAdministrator;
     if (cancelledPendingAdministrator == address(0)) {
@@ -199,6 +236,10 @@ contract BaseAccessControls is IHooksAdministrator {
     emit AdministratorTransferCancelled(msg.sender, cancelledPendingAdministrator);
   }
 
+  /// @notice completes a pending transfer and updates the creating factory's administrator index.
+  /// @dev only the pending administrator may accept. the factory callback is atomic with the state
+  ///      change, so a callback failure rolls the whole transfer back. providers, credentials,
+  ///      deposit blocks, known lenders, and hooked-market settings are otherwise unchanged.
   function acceptAdministratorTransfer() external override {
     address newAdministrator = pendingAdministrator;
     if (msg.sender != newAdministrator) revert NotPendingAdministrator();
@@ -215,7 +256,7 @@ contract BaseAccessControls is IHooksAdministrator {
     );
   }
 
-  /// @dev Administrator-only setter for this hooks instance name.
+  /// @notice updates this hooks instance's display name.
   function setName(string calldata _name) external onlyAdministrator {
     string memory previousName = name;
     name = _name;
@@ -226,10 +267,10 @@ contract BaseAccessControls is IHooksAdministrator {
   //                             Provider management                            //
   // ========================================================================== //
 
-  /**
-   * @dev Administrator-only helper that creates a role provider through `providerFactory`
-   *      and adds it with the supplied TTL. Reverts if creation returns address(0).
-   */
+  /// @notice deploys a provider through `providerFactory` and attaches it to this hooks instance.
+  /// @dev reverts if the factory returns the zero address. the provider factory's interpretation
+  ///      of `data` and any authority over the result are outside this contract.
+  /// @param timeToLive seconds added to the provider's credential timestamps to determine expiry.
   function createRoleProvider(
     address providerFactory,
     uint32 timeToLive,
@@ -248,13 +289,12 @@ contract BaseAccessControls is IHooksAdministrator {
     _addRoleProvider(providerAddress, timeToLive);
   }
 
-  /**
-   * @dev Adds or updates a role provider that is able to grant user access.
-   *      If it is not already approved, it is added to `_roleProviders` and,
-   *      if the provider can refresh credentials, added to `pullProviders`;
-   *      otherwise, it is added to `pushProviders`.
-   *      If the provider is already approved, only updates `timeToLive`.
-   */
+  /// @notice attaches a provider or updates its hook-local credential TTL.
+  /// @dev a new provider is classified once. only an exact true response from `isPullProvider`
+  ///      makes it pull-based; everything else is treated as push-based. updating the TTL does not
+  ///      classify it again, and immediately changes the effective expiry of its stored
+  ///      credentials. a zero-TTL pull credential is refreshed on every credential check, including
+  ///      another one in the same block.
   function addRoleProvider(address providerAddress, uint32 timeToLive) external onlyAdministrator {
     _addRoleProvider(providerAddress, timeToLive);
   }
@@ -337,10 +377,9 @@ contract BaseAccessControls is IHooksAdministrator {
     _roleProviders[providerAddress] = provider;
   }
 
-  /**
-   * @dev Removes a role provider from the `_roleProviders` mapping and, if it is a
-   *      pull provider, from the `_pullProviders` array.
-   */
+  /// @notice stops accepting new or cached credentials from `providerAddress`.
+  /// @dev lender records are not rewritten immediately. they become unsupported on the next check.
+  ///      the removed provider may still revoke a credential that remains recorded as its grant.
   function removeRoleProvider(address providerAddress) external onlyAdministrator {
     RoleProvider provider = _roleProviders[providerAddress];
     if (provider.isNull()) revert ProviderNotFound();
@@ -361,12 +400,7 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /**
-   * @dev Remove a pull provider from the `_pullProviders` array.
-   *      If the provider is not the last in the array, the last provider
-   *      is moved to the index of the provider being removed, so its index
-   *      must also be updated in the `_roleProviders` mapping.
-   */
+  /// @dev swap-removes a pull provider and repairs the moved provider's stored index.
   function _removePullProvider(uint24 indexToRemove) internal {
     // Get the last index in the array
     uint256 lastIndex = _pullProviders.length - 1;
@@ -395,12 +429,7 @@ contract BaseAccessControls is IHooksAdministrator {
     );
   }
 
-  /**
-   * @dev Remove a push provider from the `_pushProviders` array.
-   *      If the provider is not the last in the array, the last provider
-   *      is moved to the index of the provider being removed, so its index
-   *      must also be updated in the `_roleProviders` mapping.
-   */
+  /// @dev swap-removes a push provider and repairs the moved provider's stored index.
   function _removePushProvider(uint24 indexToRemove) internal {
     // Get the last index in the array
     uint256 lastIndex = _pushProviders.length - 1;
@@ -433,17 +462,20 @@ contract BaseAccessControls is IHooksAdministrator {
   //                              Provider queries                              //
   // ========================================================================== //
 
-  /// @dev Returns encoded role provider settings for `providerAddress`.
+  /// @notice returns this hook's packed configuration for `providerAddress`.
   function getRoleProvider(address providerAddress) external view returns (RoleProvider) {
     return _roleProviders[providerAddress];
   }
 
-  /// @dev Returns all providers that can be queried for credentials.
+  /// @notice returns providers this hook can query without caller-supplied validation data.
+  /// @dev removal uses swap-and-pop, so order and indices are not stable.
   function getPullProviders() external view returns (RoleProvider[] memory) {
     return _pullProviders;
   }
 
-  /// @dev Returns all providers that grant credentials by calling this contract.
+  /// @notice returns providers this hook will not query automatically.
+  /// @dev this includes push providers and validation-only providers. removal uses swap-and-pop,
+  ///      so order and indices are not stable.
   function getPushProviders() external view returns (RoleProvider[] memory) {
     return _pushProviders;
   }
@@ -452,24 +484,17 @@ contract BaseAccessControls is IHooksAdministrator {
   //                                Role queries                                //
   // ========================================================================== //
 
-  /// @dev Returns stored lender status without refreshing credentials.
+  /// @notice returns stored lender status without checking providers or clearing stale state.
   function getPreviousLenderStatus(
     address accountAddress
   ) external view returns (LenderStatus memory status) {
     status = _lenderStatus[accountAddress];
   }
 
-  /**
-   * @dev Retrieves the current status of a lender, attempting to find a valid
-   *      credential if their current one is invalid or non-existent.
-   *
-   *      If the lender has an expired credential, will attempt to refresh it
-   *      with the previous provider if it is still supported.
-   *
-   *      If the lender has no credential, or one from a provider that is no longer
-   *      supported or will not refresh it, will loop over all providers to find
-   *      a valid credential.
-   */
+  /// @notice resolves the lender's current status using cached state and pull providers.
+  /// @dev this is a view, so a refreshed credential exists only in the returned value. it first
+  ///      tries the recorded pull provider, then the remaining pull providers. explicit validation
+  ///      data and push providers are not available on this path.
   function getLenderStatus(
     address accountAddress
   ) public view returns (LenderStatus memory status) {
@@ -511,9 +536,9 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /// @dev answers the same recipient-side question as the transfer hook when there's no hook
-  ///      data. canonical ERC-4626 wrappers use ordinary ERC-20 transfers, so they can't pass
-  ///      credential data along.
+  /// @dev answers the transfer hook's recipient-side question without hook data. canonical
+  ///      ERC-4626 wrappers use ordinary ERC-20 transfers, so they can't pass credential data
+  ///      along.
   function _isMarketTransferRecipientAllowed(
     address market,
     address recipient,
@@ -529,15 +554,11 @@ contract BaseAccessControls is IHooksAdministrator {
   //                                Role actions                                //
   // ========================================================================== //
 
-  /**
-   * @dev Grants a role to an account by updating the account's status.
-   *      Can only be called by an approved role provider.
-   *
-   *      If the account has an existing credential, it can only be updated if:
-   *      - the previous credential's provider is no longer supported, OR
-   *      - the caller is the previous role provider, OR
-   *      - the new expiry is later than the current expiry
-   */
+  /// @notice lets an attached provider push a timestamped credential for `account`.
+  /// @dev the timestamp must be nonzero, no later than now, and unexpired under the provider's
+  ///      current TTL. an existing credential can be replaced by its own provider, when its
+  ///      recorded provider was removed, or when the new expiry is strictly later. this never
+  ///      clears a local deposit block.
   function grantRole(address account, uint32 roleGrantedTimestamp) external {
     RoleProvider callingProvider = _roleProviders[msg.sender];
 
@@ -546,15 +567,8 @@ contract BaseAccessControls is IHooksAdministrator {
     _grantRole(callingProvider, account, roleGrantedTimestamp);
   }
 
-  /**
-   * @dev Grants roles to multiple accounts by updating their statuses.
-   *      Can only be called by an approved role provider.
-   *
-   *      If any account has an existing credential, it can only be updated if:
-   *      - the previous credential's provider is no longer supported, OR
-   *      - the caller is the previous role provider, OR
-   *      - the new expiry is later than the current expiry
-   */
+  /// @notice batch version of `grantRole`; every credential must pass the same checks.
+  /// @dev array lengths must match. one failure reverts the whole batch.
   function grantRoles(
     address[] calldata accounts,
     uint32[] calldata roleGrantedTimestamps
@@ -604,12 +618,13 @@ contract BaseAccessControls is IHooksAdministrator {
     _setCredentialAndEmitAccessGranted(status, callingProvider, account, roleGrantedTimestamp);
   }
 
-  /// @dev Revokes `account`'s credential. Reverts unless caller granted it.
+  /// @notice clears `account`'s credential when called by the provider that granted it.
+  /// @dev removal from this hooks instance does not take away that revocation authority.
   function revokeRole(address account) external {
     _revokeRole(account);
   }
 
-  /// @dev Revokes credentials for each account; caller must have granted each one.
+  /// @notice batch version of `revokeRole`; caller must have granted every current credential.
   function revokeRoles(address[] calldata accounts) external {
     for (uint256 i = 0; i < accounts.length; i++) {
       _revokeRole(accounts[i]);
@@ -627,12 +642,15 @@ contract BaseAccessControls is IHooksAdministrator {
     emit AccountAccessRevoked(providerAddress, account, msg.sender);
   }
 
-  /// @dev Administrator-only block that clears any credential and prevents future deposits.
+  /// @notice clears `account`'s credential and blocks deposits wherever this instance's deposit
+  ///         callback runs.
+  /// @dev known-lender status is not cleared, so the account may retain transfer and withdrawal
+  ///      rights that depend on having entered a particular market before.
   function blockFromDeposits(address account) external onlyAdministrator {
     _blockFromDeposits(account);
   }
 
-  /// @dev Administrator-only batch version of `blockFromDeposits`.
+  /// @notice batch version of `blockFromDeposits`.
   function blockFromDeposits(address[] calldata accounts) external onlyAdministrator {
     for (uint256 i; i < accounts.length; i++) {
       _blockFromDeposits(accounts[i]);
@@ -651,7 +669,7 @@ contract BaseAccessControls is IHooksAdministrator {
     emit AccountBlockedFromDeposits(msg.sender, account);
   }
 
-  /// @dev Administrator-only unblock that lets the account deposit if otherwise approved.
+  /// @notice clears the local deposit block without restoring the account's old credential.
   function unblockFromDeposits(address account) external onlyAdministrator {
     LenderStatus memory status = _lenderStatus[account];
     status.isBlockedFromDeposits = false;
@@ -659,13 +677,8 @@ contract BaseAccessControls is IHooksAdministrator {
     emit AccountUnblockedFromDeposits(msg.sender, account);
   }
 
-  /**
-   * @dev Tries to pull an active credential for an account from a pull provider.
-   *      If one exists, updates the account in memory and returns true.
-   *
-   *      Note: Does not check that provider is a pull provider - should
-   *      only be called if that has already been checked.
-   */
+  /// @dev asks a known pull provider for a credential and updates `status` in memory on success.
+  ///      this helper assumes the caller already checked the provider classification.
   function _tryGetCredential(
     LenderStatus memory status,
     RoleProvider provider,
@@ -700,11 +713,9 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /**
-   * @dev A zero-TTL pull credential cannot satisfy a check from cache, including
-   *      another check in the same block. Push providers keep their existing
-   *      timestamp behavior because the hook cannot refresh them.
-   */
+  /// @dev a zero-TTL pull credential never satisfies a check from cache, including another check
+  ///      in the same block. push providers keep timestamp-based behavior because they can't be
+  ///      refreshed automatically.
   function _canUseCachedCredential(
     LenderStatus memory status,
     RoleProvider provider
@@ -719,21 +730,13 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /**
-   * @dev Uses the data added to the end of the base call to the market function to call
-   *      `validateCredential` on the selected provider. Returns false if the provider does not
-   *      exist, the call fails, or the credential is invalid. Only reverts if the call succeeds but
-   *      does not return the correct amount of data.
-   *
-   *      The calldata to the market function must have a suffix encoded as (address, bytes), where
-   *      the address is packed and the bytes do not contain an offset or length. For example, if
-   *      the market function were `fn(uint256 arg0)` and the user provided a 32 byte `accessToken`
-   *      for provider `provider0`, the calldata to the market would be:
-   *      [0:4] selector
-   *      [4:36] arg0
-   *      [36:58] provider0
-   *      [58:90] `accessToken`
-   */
+  /// @dev calls `validateCredential` on the provider packed into the market call's raw suffix.
+  ///      returns false for an unknown provider, a reverted call, or an invalid credential. a
+  ///      successful stateful call with short returndata reverts so its side effects can't survive
+  ///      without a usable answer.
+  ///
+  ///      the suffix is a packed provider address followed directly by provider data. it has no
+  ///      offset or length word: `abi.encodePacked(provider, validationData)`.
   function _tryValidateCredential(
     LenderStatus memory status,
     address accountAddress,
@@ -796,7 +799,7 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /// @dev Loops over pull providers to find a valid credential, skipping providers already tried.
+  /// @dev searches pull providers for a credential, skipping up to two providers already tried.
   function _loopTryGetCredential(
     LenderStatus memory status,
     address accountAddress,
@@ -811,24 +814,11 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /**
-   * @dev Handles the hooks data passed to the contract.
-   *
-   *      If the hooks data is 20 bytes long, it is interpreted as a provider selection
-   *      to pull a credential from with `getCredential`.
-   *
-   *      If the hooks data is more than 20 bytes, it is interpreted as a request to use
-   *      `validateCredential`, where the first 20 bytes encode the provider address and
-   *      the remaining bytes are the encoded credential data to pass to the provider.
-   *
-   *      If the hooks data is less than 20 bytes, it is skipped.
-   *
-   * @param status Current lender status object, updated in memory if a credential is found
-   * @param accountAddress Address of the lender
-   * @param hooksData Bytes passed to the contract for provider selection
-   * @return validCredential True if hooks data produced a valid credential
-   * @return pullProviderIndexToSkip Pull provider index selected by hooks data, if any
-   */
+  /// @dev interprets 20 bytes as a pull-provider selection and more than 20 bytes as a provider
+  ///      address plus validation data. shorter input is ignored. `status` is updated in memory
+  ///      when the selected provider returns a usable credential.
+  /// @return validCredential whether hook data produced a valid credential.
+  /// @return pullProviderIndexToSkip selected pull-provider index, so later search won't retry it.
   function _handleHooksData(
     LenderStatus memory status,
     address accountAddress,
@@ -857,22 +847,9 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /**
-   * @dev Internal function used to validate or update the status of a lender account for
-   *      hooks on restricted actions.
-   *
-   *     The function follows these steps until a valid credential is found:
-   *       1. Check if lender has an existing unexpired credential.
-   *       2. Check if `hooksData` was provided, and if so:
-   *         - If it contains only an address, call `getCredential` on that provider.
-   *         - If it contains an address and bytes, call `validateCredential` on that provider.
-   *       3. If lender has an existing expired credential, attempt to refresh it.
-   *       4. Loop over all pull providers to find a valid credential, excluding providers
-   *          already checked during hooks data handling or expired credential refresh.
-   *
-   * note: Does not update storage or emit an event, but is stateful because it can invoke
-   *       `validateCredential` on a provider.
-   */
+  /// @dev resolves access in this order: supported cache, hook data, previous pull provider, then
+  ///      remaining pull providers. it only mutates `status` in memory, but isn't a view because
+  ///      explicit provider validation may change provider state.
   function _tryValidateAccessInner(
     LenderStatus memory status,
     address accountAddress,
@@ -940,11 +917,8 @@ contract BaseAccessControls is IHooksAdministrator {
     _writeLenderStatus(status, accountAddress, hasValidCredential, wasUpdated, false);
   }
 
-  /**
-   * @dev Updates a lender's status in storage and emits an event when a
-   *      credential is granted or revoked, or when the lender is marked
-   *      as a known lender.
-   */
+  /// @dev persists a changed credential and, for successful entry actions, permanently marks the
+  ///      account as known on `msg.sender`'s market.
   function _writeLenderStatus(
     LenderStatus memory status,
     address accountAddress,

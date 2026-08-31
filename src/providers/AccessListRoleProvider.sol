@@ -8,10 +8,10 @@ import './ManagedRoleProvider.sol';
 
 using SafeCastLib for uint256;
 
-/**
- * @dev Pull-based role provider for one reusable address list. The provider owns
- *      membership. Hooks decide whether to trust it and how long to cache its answers.
- */
+/// @notice pull provider backed by one enumerable address set.
+/// @dev membership and provider administration live here. each attached hook independently
+///      decides whether to trust this provider and how long a positive answer survives removal
+///      from the set.
 contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider {
   using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -19,6 +19,8 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
 
   EnumerableSet.AddressSet internal _members;
 
+  /// @param administrator_ initial authority over membership and provider administration.
+  /// @param initialMembers initial nonzero members. a duplicate reverts deployment.
   constructor(
     address administrator_,
     address[] memory initialMembers
@@ -102,12 +104,15 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
   //                            Credential queries                              //
   // ========================================================================== //
 
+  /// @dev returns the current timestamp for a member and zero for everyone else.
   function getCredential(
     address account
   ) external view override returns (uint32 credentialTimestamp) {
     if (_members.contains(account)) credentialTimestamp = block.timestamp.toUint32();
   }
 
+  /// @dev membership needs no caller-supplied data, so this answers the same query as
+  ///      `getCredential` and ignores the payload.
   function validateCredential(
     address account,
     bytes calldata

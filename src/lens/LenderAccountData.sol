@@ -13,6 +13,9 @@ import './RoleProviderData.sol';
 
 using LenderAccountDataLib for LenderAccountData global;
 
+/// @notice balances, allowance, and access state for one lender in one market.
+/// @dev values are a point-in-time read. hook callbacks may still depend on calldata the lens does
+///      not have, so this is not a promise that a later action succeeds.
 struct LenderAccountData {
   address lender;
   uint256 scaledBalance;
@@ -28,9 +31,11 @@ struct LenderAccountData {
 }
 
 interface IVersionedContract {
+  /// @notice returns the contract's declared Wildcat version string.
   function version() external view returns (string memory);
 }
 
+/// @notice fillers for lender balances and access-control status.
 library LenderAccountDataLib {
   function fill(
     LenderAccountData memory data,

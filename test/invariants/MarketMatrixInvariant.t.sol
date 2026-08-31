@@ -54,6 +54,7 @@ contract MarketMatrixInvariantTest is MarketFixture, StdInvariant {
       matrix.commitmentFeeBips,
       actors
     );
+    handler.seedAccountingCoverage();
 
     _targetHandler();
   }
@@ -152,6 +153,10 @@ contract MarketMatrixInvariantTest is MarketFixture, StdInvariant {
     assertTrue(handler.withdrawalLiabilitiesAreConserved(), 'withdrawal liabilities');
   }
 
+  function invariant_protocolFeesAreConservedAcrossTheMatrix() external view {
+    assertTrue(handler.protocolFeesAreConserved(), 'protocol fee conservation');
+  }
+
   function invariant_underwaterAndRandomizedPathsDoNotPanic() external view {
     assertEq(handler.arithmeticPanicCount(), 0, 'arithmetic panic');
   }
@@ -181,7 +186,7 @@ contract MarketMatrixInvariantTest is MarketFixture, StdInvariant {
 
     Options memory options = _defaultOptions(HooksKind.OpenTerm);
     options.maxTotalSupply = 1_000_000e18;
-    options.protocolFeeBips = 0;
+    options.protocolFeeBips = 1_000;
     options.delinquencyFeeBips = isRevolving ? 0 : 1_000;
     options.delinquencyGracePeriod = 1 days;
     options.revolving = isRevolving;

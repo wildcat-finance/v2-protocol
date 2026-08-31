@@ -3,10 +3,9 @@ pragma solidity 0.8.25;
 
 import '../access/IManagedRoleProvider.sol';
 
-/**
- * @dev Shared two-step administration for providers with mutable configuration.
- *      Hooks do not assume that a provider implements this interface.
- */
+/// @notice shared two-step authority transfer for providers with mutable configuration.
+/// @dev provider authority is independent of hooks authority. targets need no ArchController
+///      registration, and attaching this provider to a hook gives that hook no authority here.
 abstract contract ManagedRoleProvider is IManagedRoleProvider {
   address public override administrator;
   address public override pendingAdministrator;
@@ -16,11 +15,15 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
     _;
   }
 
+  /// @param administrator_ initial nonzero provider administrator.
   constructor(address administrator_) {
     if (administrator_ == address(0)) revert InvalidAdministratorTransferTarget();
     administrator = administrator_;
   }
 
+  /// @notice starts or replaces a pending provider-administrator transfer.
+  /// @dev the target must be nonzero and different from the current administrator. pending status
+  ///      grants no authority.
   function requestAdministratorTransfer(
     address newAdministrator
   ) external override onlyAdministrator {
@@ -36,6 +39,7 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
     );
   }
 
+  /// @notice cancels the pending transfer without changing provider authority.
   function cancelAdministratorTransfer() external override onlyAdministrator {
     address cancelledPendingAdministrator = pendingAdministrator;
     if (cancelledPendingAdministrator == address(0)) {
@@ -45,6 +49,8 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
     emit AdministratorTransferCancelled(msg.sender, cancelledPendingAdministrator);
   }
 
+  /// @notice completes the transfer when called by the pending administrator.
+  /// @dev configuration, hook attachments, and provider address are unchanged.
   function acceptAdministratorTransfer() external override {
     address newAdministrator = pendingAdministrator;
     if (msg.sender != newAdministrator) revert NotPendingAdministrator();

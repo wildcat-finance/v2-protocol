@@ -4,12 +4,10 @@ pragma solidity 0.8.25;
 import '../interfaces/IWildcatMarketRevolving.sol';
 import './WildcatMarket.sol';
 
-/**
- * @title WildcatMarketRevolving
- * @dev Market for revolving credit facilities. Tracks the amount the borrower
- *      has drawn and accrues the commitment fee on the full supply plus the
- *      market APR on the drawn portion only.
- */
+/// @title WildcatMarketRevolving
+/// @notice revolving credit market with commitment interest on full supply and base APR only on
+///         the drawn portion.
+/// @dev explicit repayments reconcile drawn principal. raw token transfers only add liquidity.
 contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   using MathUtils for uint256;
   using SafeCastLib for uint256;
@@ -52,6 +50,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _commitmentFeeBips = commitmentFeeBips_;
   }
 
+  /// @inheritdoc IWildcatMarketRevolving
   function commitmentFeeBips() external view override returns (uint256 value) {
     value = _commitmentFeeBips;
     assembly {
@@ -62,6 +61,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     }
   }
 
+  /// @inheritdoc IWildcatMarketRevolving
   function drawnAmount() external view override returns (uint256) {
     assembly {
       // `.slot` is Yul's handle for the storage slot Solidity assigned to the
@@ -87,6 +87,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _setDrawnAmount(newDrawnAmount);
   }
 
+  /// @dev reconciles drawn principal after the repayment has reached the market.
   function _onRepay(MarketState memory state, uint256 amount) internal virtual override {
     _onRepayAndGetTotalAssets(state, amount);
   }
@@ -103,10 +104,12 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _setDrawnAmount(MathUtils.min(_drawnAmount, outstandingDebt));
   }
 
+  /// @dev closure settles the facility, so no drawn principal remains.
   function _onCloseMarket() internal virtual override {
     _setDrawnAmount(_runtimeConstant(uint256(0)));
   }
 
+  /// @dev stores and emits only when the drawn amount actually changes.
   function _setDrawnAmount(uint256 newDrawnAmount) internal {
     uint256 previousDrawnAmount = _drawnAmount;
     if (previousDrawnAmount != newDrawnAmount) {

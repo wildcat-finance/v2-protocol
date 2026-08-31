@@ -7,8 +7,9 @@ import { IERC1155BalanceOf, IERC165SupportsInterface } from './TokenInterfaces.s
 
 using SafeCastLib for uint256;
 
-/// @notice Grants credentials while an account holds the configured ERC1155 token ID.
-/// @dev Deploy with `skipInterfaceCheck` for collections that do not implement ERC165.
+/// @notice grants credentials while an account holds one configured ERC1155 token ID.
+/// @dev balances of every other ID are ignored. `skipInterfaceCheck` skips deployment-time ERC165
+///      and ERC1155 checks; it can't repair an incompatible `balanceOf`.
 contract ERC1155RoleProvider is IERC1155RoleProvider {
   bool public constant override isPullProvider = true;
 
@@ -19,6 +20,9 @@ contract ERC1155RoleProvider is IERC1155RoleProvider {
   address public immutable override token;
   uint256 public immutable override tokenId;
 
+  /// @param token_ collection queried for balances.
+  /// @param tokenId_ only token ID that qualifies.
+  /// @param skipInterfaceCheck whether to skip ERC165 and ERC1155 checks during deployment.
   constructor(address token_, uint256 tokenId_, bool skipInterfaceCheck) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
     if (
@@ -35,6 +39,7 @@ contract ERC1155RoleProvider is IERC1155RoleProvider {
     return _credentialTimestamp(account);
   }
 
+  /// @notice runs the live token-ID balance check for `account`; caller data is ignored.
   function validateCredential(
     address account,
     bytes calldata

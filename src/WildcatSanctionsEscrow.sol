@@ -6,6 +6,10 @@ import './interfaces/IWildcatSanctionsEscrow.sol';
 import './interfaces/IWildcatSanctionsSentinel.sol';
 import './libraries/LibERC20.sol';
 
+/// @title Wildcat sanctions escrow
+/// @notice holds one asset for a sanctioned account until its borrower-scoped status clears.
+/// @dev configuration comes from the deploying sentinel's temporary parameters. the escrow keeps
+///      the original borrower namespace even if a market later changes borrower.
 contract WildcatSanctionsEscrow is IWildcatSanctionsEscrow {
   using LibERC20 for address;
 
@@ -19,18 +23,22 @@ contract WildcatSanctionsEscrow is IWildcatSanctionsEscrow {
     (borrower, account, asset) = IWildcatSanctionsSentinel(sentinel).tmpEscrowParams();
   }
 
+  /// @inheritdoc IWildcatSanctionsEscrow
   function balance() public view override returns (uint256) {
     return IERC20(asset).balanceOf(address(this));
   }
 
+  /// @inheritdoc IWildcatSanctionsEscrow
   function canReleaseEscrow() public view override returns (bool) {
     return !IWildcatSanctionsSentinel(sentinel).isSanctioned(borrower, account);
   }
 
+  /// @inheritdoc IWildcatSanctionsEscrow
   function escrowedAsset() public view override returns (address, uint256) {
     return (asset, balance());
   }
 
+  /// @inheritdoc IWildcatSanctionsEscrow
   function releaseEscrow() public override {
     if (!canReleaseEscrow()) revert CanNotReleaseEscrow();
 

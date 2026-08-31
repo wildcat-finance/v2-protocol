@@ -9,6 +9,22 @@ using MarketStateLib for MarketState global;
 using MarketStateLib for Account global;
 using FeeMath for MarketState global;
 
+/// @notice cached market accounting state.
+/// @dev functions pass this struct through hooks by value, then write the final value explicitly.
+/// @param isClosed whether deposits, borrows, repayments, and term changes are disabled.
+/// @param maxTotalSupply normalized supply cap for new deposits.
+/// @param accruedProtocolFees protocol fees owed in underlying-asset units.
+/// @param normalizedUnclaimedWithdrawals assets reserved for paid claims not yet executed.
+/// @param scaledTotalSupply total live scaled supply, including unpaid withdrawal requests.
+/// @param scaledPendingWithdrawals scaled supply assigned to current and unpaid batches.
+/// @param pendingWithdrawalExpiry expiry of the current batch, or zero when none exists.
+/// @param isDelinquent status used for the next accrual interval.
+/// @param timeDelinquent rolling timer that rises while delinquent and decays while healthy.
+/// @param protocolFeeBips protocol share of base interest, charged on top, in bips.
+/// @param annualInterestBips base annual lender rate, in bips.
+/// @param reserveRatioBips reserve requirement on supply outside withdrawal batches, in bips.
+/// @param scaleFactor ray-scaled ratio from scaled shares to normalized market tokens.
+/// @param lastInterestAccruedTimestamp end of the last applied accrual interval.
 struct MarketState {
   bool isClosed;
   uint128 maxTotalSupply;
@@ -43,6 +59,8 @@ struct MarketState {
   uint32 lastInterestAccruedTimestamp;
 }
 
+/// @notice one lender's direct scaled market-token balance.
+/// @param scaledBalance share-like balance before applying the market scale factor.
 struct Account {
   uint104 scaledBalance;
 }
@@ -179,6 +197,7 @@ library MarketStateLib {
     return totalAssets.satSub(state.liquidityRequired());
   }
 
+  /// @dev returns true only when a current batch exists and its expiry is strictly in the past.
   function hasPendingExpiredBatch(MarketState memory state) internal view returns (bool result) {
     uint256 expiry = state.pendingWithdrawalExpiry;
     assembly {
@@ -187,6 +206,7 @@ library MarketStateLib {
     }
   }
 
+  /// @dev returns lender supply, paid-but-unclaimed withdrawals, and accrued protocol fees.
   function totalDebts(MarketState memory state) internal pure returns (uint256) {
     return
       state.normalizeAmount(state.scaledTotalSupply) +

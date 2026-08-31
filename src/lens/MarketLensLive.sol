@@ -6,8 +6,13 @@ import '../market/WildcatMarket.sol';
 import './MarketLiveData.sol';
 import './interfaces/IMarketLensLive.sol';
 
+/// @title compact live market lens helper
+/// @notice returns accrued accounting state without building the full hooks and configuration
+///         tuple.
 contract MarketLensLive is IMarketLensLive {
+  /// @notice ArchController configured for this helper.
   WildcatArchController public immutable archController;
+  /// @notice default hooks factory configured for this helper.
   IHooksFactory public immutable hooksFactory;
 
   constructor(address _archController, address _hooksFactory) {
