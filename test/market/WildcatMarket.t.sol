@@ -1254,6 +1254,99 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
+  function test_expiredBatchSettlementRefreshesDelinquency_AcrossMarketTypes() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+    uint256 liveScaledSupply = 1_000_000e18;
+
+    for (uint256 marketKind; marketKind < 2; marketKind++) {
+      vm.warp(initialBlockTimestamp);
+      Options memory options = _defaultOptions(HooksKind.OpenTerm);
+      options.revolving = marketKind == 1;
+      options.maxTotalSupply = uint128(liveScaledSupply + 2);
+      options.protocolFeeBips = 0;
+      options.annualInterestBips = marketKind == 0 ? 10_000 : 0;
+      options.commitmentFeeBips = marketKind == 1 ? 10_000 : 0;
+      options.delinquencyFeeBips = 10_000;
+      options.delinquencyGracePeriod = 0;
+      options.withdrawalBatchDuration = 1;
+      options.reserveRatioBips = 0;
+      Fixture memory fixture = _newMarket(options);
+
+      uint256 initialSupply = liveScaledSupply + 2;
+      _deposit(fixture, Holder, initialSupply);
+      vm.prank(Borrower);
+      fixture.market.borrow(initialSupply);
+
+      vm.warp(initialBlockTimestamp + 146 days);
+      vm.prank(Holder);
+      uint32 firstExpiry = fixture.market.queueWithdrawalScaled(1);
+      assertEq(fixture.market.scaleFactor(), 1.4e27, 'scale factor setup');
+      assertTrue(fixture.market.previousState().isDelinquent, 'first batch delinquency');
+
+      vm.warp(uint256(firstExpiry) + 1);
+      vm.prank(Holder);
+      uint32 secondExpiry = fixture.market.queueWithdrawalScaled(1);
+      MarketState memory beforeSecondExpiry = fixture.market.previousState();
+      assertEq(beforeSecondExpiry.scaledPendingWithdrawals, 2, 'two pending scaled units');
+      assertTrue(beforeSecondExpiry.isDelinquent, 'pre-settlement delinquency');
+
+      fixture.asset.mint(Recipient, 2);
+      vm.prank(Recipient);
+      fixture.asset.transfer(address(fixture.market), 2);
+      assertEq(beforeSecondExpiry.liquidityRequired(), 3, 'pre-settlement requirement');
+
+      uint256 checkpointTimestamp = uint256(secondExpiry) + 4 days;
+      uint256 firstSegmentDuration = secondExpiry - beforeSecondExpiry.lastInterestAccruedTimestamp;
+      uint256 firstSegmentBaseInterest = MathUtils.calculateLinearInterestFromBips(
+        10_000,
+        firstSegmentDuration
+      );
+      uint256 firstSegmentDelinquencyFee = MathUtils.calculateLinearInterestFromBips(
+        10_000,
+        firstSegmentDuration
+      );
+      uint256 expectedScaleFactor = beforeSecondExpiry.scaleFactor;
+      expectedScaleFactor += MathUtils.rayMul(
+        expectedScaleFactor,
+        firstSegmentBaseInterest + firstSegmentDelinquencyFee
+      );
+      uint256 secondSegmentDuration = checkpointTimestamp - secondExpiry;
+      uint256 secondSegmentBaseInterest = MathUtils.calculateLinearInterestFromBips(
+        10_000,
+        secondSegmentDuration
+      );
+      uint256 recoveryPenaltyDuration = MathUtils.min(
+        uint256(beforeSecondExpiry.timeDelinquent) + firstSegmentDuration,
+        secondSegmentDuration
+      );
+      uint256 secondSegmentDelinquencyFee = MathUtils.calculateLinearInterestFromBips(
+        10_000,
+        recoveryPenaltyDuration
+      );
+      expectedScaleFactor += MathUtils.rayMul(
+        expectedScaleFactor,
+        secondSegmentBaseInterest + secondSegmentDelinquencyFee
+      );
+
+      vm.warp(checkpointTimestamp);
+      MarketState memory current = fixture.market.currentState();
+      assertFalse(current.isDelinquent, 'post-settlement delinquency');
+      assertEq(current.timeDelinquent, 0, 'post-settlement delinquency clock');
+      assertEq(current.liquidityRequired(), 2, 'post-settlement requirement');
+      assertEq(current.scaleFactor, expectedScaleFactor, 'post-settlement scale factor');
+
+      fixture.market.updateState();
+      assertEq(
+        keccak256(abi.encode(fixture.market.previousState())),
+        keccak256(abi.encode(current)),
+        'persisted current state'
+      );
+      WithdrawalBatch memory paidBatch = fixture.market.getWithdrawalBatch(secondExpiry);
+      assertEq(paidBatch.scaledAmountBurned, 1, 'settled scaled amount');
+      assertEq(paidBatch.normalizedAmountPaid, 1, 'settled normalized amount');
+    }
+  }
+
   function test_marketLifecycleEmitsCanonicalIndexerEvents() external {
     uint256 initialTimestamp = vm.getBlockTimestamp();
     Options memory options = _defaultOptions(HooksKind.OpenTerm);
