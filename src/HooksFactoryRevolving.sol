@@ -640,7 +640,7 @@ contract HooksFactoryRevolving is
     parameters.reserveRatioBips = tmp.reserveRatioBips;
     parameters.delinquencyGracePeriod = tmp.delinquencyGracePeriod;
     parameters.archController = _archController;
-    parameters.sphereXEngine = sphereXEngine();
+    parameters.sphereXEngine = IWildcatArchController(_archController).sphereXEngine();
     parameters.hooks = tmp.hooks;
     parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
     parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;

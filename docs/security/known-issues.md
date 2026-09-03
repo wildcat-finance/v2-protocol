@@ -151,9 +151,10 @@ contracts. The following runtime limitations remain relevant:
 - Privileged ArchController registration accepts raw addresses without proving
   code or every expected relationship. Ceremony tooling and operators must
   validate code, interfaces, and factory relationships before registration.
-- SphereX-protected factories cache their engine. Engine rotation must prevent
-  origination while the ArchController and factories disagree, keep the old
-  engine operational, and migrate registered contracts in bounded batches.
+- SphereX-protected registered contracts cache their engine. V2.5 factories
+  source the engine assigned to new markets directly from the ArchController,
+  but rotations must still keep the old engine operational and migrate
+  registered contracts in bounded batches.
 
 V2 bytecode also requires EIP-1153 transient storage. Deployment is restricted
 to chains where every execution path supports `TSTORE` and `TLOAD`.
