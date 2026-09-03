@@ -2770,6 +2770,65 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
+  function test_revolvingRepayDoesNotReclassifyDonationAcrossBothEntrypoints() external {
+    uint256 initialTimestamp = vm.getBlockTimestamp();
+    for (uint256 i; i < 2; i++) {
+      vm.warp(initialTimestamp);
+      Fixture memory fixture = _newMarket(_revolvingOptions(0, 1_000, 0));
+      IWildcatMarketRevolving revolvingMarket = _revolving(fixture);
+      _deposit(fixture, Holder, 1_000e18);
+      _approveBorrower(fixture);
+      vm.prank(Borrower);
+      fixture.market.borrow(400e18);
+
+      fixture.asset.mint(address(fixture.market), 200e18);
+      assertEq(fixture.market.totalAssets(), 800e18, 'assets after donation');
+      assertEq(revolvingMarket.drawnAmount(), 400e18, 'drawn after donation');
+
+      vm.expectEmit(address(fixture.market));
+      emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 399e18);
+      vm.prank(Borrower);
+      if (i == 0) {
+        fixture.market.repay(1e18);
+      } else {
+        fixture.market.repayAndProcessUnpaidWithdrawalBatches(1e18, 0);
+      }
+      assertEq(fixture.market.totalAssets(), 801e18, 'assets after repayment');
+      assertEq(revolvingMarket.drawnAmount(), 399e18, 'drawn after repayment');
+
+      vm.prank(Borrower);
+      fixture.market.borrow(200e18);
+      assertEq(revolvingMarket.drawnAmount(), 399e18, 'drawn after donation recovery');
+    }
+  }
+
+  function test_revolvingBorrowDoesNotReclassifyDonationAsPrincipalRepayment() external {
+    Fixture memory fixture = _newMarket(_revolvingOptions(0, 1_000, 0));
+    IWildcatMarketRevolving revolvingMarket = _revolving(fixture);
+    _deposit(fixture, Holder, 1_000e18);
+    vm.prank(Borrower);
+    fixture.market.borrow(400e18);
+
+    fixture.asset.mint(address(fixture.market), 200e18);
+    vm.recordLogs();
+    vm.prank(Borrower);
+    fixture.market.borrow(1e18);
+    _assertNoDrawnAmountUpdate(vm.getRecordedLogs());
+    assertEq(revolvingMarket.drawnAmount(), 400e18, 'drawn after partial donation recovery');
+
+    vm.recordLogs();
+    vm.prank(Borrower);
+    fixture.market.borrow(199e18);
+    _assertNoDrawnAmountUpdate(vm.getRecordedLogs());
+    assertEq(revolvingMarket.drawnAmount(), 400e18, 'drawn after full donation recovery');
+
+    vm.expectEmit(address(fixture.market));
+    emit IWildcatMarketRevolving.DrawnAmountUpdated(400e18, 401e18);
+    vm.prank(Borrower);
+    fixture.market.borrow(1e18);
+    assertEq(revolvingMarket.drawnAmount(), 401e18, 'drawn after incremental borrow');
+  }
+
   function test_revolvingCloseZerosDrawnAndFreezesAccrual() external {
     Fixture memory fixture = _newMarket(_revolvingOptions(200, 1_000, 0));
     _deposit(fixture, Holder, 1_000e18);

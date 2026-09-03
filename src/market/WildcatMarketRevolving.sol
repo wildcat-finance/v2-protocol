@@ -73,17 +73,20 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   }
 
   /**
-   * @dev Cap the drawn amount at the market's outstanding debt so that
-   *      borrowing against assets the borrower provided themselves (e.g.
-   *      an earlier over-repayment) does not accrue lender interest.
+   * @dev Increase drawn principal only when post-borrow outstanding debt
+   *      exceeds the principal already drawn. This lets the borrower recover
+   *      previously supplied liquidity without double-counting it as a new
+   *      draw or reducing existing drawn principal.
    *      `totalAssets()` has not yet been reduced by the borrowed amount.
    */
   function _onBorrow(MarketState memory state, uint256 amount) internal virtual override {
     uint256 assetsAfterBorrow = totalAssets().satSub(amount);
     uint256 outstandingDebt = state.totalDebts().satSub(assetsAfterBorrow);
-    uint256 newDrawnAmount = MathUtils.min(_drawnAmount, outstandingDebt);
-    uint256 remainingDebt = outstandingDebt - newDrawnAmount;
-    newDrawnAmount += MathUtils.min(amount, remainingDebt);
+    uint256 newDrawnAmount = _drawnAmount;
+    if (outstandingDebt > newDrawnAmount) {
+      uint256 remainingDebt = outstandingDebt - newDrawnAmount;
+      newDrawnAmount += MathUtils.min(amount, remainingDebt);
+    }
     _setDrawnAmount(newDrawnAmount);
   }
 
@@ -96,12 +99,14 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     MarketState memory state,
     uint256 amount
   ) internal virtual override returns (uint256 currentTotalAssets) {
-    amount;
     currentTotalAssets = totalAssets();
-    // Repayments reduce the drawn amount to at most the remaining outstanding
-    // debt. `currentTotalAssets` includes the repaid amount.
-    uint256 outstandingDebt = state.totalDebts().satSub(currentTotalAssets);
-    _setDrawnAmount(MathUtils.min(_drawnAmount, outstandingDebt));
+    // Only the explicit repayment can reduce drawn principal. Existing assets
+    // may include raw donations, which add liquidity without repaying principal.
+    uint256 assetsBeforeRepayment = currentTotalAssets.satSub(amount);
+    uint256 outstandingDebtBeforeRepayment = state.totalDebts().satSub(assetsBeforeRepayment);
+    uint256 nonPrincipalDebt = outstandingDebtBeforeRepayment.satSub(_drawnAmount);
+    uint256 principalRepayment = amount.satSub(nonPrincipalDebt);
+    _setDrawnAmount(_drawnAmount.satSub(principalRepayment));
   }
 
   /// @dev closure settles the facility, so no drawn principal remains.
