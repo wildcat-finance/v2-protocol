@@ -5,15 +5,15 @@
     "command": "yarn inventory:contracts"
   },
   "release": "v2.5",
-  "commit": "af33a82690c7935e23cd0a988a0b9133c5359614",
-  "sourceTree": "27a8053e2c0367977a7bebf383f698bc894a6f2c",
+  "commit": "1af2fcc9de82e50a35f7bb99f6f7feac83d45119",
+  "sourceTree": "16ec376d79f93c2cd87d179ffe7812ca217b4460",
   "sourceUnitCount": 108,
   "declarationCount": 115,
   "sources": [
     {
       "path": "src/HooksFactory.sol",
-      "gitBlob": "4d6e9cf8bf3265b164988aef8960844db20e2dfd",
-      "keccak256": "0xc86e6251b4f78485c55ac739a10b0c1fd9768661ca438db72985a1f9eef0ee89",
+      "gitBlob": "b3df24ccc8207b4491fff130f291cbe83a11b67c",
+      "keccak256": "0xdb802c07b25a376eb22919fad6c44870e0c74ecce9cd585fe996701e15647491",
       "declarations": [
         {
           "name": "HooksFactory",
@@ -28,8 +28,8 @@
     },
     {
       "path": "src/HooksFactoryRevolving.sol",
-      "gitBlob": "62032924065cd8a9e0309d8de226c409bbbf661d",
-      "keccak256": "0x5dce3c306903bb3018cd64c621dc2c790cd9965e6631498a120e3d7122455e0d",
+      "gitBlob": "a98126a28cdf782deb1421eb7f9ddcd82edf0363",
+      "keccak256": "0x0f4f8868042a41fd32bc31d63d3403d356b82330ad707feb54ac93e6970fef46",
       "declarations": [
         {
           "name": "HooksFactoryRevolving",
@@ -810,8 +810,8 @@
     },
     {
       "path": "src/market/WildcatMarketBase.sol",
-      "gitBlob": "726574e3a359d3699add3cfed24996a8c81dc98c",
-      "keccak256": "0x6a4f919ae1182b0805457dc54d42a9ce557edea9ae2ffa52c540e6e27de61008",
+      "gitBlob": "eaa24d8c9974a3a9d8fe84f97dd63513d43841fd",
+      "keccak256": "0xff120dfb9db8d86934bb12a4c61cf2ef5d0ddb7e77c34067fcbb926f9f8a97bb",
       "declarations": [
         {
           "name": "WildcatMarketBase",
@@ -845,8 +845,8 @@
     },
     {
       "path": "src/market/WildcatMarketRevolving.sol",
-      "gitBlob": "7acd001acf1f35b8d5f04dd86b11211f60bb8a01",
-      "keccak256": "0x9e6c1f3bd15907ee521de56ac167aadccbcbe1e5768d8a52abd6d3d6fc742d9b",
+      "gitBlob": "e51139f9c0a738734af5244b7c6f402cae282fe3",
+      "keccak256": "0x8d9ee13a27fa93b09ef9164266f5dcd50b7db641ac39bb97bc44375849de610c",
       "declarations": [
         {
           "name": "WildcatMarketRevolving",
@@ -874,8 +874,8 @@
     },
     {
       "path": "src/market/WildcatMarketWithdrawals.sol",
-      "gitBlob": "009bdf918a8afb8119476a0d3f88aff3a55ee960",
-      "keccak256": "0xb8e3b6f12e82c8a3563cba3d02a7fda0455ca6a1f1af49d9c5a90fc07bd436be",
+      "gitBlob": "c817da849f108d19791750e472e95177b09c1350",
+      "keccak256": "0x9804dc54f77890242d3aa37d3c508752cc20ff9970868ed1b964771d72df7840",
       "declarations": [
         {
           "name": "WildcatMarketWithdrawals",
@@ -1413,8 +1413,8 @@
     },
     {
       "path": "src/vault/Wildcat4626Wrapper.sol",
-      "gitBlob": "e1474a2f18b1c22ffd88506744dc45350c68fc8f",
-      "keccak256": "0xd3975eb9c9daaf7e8ed8af47ae52ae3c37f3c8b01169b4e7a7bfa53e9fdc41d9",
+      "gitBlob": "436c2cad2a66e9630e3d4b8df781d0b4d82a96d9",
+      "keccak256": "0x71457c57bfd6d4b3a3b0736998c252b95ebb709ed093180d9c49e22875e1084e",
       "declarations": [
         {
           "name": "IWildcatMarketToken",
@@ -12697,8 +12697,8 @@
         "ReentrancyGuard"
       ],
       "abi": {
-        "sha256": "fd9773e440f2b32e78a7e6e6591aca7f7b646d8d75ef5404162636e8b329f736",
-        "entryCount": 66,
+        "sha256": "a264bdab8aaa4432421dc74b226ae5ec9bdf491dbf247bf2169c624392ac11d6",
+        "entryCount": 67,
         "constructors": [
           "constructor(address)"
         ],
@@ -12742,6 +12742,10 @@
           {
             "signature": "InvalidPermit()",
             "selector": "0xddafbaef"
+          },
+          {
+            "signature": "MarketTokenRecipientNotAllowed()",
+            "selector": "0xfb283190"
           },
           {
             "signature": "MintMoreThanMax()",
