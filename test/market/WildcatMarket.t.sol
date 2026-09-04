@@ -1910,6 +1910,22 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
+  function test_openMarketWithdrawalRejectsExpiryOverflowWithoutMutatingState() external {
+    vm.warp(uint256(type(uint32).max) - 12 hours);
+    Fixture memory fixture = _newWithdrawalMarket(HooksKind.OpenTerm);
+    _deposit(fixture, Holder, 1e18);
+
+    bytes32 stateHash = keccak256(abi.encode(fixture.market.previousState()));
+    uint256 scaledBalance = fixture.market.scaledBalanceOf(Holder);
+
+    vm.prank(Holder);
+    vm.expectRevert(_arithmeticPanic());
+    fixture.market.queueFullWithdrawal();
+
+    assertEq(keccak256(abi.encode(fixture.market.previousState())), stateHash, 'overflow state');
+    assertEq(fixture.market.scaledBalanceOf(Holder), scaledBalance, 'overflow balance');
+  }
+
   function test_rescueTokensAuthenticatesBorrowerAndProtectsMarketAssets_AcrossHookKinds()
     external
   {

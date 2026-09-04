@@ -108,7 +108,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     if (expiry == 0) {
       // If the market is closed, use zero for withdrawal batch duration.
       uint duration = state.isClosed.ternary(0, withdrawalBatchDuration);
-      expiry = uint32(block.timestamp + duration);
+      expiry = (block.timestamp + duration).toUint32();
 
       // Reopening a processed batch mixes pre- and post-close accounting,
       // shifting value between withdrawers.
