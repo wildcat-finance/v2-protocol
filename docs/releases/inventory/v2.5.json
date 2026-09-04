@@ -5,8 +5,8 @@
     "command": "yarn inventory:contracts"
   },
   "release": "v2.5",
-  "commit": "1af2fcc9de82e50a35f7bb99f6f7feac83d45119",
-  "sourceTree": "16ec376d79f93c2cd87d179ffe7812ca217b4460",
+  "commit": "7fad3deffb2f4cb185c466bd539f9bc200d19bc7",
+  "sourceTree": "7bd8aea5d2c18b0893fff7a2127768ac1764a7e5",
   "sourceUnitCount": 108,
   "declarationCount": 115,
   "sources": [
@@ -146,8 +146,8 @@
     },
     {
       "path": "src/access/BaseAccessControls.sol",
-      "gitBlob": "8a025288b3f735d71a9c3ddcc00795a8201b5d42",
-      "keccak256": "0x0063507e7751076778780038ca143bce7ae80e249a4c26f835e5e44b8cf92135",
+      "gitBlob": "023cfbdcbd0e2320a36906a1a076c06190dbebf2",
+      "keccak256": "0x9acf4cd7d50dfb8b2a3eb8745ff7bf881869aab10fd7e1b0f28c22377130fdc0",
       "declarations": [
         {
           "name": "BaseAccessControls",
@@ -160,8 +160,8 @@
     },
     {
       "path": "src/access/FixedTermHooks.sol",
-      "gitBlob": "dee4eb5d060e4937b04a6813c083bc6d78fcd108",
-      "keccak256": "0x53b763f7559d87d7f6ec245b1b0427bd1afa1174675d39a27f2e718800b3d421",
+      "gitBlob": "cd18bc834d50826637875d793b8b4e8a6dc073f6",
+      "keccak256": "0x0598ac8cc7305079e6dcf08360d4c63b8d75170b1dfa334cdb50c60711775f89",
       "declarations": [
         {
           "name": "FixedTermHooks",
@@ -267,8 +267,8 @@
     },
     {
       "path": "src/access/OpenTermHooks.sol",
-      "gitBlob": "86e657a46df145c9fc70b8b95568e6752b5e28c5",
-      "keccak256": "0x822a74ca4a952201bd29dcd871b686f7c6761f19acf4c4f7bfbb1960ebf9fca2",
+      "gitBlob": "2959b655da72217f46fb6af1fe6021d7d8563890",
+      "keccak256": "0xce9d1a57415eaaa1eec05d52349dca2f44ceae9ef19ccd13d31492afa82b312b",
       "declarations": [
         {
           "name": "OpenTermHooks",
@@ -283,8 +283,8 @@
     },
     {
       "path": "src/access/PeriodicTermHooks.sol",
-      "gitBlob": "384151ee9b58b40d022690e751f2b8f67553adc2",
-      "keccak256": "0x254b33c205637ddd9fdbd001bd58b07933a28847c603f6f67986d04f4f72e870",
+      "gitBlob": "6fee0a04ef66f7c867da867825442b91ae38f30c",
+      "keccak256": "0xfa263cec351945768baf625b860382d50820d7c344e6c2b04bbcb15c820f1b79",
       "declarations": [
         {
           "name": "IMarketApr",
