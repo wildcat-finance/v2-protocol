@@ -729,7 +729,10 @@ contract WildcatMarketBase is
           protocolFee
         );
       }
-      _processExpiredWithdrawalBatch(state);
+      uint256 currentTotalAssets = totalAssets();
+      _processExpiredWithdrawalBatch(state, currentTotalAssets);
+      // Settlement can change the requirement used to classify the post-expiry interval.
+      state.isDelinquent = state.liquidityRequired() > currentTotalAssets;
     }
     uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
     // Apply interest and fees accrued since last update (expiry or previous tx)
@@ -794,14 +797,17 @@ contract WildcatMarketBase is
       }
 
       pendingBatch = _withdrawalData.batches[pendingBatchExpiry];
+      uint256 currentTotalAssets = totalAssets();
       uint256 availableLiquidity = pendingBatch.availableLiquidityForPendingBatch(
         state,
-        totalAssets()
+        currentTotalAssets
       );
       if (availableLiquidity > 0) {
         _applyWithdrawalBatchPaymentView(pendingBatch, state, availableLiquidity);
       }
       state.pendingWithdrawalExpiry = 0;
+      // Mirror the post-settlement boundary used by the mutating state transition.
+      state.isDelinquent = state.liquidityRequired() > currentTotalAssets;
     }
 
     if (state.lastInterestAccruedTimestamp != block.timestamp) {
@@ -926,13 +932,19 @@ contract WildcatMarketBase is
    *        amount of scaled tokens is burned, ensuring borrowers do not continue paying interest
    *        on withdrawn assets.
    */
-  function _processExpiredWithdrawalBatch(MarketState memory state) internal {
+  function _processExpiredWithdrawalBatch(
+    MarketState memory state,
+    uint256 currentTotalAssets
+  ) internal {
     uint32 expiry = state.pendingWithdrawalExpiry;
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
 
     if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
       // Burn as much of the withdrawal batch as possible with available liquidity.
-      uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets());
+      uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(
+        state,
+        currentTotalAssets
+      );
       if (availableLiquidity > 0) {
         _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
       }
