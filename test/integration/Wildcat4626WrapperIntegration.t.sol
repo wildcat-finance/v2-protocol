@@ -369,13 +369,20 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
         address(wrapper),
         'factory registration'
       );
-      assertEq(wrapper.maxDeposit(Lender), 0, 'uncredentialed deposit limit');
-      assertEq(wrapper.maxMint(Lender), 0, 'uncredentialed mint limit');
+      assertTrue(
+        IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
+          address(fixture.market),
+          address(wrapper)
+        ),
+        'registered wrapper policy'
+      );
+      assertTrue(wrapper.maxDeposit(Lender) > 0, 'registered wrapper deposit limit');
+      assertTrue(wrapper.maxMint(Lender) > 0, 'registered wrapper mint limit');
       assertTrue(wrapper.previewDeposit(1e18) > 0, 'preview should remain arithmetic');
-
-      _authorize(fixture, address(wrapper));
-      assertTrue(wrapper.maxDeposit(Lender) > 0, 'credentialed deposit limit');
-      assertTrue(wrapper.maxMint(Lender) > 0, 'credentialed mint limit');
+      assertFalse(
+        fixture.hooks.isKnownLenderOnMarket(address(wrapper), address(fixture.market)),
+        'wrapper should not become known'
+      );
 
       vm.prank(address(fixture.wrapperFactory));
       vm.expectRevert(IMarketEventsAndErrors.WrapperAlreadyRegistered.selector);
@@ -383,40 +390,88 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
-  function test_depositAndMintRejectLocallyBlockedWrapperOnUnrestrictedMarket() external {
-    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false, false);
-    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
-    assertTrue(wrapper.maxDeposit(Lender) > 0, 'open transfer readiness');
+  function test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks() external {
+    for (uint256 i; i < 3; i++) {
+      Fixture memory fixture = _newFixture(HooksKind(i), false);
+      Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
 
-    _deposit(fixture, Lender, 2 * DepositAmount);
-    vm.prank(Lender);
-    fixture.market.approve(address(wrapper), type(uint256).max);
+      vm.prank(Borrower);
+      fixture.hooks.blockFromDeposits(address(wrapper));
 
-    vm.prank(Borrower);
-    fixture.hooks.blockFromDeposits(address(wrapper));
+      assertTrue(
+        IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
+          address(fixture.market),
+          address(wrapper)
+        ),
+        'blocked registered wrapper policy'
+      );
+      assertTrue(wrapper.maxDeposit(Lender) > 0, 'blocked wrapper deposit limit');
+      assertTrue(wrapper.maxMint(Lender) > 0, 'blocked wrapper mint limit');
 
-    assertFalse(
-      IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
-        address(fixture.market),
-        address(wrapper)
-      ),
-      'blocked wrapper policy'
-    );
-    assertEq(wrapper.maxDeposit(Lender), 0, 'blocked wrapper deposit limit');
-    assertEq(wrapper.maxMint(Lender), 0, 'blocked wrapper mint limit');
+      _deposit(fixture, Lender, 2 * DepositAmount);
+      vm.startPrank(Lender);
+      fixture.market.approve(address(wrapper), type(uint256).max);
+      uint256 depositShares = wrapper.deposit(DepositAmount, Lender);
+      uint256 mintShares = wrapper.previewDeposit(DepositAmount);
+      uint256 mintAssets = wrapper.mint(mintShares, Lender);
+      vm.stopPrank();
 
-    uint256 lenderBalanceBefore = fixture.market.scaledBalanceOf(Lender);
-    uint256 mintShares = wrapper.previewDeposit(DepositAmount);
-    vm.startPrank(Lender);
-    vm.expectRevert(Wildcat4626Wrapper.MarketTokenRecipientNotAllowed.selector);
-    wrapper.deposit(DepositAmount, Lender);
-    vm.expectRevert(Wildcat4626Wrapper.MarketTokenRecipientNotAllowed.selector);
-    wrapper.mint(mintShares, Lender);
-    vm.stopPrank();
+      assertEq(mintAssets, DepositAmount, 'mint assets');
+      assertEq(wrapper.balanceOf(Lender), depositShares + mintShares, 'lender shares');
+      assertEq(
+        fixture.market.scaledBalanceOf(address(wrapper)),
+        wrapper.totalSupply(),
+        'wrapper backing'
+      );
+      assertFalse(
+        fixture.hooks.isKnownLenderOnMarket(address(wrapper), address(fixture.market)),
+        'wrapper should not become known'
+      );
+    }
+  }
 
-    assertEq(fixture.market.scaledBalanceOf(Lender), lenderBalanceBefore, 'lender balance');
-    assertEq(fixture.market.scaledBalanceOf(address(wrapper)), 0, 'wrapper backing');
-    assertEq(wrapper.totalSupply(), 0, 'wrapper supply');
+  function test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook() external {
+    for (uint256 i; i < 3; i++) {
+      Fixture memory fixture = _newFixture(HooksKind(i), false);
+      Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
+      uint256 shares = _wrap(fixture, wrapper, Lender, DepositAmount);
+
+      vm.prank(Borrower);
+      fixture.hooks.blockFromDeposits(Outsider);
+      assertFalse(
+        IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
+          address(fixture.market),
+          Outsider
+        ),
+        'blocked recipient policy'
+      );
+      vm.prank(Lender);
+      vm.expectRevert(LibERC20.TransferFailed.selector);
+      wrapper.redeem(shares, Outsider, Lender);
+      assertEq(wrapper.balanceOf(Lender), shares, 'blocked recipient rollback');
+
+      _deposit(fixture, OtherLender, DepositAmount);
+      fixture.sanctionsList.sanction(OtherLender);
+      vm.prank(Lender);
+      vm.expectRevert(
+        abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, OtherLender)
+      );
+      wrapper.redeem(shares, OtherLender, Lender);
+      assertEq(wrapper.balanceOf(Lender), shares, 'sanctioned recipient rollback');
+
+      fixture.sanctionsList.unsanction(OtherLender);
+      vm.prank(Borrower);
+      fixture.hooks.blockFromDeposits(OtherLender);
+      uint256 recipientBalanceBefore = fixture.market.scaledBalanceOf(OtherLender);
+      vm.prank(Lender);
+      wrapper.redeem(shares, OtherLender, Lender);
+      assertEq(wrapper.balanceOf(Lender), 0, 'known recipient redemption');
+      assertEq(
+        fixture.market.scaledBalanceOf(OtherLender),
+        recipientBalanceBefore + shares,
+        'known recipient balance'
+      );
+    }
   }
 
   function test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes() external {

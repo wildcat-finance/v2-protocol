@@ -134,6 +134,7 @@ contract BaseAccessControls is IHooksAdministrator {
   //                                    State                                   //
   // ========================================================================== //
 
+  bytes4 internal constant RegisteredWrapperSelector = bytes4(keccak256('registeredWrapper()'));
   address public override administrator;
   address public override pendingAdministrator;
   address internal immutable _hooksFactory;
@@ -536,15 +537,44 @@ contract BaseAccessControls is IHooksAdministrator {
     }
   }
 
-  /// @dev answers the transfer hook's recipient-side question without hook data. canonical
-  ///      ERC-4626 wrappers use ordinary ERC-20 transfers, so they can't pass credential data
-  ///      along.
+  /// @dev returns whether `recipient` is the market's nonzero canonical wrapper. a failed or
+  ///      malformed market query is not an exemption, so the ordinary recipient policy applies.
+  function _isRegisteredWrapper(
+    address market,
+    address recipient
+  ) internal view returns (bool isRegisteredWrapper) {
+    if (recipient == address(0)) return false;
+
+    uint256 selectorWord = uint32(RegisteredWrapperSelector);
+    assembly ('memory-safe') {
+      // borrow the free-memory pointer for four bytes of input and one return word. nothing
+      // survives this block, so leave 0x40 alone.
+      let pointer := mload(0x40)
+
+      // mstore right-aligns selectorWord. +0x1c skips its 28 leading zero bytes, giving the call
+      // exactly the four-byte registeredWrapper() selector. copy at most one return word back.
+      mstore(pointer, selectorWord)
+      let success := staticcall(gas(), market, add(pointer, 0x1c), 0x04, pointer, 0x20)
+
+      // a revert, codeless target, or short response does not earn an exemption. comparing the
+      // whole word to recipient also rejects dirty address padding, just like Solidity's decoder.
+      isRegisteredWrapper := and(
+        success,
+        and(iszero(lt(returndatasize(), 0x20)), eq(mload(pointer), recipient))
+      )
+    }
+  }
+
+  /// @dev answers the transfer hook's recipient-side question without hook data. the market's
+  ///      registered wrapper is protocol-allowed because wrapper entry uses an ordinary ERC-20
+  ///      transfer that cannot carry credential data.
   function _isMarketTransferRecipientAllowed(
     address market,
     address recipient,
     bool transferRequiresAccess
   ) internal view returns (bool) {
     if (isKnownLenderOnMarket[recipient][market]) return true;
+    if (_isRegisteredWrapper(market, recipient)) return true;
     if (_lenderStatus[recipient].isBlockedFromDeposits) return false;
     if (!transferRequiresAccess) return true;
     return getLenderStatus(recipient).hasCredential();

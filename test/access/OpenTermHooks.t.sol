@@ -532,6 +532,7 @@ contract OpenTermHooksTest is TestKernel {
       abi.encode(uint128(0), true)
     );
     MarketState memory state;
+    vm.mockCall(MarketA, abi.encodeWithSignature('registeredWrapper()'), abi.encode(SecondLender));
     vm.prank(MarketA);
     vm.expectRevert(OpenTermHooks.TransfersDisabled.selector);
     hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');

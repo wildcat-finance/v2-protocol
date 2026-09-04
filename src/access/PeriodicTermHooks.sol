@@ -610,9 +610,10 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   ) external override {}
 
   /// @notice enforces the recipient side of the market's transfer policy.
-  /// @dev known recipients bypass later credential and deposit-block checks. an unknown recipient
-  ///      must not be blocked and, when transfers are gated, must supply or resolve a credential.
-  ///      successful credential validation permanently marks the recipient known on this market.
+  /// @dev known recipients and the market's registered wrapper bypass later credential and
+  ///      deposit-block checks. any other unknown recipient must not be blocked and, when transfers
+  ///      are gated, must supply or resolve a credential. successful credential validation
+  ///      permanently marks the recipient known on this market.
   function onTransfer(
     address /* caller */,
     address /* from */,
@@ -631,6 +632,10 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
 
     // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {
+      // Wrapper entry is an ordinary market-token transfer without credential data. Only the
+      // canonical wrapper registered by this market receives the protocol exemption.
+      if (_isRegisteredWrapper(msg.sender, to)) return;
+
       LenderStatus memory toStatus = _lenderStatus[to];
       // Respect `isBlockedFromDeposits` only if the recipient is not a known lender
       if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();

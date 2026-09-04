@@ -795,6 +795,7 @@ contract PeriodicTermHooksTest is TestKernel {
       _requestedConfig(hooks, false, false, false),
       _hooksData(0, true)
     );
+    vm.mockCall(MarketA, abi.encodeWithSignature('registeredWrapper()'), abi.encode(SecondLender));
     vm.prank(MarketA);
     vm.expectRevert(PeriodicTermHooks.TransfersDisabled.selector);
     hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
