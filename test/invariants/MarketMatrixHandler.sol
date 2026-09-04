@@ -297,10 +297,7 @@ contract MarketMatrixHandler {
         market.previousState(),
         marketAssets + amount
       );
-      expectedDrawn = MathUtils.min(
-        _drawnAmount(cellIndex),
-        expectedState.totalDebts().satSub(marketAssets + amount)
-      );
+      expectedDrawn = _expectedDrawnAfterRepay(cellIndex, expectedState, marketAssets, amount);
     }
 
     _fundBorrower(cellIndex, amount);
@@ -418,9 +415,11 @@ contract MarketMatrixHandler {
           market.previousState(),
           market.totalAssets() + amount
         );
-        expectedDrawn = MathUtils.min(
-          drawnBefore,
-          expectedState.totalDebts().satSub(market.totalAssets() + amount)
+        expectedDrawn = _expectedDrawnAfterRepay(
+          i,
+          expectedState,
+          market.totalAssets(),
+          amount
         );
       }
       if (amount != 0) _fundBorrower(i, amount);
@@ -835,7 +834,21 @@ contract MarketMatrixHandler {
     );
     uint256 assetsAfterBorrow = market.totalAssets().satSub(amount);
     uint256 debtsAfterBorrow = state.totalDebts().satSub(assetsAfterBorrow);
-    return MathUtils.min(_drawnAmount(cellIndex) + amount, debtsAfterBorrow);
+    uint256 drawn = _drawnAmount(cellIndex);
+    if (debtsAfterBorrow <= drawn) return drawn;
+    return drawn + MathUtils.min(amount, debtsAfterBorrow - drawn);
+  }
+
+  function _expectedDrawnAfterRepay(
+    uint256 cellIndex,
+    MarketState memory state,
+    uint256 assetsBeforeRepayment,
+    uint256 amount
+  ) internal view returns (uint256) {
+    uint256 drawn = _drawnAmount(cellIndex);
+    uint256 outstandingDebtBeforeRepayment = state.totalDebts().satSub(assetsBeforeRepayment);
+    uint256 nonPrincipalDebt = outstandingDebtBeforeRepayment.satSub(drawn);
+    return drawn.satSub(amount.satSub(nonPrincipalDebt));
   }
 
   // ----------------------------------------------------------------------- //
