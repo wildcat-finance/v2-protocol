@@ -193,11 +193,20 @@ It then tries to validate a credential.
 
 1. rejects every transfer if transfers are disabled;
 2. accepts a known recipient without another access check;
-3. rejects an unknown recipient with a local deposit block; and
-4. otherwise tries validation, requiring a credential only when transfer policy
+3. accepts the market's nonzero `registeredWrapper()` without another access
+   check;
+4. rejects any other unknown recipient with a local deposit block; and
+5. otherwise tries validation, requiring a credential only when transfer policy
    says so.
 
 A valid recipient becomes known for that market.
+
+The registered-wrapper exception is recipient-only. It permits market-token
+transfers into the canonical wrapper but does not exempt transfers out of it.
+On `withdraw` or `redeem`, the receiver follows ordinary recipient policy: a
+known lender remains eligible after a deposit block, while an unknown blocked
+or otherwise unauthorized receiver is rejected. Sanctions checks remain
+independent and apply to both the wrapper and receiver.
 
 ### Queueing withdrawals
 
@@ -234,8 +243,10 @@ stops new deposits.
 - `getRoleProvider`, `getPullProviders`, and `getPushProviders` return current
   provider configuration. Array order is unstable.
 - `isMarketTransferRecipientAllowed(market, recipient)` rejects disabled
-  transfers and unknown blocked recipients. It otherwise accepts unrestricted
-  transfers, known lenders, or recipients with a current credential.
+  transfers. When transfers are enabled, it accepts the market's nonzero
+  `registeredWrapper()`. Other recipients follow the ordinary policy: unknown
+  blocked recipients are rejected, while unrestricted transfers, known lenders,
+  or recipients with a current credential are accepted.
 
 ## Tests
 

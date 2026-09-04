@@ -1368,6 +1368,56 @@ contract BaseAccessControlsTest is TestKernel {
     );
   }
 
+  function test_isMarketTransferRecipientAllowed_OnlyExemptsExactNonzeroRegisteredWrapper()
+    external
+  {
+    address market = address(0xCAFE);
+    address otherMarket = address(0xBEEF);
+    address zeroWrapperMarket = address(0xCAFF);
+    address dirtyWrapperMarket = address(0xBAD0);
+    address shortReturnMarket = address(0xBAD1);
+    address wrapper = address(0x4626);
+    address arbitraryWrapper = address(0x4627);
+    bytes memory getterCall = abi.encodeWithSignature('registeredWrapper()');
+
+    baseHooks.blockFromDeposits(wrapper);
+    baseHooks.blockFromDeposits(arbitraryWrapper);
+    baseHooks.blockFromDeposits(address(0));
+    vm.mockCall(market, getterCall, abi.encode(wrapper));
+    vm.mockCall(zeroWrapperMarket, getterCall, abi.encode(address(0)));
+    vm.mockCall(
+      dirtyWrapperMarket,
+      getterCall,
+      abi.encode(bytes32(uint256(uint160(wrapper)) | (uint256(1) << 160)))
+    );
+    vm.mockCall(shortReturnMarket, getterCall, hex'0001');
+
+    assertTrue(
+      baseHooks.isMarketTransferRecipientAllowed(market, wrapper, true),
+      'registered wrapper'
+    );
+    assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(market, arbitraryWrapper, true),
+      'arbitrary wrapper'
+    );
+    assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(otherMarket, wrapper, true),
+      'cross-market wrapper'
+    );
+    assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(zeroWrapperMarket, address(0), true),
+      'zero wrapper'
+    );
+    assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(dirtyWrapperMarket, wrapper, true),
+      'dirty wrapper response'
+    );
+    assertFalse(
+      baseHooks.isMarketTransferRecipientAllowed(shortReturnMarket, wrapper, true),
+      'short wrapper response'
+    );
+  }
+
   // ========================================================================== //
   //                                 grantRoles                                 //
   // ========================================================================== //

@@ -160,8 +160,13 @@ shares remain fully backed, but cannot be recovered.
 
 Notes:
 
-- Wrapper creation is permissionless. If market-token transfers require access,
-  `maxDeposit` and `maxMint` remain zero until the wrapper can receive tokens.
+- Wrapper creation is permissionless. The built-in access hooks always allow a
+  market's nonzero `registeredWrapper()` to receive market tokens when transfers
+  are enabled. Hook administrators cannot veto the canonical wrapper through a
+  credential or local deposit block.
+- Noncanonical wrappers follow ordinary recipient policy. Restricted markets can
+  opt into them through their configured role providers; local deposit blocks
+  continue to reject unknown recipients.
 - Preview methods only convert values. They ignore sanctions, capacity, and
   transfer readiness.
 - Readiness cannot predict sender balance, allowance, amount-dependent policy,
@@ -171,6 +176,13 @@ Notes:
   and execution paths remain strict. They propagate dependency failures.
 - `maxTotalSupply` and `totalAssets()` are normalized. They can grow without
   deposits. The wrapper may be at its cap while market tokens remain elsewhere.
+
+The registered-wrapper exception applies only when the wrapper is the transfer
+recipient. `withdraw` and `redeem` transfer market tokens from the wrapper to the
+requested receiver, so that receiver must pass the normal market policy. A
+known lender may still receive and exit after being blocked from new deposits;
+an unknown blocked or unauthorized receiver cannot. Transfers-disabled markets
+and sanctions checks remain hard stops.
 
 #### Backing invariant
 

@@ -601,6 +601,7 @@ contract FixedTermHooksTest is TestKernel {
       abi.encode(term, uint128(0), true)
     );
     MarketState memory state;
+    vm.mockCall(MarketA, abi.encodeWithSignature('registeredWrapper()'), abi.encode(SecondLender));
     vm.prank(MarketA);
     vm.expectRevert(FixedTermHooks.TransfersDisabled.selector);
     hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
