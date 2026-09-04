@@ -383,10 +383,14 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
-  function test_depositLimitsRejectLocallyBlockedWrapperOnUnrestrictedMarket() external {
+  function test_depositAndMintRejectLocallyBlockedWrapperOnUnrestrictedMarket() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
     assertTrue(wrapper.maxDeposit(Lender) > 0, 'open transfer readiness');
+
+    _deposit(fixture, Lender, 2 * DepositAmount);
+    vm.prank(Lender);
+    fixture.market.approve(address(wrapper), type(uint256).max);
 
     vm.prank(Borrower);
     fixture.hooks.blockFromDeposits(address(wrapper));
@@ -400,6 +404,19 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     );
     assertEq(wrapper.maxDeposit(Lender), 0, 'blocked wrapper deposit limit');
     assertEq(wrapper.maxMint(Lender), 0, 'blocked wrapper mint limit');
+
+    uint256 lenderBalanceBefore = fixture.market.scaledBalanceOf(Lender);
+    uint256 mintShares = wrapper.previewDeposit(DepositAmount);
+    vm.startPrank(Lender);
+    vm.expectRevert(Wildcat4626Wrapper.MarketTokenRecipientNotAllowed.selector);
+    wrapper.deposit(DepositAmount, Lender);
+    vm.expectRevert(Wildcat4626Wrapper.MarketTokenRecipientNotAllowed.selector);
+    wrapper.mint(mintShares, Lender);
+    vm.stopPrank();
+
+    assertEq(fixture.market.scaledBalanceOf(Lender), lenderBalanceBefore, 'lender balance');
+    assertEq(fixture.market.scaledBalanceOf(address(wrapper)), 0, 'wrapper backing');
+    assertEq(wrapper.totalSupply(), 0, 'wrapper supply');
   }
 
   function test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes() external {

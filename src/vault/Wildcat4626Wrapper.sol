@@ -58,6 +58,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   error ZeroShares();
   /// @dev the deposit would exceed the wrapped market's normalized supply cap.
   error CapExceeded();
+  /// @dev the market's transfer policy does not currently allow the wrapper to receive tokens.
+  error MarketTokenRecipientNotAllowed();
   /// @dev the market moved a different scaled amount than the wrapper expected.
   error SharesMismatch(uint256 expected, uint256 actual);
   /// @dev the caller is not the market's current operational borrower.
@@ -308,7 +310,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
 
   /// @notice pulls `assets` from the caller and mints the exact observed scaled increase to
   ///         `receiver`.
-  /// @dev reverts on zero input, sanctions, insolvency, cap failure, or a scaled-balance mismatch.
+  /// @dev reverts on zero input, sanctions, insolvency, cap failure, recipient-policy denial, or a
+  ///      scaled-balance mismatch.
   /// @return shares nonzero scaled market tokens credited by the transfer.
   function deposit(
     uint256 assets,
@@ -324,6 +327,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     // The market transfer credits floor-scaled tokens; expect exactly that.
     uint256 expectedShares = _convertToSharesDown(assets, scaleFactor);
     if (expectedShares == 0) revert ZeroShares();
+
+    _requireMarketTokenRecipientAllowed();
 
     address assetAddress = address(wrappedMarket);
     uint256 scaledBefore = _readMarketWord(
@@ -367,6 +372,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     // Verify the formula produced the correct result
     uint256 expectedShares = _convertToSharesDown(assets, scaleFactor);
     if (expectedShares != shares) revert SharesMismatch(shares, expectedShares);
+
+    _requireMarketTokenRecipientAllowed();
 
     address assetAddress = address(wrappedMarket);
     uint256 scaledBefore = _readMarketWord(
@@ -909,6 +916,11 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
       success &&
       scaledBacking <= type(uint104).max &&
       scaledBacking >= totalSupply();
+  }
+
+  /// @dev Applies the same live recipient-policy gate used by maxDeposit and maxMint.
+  function _requireMarketTokenRecipientAllowed() internal view {
+    if (!_canReceiveMarketTokens()) revert MarketTokenRecipientNotAllowed();
   }
 
   /// @dev wrapper deposits are plain market-token transfers, so they don't have hook data to
