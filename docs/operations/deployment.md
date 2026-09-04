@@ -44,8 +44,9 @@ deployment does not prove this.
 Release tooling probes the capability. Manual and third-party deployments must
 enforce the same Cancun-compatible boundary.
 
-SphereX-protected factories cache an engine and pass it to new markets. During
-an engine rotation:
+SphereX-protected factories cache an engine for registered-contract migration.
+V2.5 factories source the engine assigned to new markets directly from the
+ArchController. During an engine rotation:
 
 1. Prevent market creation while the ArchController and factories disagree.
 2. Keep the previous engine operational.

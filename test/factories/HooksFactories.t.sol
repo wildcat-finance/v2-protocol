@@ -15,6 +15,9 @@ import { ExistingProviderInputs } from 'src/access/ProviderStructs.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
+import {
+  ISphereXProtectedRegisteredBase
+} from 'src/interfaces/ISphereXProtectedRegisteredBase.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
@@ -22,6 +25,7 @@ import { Bit_Enabled_Deposit, EmptyHooksConfig, HooksConfig } from 'src/types/Ho
 import { NullProviderIndex, RoleProvider, encodeRoleProvider } from 'src/types/RoleProvider.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { BrokenHooksTemplate } from '../mocks/HooksFactoryMocks.sol';
+import { ArchControllerEngineMock } from '../mocks/ArchControllerMocks.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
@@ -748,6 +752,47 @@ contract HooksFactoriesTest is TestKernel {
       if (kind == FactoryKind.Revolving) {
         assertEq(WildcatMarketRevolving(marketAddress).commitmentFeeBips(), 100);
       }
+    }
+  }
+
+  function test_deployMarket_UsesCurrentArchControllerSphereXEngineAcrossFactories() external {
+    Fixture memory fixture = _newFixture();
+    fixture.archController.registerBorrower(address(this));
+    ArchControllerEngineMock engine = ArchControllerEngineMock(
+      _deployCode('test/mocks/ArchControllerMocks.sol:ArchControllerEngineMock')
+    );
+    fixture.archController.changeSphereXOperator(address(this));
+    fixture.archController.changeSphereXEngine(address(engine));
+
+    FeeConfig memory noFees;
+    IHooksFactory[2] memory factories = _factories(fixture);
+    for (uint256 i; i < factories.length; i++) {
+      IHooksFactory factory = factories[i];
+      assertEq(
+        ISphereXProtectedRegisteredBase(address(factory)).sphereXEngine(),
+        address(0),
+        'factory retained cached engine'
+      );
+
+      _addTemplate(factory, fixture.firstTemplate, 'Open Term', noFees);
+      address hooksInstance = factory.deployHooksInstance(fixture.firstTemplate, '');
+      address market = _deployMarket(
+        FactoryKind(i),
+        factory,
+        _marketInputs(fixture, hooksInstance),
+        '',
+        _marketSalt(address(this), 1),
+        address(0),
+        0
+      );
+
+      assertEq(
+        ISphereXProtectedRegisteredBase(market).sphereXEngine(),
+        address(engine),
+        'market engine'
+      );
+      assertEq(engine.allowedSenderCalls(market), 1, 'market allowlist calls');
+      WildcatMarket(market).updateState();
     }
   }
 
