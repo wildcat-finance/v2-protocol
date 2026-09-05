@@ -49,6 +49,31 @@ See [accounting](../protocol/accounting.md#delinquency) and
 
 ## Finite accounting representations
 
+### Timestamp horizon
+
+V2.x encodes absolute Unix timestamps in `uint32` across market accrual
+checkpoints, withdrawal-batch expiries, hook deadlines, and lender credentials.
+The final representable timestamp is `type(uint32).max`, or
+2106-02-07 06:28:15 UTC. This is an accepted lifetime bound for the V2.x
+generation, not a rollover scheme.
+
+A new withdrawal batch can be created only while
+`block.timestamp + withdrawalBatchDuration <= type(uint32).max`. For the
+maximum supported 365-day duration, the final representable creation timestamp
+is 2105-02-07 06:28:15 UTC; shorter batches reach the limit later. The checked
+conversion deliberately reverts rather than wrapping into an old batch key.
+During the final two weeks, applicable temporary APR-reduction deadlines wrap
+into the past, so a follow-up update can release the temporary reserve early.
+At the 2106 boundary, an accrual checkpoint can wrap and replay a century-scale
+interval, credentials can no longer be refreshed, and no new withdrawal batch
+can be created.
+
+A successor deployment does not migrate immutable markets or lender balances.
+Every V2.x market must be closed or migrated, with lender positions fully
+exited, before the earliest applicable timestamp cutoff and with sufficient
+operational margin to finish withdrawal execution. A market can require an
+earlier retirement under the scale-factor bound below.
+
 ### Scale factor
 
 `MarketState.scaleFactor` is a `uint112`. Checked casts revert rather than
@@ -72,8 +97,9 @@ tokens for an 18-decimal asset or `2.03e25` for a 6-decimal asset, together with
 repeated replacement of paid shares before the same expiry. Revisit the bound
 before listing assets with higher decimals or unusually valuable atomic units.
 
-See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation)
-and [withdrawal representation limits](../protocol/withdrawals.md#representation-limits).
+See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation),
+[withdrawal representation limits](../protocol/withdrawals.md#representation-limits),
+and [credential lifetime](../integrations/role-providers.md#credential-lifetime-and-failure).
 
 ## Withdrawal batches and rounding
 

@@ -108,6 +108,14 @@ Batch totals, paid scaled amounts, and each account's queued amount use
 execute paid shares. Checked arithmetic reverts instead of wrapping if a batch
 or account reaches the limit.
 
+Batch keys are absolute `uint32` Unix timestamps. Creating a batch requires
+`block.timestamp + withdrawalBatchDuration <= type(uint32).max`; the checked
+conversion reverts instead of wrapping into an earlier key. With the maximum
+365-day duration, the final representable creation timestamp is
+2105-02-07 06:28:15 UTC. V2.x markets and lender positions must be retired with
+enough margin to complete withdrawals before this generation-wide timestamp
+horizon. See [known limitations](../security/known-issues.md#timestamp-horizon).
+
 ## Closing a market
 
 `closeMarket()` processes every unpaid withdrawal batch before closing the

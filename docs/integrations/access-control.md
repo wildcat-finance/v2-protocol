@@ -108,6 +108,10 @@ valid  = lastApprovalTimestamp != 0 && expiry >= block.timestamp
 - Positive TTLs include the exact expiry timestamp. Expiry arithmetic saturates
   at `type(uint32).max`.
 
+That cap is the V2.x absolute timestamp horizon. It does not represent
+indefinite access after 2106-02-07 06:28:15 UTC; see
+[known limitations](../security/known-issues.md#timestamp-horizon).
+
 ### Grants, revocation, and deposit blocks
 
 An approved provider can grant a credential with a nonzero timestamp no later
