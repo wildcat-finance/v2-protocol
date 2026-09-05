@@ -32,6 +32,14 @@ transactions is therefore recognized at the next checkpoint, not at the exact
 second of the crossing. Permissionless state updates and the Hydra keeper
 reduce this timing difference but cannot remove block and polling latency.
 
+Withdrawal expiry is a stricter boundary. A delayed update settles the expired
+batch and classifies the post-expiry interval using the last asset balance that
+the market checkpointed at or before expiry. A direct transfer first observed
+after expiry becomes current liquidity but does not rewrite the elapsed
+history. Because an ERC-20 balance does not retain transfer timestamps, a
+direct transfer intended to count at expiry must be followed by a market state
+write no later than that timestamp.
+
 Closing accrues through the close timestamp, then clears the delinquency timer.
 Interest and delinquency fees do not continue through the remaining grace or
 decay period after closure.

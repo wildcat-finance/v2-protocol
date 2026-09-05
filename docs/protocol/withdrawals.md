@@ -50,6 +50,17 @@ subtracting:
 - the normalized value of earlier unpaid withdrawals; and
 - accrued protocol fees.
 
+If expiry is processed by a later transaction, the batch uses the last
+underlying balance observed by a market state write at or before expiry. Assets
+first observed after expiry remain available from that checkpoint onward, but
+cannot retroactively change batch settlement or delinquency for the elapsed
+interval.
+
+The ERC-20 does not record when an asset was transferred directly to the
+market. To make a direct transfer count at expiry, call `updateState()` after
+the transfer and no later than the expiry timestamp. Repayment and other market
+actions write state themselves.
+
 An expiring batch can be paid while older unpaid batches exist only if the
 market already holds enough assets for those older obligations. Once a batch
 enters the unpaid queue, later payments follow FIFO order. See
@@ -76,6 +87,11 @@ next payment.
 Plain `repay` transfers assets into the market and updates state. It does not
 walk the unpaid queue. Use `repayAndProcessUnpaidWithdrawalBatches` when the
 same transaction should route new liquidity through that queue.
+
+A repayment made after an unprocessed expiry first settles the expiry against
+the checkpointed balance. The combined repayment path can then apply the newly
+received assets to the resulting unpaid queue in the same transaction, subject
+to `maxBatches` and FIFO order.
 
 _Execution_ transfers a lender's paid pro-rata claim out of the market. Anyone
 can execute for an account and batch after the batch expires. If the lender is
