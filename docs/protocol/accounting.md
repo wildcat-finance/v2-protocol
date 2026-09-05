@@ -84,9 +84,12 @@ rounding.
 
 ## State updates
 
-Every state-changing market function updates market state before applying its
-own action. Interest and fees only advance when the timestamp changes. Later
-calls in the same timestamp do not accrue the interval again.
+State-changing market functions advance prior accounting before giving their
+own economic effect to an elapsed interval. Repayment assets may be transferred
+first so one transaction can also process withdrawals, but an unprocessed
+expiry uses the asset balance from the preceding checkpoint. Interest and fees
+only advance when the timestamp changes. Later calls in the same timestamp do
+not accrue the interval again.
 
 Without an expired batch, an update:
 

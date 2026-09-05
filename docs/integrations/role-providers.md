@@ -73,6 +73,13 @@ another interaction in the same block. A positive TTL lets a cached credential
 survive membership, balance, ownership, or root changes until expiry. Removing
 a provider makes its cached credential unusable on the next check.
 
+The `type(uint32).max` cap is also the V2.x generation's absolute timestamp
+horizon, not an indefinite-expiry encoding after that date. Once
+`block.timestamp` exceeds 2106-02-07 06:28:15 UTC, a new or refreshed pull or
+push credential cannot satisfy the current-time check. Markets and lender
+positions must be retired before that boundary; see
+[known limitations](../security/known-issues.md#timestamp-horizon).
+
 A revert or invalid timestamp is a miss, so another provider can still succeed.
 If a stateful validation call succeeds but returns less than one word, the hook
 reverts. Its side effects cannot survive without a usable result.

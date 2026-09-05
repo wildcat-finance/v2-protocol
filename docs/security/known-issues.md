@@ -32,6 +32,14 @@ transactions is therefore recognized at the next checkpoint, not at the exact
 second of the crossing. Permissionless state updates and the Hydra keeper
 reduce this timing difference but cannot remove block and polling latency.
 
+Withdrawal expiry is a stricter boundary. A delayed update settles the expired
+batch and classifies the post-expiry interval using the last asset balance that
+the market checkpointed at or before expiry. A direct transfer first observed
+after expiry becomes current liquidity but does not rewrite the elapsed
+history. Because an ERC-20 balance does not retain transfer timestamps, a
+direct transfer intended to count at expiry must be followed by a market state
+write no later than that timestamp.
+
 Closing accrues through the close timestamp, then clears the delinquency timer.
 Interest and delinquency fees do not continue through the remaining grace or
 decay period after closure.
@@ -40,6 +48,31 @@ See [accounting](../protocol/accounting.md#delinquency) and
 [market closure](../protocol/markets.md#closure).
 
 ## Finite accounting representations
+
+### Timestamp horizon
+
+V2.x encodes absolute Unix timestamps in `uint32` across market accrual
+checkpoints, withdrawal-batch expiries, hook deadlines, and lender credentials.
+The final representable timestamp is `type(uint32).max`, or
+2106-02-07 06:28:15 UTC. This is an accepted lifetime bound for the V2.x
+generation, not a rollover scheme.
+
+A new withdrawal batch can be created only while
+`block.timestamp + withdrawalBatchDuration <= type(uint32).max`. For the
+maximum supported 365-day duration, the final representable creation timestamp
+is 2105-02-07 06:28:15 UTC; shorter batches reach the limit later. The checked
+conversion deliberately reverts rather than wrapping into an old batch key.
+During the final two weeks, applicable temporary APR-reduction deadlines wrap
+into the past, so a follow-up update can release the temporary reserve early.
+At the 2106 boundary, an accrual checkpoint can wrap and replay a century-scale
+interval, credentials can no longer be refreshed, and no new withdrawal batch
+can be created.
+
+A successor deployment does not migrate immutable markets or lender balances.
+Every V2.x market must be closed or migrated, with lender positions fully
+exited, before the earliest applicable timestamp cutoff and with sufficient
+operational margin to finish withdrawal execution. A market can require an
+earlier retirement under the scale-factor bound below.
 
 ### Scale factor
 
@@ -64,16 +97,26 @@ tokens for an 18-decimal asset or `2.03e25` for a 6-decimal asset, together with
 repeated replacement of paid shares before the same expiry. Revisit the bound
 before listing assets with higher decimals or unusually valuable atomic units.
 
-See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation)
-and [withdrawal representation limits](../protocol/withdrawals.md#representation-limits).
+See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation),
+[withdrawal representation limits](../protocol/withdrawals.md#representation-limits),
+and [credential lifetime](../integrations/role-providers.md#credential-lifetime-and-failure).
 
 ## Withdrawal batches and rounding
 
-All lenders entering one batch share the interest earned by that batch's scaled
-position. A lender that queues later can therefore receive part of the interest
-accrued before they entered, while an earlier lender receives less of it. This
-is intentional: creating the batch should not penalize the first lender that
-benefits everyone else.
+All lenders entering one batch share its aggregate normalized payments pro rata
+according to final scaled ownership. Because payments can reserve assets and
+burn shares before later requests join, this averages payment vintages across
+the batch: early-paid lenders can receive part of the interest attached to
+later-paid shares, while later entrants can share interest already accrued by
+earlier unpaid shares. This is intentional: creating the batch should not
+penalize the first lender that benefits everyone else.
+
+`nukeFromOrbit` uses the same accounting when it forces a sanctioned lender's
+full direct balance into the current batch. The forced lender and existing
+members receive the same averaged result as voluntary participants with the
+same scaled amounts and entry timing; execution routes the sanctioned lender's
+share to escrow. The caller controls when quarantine is attempted but receives
+no special entitlement, and the batch conserves its aggregate reserved assets.
 
 Each partial payment to a batch floors its normalized payment independently.
 The discarded fraction is less than one atomic unit of the underlying per

@@ -1290,9 +1290,6 @@ contract WildcatMarketTest is MarketFixture {
       assertEq(beforeSecondExpiry.scaledPendingWithdrawals, 2, 'two pending scaled units');
       assertTrue(beforeSecondExpiry.isDelinquent, 'pre-settlement delinquency');
 
-      fixture.asset.mint(Recipient, 2);
-      vm.prank(Recipient);
-      fixture.asset.transfer(address(fixture.market), 2);
       assertEq(beforeSecondExpiry.liquidityRequired(), 3, 'pre-settlement requirement');
 
       uint256 checkpointTimestamp = uint256(secondExpiry) + 4 days;
@@ -1327,6 +1324,12 @@ contract WildcatMarketTest is MarketFixture {
         expectedScaleFactor,
         secondSegmentBaseInterest + secondSegmentDelinquencyFee
       );
+
+      fixture.asset.mint(Recipient, 2);
+      vm.warp(secondExpiry);
+      vm.prank(Recipient);
+      fixture.asset.transfer(address(fixture.market), 2);
+      fixture.market.updateState();
 
       vm.warp(checkpointTimestamp);
       MarketState memory current = fixture.market.currentState();

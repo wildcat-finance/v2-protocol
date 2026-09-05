@@ -50,6 +50,17 @@ subtracting:
 - the normalized value of earlier unpaid withdrawals; and
 - accrued protocol fees.
 
+If expiry is processed by a later transaction, the batch uses the last
+underlying balance observed by a market state write at or before expiry. Assets
+first observed after expiry remain available from that checkpoint onward, but
+cannot retroactively change batch settlement or delinquency for the elapsed
+interval.
+
+The ERC-20 does not record when an asset was transferred directly to the
+market. To make a direct transfer count at expiry, call `updateState()` after
+the transfer and no later than the expiry timestamp. Repayment and other market
+actions write state themselves.
+
 An expiring batch can be paid while older unpaid batches exist only if the
 market already holds enough assets for those older obligations. Once a batch
 enters the unpaid queue, later payments follow FIFO order. See
@@ -77,6 +88,11 @@ Plain `repay` transfers assets into the market and updates state. It does not
 walk the unpaid queue. Use `repayAndProcessUnpaidWithdrawalBatches` when the
 same transaction should route new liquidity through that queue.
 
+A repayment made after an unprocessed expiry first settles the expiry against
+the checkpointed balance. The combined repayment path can then apply the newly
+received assets to the resulting unpaid queue in the same transaction, subject
+to `maxBatches` and FIFO order.
+
 _Execution_ transfers a lender's paid pro-rata claim out of the market. Anyone
 can execute for an account and batch after the batch expires. If the lender is
 sanctioned, the market sends the assets to that lender's sanctions escrow.
@@ -91,6 +107,14 @@ Batch totals, paid scaled amounts, and each account's queued amount use
 `uint104`. Totals are cumulative for one expiry and do not shrink when lenders
 execute paid shares. Checked arithmetic reverts instead of wrapping if a batch
 or account reaches the limit.
+
+Batch keys are absolute `uint32` Unix timestamps. Creating a batch requires
+`block.timestamp + withdrawalBatchDuration <= type(uint32).max`; the checked
+conversion reverts instead of wrapping into an earlier key. With the maximum
+365-day duration, the final representable creation timestamp is
+2105-02-07 06:28:15 UTC. V2.x markets and lender positions must be retired with
+enough margin to complete withdrawals before this generation-wide timestamp
+horizon. See [known limitations](../security/known-issues.md#timestamp-horizon).
 
 ## Closing a market
 

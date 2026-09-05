@@ -260,6 +260,7 @@ contract WildcatMarketBase is
 
       assembly {
         // MarketState Slot 0 Storage Layout:
+        // [0:15]  | low 120 bits of checkpointedTotalAssets = 0
         // [15:31] | state.maxTotalSupply
         // [31:32] | state.isClosed = false
 
@@ -267,6 +268,7 @@ contract WildcatMarketBase is
         sstore(_state.slot, slot0)
 
         // MarketState Slot 3 Storage Layout:
+        // [0:4] | high 32 bits of checkpointedTotalAssets = 0
         // [4:8] | lastInterestAccruedTimestamp
         // [8:22] | scaleFactor = 1e27
         // [22:24] | reserveRatioBips
@@ -692,6 +694,17 @@ contract WildcatMarketBase is
     currentTotalAssets = totalAssets();
   }
 
+  /**
+   * @dev Returns the last asset balance observed by a state write while a current withdrawal
+   *      batch existed. The uint152 value occupies otherwise unused high bits in state slots
+   *      zero and three, preserving the MarketState storage layout and hook ABI.
+   */
+  function _checkpointedTotalAssets() internal view returns (uint256 value) {
+    assembly {
+      value := or(shr(0x88, sload(_state.slot)), shl(0x78, shr(0xe0, sload(add(_state.slot, 3)))))
+    }
+  }
+
   /// @dev derived-market accounting hook after closure fully funds debt and queued withdrawals.
   function _onCloseMarket() internal virtual {}
 
@@ -729,10 +742,10 @@ contract WildcatMarketBase is
           protocolFee
         );
       }
-      uint256 currentTotalAssets = totalAssets();
-      _processExpiredWithdrawalBatch(state, currentTotalAssets);
+      uint256 checkpointedTotalAssets = _checkpointedTotalAssets();
+      _processExpiredWithdrawalBatch(state, checkpointedTotalAssets);
       // Settlement can change the requirement used to classify the post-expiry interval.
-      state.isDelinquent = state.liquidityRequired() > currentTotalAssets;
+      state.isDelinquent = state.liquidityRequired() > checkpointedTotalAssets;
     }
     uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
     // Apply interest and fees accrued since last update (expiry or previous tx)
@@ -797,17 +810,17 @@ contract WildcatMarketBase is
       }
 
       pendingBatch = _withdrawalData.batches[pendingBatchExpiry];
-      uint256 currentTotalAssets = totalAssets();
+      uint256 checkpointedTotalAssets = _checkpointedTotalAssets();
       uint256 availableLiquidity = pendingBatch.availableLiquidityForPendingBatch(
         state,
-        currentTotalAssets
+        checkpointedTotalAssets
       );
       if (availableLiquidity > 0) {
         _applyWithdrawalBatchPaymentView(pendingBatch, state, availableLiquidity);
       }
       state.pendingWithdrawalExpiry = 0;
       // Mirror the post-settlement boundary used by the mutating state transition.
-      state.isDelinquent = state.liquidityRequired() > currentTotalAssets;
+      state.isDelinquent = state.liquidityRequired() > checkpointedTotalAssets;
     }
 
     if (state.lastInterestAccruedTimestamp != block.timestamp) {
@@ -848,14 +861,27 @@ contract WildcatMarketBase is
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
 
+    // An arbitrary direct transfer can exceed uint152, so saturate rather than making every
+    // state write revert. The uint104/uint112/uint128 accounting fields bound every payable
+    // market liability below uint152, making the saturated value economically equivalent.
+    uint256 checkpointedTotalAssets;
+    if (state.pendingWithdrawalExpiry != 0) {
+      checkpointedTotalAssets = MathUtils.min(currentTotalAssets, type(uint152).max);
+    }
+
     {
       bool isClosed = state.isClosed;
       uint maxTotalSupply = state.maxTotalSupply;
       assembly {
         // Slot 0 Storage Layout:
+        // [0:15]  | low 120 bits of checkpointedTotalAssets
         // [15:31] | state.maxTotalSupply
         // [31:32] | state.isClosed
-        let slot0 := or(isClosed, shl(0x08, maxTotalSupply))
+        let checkpointMask := sub(shl(0x78, 1), 1)
+        let slot0 := or(
+          or(isClosed, shl(0x08, maxTotalSupply)),
+          shl(0x88, and(checkpointedTotalAssets, checkpointMask))
+        )
         sstore(_state.slot, slot0)
       }
     }
@@ -899,6 +925,7 @@ contract WildcatMarketBase is
       uint lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       assembly {
         // Slot 3 Storage Layout:
+        // [0:4] | high 32 bits of checkpointedTotalAssets
         // [4:8] | state.lastInterestAccruedTimestamp
         // [8:22] | state.scaleFactor
         // [22:24] | state.reserveRatioBips
@@ -906,14 +933,17 @@ contract WildcatMarketBase is
         // [26:28] | protocolFeeBips
         // [28:32] | state.timeDelinquent
         let slot3 := or(
+          shl(0xe0, shr(0x78, checkpointedTotalAssets)),
           or(
             or(
-              or(shl(0xc0, lastInterestAccruedTimestamp), shl(0x50, scaleFactor)),
-              shl(0x40, reserveRatioBips)
+              or(
+                or(shl(0xc0, lastInterestAccruedTimestamp), shl(0x50, scaleFactor)),
+                shl(0x40, reserveRatioBips)
+              ),
+              or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
             ),
-            or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
-          ),
-          timeDelinquent
+            timeDelinquent
+          )
         )
         sstore(add(_state.slot, 3), slot3)
       }
