@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './WildcatMarketBase.sol';
 
+/// @notice ERC-20-compatible normalized balance surface backed by scaled market shares.
 contract WildcatMarketToken is WildcatMarketBase {
   using SafeCastLib for uint256;
   using FunctionTypeCasts for *;
@@ -11,9 +12,11 @@ contract WildcatMarketToken is WildcatMarketBase {
   //                                ERC20 Queries                               //
   // ========================================================================== //
 
+  /// @notice normalized market-token allowance from owner to spender.
   mapping(address => mapping(address => uint256)) public allowance;
 
-  /// @notice Returns the normalized balance of `account` with interest.
+  /// @notice returns `account`'s normalized balance with interest accrued through this block.
+  /// @param account lender whose direct market-token balance is queried.
   function balanceOf(address account) public view virtual nonReentrantView returns (uint256) {
     return
       _calculateCurrentStatePointers.asReturnsMarketState()().normalizeAmount(
@@ -21,7 +24,7 @@ contract WildcatMarketToken is WildcatMarketBase {
       );
   }
 
-  /// @notice Returns the normalized total supply with interest.
+  /// @notice returns normalized supply with interest accrued through this block.
   function totalSupply() external view virtual nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().totalSupply();
   }
@@ -30,6 +33,10 @@ contract WildcatMarketToken is WildcatMarketBase {
   //                                ERC20 Actions                               //
   // ========================================================================== //
 
+  /// @notice sets `spender`'s normalized allowance over the caller's market tokens.
+  /// @param spender account allowed to spend the caller's tokens.
+  /// @param amount new normalized allowance.
+  /// @return always true when the approval succeeds.
   function approve(
     address spender,
     uint256 amount
@@ -38,6 +45,12 @@ contract WildcatMarketToken is WildcatMarketBase {
     return true;
   }
 
+  /// @notice transfers up to `amount` normalized market tokens from the caller to `to`.
+  /// @dev the moved scaled amount is rounded down. reverts if it is zero, balances are
+  ///      insufficient, or the transfer hook rejects the transfer.
+  /// @param to recipient of the scaled shares.
+  /// @param amount normalized amount used to derive the scaled transfer.
+  /// @return always true when the transfer succeeds.
   function transfer(
     address to,
     uint256 amount
@@ -46,6 +59,12 @@ contract WildcatMarketToken is WildcatMarketBase {
     return true;
   }
 
+  /// @notice transfers up to `amount` normalized market tokens using the caller's allowance.
+  /// @dev the moved scaled amount is rounded down. infinite allowances aren't decremented.
+  /// @param from owner of the scaled shares and allowance.
+  /// @param to recipient of the scaled shares.
+  /// @param amount normalized amount charged to allowance and used to derive the scaled transfer.
+  /// @return always true when the transfer succeeds.
   function transferFrom(
     address from,
     address to,
@@ -76,7 +95,7 @@ contract WildcatMarketToken is WildcatMarketBase {
     uint baseCalldataSize
   ) internal virtual {
     MarketState memory state = _getUpdatedState();
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
 
     if (scaledAmount == 0) revert_NullTransferAmount();
 

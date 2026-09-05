@@ -1,0 +1,48 @@
+{
+  "id": "add-revolving-fixed-term-template",
+  "kind": "call",
+  "to": {
+    "$ref": "hooks-factory-revolving"
+  },
+  "functionSignature": "addHooksTemplate(address,string,address,address,uint80,uint16)",
+  "args": [
+    {
+      "$ref": "fixed-term-hooks-init-code-storage"
+    },
+    "FixedTermHooks",
+    "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "0x0000000000000000000000000000000000000000",
+    0,
+    500
+  ],
+  "description": "Add corrected FixedTermHooks to the replacement revolving factory.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": {
+      "$ref": "hooks-factory-revolving"
+    },
+    "value": "0",
+    "data": "functionSignature+args",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "callEq",
+    "target": {
+      "$ref": "hooks-factory-revolving"
+    },
+    "call": {
+      "sig": "isHooksTemplate(address) view returns (bool)",
+      "args": [
+        {
+          "$ref": "fixed-term-hooks-init-code-storage"
+        }
+      ]
+    },
+    "expect": true
+  },
+  "after": [
+    "add-revolving-open-term-template"
+  ]
+}

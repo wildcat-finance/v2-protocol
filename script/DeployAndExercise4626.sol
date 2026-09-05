@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';
@@ -128,7 +128,11 @@ contract DeployAndExercise4626 is Script {
   }
 
   function _deployFactoryAndWrapper(Config memory cfg) internal returns (address wrapperAddr) {
-    Wildcat4626WrapperFactory factory = new Wildcat4626WrapperFactory(cfg.archController);
+    // Exercise flows target freshly deployed v2.5 markets; no legacy factory.
+    Wildcat4626WrapperFactory factory = new Wildcat4626WrapperFactory(
+      cfg.archController,
+      address(0)
+    );
     console.log('Wrapper factory:', address(factory));
 
     wrapperAddr = factory.createWrapper(cfg.market);
@@ -151,11 +155,7 @@ contract DeployAndExercise4626 is Script {
     console.log('Shares minted:', sharesMinted);
   }
 
-  function _transferShares(
-    Config memory cfg,
-    address wrapperAddr,
-    uint256 sharesMinted
-  ) internal {
+  function _transferShares(Config memory cfg, address wrapperAddr, uint256 sharesMinted) internal {
     uint256 sharesToTransfer = cfg.transferShares == 0 ? sharesMinted / 2 : cfg.transferShares;
     require(sharesToTransfer <= sharesMinted, 'TRANSFER_SHARES too high');
 
@@ -193,11 +193,7 @@ contract DeployAndExercise4626 is Script {
     uint256 remainingDeployerShares = wrapper.balanceOf(cfg.deployer);
     if (remainingDeployerShares == 0) return;
 
-    uint256 assetsReceived = wrapper.redeem(
-      remainingDeployerShares,
-      cfg.deployer,
-      cfg.deployer
-    );
+    uint256 assetsReceived = wrapper.redeem(remainingDeployerShares, cfg.deployer, cfg.deployer);
     console.log('Deployer redeemed assets:', assetsReceived);
   }
 

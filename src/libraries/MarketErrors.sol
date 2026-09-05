@@ -1,7 +1,37 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 uint256 constant MaxSupplyExceeded_ErrorSelector = 0x8a164f63;
+
+uint256 constant NotWrapperFactory_ErrorSelector = 0x3780ab27;
+
+/// @dev Equivalent to `revert NotWrapperFactory()`
+function revert_NotWrapperFactory() pure {
+  assembly {
+    mstore(0, 0x3780ab27)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant WrapperAlreadyRegistered_ErrorSelector = 0xbcfd1f3a;
+
+/// @dev Equivalent to `revert WrapperAlreadyRegistered()`
+function revert_WrapperAlreadyRegistered() pure {
+  assembly {
+    mstore(0, 0xbcfd1f3a)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant CannotNukeWrapper_ErrorSelector = 0x812ab045;
+
+/// @dev Equivalent to `revert CannotNukeWrapper()`
+function revert_CannotNukeWrapper() pure {
+  assembly {
+    mstore(0, 0x812ab045)
+    revert(0x1c, 0x04)
+  }
+}
 
 /// @dev Equivalent to `revert MaxSupplyExceeded()`
 function revert_MaxSupplyExceeded() pure {
@@ -31,6 +61,26 @@ function revert_AprChangeOnClosedMarket() pure {
   }
 }
 
+uint256 constant AprReductionNotReduction_ErrorSelector = 0x116a7bf1;
+
+/// @dev Equivalent to `revert AprReductionNotReduction()`
+function revert_AprReductionNotReduction() pure {
+  assembly {
+    mstore(0, 0x116a7bf1)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant ExecutePendingAprReductionNotEnabled_ErrorSelector = 0x52025ce9;
+
+/// @dev Equivalent to `revert ExecutePendingAprReductionNotEnabled()`
+function revert_ExecutePendingAprReductionNotEnabled() pure {
+  assembly {
+    mstore(0, 0x52025ce9)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant MarketAlreadyClosed_ErrorSelector = 0x449e5f50;
 
 /// @dev Equivalent to `revert MarketAlreadyClosed()`
@@ -48,6 +98,42 @@ function revert_NotApprovedBorrower() pure {
   assembly {
     mstore(0, 0x02171e6a)
     revert(0x1c, 0x04)
+  }
+}
+
+/// @dev Equivalent to `revert NoPendingBorrowerTransfer()`
+function revert_NoPendingBorrowerTransfer() pure {
+  assembly {
+    // `mstore` always writes a full 32-byte word. This four-byte selector literal
+    // has 28 leading zero bytes, so starting at 0x1c skips that padding and
+    // returns exactly the selector Solidity expects.
+    mstore(0, 0x6b1ac6e2)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev Equivalent to `revert NotPendingBorrower()`
+function revert_NotPendingBorrower() pure {
+  assembly {
+    // This is the ABI encoding for a custom error with no arguments. Write the
+    // selector as one word, skip its 28 bytes of left padding, and revert with
+    // the remaining four bytes.
+    mstore(0, 0x3505fe80)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev Equivalent to `revert BorrowerTransferWhileSanctioned(account)`
+function revert_BorrowerTransferWhileSanctioned(address account) pure {
+  assembly {
+    // A custom error uses the same basic ABI layout as a function call: four
+    // selector bytes followed by one 32-byte word for each argument. The
+    // selector occupies the last four bytes of the first word, and the address
+    // occupies the next ABI word.
+    mstore(0, 0xfe1f6916)
+    mstore(0x20, account)
+    // Start at byte 28 of the selector word and return 4 + 32 bytes.
+    revert(0x1c, 0x24)
   }
 }
 
@@ -89,7 +175,7 @@ errors: -48 runtime, -48 initcode
 */
 uint256 constant AnnualInterestBipsTooHigh_ErrorSelector = 0xcf1f916f;
 
-/// @dev Equivalent to `revert ReserveRatioBipsTooHigh()`
+/// @dev Equivalent to `revert AnnualInterestBipsTooHigh()`
 function revert_AnnualInterestBipsTooHigh() pure {
   assembly {
     mstore(0, 0xcf1f916f)
@@ -143,6 +229,16 @@ uint256 constant WithdrawalBatchNotExpired_ErrorSelector = 0x2561b880;
 function revert_WithdrawalBatchNotExpired() pure {
   assembly {
     mstore(0, 0x2561b880)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant WithdrawalBatchKeyAlreadyExists_ErrorSelector = 0x7867bc7e;
+
+/// @dev Equivalent to `revert WithdrawalBatchKeyAlreadyExists()`
+function revert_WithdrawalBatchKeyAlreadyExists() pure {
+  assembly {
+    mstore(0, 0x7867bc7e)
     revert(0x1c, 0x04)
   }
 }
@@ -207,16 +303,6 @@ function revert_NullRepayAmount() pure {
   }
 }
 
-uint256 constant NullBuyBackAmount_ErrorSelector = 0x50394120;
-
-/// @dev Equivalent to `revert NullBuyBackAmount()`
-function revert_NullBuyBackAmount() pure {
-  assembly {
-    mstore(0, 0x50394120)
-    revert(0x1c, 0x04)
-  }
-}
-
 uint256 constant DepositToClosedMarket_ErrorSelector = 0x22d7c043;
 
 /// @dev Equivalent to `revert DepositToClosedMarket()`
@@ -233,16 +319,6 @@ uint256 constant RepayToClosedMarket_ErrorSelector = 0x61d1bc8f;
 function revert_RepayToClosedMarket() pure {
   assembly {
     mstore(0, 0x61d1bc8f)
-    revert(0x1c, 0x04)
-  }
-}
-
-uint256 constant BuyBackOnDelinquentMarket_Selector = 0x1707a7b7;
-
-/// @dev Equivalent to `revert BuyBackOnDelinquentMarket()`
-function revert_BuyBackOnDelinquentMarket() pure {
-  assembly {
-    mstore(0, 0x1707a7b7)
     revert(0x1c, 0x04)
   }
 }
@@ -313,6 +389,16 @@ uint256 constant ProtocolFeeTooHigh_ErrorSelector = 0x499fddb1;
 function revert_ProtocolFeeTooHigh() pure {
   assembly {
     mstore(0, 0x499fddb1)
+    revert(0x1c, 0x04)
+  }
+}
+
+uint256 constant ProtocolFeeRecipientRequired_ErrorSelector = 0x84247ce2;
+
+/// @dev Equivalent to `revert ProtocolFeeRecipientRequired()`
+function revert_ProtocolFeeRecipientRequired() pure {
+  assembly {
+    mstore(0, 0x84247ce2)
     revert(0x1c, 0x04)
   }
 }

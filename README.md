@@ -1,23 +1,33 @@
-# The Wildcat Protocol
+# Wildcat Protocol
 
-Here's the code. Enjoy it.
+Smart contracts, tests, and deployment tooling for Wildcat Protocol.
 
-For other bits and pieces:
+[Whitepaper v2.0](https://github.com/wildcat-finance/wildcat-whitepaper/blob/main/whitepaper_v2.0.pdf)
+· [The Wildcat Manifesto](https://medium.com/@wildcatprotocol/the-wildcat-manifesto-db23d4b9484d)
 
-### The Whitepaper [Out Of Date For V2]
+Product and user documentation lives at
+[docs.wildcat.finance](https://docs.wildcat.finance/).
 
-[https://tinyurl.com/wildcat-whitepaper](https://github.com/wildcat-finance/wildcat-whitepaper/blob/main/whitepaper_v1.0.pdf)
+## Build and test
 
-### The Manifesto 
+[Foundry](https://book.getfoundry.sh/getting-started/installation) is required.
 
-[https://tinyurl.com/wildcat-manifesto](https://medium.com/@wildcatprotocol/the-wildcat-manifesto-db23d4b9484d)
+```sh
+git submodule update --init
+forge build
+forge test
+```
 
-### The V1 Documentation [Out Of Date For V2]
+[`foundry.toml`](./foundry.toml) pins Solidity `0.8.25` and the Cancun EVM
+target. [`TESTS.md`](./TESTS.md) covers the full test setup.
 
-[https://wildcat-protocol.gitbook.io](https://wildcat-protocol.gitbook.io/wildcat/)
+## Start here
 
-### Notes on memory layout
+- [Technical documentation](./docs/README.md)
+- [External security reviews](./audits/README.md)
+- [Security reporting](./SECURITY.md)
+- [Contribution policy](./CONTRIBUTING.md)
+- [License](./LICENSE.md)
 
-When modifying any type definition, look for any place where the type is directly accessed in yul.
-
-Most events and errors in this contract are emitted using custom emitter functions which rely on the specific order of parameters in the definition
+Previous releases live in Git tags. Documentation on a release branch describes
+the source on that branch.

@@ -1,24 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './IHooks.sol';
 import '../libraries/BoolUtils.sol';
 
+/// @dev original market terms retained while an APR reduction can require excess reserves.
 struct TemporaryReserveRatio {
   uint16 originalAnnualInterestBips;
   uint16 originalReserveRatioBips;
   uint32 expiry;
 }
 
+/// @notice shared market-parameter bounds and default APR-reduction reserve policy.
+/// @dev OpenTerm and FixedTerm use the reduction policy; PeriodicTerm overrides reductions with its
+///      proposal flow. ordinary updates ignore the borrower-supplied reserve ratio. reductions may
+///      apply a temporary ratio derived from the original APR and reserve ratio; cancellation or a
+///      later update that expires the period restores that original ratio.
 abstract contract MarketConstraintHooks is IHooks {
   using BoolUtils for bool;
 
+  /// @dev the delinquency grace period is outside this template's inclusive bounds.
   error DelinquencyGracePeriodOutOfBounds();
+  /// @dev the reserve ratio is outside this template's inclusive bounds.
   error ReserveRatioBipsOutOfBounds();
+  /// @dev the delinquency fee is outside this template's inclusive bounds.
   error DelinquencyFeeBipsOutOfBounds();
+  /// @dev the withdrawal-batch duration is outside this template's inclusive bounds.
   error WithdrawalBatchDurationOutOfBounds();
+  /// @dev the annual lender APR is outside this template's inclusive bounds.
   error AnnualInterestBipsOutOfBounds();
 
+  /// @notice emitted when an APR reduction starts a temporary excess-reserve period.
   event TemporaryExcessReserveRatioActivated(
     address indexed market,
     uint256 originalReserveRatioBips,
@@ -26,6 +38,7 @@ abstract contract MarketConstraintHooks is IHooks {
     uint256 temporaryReserveRatioExpiry
   );
 
+  /// @notice emitted when another APR update changes an active temporary ratio.
   event TemporaryExcessReserveRatioUpdated(
     address indexed market,
     uint256 originalReserveRatioBips,
@@ -33,8 +46,10 @@ abstract contract MarketConstraintHooks is IHooks {
     uint256 temporaryReserveRatioExpiry
   );
 
+  /// @notice emitted when a later APR update cancels the temporary ratio.
   event TemporaryExcessReserveRatioCanceled(address indexed market);
 
+  /// @notice emitted when a later update restores an expired temporary ratio.
   event TemporaryExcessReserveRatioExpired(address indexed market);
 
   uint32 internal constant MinimumDelinquencyGracePeriod = 0;
@@ -52,8 +67,11 @@ abstract contract MarketConstraintHooks is IHooks {
   uint16 internal constant MinimumAnnualInterestBips = 0;
   uint16 internal constant MaximumAnnualInterestBips = 10_000;
 
+  /// @notice stored APR-reduction baseline and expiry for each market.
+  /// @dev time passing does not clear an expired entry; a qualifying later update does.
   mapping(address => TemporaryReserveRatio) public temporaryExcessReserveRatio;
 
+  /// @dev reverts with `errorSelector` when `value` falls outside the inclusive range.
   function assertValueInRange(
     uint256 value,
     uint256 min,
@@ -68,12 +86,7 @@ abstract contract MarketConstraintHooks is IHooks {
     }
   }
 
-  /**
-   * @dev Enforce constraints on market parameters, ensuring that
-   *      `annualInterestBips`, `delinquencyFeeBips`, `withdrawalBatchDuration`,
-   *      `reserveRatioBips` and `delinquencyGracePeriod` are within the
-   *      allowed ranges and that `namePrefix` and `symbolPrefix` are not null.
-   */
+  /// @dev applies this template's inclusive parameter bounds during market creation.
   function enforceParameterConstraints(
     uint16 annualInterestBips,
     uint16 delinquencyFeeBips,
@@ -113,10 +126,7 @@ abstract contract MarketConstraintHooks is IHooks {
     );
   }
 
-  /**
-   * @dev Returns immutable constraints on market parameters that
-   *      the controller variant will enforce.
-   */
+  /// @notice returns the parameter bounds enforced by this template during market creation.
   function getParameterConstraints()
     external
     pure
@@ -135,7 +145,7 @@ abstract contract MarketConstraintHooks is IHooks {
   }
 
   function _onCreateMarket(
-    address /* deployer */,
+    address /* administrator */,
     address /* marketAddress */,
     DeployMarketInputs calldata parameters,
     bytes calldata /* extraData */
@@ -149,58 +159,40 @@ abstract contract MarketConstraintHooks is IHooks {
     );
   }
 
-  /**
-   * @dev Returns the new temporary reserve ratio for a given interest rate
-   *      change. This is calculated as no change if the rate change is LEQ
-   *      a 25% decrease, otherwise double the relative difference between
-   *      the old and new APR rates (in bips), bounded to a maximum of 100%.
-   *      If this value is lower than the existing reserve ratio, the existing
-   *      reserve ratio is returned instead.
-   */
+  /// @dev keeps the original reserve ratio for an APR reduction of 25% or less. above that, returns
+  ///      the greater of the original ratio and twice the relative APR reduction, capped at 100%.
   function _calculateTemporaryReserveRatioBips(
     uint256 annualInterestBips,
     uint256 originalAnnualInterestBips,
     uint256 originalReserveRatioBips
   ) internal pure returns (uint16 temporaryReserveRatioBips) {
-    // Calculate the relative reduction in the interest rate in bips,
-    // bound to a maximum of 100%
-    uint256 relativeDiff = MathUtils.mulDiv(
-      10000,
-      originalAnnualInterestBips - annualInterestBips,
-      originalAnnualInterestBips
+    uint256 reduction = originalAnnualInterestBips - annualInterestBips;
+
+    // compare before converting to bips. if we floor first, a reduction just over
+    // 25% looks like exactly 25% and skips the temporary reserve requirement.
+    if (reduction * BIP <= originalAnnualInterestBips * 2500) {
+      return uint16(originalReserveRatioBips);
+    }
+
+    // multiply before dividing so the temporary reserve ratio only rounds once.
+    uint256 boundRelativeDiff = MathUtils.min(
+      BIP,
+      MathUtils.mulDiv(2 * BIP, reduction, originalAnnualInterestBips)
     );
 
-    // If the reduction is 25% (2500 bips) or less, return the original reserve ratio
-    if (relativeDiff <= 2500) {
-      temporaryReserveRatioBips = uint16(originalReserveRatioBips);
-    } else {
-      // Calculate double the relative reduction in the interest rate in bips,
-      // bound to a maximum of 100%
-      uint256 boundRelativeDiff = MathUtils.min(10000, 2 * relativeDiff);
-
-      // If the bound relative diff is lower than the existing reserve ratio, return the latter.
-      temporaryReserveRatioBips = uint16(
-        MathUtils.max(boundRelativeDiff, originalReserveRatioBips)
-      );
-    }
+    // don't let this calculation lower the reserve ratio that's already set.
+    temporaryReserveRatioBips = uint16(MathUtils.max(boundRelativeDiff, originalReserveRatioBips));
   }
 
-  /**
-   * @dev Hook to enforce constraints on changes to the annual interest rate
-   *      and reserve ratio. Reducing the APR triggers an update period of two weeks,
-   *      during which the market's reserve ratio is temporarily increased proportionally
-   *      to the reduction. The original APR is pegged to the previous value during this
-   *      time to prevent abuse of the allowed 25% unpenalized reduction.
-   *
-   * @param annualInterestBips The new annual interest rate in bips provided by the borrower.
-   * @param {} Unused parameter for the reserve ratio bips provided by the borrower.
-   * @param intermediateState The current state of the market.
-   * @param {} Unused parameter for extra data.
-   *
-   * @return newAnnualInterestBips The new annual interest rate in bips to be set.
-   *                               always equal to the input parameter.
-   * @return newReserveRatioBips The new reserve ratio in bips to be set.
-   */
+  /// @notice applies the shared APR-reduction reserve policy.
+  /// @dev the first reduction anchors a two-week period to the market's current APR and reserve
+  ///      ratio. further reductions restart it; a partial recovery keeps its expiry. returning to
+  ///      the original APR cancels the period, while a non-decreasing update at expiry ends it.
+  ///      the caller's proposed reserve ratio is deliberately ignored.
+  /// @param annualInterestBips APR proposed by the borrower, in basis points.
+  /// @param intermediateState current market state before the parameter update.
+  /// @return newAnnualInterestBips APR the market should apply; always the proposed APR.
+  /// @return newReserveRatioBips current, temporary, or restored original reserve ratio.
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 /* reserveRatioBips */,
@@ -250,7 +242,8 @@ abstract contract MarketConstraintHooks is IHooks {
     if (annualInterestBips < originalAnnualInterestBips) {
       // If the new interest rate is lower than the original, calculate a temporarily
       // increased reserve ratio as:
-      // relativeReduction <= 0.25 ? originalReserveRatio : max(originalReserveRatio, min(2 * relativeReduction, 100%))
+      // relativeReduction <= 0.25 ? originalReserveRatio :
+      // max(originalReserveRatio, min(2 * relativeReduction, 100%))
       uint16 temporaryReserveRatioBips = _calculateTemporaryReserveRatioBips(
         annualInterestBips,
         originalAnnualInterestBips,

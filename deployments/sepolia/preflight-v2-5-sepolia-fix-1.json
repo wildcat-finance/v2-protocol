@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0.0",
+  "release": "v2-5-sepolia-fix-1",
+  "protocolVersion": "2.5.3",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "checkedAt": "2026-08-27T21:13:00.000Z",
+  "blockNumber": 11580389,
+  "blockHash": "0x55a5c4203749a215cb4afa2c28aa32646a2d485ef1a08c27067568114296618a",
+  "status": "green",
+  "authority": {
+    "policy": "fixed",
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "owner": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "helper": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "helperVersion": "2",
+    "helperArchController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "authorizedAccounts": [
+      "0xca732651410E915090d7A7D889A1E44eF4575fcE",
+      "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7"
+    ],
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "executorAuthorized": true,
+    "sphereXEngine": "0xCc65C2Ad8ab5b5c63489cfC77F782175E0c6A36e",
+    "sphereXAdmin": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "sphereXOperator": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "pendingSphereXAdmin": "0x0000000000000000000000000000000000000000",
+    "engineDefaultAdmin": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "pendingEngineDefaultAdmin": "0x0000000000000000000000000000000000000000",
+    "pendingEngineDefaultAdminAt": 0
+  },
+  "executor": {
+    "nonce": 36,
+    "balanceWei": "948365538112029534"
+  },
+  "factories": [
+    {
+      "marketType": "standard",
+      "address": "0xbFbDaFc91977eE599a61B30D9e75788565Ad6d18",
+      "controllerFactoryRegistered": true,
+      "controllerRegistered": true,
+      "templates": [
+        {
+          "address": "0x1840E97Fba22DbA0996f4b8D02fc8bB74473dD95",
+          "name": "OpenTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500
+        },
+        {
+          "address": "0x7Cf683E0802257180EDf4C21A12C5070acd166d2",
+          "name": "FixedTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500
+        },
+        {
+          "address": "0xB63929E732156C46857C0d9b08e483f8845Ed1BE",
+          "name": "PeriodicTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500
+        }
+      ]
+    },
+    {
+      "marketType": "revolving",
+      "address": "0x190B42942fe9492df9CeA441dA5c43309840E93A",
+      "controllerFactoryRegistered": true,
+      "controllerRegistered": true,
+      "templates": [
+        {
+          "address": "0x1840E97Fba22DbA0996f4b8D02fc8bB74473dD95",
+          "name": "OpenTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500
+        },
+        {
+          "address": "0x7Cf683E0802257180EDf4C21A12C5070acd166d2",
+          "name": "FixedTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500
+        },
+        {
+          "address": "0xB63929E732156C46857C0d9b08e483f8845Ed1BE",
+          "name": "PeriodicTermHooks",
+          "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+          "protocolFeeBips": 500
+        }
+      ]
+    }
+  ],
+  "authorityPolicy": "fixed",
+  "noAuthorityRotation": true
+}

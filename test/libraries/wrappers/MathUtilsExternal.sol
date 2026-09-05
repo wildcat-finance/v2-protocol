@@ -1,4 +1,4 @@
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 import 'src/libraries/MathUtils.sol';
 
@@ -22,6 +22,10 @@ library MathUtilsExternal {
 
   function satSub(uint256 a, uint256 b) external pure returns (uint256 c) {
     return MathUtils.satSub(a, b);
+  }
+
+  function satAdd(uint256 a, uint256 b, uint256 maxValue) external pure returns (uint256 c) {
+    return MathUtils.satAdd(a, b, maxValue);
   }
 
   function ternary(

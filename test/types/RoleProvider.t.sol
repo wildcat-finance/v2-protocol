@@ -1,21 +1,36 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 import 'src/types/RoleProvider.sol';
-import 'forge-std/Test.sol';
-import '../helpers/Assertions.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
+import { StandardRoleProvider } from '../shared/TestStructs.sol';
 
-contract RoleProviderTest is Test, Assertions {
+contract RoleProviderTest is TestKernel {
   modifier setNullIndex(StandardRoleProvider memory input, bool isPullProvider) {
     if (!isPullProvider) input.pullProviderIndex = NullProviderIndex;
     else input.pushProviderIndex = NullProviderIndex;
     _;
   }
 
+  function assertEq(
+    RoleProvider actual,
+    StandardRoleProvider memory expected,
+    string memory message
+  ) internal pure {
+    assertEq(actual.providerAddress(), expected.providerAddress, message);
+    assertEq(actual.timeToLive(), expected.timeToLive, message);
+    assertEq(actual.pullProviderIndex(), expected.pullProviderIndex, message);
+    assertEq(actual.pushProviderIndex(), expected.pushProviderIndex, message);
+  }
+
+  function assertEq(RoleProvider actual, StandardRoleProvider memory expected) internal pure {
+    assertEq(actual, expected, 'RoleProvider');
+  }
+
   function test_encodeRoleProvider(
     StandardRoleProvider memory input,
     bool isPullProvider
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     assertEq(provider, input);
   }
@@ -23,7 +38,7 @@ contract RoleProviderTest is Test, Assertions {
   function test_decodeRoleProvider(
     StandardRoleProvider memory input,
     bool isPullProvider
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     assertEq(provider, input);
     (
@@ -39,7 +54,7 @@ contract RoleProviderTest is Test, Assertions {
     StandardRoleProvider memory input,
     bool isPullProvider,
     uint32 timestamp
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     uint256 expiryTimestamp = uint(timestamp) + uint(input.timeToLive);
     if (expiryTimestamp > type(uint32).max) expiryTimestamp = type(uint32).max;
@@ -50,7 +65,7 @@ contract RoleProviderTest is Test, Assertions {
     StandardRoleProvider memory input,
     bool isPullProvider,
     uint32 newTimeToLive
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setTimeToLive(newTimeToLive);
     assertEq(provider.timeToLive(), newTimeToLive);
@@ -62,7 +77,7 @@ contract RoleProviderTest is Test, Assertions {
     StandardRoleProvider memory input,
     bool isPullProvider,
     address newProviderAddress
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setProviderAddress(newProviderAddress);
     assertEq(provider.providerAddress(), newProviderAddress);
@@ -74,7 +89,7 @@ contract RoleProviderTest is Test, Assertions {
     StandardRoleProvider memory input,
     bool isPullProvider,
     uint24 newPullProviderIndex
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     if (!isPullProvider) {
       newPullProviderIndex = NullProviderIndex;
     }
@@ -89,7 +104,7 @@ contract RoleProviderTest is Test, Assertions {
     StandardRoleProvider memory input,
     bool isPullProvider,
     uint24 newPushProviderIndex
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     if (isPullProvider) {
       newPushProviderIndex = NullProviderIndex;
     }
@@ -100,7 +115,7 @@ contract RoleProviderTest is Test, Assertions {
     assertEq(provider, input, 'with new pullProviderIndex');
   }
 
-  function test_setPushProviderIndex() external {
+  function test_setPushProviderIndex() external pure {
     RoleProvider provider = encodeRoleProvider({
       providerAddress: address(type(uint160).max),
       pullProviderIndex: type(uint24).max,
@@ -116,7 +131,6 @@ contract RoleProviderTest is Test, Assertions {
     assertEq(provider.pullProviderIndex(), type(uint24).max);
     assertEq(provider.pushProviderIndex(), 1_000);
     assertEq(provider.timeToLive(), type(uint32).max);
-
   }
 
   function test_eq(
@@ -124,7 +138,7 @@ contract RoleProviderTest is Test, Assertions {
     bool isPullProvider1,
     StandardRoleProvider memory input2,
     bool isPullProvider2
-  ) external setNullIndex(input1, isPullProvider1) setNullIndex(input2, isPullProvider2) {
+  ) external pure setNullIndex(input1, isPullProvider1) setNullIndex(input2, isPullProvider2) {
     RoleProvider provider1 = input1.toRoleProvider();
     RoleProvider provider2 = input2.toRoleProvider();
     assertEq(
@@ -139,7 +153,7 @@ contract RoleProviderTest is Test, Assertions {
   function test_isNull(
     StandardRoleProvider memory input,
     bool isPullProvider
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     assertEq(
       provider.isNull(),
@@ -150,7 +164,7 @@ contract RoleProviderTest is Test, Assertions {
   function test_isPullProvider(
     StandardRoleProvider memory input,
     bool isPullProvider
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     assertEq(provider.isPullProvider(), input.pullProviderIndex != NullProviderIndex);
   }
@@ -158,7 +172,7 @@ contract RoleProviderTest is Test, Assertions {
   function test_setNotPullProvider(
     StandardRoleProvider memory input,
     bool isPullProvider
-  ) external setNullIndex(input, isPullProvider) {
+  ) external pure setNullIndex(input, isPullProvider) {
     RoleProvider provider = input.toRoleProvider();
     provider = provider.setNotPullProvider();
     input.pullProviderIndex = NullProviderIndex;

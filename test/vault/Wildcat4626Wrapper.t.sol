@@ -1,767 +1,1194 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
-
-import 'forge-std/Test.sol';
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity 0.8.25;
 
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
-import { IWildcatMarketToken } from 'src/vault/Wildcat4626Wrapper.sol';
+import { ERC20 } from 'solady/tokens/ERC20.sol';
+import { WrapperMarketMock, WrapperPlainERC20Mock } from '../mocks/WrapperMocks.sol';
+import { WrapperSentinelMock, WrapperSpoofEscrowMock } from '../mocks/WrapperMocks.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
-contract MockSanctionsSentinel {
-  mapping(address => bool) public sanctioned;
+contract Wildcat4626WrapperTest is TestKernel {
+  event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+  event Withdraw(
+    address indexed sender,
+    address indexed receiver,
+    address indexed owner,
+    uint256 assets,
+    uint256 shares
+  );
+  event TokensSwept(address indexed token, address indexed to, uint256 amount);
+  event SanctionedAccountSharesSentToEscrow(
+    address indexed account,
+    address indexed escrow,
+    uint256 shares
+  );
 
-  function isSanctioned(address, address account) external view returns (bool) {
-    return sanctioned[account];
+  uint256 internal constant Unit = 1e6;
+  address internal constant Borrower = address(0xB0123123);
+  address internal constant Holder = address(0xA11CE);
+  address internal constant Receiver = address(0xB0B);
+  address internal constant Spender = address(0x5EED);
+
+  struct Fixture {
+    WrapperSentinelMock sentinel;
+    WrapperMarketMock market;
+    Wildcat4626Wrapper wrapper;
   }
 
-  function sanction(address account) external {
-    sanctioned[account] = true;
+  function _deployMarket(
+    uint8 decimals,
+    address borrower,
+    address principal,
+    address sentinel,
+    address wrapperFactory
+  ) private returns (WrapperMarketMock) {
+    return
+      WrapperMarketMock(
+        _deployCode(
+          'test/mocks/WrapperMocks.sol:WrapperMarketMock',
+          abi.encode(decimals, borrower, principal, sentinel, wrapperFactory)
+        )
+      );
   }
 
-  function unsanction(address account) external {
-    sanctioned[account] = false;
-  }
-}
-
-contract MockErc20 {
-  string public constant name = 'HEX Token';
-  string public constant symbol = 'HEX';
-  uint8 public constant decimals = 18;
-
-  mapping(address => uint256) internal _balances;
-
-  function mint(address to, uint256 amount) external {
-    _balances[to] += amount;
+  function _deployWrapper(address market) private returns (Wildcat4626Wrapper) {
+    return
+      Wildcat4626Wrapper(
+        _deployCode('src/vault/Wildcat4626Wrapper.sol:Wildcat4626Wrapper', abi.encode(market))
+      );
   }
 
-  function balanceOf(address account) external view returns (uint256) {
-    return _balances[account];
+  function _newFixture() private returns (Fixture memory fixture) {
+    fixture.sentinel = WrapperSentinelMock(
+      _deployCode('test/mocks/WrapperMocks.sol:WrapperSentinelMock')
+    );
+    fixture.market = _deployMarket(6, Borrower, Borrower, address(fixture.sentinel), address(this));
+    fixture.wrapper = _deployWrapper(address(fixture.market));
   }
 
-  function transfer(address to, uint256 amount) external returns (bool) {
-    uint256 balance = _balances[msg.sender];
-    require(balance >= amount, 'BALANCE');
-    unchecked {
-      _balances[msg.sender] = balance - amount;
-      _balances[to] += amount;
-    }
-    return true;
-  }
-}
-
-contract MockMarketToken is IWildcatMarketToken {
-  using MathUtils for uint256;
-
-  string public constant name = 'Mock fries USDC';
-  string public constant symbol = 'friesUSDC';
-  uint8 public immutable override decimals;
-
-  uint256 public override scaleFactor;
-  address public immutable override borrower;
-  address public immutable override sentinel;
-
-  mapping(address => uint256) internal _scaledBalances;
-  mapping(address => mapping(address => uint256)) public override allowance;
-  uint256 internal _scaledTotalSupply;
-
-  constructor(uint8 tokenDecimals, address borrower_, address sentinel_) {
-    decimals = tokenDecimals;
-    scaleFactor = RAY;
-    borrower = borrower_;
-    sentinel = sentinel_;
+  function _fundAndApprove(Fixture memory fixture, address account, uint256 assets) private {
+    fixture.market.mint(account, assets);
+    vm.prank(account);
+    fixture.market.approve(address(fixture.wrapper), type(uint256).max);
   }
 
-  function balanceOf(address account) public view override returns (uint256) {
-    return _scaledBalances[account].rayMul(scaleFactor);
+  function _deposit(
+    Fixture memory fixture,
+    address account,
+    uint256 assets
+  ) private returns (uint256 shares) {
+    _fundAndApprove(fixture, account, assets);
+    vm.prank(account);
+    shares = fixture.wrapper.deposit(assets, account);
   }
 
-  function totalSupply() external view returns (uint256) {
-    return _scaledTotalSupply.rayMul(scaleFactor);
+  function _absoluteDifference(uint256 left, uint256 right) private pure returns (uint256) {
+    return left > right ? left - right : right - left;
   }
 
-  function scaledBalanceOf(address account) external view override returns (uint256) {
-    return _scaledBalances[account];
+  function _expectSanctioned(address account) private {
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, account));
   }
 
-  function maxTotalSupply() external view override returns (uint256) {
-    return uint256(type(uint128).max);
+  function _assertAllLimitsZero(Fixture memory fixture) private view {
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
+    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'max withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'max redeem');
   }
 
-  function setScaleFactor(uint256 newScaleFactor) external {
-    require(newScaleFactor != 0, 'ZERO_FACTOR');
-    scaleFactor = newScaleFactor;
+  function _assertEntryLimitsZero(Fixture memory fixture) private view {
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
+    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
   }
 
-  function mint(address to, uint256 assets) external {
-    uint256 scaled = assets.rayDiv(scaleFactor);
-    require(scaled != 0, 'SCALED_ZERO');
-    _scaledBalances[to] += scaled;
-    _scaledTotalSupply += scaled;
+  function test_constructorAndMetadataValidateMarketDependencies() external {
+    Fixture memory fixture = _newFixture();
+
+    assertEq(fixture.wrapper.name(), 'friesUSDC [4626 Vault Shares]', 'name');
+    assertEq(fixture.wrapper.symbol(), 'v-friesUSDC', 'symbol');
+    assertEq(fixture.wrapper.decimals(), 6, 'decimals');
+    assertEq(fixture.wrapper.market(), address(fixture.market), 'market');
+    assertEq(fixture.wrapper.asset(), address(fixture.market), 'asset');
+    assertEq(fixture.wrapper.marketOwner(), Borrower, 'market owner');
+    assertEq(address(fixture.wrapper.sanctionsSentinel()), address(fixture.sentinel), 'sentinel');
+
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    _deployWrapper(address(0));
+
+    WrapperMarketMock zeroBorrower = _deployMarket(
+      6,
+      address(0),
+      Borrower,
+      address(fixture.sentinel),
+      address(this)
+    );
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    _deployWrapper(address(zeroBorrower));
+
+    WrapperMarketMock zeroPrincipal = _deployMarket(
+      6,
+      Borrower,
+      address(0),
+      address(fixture.sentinel),
+      address(this)
+    );
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    _deployWrapper(address(zeroPrincipal));
+
+    WrapperMarketMock zeroSentinel = _deployMarket(
+      6,
+      Borrower,
+      Borrower,
+      address(0),
+      address(this)
+    );
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    _deployWrapper(address(zeroSentinel));
+
+    WrapperMarketMock wrongFactory = _deployMarket(
+      6,
+      Borrower,
+      Borrower,
+      address(fixture.sentinel),
+      address(0xBAD)
+    );
+    vm.expectRevert(Wildcat4626Wrapper.NotWrapperFactory.selector);
+    _deployWrapper(address(wrongFactory));
+
+    bytes memory decimalsCall = abi.encodeWithSignature('decimals()');
+    vm.mockCall(address(fixture.market), decimalsCall, hex'01');
+    vm.expectRevert();
+    _deployWrapper(address(fixture.market));
+    vm.clearMockedCalls();
+
+    vm.mockCall(address(fixture.market), decimalsCall, abi.encode(uint256(type(uint8).max) + 1));
+    vm.expectRevert();
+    _deployWrapper(address(fixture.market));
+    vm.clearMockedCalls();
   }
 
-  function approve(address spender, uint256 amount) external returns (bool) {
-    allowance[msg.sender][spender] = amount;
-    return true;
+  function testFuzz_conversionPreviewsAndRatesFollowScaleFactor(
+    uint256 assetsSeed,
+    uint256 sharesSeed,
+    uint256 scaleOffsetSeed
+  ) external {
+    Fixture memory fixture = _newFixture();
+    uint256 assets = bound(assetsSeed, 1, 1e30);
+    uint256 shares = bound(sharesSeed, 1, 1e30);
+    uint256 scaleFactor = RAY + bound(scaleOffsetSeed, 0, 10 * RAY);
+    fixture.market.setScaleFactor(scaleFactor);
+
+    uint256 sharesDown = MathUtils.mulDiv(assets, RAY, scaleFactor);
+    uint256 sharesUp = MathUtils.mulDivUp(assets, RAY, scaleFactor);
+    uint256 assetsDown = MathUtils.mulDiv(shares, scaleFactor, RAY);
+    uint256 assetsUp = MathUtils.mulDivUp(shares, scaleFactor, RAY);
+
+    assertEq(fixture.wrapper.convertToShares(assets), sharesDown, 'convert shares');
+    assertEq(fixture.wrapper.previewDeposit(assets), sharesDown, 'preview deposit');
+    assertEq(fixture.wrapper.previewWithdraw(assets), sharesUp, 'preview withdraw');
+    assertEq(fixture.wrapper.convertToAssets(shares), assetsDown, 'convert assets');
+    assertEq(fixture.wrapper.previewRedeem(shares), assetsDown, 'preview redeem');
+    assertEq(fixture.wrapper.previewMint(shares), assetsUp, 'preview mint');
+    assertEq(fixture.wrapper.assetsPerShareRay(), scaleFactor, 'assets per share');
+    assertEq(
+      fixture.wrapper.sharesPerAssetRay(),
+      MathUtils.mulDiv(RAY, RAY, scaleFactor),
+      'shares per asset'
+    );
+
+    assertEq(fixture.wrapper.convertToShares(0), 0, 'zero convert shares');
+    assertEq(fixture.wrapper.convertToAssets(0), 0, 'zero convert assets');
+    assertEq(fixture.wrapper.previewMint(0), 0, 'zero preview mint');
+    assertEq(fixture.wrapper.previewWithdraw(0), 0, 'zero preview withdraw');
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'empty max withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'empty max redeem');
+    assertEq(fixture.wrapper.totalAssets(), 0, 'empty total assets');
+    assertEq(fixture.wrapper.maxDeposit(Holder), type(uint128).max, 'max deposit');
+    assertEq(
+      fixture.wrapper.maxMint(Holder),
+      MathUtils.mulDiv(type(uint128).max, RAY, scaleFactor),
+      'max mint'
+    );
   }
 
-  function transfer(address to, uint256 amount) external returns (bool) {
-    _transfer(msg.sender, to, amount);
-    return true;
+  function testFuzz_depositAndMintCreateExactScaledBacking(
+    uint96 assetsSeed,
+    uint96 sharesSeed,
+    uint96 scaleOffsetSeed
+  ) external {
+    uint256 scaleFactor = RAY + bound(scaleOffsetSeed, 0, RAY);
+    uint256 assets = bound(assetsSeed, 1e9, 100e18);
+    uint256 requestedShares = bound(sharesSeed, 1e9, 100e18);
+
+    Fixture memory depositFixture = _newFixture();
+    depositFixture.market.setScaleFactor(scaleFactor);
+    _fundAndApprove(depositFixture, Holder, assets);
+    uint256 expectedShares = MathUtils.mulDiv(assets, RAY, scaleFactor);
+    vm.expectEmit(true, true, false, true, address(depositFixture.wrapper));
+    emit Deposit(Holder, Receiver, assets, expectedShares);
+    vm.prank(Holder);
+    uint256 depositedShares = depositFixture.wrapper.deposit(assets, Receiver);
+
+    assertEq(depositedShares, expectedShares, 'deposit shares');
+    assertEq(depositedShares, depositFixture.wrapper.previewDeposit(assets), 'deposit preview');
+    assertEq(depositFixture.wrapper.balanceOf(Receiver), expectedShares, 'deposit receiver');
+    assertEq(depositFixture.wrapper.totalSupply(), expectedShares, 'deposit supply');
+    assertEq(
+      depositFixture.market.scaledBalanceOf(address(depositFixture.wrapper)),
+      expectedShares,
+      'deposit backing'
+    );
+    assertEq(
+      depositFixture.wrapper.totalAssets(),
+      depositFixture.market.balanceOf(address(depositFixture.wrapper)),
+      'deposit assets'
+    );
+
+    Fixture memory mintFixture = _newFixture();
+    mintFixture.market.setScaleFactor(scaleFactor);
+    uint256 expectedAssets = MathUtils.mulDivUp(requestedShares, scaleFactor, RAY);
+    _fundAndApprove(mintFixture, Holder, expectedAssets);
+    vm.expectEmit(true, true, false, true, address(mintFixture.wrapper));
+    emit Deposit(Holder, Receiver, expectedAssets, requestedShares);
+    vm.prank(Holder);
+    uint256 mintedAssets = mintFixture.wrapper.mint(requestedShares, Receiver);
+
+    assertEq(mintedAssets, expectedAssets, 'mint assets');
+    assertEq(mintedAssets, mintFixture.wrapper.previewMint(requestedShares), 'mint preview');
+    assertEq(mintFixture.wrapper.balanceOf(Receiver), requestedShares, 'mint receiver');
+    assertEq(mintFixture.wrapper.totalSupply(), requestedShares, 'mint supply');
+    assertEq(
+      mintFixture.market.scaledBalanceOf(address(mintFixture.wrapper)),
+      requestedShares,
+      'mint backing'
+    );
   }
 
-  function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-    uint256 allowed = allowance[from][msg.sender];
-    if (allowed != type(uint256).max) {
-      require(allowed >= amount, 'ALLOWANCE');
-      allowance[from][msg.sender] = allowed - amount;
-    }
-    _transfer(from, to, amount);
-    return true;
+  function testFuzz_withdrawAndRedeemBurnExactScaledBacking(
+    uint96 withdrawSeed,
+    uint96 redeemSeed,
+    uint96 scaleOffsetSeed
+  ) external {
+    uint256 scaleFactor = RAY + bound(scaleOffsetSeed, 0, RAY);
+
+    Fixture memory withdrawFixture = _newFixture();
+    withdrawFixture.market.setScaleFactor(scaleFactor);
+    uint256 depositedShares = _deposit(withdrawFixture, Holder, 100e18);
+    uint256 minimumAssets = MathUtils.mulDivUp(1, scaleFactor, RAY);
+    uint256 withdrawAssets = bound(
+      withdrawSeed,
+      minimumAssets,
+      withdrawFixture.wrapper.maxWithdraw(Holder)
+    );
+    uint256 expectedBurned = MathUtils.mulDiv(withdrawAssets, RAY, scaleFactor);
+    vm.expectEmit(true, true, true, true, address(withdrawFixture.wrapper));
+    emit Withdraw(Holder, Receiver, Holder, withdrawAssets, expectedBurned);
+    vm.prank(Holder);
+    uint256 burnedShares = withdrawFixture.wrapper.withdraw(withdrawAssets, Receiver, Holder);
+
+    assertEq(burnedShares, expectedBurned, 'withdraw burned');
+    assertEq(
+      withdrawFixture.wrapper.balanceOf(Holder),
+      depositedShares - expectedBurned,
+      'withdraw shares'
+    );
+    assertEq(withdrawFixture.market.scaledBalanceOf(Receiver), expectedBurned, 'withdraw receiver');
+    assertEq(
+      withdrawFixture.market.scaledBalanceOf(address(withdrawFixture.wrapper)),
+      withdrawFixture.wrapper.totalSupply(),
+      'withdraw backing'
+    );
+
+    Fixture memory redeemFixture = _newFixture();
+    redeemFixture.market.setScaleFactor(scaleFactor);
+    depositedShares = _deposit(redeemFixture, Holder, 100e18);
+    uint256 redeemedShares = bound(redeemSeed, 1, depositedShares);
+    uint256 expectedRedeemedAssets = MathUtils.mulDivUp(redeemedShares, scaleFactor, RAY);
+    vm.expectEmit(true, true, true, true, address(redeemFixture.wrapper));
+    emit Withdraw(Holder, Receiver, Holder, expectedRedeemedAssets, redeemedShares);
+    vm.prank(Holder);
+    uint256 redeemedAssets = redeemFixture.wrapper.redeem(redeemedShares, Receiver, Holder);
+
+    assertEq(redeemedAssets, expectedRedeemedAssets, 'redeem assets');
+    assertEq(
+      redeemFixture.wrapper.balanceOf(Holder),
+      depositedShares - redeemedShares,
+      'redeem shares'
+    );
+    assertEq(redeemFixture.market.scaledBalanceOf(Receiver), redeemedShares, 'redeem receiver');
+    assertEq(
+      redeemFixture.market.scaledBalanceOf(address(redeemFixture.wrapper)),
+      redeemFixture.wrapper.totalSupply(),
+      'redeem backing'
+    );
   }
 
-  function _transfer(address from, address to, uint256 amount) internal {
-    uint256 scaled = amount.rayDiv(scaleFactor);
-    require(scaled != 0, 'SCALED_ZERO');
-    uint256 fromBalance = _scaledBalances[from];
-    require(fromBalance >= scaled, 'BALANCE');
-    unchecked {
-      _scaledBalances[from] = fromBalance - scaled;
-      _scaledBalances[to] += scaled;
-    }
-  }
-}
+  function test_spenderAllowancesCoverExactInfiniteAndInsufficientPaths() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 40 * Unit);
 
-contract Wildcat4626WrapperTest is Test {
-  using MathUtils for uint256;
+    vm.prank(Holder);
+    fixture.wrapper.approve(Spender, 4 * Unit);
+    vm.prank(Spender);
+    assertEq(fixture.wrapper.withdraw(4 * Unit, Receiver, Holder), 4 * Unit, 'exact withdraw');
+    assertEq(fixture.wrapper.allowance(Holder, Spender), 0, 'spent withdraw allowance');
 
-  MockSanctionsSentinel internal sanctionsSentinel;
-  MockMarketToken internal market;
-  Wildcat4626Wrapper internal wrapper;
+    vm.prank(Holder);
+    fixture.wrapper.approve(Spender, type(uint256).max);
+    vm.prank(Spender);
+    fixture.wrapper.withdraw(4 * Unit, Receiver, Holder);
+    assertEq(
+      fixture.wrapper.allowance(Holder, Spender),
+      type(uint256).max,
+      'infinite withdraw allowance'
+    );
 
-  address internal constant FED = address(0xFED);
-  address internal constant BOB = address(0xB0B);
-  address internal constant BORROWER = address(0xB0123123);
+    vm.prank(Holder);
+    fixture.wrapper.approve(Spender, 4 * Unit - 1);
+    vm.prank(Spender);
+    vm.expectRevert(ERC20.InsufficientAllowance.selector);
+    fixture.wrapper.withdraw(4 * Unit, Receiver, Holder);
 
-  uint256 internal constant INITIAL_ASSETS = 100e18;
+    vm.prank(Holder);
+    fixture.wrapper.approve(Spender, 4 * Unit);
+    vm.prank(Spender);
+    assertEq(fixture.wrapper.redeem(4 * Unit, Receiver, Holder), 4 * Unit, 'exact redeem');
+    assertEq(fixture.wrapper.allowance(Holder, Spender), 0, 'spent redeem allowance');
 
-  function setUp() external {
-    sanctionsSentinel = new MockSanctionsSentinel();
-    market = new MockMarketToken(18, BORROWER, address(sanctionsSentinel));
-    wrapper = new Wildcat4626Wrapper(address(market));
+    vm.prank(Holder);
+    fixture.wrapper.approve(Spender, type(uint256).max);
+    vm.prank(Spender);
+    fixture.wrapper.redeem(4 * Unit, Receiver, Holder);
+    assertEq(
+      fixture.wrapper.allowance(Holder, Spender),
+      type(uint256).max,
+      'infinite redeem allowance'
+    );
 
-    market.mint(FED, INITIAL_ASSETS);
-    market.mint(BOB, INITIAL_ASSETS);
-
-    vm.prank(FED);
-    market.approve(address(wrapper), type(uint256).max);
-
-    vm.prank(BOB);
-    market.approve(address(wrapper), type(uint256).max);
-  }
-
-  function test_metadataDerivedFromMarketSymbol() external view {
-    assertEq(wrapper.name(), 'friesUSDC [4626 Vault Shares]');
-    assertEq(wrapper.symbol(), 'v-friesUSDC');
-  }
-
-  function test_depositMintsScaledShares() external {
-    vm.prank(FED);
-    uint256 shares = wrapper.deposit(50e18, FED);
-
-    assertEq(shares, 50e18, 'scaled mismatch');
-    assertEq(wrapper.balanceOf(FED), shares, 'share balance');
-    assertEq(wrapper.totalSupply(), shares, 'total supply');
-    assertEq(wrapper.totalAssets(), 50e18, 'total assets');
-    assertEq(market.scaledBalanceOf(address(wrapper)), shares, 'market scaled balance');
+    vm.prank(Holder);
+    fixture.wrapper.approve(Spender, 4 * Unit - 1);
+    vm.prank(Spender);
+    vm.expectRevert(ERC20.InsufficientAllowance.selector);
+    fixture.wrapper.redeem(4 * Unit, Receiver, Holder);
   }
 
-  function test_withdrawBurnsScaledShares() external {
-    vm.prank(FED);
-    wrapper.deposit(40e18, FED);
+  function test_zeroInputsAndCapacityBoundariesUseExactErrors() external {
+    Fixture memory zeroFixture = _newFixture();
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
+    zeroFixture.wrapper.deposit(0, Receiver);
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroShares.selector);
+    zeroFixture.wrapper.mint(0, Receiver);
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
+    zeroFixture.wrapper.withdraw(0, Receiver, Holder);
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroShares.selector);
+    zeroFixture.wrapper.redeem(0, Receiver, Holder);
 
-    vm.prank(FED);
-    uint256 sharesBurned = wrapper.withdraw(15e18, FED, FED);
+    Fixture memory fullFixture = _newFixture();
+    _deposit(fullFixture, Holder, 10 * Unit);
+    fullFixture.market.setMaxTotalSupply(fullFixture.wrapper.totalAssets());
+    assertEq(fullFixture.wrapper.maxDeposit(Holder), 0, 'full max deposit');
+    assertEq(fullFixture.wrapper.maxMint(Holder), 0, 'full max mint');
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.CapExceeded.selector);
+    fullFixture.wrapper.deposit(Unit, Holder);
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.CapExceeded.selector);
+    fullFixture.wrapper.mint(Unit, Holder);
 
-    assertEq(sharesBurned, 15e18, 'shares burned');
-    assertEq(wrapper.balanceOf(FED), 25e18, 'remaining shares');
-    assertEq(wrapper.totalAssets(), 25e18, 'assets after withdraw');
-    assertEq(market.balanceOf(FED), INITIAL_ASSETS - 25e18, 'fed normalized balance');
+    Fixture memory dustFixture = _newFixture();
+    dustFixture.market.setScaleFactor(RAY + RAY / 2);
+    dustFixture.market.setMaxTotalSupply(1);
+    assertEq(dustFixture.wrapper.maxDeposit(Holder), 0, 'dust max deposit');
+    assertEq(dustFixture.wrapper.maxMint(Holder), 0, 'dust max mint');
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroShares.selector);
+    dustFixture.wrapper.deposit(1, Holder);
+
+    Fixture memory fractionalDepositFixture = _newFixture();
+    fractionalDepositFixture.market.setScaleFactor(RAY + RAY / 2);
+    fractionalDepositFixture.market.setMaxTotalSupply(15 * Unit);
+    uint256 maxDeposit = fractionalDepositFixture.wrapper.maxDeposit(Holder);
+    _fundAndApprove(fractionalDepositFixture, Holder, maxDeposit + 1);
+    vm.prank(Holder);
+    assertEq(
+      fractionalDepositFixture.wrapper.deposit(maxDeposit, Holder),
+      10 * Unit,
+      'fractional deposit'
+    );
+
+    Fixture memory fractionalMintFixture = _newFixture();
+    fractionalMintFixture.market.setScaleFactor(RAY + RAY / 2);
+    fractionalMintFixture.market.setMaxTotalSupply(15 * Unit);
+    uint256 maxMint = fractionalMintFixture.wrapper.maxMint(Holder);
+    uint256 mintAssets = fractionalMintFixture.wrapper.previewMint(maxMint);
+    _fundAndApprove(fractionalMintFixture, Holder, mintAssets);
+    vm.prank(Holder);
+    assertEq(fractionalMintFixture.wrapper.mint(maxMint, Holder), mintAssets, 'fractional mint');
+
+    Fixture memory withdrawDustFixture = _newFixture();
+    withdrawDustFixture.market.setScaleFactor(RAY + RAY / 2);
+    _deposit(withdrawDustFixture, Holder, 10 * Unit);
+    vm.prank(Holder);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroShares.selector);
+    withdrawDustFixture.wrapper.withdraw(1, Holder, Holder);
   }
 
-  function test_mintConsumesExpectedAssets() external {
-    vm.prank(FED);
-    uint256 assetsSpent = wrapper.mint(20e18, FED);
+  function testFuzz_allEntryPointRoundTripsPreserveScaledOwnership(
+    uint96 amountSeed,
+    uint96 scaleOffsetSeed
+  ) external {
+    uint256 amount = bound(amountSeed, 1e12, 100e18);
+    uint256 scaleFactor = RAY + bound(scaleOffsetSeed, 0, RAY);
 
-    assertEq(assetsSpent, 20e18, 'assets spent');
-    assertEq(wrapper.balanceOf(FED), 20e18, 'share balance');
-    assertEq(market.balanceOf(FED), INITIAL_ASSETS - 20e18, 'fed outstanding assets');
+    Fixture memory depositRedeem = _newFixture();
+    depositRedeem.market.setScaleFactor(scaleFactor);
+    _fundAndApprove(depositRedeem, Holder, amount);
+    uint256 initialScaled = depositRedeem.market.scaledBalanceOf(Holder);
+    vm.startPrank(Holder);
+    uint256 shares = depositRedeem.wrapper.deposit(amount, Holder);
+    depositRedeem.wrapper.redeem(shares, Holder, Holder);
+    vm.stopPrank();
+    assertEq(depositRedeem.market.scaledBalanceOf(Holder), initialScaled, 'deposit redeem scaled');
+    assertEq(depositRedeem.wrapper.totalSupply(), 0, 'deposit redeem supply');
+
+    Fixture memory depositWithdraw = _newFixture();
+    depositWithdraw.market.setScaleFactor(scaleFactor);
+    _fundAndApprove(depositWithdraw, Holder, amount);
+    initialScaled = depositWithdraw.market.scaledBalanceOf(Holder);
+    vm.startPrank(Holder);
+    depositWithdraw.wrapper.deposit(amount, Holder);
+    depositWithdraw.wrapper.withdraw(depositWithdraw.wrapper.maxWithdraw(Holder), Holder, Holder);
+    vm.stopPrank();
+    assertEq(
+      depositWithdraw.market.scaledBalanceOf(Holder),
+      initialScaled,
+      'deposit withdraw scaled'
+    );
+    assertEq(depositWithdraw.wrapper.totalSupply(), 0, 'deposit withdraw supply');
+
+    uint256 requestedShares = MathUtils.mulDiv(amount, RAY, scaleFactor);
+    Fixture memory mintRedeem = _newFixture();
+    mintRedeem.market.setScaleFactor(scaleFactor);
+    uint256 requiredAssets = mintRedeem.wrapper.previewMint(requestedShares);
+    _fundAndApprove(mintRedeem, Holder, requiredAssets);
+    initialScaled = mintRedeem.market.scaledBalanceOf(Holder);
+    vm.startPrank(Holder);
+    mintRedeem.wrapper.mint(requestedShares, Holder);
+    mintRedeem.wrapper.redeem(requestedShares, Holder, Holder);
+    vm.stopPrank();
+    assertEq(mintRedeem.market.scaledBalanceOf(Holder), initialScaled, 'mint redeem scaled');
+    assertEq(mintRedeem.wrapper.totalSupply(), 0, 'mint redeem supply');
+
+    Fixture memory mintWithdraw = _newFixture();
+    mintWithdraw.market.setScaleFactor(scaleFactor);
+    requiredAssets = mintWithdraw.wrapper.previewMint(requestedShares);
+    _fundAndApprove(mintWithdraw, Holder, requiredAssets);
+    initialScaled = mintWithdraw.market.scaledBalanceOf(Holder);
+    vm.startPrank(Holder);
+    mintWithdraw.wrapper.mint(requestedShares, Holder);
+    mintWithdraw.wrapper.withdraw(mintWithdraw.wrapper.maxWithdraw(Holder), Holder, Holder);
+    vm.stopPrank();
+    assertEq(mintWithdraw.market.scaledBalanceOf(Holder), initialScaled, 'mint withdraw scaled');
+    assertEq(mintWithdraw.wrapper.totalSupply(), 0, 'mint withdraw supply');
   }
 
-  function test_redeemAfterScaleFactorChange() external {
-    vm.prank(FED);
-    wrapper.deposit(10e18, FED);
+  function test_multipleDepositorsAccrueWithoutSocializingDirectTransfers() external {
+    Fixture memory fixture = _newFixture();
+    uint256 holderShares = _deposit(fixture, Holder, 20 * Unit);
+    fixture.market.setScaleFactor(RAY + RAY / 2);
+    uint256 receiverShares = _deposit(fixture, Receiver, 30 * Unit);
 
-    market.setScaleFactor(RAY * 2);
+    assertEq(holderShares, 20 * Unit, 'holder shares');
+    assertEq(receiverShares, 20 * Unit, 'receiver shares');
+    assertEq(fixture.wrapper.convertToAssets(holderShares), 30 * Unit, 'holder assets');
+    assertEq(fixture.wrapper.convertToAssets(receiverShares), 30 * Unit, 'receiver assets');
+    assertEq(fixture.wrapper.totalSupply(), 40 * Unit, 'accrued supply');
+    assertEq(fixture.wrapper.totalAssets(), 60 * Unit, 'accrued assets');
 
-    uint256 expectedAssets = MathUtils.rayMul(10e18, RAY * 2);
-    vm.prank(FED);
-    uint256 assetsReturned = wrapper.redeem(10e18, FED, FED);
+    fixture.market.mint(Holder, 9 * Unit);
+    vm.prank(Holder);
+    fixture.market.transfer(address(fixture.wrapper), 9 * Unit);
+    assertEq(fixture.wrapper.totalAssets(), 69 * Unit, 'direct transfer assets');
+    assertEq(fixture.wrapper.convertToAssets(holderShares), 30 * Unit, 'holder claim');
+    assertEq(fixture.wrapper.convertToAssets(receiverShares), 30 * Unit, 'receiver claim');
 
-    assertEq(assetsReturned, expectedAssets, 'redeemed assets');
-    assertEq(wrapper.totalSupply(), 0, 'zero supply');
-    assertEq(market.scaledBalanceOf(address(wrapper)), 0, 'wrapper scaled balance');
+    vm.prank(Holder);
+    fixture.wrapper.redeem(holderShares, Holder, Holder);
+    assertEq(fixture.wrapper.balanceOf(Receiver), receiverShares, 'receiver shares remain');
+    assertEq(
+      fixture.market.scaledBalanceOf(address(fixture.wrapper)),
+      receiverShares + 6 * Unit,
+      'receiver backing plus donation'
+    );
   }
 
-  function test_withdrawBySpenderUsesAllowance() external {
-    vm.startPrank(FED);
-    wrapper.deposit(30e18, FED);
-    wrapper.approve(BOB, 10e18);
+  function test_donationsCannotInflateLaterDepositorShares() external {
+    Fixture memory fixture = _newFixture();
+    address attacker = address(0xA77AC8E5);
+    address victim = address(0xBAD);
+    _fundAndApprove(fixture, attacker, 60 * Unit);
+    _fundAndApprove(fixture, victim, 20 * Unit);
+
+    vm.prank(attacker);
+    uint256 attackerShares = fixture.wrapper.deposit(Unit, attacker);
+    vm.prank(attacker);
+    fixture.market.transfer(address(fixture.wrapper), 50 * Unit);
+    fixture.market.setScaleFactor(RAY + RAY / 2);
+
+    vm.prank(victim);
+    uint256 victimShares = fixture.wrapper.deposit(15 * Unit, victim);
+
+    assertEq(attackerShares, Unit, 'attacker shares');
+    assertEq(victimShares, 10 * Unit, 'victim shares');
+    assertEq(fixture.wrapper.convertToAssets(attackerShares), Unit + Unit / 2, 'attacker claim');
+    assertEq(fixture.wrapper.convertToAssets(victimShares), 15 * Unit, 'victim claim');
+    assertEq(
+      fixture.wrapper.totalAssets() -
+        fixture.wrapper.convertToAssets(attackerShares) -
+        fixture.wrapper.convertToAssets(victimShares),
+      75 * Unit,
+      'stranded donation'
+    );
+  }
+
+  function test_transferAccountingMismatchGuardsRollBackEveryPath() external {
+    Fixture memory depositFixture = _newFixture();
+    _fundAndApprove(depositFixture, Holder, 10 * Unit + 1);
+    depositFixture.market.setTransferSkew(1);
+    vm.prank(Holder);
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.SharesMismatch.selector, 10 * Unit, 10 * Unit + 1)
+    );
+    depositFixture.wrapper.deposit(10 * Unit, Holder);
+    assertEq(depositFixture.wrapper.totalSupply(), 0, 'deposit rollback');
+
+    Fixture memory mintFixture = _newFixture();
+    _fundAndApprove(mintFixture, Holder, 10 * Unit + 1);
+    mintFixture.market.setTransferSkew(1);
+    vm.prank(Holder);
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.SharesMismatch.selector, 10 * Unit, 10 * Unit + 1)
+    );
+    mintFixture.wrapper.mint(10 * Unit, Holder);
+    assertEq(mintFixture.wrapper.totalSupply(), 0, 'mint rollback');
+
+    Fixture memory withdrawFixture = _newFixture();
+    _deposit(withdrawFixture, Holder, 10 * Unit);
+    withdrawFixture.market.setTransferSkew(-1);
+    vm.prank(Holder);
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.SharesMismatch.selector, 4 * Unit, 4 * Unit - 1)
+    );
+    withdrawFixture.wrapper.withdraw(4 * Unit, Receiver, Holder);
+    assertEq(withdrawFixture.wrapper.balanceOf(Holder), 10 * Unit, 'withdraw rollback');
+
+    Fixture memory redeemFixture = _newFixture();
+    _deposit(redeemFixture, Holder, 10 * Unit);
+    redeemFixture.market.setTransferSkew(-1);
+    vm.prank(Holder);
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.SharesMismatch.selector, 4 * Unit, 4 * Unit - 1)
+    );
+    redeemFixture.wrapper.redeem(4 * Unit, Receiver, Holder);
+    assertEq(redeemFixture.wrapper.balanceOf(Holder), 10 * Unit, 'redeem rollback');
+  }
+
+  function test_tinyScaleRegressionsKeepMaxWithdrawAndRoundTripsExecutable() external {
+    Fixture memory fixture = _newFixture();
+    fixture.market.setScaleFactor(RAY + 13_652);
+    _fundAndApprove(fixture, Holder, 1e12);
+    vm.startPrank(Holder);
+    fixture.wrapper.deposit(1e12, Holder);
+    uint256 maxWithdraw = fixture.wrapper.maxWithdraw(Holder);
+    uint256 sharesBurned = fixture.wrapper.withdraw(maxWithdraw, Holder, Holder);
     vm.stopPrank();
 
-    vm.prank(BOB);
-    uint256 sharesBurned = wrapper.withdraw(10e18, BOB, FED);
+    assertEq(fixture.wrapper.balanceOf(Holder), 0, 'tiny offset shares');
+    assertTrue(sharesBurned > 0, 'tiny offset burn');
 
-    assertEq(sharesBurned, 10e18, 'burned by spender');
-    assertEq(wrapper.balanceOf(FED), 20e18, 'fed residual shares');
+    Fixture memory dustFixture = _newFixture();
+    dustFixture.market.setScaleFactor(RAY + RAY / 5);
+    uint256 dustAssets = dustFixture.wrapper.previewMint(1);
+    _fundAndApprove(dustFixture, Holder, dustAssets);
+    vm.startPrank(Holder);
+    dustFixture.wrapper.mint(1, Holder);
+    uint256 dustMax = dustFixture.wrapper.maxWithdraw(Holder);
+    assertTrue(dustMax > 0, 'dust max');
+    assertEq(dustFixture.wrapper.withdraw(dustMax, Holder, Holder), 1, 'dust burn');
+    vm.stopPrank();
+    assertEq(dustFixture.wrapper.balanceOf(Holder), 0, 'dust shares');
+
+    assertTrue(_absoluteDifference(sharesBurned, 1e12) <= 1, 'tiny offset variance');
   }
 
-  function test_multipleDepositorsAccrual() external {
-    vm.prank(FED);
-    uint256 fedShares = wrapper.deposit(20e18, FED);
-    assertEq(fedShares, 20e18, 'fed shares');
+  function test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 10 * Unit);
+    address market = address(fixture.market);
+    address sentinel = address(fixture.sentinel);
+    bytes memory principalCall = abi.encodeWithSignature('borrowerPrincipal()');
 
-    uint256 newScale = RAY + (RAY / 2);
-    market.setScaleFactor(newScale);
+    vm.mockCallRevert(market, principalCall, hex'deadbeef');
+    _assertAllLimitsZero(fixture);
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'deadbeef'));
+    fixture.wrapper.redeem(Unit, Holder, Holder);
+    vm.clearMockedCalls();
 
-    vm.prank(BOB);
-    uint256 bobShares = wrapper.deposit(30e18, BOB);
+    vm.mockCall(market, principalCall, hex'01');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
 
-    assertEq(bobShares, 20e18, 'bob shares');
-    assertEq(wrapper.balanceOf(FED), 20e18, 'fed share balance');
-    assertEq(wrapper.balanceOf(BOB), 20e18, 'bob share balance');
-    assertEq(wrapper.totalSupply(), 40e18, 'total share supply');
-    assertEq(wrapper.totalAssets(), 60e18, 'vault assets after deposits');
-    assertEq(wrapper.convertToAssets(wrapper.balanceOf(FED)), 30e18, 'fed assets');
-    assertEq(wrapper.convertToAssets(wrapper.balanceOf(BOB)), 30e18, 'bob assets');
-    assertEq(market.scaledBalanceOf(address(wrapper)), 40e18, 'scaled balance');
+    vm.mockCall(market, principalCall, abi.encode((uint256(1) << 160) | uint160(Borrower)));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, principalCall, abi.encode(address(0)));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    bytes memory holderSanctionsCall = abi.encodeWithSignature(
+      'isSanctioned(address,address)',
+      Borrower,
+      Holder
+    );
+    vm.mockCall(sentinel, holderSanctionsCall, hex'01');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCall(sentinel, holderSanctionsCall, abi.encode(uint256(2)));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    vm.mockCallRevert(sentinel, holderSanctionsCall, hex'feedface');
+    _assertAllLimitsZero(fixture);
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.redeem(Unit, Holder, Holder);
+    vm.clearMockedCalls();
+
+    bytes memory wrapperSanctionsCall = abi.encodeWithSignature(
+      'isSanctioned(address,address)',
+      Borrower,
+      address(fixture.wrapper)
+    );
+    vm.mockCallRevert(sentinel, wrapperSanctionsCall, hex'cafebabe');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
   }
 
-  function test_multipleDepositorsWithdrawals() external {
-    vm.prank(FED);
-    wrapper.deposit(30e18, FED);
+  function test_maxLimitsFailClosedOnMarketAccountingDependencyFailures() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 10 * Unit);
+    address market = address(fixture.market);
+    bytes memory scaledBalanceCall = abi.encodeWithSignature(
+      'scaledBalanceOf(address)',
+      address(fixture.wrapper)
+    );
 
-    vm.prank(BOB);
-    wrapper.deposit(30e18, BOB);
+    vm.mockCallRevert(market, scaledBalanceCall, hex'deadbeef');
+    _assertAllLimitsZero(fixture);
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'deadbeef'));
+    fixture.wrapper.redeem(Unit, Holder, Holder);
+    vm.clearMockedCalls();
 
-    uint256 doubledScale = RAY * 2;
-    market.setScaleFactor(doubledScale);
+    vm.mockCall(market, scaledBalanceCall, hex'01');
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
 
-    vm.prank(FED);
-    uint256 sharesBurned = wrapper.withdraw(30e18, FED, FED);
+    vm.mockCall(market, scaledBalanceCall, abi.encode(uint256(type(uint104).max) + 1));
+    _assertAllLimitsZero(fixture);
+    vm.clearMockedCalls();
 
-    assertEq(sharesBurned, 15e18, 'fed burned shares');
-    assertEq(wrapper.balanceOf(FED), 15e18, 'fed remaining shares');
-    assertEq(wrapper.balanceOf(BOB), 30e18, 'bob shares');
-    assertEq(wrapper.totalAssets(), 90e18, 'vault assets after withdraw');
-    assertEq(wrapper.convertToAssets(wrapper.balanceOf(BOB)), 60e18, 'bob assets after interest');
-    assertEq(market.scaledBalanceOf(address(wrapper)), 45e18, 'scaled balance after withdraw');
+    bytes memory maxTotalSupplyCall = abi.encodeWithSignature('maxTotalSupply()');
+    vm.mockCallRevert(market, maxTotalSupplyCall, hex'feedface');
+    _assertEntryLimitsZero(fixture);
+    assertTrue(fixture.wrapper.maxWithdraw(Holder) > 0, 'cap-independent withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 10 * Unit, 'cap-independent redeem');
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.deposit(Unit, Holder);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, maxTotalSupplyCall, abi.encode(type(uint256).max));
+    _assertEntryLimitsZero(fixture);
+    vm.clearMockedCalls();
+
+    bytes memory balanceCall = abi.encodeWithSignature(
+      'balanceOf(address)',
+      address(fixture.wrapper)
+    );
+    vm.mockCallRevert(market, balanceCall, hex'cafebabe');
+    _assertEntryLimitsZero(fixture);
+    assertTrue(fixture.wrapper.maxWithdraw(Holder) > 0, 'balance-independent withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 10 * Unit, 'balance-independent redeem');
+    vm.expectRevert(bytes(hex'cafebabe'));
+    fixture.wrapper.totalAssets();
+    vm.clearMockedCalls();
+
+    bytes memory scaleCall = abi.encodeWithSignature('scaleFactor()');
+    vm.mockCallRevert(market, scaleCall, hex'01020304');
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'scale-dependent withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 10 * Unit, 'scale-independent redeem');
+    vm.expectRevert(bytes(hex'01020304'));
+    fixture.wrapper.convertToShares(Unit);
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaleCall, hex'01');
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'short-scale withdraw');
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaleCall, abi.encode(RAY - 1));
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'low-scale withdraw');
+    vm.clearMockedCalls();
+
+    vm.mockCall(market, scaleCall, abi.encode(uint256(type(uint112).max) + 1));
+    _assertEntryLimitsZero(fixture);
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'wide-scale withdraw');
+    vm.clearMockedCalls();
   }
 
-  function test_totalAssetsTracksDirectTransfers() external {
-    uint256 strayAssets = 5e18;
+  function test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 10 * Unit);
 
-    vm.prank(FED);
-    market.transfer(address(wrapper), strayAssets);
+    address sentinel = address(fixture.sentinel);
+    bytes memory sanctionsCall = abi.encodeWithSignature(
+      'isSanctioned(address,address)',
+      Borrower,
+      Holder
+    );
+    vm.mockCall(sentinel, sanctionsCall, hex'01');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'short sanctions response');
+    vm.clearMockedCalls();
+    vm.mockCall(sentinel, sanctionsCall, abi.encode(uint256(2)));
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'dirty sanctions response');
+    vm.clearMockedCalls();
+    vm.mockCallRevert(sentinel, sanctionsCall, hex'deadbeef');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'reverting sanctions response');
+    vm.clearMockedCalls();
+    vm.mockCall(sentinel, sanctionsCall, bytes.concat(abi.encode(true), hex'deadbeef'));
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'long sanctions response');
+    vm.clearMockedCalls();
 
-    assertEq(wrapper.totalAssets(), strayAssets, 'stray assets counted');
+    address market = address(fixture.market);
+    bytes memory scaleCall = abi.encodeWithSignature('scaleFactor()');
+    vm.mockCall(market, scaleCall, hex'01');
+    vm.expectRevert();
+    fixture.wrapper.convertToShares(Unit);
+    vm.clearMockedCalls();
+    vm.mockCallRevert(market, scaleCall, hex'feedface');
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.convertToShares(Unit);
+    vm.clearMockedCalls();
+    vm.mockCall(market, scaleCall, bytes.concat(abi.encode(RAY), hex'deadbeef'));
+    assertEq(fixture.wrapper.convertToShares(Unit), Unit, 'long market word');
+    vm.clearMockedCalls();
 
-    vm.prank(FED);
-    uint256 sharesMinted = wrapper.deposit(10e18, FED);
-    assertEq(sharesMinted, 10e18, 'deposit shares unaffected by stray');
+    bytes memory balanceCall = abi.encodeWithSignature(
+      'balanceOf(address)',
+      address(fixture.wrapper)
+    );
+    vm.mockCall(market, balanceCall, hex'01');
+    vm.expectRevert();
+    fixture.wrapper.totalAssets();
+    vm.clearMockedCalls();
+    vm.mockCallRevert(market, balanceCall, hex'feedface');
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.totalAssets();
+    vm.clearMockedCalls();
+    vm.mockCall(market, balanceCall, bytes.concat(abi.encode(Unit), hex'deadbeef'));
+    assertEq(fixture.wrapper.totalAssets(), Unit, 'long account word');
+    vm.clearMockedCalls();
 
-    assertEq(wrapper.totalAssets(), strayAssets + 10e18, 'total assets include stray and deposit');
+    bytes memory borrowerCall = abi.encodeWithSignature('borrower()');
+    vm.mockCall(market, borrowerCall, hex'01');
+    vm.expectRevert();
+    fixture.wrapper.marketOwner();
+    vm.clearMockedCalls();
+    vm.mockCall(market, borrowerCall, abi.encode((uint256(1) << 160) | uint160(Borrower)));
+    vm.expectRevert();
+    fixture.wrapper.marketOwner();
+    vm.clearMockedCalls();
+    vm.mockCallRevert(market, borrowerCall, hex'feedface');
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.marketOwner();
+    vm.clearMockedCalls();
+    vm.mockCall(market, borrowerCall, bytes.concat(abi.encode(Borrower), hex'deadbeef'));
+    assertEq(fixture.wrapper.marketOwner(), Borrower, 'long market address');
+    vm.clearMockedCalls();
 
-    vm.prank(FED);
-    uint256 sharesBurned = wrapper.withdraw(10e18, FED, FED);
+    bytes memory policyCall = abi.encodeWithSignature(
+      'isMarketTransferRecipientAllowed(address,address)',
+      market,
+      address(fixture.wrapper)
+    );
+    vm.mockCall(market, policyCall, hex'01');
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'short policy response');
+    vm.clearMockedCalls();
+    vm.mockCall(market, policyCall, abi.encode(uint256(2)));
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'dirty policy response');
+    vm.clearMockedCalls();
+    vm.mockCallRevert(market, policyCall, hex'deadbeef');
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'reverting policy response');
+    vm.clearMockedCalls();
+    vm.mockCall(market, policyCall, bytes.concat(abi.encode(true), hex'deadbeef'));
+    assertTrue(fixture.wrapper.maxDeposit(Holder) > 0, 'long policy response');
+    vm.clearMockedCalls();
 
-    assertEq(sharesBurned, 10e18, 'withdraw burns expected shares');
-    assertEq(wrapper.totalAssets(), strayAssets, 'stray assets remain after withdrawal');
+    fixture.sentinel.setSanctioned(Holder, true);
+    address escrow = fixture.sentinel.Escrow();
+    bytes memory escrowCall = abi.encodeWithSignature(
+      'getEscrowAddress(address,address,address)',
+      Borrower,
+      Holder,
+      address(fixture.wrapper)
+    );
+    vm.mockCall(sentinel, escrowCall, hex'01');
+    vm.prank(Holder);
+    vm.expectRevert();
+    fixture.wrapper.transfer(escrow, Unit);
+    vm.clearMockedCalls();
+    vm.mockCall(sentinel, escrowCall, abi.encode((uint256(1) << 160) | uint160(escrow)));
+    vm.prank(Holder);
+    vm.expectRevert();
+    fixture.wrapper.transfer(escrow, Unit);
+    vm.clearMockedCalls();
+    vm.mockCallRevert(sentinel, escrowCall, hex'feedface');
+    vm.prank(Holder);
+    vm.expectRevert(bytes(hex'feedface'));
+    fixture.wrapper.transfer(escrow, Unit);
+    vm.clearMockedCalls();
+    vm.mockCall(sentinel, escrowCall, bytes.concat(abi.encode(escrow), hex'deadbeef'));
+    vm.prank(Holder);
+    fixture.wrapper.transfer(escrow, Unit);
+    assertEq(fixture.wrapper.balanceOf(escrow), Unit, 'long escrow response');
+    vm.clearMockedCalls();
+
+    vm.mockCallRevert(market, abi.encodeWithSignature('borrowerPrincipal()'), hex'deadbeef');
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.AccountNotSanctioned.selector, address(0))
+    );
+    fixture.wrapper.nukeFromOrbit(address(0));
+    vm.clearMockedCalls();
   }
 
-  function test_sweepRevertsForNonMarketOwner() external {
-    MockErc20 stray = new MockErc20();
-    uint256 strayAmount = 25e18;
-    stray.mint(address(wrapper), strayAmount);
+  function test_sanctionsGateLimitsEntryPointsAndShareTransfers() external {
+    Fixture memory fixture = _newFixture();
+    _fundAndApprove(fixture, Holder, 40 * Unit);
 
+    fixture.sentinel.setSanctioned(Holder, true);
+    _expectSanctioned(Holder);
+    vm.prank(Holder);
+    fixture.wrapper.deposit(Unit, Receiver);
+    _expectSanctioned(Holder);
+    vm.prank(Holder);
+    fixture.wrapper.mint(Unit, Receiver);
+
+    fixture.sentinel.setSanctioned(Holder, false);
+    fixture.sentinel.setSanctioned(Receiver, true);
+    _expectSanctioned(Receiver);
+    vm.prank(Holder);
+    fixture.wrapper.deposit(Unit, Receiver);
+    _expectSanctioned(Receiver);
+    vm.prank(Holder);
+    fixture.wrapper.mint(Unit, Receiver);
+
+    fixture.sentinel.setSanctioned(Receiver, false);
+    vm.prank(Holder);
+    fixture.wrapper.deposit(20 * Unit, Holder);
+    uint256 unsanctionedMaxDeposit = fixture.wrapper.maxDeposit(Holder);
+    uint256 unsanctionedMaxMint = fixture.wrapper.maxMint(Holder);
+    assertTrue(unsanctionedMaxDeposit > 0, 'unsanctioned max deposit');
+    assertTrue(unsanctionedMaxMint > 0, 'unsanctioned max mint');
+    assertTrue(fixture.wrapper.maxWithdraw(Holder) > 0, 'unsanctioned max withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 20 * Unit, 'unsanctioned max redeem');
+
+    fixture.sentinel.setSanctioned(Holder, true);
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'sanctioned max deposit');
+    assertEq(fixture.wrapper.maxMint(Holder), 0, 'sanctioned max mint');
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'sanctioned max withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'sanctioned max redeem');
+    _expectSanctioned(Holder);
+    vm.prank(Holder);
+    fixture.wrapper.withdraw(Unit, Holder, Holder);
+    _expectSanctioned(Holder);
+    vm.prank(Holder);
+    fixture.wrapper.redeem(Unit, Holder, Holder);
+    _expectSanctioned(Holder);
+    vm.prank(Holder);
+    fixture.wrapper.transfer(Receiver, Unit);
+
+    fixture.sentinel.setSanctioned(Holder, false);
+    fixture.sentinel.setSanctioned(Receiver, true);
+    _expectSanctioned(Receiver);
+    vm.prank(Holder);
+    fixture.wrapper.withdraw(Unit, Receiver, Holder);
+    _expectSanctioned(Receiver);
+    vm.prank(Holder);
+    fixture.wrapper.redeem(Unit, Receiver, Holder);
+    _expectSanctioned(Receiver);
+    vm.prank(Holder);
+    fixture.wrapper.transfer(Receiver, Unit);
+
+    fixture.sentinel.setSanctioned(Receiver, false);
+    vm.prank(Holder);
+    fixture.wrapper.approve(Spender, type(uint256).max);
+    fixture.sentinel.setSanctioned(Spender, true);
+    _expectSanctioned(Spender);
+    vm.prank(Spender);
+    fixture.wrapper.withdraw(Unit, Receiver, Holder);
+    _expectSanctioned(Spender);
+    vm.prank(Spender);
+    fixture.wrapper.redeem(Unit, Receiver, Holder);
+
+    fixture.sentinel.setSanctioned(Spender, false);
+    fixture.sentinel.setSanctioned(Receiver, true);
+    _expectSanctioned(Receiver);
+    vm.prank(Spender);
+    fixture.wrapper.transferFrom(Holder, Receiver, Unit);
+
+    fixture.sentinel.setSanctioned(Receiver, false);
+    fixture.sentinel.setSanctioned(Holder, true);
+    _expectSanctioned(Holder);
+    vm.prank(Spender);
+    fixture.wrapper.transferFrom(Holder, Receiver, Unit);
+
+    fixture.sentinel.setSanctioned(Holder, false);
+    vm.prank(Holder);
+    assertTrue(fixture.wrapper.transfer(Receiver, 0), 'zero transfer');
+    assertEq(fixture.wrapper.balanceOf(Receiver), 0, 'zero transfer balance');
+  }
+
+  function test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered() external {
+    Fixture memory sanctionedFixture = _newFixture();
+    _deposit(sanctionedFixture, Holder, 10 * Unit);
+    sanctionedFixture.sentinel.setSanctioned(address(sanctionedFixture.wrapper), true);
+
+    assertEq(sanctionedFixture.wrapper.maxDeposit(Holder), 0, 'wrapper max deposit');
+    assertEq(sanctionedFixture.wrapper.maxMint(Holder), 0, 'wrapper max mint');
+    assertEq(sanctionedFixture.wrapper.maxWithdraw(Holder), 0, 'wrapper max withdraw');
+    assertEq(sanctionedFixture.wrapper.maxRedeem(Holder), 0, 'wrapper max redeem');
+    _expectSanctioned(address(sanctionedFixture.wrapper));
+    vm.prank(Holder);
+    sanctionedFixture.wrapper.redeem(Unit, Holder, Holder);
+
+    sanctionedFixture.sentinel.setSanctioned(address(sanctionedFixture.wrapper), false);
+    vm.prank(Holder);
+    sanctionedFixture.wrapper.redeem(10 * Unit, Holder, Holder);
+    assertEq(sanctionedFixture.wrapper.totalSupply(), 0, 'wrapper recovery');
+
+    Fixture memory insolventFixture = _newFixture();
+    _deposit(insolventFixture, Holder, 10 * Unit);
+    vm.prank(address(insolventFixture.wrapper));
+    insolventFixture.market.transfer(Receiver, Unit);
+    assertEq(insolventFixture.wrapper.maxDeposit(Holder), 0, 'insolvent max deposit');
+    assertEq(insolventFixture.wrapper.maxMint(Holder), 0, 'insolvent max mint');
+    assertEq(insolventFixture.wrapper.maxWithdraw(Holder), 0, 'insolvent max withdraw');
+    assertEq(insolventFixture.wrapper.maxRedeem(Holder), 0, 'insolvent max redeem');
+    vm.prank(Holder);
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.InsolventWrapper.selector, 9 * Unit, 10 * Unit)
+    );
+    insolventFixture.wrapper.redeem(Unit, Holder, Holder);
+  }
+
+  function test_nukeCoordinatesMarketAndEscrowsSharesAtomically() external {
+    Fixture memory fixture = _newFixture();
+
+    vm.expectRevert(
+      abi.encodeWithSelector(Wildcat4626Wrapper.AccountNotSanctioned.selector, Holder)
+    );
+    fixture.wrapper.nukeFromOrbit(Holder);
+
+    fixture.sentinel.setSanctioned(Holder, true);
+    bytes memory trailingCall = abi.encodePacked(
+      abi.encodeWithSelector(fixture.wrapper.nukeFromOrbit.selector, Holder),
+      hex'01020304'
+    );
+    (bool success, bytes memory returnData) = address(fixture.wrapper).call(trailingCall);
+    assertTrue(success, string(returnData));
+    assertEq(fixture.market.lastNukeCalldataHash(), keccak256(trailingCall), 'forwarded calldata');
+    assertEq(fixture.sentinel.createEscrowCalls(), 0, 'empty escrow');
+
+    fixture.sentinel.setSanctioned(Holder, false);
+    _deposit(fixture, Holder, 10 * Unit);
+    fixture.sentinel.setSanctioned(Holder, true);
+    vm.expectEmit(true, true, false, true, address(fixture.wrapper));
+    emit SanctionedAccountSharesSentToEscrow(Holder, fixture.sentinel.Escrow(), 10 * Unit);
+    fixture.wrapper.nukeFromOrbit(Holder);
+    address escrow = fixture.sentinel.Escrow();
+    assertEq(fixture.wrapper.balanceOf(Holder), 0, 'nuked holder');
+    assertEq(fixture.wrapper.balanceOf(escrow), 10 * Unit, 'escrow shares');
+    assertEq(fixture.sentinel.createEscrowCalls(), 1, 'escrow calls');
+
+    fixture.wrapper.nukeFromOrbit(Holder);
+    assertEq(fixture.wrapper.balanceOf(escrow), 10 * Unit, 'idempotent escrow');
+    assertEq(fixture.sentinel.createEscrowCalls(), 1, 'idempotent create');
+
+    fixture.sentinel.setSanctioned(address(fixture.wrapper), true);
+    vm.expectRevert(Wildcat4626Wrapper.CannotNukeWrapper.selector);
+    fixture.wrapper.nukeFromOrbit(address(fixture.wrapper));
+
+    Fixture memory revertingFixture = _newFixture();
+    _deposit(revertingFixture, Holder, 10 * Unit);
+    revertingFixture.sentinel.setSanctioned(Holder, true);
+    revertingFixture.market.setNukeReverts(true);
+    vm.expectRevert(WrapperMarketMock.NukeFailed.selector);
+    revertingFixture.wrapper.nukeFromOrbit(Holder);
+    assertEq(revertingFixture.wrapper.balanceOf(Holder), 10 * Unit, 'market revert rollback');
+    assertEq(revertingFixture.sentinel.createEscrowCalls(), 0, 'market revert escrow');
+  }
+
+  function test_spoofedEscrowCannotReleaseSharesToSanctionedAccount() external {
+    Fixture memory fixture = _newFixture();
+    _deposit(fixture, Holder, 5 * Unit);
+    WrapperSpoofEscrowMock spoof = WrapperSpoofEscrowMock(
+      _deployCode('test/mocks/WrapperMocks.sol:WrapperSpoofEscrowMock', abi.encode(Borrower))
+    );
+    vm.prank(Holder);
+    fixture.wrapper.transfer(address(spoof), Unit);
+    fixture.sentinel.setSanctioned(Receiver, true);
+
+    _expectSanctioned(Receiver);
+    spoof.transferShares(fixture.wrapper, Receiver, Unit);
+    assertEq(fixture.wrapper.balanceOf(address(spoof)), Unit, 'spoof rollback');
+  }
+
+  function testFuzz_sweepAuthorityTracksCurrentBorrowerAndValidatesRecipients(
+    uint160 borrowerSeed,
+    uint96 amountSeed
+  ) external {
+    Fixture memory fixture = _newFixture();
+    address nextBorrower = address(uint160(bound(borrowerSeed, 1, type(uint160).max)));
+    if (nextBorrower == Borrower) nextBorrower = address(uint160(Borrower) + 1);
+    uint256 amount = bound(amountSeed, 1, type(uint96).max);
+    WrapperPlainERC20Mock token = WrapperPlainERC20Mock(
+      _deployCode('test/mocks/WrapperMocks.sol:WrapperPlainERC20Mock')
+    );
+    token.mint(address(fixture.wrapper), amount);
+
+    vm.prank(Holder);
     vm.expectRevert(Wildcat4626Wrapper.NotMarketOwner.selector);
-    vm.prank(FED);
-    wrapper.sweep(address(stray), FED);
-  }
+    fixture.wrapper.sweep(address(token), Holder);
 
-  function test_sweepMarketAssetRevertsWhenNoStrandedBalance() external {
-    vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
-    vm.prank(BORROWER);
-    wrapper.sweep(address(market), BORROWER);
-  }
-
-  function test_sweepMarketAssetRevertsForNonMarketOwner() external {
-    vm.prank(FED);
-    market.transfer(address(wrapper), 1e18);
-
+    fixture.market.setBorrower(nextBorrower, Borrower);
+    assertEq(fixture.wrapper.marketOwner(), nextBorrower, 'current borrower');
+    vm.prank(Borrower);
     vm.expectRevert(Wildcat4626Wrapper.NotMarketOwner.selector);
-    vm.prank(FED);
-    wrapper.sweep(address(market), FED);
-  }
+    fixture.wrapper.sweep(address(token), Borrower);
 
-  function test_sweepMarketAssetSweepsOnlyStrandedBalance() external {
-    uint256 fedDeposit = 30e18;
-    uint256 donation = 8e18;
+    vm.prank(nextBorrower);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    fixture.wrapper.sweep(address(0), nextBorrower);
+    vm.prank(nextBorrower);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
+    fixture.wrapper.sweep(address(token), address(0));
 
-    vm.prank(FED);
-    uint256 fedShares = wrapper.deposit(fedDeposit, FED);
-    assertEq(fedShares, fedDeposit, 'fed shares');
+    fixture.sentinel.setSanctioned(Receiver, true);
+    _expectSanctioned(Receiver);
+    vm.prank(nextBorrower);
+    fixture.wrapper.sweep(address(token), Receiver);
+    fixture.sentinel.setSanctioned(Receiver, false);
 
-    vm.prank(BOB);
-    market.transfer(address(wrapper), donation);
+    vm.expectEmit(true, true, false, true, address(fixture.wrapper));
+    emit TokensSwept(address(token), Receiver, amount);
+    vm.prank(nextBorrower);
+    uint256 swept = fixture.wrapper.sweep(address(token), Receiver);
+    assertEq(swept, amount, 'swept amount');
+    assertEq(token.balanceOf(Receiver), amount, 'sweep recipient');
+    assertEq(token.balanceOf(address(fixture.wrapper)), 0, 'wrapper token balance');
 
-    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
-    uint256 expectedScaled = wrapper.totalSupply();
-    assertEq(scaledBefore, expectedScaled + donation, 'scaled includes donation');
-
-    uint256 borrowerBefore = market.balanceOf(BORROWER);
-
-    vm.prank(BORROWER);
-    uint256 swept = wrapper.sweep(address(market), BORROWER);
-
-    assertEq(swept, donation, 'swept only stranded assets');
-    assertEq(market.balanceOf(BORROWER), borrowerBefore + donation, 'borrower receives stranded');
-    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
-    assertEq(
-      wrapper.totalAssets(),
-      wrapper.convertToAssets(wrapper.totalSupply()),
-      'no residual stranded market assets'
-    );
-
-    vm.prank(FED);
-    uint256 assetsOut = wrapper.redeem(fedShares, FED, FED);
-    assertEq(assetsOut, fedDeposit, 'share-backed assets unchanged');
-  }
-
-  function test_sweepMarketAssetAfterScaleFactorIncrease() external {
-    uint256 fedDeposit = 20e18;
-    uint256 donation = 9e18;
-
-    vm.prank(FED);
-    uint256 fedShares = wrapper.deposit(fedDeposit, FED);
-
-    vm.prank(BOB);
-    market.transfer(address(wrapper), donation);
-
-    market.setScaleFactor(RAY + (RAY / 2)); // 1.5x
-
-    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
-    uint256 expectedScaled = wrapper.totalSupply();
-    uint256 strandedScaled = scaledBefore - expectedScaled;
-    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
-
-    uint256 borrowerBefore = market.balanceOf(BORROWER);
-
-    vm.prank(BORROWER);
-    uint256 swept = wrapper.sweep(address(market), BORROWER);
-
-    assertEq(swept, expectedSweepAssets, 'swept amount follows current scale factor');
-    assertEq(
-      market.balanceOf(BORROWER),
-      borrowerBefore + expectedSweepAssets,
-      'borrower receives scaled surplus value'
-    );
-    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
-
-    vm.prank(FED);
-    uint256 assetsOut = wrapper.redeem(fedShares, FED, FED);
-    assertEq(assetsOut, fedShares.rayMul(market.scaleFactor()), 'share-backed value preserved');
-  }
-
-  function test_sweepMarketAssetRevertsForSanctionedRecipient() external {
-    vm.prank(FED);
-    market.transfer(address(wrapper), 1e18);
-
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(BORROWER);
-    wrapper.sweep(address(market), BOB);
-  }
-
-  function test_sweepMarketAssetRevertsAfterSurplusCleared() external {
-    vm.prank(FED);
-    wrapper.deposit(25e18, FED);
-
-    vm.prank(BOB);
-    market.transfer(address(wrapper), 7e18);
-
-    vm.prank(BORROWER);
-    uint256 swept = wrapper.sweep(address(market), BORROWER);
-    assertEq(swept, 7e18, 'initial stranded sweep');
-
+    vm.prank(nextBorrower);
     vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
-    vm.prank(BORROWER);
-    wrapper.sweep(address(market), BORROWER);
+    fixture.wrapper.sweep(address(token), Receiver);
   }
 
-  function test_sweepMarketAssetPreservesMultipleDepositors() external {
-    uint256 fedDeposit = 20e18;
-    uint256 bobDeposit = 30e18;
-    uint256 donation = 12e18;
+  function testFuzz_marketSweepRemovesOnlySurplusAndPreservesEveryShareholder(
+    uint96 donationSeed,
+    uint96 scaleOffsetSeed
+  ) external {
+    Fixture memory fixture = _newFixture();
+    uint256 donation = bound(donationSeed, Unit, 100e18);
+    uint256 holderShares = _deposit(fixture, Holder, 20e18);
+    uint256 receiverShares = _deposit(fixture, Receiver, 30e18);
+    fixture.market.mint(Spender, donation);
+    vm.prank(Spender);
+    fixture.market.transfer(address(fixture.wrapper), donation);
+    fixture.market.setScaleFactor(RAY + bound(scaleOffsetSeed, 0, 10 * RAY));
 
-    vm.prank(FED);
-    uint256 fedShares = wrapper.deposit(fedDeposit, FED);
-    vm.prank(BOB);
-    uint256 bobShares = wrapper.deposit(bobDeposit, BOB);
+    uint256 scaledBefore = fixture.market.scaledBalanceOf(address(fixture.wrapper));
+    uint256 strandedScaled = scaledBefore - fixture.wrapper.totalSupply();
+    uint256 expectedSweep = MathUtils.mulDivUp(strandedScaled, fixture.market.scaleFactor(), RAY);
+    uint256 borrowerScaledBefore = fixture.market.scaledBalanceOf(Borrower);
+    vm.expectEmit(true, true, false, true, address(fixture.wrapper));
+    emit TokensSwept(address(fixture.market), Borrower, expectedSweep);
+    vm.prank(Borrower);
+    uint256 swept = fixture.wrapper.sweep(address(fixture.market), Borrower);
 
-    vm.prank(FED);
-    market.transfer(address(wrapper), donation);
-
-    market.setScaleFactor(RAY + (RAY / 4)); // 1.25x
-
-    uint256 scaledBefore = market.scaledBalanceOf(address(wrapper));
-    uint256 expectedScaled = wrapper.totalSupply();
-    uint256 strandedScaled = scaledBefore - expectedScaled;
-    uint256 expectedSweepAssets = strandedScaled.rayMul(market.scaleFactor());
-
-    vm.prank(BORROWER);
-    uint256 swept = wrapper.sweep(address(market), BORROWER);
-    assertEq(swept, expectedSweepAssets, 'swept amount follows current scale factor');
-    assertEq(market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'scaled backing restored');
-
-    vm.prank(FED);
-    uint256 fedAssetsOut = wrapper.redeem(fedShares, FED, FED);
-    vm.prank(BOB);
-    uint256 bobAssetsOut = wrapper.redeem(bobShares, BOB, BOB);
-
-    assertEq(fedAssetsOut, fedShares.rayMul(market.scaleFactor()), 'fed share-backed value');
-    assertEq(bobAssetsOut, bobShares.rayMul(market.scaleFactor()), 'bob share-backed value');
-  }
-
-  function test_sweepRevertsForZeroToken() external {
-    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
-    vm.prank(BORROWER);
-    wrapper.sweep(address(0), BORROWER);
-  }
-
-  function test_sweepRevertsForZeroRecipient() external {
-    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
-    vm.prank(BORROWER);
-    wrapper.sweep(address(market), address(0));
-  }
-
-  function test_sweepSendsBalanceToBorrower() external {
-    MockErc20 stray = new MockErc20();
-    uint256 strayAmount = 42e18;
-    stray.mint(address(wrapper), strayAmount);
-
-    vm.prank(BORROWER);
-    uint256 swept = wrapper.sweep(address(stray), BORROWER);
-
-    assertEq(swept, strayAmount, 'swept amount');
-    assertEq(stray.balanceOf(BORROWER), strayAmount, 'borrower received stray tokens');
-  }
-
-  function test_inflationAttackDoesNotWork() external {
-    address attacker = address(0xa77ac8e5);
-    address victim = address(0xbad);
-
-    market.mint(attacker, 10e18);
-    market.mint(victim, 10e18);
-
-    vm.prank(attacker);
-    market.approve(address(wrapper), type(uint256).max);
-    vm.prank(victim);
-    market.approve(address(wrapper), type(uint256).max);
-
-    uint256 attackerDeposit = 1e9;
-    vm.prank(attacker);
-    uint256 attackerShares = wrapper.deposit(attackerDeposit, attacker);
-
-    assertEq(attackerShares, attackerDeposit, 'attacker shares = scaled deposit');
-
-    uint256 donation = 1e18;
-    vm.prank(attacker);
-    market.transfer(address(wrapper), donation);
-
-    assertEq(wrapper.totalAssets(), attackerDeposit + donation, 'totalAssets includes donation');
-
-    uint256 victimDeposit = 2e18;
-    vm.prank(victim);
-    uint256 victimShares = wrapper.deposit(victimDeposit, victim);
-
-    assertEq(victimShares, victimDeposit, 'victim shares = their full scaled deposit');
-
-    uint256 attackerRedeemValue = wrapper.convertToAssets(attackerShares);
-    uint256 victimRedeemValue = wrapper.convertToAssets(victimShares);
-
-    assertEq(attackerRedeemValue, attackerDeposit, 'attacker can only redeem their deposit');
-
-    assertEq(victimRedeemValue, victimDeposit, 'victim can redeem their full deposit');
-
-    uint256 strandedAssets = wrapper.totalAssets() - attackerRedeemValue - victimRedeemValue;
-    assertEq(strandedAssets, donation, 'donation is stranded, attack failed');
-
-    vm.prank(attacker);
-    uint256 attackerReceived = wrapper.redeem(attackerShares, attacker, attacker);
-
-    assertEq(attackerReceived, attackerDeposit, 'attacker receives only their original deposit');
-
-    uint256 attackerTotalSpent = attackerDeposit + donation;
-    uint256 attackerLoss = attackerTotalSpent - attackerReceived;
-    assertEq(attackerLoss, donation, 'attacker loses fullstack');
-  }
-
-  function test_inflationWithScaleSchange() external {
-    address attacker = address(0xa77ac8e5);
-    address victim = address(0xbad);
-
-    market.mint(attacker, 100e18);
-    market.mint(victim, 100e18);
-
-    vm.prank(attacker);
-    market.approve(address(wrapper), type(uint256).max);
-    vm.prank(victim);
-    market.approve(address(wrapper), type(uint256).max);
-
-    vm.prank(attacker);
-    uint256 attackerShares = wrapper.deposit(10e18, attacker);
-
-    vm.prank(attacker);
-    market.transfer(address(wrapper), 50e18);
-
-    uint256 newScale = RAY + (RAY / 2); // 1.5x
-    market.setScaleFactor(newScale);
-
-    vm.prank(victim);
-    uint256 victimShares = wrapper.deposit(15e18, victim); // 15e18 / 1.5 = 10e18 scaled
-
-    assertEq(attackerShares, 10e18, 'attacker scaled shares');
-    assertEq(victimShares, 10e18, 'victim scaled shares (15e18 assets at 1.5x scale)');
-
-    uint256 attackerValue = wrapper.convertToAssets(attackerShares);
-    uint256 victimValue = wrapper.convertToAssets(victimShares);
-
-    assertEq(attackerValue, 15e18, 'attacker value after interest');
-    assertEq(victimValue, 15e18, 'victim value matches their deposit');
-  }
-
-  function test_depositWithNonTrivialScaleFactor() external {
-    uint256 scaleFactor = RAY + (RAY / 10); // 1.1e27
-    market.setScaleFactor(scaleFactor);
-
-    market.mint(FED, 100e18);
-    vm.prank(FED);
-    market.approve(address(wrapper), type(uint256).max);
-
-    uint256 assets = 10e18;
-
-    uint256 expectedShares = (assets * RAY + scaleFactor / 2) / scaleFactor;
-
-    vm.prank(FED);
-    uint256 shares = wrapper.deposit(assets, FED);
-
-    assertEq(shares, expectedShares, 'shares match half-up');
-    assertEq(wrapper.balanceOf(FED), expectedShares, 'wrapper balance correct');
-  }
-
-  function test_withdrawWithNonTrivialScaleFactor() external {
-    uint256 setupScale = RAY + (RAY / 2); // 1.5e27
-    market.setScaleFactor(setupScale);
-
-    market.mint(FED, 100e18);
-    vm.prank(FED);
-    market.approve(address(wrapper), type(uint256).max);
-
-    vm.prank(FED);
-    wrapper.deposit(30e18, FED); // 30e18 / 1.5 = 20e18 shares
-    assertEq(wrapper.balanceOf(FED), 20e18, 'fed has shares');
-
-    // change to 1.1x scale factor for withdraw
-    uint256 scaleFactor = RAY + (RAY / 10); // 1.1e27
-    market.setScaleFactor(scaleFactor);
-
-    uint256 assets = 10e18;
-    uint256 expectedSharesBurned = (assets * RAY + scaleFactor / 2) / scaleFactor;
-    uint256 fedSharesBefore = wrapper.balanceOf(FED);
-
-    vm.prank(FED);
-    uint256 sharesBurned = wrapper.withdraw(assets, FED, FED);
-
-    assertEq(sharesBurned, expectedSharesBurned, "shares burned match half-up");
+    assertEq(swept, expectedSweep, 'market sweep amount');
     assertEq(
-      wrapper.balanceOf(FED),
-      fedSharesBefore - expectedSharesBurned,
-      'balance decreased correctly'
+      fixture.market.scaledBalanceOf(Borrower),
+      borrowerScaledBefore + strandedScaled,
+      'market sweep recipient'
+    );
+    assertEq(
+      fixture.market.scaledBalanceOf(address(fixture.wrapper)),
+      fixture.wrapper.totalSupply(),
+      'market sweep backing'
+    );
+
+    vm.prank(Borrower);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
+    fixture.wrapper.sweep(address(fixture.market), Borrower);
+
+    vm.prank(Holder);
+    fixture.wrapper.redeem(holderShares, Holder, Holder);
+    vm.prank(Receiver);
+    fixture.wrapper.redeem(receiverShares, Receiver, Receiver);
+    assertEq(fixture.wrapper.totalSupply(), 0, 'market sweep final supply');
+    assertEq(
+      fixture.market.scaledBalanceOf(address(fixture.wrapper)),
+      0,
+      'market sweep final backing'
     );
   }
 
-  function test_deposit_revertsForSanctionedCaller() external {
-    sanctionsSentinel.sanction(FED);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
-    vm.prank(FED);
-    wrapper.deposit(1, FED);
-  }
+  function test_marketSweepMismatchAndEmptyBackingRollBack() external {
+    Fixture memory emptyFixture = _newFixture();
+    vm.prank(Borrower);
+    vm.expectRevert(Wildcat4626Wrapper.ZeroAssets.selector);
+    emptyFixture.wrapper.sweep(address(emptyFixture.market), Borrower);
 
-  function test_deposit_revertsForSanctionedReceiver() external {
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(FED);
-    wrapper.deposit(1, BOB);
-  }
-
-  function test_withdraw_revertsForSanctionedOwner() external {
-    vm.prank(FED);
-    wrapper.deposit(10e18, FED);
-
-    sanctionsSentinel.sanction(FED);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
-    vm.prank(FED);
-    wrapper.withdraw(1, FED, FED);
-  }
-
-  function test_withdraw_revertsForSanctionedReceiver() external {
-    vm.prank(FED);
-    wrapper.deposit(10e18, FED);
-
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(FED);
-    wrapper.withdraw(1, BOB, FED);
-  }
-
-  function test_transfer_revertsForSanctionedDestination() external {
-    vm.prank(FED);
-    wrapper.deposit(5e18, FED);
-
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(FED);
-    wrapper.transfer(BOB, 1e18);
-  }
-
-  function test_mint_revertsForSanctionedCaller() external {
-    sanctionsSentinel.sanction(FED);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
-    vm.prank(FED);
-    wrapper.mint(1, FED);
-  }
-
-  function test_mint_revertsForSanctionedReceiver() external {
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(FED);
-    wrapper.mint(1, BOB);
-  }
-
-  function test_redeem_revertsForSanctionedCaller() external {
-    vm.prank(FED);
-    wrapper.deposit(10e18, FED);
-
-    vm.prank(FED);
-    wrapper.approve(BOB, type(uint256).max);
-
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(BOB);
-    wrapper.redeem(1, BOB, FED);
-  }
-
-  function test_redeem_revertsForSanctionedOwner() external {
-    vm.prank(FED);
-    wrapper.deposit(10e18, FED);
-
-    sanctionsSentinel.sanction(FED);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
-    vm.prank(FED);
-    wrapper.redeem(1, FED, FED);
-  }
-
-  function test_redeem_revertsForSanctionedReceiver() external {
-    vm.prank(FED);
-    wrapper.deposit(10e18, FED);
-
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(FED);
-    wrapper.redeem(1, BOB, FED);
-  }
-
-  function test_withdraw_revertsForSanctionedCaller() external {
-    vm.prank(FED);
-    wrapper.deposit(10e18, FED);
-
-    vm.prank(FED);
-    wrapper.approve(BOB, type(uint256).max);
-
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(BOB);
-    wrapper.withdraw(1, BOB, FED);
-  }
-
-  function test_transfer_revertsForSanctionedFrom() external {
-    vm.prank(FED);
-    wrapper.deposit(5e18, FED);
-
-    sanctionsSentinel.sanction(FED);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
-    vm.prank(FED);
-    wrapper.transfer(BOB, 1e18);
-  }
-
-  function test_transferFrom_revertsForSanctionedFrom() external {
-    vm.prank(FED);
-    wrapper.deposit(5e18, FED);
-
-    vm.prank(FED);
-    wrapper.approve(BOB, type(uint256).max);
-
-    sanctionsSentinel.sanction(FED);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, FED));
-    vm.prank(BOB);
-    wrapper.transferFrom(FED, BOB, 1e18);
-  }
-
-  function test_transferFrom_revertsForSanctionedTo() external {
-    vm.prank(FED);
-    wrapper.deposit(5e18, FED);
-
-    vm.prank(FED);
-    wrapper.approve(BOB, type(uint256).max);
-
-    address ALICE = address(0xA11CE);
-    sanctionsSentinel.sanction(ALICE);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, ALICE));
-    vm.prank(BOB);
-    wrapper.transferFrom(FED, ALICE, 1e18);
-  }
-
-  function test_sweep_revertsForSanctionedTo() external {
-    MockErc20 stray = new MockErc20();
-    stray.mint(address(wrapper), 10e18);
-
-    sanctionsSentinel.sanction(BOB);
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, BOB));
-    vm.prank(BORROWER);
-    wrapper.sweep(address(stray), BOB);
-  }
-
-  function test_constructor_revertsForZeroSentinel() external {
-    // Deploy a market with zero sentinel
-    MockMarketToken badMarket = new MockMarketToken(18, BORROWER, address(0));
-    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
-    new Wildcat4626Wrapper(address(badMarket));
-  }
-
-  function test_constructor_revertsForZeroBorrower() external {
-    // Deploy a market with zero borrower
-    MockMarketToken badMarket = new MockMarketToken(18, address(0), address(sanctionsSentinel));
-    vm.expectRevert(Wildcat4626Wrapper.ZeroAddress.selector);
-    new Wildcat4626Wrapper(address(badMarket));
+    Fixture memory mismatchFixture = _newFixture();
+    mismatchFixture.market.mint(address(mismatchFixture.wrapper), 10 * Unit);
+    mismatchFixture.market.setTransferSkew(-1);
+    uint256 strandedScaled = mismatchFixture.market.scaledBalanceOf(
+      address(mismatchFixture.wrapper)
+    );
+    vm.prank(Borrower);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Wildcat4626Wrapper.SharesMismatch.selector,
+        strandedScaled,
+        strandedScaled - 1
+      )
+    );
+    mismatchFixture.wrapper.sweep(address(mismatchFixture.market), Borrower);
+    assertEq(
+      mismatchFixture.market.scaledBalanceOf(address(mismatchFixture.wrapper)),
+      strandedScaled,
+      'market sweep rollback'
+    );
   }
 }

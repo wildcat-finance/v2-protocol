@@ -1,29 +1,37 @@
-## Testing external functions in contracts
+# Testing
 
-Every contract or library `<Contract>` defined in `src/<subdir>/<FileName>.sol` should have a corresponding test `<Contract>Test` defined in `test/<subdir>/<FileName>.t.sol`.
+The Foundry suite lives in [`test/`](./test/). It is the only protocol test
+suite. There is no legacy suite, parity oracle, or alternate discovery profile.
 
-Every execution path in the function should be tested, ideally with a distinct test. The naming should be `test_<functionName>_<PascalCaseLabel>`, where `PascalCaseLabel` is some brief summary of the path being tested.
+## Required commands
 
-Test case labels:
-- For testing that a specific event is emitted that is not emitted in the default path, the label should be the name of the event.
-- Same as above for testing that specific errors are thrown.
-- If we're testing what happens when a null recipient is given in a transfer call, the label might be `test_transfer_NullRecipient`
+```sh
+forge test
+yarn test:fixed
+FOUNDRY_PROFILE=deploy forge test
+```
 
-## Library Tests
+- `forge test` is the default for local work and CI.
+- `yarn test:fixed` uses a fixed timestamp and fuzz seed. Use it when you need a
+  repeatable audit run.
+- `FOUNDRY_PROFILE=deploy forge test` runs the same suite with the deployment
+  artifact settings.
 
-We use wrapper contracts for libraries in our tests for two reasons: forge coverage support and event/error testing.
+See [`test/README.md`](./test/README.md) for suite ownership, fixture rules,
+stateful testing, and the focused coverage boundary.
 
-Forge coverage issues:
-1. Forge coverage is currently incapable of mapping MemberAccess function calls with expressions other than library identifiers, meaning expressions like `XLib.x(value)` will work in forge coverage, but expressions like `value.x()` will not.
-2. Forge coverage will not track internal methods which are only invoked in the codebase within the context of a test function. This means that even if we wrote forge tests to directly access functions as library members (where the main codebase always uses them as members of a type), because the library method syntax is only used in the tests, those invocations will not cause the method to be tracked.
+## What tests should cover
 
-Events and errors:
+- Give each behavior domain one owning suite. Don't multiply entrypoints through
+  test inheritance.
+- Cover authorization, success, reverts, events, boundaries, rounding, and state
+  transitions where they apply.
+- Test shared implementations through runtime matrices. Give distinct behavior
+  its own properties.
+- Keep mocks small and assertions explicit. Use real deployment paths when a
+  test depends on constructors, immutables, CREATE2, or registration.
+- Every bug fix needs a regression that fails against the unfixed code.
 
-- Forge's `expectEmit` and `expectRevert` operate on the next message call within the execution context, not the current call context. If a library has custom events or errors, we must invoke the methods which use them as external calls to validate they emit the right events or revert with the right errors.
-
-Because of these issues, for any library in the main codebase which:
-- has methods that are primarily invoked as type members rather than as standalone functions or library members; OR
-- has methods which can emit events or revert; OR
-- has methods which are not invoked in the main codebase
-
-We define a wrapper library that redefines all the library functions as external functions, and a test contract which invokes those functions as external calls to the wrapper.
+Library wrappers under `test/libraries/wrappers/` expose internal library
+functions when a test needs an external call for a revert, event, or coverage
+assertion. They are test infrastructure, not protocol interfaces.

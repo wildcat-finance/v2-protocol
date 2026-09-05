@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.1.0",
+  "foundryProfile": "deploy",
+  "network": "anvil",
+  "chainId": 31337,
+  "release": "invalid-missing-envelope",
+  "expectedExecutor": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "onFailure": "halt",
+  "resume": "re-verify all prior predicates before continuing",
+  "transactions": [
+    {
+      "id": "missing-envelope",
+      "kind": "call",
+      "description": "Exercise a fixture call entry.",
+      "to": "0x0000000000000000000000000000000000000000",
+      "functionSignature": "noop()",
+      "args": [],
+      "calldata": "0x5dfc2e4a",
+      "predicate": {
+        "type": "codePresent",
+        "target": "0x0000000000000000000000000000000000000000"
+      }
+    }
+  ]
+}

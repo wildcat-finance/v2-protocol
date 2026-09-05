@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import '../WildcatArchController.sol';
 import { OpenTermHooks } from '../access/OpenTermHooks.sol';
@@ -13,6 +13,9 @@ import './RoleProviderData.sol';
 
 using LenderAccountDataLib for LenderAccountData global;
 
+/// @notice balances, allowance, and access state for one lender in one market.
+/// @dev values are a point-in-time read. hook callbacks may still depend on calldata the lens does
+///      not have, so this is not a promise that a later action succeeds.
 struct LenderAccountData {
   address lender;
   uint256 scaledBalance;
@@ -28,9 +31,11 @@ struct LenderAccountData {
 }
 
 interface IVersionedContract {
+  /// @notice returns the contract's declared Wildcat version string.
   function version() external view returns (string memory);
 }
 
+/// @notice fillers for lender balances and access-control status.
 library LenderAccountDataLib {
   function fill(
     LenderAccountData memory data,
@@ -48,8 +53,8 @@ library LenderAccountDataLib {
     data.underlyingApproval = underlying.allowance(lenderAddress, address(market));
     if (address(hooks) != address(0)) {
       LenderStatus memory status = hooks.getLenderStatus(lenderAddress);
+      data.isBlockedFromDeposits = status.isBlockedFromDeposits;
       if (status.lastProvider != address(0)) {
-        data.isBlockedFromDeposits = status.isBlockedFromDeposits;
         data.lastProvider.fill(hooks.getRoleProvider(status.lastProvider));
         data.canRefresh = status.canRefresh;
         data.lastApprovalTimestamp = status.lastApprovalTimestamp;

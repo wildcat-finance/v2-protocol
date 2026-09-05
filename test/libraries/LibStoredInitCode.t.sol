@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.19;
+pragma solidity 0.8.25;
 
-import { Test } from 'forge-std/Test.sol';
 import './wrappers/LibStoredInitCodeExternal.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 contract Undeployable {
   constructor() {
@@ -12,10 +12,18 @@ contract Undeployable {
   }
 }
 
-contract LibStoredInitCodeTest is Test {
-  LibStoredInitCodeExternal internal immutable lib = new LibStoredInitCodeExternal();
+contract LibStoredInitCodeTest is TestKernel {
+  LibStoredInitCodeExternal internal lib;
 
   uint256 public immutable getContractParameters = 123;
+
+  function setUp() external {
+    lib = LibStoredInitCodeExternal(
+      _deployCode(
+        'test/libraries/wrappers/LibStoredInitCodeExternal.sol:LibStoredInitCodeExternal'
+      )
+    );
+  }
 
   // ===================================================================== //
   //                         deployInitCode(bytes)                         //
@@ -43,11 +51,11 @@ contract LibStoredInitCodeTest is Test {
   //                       getCreate2Prefix(address)                       //
   // ===================================================================== //
 
-  function test_getCreate2Prefix(address deployer) external {
+  function test_getCreate2Prefix(address deployer) external view {
     assertEq(lib.getCreate2Prefix(deployer), uint256(uint160(deployer)) | (0xff << 160));
   }
 
-  function test_getCreate2Prefix() external {
+  function test_getCreate2Prefix() external view {
     address deployer = 0x1111111111111111111111111111111111111111;
     assertEq(lib.getCreate2Prefix(deployer), 0xff1111111111111111111111111111111111111111);
   }
@@ -60,7 +68,7 @@ contract LibStoredInitCodeTest is Test {
     uint256 create2Prefix,
     bytes32 salt,
     uint256 initCodeHash
-  ) external {
+  ) external view {
     assertEq(
       lib.calculateCreate2Address(create2Prefix, salt, initCodeHash),
       address(
@@ -99,7 +107,7 @@ contract LibStoredInitCodeTest is Test {
     assertEq(deployed.balance, 1e18);
   }
 
-  function test_createWithStoredInitCode_DeploymentFailed(bytes32 salt) external {
+  function test_createWithStoredInitCode_DeploymentFailed() external {
     address initCodeStorage = lib.deployInitCode(type(Undeployable).creationCode);
 
     vm.expectRevert(LibStoredInitCode.DeploymentFailed.selector);
@@ -127,9 +135,7 @@ contract LibStoredInitCodeTest is Test {
   }
 
   function test_create2WithStoredInitCode_DeploymentFailed(bytes32 salt) external {
-    uint256 create2Prefix = lib.getCreate2Prefix(address(lib));
     address initCodeStorage = lib.deployInitCode(type(TestContract).creationCode);
-    uint256 initCodeHash = uint256(keccak256(type(TestContract).creationCode));
 
     lib.create2WithStoredInitCode(initCodeStorage, salt);
     vm.expectRevert(LibStoredInitCode.DeploymentFailed.selector);
@@ -155,5 +161,23 @@ contract LibStoredInitCodeTest is Test {
         uint160(uint256(keccak256(abi.encodePacked(uint168(create2Prefix), salt, initCodeHash))))
       )
     );
+  }
+
+  function test_create2WithStoredInitCodeCD_DeploymentFailed(bytes32 salt) external {
+    address initCodeStorage = lib.deployInitCode(type(TestContract).creationCode);
+
+    lib.create2WithStoredInitCodeCD(initCodeStorage, salt, '');
+    vm.expectRevert(LibStoredInitCode.DeploymentFailed.selector);
+    lib.create2WithStoredInitCodeCD(initCodeStorage, salt, '');
+  }
+
+  function test_create2WithStoredInitCode_MemoryConstructorArgs(bytes32 salt) external {
+    address initCodeStorage = lib.deployInitCode(type(TestContract).creationCode);
+    bytes memory constructorArgs = hex'aabbccdd';
+
+    address deployed = lib.create2WithStoredInitCode(initCodeStorage, salt, constructorArgs);
+
+    assertEq(deployed.codehash, address(new TestContract()).codehash, 'codehash');
+    assertEq(TestContract(deployed).getValue(), getContractParameters, 'immutable value');
   }
 }

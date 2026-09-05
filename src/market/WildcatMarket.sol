@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './WildcatMarketBase.sol';
 import './WildcatMarketConfig.sol';
 import './WildcatMarketToken.sol';
 import './WildcatMarketWithdrawals.sol';
-import '../WildcatSanctionsSentinel.sol';
 
+/// @notice standard Wildcat credit market with interest on the full normalized supply.
 contract WildcatMarket is
   WildcatMarketBase,
   WildcatMarketConfig,
@@ -18,22 +18,17 @@ contract WildcatMarket is
   using LibERC20 for address;
   using BoolUtils for bool;
 
-  /**
-   * @dev Apply pending interest, delinquency fees and protocol fees
-   *      to the state and process the pending withdrawal batch if
-   *      one exists and has expired, then update the market's
-   *      delinquency status.
-   */
+  /// @notice applies accrued interest and fees, processes an expired current batch, and stores
+  ///         the market's current delinquency status.
+  /// @dev permissionless. nothing accrues twice when called again at the same timestamp.
   function updateState() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
     _writeState(state);
   }
 
-  /**
-   * @dev Token rescue function for recovering tokens sent to the market
-   *      contract by mistake or otherwise outside of the normal course of
-   *      operation.
-   */
+  /// @notice sends the market's entire balance of an unrelated token to the borrower.
+  /// @dev the underlying asset and the market token can't be rescued.
+  /// @param token token accidentally sent to the market.
   function rescueTokens(address token) external nonReentrant onlyBorrower {
     if ((token == asset).or(token == address(this))) {
       revert_BadRescueAsset();
@@ -41,17 +36,10 @@ contract WildcatMarket is
     token.safeTransferAll(msg.sender);
   }
 
-  /**
-   * @dev Deposit up to `amount` underlying assets and mint market tokens
-   *      for `msg.sender`.
-   *
-   *      The actual deposit amount is limited by the market's maximum deposit
-   *      amount, which is the configured `maxTotalSupply` minus the current
-   *      total supply.
-   *
-   *      Reverts if the market is closed or if the scaled token amount
-   *      that would be minted for the deposit is zero.
-   */
+  /// @dev deposits up to `amount`, capped by current capacity, and mints floor-scaled shares.
+  ///      reverts if the market is closed, the result is below one scaled token, access fails,
+  ///      or the hook rejects the deposit.
+  /// @return underlying assets deposited.
   function _depositUpTo(
     uint256 amount
   ) internal virtual nonReentrant returns (uint256 /* actualAmount */) {
@@ -60,11 +48,11 @@ contract WildcatMarket is
 
     if (state.isClosed) revert_DepositToClosedMarket();
 
-    // Reduce amount if it would exceed totalSupply
+    // Reduce amount if it would exceed the maximum deposit (maxTotalSupply - totalSupply)
     amount = MathUtils.min(amount, state.maximumDeposit());
 
     // Scale the mint amount
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
     if (scaledAmount == 0) revert_NullMintAmount();
 
     // Cache account data and revert if not authorized to deposit.
@@ -90,38 +78,26 @@ contract WildcatMarket is
     return amount;
   }
 
-  /**
-   * @dev Deposit up to `amount` underlying assets and mint market tokens
-   *      for `msg.sender`.
-   *
-   *      The actual deposit amount is limited by the market's maximum deposit
-   *      amount, which is the configured `maxTotalSupply` minus the current
-   *      total supply.
-   *
-   *      Reverts if the market is closed or if the scaled token amount
-   *      that would be minted for the deposit is zero.
-   */
+  /// @notice deposits as much of `amount` as current capacity allows.
+  /// @dev mints floor-scaled shares. reverts instead of succeeding with less than one share.
+  /// @param amount maximum underlying assets to transfer from the caller.
+  /// @return assets deposited, which may be lower than `amount`.
   function depositUpTo(
     uint256 amount
   ) external virtual sphereXGuardExternal returns (uint256 /* actualAmount */) {
     return _depositUpTo(amount);
   }
 
-  /**
-   * @dev Deposit exactly `amount` underlying assets and mint market tokens
-   *      for `msg.sender`.
-   *
-   *     Reverts if the deposit amount would cause the market to exceed the
-   *     configured `maxTotalSupply`.
-   */
+  /// @notice deposits exactly `amount` underlying assets for the caller.
+  /// @dev reverts if capacity is lower than `amount` or the floor-scaled mint is zero.
+  /// @param amount underlying assets to transfer from the caller.
   function deposit(uint256 amount) external virtual sphereXGuardExternal {
     uint256 actualAmount = _depositUpTo(amount);
     if (amount != actualAmount) revert_MaxSupplyExceeded();
   }
 
-  /**
-   * @dev Withdraw available protocol fees to the fee recipient.
-   */
+  /// @notice sends all currently withdrawable protocol fees to `feeRecipient`.
+  /// @dev permissionless. paid-but-unclaimed withdrawals have priority over protocol fees.
   function collectFees() external nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
     if (state.accruedProtocolFees == 0) revert_NullFeeAmount();
@@ -132,22 +108,19 @@ contract WildcatMarket is
     state.accruedProtocolFees -= withdrawableFees;
     asset.safeTransfer(feeRecipient, withdrawableFees);
     _writeState(state);
-    emit_FeesCollected(withdrawableFees);
+    emit_FeesCollected(msg.sender, feeRecipient, withdrawableFees);
   }
 
-  /**
-   * @dev Withdraw funds from the market to the borrower.
-   *
-   *      Can only withdraw up to the assets that are not required
-   *      to meet the borrower's collateral obligations.
-   *
-   *      Reverts if the market is closed.
-   */
-  function borrow(uint256 amount) external onlyBorrower nonReentrant sphereXGuardExternal {
-    // Check if the borrower is flagged as a sanctioned entity on Chainalysis.
-    // Uses `isFlaggedByChainalysis` instead of `isSanctioned` to prevent the borrower
-    // overriding their sanction status.
-    if (_isFlaggedByChainalysis(borrower)) {
+  /// @notice draws `amount` underlying assets to the operational borrower.
+  /// @dev can't exceed assets left after every collateral obligation. raw Chainalysis flags on
+  ///      either the borrower or principal block the draw even when a sentinel override exists.
+  /// @param amount underlying assets to draw.
+  function borrow(uint256 amount) external virtual onlyBorrower nonReentrant sphereXGuardExternal {
+    // Check the raw Chainalysis status of both borrower identities. Sentinel overrides
+    // must not let either identity draw while flagged.
+    address currentBorrower = msg.sender;
+    address currentPrincipal = borrowerPrincipal();
+    if (_flaggedBorrowerIdentity(currentBorrower, currentPrincipal) != address(0)) {
       revert_BorrowWhileSanctioned();
     }
 
@@ -160,12 +133,18 @@ contract WildcatMarket is
     // Execute borrow hook if enabled
     hooks.onBorrow(amount, state);
 
+    _onBorrow(state, amount);
     asset.safeTransfer(msg.sender, amount);
     _writeState(state);
-    emit_Borrow(amount);
+    emit_Borrow(currentBorrower, amount);
   }
 
-  function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal {
+  /// @dev pulls a nonzero repayment, runs the hook, and lets derived markets reconcile it.
+  function _repay(
+    MarketState memory state,
+    uint256 amount,
+    uint256 baseCalldataSize
+  ) internal virtual {
     if (amount == 0) revert_NullRepayAmount();
     if (state.isClosed) revert_RepayToClosedMarket();
 
@@ -174,18 +153,14 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, baseCalldataSize);
+    _onRepay(state, amount);
   }
 
-  /**
-   * @dev Transfers funds from the caller to the market.
-   *
-   *      Any payments made through this function are considered
-   *      repayments from the borrower. Do *not* use this function
-   *      if you are a lender or an unrelated third party.
-   *
-   *      Reverts if the market is closed or `amount` is 0.
-   */
-  function repay(uint256 amount) external nonReentrant sphereXGuardExternal {
+  /// @notice transfers `amount` underlying assets into the market as debt repayment.
+  /// @dev anyone can repay, but the market credits no tokens or repayment claim to the caller.
+  ///      on revolving markets it also reduces drawn principal.
+  /// @param amount nonzero underlying assets to transfer from the caller.
+  function repay(uint256 amount) external virtual nonReentrant sphereXGuardExternal {
     if (amount == 0) revert_NullRepayAmount();
 
     asset.safeTransferFrom(msg.sender, address(this), amount);
@@ -196,23 +171,21 @@ contract WildcatMarket is
 
     // Execute repay hook if enabled
     hooks.onRepay(amount, state, _runtimeConstant(0x24));
+    uint256 currentTotalAssets = _onRepayAndGetTotalAssets(state, amount);
 
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
-  /**
-   * @dev Sets the market APR to 0% and marks market as closed.
-   *
-   *      Can not be called if there are any unpaid withdrawal batches.
-   *
-   *      Transfers remaining debts from borrower if market is not fully
-   *      collateralized; otherwise, transfers any assets in excess of
-   *      debts to the borrower.
-   */
-  function closeMarket() external onlyBorrower nonReentrant sphereXGuardExternal {
+  /// @notice fully collateralizes and permanently closes the market.
+  /// @dev pulls any shortfall from the borrower or returns excess assets, sets APR to zero and
+  ///      reserves to 100%, then pays every withdrawal batch. unpaid batches make gas scale with
+  ///      queue length, so they can be processed incrementally before closure.
+  function closeMarket() external virtual onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_MarketAlreadyClosed();
+    uint256 previousAnnualInterestBips = state.annualInterestBips;
+    uint256 previousReserveRatioBips = state.reserveRatioBips;
 
     uint256 currentlyHeld = totalAssets();
     uint256 totalDebts = state.totalDebts();
@@ -224,7 +197,7 @@ contract WildcatMarket is
     } else if (currentlyHeld > totalDebts) {
       uint256 excessDebt = currentlyHeld - totalDebts;
       // Transfer excess assets to borrower
-      asset.safeTransfer(borrower, excessDebt);
+      asset.safeTransfer(msg.sender, excessDebt);
       currentlyHeld -= excessDebt;
     }
     hooks.onCloseMarket(state);
@@ -236,8 +209,9 @@ contract WildcatMarket is
     state.timeDelinquent = 0;
 
     // Still track available liquidity in case of a rounding error
-    uint256 availableLiquidity = currentlyHeld -
-      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+    uint256 availableLiquidity = currentlyHeld.satSub(
+      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
+    );
 
     // If there is a pending withdrawal batch which is not fully paid off, set aside
     // up to the available liquidity for that batch.
@@ -288,8 +262,16 @@ contract WildcatMarket is
       revert_CloseMarketWithUnpaidWithdrawals();
     }
 
+    _onCloseMarket();
     _writeState(state);
-    emit_MarketClosed(block.timestamp);
+    emit_AnnualInterestAndReserveRatioBipsUpdated(
+      msg.sender,
+      previousAnnualInterestBips,
+      state.annualInterestBips,
+      previousReserveRatioBips,
+      state.reserveRatioBips
+    );
+    emit_MarketClosed(msg.sender, block.timestamp);
   }
 
   /**
@@ -302,6 +284,11 @@ contract WildcatMarket is
 
       uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
+      // caf-03 attempted to bypass `onQueueWithdrawal` here so sanctions withdrawals
+      // could not be vetoed. That bypass also skips term withdrawal restrictions
+      // (fixed-term end times, periodic withdrawal windows), so `nukeFromOrbit`
+      // intentionally uses the ordinary withdrawal path: quarantine can be
+      // deferred until withdrawals open. Accepted behavior; see Known Issues.
       uint32 expiry = _queueWithdrawal(
         state,
         account,

@@ -1,0 +1,9 @@
+{
+  "recordType": "deployment",
+  "role": "identityRegistry",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "WildcatBorrowerIdentityRegistry_v2-5-sepolia-fix-1",
+  "address": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+  "reused": true
+}

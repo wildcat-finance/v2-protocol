@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './WildcatMarketBase.sol';
 import '../libraries/LibERC20.sol';
 import '../libraries/BoolUtils.sol';
 
+/// @notice batched lender exit flow with FIFO payment priority across expired batches.
 contract WildcatMarketWithdrawals is WildcatMarketBase {
   using LibERC20 for address;
   using MathUtils for uint256;
@@ -16,13 +17,17 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   //                             Withdrawal Queries                             //
   // ========================================================================== //
 
-  /**
-   * @dev Returns the expiry timestamp of every unpaid withdrawal batch.
-   */
+  /// @notice returns expired, underfunded batch expiries in payment order.
+  /// @return expiries oldest unpaid batch first.
   function getUnpaidBatchExpiries() external view nonReentrantView returns (uint32[] memory) {
     return _withdrawalData.unpaidBatches.values();
   }
 
+  /// @notice returns aggregate accounting for the batch at `expiry`.
+  /// @dev if it is the current batch, the result includes interest and payments calculable through
+  ///      this block without writing state.
+  /// @param expiry batch key and scheduled expiry timestamp.
+  /// @return batch current aggregate accounting for that key.
   function getWithdrawalBatch(
     uint32 expiry
   ) external view nonReentrantView returns (WithdrawalBatch memory batch) {
@@ -37,6 +42,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     batch.normalizedAmountPaid = _batch.normalizedAmountPaid;
   }
 
+  /// @notice returns `accountAddress`'s fixed share and amount already claimed from a batch.
+  /// @param accountAddress lender whose batch position is queried.
+  /// @param expiry batch key and scheduled expiry timestamp.
+  /// @return status lender's stored position in the batch.
   function getAccountWithdrawalStatus(
     address accountAddress,
     uint32 expiry
@@ -48,6 +57,11 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     status.normalizedAmountWithdrawn = _status.normalizedAmountWithdrawn;
   }
 
+  /// @notice returns the additional amount `accountAddress` can claim from an expired batch.
+  /// @dev uses the batch's currently reserved assets and reverts while the batch is still current.
+  /// @param accountAddress lender whose claim is queried.
+  /// @param expiry batch key and scheduled expiry timestamp.
+  /// @return currently claimable underlying assets.
   function getAvailableWithdrawalAmount(
     address accountAddress,
     uint32 expiry
@@ -77,6 +91,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   //                             Withdrawal Actions                             //
   // ========================================================================== //
 
+  /// @dev moves scaled shares from an account into the current batch, creating one when needed.
+  ///      any currently available liquidity is reserved for the batch before state is stored.
   function _queueWithdrawal(
     MarketState memory state,
     Account memory account,
@@ -89,10 +105,20 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     expiry = state.pendingWithdrawalExpiry;
 
     // If there is no pending withdrawal batch, create a new one.
-    if (state.pendingWithdrawalExpiry == 0) {
+    if (expiry == 0) {
       // If the market is closed, use zero for withdrawal batch duration.
       uint duration = state.isClosed.ternary(0, withdrawalBatchDuration);
-      expiry = uint32(block.timestamp + duration);
+      expiry = (block.timestamp + duration).toUint32();
+
+      // Reopening a processed batch mixes pre- and post-close accounting,
+      // shifting value between withdrawers.
+      if (state.isClosed && _withdrawalData.batches[expiry].scaledTotalAmount != 0) {
+        expiry += 1;
+        if (_withdrawalData.batches[expiry].scaledTotalAmount != 0) {
+          revert_WithdrawalBatchKeyAlreadyExists();
+        }
+      }
+
       emit_WithdrawalBatchCreated(expiry);
       state.pendingWithdrawalExpiry = expiry;
     }
@@ -116,7 +142,11 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     emit_WithdrawalQueued(expiry, accountAddress, scaledAmount, normalizedAmount);
 
     // Burn as much of the withdrawal batch as possible with available liquidity.
-    uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets());
+    uint256 currentTotalAssets = totalAssets();
+    uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(
+      state,
+      currentTotalAssets
+    );
     if (availableLiquidity > 0) {
       _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
     }
@@ -125,18 +155,18 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     _withdrawalData.batches[expiry] = batch;
 
     // Update stored state
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
-  /**
-   * @dev Create a withdrawal request for a lender.
-   */
+  /// @notice queues the floor-scaled portion of `amount` normalized market tokens.
+  /// @param amount normalized amount used to derive the scaled request.
+  /// @return expiry batch joined or created by this request.
   function queueWithdrawal(
     uint256 amount
   ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
-    uint104 scaledAmount = state.scaleAmount(amount).toUint104();
+    uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
     if (scaledAmount == 0) revert_NullBurnAmount();
 
     // Cache account data
@@ -146,9 +176,37 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, _runtimeConstant(0x24));
   }
 
-  /**
-   * @dev Queue a withdrawal for all of the caller's balance.
-   */
+  /// @notice queues exactly `scaledAmount` scaled market tokens.
+  /// @dev meant for integrations such as the canonical ERC-4626 wrapper that already account in
+  ///      scaled shares and must not round through a normalized amount first.
+  /// @param scaledAmount exact scaled shares to move into the batch.
+  /// @return expiry batch joined or created by this request.
+  function queueWithdrawalScaled(
+    uint256 scaledAmount
+  ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
+    MarketState memory state = _getUpdatedState();
+
+    uint104 amount = scaledAmount.toUint104();
+    if (amount == 0) revert_NullBurnAmount();
+
+    // Cache account data
+    Account memory account = _getAccount(msg.sender);
+
+    uint256 normalizedAmount = state.normalizeAmount(amount);
+
+    return
+      _queueWithdrawal(
+        state,
+        account,
+        msg.sender,
+        amount,
+        normalizedAmount,
+        _runtimeConstant(0x24)
+      );
+  }
+
+  /// @notice queues the caller's entire direct scaled market-token balance.
+  /// @return expiry batch joined or created by this request.
   function queueFullWithdrawal()
     external
     nonReentrant
@@ -176,20 +234,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       );
   }
 
-  /**
-   * @dev Execute a pending withdrawal request for a batch that has expired.
-   *
-   *      Withdraws the proportional amount of the paid batch owed to
-   *      `accountAddress` which has not already been withdrawn.
-   *
-   *      If `accountAddress` is sanctioned, transfers the owed amount to
-   *      an escrow contract specific to the account and blocks the account.
-   *
-   *      Reverts if:
-   *      - `expiry >= block.timestamp`
-   *      -  `expiry` does not correspond to an existing withdrawal batch
-   *      - `accountAddress` has already withdrawn the full amount owed
-   */
+  /// @notice claims `accountAddress`'s newly paid share of an expired batch.
+  /// @dev permissionless. assets go to the account, or its sanctions escrow when currently
+  ///      sanctioned. reverts when no additional amount is claimable.
+  /// @param accountAddress lender that owns the claim and receives unsanctioned assets.
+  /// @param expiry batch key and scheduled expiry timestamp.
+  /// @return underlying assets transferred for this claim.
   function executeWithdrawal(
     address accountAddress,
     uint32 expiry
@@ -208,6 +258,11 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     return normalizedAmountWithdrawn;
   }
 
+  /// @notice claims several account/batch pairs in one transaction.
+  /// @dev the arrays are paired by index. one invalid or empty claim reverts the whole call.
+  /// @param accountAddresses lenders that own each claim.
+  /// @param expiries batch key paired with each lender.
+  /// @return amounts underlying assets transferred for each pair.
   function executeWithdrawals(
     address[] calldata accountAddresses,
     uint32[] calldata expiries
@@ -227,6 +282,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     return amounts;
   }
 
+  /// @dev settles one paid pro-rata claim and routes sanctioned accounts through escrow.
   function _executeWithdrawal(
     MarketState memory state,
     address accountAddress,
@@ -248,7 +304,13 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     if (normalizedAmountWithdrawn == 0) revert_NullWithdrawalAmount();
 
-    hooks.onExecuteWithdrawal(accountAddress, normalizedAmountWithdrawn, state, baseCalldataSize);
+    hooks.onExecuteWithdrawal(
+      accountAddress,
+      expiry,
+      normalizedAmountWithdrawn,
+      state,
+      baseCalldataSize
+    );
 
     status.normalizedAmountWithdrawn = newTotalWithdrawn;
     state.normalizedUnclaimedWithdrawals -= normalizedAmountWithdrawn;
@@ -276,10 +338,15 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     return normalizedAmountWithdrawn;
   }
 
+  /// @notice optionally repays debt, then applies available liquidity to old batches in FIFO order.
+  /// @dev processes at most `maxBatches` and stops early when liquidity runs out. a zero repayment
+  ///      is allowed, which makes this the bounded queue-maintenance path before market closure.
+  /// @param repayAmount underlying assets to transfer from the caller, or zero.
+  /// @param maxBatches upper bound on expired unpaid batches to process.
   function repayAndProcessUnpaidWithdrawalBatches(
     uint256 repayAmount,
     uint256 maxBatches
-  ) public nonReentrant sphereXGuardExternal {
+  ) public virtual nonReentrant sphereXGuardExternal {
     // Repay before updating state to ensure the paid amount is counted towards
     // any pending or unpaid withdrawals.
     if (repayAmount > 0) {
@@ -292,26 +359,37 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // Use an obfuscated constant for the base calldata size to prevent solc
     // function specialization.
-    if (repayAmount > 0) hooks.onRepay(repayAmount, state, _runtimeConstant(0x44));
+    uint256 currentTotalAssets;
+    if (repayAmount > 0) {
+      hooks.onRepay(repayAmount, state, _runtimeConstant(0x44));
+      currentTotalAssets = _onRepayAndGetTotalAssets(state, repayAmount);
+    } else {
+      currentTotalAssets = totalAssets();
+    }
 
     // Calculate assets available to process the first batch - will be updated after each batch
-    uint256 availableLiquidity = totalAssets() -
-      (state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
+    uint256 availableLiquidity = currentTotalAssets.satSub(
+      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
+    );
 
     // Get the maximum number of batches to process
     uint256 numBatches = MathUtils.min(maxBatches, _withdrawalData.unpaidBatches.length());
 
     uint256 i;
     // Process up to `maxBatches` unpaid batches while there is available liquidity
-    while (i++ < numBatches && availableLiquidity > 0) {
+    while (i < numBatches && availableLiquidity > 0) {
       // Process the next unpaid batch using available liquidity
       uint256 normalizedAmountPaid = _processUnpaidWithdrawalBatch(state, availableLiquidity);
       // Reduce liquidity available to next batch
       availableLiquidity = availableLiquidity.satSub(normalizedAmountPaid);
+      unchecked {
+        ++i;
+      }
     }
-    _writeState(state);
+    _writeState(state, currentTotalAssets);
   }
 
+  /// @dev pays the oldest unpaid batch and removes it from the queue once fully funded.
   function _processUnpaidWithdrawalBatch(
     MarketState memory state,
     uint256 availableLiquidity

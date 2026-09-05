@@ -20,6 +20,13 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 ARCH_CONTROLLER="0xC003f20F2642c76B81e5e1620c6D8cdEE826408f"
+# v1 wrapper factory for legacy (pre-v2.5, half-up rounding) markets. Frozen
+# forever in the facade at deployment: REQUIRED, no default. Use the zero
+# address only on chains with no legacy wrapper factory deployment.
+if [[ -z "${WRAPPER_FACTORY_V1:-}" ]]; then
+  echo "ERROR: WRAPPER_FACTORY_V1 must be set (zero address if no legacy deployment)" >&2
+  exit 1
+fi
 NETWORK_NAME="Sepolia"
 CHAIN_ID=11155111
 FOUNDRY_MIN_DATE="2024"  # Minimum acceptable forge build year
@@ -267,7 +274,7 @@ if [[ "$VERIFY" == true ]]; then
     --chain "$CHAIN_ID" \
     --verify \
     --etherscan-api-key "$ETHERSCAN_API_KEY" \
-    --constructor-args "$ARCH_CONTROLLER"
+    --constructor-args "$ARCH_CONTROLLER" "$WRAPPER_FACTORY_V1"
 else
   forge create \
     src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory \
@@ -275,7 +282,7 @@ else
     --private-key "$DEPLOYER_PRIVATE_KEY" \
     --chain "$CHAIN_ID" \
     --broadcast \
-    --constructor-args "$ARCH_CONTROLLER"
+    --constructor-args "$ARCH_CONTROLLER" "$WRAPPER_FACTORY_V1"
 fi
 
 echo ""
