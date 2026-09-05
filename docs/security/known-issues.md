@@ -77,11 +77,20 @@ and [withdrawal representation limits](../protocol/withdrawals.md#representation
 
 ## Withdrawal batches and rounding
 
-All lenders entering one batch share the interest earned by that batch's scaled
-position. A lender that queues later can therefore receive part of the interest
-accrued before they entered, while an earlier lender receives less of it. This
-is intentional: creating the batch should not penalize the first lender that
-benefits everyone else.
+All lenders entering one batch share its aggregate normalized payments pro rata
+according to final scaled ownership. Because payments can reserve assets and
+burn shares before later requests join, this averages payment vintages across
+the batch: early-paid lenders can receive part of the interest attached to
+later-paid shares, while later entrants can share interest already accrued by
+earlier unpaid shares. This is intentional: creating the batch should not
+penalize the first lender that benefits everyone else.
+
+`nukeFromOrbit` uses the same accounting when it forces a sanctioned lender's
+full direct balance into the current batch. The forced lender and existing
+members receive the same averaged result as voluntary participants with the
+same scaled amounts and entry timing; execution routes the sanctioned lender's
+share to escrow. The caller controls when quarantine is attempted but receives
+no special entitlement, and the batch conserves its aggregate reserved assets.
 
 Each partial payment to a batch floors its normalized payment independently.
 The discarded fraction is less than one atomic unit of the underlying per
