@@ -1,0 +1,10 @@
+{
+  "recordType": "initCodeStorage",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "PeriodicTermHooks_initCodeStorage_v2-5-4",
+  "address": {
+    "$ref": "periodic-term-hooks-init-code-storage"
+  },
+  "initCodeHash": "0xa0b67a5212e39db6ceb5ba6b01c7e3d494520d8df599381d8dc165b2cb8446c9"
+}

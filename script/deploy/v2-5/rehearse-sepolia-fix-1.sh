@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rehearse the Sepolia v2.5 fix-1 factory replacement against one pinned fork.
+# Rehearse the configured Sepolia factory replacement against one pinned fork.
 # With no argument, execute the engine check headlessly. --ui leaves a chain
 # 31337 fork running for the real-wallet locked-UI ceremony. --stop stops only
 # the recorded --ui Anvil process.
@@ -7,9 +7,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
 
-readonly RELEASE='v2-5-sepolia-fix-1'
+readonly CONFIG="${SEPOLIA_REPLACEMENT_CONFIG:-deployments/sepolia/v2-5-sepolia-fix-1.json}"
+export SEPOLIA_REPLACEMENT_CONFIG="$CONFIG"
+readonly RELEASE="$(jq -er '.release' "$CONFIG")"
 readonly PLAN="deployments/sepolia/plan-${RELEASE}.json"
-readonly EXECUTOR='0xCa7007a75296b532Ce1606d9e130eAa849800Ca7'
+readonly EXECUTOR="$(jq -er '.expectedExecutor' "$CONFIG")"
 readonly EXPECTED_CHAIN_ID='11155111'
 readonly ANVIL_CHAIN_ID='31337'
 readonly ACTIVE_SESSION_FILE="deployments/anvil/${RELEASE}-active-session"
@@ -22,7 +24,7 @@ esac
 
 if [[ "$mode" == '--stop' ]]; then
   if [[ ! -f "$ACTIVE_SESSION_FILE" ]]; then
-    echo 'No recorded v2.5 fix-1 UI rehearsal is running.'
+    echo "No recorded $RELEASE UI rehearsal is running."
     exit 0
   fi
   evidence_dir="$(<"$ACTIVE_SESSION_FILE")"
@@ -152,7 +154,7 @@ if [[ "$mode" == '--ui' ]]; then
   echo "Pinned Sepolia fork ready for the locked UI at block ${FORK_BLOCK_NUMBER}"
   echo "RPC: ${RPC} (chain ${ANVIL_CHAIN_ID})"
   echo "Evidence: ${evidence_dir}"
-  echo 'Next: DEPLOYMENTS_NETWORK=anvil bash script/deploy/v2-5/sepolia-fix-1-stage.sh activation'
+  echo "Next: SEPOLIA_REPLACEMENT_CONFIG=$CONFIG DEPLOYMENTS_NETWORK=anvil bash script/deploy/v2-5/sepolia-fix-1-stage.sh activation"
   exit 0
 fi
 

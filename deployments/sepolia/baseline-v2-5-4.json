@@ -1,0 +1,274 @@
+{
+  "schemaVersion": "1.0.0",
+  "release": "v2-5-4",
+  "baseline": {
+    "release": "v2-5-sepolia-fix-1",
+    "protocolVersion": "2.5.3",
+    "contractSourceCommit": "6dd6d697b2e381a94a33bfae29dc7945e12b14b8",
+    "sourceTag": "v2.5.3-sepolia",
+    "plan": "deployments/sepolia/plan-v2-5-sepolia-fix-1.json",
+    "impact": "deployments/sepolia/impact-v2-5-sepolia-fix-1.json"
+  },
+  "verifiedAt": "2026-09-05T16:19:38.533Z",
+  "chainId": 11155111,
+  "blockNumber": 11641455,
+  "blockHash": "0x54b07d6e9b903738522b222c2b473a706ffdb3e110dd9369a65b37731a4823c3",
+  "baselinePlanSha256": "6fd03f4afc9f7468b97b0e0239331c8cace0e9f741e03edb376e1e9b1b9f4a0b",
+  "verifiedTransactions": [
+    {
+      "id": "deploy-wildcat-4626-wrapper-factory",
+      "txHash": "0x9781e2ed943622ce0627485dd83f5ca16c579b7bd1757564cb235a15c579564b",
+      "blockNumber": 11581359,
+      "address": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "calldataHash": "0x9ada3f09ea004e966097aae9a99de1d5fc55ba89ce0713252196f68ef6f67f0f"
+    },
+    {
+      "id": "deploy-wildcat-market-init-code-storage",
+      "txHash": "0x8ec8017cc91b2f174ab30bd97afc5fd61ae00339e448787467d86eec642879f6",
+      "blockNumber": 11581360,
+      "address": "0x0514795F0A7CBb754f0B7Da92e1B2ce2FD13Bd90",
+      "calldataHash": "0x233768debced26ebdef80db67685a2f1d31ffa85843aad0f79942330a0b059cc"
+    },
+    {
+      "id": "deploy-hooks-factory-standard",
+      "txHash": "0x9dab6896f934b1cc44291a7bb1866ad7fd577b6f6ef4a487df6448c948d09871",
+      "blockNumber": 11581361,
+      "address": "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+      "calldataHash": "0xba24961a6c242bfe14113fae961d9ed1a777ab9d119f36584d74690e651120c1"
+    },
+    {
+      "id": "deploy-wildcat-market-revolving-init-code-storage",
+      "txHash": "0x3b6b83a7f4bc975471ee96c621362fbc8b870102d5a044e96ed57623496f951b",
+      "blockNumber": 11581362,
+      "address": "0x3B6eBDb29c937340568Ee90a4577BB0bB7535447",
+      "calldataHash": "0x51bc63aebcd70ce2e0873936e29bf1691ef9a6912fe3431de3d37f252b3b41d7"
+    },
+    {
+      "id": "deploy-hooks-factory-revolving",
+      "txHash": "0x5fef7eed5e56fe6906864ffb31d568f51bdd13b5bcd0e16916ae6c40ba1110e0",
+      "blockNumber": 11581363,
+      "address": "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C",
+      "calldataHash": "0xcace5108023d6324a4659474b5cea56365d2c8574293894d4aed5f4f428e34c4"
+    },
+    {
+      "id": "deploy-market-lens-core",
+      "txHash": "0xb38196158befed773eabd38c39744b10441d1d8f275a586a39d04ce1501ffe84",
+      "blockNumber": 11581364,
+      "address": "0xa12e227A67e4678A2428eD550df9564C7aFfB76E",
+      "calldataHash": "0xa0dcb80c46b6f45e5962358d747ea1fcb4a910181b4bebaf0fbe04d58377dadc"
+    },
+    {
+      "id": "deploy-market-lens-aggregator",
+      "txHash": "0x7048c6bc43ea02ca8c8da4d688bdf5120ce9bda0684868484adee272af1c526e",
+      "blockNumber": 11581365,
+      "address": "0xf86A8C0a7A167b695cF7E7eE2e1950Ddd0e4eD06",
+      "calldataHash": "0xb7365d7ff304005738e357ceea20f78483a544cda172d8ddadfe4e43837d8755"
+    },
+    {
+      "id": "deploy-market-lens-live",
+      "txHash": "0x4a32d422fafcf76c7c99f59c49e4c14525bdb70de88ea943bf7efc8889fb44e3",
+      "blockNumber": 11581366,
+      "address": "0x7491353fC4BB349c41f43122aaF9993cDa8E4dc3",
+      "calldataHash": "0xfdd90399fd566b116e12939a6d7088dc09ad881e890b068625365db8d6993e68"
+    },
+    {
+      "id": "deploy-market-lens",
+      "txHash": "0xc7075275ac2ecb1c24721837e22b20cc5c3dfbefd0cff014b4d1cfc2cab9cf8c",
+      "blockNumber": 11581367,
+      "address": "0x3e0A214d105463719F18DaA850246E770c9c7BDb",
+      "calldataHash": "0xb59744c0723a2cfd67f052748e02026c2b0698039c08e0ffae6d9e79f0e88974"
+    },
+    {
+      "id": "deploy-open-term-hooks-init-code-storage",
+      "txHash": "0x22c3be94cfe80e428855581a2fed9486e5f000bac30da85ab5b63c9bba9156a6",
+      "blockNumber": 11581368,
+      "address": "0xae00f2c2fd926007beF2EeC2B2204A4c3528b401",
+      "calldataHash": "0xb2f62e65ba4953850b36fe3bd51cbcd7a88299997e8f2d1c66595f646d691f3a"
+    },
+    {
+      "id": "deploy-fixed-term-hooks-init-code-storage",
+      "txHash": "0x2760bff5bb2bb71e20a46f686335f8b76c18f51d594df7ca770497d3c4e699d6",
+      "blockNumber": 11581369,
+      "address": "0xEB2f6c7DF8b760542e5b4ba509f4347252bdE4b8",
+      "calldataHash": "0x42b84c2fe1f6931d8f7326d13a7ce753e52453edc176bcf1907b1aa6c2321a32"
+    },
+    {
+      "id": "deploy-periodic-term-hooks-init-code-storage",
+      "txHash": "0xe5b4554562955ed51c49a0c8449242c7583d30c32baea39e9160e9361c5d07c5",
+      "blockNumber": 11581371,
+      "address": "0x931329D440E66f22F1CcDCe73C1049DBf5C35659",
+      "calldataHash": "0x9b7d8aa2728a1e1d23d4b2773bb3cfe4662b181b89fb9307d31c964177695687"
+    },
+    {
+      "id": "register-controller-factory-standard",
+      "txHash": "0x2430fa114121d0860a6d4d05d571bb6112ad0a044be875682cc5fb46289b5a2b",
+      "blockNumber": 11581372,
+      "calldataHash": "0xf001fc8a6b18cbd2972631a1a06d1f3d13379fb8325d644f6995574276d71b07"
+    },
+    {
+      "id": "register-controller-factory-revolving",
+      "txHash": "0x14610d1d7c911efa5775160b47e722695f4ac5fc92538935d4ae351bbe9d5eb3",
+      "blockNumber": 11581373,
+      "calldataHash": "0x2883a7e4888fe34bdffd3d1896e61aeeefea9ef517f9abfa851720b03639bad6"
+    },
+    {
+      "id": "add-standard-open-term-template",
+      "txHash": "0x128a5a984232d6b3f85ffc6b4a9ca1f2e7b7b122cdb70a00e8399d3d5dbe6eec",
+      "blockNumber": 11581374,
+      "calldataHash": "0x64f3d6bc290dc6e24cb1887473952bfd090831f69f1e396dcf18a63980d71ba5"
+    },
+    {
+      "id": "add-standard-fixed-term-template",
+      "txHash": "0x108097f08a3be1e67385dd4ba2f5b16bf66758f1f6b893c38a8d78ac63cd74cf",
+      "blockNumber": 11581375,
+      "calldataHash": "0xb24b9e8aca8fd769057a640b09eea77b62f8b791c2eedbefcc4da4f5200d29dc"
+    },
+    {
+      "id": "add-standard-periodic-term-template",
+      "txHash": "0xd6f8f408978c6db3e75a6ee69b60d35caf5b849e28e3ea21529c5ff6dbe0ec6e",
+      "blockNumber": 11581376,
+      "calldataHash": "0x349b2914f7f7b9ef9267bae676bd894876638c8682287ed1d630506957acd6ce"
+    },
+    {
+      "id": "add-revolving-open-term-template",
+      "txHash": "0xd91a0fe650810a6f835b76e5809055d2da9e2589ccc42dfb860de54fba9f896a",
+      "blockNumber": 11581377,
+      "calldataHash": "0xf1d9d7d2bf08f6b76e6fb2bf05656c593e409964a8080bc2c8c88e573e81016e"
+    },
+    {
+      "id": "add-revolving-fixed-term-template",
+      "txHash": "0xc06273870f797ba9cc89f89b13beb2b424761687e33f8cfefa94d5f1124536ed",
+      "blockNumber": 11581379,
+      "calldataHash": "0xc77931db3de2d76a77aae7dabd461a0d1024592764fa7f5875a7d73b5334a46d"
+    },
+    {
+      "id": "add-revolving-periodic-term-template",
+      "txHash": "0xa1f41352989e79ecf95f70d10b96dca18490d9fbffc62b0593a52a8fd0e9a729",
+      "blockNumber": 11581381,
+      "calldataHash": "0x1056018c5dacb06834bd1e502f0738db75ef5c7ac34dc498e1e1c48cf0a30391"
+    },
+    {
+      "id": "register-hooks-factory-standard",
+      "txHash": "0xbfc7bb95a652658e5cfea5f4a601ba24e83379f548bd51b66b34be6e0229763e",
+      "blockNumber": 11581383,
+      "calldataHash": "0x669efd0fe5a8807dd94052afd1ad40fd8c93cfad1fa7e3c3d8dd374888714ca4"
+    },
+    {
+      "id": "register-hooks-factory-revolving",
+      "txHash": "0x4ef3d6f8c74a48b788c3869f8ef5e5ca7a976fb7440342397f94ca91d02cf33a",
+      "blockNumber": 11581384,
+      "calldataHash": "0x669efd0fe5a8807dd94052afd1ad40fd8c93cfad1fa7e3c3d8dd374888714ca4"
+    }
+  ],
+  "code": [
+    {
+      "label": "helper",
+      "address": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+      "codeHash": "0x71813272287ef573f8a2f96101f1a9ba6982761ad9de14a3e65e88c236a8a6fa",
+      "codeBytes": 3207
+    },
+    {
+      "label": "archController",
+      "address": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+      "codeHash": "0x3622afdfc583101952ff6e608d76f9c897d2767297315962d97f8b3a2cc2df56",
+      "codeBytes": 8724
+    },
+    {
+      "label": "sanctionsSentinel",
+      "address": "0xFBCE262eC835be5e6A458cE1722EeCe0E453316B",
+      "codeHash": "0x197707fc0f75efad3007dd84a2078b91ec5bd1b4c026239d8c9c864f88d16525",
+      "codeBytes": 3364
+    },
+    {
+      "label": "v1WrapperFactory",
+      "address": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+      "codeHash": "0x775d378a274d715f5f998c3486fe0e279ebd5261feddc68abb86abc7a7287005",
+      "codeBytes": 19188
+    },
+    {
+      "label": "borrowerIdentityRegistry",
+      "address": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+      "codeHash": "0x3a2333df2b4f5681b7973d3e6c2f473c223558a33061e986a4deef1700b0c82c",
+      "codeBytes": 4496
+    },
+    {
+      "label": "accessListRoleProviderFactory",
+      "address": "0x92995EA2ba572E4Cb8bB41E30f813BeB77FD4974",
+      "codeHash": "0x756f72951dc7f57a8803ec86b6927f69981a319a867084224abdfa90be88b2c2",
+      "codeBytes": 4597
+    },
+    {
+      "label": "wrapperFactory",
+      "address": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+      "codeHash": "0x04c682702e52c90bbf9e6e6e71ce89785bd3fe033ff7cd911ec8f16abb6c19dc",
+      "codeBytes": 13505
+    },
+    {
+      "label": "standardMarketInitCodeStorage",
+      "address": "0x0514795F0A7CBb754f0B7Da92e1B2ce2FD13Bd90",
+      "codeHash": "0x2c5577b0b1fda0cbef88332211c6bd8e24fde20cf9f127c2d3426ebbf4591b79",
+      "codeBytes": 22792
+    },
+    {
+      "label": "standardHooksFactory",
+      "address": "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+      "codeHash": "0xe693aeb6169f41a1c585fd6211a6bd06f2c0d92937e89bbe36ea10dec52a2fd7",
+      "codeBytes": 16487
+    },
+    {
+      "label": "revolvingMarketInitCodeStorage",
+      "address": "0x3B6eBDb29c937340568Ee90a4577BB0bB7535447",
+      "codeHash": "0xedde01b07d93a907b86e3de9323633d23ed8ec65f94106ec98a7190c30b815af",
+      "codeBytes": 23430
+    },
+    {
+      "label": "revolvingHooksFactory",
+      "address": "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C",
+      "codeHash": "0xe387eaf395380b894aa5d7c9dec9d4799ce714d91d0f9d6eeea64633844c5e13",
+      "codeBytes": 17293
+    },
+    {
+      "label": "marketLensCore",
+      "address": "0xa12e227A67e4678A2428eD550df9564C7aFfB76E",
+      "codeHash": "0x0b159b133511e7eaebdb069b85232e9ef541ef51196cb7a5c808ac61cac87fcd",
+      "codeBytes": 19655
+    },
+    {
+      "label": "marketLensAggregator",
+      "address": "0xf86A8C0a7A167b695cF7E7eE2e1950Ddd0e4eD06",
+      "codeHash": "0x3e91d3589f25e5bfa4d6a93e41be54fba3b1b6b6515c799dd9b95d2e78a6b19b",
+      "codeBytes": 20794
+    },
+    {
+      "label": "marketLensLive",
+      "address": "0x7491353fC4BB349c41f43122aaF9993cDa8E4dc3",
+      "codeHash": "0x35f3323d3db42ef687c5f47f04a9f1d6a207aa08e3b941390357a1051a16c920",
+      "codeBytes": 5401
+    },
+    {
+      "label": "marketLens",
+      "address": "0x3e0A214d105463719F18DaA850246E770c9c7BDb",
+      "codeHash": "0xbbd7a7f64a4bcadef9c402327ae1dde7a5b9bf898b639f9bbc98301eca5d7139",
+      "codeBytes": 4391
+    },
+    {
+      "label": "openTermHooksInitCodeStorage",
+      "address": "0xae00f2c2fd926007beF2EeC2B2204A4c3528b401",
+      "codeHash": "0x6cda03a1c4523a0263c3f7473d6d97b7f6732462a31b9ac583fb77f047662ede",
+      "codeBytes": 17940
+    },
+    {
+      "label": "fixedTermHooksInitCodeStorage",
+      "address": "0xEB2f6c7DF8b760542e5b4ba509f4347252bdE4b8",
+      "codeHash": "0x14163266c6f76915a306115bbf28b5f038df4f2684efc7dfc3b64583ad8cc3cc",
+      "codeBytes": 19238
+    },
+    {
+      "label": "periodicTermHooksInitCodeStorage",
+      "address": "0x931329D440E66f22F1CcDCe73C1049DBf5C35659",
+      "codeHash": "0x8b40cbda693a2cdc5fc44128fb941ef4c60832a22ce80546011ba7fef51304d5",
+      "codeBytes": 21908
+    }
+  ],
+  "reusedRuntimeMatchesCurrentArtifacts": true
+}

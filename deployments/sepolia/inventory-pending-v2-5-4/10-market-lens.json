@@ -1,0 +1,10 @@
+{
+  "recordType": "deployment",
+  "role": "facade",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "MarketLens_v2-5-4",
+  "address": {
+    "$ref": "market-lens"
+  }
+}

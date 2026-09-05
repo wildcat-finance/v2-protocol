@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0.0",
+  "release": "v2-5-4",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contractSourceCommit": "bea503c2736d47de7fd34130c64f10783dc35b39",
+  "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+  "authorityPolicy": "fixed",
+  "authority": {
+    "helper": "0x981f1Fb406bD7a8385f9373c08Ab4c832Ed0d508",
+    "archController": "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+    "sanctionsSentinel": "0xFBCE262eC835be5e6A458cE1722EeCe0E453316B"
+  },
+  "reused": {
+    "v1WrapperFactory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+    "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+    "accessListRoleProviderFactory": "0x92995EA2ba572E4Cb8bB41E30f813BeB77FD4974"
+  },
+  "superseded": {
+    "wrapperFactory": "0x31D8D5564Ce11f764E74beca5B4e8d363046949f",
+    "standardMarketInitCodeStorage": "0x0514795F0A7CBb754f0B7Da92e1B2ce2FD13Bd90",
+    "standardHooksFactory": "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+    "revolvingMarketInitCodeStorage": "0x3B6eBDb29c937340568Ee90a4577BB0bB7535447",
+    "revolvingHooksFactory": "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C",
+    "marketLensCore": "0xa12e227A67e4678A2428eD550df9564C7aFfB76E",
+    "marketLensAggregator": "0xf86A8C0a7A167b695cF7E7eE2e1950Ddd0e4eD06",
+    "marketLensLive": "0x7491353fC4BB349c41f43122aaF9993cDa8E4dc3",
+    "marketLens": "0x3e0A214d105463719F18DaA850246E770c9c7BDb",
+    "openTermHooksInitCodeStorage": "0xae00f2c2fd926007beF2EeC2B2204A4c3528b401",
+    "fixedTermHooksInitCodeStorage": "0xEB2f6c7DF8b760542e5b4ba509f4347252bdE4b8",
+    "periodicTermHooksInitCodeStorage": "0x931329D440E66f22F1CcDCe73C1049DBf5C35659"
+  },
+  "templateFees": {
+    "feeRecipient": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "originationFeeAsset": "0x0000000000000000000000000000000000000000",
+    "originationFeeAmount": 0,
+    "protocolFeeBips": 500
+  },
+  "retirementTargets": [
+    "0x89797b782cA5b4BBFC975146B98ba3941Fe26C56",
+    "0xb3FBD4FBeb1EE4BEE7afdbC4A75C7c4E97CF105C"
+  ],
+  "protocolVersion": "2.5.4",
+  "baseline": {
+    "release": "v2-5-sepolia-fix-1",
+    "protocolVersion": "2.5.3",
+    "contractSourceCommit": "6dd6d697b2e381a94a33bfae29dc7945e12b14b8",
+    "sourceTag": "v2.5.3-sepolia",
+    "plan": "deployments/sepolia/plan-v2-5-sepolia-fix-1.json",
+    "impact": "deployments/sepolia/impact-v2-5-sepolia-fix-1.json"
+  },
+  "replacementReasons": {
+    "wrapperFactory": "embeds wrapper deposit/mint recipient-policy enforcement",
+    "standardMarket": "includes withdrawal-expiry overflow checks, expiry asset checkpoints, and post-settlement delinquency refresh",
+    "revolvingMarket": "includes shared withdrawal fixes and donation-safe drawn-principal accounting",
+    "standardFactory": "sources new-market SphereX configuration from the ArchController and binds the new wrapper and market store",
+    "revolvingFactory": "sources new-market SphereX configuration from the ArchController and binds the new wrapper and revolving market store",
+    "openTermHooks": "admits the market-specific registered wrapper through the recipient policy and transfer hook",
+    "fixedTermHooks": "admits the market-specific registered wrapper through the recipient policy and transfer hook",
+    "periodicTermHooks": "admits the market-specific registered wrapper through the recipient policy and transfer hook"
+  }
+}

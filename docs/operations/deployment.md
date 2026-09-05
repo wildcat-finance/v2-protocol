@@ -12,9 +12,11 @@ The current release implementation lives in
 code, not a generic checklist. Read the scripts and generated plan for the exact
 contracts, authority path, and transaction order.
 
-The Sepolia post-release factory replacement has its own
-[`v2.5.3 fix-1 runbook`](./sepolia-v2-5-fix-1.md). It does not repeat the original
-V2.5 authority ceremony.
+The next Sepolia replacement uses the
+[`v2.5.4 runbook`](./sepolia-v2-5-4.md) and
+[operator checklist](../../script/deploy/CEREMONY_CHECKLIST.md).
+The completed [`v2.5.3 fix-1 runbook`](./sepolia-v2-5-fix-1.md) is historical.
+Both replacement ceremonies retain the existing V2.5 authority.
 
 ## Machine-readable authority
 

@@ -10,10 +10,7 @@ process.env.FOUNDRY_PROFILE = "deploy";
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const PACKAGE_PATH = path.join(REPO_ROOT, "package.json");
-const CONFIG_PATH = path.join(
-  REPO_ROOT,
-  "deployments/sepolia/v2-5-sepolia-fix-1.json"
-);
+const DEFAULT_CONFIG = "deployments/sepolia/v2-5-sepolia-fix-1.json";
 const PREVIOUS_PLAN_PATH = path.join(
   REPO_ROOT,
   "deployments/sepolia/plan-v2-5.json"
@@ -195,7 +192,10 @@ function usage() {
     [--preflight <path>] [--rpc-url <url>] [--out <path>]
 
 All commands are read-only with respect to Sepolia. generate writes local plan
-artifacts and never signs or broadcasts a transaction.`);
+artifacts and never signs or broadcasts a transaction.
+
+Select a replacement with --config <path> or SEPOLIA_REPLACEMENT_CONFIG.
+The default remains the historical v2.5.3 fix-1 config.`);
 }
 
 function parseArgs(argv) {
@@ -226,8 +226,18 @@ function writeJson(filePath, value) {
 }
 
 function config() {
-  const value = readJson(CONFIG_PATH);
-  const protocolVersion = readJson(PACKAGE_PATH).version;
+  const configPath = path.resolve(
+    REPO_ROOT,
+    process.env.SEPOLIA_REPLACEMENT_CONFIG || DEFAULT_CONFIG
+  );
+  const value = readJson(configPath);
+  // Older packets recorded the version in their impact report, separately
+  // from the production-Solidity pin (whose package version may predate it).
+  const protocolVersion =
+    value.protocolVersion ||
+    readJson(
+      path.join(REPO_ROOT, `deployments/sepolia/impact-${value.release}.json`)
+    ).protocolVersion;
   if (
     value.schemaVersion !== "1.0.0" ||
     value.network !== "sepolia" ||
@@ -242,8 +252,13 @@ function config() {
     throw new Error(
       `Invalid factory-replacement config: ${path.relative(
         REPO_ROOT,
-        CONFIG_PATH
+        configPath
       )}`
+    );
+  }
+  if (readJson(PACKAGE_PATH).version !== protocolVersion) {
+    throw new Error(
+      `Package version does not match selected release ${protocolVersion}`
     );
   }
   for (const address of [
@@ -376,13 +391,23 @@ function loadDeployArtifact(source, contract) {
 
 function loadArtifacts() {
   return Object.fromEntries(
-    Object.entries(ARTIFACTS).map(([key, definition]) => [
-      key,
-      {
-        ...definition,
-        ...loadDeployArtifact(definition.source, definition.contract),
-      },
-    ])
+    Object.entries(ARTIFACTS).map(([key, definition]) => {
+      const artifact = loadDeployArtifact(
+        definition.source,
+        definition.contract
+      );
+      // These deployments store STOP || creation code as runtime, so their
+      // EIP-170 limit is stricter than a market's ordinary initcode limit.
+      if (
+        definition.storedInitCode &&
+        (artifact.bytecode.length - 2) / 2 + 1 > 24576
+      ) {
+        throw new Error(
+          `${key} init-code store exceeds the runtime size limit`
+        );
+      }
+      return [key, { ...definition, ...artifact }];
+    })
   );
 }
 
@@ -936,6 +961,28 @@ function stripMetadata(bytecode) {
 }
 
 function writeImpactReport(rotation, artifacts) {
+  if (rotation.baseline) {
+    const previousPlan = readJson(
+      path.resolve(REPO_ROOT, rotation.baseline.plan)
+    );
+    const previousImpact = readJson(
+      path.resolve(REPO_ROOT, rotation.baseline.impact)
+    );
+    const report = replacementImpactReport(
+      rotation,
+      artifacts,
+      previousPlan,
+      previousImpact
+    );
+    writeJson(
+      path.join(
+        REPO_ROOT,
+        `deployments/sepolia/impact-${rotation.release}.json`
+      ),
+      report
+    );
+    return;
+  }
   const previousPlan = readJson(PREVIOUS_PLAN_PATH);
   const previousById = new Map(
     previousPlan.transactions.map((transaction) => [
@@ -984,6 +1031,98 @@ function writeImpactReport(rotation, artifacts) {
       components,
     }
   );
+}
+
+// Compare against the completed predecessor, including reused components that
+// were recorded in its impact report but had no deployment card of their own.
+function replacementImpactReport(
+  rotation,
+  artifacts,
+  previousPlan,
+  previousImpact
+) {
+  assertEqual(
+    previousPlan.release,
+    rotation.baseline.release,
+    "Baseline plan release"
+  );
+  assertEqual(previousPlan.chainId, rotation.chainId, "Baseline chain");
+  assertEqual(
+    previousImpact.release,
+    rotation.baseline.release,
+    "Baseline impact release"
+  );
+  assertEqual(
+    previousImpact.protocolVersion,
+    rotation.baseline.protocolVersion,
+    "Baseline version"
+  );
+  assertEqual(
+    previousImpact.contractSourceCommit,
+    rotation.baseline.contractSourceCommit,
+    "Baseline source"
+  );
+  const components = Object.entries(artifacts).map(([component, artifact]) => {
+    const previous = previousImpact.components.find(
+      (entry) => entry.component === component
+    );
+    if (!previous) throw new Error(`Baseline impact omits ${component}`);
+    const transaction = previousPlan.transactions.find(
+      ({ id }) => id === artifact.previousId
+    );
+    if (transaction) {
+      const bytecode = artifact.storedInitCode
+        ? transaction.constructorArgs.decoded[0]
+        : transaction.initCode;
+      assertEqual(
+        keccak256(bytecode),
+        previous.replacementCreationCodeHash,
+        `${component} baseline bytecode`
+      );
+    } else if (artifact.decision !== "reuse") {
+      throw new Error(`Baseline plan omits ${artifact.previousId}`);
+    }
+    const replacementCreationCodeHash = keccak256(artifact.bytecode);
+    const exactChanged =
+      replacementCreationCodeHash !== previous.replacementCreationCodeHash;
+    if (artifact.decision === "reuse" && exactChanged) {
+      throw new Error(
+        `Cannot reuse ${component}: creation bytecode changed since ${rotation.baseline.release}`
+      );
+    }
+    return {
+      component,
+      decision: artifact.decision,
+      reason: rotation.replacementReasons?.[component] || artifact.reason,
+      previousAddress: artifact.previousAddressKey
+        ? rotation.superseded[artifact.previousAddressKey]
+        : component === "identityRegistry"
+        ? rotation.reused.borrowerIdentityRegistry
+        : rotation.reused.accessListRoleProviderFactory,
+      previousCreationCodeHash: previous.replacementCreationCodeHash,
+      replacementCreationCodeHash,
+      previousCreationCodeBytes: previous.replacementCreationCodeBytes,
+      replacementCreationCodeBytes: (artifact.bytecode.length - 2) / 2,
+      exactChanged,
+      constructorBindingsChanged: [
+        "standardFactory",
+        "revolvingFactory",
+        "marketLensCore",
+        "marketLensAggregator",
+        "marketLensLive",
+        "marketLens",
+      ].includes(component),
+    };
+  });
+  return {
+    schemaVersion: "1.1.0",
+    release: rotation.release,
+    protocolVersion: rotation.protocolVersion,
+    comparedAgainst: rotation.baseline.release,
+    baseline: rotation.baseline,
+    contractSourceCommit: rotation.contractSourceCommit,
+    components,
+  };
 }
 
 function writeSourcePin(rotation) {
@@ -1297,6 +1436,14 @@ function validate() {
     `deployments/sepolia/plan-${rotation.release}.json`
   );
   assertRotationPlan(readJson(planPath), rotation, artifacts);
+  if (rotation.baseline) {
+    replacementImpactReport(
+      rotation,
+      artifacts,
+      readJson(path.resolve(REPO_ROOT, rotation.baseline.plan)),
+      readJson(path.resolve(REPO_ROOT, rotation.baseline.impact))
+    );
+  }
   console.log(
     `Sepolia v${
       rotation.protocolVersion
@@ -2132,6 +2279,11 @@ async function main() {
     return;
   }
   const args = parseArgs(argv);
+  if (args.config !== undefined) {
+    if (typeof args.config !== "string")
+      throw new Error("--config requires a path");
+    process.env.SEPOLIA_REPLACEMENT_CONFIG = args.config;
+  }
   if (command === "generate") return generate();
   if (command === "generate-inventory-pending")
     return generateInventoryPending();
@@ -2156,5 +2308,6 @@ module.exports = {
   assertRehearsalPlan,
   buildRehearsalPlan,
   buildEntries,
+  replacementImpactReport,
   stripMetadata,
 };

@@ -1,0 +1,10 @@
+{
+  "recordType": "deployment",
+  "role": "aggregator",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "MarketLensAggregator_v2-5-4",
+  "address": {
+    "$ref": "market-lens-aggregator"
+  }
+}

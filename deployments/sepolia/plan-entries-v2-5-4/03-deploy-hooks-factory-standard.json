@@ -1,0 +1,46 @@
+{
+  "id": "deploy-hooks-factory-standard",
+  "kind": "deploy",
+  "artifactName": "src/HooksFactory.sol:HooksFactory",
+  "constructorArgs": {
+    "decoded": [
+      "0xC003f20F2642c76B81e5e1620c6D8cdEE826408f",
+      "0xFBCE262eC835be5e6A458cE1722EeCe0E453316B",
+      {
+        "$ref": "wildcat-4626-wrapper-factory"
+      },
+      {
+        "$ref": "wildcat-market-init-code-storage"
+      },
+      "0x262dd1bcb9397d075851aab22d7fa22d131e160d457cc6ed6f1803f23b5d75eb",
+      "0xc2cF90781595203D1e75c28246b306C95d4b8b21"
+    ]
+  },
+  "output": "hooks-factory-standard",
+  "description": "Deploy the replacement Sepolia v2.5.4 standard hooks factory.",
+  "envelope": {
+    "chainId": 11155111,
+    "expectedExecutor": "0xCa7007a75296b532Ce1606d9e130eAa849800Ca7",
+    "to": null,
+    "value": "0",
+    "data": "initCode+constructorArgs",
+    "gasLimitPolicy": "estimate*1.3",
+    "nonceCheck": "display-and-confirm"
+  },
+  "predicate": {
+    "type": "callEq",
+    "target": {
+      "$ref": "hooks-factory-standard"
+    },
+    "call": {
+      "sig": "marketInitCodeStorage() view returns (address)",
+      "args": []
+    },
+    "expect": {
+      "$ref": "wildcat-market-init-code-storage"
+    }
+  },
+  "after": [
+    "deploy-wildcat-market-init-code-storage"
+  ]
+}

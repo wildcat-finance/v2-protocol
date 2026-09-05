@@ -1,4 +1,8 @@
-# V2.5.3 Sepolia replacement ceremony
+# V2.5.4 Sepolia replacement ceremony
+
+The reviewed scope and source pin are in the
+[V2.5.4 runbook](../../docs/operations/sepolia-v2-5-4.md).
+The completed V2.5.3 fix-1 packet remains historical evidence.
 
 Run the fixed-authority factory replacement twice:
 
@@ -53,12 +57,12 @@ export DEPLOYMENTS_NETWORK=anvil
 unset RPC_URL
 
 stage() {
-  bash script/deploy/v2-5/sepolia-fix-1-stage.sh "$@"
+  bash script/deploy/v2-5/sepolia-v2-5-4-stage.sh "$@"
 }
 
 rehearse() {
   FORK_RPC_URL="$FORK_RPC_URL" \
-    bash script/deploy/v2-5/rehearse-sepolia-fix-1.sh "$@"
+    bash script/deploy/v2-5/rehearse-sepolia-v2-5-4.sh "$@"
 }
 ```
 
@@ -172,7 +176,7 @@ The ignored `deployments/sepolia/ceremony-evidence/` session directory retains:
 - Operator evidence.
 
 The stage also copies the verified run-state to
-`deployments/sepolia/run-state-v2-5-sepolia-fix-1.json` for inventory and
+`deployments/sepolia/run-state-v2-5-4.json` for inventory and
 downstream handoff work.
 
 `finalize-inventory` sends no transactions. It:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Human-driven stages for the v2.5.3 Sepolia factory replacement.
+# Human-driven stages for a configured Sepolia factory replacement.
 #
 # This script derives ceremony identity from the reviewed config and generated
 # plan. It never signs or broadcasts. The operator signs every transaction in
@@ -8,10 +8,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../../.."
 
-readonly RELEASE='v2-5-sepolia-fix-1'
+readonly CONFIG="${SEPOLIA_REPLACEMENT_CONFIG:-deployments/sepolia/v2-5-sepolia-fix-1.json}"
+export SEPOLIA_REPLACEMENT_CONFIG="$CONFIG"
+readonly RELEASE="$(jq -er '.release' "$CONFIG")"
 readonly REHEARSAL_RELEASE="${RELEASE}-rehearsal"
 readonly ROTATION_SCRIPT='scripts/sepolia-v2-5-fix-rotation.js'
-readonly CONFIG='deployments/sepolia/v2-5-sepolia-fix-1.json'
 readonly LIVE_PLAN="deployments/sepolia/plan-${RELEASE}.json"
 readonly LIVE_PACKAGE="deployments/sepolia/ceremony-${RELEASE}-eoa.json"
 readonly REHEARSAL_PLAN="deployments/anvil/plan-${REHEARSAL_RELEASE}.json"
@@ -94,7 +95,7 @@ assert_rpc() {
 
 assert_anvil_session() {
   if [[ ! -f "$ANVIL_SESSION_FILE" ]]; then
-    echo 'No recorded UI rehearsal. Start one with rehearse-sepolia-fix-1.sh --ui.' >&2
+    echo "No recorded UI rehearsal. Start one with SEPOLIA_REPLACEMENT_CONFIG=$CONFIG bash script/deploy/v2-5/rehearse-sepolia-fix-1.sh --ui." >&2
     exit 1
   fi
   local evidence_dir pid_file anvil_pid command_line
@@ -370,16 +371,19 @@ run_check() {
     echo 'FORK_RPC_URL is not Sepolia.' >&2
     exit 1
   fi
-  forge test
-  yarn test:fixed
+  FOUNDRY_PROFILE=default forge test
+  FOUNDRY_PROFILE=default yarn test:fixed
   FOUNDRY_PROFILE=deploy forge test
-  FOUNDRY_PROFILE=deploy forge build --sizes
+  FOUNDRY_PROFILE=deploy forge build --sizes src
+  node "$ROTATION_SCRIPT" validate
+  node --test scripts/sepolia-v2-5-fix-rotation.test.js
+  generate_artifacts
   (
     cd deploy-ui
     npm ci
     npm audit
     npm test
-    npm run build
+    CEREMONY_PACKAGE="../$LIVE_PACKAGE" npm run build
     SEPOLIA_RPC_URL="$fork_rpc_url" npm run test:fork
   )
   assert_clean_pushed_source
