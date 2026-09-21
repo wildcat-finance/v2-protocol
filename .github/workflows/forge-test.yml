@@ -40,15 +40,21 @@ jobs:
           test "$(git submodule status | wc -l)" -eq 4
           ! git submodule status | grep -Eq '^[-+U]'
 
+      - name: Read Foundry version
+        id: foundry-version
+        run: echo "version=$(cat .foundry-version)" >> "$GITHUB_OUTPUT"
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
         with:
-          version: v1.7.1
+          version: ${{ steps.foundry-version.outputs.version }}
           cache: false
 
       - name: Verify toolchain contract
         run: |
+          foundry_version="$(cat .foundry-version)"
           forge --version
+          test "$(forge --version | sed -n '1p')" = "forge Version: ${foundry_version#v}"
           forge config --json | jq -e '.solc == "0.8.25"'
           all_sources="$(find src script test -type f -name '*.sol' | wc -l)"
           pinned_sources="$(grep -rlx --include='*.sol' 'pragma solidity 0.8.25;' src script test | wc -l)"
