@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import '../WildcatArchController.sol';
 import '../market/WildcatMarket.sol';
@@ -15,6 +15,9 @@ using WithdrawalBatchDataLib for WithdrawalBatchData global;
 using WithdrawalBatchDataLib for WithdrawalBatchLenderStatus global;
 using WithdrawalBatchDataLib for WithdrawalBatchDataWithLenderStatus global;
 
+/// @notice lens classification for a withdrawal batch.
+/// @dev `Expired` means the recorded current batch passed its timestamp but has not been processed
+///      into the paid or unpaid state yet.
 enum BatchStatus {
   Pending,
   Expired,
@@ -22,6 +25,7 @@ enum BatchStatus {
   Complete
 }
 
+/// @notice aggregate accounting and lens status for one withdrawal expiry.
 struct WithdrawalBatchData {
   uint32 expiry;
   BatchStatus status;
@@ -31,6 +35,7 @@ struct WithdrawalBatchData {
   uint256 normalizedTotalAmount;
 }
 
+/// @notice one lender's ownership and claim state in a withdrawal batch.
 struct WithdrawalBatchLenderStatus {
   address lender;
   uint256 scaledAmount;
@@ -39,12 +44,16 @@ struct WithdrawalBatchLenderStatus {
   uint256 availableWithdrawalAmount;
 }
 
+/// @notice aggregate withdrawal data paired with one lender's status.
 struct WithdrawalBatchDataWithLenderStatus {
   WithdrawalBatchData batch;
   WithdrawalBatchLenderStatus lenderStatus;
 }
 
+/// @notice fillers for withdrawal batches and lender claims.
 library WithdrawalBatchDataLib {
+  /// @notice fills aggregate batch state for `expiry`.
+  /// @dev an unknown expiry is represented by the market's empty batch and classifies as complete.
   function fill(
     WithdrawalBatchData memory data,
     WildcatMarket market,
@@ -55,10 +64,9 @@ library WithdrawalBatchDataLib {
     data.scaledTotalAmount = batch.scaledTotalAmount;
     data.scaledAmountBurned = batch.scaledAmountBurned;
     data.normalizedAmountPaid = batch.normalizedAmountPaid;
-    if (expiry >= block.timestamp) {
-      data.status = BatchStatus.Pending;
-    } else if (expiry > market.previousState().lastInterestAccruedTimestamp) {
-      data.status = BatchStatus.Expired;
+    bool isPendingBatch = expiry != 0 && expiry == market.previousState().pendingWithdrawalExpiry;
+    if (isPendingBatch) {
+      data.status = expiry >= block.timestamp ? BatchStatus.Pending : BatchStatus.Expired;
     } else {
       data.status = data.scaledAmountBurned == data.scaledTotalAmount
         ? BatchStatus.Complete
@@ -73,6 +81,7 @@ library WithdrawalBatchDataLib {
     }
   }
 
+  /// @notice fills the lender's pro-rata paid and unpaid amounts for `batch`.
   function fill(
     WithdrawalBatchLenderStatus memory data,
     WildcatMarket market,
@@ -80,6 +89,8 @@ library WithdrawalBatchDataLib {
     address lender
   ) internal view {
     data.lender = lender;
+    // Unknown expiries return an empty batch, so there is no lender share to calculate.
+    if (batch.scaledTotalAmount == 0) return;
     AccountWithdrawalStatus memory status = market.getAccountWithdrawalStatus(lender, batch.expiry);
     data.scaledAmount = status.scaledAmount;
     data.normalizedAmountWithdrawn = status.normalizedAmountWithdrawn;

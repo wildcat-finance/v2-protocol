@@ -1,18 +1,81 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
-import './MarketData.sol';
-import './TokenData.sol';
-import './HooksInstanceData.sol';
+import '../IHooksFactory.sol';
+import './FactoryScopedHooksTemplateData.sol';
 import './HooksDataForBorrower.sol';
+import './HooksInstanceData.sol';
+import './MarketData.sol';
+import './MarketLiveData.sol';
+import './TokenData.sol';
+import './interfaces/IMarketLensAggregator.sol';
+import './interfaces/IMarketLensCore.sol';
+import './interfaces/IMarketLensLive.sol';
 
-contract MarketLens {
+/// @title Wildcat market lens
+/// @notice stable read facade over separate core, aggregation, and live-data helpers.
+/// @dev each function forwards its original calldata by `staticcall` and passes the helper's exact
+///      result through. splitting the implementation keeps the facade under the code-size limit.
+contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
+  /// @dev Declared for ABI completeness: raised in the data-filling libraries
+  ///      and bubbled up to callers through `_delegate`.
+  error NotV2Market();
+
+  /// @notice ArchController configured for this facade.
   WildcatArchController public immutable archController;
-  HooksFactory public immutable hooksFactory;
+  /// @notice default hooks factory configured for this facade.
+  IHooksFactory public immutable hooksFactory;
+  /// @notice helper used for strict market, token, and lender reads.
+  IMarketLensCore public immutable coreHelper;
+  /// @notice helper used for cross-factory aggregation reads.
+  IMarketLensAggregator public immutable aggregationHelper;
+  /// @notice helper used for compact accrued-state reads.
+  IMarketLensLive public immutable liveHelper;
 
-  constructor(address _archController, address _hooksFactory) {
+  constructor(
+    address _archController,
+    address _hooksFactory,
+    address _coreHelper,
+    address _aggregationHelper,
+    address _liveHelper
+  ) {
     archController = WildcatArchController(_archController);
-    hooksFactory = HooksFactory(_hooksFactory);
+    hooksFactory = IHooksFactory(_hooksFactory);
+    coreHelper = IMarketLensCore(_coreHelper);
+    aggregationHelper = IMarketLensAggregator(_aggregationHelper);
+    liveHelper = IMarketLensLive(_liveHelper);
+  }
+
+  // ========================================================================== //
+  //                              Internal helpers                              //
+  // ========================================================================== //
+
+  /// @dev forwards the original calldata to `helper` and passes its complete result through.
+  ///      the helper has to expose the same function signature. there is no fallback routing.
+  function _delegate(address helper) internal view {
+    assembly ('memory-safe') {
+      let ptr := mload(0x40)
+      calldatacopy(ptr, 0, calldatasize())
+      let success := staticcall(gas(), helper, ptr, calldatasize(), 0, 0)
+      let size := returndatasize()
+      returndatacopy(ptr, 0, size)
+      if iszero(success) {
+        revert(ptr, size)
+      }
+      return(ptr, size)
+    }
+  }
+
+  function _delegateCoreHelper() internal view {
+    _delegate(address(coreHelper));
+  }
+
+  function _delegateAggregationHelper() internal view {
+    _delegate(address(aggregationHelper));
+  }
+
+  function _delegateLiveHelper() internal view {
+    _delegate(address(liveHelper));
   }
 
   // ========================================================================== //
@@ -21,8 +84,21 @@ contract MarketLens {
 
   function getHooksDataForBorrower(
     address borrower
-  ) public view returns (HooksDataForBorrower memory data) {
-    data.fill(archController, hooksFactory, borrower);
+  ) external view returns (HooksDataForBorrower memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getHooksDataForBorrower(
+    address hooksFactoryAddress,
+    address borrower
+  ) external view returns (HooksDataForBorrower memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getAggregatedHooksDataForBorrower(
+    address borrower
+  ) external view returns (HooksDataForBorrower memory data) {
+    _delegateAggregationHelper();
   }
 
   // ========================================================================== //
@@ -31,12 +107,22 @@ contract MarketLens {
 
   function getHooksInstancesForBorrower(
     address borrower
-  ) public view returns (HooksInstanceData[] memory arr) {
-    address[] memory hooksInstances = hooksFactory.getHooksInstancesForBorrower(borrower);
-    arr = new HooksInstanceData[](arr.length);
-    for (uint i; i < hooksInstances.length; i++) {
-      arr[i].fill(hooksInstances[i], hooksFactory);
-    }
+  ) external view returns (HooksInstanceData[] memory arr) {
+    _delegateAggregationHelper();
+  }
+
+  function getHooksInstancesForBorrower(
+    address hooksFactoryAddress,
+    address borrower
+  ) external view returns (HooksInstanceData[] memory arr) {
+    _delegateAggregationHelper();
+  }
+
+  /// @inheritdoc IMarketLensAggregator
+  function getAggregatedHooksInstancesForBorrower(
+    address borrower
+  ) external view returns (HooksInstanceData[] memory arr) {
+    _delegateAggregationHelper();
   }
 
   // ========================================================================== //
@@ -46,42 +132,72 @@ contract MarketLens {
   function getHooksTemplateForBorrower(
     address borrower,
     address hooksTemplate
-  ) public view returns (HooksTemplateData memory data) {
-    data.fill(hooksFactory, hooksTemplate, borrower);
+  ) external view returns (HooksTemplateData memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getHooksTemplateForBorrower(
+    address hooksFactoryAddress,
+    address borrower,
+    address hooksTemplate
+  ) external view returns (HooksTemplateData memory data) {
+    _delegateAggregationHelper();
   }
 
   function getHooksTemplatesForBorrower(
     address borrower,
     address[] memory hooksTemplates
-  ) public view returns (HooksTemplateData[] memory data) {
-    data = new HooksTemplateData[](hooksTemplates.length);
-    for (uint i; i < hooksTemplates.length; i++) {
-      data[i].fill(hooksFactory, hooksTemplates[i], borrower);
-    }
+  ) external view returns (HooksTemplateData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getHooksTemplatesForBorrower(
+    address hooksFactoryAddress,
+    address borrower,
+    address[] memory hooksTemplates
+  ) external view returns (HooksTemplateData[] memory data) {
+    _delegateAggregationHelper();
   }
 
   function getAllHooksTemplatesForBorrower(
     address borrower
-  ) public view returns (HooksTemplateData[] memory data) {
-    address[] memory hooksTemplates = hooksFactory.getHooksTemplates();
-    return getHooksTemplatesForBorrower(borrower, hooksTemplates);
+  ) external view returns (HooksTemplateData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getAllHooksTemplatesForBorrower(
+    address hooksFactoryAddress,
+    address borrower
+  ) external view returns (HooksTemplateData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  /// @inheritdoc IMarketLensAggregator
+  function getAggregatedAllHooksTemplatesForBorrower(
+    address borrower
+  ) external view returns (HooksTemplateData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  /// @inheritdoc IMarketLensAggregator
+  function getAggregatedHooksTemplatesForBorrowerWithFactory(
+    address borrower
+  ) external view returns (FactoryScopedHooksTemplateData[] memory data) {
+    _delegateAggregationHelper();
   }
 
   // ========================================================================== //
   //                                 Token info                                 //
   // ========================================================================== //
 
-  function getTokenInfo(address token) public view returns (TokenMetadata memory info) {
-    info.fill(token);
+  function getTokenInfo(address token) external view returns (TokenMetadata memory info) {
+    _delegateCoreHelper();
   }
 
   function getTokensInfo(
-    address[] memory tokens
-  ) public view returns (TokenMetadata[] memory info) {
-    info = new TokenMetadata[](tokens.length);
-    for (uint256 i; i < tokens.length; i++) {
-      info[i].fill(tokens[i]);
-    }
+    address[] calldata tokens
+  ) external view returns (TokenMetadata[] memory info) {
+    _delegateCoreHelper();
   }
 
   // ========================================================================== //
@@ -89,34 +205,129 @@ contract MarketLens {
   // ========================================================================== //
 
   function getMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256) {
-    return hooksFactory.getMarketsForHooksTemplateCount(hooksTemplate);
+    _delegateAggregationHelper();
   }
 
-  function getMarketData(address market) public view returns (MarketData memory data) {
-    data.fill(WildcatMarket(market));
+  function getMarketsForHooksTemplateCount(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  ) external view returns (uint256) {
+    _delegateAggregationHelper();
   }
 
-  function getMarketsData(address[] memory markets) public view returns (MarketData[] memory data) {
-    data = new MarketData[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      data[i].fill(WildcatMarket(markets[i]));
-    }
+  function getAggregatedMarketsForHooksTemplateCount(
+    address hooksTemplate
+  ) external view returns (uint256 count) {
+    _delegateAggregationHelper();
+  }
+
+  function getMarketData(address market) external view returns (MarketData memory data) {
+    _delegateCoreHelper();
+  }
+
+  function getMarketsData(
+    address[] calldata markets
+  ) external view returns (MarketData[] memory data) {
+    _delegateCoreHelper();
+  }
+
+  function getMarketDataV2(address market) external view returns (MarketDataV2_5 memory data) {
+    _delegateCoreHelper();
+  }
+
+  function getMarketsDataV2(
+    address[] calldata markets
+  ) external view returns (MarketDataV2_5[] memory data) {
+    _delegateCoreHelper();
   }
 
   function getPaginatedMarketsDataForHooksTemplate(
     address hooksTemplate,
     uint256 start,
     uint256 end
-  ) public view returns (MarketData[] memory data) {
-    address[] memory markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate, start, end);
-    return getMarketsData(markets);
+  ) external view returns (MarketData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getPaginatedMarketsDataForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) external view returns (MarketData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getPaginatedMarketsDataV2ForHooksTemplate(
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) external view returns (MarketDataV2_5[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getPaginatedMarketsDataV2ForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  ) external view returns (MarketDataV2_5[] memory data) {
+    _delegateAggregationHelper();
   }
 
   function getAllMarketsDataForHooksTemplate(
     address hooksTemplate
   ) external view returns (MarketData[] memory data) {
-    address[] memory markets = hooksFactory.getMarketsForHooksTemplate(hooksTemplate);
-    return getMarketsData(markets);
+    _delegateAggregationHelper();
+  }
+
+  function getAllMarketsDataForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  ) external view returns (MarketData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getAllMarketsDataV2ForHooksTemplate(
+    address hooksTemplate
+  ) external view returns (MarketDataV2_5[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getAllMarketsDataV2ForHooksTemplate(
+    address hooksFactoryAddress,
+    address hooksTemplate
+  ) external view returns (MarketDataV2_5[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getAggregatedAllMarketsDataForHooksTemplate(
+    address hooksTemplate
+  ) external view returns (MarketData[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  function getAggregatedAllMarketsDataV2ForHooksTemplate(
+    address hooksTemplate
+  ) external view returns (MarketDataV2_5[] memory data) {
+    _delegateAggregationHelper();
+  }
+
+  // ========================================================================== //
+  //                              Live market reads                             //
+  // ========================================================================== //
+
+  function getMarketsLiveDataV2(
+    address[] calldata markets
+  ) external view returns (MarketLiveDataV2_5[] memory data) {
+    _delegateLiveHelper();
+  }
+
+  function getMarketsLiveDataWithLenderStatusV2(
+    address lender,
+    address[] calldata markets
+  ) external view returns (MarketLiveDataWithLenderStatusV2_5[] memory data) {
+    _delegateLiveHelper();
   }
 
   // ========================================================================== //
@@ -126,18 +337,15 @@ contract MarketLens {
   function getMarketDataWithLenderStatus(
     address lender,
     address market
-  ) public view returns (MarketDataWithLenderStatus memory data) {
-    data.fill(WildcatMarket(market), lender);
+  ) external view returns (MarketDataWithLenderStatus memory data) {
+    _delegateCoreHelper();
   }
 
   function getMarketsDataWithLenderStatus(
     address lender,
-    address[] memory markets
-  ) public view returns (MarketDataWithLenderStatus[] memory data) {
-    data = new MarketDataWithLenderStatus[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      data[i].fill(WildcatMarket(markets[i]), lender);
-    }
+    address[] calldata markets
+  ) external view returns (MarketDataWithLenderStatus[] memory data) {
+    _delegateCoreHelper();
   }
 
   // ========================================================================== //
@@ -148,43 +356,33 @@ contract MarketLens {
     address lender,
     address market
   ) external view returns (LenderAccountData memory data) {
-    data.fill(WildcatMarket(market), lender);
+    _delegateCoreHelper();
   }
 
   function getLenderAccountData(
     address lender,
-    address[] memory markets
+    address[] calldata markets
   ) external view returns (LenderAccountData[] memory arr) {
-    arr = new LenderAccountData[](markets.length);
-    for (uint256 i; i < markets.length; i++) {
-      arr[i].fill(WildcatMarket(markets[i]), lender);
-    }
+    _delegateCoreHelper();
   }
 
   function getLenderAccountsData(
     address marketAddress,
-    address[] memory lenders
+    address[] calldata lenders
   ) external view returns (LenderAccountData[] memory data) {
-    data = new LenderAccountData[](lenders.length);
-    WildcatMarket market = WildcatMarket(marketAddress);
-    for (uint256 i; i < lenders.length; i++) {
-      data[i].fill(market, lenders[i]);
-    }
+    _delegateCoreHelper();
   }
 
   function queryLenderAccount(
-    LenderAccountQuery memory query
+    LenderAccountQuery calldata query
   ) external view returns (LenderAccountQueryResult memory result) {
-    result.fill(query);
+    _delegateCoreHelper();
   }
 
   function queryLenderAccounts(
-    LenderAccountQuery[] memory queries
+    LenderAccountQuery[] calldata queries
   ) external view returns (LenderAccountQueryResult[] memory result) {
-    result = new LenderAccountQueryResult[](queries.length);
-    for (uint256 i; i < queries.length; i++) {
-      result[i].fill(queries[i]);
-    }
+    _delegateCoreHelper();
   }
 
   // ========================================================================== //
@@ -194,18 +392,15 @@ contract MarketLens {
   function getWithdrawalBatchData(
     address market,
     uint32 expiry
-  ) public view returns (WithdrawalBatchData memory data) {
-    data.fill(WildcatMarket(market), expiry);
+  ) external view returns (WithdrawalBatchData memory data) {
+    _delegateCoreHelper();
   }
 
   function getWithdrawalBatchesData(
     address market,
-    uint32[] memory expiries
-  ) public view returns (WithdrawalBatchData[] memory data) {
-    data = new WithdrawalBatchData[](expiries.length);
-    for (uint256 i; i < expiries.length; i++) {
-      data[i].fill(WildcatMarket(market), expiries[i]);
-    }
+    uint32[] calldata expiries
+  ) external view returns (WithdrawalBatchData[] memory data) {
+    _delegateCoreHelper();
   }
 
   // ========================================================================== //
@@ -214,13 +409,10 @@ contract MarketLens {
 
   function getWithdrawalBatchesDataWithLenderStatus(
     address market,
-    uint32[] memory expiries,
+    uint32[] calldata expiries,
     address lender
   ) external view returns (WithdrawalBatchDataWithLenderStatus[] memory statuses) {
-    statuses = new WithdrawalBatchDataWithLenderStatus[](expiries.length);
-    for (uint256 i; i < expiries.length; i++) {
-      statuses[i].fill(WildcatMarket(market), expiries[i], lender);
-    }
+    _delegateCoreHelper();
   }
 
   function getWithdrawalBatchDataWithLenderStatus(
@@ -228,7 +420,7 @@ contract MarketLens {
     uint32 expiry,
     address lender
   ) external view returns (WithdrawalBatchDataWithLenderStatus memory status) {
-    status.fill(WildcatMarket(market), expiry, lender);
+    _delegateCoreHelper();
   }
 
   function getWithdrawalBatchDataWithLendersStatus(
@@ -240,11 +432,6 @@ contract MarketLens {
     view
     returns (WithdrawalBatchData memory batch, WithdrawalBatchLenderStatus[] memory statuses)
   {
-    batch.fill(WildcatMarket(market), expiry);
-
-    statuses = new WithdrawalBatchLenderStatus[](lenders.length);
-    for (uint256 i; i < lenders.length; i++) {
-      statuses[i].fill(WildcatMarket(market), batch, lenders[i]);
-    }
+    _delegateCoreHelper();
   }
 }

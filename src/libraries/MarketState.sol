@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './MathUtils.sol';
 import './SafeCastLib.sol';
@@ -9,6 +9,22 @@ using MarketStateLib for MarketState global;
 using MarketStateLib for Account global;
 using FeeMath for MarketState global;
 
+/// @notice cached market accounting state.
+/// @dev functions pass this struct through hooks by value, then write the final value explicitly.
+/// @param isClosed whether deposits, borrows, repayments, and term changes are disabled.
+/// @param maxTotalSupply normalized supply cap for new deposits.
+/// @param accruedProtocolFees protocol fees owed in underlying-asset units.
+/// @param normalizedUnclaimedWithdrawals assets reserved for paid claims not yet executed.
+/// @param scaledTotalSupply total live scaled supply, including unpaid withdrawal requests.
+/// @param scaledPendingWithdrawals scaled supply assigned to current and unpaid batches.
+/// @param pendingWithdrawalExpiry expiry of the current batch, or zero when none exists.
+/// @param isDelinquent status used for the next accrual interval.
+/// @param timeDelinquent rolling timer that rises while delinquent and decays while healthy.
+/// @param protocolFeeBips protocol share of base interest, charged on top, in bips.
+/// @param annualInterestBips base annual lender rate, in bips.
+/// @param reserveRatioBips reserve requirement on supply outside withdrawal batches, in bips.
+/// @param scaleFactor ray-scaled ratio from scaled shares to normalized market tokens.
+/// @param lastInterestAccruedTimestamp end of the last applied accrual interval.
 struct MarketState {
   bool isClosed;
   uint128 maxTotalSupply;
@@ -32,11 +48,19 @@ struct MarketState {
   uint16 annualInterestBips;
   // Percentage of outstanding balance that must be held in liquid reserves
   uint16 reserveRatioBips;
-  // Ratio between internal balances and underlying token amounts
+  // Ratio between internal balances and underlying token amounts.
+  //
+  // Known accepted limitation: the scale factor has a finite uint112 lifetime.
+  // At the theoretical maximum 100% APR plus 100% delinquency fee, the
+  // representation limit is reached after about 7.7 years under maximally
+  // frequent updates. At 28% cumulative the horizon exceeds 55 years, and at
+  // typical 10-15% cumulative rates it exceeds 100 years. See Known Issues.
   uint112 scaleFactor;
   uint32 lastInterestAccruedTimestamp;
 }
 
+/// @notice one lender's direct scaled market-token balance.
+/// @param scaledBalance share-like balance before applying the market scale factor.
 struct Account {
   uint104 scaledBalance;
 }
@@ -60,6 +84,15 @@ library MarketStateLib {
     return uint256(state.maxTotalSupply).satSub(state.totalSupply());
   }
 
+  // Rounding directions are deliberate and asymmetric as of v2.5: converting
+  // normalized amounts INTO scaled units always rounds down (the acting party
+  // eats the wei), while converting scaled amounts OUT to normalized labels
+  // rounds half-up (`normalizeAmount`). The half-up scaler (`scaleAmount`)
+  // was removed: no market accounting path may round scaled credits up, and
+  // reintroducing it invites the rounding-mismatch bugs fixed pre-release.
+  // Anything that genuinely needs half-up division should use
+  // `MathUtils.rayDiv` explicitly, not add a scaler here.
+
   /**
    * @dev Normalize an amount of scaled tokens using the current scale factor.
    */
@@ -71,10 +104,38 @@ library MarketStateLib {
   }
 
   /**
-   * @dev Scale an amount of normalized tokens using the current scale factor.
+   * @dev Maximum scaled amount that `normalizedAmount` can settle when scaled
+   *      tokens are priced with the floor rounding used for batch payments
+   *      (`mulDiv(scaled, scaleFactor, RAY)`): the largest `k` that fits in
+   *      `uint104` and still satisfies
+   *      floor(k * scaleFactor / RAY) <= normalizedAmount.
+   *
+   *      `scaleAmountDown` can understate this by one scaled token, which
+   *      strands an unpayable batch remainder on closed markets, where
+   *      repayment is impossible. Settling that final token pays it at the
+   *      floor price, so the payment never exceeds `normalizedAmount`.
    */
-  function scaleAmount(MarketState memory state, uint256 amount) internal pure returns (uint256) {
-    return amount.rayDiv(state.scaleFactor);
+  function maxScaledSettleableAmount(
+    MarketState memory state,
+    uint256 normalizedAmount
+  ) internal pure returns (uint256) {
+    // withdrawal amounts only get uint104. cap here before multiplying liquidity by RAY;
+    // direct token transfers can make `normalizedAmount` arbitrarily large.
+    uint256 maxScaledAmount = type(uint104).max;
+    uint256 normalizedMaxScaledAmount = MathUtils.mulDiv(maxScaledAmount, state.scaleFactor, RAY);
+    if (normalizedAmount >= normalizedMaxScaledAmount) return maxScaledAmount;
+    return MathUtils.mulDivUp(normalizedAmount + 1, RAY, state.scaleFactor) - 1;
+  }
+
+  /**
+   * @dev Scale an amount of normalized tokens using the current scale factor,
+   *      rounding down.
+   */
+  function scaleAmountDown(
+    MarketState memory state,
+    uint256 amount
+  ) internal pure returns (uint256) {
+    return (amount * RAY) / state.scaleFactor;
   }
 
   /**
@@ -87,14 +148,23 @@ library MarketStateLib {
   function liquidityRequired(
     MarketState memory state
   ) internal pure returns (uint256 _liquidityRequired) {
-    uint256 scaledWithdrawals = state.scaledPendingWithdrawals;
-    uint256 scaledRequiredReserves = (state.scaledTotalSupply - scaledWithdrawals).bipMul(
-      state.reserveRatioBips
-    ) + scaledWithdrawals;
+    uint256 reserveRatioBips = state.reserveRatioBips;
+    uint256 normalizedSupplyRequired;
+    // 0% is the usual case, and 100% should recombine exactly to totalSupply.
+    // only intermediate ratios need the normalized pending/outstanding partition.
+    if (reserveRatioBips == 0) {
+      normalizedSupplyRequired = state.normalizeAmount(state.scaledPendingWithdrawals);
+    } else if (reserveRatioBips == BIP) {
+      normalizedSupplyRequired = state.totalSupply();
+    } else {
+      uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
+      uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
+      normalizedSupplyRequired =
+        normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(reserveRatioBips);
+    }
     return
-      state.normalizeAmount(scaledRequiredReserves) +
-      state.accruedProtocolFees +
-      state.normalizedUnclaimedWithdrawals;
+      normalizedSupplyRequired + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
   }
 
   /**
@@ -106,7 +176,7 @@ library MarketStateLib {
     MarketState memory state,
     uint256 totalAssets
   ) internal pure returns (uint128) {
-    uint256 totalAvailableAssets = totalAssets - state.normalizedUnclaimedWithdrawals;
+    uint256 totalAvailableAssets = totalAssets.satSub(state.normalizedUnclaimedWithdrawals);
     return uint128(MathUtils.min(totalAvailableAssets, state.accruedProtocolFees));
   }
 
@@ -127,6 +197,7 @@ library MarketStateLib {
     return totalAssets.satSub(state.liquidityRequired());
   }
 
+  /// @dev returns true only when a current batch exists and its expiry is strictly in the past.
   function hasPendingExpiredBatch(MarketState memory state) internal view returns (bool result) {
     uint256 expiry = state.pendingWithdrawalExpiry;
     assembly {
@@ -135,6 +206,7 @@ library MarketStateLib {
     }
   }
 
+  /// @dev returns lender supply, paid-but-unclaimed withdrawals, and accrued protocol fees.
   function totalDebts(MarketState memory state) internal pure returns (uint256) {
     return
       state.normalizeAmount(state.scaledTotalSupply) +

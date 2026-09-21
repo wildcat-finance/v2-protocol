@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';
@@ -47,9 +47,18 @@ contract Deploy4626Factory is Script {
       vm.startBroadcast();
     }
 
-    Wildcat4626WrapperFactory factory = existingFactory == address(0)
-      ? new Wildcat4626WrapperFactory(archController)
-      : Wildcat4626WrapperFactory(existingFactory);
+    Wildcat4626WrapperFactory factory;
+    if (existingFactory == address(0)) {
+      // Legacy (pre-v2.5, half-up rounding) markets are forwarded to the v1
+      // wrapper factory. The address is REQUIRED and frozen forever in the
+      // facade: a silent zero default would permanently strand legacy
+      // markets on a chain that has a v1 deployment. Pass the zero address
+      // explicitly on chains with no legacy deployment.
+      address v1Factory = vm.envAddress('WRAPPER_FACTORY_V1');
+      factory = new Wildcat4626WrapperFactory(archController, v1Factory);
+    } else {
+      factory = Wildcat4626WrapperFactory(existingFactory);
+    }
 
     console.log('Wrapper factory:', address(factory));
 
@@ -68,4 +77,3 @@ contract Deploy4626Factory is Script {
     console.log('Market borrower:', IWildcatMarketFor4626Deploy(market).borrower());
   }
 }
-

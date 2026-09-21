@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './MarketState.sol';
 import './FIFOQueue.sol';
@@ -7,25 +7,29 @@ import './FIFOQueue.sol';
 using MathUtils for uint256;
 using WithdrawalLib for WithdrawalBatch global;
 
-/**
- * Withdrawals are grouped together in batches with a fixed expiry.
- * Until a withdrawal is paid out, the tokens are not burned from the market
- * and continue to accumulate interest.
- */
+/// @notice aggregate accounting for requests sharing one expiry.
+/// @dev tokens keep earning interest until payment reserves assets and burns scaled supply.
+/// @param scaledTotalAmount cumulative scaled amount requested for the batch.
+/// @param scaledAmountBurned scaled amount already paid and removed from live supply.
+/// @param normalizedAmountPaid underlying assets reserved for the paid portion.
 struct WithdrawalBatch {
-  // Total scaled amount of tokens to be withdrawn
   uint104 scaledTotalAmount;
-  // Amount of scaled tokens that have been paid by borrower
   uint104 scaledAmountBurned;
-  // Amount of normalized tokens that have been paid by borrower
   uint128 normalizedAmountPaid;
 }
 
+/// @notice one account's ownership and executed amount for a withdrawal batch.
+/// @param scaledAmount account's fixed pro-rata share of the batch.
+/// @param normalizedAmountWithdrawn amount already transferred or sent to sanctions escrow.
 struct AccountWithdrawalStatus {
   uint104 scaledAmount;
   uint128 normalizedAmountWithdrawn;
 }
 
+/// @notice withdrawal storage shared by current, unpaid, and paid batches.
+/// @param unpaidBatches FIFO expiries for underfunded batches.
+/// @param batches aggregate batch data keyed by expiry.
+/// @param accountStatuses account claims keyed by expiry then account.
 struct WithdrawalData {
   FIFOQueue unpaidBatches;
   mapping(uint32 => WithdrawalBatch) batches;
@@ -33,6 +37,7 @@ struct WithdrawalData {
 }
 
 library WithdrawalLib {
+  /// @dev returns the scaled part of `batch` that still needs payment.
   function scaledOwedAmount(WithdrawalBatch memory batch) internal pure returns (uint104) {
     return batch.scaledTotalAmount - batch.scaledAmountBurned;
   }

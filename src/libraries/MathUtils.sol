@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './Errors.sol';
 
@@ -71,7 +71,7 @@ library MathUtils {
   function satAdd(uint256 a, uint256 b, uint256 maxValue) internal pure returns (uint256 c) {
     unchecked {
       c = a + b;
-      return ternary(c < maxValue, c, maxValue);
+      return ternary(c < a || c >= maxValue, maxValue, c);
     }
   }
 

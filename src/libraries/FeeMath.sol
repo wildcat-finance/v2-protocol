@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import './MathUtils.sol';
 import './SafeCastLib.sol';
@@ -27,6 +27,7 @@ library FeeMath {
     }
   }
 
+  /// @dev returns linear base interest from the last accrual timestamp through `timestamp`, in ray.
   function calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
@@ -37,6 +38,8 @@ library FeeMath {
     );
   }
 
+  /// @dev accrues the protocol's fee on base interest without increasing lender balances.
+  /// @return protocolFee normalized fee added to `state.accruedProtocolFees`.
   function applyProtocolFee(
     MarketState memory state,
     uint256 baseInterestRay
@@ -49,6 +52,8 @@ library FeeMath {
     state.accruedProtocolFees = (state.accruedProtocolFees + protocolFee).toUint128();
   }
 
+  /// @dev advances or decays the delinquency timer and returns the fee rate accrued over the
+  ///      interval's penalized seconds, in ray.
   function updateDelinquency(
     MarketState memory state,
     uint256 timestamp,
@@ -63,7 +68,7 @@ library FeeMath {
       timestamp - state.lastInterestAccruedTimestamp
     );
 
-    if (timeWithPenalty > 0) {
+    if (timeWithPenalty > 0 && delinquencyFeeBips > 0) {
       // Calculate penalty fees on the interest accrued.
       delinquencyFeeRay = calculateLinearInterestFromBips(delinquencyFeeBips, timeWithPenalty);
     }
@@ -82,7 +87,7 @@ library FeeMath {
    * @param state Encoded state parameters
    * @param delinquencyGracePeriod Seconds in delinquency before penalties apply
    * @param timeDelta Seconds since the last update
-   * @param `timeWithPenalty` Number of seconds since the last update where
+   * @return `timeWithPenalty` Number of seconds since the last update where
    *        the market was in delinquency outside of the grace period.
    */
   function updateTimeDelinquentAndGetPenaltyTime(
@@ -153,18 +158,18 @@ library FeeMath {
       protocolFee = state.applyProtocolFee(baseInterestRay);
     }
 
-    if (delinquencyFeeBips > 0) {
-      delinquencyFeeRay = state.updateDelinquency(
-        timestamp,
-        delinquencyFeeBips,
-        delinquencyGracePeriod
-      );
-    }
+    delinquencyFeeRay = state.updateDelinquency(
+      timestamp,
+      delinquencyFeeBips,
+      delinquencyGracePeriod
+    );
 
     // Calculate new scaleFactor
     uint256 prevScaleFactor = state.scaleFactor;
     uint256 scaleFactorDelta = prevScaleFactor.rayMul(baseInterestRay + delinquencyFeeRay);
 
+    // The checked cast deliberately reverts at the accepted finite uint112
+    // scale-factor horizon rather than truncating. See MarketState and Known Issues.
     state.scaleFactor = (prevScaleFactor + scaleFactorDelta).toUint112();
     state.lastInterestAccruedTimestamp = uint32(timestamp);
   }

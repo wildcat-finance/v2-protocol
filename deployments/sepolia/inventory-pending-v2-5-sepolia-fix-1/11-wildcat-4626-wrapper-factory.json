@@ -1,0 +1,11 @@
+{
+  "recordType": "wrapperFactory",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deploymentKey": "Wildcat4626WrapperFactory_v2-5-sepolia-fix-1",
+  "address": {
+    "$ref": "wildcat-4626-wrapper-factory"
+  },
+  "v1Factory": "0x0566Fe57682164af689f1440cb3BCEedEe3bf843",
+  "canonicalIntent": true
+}

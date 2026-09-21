@@ -1,37 +1,28 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
-// ========================================================================== //
-//        Common structs for OpenTermHooks and FixedTermHooks        //
-// ========================================================================== //
-
-/**
- * @dev Input parameters to create a new role provider with a call to a provider factory.
- * @param timeToLive Time to live for the new provider.
- * @param providerFactoryCalldata Calldata to be passed to the provider factory.
- */
+/// @notice configuration for creating and attaching a provider during hooks deployment.
+/// @param timeToLive seconds added to this provider's credential timestamp to determine expiry.
+/// @param providerFactoryCalldata provider-specific input passed to `createRoleProvider`.
 struct CreateProviderInputs {
   uint32 timeToLive;
   bytes providerFactoryCalldata;
 }
 
-/**
- * @dev Input parameters to add a role provider that has already been deployed.
- * @param providerAddress Address of the role provider.
- * @param timeToLive Time to live for the provider.
- */
+/// @notice configuration for attaching an existing provider during hooks deployment.
+/// @param providerAddress provider trusted by the new hooks instance.
+/// @param timeToLive seconds added to its credential timestamps to determine expiry on this hook.
 struct ExistingProviderInputs {
   address providerAddress;
   uint32 timeToLive;
 }
 
-/**
- * @dev Constructor parameters for new access control or fixed term hooks instance.
- * @param name Name of the hooks instance.
- * @param roleProviderFactory Address of the role provider factory.
- * @param newProviderInputs Inputs for creating new role providers.
- * @param existingProviders Inputs for adding existing role providers.
- */
+/// @notice shared constructor configuration for built-in access-control hooks.
+/// @param name display name stored on the hooks instance.
+/// @param roleProviderFactory factory used for every entry in `newProviderInputs`.
+/// @param newProviderInputs providers to create and attach.
+/// @param existingProviders providers to attach without deploying them.
+/// @dev `roleProviderFactory` may be zero only when `newProviderInputs` is empty.
 struct NameAndProviderInputs {
   string name;
   address roleProviderFactory;

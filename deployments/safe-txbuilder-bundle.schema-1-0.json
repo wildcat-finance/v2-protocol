@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wildcat.finance/schemas/safe-txbuilder-bundle.schema-1-0.json",
+  "title": "Wildcat Safe Transaction Builder Bundle 1.0",
+  "type": "object",
+  "required": ["version", "chainId", "createdAt", "meta", "transactions"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "chainId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "createdAt": { "type": "integer", "minimum": 1 },
+    "meta": {
+      "type": "object",
+      "required": [
+        "name",
+        "description",
+        "txBuilderVersion",
+        "safeVersion",
+        "requiredSafeOperation",
+        "createdFromSafeAddress",
+        "createdFromOwnerAddress",
+        "checksum"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "txBuilderVersion": { "const": "2.0.1" },
+        "safeVersion": { "const": "1.4.1" },
+        "requiredSafeOperation": { "const": "1" },
+        "createdFromSafeAddress": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$"
+        },
+        "createdFromOwnerAddress": { "const": "" },
+        "checksum": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "transactions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "to",
+          "value",
+          "data",
+          "contractMethod",
+          "contractInputsValues"
+        ],
+        "properties": {
+          "to": {
+            "const": "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"
+          },
+          "value": { "const": "0" },
+          "data": {
+            "type": "string",
+            "pattern": "^0x(?:[a-fA-F0-9]{2})+$"
+          },
+          "contractMethod": {
+            "type": "object",
+            "required": ["inputs", "name", "payable"],
+            "properties": {
+              "inputs": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["internalType", "name", "type"],
+                  "properties": {
+                    "internalType": { "const": "bytes" },
+                    "name": { "const": "transactions" },
+                    "type": { "const": "bytes" }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "name": { "const": "multiSend" },
+              "payable": { "const": false }
+            },
+            "additionalProperties": false
+          },
+          "contractInputsValues": {
+            "type": "object",
+            "required": ["transactions"],
+            "properties": {
+              "transactions": {
+                "type": "string",
+                "pattern": "^0x(?:[a-fA-F0-9]{2})+$"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

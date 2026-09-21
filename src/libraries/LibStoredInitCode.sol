@@ -1,32 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.24;
+pragma solidity 0.8.25;
 
+/// @notice deploys and reuses large creation bytecode through inert code-storage contracts.
 library LibStoredInitCode {
+  /// @notice deploying the inert init-code storage contract failed.
   error InitCodeDeploymentFailed();
+
+  /// @notice CREATE or CREATE2 using stored init code failed.
   error DeploymentFailed();
 
+  /// @notice deploys `data` as inert runtime code and returns its storage contract.
+  /// @dev runtime code is `STOP || data`; deployment helpers skip the leading byte.
   function deployInitCode(bytes memory data) internal returns (address initCodeStorage) {
     assembly {
       let size := mload(data)
       let createSize := add(size, 0x0b)
-      // Prefix Code
+      // Prefix code
       //
-      // Has trailing STOP instruction so the deployed data
-      // can not be executed as a smart contract.
+      // The creation program returns one extra byte: a leading STOP followed
+      // by `data`. The STOP makes the storage contract inert if somebody calls
+      // it directly. The deployment helpers below skip that byte when they
+      // copy the stored init code back into memory.
+      //
+      // CODECOPY starts at byte 10 of this creation program. Byte 10 is the
+      // STOP, and the original `data` begins immediately after it.
       //
       // Instruction                | Stack
-      // ----------------------------------------------------
-      // PUSH2 size                 | size                  |
-      // PUSH0                      | 0, size               |
-      // DUP2                       | size, 0, size         |
-      // PUSH1 10 (offset to STOP)  | 10, size, 0, size     |
-      // PUSH0                      | 0, 10, size, 0, size  |
-      // CODECOPY                   | 0, size               |
-      // RETURN                     |                       |
-      // STOP                       |                       |
-      // ----------------------------------------------------
+      // ----------------------------------------------------------------
+      // PUSH2 size + 1             | size + 1                     |
+      // PUSH0                      | 0, size + 1                  |
+      // DUP2                       | size + 1, 0, size + 1        |
+      // PUSH1 10 (offset to STOP)  | 10, size + 1, 0, size + 1    |
+      // PUSH0                      | 0, 10, size + 1, 0, size + 1 |
+      // CODECOPY                   | 0, size + 1                  |
+      // RETURN                     |                              |
+      // STOP                       |                              |
+      // ----------------------------------------------------------------
 
-      // Shift (size + 1) to position it in front of the PUSH2 instruction.
+      // Put size + 1 into the PUSH2 immediate because the returned runtime
+      // includes the leading STOP.
       // Reuse `data.length` memory for the create prefix to avoid
       // unnecessary memory allocation.
       mstore(data, or(shl(64, add(size, 1)), 0x6100005f81600a5f39f300))
@@ -52,6 +64,8 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev calculates the CREATE2 address from a prefix returned by `getCreate2Prefix`, `salt`,
+  ///      and the full init-code hash.
   function calculateCreate2Address(
     uint256 create2Prefix,
     bytes32 salt,
@@ -78,10 +92,12 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev deploys stored init code with CREATE and no ETH.
   function createWithStoredInitCode(address initCodeStorage) internal returns (address deployment) {
     deployment = createWithStoredInitCode(initCodeStorage, 0);
   }
 
+  /// @dev deploys stored init code with CREATE and forwards `value` wei.
   function createWithStoredInitCode(
     address initCodeStorage,
     uint256 value
@@ -89,6 +105,7 @@ library LibStoredInitCode {
     assembly {
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(initCodeStorage), 1)
+      // Stored runtime is STOP || initcode. Skip the first byte.
       extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
       deployment := create(value, initCodePointer, initCodeSize)
       if iszero(deployment) {
@@ -98,6 +115,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev deploys stored init code with CREATE2, `salt`, and no ETH.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt
@@ -105,6 +123,7 @@ library LibStoredInitCode {
     deployment = create2WithStoredInitCode(initCodeStorage, salt, 0);
   }
 
+  /// @dev deploys stored init code with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt,
@@ -113,6 +132,7 @@ library LibStoredInitCode {
     assembly {
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(initCodeStorage), 1)
+      // Stored runtime is STOP || initcode. Skip the first byte.
       extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
       deployment := create2(value, initCodePointer, initCodeSize, salt)
       if iszero(deployment) {
@@ -122,6 +142,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev appends memory `constructorArgs`, then deploys with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt,
@@ -131,7 +152,7 @@ library LibStoredInitCode {
     assembly {
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(initCodeStorage), 1)
-      // Copy code from target address to memory starting at byte 1
+      // Stored runtime is STOP || initcode. Skip the first byte.
       extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
       // Copy constructor args from memory to initcode
       let constructorArgsSize := mload(constructorArgs)
@@ -145,6 +166,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev appends memory `constructorArgs`, then deploys with CREATE2 and no ETH.
   function create2WithStoredInitCode(
     address initCodeStorage,
     bytes32 salt,
@@ -153,6 +175,7 @@ library LibStoredInitCode {
     return create2WithStoredInitCode(initCodeStorage, salt, 0, constructorArgs);
   }
 
+  /// @dev appends calldata `constructorArgs`, then deploys with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCodeCD(
     address initCodeStorage,
     bytes32 salt,
@@ -162,7 +185,7 @@ library LibStoredInitCode {
     assembly {
       let initCodePointer := mload(0x40)
       let initCodeSize := sub(extcodesize(initCodeStorage), 1)
-      // Copy code from target address to memory starting at byte 1
+      // Stored runtime is STOP || initcode. Skip the first byte.
       extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
       // Copy constructor args from calldata to end of initcode
       let constructorArgsSize := constructorArgs.length
@@ -176,6 +199,7 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev appends calldata `constructorArgs`, then deploys with CREATE2 and no ETH.
   function create2WithStoredInitCodeCD(
     address initCodeStorage,
     bytes32 salt,

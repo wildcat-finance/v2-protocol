@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 uint256 constant InterestAndFeesAccrued_abi_head_size = 0xc0;
 uint256 constant InterestAndFeesAccrued_toTimestamp_offset = 0x20;
@@ -28,39 +28,59 @@ function emit_Approval(address owner, address spender, uint256 value) {
   }
 }
 
-function emit_MaxTotalSupplyUpdated(uint256 assets) {
+function emit_MaxTotalSupplyUpdated(
+  address eventCaller,
+  uint256 previousMaxTotalSupply,
+  uint256 newMaxTotalSupply
+) {
   assembly {
-    mstore(0, assets)
-    log1(0, 0x20, 0xf2672935fc79f5237559e2e2999dbe743bf65430894ac2b37666890e7c69e1af)
+    mstore(0, previousMaxTotalSupply)
+    mstore(0x20, newMaxTotalSupply)
+    log2(
+      0,
+      0x40,
+      0xd017ca3aaecec8f5f194aa734b4f62d6a43d6a273268b625de051c3b692a2c6e,
+      eventCaller
+    )
   }
 }
 
-function emit_ProtocolFeeBipsUpdated(uint256 protocolFeeBips) {
+function emit_ProtocolFeeBipsUpdated(
+  address eventCaller,
+  uint256 previousProtocolFeeBips,
+  uint256 newProtocolFeeBips
+) {
   assembly {
-    mstore(0, protocolFeeBips)
-    log1(0, 0x20, 0x4b34705283cdb9398d0e50b216b8fb424c6d4def5db9bfadc661ee3adc6076ee)
+    mstore(0, previousProtocolFeeBips)
+    mstore(0x20, newProtocolFeeBips)
+    log2(
+      0,
+      0x40,
+      0x54f104211bc2c1b4b49e83767e54234a36150ee5cbf00a5516a19e7a5026c509,
+      eventCaller
+    )
   }
 }
 
-function emit_AnnualInterestBipsUpdated(uint256 annualInterestBipsUpdated) {
+function emit_AnnualInterestAndReserveRatioBipsUpdated(
+  address eventCaller,
+  uint256 previousAnnualInterestBips,
+  uint256 newAnnualInterestBips,
+  uint256 previousReserveRatioBips,
+  uint256 newReserveRatioBips
+) {
   assembly {
-    mstore(0, annualInterestBipsUpdated)
-    log1(0, 0x20, 0xff7b6c8be373823323d3c5d99f5d027dd409dce5db54eae511bbdd5546b75037)
-  }
-}
-
-function emit_ReserveRatioBipsUpdated(uint256 reserveRatioBipsUpdated) {
-  assembly {
-    mstore(0, reserveRatioBipsUpdated)
-    log1(0, 0x20, 0x72877a153052500f5edbb2f9da96a0f45d671d4b4555fdf8628a709dc4eab43a)
-  }
-}
-
-function emit_SanctionedAccountAssetsSentToEscrow(address account, address escrow, uint256 amount) {
-  assembly {
-    mstore(0, escrow)
-    mstore(0x20, amount)
-    log2(0, 0x40, 0x571e706c2f09ae0632313e5f3ae89fffdedfc370a2ea59a07fb0d8091147645b, account)
+    let dst := mload(0x40)
+    mstore(dst, previousAnnualInterestBips)
+    mstore(add(dst, 0x20), newAnnualInterestBips)
+    mstore(add(dst, 0x40), previousReserveRatioBips)
+    mstore(add(dst, 0x60), newReserveRatioBips)
+    log2(
+      dst,
+      0x80,
+      0xe829464a47e4f00b1c8c879651d6d9f8238513fdd4721d8f8a0a93531a939e80,
+      eventCaller
+    )
   }
 }
 
@@ -88,10 +108,10 @@ function emit_Deposit(address account, uint256 assetAmount, uint256 scaledAmount
   }
 }
 
-function emit_Borrow(uint256 assetAmount) {
+function emit_Borrow(address borrower, uint256 assetAmount) {
   assembly {
     mstore(0, assetAmount)
-    log1(0, 0x20, 0xb848ae6b1253b6cb77e81464128ce8bd94d3d524fea54e801e0da869784dca33)
+    log2(0, 0x20, 0xcbc04eca7e9da35cb1393a6135a199ca52e450d5e9251cbd99f7847d33a36750, borrower)
   }
 }
 
@@ -102,17 +122,31 @@ function emit_DebtRepaid(address from, uint256 assetAmount) {
   }
 }
 
-function emit_MarketClosed(uint256 _timestamp) {
+function emit_DrawnAmountUpdated(uint256 previousDrawnAmount, uint256 newDrawnAmount) {
   assembly {
-    mstore(0, _timestamp)
-    log1(0, 0x20, 0x9dc30b8eda31a6a144e092e5de600955523a6a925cc15cc1d1b9b4872cfa6155)
+    mstore(0, previousDrawnAmount)
+    mstore(0x20, newDrawnAmount)
+    log1(0, 0x40, 0x2ce2176519c2ba0775d24b5f484690a4c3cf808f45a5a9094bf065d9ad59c0f9)
   }
 }
 
-function emit_FeesCollected(uint256 assets) {
+function emit_MarketClosed(address borrower, uint256 _timestamp) {
+  assembly {
+    mstore(0, _timestamp)
+    log2(0, 0x20, 0xcd125386a57ad5c51057dd568605a0a6854d06095d7d414e8ac65bcbf288e4eb, borrower)
+  }
+}
+
+function emit_FeesCollected(address collector, address feeRecipient, uint256 assets) {
   assembly {
     mstore(0, assets)
-    log1(0, 0x20, 0x860c0aa5520013080c2f65981705fcdea474d9f7c3daf954656ed5e65d692d1f)
+    log3(
+      0,
+      0x20,
+      0x9bcb6d1f38f6800906185471a11ede9a8e16200853225aa62558db6076490f2d,
+      collector,
+      feeRecipient
+    )
   }
 }
 
@@ -150,6 +184,84 @@ function emit_InterestAndFeesAccrued(
       dst,
       InterestAndFeesAccrued_abi_head_size,
       0x18247a393d0531b65fbd94f5e78bc5639801a4efda62ae7b43533c4442116c3a
+    )
+  }
+}
+
+function emit_BorrowerTransferRequested(
+  address borrower,
+  address previousPendingBorrower,
+  address pendingBorrower,
+  address borrowerPrincipal,
+  address previousPendingBorrowerPrincipal,
+  address pendingBorrowerPrincipal
+) {
+  assembly {
+    // An EVM event is split between topics and ordinary data. Topic zero is the
+    // event signature hash. The three indexed borrower addresses fill the other
+    // three topics, while the principal addresses are ABI-encoded in memory.
+    //
+    // Memory from 0x00 through 0x3f is scratch space, but 0x40 normally holds
+    // Solidity's free-memory pointer. This event needs three words, so save that
+    // pointer before borrowing its slot and put it back when the log is written.
+    let freePointer := mload(0x40)
+    mstore(0, borrowerPrincipal)
+    mstore(0x20, previousPendingBorrowerPrincipal)
+    mstore(0x40, pendingBorrowerPrincipal)
+    // `log4(offset, size, topic0, topic1, topic2, topic3)` reads the three
+    // non-indexed values from memory 0x00 through 0x5f.
+    log4(
+      0,
+      0x60,
+      0x52a27a931945087c237eb781de9ec1bd1328a944b2ce031b914ed4ac5ce2ae47,
+      borrower,
+      previousPendingBorrower,
+      pendingBorrower
+    )
+    mstore(0x40, freePointer)
+  }
+}
+
+function emit_BorrowerTransferCancelled(
+  address borrower,
+  address cancelledPendingBorrower,
+  address borrowerPrincipal,
+  address cancelledPendingBorrowerPrincipal
+) {
+  assembly {
+    // This event has two indexed values, so `log3` carries the signature hash
+    // plus those two addresses as topics. The two principal addresses are the
+    // ordinary event data, laid out as two 32-byte ABI words in scratch memory.
+    mstore(0, borrowerPrincipal)
+    mstore(0x20, cancelledPendingBorrowerPrincipal)
+    log3(
+      0,
+      0x40,
+      0x845fafbf05c3dba243e654ea4d739f09ec145e9d8c0d24cc8859eedcbd121889,
+      borrower,
+      cancelledPendingBorrower
+    )
+  }
+}
+
+function emit_BorrowerTransferred(
+  address previousBorrower,
+  address newBorrower,
+  address previousBorrowerPrincipal,
+  address newBorrowerPrincipal
+) {
+  assembly {
+    // `newBorrowerPrincipal` is indexed here, so it belongs in a topic rather
+    // than the data buffer. That leaves only `previousBorrowerPrincipal` in
+    // memory. `log4` then writes the signature hash and all three indexed fields.
+    mstore(0, previousBorrowerPrincipal)
+    log4(
+      0,
+      0x20,
+      0x933b680a96769adaa385bb12d51347d449bd0e14defe462185eb094f62bc6628,
+      previousBorrower,
+      newBorrower,
+      newBorrowerPrincipal
     )
   }
 }

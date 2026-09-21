@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 import { MarketState, MarketStateLib } from 'src/libraries/MarketState.sol';
 
@@ -23,9 +23,20 @@ library MarketStateLibExternal {
     return MarketStateLib.normalizeAmount(state, amount);
   }
 
-  /// @dev Scale an amount of normalized tokens using the current scale factor.
-  function $scaleAmount(MarketState memory state, uint256 amount) external pure returns (uint256) {
-    return MarketStateLib.scaleAmount(state, amount);
+  /// @dev Scale an amount of normalized tokens using the current scale factor,
+  /// rounding down.
+  function $scaleAmountDown(
+    MarketState memory state,
+    uint256 amount
+  ) external pure returns (uint256) {
+    return MarketStateLib.scaleAmountDown(state, amount);
+  }
+
+  function $maxScaledSettleableAmount(
+    MarketState memory state,
+    uint256 amount
+  ) external pure returns (uint256) {
+    return MarketStateLib.maxScaledSettleableAmount(state, amount);
   }
 
   /// Collateralization requires all pending withdrawals be covered
@@ -52,5 +63,9 @@ library MarketStateLibExternal {
     uint256 totalAssets
   ) external pure returns (uint256) {
     return MarketStateLib.withdrawableProtocolFees(state, totalAssets);
+  }
+
+  function $totalDebts(MarketState memory state) external pure returns (uint256) {
+    return MarketStateLib.totalDebts(state);
   }
 }

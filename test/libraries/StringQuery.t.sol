@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
-import 'forge-std/Test.sol';
 import 'src/libraries/StringQuery.sol';
 import 'src/libraries/LibERC20.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 contract Bytes32Metadata {
   bytes32 public constant name = 'TestA';
@@ -29,7 +29,7 @@ contract BadStrings {
     giveRevertData = _giveRevertData;
   }
 
-  function name() external {
+  function name() external view {
     if (giveRevertData) {
       revert('name');
     } else {
@@ -37,7 +37,7 @@ contract BadStrings {
     }
   }
 
-  function symbol() external {
+  function symbol() external view {
     if (giveRevertData) {
       revert('symbol');
     } else {
@@ -46,12 +46,63 @@ contract BadStrings {
   }
 }
 
-contract StringQueryTest is Test {
+contract MalformedStringMetadata {
+  function name() external pure {
+    assembly {
+      mstore(0x00, 0x20)
+      mstore(0x20, 33)
+      mstore(0x40, '01234567890123456789012345678901')
+      return(0x00, 0x60)
+    }
+  }
+
+  function symbol() external pure {
+    assembly {
+      mstore(0x00, 0x40)
+      mstore(0x20, 1)
+      mstore(0x40, 'A')
+      return(0x00, 0x60)
+    }
+  }
+}
+
+contract TrailingStringMetadata {
+  function name() external pure {
+    assembly {
+      mstore(0x00, 0x20)
+      mstore(0x20, 1)
+      mstore(0x40, shl(248, 0x41))
+      mstore(0x60, 0xdeadbeef)
+      return(0x00, 0x80)
+    }
+  }
+}
+
+contract StringQueryTest is TestKernel {
   using LibERC20 for address;
-  Bytes32Metadata internal immutable bytes32Metadata = new Bytes32Metadata();
-  StringMetadata internal immutable stringMetadata = new StringMetadata();
-  LongStrings internal immutable longStrings = new LongStrings();
-  BadStrings internal immutable badStrings = new BadStrings();
+  Bytes32Metadata internal bytes32Metadata;
+  StringMetadata internal stringMetadata;
+  LongStrings internal longStrings;
+  BadStrings internal badStrings;
+  MalformedStringMetadata internal malformedStringMetadata;
+  TrailingStringMetadata internal trailingStringMetadata;
+
+  function setUp() external {
+    bytes32Metadata = Bytes32Metadata(
+      _deployCode('test/libraries/StringQuery.t.sol:Bytes32Metadata')
+    );
+    stringMetadata = StringMetadata(
+      _deployCode('test/libraries/StringQuery.t.sol:StringMetadata')
+    );
+    longStrings = LongStrings(_deployCode('test/libraries/StringQuery.t.sol:LongStrings'));
+    badStrings = BadStrings(_deployCode('test/libraries/StringQuery.t.sol:BadStrings'));
+    malformedStringMetadata = MalformedStringMetadata(
+      _deployCode('test/libraries/StringQuery.t.sol:MalformedStringMetadata')
+    );
+    trailingStringMetadata = TrailingStringMetadata(
+      _deployCode('test/libraries/StringQuery.t.sol:TrailingStringMetadata')
+    );
+  }
 
   function queryName(address token) external view returns (string memory) {
     return token.name();
@@ -91,5 +142,24 @@ contract StringQueryTest is Test {
     badStrings.setGiveRevertData(true);
     vm.expectRevert(bytes('symbol'));
     this.querySymbol(address(badStrings));
+  }
+
+  function test_bytes32ToString_DoesNotDropHighBitFinalByte() external pure {
+    bytes32 value = 0xc380000000000000000000000000000000000000000000000000000000000000;
+    assertEq(bytes(bytes32ToString(value)), hex'c380');
+  }
+
+  function test_name_RejectsTruncatedDynamicString() external {
+    vm.expectRevert(bytes4(0x4cb9c000));
+    this.queryName(address(malformedStringMetadata));
+  }
+
+  function test_symbol_RejectsNonCanonicalDynamicStringOffset() external {
+    vm.expectRevert(bytes4(0x4cb9c000));
+    this.querySymbol(address(malformedStringMetadata));
+  }
+
+  function test_name_AcceptsTrailingReturnData() external view {
+    assertEq(address(trailingStringMetadata).name(), 'A');
   }
 }

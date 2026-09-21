@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "2.0.0",
+  "ownership": {
+    "type": "authorized-helper",
+    "archControllerKey": "WildcatArchController",
+    "helperOwnerKey": "MockArchControllerOwner",
+    "legacyHelperOwnerKey": "MockArchControllerOwnerLegacy",
+    "helperVersion": "2",
+    "retainedAuthorizedAccounts": [
+      "0xca732651410E915090d7A7D889A1E44eF4575fcE"
+    ],
+    "revokedSphereXEngineOperators": [
+      "0xca732651410E915090d7A7D889A1E44eF4575fcE"
+    ],
+    "forwardedFunctionSignatures": [
+      "registerControllerFactory(address)",
+      "addHooksTemplate(address,string,address,address,uint80,uint16)",
+      "removeControllerFactory(address)",
+      "removeController(address)"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0.0",
+  "networks": {
+    "mainnet": {
+      "legacyKeys": []
+    },
+    "sepolia": {
+      "legacyKeys": [
+        "MarketLensAggregator_sepolia-20260419-233246",
+        "MarketLensAggregator_sepolia-20260424-144906",
+        "MarketLensAggregator_sepolia-20260425-020154",
+        "MarketLensAggregator_sepolia-20260426-135822",
+        "MarketLensCore_sepolia-20260419-233246",
+        "MarketLensCore_sepolia-20260424-144906",
+        "MarketLensCore_sepolia-20260425-020154",
+        "MarketLensCore_sepolia-20260426-135822",
+        "MarketLensLive_sepolia-20260426-135822",
+        "MarketLens_sepolia-20260419-233246",
+        "MarketLens_sepolia-20260424-144906",
+        "MarketLens_sepolia-20260425-020154",
+        "MarketLens_sepolia-20260426-135822"
+      ]
+    }
+  }
+}

@@ -1,12 +1,69 @@
-# Wildcat V2 Documentation
+# Technical documentation
 
-- [Scale Factor](./Scale%20Factor.md) - explainer for the scaling of token amounts - critical for understanding the protocol
-- [Core behavior](./Core%20Behavior.md) - most important aspects of how the protocol operates
-- [Terminology](./Terminology.md)
-- [Known issues](./Known%20Issues.md) - list of some things we know are issues or which might seem like issues but are intentional
-- [V2 Changelog](./CHANGELOG.md) - changes between V1 and V2
-- [EIP-4626 Wrapper](./EIP-4626.md) - ERC-4626 wrapper for Wildcat market tokens
-- [Hooks](./hooks/Hooks.md)
-    - [How hooks work](./hooks/How%20Hooks%20Work.md)
-    - templates/
-        - [Access Control Hooks](./hooks/templates/Access%20Control%20Hooks.md)
+These docs describe the intended behavior of the contracts on the active
+release branch. They are written for auditors, integrators, and contributors.
+
+The docs on a release branch apply to the source on that branch. Previous
+releases and their documentation live in Git tags.
+
+## What is authoritative
+
+- [`src/`](../src/) and [`test/`](../test/) provide implementation evidence.
+- [`TESTS.md`](../TESTS.md) defines the canonical test commands and suite policy.
+- [`deployments/`](../deployments/) owns machine-readable deployment facts.
+- [`audits/`](../audits/README.md) indexes completed external security reviews.
+
+If the docs and source disagree, report it. Don't infer deployment status,
+review coverage, or remediation status from source ancestry alone.
+
+## Protocol
+
+- [Markets](./protocol/markets.md): configuration, implementations, and borrower
+  authority
+- [Accounting](./protocol/accounting.md) and
+  [scaling](./protocol/scaling-and-rounding.md): collateral obligations,
+  interest, fees, balances, and rounding
+- [Withdrawals](./protocol/withdrawals.md): batch ownership, payment priority,
+  and execution
+- [Borrower identity and transfers](./protocol/borrower-identity.md): principals,
+  operational accounts, registry state, and authority transfers
+- [Glossary](./protocol/glossary.md): protocol-specific terms
+
+## Integrations
+
+- [Hooks](./integrations/hooks.md): callback dispatch and `extraData`; see
+  [access control](./integrations/access-control.md),
+  [fixed term hooks](./integrations/fixed-term-hooks.md), and
+  [periodic term hooks](./integrations/periodic-term-hooks.md)
+- [Role providers](./integrations/role-providers.md): credential-provider
+  capabilities and construction paths
+- [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md): wrapping, redemption,
+  rounding, sanctions, and integration constraints
+- [Event model](./integrations/events.md): ABI families, event ordering,
+  deployment discovery, and indexer replay
+
+## Security model
+
+- [Security assumptions](./security/assumptions.md): credit, authority, hook,
+  sanctions, and asset boundaries
+- [Known limitations](./security/known-issues.md): accepted accounting,
+  liveness, dependency, and legacy behavior
+- [`SECURITY.md`](../SECURITY.md): private vulnerability reporting
+- [`audits/`](../audits/README.md): published external review evidence
+
+## Releases and operations
+
+- [Release notes](./releases/README.md): V2.0, V2.1, and V2.5 source boundaries
+  and compatibility changes
+- [V2.5 audit scope](./releases/v2.5-audit-scope.md): candidate provenance,
+  review boundary, properties, and freeze gates
+- [V2.5 verification receipt](./releases/v2.5-verification.md): pre-freeze build,
+  test, inventory, size, and lint evidence
+- [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
+  verification, and handoffs
+
+Machine-readable state in [`deployments/`](../deployments/) is authoritative for
+deployment facts.
+
+Historical checklists, completed ceremony records, generated tool output, and
+internal audit-preparation papers are not protocol specifications.

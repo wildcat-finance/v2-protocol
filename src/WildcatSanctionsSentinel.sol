@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import { IChainalysisSanctionsList } from './interfaces/IChainalysisSanctionsList.sol';
 import { IWildcatSanctionsSentinel } from './interfaces/IWildcatSanctionsSentinel.sol';
 import { WildcatSanctionsEscrow } from './WildcatSanctionsEscrow.sol';
 
+/// @title Wildcat sanctions sentinel
+/// @notice combines the external sanctions list with borrower-scoped overrides and escrows.
+/// @dev overrides allow a flagged account; they do not change the external list.
 contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   // ========================================================================== //
   //                                  Constants                                 //
@@ -45,10 +48,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     tmpEscrowParams = TmpEscrowParams(address(1), address(1), address(1));
   }
 
-  /**
-   * @dev Derive create2 salt for an escrow given the borrower, account and asset.
-   *      name prefix and symbol prefix.
-   */
+  /// @dev derives the CREATE2 salt for one borrower, account, and asset tuple.
   function _deriveSalt(
     address borrower,
     address account,
@@ -71,17 +71,42 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   //                              Sanction Queries                              //
   // ========================================================================== //
 
-  /**
-   * @dev Returns boolean indicating whether `account` is sanctioned on Chainalysis.
-   */
-  function isFlaggedByChainalysis(address account) public view override returns (bool) {
-    return IChainalysisSanctionsList(chainalysisSanctionsList).isSanctioned(account);
+  /// @inheritdoc IWildcatSanctionsSentinel
+  function isFlaggedByChainalysis(
+    address account
+  ) public view override returns (bool) {
+    bool isFlagged;
+    address sanctionsList = chainalysisSanctionsList;
+    assembly ('memory-safe') {
+      // 0x00 through 0x3f is Solidity's scratch space. that's exactly enough for a selector and
+      // one address, and we can reuse the first word for the result.
+      mstore(0, 0xdf592f7d)
+      mstore(0x20, account)
+
+      // mstore leaves the selector in the last four bytes of the first word. starting at 0x1c
+      // gives us selector | account, or 0x24 bytes of ordinary ABI calldata.
+      if iszero(staticcall(gas(), sanctionsList, 0x1c, 0x24, 0, 0x20)) {
+        // the call only writes one word for us, but a revert may be longer. copy the whole error
+        // over scratch space and bubble it up. this path ends here, so nothing sees that memory
+        // afterward.
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+
+      // Solidity's bool decoder expects one full word containing zero or one. keep the same
+      // rules here; trailing data is harmless because we only read that first word.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      isFlagged := mload(0)
+      if gt(isFlagged, 1) {
+        revert(0, 0)
+      }
+    }
+    return isFlagged;
   }
 
-  /**
-   * @dev Returns boolean indicating whether `account` is sanctioned on Chainalysis
-   *      and that status has not been overridden by `borrower`.
-   */
+  /// @inheritdoc IWildcatSanctionsSentinel
   function isSanctioned(address borrower, address account) public view override returns (bool) {
     return !sanctionOverrides[borrower][account] && isFlaggedByChainalysis(account);
   }
@@ -90,17 +115,13 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   //                             Sanction Overrides                             //
   // ========================================================================== //
 
-  /**
-   * @dev Overrides the sanction status of `account` for `borrower`.
-   */
+  /// @inheritdoc IWildcatSanctionsSentinel
   function overrideSanction(address account) public override {
     sanctionOverrides[msg.sender][account] = true;
     emit SanctionOverride(msg.sender, account);
   }
 
-  /**
-   * @dev Removes the sanction override of `account` for `borrower`.
-   */
+  /// @inheritdoc IWildcatSanctionsSentinel
   function removeSanctionOverride(address account) public override {
     sanctionOverrides[msg.sender][account] = false;
     emit SanctionOverrideRemoved(msg.sender, account);
@@ -110,14 +131,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   //                              Escrow Deployment                             //
   // ========================================================================== //
 
-  /**
-   * @dev Creates a new WildcatSanctionsEscrow contract for `borrower`,
-   *      `account`, and `asset` or returns the existing escrow contract
-   *      if one already exists.
-   *
-   *      The escrow contract is added to the set of sanction override
-   *      addresses for `borrower` so that it can not be blocked.
-   */
+  /// @inheritdoc IWildcatSanctionsSentinel
   function createEscrow(
     address borrower,
     address account,
@@ -141,10 +155,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     _resetTmpEscrowParams();
   }
 
-  /**
-   * @dev Calculate the create2 escrow address for the combination
-   *      of `borrower`, `account`, and `asset`.
-   */
+  /// @inheritdoc IWildcatSanctionsSentinel
   function getEscrowAddress(
     address borrower,
     address account,

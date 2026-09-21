@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import '../ReentrancyGuard.sol';
 import '../spherex/SphereXProtectedRegisteredBase.sol';
 import '../interfaces/IMarketEventsAndErrors.sol';
-import '../interfaces/IERC20.sol';
+import '../interfaces/IWildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/MarketErrors.sol';
@@ -14,6 +14,7 @@ import '../libraries/FunctionTypeCasts.sol';
 import '../libraries/LibERC20.sol';
 import '../types/HooksConfig.sol';
 
+/// @notice shared market storage, accounting, identity, sanctions, and state-update machinery.
 contract WildcatMarketBase is
   SphereXProtectedRegisteredBase,
   ReentrancyGuard,
@@ -25,48 +26,90 @@ contract WildcatMarketBase is
   using LibERC20 for address;
 
   // ==================================================================== //
-  //                       Market Config (immutable)                       //
+  //                            Market Config                             //
   // ==================================================================== //
 
   /**
-   * @dev Return the contract version string "2".
+   * @notice returns the market implementation version, `2.5`.
+   * @dev bumped from "2" for the v2.5 release: transfer and deposit scaling
+   *      changed from half-up to floor rounding, so v2.5 markets must be
+   *      distinguishable from earlier deployments. Consumers that only check
+   *      the major version read the first byte, which remains '2'.
    */
   function version() external pure returns (string memory) {
     assembly {
       mstore(0x40, 0)
-      mstore(0x41, 0x0132)
+      // Length byte (3) at 0x5f followed by '2.5' at 0x60-0x62.
+      mstore(0x43, 0x03322e35)
       mstore(0x20, 0x20)
       return(0x20, 0x60)
     }
   }
 
+  /**
+   * @notice identifies floor rounding for normalized-to-scaled transfers and deposits.
+   * @dev Rounding convention for scaled amounts in transfers and deposits
+   *      (`MarketState.scaleAmountDown`). Rounding-sensitive integrations,
+   *      e.g. the 4626 wrapper factory, key on this rather than on version
+   *      strings. Markets predating v2.5 lack this function and round
+   *      half-up.
+   */
+  function scaledTransferRounding() external pure returns (bytes32) {
+    return keccak256('scaleAmountDown');
+  }
+
+  /// @notice installed hook address and enabled callback flags.
   HooksConfig public immutable hooks;
 
-  /// @dev Account with blacklist control, used for blocking sanctioned addresses.
+  /// @notice sanctions sentinel used for borrower/lender checks and escrow deployment.
   address public immutable sentinel;
 
-  /// @dev Account with authority to borrow assets from the market.
-  address public immutable borrower;
-
-  /// @dev Factory that deployed the market. Has the ability to update the protocol fee.
+  /// @notice factory that deployed the market and can update its protocol fee.
   address public immutable factory;
 
-  /// @dev Account that receives protocol fees.
+  /// @notice immutable account that receives protocol fees.
   address public immutable feeRecipient;
 
-  /// @dev Penalty fee added to interest earned by lenders, does not affect protocol fee.
+  /// @notice canonical factory allowed to register this market's optional ERC-4626 wrapper.
+  address public immutable wrapperFactory;
+
+  /// @notice registry that resolves borrower accounts to registered principals.
+  address public immutable borrowerIdentityRegistry;
+
+  /// @dev Reserved slots for borrower transfer and wrapper state. These are
+  ///      the final five slots in the EVM storage range, from 2^256 - 1 through
+  ///      2^256 - 5. Solidity assigns ordinary market storage from zero upward,
+  ///      so slots 0 through 10 keep their established layout and future market
+  ///      types can keep extending that layout without reaching this range.
+  ///
+  ///      Mappings and dynamic arrays derive their element slots with keccak256.
+  ///      Their chance of landing on one of these slots is the same negligible
+  ///      256-bit collision risk as an ordinary namespaced storage slot. Other
+  ///      manual storage must not use this five-slot range.
+  bytes32 internal constant BORROWER_STORAGE_SLOT = bytes32(type(uint256).max);
+  bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT =
+    bytes32(type(uint256).max - 1);
+  bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT = bytes32(type(uint256).max - 2);
+  bytes32 internal constant PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT =
+    bytes32(type(uint256).max - 3);
+  bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT = bytes32(type(uint256).max - 4);
+
+  /// @dev ABI-encoded size of `MarketParameters`, which has 22 static fields.
+  uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2c0;
+
+  /// @notice annual penalty rate added to lender interest during penalized delinquency, in bips.
   uint public immutable delinquencyFeeBips;
 
-  /// @dev Time after which delinquency incurs penalty fee.
+  /// @notice delinquent time before the penalty rate applies, in seconds.
   uint public immutable delinquencyGracePeriod;
 
-  /// @dev Time before withdrawal batches are processed.
+  /// @notice duration of each withdrawal batch, in seconds.
   uint public immutable withdrawalBatchDuration;
 
-  /// @dev Token decimals (same as underlying asset).
+  /// @notice market-token decimals copied from the underlying asset.
   uint8 public immutable decimals;
 
-  /// @dev Address of the underlying asset.
+  /// @notice underlying ERC-20 asset.
   address public immutable asset;
 
   bytes32 internal immutable PACKED_NAME_WORD_0;
@@ -74,6 +117,7 @@ contract WildcatMarketBase is
   bytes32 internal immutable PACKED_SYMBOL_WORD_0;
   bytes32 internal immutable PACKED_SYMBOL_WORD_1;
 
+  /// @notice returns the market-token symbol set at deployment.
   function symbol() external view returns (string memory) {
     bytes32 symbolWord0 = PACKED_SYMBOL_WORD_0;
     bytes32 symbolWord1 = PACKED_SYMBOL_WORD_1;
@@ -94,6 +138,7 @@ contract WildcatMarketBase is
     }
   }
 
+  /// @notice returns the market-token name set at deployment.
   function name() external view returns (string memory) {
     bytes32 nameWord0 = PACKED_NAME_WORD_0;
     bytes32 nameWord1 = PACKED_NAME_WORD_1;
@@ -114,7 +159,7 @@ contract WildcatMarketBase is
     }
   }
 
-  /// @dev Returns immutable arch-controller address.
+  /// @notice returns the protocol registry that authorized this market.
   function archController() external view returns (address) {
     return _archController;
   }
@@ -127,16 +172,42 @@ contract WildcatMarketBase is
 
   mapping(address => Account) internal _accounts;
 
+  /// @notice Current operational borrower.
+  function borrower() public view returns (address) {
+    return _getAddress(BORROWER_STORAGE_SLOT);
+  }
+
+  /// @notice Current registered principal for the market.
+  function borrowerPrincipal() public view returns (address) {
+    return _getAddress(BORROWER_PRINCIPAL_STORAGE_SLOT);
+  }
+
+  /// @notice Address that can accept the pending borrower transfer.
+  function pendingBorrower() public view returns (address) {
+    return _getAddress(PENDING_BORROWER_STORAGE_SLOT);
+  }
+
+  /// @notice Principal resolved for the pending borrower when the transfer was requested.
+  function pendingBorrowerPrincipal() public view returns (address) {
+    return _getAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT);
+  }
+
+  /// @notice Canonical ERC-4626 wrapper for this market, or zero if none has been deployed.
+  function registeredWrapper() public view returns (address) {
+    return _getAddress(REGISTERED_WRAPPER_STORAGE_SLOT);
+  }
+
   WithdrawalData internal _withdrawalData;
 
   // ===================================================================== //
   //                             Constructor                               //
   // ===================================================================== //
 
+  /// @dev allocates and fills the static `MarketParameters` block from the deploying factory.
   function _getMarketParameters() internal view returns (uint256 marketParametersPointer) {
     assembly {
       marketParametersPointer := mload(0x40)
-      mstore(0x40, add(marketParametersPointer, 0x260))
+      mstore(0x40, add(marketParametersPointer, _MARKET_PARAMETERS_SIZE))
       // Write the selector for IHooksFactory.getMarketParameters
       mstore(0x00, 0x04032dbb)
       // Call `getMarketParameters` and copy the returned struct to the allocated memory
@@ -145,8 +216,15 @@ contract WildcatMarketBase is
       // the factory contract which will only ever return the prepared market parameters.
       if iszero(
         and(
-          eq(returndatasize(), 0x260),
-          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, 0x260)
+          eq(returndatasize(), _MARKET_PARAMETERS_SIZE),
+          staticcall(
+            gas(),
+            caller(),
+            0x1c,
+            0x04,
+            marketParametersPointer,
+            _MARKET_PARAMETERS_SIZE
+          )
         )
       ) {
         revert(0, 0)
@@ -160,6 +238,7 @@ contract WildcatMarketBase is
     // a `MarketParameters` object without creating a duplicate allocation or unnecessarily
     // zeroing out the memory buffer.
     MarketParameters memory parameters = _getMarketParameters.asReturnsMarketParameters()();
+    if (parameters.borrower == address(0)) revert InvalidBorrower();
 
     // Set asset metadata
     asset = parameters.asset;
@@ -181,6 +260,7 @@ contract WildcatMarketBase is
 
       assembly {
         // MarketState Slot 0 Storage Layout:
+        // [0:15]  | low 120 bits of checkpointedTotalAssets = 0
         // [15:31] | state.maxTotalSupply
         // [31:32] | state.isClosed = false
 
@@ -188,6 +268,7 @@ contract WildcatMarketBase is
         sstore(_state.slot, slot0)
 
         // MarketState Slot 3 Storage Layout:
+        // [0:4] | high 32 bits of checkpointedTotalAssets = 0
         // [4:8] | lastInterestAccruedTimestamp
         // [8:22] | scaleFactor = 1e27
         // [22:24] | reserveRatioBips
@@ -206,12 +287,57 @@ contract WildcatMarketBase is
 
     hooks = parameters.hooks;
     sentinel = parameters.sentinel;
-    borrower = parameters.borrower;
+    _setAddress(BORROWER_STORAGE_SLOT, parameters.borrower);
+    _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, parameters.borrowerPrincipal);
     feeRecipient = parameters.feeRecipient;
+    wrapperFactory = parameters.wrapperFactory;
+    address identityRegistry = parameters.borrowerIdentityRegistry;
+    borrowerIdentityRegistry = identityRegistry;
     delinquencyFeeBips = parameters.delinquencyFeeBips;
     delinquencyGracePeriod = parameters.delinquencyGracePeriod;
     withdrawalBatchDuration = parameters.withdrawalBatchDuration;
-    _archController = parameters.archController;
+    address archController_ = parameters.archController;
+    _archController = archController_;
+    assembly {
+      // `staticcall` takes raw memory offsets, not Solidity arguments. This
+      // four-byte selector literal has 28 leading zero bytes in the word written
+      // at 0x00. Starting the calldata at 0x1c skips that padding, leaving exactly
+      // `archController()` as the four-byte input.
+      mstore(0, 0x54635570) // archController()
+
+      // The last two arguments tell the EVM to copy up to one return word into
+      // memory at 0x00. `staticcall` itself returns 1 on success and 0 on failure.
+      let validRegistry := staticcall(gas(), identityRegistry, 0x1c, 0x04, 0, 0x20)
+
+      // A valid address return is exactly one ABI word. Both operands below are
+      // already 0 or 1, so this bitwise `and` is also a logical AND.
+      validRegistry := and(validRegistry, eq(returndatasize(), 0x20))
+      if validRegistry {
+        // The call copied its return word over the selector at 0x00. An address
+        // occupies the low 160 bits of that word. If any of the upper 96 bits are
+        // set, the registry returned malformed ABI data and we must not truncate it.
+        let registryArchController := mload(0)
+        if shr(160, registryArchController) {
+          revert(0, 0)
+        }
+
+        // At this point the word is a clean address. The registry is only valid
+        // for this market if it points at the same ArchController the factory supplied.
+        validRegistry := eq(registryArchController, archController_)
+      }
+      if iszero(validRegistry) {
+        // This uses the same compact custom-error layout as MarketErrors.sol:
+        // selector in the last four bytes of a word, then return only those bytes.
+        mstore(0, 0x41d9e607) // InvalidBorrowerIdentityRegistry()
+        revert(0x1c, 0x04)
+      }
+    }
+    if (
+      parameters.borrowerPrincipal == address(0) ||
+      !IWildcatArchController(archController_).isRegisteredBorrower(parameters.borrowerPrincipal)
+    ) {
+      revert BorrowerPrincipalNotRegistered();
+    }
     __SphereXProtectedRegisteredBase_init(parameters.sphereXEngine);
   }
 
@@ -220,7 +346,7 @@ contract WildcatMarketBase is
   // ===================================================================== //
 
   modifier onlyBorrower() {
-    address _borrower = borrower;
+    address _borrower = borrower();
     assembly {
       // Equivalent to
       // if (msg.sender != borrower) revert NotApprovedBorrower();
@@ -233,33 +359,206 @@ contract WildcatMarketBase is
   }
 
   // ===================================================================== //
+  //                         Borrower Transfer                             //
+  // ===================================================================== //
+
+  /// @dev returns the first raw Chainalysis-flagged identity, ignoring sentinel overrides.
+  function _flaggedBorrowerIdentity(
+    address operationalBorrower,
+    address principal
+  ) internal view returns (address flaggedIdentity) {
+    if (_isFlaggedByChainalysis(operationalBorrower)) return operationalBorrower;
+    if (principal != operationalBorrower && _isFlaggedByChainalysis(principal)) return principal;
+  }
+
+  /// @dev reverts if either borrower identity is raw-flagged by Chainalysis.
+  function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
+    address flaggedIdentity = _flaggedBorrowerIdentity(operationalBorrower, principal);
+    if (flaggedIdentity != address(0)) {
+      revert_BorrowerTransferWhileSanctioned(flaggedIdentity);
+    }
+  }
+
+  /// @dev resolves a transfer target, binds an expected principal on acceptance, rejects an exact
+  ///      identity no-op, and checks raw sanctions on both sides of the transfer.
+  function _validateBorrowerTransferTarget(
+    address newBorrower,
+    address expectedPrincipal
+  ) internal view returns (address newBorrowerPrincipal) {
+    address currentBorrower;
+    address currentBorrowerPrincipal;
+    bytes32 borrowerSlot = BORROWER_STORAGE_SLOT;
+    bytes32 borrowerPrincipalSlot = BORROWER_PRINCIPAL_STORAGE_SLOT;
+    address identityRegistry = borrowerIdentityRegistry;
+    assembly {
+      // The borrower fields use reserved storage slots rather than ordinary
+      // Solidity state variables. `sload` reads the whole 32-byte slot; the
+      // stored address is the low 160 bits and is assigned cleanly to the
+      // Solidity address variable.
+      currentBorrower := sload(borrowerSlot)
+      if iszero(newBorrower) {
+        // InvalidBorrowerTransferTarget() has no arguments, so its revert data
+        // is just the four-byte selector at the end of this scratch word.
+        mstore(0, 0x5176bd60)
+        revert(0x1c, 0x04)
+      }
+
+      // Build `resolveBorrower(newBorrower)` directly in scratch memory. The
+      // selector occupies the last four bytes of the word at 0x00 and the address
+      // occupies the word at 0x20. Reading from 0x1c for 0x24 bytes gives the call
+      // its four-byte selector followed by one complete ABI argument.
+      mstore(0, 0xa111a9e8)
+      mstore(0x20, newBorrower)
+
+      // Ask the registry to resolve the operational address without allowing it
+      // to change state. The first 32 bytes of a successful return are copied
+      // back to 0x00, replacing the selector because we no longer need it.
+      if iszero(staticcall(gas(), identityRegistry, 0x1c, 0x24, 0, 0x20)) {
+        // If the registry explains why it failed, preserve that exact error.
+        // `returndatacopy` moves every returned byte into scratch memory and the
+        // following revert sends the same bytes back to our caller.
+        returndatacopy(0, 0, returndatasize())
+        revert(0, returndatasize())
+      }
+
+      // Solidity needs at least one full word to decode an address. It also
+      // rejects dirty upper bits instead of silently truncating them, so perform
+      // both checks before treating the return word as a principal.
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      newBorrowerPrincipal := mload(0)
+      if shr(160, newBorrowerPrincipal) {
+        revert(0, 0)
+      }
+
+      currentBorrowerPrincipal := sload(borrowerPrincipalSlot)
+
+      // Requests pass zero here because there is no earlier resolution to bind.
+      // Acceptance passes the principal stored with the pending transfer. Yul
+      // treats any nonzero word as true, so this outer check is the readable way
+      // to distinguish those paths without confusing bitwise AND with boolean AND.
+      if expectedPrincipal {
+        // `xor(a, b)` is zero only when every bit is identical. Any nonzero
+        // result means the account changed principals while acceptance was pending.
+        if xor(newBorrowerPrincipal, expectedPrincipal) {
+          // PendingBorrowerPrincipalChanged(address,address) is the four-byte
+          // selector followed by the expected and current principal words.
+          mstore(0, 0xe1357b3c)
+          mstore(0x20, expectedPrincipal)
+          mstore(0x40, newBorrowerPrincipal)
+          revert(0x1c, 0x44)
+        }
+      }
+
+      // Re-requesting the same operational borrower is valid when its principal
+      // changed, but an exact borrower/principal no-op is not. Unlike raw
+      // addresses, each `eq` returns exactly 0 or 1, so `and` is safe here as a
+      // logical AND.
+      if and(
+        eq(newBorrower, currentBorrower),
+        eq(newBorrowerPrincipal, currentBorrowerPrincipal)
+      ) {
+        mstore(0, 0x5176bd60)
+        revert(0x1c, 0x04)
+      }
+    }
+    _checkBorrowerNotSanctioned(currentBorrower, currentBorrowerPrincipal);
+    _checkBorrowerNotSanctioned(newBorrower, newBorrowerPrincipal);
+  }
+
+  /// @notice requests transfer of borrower authority to `newBorrower`.
+  /// @dev only the current borrower can call. a new request replaces any pending target. the
+  ///      identity registry pins the target's principal, and raw sanctions block either side.
+  /// @param newBorrower operational address that may later accept the transfer.
+  function requestBorrowerTransfer(
+    address newBorrower
+  ) external onlyBorrower nonReentrant sphereXGuardExternal {
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(
+      newBorrower,
+      _runtimeConstant(address(0))
+    );
+    address previousPendingBorrower = pendingBorrower();
+    address previousPendingBorrowerPrincipal = pendingBorrowerPrincipal();
+    _setAddress(PENDING_BORROWER_STORAGE_SLOT, newBorrower);
+    _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
+    emit_BorrowerTransferRequested(
+      msg.sender,
+      previousPendingBorrower,
+      newBorrower,
+      borrowerPrincipal(),
+      previousPendingBorrowerPrincipal,
+      newBorrowerPrincipal
+    );
+  }
+
+  /// @notice clears the pending borrower transfer without changing current authority.
+  function cancelBorrowerTransfer() external onlyBorrower nonReentrant sphereXGuardExternal {
+    address cancelledPendingBorrower = pendingBorrower();
+    if (cancelledPendingBorrower == address(0)) revert_NoPendingBorrowerTransfer();
+    address cancelledPendingBorrowerPrincipal = pendingBorrowerPrincipal();
+    _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
+    _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
+    emit_BorrowerTransferCancelled(
+      msg.sender,
+      cancelledPendingBorrower,
+      borrowerPrincipal(),
+      cancelledPendingBorrowerPrincipal
+    );
+  }
+
+  /// @notice accepts borrower authority for the pending operational address and pinned principal.
+  /// @dev only the pending borrower can call. the target is resolved and sanctions are checked
+  ///      again; a principal change since request makes the caller request a fresh transfer.
+  function acceptBorrowerTransfer() external nonReentrant sphereXGuardExternal {
+    address newBorrower = pendingBorrower();
+    if (msg.sender != newBorrower) revert_NotPendingBorrower();
+
+    address expectedPrincipal = pendingBorrowerPrincipal();
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(
+      newBorrower,
+      expectedPrincipal
+    );
+    address previousBorrower = borrower();
+    address previousBorrowerPrincipal = borrowerPrincipal();
+
+    _setAddress(PENDING_BORROWER_STORAGE_SLOT, address(0));
+    _setAddress(PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT, address(0));
+    _setAddress(BORROWER_STORAGE_SLOT, newBorrower);
+    _setAddress(BORROWER_PRINCIPAL_STORAGE_SLOT, newBorrowerPrincipal);
+
+    emit_BorrowerTransferred(
+      previousBorrower,
+      newBorrower,
+      previousBorrowerPrincipal,
+      newBorrowerPrincipal
+    );
+  }
+
+  // ===================================================================== //
   //                       Internal State Getters                          //
   // ===================================================================== //
 
-  /**
-   * @dev Retrieve an account from storage.
-   *
-   *      Reverts if account is sanctioned.
-   */
+  /// @dev loads an account and reverts if it is currently sanctioned for this borrower principal.
   function _getAccount(address accountAddress) internal view returns (Account memory account) {
     account = _accounts[accountAddress];
     if (_isSanctioned(accountAddress)) revert_AccountBlocked();
   }
 
   /**
-   * @dev Checks if `account` is flagged as a sanctioned entity by Chainalysis.
-   *      If an account is flagged mistakenly, the borrower can override their
+   * @dev checks whether `account` is sanctioned in this market's current principal namespace.
+   *      If an account is flagged mistakenly, the principal can override their
    *      status on the sentinel and allow them to interact with the market.
    */
   function _isSanctioned(address account) internal view returns (bool result) {
-    address _borrower = borrower;
+    address _borrowerPrincipal = borrowerPrincipal();
     address _sentinel = address(sentinel);
     assembly {
       let freeMemoryPointer := mload(0x40)
       mstore(0, 0x06e74444)
-      mstore(0x20, _borrower)
+      mstore(0x20, _borrowerPrincipal)
       mstore(0x40, account)
-      // Call `sentinel.isSanctioned(borrower, account)` and revert if the call fails
+      // Call `sentinel.isSanctioned(principal, account)` and revert if the call fails
       // or does not return 32 bytes.
       if iszero(
         and(eq(returndatasize(), 0x20), staticcall(gas(), _sentinel, 0x1c, 0x44, 0, 0x20))
@@ -276,58 +575,38 @@ contract WildcatMarketBase is
   //                       External State Getters                          //
   // ===================================================================== //
 
-  /**
-   * @dev Returns the amount of underlying assets the borrower is obligated
-   *      to maintain in the market to avoid delinquency.
-   */
+  /// @notice returns the current collateral obligation in underlying-asset units.
   function coverageLiquidity() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().liquidityRequired();
   }
 
-  /**
-   * @dev Returns the scale factor (in ray) used to convert scaled balances
-   *      to normalized balances.
-   */
+  /// @notice returns the current ray-scaled ratio from scaled shares to normalized tokens.
   function scaleFactor() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().scaleFactor;
   }
 
-  /**
-   * @dev Total balance in underlying asset.
-   */
+  /// @notice returns the market contract's raw underlying-asset balance.
+  /// @dev this includes reserves, protocol fees, and paid-but-unclaimed withdrawals.
   function totalAssets() public view returns (uint256) {
     return asset.balanceOf(address(this));
   }
 
-  /**
-   * @dev Returns the amount of underlying assets the borrower is allowed
-   *      to borrow.
-   *
-   *      This is the balance of underlying assets minus:
-   *      - pending (unpaid) withdrawals
-   *      - paid withdrawals
-   *      - reserve ratio times the portion of the supply not pending withdrawal
-   *      - protocol fees
-   */
+  /// @notice returns underlying assets left after the market's full collateral obligation.
   function borrowableAssets() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().borrowableAssets(totalAssets());
   }
 
-  /**
-   * @dev Returns the amount of protocol fees (in underlying asset amount)
-   *      that have accrued and are pending withdrawal.
-   */
+  /// @notice returns all accrued protocol fees, including any not currently withdrawable.
   function accruedProtocolFees() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().accruedProtocolFees;
   }
 
+  /// @notice returns normalized lender supply, unclaimed withdrawals, and protocol fees.
   function totalDebts() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().totalDebts();
   }
 
-  /**
-   * @dev Returns the state of the market as of the last update.
-   */
+  /// @notice returns stored state without applying time or withdrawal-batch changes.
   function previousState() external view returns (MarketState memory) {
     MarketState memory state = _state;
 
@@ -336,11 +615,8 @@ contract WildcatMarketBase is
     }
   }
 
-  /**
-   * @dev Return the state the market would have at the current block after applying
-   *      interest and fees accrued since the last update and processing the pending
-   *      withdrawal batch if it is expired.
-   */
+  /// @notice returns the state calculable through this block without writing storage.
+  /// @dev includes accrued interest and fees plus any current-batch expiry and payment.
   function currentState() external view nonReentrantView returns (MarketState memory state) {
     state = _calculateCurrentStatePointers.asReturnsMarketState()();
     assembly {
@@ -359,27 +635,18 @@ contract WildcatMarketBase is
     (state, , ) = _calculateCurrentState.asReturnsPointers()();
   }
 
-  /**
-   * @dev Returns the scaled total supply the vaut would have at the current block
-   *      after applying interest and fees accrued since the last update and burning
-   *      market tokens for the pending withdrawal batch if it is expired.
-   */
+  /// @notice returns current scaled supply after any calculable withdrawal-batch payment.
   function scaledTotalSupply() external view nonReentrantView returns (uint256) {
     return _calculateCurrentStatePointers.asReturnsMarketState()().scaledTotalSupply;
   }
 
-  /**
-   * @dev Returns the scaled balance of `account`
-   */
+  /// @notice returns `account`'s direct share-like balance without applying the scale factor.
   function scaledBalanceOf(address account) external view nonReentrantView returns (uint256) {
     return _accounts[account].scaledBalance;
   }
 
-  /**
-   * @dev Returns the amount of protocol fees that are currently
-   *      withdrawable by the fee recipient.
-   */
-  function withdrawableProtocolFees() external view returns (uint128) {
+  /// @notice returns protocol fees withdrawable after reserving paid lender claims.
+  function withdrawableProtocolFees() external view nonReentrantView returns (uint128) {
     return
       _calculateCurrentStatePointers.asReturnsMarketState()().withdrawableProtocolFees(
         totalAssets()
@@ -390,7 +657,56 @@ contract WildcatMarketBase is
   //                     Internal State Handlers
   // //////////////////////////////////////////////////////////////*/
 
+  /// @dev derived market hook for quarantining a sanctioned lender's balance.
   function _blockAccount(MarketState memory state, address accountAddress) internal virtual {}
+
+  /// @dev accrues standard-market interest and fees through `timestamp` into cached state.
+  function _updateScaleFactorAndFees(
+    MarketState memory state,
+    uint256 timestamp
+  )
+    internal
+    view
+    virtual
+    returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
+  {
+    return state.updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, timestamp);
+  }
+
+  /// @dev derived-market accounting hook called before borrowed assets leave the market.
+  function _onBorrow(MarketState memory state, uint256 amount) internal virtual {
+    state;
+    amount;
+  }
+
+  /// @dev derived-market accounting hook called after repaid assets reach the market.
+  function _onRepay(MarketState memory state, uint256 amount) internal virtual {
+    state;
+    amount;
+  }
+
+  /// @dev runs derived repayment accounting and returns the post-transfer underlying balance.
+  function _onRepayAndGetTotalAssets(
+    MarketState memory state,
+    uint256 amount
+  ) internal virtual returns (uint256 currentTotalAssets) {
+    _onRepay(state, amount);
+    currentTotalAssets = totalAssets();
+  }
+
+  /**
+   * @dev Returns the last asset balance observed by a state write while a current withdrawal
+   *      batch existed. The uint152 value occupies otherwise unused high bits in state slots
+   *      zero and three, preserving the MarketState storage layout and hook ABI.
+   */
+  function _checkpointedTotalAssets() internal view returns (uint256 value) {
+    assembly {
+      value := or(shr(0x88, sload(_state.slot)), shl(0x78, shr(0xe0, sload(add(_state.slot, 3)))))
+    }
+  }
+
+  /// @dev derived-market accounting hook after closure fully funds debt and queued withdrawals.
+  function _onCloseMarket() internal virtual {}
 
   /**
    * @dev Returns cached MarketState after accruing interest and delinquency / protocol fees
@@ -412,8 +728,11 @@ contract WildcatMarketBase is
       // This will only be false if withdrawalBatchDuration is 0.
       uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       if (expiry != lastInterestAccruedTimestamp) {
-        (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
-          .updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, expiry);
+        (
+          uint256 baseInterestRay,
+          uint256 delinquencyFeeRay,
+          uint256 protocolFee
+        ) = _updateScaleFactorAndFees(state, expiry);
         emit_InterestAndFeesAccrued(
           lastInterestAccruedTimestamp,
           expiry,
@@ -423,13 +742,19 @@ contract WildcatMarketBase is
           protocolFee
         );
       }
-      _processExpiredWithdrawalBatch(state);
+      uint256 checkpointedTotalAssets = _checkpointedTotalAssets();
+      _processExpiredWithdrawalBatch(state, checkpointedTotalAssets);
+      // Settlement can change the requirement used to classify the post-expiry interval.
+      state.isDelinquent = state.liquidityRequired() > checkpointedTotalAssets;
     }
     uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
     // Apply interest and fees accrued since last update (expiry or previous tx)
     if (block.timestamp != lastInterestAccruedTimestamp) {
-      (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee) = state
-        .updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, block.timestamp);
+      (
+        uint256 baseInterestRay,
+        uint256 delinquencyFeeRay,
+        uint256 protocolFee
+      ) = _updateScaleFactorAndFees(state, block.timestamp);
       emit_InterestAndFeesAccrued(
         lastInterestAccruedTimestamp,
         block.timestamp,
@@ -481,26 +806,25 @@ contract WildcatMarketBase is
       // Only accrue interest if time has passed since last update.
       // This will only be false if withdrawalBatchDuration is 0.
       if (pendingBatchExpiry != state.lastInterestAccruedTimestamp) {
-        state.updateScaleFactorAndFees(
-          delinquencyFeeBips,
-          delinquencyGracePeriod,
-          pendingBatchExpiry
-        );
+        _updateScaleFactorAndFees(state, pendingBatchExpiry);
       }
 
       pendingBatch = _withdrawalData.batches[pendingBatchExpiry];
+      uint256 checkpointedTotalAssets = _checkpointedTotalAssets();
       uint256 availableLiquidity = pendingBatch.availableLiquidityForPendingBatch(
         state,
-        totalAssets()
+        checkpointedTotalAssets
       );
       if (availableLiquidity > 0) {
         _applyWithdrawalBatchPaymentView(pendingBatch, state, availableLiquidity);
       }
       state.pendingWithdrawalExpiry = 0;
+      // Mirror the post-settlement boundary used by the mutating state transition.
+      state.isDelinquent = state.liquidityRequired() > checkpointedTotalAssets;
     }
 
     if (state.lastInterestAccruedTimestamp != block.timestamp) {
-      state.updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, block.timestamp);
+      _updateScaleFactorAndFees(state, block.timestamp);
     }
 
     // If there is a pending withdrawal batch which is not fully paid off, set aside
@@ -526,17 +850,38 @@ contract WildcatMarketBase is
    *      Used at the end of all functions which modify `state`.
    */
   function _writeState(MarketState memory state) internal {
-    bool isDelinquent = state.liquidityRequired() > totalAssets();
+    _writeState(state, totalAssets());
+  }
+
+  /**
+   * @dev Writes state using a current asset balance already loaded after the last
+   *      external state-changing call.
+   */
+  function _writeState(MarketState memory state, uint256 currentTotalAssets) internal {
+    bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
+
+    // An arbitrary direct transfer can exceed uint152, so saturate rather than making every
+    // state write revert. The uint104/uint112/uint128 accounting fields bound every payable
+    // market liability below uint152, making the saturated value economically equivalent.
+    uint256 checkpointedTotalAssets;
+    if (state.pendingWithdrawalExpiry != 0) {
+      checkpointedTotalAssets = MathUtils.min(currentTotalAssets, type(uint152).max);
+    }
 
     {
       bool isClosed = state.isClosed;
       uint maxTotalSupply = state.maxTotalSupply;
       assembly {
         // Slot 0 Storage Layout:
+        // [0:15]  | low 120 bits of checkpointedTotalAssets
         // [15:31] | state.maxTotalSupply
         // [31:32] | state.isClosed
-        let slot0 := or(isClosed, shl(0x08, maxTotalSupply))
+        let checkpointMask := sub(shl(0x78, 1), 1)
+        let slot0 := or(
+          or(isClosed, shl(0x08, maxTotalSupply)),
+          shl(0x88, and(checkpointedTotalAssets, checkpointMask))
+        )
         sstore(_state.slot, slot0)
       }
     }
@@ -580,6 +925,7 @@ contract WildcatMarketBase is
       uint lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       assembly {
         // Slot 3 Storage Layout:
+        // [0:4] | high 32 bits of checkpointedTotalAssets
         // [4:8] | state.lastInterestAccruedTimestamp
         // [8:22] | state.scaleFactor
         // [22:24] | state.reserveRatioBips
@@ -587,14 +933,17 @@ contract WildcatMarketBase is
         // [26:28] | protocolFeeBips
         // [28:32] | state.timeDelinquent
         let slot3 := or(
+          shl(0xe0, shr(0x78, checkpointedTotalAssets)),
           or(
             or(
-              or(shl(0xc0, lastInterestAccruedTimestamp), shl(0x50, scaleFactor)),
-              shl(0x40, reserveRatioBips)
+              or(
+                or(shl(0xc0, lastInterestAccruedTimestamp), shl(0x50, scaleFactor)),
+                shl(0x40, reserveRatioBips)
+              ),
+              or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
             ),
-            or(shl(0x30, annualInterestBips), shl(0x20, protocolFeeBips))
-          ),
-          timeDelinquent
+            timeDelinquent
+          )
         )
         sstore(add(_state.slot, 3), slot3)
       }
@@ -613,13 +962,19 @@ contract WildcatMarketBase is
    *        amount of scaled tokens is burned, ensuring borrowers do not continue paying interest
    *        on withdrawn assets.
    */
-  function _processExpiredWithdrawalBatch(MarketState memory state) internal {
+  function _processExpiredWithdrawalBatch(
+    MarketState memory state,
+    uint256 currentTotalAssets
+  ) internal {
     uint32 expiry = state.pendingWithdrawalExpiry;
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
 
     if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
       // Burn as much of the withdrawal batch as possible with available liquidity.
-      uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets());
+      uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(
+        state,
+        currentTotalAssets
+      );
       if (availableLiquidity > 0) {
         _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
       }
@@ -658,8 +1013,9 @@ contract WildcatMarketBase is
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return (0, 0);
 
-    uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
+    uint256 scaledAvailableLiquidity = state.maxScaledSettleableAmount(availableLiquidity);
     scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
+    if (scaledAmountBurned == 0) return (0, 0);
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
@@ -688,10 +1044,11 @@ contract WildcatMarketBase is
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return;
 
-    uint256 scaledAvailableLiquidity = state.scaleAmount(availableLiquidity);
+    uint256 scaledAvailableLiquidity = state.maxScaledSettleableAmount(availableLiquidity);
     uint104 scaledAmountBurned = MathUtils
       .min(scaledAvailableLiquidity, scaledAmountOwed)
       .toUint104();
+    if (scaledAmountBurned == 0) return;
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     uint128 normalizedAmountPaid = MathUtils
@@ -736,6 +1093,7 @@ contract WildcatMarketBase is
     }
   }
 
+  /// @dev checks the raw Chainalysis list directly and ignores borrower overrides.
   function _isFlaggedByChainalysis(address account) internal view returns (bool isFlagged) {
     address sentinelAddress = address(sentinel);
     assembly {
@@ -751,17 +1109,18 @@ contract WildcatMarketBase is
     }
   }
 
+  /// @dev gets or deploys the lender's escrow for the current principal and underlying asset.
   function _createEscrowForUnderlyingAsset(
     address accountAddress
   ) internal returns (address escrow) {
     address tokenAddress = address(asset);
-    address borrowerAddress = borrower;
+    address principalAddress = borrowerPrincipal();
     address sentinelAddress = address(sentinel);
 
     assembly {
       let freeMemoryPointer := mload(0x40)
       mstore(0, 0xa1054f6b)
-      mstore(0x20, borrowerAddress)
+      mstore(0x20, principalAddress)
       mstore(0x40, accountAddress)
       mstore(0x60, tokenAddress)
       if iszero(

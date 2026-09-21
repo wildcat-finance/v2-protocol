@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
 import 'src/libraries/FIFOQueue.sol';
 
@@ -36,5 +36,9 @@ library FIFOQueueLibExternal {
 
   function $values(FIFOQueue storage self) external view returns (uint32[] memory) {
     return FIFOQueueLib.values(self);
+  }
+
+  function $word(FIFOQueue storage self, uint256 index) external view returns (uint256) {
+    return self.data[index];
   }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 
@@ -48,6 +48,22 @@ contract LibStoredInitCodeExternal {
     uint256 value
   ) external returns (address deployment) {
     return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt, value);
+  }
+
+  function create2WithStoredInitCode(
+    address initCodeStorage,
+    bytes32 salt,
+    bytes memory constructorArgs
+  ) external returns (address deployment) {
+    return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt, constructorArgs);
+  }
+
+  function create2WithStoredInitCodeCD(
+    address initCodeStorage,
+    bytes32 salt,
+    bytes calldata constructorArgs
+  ) external returns (address deployment) {
+    return LibStoredInitCode.create2WithStoredInitCodeCD(initCodeStorage, salt, constructorArgs);
   }
 }
 

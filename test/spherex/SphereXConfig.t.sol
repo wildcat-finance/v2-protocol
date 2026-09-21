@@ -1,41 +1,19 @@
-// SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity 0.8.25;
 
-import 'src/spherex/SphereXConfig.sol';
-import 'forge-std/Test.sol';
-import { Prankster } from 'sol-utils/test/Prankster.sol';
+import { SphereXConfig } from 'src/spherex/SphereXConfig.sol';
+import { SphereXProtectedRegisteredBase } from 'src/spherex/SphereXProtectedRegisteredBase.sol';
+import { SphereXConfigHarness } from '../mocks/SphereXConfigMocks.sol';
+import { SphereXEngineMock } from '../mocks/SphereXConfigMocks.sol';
+import { SphereXRegisteredHarness } from '../mocks/SphereXConfigMocks.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
-contract BadEngine {
-  function supportsInterface(bytes4 interfaceId) external view returns (bool) {
-    return false;
-  }
-}
-
-contract GoodEngine {
-  event NewSenderOnEngine(address sender);
-
-  function supportsInterface(bytes4 interfaceId) external view returns (bool) {
-    return true;
+contract SphereXConfigTest is TestKernel {
+  struct Fixture {
+    SphereXEngineMock engine;
+    SphereXConfigHarness config;
   }
 
-  function addAllowedSenderOnChain(address sender) external {
-    emit NewSenderOnEngine(sender);
-  }
-}
-
-contract MockConfig is SphereXConfig {
-  constructor(
-    address admin,
-    address operator,
-    address engine
-  ) SphereXConfig(admin, operator, engine) {}
-
-  function addSender(address sender) external spherexOnlyOperatorOrAdmin {
-    _addAllowedSenderOnChain(sender);
-  }
-}
-
-contract SphereXConfigTest is Test, Prankster {
   event ChangedSpherexOperator(address oldSphereXAdmin, address newSphereXAdmin);
   event ChangedSpherexEngineAddress(address oldEngineAddress, address newEngineAddress);
   event SpherexAdminTransferStarted(address currentAdmin, address pendingAdmin);
@@ -43,167 +21,202 @@ contract SphereXConfigTest is Test, Prankster {
   event NewAllowedSenderOnchain(address sender);
   event NewSenderOnEngine(address sender);
 
-  error SphereXOperatorRequired();
-  error SphereXAdminRequired();
-  error SphereXOperatorOrAdminRequired();
-  error SphereXNotPendingAdmin();
-  error SphereXNotEngine();
+  address internal constant Admin = address(0xAD);
+  address internal constant Operator = address(0x0F);
+  address internal constant PendingAdmin = address(0xBEEF);
+  address internal constant Outsider = address(0xBAD);
+  address internal constant Sender = address(0x51);
 
-  BadEngine internal immutable badEngine = new BadEngine();
-  GoodEngine internal immutable goodEngine = new GoodEngine();
-  MockConfig internal config;
-
-  address internal admin = toAddr('admin');
-  address internal operator = toAddr('operator');
-
-  function setUp() external {
-    config = new MockConfig(admin, operator, address(goodEngine));
+  function _newEngine(bool supported) internal returns (SphereXEngineMock engine) {
+    engine = SphereXEngineMock(
+      _deployCode('test/mocks/SphereXConfigMocks.sol:SphereXEngineMock', abi.encode(supported))
+    );
   }
 
-  function _checkConfig(
-    address pendingSphereXAdmin,
-    address sphereXAdmin,
-    address sphereXOperator,
-    address sphereXEngine
-  ) internal {
-    assertEq(pendingSphereXAdmin, config.pendingSphereXAdmin(), 'pendingSphereXAdmin');
-    assertEq(sphereXAdmin, config.sphereXAdmin(), 'sphereXAdmin');
-    assertEq(sphereXOperator, config.sphereXOperator(), 'sphereXOperator');
-    assertEq(sphereXEngine, config.sphereXEngine(), 'sphereXEngine');
+  function _newFixture() internal returns (Fixture memory fixture) {
+    fixture.engine = _newEngine(true);
+    fixture.config = SphereXConfigHarness(
+      _deployCode(
+        'test/mocks/SphereXConfigMocks.sol:SphereXConfigHarness',
+        abi.encode(Admin, Operator, address(fixture.engine))
+      )
+    );
   }
 
-  function test_AuthenticatedMethod(
-    address target,
-    address allowedSender,
-    bytes memory data,
-    bytes4 errorSelector
-  ) internal {
-    startPrank(address(uint160(allowedSender) + 1));
-    (bool success, ) = target.call(data);
-    assertTrue(success, 'call failed');
-    stopPrank();
-    startPrank(address(uint160(allowedSender) + 1));
-    vm.expectRevert(errorSelector);
-    target.call(data);
-    stopPrank();
+  function _assertConfig(
+    SphereXConfigHarness config,
+    address pendingAdmin,
+    address admin,
+    address operator,
+    address engine
+  ) internal view {
+    assertEq(config.pendingSphereXAdmin(), pendingAdmin);
+    assertEq(config.sphereXAdmin(), admin);
+    assertEq(config.sphereXOperator(), operator);
+    assertEq(config.sphereXEngine(), engine);
   }
 
-  // ========================================================================== //
-  //                          transferSphereXAdminRole                          //
-  // ========================================================================== //
-
-  function test_transferSphereXAdminRole(address newAdmin) external {
-    vm.expectEmit(address(config));
-    emit SpherexAdminTransferStarted(admin, newAdmin);
-    vm.prank(admin);
-    config.transferSphereXAdminRole(newAdmin);
-    _checkConfig(newAdmin, admin, operator, address(goodEngine));
+  function test_constructor_StoresInitialConfiguration() external {
+    Fixture memory fixture = _newFixture();
+    _assertConfig(fixture.config, address(0), Admin, Operator, address(fixture.engine));
   }
 
-  function test_transferSphereXAdminRole_SphereXAdminRequired(address newAdmin) external {
-    vm.expectRevert(SphereXAdminRequired.selector);
-    config.transferSphereXAdminRole(newAdmin);
+  function test_transferAdmin_IsTwoStepAndMovesAuthority() external {
+    Fixture memory fixture = _newFixture();
+
+    vm.expectEmit(address(fixture.config));
+    emit SpherexAdminTransferStarted(Admin, PendingAdmin);
+    vm.prank(Admin);
+    fixture.config.transferSphereXAdminRole(PendingAdmin);
+    _assertConfig(fixture.config, PendingAdmin, Admin, Operator, address(fixture.engine));
+
+    vm.expectEmit(address(fixture.config));
+    emit SpherexAdminTransferCompleted(Admin, PendingAdmin);
+    vm.prank(PendingAdmin);
+    fixture.config.acceptSphereXAdminRole();
+    _assertConfig(fixture.config, address(0), PendingAdmin, Operator, address(fixture.engine));
+
+    vm.prank(PendingAdmin);
+    fixture.config.changeSphereXOperator(Outsider);
+    assertEq(fixture.config.sphereXOperator(), Outsider);
   }
 
-  // ========================================================================== //
-  //                           acceptSphereXAdminRole                           //
-  // ========================================================================== //
-
-  function test_acceptSphereXAdminRole(address newAdmin) external {
-    vm.expectEmit(address(config));
-    emit SpherexAdminTransferStarted(admin, newAdmin);
-    vm.prank(admin);
-    config.transferSphereXAdminRole(newAdmin);
-
-    vm.expectEmit(address(config));
-    emit SpherexAdminTransferCompleted(admin, newAdmin);
-    vm.prank(newAdmin);
-    config.acceptSphereXAdminRole();
-
-    _checkConfig(address(0), newAdmin, operator, address(goodEngine));
+  function test_transferAdmin_RequiresCurrentAdmin() external {
+    Fixture memory fixture = _newFixture();
+    vm.expectRevert(SphereXConfig.SphereXAdminRequired.selector);
+    vm.prank(Outsider);
+    fixture.config.transferSphereXAdminRole(PendingAdmin);
   }
 
-  function test_acceptSphereXAdminRole_SphereXNotPendingAdmin(address newAdmin) external {
-    vm.assume(newAdmin != address(1));
-    vm.expectRevert(SphereXNotPendingAdmin.selector);
-    config.acceptSphereXAdminRole();
+  function test_acceptAdmin_RequiresPendingAdmin() external {
+    Fixture memory fixture = _newFixture();
 
-    vm.expectEmit(address(config));
-    emit SpherexAdminTransferStarted(admin, newAdmin);
-    vm.prank(admin);
-    config.transferSphereXAdminRole(newAdmin);
+    vm.expectRevert(SphereXConfig.SphereXNotPendingAdmin.selector);
+    vm.prank(PendingAdmin);
+    fixture.config.acceptSphereXAdminRole();
 
-    vm.expectRevert(SphereXNotPendingAdmin.selector);
-    vm.prank(address(1));
-    config.acceptSphereXAdminRole();
+    vm.prank(Admin);
+    fixture.config.transferSphereXAdminRole(PendingAdmin);
+
+    vm.expectRevert(SphereXConfig.SphereXNotPendingAdmin.selector);
+    vm.prank(Outsider);
+    fixture.config.acceptSphereXAdminRole();
   }
 
-  // ========================================================================== //
-  //                            changeSphereXOperator                           //
-  // ========================================================================== //
+  function test_changeOperator_EmitsAndRequiresAdmin() external {
+    Fixture memory fixture = _newFixture();
 
-  function test_changeSphereXOperator(address newOperator) external {
-    vm.expectEmit(address(config));
-    emit ChangedSpherexOperator(operator, newOperator);
-    vm.prank(admin);
-    config.changeSphereXOperator(newOperator);
-    _checkConfig(address(0), admin, newOperator, address(goodEngine));
+    vm.expectRevert(SphereXConfig.SphereXAdminRequired.selector);
+    vm.prank(Outsider);
+    fixture.config.changeSphereXOperator(PendingAdmin);
+
+    vm.expectEmit(address(fixture.config));
+    emit ChangedSpherexOperator(Operator, PendingAdmin);
+    vm.prank(Admin);
+    fixture.config.changeSphereXOperator(PendingAdmin);
+    _assertConfig(fixture.config, address(0), Admin, PendingAdmin, address(fixture.engine));
   }
 
-  function test_changeSphereXOperator_SphereXAdminRequired(address newOperator) external {
-    vm.expectRevert(SphereXAdminRequired.selector);
-    config.changeSphereXOperator(newOperator);
+  function test_changeEngine_AcceptsDisabledAndCompatibleEngines() external {
+    Fixture memory fixture = _newFixture();
+
+    vm.expectEmit(address(fixture.config));
+    emit ChangedSpherexEngineAddress(address(fixture.engine), address(0));
+    vm.prank(Operator);
+    fixture.config.changeSphereXEngine(address(0));
+    assertEq(fixture.config.sphereXEngine(), address(0));
+
+    SphereXEngineMock nextEngine = _newEngine(true);
+    vm.expectEmit(address(fixture.config));
+    emit ChangedSpherexEngineAddress(address(0), address(nextEngine));
+    vm.prank(Operator);
+    fixture.config.changeSphereXEngine(address(nextEngine));
+    assertEq(fixture.config.sphereXEngine(), address(nextEngine));
   }
 
-  // ========================================================================== //
-  //                             changeSphereXEngine                            //
-  // ========================================================================== //
+  function test_changeEngine_RejectsIncompatibleEngine() external {
+    Fixture memory fixture = _newFixture();
+    SphereXEngineMock badEngine = _newEngine(false);
 
-  function test_changeSphereXEngine_NullEngine() external {
-    vm.expectEmit(address(config));
-    emit ChangedSpherexEngineAddress(address(goodEngine), address(0));
-    vm.prank(operator);
-    config.changeSphereXEngine(address(0));
-    _checkConfig(address(0), admin, operator, address(0));
+    vm.expectRevert(SphereXConfig.SphereXNotEngine.selector);
+    vm.prank(Operator);
+    fixture.config.changeSphereXEngine(address(badEngine));
+    assertEq(fixture.config.sphereXEngine(), address(fixture.engine));
   }
 
-  function test_changeSphereXEngine_NotEngine() external {
-    vm.expectRevert(SphereXNotEngine.selector);
-    vm.prank(operator);
-    config.changeSphereXEngine(address(badEngine));
+  function test_changeEngine_RequiresOperator() external {
+    Fixture memory fixture = _newFixture();
+    vm.expectRevert(SphereXConfig.SphereXOperatorRequired.selector);
+    vm.prank(Admin);
+    fixture.config.changeSphereXEngine(address(0));
   }
 
-  function test_changeSphereXEngine_GoodEngine() external {
-    GoodEngine newEngine = new GoodEngine();
-    vm.expectEmit(address(config));
-    emit ChangedSpherexEngineAddress(address(goodEngine), address(newEngine));
-    vm.prank(operator);
-    config.changeSphereXEngine(address(newEngine));
-    _checkConfig(address(0), admin, operator, address(newEngine));
+  function test_addSender_AllowsAdminAndOperator() external {
+    Fixture memory fixture = _newFixture();
+
+    vm.expectEmit(address(fixture.engine));
+    emit NewSenderOnEngine(Sender);
+    vm.expectEmit(address(fixture.config));
+    emit NewAllowedSenderOnchain(Sender);
+    vm.prank(Admin);
+    fixture.config.addSender(Sender);
+
+    vm.expectEmit(address(fixture.engine));
+    emit NewSenderOnEngine(Outsider);
+    vm.expectEmit(address(fixture.config));
+    emit NewAllowedSenderOnchain(Outsider);
+    vm.prank(Operator);
+    fixture.config.addSender(Outsider);
   }
 
-  // ========================================================================== //
-  //                          _addAllowedSenderOnChain                          //
-  // ========================================================================== //
-
-  function test__addAllowedSenderOnChain(address sender) external {
-    vm.expectEmit(address(goodEngine));
-    emit NewSenderOnEngine(sender);
-    vm.expectEmit(address(config));
-    emit NewAllowedSenderOnchain(sender);
-    vm.prank(admin);
-    config.addSender(sender);
+  function test_addSender_RejectsOutsider() external {
+    Fixture memory fixture = _newFixture();
+    vm.expectRevert(SphereXConfig.SphereXOperatorOrAdminRequired.selector);
+    vm.prank(Outsider);
+    fixture.config.addSender(Sender);
   }
 
-  function test__addAllowedSenderOnChain_NullEngine(address sender) external {
-    vm.prank(operator);
-    config.changeSphereXEngine(address(0));
+  function test_addSender_IsNoOpWhenEngineDisabled() external {
+    Fixture memory fixture = _newFixture();
+    vm.prank(Operator);
+    fixture.config.changeSphereXEngine(address(0));
 
-    vm.prank(admin);
-    config.addSender(sender);
+    vm.recordLogs();
+    vm.prank(Admin);
+    fixture.config.addSender(Sender);
+    assertEq(vm.getRecordedLogs().length, 0);
   }
 
-  function toAddr(bytes memory label) internal pure returns (address addr) {
-    addr = address(uint160(uint(keccak256(label))));
+  function test_registeredConfig_UsesControllerAsOperator() external {
+    SphereXRegisteredHarness registered = SphereXRegisteredHarness(
+      _deployCode(
+        'test/mocks/SphereXConfigMocks.sol:SphereXRegisteredHarness',
+        abi.encode(Admin, address(0))
+      )
+    );
+    assertEq(registered.sphereXOperator(), Admin);
+    assertEq(registered.sphereXEngine(), address(0));
+
+    vm.expectRevert(SphereXProtectedRegisteredBase.SphereXOperatorRequired.selector);
+    vm.prank(Outsider);
+    registered.changeSphereXEngine(address(0));
+
+    vm.expectEmit(address(registered));
+    emit ChangedSpherexEngineAddress(address(0), Outsider);
+    vm.prank(Admin);
+    registered.changeSphereXEngine(Outsider);
+    assertEq(registered.sphereXEngine(), Outsider);
+  }
+
+  function test_registeredGuard_AllowsCallWhenEngineDisabled() external {
+    SphereXRegisteredHarness registered = SphereXRegisteredHarness(
+      _deployCode(
+        'test/mocks/SphereXConfigMocks.sol:SphereXRegisteredHarness',
+        abi.encode(Admin, address(0))
+      )
+    );
+
+    registered.setValue(123);
+    assertEq(registered.value(), 123);
   }
 }

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
 
 import './MarketConstraintHooks.sol';
+import './IMarketTransferPolicy.sol';
 import '../libraries/SafeCastLib.sol';
 import './BaseAccessControls.sol';
 
@@ -9,6 +10,7 @@ using BoolUtils for bool;
 using MathUtils for uint256;
 using SafeCastLib for uint256;
 
+/// @dev per-market maturity and access settings owned by one reusable hooks instance.
 struct HookedMarket {
   bool isHooked;
   bool transferRequiresAccess;
@@ -21,64 +23,84 @@ struct HookedMarket {
   bool allowTermReduction;
 }
 
-/**
- * @title FixedTermHooks
- * @dev Hooks contract for wildcat markets. Restricts access to deposits
- *      to accounts that have credentials from approved role providers, or
- *      which are manually approved by the borrower. Restricts withdrawals
- *      until a fixed loan term has elapsed, which can be reduced but not
- *      increased by the borrower.
- *
- *      Withdrawals are restricted in the same way for users that have not
- *      made a deposit, while users who have made a deposit at any point (or
- *      received market tokens while having deposit access) will always remain
- *      approved, even if their access is later revoked.
- *
- *      Deposit access may be canceled by the borrower.
- */
-contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
+/// @title FixedTermHooks
+/// @notice credential policy with one maturity timestamp before which queueing is blocked.
+/// @dev maturity may move earlier when configured, but never later. entry with a valid credential
+///      marks a lender permanently known on that market, so losing the credential can't trap an
+///      existing position after maturity. the hooks administrator can still block deposits wherever
+///      `onDeposit` is enabled.
+contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
 
-  event MinimumDepositUpdated(address market, uint128 newMinimumDeposit);
-  event FixedTermUpdated(address market, uint32 fixedTermEndTime);
+  /// @notice emitted when a hooked market's minimum deposit changes.
+  event MinimumDepositUpdated(
+    address indexed market,
+    address indexed caller,
+    uint128 previousMinimumDeposit,
+    uint128 newMinimumDeposit
+  );
+  /// @notice emitted when an allowed term reduction moves a market's maturity earlier.
+  event FixedTermUpdated(
+    address indexed market,
+    address indexed caller,
+    uint32 previousFixedTermEndTime,
+    uint32 newFixedTermEndTime
+  );
 
   // ========================================================================== //
   //                                   Errors                                   //
   // ========================================================================== //
 
+  /// @dev the caller supplied a market not bound to this hooks instance.
   error NotHookedMarket();
+  /// @dev the scaled deposit is below the market's configured minimum.
   error DepositBelowMinimum();
+  /// @dev a positive minimum was requested for a market without the deposit callback.
+  error DepositHookNotEnabled();
+  /// @dev market-creation hook data omitted the fixed-term timestamp.
   error FixedTermNotProvided();
+  /// @dev the requested hook flags leave an uncredentialed path into a gated withdrawal policy.
+  error InvalidAccessConfiguration();
+  /// @dev maturity is earlier than now or more than 365 days away.
   error InvalidFixedTerm();
+  /// @dev a term update tried to move maturity later.
   error IncreaseFixedTerm();
+  /// @dev the lender tried to queue a withdrawal before maturity.
   error WithdrawBeforeTermEnd();
+  /// @dev the borrower tried to reduce APR before maturity.
   error NoReducingAprBeforeTermEnd();
+  /// @dev transfers are disabled for this market.
   error TransfersDisabled();
+  /// @dev the borrower tried to close before maturity without permission.
   error ClosureDisabledBeforeTerm();
+  /// @dev this market was not configured to allow term reductions.
   error TermReductionDisabled();
 
   // ========================================================================== //
   //                                    State                                   //
   // ========================================================================== //
 
+  /// @notice longest fixed term accepted when a market is attached.
   uint32 public constant MaximumLoanTerm = 365 days;
 
   HooksDeploymentConfig public immutable override config;
 
   mapping(address => HookedMarket) internal _hookedMarkets;
+  // tracks immutable deposit-hook dispatch without changing the public HookedMarket ABI.
+  mapping(address => bool) internal _depositHookEnabled;
 
   // ========================================================================== //
   //                                 Constructor                                //
   // ========================================================================== //
 
-  /**
-   * @param _deployer Address of the account that called the factory.
-   * @param args Optional abi-encoded `NameAndProviderInputs` struct to initialize
-   *             the providers and name for the hooks instance.
-   */
-  constructor(address _deployer, bytes memory args) BaseAccessControls(_deployer) IHooks() {
+  /// @param _administrator initial hooks administrator. this does not grant provider authority.
+  /// @param args optional ABI-encoded `NameAndProviderInputs` for the name and initial providers.
+  constructor(
+    address _administrator,
+    bytes memory args
+  ) BaseAccessControls(_administrator) IHooks() {
     HooksConfig optionalFlags = encodeHooksConfig({
       hooksAddress: address(0),
       useOnDeposit: true,
@@ -131,37 +153,21 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     return _value.toUint128();
   }
 
-  /**
-   * @dev Called when market is deployed using this contract as its `hooks`.
-   *
-   *     @param deployer      Address of the account that called the factory - must
-   *                          match the borrower address.
-   *     @param marketAddress Address of the market being deployed.
-   *     @param parameters    Parameters used to deploy the market.
-   *     @param hooksData     Extra data passed to the market deployment function containing
-   *                          the parameters for the hooks.
-   *
-   *     `hooksData` is a tuple of (
-   *        uint32 fixedTermEndTime,
-   *        uint128? minimumDeposit,
-   *        bool? transfersDisabled,
-   *        bool? allowClosureBeforeTerm,
-   *        bool? allowTermReduction
-   *     )
-   *     Where none of the parameters are mandatory except `fixedTermEndTime`.
-   *
-   *      Note: Called inside the root `onCreateMarket` in the base contract,
-   *      so no need to verify the caller is the factory.
-   */
+  /// @dev binds one market to this instance. `administrator_` must be the current hooks
+  ///      administrator. `hooksData` is `(uint32 fixedTermEndTime, uint128 minimumDeposit?,
+  ///      bool transfersDisabled?, bool allowClosureBeforeTerm?, bool allowTermReduction?)`.
+  ///      maturity is required, can't be in the past, and can't be more than 365 days away.
+  ///      withdrawal gating is accepted only when deposits are gated and transfers are gated or
+  ///      disabled, otherwise an uncredentialed entry path could trap the recipient.
   function _onCreateMarket(
-    address deployer,
+    address administrator_,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
   ) internal override returns (HooksConfig marketHooksConfig) {
     // Validate the deploy parameters
-    super._onCreateMarket(deployer, marketAddress, parameters, hooksData);
-    if (deployer != borrower) revert CallerNotBorrower();
+    super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
+    if (administrator_ != administrator) revert CallerNotAdministrator();
     if (hooksData.length < 32) revert FixedTermNotProvided();
 
     marketHooksConfig = parameters.hooks;
@@ -173,7 +179,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     ) {
       revert InvalidFixedTerm();
     }
-    emit FixedTermUpdated(marketAddress, fixedTermEndTime);
+    emit FixedTermUpdated(marketAddress, administrator_, 0, fixedTermEndTime);
 
     // Use the deposit and transfer flags to determine whether those require
     // access control. These are tracked separately because if the market
@@ -196,9 +202,21 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
       allowClosureBeforeTerm: _readBoolCd(hooksData, 0x60),
       allowTermReduction: _readBoolCd(hooksData, 0x80)
     });
+    if (hookedMarket.withdrawalRequiresAccess) {
+      if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
+      if (!hookedMarket.transfersDisabled && !hookedMarket.transferRequiresAccess) {
+        revert InvalidAccessConfiguration();
+      }
+    }
+
     if (hookedMarket.minimumDeposit > 0) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(marketAddress, hookedMarket.minimumDeposit);
+      emit MinimumDepositUpdated(
+        marketAddress,
+        administrator_,
+        0,
+        hookedMarket.minimumDeposit
+      );
     }
     if (hookedMarket.transfersDisabled) {
       marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
@@ -210,6 +228,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
       );
     }
     marketHooksConfig = marketHooksConfig.mergeFlags(config);
+    _depositHookEnabled[marketAddress] = marketHooksConfig.useOnDeposit();
     _hookedMarkets[address(marketAddress)] = hookedMarket;
   }
 
@@ -217,31 +236,76 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                              Market Management                             //
   // ========================================================================== //
 
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyBorrower {
+  /// @notice updates a hooked market's minimum deposit.
+  /// @dev callback flags are immutable. a positive initial minimum enables `onDeposit`, but a
+  ///      market created with no minimum and no deposit callback can't add a positive minimum
+  ///      later.
+  /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
+  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
+    if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
+    uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
     hookedMarket.minimumDeposit = newMinimumDeposit;
-    emit MinimumDepositUpdated(market, newMinimumDeposit);
+    emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
 
-  function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyBorrower {
+  /// @notice moves a hooked market's maturity earlier when term reduction was enabled at creation.
+  /// @dev the new time may be now or in the past. maturity can never be extended.
+  function setFixedTermEndTime(
+    address market,
+    uint32 newFixedTermEndTime
+  ) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime)
       revert TermReductionDisabled();
     if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
+    uint32 previousFixedTermEndTime = hookedMarket.fixedTermEndTime;
     hookedMarket.fixedTermEndTime = newFixedTermEndTime;
-    emit FixedTermUpdated(market, newFixedTermEndTime);
+    emit FixedTermUpdated(
+      market,
+      msg.sender,
+      previousFixedTermEndTime,
+      newFixedTermEndTime
+    );
   }
 
   // ========================================================================== //
   //                               Market Queries                               //
   // ========================================================================== //
 
+  /// @notice says whether every market-token transfer is disabled for this market.
+  /// @dev reverts for a market not bound to this hooks instance. false is permanent because this
+  ///      template has no setter for the deployment-time flag.
+  function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return market.transfersDisabled;
+  }
+
+  /// @notice says whether `recipient` can receive tokens now without hook data.
+  /// @dev returns false for disabled transfers, an unknown blocked recipient, or a required
+  ///      credential that cannot be resolved from cache or pull providers. reverts for an unknown
+  ///      market.
+  function isMarketTransferRecipientAllowed(
+    address marketAddress,
+    address recipient
+  ) external view override returns (bool) {
+    HookedMarket storage market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return
+      !market.transfersDisabled &&
+      _isMarketTransferRecipientAllowed(marketAddress, recipient, market.transferRequiresAccess);
+  }
+
+  /// @notice returns the fixed-term configuration stored for `marketAddress`.
+  /// @dev an unattached market returns the zero-value struct.
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
     return _hookedMarkets[marketAddress];
   }
 
+  /// @notice batch version of `getHookedMarket`, preserving input order.
   function getHookedMarkets(
     address[] calldata marketAddresses
   ) external view returns (HookedMarket[] memory hookedMarkets) {
@@ -255,11 +319,10 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
   //                                    Hooks                                   //
   // ========================================================================== //
 
-  /**
-   * @dev Called when a lender attempts to deposit.
-   *      Passes the check if the lender is not blocked from deposits
-   *      and has a valid credential from an approved role provider.
-   */
+  /// @notice enforces the market's minimum deposit and lender entry policy.
+  /// @dev the minimum is compared in scaled units using the same floor as the market. a valid
+  ///      credential marks the lender permanently known on this market, even when deposit access
+  ///      itself is optional.
   function onDeposit(
     address lender,
     uint scaledAmount,
@@ -275,10 +338,15 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     // Check that the lender is not blocked
     if (status.isBlockedFromDeposits) revert NotApprovedLender();
 
-    // Check that the deposit amount is at or above the market's minimum
-    uint normalizedAmount = scaledAmount.rayMul(state.scaleFactor);
-    if (market.minimumDeposit > normalizedAmount) {
-      revert DepositBelowMinimum();
+    // Check that the deposit amount is at or above the market's minimum.
+    // The market floors the scaled amount (v2.5), so an exact-minimum tender
+    // can round-trip below the minimum; compare in scaled units, flooring
+    // both sides identically. Tolerance is at most one scaled token. Skips
+    // the conversion when no minimum is set.
+    if (market.minimumDeposit > 0) {
+      if (MathUtils.mulDiv(market.minimumDeposit, RAY, state.scaleFactor) > scaledAmount) {
+        revert DepositBelowMinimum();
+      }
     }
 
     // Attempt to validate the lender's access
@@ -297,12 +365,9 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
   }
 
-  /**
-   * @dev Called when a lender attempts to queue a withdrawal.
-   *      Passes the check if the lender has previously deposited or received
-   *      market tokens while having the ability to deposit, or currently has a
-   *      valid credential from an approved role provider.
-   */
+  /// @notice blocks withdrawal queueing before maturity, then applies any withdrawal access policy.
+  /// @dev at and after maturity, a gated withdrawal needs either market-specific known-lender
+  ///      status or a current credential. execution of an existing request is never term-gated.
   function onQueueWithdrawal(
     address lender,
     uint32 /* expiry */,
@@ -325,29 +390,20 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     }
   }
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev execution stays permissionless once the lender has queued the withdrawal.
   function onExecuteWithdrawal(
     address lender,
+    uint32 /* expiry */,
     uint128 /* normalizedAmountWithdrawn */,
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {}
 
-  /**
-   * @dev Called when a lender attempts to transfer market tokens on a market
-   *      that requires credentials for either transfers or withdrawals.
-   *
-   *      Allows the transfer if the recipient:
-   *      - is a known lender OR
-   *      - is not blocked AND
-   *        - has a valid credential OR
-   *        - market does not require a credential for transfers
-   *
-   *    If the recipient is not a known lender but does have a valid
-   *    credential, they will be marked as a known lender.
-   */
+  /// @notice enforces the recipient side of the market's transfer policy.
+  /// @dev known recipients and the market's registered wrapper bypass later credential and
+  ///      deposit-block checks. any other unknown recipient must not be blocked and, when transfers
+  ///      are gated, must supply or resolve a credential. successful credential validation
+  ///      permanently marks the recipient known on this market.
   function onTransfer(
     address /* caller */,
     address /* from */,
@@ -366,6 +422,10 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
 
     // If the recipient is a known lender, skip access control checks.
     if (!isKnownLenderOnMarket[to][msg.sender]) {
+      // Wrapper entry is an ordinary market-token transfer without credential data. Only the
+      // canonical wrapper registered by this market receives the protocol exemption.
+      if (_isRegisteredWrapper(msg.sender, to)) return;
+
       LenderStatus memory toStatus = _lenderStatus[to];
       // Respect `isBlockedFromDeposits` only if the recipient is not a known lender
       if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
@@ -384,24 +444,24 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     }
   }
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev fixed-term policy does not constrain borrower draws.
   function onBorrow(
     uint /* normalizedAmount */,
     MarketState calldata /* state */,
     bytes calldata /* extraData */
   ) external override {}
 
-  /**
-   * @dev Hook not implemented for this contract.
-   */
+  /// @dev fixed-term policy does not constrain repayments.
   function onRepay(
     uint normalizedAmount,
     MarketState calldata state,
     bytes calldata hooksData
   ) external override {}
 
+  /// @notice enforces the deployment-time early-closure policy.
+  /// @dev before maturity, closure needs either `allowClosureBeforeTerm` or `allowTermReduction`.
+  ///      an allowed early close moves maturity to the closure timestamp. closure at or after
+  ///      maturity needs no term-policy permission.
   function onCloseMarket(
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
@@ -410,25 +470,35 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
     if (!market.isHooked) revert NotHookedMarket();
     if (block.timestamp < market.fixedTermEndTime) {
       if (!(market.allowTermReduction || market.allowClosureBeforeTerm)) {
-        revert ClosureDisabledBeforeTerm();  
+        revert ClosureDisabledBeforeTerm();
       }
+      uint32 previousFixedTermEndTime = market.fixedTermEndTime;
       market.fixedTermEndTime = uint32(block.timestamp);
-      emit FixedTermUpdated(msg.sender, market.fixedTermEndTime);
+      emit FixedTermUpdated(
+        msg.sender,
+        msg.sender,
+        previousFixedTermEndTime,
+        market.fixedTermEndTime
+      );
     }
   }
 
+  /// @dev quarantine reaches the maturity check in the ordinary queue callback that follows.
   function onNukeFromOrbit(
     address /* lender */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /// @dev this template adds no supply-cap policy.
   function onSetMaxTotalSupply(
     uint256 /* maxTotalSupply */,
     MarketState calldata /* state */,
     bytes calldata /* hooksData */
   ) external override {}
 
+  /// @notice rejects APR reductions before maturity, then applies the shared reserve policy.
+  /// @dev equal or higher APRs are allowed during the term, subject to the shared bounds.
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
@@ -459,6 +529,7 @@ contract FixedTermHooks is BaseAccessControls, MarketConstraintHooks {
       );
   }
 
+  /// @dev this template adds no protocol-fee policy.
   function onSetProtocolFeeBips(
     uint16 /* protocolFeeBips */,
     MarketState memory /* intermediateState */,

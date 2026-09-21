@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
 
-import 'forge-std/Test.sol';
 import './wrappers/SafeCastLibExternal.sol';
+import { TestKernel } from '../shared/TestKernel.sol';
 
 bytes4 constant Panic_ErrorSelector = 0x4e487b71;
 uint256 constant Panic_Arithmetic = 0x11;
@@ -11,9 +11,15 @@ uint256 constant Panic_Arithmetic = 0x11;
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
-contract SafeCastLibTest is Test {
-  SafeCastLibExternal internal wrapper = new SafeCastLibExternal();
+contract SafeCastLibTest is TestKernel {
+  SafeCastLibExternal internal wrapper;
   bytes internal ArithmeticError = abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic);
+
+  function setUp() external {
+    wrapper = SafeCastLibExternal(
+      _deployCode('test/libraries/wrappers/SafeCastLibExternal.sol:SafeCastLibExternal')
+    );
+  }
 
   function test_toUint8(uint256 x) external {
     uint256 overflowingX = bound(x, uint256(type(uint8).max) + 1, type(uint256).max);
