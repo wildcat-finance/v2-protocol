@@ -10,9 +10,12 @@ Product and user documentation lives at
 
 ## Build and test
 
-[Foundry](https://book.getfoundry.sh/getting-started/installation) is required.
+[Foundry](https://book.getfoundry.sh/getting-started/installation) `1.8.3` is
+required. [`.foundry-version`](./.foundry-version) supplies the version for CI
+and the Sepolia wrapper-factory installer.
 
 ```sh
+foundryup --install "$(cat .foundry-version)"
 git submodule update --init
 forge build
 forge test

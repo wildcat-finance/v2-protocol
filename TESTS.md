@@ -5,6 +5,8 @@ suite. There is no legacy suite, parity oracle, or alternate discovery profile.
 
 ## Required commands
 
+Install the pinned Foundry toolchain using the [build setup](./README.md#build-and-test).
+
 ```sh
 forge test
 yarn test:fixed
