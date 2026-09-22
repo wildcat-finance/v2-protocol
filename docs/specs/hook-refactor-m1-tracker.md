@@ -1,10 +1,11 @@
 # M1 tracker: interfaces and baseline
 
 - Plan: [M1 execution plan](hook-refactor-m1-plan.md).
-- Milestone status: complete; ready for user review and push.
+- Milestone status: complete; reviewed and pushed by the user on 2026-09-22.
 - Execution tasks complete: 7 of 7.
 - Active task: none.
-- Next action: review M1, then prepare the M2 plan/tracker.
+- Next action: review the [M2 plan](hook-refactor-m2-plan.md) and
+  [tracker](hook-refactor-m2-tracker.md) before implementation.
 - Intended starting source revision: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
 Source and toolchain identity are verified in the [baseline record](hook-refactor-m1-baseline.md).
@@ -72,9 +73,10 @@ the already-active Foundry isolation/linking defaults; effective default/deploy
 settings are unchanged. The user's reference PDF and lifecycle sketch remain
 untracked and excluded from commits.
 
-Next: user review and push of M1. Then prepare M2's own plan/tracker from the
-handoff before implementation. The implementation's performance, parity, and
-multi-policy proofs remain obligations of M2–M5.
+The user approved and pushed M1 on 2026-09-22. M2's own
+[plan](hook-refactor-m2-plan.md) and [tracker](hook-refactor-m2-tracker.md) are
+prepared for review before implementation. The implementation's performance,
+parity, and multi-policy proofs remain obligations of M2–M5.
 
 ## Progress log
 
@@ -89,6 +91,7 @@ multi-policy proofs remain obligations of M2–M5.
 | M1-05 complete | Specified adapters, creation, action defaults/additional checks, APR selection/effective validation on both routes, lifecycle management, no-ops, and views. Compiler probe verified calldata/constructor/diamond signature shape; runtime composition proof remains M4. |
 | M1-06 complete | Retained family strings and periodic ABI revision 2; no new revision getters. Documented exact ABI comparison and the limited empty-to-named callback input labels needed by shared coordinators. |
 | M1-07 complete | Walked existing and illustrative extension/default-replacement paths, clarified virtual default-APR replacement and named term primitives, reconciled evidence, and recorded the M2 handoff. Input/receipt hashes, effective configurations, document links/anchors/whitespace, and checkpoint signatures verified. |
+| 2026-09-22: milestone accepted | User confirmed M1 looks good and has been pushed; M2 plan/tracker prepared separately. |
 
 ## Signed checkpoints
 
@@ -101,7 +104,7 @@ multi-policy proofs remain obligations of M2–M5.
 | M1-04 | `e202675` |
 | M1-05 | `1f5b362` |
 | M1-06 | `e1f95c3` |
-| M1-07 | Completion commit: `docs: complete hook refactor M1 and record M2 handoff`. |
+| M1-07 | `d454f26` |
 
 All checkpoints use `kethcode <dave@wildcat.finance>` and the repository-selected
-SSH signing key. Commits are local; pushing remains with the user.
+SSH signing key. The user confirmed these M1 checkpoints have been pushed.

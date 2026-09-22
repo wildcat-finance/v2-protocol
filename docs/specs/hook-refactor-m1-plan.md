@@ -234,6 +234,7 @@ matching receipts should be reused; new checks should fill evidence gaps or
 answer a concrete design question. Small experiments must not become parallel
 production implementations.
 
-The milestones do not introduce new approval gates. Design decisions, evidence,
-and any genuine blocker are recorded in the tracker so the next session can
-continue from the actual state of the work.
+Follow the checkpoint and user-review workflow in the
+[milestone working boundaries](hook-refactor-milestones.md#working-boundaries).
+Design decisions, evidence, and any genuine blocker are recorded in the tracker
+so the next session can continue from the actual state of the work.

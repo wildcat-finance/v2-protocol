@@ -1,7 +1,7 @@
 # Shared hook foundation and policy composition
 
-- Status: scope and composition approach agreed; M1 design/baseline complete
-  and ready for review. Refactor implementation has not started.
+- Status: scope and composition approach agreed; M1 complete, reviewed, and
+  pushed. M2 plan/tracker prepared; refactor implementation has not started.
 - Date: 2026-09-22.
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
@@ -23,9 +23,11 @@ boundary, and acceptance criteria. The [milestones](hook-refactor-milestones.md)
 define the sequence. M1's [design](hook-refactor-m1-design.md) selects concrete
 internal signatures, ownership, storage adapters, and metadata; its
 [baseline](hook-refactor-m1-baseline.md) records existing behavior and measurements.
-The [plan](hook-refactor-m1-plan.md) and [tracker](hook-refactor-m1-tracker.md)
-record completion. Requirements describe the eventual refactor; its runtime
-acceptance evidence remains to be produced during implementation.
+The [M1 plan](hook-refactor-m1-plan.md) and [tracker](hook-refactor-m1-tracker.md)
+record completion. The [M2 plan](hook-refactor-m2-plan.md) and
+[tracker](hook-refactor-m2-tracker.md) define the shared-behavior implementation
+work. Requirements describe the eventual refactor; its runtime acceptance
+evidence remains to be produced during implementation.
 
 ## Scope
 

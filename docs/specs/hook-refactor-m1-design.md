@@ -1,7 +1,7 @@
 # M1 design: shared hooks and explicit policy integration
 
-- Status: M1 complete; ready for milestone review. Production refactoring has
-  not started.
+- Status: M1 complete, reviewed, and pushed. M2 plan/tracker prepared;
+  production refactoring has not started.
 - Implements the [agreed spec](hook-composition.md) against the
   [behavior map](hook-behavior-map.md) and [measured baseline](hook-refactor-m1-baseline.md).
 - This is an implementation contract for M2/M3, not deployed Solidity or an
@@ -684,8 +684,9 @@ not need to migrate temporary state from an older deployed policy.
 ## M2 handoff
 
 M2's outcome is one maintained implementation of shared behavior adopted by all
-three current templates. Write its task plan/tracker after M1 review; this
-handoff is not authorization to start the next milestone in this session.
+three current templates. Its [plan](hook-refactor-m2-plan.md) and
+[tracker](hook-refactor-m2-tracker.md) translate this approved handoff into
+tasks; implementation starts after the user's instruction to proceed.
 
 | Expected area | M2 work |
 | --- | --- |

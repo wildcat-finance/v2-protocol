@@ -1,16 +1,17 @@
 # Hook refactor milestones
 
-- Status: M1 complete and ready for milestone review. M2 planning and refactor
-  implementation have not started.
+- Status: M1 complete, reviewed, and pushed. M2 plan/tracker prepared;
+  refactor implementation has not started.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
 These milestones describe reviewable outcomes and completion criteria. M1 has
-an [execution plan](hook-refactor-m1-plan.md) and
-[tracker](hook-refactor-m1-tracker.md); task breakdown and tracking for later
-milestones follow separately. A milestone may contain several implementation
-changes; it is not necessarily one commit or pull request.
+an [execution plan](hook-refactor-m1-plan.md) and [tracker](hook-refactor-m1-tracker.md);
+M2 now has its own [plan](hook-refactor-m2-plan.md) and [tracker](hook-refactor-m2-tracker.md).
+Task breakdown and tracking for later milestones follow separately. A milestone
+may contain several implementation changes; it is not necessarily one commit
+or pull request.
 
 | Milestone | Outcome | Depends on |
 | --- | --- | --- |
@@ -57,6 +58,9 @@ cases can be explained through them; and baseline evidence is identified.
 A universal policy-compatibility framework is not a prerequisite.
 
 ## M2 — Consolidate common behavior across the existing hooks
+
+Execution: [plan](hook-refactor-m2-plan.md) and
+[current status](hook-refactor-m2-tracker.md).
 
 Implement the shared foundation and adopt it in all three templates:
 
@@ -160,6 +164,17 @@ implementation left behind. Publishing/deploying new templates and rewriting
 deployment inventories are not part of this milestone.
 
 ## Working boundaries
+
+Prepare a plan and tracker for each milestone before implementation. Commit
+task checkpoints with the repository-selected SSH key as
+`kethcode <dave@wildcat.finance>`. Per the user's explicit instruction, finish
+verification and stage any checkpoint containing Solidity edits, including
+tests, for user review **before committing**. Stop at that review boundary;
+substantive changes after review require review of the updated staged diff.
+Documentation-only checkpoints remain covered by the existing commit
+authorization. The user reviews and pushes at milestone end; do not push or
+start the next milestone automatically. The reference PDF and lifecycle sketch
+remain excluded from commits.
 
 Each implementation milestone must leave the existing templates buildable and
 their affected behavior tested. Use focused checks while changing a domain and
