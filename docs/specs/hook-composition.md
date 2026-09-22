@@ -1,7 +1,7 @@
 # Shared hook foundation and policy composition
 
 - Status: scope and composition approach agreed; M1 complete, reviewed, and
-  pushed. M2 plan/tracker prepared; refactor implementation has not started.
+  pushed. M2 authorized and in progress; baseline/ownership task complete.
 - Date: 2026-09-22.
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 

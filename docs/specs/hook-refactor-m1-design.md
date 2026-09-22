@@ -1,7 +1,7 @@
 # M1 design: shared hooks and explicit policy integration
 
-- Status: M1 complete, reviewed, and pushed. M2 plan/tracker prepared;
-  production refactoring has not started.
+- Status: M1 complete, reviewed, and pushed. M2 execution is authorized;
+  current implementation status is in the [M2 tracker](hook-refactor-m2-tracker.md).
 - Implements the [agreed spec](hook-composition.md) against the
   [behavior map](hook-behavior-map.md) and [measured baseline](hook-refactor-m1-baseline.md).
 - This is an implementation contract for M2/M3, not deployed Solidity or an

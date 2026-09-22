@@ -1,7 +1,7 @@
 # Hook refactor milestones
 
-- Status: M1 complete, reviewed, and pushed. M2 plan/tracker prepared;
-  refactor implementation has not started.
+- Status: M1 complete, reviewed, and pushed. M2 authorized and in progress;
+  baseline/ownership task complete, first Solidity checkpoint next.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
