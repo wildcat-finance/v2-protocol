@@ -1,7 +1,7 @@
 # Shared hook foundation and policy composition
 
-- Status: scope and composition approach agreed; detailed internal interfaces
-  and implementation remain to be completed.
+- Status: scope and composition approach agreed; M1 design/baseline complete
+  and ready for review. Refactor implementation has not started.
 - Date: 2026-09-22.
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
@@ -19,12 +19,13 @@ slots for named features. This specification does not select a tranche policy
 interface or implementation.
 
 This document records the agreed scope, composition approach, compatibility
-boundary, and acceptance criteria. Internal names are illustrative unless they
-refer to existing contracts. The [milestones](hook-refactor-milestones.md)
-define the sequence, and M1 has an [execution plan](hook-refactor-m1-plan.md)
-and [tracker](hook-refactor-m1-tracker.md). Requirements describe the eventual
-refactor; exact internal signatures and storage organization remain
-implementation design choices, and acceptance evidence remains to be produced.
+boundary, and acceptance criteria. The [milestones](hook-refactor-milestones.md)
+define the sequence. M1's [design](hook-refactor-m1-design.md) selects concrete
+internal signatures, ownership, storage adapters, and metadata; its
+[baseline](hook-refactor-m1-baseline.md) records existing behavior and measurements.
+The [plan](hook-refactor-m1-plan.md) and [tracker](hook-refactor-m1-tracker.md)
+record completion. Requirements describe the eventual refactor; its runtime
+acceptance evidence remains to be produced during implementation.
 
 ## Scope
 
@@ -512,13 +513,13 @@ Relevant existing evidence lives in the three suites under
 [`test/lens`](../../test/lens/). These are implementation acceptance requirements;
 this draft does not claim they have been satisfied by a refactor.
 
-## Remaining implementation design choices
+## M1 implementation decisions
 
-| Choice | Proposed direction | Review consideration |
+| Choice | Selected design | Review consideration |
 | --- | --- | --- |
-| Internal state layout | Define a common internal access/configuration interface, with template-compatible views. Choose shared storage versus accessors over packed state after comparing the alternatives. | Avoid divergent state and preserve practical gas/size characteristics, especially the packed periodic configuration. |
-| Policy integration API | Use action-oriented internal extension points and developer-written composition overrides; keep callback coordination shared. | Specify internal signatures, default-replacement boundaries, validation order, and coverage of related entrypoints using the behavior map. A generic compatibility mechanism is not required. |
-| Implementation revision metadata | Keep family `version()` strings stable; retain the existing periodic `templateVersion()` ABI. | Decide whether to increment its revision and whether other templates need revision metadata. Bytecode identity remains distinct regardless. |
+| Internal state layout | Shared logic uses adapters over the existing packed configurations; one owner per state/event. | Keep periodic's one-slot configuration and measure adapter/callback costs on the implementation. |
+| Policy integration API | Separate replaceable defaults/strategy selection from additional action checks; explicitly integrate conflicting policies and related entrypoints. | [Internal contract](hook-refactor-m1-design.md#internal-contract) covers creation, APR routes, closure, management and views; no generic resolver or bitmask is required. |
+| Revision metadata | Same family strings; periodic ABI revision remains 2; no new open/fixed revision getters. | New bytecode has a new implementation identity. [ABI comparison rules](hook-refactor-m1-design.md#metadata-and-expected-abi-comparison) permit only documented empty-to-named top-level callback inputs, preserving encoded types and public tuple fields. |
 
 Choosing tranching template packaging, specifying tranching economics, and
 designing runtime feature installation are not prerequisites for reviewing this

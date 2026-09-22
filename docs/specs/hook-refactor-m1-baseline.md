@@ -73,13 +73,13 @@ export COREPACK_ENABLE_AUTO_PIN=0
 | `/tmp/v2-protocol-foundry-1.8.3-{default,deploy}-sizes.log` | Historical | Size tables lack the same run identity and do not measure the template storage deployment boundary. |
 | Existing `out/` and `deploy-out/` artifacts | Build cache, subject to fresh Forge verification | Metadata identifies compiler/source hashes; cache presence alone is not test evidence. |
 | Earlier build-only scratch artifacts | Not adopted | Not canonical test receipts; no reason to revive the canceled tooling task. |
-| Prior per-operation hook gas receipts | Unavailable | No qualifying receipt found. M1-03 will establish the measurements. |
+| Prior per-operation hook gas receipts | Unavailable | No qualifying prior receipt found; M1-03 established the measurements below. |
 
 The historical logs' exact hashes are recorded in `identity.json`. Their
 existence avoids ambiguity about what was inspected; no historical passing
-count is claimed as a new M1 result. M1-02 will run the three commands in
-[`TESTS.md`](../../TESTS.md), export compiler ABIs, and inventory compatibility.
-M1-03 will capture creation/runtime sizes and representative operation gas.
+count is claimed as a new M1 result. M1-02 ran the three commands in
+[`TESTS.md`](../../TESTS.md), exported compiler ABIs, and inventoried compatibility.
+M1-03 captured creation/runtime sizes and representative operation gas below.
 
 ### Foundry default review and explicit pins
 
@@ -215,7 +215,8 @@ available from the existing concrete-template import paths. Periodic
 `getPendingAprChange(address)` returns `((uint16,uint32),uint32,uint32)`.
 `version()` returns each exact template family name. Only periodic currently
 has `templateVersion()`, returning `uint256(2)` and documented as an ABI revision.
-The M1 design record will resolve the metadata choice.
+The [M1 design](hook-refactor-m1-design.md#metadata-and-expected-abi-comparison)
+retains these metadata values and defines the later comparison rules.
 
 ### Runtime and integration boundaries
 

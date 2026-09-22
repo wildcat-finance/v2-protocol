@@ -1,7 +1,7 @@
 # Hook refactor milestones
 
-- Status: milestone sequence agreed; M1 plan and tracker prepared. Refactor
-  implementation has not started.
+- Status: M1 complete and ready for milestone review. M2 planning and refactor
+  implementation have not started.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
@@ -24,6 +24,8 @@ changes; it is not necessarily one commit or pull request.
 
 Execution: [plan](hook-refactor-m1-plan.md) and
 [current status](hook-refactor-m1-tracker.md).
+Completed records: [baseline/evidence](hook-refactor-m1-baseline.md) and
+[design/M2 handoff](hook-refactor-m1-design.md).
 
 Use the existing behavior map to make the remaining internal design choices:
 

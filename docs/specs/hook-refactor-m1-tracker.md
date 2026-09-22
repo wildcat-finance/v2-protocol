@@ -1,10 +1,10 @@
 # M1 tracker: interfaces and baseline
 
 - Plan: [M1 execution plan](hook-refactor-m1-plan.md).
-- Milestone status: in progress.
-- Execution tasks complete: 6 of 7.
+- Milestone status: complete; ready for user review and push.
+- Execution tasks complete: 7 of 7.
 - Active task: none.
-- Next task: M1-07.
+- Next action: review M1, then prepare the M2 plan/tracker.
 - Intended starting source revision: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
 Source and toolchain identity are verified in the [baseline record](hook-refactor-m1-baseline.md).
@@ -36,9 +36,9 @@ dependencies remain `Not started`.
 | [M1-04](hook-refactor-m1-plan.md#m1-04-storage-and-component-ownership) | Decide storage layout and component/state ownership. | Done | M1-02, M1-03. | [Storage and ownership decision](hook-refactor-m1-design.md#storage-decision). |
 | [M1-05](hook-refactor-m1-plan.md#m1-05-internal-interfaces-and-override-responsibilities) | Specify internal interfaces and integration responsibilities. | Done | M1-04. | [Internal contract](hook-refactor-m1-design.md#internal-contract) and compiler signature probe. |
 | [M1-06](hook-refactor-m1-plan.md#m1-06-revision-metadata) | Decide implementation revision metadata. | Done | M1-02. | [ABI revision and comparison rules](hook-refactor-m1-design.md#metadata-and-expected-abi-comparison). |
-| [M1-07](hook-refactor-m1-plan.md#m1-07-design-walkthrough-and-m2-handoff) | Validate the design/evidence and prepare the M2 handoff. | Not started | M1-01 through M1-06. | Pending. |
+| [M1-07](hook-refactor-m1-plan.md#m1-07-design-walkthrough-and-m2-handoff) | Validate the design/evidence and prepare the M2 handoff. | Done | M1-01 through M1-06. | [Walkthrough](hook-refactor-m1-design.md#final-walkthrough), [handoff](hook-refactor-m1-design.md#m2-handoff), and evidence reconciliation. |
 
-## Open design decisions
+## Design decisions
 
 | Decision | Owning task | Current state |
 | --- | --- | --- |
@@ -52,9 +52,9 @@ economics and runtime feature installation are outside M1.
 
 ## Evidence register
 
-Replace pending entries with concrete paths, hashes, commands, and results in
-the maintained records as execution proceeds. Planned filenames below are not
-completed artifacts.
+The maintained records identify commands, source/settings, artifact locations,
+hashes, and results. Raw generated evidence remains in the ignored directory;
+the records and baseline source revision make it reproducible.
 
 | Evidence | Owning task | Status / location |
 | --- | --- | --- |
@@ -62,15 +62,19 @@ completed artifacts.
 | ABI/configuration inventory and required test receipts. | M1-02. | [Baseline record](hook-refactor-m1-baseline.md): 698 tests / 48 suites pass in each required run; full ABI exports hashed. |
 | Runtime/initcode sizes, deployment headroom, gas scenarios, and results. | M1-03. | [Baseline measurements](hook-refactor-m1-baseline.md#operation-gas-baseline), with reproducible canonical test selectors and receipt hashes. |
 | Selected layout, state/event ownership, internal signatures, adapters, and metadata decision. | M1-04, M1-05, M1-06. | [Design record](hook-refactor-m1-design.md): storage, ownership, interfaces, and metadata decided. |
-| Behavior/extension walkthrough and M2 handoff. | M1-07. | Pending; planned design record and completion entry here. |
+| Behavior/extension walkthrough and M2 handoff. | M1-07. | [Design record](hook-refactor-m1-design.md#final-walkthrough); current behavior, independent added rules, deliberate default replacement, and M2 scope accounted for. |
 
 ## Blockers and next action
 
-No blocker has been identified during planning. Execution may reveal missing
-receipts, failing baseline checks, or design tradeoffs; record the actual issue
-and its effect when that happens.
+No unresolved baseline failure or design blocker remains. Production/test
+Solidity is unchanged. The only executable-configuration edit explicitly pins
+the already-active Foundry isolation/linking defaults; effective default/deploy
+settings are unchanged. The user's reference PDF and lifecycle sketch remain
+untracked and excluded from commits.
 
-Next: M1-07, complete behavior/extension walkthroughs, reconcile evidence, and prepare the M2 handoff.
+Next: user review and push of M1. Then prepare M2's own plan/tracker from the
+handoff before implementation. The implementation's performance, parity, and
+multi-policy proofs remain obligations of M2–M5.
 
 ## Progress log
 
@@ -84,3 +88,20 @@ Next: M1-07, complete behavior/extension walkthroughs, reconcile evidence, and p
 | M1-04 complete | Selected packed storage adapters and one owner per behavior/state/event. Compiler probes verified slot counts and public type re-exports, and identified mechanical inherited-error namespace updates. |
 | M1-05 complete | Specified adapters, creation, action defaults/additional checks, APR selection/effective validation on both routes, lifecycle management, no-ops, and views. Compiler probe verified calldata/constructor/diamond signature shape; runtime composition proof remains M4. |
 | M1-06 complete | Retained family strings and periodic ABI revision 2; no new revision getters. Documented exact ABI comparison and the limited empty-to-named callback input labels needed by shared coordinators. |
+| M1-07 complete | Walked existing and illustrative extension/default-replacement paths, clarified virtual default-APR replacement and named term primitives, reconciled evidence, and recorded the M2 handoff. Input/receipt hashes, effective configurations, document links/anchors/whitespace, and checkpoint signatures verified. |
+
+## Signed checkpoints
+
+| Task / checkpoint | Commit |
+| --- | --- |
+| M1-01 plus agreed planning documents | `bd88b44` |
+| M1-02 | `21e5153` |
+| M1-03 | `3b2c3fc` |
+| Foundry settings follow-up | `674f43e` |
+| M1-04 | `e202675` |
+| M1-05 | `1f5b362` |
+| M1-06 | `e1f95c3` |
+| M1-07 | Completion commit: `docs: complete hook refactor M1 and record M2 handoff`. |
+
+All checkpoints use `kethcode <dave@wildcat.finance>` and the repository-selected
+SSH signing key. Commits are local; pushing remains with the user.

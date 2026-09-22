@@ -1,7 +1,7 @@
 # M1 design: shared hooks and explicit policy integration
 
-- Status: storage/component, internal API, and metadata decisions complete;
-  final walkthrough and M2 handoff follow in M1-07.
+- Status: M1 complete; ready for milestone review. Production refactoring has
+  not started.
 - Implements the [agreed spec](hook-composition.md) against the
   [behavior map](hook-behavior-map.md) and [measured baseline](hook-refactor-m1-baseline.md).
 - This is an implementation contract for M2/M3, not deployed Solidity or an
@@ -332,7 +332,7 @@ struct AprChange {
 
 function _applyDefaultAprUpdate(
   uint16 annualInterestBips, MarketState calldata state
-) internal returns (uint16 effectiveApr, uint16 effectiveReserve);
+) internal virtual returns (uint16 effectiveApr, uint16 effectiveReserve);
 
 function _applyAprUpdate(
   uint16 annualInterestBips, uint16 reserveRatioBips,
@@ -348,6 +348,12 @@ function _checkAprChange(
 calculation/state/events into it without rewriting the algorithm. The shared
 external callback moves to `BaseHooks`; `_applyAprUpdate` defaults to that
 internal calculation. It deliberately does not use the requested reserve.
+This helper is itself a designated replacement point: a composed feature can
+replace the shared calculation while leaving fixed's guard or periodic's
+increase/cancellation coordination in place. The outer `_applyAprUpdate` is
+the replacement point when the entire strategy selection, requested reserve,
+or callback data matters. A periodic reduction bypasses the default helper
+deliberately; replacing that helper alone does not replace the proposal policy.
 The coordinator constructs `AprChange` from the selected result, invokes
 `_checkAprChange`, then returns that exact pair to the market. The check defaults
 to empty, is non-view for feature state, and returns no replacement values.
@@ -528,9 +534,11 @@ the two feature helpers. Including the base in the override list does not mean
 its body must run, and the list itself does not establish valid rule ordering.
 
 The evidence root contains `interface-probe-request.json` (SHA-256
-`ad1e60527d042f7fabdbb554381a5856542da099241b85574292111aac5679e8`) and `interface-probe-output.json` (SHA-256
-`e9485e3c71faf90b0ed630e52894673eae5a7bb44d7bd5aa82e2ef3ebedeb3ab`). M4 still owes executable tests of overlapping rules,
-rollback, exemptions, alternate routes, and three-/four-policy combinations.
+`ad1e60527d042f7fabdbb554381a5856542da099241b85574292111aac5679e8`)
+and `interface-probe-output.json` (SHA-256
+`e9485e3c71faf90b0ed630e52894673eae5a7bb44d7bd5aa82e2ef3ebedeb3ab`).
+M4 still owes executable tests of overlapping rules, rollback, exemptions,
+alternate routes, and three-/four-policy combinations.
 
 ## Metadata and expected ABI comparison
 
@@ -573,3 +581,146 @@ requiring exact semantic equality of the encoded surface and exact public
 tuple field names. Do not claim byte-for-byte ABI JSON equality or blindly
 strip all names to hide a configuration-format change. This label-only change
 does not require a new periodic ABI revision.
+
+## Final walkthrough
+
+The mapping below accounts for each current behavior family. It establishes
+design coverage, not an assertion that refactored bytecode has passed tests.
+
+| Existing behavior / edge | Selected path and ownership |
+| --- | --- |
+| Creation before market code exists | Factory guard in `IHooks`; bounds then administrator match in `BaseHooks`; staged term decode/event then shared access/flag configuration; owner writes packed state; feature binding runs last. |
+| Provider administration, hook-administrator transfer, borrower accounts | Existing `BaseAccessControls`/factory/market authority paths retained. The callback caller remains the market, not its borrower or account contract. |
+| Positive minimum and credentialed/optional deposits | Shared `_processDeposit` performs block, floored minimum, credential and known-lender work; additional check executes afterward. Periodic storage writer still narrows to 96 bits. |
+| Known recipient or exact canonical wrapper | Shared transfer default applies global disabled flag first, then its credential exemption; coordinator still reaches additional rules. Public recipient view includes feature restrictions. |
+| Fixed/periodic queue and quarantine | Registration, schedule, requested access, then added checks. Open adapter always requests access when invoked. The market owns batches/expiry/accounting; executing queued withdrawals stays ungated. |
+| Fixed APR | Same pre-maturity guard, then selected shared calculation, then effective-value checks. No incidental registered-market assertion. |
+| Periodic increase / equality | Registered-market assertion; increase alone cancels the proposal; selected shared calculation follows. Equality preserves proposal. |
+| Periodic ordinary reduction | Shared periodic execution helper checks exact proposal, timing, strict reduction and unpaid withdrawals; deletes/emits; returns current reserves; common effective-value checks follow. |
+| Periodic dedicated reduction | Same proposal helper and effective-value checks, but explicit APR-only route and empty data; market retains current reserves. |
+| Proposal creation/replacement/expiry | Periodic owner retains all checks and fixed window bounds; extension proposal check precedes cancel/write/propose effects. Time alone does not clear a proposal. |
+| Fixed maturity setter / closure | Same authoritative date serves queue/APR/views; setter cannot extend. Closure's current OR permission is preserved, then the same date changes with the same event. |
+| Periodic closure | Registered-market check, closed flag, proposal deletion/cancellation event, closed event. Later queue schedule is open; access checks remain applicable. |
+| Market closure rate reset | Separate closure validation/effects; no invented APR callback. Feature rate rules explicitly decide whether to permit fully funded closure to APR 0/reserves 100%. |
+| Empty callbacks | Shared empty internal defaults retain current unknown-caller behavior; stateful extensions authenticate and activate their callbacks explicitly. |
+| Public views/encodings | Concrete tuple adapters and type re-exports preserve formats; common views preserve registration/revert behavior and permanent global-transfer promise. |
+
+Provide named term primitives as well as their default override wiring. In
+particular, the following helper signatures let a concrete integration reuse
+term checks without executing an unwanted APR or closure state strategy:
+
+```solidity
+function _validateFixedWithdrawalSchedule() internal view;
+function _validatePeriodicWithdrawalSchedule(MarketState calldata state) internal view;
+function _validateFixedAprUpdate(uint16 annualInterestBips, MarketState calldata state)
+  internal view;
+function _validateFixedCloseMarket() internal view;
+function _applyFixedCloseMarket() internal;
+function _validatePeriodicCloseMarket() internal view;
+function _applyPeriodicCloseMarket() internal;
+```
+
+These read/write their policy's authoritative mapping using `msg.sender` as
+market. Queue registration already occurs in the coordinator; closure helpers
+retain the authentication described above. Reusing a validation primitive does
+not imply executing its state effects. In particular, effect helpers require
+their corresponding validation to have succeeded in the same callback, with
+no untrusted external call inserted between the phases. An override that
+skips validation must explicitly supply the necessary authority/preconditions.
+
+### Added rules and three-/four-policy compositions
+
+A test-only recipient-denial feature owns a per-market recipient set and an
+administrator API that first checks market registration. It requires transfer
+dispatch, overrides `_checkTransfer`, and implements
+`_featureTransferRecipientAllowed` using the same recipient rule. It does not
+add a global transfer-disable switch. A known lender or wrapper may pass the
+default credential check and still fail this independent restriction.
+
+A second test-only feature owns a per-market transfer-amount ceiling. It also
+requires transfer dispatch and checks the scaled amount in `_checkTransfer`.
+The final composition explicitly calls recipient validation and then the amount
+check; the view answers recipient eligibility, excluding amount-specific
+failures as its interface already specifies. Both features can keep independent
+state/APIs without changing the shared base or term implementation.
+
+Fixed or periodic term plus those two features is a three-policy composition.
+A fourth test-only APR-floor feature uses `_checkAprChange` on both execution
+routes and its own per-market bound. It validates initial terms at binding,
+checks proposed/effective APR changes as applicable, and explicitly permits
+fully funded closure's APR-zero transition. Because the execution bound can
+change, checking only proposal creation is insufficient. The final overrides
+declare all applicable helpers/order and callbacks; adding this fourth policy
+does not require editing the first three components.
+
+Meaningful M4 assertions must include overlapping transfer rejection, wrapper/
+known-lender exemptions failing the new rule, empty-data pending execution,
+actual returned rates, state/events, rollback, and multiple markets sharing
+one instance. A compile-only inheritance probe is not this proof.
+
+### Deliberate default replacement
+
+A test-only APR strategy can replace `_applyDefaultAprUpdate` with a bounded
+APR change that preserves the current reserve ratio and never creates temporary
+reserve state. Its override uses the existing bounds helper, returns the selected
+pair, and deliberately skips the original calculation. This is a demonstration
+policy, not a proposed product/economic change.
+
+Open uses the replacement directly. Fixed still invokes its maturity guard
+before the virtual default calculation. Periodic increase/equality still retain
+their existing proposal-cancellation/retention rules before using the replacement;
+periodic reductions continue to select the proposal strategy and bypass that
+default on both routes. All effective APR changes still reach the common added
+checks. A feature intending to replace periodic notice semantics must additionally
+integrate its proposal APIs, both execution routes, and closure; overriding the
+shared calculation alone does not do so.
+
+M4 must verify the replacement's return values, absence of temporary-reserve
+storage/events, retained term rejection, unchanged lender rules, appropriate
+proposal effects, and rollback when an additional validator rejects. The
+feature is selected at compilation/new deployment, so this demonstration does
+not need to migrate temporary state from an older deployed policy.
+
+## M2 handoff
+
+M2's outcome is one maintained implementation of shared behavior adopted by all
+three current templates. Write its task plan/tracker after M1 review; this
+handoff is not authorization to start the next milestone in this session.
+
+| Expected area | M2 work |
+| --- | --- |
+| `src/access/BaseHooks.sol` | Add adapters, common callback coordination/defaults/checks, common registration/access flags, minimum management, transfer views, and empty callbacks using the signatures above. |
+| `src/access/MarketConstraintHooks.sol` | Extract the existing APR body into the virtual internal default strategy; let shared coordination select it and validate effective results. Keep one bounds/temporary-state implementation. |
+| `src/access/{Open,Fixed,Periodic}TermHooks.sol` | Adopt shared behavior, implement packed adapters, and keep per-template decode/public formats. Fixed/periodic term code may stay here as the single implementation until its M3 extraction. Wire both periodic rate routes to the shared effective check now. |
+| `src/access/BaseAccessControls.sol` | Reuse credential/admin/provider logic. Make only narrowly necessary internal-interface adjustments; preserve state and caller assumptions. |
+| `src/access/types/` | Move/re-export public structs only when needed to avoid policy/concrete import cycles; this can accompany M3's term extraction. |
+| `test/access/`, `test/shared/` | Move equivalent assertions into one owning concrete runtime-matrix suite/helpers; remove the superseded copied assertions. Keep distinct term/proposal cases in their domain suites. Update error/event owner imports mechanically. No inherited test entrypoints or legacy parity oracle. |
+| Existing integration/factory/lens/wrapper suites | Run against the real artifacts/factory paths; preserve typed public imports and callback ABI. Add a small independent validator probe to catch an unusable extension seam early. |
+
+M2 should validate each coherent change with the affected canonical suites,
+then satisfy the required commands at its completion. Compare raw/semantic
+ABIs using the narrow naming allowance above, and inspect the M1 gas scenarios
+and both deployment size boundaries. Watch adapter decoding, extra warm reads,
+creation packing/writes, and periodic stored-initcode growth. Do not make
+unrelated economic, caller-authentication, or configuration changes to make a
+refactor test pass.
+
+M3 extracts the term components and management APIs without leaving the old
+copies. M4 provides the executable multi-policy/default-replacement proofs.
+M5 performs final compatibility/performance/deployment qualification and
+maintained integration documentation. Tranching policy, runtime modules,
+deployment publication, and changes to core accounting remain separate work.
+
+## M1 evidence review
+
+Identity, effective settings, ABI/format inventory, required test receipts,
+size budgets, and operation measurements are in the baseline record with
+relative artifact locations and hashes. The later explicit Foundry pins have
+an equality receipt showing no effective settings change. Compiler probes
+resolve the packing, source-type export, and signature/inheritance questions;
+they are labeled separately from runtime tests.
+
+No baseline test failed, no production/test Solidity changed, and no open
+design decision prevents M2 from starting after review. Final refactor gas,
+size, parity, and composition behavior are still implementation acceptance
+requirements, not evidence claimed by M1.
