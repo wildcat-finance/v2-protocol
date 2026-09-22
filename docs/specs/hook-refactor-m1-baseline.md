@@ -2,8 +2,8 @@
 
 - Source: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c` on `feat/tranching_support`.
 - Captured: 2026-09-22 UTC.
-- Execution status: identity, compatibility inventory, and required test runs
-  complete; size/gas measurements follow in M1-03. See the [tracker](hook-refactor-m1-tracker.md).
+- Execution status: identity, compatibility inventory, required tests, and
+  size/gas baselines complete. See the [tracker](hook-refactor-m1-tracker.md).
 - Raw evidence root, relative to the checkout:
   `audits/hook-refactor/m1/2026-09-22/` (ignored).
 
@@ -22,6 +22,7 @@ The reference PDF and lifecycle sketch are excluded from milestone commits.
 | EVM / optimizer | Cancun; via IR; optimizer enabled, 44 runs |
 | Metadata | Bytecode hash `none`; CBOR metadata disabled |
 | Default / deploy initial timestamp | `1`; suites may explicitly warp |
+| Call isolation | `isolate = true`; each top-level test-to-contract call has a separate transaction/EVM context |
 | Default fuzz / invariant settings | 1,000 fuzz runs; 2,000 invariant runs, depth 30; no configured seed |
 | Fixed command | Timestamp `1724284800`, fuzz seed `0x5eed` |
 | Deploy profile differences | `deploy-out`, `deploy-cache`, additional `ir` / `irOptimized` output files; same compiler/EVM/optimization settings |
@@ -224,3 +225,133 @@ and feature isolation across markets. The current creation tests are not an
 exhaustive malformed/partial-word matrix; preserve the raw decoding design
 and add targeted boundary cases where that code moves. These are implementation
 coverage obligations, not baseline failures.
+
+## Deployment size baseline
+
+Lengths come from deployment artifacts' `bytecode.object` and
+`deployedBytecode.object`, excluding the hex prefix. Runtime lengths include
+immutable placeholders; patching their values does not change length. The
+compiler, settings, and source identity are those recorded above.
+
+| Template | Runtime bytes | Creation bytes | Runtime headroom | `STOP + creation` bytes | Storage-contract headroom |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Open | 15,304 | 18,030 | 9,272 | 18,031 | 6,545 |
+| Fixed | 16,601 | 19,328 | 7,975 | 19,329 | 5,247 |
+| Periodic | 19,271 | 21,998 | 5,305 | 21,999 | 2,577 |
+
+Runtime and template storage each face the 24,576-byte
+[EIP-170 limit](https://eips.ethereum.org/EIPS/eip-170).
+[LibStoredInitCode](../../src/libraries/LibStoredInitCode.sol) creates the storage
+contract with `creation length + 11` bytes of initialization code and returns
+`STOP || creation`. The storage contract, rather than the final hook runtime,
+is the tighter boundary for every current template.
+
+The factory then copies that creation code and appends 96 bytes of constructor
+encoding plus the exact supplied `args.length`; its assembly does not add a
+separate padding allowance. Empty-args hook deployment lengths are 18,126,
+19,424, and 22,094 bytes respectively. Against the 49,152-byte
+[EIP-3860 initcode limit](https://eips.ethereum.org/EIPS/eip-3860), the remaining
+constructor payload budgets are 31,026, 29,728, and 27,058 bytes. These are size
+budgets, not promises that arbitrary provider payloads are semantically valid
+or affordable to execute. Canonical factory/matrix tests exercise the real
+stored-initcode deployment path for both factory types.
+
+`sizes.json` contains all lengths, formulas, and creation/unpatched-runtime
+SHA-256 identities. Its hash is
+`d2809d6ef79b45b1ad13175c51ec2a33343ba74511b66df9310f9abb5992ad9c`.
+M5 must remeasure compiled templates and exercise deployment, not infer size
+savings from source deduplication.
+
+## Operation gas baseline
+
+These are measured callback trace entries from existing canonical tests,
+not aggregate test-function gas. No measurement harness or production/test
+source was added. Run each identified test with:
+
+```sh
+FOUNDRY_PROFILE=deploy forge test --match-contract '<suite>' \
+  --match-test '<test name>' --block-timestamp 1724284800 \
+  --fuzz-seed 0x5eed -vvvv
+```
+
+All selected tests have no fuzz arguments. The main trace receipt passed 17
+tests across five suites; the cached-repeat supplement passed one production
+matrix test. The initial attempt with an end-anchored name regex discovered no
+tests and is excluded from measurements; the corrected selector and positive
+test count are retained in `gas-trace-receipt.json`.
+
+The measurement boundary matters:
+
+- **Direct:** the bracketed gas on a direct test-to-hook callback. With the
+  recorded `isolate=true`, this is an isolated top-level transaction boundary,
+  including its transaction overhead. Storage warmth resets between such
+  calls even when credential/proposal state persists. This is a comparison
+  reference, not an estimate of the nested production hook cost.
+- **Nested:** the bracketed gas on the hook callback inside the actual market/
+  wrapper transaction. It includes the callback's nested calls, excluding the
+  surrounding market/transaction setup. Warmth is determined by that exact
+  enclosing transaction, including earlier policy queries and the already
+  executing market. Do not mix this column with direct-call totals.
+
+The [trace format](https://getfoundry.sh/forge/traces) identifies the measured
+call and its children. Retain the same call boundary, fixture steps, compiler,
+isolation setting, and state for comparisons; these numbers do not claim
+whole-transaction fees or a normalized refund-adjusted cost. Provider cache
+state and EVM storage warmth are separate concerns.
+
+Test keys below use the exact baseline source and existing fixture setup.
+Ordinals count calls to the named callback on that template within the test,
+including rejected calls. The raw trace records every argument, market caller
+prank, return/revert, event, provider call, and state snapshot.
+
+| Key | Suite / test name |
+| --- | --- |
+| D | Each concrete `*TermHooksTest`: `test_onDeposit_EnforcesMinimumBlockAndCredentialPolicies` |
+| T | Open/fixed: `test_onTransfer_EnforcesDisabledAndCredentialPolicies`; periodic: `test_onTransfer_EnforcesDisabledCredentialAndKnownLenderPolicies` |
+| QO | `OpenTermHooksTest`: `test_onQueueWithdrawal_PreservesKnownAccessAndValidatesUnknownLenders` |
+| QF | `FixedTermHooksTest`: `test_onQueueWithdrawal_EnforcesTermAndRequestedAccess` |
+| QP | `PeriodicTermHooksTest`: `test_onQueueWithdrawal_ValidatesCredentialsAndPreservesKnownLenders` |
+| A | `MarketConstraintHooksTest`: `test_onSetApr_CancelsOrExpiresAndRestoresOriginalReserveRatio` |
+| AF | `FixedTermHooksTest`: `test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges` |
+| AP | `PeriodicTermHooksTest`: `test_aprReduction_EnforcesExecutionStateMachine` |
+| AE | `PeriodicTermHooksTest`: `test_executePendingAnnualInterestBipsReduction_UsesTheSameGates` |
+| AI | `PeriodicTermHooksTest`: `test_onSetAnnualInterestBips_IncreasesAndEqualityDelegateAndCancelPrecisely` |
+| CF | `FixedTermHooksTest`: `test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm` |
+| CP | `PeriodicTermHooksTest`: `test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle` |
+| W | `Wildcat4626WrapperIntegrationTest`: `test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks` |
+| M | `ProductionMatrixScenariosTest`: `test_minimumDepositOrderingAndLiveUpdatesUseProductionComposition` |
+
+| Scenario / state | Call selector within test | Boundary | Measured gas |
+| --- | --- | --- | ---: |
+| Positive minimum 100, no credential/access requirement; floor-scaled tender at minimum. Scale factor RAY for open/fixed, 1.5 RAY for periodic. | D, `onDeposit` #2, open / fixed / periodic | Direct | 32,456 / 32,667 / 32,822 |
+| First credential-data entry, minimum 0, access required, scaled amount 1; provider validates supplied bytes and lender becomes known. | D, `onDeposit` #5, open / fixed / periodic | Direct | 89,169 / 89,381 / 89,656 |
+| Cached credential granted before first market entry; minimum 0, amount 1, empty hook data. | QO, open `onDeposit` #1 | Direct | 56,610 |
+| Repeat known-lender deposit, cached credential, minimum reduced to 0, amount 1e18, scale RAY; real standard periodic market. | M, periodic `onDeposit` #4 | Nested | 11,499 |
+| Unknown recipient, transfer access required, amount 1, supplied valid credential; becomes known. | T, `onTransfer` #3, open / fixed / periodic | Direct | 90,507 / 90,719 / 91,114 |
+| Known recipient after credential revocation; amount 1, empty hook data. | T, `onTransfer` #4, open / fixed / periodic | Direct | 29,974 / 30,185 / 30,472 |
+| Canonical wrapper locally blocked and not known; real wrapper deposit transfers backing without credential data. | W, `onTransfer` #1, open / fixed / periodic | Nested | 4,348 / 4,559 / 4,846 |
+| Open queue, known lender after revocation, amount 1. | QO, `onQueueWithdrawal` #1 | Direct | 31,784 |
+| Fixed queue at maturity, access not requested. | QF, `onQueueWithdrawal` #2 | Direct | 29,731 |
+| Periodic queue in open window, known lender after revocation. | QP, `onQueueWithdrawal` #3 | Direct | 32,529 |
+| APR 1,000 to 700, reserves 2,000 to 6,000; first temporary activation. | A, open ordinary APR callback #1 | Direct | 50,943 |
+| APR restored to 1,001; cancel temporary state, return original reserves 2,000. | A, open ordinary APR callback #2 | Direct | 32,032 |
+| APR remains 700 at temporary expiry; restore reserves 2,000. | A, open ordinary APR callback #4 | Direct | 32,020 |
+| Fixed reduction 100 to 99 before maturity; rejected by term guard. | AF, ordinary APR callback #1 | Direct | 27,221 |
+| Fixed increase 100 to 101, supplied reserves 500 ignored; return 1,000. | AF, ordinary APR callback #2 | Direct | 30,209 |
+| Fixed reduction 100 to 99 at maturity; activate shared temporary state, reserves remain 1,000. | AF, ordinary APR callback #3 | Direct | 53,007 |
+| Periodic matured exact proposal 1,000 to 900, no unpaid withdrawals; preserve reserves 1,000. | AP, ordinary APR callback #6 | Direct | 36,078 |
+| Periodic matured proposal 1,000 to 900 through dedicated APR-only route; no unpaid withdrawals. | AE, `executePendingAnnualInterestBipsReduction` #3 | Direct | 34,616 |
+| Periodic APR increase cancels pending proposal then uses shared strategy. | AI, ordinary APR callback #1 | Direct | 37,641 |
+| Fixed permitted early closure moves maturity to now. | CF, `onCloseMarket` #1 | Direct | 31,924 |
+| Periodic closure cancels pending proposal and marks schedule closed. | CP, `onCloseMarket` #1 | Direct | 37,244 |
+
+These are configuration-specific examples, not exhaustive performance bounds.
+M5 should retain equivalent scenarios if common tests are reorganized, without
+maintaining a second legacy implementation. Final costs of access adapters and
+policy integration remain to be measured on the actual refactor.
+
+| Raw evidence | SHA-256 |
+| --- | --- |
+| `gas-traces.log` | `d24c6ae0096cfbb3afc1a0382194e3f68afddbdae4d55d7932cd2864e08fa5c5` |
+| `gas-cached-deposit.log` | `79dde3251c40d1710a150709aa51226bbeac5341e48753bd1980fb5d2c86dd8b` |
+| `gas-calls.json` (indexed calls, results, boundaries, source lines) | `d4a060085b02dcc97123de791f64a8e8195b4f885627edd264327a3a6796909a` |

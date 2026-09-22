@@ -2,13 +2,13 @@
 
 - Plan: [M1 execution plan](hook-refactor-m1-plan.md).
 - Milestone status: in progress.
-- Execution tasks complete: 2 of 7.
+- Execution tasks complete: 3 of 7.
 - Active task: none.
-- Next task: M1-03.
+- Next task: M1-04.
 - Intended starting source revision: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
 Source and toolchain identity are verified in the [baseline record](hook-refactor-m1-baseline.md).
-All three required test runs passed; size/gas measurements remain pending. The plan owns task requirements;
+Required tests and size/gas baselines are complete. The plan owns task requirements;
 this file owns their current status and evidence references. Each completed task
 is checkpointed in a signed `kethcode` commit; the user reviews and pushes.
 
@@ -32,7 +32,7 @@ dependencies remain `Not started`.
 | --- | --- | --- | --- | --- |
 | [M1-01](hook-refactor-m1-plan.md#m1-01-baseline-identity) | Verify baseline identity and audit reusable receipts. | Done | Completed groundwork. | [Identity and receipt disposition](hook-refactor-m1-baseline.md). |
 | [M1-02](hook-refactor-m1-plan.md#m1-02-compatibility-inventory-and-verification-baseline) | Capture compatibility inventory and matching verification evidence. | Done | M1-01. | [ABIs, inventory, tests](hook-refactor-m1-baseline.md#verification-receipts). |
-| [M1-03](hook-refactor-m1-plan.md#m1-03-size-and-gas-baseline) | Establish comparable size and gas records. | Not started | M1-02. | Pending. |
+| [M1-03](hook-refactor-m1-plan.md#m1-03-size-and-gas-baseline) | Establish comparable size and gas records. | Done | M1-02. | [Size and operation baselines](hook-refactor-m1-baseline.md#deployment-size-baseline). |
 | [M1-04](hook-refactor-m1-plan.md#m1-04-storage-and-component-ownership) | Decide storage layout and component/state ownership. | Not started | M1-02, M1-03. | Pending. |
 | [M1-05](hook-refactor-m1-plan.md#m1-05-internal-interfaces-and-override-responsibilities) | Specify internal interfaces and integration responsibilities. | Not started | M1-04. | Pending. |
 | [M1-06](hook-refactor-m1-plan.md#m1-06-revision-metadata) | Decide implementation revision metadata. | Not started | M1-02. | Pending. |
@@ -60,7 +60,7 @@ completed artifacts.
 | --- | --- | --- |
 | Source, submodule, toolchain, and profile identity; prior-receipt disposition. | M1-01. | [Baseline record](hook-refactor-m1-baseline.md); raw manifests and hashes recorded there. |
 | ABI/configuration inventory and required test receipts. | M1-02. | [Baseline record](hook-refactor-m1-baseline.md): 698 tests / 48 suites pass in each required run; full ABI exports hashed. |
-| Runtime/initcode sizes, deployment headroom, gas scenarios, and results. | M1-03. | Pending; planned baseline record and identified raw evidence. |
+| Runtime/initcode sizes, deployment headroom, gas scenarios, and results. | M1-03. | [Baseline measurements](hook-refactor-m1-baseline.md#operation-gas-baseline), with reproducible canonical test selectors and receipt hashes. |
 | Selected layout, state/event ownership, internal signatures, adapters, and metadata decision. | M1-04, M1-05, M1-06. | Pending; planned `hook-refactor-m1-design.md`. |
 | Behavior/extension walkthrough and M2 handoff. | M1-07. | Pending; planned design record and completion entry here. |
 
@@ -70,7 +70,7 @@ No blocker has been identified during planning. Execution may reveal missing
 receipts, failing baseline checks, or design tradeoffs; record the actual issue
 and its effect when that happens.
 
-Next: M1-03, record deployment sizes and per-operation gas from canonical traces.
+Next: M1-04, select storage adapters and component/state ownership using the measured baseline.
 
 ## Progress log
 
@@ -79,3 +79,4 @@ Next: M1-03, record deployment sizes and per-operation gas from canonical traces
 | Planning initialized | Added the M1 plan and tracker. Recorded completed groundwork separately; all seven execution tasks remain unstarted. |
 | M1-01 complete | Confirmed source/submodules and pinned tools; captured input/configuration hashes; classified older receipts. Added a local Corepack shim for Yarn without changing package configuration. |
 | M1-02 complete | Captured compiler ABIs and compatibility inventory. Default, fixed-seed, and deployment-profile runs each passed 698 tests across 48 suites. Input hashes still match. |
+| M1-03 complete | Recorded runtime, creation, STOP-prefixed storage, and constructor payload limits. Captured direct/nested callback gas from 18 existing tests; documented call isolation and exact scenario boundaries. |
