@@ -12,6 +12,9 @@ import { FixedTermHooks, HookedMarket as FixedMarket } from 'src/access/FixedTer
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { HookedMarket as PeriodicMarket } from 'src/access/PeriodicTermHooks.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { MarketState } from 'src/libraries/MarketState.sol';
+import { RAY } from 'src/libraries/MathUtils.sol';
+import { LenderStatus } from 'src/types/LenderStatus.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
@@ -29,6 +32,10 @@ import { MarketConfigurationHooks } from '../mocks/MarketConfigurationHooks.sol'
 import { HookTemplateFixture, HookKind } from '../shared/HookTemplateFixture.sol';
 
 contract BaseHooksTest is HookTemplateFixture {
+  address internal constant Lender = address(0xA11CE);
+  address internal constant SecondLender = address(0xB0B);
+  address internal constant Wrapper = address(0x4626);
+
   MockRoleProvider internal provider1;
   MockRoleProvider internal provider2;
   MockRoleProviderFactory internal providerFactory;
@@ -48,6 +55,31 @@ contract BaseHooksTest is HookTemplateFixture {
       flags = flags.setFlag(Bit_Enabled_CloseMarket).setFlag(Bit_Enabled_QueueWithdrawal);
     if (kind == HookKind.Periodic)
       flags = flags.setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
+  }
+
+  function _addPullProvider(BaseHooks target) internal {
+    provider1.setIsPullProvider(true);
+    target.addRoleProvider(address(provider1), type(uint32).max);
+  }
+
+  function _expectCredentialEntry(BaseHooks target, address market, address lender) internal {
+    vm.expectEmit(address(target));
+    emit BaseAccessControls.AccountAccessGranted(
+      address(provider1),
+      lender,
+      market,
+      uint32(block.timestamp)
+    );
+    vm.expectEmit(address(target));
+    emit BaseAccessControls.AccountMadeFirstDeposit(market, lender);
+  }
+
+  function _assertCachedCredential(BaseHooks target, address lender) internal view {
+    LenderStatus memory status = target.getPreviousLenderStatus(lender);
+    assertEq(status.lastProvider, address(provider1), 'cached provider');
+    assertEq(status.lastApprovalTimestamp, block.timestamp, 'cached timestamp');
+    assertTrue(status.canRefresh, 'refreshable');
+    assertFalse(status.isBlockedFromDeposits, 'not blocked');
   }
 
   function _assertProvider(
@@ -413,5 +445,205 @@ contract BaseHooksTest is HookTemplateFixture {
       HooksConfig.unwrap(effective),
       'feature flags rolled back'
     );
+  }
+
+  function test_lenderActionsAndTransferViews_RejectUnregisteredMarkets() external {
+    MarketState memory state;
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = hooks[i];
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      target.onDeposit(Lender, 0, state, '');
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      target.onTransfer(Lender, Lender, SecondLender, 0, state, '');
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      target.isMarketTransferDisabled(MarketA);
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      target.isMarketTransferRecipientAllowed(MarketA, Lender);
+    }
+  }
+
+  function test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst() external {
+    MarketState memory state;
+    state.scaleFactor = uint112((RAY * 3) / 2);
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = hooks[i];
+      _createMarket(target, MarketA, EmptyHooksConfig, _marketData(HookKind(i), 100, false));
+      vm.prank(MarketA);
+      vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
+      target.onDeposit(Lender, 65, state, '');
+      // 100 normalized floors to 66 scaled, which converts back to only 99 normalized.
+      vm.prank(MarketA);
+      target.onDeposit(Lender, 66, state, '');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketA), 'uncredentialed entry');
+
+      target.blockFromDeposits(Lender);
+      vm.prank(MarketA);
+      vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onDeposit(Lender, 0, state, '');
+
+      _createMarket(target, MarketB, EmptyHooksConfig, _termData(HookKind(i)));
+      MarketState memory zeroScale;
+      vm.prank(MarketB);
+      target.onDeposit(SecondLender, 1, zeroScale, '');
+    }
+  }
+
+  function test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(
+    bool requiresAccess
+  ) external {
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+    bytes memory credential = abi.encode('deposit');
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = hooks[i];
+      HooksConfig requested = requiresAccess
+        ? EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
+        : EmptyHooksConfig;
+      _createMarket(target, MarketA, requested, _termData(HookKind(i)));
+      _createMarket(target, MarketB, requested, _termData(HookKind(i)));
+      vm.prank(MarketA);
+      if (requiresAccess) vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onDeposit(Lender, 1, state, '');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketA), 'no credential yet');
+
+      _addPullProvider(target);
+      provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
+      _expectCredentialEntry(target, MarketA, Lender);
+      vm.prank(MarketA);
+      target.onDeposit(Lender, 1, state, abi.encodePacked(address(provider1), credential));
+      _assertCachedCredential(target, Lender);
+      assertTrue(target.isKnownLenderOnMarket(Lender, MarketA), 'first entry');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketB), 'known status stays local');
+
+      vm.recordLogs();
+      vm.prank(MarketA);
+      target.onDeposit(Lender, 1, state, '');
+      assertEq(vm.getRecordedLogs().length, 0, 'cached repeat emits no entry or grant');
+      vm.expectEmit(address(target));
+      emit BaseAccessControls.AccountMadeFirstDeposit(MarketB, Lender);
+      vm.prank(MarketB);
+      target.onDeposit(Lender, 1, state, '');
+      assertTrue(target.isKnownLenderOnMarket(Lender, MarketB), 'cached credential permits entry');
+
+      vm.prank(address(provider1));
+      target.revokeRole(Lender);
+      vm.prank(MarketA);
+      if (requiresAccess) vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onDeposit(Lender, 1, state, '');
+      target.blockFromDeposits(Lender);
+      vm.prank(MarketA);
+      vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onDeposit(Lender, 1, state, '');
+    }
+  }
+
+  function test_onTransfer_DisabledWinsOverKnownAndWrapperExemptions() external {
+    MarketState memory state;
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = hooks[i];
+      _createMarket(target, MarketA, EmptyHooksConfig, _marketData(HookKind(i), 0, true));
+      _addPullProvider(target);
+      vm.prank(address(provider1));
+      target.grantRole(Lender, uint32(block.timestamp));
+      vm.prank(MarketA);
+      target.onDeposit(Lender, 1, state, '');
+      target.blockFromDeposits(Lender);
+      target.blockFromDeposits(Wrapper);
+      vm.mockCall(MarketA, abi.encodeWithSignature('registeredWrapper()'), abi.encode(Wrapper));
+      assertTrue(target.isMarketTransferDisabled(MarketA), 'global flag');
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketA, Lender), 'disabled known');
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketA, Wrapper), 'disabled wrapper');
+      vm.prank(MarketA);
+      vm.expectRevert(BaseHooks.TransfersDisabled.selector);
+      target.onTransfer(SecondLender, SecondLender, Lender, 1, state, '');
+      vm.prank(MarketA);
+      vm.expectRevert(BaseHooks.TransfersDisabled.selector);
+      target.onTransfer(SecondLender, SecondLender, Wrapper, 1, state, '');
+    }
+  }
+
+  function test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(
+    bool requiresAccess
+  ) external {
+    MarketState memory state;
+    bytes memory credential = abi.encode('transfer');
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = hooks[i];
+      HooksConfig requested = requiresAccess
+        ? EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
+        : EmptyHooksConfig;
+      _createMarket(target, MarketA, requested, _termData(HookKind(i)));
+      _createMarket(target, MarketB, requested, _termData(HookKind(i)));
+      assertFalse(target.isMarketTransferDisabled(MarketA), 'global transfers enabled');
+      assertEq(target.isMarketTransferRecipientAllowed(MarketA, Lender), !requiresAccess);
+      vm.prank(MarketA);
+      if (requiresAccess) vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onTransfer(SecondLender, SecondLender, Lender, 1, state, '');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketA), 'uncredentialed entry');
+
+      _addPullProvider(target);
+      provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
+      assertEq(target.isMarketTransferRecipientAllowed(MarketA, Lender), !requiresAccess);
+      _expectCredentialEntry(target, MarketA, Lender);
+      vm.prank(MarketA);
+      target.onTransfer(
+        SecondLender,
+        SecondLender,
+        Lender,
+        1,
+        state,
+        abi.encodePacked(address(provider1), credential)
+      );
+      _assertCachedCredential(target, Lender);
+      assertTrue(target.isKnownLenderOnMarket(Lender, MarketA), 'credentialed entry');
+      assertTrue(target.isMarketTransferRecipientAllowed(MarketB, Lender), 'cached credential');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketB), 'view does not mark known');
+
+      vm.prank(address(provider1));
+      target.revokeRole(Lender);
+      target.blockFromDeposits(Lender);
+      assertTrue(target.isMarketTransferRecipientAllowed(MarketA, Lender), 'known exemption');
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketB, Lender), 'unknown and blocked');
+      vm.recordLogs();
+      vm.prank(MarketA);
+      target.onTransfer(SecondLender, SecondLender, Lender, 1, state, '');
+      assertEq(vm.getRecordedLogs().length, 0, 'known exemption emits nothing');
+      assertFalse(target.getPreviousLenderStatus(Lender).hasCredential(), 'no credential needed');
+
+      vm.prank(MarketB);
+      vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onTransfer(
+        SecondLender,
+        SecondLender,
+        Lender,
+        1,
+        state,
+        abi.encodePacked(address(provider1), credential)
+      );
+      assertFalse(target.isMarketTransferDisabled(MarketA), 'recipient block keeps global promise');
+    }
+  }
+
+  function test_transferRecipientView_UsesPullCredentialsWithoutCachingThem() external {
+    MarketState memory state;
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = hooks[i];
+      _createMarket(
+        target,
+        MarketA,
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer),
+        _termData(HookKind(i))
+      );
+      _addPullProvider(target);
+      provider1.setCredential(Lender, uint32(block.timestamp));
+      assertTrue(target.isMarketTransferRecipientAllowed(MarketA, Lender), 'pull view');
+      assertFalse(target.getPreviousLenderStatus(Lender).hasCredential(), 'view does not cache');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketA), 'view does not mark known');
+      _expectCredentialEntry(target, MarketA, Lender);
+      vm.prank(MarketA);
+      target.onTransfer(SecondLender, SecondLender, Lender, 1, state, '');
+      _assertCachedCredential(target, Lender);
+      assertTrue(target.isKnownLenderOnMarket(Lender, MarketA), 'transfer records entry');
+    }
   }
 }

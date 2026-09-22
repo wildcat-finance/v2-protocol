@@ -132,30 +132,6 @@ contract OpenTermHooks is BaseHooks {
   //                               Market Queries                               //
   // ========================================================================== //
 
-  /// @notice says whether every market-token transfer is disabled for this market.
-  /// @dev reverts for a market not bound to this hooks instance. false is permanent because this
-  ///      template has no setter for the deployment-time flag.
-  function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
-    HookedMarket storage market = _hookedMarkets[marketAddress];
-    if (!market.isHooked) revert NotHookedMarket();
-    return market.transfersDisabled;
-  }
-
-  /// @notice says whether `recipient` can receive tokens now without hook data.
-  /// @dev returns false for disabled transfers, an unknown blocked recipient, or a required
-  ///      credential that cannot be resolved from cache or pull providers. reverts for an unknown
-  ///      market.
-  function isMarketTransferRecipientAllowed(
-    address marketAddress,
-    address recipient
-  ) external view override returns (bool) {
-    HookedMarket storage market = _hookedMarkets[marketAddress];
-    if (!market.isHooked) revert NotHookedMarket();
-    return
-      !market.transfersDisabled &&
-      _isMarketTransferRecipientAllowed(marketAddress, recipient, market.transferRequiresAccess);
-  }
-
   /// @notice returns the open-term configuration stored for `marketAddress`.
   /// @dev an unattached market returns the zero-value struct.
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
@@ -175,52 +151,6 @@ contract OpenTermHooks is BaseHooks {
   // ========================================================================== //
   //                                    Hooks                                   //
   // ========================================================================== //
-
-  /// @notice enforces the market's minimum deposit and lender entry policy.
-  /// @dev the minimum is compared in scaled units using the same floor as the market. a valid
-  ///      credential marks the lender permanently known on this market, even when deposit access
-  ///      itself is optional.
-  function onDeposit(
-    address lender,
-    uint scaledAmount,
-    MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-
-    // Retrieve the lender's status from storage
-    LenderStatus memory status = _lenderStatus[lender];
-
-    // Check that the lender is not blocked
-    if (status.isBlockedFromDeposits) revert NotApprovedLender();
-
-    // Check that the deposit amount is at or above the market's minimum.
-    // The market floors the scaled amount (v2.5), so an exact-minimum tender
-    // can round-trip below the minimum; compare in scaled units, flooring
-    // both sides identically. Tolerance is at most one scaled token. Skips
-    // the conversion when no minimum is set.
-    if (market.minimumDeposit > 0) {
-      if (MathUtils.mulDiv(market.minimumDeposit, RAY, state.scaleFactor) > scaledAmount) {
-        revert DepositBelowMinimum();
-      }
-    }
-
-    // Attempt to validate the lender's access
-    // Uses the inner method here as storage may need to be updated if this
-    // is their first deposit
-    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(
-      status,
-      lender,
-      hooksData
-    );
-
-    if (market.depositRequiresAccess.and(!hasValidCredential)) {
-      revert NotApprovedLender();
-    }
-
-    _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
-  }
 
   /// @notice allows a withdrawal request from a known lender or one with a current credential.
   /// @dev known status is market-specific and survives credential expiry, revocation, provider
@@ -250,51 +180,6 @@ contract OpenTermHooks is BaseHooks {
     MarketState calldata /* state */,
     bytes calldata hooksData
   ) external override {}
-
-  /// @notice enforces the recipient side of the market's transfer policy.
-  /// @dev known recipients and the market's registered wrapper bypass later credential and
-  ///      deposit-block checks. any other unknown recipient must not be blocked and, when transfers
-  ///      are gated, must supply or resolve a credential. successful credential validation
-  ///      permanently marks the recipient known on this market.
-  function onTransfer(
-    address /* caller */,
-    address /* from */,
-    address to,
-    uint /* scaledAmount */,
-    MarketState calldata /* state */,
-    bytes calldata extraData
-  ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-
-    if (!market.isHooked) revert NotHookedMarket();
-
-    if (market.transfersDisabled) {
-      revert TransfersDisabled();
-    }
-
-    // If the recipient is a known lender, skip access control checks.
-    if (!isKnownLenderOnMarket[to][msg.sender]) {
-      // Wrapper entry is an ordinary market-token transfer without credential data. Only the
-      // canonical wrapper registered by this market receives the protocol exemption.
-      if (_isRegisteredWrapper(msg.sender, to)) return;
-
-      LenderStatus memory toStatus = _lenderStatus[to];
-      // Respect `isBlockedFromDeposits` only if the recipient is not a known lender
-      if (toStatus.isBlockedFromDeposits) revert NotApprovedLender();
-
-      // Attempt to validate the lender's access even if the market does not require
-      // a credential for transfers, as the recipient may need to be updated to reflect
-      // their new status as a known lender.
-      (bool hasValidCredential, bool wasUpdated) = _tryValidateAccessInner(toStatus, to, extraData);
-
-      // Revert if the recipient does not have a valid credential and the market requires one
-      if (market.transferRequiresAccess.and(!hasValidCredential)) {
-        revert NotApprovedLender();
-      }
-
-      _writeLenderStatus(toStatus, to, hasValidCredential, wasUpdated, true);
-    }
-  }
 
   /// @dev open-term access policy does not constrain borrower draws.
   function onBorrow(

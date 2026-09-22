@@ -5,6 +5,8 @@ import './BaseAccessControls.sol';
 import './MarketConstraintHooks.sol';
 import './IMarketTransferPolicy.sol';
 
+using BoolUtils for bool;
+
 /// @dev memory view of the template's packed config. keep the stored config in the template.
 struct AccessConfig {
   bool isHooked;
@@ -16,7 +18,7 @@ struct AccessConfig {
 }
 
 /// @title BaseHooks
-/// @notice shared initialization and market access configuration for hook templates.
+/// @notice shared initialization, lender actions, and access configuration for hook templates.
 /// @dev each template still owns its packed storage and public getters. the adapters read/write it.
 abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
   /// @notice emitted when a hooked market's minimum deposit changes.
@@ -142,4 +144,141 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _writeMinimumDeposit(market, newMinimumDeposit);
     emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
+
+  /// @notice says whether every market-token transfer is disabled for this market.
+  /// @dev reverts for an unregistered market. false is permanent; features must preserve that
+  ///      promise when adding transfer rules.
+  function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
+    return _requireHookedMarket(marketAddress).transfersDisabled;
+  }
+
+  /// @notice says whether `recipient` can receive tokens now without hook data.
+  /// @dev reverts for an unregistered market. credential exemptions still need feature approval.
+  function isMarketTransferRecipientAllowed(
+    address marketAddress,
+    address recipient
+  ) external view override returns (bool) {
+    AccessConfig memory access = _requireHookedMarket(marketAddress);
+    return
+      _defaultTransferRecipientAllowed(marketAddress, recipient, access) &&
+      _featureTransferRecipientAllowed(marketAddress, recipient);
+  }
+
+  function _defaultTransferRecipientAllowed(
+    address market,
+    address recipient,
+    AccessConfig memory access
+  ) internal view returns (bool) {
+    return
+      !access.transfersDisabled &&
+      _isMarketTransferRecipientAllowed(market, recipient, access.transferRequiresAccess);
+  }
+
+  /// @dev keep this in sync with any recipient restriction added by `_checkTransfer`.
+  function _featureTransferRecipientAllowed(
+    address market,
+    address recipient
+  ) internal view virtual returns (bool) {
+    return true;
+  }
+
+  /// @notice enforces the minimum deposit, lender entry policy, and additional deposit rules.
+  /// @dev default processing can update credentials and known-lender state. a later check reverting
+  ///      rolls those changes back, before the market does its deposit accounting.
+  function onDeposit(
+    address lender,
+    uint scaledAmount,
+    MarketState calldata state,
+    bytes calldata hooksData
+  ) external override {
+    AccessConfig memory access = _requireHookedMarket(msg.sender);
+    _processDeposit(access, lender, scaledAmount, state, hooksData);
+    _checkDeposit(lender, scaledAmount, state, hooksData);
+  }
+
+  /// @dev replacing this default means owning any skipped block, minimum, or credential checks
+  ///      and their bookkeeping. additional restrictions belong in `_checkDeposit`.
+  function _processDeposit(
+    AccessConfig memory access,
+    address lender,
+    uint256 scaledAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {
+    LenderStatus memory status = _lenderStatus[lender];
+    if (status.isBlockedFromDeposits) revert NotApprovedLender();
+
+    // floor both sides the same way as the market. converting back to normalized units can
+    // reject an exact-minimum deposit; the rounding tolerance is at most one scaled token.
+    if (access.minimumDeposit > 0) {
+      if (MathUtils.mulDiv(access.minimumDeposit, RAY, state.scaleFactor) > scaledAmount) {
+        revert DepositBelowMinimum();
+      }
+    }
+
+    // resolve credentials even when they're optional, so a valid one still makes the lender known.
+    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(
+      status,
+      lender,
+      extraData
+    );
+    if (access.depositRequiresAccess.and(!hasValidCredential)) revert NotApprovedLender();
+    _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
+  }
+
+  function _checkDeposit(
+    address lender,
+    uint256 scaledAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  /// @notice enforces the recipient's transfer policy and additional transfer rules.
+  /// @dev known recipients and the registered wrapper skip default credential/block checks.
+  ///      they still reach `_checkTransfer`; an exemption isn't permission to skip feature rules.
+  function onTransfer(
+    address caller,
+    address from,
+    address to,
+    uint scaledAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) external override {
+    AccessConfig memory access = _requireHookedMarket(msg.sender);
+    _processTransfer(access, caller, from, to, scaledAmount, state, extraData);
+    _checkTransfer(caller, from, to, scaledAmount, state, extraData);
+  }
+
+  /// @dev replacement owns the disabled-transfer check, credential exemptions, and bookkeeping.
+  ///      keep exemption returns in this helper so the coordinator still runs feature checks.
+  function _processTransfer(
+    AccessConfig memory access,
+    address caller,
+    address from,
+    address to,
+    uint256 scaledAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {
+    if (access.transfersDisabled) revert TransfersDisabled();
+    if (isKnownLenderOnMarket[to][msg.sender]) return;
+    if (_isRegisteredWrapper(msg.sender, to)) return;
+
+    LenderStatus memory status = _lenderStatus[to];
+    if (status.isBlockedFromDeposits) revert NotApprovedLender();
+
+    // optional credentials still count as entry. don't lose known-lender state on an open transfer.
+    (bool hasValidCredential, bool wasUpdated) = _tryValidateAccessInner(status, to, extraData);
+    if (access.transferRequiresAccess.and(!hasValidCredential)) revert NotApprovedLender();
+    _writeLenderStatus(status, to, hasValidCredential, wasUpdated, true);
+  }
+
+  function _checkTransfer(
+    address caller,
+    address from,
+    address to,
+    uint256 scaledAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
 }

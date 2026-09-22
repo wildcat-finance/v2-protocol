@@ -103,8 +103,8 @@ to callback gas or use historical test counts as proof of retained coverage.
 
 ## M2-02: Shared construction, registration, and minimums
 
-Status: implemented, verified, and accepted by the user for this signed
-checkpoint. Parent checkpoint is `774ca36` (M2-01). The test input manifest,
+Status: implemented, verified, and committed after user approval as `9d52fe0`,
+signed by `kethcode <dave@wildcat.finance>`. Parent checkpoint is `774ca36` (M2-01). The test input manifest,
 comment amendment, and review patch below identify the implementation without
 attributing it to that parent commit.
 
@@ -233,3 +233,142 @@ The final review receipt records the staged Solidity patch hash and binds
 the comment amendment and remaining raw artifacts. The original review receipt
 and patch are retained with the `m2-02-before-comments-` prefix. The user approved
 this staged checkpoint before its signed commit and the start of M2-03.
+
+## M2-03: Deposit, transfer, views, and early extension probe
+
+Status: implemented, verified, and accepted by the user for this signed checkpoint.
+Parent checkpoint is `9d52fe09d132c5cb25bdf9235c82d324a7250386` (M2-02), whose
+SSH signature was verified. The user reviewed this checkpoint before M2-04.
+
+### Shared lender actions and feature seams
+
+[BaseHooks](../../src/access/BaseHooks.sol) now owns deposit and transfer
+coordination and defaults, plus both transfer-policy views. All three concrete
+templates use these implementations; their copied bodies have been removed.
+Credentials, caches, known-lender state, provider resolution, and wrapper
+identification retain their single owner in `BaseAccessControls`.
+
+The coordinators authenticate registration, run `_processDeposit` or
+`_processTransfer`, then run the corresponding additional check. The default
+transfer processor applies the disabled flag before returning for a known
+recipient or exact registered wrapper. Those returns stay inside the processor,
+so `_checkTransfer` still runs. Minimum rounding, local blocks, credential
+resolution, and entry events retain their existing order.
+
+The recipient view combines `_defaultTransferRecipientAllowed` with
+`_featureTransferRecipientAllowed`. Its known-lender and wrapper exemptions
+therefore have the same scope as the callback's. The global disabled view keeps
+its permanent false promise; this checkpoint adds no global-lock mechanism.
+
+[RecipientRestrictionHooks](../../test/mocks/RecipientRestrictionHooks.sol) is
+a small test-only open-term derivative. One owned rule rejects one recipient
+on one market through both the transfer check and its no-data view.
+[HookExtensionsTest](../../test/access/HookExtensions.t.sol) proves acceptance,
+ordinary denial, known-recipient and registered-wrapper denial, market scope,
+and rollback of newly cached credentials and known-lender state. These are
+observable effects and errors, not internal-call counts. This is the planned
+early probe; broader composition and replacement proofs remain M4 work.
+
+### M2-03 test ownership
+
+| Property | Current owner |
+| --- | --- |
+| Registration before lender actions and transfer views | `BaseHooksTest.test_lenderActionsAndTransferViews_RejectUnregisteredMarkets`, across all three production artifacts. |
+| Minimum floor, exact-minimum rounding, block-before-minimum priority, zero-minimum conversion skip | `BaseHooksTest.test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst`. |
+| Required/optional deposit credentials, cache writes, ordered grant/first-entry events, repeat entry, market-local known status, known-lender deposit blocks | `BaseHooksTest.test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(bool)`. |
+| Disabled transfers before known/wrapper exemptions; required/optional credentials, local blocks, known-recipient exemptions, cache/entry effects and query answers | The two shared `test_onTransfer_*` cases, across all three templates. |
+| Pull-based recipient queries without cache or known-state writes, followed by actual entry | `BaseHooksTest.test_transferRecipientView_UsesPullCredentialsWithoutCachingThem`. |
+| Additional recipient rule, exemption scope, and rollback | Four `HookExtensionsTest` cases. |
+| Provider/cache algorithms and malformed/noncanonical wrapper responses | Existing `BaseAccessControlsTest`; unchanged owner. |
+| Actual registered-wrapper entry/redemption, factory registration, and dispatch arguments | Existing wrapper integration, factory, and dispatch suites; real production artifacts. |
+| Queue/closure caller differences and term behavior | Existing concrete suites; open/fixed caller tests now cover the remaining term endpoints. |
+
+Removed six copied deposit/transfer tests from the concrete suites. Added six
+shared cases and four extension cases; two caller-guard cases were narrowed and
+renamed. The access subtree changes from 132 to 136 test entrypoints. Shared
+fixtures still contain no test entrypoints, and there is no retained legacy
+implementation or duplicate action suite.
+
+### M2-03 verification
+
+Both focused runs use `--fuzz-seed 0x5eed` with unchanged default timestamp and
+build settings. Exact commands and input hashes are in the test receipts.
+
+| Check | Result |
+| --- | --- |
+| Default profile: shared/extension/access/term suites, factories, lens, administrator transfer, dispatch, production matrix, wrapper integration | 226 passed / 15 suites; zero failures/skips. |
+| Deployment profile: same selected suites | 226 passed / 15 suites; zero failures/skips. Actual factory deployment and wrapper paths pass. |
+| ABI comparison against M1/M2-02 | Encoded surface unchanged. Only the four previously unnamed `onTransfer` inputs gain names: `caller`, `from`, `scaledAmount`, `state`, in all three templates. All previously named inputs, public tuple fields, errors/events, selectors, and mutability match exactly. Raw ABIs and allowed differences are retained. |
+| Compiler storage layouts | Identical to M1 after ignoring compiler IDs. Each packed market configuration remains one slot; no new production state. |
+| Production source and executable identity | Final production files exactly match the gas-measurement source snapshot. Default, deploy, and gas-measurement ABI/creation/runtime bytecode match each other. |
+| `yarn lint:check` | Exits 1 for the same 34 untouched baseline formatting paths. No new formatting failure. |
+| Standalone Solhint | Exits 0; output is identical to the existing 22-warning baseline. |
+
+These are checkpoint checks. Full default/fixed-seed/deploy milestone
+qualification remains M2-06. No build setting, dependency, market implementation,
+batching rule, deployment inventory, or tranching policy changed.
+
+### M2-03 size and gas comparisons
+
+| Template | Runtime bytes | Creation bytes | `STOP + creation` | Stored-initcode headroom | Runtime/creation delta from M2-02 | Delta from M1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Open | 15,556 | 18,282 | 18,283 | 6,293 | -177 / -177 | +252 / +252 |
+| Fixed | 16,864 | 19,591 | 19,592 | 4,984 | -169 / -169 | +263 / +263 |
+| Periodic | 19,521 | 22,248 | 22,249 | 2,327 | -159 / -159 | +250 / +250 |
+
+Runtime, stored-initcode, and factory constructor-payload limits remain satisfied.
+The extraction reduces this checkpoint's code size while adding runtime work.
+
+Gas was measured before removing the copied action tests, using the same commands
+and unchanged test fixtures from `9d52fe0`. Their inputs and the production source
+snapshot are retained separately from the final consolidated-test manifest.
+All 97 M1 callback observations have identical arguments and return/revert
+results. The 56 deposit/transfer observations changed cost; the other 41 remain
+unchanged. The final source/bytecode identity check above qualifies reuse of these
+measurements after test consolidation. Reproduction uses the recorded production
+snapshot with that checkpoint's tests in a separate checkout.
+
+| Template | Deposit gas delta (all retained observations) | Transfer gas delta (all retained observations) |
+| --- | ---: | ---: |
+| Open | +396 to +398 | +379 to +425 |
+| Fixed | +228 to +230 | +210 to +257 |
+| Periodic | +107 to +119 | +99 to +146 |
+
+The measured boundaries retain M1's isolated direct calls versus nested real
+market calls. For example, a locally blocked canonical-wrapper entry changes
+from 4,348 to 4,757 gas for open, 4,559 to 4,800 for fixed, and 4,846 to 4,976
+for periodic. The periodic cached repeat-deposit scenario changes from 11,499
+to 11,616 gas. These are callback costs, not whole-transaction fee estimates.
+
+The same traces also contain 37 comparable transfer-policy query calls, which
+increase by 756–817 gas versus M2-02. The optimized compiler output shows the
+shared registration helper allocating/decoding the six-field memory view,
+including two discarded zero-initialized allocations, before checking the
+registered flag. It loads the packed configuration once and does not fetch
+open/fixed's separate deposit-dispatch mapping. The transfer processor also
+retains an internal helper call. These memory/helper costs explain the increase;
+the empty feature checks disappear from the three built-in artifacts. Relevant
+IR is retained as `m2-03-<Template>-action-ir.txt`. These measured costs are an
+explicit review tradeoff; no gas improvement is claimed from source sharing.
+
+### M2-03 evidence identities
+
+Paths are relative to the same ignored M2 evidence root. Receipt files retain
+exact commands and log hashes. The gas input manifest/snapshot and final input
+manifest are distinct; the review receipt binds both and the staged patch.
+
+| File | SHA-256 |
+| --- | --- |
+| `m2-03-inputs.sha256.json` | `de59f4c17528500c51fbe221810fef94199cb0f97d3ed000c0e78bab09493abd` |
+| `m2-03-test-receipts.json` | `a18f832cb027d11f7a96b05f21bc7f8d026b77564f89bd5e8cbfb685f703d454` |
+| `m2-03-abi-comparison.json` | `7c4cb9f4d2b68e60443d7c2683be303871295e9a716014bfb6a4caeaa400fe4d` |
+| `m2-03-storage-comparison.json` | `7ac3d03e8187cfa26198d979dabe817c774cc7648983a39296061052194f2b2a` |
+| `m2-03-sizes.json` | `ba481ffb17f025daaa52be68b3f76caf388d7213bf568787b438f9efaca13825` |
+| `m2-03-gas-receipts.json` | `4b28e68a37b201121cb6409e0bed5b29d42203402b03ab4d5737cf2c6d7418df` |
+| `m2-03-gas-comparison.json` | `77d2013dea69567f2657b1d4b982c2fe9bfb8144c2468d96b3e2555b654fbbf6` |
+| `m2-03-view-gas-comparison.json` | `f10deced870d0153a826371edc38495c0d9760d890a1f84543ad521ca2e23312` |
+| `m2-03-lint-receipts.json` | `cdab75a70438f047548a3e6c552231383e128219e4871a9a1b7d1d570c8531a0` |
+| `m2-03-test-migration.json` | `c9324ddf852230131210335578f5c1df6452d24021ac9f3d368712ed57573876` |
+
+The user accepted this staged Solidity diff and authorized M2-04. The voice guide,
+reference PDF, and lifecycle sketch remain untracked and excluded.

@@ -10,7 +10,7 @@ import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
-import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
+import { RAY } from 'src/libraries/MathUtils.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
@@ -491,108 +491,6 @@ contract PeriodicTermHooksTest is TestKernel {
 
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
     hooks.onCloseMarket(state, '');
-  }
-
-  function test_onDeposit_EnforcesMinimumBlockAndCredentialPolicies() external {
-    _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      _hooksData(100, false)
-    );
-    MarketState memory state;
-    state.scaleFactor = uint112((RAY * 3) / 2);
-    uint256 scaledMinimum = MathUtils.mulDiv(100, RAY, state.scaleFactor);
-    vm.prank(MarketA);
-    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
-    hooks.onDeposit(Lender, scaledMinimum - 1, state, '');
-    vm.prank(MarketA);
-    hooks.onDeposit(Lender, scaledMinimum, state, '');
-
-    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), _hooksData());
-    hooks.blockFromDeposits(SecondLender);
-    vm.prank(MarketB);
-    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onDeposit(SecondLender, 1, state, '');
-
-    _createMarket(hooks, MarketC, _requestedConfig(hooks, true, false, false), _hooksData());
-    vm.prank(MarketC);
-    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onDeposit(ThirdLender, 1, state, '');
-
-    _addPullProvider(hooks);
-    bytes memory credential = abi.encode('periodic deposit');
-    provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
-    vm.prank(MarketC);
-    hooks.onDeposit(ThirdLender, 1, state, _credentialData(credential));
-    assertTrue(hooks.isKnownLenderOnMarket(ThirdLender, MarketC), 'restricted known lender');
-
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.onDeposit(Lender, 0, state, '');
-  }
-
-  function test_onTransfer_EnforcesDisabledCredentialAndKnownLenderPolicies() external {
-    MarketState memory state;
-    _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      _hooksData(0, true)
-    );
-    vm.mockCall(MarketA, abi.encodeWithSignature('registeredWrapper()'), abi.encode(SecondLender));
-    vm.prank(MarketA);
-    vm.expectRevert(BaseHooks.TransfersDisabled.selector);
-    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
-    assertFalse(hooks.isMarketTransferRecipientAllowed(MarketA, SecondLender), 'disabled policy');
-
-    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, true), _hooksData());
-    vm.prank(MarketB);
-    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
-    assertFalse(hooks.isMarketTransferRecipientAllowed(MarketB, SecondLender), 'unknown policy');
-
-    _addPullProvider(hooks);
-    bytes memory credential = abi.encode('periodic transfer');
-    provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
-    vm.prank(MarketB);
-    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, _credentialData(credential));
-    assertTrue(hooks.isKnownLenderOnMarket(SecondLender, MarketB), 'known recipient');
-    assertTrue(hooks.isMarketTransferRecipientAllowed(MarketB, SecondLender), 'known policy');
-
-    vm.prank(address(provider1));
-    hooks.revokeRole(SecondLender);
-    hooks.blockFromDeposits(SecondLender);
-    vm.prank(MarketB);
-    hooks.onTransfer(Lender, Lender, SecondLender, 1, state, '');
-    assertTrue(
-      hooks.isMarketTransferRecipientAllowed(MarketB, SecondLender),
-      'blocked known policy'
-    );
-
-    _createMarket(hooks, MarketC, _requestedConfig(hooks, false, false, false), _hooksData());
-    assertTrue(hooks.isMarketTransferRecipientAllowed(MarketC, ThirdLender), 'open policy');
-    vm.prank(MarketC);
-    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
-
-    hooks.blockFromDeposits(ThirdLender);
-    assertFalse(
-      hooks.isMarketTransferRecipientAllowed(MarketC, ThirdLender),
-      'blocked open policy'
-    );
-    vm.prank(MarketC);
-    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
-
-    vm.prank(MarketB);
-    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
-
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.onTransfer(Lender, Lender, ThirdLender, 1, state, '');
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.isMarketTransferDisabled(MarketD);
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.isMarketTransferRecipientAllowed(MarketD, Lender);
   }
 
   function test_unrestrictedCallbacks_AreNoOps() external {
