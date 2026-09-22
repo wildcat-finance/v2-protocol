@@ -1,7 +1,7 @@
 # M1 design: shared hooks and explicit policy integration
 
-- Status: storage/component and internal API decisions complete; metadata follows
-  in M1-06.
+- Status: storage/component, internal API, and metadata decisions complete;
+  final walkthrough and M2 handoff follow in M1-07.
 - Implements the [agreed spec](hook-composition.md) against the
   [behavior map](hook-behavior-map.md) and [measured baseline](hook-refactor-m1-baseline.md).
 - This is an implementation contract for M2/M3, not deployed Solidity or an
@@ -531,3 +531,45 @@ The evidence root contains `interface-probe-request.json` (SHA-256
 `ad1e60527d042f7fabdbb554381a5856542da099241b85574292111aac5679e8`) and `interface-probe-output.json` (SHA-256
 `e9485e3c71faf90b0ed630e52894673eae5a7bb44d7bd5aa82e2ef3ebedeb3ab`). M4 still owes executable tests of overlapping rules,
 rollback, exemptions, alternate routes, and three-/four-policy combinations.
+
+## Metadata and expected ABI comparison
+
+Keep all three exact family strings and retain periodic `templateVersion()`
+as `uint256(2)`. Do not add revision getters to open/fixed. The periodic source,
+tests, and integration guide describe the existing getter as an **ABI revision**;
+this refactor preserves that revision's selectors and encoded formats. Treating
+it as a new implementation counter would change an established meaning without
+helping family-based decoding.
+
+New compiled code still has new creation/runtime hashes and new deployment
+identities. Deployment records and bytecode identify that implementation;
+neither the family string nor ABI revision claims identical bytecode. Existing
+deployment inventories must not be rewritten, and publishing/registering new
+templates is later release work.
+
+| Surface | Expected result after implementation |
+| --- | --- |
+| Family `version()` | Exact values `OpenTermHooks`, `FixedTermHooks`, `PeriodicTermHooks`. |
+| `templateVersion()` | Present only on periodic; same selector, return type, and value 2. |
+| Public functions/constructor | Same selectors, input/output types, tuple field names/order, widths, and mutability; no new external selectors on existing concrete templates. |
+| Public configuration/proposal types | Same names available from current concrete-file imports and same ABI tuple structures. |
+| Events/errors | Same signatures, argument/indexed layouts and payloads, and observed ordering/revert behavior. Qualified source references may move to the declaration owner. |
+| Bytecode/initcode/address identities | Expected to change in the refactor; newly measured and separately registered/deployed later. |
+
+There is one anticipated JSON-level naming difference to make explicit:
+currently unused callback arguments are often unnamed, and the three templates
+are inconsistent. For example, periodic's `onExecuteWithdrawal` and `onRepay`
+inputs are all unnamed while open/fixed name some of them; only periodic names
+the queue callback's `state`. Sharing coordinators that pass these values to
+extensions necessarily gives those arguments names.
+
+Keep existing nonempty top-level callback argument names where shared today;
+name previously unnamed arguments consistently with their meanings in `IHooks`.
+This permits **empty-to-named top-level callback inputs only**, not tuple-field
+renames, numeric/type changes, new selectors, or casual relabeling of existing
+named arguments. Internal helper argument names have no public ABI meaning.
+M5 should retain the raw ABI diff and enumerate these naming additions, while
+requiring exact semantic equality of the encoded surface and exact public
+tuple field names. Do not claim byte-for-byte ABI JSON equality or blindly
+strip all names to hide a configuration-format change. This label-only change
+does not require a new periodic ABI revision.
