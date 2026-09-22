@@ -5,6 +5,11 @@ out = 'out'
 libs = ['lib']
 gas_reports = ["WildcatMarket"]
 
+# Deliberately retain the Foundry 1.8.3 defaults used by the canonical suite.
+# Top-level calls use separate transaction contexts, including storage warmth.
+isolate = true
+dynamic_test_linking = true
+
 ffi=true
 solc="0.8.25"
 fs_permissions = [

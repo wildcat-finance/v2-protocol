@@ -19,6 +19,13 @@ FOUNDRY_PROFILE=deploy forge test
 - `FOUNDRY_PROFILE=deploy forge test` runs the same suite with the deployment
   artifact settings.
 
+The configuration explicitly enables call isolation and dynamic test linking,
+the defaults adopted with Foundry 1.8.3. Isolation gives top-level test calls
+separate transaction contexts, so gas comparisons must preserve that setting
+and distinguish direct test calls from callbacks nested inside market actions.
+Deployment fixtures continue to use production artifacts and the real factory
+paths where deployment identity and behavior are under test.
+
 See [`test/README.md`](./test/README.md) for suite ownership, fixture rules,
 stateful testing, and the focused coverage boundary.
 

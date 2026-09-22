@@ -80,3 +80,4 @@ Next: M1-04, select storage adapters and component/state ownership using the mea
 | M1-01 complete | Confirmed source/submodules and pinned tools; captured input/configuration hashes; classified older receipts. Added a local Corepack shim for Yarn without changing package configuration. |
 | M1-02 complete | Captured compiler ABIs and compatibility inventory. Default, fixed-seed, and deployment-profile runs each passed 698 tests across 48 suites. Input hashes still match. |
 | M1-03 complete | Recorded runtime, creation, STOP-prefixed storage, and constructor payload limits. Captured direct/nested callback gas from 18 existing tests; documented call isolation and exact scenario boundaries. |
+| Foundry settings follow-up | Compared 1.7.1/1.8.3 effective defaults and explicitly retained isolation/dynamic linking. Default/deploy configurations are unchanged by the pins, preserving the M1 receipts; 115 production artifacts also match the old build. |

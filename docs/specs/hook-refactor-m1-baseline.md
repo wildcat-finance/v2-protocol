@@ -23,6 +23,7 @@ The reference PDF and lifecycle sketch are excluded from milestone commits.
 | Metadata | Bytecode hash `none`; CBOR metadata disabled |
 | Default / deploy initial timestamp | `1`; suites may explicitly warp |
 | Call isolation | `isolate = true`; each top-level test-to-contract call has a separate transaction/EVM context |
+| Dynamic test linking | `true`; explicitly pinned with isolation after the default review below |
 | Default fuzz / invariant settings | 1,000 fuzz runs; 2,000 invariant runs, depth 30; no configured seed |
 | Fixed command | Timestamp `1724284800`, fuzz seed `0x5eed` |
 | Deploy profile differences | `deploy-out`, `deploy-cache`, additional `ir` / `irOptimized` output files; same compiler/EVM/optimization settings |
@@ -79,6 +80,40 @@ existence avoids ambiguity about what was inspected; no historical passing
 count is claimed as a new M1 result. M1-02 will run the three commands in
 [`TESTS.md`](../../TESTS.md), export compiler ABIs, and inventory compatibility.
 M1-03 will capture creation/runtime sizes and representative operation gas.
+
+### Foundry default review and explicit pins
+
+After M1-03, compared this checkout's effective `forge config --json` using the
+available 1.7.1 and 1.8.3 binaries. Two existing defaults changed:
+`isolate: false -> true` and `dynamic_test_linking: false -> true`. The config
+now explicitly retains both 1.8.3 values. This choice preserves the transaction
+semantics under which the canonical tests and M1 gas measurements passed.
+
+New options include coverage/tracing configuration, additional fuzz/invariant
+mutation and frontier controls, and disabled symbolic/experimental features.
+They retain pinned-1.8.3 defaults; no corpus, symbolic analysis, or mutation
+workflow is enabled by this milestone. Existing fuzz/invariant counts and
+depth remain explicit. A fixed seed identifies a run under the pinned engine;
+it does not promise identical generated cases across engine versions.
+
+Default and deployment `forge config --json` objects compare exactly equal
+before and after making these two values explicit. No effective test/compiler
+setting changed, so the existing M1 receipts remain applicable without another
+identical suite run. The input manifest still records the original file bytes;
+`explicit-config-pins.json` records this intentional, equivalent amendment:
+
+- Previous `foundry.toml` SHA-256:
+  `885f709eefb5343bb47854b9225cd77908a48d49a2778315f3b581d761c9ed66`.
+- Explicit-pins `foundry.toml` SHA-256:
+  `a10657160908dc326c00525ca6c30af9c1b30605795a4d794a7380de88ce6513`.
+- Amendment receipt SHA-256:
+  `48aab12a0c0e41ac78921687da96220fb66453a3e9aec318b91ef2f8d4920802`.
+
+The available 1.7.1 production artifacts also match all 115 corresponding
+current deployment artifacts in ABI, creation/runtime bytecode, and source
+metadata. That comparison is recorded in `foundry-artifact-comparison.json`,
+SHA-256 `4f042786a80a0b86e7dd45c751e9deacf479f68a0ebea6a4e073aa1aafc57fcd`.
+This checks artifact identity; it is not a claim that M1 reran the old engine.
 
 ## Verification receipts
 
