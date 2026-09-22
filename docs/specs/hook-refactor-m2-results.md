@@ -101,9 +101,135 @@ caller/cache state, fixed timestamp/seed, deployment settings, and isolation
 boundary if an owning test is renamed or moved. Do not compare whole test gas
 to callback gas or use historical test counts as proof of retained coverage.
 
-## Remaining implementation evidence
+## M2-02: Shared construction, registration, and minimums
 
-M2-02 through M2-06 are pending. No shared implementation, new runtime test,
-post-refactor ABI/size/gas result, or M3 handoff is claimed by M2-01. The lint
-baseline is characterized; no source, toolchain, or design blocker prevents
-the first implementation checkpoint.
+Status: implemented, verified, and accepted by the user for this signed
+checkpoint. Parent checkpoint is `774ca36` (M2-01). The test input manifest,
+comment amendment, and review patch below identify the implementation without
+attributing it to that parent commit.
+
+### Changes and ownership
+
+- Added [BaseHooks](../../src/access/BaseHooks.sol), retaining the existing
+  access and constraint bases as the sole credential/administration and
+  bounds/APR owners. Shared constructor initialization, creation coordination,
+  access/dispatch configuration, minimum management, and common declarations
+  replace the three copied implementations.
+- The concrete hooks retain their packed mappings, public structs/getters,
+  raw calldata readers, and staged term decoding. Internal adapters expose
+  common fields in memory and perform checked periodic minimum narrowing.
+  Requested access is captured before forced/required callbacks are merged.
+- Creation runs factory authentication, bounds, administrator, template decode/
+  term checks and events, common access configuration, packed storage, then
+  `_onMarketConfigured`. A test-only derived hook demonstrates observation of
+  completed binding before code deployment and atomic rejection of binding
+  and feature state.
+- Common constructor/configuration/minimum assertions now live in
+  [BaseHooksTest](../../test/access/BaseHooks.t.sol), using all three production
+  artifacts through [HookTemplateFixture](../../test/shared/HookTemplateFixture.sol).
+  The fixture has no test entrypoints. Provider algorithms and bounds retain
+  their existing owners; term data, permissions, schedules, and public tuple
+  details remain in their distinct suites.
+- Removed superseded constructor/configuration/minimum tests and unused helpers.
+  Added malformed/partial-word and low-bit decoding, guard/failure ordering,
+  full-width writes, immutable dispatch, untouched configuration fields,
+  unknown-market tuple, and creation-extension rollback cases. The access
+  subtree still has 132 entrypoints: 22 former names removed and 22 new/renamed
+  ones added, including the 12-test shared suite. The migration inventory and
+  property map, rather than the coincidentally equal count, explain coverage.
+- Mechanical error/event qualifications now reference `BaseHooks`, including
+  two integration/market test files. Constructors, tuples, errors/events,
+  flags, family strings, and periodic ABI revision are unchanged.
+
+Deposit/transfer processing, transfer queries, queue/closure/no-op coordination,
+and APR coordination have not been extracted in this checkpoint. Those tasks
+remain M2-03 through M2-05; this is not a claim of completed M2 or M4 composition.
+
+### Verification
+
+Both focused final runs use `--fuzz-seed 0x5eed` with the unchanged default
+timestamp/settings. The exact contract regex and source-input hash are in
+`m2-02-test-receipts.json`.
+
+| Check | Result |
+| --- | --- |
+| Default profile: access, factory, lens, administrator transfer, dispatch, production matrix suites | 207 passed / 13 suites; zero failures/skips. |
+| Deployment profile: same selected suites | 207 passed / 13 suites; zero failures/skips. Real standard/revolving factory paths use the refactored artifacts. |
+| M1 gas scenarios, deployment profile, timestamp `1724284800`, seed `0x5eed` | 17 tests / 5 suites plus the one cached-deposit production scenario pass; all 97 previously recorded callback observations match. Includes the wrapper integration scenario. |
+| All three complete raw/semantic ABIs | Identical to M1; no callback argument-label exception is needed in this checkpoint. Default/deploy ABI and bytecode also match each other. |
+| Compiler storage layouts | Identical mapping slots, member offsets/widths, and storage types after ignoring compiler AST IDs. Each configuration remains one 32-byte slot; no duplicate persisted access configuration. |
+| `yarn lint:check` | Still exits 1 for 34 untouched baseline formatting failures, down from 41. No new formatting failure; all changed Solidity files are formatted. |
+| Standalone Solhint with repository arguments | Exits 0, zero errors and the same 22 baseline warnings. |
+| Input/scope checks | Recorded test inputs match the implementation before the comment amendment below; all 12 staged Solidity files retain identical non-comment tokens. Unrelated source, submodules, package/lockfile, and build settings are unchanged. |
+
+These are checkpoint checks, not the full default/fixed-seed/deploy qualification
+required at M2-06. An initial test compile rejected a reserved local variable
+name; it was corrected before the final passing runs. Final test ownership
+cleanup and import formatting are included in those runs.
+
+During review, comments in six Solidity files were revised to the user's requested
+voice. Compared lexer tokens against the preserved tested source: all 12 staged
+Solidity files are identical after excluding comments. Prettier passes for the
+six edited files; Solhint output is identical to the 22-warning baseline. Tests
+and compilation were not rerun for this comment-only amendment. Original test
+receipts remain intact; `m2-02-comments-receipt.json` binds the comparison and
+current input manifest. NatSpec text and source locations have changed.
+
+### Deployment sizes and cost changes
+
+Default and deployment artifacts have identical bytecode. All runtime,
+stored-initcode, and factory constructor-payload boundaries remain satisfied.
+
+| Template | Runtime bytes | Creation bytes | `STOP + creation` | Stored-initcode headroom | Runtime/creation increase from M1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Open | 15,733 | 18,459 | 18,460 | 6,116 | +429 / +429 |
+| Fixed | 17,033 | 19,760 | 19,761 | 4,815 | +432 / +432 |
+| Periodic | 19,680 | 22,407 | 22,408 | 2,168 | +409 / +409 |
+
+All 97 M1 callback trace measurements are unchanged: deposit, transfer, queue,
+closure, ordinary APR, and dedicated periodic APR, including success/revert
+paths and the labeled direct versus nested call boundaries. Those callback
+bodies have not yet moved; these results do not predict M2-03 through M2-05 costs.
+
+The same retained traces also permit 42 creation/minimum comparisons not in
+M1's original 97-entry summary. Direct unit-fixture creation increases by
+565–696 gas for open (6 observations), 559–630 for fixed (11), and 432–593 for
+periodic (17); the remaining five creation observations are nested production
+calls. In the periodic live-minimum production scenario, setting a positive
+minimum changes from 31,871 to 32,967 gas (+1,096), clearing it from 31,743 to
+32,596 (+853), and an unauthorized update from 24,140 to 24,143 (+3). These
+are isolated top-level calls, including transaction overhead, as in M1.
+
+Inspected optimized IR: creation materializes the common access view before
+the template's packed configuration; minimum management decodes that view and
+uses separate dispatch/write adapters. The extra memory work, helper calls,
+and warm configuration reads explain the overhead without an extra persisted
+mapping. Relevant compiler sections are preserved as
+`m2-02-<Template>-adapter-ir.txt`. Source sharing is not a bytecode saving in
+this checkpoint. The size/gas increases are explicit review tradeoffs; later
+extractions must continue measuring the periodic stored-initcode budget.
+
+### M2-02 evidence identities
+
+Paths are relative to the M2 evidence root. Receipt files identify their log
+hashes and exact commands. `m2-02-inputs.sha256.json` binds tested source/test/
+script/build inputs; unchanged dependencies remain bound by M2-01's manifest.
+
+| File | SHA-256 |
+| --- | --- |
+| `m2-02-inputs.sha256.json` | `96f34142f815a5f9720f50457745f002464637669672e15e99c5c2f30ef6cd8b` |
+| `m2-02-test-receipts.json` | `aa0526df3cc2b4131f94707e752241e20590731a919f5d615715752344205929` |
+| `m2-02-abi-comparison.json` | `02ec1eccd6a70aec911edb07793eaffcf28bfdfad6728a09fda2d864ad2b0de0` |
+| `m2-02-storage-comparison.json` | `bacb5a5ee1ad3ddf694249284db3ad1e3d2ac7ad31b19da8bacfb981cba57943` |
+| `m2-02-sizes.json` | `c80cdba369bcbf9f9e4e28da9ae339705c333140ac32bcfea7df4d0b83bfca9e` |
+| `m2-02-gas-receipts.json` | `9ba5e380bd4c35747441aa159aa445b3542fb09c3b723093e1b2b424fc205702` |
+| `m2-02-gas-comparison.json` | `33f7e8bf6903932269ae718cb432c53c1c8f10c837783e9cb5b15c7160217055` |
+| `m2-02-creation-minimum-gas.json` | `1175de033fa026467253929c02ecccaa8cf9573a2e54dc74f4745ccd17fb8dd8` |
+| `m2-02-lint-receipts.json` | `f580c678b041c381d49a0561dbbc6e6a02ece329a6f7c6fd1cac876fb82484f9` |
+| `m2-02-test-migration.json` | `837105661aaddfebb7e26fb03a782d05f1e7bcf504ace1fcc093ff667165c0f0` |
+| `m2-02-comments-receipt.json` | `3d230f7856d1b05da2d3bf2dfa6f9e80faf55398ec9ba43c94832e3036803096` |
+
+The final review receipt records the staged Solidity patch hash and binds
+the comment amendment and remaining raw artifacts. The original review receipt
+and patch are retained with the `m2-02-before-comments-` prefix. The user approved
+this staged checkpoint before its signed commit and the start of M2-03.

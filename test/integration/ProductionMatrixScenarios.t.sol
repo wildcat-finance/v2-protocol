@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { IHooksFactory } from 'src/IHooksFactory.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { IHooks } from 'src/access/IHooks.sol';
@@ -335,10 +336,10 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     stack.asset.mint(MatrixAlice, MinimumDeposit);
 
     vm.prank(MatrixAlice);
-    vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
+    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
     capacity.market.depositUpTo(MinimumDeposit);
     vm.prank(MatrixAlice);
-    vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
+    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
     capacity.market.deposit(MinimumDeposit);
 
     MatrixOptions memory liveOptions = _defaultMatrixOptions(
@@ -362,7 +363,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     liveHooks.setMinimumDeposit(address(live.market), MinimumDeposit * 2);
     _fundAndApprove(stack, live, MatrixBob, MinimumDeposit * 2);
     vm.prank(MatrixBob);
-    vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
+    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
     live.market.depositUpTo(MinimumDeposit);
     vm.prank(MatrixBob);
     live.market.depositUpTo(MinimumDeposit * 2);
@@ -413,7 +414,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
       vm.prank(MatrixBob);
       cell.market.depositUpTo(boundary);
       vm.prank(MatrixBob);
-      vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
+      vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
       cell.market.depositUpTo(boundary - 1);
     }
   }

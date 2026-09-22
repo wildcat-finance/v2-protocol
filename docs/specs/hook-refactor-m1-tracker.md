@@ -4,8 +4,7 @@
 - Milestone status: complete; reviewed and pushed by the user on 2026-09-22.
 - Execution tasks complete: 7 of 7.
 - Active task: none.
-- Next action: review the [M2 plan](hook-refactor-m2-plan.md) and
-  [tracker](hook-refactor-m2-tracker.md) before implementation.
+- Next action: follow the active [M2 tracker](hook-refactor-m2-tracker.md).
 - Intended starting source revision: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
 Source and toolchain identity are verified in the [baseline record](hook-refactor-m1-baseline.md).
@@ -75,7 +74,7 @@ untracked and excluded from commits.
 
 The user approved and pushed M1 on 2026-09-22. M2's own
 [plan](hook-refactor-m2-plan.md) and [tracker](hook-refactor-m2-tracker.md) are
-prepared for review before implementation. The implementation's performance,
+approved; M2 execution is in progress. The implementation's performance,
 parity, and multi-policy proofs remain obligations of M2–M5.
 
 ## Progress log

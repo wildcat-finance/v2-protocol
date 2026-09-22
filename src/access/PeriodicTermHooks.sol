@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-import './MarketConstraintHooks.sol';
-import './IMarketTransferPolicy.sol';
+import './BaseHooks.sol';
 import '../libraries/SafeCastLib.sol';
-import './BaseAccessControls.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -55,18 +53,11 @@ interface IMarketApr {
 ///      closes until the following window begins, provided no pending withdrawals remain unpaid.
 ///      entry with a valid credential permanently marks a lender known on that market. the hooks
 ///      administrator can block deposits wherever `onDeposit` is enabled.
-contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
+contract PeriodicTermHooks is BaseHooks {
   // ========================================================================== //
   //                                   Events                                   //
   // ========================================================================== //
 
-  /// @notice emitted when a hooked market's minimum deposit changes.
-  event MinimumDepositUpdated(
-    address indexed market,
-    address indexed caller,
-    uint128 previousMinimumDeposit,
-    uint128 newMinimumDeposit
-  );
   /// @notice emitted when a market's recurring withdrawal schedule is fixed at deployment.
   event PeriodicTermUpdated(
     address indexed market,
@@ -94,14 +85,6 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   //                                   Errors                                   //
   // ========================================================================== //
 
-  /// @dev the caller supplied a market not bound to this hooks instance.
-  error NotHookedMarket();
-  /// @dev the scaled deposit is below the market's configured minimum.
-  error DepositBelowMinimum();
-  /// @dev transfers are disabled for this market.
-  error TransfersDisabled();
-  /// @dev the requested hook flags leave an uncredentialed path into a gated withdrawal policy.
-  error InvalidAccessConfiguration();
   /// @dev market-creation hook data omitted the required periodic schedule.
   error PeriodicWindowNotProvided();
   /// @dev the first future withdrawal window is beyond the configured maximum delay.
@@ -110,8 +93,6 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   error PeriodDurationOutOfBounds();
   /// @dev the withdrawal window is too short or not shorter than its period.
   error WithdrawalWindowDurationOutOfBounds();
-  /// @dev a positive minimum was requested for a market without the deposit callback.
-  error DepositHookNotEnabled();
   /// @dev an open market tried to queue a withdrawal outside its current window.
   error WithdrawOutsideWindow();
   /// @dev an APR reduction was proposed while its market's withdrawal window was open.
@@ -134,8 +115,6 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   // ========================================================================== //
   //                                    State                                   //
   // ========================================================================== //
-
-  HooksDeploymentConfig public immutable override config;
 
   // TODO FOR MAINNET: Finalize the minimum period duration with the team.
   /// @notice shortest supported time between withdrawal-window starts.
@@ -167,33 +146,20 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
   constructor(
     address _administrator,
     bytes memory args
-  ) BaseAccessControls(_administrator) IHooks() {
-    HooksConfig optionalFlags = encodeHooksConfig({
-      hooksAddress: address(0),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: false,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
-    HooksConfig requiredFlags = EmptyHooksConfig
-      .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
-      .setFlag(Bit_Enabled_QueueWithdrawal)
-      .setFlag(Bit_Enabled_CloseMarket)
-      .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
-    config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
-
-    if (args.length > 0) {
-      NameAndProviderInputs memory inputs = abi.decode(args, (NameAndProviderInputs));
-      _initialize(inputs);
-    }
-  }
+  )
+    BaseHooks(
+      _administrator,
+      args,
+      encodeHooksDeploymentConfig(
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
+        EmptyHooksConfig
+          .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+          .setFlag(Bit_Enabled_CloseMarket)
+          .setFlag(Bit_Enabled_QueueWithdrawal)
+          .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction)
+      )
+    )
+  {}
 
   function version() external pure override returns (string memory) {
     return 'PeriodicTermHooks';
@@ -236,28 +202,22 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
     return _value.toUint96();
   }
 
-  /// @dev binds one market to this instance. `administrator_` must be the current hooks
+  /// @dev binds the market after BaseHooks checks `administrator_` against the current
   ///      administrator. `hooksData` is `(uint32 firstWithdrawalWindowStart, uint32 periodDuration,
   ///      uint32 withdrawalWindowDuration, uint96 minimumDeposit?, bool transfersDisabled?)`.
-  ///      the first three words are required; optional missing words read as zero. withdrawal
-  ///      gating is accepted only when deposits are gated and transfers are gated or disabled,
-  ///      otherwise an uncredentialed entry path could trap the recipient.
-  function _onCreateMarket(
+  ///      the first three words are required; missing optional words read as zero. gated
+  ///      withdrawals need gated deposits and gated or disabled transfers. otherwise a lender can
+  ///      enter without credentials and get stuck on exit.
+  function _initializeMarket(
     address administrator_,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal override returns (HooksConfig marketHooksConfig) {
-    super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
-    if (administrator_ != administrator) revert CallerNotAdministrator();
+  ) internal virtual override returns (HooksConfig marketHooksConfig) {
     if (hooksData.length < 0x60) revert PeriodicWindowNotProvided();
-
-    marketHooksConfig = parameters.hooks;
-
     uint32 firstWithdrawalWindowStart = _readUint32Cd(hooksData, 0);
     uint32 periodDuration = _readUint32Cd(hooksData, 0x20);
     uint32 withdrawalWindowDuration = _readUint32Cd(hooksData, 0x40);
-
     _validatePeriodicTerm(
       firstWithdrawalWindowStart,
       periodDuration,
@@ -272,73 +232,60 @@ contract PeriodicTermHooks is BaseAccessControls, MarketConstraintHooks, IMarket
       withdrawalWindowDuration
     );
 
-    // Use the deposit and transfer flags to determine whether those require
-    // access control. These are tracked separately because if the market
-    // enables `onQueueWithdrawal`, deposit and transfer hooks will also be
-    // enabled, but may not require access control.
-    // If the calldata does not contain sufficient bytes for an optional
-    // parameter, it will be read as zero.
-    HookedMarket memory hookedMarket = HookedMarket({
-      isHooked: true,
-      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
-      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
-      withdrawalRequiresAccess: marketHooksConfig.useOnQueueWithdrawal(),
-      depositHookEnabled: false,
+    uint96 minimumDeposit = _readUint96Cd(hooksData, 0x60);
+    (
+      AccessConfig memory access,
+      bool depositHookEnabled,
+      HooksConfig effective
+    ) = _configureMarketAccess(
+        administrator_,
+        marketAddress,
+        parameters.hooks,
+        minimumDeposit,
+        _readBoolCd(hooksData, 0x80)
+      );
+    _hookedMarkets[marketAddress] = HookedMarket({
+      isHooked: access.isHooked,
+      transferRequiresAccess: access.transferRequiresAccess,
+      depositRequiresAccess: access.depositRequiresAccess,
+      withdrawalRequiresAccess: access.withdrawalRequiresAccess,
+      depositHookEnabled: depositHookEnabled,
       firstWithdrawalWindowStart: firstWithdrawalWindowStart,
       periodDuration: periodDuration,
       withdrawalWindowDuration: withdrawalWindowDuration,
-      minimumDeposit: _readUint96Cd(hooksData, 0x60),
-      transfersDisabled: _readBoolCd(hooksData, 0x80),
-      isClosed: false
+      isClosed: false,
+      minimumDeposit: minimumDeposit,
+      transfersDisabled: access.transfersDisabled
     });
-    if (hookedMarket.withdrawalRequiresAccess) {
-      if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
-      if (!hookedMarket.transfersDisabled && !hookedMarket.transferRequiresAccess) {
-        revert InvalidAccessConfiguration();
-      }
-    }
-
-    if (hookedMarket.minimumDeposit > 0) {
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(
-        marketAddress,
-        administrator_,
-        0,
-        hookedMarket.minimumDeposit
-      );
-    }
-    if (hookedMarket.transfersDisabled) {
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
-    }
-
-    if (marketHooksConfig.useOnQueueWithdrawal()) {
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
-        Bit_Enabled_Deposit
-      );
-    }
-    hookedMarket.depositHookEnabled = marketHooksConfig.useOnDeposit();
-    marketHooksConfig = marketHooksConfig.mergeFlags(config);
-    _hookedMarkets[address(marketAddress)] = hookedMarket;
+    return effective;
   }
 
   // ========================================================================== //
   //                              Market Management                             //
   // ========================================================================== //
 
-  /// @notice updates a hooked market's minimum deposit.
-  /// @dev callback flags are immutable. a positive initial minimum enables `onDeposit`, but a
-  ///      market created with no minimum and no deposit callback can't add a positive minimum
-  ///      later.
-  ///      values above `uint96` revert even though the compatibility ABI accepts `uint128`.
-  /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
+  function _readAccessConfig(
+    address market
+  ) internal view virtual override returns (AccessConfig memory) {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
-    if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (newMinimumDeposit > 0 && !hookedMarket.depositHookEnabled) revert DepositHookNotEnabled();
-    // External signature kept as uint128 for ABI stability; storage is uint96.
-    uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
-    hookedMarket.minimumDeposit = uint256(newMinimumDeposit).toUint96();
-    emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
+    return
+      AccessConfig({
+        isHooked: hookedMarket.isHooked,
+        transferRequiresAccess: hookedMarket.transferRequiresAccess,
+        depositRequiresAccess: hookedMarket.depositRequiresAccess,
+        withdrawalRequiresAccess: hookedMarket.withdrawalRequiresAccess,
+        minimumDeposit: hookedMarket.minimumDeposit,
+        transfersDisabled: hookedMarket.transfersDisabled
+      });
+  }
+
+  function _isDepositHookEnabled(address market) internal view virtual override returns (bool) {
+    return _hookedMarkets[market].depositHookEnabled;
+  }
+
+  function _writeMinimumDeposit(address market, uint128 value) internal virtual override {
+    // the public setter takes uint128 for ABI compatibility. storage still needs to fit uint96.
+    _hookedMarkets[market].minimumDeposit = uint256(value).toUint96();
   }
 
   /// @notice proposes a strict APR reduction and fixes the next window as the lender response

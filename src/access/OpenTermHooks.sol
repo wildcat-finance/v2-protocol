@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-import './MarketConstraintHooks.sol';
-import './IMarketTransferPolicy.sol';
+import './BaseHooks.sol';
 import '../libraries/SafeCastLib.sol';
-import './BaseAccessControls.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -25,41 +23,9 @@ struct HookedMarket {
 ///      withdrawals are credential-gated. a lender that enters a market with a valid credential
 ///      becomes permanently known there, so losing the credential can't trap an existing position.
 ///      the hooks administrator can still block deposits wherever `onDeposit` is enabled.
-contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
-  // ========================================================================== //
-  //                                   Events                                   //
-  // ========================================================================== //
-  /// @notice emitted when a hooked market's minimum deposit changes.
-  event MinimumDepositUpdated(
-    address indexed market,
-    address indexed caller,
-    uint128 previousMinimumDeposit,
-    uint128 newMinimumDeposit
-  );
-
-  // ========================================================================== //
-  //                                   Errors                                   //
-  // ========================================================================== //
-
-  /// @dev the caller supplied a market not bound to this hooks instance.
-  error NotHookedMarket();
-  /// @dev the scaled deposit is below the market's configured minimum.
-  error DepositBelowMinimum();
-  /// @dev a positive minimum was requested for a market without the deposit callback.
-  error DepositHookNotEnabled();
-  /// @dev the requested hook flags leave an uncredentialed path into a gated withdrawal policy.
-  error InvalidAccessConfiguration();
-  /// @dev transfers are disabled for this market.
-  error TransfersDisabled();
-
-  // ========================================================================== //
-  //                                    State                                   //
-  // ========================================================================== //
-
-  HooksDeploymentConfig public immutable override config;
-
+contract OpenTermHooks is BaseHooks {
   mapping(address => HookedMarket) internal _hookedMarkets;
-  // tracks immutable deposit-hook dispatch without changing the public HookedMarket ABI.
+  // keep immutable dispatch separate; adding it to HookedMarket would change the public tuple.
   mapping(address => bool) internal _depositHookEnabled;
 
   // ========================================================================== //
@@ -71,31 +37,18 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
   constructor(
     address _administrator,
     bytes memory args
-  ) BaseAccessControls(_administrator) IHooks() {
-    HooksConfig optionalFlags = encodeHooksConfig({
-      hooksAddress: address(0),
-      useOnDeposit: true,
-      useOnQueueWithdrawal: true,
-      useOnExecuteWithdrawal: false,
-      useOnTransfer: true,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
-    HooksConfig requiredFlags = EmptyHooksConfig.setFlag(
-      Bit_Enabled_SetAnnualInterestAndReserveRatioBips
-    );
-    config = encodeHooksDeploymentConfig(optionalFlags, requiredFlags);
-
-    if (args.length > 0) {
-      NameAndProviderInputs memory inputs = abi.decode(args, (NameAndProviderInputs));
-      _initialize(inputs);
-    }
-  }
+  )
+    BaseHooks(
+      _administrator,
+      args,
+      encodeHooksDeploymentConfig(
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
+          Bit_Enabled_QueueWithdrawal
+        ),
+        EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+      )
+    )
+  {}
 
   function version() external pure override returns (string memory) {
     return 'OpenTermHooks';
@@ -115,84 +68,64 @@ contract OpenTermHooks is BaseAccessControls, MarketConstraintHooks, IMarketTran
     return _value.toUint128();
   }
 
-  /// @dev binds one market to this instance. `administrator_` must be the current hooks
+  /// @dev binds the market after BaseHooks checks `administrator_` against the current
   ///      administrator. `hooksData` is `(uint128 minimumDeposit?, bool transfersDisabled?)`;
-  ///      missing words read as zero. withdrawal gating is accepted only when deposits are gated
-  ///      and transfers are gated or disabled, otherwise an uncredentialed entry path could trap
-  ///      the recipient.
-  function _onCreateMarket(
+  ///      missing words read as zero. gated withdrawals need gated deposits and gated or disabled
+  ///      transfers. otherwise a lender can enter without credentials and get stuck on exit.
+  function _initializeMarket(
     address administrator_,
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal override returns (HooksConfig marketHooksConfig) {
-    // Validate the deploy parameters
-    super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
-    if (administrator_ != administrator) revert CallerNotAdministrator();
-    marketHooksConfig = parameters.hooks;
-
-    // Read `minimumDeposit` and `transfersDisabled` from `hooksData`
-    // If the calldata does not contain sufficient bytes for a parameter, it will be read as zero.
-    //
-    // Use the deposit and transfer flags to determine whether those require access control.
-    // These are tracked separately because if the market enables `onQueueWithdrawal`, deposit
-    // and transfer hooks will also be  enabled, but may not require access control.
-    HookedMarket memory hookedMarket = HookedMarket({
-      isHooked: true,
-      transferRequiresAccess: marketHooksConfig.useOnTransfer(),
-      depositRequiresAccess: marketHooksConfig.useOnDeposit(),
-      minimumDeposit: _readUint128Cd(hooksData),
-      transfersDisabled: _readBoolCd(hooksData, 0x20)
-    });
-
-    if (marketHooksConfig.useOnQueueWithdrawal()) {
-      if (!hookedMarket.depositRequiresAccess) revert InvalidAccessConfiguration();
-      if (!hookedMarket.transfersDisabled && !hookedMarket.transferRequiresAccess) {
-        revert InvalidAccessConfiguration();
-      }
-    }
-
-    if (hookedMarket.minimumDeposit > 0) {
-      // If there is a minimum deposit, the deposit hook must be enabled
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Deposit);
-      emit MinimumDepositUpdated(
-        marketAddress,
+  ) internal virtual override returns (HooksConfig marketHooksConfig) {
+    (
+      AccessConfig memory access,
+      bool depositHookEnabled,
+      HooksConfig effective
+    ) = _configureMarketAccess(
         administrator_,
-        0,
-        hookedMarket.minimumDeposit
+        marketAddress,
+        parameters.hooks,
+        _readUint128Cd(hooksData),
+        _readBoolCd(hooksData, 0x20)
       );
-    }
-    if (hookedMarket.transfersDisabled) {
-      // If transfers are disabled, the transfer hook must be enabled
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer);
-    }
-
-    if (marketHooksConfig.useOnQueueWithdrawal()) {
-      marketHooksConfig = marketHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
-        Bit_Enabled_Deposit
-      );
-    }
-    marketHooksConfig = marketHooksConfig.mergeFlags(config);
-    _depositHookEnabled[marketAddress] = marketHooksConfig.useOnDeposit();
-    _hookedMarkets[address(marketAddress)] = hookedMarket;
+    _depositHookEnabled[marketAddress] = depositHookEnabled;
+    _hookedMarkets[marketAddress] = HookedMarket({
+      isHooked: access.isHooked,
+      transferRequiresAccess: access.transferRequiresAccess,
+      depositRequiresAccess: access.depositRequiresAccess,
+      minimumDeposit: access.minimumDeposit,
+      transfersDisabled: access.transfersDisabled
+    });
+    return effective;
   }
 
   // ========================================================================== //
   //                              Market Management                             //
   // ========================================================================== //
 
-  /// @notice updates a hooked market's minimum deposit.
-  /// @dev callback flags are immutable. a positive initial minimum enables `onDeposit`, but a
-  ///      market created with no minimum and no deposit callback can't add a positive minimum
-  ///      later.
-  /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
-  function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
+  function _readAccessConfig(
+    address market
+  ) internal view virtual override returns (AccessConfig memory) {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
-    if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (newMinimumDeposit > 0 && !_depositHookEnabled[market]) revert DepositHookNotEnabled();
-    uint128 previousMinimumDeposit = hookedMarket.minimumDeposit;
-    hookedMarket.minimumDeposit = newMinimumDeposit;
-    emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
+    return
+      AccessConfig({
+        isHooked: hookedMarket.isHooked,
+        transferRequiresAccess: hookedMarket.transferRequiresAccess,
+        depositRequiresAccess: hookedMarket.depositRequiresAccess,
+        // open-term withdrawals always check access when the market calls this hook.
+        withdrawalRequiresAccess: true,
+        minimumDeposit: hookedMarket.minimumDeposit,
+        transfersDisabled: hookedMarket.transfersDisabled
+      });
+  }
+
+  function _isDepositHookEnabled(address market) internal view virtual override returns (bool) {
+    return _depositHookEnabled[market];
+  }
+
+  function _writeMinimumDeposit(address market, uint128 value) internal virtual override {
+    _hookedMarkets[market].minimumDeposit = value;
   }
 
   // ========================================================================== //

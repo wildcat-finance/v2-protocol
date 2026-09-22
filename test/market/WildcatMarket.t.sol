@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
 import { MarketConstraintHooks } from 'src/access/MarketConstraintHooks.sol';
@@ -65,9 +66,7 @@ contract WildcatMarketTest is MarketFixture {
     private
     returns (Fixture memory fixture, MarketConfigHooks configHooks)
   {
-    configHooks = MarketConfigHooks(
-      _deployCode('test/mocks/MarketMocks.sol:MarketConfigHooks')
-    );
+    configHooks = MarketConfigHooks(_deployCode('test/mocks/MarketMocks.sol:MarketConfigHooks'));
     fixture = _newMarket(_defaultOptions(HooksKind.OpenTerm), IHooks(address(configHooks)));
   }
 
@@ -1104,9 +1103,7 @@ contract WildcatMarketTest is MarketFixture {
     );
   }
 
-  function test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts()
-    external
-  {
+  function test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts() external {
     Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
     _deposit(fixture, Holder, 1e18);
 
@@ -1544,7 +1541,7 @@ contract WildcatMarketTest is MarketFixture {
       _fundAndApprove(fixture, Holder, 100);
 
       vm.prank(Holder);
-      vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
+      vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
       fixture.market.deposit(100);
     }
   }

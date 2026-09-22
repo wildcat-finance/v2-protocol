@@ -1,10 +1,10 @@
 # M2 tracker: shared hook behavior
 
 - Plan: [M2 execution plan](hook-refactor-m2-plan.md).
-- Milestone status: in progress; baseline/ownership task complete.
-- Execution tasks complete: 1 of 6.
-- Active task: none.
-- Next action: implement M2-02, then stage its verified Solidity diff for review.
+- Milestone status: in progress; M2-02 reviewed and accepted.
+- Execution tasks complete: 2 of 6.
+- Active task: M2-03 is next.
+- Next action: begin shared deposit/transfer behavior, views, and the early extension probe.
 - Approved M1 handoff: `d454f26fcf54db847657ef08c355e75e72d4356a`.
 - Execution starting revision: `1b8e36c76713af709a9326adfceac33b15b5f619`.
 
@@ -37,7 +37,7 @@ what would resolve it. Unmet dependencies remain `Not started`.
 | ID | Task | Status | Depends on | Evidence / result |
 | --- | --- | --- | --- | --- |
 | [M2-01](hook-refactor-m2-plan.md#m2-01-execution-identity-and-coverage-ownership) | Confirm execution identity, receipts, and test ownership. | Done | M1 approved; M2 start authorized. | [Identity, baseline lint, and ownership map](hook-refactor-m2-results.md). |
-| [M2-02](hook-refactor-m2-plan.md#m2-02-shared-construction-registration-and-minimums) | Share construction, registration/access configuration, and minimums. | Not started | M2-01. | Pending. |
+| [M2-02](hook-refactor-m2-plan.md#m2-02-shared-construction-registration-and-minimums) | Share construction, registration/access configuration, and minimums. | Done | M2-01. | [Implementation and verification](hook-refactor-m2-results.md#m2-02-shared-construction-registration-and-minimums); user approved the staged changes and authorized the signed checkpoint. |
 | [M2-03](hook-refactor-m2-plan.md#m2-03-deposit-transfer-views-and-early-extension-probe) | Share deposit/transfer behavior and views; add the early probe. | Not started | M2-02. | Pending. |
 | [M2-04](hook-refactor-m2-plan.md#m2-04-queueing-closure-coordination-and-empty-callbacks) | Share queue, closure coordination, and empty callbacks. | Not started | M2-03. | Pending. |
 | [M2-05](hook-refactor-m2-plan.md#m2-05-apr-strategy-and-both-periodic-execution-routes) | Share APR coordination and validate both periodic routes. | Not started | M2-04. | Pending. |
@@ -54,8 +54,8 @@ renewed review after substantive changes to an approved diff. All commits use
 | Checkpoint | Review state | Signed commit |
 | --- | --- | --- |
 | M2 plan/tracker and M1 status updates | Documentation only; plan approved and execution authorized. | `1b8e36c`. |
-| M2-01 | Documentation/evidence only; existing commit authorization. | Completion commit: `docs: qualify M2 baseline and assign test ownership`. |
-| M2-02 | Not staged. | Pending. |
+| M2-01 | Documentation/evidence only; existing commit authorization. | `774ca36`. |
+| M2-02 | Verified; user approved the staged changes, including the comment revision. Cost deltas documented in results. | Included in this signed checkpoint; hash recorded in the next update. |
 | M2-03 | Not staged. | Pending. |
 | M2-04 | Not staged. | Pending. |
 | M2-05 | Not staged. | Pending. |
@@ -71,11 +71,11 @@ relative paths, source/settings, and hashes. Raw evidence lives under ignored
 | --- | --- | --- |
 | Execution source/submodule/toolchain/settings identity and qualified M1 receipts. | M2-01. | [Qualified](hook-refactor-m2-results.md#m2-01-execution-identity-and-reusable-evidence): inputs/settings/tools and retained test/ABI/size evidence match. |
 | Baseline lint result and common-versus-term test ownership map. | M2-01. | [Lint](hook-refactor-m2-results.md#lint-baseline): 41 existing formatting failures; Solhint passes with 22 warnings. [Ownership map](hook-refactor-m2-results.md#test-ownership-and-migration-map) recorded. |
-| Shared construction/configuration/minimum compatibility, packing, and factory paths. | M2-02. | Pending. |
+| Shared construction/configuration/minimum compatibility, packing, and factory paths. | M2-02. | [Verified](hook-refactor-m2-results.md#verification): 207 tests / 13 suites pass in each focused profile; ABIs/layouts identical; creation probe passes. |
 | Shared lender actions/views, extension acceptance/rejection, exemptions, and rollback. | M2-03. | Pending. |
 | Queue schedule/access order, closure effects, no-ops, and unchanged batching. | M2-04. | Pending. |
 | APR strategies, proposal effects, both validation routes, and skipped-default state/events. | M2-05. | Pending. |
-| Raw/semantic ABI, storage, deployment sizes/headroom, and comparable M1 gas scenarios. | M2-02 through M2-06. | Pending; compare as each domain moves, reconcile at completion. |
+| Raw/semantic ABI, storage, deployment sizes/headroom, and comparable M1 gas scenarios. | M2-02 through M2-06. | [M2-02 comparisons](hook-refactor-m2-results.md#deployment-sizes-and-cost-changes): all 97 callback observations unchanged; creation/minimum and bytecode increases recorded. Later comparisons pending. |
 | Required default/fixed-seed/deploy tests and lint, production integrations, final coverage ownership. | M2-06. | Pending. |
 | Final source/evidence reconciliation and M3 handoff. | M2-06. | Pending. |
 
@@ -97,13 +97,16 @@ decisions or permission requests.
 
 ## Blockers and next action
 
-No implementation blocker remains after M2-01. The matching M1 baseline is
-reusable; baseline formatting failures are identified. No Solidity, test, or
-build-setting change is part of the M2-01 checkpoint. The reference PDF and
-lifecycle sketch remain untracked and excluded.
+M2-02 is implemented, verified, and accepted for its signed checkpoint.
+Runtime/creation bytecode grew by 409–432 bytes; periodic retains 2,168 bytes
+of stored-initcode headroom. Creation and minimum-update gas costs increased
+as documented; the 97 M1 callback measurements are unchanged. Baseline lint
+failures are limited to 34 untouched formatting paths and the same 22 Solhint
+warnings. The reference PDF, lifecycle sketch, and voice guide remain untracked and excluded.
 
-Next: implement M2-02. Its Solidity changes must be staged for user review
-before committing, as explicitly requested.
+Next: begin M2-03 under the user's instruction to continue. Its Solidity changes
+will be staged for review before committing, under the existing review rule.
+M2-03 through M2-06 remain unstarted at this checkpoint.
 The user retains milestone review and push; M3 planning follows M2 acceptance.
 
 ## Progress log
@@ -113,3 +116,6 @@ The user retains milestone review and push; M3 planning follows M2 acceptance.
 | 2026-09-22: M1 accepted | User confirmed M1 looks good and has been pushed. |
 | 2026-09-22: M2 planning | Prepared six sequential checkpoints from the approved handoff; recorded the Solidity review workflow and early extension probe. Checked document links/anchors, fences, and whitespace. All execution tasks remain unstarted. |
 | 2026-09-22: M2-01 complete | User approved the plan and authorized execution. Qualified 1,166 inputs, effective settings, tools, and M1 receipts; established lint baseline and mapped test ownership. Installed locked dev dependencies locally without source/package/lockfile changes. |
+| M2-02 ready for review | Shared construction/configuration/minimum implementation adopted by all three templates; equivalent assertions consolidated and boundary/rollback checks added. Focused default/deploy runs pass, ABI/storage comparisons match, and size/gas deltas are documented. Staged for review; not committed. |
+| M2-02 comment review | Revised comments in six Solidity files using the user's local voice guide. Verified identical non-comment tokens in all 12 staged Solidity files, passing formatting, and unchanged Solhint output. Preserved original test receipts and recorded the amendment; no test rerun. Guide remains untracked; checkpoint remains staged and uncommitted. |
+| M2-02 accepted | User approved the staged changes and instructed a signed kethcode commit, then continuation. Approval applies to this checkpoint; M2-03 retains the staged Solidity review gate. |
