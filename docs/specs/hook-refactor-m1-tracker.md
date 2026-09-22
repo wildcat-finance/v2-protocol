@@ -2,9 +2,9 @@
 
 - Plan: [M1 execution plan](hook-refactor-m1-plan.md).
 - Milestone status: in progress.
-- Execution tasks complete: 3 of 7.
+- Execution tasks complete: 4 of 7.
 - Active task: none.
-- Next task: M1-04.
+- Next task: M1-05.
 - Intended starting source revision: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
 Source and toolchain identity are verified in the [baseline record](hook-refactor-m1-baseline.md).
@@ -33,7 +33,7 @@ dependencies remain `Not started`.
 | [M1-01](hook-refactor-m1-plan.md#m1-01-baseline-identity) | Verify baseline identity and audit reusable receipts. | Done | Completed groundwork. | [Identity and receipt disposition](hook-refactor-m1-baseline.md). |
 | [M1-02](hook-refactor-m1-plan.md#m1-02-compatibility-inventory-and-verification-baseline) | Capture compatibility inventory and matching verification evidence. | Done | M1-01. | [ABIs, inventory, tests](hook-refactor-m1-baseline.md#verification-receipts). |
 | [M1-03](hook-refactor-m1-plan.md#m1-03-size-and-gas-baseline) | Establish comparable size and gas records. | Done | M1-02. | [Size and operation baselines](hook-refactor-m1-baseline.md#deployment-size-baseline). |
-| [M1-04](hook-refactor-m1-plan.md#m1-04-storage-and-component-ownership) | Decide storage layout and component/state ownership. | Not started | M1-02, M1-03. | Pending. |
+| [M1-04](hook-refactor-m1-plan.md#m1-04-storage-and-component-ownership) | Decide storage layout and component/state ownership. | Done | M1-02, M1-03. | [Storage and ownership decision](hook-refactor-m1-design.md#storage-decision). |
 | [M1-05](hook-refactor-m1-plan.md#m1-05-internal-interfaces-and-override-responsibilities) | Specify internal interfaces and integration responsibilities. | Not started | M1-04. | Pending. |
 | [M1-06](hook-refactor-m1-plan.md#m1-06-revision-metadata) | Decide implementation revision metadata. | Not started | M1-02. | Pending. |
 | [M1-07](hook-refactor-m1-plan.md#m1-07-design-walkthrough-and-m2-handoff) | Validate the design/evidence and prepare the M2 handoff. | Not started | M1-01 through M1-06. | Pending. |
@@ -42,8 +42,8 @@ dependencies remain `Not started`.
 
 | Decision | Owning task | Current state |
 | --- | --- | --- |
-| Shared layout versus accessors over template-specific packed state; public adapters. | M1-04. | Open; alternatives identified in the spec. |
-| Responsibilities retained, moved, or replaced in the existing base contracts; one owner for shared state/events. | M1-04. | Open; reuse is permitted, existing contract boundaries are not mandatory. |
+| Shared layout versus accessors over template-specific packed state; public adapters. | M1-04. | Decided: existing packed storage with shared memory adapters; [design](hook-refactor-m1-design.md#storage-decision). |
+| Responsibilities retained, moved, or replaced in the existing base contracts; one owner for shared state/events. | M1-04. | Decided: retain access/constraint owners, add shared coordination and reusable term policies; [ownership](hook-refactor-m1-design.md#component-and-state-ownership). |
 | Exact internal signatures, caller checks, ordering, default-replacement boundaries, and alternate-path coverage. | M1-05. | Open; behavior map supplies the required cases. |
 | Periodic revision value and whether other templates gain revision metadata. | M1-06. | Open; family strings and the existing periodic getter ABI stay stable. |
 
@@ -61,7 +61,7 @@ completed artifacts.
 | Source, submodule, toolchain, and profile identity; prior-receipt disposition. | M1-01. | [Baseline record](hook-refactor-m1-baseline.md); raw manifests and hashes recorded there. |
 | ABI/configuration inventory and required test receipts. | M1-02. | [Baseline record](hook-refactor-m1-baseline.md): 698 tests / 48 suites pass in each required run; full ABI exports hashed. |
 | Runtime/initcode sizes, deployment headroom, gas scenarios, and results. | M1-03. | [Baseline measurements](hook-refactor-m1-baseline.md#operation-gas-baseline), with reproducible canonical test selectors and receipt hashes. |
-| Selected layout, state/event ownership, internal signatures, adapters, and metadata decision. | M1-04, M1-05, M1-06. | Pending; planned `hook-refactor-m1-design.md`. |
+| Selected layout, state/event ownership, internal signatures, adapters, and metadata decision. | M1-04, M1-05, M1-06. | [Design record](hook-refactor-m1-design.md): storage/ownership complete; interfaces and metadata pending. |
 | Behavior/extension walkthrough and M2 handoff. | M1-07. | Pending; planned design record and completion entry here. |
 
 ## Blockers and next action
@@ -70,7 +70,7 @@ No blocker has been identified during planning. Execution may reveal missing
 receipts, failing baseline checks, or design tradeoffs; record the actual issue
 and its effect when that happens.
 
-Next: M1-04, select storage adapters and component/state ownership using the measured baseline.
+Next: M1-05, specify concrete internal interfaces and each override/lifecycle responsibility.
 
 ## Progress log
 
@@ -81,3 +81,4 @@ Next: M1-04, select storage adapters and component/state ownership using the mea
 | M1-02 complete | Captured compiler ABIs and compatibility inventory. Default, fixed-seed, and deployment-profile runs each passed 698 tests across 48 suites. Input hashes still match. |
 | M1-03 complete | Recorded runtime, creation, STOP-prefixed storage, and constructor payload limits. Captured direct/nested callback gas from 18 existing tests; documented call isolation and exact scenario boundaries. |
 | Foundry settings follow-up | Compared 1.7.1/1.8.3 effective defaults and explicitly retained isolation/dynamic linking. Default/deploy configurations are unchanged by the pins, preserving the M1 receipts; 115 production artifacts also match the old build. |
+| M1-04 complete | Selected packed storage adapters and one owner per behavior/state/event. Compiler probes verified slot counts and public type re-exports, and identified mechanical inherited-error namespace updates. |
