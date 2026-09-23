@@ -17,7 +17,9 @@ import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
+import { AprValidationHooks } from '../mocks/AprValidationHooks.sol';
 import { PeriodicAprMarketMock } from '../mocks/PeriodicAprMarketMock.sol';
+import { PeriodicProposalHooks } from '../mocks/PeriodicProposalHooks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
 contract PeriodicTermHooksTest is TestKernel {
@@ -98,6 +100,16 @@ contract PeriodicTermHooksTest is TestKernel {
       'test/mocks/PeriodicAprMarketMock.sol:PeriodicAprMarketMock',
       abi.encode(uint256(annualInterestBips))
     );
+  }
+
+  function _newProposalHooks() internal returns (PeriodicProposalHooks target) {
+    target = PeriodicProposalHooks(
+      _deployCode(
+        'test/mocks/PeriodicProposalHooks.sol:PeriodicProposalHooks',
+        abi.encode(address(this))
+      )
+    );
+    hooks = target;
   }
 
   function _hooksData() internal pure returns (bytes memory) {
@@ -603,6 +615,215 @@ contract PeriodicTermHooksTest is TestKernel {
       uint32(responseWindowStart),
       uint32(responseWindowEnd)
     );
+  }
+
+  function test_proposalExtension_AcceptsCreationAndReplacement() external {
+    PeriodicProposalHooks target = _newProposalHooks();
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    target.setValidationBounds(900, 10_000);
+    target.setProposalWindow(
+      market,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+
+    vm.recordLogs();
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposed(
+      market,
+      900,
+      PeriodStart,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+    hooks.proposeAnnualInterestBips(market, 900);
+    _assertNoCancelledEventRecorded();
+    _assertPendingAprChange(
+      market,
+      900,
+      PeriodStart,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+
+    uint32 replacementTime = FirstWithdrawalWindowStart + WithdrawalWindowDuration;
+    uint32 responseStart = FirstWithdrawalWindowStart + PeriodDuration;
+    uint32 responseEnd = responseStart + WithdrawalWindowDuration;
+    vm.warp(replacementTime);
+    target.setValidationBounds(800, 10_000);
+    target.setProposalWindow(market, responseStart, responseEnd);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(market);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposed(
+      market,
+      800,
+      replacementTime,
+      responseStart,
+      responseEnd
+    );
+    hooks.proposeAnnualInterestBips(market, 800);
+    _assertPendingAprChange(market, 800, replacementTime, responseStart, responseEnd);
+  }
+
+  function test_proposalExtension_RejectsCreationBelowAprFloor() external {
+    PeriodicProposalHooks target = _newProposalHooks();
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    target.setValidationBounds(900, 10_000);
+    target.setProposalWindow(
+      market,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+
+    vm.recordLogs();
+    vm.expectRevert(abi.encodeWithSelector(AprValidationHooks.AprBelowFloor.selector, 899));
+    hooks.proposeAnnualInterestBips(market, 899);
+    assertEq(vm.getRecordedLogs().length, 0, 'no proposal effects before validation');
+    _assertNoPendingAprChange(market);
+  }
+
+  function test_proposalExtension_RejectsReplacementAndKeepsPriorWindow() external {
+    PeriodicProposalHooks target = _newProposalHooks();
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    target.setValidationBounds(900, 10_000);
+    target.setProposalWindow(
+      market,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+    hooks.proposeAnnualInterestBips(market, 900);
+
+    // the replacement would move the response window forward. rejection must keep the old bounds.
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+    uint32 responseStart = FirstWithdrawalWindowStart + PeriodDuration;
+    uint32 responseEnd = responseStart + WithdrawalWindowDuration;
+    target.setProposalWindow(market, responseStart, responseEnd);
+    vm.recordLogs();
+    vm.expectRevert(abi.encodeWithSelector(AprValidationHooks.AprBelowFloor.selector, 899));
+    hooks.proposeAnnualInterestBips(market, 899);
+    assertEq(vm.getRecordedLogs().length, 0, 'no cancellation or replacement events');
+    _assertPendingAprChange(
+      market,
+      900,
+      PeriodStart,
+      FirstWithdrawalWindowStart,
+      FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+    (uint16 getterApr, uint32 getterTimestamp) = hooks.pendingAprChanges(market);
+    assertEq(getterApr, 900, 'legacy getter retains APR');
+    assertEq(getterTimestamp, PeriodStart, 'legacy getter retains timestamp');
+  }
+
+  function test_proposalExtension_ChecksExactResponseWindow(
+    uint256 periodIndex,
+    uint256 offsetAfterWindow
+  ) external {
+    periodIndex = bound(periodIndex, 0, 900);
+    offsetAfterWindow = bound(offsetAfterWindow, WithdrawalWindowDuration, PeriodDuration - 1);
+    PeriodicProposalHooks target = _newProposalHooks();
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    target.setValidationBounds(900, 10_000);
+    uint256 proposalTimestamp = FirstWithdrawalWindowStart +
+      periodIndex *
+      PeriodDuration +
+      offsetAfterWindow;
+    vm.warp(proposalTimestamp);
+    uint32 responseStart = uint32(_expectedNextWindowStart(proposalTimestamp));
+    uint32 responseEnd = responseStart + WithdrawalWindowDuration;
+    bytes memory windowError = abi.encodeWithSelector(
+      PeriodicProposalHooks.InvalidProposalWindow.selector,
+      market,
+      responseStart,
+      responseEnd
+    );
+
+    target.setProposalWindow(market, responseStart + 1, responseEnd);
+    vm.expectRevert(windowError);
+    hooks.proposeAnnualInterestBips(market, 900);
+    _assertNoPendingAprChange(market);
+
+    target.setProposalWindow(market, responseStart, responseEnd - 1);
+    vm.expectRevert(windowError);
+    hooks.proposeAnnualInterestBips(market, 900);
+    _assertNoPendingAprChange(market);
+
+    target.setProposalWindow(market, responseStart, responseEnd);
+    hooks.proposeAnnualInterestBips(market, 900);
+    _assertPendingAprChange(market, 900, uint32(proposalTimestamp), responseStart, responseEnd);
+  }
+
+  function test_proposalExtension_PreservesNativeGuardPriority() external {
+    PeriodicProposalHooks target = _newProposalHooks();
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    // every call below would fail the feature's APR floor if it reached `_checkPeriodicProposal`.
+    target.setValidationBounds(type(uint16).max, 10_000);
+
+    vm.prank(address(0xBAD));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    hooks.proposeAnnualInterestBips(market, 900);
+
+    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+    hooks.proposeAnnualInterestBips(MarketA, 900);
+
+    vm.expectRevert(bytes4(keccak256('AnnualInterestBipsOutOfBounds()')));
+    hooks.proposeAnnualInterestBips(market, 10_001);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalNotReduction.selector);
+    hooks.proposeAnnualInterestBips(market, 1_000);
+
+    vm.warp(FirstWithdrawalWindowStart);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalDuringWithdrawalWindow.selector);
+    hooks.proposeAnnualInterestBips(market, 900);
+
+    MarketState memory state;
+    vm.prank(market);
+    hooks.onCloseMarket(state, '');
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalOnClosedMarket.selector);
+    hooks.proposeAnnualInterestBips(market, 900);
+    _assertNoPendingAprChange(market);
+  }
+
+  function test_proposalExtension_PreservesResponseWindowWidthChecks() external {
+    PeriodicProposalHooks target = _newProposalHooks();
+    target.setValidationBounds(900, 10_000);
+    address endOverflowMarket = _newAprMarket(1_000);
+    address startOverflowMarket = _newAprMarket(1_000);
+    uint32 maxTimestamp = type(uint32).max;
+    vm.warp(maxTimestamp - 1 hours);
+    _createMarket(
+      hooks,
+      endOverflowMarket,
+      _requestedConfig(hooks, false, false, false),
+      abi.encode(maxTimestamp - 30, uint32(1 hours), uint32(1 minutes))
+    );
+    _createMarket(
+      hooks,
+      startOverflowMarket,
+      _requestedConfig(hooks, false, false, false),
+      abi.encode(maxTimestamp - 30 minutes, uint32(1 hours), uint32(1 minutes))
+    );
+
+    // responseWindowEnd overflows before the feature can reject the proposed APR of 800.
+    vm.expectRevert(abi.encodeWithSelector(PanicSelector, PanicArithmetic));
+    hooks.proposeAnnualInterestBips(endOverflowMarket, 800);
+    _assertNoPendingAprChange(endOverflowMarket);
+
+    // responseWindowStart no longer fits in uint32, though proposalTimestamp still does.
+    vm.warp(maxTimestamp - 1);
+    vm.expectRevert(abi.encodeWithSelector(PanicSelector, PanicArithmetic));
+    hooks.proposeAnnualInterestBips(startOverflowMarket, 800);
+    _assertNoPendingAprChange(startOverflowMarket);
+
+    // now proposalTimestamp itself is too large for uint32.
+    vm.warp(uint256(maxTimestamp) + 1 minutes);
+    vm.expectRevert(abi.encodeWithSelector(PanicSelector, PanicArithmetic));
+    hooks.proposeAnnualInterestBips(startOverflowMarket, 800);
+    _assertNoPendingAprChange(startOverflowMarket);
   }
 
   function test_aprReduction_EnforcesExecutionStateMachine() external {

@@ -245,6 +245,8 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       .toUint32();
     uint32 responseWindowEnd = responseWindowStart + hookedMarket.withdrawalWindowDuration;
 
+    _checkPeriodicProposal(market, annualInterestBips, responseWindowStart, responseWindowEnd);
+
     if (_pendingAprChanges[market].proposalTimestamp != 0) {
       emit AnnualInterestBipsReductionProposalCancelled(market);
     }
@@ -264,6 +266,16 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       responseWindowEnd
     );
   }
+
+  /// @dev add proposal restrictions after native checks and response-window calculations.
+  ///      `_pendingAprChanges[market]` holds the old proposal; no cancellation event has fired.
+  ///      execution still runs `_checkAprChange`, even if this check accepted the proposal.
+  function _checkPeriodicProposal(
+    address market,
+    uint16 proposedApr,
+    uint32 responseStart,
+    uint32 responseEnd
+  ) internal view virtual {}
 
   // ========================================================================== //
   //                               Market Queries                               //

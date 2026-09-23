@@ -415,3 +415,113 @@ The user approved M3-04 and authorized its signed checkpoint. The reviewed
 source and staged patch hashes were verified before updating these completion
 notes. M3-05 follows with its own staged review. The voice guide, reference PDF,
 and lifecycle sketch remain untracked and excluded; no push has been performed.
+
+## M3-05: Periodic proposal extension point
+
+Implemented against M3-04 commit `2eed0412b461cf2f2a25aba1600abea215a8eb1d`,
+signed as kethcode after user approval. Its signature and the reviewed Solidity
+hashes were verified before starting. M3-05 is implemented and verified; the user
+reviewed the staged checkpoint and approved its signed commit.
+
+### Proposal validation before replacement effects
+
+`PeriodicTermPolicy.proposeAnnualInterestBips` now calls the empty internal
+`view virtual` `_checkPeriodicProposal(address market, uint16 proposedApr,
+uint32 responseStart, uint32 responseEnd)`. The call follows the existing
+administrator, registration, closed-market, withdrawal-window, APR-bounds, and
+strict-reduction checks, plus all response-window calculations. It receives the
+exact computed `uint32` bounds, after narrowing and overflow checks. It precedes
+any cancellation event, proposal replacement, or new proposal event.
+
+The old proposal remains in `_pendingAprChanges[market]` during validation. A
+feature can reject the proposed APR or response window without copying the
+proposal entrypoint. The default adds no restriction. Both APR execution routes
+still reach `_checkAprChange`; proposal acceptance does not bypass execution
+validation. No execution, cancellation, closure, or query implementation changed.
+
+Source comparison preserves every original policy and periodic-test member,
+with only the proposal call inserted into an existing body. The new empty
+function is the only added production declaration. Existing comments and branch
+explanations remain intact.
+
+### Test-only rule and verification
+
+`test/mocks/PeriodicProposalHooks.sol` derives from the existing
+`AprValidationHooks`, reusing its APR floor and adding per-market earliest-start /
+latest-end bounds for the response window. It overrides only the new proposal
+check and inherits proposal management. Its limits are test-only; no new
+production policy or tranching behavior is selected.
+
+Six cases were added to the existing `PeriodicTermHooksTest` owner:
+
+| Case | Evidence |
+| --- | --- |
+| Accepted creation and replacement | A proposal at the APR floor succeeds with the exact allowed window; replacement uses the next scheduled window and retains cancellation-before-proposal event order. |
+| Rejected creation | An APR one basis point below the floor fails with the exact APR in the error, leaving no proposal or proposal events. |
+| Rejected replacement | The existing APR, timestamp, and response bounds remain visible through both query APIs; no cancellation or replacement event is recorded. |
+| Exact response-window context | Fuzzed later periods and offsets reject a start one second too early or an end one second too late, then accept the exact market/window context. The existing schedule helper supplies the expected bounds. |
+| Native guard priority | Administrator, registration, closed-market, withdrawal-window, bounds, and strict-reduction errors still win when the additional APR rule would also reject. |
+| Width/error priority | Overflow of `responseWindowEnd`, narrowing of `responseWindowStart`, and narrowing of `proposalTimestamp` each retain the arithmetic panic before the feature can reject. |
+
+Default and deploy runs each pass **329 tests across 18 suites**, with seed
+`0x5eed` and 1,000 iterations per fuzz test. Discovery retains all 323 previous
+cases and adds only these six; the periodic owner now has 23 cases. All five
+existing `AprValidationTest` cases remain unchanged and pass, covering both
+execution routes, effective values, proposal rollback, temporary-reserve
+behavior, and empty dedicated-route calldata. Shared behavior, configuration,
+factory/lens/authority/borrower-account, wrapper, dispatch, and standard/revolving
+market integrations pass in the same runs.
+
+The initial default run passed 328 cases and exposed a wrong expectation in the
+new width test: this policy uses the local `SafeCastLib` arithmetic panic, not
+Solady's `Overflow()` error. Only those expectations were corrected; the initial
+receipt/source snapshot is retained, and both final profile runs pass. The new
+comment also fits the existing line-length rule.
+
+### Compatibility and costs
+
+The final manifest binds 285 source/test/script/settings files and 897 dependency
+files. Tool hashes and effective settings match the qualified handoff. All three
+production raw ABIs, method identifiers, creation/runtime bytecode, link
+references, and immutable patch positions match M3-04/M2 in both profiles.
+Metadata source hashes match the checked tree. Normalized layouts retain all
+11 top-level entries per template, including periodic configuration/proposal
+packing, and match the qualified M3-04/M2/M1 layouts.
+
+The empty production extension compiles away. All three sizes remain at the
+[M3-02 values](#deployment-size-and-gas); periodic runtime/creation remain
+19,949/22,676 bytes, with 1,899 bytes of stored-initcode headroom. Qualified
+M1/M2 gas comparisons and M3-01 management measurements remain applicable under
+their original inputs, state, and transaction boundaries. Periodic proposal
+creation/replacement observations remain 58,661/43,021 gas. No fresh gas trace
+is claimed, and the original measurement exclusions remain in force.
+
+All three changed Solidity files pass Prettier. Full lint retains the same
+33 untouched formatting failures; standalone Solhint retains zero errors and
+22 warnings. No Solidity changed after final verification. The M3-04 invariant
+campaign is retained evidence, not a new run; M3-06 still owns the full required
+qualification runs.
+
+### M3-05 evidence identities
+
+Paths below are relative to the ignored M3 evidence root. The review receipt
+binds the staged checkpoint and supporting artifacts; command receipts bind
+the final input manifest and log hashes.
+
+| File | SHA-256 |
+| --- | --- |
+| `m3-05-qualification.json` | `a8a972efacadaae17ccedbf2f09b95a1a67c967b12f8a3cdca649fc65b09713f` |
+| `m3-05-inputs.sha256.json` | `5f97d472a8d3ddb9ee0b39ee83cb788e4e25065ba21fee866ec2ff323c4c3ee5` |
+| `m3-05-source-comparison.json` | `52e457e929b2bc6b405e63645f489ffdd2009752446a918c23d001720e7101e8` |
+| `m3-05-tests-default-receipt.json` | `82bc8b85b4f2a366f44675b90f96f0b8938941a0cec0d940d39c28a12d7a1ddc` |
+| `m3-05-tests-deploy-receipt.json` | `259d469ee7b2554348d8ce95727d8367796f45222e398c02aef961a5080d6681` |
+| `m3-05-artifact-comparison-default.json` | `9229bc638e33afe64a5d3678c0d60229f6d866ff9d7c4f31dea2eaa416b62bd6` |
+| `m3-05-artifact-comparison-deploy.json` | `79dc15edebe1706d02687068ecf3fdea30812b707f6cd67c81529dcc89689d8f` |
+| `m3-05-storage-comparison.json` | `793a5c140fca8582aa402aaa4e4215b40ab1aa9c70cefa4494bd93e1653f1bd9` |
+| `m3-05-lint-comparison.json` | `7f551a7348c4fe671aa76337fc2388210f7f460f567430a75eeb080567d3dfe2` |
+| `m3-05-initial-tests-default-receipt.json` | `3bea0e83747d92873d466ca11b4a8522ad85277f03e62b78b899667babdb204b` |
+
+The user approved M3-05 and authorized its signed checkpoint. The reviewed
+source and staged patch hashes were verified before updating these completion
+notes. M3-06 follows with final qualification. The voice guide, reference PDF,
+and lifecycle sketch remain untracked and excluded; no push has been performed.
