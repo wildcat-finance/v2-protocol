@@ -165,9 +165,29 @@ abstract contract FixedTermPolicy is BaseHooks {
       revert TermReductionDisabled();
     if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
     uint32 previousFixedTermEndTime = hookedMarket.fixedTermEndTime;
+    _validateFixedTermChange(market, previousFixedTermEndTime, newFixedTermEndTime);
     hookedMarket.fixedTermEndTime = newFixedTermEndTime;
     emit FixedTermUpdated(market, msg.sender, previousFixedTermEndTime, newFixedTermEndTime);
+    _afterFixedTermChange(market, previousFixedTermEndTime, newFixedTermEndTime);
   }
+
+  /// @dev `setFixedTermEndTime` has passed its native checks; stored maturity is still
+  ///      `previousTime`. add restrictions here before writing `newTime`.
+  ///      creation and early closure use `_onMarketConfigured` and the closure helpers instead.
+  function _validateFixedTermChange(
+    address market,
+    uint32 previousTime,
+    uint32 newTime
+  ) internal view virtual {}
+
+  /// @dev stored maturity is now `newTime` and `FixedTermUpdated` has been emitted.
+  ///      reverting rolls back the maturity, event, and any feature state written here.
+  ///      this runs only from `setFixedTermEndTime`, not creation or early closure.
+  function _afterFixedTermChange(
+    address market,
+    uint32 previousTime,
+    uint32 newTime
+  ) internal virtual {}
 
   // ========================================================================== //
   //                                    Hooks                                   //

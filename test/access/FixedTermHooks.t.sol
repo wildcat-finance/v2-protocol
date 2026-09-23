@@ -14,6 +14,7 @@ import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
+import { FixedTermManagementHooks } from '../mocks/FixedTermManagementHooks.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
@@ -76,6 +77,15 @@ contract FixedTermHooksTest is TestKernel {
 
   function _term() internal view returns (uint32) {
     return uint32(block.timestamp + 365 days);
+  }
+
+  function _newManagementHooks() internal returns (FixedTermManagementHooks target) {
+    target = FixedTermManagementHooks(
+      _deployCode(
+        'test/mocks/FixedTermManagementHooks.sol:FixedTermManagementHooks',
+        abi.encode(address(this))
+      )
+    );
   }
 
   function _requestedConfig(
@@ -245,6 +255,186 @@ contract FixedTermHooksTest is TestKernel {
     vm.prank(address(0xBAD));
     vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
     hooks.setFixedTermEndTime(MarketA, 0);
+  }
+
+  function test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior() external {
+    uint32 term = _term();
+    _createMarket(
+      hooks,
+      MarketA,
+      _requestedConfig(hooks, false, false, false),
+      abi.encode(term, uint128(0), false, false, true)
+    );
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
+
+    vm.expectEmit(address(hooks));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), term, term);
+    hooks.setFixedTermEndTime(MarketA, term);
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, term, 'equal term');
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
+    hooks.setFixedTermEndTime(MarketB, term);
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
+    hooks.setFixedTermEndTime(MarketB, term + 1);
+
+    uint32 currentTime = uint32(vm.getBlockTimestamp());
+    vm.expectEmit(address(hooks));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), term, currentTime);
+    hooks.setFixedTermEndTime(MarketA, currentTime);
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, currentTime, 'term ends now');
+    vm.expectEmit(address(hooks));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), currentTime, currentTime - 1);
+    hooks.setFixedTermEndTime(MarketA, currentTime - 1);
+    assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, currentTime - 1, 'past term');
+
+    // queueing and APR read the reduced maturity, not the original creation timestamp.
+    MarketState memory state;
+    state.annualInterestBips = 100;
+    state.reserveRatioBips = 1_000;
+    vm.prank(MarketA);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    (uint16 apr, uint16 reserve) = hooks.onSetAnnualInterestAndReserveRatioBips(99, 0, state, '');
+    assertEq(apr, 99, 'APR reduction after shortened term');
+    assertEq(reserve, 1_000, 'current reserves');
+  }
+
+  function test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(
+    uint32 reductionSeed
+  ) external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    uint32 reduction = uint32(_bound(reductionSeed, 1, 30 days));
+    _createMarket(
+      target,
+      MarketA,
+      _requestedConfig(target, false, false, false),
+      abi.encode(term, uint128(0), false, false, true)
+    );
+    target.setTermChangeLimits(MarketA, term - 2 * reduction, 2 * reduction);
+
+    uint32 previousTime = term;
+    for (uint32 i = 1; i <= 2; i++) {
+      uint32 newTime = term - i * reduction;
+      vm.expectEmit(address(target));
+      emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), previousTime, newTime);
+      vm.expectEmit(address(target));
+      emit FixedTermManagementHooks.TermReductionRecorded(
+        MarketA,
+        previousTime,
+        newTime,
+        i * reduction
+      );
+      target.setFixedTermEndTime(MarketA, newTime);
+      assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, newTime, 'updated maturity');
+      assertEq(target.totalTermReduction(MarketA), i * reduction, 'accumulated reduction');
+      previousTime = newTime;
+    }
+  }
+
+  function test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    _createMarket(
+      target,
+      MarketA,
+      _requestedConfig(target, false, false, false),
+      abi.encode(term, uint128(0), false, false, true)
+    );
+    target.setTermChangeLimits(MarketA, term - 10 days, 20 days);
+    target.setFixedTermEndTime(MarketA, term - 5 days);
+    bytes memory configBefore = abi.encode(target.getHookedMarket(MarketA));
+
+    vm.expectRevert(FixedTermManagementHooks.InsufficientTermNotice.selector);
+    target.setFixedTermEndTime(MarketA, term - 10 days - 1);
+    assertEq(abi.encode(target.getHookedMarket(MarketA)), configBefore, 'configuration preserved');
+    assertEq(target.totalTermReduction(MarketA), 5 days, 'prior feature state preserved');
+
+    target.setFixedTermEndTime(MarketA, term - 10 days);
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term - 10 days, 'notice boundary');
+    assertEq(target.totalTermReduction(MarketA), 10 days, 'accepted retry');
+  }
+
+  function test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    _createMarket(
+      target,
+      MarketA,
+      _requestedConfig(target, false, false, false),
+      abi.encode(term, uint128(0), false, false, true)
+    );
+    _createMarket(target, MarketB, _requestedConfig(target, false, false, false), abi.encode(term));
+    // every attempted update also fails the feature rule if it gets that far.
+    target.setTermChangeLimits(MarketA, term + 2, 0);
+    target.setTermChangeLimits(MarketB, term + 2, 0);
+    target.setTermChangeLimits(MarketC, term + 2, 0);
+
+    vm.prank(address(0xBAD));
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    target.setFixedTermEndTime(MarketC, 0);
+    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+    target.setFixedTermEndTime(MarketC, 0);
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
+    target.setFixedTermEndTime(MarketB, term - 1);
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
+    target.setFixedTermEndTime(MarketB, term);
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
+    target.setFixedTermEndTime(MarketB, term + 1);
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
+    target.setFixedTermEndTime(MarketA, term + 1);
+    vm.expectRevert(FixedTermManagementHooks.InsufficientTermNotice.selector);
+    target.setFixedTermEndTime(MarketA, term);
+
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term, 'enabled market unchanged');
+    assertEq(target.getHookedMarket(MarketB).fixedTermEndTime, term, 'disabled market unchanged');
+    assertFalse(target.getHookedMarket(MarketC).isHooked, 'unknown market stays unknown');
+    assertEq(target.totalTermReduction(MarketA), 0, 'no enabled-market feature effects');
+    assertEq(target.totalTermReduction(MarketB), 0, 'no disabled-market feature effects');
+    assertEq(target.totalTermReduction(MarketC), 0, 'no unknown-market feature effects');
+  }
+
+  function test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    _createMarket(
+      target,
+      MarketA,
+      _requestedConfig(target, false, false, false),
+      abi.encode(term, uint128(0), false, false, true)
+    );
+    target.setTermChangeLimits(MarketA, 0, 10 days);
+    target.setFixedTermEndTime(MarketA, term - 5 days);
+    bytes memory configBefore = abi.encode(target.getHookedMarket(MarketA));
+
+    vm.expectRevert(FixedTermManagementHooks.TermReductionBudgetExceeded.selector);
+    target.setFixedTermEndTime(MarketA, term - 10 days - 1);
+    assertEq(abi.encode(target.getHookedMarket(MarketA)), configBefore, 'maturity rolled back');
+    assertEq(target.totalTermReduction(MarketA), 5 days, 'feature write rolled back');
+
+    target.setFixedTermEndTime(MarketA, term - 10 days);
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term - 10 days, 'accepted retry');
+    assertEq(target.totalTermReduction(MarketA), 10 days, 'budget charged only once');
+  }
+
+  function test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure() external {
+    FixedTermManagementHooks target = _newManagementHooks();
+    uint32 term = _term();
+    target.setTermChangeLimits(MarketA, term + 1, 0);
+    _createMarket(
+      target,
+      MarketA,
+      _requestedConfig(target, false, false, false),
+      abi.encode(term, uint128(0), false, true, false)
+    );
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term, 'creation keeps its rules');
+
+    MarketState memory state;
+    vm.expectEmit(address(target));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, MarketA, term, uint32(block.timestamp));
+    vm.prank(MarketA);
+    target.onCloseMarket(state, '');
+    assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, block.timestamp, 'closure maturity');
+    assertEq(target.totalTermReduction(MarketA), 0, 'closure does not consume setter budget');
   }
 
   function test_unhookedCloseMarket_Rejects() external {

@@ -206,3 +206,104 @@ The user approved M3-02 and authorized its signed checkpoint. The reviewed
 source and staged patch hashes were verified before updating these completion
 notes. M3-03 follows with its own staged review. The reference files remain
 untracked and excluded; no push has been performed.
+
+## M3-03: Fixed setter extension points
+
+Implemented against M3-02 commit `2227aa2c6976bb7898ca3868fa202538f1868320`,
+signed as kethcode after user approval. Its signature and the reviewed Solidity
+hashes were verified before starting this task. M3-03 is implemented and
+verified; the user reviewed the staged checkpoint and authorized its signed
+commit and continuation.
+
+### Setter boundaries and test ownership
+
+`setFixedTermEndTime` now calls `_validateFixedTermChange` after the existing
+administrator, registration, term-reduction permission, and no-extension checks.
+At that point `_hookedMarkets[market].fixedTermEndTime` still contains
+`previousTime`. The setter then writes `newTime`, emits `FixedTermUpdated`, and
+calls `_afterFixedTermChange` before returning. Either extension can reject the
+operation; an after-change rejection rolls back the maturity, event, and any
+feature state written during the call.
+
+Both functions have empty internal virtual defaults; validation is `view`.
+They apply only to the administrator's setter. Creation retains
+`_onMarketConfigured`, and early closure retains `_validateCloseMarket` and
+`_applyCloseMarket`. There is no new date or configuration copy. A token
+comparison confirms that the only changes to existing policy declarations are
+the two setter calls; all other bodies and existing comments are retained.
+
+`test/mocks/FixedTermManagementHooks.sol` supplies a test-only notice floor and
+cumulative reduction budget using these extension points. It inherits the
+production setter without copying or overriding it. Validation checks the
+notice floor while observing the old maturity; the after-change extension
+charges the actual stored reduction and emits its own event. A budget violation
+deliberately rejects after the feature write, exercising rollback of both the
+term configuration and feature state. These rules are test fixtures, not new
+production policy decisions.
+
+The existing ten tests in `FixedTermHooksTest` and all its original helper/state
+declarations are unchanged. Six cases were added to that owner, with no new test
+suite or inherited test entrypoints:
+
+| Case | Evidence |
+| --- | --- |
+| Production equal/current/past timestamps | An enabled equal-time update succeeds and emits the existing event; disabled equality rejects. Attempts to extend maturity still fail, and updates to now or the past succeed. Queueing and APR then read the shortened maturity. |
+| Accepted extension, fuzzed | Two successive reductions preserve exact old/new context, emit `FixedTermUpdated` before the feature event, and accumulate the reduction from the updated stored maturity. The second update reaches the notice/budget boundary. |
+| Before-write rejection | A notice-floor failure preserves the full packed configuration and prior nonzero feature state; a retry at the permitted boundary succeeds. |
+| Native error priority | Wrong administrator, unknown market, disabled reduction/equality, and attempted extension retain their original errors even when the added rule would also reject. An otherwise valid equal-time update reaches that rule. |
+| After-write rejection | Exceeding the cumulative budget restores both maturity and the prior nonzero reduction total. A valid retry consumes the remaining budget once. |
+| Separate lifecycle operations | Creation and early closure succeed under their existing rules even when the setter's notice floor and budget would reject. Closure updates maturity without charging the setter's budget. |
+
+### Verification, compatibility, and cost
+
+Default and deploy runs each pass **323 tests across 18 suites**, including
+16 fixed-suite cases. Both use seed `0x5eed` and 1,000 iterations per fuzz test;
+discovery is identical, with all 317 prior cases retained and exactly six added.
+The selected suites include shared access/constraints, all concrete hooks,
+extension/APR validation, factories, lenses, administrator and borrower-account
+flows, wrappers, dispatch, and standard/revolving market integrations. Command
+receipts retain the full selector and log hashes. M3-06 still owns the full
+milestone qualification runs.
+
+The input manifest binds 282 source/test/script/settings files and 897 dependency
+files. Forge/solc hashes and effective settings match the qualified handoff.
+All three production ABIs, method identifiers, creation/runtime bytecode, link
+references, and immutable patch positions match M3-02 and M2 in both profiles.
+Metadata source hashes match the checked tree. Normalized storage layouts remain
+identical to M3-02/M2/M1, with 11 top-level entries per template.
+
+The empty production extension points compile away. All three template sizes
+remain at the [M3-02 values](#deployment-size-and-gas); fixed runtime/creation are
+17,014/19,741 bytes, with 4,834 bytes of stored-initcode headroom. Executable
+identity permits reusing the qualified gas evidence under matching call inputs,
+state, and transaction boundaries. In particular, the original setter measurement
+test is unchanged: its successful reduction remains 31,405 gas, with four rejection
+observations at 23,820–26,213. No fresh gas trace is claimed, and the prior
+measurement exclusions still apply.
+
+All three changed Solidity paths pass Prettier. Full lint reports the same
+34 untouched formatting failures; standalone Solhint matches M3-02/M2 exactly,
+with zero errors and 22 warnings. No source changed after these checks.
+
+### M3-03 evidence identities
+
+Paths below are relative to the ignored M3 evidence root. The review receipt
+binds the staged files and supporting artifacts; command receipts bind the
+input manifest and their logs.
+
+| File | SHA-256 |
+| --- | --- |
+| `m3-03-qualification.json` | `e4bd25fee04228181874b99e6e83e58a332d89cc839cd6bb868542780e51f670` |
+| `m3-03-inputs.sha256.json` | `91f13aedf4b85f9141b20aec7b39b9c399497e1558b18011e71e6829e87f380f` |
+| `m3-03-source-comparison.json` | `4e9567318c860223453f5769fb0519a088f9c55967de260f65d98c41e509928f` |
+| `m3-03-tests-default-receipt.json` | `c47716316876a8aabcdb17ac9b3ead6854125e86f41623290e0228bbde2c94fd` |
+| `m3-03-tests-deploy-receipt.json` | `479c48b869eade3b5454e8e2e4839c81de57592e0ce48765ce5c34691c16d6d7` |
+| `m3-03-artifact-comparison-default.json` | `e46abbffbb10fd46aff85ce6747fc4d85a2201af957302ea04c760aed3ac94cb` |
+| `m3-03-artifact-comparison-deploy.json` | `3023c06b6a95b696008f3270eee13f704b6433b8a3003314183bc68626f7f879` |
+| `m3-03-storage-comparison.json` | `e5c4b34f78c2bbb50a1aeae66ccdd39acec168d608d5808803b0fcac09524a7c` |
+| `m3-03-lint-comparison.json` | `8b5b6dd3874afc2c838e6ee2aec4ad28e840ece217849fb537c40b81ca51e8ed` |
+
+The user approved M3-03 and authorized its signed checkpoint. The reviewed
+source and staged patch hashes were verified before updating these completion
+notes. M3-04 follows with its own staged review. The voice guide, reference PDF,
+and lifecycle sketch remain untracked and excluded; no push has been performed.
