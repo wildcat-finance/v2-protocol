@@ -377,7 +377,9 @@ reference PDF, and lifecycle sketch remain untracked and excluded.
 
 ## M2-04: Queueing, closure coordination, and empty callbacks
 
-Status: implemented, verified, and accepted by the user for this signed checkpoint.
+Status: accepted and committed as `95a2912e2398c368a929cb016e93abb24dddf408`,
+with a verified kethcode SSH signature. The approved Solidity patch matches the
+commit; `m2-04-acceptance.json` records approval and verification.
 Parent checkpoint is `6859b70720a7755eef6010d67a3dd55cf2b0638b` (M2-03).
 The user reviewed this checkpoint and authorized its commit and continuation.
 The existing Solidity review rule applies to the next checkpoint.
@@ -515,3 +517,186 @@ staged patch/files, manifests, compatibility comparisons, and raw evidence.
 The user accepted M2-04 and authorized M2-05. M2-05 and M2-06 have not started
 at this checkpoint. The voice guide, reference PDF, and lifecycle sketch stay
 untracked and excluded.
+
+## M2-05: APR strategy and both periodic execution routes
+
+Status: implemented, verified, and accepted by the user, including the revised
+comments. Included in this signed checkpoint; its hash will be recorded in the
+next update. Parent checkpoint is `95a2912e2398c368a929cb016e93abb24dddf408`
+(M2-04). The user authorized the commit and continuation to M2-06.
+
+### APR ownership and validation
+
+[MarketConstraintHooks](../../src/access/MarketConstraintHooks.sol) owns the
+existing calculation as `_applyDefaultAprUpdate`, a virtual internal strategy.
+Its calculation, temporary state, and event logic have not been duplicated or
+rewritten: the moved function body has identical non-comment tokens.
+[BaseHooks](../../src/access/BaseHooks.sol) owns the external coordinator. It
+runs `_applyAprUpdate`, constructs `AprChange` with requested and effective
+values, runs `_checkAprChange`, and returns the selected pair. The check is an
+empty non-view extension point; a rejection rolls back the selected strategy's
+state and events.
+
+Open uses the default strategy. Fixed calls its named `_validateFixedAprUpdate`
+primitive before that same default. These callbacks retain their existing
+unguarded caller behavior. A feature can replace the default calculation while
+retaining fixed's guard; replacing the outer strategy owns that integration.
+
+Periodic retains explicit strategy selection. It authenticates the market,
+cancels a pending proposal only on an increase, and invokes the default for
+increases/equality. A reduction invokes `_executePeriodicReduction`, preserves
+the current reserve ratio, and skips the default entirely. The renamed proposal
+helper's body also has identical non-comment tokens, preserving check order,
+deletion, and the execution event. Proposal management and closure are unchanged.
+
+Both periodic reduction routes share that helper and `_checkAprChange`. The
+dedicated route keeps its APR-only ABI and passes `AprRoute.PendingReduction`,
+the proposal APR, and current reserves as both requested/effective reserves.
+Its callback data is an empty calldata slice even if extra bytes follow the
+encoded state. Ordinary calls pass `AprRoute.Ordinary` and the original data.
+The validator cannot return a replacement pair. Competing calculations still
+require explicit integration; this adds no automatic composition rule.
+
+### M2-05 test ownership
+
+The existing constraint suite remains the owner of bounds, rounding, reserve
+calculation, expiry, and cancellation mathematics. Fixed and periodic suites
+retain maturity/proposal timing, failure order, and term-specific effects.
+Open's unregistered APR callback case moved to `BaseHooksTest` and now covers
+fixed as well. No parallel calculator or legacy implementation was retained.
+
+[AprValidationTest](../../test/access/AprValidation.t.sol) adds five focused
+cases using [AprValidationHooks](../../test/mocks/AprValidationHooks.sol), a
+test-only periodic derivative that overrides only the additional validator.
+Its APR floor/reserve ceiling and accepted-change record prove:
+
+- Both reduction routes supply the applied values, original state, market,
+  route, and appropriate callback data; ordinary requested reserves may differ.
+- Rejection by either constraint restores the proposal, which can then be
+  executed successfully after relaxing the constraint.
+- Periodic reductions leave both empty and seeded temporary-reserve state
+  untouched and emit only the proposal execution event.
+- A rejected increase restores its cancelled proposal. Accepted increases
+  validate effective reserves even when requested reserves exceed the ceiling.
+- Equality can expire temporary reserves and validate the restored ratio;
+  rejection restores temporary state, and equality retains the proposal.
+- The dedicated route supplies empty data even with trailing calldata.
+
+The probe seeds temporary state through a test-only helper to make an accidental
+default calculation observable. It does not replace either production strategy.
+Broader replacement/composition proofs remain M4 work. The access subtree grows
+from 136 to 141 test entrypoints; shared fixtures still have none.
+
+### M2-05 verification
+
+| Check | Result |
+| --- | --- |
+| Initial focused default run: shared, APR probe, constraint, and term suites, seed `0x5eed` | 65 passed / 6 suites; zero failures/skips. |
+| Broader default run: M2-04's selection plus APR probe and borrower-account compatibility, same seed | 317 passed / 18 suites; zero failures/skips. Includes actual market APR/liquidity rollback, both standard/revolving periodic execution, factory, dispatch, and delegated borrower paths. |
+| Deployment profile: same broader selection and seed | 317 passed / 18 suites; zero failures/skips. |
+| Raw ABI comparison | All three concrete ABIs exactly match M2-04. No additional label changes; M1's previously documented naming allowance still applies. |
+| Compiler storage layouts | Identical to M1/M2-04 after ignoring compiler IDs. No new production state; packed market/proposal layouts are unchanged. |
+| Moved calculation and proposal execution | Bodies have identical non-comment tokens to M2-04. |
+| Measurement identity before comment review | Default, deploy, and gas artifacts have identical ABI/creation/runtime bytes. All 279 tested inputs and 897 baseline dependency files verified; submodules, tools, and effective settings match M2 start. The later review amendment below preserves all non-comment tokens and retains these original receipts. |
+| `yarn lint:check` | Exits 1 for the same 34 untouched formatting paths; no new failure. |
+| Standalone Solhint | Exits 0 with the same 22 warnings. Both lint logs are byte-identical to M2-04. |
+
+These are checkpoint checks; full milestone qualification remains M2-06.
+Build settings, dependencies, market accounting, deployment inventories, and
+tranching policy are unchanged.
+
+### M2-05 size and gas comparisons
+
+| Template | Runtime bytes | Creation bytes | `STOP + creation` | Stored-initcode headroom | Runtime/creation delta from M2-04 | Delta from M1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Open | 15,653 | 18,379 | 18,380 | 6,196 | +66 / +66 | +349 / +349 |
+| Fixed | 17,014 | 19,741 | 19,742 | 4,834 | +81 / +81 | +413 / +413 |
+| Periodic | 19,949 | 22,676 | 22,677 | 1,899 | +198 / +198 | +678 / +678 |
+
+Runtime, stored-initcode, and factory constructor-payload limits remain satisfied.
+Periodic remains the tightest limit.
+
+Measured before changing tests, with unchanged `95a2912` fixtures and M1's
+timestamp, seed, and call boundaries. The commands pass eight selected tests
+plus the cached-deposit scenario. All 22 M1 APR observations remain comparable:
+17 ordinary calls and five dedicated periodic calls. Their arguments and
+return/revert results match. There are 47 comparable callbacks overall; the
+other 50 M1 observations came from previously consolidated tests and are not
+claimed as new measurements. Earlier evidence remains intact.
+
+| Template / route | Successful-call delta from M2-04 | Rejected-call delta from M2-04 |
+| --- | ---: | ---: |
+| Open ordinary | +260 to +263 | No rejection in the retained gas scenarios. |
+| Fixed ordinary | +278 to +281 | +6 |
+| Periodic ordinary | +288 | +6 |
+| Periodic dedicated | +702 | +111 to +126 |
+
+These APR deltas are also relative to M1 because those callbacks had not moved
+before this task. Periodic dedicated success rises from 34,616 to 35,318 gas;
+ordinary reduction rises from 36,078 to 36,366. These are callback costs with
+their recorded boundaries, not whole-transaction fees.
+
+Optimized IR retains allocation/population of the six-field `AprChange` even
+when the built-in validator is empty. Dedicated execution also reads reserves
+and constructs the empty calldata slice; these values were unnecessary on its
+old APR-only path. The compiler additionally factors the 192-byte memory
+allocation into a shared helper in open/periodic. That adds 81 gas to 15 retained
+deposit/transfer/queue observations despite those source bodies being untouched.
+The remaining ten non-APR observations have unchanged costs. Before/after IR is
+retained as `m2-05-<Template>-apr-ir-04.txt` and `...-05.txt`.
+
+Gas and final test inputs have separate manifests. A single production comment
+was wrapped after the gas run to avoid adding a line-length warning; the exact
+comment-only amendment is recorded. The compiled default/deploy ABI and executable
+bytes match the gas artifacts. These measurements precede the review comment
+revision below; its source equivalence is recorded separately.
+Reproduction uses the retained production snapshot with `95a2912`'s tests in
+a separate checkout. These cost/size increases are explicit review tradeoffs.
+
+### M2-05 evidence identities
+
+Paths are relative to the ignored M2 evidence root above. Receipts retain exact
+commands and log hashes; the review receipt binds staged files and the Solidity
+patch to the final inputs, gas inputs, and raw comparisons. Earlier evidence
+has not been overwritten.
+
+| File | SHA-256 |
+| --- | --- |
+| `m2-05-inputs.sha256.json` | `e96e3d9d5effcf474f7232fbad0e04b4338265e8b7c29d26dd9286c24dcbe572` |
+| `m2-05-test-receipts.json` | `5586ad27c158a946d30bfe2bb24857250ccfe41e223a49ea320df68720b74be8` |
+| `m2-05-abi-comparison.json` | `3bb15b9941a4e6378035268b9f41c86da714aee8f3ffe0604d49063358ab0e3c` |
+| `m2-05-storage-comparison.json` | `3b6834c5015b944e5023b7df811d4fa6ed25536f5e2e361ee83311d3945dad69` |
+| `m2-05-sizes.json` | `d14f03e1cfc3bc7941469d966f373630b4e50b7a66d407663ba7f4a8b50573dc` |
+| `m2-05-gas-receipts.json` | `43bff6f977ef9241a0a6228ef9b3b5e3caec4edb83abb1b33dcdbfd19bd8b75c` |
+| `m2-05-gas-comparison.json` | `d2e092511ce35513313504cf39d1c6d9a99c8b241bc9a7219ec3e21a2990af8c` |
+| `m2-05-gas-source-qualification.json` | `f46b70a297ec82ddcd1a883a7dfc7deb76838bed9e1862cc2dd245a2489d3cfb` |
+| `m2-05-moved-body-comparison.json` | `82bb891dbb6f90b2d63186d205a60d0ed9338492fe997a10473127fd114439aa` |
+| `m2-05-lint-receipts.json` | `fbbd741be087f5252977fe87a72d7f68479a648ad173c6e0a0d2813c59bbc58f` |
+| `m2-05-test-migration.json` | `1964e89097667543b3c531940a246dee4344241346cad74a76115af145ccdc42` |
+| `m2-05-qualification.json` | `63b8c0b9b0df3e65817533c025fa25709f598ae7334ab831f07bde3aced31269` |
+| `m2-04-acceptance.json` | `b90dca7c1765b4ff08fc8698688ad959d726d66450fc7f97e8aa8a34030e457f` |
+
+### M2-05 comment review
+
+The user clarified that applying the voice guide must preserve technical terms,
+function/variable names, and existing branch explanations. Restored the inline
+fixed-term revert comment and revised APR comments in `BaseHooks`,
+`FixedTermHooks`, `MarketConstraintHooks`, and `PeriodicTermHooks` accordingly.
+The comments now name the override points, proposal/reserve state, and expiry
+conditions instead of replacing them with phrases such as "selected default."
+
+All nine staged Solidity files have identical non-comment lexer tokens to the
+tested versions. Formatting passes; Solhint output is identical to the existing
+22-warning baseline. Tests and compilation were not repeated for comment edits.
+The original test/build/gas receipts and input manifests remain intact; the
+previous review sources, patch, and receipt are retained separately. The current
+review receipt binds the revised source hashes through this amendment.
+
+| File | SHA-256 |
+| --- | --- |
+| `m2-05-comments-inputs.sha256.json` | `7c7bb28ef762e072f2f93df56df37683eff0ae43e311569b4bec948a2af5f8a7` |
+| `m2-05-comments-receipt.json` | `a213907c73fb18447f746151962f229fe096f7adf150faec4cb79f98fc1a64e6` |
+
+The user accepted M2-05 and authorized its signed commit and M2-06 qualification.
+The voice guide, reference PDF, and lifecycle sketch remain untracked and
+excluded from the checkpoint.

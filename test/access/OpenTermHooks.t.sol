@@ -5,7 +5,6 @@ import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { HookedMarket, OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
-import { MarketState } from 'src/libraries/MarketState.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
@@ -142,16 +141,5 @@ contract OpenTermHooksTest is TestKernel {
     vm.prank(NewAdministrator);
     hooks.setMinimumDeposit(MarketA, 200);
     assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
-  }
-
-  function test_onSetApr_DelegatesWithoutRegistration() external {
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    state.reserveRatioBips = 500;
-    vm.prank(MarketA);
-    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
-      .onSetAnnualInterestAndReserveRatioBips(1_000, 9_999, state, abi.encode('unused'));
-    assertEq(annualInterestBips, 1_000, 'APR');
-    assertEq(reserveRatioBips, 500, 'reserve ratio');
   }
 }

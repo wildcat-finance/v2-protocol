@@ -493,7 +493,7 @@ contract PeriodicTermHooks is BaseHooks {
   /// @dev applies an exact pending reduction after its response window and before expiry. the APR
   ///      must still be a strict reduction, and all scaled pending withdrawals must be paid first.
   ///      success deletes the proposal.
-  function _executePendingAnnualInterestBipsReduction(
+  function _executePeriodicReduction(
     HookedMarket memory hookedMarket,
     MarketState calldata intermediateState,
     uint16 annualInterestBips,
@@ -539,34 +539,44 @@ contract PeriodicTermHooks is BaseHooks {
     HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
-    annualInterestBips = _executePendingAnnualInterestBipsReduction(
+    annualInterestBips = _executePeriodicReduction(
       hookedMarket,
       intermediateState,
       pendingAprChange.annualInterestBips,
       pendingAprChange
     );
+    // `executePendingAnnualInterestBipsReduction` only returns an APR. the market keeps
+    // `intermediateState.reserveRatioBips`, so validate that ratio and pass empty callback data.
+    _checkAprChange(
+      AprChange({
+        market: msg.sender,
+        route: AprRoute.PendingReduction,
+        requestedApr: pendingAprChange.annualInterestBips,
+        requestedReserve: intermediateState.reserveRatioBips,
+        effectiveApr: annualInterestBips,
+        effectiveReserve: intermediateState.reserveRatioBips
+      }),
+      intermediateState,
+      msg.data[msg.data.length:]
+    );
   }
 
-  /// @notice handles borrower-initiated APR updates under the periodic notice policy.
-  /// @dev an increase cancels a pending reduction. a decrease must exactly match a matured proposal
-  ///      and keeps the current reserve ratio. an unchanged APR uses the shared reserve policy and
-  ///      does not cancel the proposal.
-  function onSetAnnualInterestAndReserveRatioBips(
+  /// @dev an APR increase cancels `_pendingAprChanges[msg.sender]` before `_applyDefaultAprUpdate`.
+  ///      equal APRs keep the proposal and also use `_applyDefaultAprUpdate`.
+  ///      reductions must execute the exact matured proposal through `_executePeriodicReduction`,
+  ///      return `intermediateState.reserveRatioBips`, and leave `temporaryExcessReserveRatio`
+  ///      untouched. don't call `_applyDefaultAprUpdate` on that reduction path.
+  function _applyAprUpdate(
     uint16 annualInterestBips,
-    uint16 reserveRatioBips,
+    uint16,
     MarketState calldata intermediateState,
-    bytes calldata hooksData
-  )
-    public
-    virtual
-    override
-    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
-  {
+    bytes calldata
+  ) internal virtual override returns (uint16 effectiveApr, uint16 effectiveReserve) {
     HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
 
-    // Range checks: increase/equal paths assert in the parent hook,
-    // the reduction path asserts in the execution function.
+    // `_applyDefaultAprUpdate` checks APR bounds for increases/equality.
+    // `_executePeriodicReduction` checks them for proposal-backed reductions.
     if (annualInterestBips > intermediateState.annualInterestBips) {
       if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
         delete _pendingAprChanges[msg.sender];
@@ -574,7 +584,7 @@ contract PeriodicTermHooks is BaseHooks {
       }
     } else if (annualInterestBips < intermediateState.annualInterestBips) {
       PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
-      annualInterestBips = _executePendingAnnualInterestBipsReduction(
+      annualInterestBips = _executePeriodicReduction(
         hookedMarket,
         intermediateState,
         annualInterestBips,
@@ -583,12 +593,6 @@ contract PeriodicTermHooks is BaseHooks {
       return (annualInterestBips, intermediateState.reserveRatioBips);
     }
 
-    return
-      super.onSetAnnualInterestAndReserveRatioBips(
-        annualInterestBips,
-        reserveRatioBips,
-        intermediateState,
-        hooksData
-      );
+    return _applyDefaultAprUpdate(annualInterestBips, intermediateState);
   }
 }

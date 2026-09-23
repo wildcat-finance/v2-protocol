@@ -17,6 +17,24 @@ struct AccessConfig {
   bool transfersDisabled;
 }
 
+enum AprRoute {
+  Ordinary,
+  PendingReduction
+}
+
+/// @dev `_checkAprChange` validates `effectiveApr` and `effectiveReserve`, which the market will
+///      apply. `requestedApr` and `requestedReserve` let rules inspect the original request too.
+///      `AprRoute.PendingReduction` cannot change reserves: both reserve fields hold the market's
+///      current reserve ratio from `intermediateState.reserveRatioBips`.
+struct AprChange {
+  address market;
+  AprRoute route;
+  uint16 requestedApr;
+  uint16 requestedReserve;
+  uint16 effectiveApr;
+  uint16 effectiveReserve;
+}
+
 /// @title BaseHooks
 /// @notice shared initialization, lender actions, and access configuration for hook templates.
 /// @dev each template still owns its packed storage and public getters. the adapters read/write it.
@@ -422,6 +440,58 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
 
   function _checkMaxTotalSupply(
     uint256 amount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  /// @notice calculates the APR/reserve update, then validates the values the market will apply.
+  /// @dev `_applyAprUpdate` may change hook state and emit events. if `_checkAprChange` reverts,
+  ///      those effects revert too, including temporary reserves and pending APR proposal changes.
+  function onSetAnnualInterestAndReserveRatioBips(
+    uint16 annualInterestBips,
+    uint16 reserveRatioBips,
+    MarketState calldata intermediateState,
+    bytes calldata hooksData
+  ) external override returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips) {
+    (updatedAnnualInterestBips, updatedReserveRatioBips) = _applyAprUpdate(
+      annualInterestBips,
+      reserveRatioBips,
+      intermediateState,
+      hooksData
+    );
+    _checkAprChange(
+      AprChange({
+        market: msg.sender,
+        route: AprRoute.Ordinary,
+        requestedApr: annualInterestBips,
+        requestedReserve: reserveRatioBips,
+        effectiveApr: updatedAnnualInterestBips,
+        effectiveReserve: updatedReserveRatioBips
+      }),
+      intermediateState,
+      hooksData
+    );
+  }
+
+  /// @dev delegates to `_applyDefaultAprUpdate`, which ignores the requested `reserveRatioBips`
+  ///      and derives reserves from `state` and `temporaryExcessReserveRatio[msg.sender]`.
+  ///      override `_applyAprUpdate` if the calculation needs the requested ratio or callback data.
+  ///      call only the chosen calculation: discarding its return values doesn't undo its state
+  ///      changes or events.
+  function _applyAprUpdate(
+    uint16 annualInterestBips,
+    uint16,
+    MarketState calldata state,
+    bytes calldata
+  ) internal virtual returns (uint16 effectiveApr, uint16 effectiveReserve) {
+    return _applyDefaultAprUpdate(annualInterestBips, state);
+  }
+
+  /// @dev validate `change.effectiveApr` and `change.effectiveReserve`; revert to reject.
+  ///      runs after APR effects on both `AprRoute.Ordinary` and `AprRoute.PendingReduction`.
+  ///      overrides can add constraints or feature state, but don't return replacement values.
+  function _checkAprChange(
+    AprChange memory change,
     MarketState calldata state,
     bytes calldata extraData
   ) internal virtual {}

@@ -282,19 +282,25 @@ contract FixedTermHooks is BaseHooks {
     }
   }
 
-  /// @notice rejects APR reductions before maturity, then applies the shared reserve policy.
-  /// @dev equal or higher APRs are allowed during the term, subject to the shared bounds.
-  function onSetAnnualInterestAndReserveRatioBips(
+  /// @dev `_validateFixedAprUpdate` blocks APR reductions before `fixedTermEndTime`.
+  ///      equal or higher APRs proceed to the bounds/reserve logic in `_applyDefaultAprUpdate`.
+  ///      overriding `_applyDefaultAprUpdate` keeps that term check; overriding `_applyAprUpdate`
+  ///      must call `_validateFixedAprUpdate` or explicitly replace the fixed-term APR restriction.
+  function _applyAprUpdate(
     uint16 annualInterestBips,
-    uint16 reserveRatioBips,
+    uint16,
     MarketState calldata intermediateState,
-    bytes calldata hooksData
-  )
-    public
-    virtual
-    override
-    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
-  {
+    bytes calldata
+  ) internal virtual override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+    _validateFixedAprUpdate(annualInterestBips, intermediateState);
+    return _applyDefaultAprUpdate(annualInterestBips, intermediateState);
+  }
+
+  /// @dev no registration check here: the existing APR callback accepts unknown callers.
+  function _validateFixedAprUpdate(
+    uint16 annualInterestBips,
+    MarketState calldata intermediateState
+  ) internal view {
     HookedMarket storage hookedMarket = _hookedMarkets[msg.sender];
 
     /* Revert if market is still in fixed term and new APR is lower than it was */
@@ -304,13 +310,5 @@ contract FixedTermHooks is BaseHooks {
     ) {
       revert NoReducingAprBeforeTermEnd();
     }
-
-    return
-      super.onSetAnnualInterestAndReserveRatioBips(
-        annualInterestBips,
-        reserveRatioBips,
-        intermediateState,
-        hooksData
-      );
   }
 }

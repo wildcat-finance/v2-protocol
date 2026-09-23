@@ -147,29 +147,4 @@ contract OpenTermHooks is BaseHooks {
       hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];
     }
   }
-
-  // ========================================================================== //
-  //                                    Hooks                                   //
-  // ========================================================================== //
-
-  /// @notice applies the shared APR bounds and temporary excess-reserve policy.
-  function onSetAnnualInterestAndReserveRatioBips(
-    uint16 annualInterestBips,
-    uint16 reserveRatioBips,
-    MarketState calldata intermediateState,
-    bytes calldata hooksData
-  )
-    public
-    virtual
-    override
-    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
-  {
-    return
-      super.onSetAnnualInterestAndReserveRatioBips(
-        annualInterestBips,
-        reserveRatioBips,
-        intermediateState,
-        hooksData
-      );
-  }
 }

@@ -791,4 +791,21 @@ contract BaseHooksTest is HookTemplateFixture {
       assertEq(afterExpiry, expiry, 'expiry retained');
     }
   }
+
+  function test_onSetApr_OpenAndFixedDoNotRequireRegistration() external {
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    state.reserveRatioBips = 500;
+    for (uint256 i; i < uint256(HookKind.Periodic); i++) {
+      vm.prank(MarketA);
+      (uint16 apr, uint16 reserve) = hooks[i].onSetAnnualInterestAndReserveRatioBips(
+        1_000,
+        9_999,
+        state,
+        abi.encode('unused')
+      );
+      assertEq(apr, 1_000, 'APR');
+      assertEq(reserve, 500, 'requested reserves ignored');
+    }
+  }
 }
