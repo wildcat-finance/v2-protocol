@@ -6,6 +6,7 @@ import { IHooksFactory } from 'src/IHooksFactory.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
+import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { PendingAprChange, PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
@@ -575,13 +576,13 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     _deposit(stack, cell, MatrixAlice, 10e18);
 
     vm.prank(MatrixAlice);
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
     cell.market.queueFullWithdrawal();
 
     uint256 termEnd = cell.deployedAt + options.fixedTermDuration;
     vm.warp(termEnd - 1);
     vm.prank(MatrixAlice);
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
     cell.market.queueFullWithdrawal();
 
     vm.warp(termEnd);

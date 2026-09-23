@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
+import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { MarketConstraintHooks } from 'src/access/MarketConstraintHooks.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { ReentrancyGuard } from 'src/ReentrancyGuard.sol';
@@ -972,7 +973,7 @@ contract WildcatMarketTest is MarketFixture {
     _deposit(fixture, Holder, 1e18);
     fixture.sentinel.setSanctioned(Holder, true);
 
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
     fixture.market.nukeFromOrbit(Holder);
     assertEq(fixture.market.balanceOf(Holder), 1e18, 'balance after rejected nuke');
     assertEq(fixture.market.currentState().pendingWithdrawalExpiry, 0, 'pending after rejection');

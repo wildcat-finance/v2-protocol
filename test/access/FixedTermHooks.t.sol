@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
+import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { HookedMarket } from 'src/access/FixedTermHooks.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
@@ -112,13 +113,13 @@ contract FixedTermHooksTest is TestKernel {
 
   function test_onCreateMarket_ValidatesTermData() external {
     DeployMarketInputs memory inputs;
-    vm.expectRevert(FixedTermHooks.FixedTermNotProvided.selector);
+    vm.expectRevert(FixedTermPolicy.FixedTermNotProvided.selector);
     hooks.onCreateMarket(address(this), MarketA, inputs, '');
 
-    vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
+    vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
     hooks.onCreateMarket(address(this), MarketA, inputs, abi.encode(uint32(block.timestamp - 1)));
 
-    vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
+    vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
     hooks.onCreateMarket(
       address(this),
       MarketA,
@@ -166,9 +167,9 @@ contract FixedTermHooksTest is TestKernel {
 
   function test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder() external {
     DeployMarketInputs memory inputs;
-    vm.expectRevert(FixedTermHooks.FixedTermNotProvided.selector);
+    vm.expectRevert(FixedTermPolicy.FixedTermNotProvided.selector);
     hooks.onCreateMarket(address(this), MarketA, inputs, new bytes(31));
-    vm.expectRevert(FixedTermHooks.InvalidFixedTerm.selector);
+    vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
     hooks.onCreateMarket(
       address(this),
       MarketA,
@@ -228,15 +229,15 @@ contract FixedTermHooksTest is TestKernel {
       abi.encode(term, uint128(0), false, false, true)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(MarketA, address(this), term, term - 1 days);
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), term, term - 1 days);
     hooks.setFixedTermEndTime(MarketA, term - 1 days);
     assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, term - 1 days, 'reduced term');
 
-    vm.expectRevert(FixedTermHooks.IncreaseFixedTerm.selector);
+    vm.expectRevert(FixedTermPolicy.IncreaseFixedTerm.selector);
     hooks.setFixedTermEndTime(MarketA, term);
 
     _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
-    vm.expectRevert(FixedTermHooks.TermReductionDisabled.selector);
+    vm.expectRevert(FixedTermPolicy.TermReductionDisabled.selector);
     hooks.setFixedTermEndTime(MarketB, term - 1 days);
 
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
@@ -267,10 +268,10 @@ contract FixedTermHooksTest is TestKernel {
     vm.warp(term - 1);
     state.isClosed = true;
     vm.prank(MarketA);
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
     vm.prank(MarketA);
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
     hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
 
     vm.warp(term);
@@ -292,7 +293,7 @@ contract FixedTermHooksTest is TestKernel {
     state.reserveRatioBips = 1_000;
 
     vm.prank(MarketA);
-    vm.expectRevert(FixedTermHooks.NoReducingAprBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermPolicy.NoReducingAprBeforeTermEnd.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(99, 500, state, '');
 
     vm.prank(MarketA);
@@ -323,7 +324,7 @@ contract FixedTermHooksTest is TestKernel {
       abi.encode(term, uint128(0), false, true, false)
     );
     vm.expectEmit(address(hooks));
-    emit FixedTermHooks.FixedTermUpdated(MarketA, MarketA, term, uint32(block.timestamp));
+    emit FixedTermPolicy.FixedTermUpdated(MarketA, MarketA, term, uint32(block.timestamp));
     vm.prank(MarketA);
     hooks.onCloseMarket(state, '');
     assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, block.timestamp, 'closure term');
@@ -340,7 +341,7 @@ contract FixedTermHooksTest is TestKernel {
 
     _createMarket(hooks, MarketC, _requestedConfig(hooks, false, false, false), abi.encode(term));
     vm.prank(MarketC);
-    vm.expectRevert(FixedTermHooks.ClosureDisabledBeforeTerm.selector);
+    vm.expectRevert(FixedTermPolicy.ClosureDisabledBeforeTerm.selector);
     hooks.onCloseMarket(state, '');
 
     vm.warp(term);
