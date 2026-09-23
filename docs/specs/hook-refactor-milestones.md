@@ -1,15 +1,17 @@
 # Hook refactor milestones
 
-- Status: M1 complete, reviewed, and pushed. M2 authorized and in progress;
-  baseline/ownership task complete, first Solidity checkpoint staged for review.
+- Status: M1, M2, and M3 complete, reviewed, and pushed. M4 plan and tracker
+  prepared for review; M4 execution has not started.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
 These milestones describe reviewable outcomes and completion criteria. M1 has
 an [execution plan](hook-refactor-m1-plan.md) and [tracker](hook-refactor-m1-tracker.md);
-M2 now has its own [plan](hook-refactor-m2-plan.md) and [tracker](hook-refactor-m2-tracker.md).
-Task breakdown and tracking for later milestones follow separately. A milestone
+M2 has its own [plan](hook-refactor-m2-plan.md) and [tracker](hook-refactor-m2-tracker.md),
+as do M3 ([plan](hook-refactor-m3-plan.md), [tracker](hook-refactor-m3-tracker.md))
+and M4 ([plan](hook-refactor-m4-plan.md), [tracker](hook-refactor-m4-tracker.md)).
+M5 planning follows separately. A milestone
 may contain several implementation changes; it is not necessarily one commit
 or pull request.
 
@@ -89,6 +91,10 @@ old/new duplicate of the extracted production logic remains necessary.
 
 ## M3 — Extract term behavior and make overrides explicit
 
+Execution: [plan](hook-refactor-m3-plan.md) and
+[completed tracker](hook-refactor-m3-tracker.md).
+Completed [results and M4 handoff](hook-refactor-m3-results.md#m4-handoff).
+
 Move the remaining specialized behavior into reusable components:
 
 - Fixed: maturity validation, queueing restrictions, term reduction, early
@@ -115,6 +121,9 @@ defaults and reusable term behavior, their existing behavior is preserved, and
 the mapped discretionary choices are visible in the integration code and tests.
 
 ## M4 — Demonstrate extension and composition
+
+Execution: [plan](hook-refactor-m4-plan.md) and
+[current status](hook-refactor-m4-tracker.md).
 
 Use small test-only components unrelated to a proposed tranching design:
 

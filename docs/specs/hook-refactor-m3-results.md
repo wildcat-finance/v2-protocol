@@ -640,8 +640,10 @@ affects the original 97 callback observations.
 
 M3 establishes reusable term implementations and tested management extension
 points. It does not establish arbitrary policy composition or future tranching
-compatibility. After the user reviews and pushes M3, prepare a separate M4 plan
-and tracker around the existing [M4 requirements](hook-refactor-milestones.md#m4--demonstrate-extension-and-composition).
+compatibility. The user accepted and pushed M3 on 2026-09-23. The separate
+[M4 plan](hook-refactor-m4-plan.md) and [tracker](hook-refactor-m4-tracker.md)
+are prepared for review around the existing
+[M4 requirements](hook-refactor-milestones.md#m4--demonstrate-extension-and-composition).
 
 | M4 proof | Available components and required evidence |
 | --- | --- |
@@ -689,6 +691,33 @@ artifacts, and retained measurement references.
 | `m3-06-gas-reconciliation.json` | `d4be26ad106d58f9ee509876d1a7e6fba69b56df14556445400aaee8b10a3fb3` |
 | `m3-06-lint-comparison.json` | `8b740a57114847bdd6d4aa5744abc5d48be852be2b35306f4709f29d91c8c0ef` |
 
-M3 is complete and ready for the user's milestone review and push. M4 planning
-has not begun. The voice guide, reference PDF, and lifecycle sketch remain
-untracked and excluded; no push has been performed.
+### Supplemental original-test replay
+
+After the M3-06 checkpoint, the user asked whether changed tests could mask
+lost behavior. A separate scratch checkout replayed all 53 original concrete
+hook cases from `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c` against completed M3
+at `eff4d5898a5384b35f16acba23fee2aca47745d0`. The only fixture adaptations were
+imports and static qualifications for moved error/event declarations. Reversing
+those adaptations restores each original file byte for byte, including setup,
+assertions, and expected values. Canonical source and tests were untouched.
+
+All 53 cases across three suites passed under the qualified default settings,
+timestamp `1724284800`, seed `0x5eed`, and 1,000 fuzz iterations. The scratch
+artifacts' raw ABIs, creation/runtime bytes, link references, and immutable
+patch positions match qualified M3; metadata source hashes match the replay
+inputs. This supplements the existing qualification rather than replacing it
+with a permanent legacy suite. It is not a claim of exhaustive equivalence or
+an audit of the external SDK, app, or subgraph repositories.
+
+The following later receipts live under the same ignored M3 evidence root.
+They are separate from the earlier M3-06 review receipt.
+
+| File | SHA-256 |
+| --- | --- |
+| `parity-replay-results.json` | `4d82b7154117808d98d8ff4b4396560a674fb4ffa73be869fcf50d61bd2b2038` |
+| `parity-replay-identity.json` | `c3e2f2d09346d9427c315cf870cdb360ec0e8ed5bd2c85cb6098e35b3403305d` |
+| `parity-replay-tests-receipt.json` | `87d13007c9deac08c2d99a69818196308d13e3e7dc6fb488a721b34f559db017` |
+
+M3 is complete, reviewed, and pushed by the user. M4 planning is ready for
+review; execution has not begun. The voice guide, reference PDF, and lifecycle
+sketch remain untracked and excluded. No push was performed by the agent.
