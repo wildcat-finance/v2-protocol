@@ -1,7 +1,7 @@
 # Hook refactor milestones
 
-- Status: M1, M2, and M3 complete, reviewed, and pushed. M4 plan and tracker
-  prepared for review; M4 execution has not started.
+- Status: M1, M2, and M3 complete, reviewed, and pushed. M4 authorized;
+  handoff/proof mapping complete, first composition checkpoint follows.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.

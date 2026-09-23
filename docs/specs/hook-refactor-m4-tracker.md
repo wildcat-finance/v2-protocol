@@ -1,12 +1,12 @@
 # M4 tracker: extension and composition proof
 
 - Plan: [M4 execution plan](hook-refactor-m4-plan.md).
-- Milestone status: plan and tracker prepared for review; execution not started.
-- Execution tasks complete: 0 of 6.
-- Active task: none.
-- Next action: user reviews the plan before M4-01 begins.
+- Milestone status: authorized and in progress; M4-01 complete.
+- Execution tasks complete: 1 of 6.
+- Active task: none; M4-02 follows this checkpoint.
+- Next action: implement M4-02, verify, and stage Solidity for review.
 - Approved M3 handoff: `eff4d5898a5384b35f16acba23fee2aca47745d0`.
-- Execution starting revision: record when execution is authorized.
+- Execution starting revision: `579bba16f5204b0a4b815811a527aed61dfb256f`.
 
 The user accepted and pushed M3 on 2026-09-23, then requested the next stage.
 Its [results and handoff](hook-refactor-m3-results.md#m4-handoff) supply the
@@ -20,7 +20,7 @@ deliberate default replacement; it does not select tranching economics.
 | Shared behavior and reusable fixed/periodic policies | Done | [M2 results](hook-refactor-m2-results.md), [M3 results](hook-refactor-m3-results.md). |
 | M3 milestone review and push | Done | User confirmation on 2026-09-23; [M3 tracker](hook-refactor-m3-tracker.md). |
 | Original-test replay addressing parity concern | Done | [Separate 53-case replay](hook-refactor-m3-results.md#supplemental-original-test-replay); no changed setup/assertions/expected values. |
-| M4 plan and tracker | Ready for review | [Scope, six tasks, and completion criteria](hook-refactor-m4-plan.md); no execution authorization yet. |
+| M4 plan and tracker | Approved | User instructed M4 execution on 2026-09-23 after reboot. |
 | Review and signing workflow | Recorded | [Checkpoint workflow](hook-refactor-m4-plan.md#deliverables-and-review-workflow); staged review before every Solidity commit, including tests. |
 
 ## Task status
@@ -36,7 +36,7 @@ for an actual impediment, stating what resolves it; unmet dependencies remain
 
 | ID | Task | Status | Depends on | Evidence / result |
 | --- | --- | --- | --- | --- |
-| [M4-01](hook-refactor-m4-plan.md#m4-01-handoff-identity-and-proof-map) | Qualify handoff and map probes, flags, owners, and measurements. | Not started | Plan approval and instruction to execute. | Create results record during execution. |
+| [M4-01](hook-refactor-m4-plan.md#m4-01-handoff-identity-and-proof-map) | Qualify handoff and map probes, flags, owners, and measurements. | Done | Plan approval and instruction to execute. | [Qualified identity, open configuration correction, proof ownership, and measurements](hook-refactor-m4-results.md#m4-01-handoff-identity-and-proof-map). |
 | [M4-02](hook-refactor-m4-plan.md#m4-02-three-policy-checks-and-feature-state) | Compose two transfer features with each term choice. | Not started | M4-01. | Pending. |
 | [M4-03](hook-refactor-m4-plan.md#m4-03-fourth-feature-and-callback-activation) | Add borrow feature and prove real activation/deployment. | Not started | M4-02. | Pending. |
 | [M4-04](hook-refactor-m4-plan.md#m4-04-deliberate-apr-default-replacement) | Replace the APR default and prove skipped effects. | Not started | M4-03. | Pending. |
@@ -52,8 +52,8 @@ reviews and pushes the milestone.
 
 | Checkpoint | Review state | Signed commit |
 | --- | --- | --- |
-| M4 plan/tracker and M3 acceptance record | Documentation-only planning; plan awaits user review. | Signed with this checkpoint; record hash at the next tracker update. |
-| M4-01 | Not started; documentation/evidence only. | Pending. |
+| M4 plan/tracker and M3 acceptance record | User approved the plan and authorized execution. | `579bba1`; kethcode SSH signature verified. |
+| M4-01 | Documentation/evidence only under existing authorization. | Signed with this checkpoint; record hash in the next tracker update. |
 | M4-02 | Not started; stage Solidity for review before commit. | Pending. |
 | M4-03 | Not started; stage Solidity for review before commit. | Pending. |
 | M4-04 | Not started; stage Solidity for review before commit. | Pending. |
@@ -62,13 +62,13 @@ reviews and pushes the milestone.
 
 ## Evidence register
 
-Create `hook-refactor-m4-results.md` at M4-01. Raw evidence belongs under ignored
-`audits/hook-refactor/m4/<run-id>/`. Identify source/settings, commands, paths,
-hashes, and comparisons; retained M3 receipts are not fresh M4 passes.
+The [results record](hook-refactor-m4-results.md) identifies source/settings,
+commands, paths, hashes, and comparisons. Raw evidence lives under ignored
+`audits/hook-refactor/m4/2026-09-23/`; retained M3 receipts are not fresh M4 passes.
 
 | Evidence | Owning task | Status |
 | --- | --- | --- |
-| Execution identity, retained receipts, concrete configuration recipe, proof ownership, cost plan | M4-01 | Pending. |
+| Execution identity, retained receipts, concrete configuration recipe, proof ownership, cost plan | M4-01 | [Qualified](hook-refactor-m4-results.md#m4-01-handoff-identity-and-proof-map): 1,182 matching inputs, unchanged tools/settings/submodules, 55 M3 artifact hashes and eight references verified plus the original-test replay. Open constructor configuration gap and single-owner extraction mapped. |
 | Overlapping transfer rules, state/API ownership, credential exemptions, authority and isolation, rollback | M4-02 | Pending. |
 | Fourth feature without reusable-component edits, borrow activation/authentication, all six term/market deployment combinations | M4-03 | Pending. |
 | Selected APR result, retained guards, absent skipped-default effects, effective-value rejection | M4-04 | Pending. |
@@ -77,8 +77,8 @@ hashes, and comparisons; retained M3 receipts are not fresh M4 passes.
 
 ## Starting evidence and watchpoints
 
-These are accepted M3 results, to be qualified at M4-01. They are not new runs
-performed for this planning checkpoint.
+These are accepted M3 results qualified at M4-01. They are retained evidence,
+not new M4 test runs.
 
 | M3 reference | Recorded result |
 | --- | --- |
@@ -102,12 +102,13 @@ performed for this planning checkpoint.
 
 ## Blockers and next action
 
-No execution blocker is established. The callback-configuration recipe and
-periodic size budget are explicit design/verification work, not reasons to
-waive the proof. Next action is user review of the M4 plan, then M4-01 on
-authorization. No Solidity has changed in this planning checkpoint, and no
-tests were rerun for documentation edits. The voice guide, reference PDF, and
-lifecycle sketch remain untracked and excluded.
+No execution blocker remains for M4-02. The open constructor's fixed deployment
+configuration requires a focused correction: extract its existing behavior to
+`OpenTermPolicy`, keeping the concrete API/flags and one implementation. The
+periodic size budget remains a measured constraint on the examples. Next action
+is M4-02 implementation and verification, then staged review before its Solidity
+commit. M4-01 changes only documentation and reuses qualified prior evidence.
+The voice guide, reference PDF, and lifecycle sketch remain excluded.
 
 ## Progress log
 
@@ -115,3 +116,4 @@ lifecycle sketch remain untracked and excluded.
 | --- | --- |
 | 2026-09-23: M3 accepted | User confirmed the reviewed M3 milestone is pushed and requested the next stage. |
 | 2026-09-23: M4 planning | Prepared six tasks covering independent transfer features, a fourth borrow feature, deliberate APR default replacement, lifecycle integration, and qualification. Recorded concrete callback/size constraints, prior parity evidence, and staged Solidity review. Execution has not started. |
+| 2026-09-23: M4 authorized / M4-01 complete | User instructed execution. Qualified the unchanged M3 inputs, tools/settings, artifacts, signatures and supplemental replay; mapped proof owners, feature state/authority/order, and costs. Identified open constructor configuration as the first boundary correction. Documentation-only signed checkpoint; M4-02 retains staged Solidity review. |

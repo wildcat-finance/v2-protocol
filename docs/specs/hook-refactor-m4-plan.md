@@ -13,8 +13,9 @@ explicit decisions where their behavior overlaps. The [spec](hook-composition.md
 [behavior map](hook-behavior-map.md), [M1 design](hook-refactor-m1-design.md), and
 [M3 handoff](hook-refactor-m3-results.md#m4-handoff) define the contract.
 
-This plan is prepared for user review. Execution starts after approval. The
-plan owns scope and completion criteria; the tracker owns execution status.
+The user approved this plan and authorized M4 execution on 2026-09-23. The plan
+owns scope and completion criteria; the tracker owns execution status and each
+staged Solidity review.
 
 ## Outcome and boundaries
 
