@@ -15,8 +15,8 @@ The [M2 handoff](hook-refactor-m2-results.md#m3-handoff) supplies the starting
 implementation and measurements. The [spec](hook-composition.md) still defines
 the overall scope. This plan owns the work; the tracker owns execution status.
 
-The user has accepted M2 and requested M3 planning. These documents do not start
-M3 implementation; execution follows the user's instruction to proceed.
+The user accepted M2, reviewed this plan, and authorized M3 execution. The
+tracker records implementation progress and each staged Solidity review.
 
 ## Outcome and boundaries
 

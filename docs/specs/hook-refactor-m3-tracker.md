@@ -1,19 +1,19 @@
 # M3 tracker: reusable term policies
 
 - Plan: [M3 execution plan](hook-refactor-m3-plan.md).
-- Milestone status: planning prepared; awaiting review and instruction to start.
-- Execution tasks complete: 0 of 6.
-- Active task: none; no M3 implementation has started.
-- Next action: review the plan, then authorize M3-01.
+- Milestone status: in progress; plan approved and execution authorized.
+- Execution tasks complete: 1 of 6.
+- Active task: M3-01 complete; M3-02 next.
+- Next action: extract and verify the fixed policy, then stage it for review.
 - Approved M2 handoff: `c54e57312e63ceadee88492d8c47ae632b876b0b`.
-- Execution starting revision: record when execution begins.
+- Execution starting revision: `25d38d016f8884d24dced6a9e1c320e5bed5cc34`.
 
 The user accepted and pushed M2 on 2026-09-23. Its
 [results and handoff](hook-refactor-m2-results.md#m3-handoff) supply the starting
 implementation; the [M1 design](hook-refactor-m1-design.md) and
 [baseline](hook-refactor-m1-baseline.md) retain the original compatibility
-contract. Preparing this plan/tracker does not claim execution or verification
-of an M3 implementation.
+contract. M3-01 qualifies the inherited evidence and maps the work; it does not
+claim an implemented M3 policy.
 
 ## Completed groundwork
 
@@ -22,7 +22,7 @@ of an M3 implementation.
 | Scope, component ownership, internal signatures, and deliberate override responsibilities | Done | [Spec](hook-composition.md), [behavior map](hook-behavior-map.md), and [M1 design](hook-refactor-m1-design.md). |
 | Shared M2 implementation and qualification | Done | [M2 final results](hook-refactor-m2-results.md#m2-06-qualification-and-m3-handoff), qualified against `549bfaa`; documentation checkpoint `c54e573`. |
 | M2 milestone review and push | Done | User confirmation on 2026-09-23; [M2 tracker](hook-refactor-m2-tracker.md). |
-| M3 plan and tracker | Prepared | [Plan](hook-refactor-m3-plan.md) and this file; implementation remains unstarted. |
+| M3 plan and tracker | Approved | User reviewed the plan and instructed execution on 2026-09-23. |
 | Review and signing workflow | Recorded | [Checkpoint workflow](hook-refactor-m3-plan.md#deliverables-and-review-workflow); staged review before every Solidity commit, including tests. |
 
 ## Task status
@@ -38,7 +38,7 @@ state what resolves it; unmet dependencies remain `Not started`.
 
 | ID | Task | Status | Depends on | Evidence / result |
 | --- | --- | --- | --- | --- |
-| [M3-01](hook-refactor-m3-plan.md#m3-01-handoff-identity-and-move-inventory) | Qualify the handoff and map moves, consumers, tests, and measurements. | Not started | M2 accepted; instruction to start M3. | Pending. |
+| [M3-01](hook-refactor-m3-plan.md#m3-01-handoff-identity-and-move-inventory) | Qualify the handoff and map moves, consumers, tests, and measurements. | Done | M2 accepted; instruction to start M3. | [Qualified identity, move/test map, and management measurements](hook-refactor-m3-results.md#m3-01-handoff-identity-and-move-inventory). |
 | [M3-02](hook-refactor-m3-plan.md#m3-02-fixed-policy-extraction) | Extract and adopt the fixed policy. | Not started | M3-01. | Pending. |
 | [M3-03](hook-refactor-m3-plan.md#m3-03-fixed-setter-extension-points) | Add fixed setter extension points and behavioral probes. | Not started | M3-02. | Pending. |
 | [M3-04](hook-refactor-m3-plan.md#m3-04-periodic-policy-extraction) | Extract and adopt the complete periodic policy. | Not started | M3-03. | Pending. |
@@ -54,8 +54,8 @@ authorize committing the next one before review.
 
 | Checkpoint | Review state | Signed commit |
 | --- | --- | --- |
-| M3 plan/tracker and M2 acceptance status | Documentation only; prepared for plan review. | Included in this planning checkpoint; hash recorded in the next update. |
-| M3-01 | Not started. | Pending. |
+| M3 plan/tracker and M2 acceptance status | User approved the plan and authorized execution. | `25d38d0`; kethcode SSH signature verified. |
+| M3-01 | Documentation/evidence only under existing commit authorization. | Included in this signed checkpoint; hash recorded in the next update. |
 | M3-02 | Not started; stage for Solidity review when verified. | Pending. |
 | M3-03 | Not started; stage for Solidity review when verified. | Pending. |
 | M3-04 | Not started; stage for Solidity review when verified. | Pending. |
@@ -64,14 +64,14 @@ authorize committing the next one before review.
 
 ## Evidence register
 
-Create `hook-refactor-m3-results.md` during M3-01. It will identify source,
-settings, commands, raw artifact paths/hashes, comparisons, and the final handoff.
-Raw M3 evidence belongs in ignored `audits/hook-refactor/m3/<run-id>/`. M1/M2
+The [results record](hook-refactor-m3-results.md) identifies source/settings,
+commands, raw artifact paths/hashes, and comparisons. Raw M3 evidence lives in
+ignored `audits/hook-refactor/m3/2026-09-23/`. M1/M2
 receipts are retained references, not claims of fresh M3 verification.
 
 | Evidence | Owning task | Status |
 | --- | --- | --- |
-| Execution identity, reusable M2 evidence, move/consumer/test map, missing management measurements | M3-01 | Pending qualification. |
+| Execution identity, reusable M2 evidence, move/consumer/test map, missing management measurements | M3-01 | [Qualified](hook-refactor-m3-results.md#m3-01-handoff-identity-and-move-inventory): 1,176 matching inputs, unchanged settings/tools/artifacts, retained M2 tests/lint; three existing management scenarios pass and supply 14 call measurements. |
 | Fixed ownership, imports/ABI/packing, ordering, lifecycle integrations, size/gas | M3-02 | Pending. |
 | Fixed setter extension acceptance/rejection, guard priority, after-change state and rollback | M3-03 | Pending. |
 | Periodic ownership, public queries/types, complete proposal lifecycle, both APR routes, integrations and costs | M3-04 | Pending. |
@@ -81,7 +81,7 @@ receipts are retained references, not claims of fresh M3 verification.
 
 ## Starting measurements and watchpoints
 
-These are accepted M2 results to qualify at M3-01, not M3 passes:
+These are accepted M2 results qualified at M3-01, not fresh M3 passes:
 
 | M2 reference | Recorded result |
 | --- | --- |
@@ -105,11 +105,11 @@ These are accepted M2 results to qualify at M3-01, not M3 passes:
 
 ## Blockers and next action
 
-No planning blocker is known. The six execution tasks remain unstarted.
-Next: user review of the plan and instruction to begin M3-01. No Solidity,
-compiler configuration, or test implementation changes are part of this
-planning checkpoint. The voice guide, reference PDF, and lifecycle sketch
-remain untracked and excluded; no push is performed.
+M3-01 is complete; no implementation blocker is known. Next: M3-02 fixed policy
+extraction, verification, and staged review. The setter's equal-time/past-time
+coverage and new management extension probes belong in M3-03. This checkpoint
+changes documentation/evidence only. The voice guide, reference PDF, and
+lifecycle sketch remain untracked and excluded; no push is performed.
 
 ## Progress log
 
@@ -117,3 +117,4 @@ remain untracked and excluded; no push is performed.
 | --- | --- |
 | 2026-09-23: M2 accepted | User confirmed M2 looks good and has been pushed. |
 | 2026-09-23: M3 planning | Prepared six sequential tasks, separating each policy move from its management extension points. Carried forward compatibility, packed ownership, lifecycle/override responsibilities, size/gas evidence, and staged Solidity review. Execution has not started. |
+| 2026-09-23: M3 authorized / M3-01 complete | User approved the plan and instructed execution. Qualified M2 source/dependency/tool/settings/artifact identity and receipts; mapped policy/type/consumer moves and test ownership. Three existing management scenarios pass, adding five fixed setter and nine periodic proposal measurements. No Solidity changed; M3-02 retains staged review. |
