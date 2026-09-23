@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import { AprChange, AprRoute } from 'src/access/BaseHooks.sol';
 import { TemporaryReserveRatio, MarketConstraintHooks } from 'src/access/MarketConstraintHooks.sol';
-import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { Vm } from 'forge-std/Vm.sol';
@@ -162,7 +162,7 @@ contract AprValidationTest is HookTemplateFixture {
     target.setValidationBounds(0, 2_000);
     bytes memory data = abi.encode('increase');
     vm.expectEmit(address(target));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(MarketA);
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(MarketA);
     vm.prank(MarketA);
     (uint16 apr, uint16 reserve) = target.onSetAnnualInterestAndReserveRatioBips(
       1_100,

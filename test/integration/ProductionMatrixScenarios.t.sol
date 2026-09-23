@@ -9,6 +9,7 @@ import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
 import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { PendingAprChange, PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -229,7 +230,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
       );
 
       vm.prank(MatrixCaller);
-      vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
+      vm.expectRevert(PeriodicTermPolicy.AprChangeNotReady.selector);
       cell.market.executePendingAnnualInterestBipsReduction();
 
       vm.warp(responseStart);
@@ -272,7 +273,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
         options.periodDuration *
         expiredHooks.AprReductionProposalValidityPeriods()
     );
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalExpired.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalExpired.selector);
     expired.market.executePendingAnnualInterestBipsReduction();
     assertEq(expired.market.annualInterestBips(), options.annualInterestBips, 'expired APR');
 
@@ -296,7 +297,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
       address(increased.market)
     );
     assertEq(pending.proposalTimestamp, 0, 'increase cancellation');
-    vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
+    vm.expectRevert(PeriodicTermPolicy.NoPendingAprChange.selector);
     increased.market.executePendingAnnualInterestBipsReduction();
 
     MatrixCell memory closed = _deployMatrixCell(
@@ -527,7 +528,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     _deposit(stack, periodic, MatrixBob, BobDeposit);
     stack.sanctionsList.sanction(MatrixBob);
     vm.prank(MatrixCaller);
-    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
     periodic.market.nukeFromOrbit(MatrixBob);
     _warpToWithdrawalAccess(periodic);
     vm.prank(MatrixCaller);
@@ -610,7 +611,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
 
     assertFalse(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic pre-window');
     vm.prank(MatrixAlice);
-    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
     cell.market.queueWithdrawal(1e18);
 
     uint256 windowStart = cell.deployedAt + options.firstWindowDelay;
@@ -622,7 +623,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     vm.warp(windowStart + options.withdrawalWindowDuration);
     assertFalse(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic window end');
     vm.prank(MatrixAlice);
-    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
     cell.market.queueWithdrawal(1e18);
 
     vm.warp(windowStart + options.periodDuration);

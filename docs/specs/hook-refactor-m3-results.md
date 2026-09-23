@@ -307,3 +307,111 @@ The user approved M3-03 and authorized its signed checkpoint. The reviewed
 source and staged patch hashes were verified before updating these completion
 notes. M3-04 follows with its own staged review. The voice guide, reference PDF,
 and lifecycle sketch remain untracked and excluded; no push has been performed.
+
+## M3-04: Periodic policy extraction
+
+Implemented against M3-03 commit `24d9b8ed7a64028a855fe5b2237b24599b269093`,
+signed as kethcode after user approval. Its signature and the reviewed Solidity
+hashes were verified before starting. M3-04 is implemented and verified; the user
+reviewed the staged checkpoint and approved its signed commit.
+
+### One owner for the periodic lifecycle
+
+`PeriodicTermPolicy` owns the schedule and proposal mappings, five constants,
+thirteen errors, five events, decoding/initialization, access adapters, window
+queries, proposal management/queries, both APR execution routes, and closure.
+It uses the existing `BaseHooks` behavior. `PeriodicTermHooks` retains the exact
+constructor and flags, `version()`, `templateVersion() == 2`, and the two public
+configuration getters over that same state.
+
+The three global structs and narrow `IMarketApr` query interface move unchanged
+to `src/access/types/PeriodicTermHookTypes.sol`. The original concrete source
+explicitly re-exports all four declarations. Existing lens/fixture/type imports
+and the concrete deployment artifact path continue to work. The legacy
+`pendingAprChanges` getter and response-window-aware `getPendingAprChange` now
+live with the policy, preserving their different registration/return behavior.
+
+Token comparison accounts for all 52 original members exactly once: 26 functions
+plus the constructor, five events, thirteen errors, five constants, and two
+mappings. Twenty-two functions move; four functions and the constructor remain
+in the concrete hook. All signatures, bodies, global declarations, and original
+comments are preserved, including the schedule-bound TODOs and APR branch
+explanations. No proposal extension call is added here.
+
+| Lifecycle boundary | Preserved behavior |
+| --- | --- |
+| Creation and queueing | The same packed schedule/access configuration, width checks, window bounds, and registration/schedule/access error priority. Either closed flag opens the schedule without bypassing withdrawal access. |
+| Proposal creation/replacement/query | The original native checks and fixed response-window calculation, cancellation-before-replacement event order, stored bounds, legacy getter, and expired-proposal visibility. One `_pendingAprChanges` mapping serves the entire lifecycle. |
+| Ordinary APR callback | A strict reduction uses `_executePeriodicReduction`, preserves current reserves, and skips `_applyDefaultAprUpdate`. Equality retains the proposal; increases cancel it before selecting the default. |
+| Dedicated APR execution | The same shared reduction helper, registration/timing/unpaid-withdrawal checks, APR-only return, current-reserve validation, and empty calldata passed to `_checkAprChange`. Both routes retain effective-value validation and rollback. |
+| Closure | Registration validation, closed-flag write, pending-proposal deletion/cancellation, then `PeriodicTermClosed`. Temporary-reserve state and the market-owned APR/reserve reset retain their existing behavior. |
+
+Five consumer files update imports and declaration-owner references:
+`PeriodicTermHooks.t.sol`, `BaseHooks.t.sol`, `AprValidation.t.sol`,
+`ProductionMatrixScenarios.t.sol`, and `MarketMatrixHandler.sol`. The handler's
+`abi.encodeCall` target is now `PeriodicTermPolicy.proposeAnnualInterestBips`;
+its selector remains `9b87b818`. Reversing those mechanical changes restores
+the original tokens in every file. Only the handler also has a whitespace
+change: Prettier joins one existing `_expectedDrawnAfterRepay` call onto a
+single line. No tests, assertions, or handler behavior were added or removed.
+
+### Verification and costs
+
+Default and deploy runs each pass **323 tests across 18 suites**, with unchanged
+discovery, seed `0x5eed`, and 1,000 iterations per fuzz test. This includes the
+17 periodic cases, all five effective-APR validation cases, the shared
+configuration probe, and the existing factory/lens/authority/borrower-account,
+wrapper, dispatch, and standard/revolving market integrations.
+
+Because the invariant handler's static call target changed, its canonical
+campaign was also run under the default profile: all **nine invariant properties**
+pass over 2,000 runs at depth 30, totaling 60,000 calls and zero handler reverts.
+`proposeAprReduction` was invoked 3,535 times. Forge reports those nine properties
+as one campaign/test. The handler's own ABI and creation/runtime bytecode also
+match its qualified pre-extraction snapshot exactly. This targeted campaign
+does not replace M3-06's full qualification runs.
+
+The manifest binds 284 source/test/script/settings files and 897 dependency
+files. Tool hashes and effective settings match the qualified handoff. All three
+production ABIs, method identifiers, creation/runtime bytecode, link references,
+and immutable patch positions match M3-03/M2 in both profiles; all metadata
+source hashes match the checked tree. Normalized layouts match M3-03/M2/M1,
+with 11 top-level entries per template.
+
+All three sizes remain at the [M3-02 values](#deployment-size-and-gas). Periodic
+runtime/creation remain 19,949/22,676 bytes, with 1,899 bytes of stored-initcode
+headroom. Executable identity justifies reusing the qualified creation, window,
+queue, proposal, both-APR-route, and closure gas evidence under the same inputs,
+state, and transaction boundaries. M3-01's periodic proposal creation/replacement
+observations remain 58,661/43,021 gas. No fresh gas trace is claimed; the prior
+measurement exclusions remain in force.
+
+All eight changed Solidity paths pass Prettier. Formatting the touched handler
+resolves one pre-existing failure, leaving **33 untouched formatting failures**
+instead of 34. Standalone Solhint matches M3-03/M2 exactly: zero errors and
+22 warnings. No Solidity changed after verification.
+
+### M3-04 evidence identities
+
+Paths below are relative to the ignored M3 evidence root. The review receipt
+binds the staged checkpoint and supporting artifacts; command receipts bind
+input manifests and log hashes.
+
+| File | SHA-256 |
+| --- | --- |
+| `m3-04-qualification.json` | `9e61f1a62467459dfe03b74c70cb99ebd64d22247ac1a674826d07f108020843` |
+| `m3-04-inputs.sha256.json` | `44cb7142cca5d24e07f40897b82a2b9368b8a2ab620342c3b04c6d059374b48d` |
+| `m3-04-relocation-comparison.json` | `12f13e94ce5f56dd426a40fa6c668c743d3be5511eafb363f6ef2b51f8aaa22c` |
+| `m3-04-tests-default-receipt.json` | `d61593b2734f1c56a6759808f9901ab9a73fe802ab3d223be0b82305b27f2bd5` |
+| `m3-04-tests-deploy-receipt.json` | `a61027110401ae5c82a60f2e0f0d7df8c95fb326acb08bf1470df91ba7bd30cd` |
+| `m3-04-invariants-default-receipt.json` | `c9375d5485b7d9908674ebfe601d3230aad30012b1f09083975a4eb824698f14` |
+| `m3-04-artifact-comparison-default.json` | `fb1fe18b14121f19633c0bc4c19b1fc06e48ee9eeae6988c2e771ec7d57f235e` |
+| `m3-04-artifact-comparison-deploy.json` | `04f1ded757f67c78bad3706d759285633719f4d560aad5d28a26defa6c73794d` |
+| `m3-04-storage-comparison.json` | `e052100b05993dbd81041b400540483f78791f4bb2d7c345c38a6df303a9bbb8` |
+| `m3-04-handler-comparison.json` | `4b9367265bbf505d07eb85ea0bfdaf855e1405a65462a1ec4837fd55aaa37ead` |
+| `m3-04-lint-comparison.json` | `99f7200ce3f3228f94ace2a998ceeadf6790f8e96ccccebe32c296367cdb704c` |
+
+The user approved M3-04 and authorized its signed checkpoint. The reviewed
+source and staged patch hashes were verified before updating these completion
+notes. M3-05 follows with its own staged review. The voice guide, reference PDF,
+and lifecycle sketch remain untracked and excluded; no push has been performed.

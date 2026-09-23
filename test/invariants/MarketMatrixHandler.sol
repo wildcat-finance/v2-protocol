@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import { Vm } from 'forge-std/Vm.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -415,12 +416,7 @@ contract MarketMatrixHandler {
           market.previousState(),
           market.totalAssets() + amount
         );
-        expectedDrawn = _expectedDrawnAfterRepay(
-          i,
-          expectedState,
-          market.totalAssets(),
-          amount
-        );
+        expectedDrawn = _expectedDrawnAfterRepay(i, expectedState, market.totalAssets(), amount);
       }
       if (amount != 0) _fundBorrower(i, amount);
       (bool success, ) = _callAs(
@@ -560,7 +556,7 @@ contract MarketMatrixHandler {
         i,
         _borrower(),
         address(hooks),
-        abi.encodeCall(PeriodicTermHooks.proposeAnnualInterestBips, (address(market), bips))
+        abi.encodeCall(PeriodicTermPolicy.proposeAnnualInterestBips, (address(market), bips))
       );
       _checkDrawnUnchanged(i, drawnBefore);
       _observe(i);

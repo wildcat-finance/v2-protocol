@@ -7,6 +7,7 @@ import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { HookedMarket } from 'src/access/PeriodicTermHooks.sol';
 import { PendingAprChange } from 'src/access/PeriodicTermHooks.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -207,7 +208,7 @@ contract PeriodicTermHooksTest is TestKernel {
 
   function test_onCreateMarket_RequiresPeriodicData() external {
     DeployMarketInputs memory inputs;
-    vm.expectRevert(PeriodicTermHooks.PeriodicWindowNotProvided.selector);
+    vm.expectRevert(PeriodicTermPolicy.PeriodicWindowNotProvided.selector);
     hooks.onCreateMarket(
       address(this),
       MarketA,
@@ -236,35 +237,35 @@ contract PeriodicTermHooksTest is TestKernel {
       abi.encode(PeriodStart - maximumPeriod, maximumPeriod, maximumPeriod - 1)
     );
 
-    vm.expectRevert(PeriodicTermHooks.InitialWithdrawalWindowTooFarInFuture.selector);
+    vm.expectRevert(PeriodicTermPolicy.InitialWithdrawalWindowTooFarInFuture.selector);
     hooks.onCreateMarket(
       address(this),
       MarketC,
       inputs,
       abi.encode(PeriodStart + maximumDelay + 1, PeriodDuration, WithdrawalWindowDuration)
     );
-    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
+    vm.expectRevert(PeriodicTermPolicy.PeriodDurationOutOfBounds.selector);
     hooks.onCreateMarket(
       address(this),
       MarketC,
       inputs,
       abi.encode(FirstWithdrawalWindowStart, minimumPeriod - 1, minimumWindow)
     );
-    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
+    vm.expectRevert(PeriodicTermPolicy.PeriodDurationOutOfBounds.selector);
     hooks.onCreateMarket(
       address(this),
       MarketC,
       inputs,
       abi.encode(FirstWithdrawalWindowStart, maximumPeriod + 1, minimumWindow)
     );
-    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawalWindowDurationOutOfBounds.selector);
     hooks.onCreateMarket(
       address(this),
       MarketC,
       inputs,
       abi.encode(FirstWithdrawalWindowStart, PeriodDuration, minimumWindow - 1)
     );
-    vm.expectRevert(PeriodicTermHooks.WithdrawalWindowDurationOutOfBounds.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawalWindowDurationOutOfBounds.selector);
     hooks.onCreateMarket(
       address(this),
       MarketC,
@@ -275,9 +276,9 @@ contract PeriodicTermHooksTest is TestKernel {
 
   function test_onCreateMarket_PreservesScheduleDecodeAndMinimumFailureOrder() external {
     DeployMarketInputs memory inputs;
-    vm.expectRevert(PeriodicTermHooks.PeriodicWindowNotProvided.selector);
+    vm.expectRevert(PeriodicTermPolicy.PeriodicWindowNotProvided.selector);
     hooks.onCreateMarket(address(this), MarketA, inputs, new bytes(95));
-    vm.expectRevert(PeriodicTermHooks.PeriodDurationOutOfBounds.selector);
+    vm.expectRevert(PeriodicTermPolicy.PeriodDurationOutOfBounds.selector);
     hooks.onCreateMarket(
       address(this),
       MarketA,
@@ -421,7 +422,7 @@ contract PeriodicTermHooksTest is TestKernel {
 
     bool shouldAllow = stateIsClosed || _expectedWindowOpen(timestamp);
     vm.prank(MarketA);
-    if (!shouldAllow) vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    if (!shouldAllow) vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
   }
 
@@ -436,10 +437,10 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.blockFromDeposits(Lender);
 
     vm.prank(MarketA);
-    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
     vm.prank(MarketA);
-    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
     hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
     state.isClosed = true;
     vm.prank(MarketA);
@@ -454,7 +455,7 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
     vm.prank(MarketA);
-    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
     vm.prank(MarketA);
     hooks.onCloseMarket(state, '');
@@ -473,9 +474,9 @@ contract PeriodicTermHooksTest is TestKernel {
 
     MarketState memory state;
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(market);
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(market);
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.PeriodicTermClosed(market);
+    emit PeriodicTermPolicy.PeriodicTermClosed(market);
     vm.prank(market);
     hooks.onCloseMarket(state, '');
     assertTrue(hooks.getHookedMarket(market).isClosed, 'hook state closed');
@@ -484,7 +485,7 @@ contract PeriodicTermHooksTest is TestKernel {
 
     vm.prank(market);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalOnClosedMarket.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalOnClosedMarket.selector);
     hooks.proposeAnnualInterestBips(market, 800);
 
     _createMarket(MarketA);
@@ -509,9 +510,9 @@ contract PeriodicTermHooksTest is TestKernel {
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
     hooks.proposeAnnualInterestBips(unknownMarket, 900);
 
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalNotReduction.selector);
     hooks.proposeAnnualInterestBips(market, 1_000);
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalNotReduction.selector);
     hooks.proposeAnnualInterestBips(market, 1_001);
 
     address highAprMarket = _newAprMarket(20_000);
@@ -520,10 +521,10 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.proposeAnnualInterestBips(highAprMarket, 10_001);
 
     vm.warp(FirstWithdrawalWindowStart);
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalDuringWithdrawalWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalDuringWithdrawalWindow.selector);
     hooks.proposeAnnualInterestBips(market, 900);
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalDuringWithdrawalWindow.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalDuringWithdrawalWindow.selector);
     hooks.proposeAnnualInterestBips(market, 900);
 
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
@@ -549,7 +550,7 @@ contract PeriodicTermHooksTest is TestKernel {
         FirstWithdrawalWindowStart + WithdrawalWindowDuration
       );
     } else {
-      vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+      vm.expectRevert(PeriodicTermPolicy.AprReductionProposalNotReduction.selector);
       hooks.proposeAnnualInterestBips(market, proposedAnnualInterestBips);
     }
   }
@@ -585,9 +586,9 @@ contract PeriodicTermHooksTest is TestKernel {
     uint256 responseWindowEnd = responseWindowStart + WithdrawalWindowDuration;
     vm.warp(proposalTimestamp);
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(market);
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(market);
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposed(
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposed(
       market,
       800,
       uint32(proposalTimestamp),
@@ -619,7 +620,7 @@ contract PeriodicTermHooksTest is TestKernel {
     MarketState memory state;
     state.annualInterestBips = 1_000;
     vm.prank(MarketA);
-    vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
+    vm.expectRevert(PeriodicTermPolicy.NoPendingAprChange.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
   }
 
@@ -632,7 +633,7 @@ contract PeriodicTermHooksTest is TestKernel {
     state.annualInterestBips = 1_000;
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
     vm.prank(market);
-    vm.expectRevert(PeriodicTermHooks.AprChangeDoesNotMatchProposal.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprChangeDoesNotMatchProposal.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(899, 0, state, '');
     _assertPendingAprChange(
       market,
@@ -652,7 +653,7 @@ contract PeriodicTermHooksTest is TestKernel {
     state.annualInterestBips = 1_000;
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
     vm.prank(market);
-    vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprChangeNotReady.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
     _assertPendingAprChange(
       market,
@@ -673,7 +674,7 @@ contract PeriodicTermHooksTest is TestKernel {
     state.scaledPendingWithdrawals = 1;
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
     vm.prank(market);
-    vm.expectRevert(PeriodicTermHooks.UnpaidWithdrawalsExist.selector);
+    vm.expectRevert(PeriodicTermPolicy.UnpaidWithdrawalsExist.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
     _assertPendingAprChange(
       market,
@@ -696,7 +697,7 @@ contract PeriodicTermHooksTest is TestKernel {
       hooks.AprReductionProposalValidityPeriods();
     vm.warp(expiry);
     vm.prank(market);
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalExpired.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalExpired.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
     _assertPendingAprChange(
       market,
@@ -720,7 +721,7 @@ contract PeriodicTermHooksTest is TestKernel {
       hooks.AprReductionProposalValidityPeriods();
     vm.warp(expiry - 1);
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(market, 900);
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionExecuted(market, 900);
     vm.prank(market);
     (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
       .onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
@@ -744,25 +745,25 @@ contract PeriodicTermHooksTest is TestKernel {
 
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
     vm.prank(market);
-    vm.expectRevert(PeriodicTermHooks.AprChangeNotReady.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprChangeNotReady.selector);
     hooks.executePendingAnnualInterestBipsReduction(state);
 
     state.annualInterestBips = 900;
     vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
     vm.prank(market);
-    vm.expectRevert(PeriodicTermHooks.AprReductionProposalNotReduction.selector);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalNotReduction.selector);
     hooks.executePendingAnnualInterestBipsReduction(state);
 
     state.annualInterestBips = 1_000;
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionExecuted(market, 900);
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionExecuted(market, 900);
     vm.prank(market);
     uint16 annualInterestBips = hooks.executePendingAnnualInterestBipsReduction(state);
     assertEq(annualInterestBips, 900, 'executed APR');
     _assertNoPendingAprChange(market);
 
     vm.prank(market);
-    vm.expectRevert(PeriodicTermHooks.NoPendingAprChange.selector);
+    vm.expectRevert(PeriodicTermPolicy.NoPendingAprChange.selector);
     hooks.executePendingAnnualInterestBipsReduction(state);
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
     hooks.executePendingAnnualInterestBipsReduction(state);
@@ -777,7 +778,7 @@ contract PeriodicTermHooksTest is TestKernel {
     state.reserveRatioBips = 1_000;
 
     vm.expectEmit(address(hooks));
-    emit PeriodicTermHooks.AnnualInterestBipsReductionProposalCancelled(market);
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(market);
     vm.prank(market);
     (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
       .onSetAnnualInterestAndReserveRatioBips(1_001, 500, state, '');

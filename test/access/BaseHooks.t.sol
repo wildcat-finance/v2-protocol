@@ -11,6 +11,7 @@ import { ExistingProviderInputs } from 'src/access/ProviderStructs.sol';
 import { FixedTermHooks, HookedMarket as FixedMarket } from 'src/access/FixedTermHooks.sol';
 import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
+import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { HookedMarket as PeriodicMarket } from 'src/access/PeriodicTermHooks.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -338,7 +339,7 @@ contract BaseHooksTest is HookTemplateFixture {
         emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), 0, FixedTermEnd);
       } else if (kind == HookKind.Periodic) {
         vm.expectEmit(address(hooks[i]));
-        emit PeriodicTermHooks.PeriodicTermUpdated(
+        emit PeriodicTermPolicy.PeriodicTermUpdated(
           MarketA,
           address(this),
           FirstWindowStart,
