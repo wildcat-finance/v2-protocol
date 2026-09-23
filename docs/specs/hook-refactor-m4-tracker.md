@@ -1,10 +1,10 @@
 # M4 tracker: extension and composition proof
 
 - Plan: [M4 execution plan](hook-refactor-m4-plan.md).
-- Milestone status: authorized and in progress; M4-01 complete.
-- Execution tasks complete: 1 of 6.
-- Active task: none; M4-02 follows this checkpoint.
-- Next action: implement M4-02, verify, and stage Solidity for review.
+- Milestone status: authorized and in progress; M4-02 approved and complete.
+- Execution tasks complete: 2 of 6.
+- Active task: M4-03, fourth feature and callback activation.
+- Next action: implement and verify M4-03, then stage its Solidity for review before commit.
 - Approved M3 handoff: `eff4d5898a5384b35f16acba23fee2aca47745d0`.
 - Execution starting revision: `579bba16f5204b0a4b815811a527aed61dfb256f`.
 
@@ -37,7 +37,7 @@ for an actual impediment, stating what resolves it; unmet dependencies remain
 | ID | Task | Status | Depends on | Evidence / result |
 | --- | --- | --- | --- | --- |
 | [M4-01](hook-refactor-m4-plan.md#m4-01-handoff-identity-and-proof-map) | Qualify handoff and map probes, flags, owners, and measurements. | Done | Plan approval and instruction to execute. | [Qualified identity, open configuration correction, proof ownership, and measurements](hook-refactor-m4-results.md#m4-01-handoff-identity-and-proof-map). |
-| [M4-02](hook-refactor-m4-plan.md#m4-02-three-policy-checks-and-feature-state) | Compose two transfer features with each term choice. | Not started | M4-01. | Pending. |
+| [M4-02](hook-refactor-m4-plan.md#m4-02-three-policy-checks-and-feature-state) | Compose two transfer features with each term choice. | Done | M4-01. | [Open configuration correction, shared feature rules, 14 composition properties, unchanged production artifacts/costs, and two 339-test passes](hook-refactor-m4-results.md#m4-02-three-policy-checks-and-feature-state). |
 | [M4-03](hook-refactor-m4-plan.md#m4-03-fourth-feature-and-callback-activation) | Add borrow feature and prove real activation/deployment. | Not started | M4-02. | Pending. |
 | [M4-04](hook-refactor-m4-plan.md#m4-04-deliberate-apr-default-replacement) | Replace the APR default and prove skipped effects. | Not started | M4-03. | Pending. |
 | [M4-05](hook-refactor-m4-plan.md#m4-05-alternate-routes-and-lifecycle-integration) | Prove alternate routes and lifecycle behavior through real markets. | Not started | M4-02 through M4-04. | Pending. |
@@ -53,8 +53,8 @@ reviews and pushes the milestone.
 | Checkpoint | Review state | Signed commit |
 | --- | --- | --- |
 | M4 plan/tracker and M3 acceptance record | User approved the plan and authorized execution. | `579bba1`; kethcode SSH signature verified. |
-| M4-01 | Documentation/evidence only under existing authorization. | Signed with this checkpoint; record hash in the next tracker update. |
-| M4-02 | Not started; stage Solidity for review before commit. | Pending. |
+| M4-01 | Documentation/evidence only under existing authorization. | `d653f15`; kethcode SSH signature verified. |
+| M4-02 | User approved the staged checkpoint and authorized commit/continuation. | Signed with this checkpoint; hash recorded in the next tracker update. |
 | M4-03 | Not started; stage Solidity for review before commit. | Pending. |
 | M4-04 | Not started; stage Solidity for review before commit. | Pending. |
 | M4-05 | Not started; stage Solidity for review before commit. | Pending. |
@@ -69,7 +69,7 @@ commands, paths, hashes, and comparisons. Raw evidence lives under ignored
 | Evidence | Owning task | Status |
 | --- | --- | --- |
 | Execution identity, retained receipts, concrete configuration recipe, proof ownership, cost plan | M4-01 | [Qualified](hook-refactor-m4-results.md#m4-01-handoff-identity-and-proof-map): 1,182 matching inputs, unchanged tools/settings/submodules, 55 M3 artifact hashes and eight references verified plus the original-test replay. Open constructor configuration gap and single-owner extraction mapped. |
-| Overlapping transfer rules, state/API ownership, credential exemptions, authority and isolation, rollback | M4-02 | Pending. |
+| Overlapping transfer rules, state/API ownership, credential exemptions, authority and isolation, rollback | M4-02 | [Verified](hook-refactor-m4-results.md#m4-02-three-policy-checks-and-feature-state): four retained cases expanded across all terms, ten new properties, 25 original assertions/revert expectations retained, 339 tests / 18 suites pass in both profiles. Production ABI/layout/bytecode unchanged; three composed runtimes and stored-initcode contracts fit. |
 | Fourth feature without reusable-component edits, borrow activation/authentication, all six term/market deployment combinations | M4-03 | Pending. |
 | Selected APR result, retained guards, absent skipped-default effects, effective-value rejection | M4-04 | Pending. |
 | Changed proposal/execution conditions, both APR routes, separate creation/setter/closure behavior, market accounting | M4-05 | Pending. |
@@ -102,13 +102,13 @@ not new M4 test runs.
 
 ## Blockers and next action
 
-No execution blocker remains for M4-02. The open constructor's fixed deployment
-configuration requires a focused correction: extract its existing behavior to
-`OpenTermPolicy`, keeping the concrete API/flags and one implementation. The
-periodic size budget remains a measured constraint on the examples. Next action
-is M4-02 implementation and verification, then staged review before its Solidity
-commit. M4-01 changes only documentation and reuses qualified prior evidence.
-The voice guide, reference PDF, and lifecycle sketch remain excluded.
+M4-02 is approved and complete. `OpenTermPolicy` resolves the constructor
+configuration gap while preserving the production template's API/flags,
+packing, executable bytes, and costs. Independent recipient/amount features
+work with all three term choices; periodic's composed stored-initcode headroom
+is 1,118 bytes. The full composed-market factory matrix and borrow activation
+remain M4-03. Stage the next Solidity checkpoint for its own review before
+commit or M4-04. The voice guide, PDF, and lifecycle sketch remain excluded.
 
 ## Progress log
 
@@ -117,3 +117,5 @@ The voice guide, reference PDF, and lifecycle sketch remain excluded.
 | 2026-09-23: M3 accepted | User confirmed the reviewed M3 milestone is pushed and requested the next stage. |
 | 2026-09-23: M4 planning | Prepared six tasks covering independent transfer features, a fourth borrow feature, deliberate APR default replacement, lifecycle integration, and qualification. Recorded concrete callback/size constraints, prior parity evidence, and staged Solidity review. Execution has not started. |
 | 2026-09-23: M4 authorized / M4-01 complete | User instructed execution. Qualified the unchanged M3 inputs, tools/settings, artifacts, signatures and supplemental replay; mapped proof owners, feature state/authority/order, and costs. Identified open constructor configuration as the first boundary correction. Documentation-only signed checkpoint; M4-02 retains staged Solidity review. |
+| 2026-09-23: M4-02 ready for review | Extracted/adopted open configuration and adapters with unchanged original declarations/comments. Added two independent test features and explicit assemblies for each term, replacing the old recipient-only mock. Preserved its four cases/assertions and added ten properties. Final default/deploy checks each pass 339 tests / 18 suites; production ABI/layout/bytecode/costs and lint baseline are retained. Measured composed sizes, actual initcode storage deployments, and 15 transfer callback costs. Staged for review before commit or M4-03. |
+| 2026-09-23: M4-02 approved | User approved the staged checkpoint and instructed commit/continuation. Verified the reviewed index and all 40 evidence hashes before changing completion status only. Signed kethcode checkpoint; M4-03 is next. |

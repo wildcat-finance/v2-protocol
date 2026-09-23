@@ -135,3 +135,164 @@ Paths below are relative to the ignored M4 evidence root.
 M4-01 is complete as a documentation/evidence checkpoint. M4-02 follows with
 the demonstrated open configuration correction and the first composed features,
 subject to staged Solidity review before commit.
+
+## M4-02: Three-policy checks and feature state
+
+### Open configuration and ownership
+
+Extracted `OpenTermPolicy` and `types/OpenTermHookTypes.sol`; the existing
+`OpenTermHooks` adopts them immediately. Of the original 12 contract members,
+eight now belong to the abstract policy and four remain in the concrete hook
+(constructor, identity, and two public configuration adapters). Every original
+member's signature/body tokens, the global struct, and all original comment
+lines are preserved. The struct remains importable from `OpenTermHooks.sol`.
+
+This gives open compositions the same constructor arrangement as fixed and
+periodic: the concrete hook supplies `BaseHooks` flags once, while reusing the
+authoritative packed configuration and its adapters. Shared access/constraint
+code and both other term policies/concrete hooks are unchanged. No production
+callback, public API, or market flow is added by this correction.
+
+### Independent features and explicit integration
+
+`test/mocks/TransferFeaturePolicies.sol` owns the two test rules:
+
+- `RecipientRestrictionPolicy`: one restricted recipient per market, with an
+  administrator-managed setter and public query. Zero clears that restriction.
+  One predicate serves both transfer validation and recipient eligibility.
+- `TransferAmountPolicy`: a positive maximum scaled amount per transfer and
+  accepted scaled volume per market. The volume saturates at `uint256.max`;
+  neither reaching the per-transfer limit cumulatively nor arithmetic overflow
+  can turn this observational total into a global transfer lock.
+
+Their shared `FeatureAuthority` declares an authorization adapter, with no new
+administrator or registration state. Each composition implements it using
+`onlyAdministrator` and `_requireHookedMarket`. `TransferFeatures` selects the
+order explicitly: record an allowed amount, then check the recipient. A later
+recipient rejection rolls back that write and the preceding default credential
+effects. There is no inheritance-order decision between these rules.
+
+`test/mocks/TransferFeatureHooks.sol` binds that integration to open, fixed, and
+periodic behavior. The abstract assemblies leave their callback bindings virtual
+for the next composition; concrete hooks select constructor flags and their own
+test-only identities. Thin configuration getters read the term-owned state.
+They force transfer dispatch without forcing transfer credentials and retain
+each term's other callback flags. Borrow dispatch is still absent.
+
+During creation, the probe uses `maxTotalSupply` as its initial scaled transfer
+limit, while the initial market scale factor is `RAY`. Setup uses callback
+inputs after term registration and reads no undeployed-market getters. A zero
+initial limit rejects setup and restores the preceding registration/configuration
+effects. This is a test-feature choice, not a new production creation rule.
+
+Removed the old immutable, open-only `RecipientRestrictionHooks` mock. Its four
+cases now use the reusable recipient component alongside the amount component
+across all three term choices. All 25 original assertion/revert expressions
+remain, with only the error declaration's owner qualification changed. There
+is one maintained recipient rule and no inherited test entrypoints.
+
+### Behavioral evidence and verification
+
+The existing `HookExtensionsTest` now owns 14 properties: its four retained
+recipient cases, expanded to the runtime matrix, and ten new composition cases.
+The added coverage verifies:
+
+- Declared/effective callback flags and ungated entry when transfer credentials
+  were omitted, including setup before the market has code.
+- Rejected creation followed by successful creation at the same market address.
+- Below/at/above amount bounds, successful volume events, volume beyond a
+  single-transfer limit, and saturation without disabling transfers.
+- Independent recipient/amount failures, explicit priority when both reject,
+  and rollback of default credentials, known-lender state, and feature effects.
+- Both rules still applying after known-recipient and registered-wrapper
+  credential exemptions, with the recipient view retaining its narrower promise.
+- Administrator/registration checks, pending and completed administrator
+  transfer, management events/queries, and isolation of multiple markets.
+- Retained minimum-deposit, withdrawal-access/schedule, fixed APR guard,
+  closure, and globally disabled-transfer behavior in the compositions.
+- Actual deployment of each composed runtime and its `STOP || initcode`
+  storage contract, with explicit runtime/storage/constructor size bounds.
+
+Final focused default and deploy runs each pass **339 tests across 18 suites**,
+with 1,000 fuzz iterations and seed `0x5eed`. They include common/access/APR/
+term suites and factory, dispatch, lens, administrator transfer, borrower-account,
+wrapper, standard/revolving production matrix, and market tests. Discovery
+matches the prior 329-case selection plus these ten additions. The complete
+source inventory remains 51 owning suites with 737 entrypoints; the three full
+canonical runs and invariant campaigns remain M4-06.
+
+All six touched Solidity files pass Prettier. Full lint and standalone Solhint
+logs match M3 exactly: 33 untouched formatting failures, zero Solhint errors,
+and 22 existing warnings. An initial test-harness stack-depth failure was
+resolved by using the existing `LibStoredInitCodeExternal` wrapper for the
+deployment assertion; no production assembly or compiler setting changed.
+Long new imports were split to remove their lint warnings before final checks.
+
+### Compatibility, deployment sizes, and costs
+
+Both profiles retain all three production raw ABIs, selectors, creation/runtime
+bytes, link references, and immutable patch positions. Normalized layouts match
+M1 and M3 with 11 entries each and no slot changes. Comparison to M1 permits
+only the already-approved callback-input names from M2. Fresh artifact metadata
+matches current source hashes, including the moved open implementation.
+
+Production runtime/creation sizes remain 15,653/18,379 bytes for open,
+17,014/19,741 for fixed, and 19,949/22,676 for periodic. The qualified production
+gas observations remain applicable under their original state, inputs, tool
+settings, isolation, and measurement boundaries: 97 callback, 70 creation/
+minimum/query, and 14 management observations. This is retained evidence with
+zero executable/cost delta from M3, not fresh production gas measurement; all
+previous exclusions remain.
+
+| Test composition | Runtime bytes | Creation bytes | Stored initcode bytes | Stored headroom | Creation with empty `args` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `OpenTransferHooks` | 16,480 | 19,207 | 19,208 | 5,368 | 19,303 |
+| `FixedTransferHooks` | 17,838 | 20,565 | 20,566 | 4,010 | 20,661 |
+| `PeriodicTransferHooks` | 20,730 | 23,457 | 23,458 | 1,118 | 23,553 |
+
+The composed ABIs and executable bytes match between profiles. These artifacts
+fit the 24,576-byte runtime/storage and 49,152-byte constructor limits. Source
+reuse does not eliminate feature bytecode cost; periodic's remaining 1,118
+bytes are the concrete budget for M4-03's fourth-feature example.
+
+Two existing scenarios supply 15 new direct transfer-callback observations.
+Representative trace-reported gas is shown below; complete inputs/outcomes are
+in the raw summary. Calls use Foundry isolation, fixed timestamp/seed, caller
+`MarketA`, initial limit 100, and a zeroed intermediate state. These are probe
+callback costs, not complete market-transfer estimates or production deltas.
+
+| Composition | Rejected for missing credentials | Accepted credential entry, amount 1 | Recipient rejection after entry/volume processing, amount 1 |
+| --- | ---: | ---: | ---: |
+| Open | 45,891 | 119,649 | 102,556 |
+| Fixed | 45,853 | 119,611 | 102,518 |
+| Periodic | 46,088 | 119,846 | 102,753 |
+
+The other six observations cover amount rejection before recipient validation
+and recipient rejection after an at-limit amount write. Actual factory-created
+composed markets, borrowed-asset effects, and the fourth feature remain M4-03.
+Default replacement and the remaining alternate-route/lifecycle proofs remain
+M4-04/M4-05. This checkpoint does not claim those later results.
+
+### M4-02 evidence identities
+
+Paths are relative to the ignored M4 evidence root. The final input manifest
+contains 288 source/test/script/settings files and 897 dependency files.
+
+| File | SHA-256 |
+| --- | --- |
+| `m4-02-qualification.json` | `b22c82cbabe3f14ad28194d357710f3517c26ab7d4dde43e913f15b8b247d3bd` |
+| `m4-02-review-inputs.sha256.json` | `30996b2789245d7f073b92a76c4134ae41ae80da217367a5eafd71a303bf9d80` |
+| `m4-02-review-tests-default-receipt.json` | `d93ca5109cf8fcd58b5aba538ab84a67ecdebfe2e64c116c64014db0eacb20d6` |
+| `m4-02-review-tests-deploy-receipt.json` | `03ee6759926aa99d1d9897c1ef00e6d078e6115eff4ccbf2328c5b1e07182e70` |
+| `m4-02-ownership-comparison.json` | `a0e34d0d52854e2f6d9d4c96f452b6d8c92b2a7ff51a46a240ca203f0d57d371` |
+| `m4-02-abi-comparison.json` | `c8dc4de428066730717f83c972cf91ec0828fd148c3a7723dd3be43987b9ac28` |
+| `m4-02-storage-comparison.json` | `aad7a77b82e41c203354497f1f28d987a4aaa21821f16634bf22f896cc011ac7` |
+| `m4-02-composition-artifacts.json` | `f7e1bce71cf6c2cb9fa1cf7b8a44a3808f9cd170a320672b49e30969dab83cd6` |
+| `m4-02-transfer-gas-summary.json` | `fb6fa3b083512bf07fa09005a90c209d41c62b64e9ed1b697af6bcf3679468d2` |
+| `m4-02-lint-comparison.json` | `975399b18f75bed9d7fe3ebdbe5ee0b3a15b3cc1997b07328eaff98181f3e246` |
+
+The user approved the staged M4-02 checkpoint and authorized commit/continuation.
+Its reviewed Solidity and all 40 evidence hashes were verified unchanged before
+the signed kethcode commit; only completion-status documentation changed after
+review. M4-03 is next. The reference documents and voice guide remain untracked
+and excluded.
