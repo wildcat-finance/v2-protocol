@@ -1,0 +1,119 @@
+# M3 tracker: reusable term policies
+
+- Plan: [M3 execution plan](hook-refactor-m3-plan.md).
+- Milestone status: planning prepared; awaiting review and instruction to start.
+- Execution tasks complete: 0 of 6.
+- Active task: none; no M3 implementation has started.
+- Next action: review the plan, then authorize M3-01.
+- Approved M2 handoff: `c54e57312e63ceadee88492d8c47ae632b876b0b`.
+- Execution starting revision: record when execution begins.
+
+The user accepted and pushed M2 on 2026-09-23. Its
+[results and handoff](hook-refactor-m2-results.md#m3-handoff) supply the starting
+implementation; the [M1 design](hook-refactor-m1-design.md) and
+[baseline](hook-refactor-m1-baseline.md) retain the original compatibility
+contract. Preparing this plan/tracker does not claim execution or verification
+of an M3 implementation.
+
+## Completed groundwork
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Scope, component ownership, internal signatures, and deliberate override responsibilities | Done | [Spec](hook-composition.md), [behavior map](hook-behavior-map.md), and [M1 design](hook-refactor-m1-design.md). |
+| Shared M2 implementation and qualification | Done | [M2 final results](hook-refactor-m2-results.md#m2-06-qualification-and-m3-handoff), qualified against `549bfaa`; documentation checkpoint `c54e573`. |
+| M2 milestone review and push | Done | User confirmation on 2026-09-23; [M2 tracker](hook-refactor-m2-tracker.md). |
+| M3 plan and tracker | Prepared | [Plan](hook-refactor-m3-plan.md) and this file; implementation remains unstarted. |
+| Review and signing workflow | Recorded | [Checkpoint workflow](hook-refactor-m3-plan.md#deliverables-and-review-workflow); staged review before every Solidity commit, including tests. |
+
+## Task status
+
+Use `Not started`, `In progress`, `Ready for review`, `Done`, or `Blocked`.
+`Ready for review` means implementation, checks, and evidence are complete and
+the intended checkpoint is staged; it still requires user approval before a
+Solidity commit. Do not stack the next implementation task on that staged
+checkpoint. `Done` requires completion evidence and its signed commit, with
+approval for Solidity changes. Record completion in that checkpoint and its
+hash in the next tracker update. Use `Blocked` for an actual impediment and
+state what resolves it; unmet dependencies remain `Not started`.
+
+| ID | Task | Status | Depends on | Evidence / result |
+| --- | --- | --- | --- | --- |
+| [M3-01](hook-refactor-m3-plan.md#m3-01-handoff-identity-and-move-inventory) | Qualify the handoff and map moves, consumers, tests, and measurements. | Not started | M2 accepted; instruction to start M3. | Pending. |
+| [M3-02](hook-refactor-m3-plan.md#m3-02-fixed-policy-extraction) | Extract and adopt the fixed policy. | Not started | M3-01. | Pending. |
+| [M3-03](hook-refactor-m3-plan.md#m3-03-fixed-setter-extension-points) | Add fixed setter extension points and behavioral probes. | Not started | M3-02. | Pending. |
+| [M3-04](hook-refactor-m3-plan.md#m3-04-periodic-policy-extraction) | Extract and adopt the complete periodic policy. | Not started | M3-03. | Pending. |
+| [M3-05](hook-refactor-m3-plan.md#m3-05-periodic-proposal-extension-point) | Add periodic proposal validation and focused tests. | Not started | M3-04. | Pending. |
+| [M3-06](hook-refactor-m3-plan.md#m3-06-qualification-and-m4-handoff) | Qualify M3 and record the M4 handoff. | Not started | M3-01 through M3-05. | Pending. |
+
+## Review and checkpoint register
+
+All commits use `kethcode <dave@wildcat.finance>` and the repository-selected SSH
+signing key. The user reviews and pushes milestones. Documentation-only commits
+use the existing authorization; approval of one Solidity checkpoint does not
+authorize committing the next one before review.
+
+| Checkpoint | Review state | Signed commit |
+| --- | --- | --- |
+| M3 plan/tracker and M2 acceptance status | Documentation only; prepared for plan review. | Included in this planning checkpoint; hash recorded in the next update. |
+| M3-01 | Not started. | Pending. |
+| M3-02 | Not started; stage for Solidity review when verified. | Pending. |
+| M3-03 | Not started; stage for Solidity review when verified. | Pending. |
+| M3-04 | Not started; stage for Solidity review when verified. | Pending. |
+| M3-05 | Not started; stage for Solidity review when verified. | Pending. |
+| M3-06 | Not started. | Pending. |
+
+## Evidence register
+
+Create `hook-refactor-m3-results.md` during M3-01. It will identify source,
+settings, commands, raw artifact paths/hashes, comparisons, and the final handoff.
+Raw M3 evidence belongs in ignored `audits/hook-refactor/m3/<run-id>/`. M1/M2
+receipts are retained references, not claims of fresh M3 verification.
+
+| Evidence | Owning task | Status |
+| --- | --- | --- |
+| Execution identity, reusable M2 evidence, move/consumer/test map, missing management measurements | M3-01 | Pending qualification. |
+| Fixed ownership, imports/ABI/packing, ordering, lifecycle integrations, size/gas | M3-02 | Pending. |
+| Fixed setter extension acceptance/rejection, guard priority, after-change state and rollback | M3-03 | Pending. |
+| Periodic ownership, public queries/types, complete proposal lifecycle, both APR routes, integrations and costs | M3-04 | Pending. |
+| Proposal extension context, acceptance/replacement/rejection, native guard priority and preserved prior proposal | M3-05 | Pending. |
+| Final ownership/override review, three required test runs, lint comparison and production integrations | M3-06 | Pending. |
+| Final ABI/layout/size/gas reconciliation and M4 handoff | M3-06 | Pending. |
+
+## Starting measurements and watchpoints
+
+These are accepted M2 results to qualify at M3-01, not M3 passes:
+
+| M2 reference | Recorded result |
+| --- | --- |
+| Required default / fixed-seed / deploy runs | 707 tests across 51 suites pass in each run; nine invariant properties form one reported campaign. |
+| Full lint | 34 untouched Prettier failures; standalone Solhint has zero errors and 22 warnings. |
+| Runtime / creation / stored-initcode headroom, bytes | Open: 15,653 / 18,379 / 6,196. Fixed: 17,014 / 19,741 / 4,834. Periodic: 19,949 / 22,676 / 1,899. |
+| Compatibility and costs | M2 raw ABIs and packed layouts retained; all 97 M1 callback observations reconciled, plus 70 comparable creation/minimum/query observations. [Details](hook-refactor-m2-results.md#final-compatibility-deployment-size-and-gas). |
+
+| Concern | Required treatment |
+| --- | --- |
+| One implementation | Adopt each policy and remove the old body/declaration in the same task; retain shared access/constraint owners and one packed state representation. |
+| Public imports and ABI | Re-export moved global types from existing concrete files. Preserve M2 names/tuples/selectors and artifact paths; update declaration-owner qualifications mechanically. |
+| Constructor and flags | Initialize `BaseHooks` once from the concrete composition; retain requested access versus forced dispatch and existing family/revision metadata. |
+| Fixed management | Preserve native guard order and equal-time behavior; validate before writing, run the after-change extension after the event, roll back on either rejection. Creation/closure remain distinct paths. |
+| Periodic lifecycle | One proposal owner across management, both executions, increase cancellation, queries, and closure. Proposal checks precede replacement effects; effective APR checks still run on execution. |
+| Default selection | Fixed retains its APR guard before the selected default. Periodic reductions skip temporary-reserve logic and keep current reserves; the dedicated path stays APR-only with empty data. |
+| Schedule, access, and closure | Preserve queue error priority and closed-window behavior without bypassing withdrawal access. Keep market batching and the market-owned closure APR/reserve reset. |
+| Deployment and cost | Measure runtime and `STOP || initcode`; periodic begins with 1,899 bytes of stored-initcode headroom. Keep comparable source/settings/fixture/call boundaries. |
+| Tests and comments | Reuse concrete owning suites and helpers without inherited test entrypoints or copied oracles. Preserve technical names and branch explanations in comments. |
+| Scope | Keep broader composition/replacement proofs in M4 and final contributor guidance/qualification in M5. No tranching policy selection or runtime feature slots. |
+
+## Blockers and next action
+
+No planning blocker is known. The six execution tasks remain unstarted.
+Next: user review of the plan and instruction to begin M3-01. No Solidity,
+compiler configuration, or test implementation changes are part of this
+planning checkpoint. The voice guide, reference PDF, and lifecycle sketch
+remain untracked and excluded; no push is performed.
+
+## Progress log
+
+| Entry | Update |
+| --- | --- |
+| 2026-09-23: M2 accepted | User confirmed M2 looks good and has been pushed. |
+| 2026-09-23: M3 planning | Prepared six sequential tasks, separating each policy move from its management extension points. Carried forward compatibility, packed ownership, lifecycle/override responsibilities, size/gas evidence, and staged Solidity review. Execution has not started. |

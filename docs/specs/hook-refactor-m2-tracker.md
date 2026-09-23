@@ -1,10 +1,10 @@
 # M2 tracker: shared hook behavior
 
 - Plan: [M2 execution plan](hook-refactor-m2-plan.md).
-- Milestone status: implementation and qualification complete; awaiting user review and push.
+- Milestone status: complete; reviewed and pushed by the user on 2026-09-23.
 - Execution tasks complete: 6 of 6.
-- Active task: none; M2 is ready for milestone review.
-- Next action: user review and push, then M3 planning.
+- Active task: none.
+- Next action: review the [M3 plan](hook-refactor-m3-plan.md) and [tracker](hook-refactor-m3-tracker.md).
 - Approved M1 handoff: `d454f26fcf54db847657ef08c355e75e72d4356a`.
 - Execution starting revision: `1b8e36c76713af709a9326adfceac33b15b5f619`.
 
@@ -21,6 +21,7 @@ implementation merely because a requirement was resolved in M1.
 | Storage, interfaces, ownership, metadata, and reference measurements | Done | Approved [M1 design/handoff](hook-refactor-m1-design.md#m2-handoff) and [baseline](hook-refactor-m1-baseline.md). |
 | M1 milestone review and push | Done | User confirmation on 2026-09-22; [M1 tracker](hook-refactor-m1-tracker.md). |
 | M2 plan and tracker | Done | [Plan](hook-refactor-m2-plan.md) and this file; planning only. |
+| M2 milestone review and push | Done | User confirmation on 2026-09-23, through signed checkpoint `c54e573`. |
 | Solidity checkpoint review rule | Recorded | User instruction: stage and obtain review before committing Solidity edits, including tests; [workflow](hook-refactor-m2-plan.md#deliverables-and-review-workflow). |
 
 ## Task status
@@ -59,7 +60,7 @@ renewed review after substantive changes to an approved diff. All commits use
 | M2-03 | Verified; user accepted the staged changes and authorized continuation. Callback/view costs and smaller bytecode documented. | `6859b70`; kethcode SSH signature verified. |
 | M2-04 | Verified; user accepted the staged changes and authorized continuation. Queue/closure behavior and cost comparisons recorded. | `95a2912`; kethcode SSH signature verified. |
 | M2-05 | Verified; user accepted the code and revised comments and authorized continuation. Both periodic validation routes, rollback, compatibility, and costs recorded. | `549bfaa`; kethcode SSH signature verified. |
-| M2-06 | Full qualification complete; documentation/evidence only under existing commit authorization. | Included in this signed checkpoint; hash recorded in the next update. |
+| M2-06 | Full qualification complete; documentation/evidence only. User accepted and pushed M2. | `c54e573`; kethcode SSH signature verified. |
 
 ## Evidence register
 
@@ -106,10 +107,11 @@ retains 1,899 bytes of stored-initcode headroom; measured cost tradeoffs remain
 documented. Full lint retains the same 34 untouched formatting failures and
 22 warnings, with no new failures. All 17 changed Solidity paths pass formatting.
 
-No implementation blocker remains. Next: the user's milestone review and push,
-then a separate M3 plan/tracker based on the [handoff](hook-refactor-m2-results.md#m3-handoff).
-M3 has not started. Reference documents and the voice guide remain untracked;
-no push has been performed. Future Solidity checkpoints retain staged review.
+The user accepted and pushed M2 on 2026-09-23. The separate
+[M3 plan](hook-refactor-m3-plan.md) and [tracker](hook-refactor-m3-tracker.md)
+are prepared for review; M3 implementation has not started. Reference documents
+and the voice guide remain untracked. Future Solidity checkpoints retain staged
+review, and milestone pushes remain with the user.
 
 ## Progress log
 
@@ -133,3 +135,4 @@ no push has been performed. Future Solidity checkpoints retain staged review.
 | M2-05 accepted | User approved the code and revised comments and instructed a signed kethcode commit and continuation. The approved patch and all staged file hashes match the retained review receipt. M2-06 begins with qualification; any further Solidity changes require staged review. |
 | 2026-09-23: M2-05 committed | Signed commit `549bfaa` as `kethcode <dave@wildcat.finance>`; SSH signature verified. The committed Solidity patch and file hashes match the approved comment-amended review receipt. |
 | 2026-09-23: M2-06 complete | All three required runs pass 707 tests / 51 suites. Final ownership, production integrations, ABI/storage, deployment limits, gas, toolchain/source identities, and baseline lint differences are reconciled. All 97 original callback measurements replayed in a separate temporary checkout; canonical suites remain consolidated. Recorded M3 handoff and M4/M5 obligations. Documentation-only checkpoint; M2 awaits user review and push. |
+| 2026-09-23: M2 accepted and pushed | User confirmed M2 looks good and has been pushed. Qualification checkpoint is `c54e573`. Prepared the separate M3 plan/tracker; implementation awaits the user's instruction to start. |

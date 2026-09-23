@@ -7,7 +7,9 @@
   [M1 baseline](hook-refactor-m1-baseline.md).
 - Raw evidence root: `audits/hook-refactor/m2/2026-09-22/` (ignored).
 - Final qualification: [M2-06](#m2-06-qualification-and-m3-handoff) is complete;
-  [M3 handoff](#m3-handoff) awaits the user's M2 review and push.
+  the user accepted and pushed M2 on 2026-09-23. The
+  [M3 plan](hook-refactor-m3-plan.md) translates the [handoff](#m3-handoff)
+  into the next milestone's tasks.
 
 ## M2-01: Execution identity and reusable evidence
 
@@ -708,9 +710,10 @@ excluded from the checkpoint.
 ## M2-06: Qualification and M3 handoff
 
 Status: complete against `549bfaa8d01e27f30dca97b5858f5e8f22d75937`.
-This checkpoint changes documentation only. No further Solidity changes or
-additional canonical tests were needed. M2 is ready for the user's milestone
-review and push; M3 planning has not started.
+Documentation checkpoint `c54e57312e63ceadee88492d8c47ae632b876b0b` has a verified
+kethcode SSH signature. No further Solidity changes or additional canonical
+tests were needed. The user accepted and pushed M2 on 2026-09-23;
+[M3 planning](hook-refactor-m3-plan.md) follows this handoff.
 
 ### Final verification
 
@@ -837,8 +840,9 @@ None of those exclusions affects the original 97 callback observations.
 
 M2 establishes shared behavior and the first extension checks. It does not yet
 prove general multi-policy composition or future tranching compatibility.
-After the user reviews and pushes M2, prepare M3's plan/tracker around the
-existing [M1 design](hook-refactor-m1-design.md) and these remaining changes:
+The user has reviewed and pushed M2. The separate [M3 plan](hook-refactor-m3-plan.md)
+and [tracker](hook-refactor-m3-tracker.md) follow the existing
+[M1 design](hook-refactor-m1-design.md) and these remaining changes:
 
 | Component | Remaining M3 work and protection |
 | --- | --- |
@@ -886,5 +890,5 @@ and earlier checkpoint evidence remains intact.
 | `m2-06-qualification.json` | `f18a4e58013de18984c7c656bf6133254293e22028dd680d0637a9ea290d125d` |
 | `m2-05-acceptance.json` | `db4d235362b1e76e2167a2a0efcd0349861cf23c186d776181b6105380398289` |
 
-The voice guide, reference PDF, and lifecycle sketch remain untracked. Nothing
-has been pushed; milestone acceptance and push remain with the user.
+The voice guide, reference PDF, and lifecycle sketch remain untracked. The user
+accepted and pushed M2 on 2026-09-23; M3 implementation has not started.
