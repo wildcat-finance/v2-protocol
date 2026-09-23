@@ -1,10 +1,10 @@
 # M3 tracker: reusable term policies
 
 - Plan: [M3 execution plan](hook-refactor-m3-plan.md).
-- Milestone status: in progress; plan approved and execution authorized.
-- Execution tasks complete: 5 of 6.
-- Active task: M3-05 complete; M3-06 next.
-- Next action: complete final M3 qualification and the M4 handoff.
+- Milestone status: complete; ready for user milestone review and push.
+- Execution tasks complete: 6 of 6.
+- Active task: none; M3-06 qualification complete.
+- Next action: user reviews and pushes M3; prepare M4 planning only after that handoff.
 - Approved M2 handoff: `c54e57312e63ceadee88492d8c47ae632b876b0b`.
 - Execution starting revision: `25d38d016f8884d24dced6a9e1c320e5bed5cc34`.
 
@@ -43,7 +43,7 @@ state what resolves it; unmet dependencies remain `Not started`.
 | [M3-03](hook-refactor-m3-plan.md#m3-03-fixed-setter-extension-points) | Add fixed setter extension points and behavioral probes. | Done | M3-02. | [Setter boundaries, six new cases, unchanged production artifacts/costs, and focused default/deploy passes](hook-refactor-m3-results.md#m3-03-fixed-setter-extension-points); user approved the staged checkpoint. |
 | [M3-04](hook-refactor-m3-plan.md#m3-04-periodic-policy-extraction) | Extract and adopt the complete periodic policy. | Done | M3-03. | [Complete lifecycle ownership, unchanged bodies/ABI/layout/bytecode, focused default/deploy checks and invariant campaign](hook-refactor-m3-results.md#m3-04-periodic-policy-extraction); user approved the staged checkpoint. |
 | [M3-05](hook-refactor-m3-plan.md#m3-05-periodic-proposal-extension-point) | Add periodic proposal validation and focused tests. | Done | M3-04. | [Proposal boundary, six new cases, retained execution validation, unchanged production artifacts/costs and focused default/deploy passes](hook-refactor-m3-results.md#m3-05-periodic-proposal-extension-point); user approved the staged checkpoint. |
-| [M3-06](hook-refactor-m3-plan.md#m3-06-qualification-and-m4-handoff) | Qualify M3 and record the M4 handoff. | Not started | M3-01 through M3-05. | Pending. |
+| [M3-06](hook-refactor-m3-plan.md#m3-06-qualification-and-m4-handoff) | Qualify M3 and record the M4 handoff. | Done | M3-01 through M3-05. | [Final ownership/override review, three 719-test passes, unchanged compatibility/costs, lint comparison, and M4 handoff](hook-refactor-m3-results.md#m3-06-qualification-and-m4-handoff). |
 
 ## Review and checkpoint register
 
@@ -59,8 +59,8 @@ authorize committing the next one before review.
 | M3-02 | User reviewed and authorized commit and continuation. | `2227aa2`; kethcode SSH signature verified; reviewed Solidity hashes retained. |
 | M3-03 | User reviewed and authorized commit and continuation. | `24d9b8e`; kethcode SSH signature verified; reviewed Solidity hashes retained. |
 | M3-04 | User reviewed and authorized commit and continuation. | `2eed041`; kethcode SSH signature verified; reviewed Solidity hashes retained. |
-| M3-05 | User reviewed and authorized commit and continuation. | Signed in this checkpoint; hash recorded in the next update. |
-| M3-06 | Not started. | Pending. |
+| M3-05 | User reviewed and authorized commit and continuation. | `a0867e0`; kethcode SSH signature verified; reviewed Solidity hashes retained. |
+| M3-06 | Documentation-only qualification and handoff under existing commit authorization; milestone review/push remains with user. | Signed with this checkpoint; hash recorded at the next tracker update. |
 
 ## Evidence register
 
@@ -76,8 +76,8 @@ receipts are retained references, not claims of fresh M3 verification.
 | Fixed setter extension acceptance/rejection, guard priority, after-change state and rollback | M3-03 | [Verified](hook-refactor-m3-results.md#m3-03-fixed-setter-extension-points): 323 tests / 18 suites pass in each profile; six new cases in the existing fixed suite; empty defaults compile away; ABI/layout/size/gas and lint baselines retained. |
 | Periodic ownership, public queries/types, complete proposal lifecycle, both APR routes, integrations and costs | M3-04 | [Verified](hook-refactor-m3-results.md#m3-04-periodic-policy-extraction): 323 tests / 18 suites pass in each profile; nine invariant properties pass over 60,000 calls; production artifacts/costs and handler bytecode retained; touched formatting resolves one prior failure. |
 | Proposal extension context, acceptance/replacement/rejection, native guard priority and preserved prior proposal | M3-05 | [Verified](hook-refactor-m3-results.md#m3-05-periodic-proposal-extension-point): 329 tests / 18 suites pass in each profile; six new periodic cases; raw ABI/layout/bytecode/size/gas and lint baselines retained. |
-| Final ownership/override review, three required test runs, lint comparison and production integrations | M3-06 | Pending. |
-| Final ABI/layout/size/gas reconciliation and M4 handoff | M3-06 | Pending. |
+| Final ownership/override review, three required test runs, lint comparison and production integrations | M3-06 | [Verified](hook-refactor-m3-results.md#m3-06-qualification-and-m4-handoff): 719 tests / 51 suites pass in each required run, including nine invariant properties over 60,000 calls. Twelve new cases stay in existing owners. All 15 changed Solidity files pass formatting; 33 untouched failures and 22 existing warnings remain. |
+| Final ABI/layout/size/gas reconciliation and M4 handoff | M3-06 | [Verified](hook-refactor-m3-results.md#final-compatibility-deployment-size-and-gas): M2 ABIs, executable bytes, layouts and sizes retained; only approved M1 callback-input labels differ. The 97 callback, 70 creation/minimum/query and 14 management observations remain applicable under original conditions/exclusions. [M4 scope and limits](hook-refactor-m3-results.md#m4-handoff) recorded. |
 
 ## Starting measurements and watchpoints
 
@@ -105,10 +105,13 @@ These are accepted M2 results qualified at M3-01, not fresh M3 passes:
 
 ## Blockers and next action
 
-M3-05 is approved for its signed checkpoint. M3-06 follows with full qualification
-and the M4 handoff. No implementation blocker is known. Any further Solidity
-change requires its own staged review before commit. The voice guide, reference
-PDF, and lifecycle sketch remain untracked and excluded; no push is performed.
+All M3 tasks are complete. The implementation is signed at `a0867e0`; this final
+documentation checkpoint records qualification and the M4 handoff. No unresolved
+M3 behavior, compatibility, or cost regression remains. The user reviews and
+pushes the milestone before a separate M4 plan/tracker is prepared. Existing lint
+failures and the periodic size budget are recorded above. The voice guide,
+reference PDF, and lifecycle sketch remain untracked and excluded; no push is
+performed.
 
 ## Progress log
 
@@ -125,3 +128,4 @@ PDF, and lifecycle sketch remain untracked and excluded; no push is performed.
 | 2026-09-23: M3-04 approved | User reviewed the staged periodic extraction and authorized commit and continuation. Verified the reviewed patch and source hashes are unchanged; only completion status is updated for the signed checkpoint. M3-05 retains its own staged review. |
 | 2026-09-23: M3-05 ready for review | Added the empty proposal validation extension after native checks/window calculations and before replacement effects. The test-only derivative reuses the existing APR floor and inherited proposal entrypoint; six new cases cover acceptance, rejection, exact window context, retained prior state, native error priority and width checks. Default/deploy runs each pass 329 tests / 18 suites. Production ABI/layout/bytecode/size/gas and the 33-file/22-warning lint baseline remain unchanged. Staged for review before commit or M3-06. |
 | 2026-09-23: M3-05 approved | User reviewed the staged proposal extension and authorized commit and continuation. Verified the reviewed patch, source hashes, and supporting evidence are unchanged; only completion status is updated for the signed checkpoint. M3-06 follows with final qualification. |
+| 2026-09-23: M3-06 complete | Verified all reviewed implementation signatures and the final source/tool/settings identity. All three required commands pass 719 tests / 51 suites with full invariant campaigns. Reconciled single ownership, all twelve added cases, consequential overrides, exact M2 ABIs/layouts/bytecode/sizes and retained gas evidence. All touched formatting passes; no new lint findings. Recorded M4 composition, replacement, isolation, activation and lifecycle proofs plus core/interface/size limits. Documentation-only checkpoint; M3 awaits user review/push, and M4 has not started. |

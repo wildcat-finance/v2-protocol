@@ -525,3 +525,170 @@ The user approved M3-05 and authorized its signed checkpoint. The reviewed
 source and staged patch hashes were verified before updating these completion
 notes. M3-06 follows with final qualification. The voice guide, reference PDF,
 and lifecycle sketch remain untracked and excluded; no push has been performed.
+
+## M3-06: Qualification and M4 handoff
+
+Complete against implementation revision
+`a0867e059e7929d2aaed7bb3288319501d1ef894`. All four Solidity checkpoints were
+reviewed by the user, committed as kethcode, and signature-verified. This final
+checkpoint changes documentation only. M3 is ready for milestone review and
+push; M4 has not started.
+
+### Final verification
+
+The final 285 source/test/script/settings inputs and 897 dependency inputs
+match the M3-05 manifest. Forge 1.8.3 and solc 0.8.25 binary hashes, effective
+default/deploy settings, and the four clean submodules match the qualified
+handoff. Both profiles' compiler source metadata matches the completed tree.
+No Solidity changed during M3-06 or after these checks.
+
+| Command | Result |
+| --- | --- |
+| `forge test` | 719 passed / 51 suites; zero failures or skips. |
+| `yarn test:fixed` | 719 passed / 51 suites; timestamp `1724284800`, seed `0x5eed`, zero failures or skips. |
+| `FOUNDRY_PROFILE=deploy forge test` | 719 passed / 51 suites; zero failures or skips. |
+| `yarn lint:check` | Exit 1: 33 untouched formatting failures, down from M2's 34 because M3-04 formatted the touched invariant handler. No new failures. |
+| Standalone Solhint, using the package script's arguments | Exit 0: zero errors and the same 22 warnings; output identical to M2/M3-05. |
+| Prettier on all 15 Solidity paths changed during M3 | Pass. |
+
+Each full run retains the nine invariant properties over 2,000 runs at depth
+30, totaling 60,000 handler calls with zero handler reverts. Foundry reports
+those properties as one campaign/test. The suite therefore has 727 source
+entrypoints and 719 reported tests, up from M2's 715/707. All twelve additions
+are the six fixed-management cases and six periodic-proposal cases already
+reviewed in M3-03/M3-05. No suite or existing entrypoint was removed or added
+elsewhere. The periodic owner has 23 cases; the fixed owner has 16.
+
+All three runs discover the same 51 owning suites. `test/shared/` and
+`test/mocks/` contain no test or invariant entrypoints, and no concrete owning
+suite inherits another suite's test entrypoints. Existing real factory/template
+deployment, standard/revolving matrix economics and invariants, borrower-account,
+administrator-transfer, lens, wrapper, and callback-dispatch integrations pass.
+Their fixtures still use the current production artifacts and existing factory
+paths where deployment identity is under test.
+
+### Final ownership and override review
+
+Token comparison against the accepted M2 implementation accounts for every
+original fixed and periodic declaration exactly once. Of fixed's 30 original
+members, 26 now live in `FixedTermPolicy` and four remain in `FixedTermHooks`.
+Of periodic's 52, 47 live in `PeriodicTermPolicy` and five remain in
+`PeriodicTermHooks`. These counts include functions, constructors, events,
+errors, constants, and state declarations. All original member tokens match
+apart from the three planned management-extension call insertions. The only
+new production declarations are the three empty internal extension functions.
+
+The moved global structs and `IMarketApr` retain their exact declarations and
+are explicitly re-exported from their original concrete files. The concrete
+constructors, deployment flags, family strings, periodic revision 2, and public
+configuration adapters are preserved. Each concrete constructor supplies
+`BaseHooks` arguments once. `BaseHooks`, `BaseAccessControls`,
+`MarketConstraintHooks`, and `OpenTermHooks` are byte-for-byte unchanged from M2.
+No copied legacy implementation or mirrored stored configuration remains.
+
+| Boundary | Final owner, explicit choice, and protection |
+| --- | --- |
+| Access, configuration, and dispatch | `BaseHooks` coordinates shared behavior; `BaseAccessControls` owns credentials/known lenders; the open template or selected term policy owns packed market state. Existing adapters read that state. Common matrices retain requested access versus forced dispatch, minimum-width checks, creation order, authority, and public views. |
+| Queueing | `BaseHooks` orders registration, term schedule, withdrawal access, then additional queue rules. Fixed maturity and periodic windows remain in their respective policies. Closed periodic schedules open without bypassing access. Market-selected batches and expiry are unchanged. Concrete/common cases and real-market scenarios retain error priority and batching behavior. |
+| Fixed APR strategy | `_applyAprUpdate` runs `_validateFixedAprUpdate` before `_applyDefaultAprUpdate`. Replacing the default keeps the maturity guard; replacing the strategy must preserve or explicitly replace it. The existing unknown-caller behavior remains. Fixed/common APR cases protect this boundary. |
+| Periodic APR strategy | Increases cancel a pending proposal before the default; equality retains it and selects the default. Reductions execute the exact proposal and preserve current reserves without calling the temporary-reserve default. The dedicated route returns APR only and supplies empty validation data. Both routes still reach `_checkAprChange`, with rollback covered by all five existing `AprValidationTest` cases. |
+| Fixed management | Native setter checks precede `_validateFixedTermChange`; maturity write and `FixedTermUpdated` precede `_afterFixedTermChange`. The six new fixed cases cover both rejection boundaries, observed state, feature rollback, native error priority, equal/past timestamps, and separate creation/closure paths. |
+| Periodic management | Native checks and exact window calculations precede `_checkPeriodicProposal`; cancellation, replacement, and the new proposal event follow. The six new periodic cases cover context, acceptance, prior-proposal preservation, error priority, and width failures. A successful proposal does not replace execution validation. |
+| Closure | `BaseHooks` validates before applying effects. Fixed early closure uses the existing OR permission rule and advances maturity; periodic closure marks the schedule closed and cancels the proposal. Named term helpers keep those effects explicit. Core closure still funds debt, invokes the hook, then directly resets APR/reserves; it does not invoke `_checkAprChange`. Closure and production-matrix cases protect this separation. |
+| Exemptions and views | Default transfer exemptions return within `_processTransfer`, so known recipients and wrappers still reach additional checks. Recipient eligibility remains limited to recipient rules, and the permanent transfer-disable promise remains unchanged. Existing extension/common/provider/wrapper tests protect those semantics. |
+| Previously empty callbacks | Defaults remain unguarded no-ops. A stateful feature must enable its callback and authenticate the market explicitly. M3 preserves the no-op matrix; M4 must demonstrate activation through a real supported path. |
+
+### Final compatibility, deployment size, and gas
+
+All three raw ABIs match M2 and M3-05 in both profiles. Against M1, the only
+differences are the already-approved names for formerly unnamed top-level
+callback inputs: 24 open, 24 fixed, and 28 periodic positions. The comparison
+rejects any further name, selector, tuple/`internalType`, error/event,
+constructor, or mutability change. Fresh raw and normalized storage exports
+match M1/M2/M3-05, with 11 top-level entries per template and no slot changes.
+The policies own the same packed configuration and proposal representations;
+this refactor remains intended for new deployments, without an upgrade operation.
+
+| Template | Runtime bytes | Creation bytes | `STOP + creation` | Stored-initcode headroom | Factory creation with empty `args` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Open | 15,653 | 18,379 | 18,380 | 6,196 | 18,475 |
+| Fixed | 17,014 | 19,741 | 19,742 | 4,834 | 19,837 |
+| Periodic | 19,949 | 22,676 | 22,677 | 1,899 | 22,772 |
+
+Runtime and stored-initcode remain below 24,576 bytes; the measured constructor
+payloads remain below 49,152 bytes. Passing production-factory tests confirm
+actual deployment. M3 adds zero executable bytes to the M2 templates: creation,
+runtime, link references, and immutable patch positions match the qualified
+M2 gas artifacts exactly. The empty management extensions compile away.
+
+That identity preserves the qualified gas evidence under its original inputs,
+state, call isolation, and direct/nested transaction boundaries: all 97 M1
+callback comparisons reconciled in M2, 70 additional creation/minimum/query
+comparisons, and M3-01's 14 management observations. Fixed term reduction remains
+31,405 gas; periodic proposal creation/replacement remain 58,661/43,021 gas.
+These are reused measurements, not fresh M3-06 gas traces. The reviewed
+[M1-to-M2 size and gas deltas](hook-refactor-m2-results.md#final-compatibility-deployment-size-and-gas)
+still apply; M3's delta from M2 is zero for the same execution conditions.
+
+The exclusions also remain: there was no original M1 open-closure gas
+observation, and nine additional periodic creation calls with changed mock-market
+addresses remain excluded. Recorded hook-instance address differences retain
+their original calldata/configuration qualifications. None of those exclusions
+affects the original 97 callback observations.
+
+### M4 handoff
+
+M3 establishes reusable term implementations and tested management extension
+points. It does not establish arbitrary policy composition or future tranching
+compatibility. After the user reviews and pushes M3, prepare a separate M4 plan
+and tracker around the existing [M4 requirements](hook-refactor-milestones.md#m4--demonstrate-extension-and-composition).
+
+| M4 proof | Available components and required evidence |
+| --- | --- |
+| Three- and four-policy composition | Use one term policy plus two independent test-only features, then add a third feature through new feature/integration code. Fixed and periodic remain alternative schedules. Resolve overlapping checks explicitly in the final hook and prove every selected rule applies. No policy-count cap or ownership-bitmask scheme has been introduced. |
+| Independent state and APIs | Give a feature market-specific state plus management/query methods; exercise multiple markets on one hooks instance. Reuse the existing mocks and scenario helpers where useful, with concrete owning suites and no inherited test entrypoints. |
+| Deliberate default replacement | Select a replacement through the documented virtual interface and prove both its result and the absence of the skipped default's state/events. Retain unrelated access/term behavior; calling a default and discarding its result does not undo its effects. |
+| Activation, exemptions, and rollback | Enable a previously unused callback and authenticate its caller; test known lenders/wrappers where applicable, overlapping checks, state isolation, and rollback after earlier feature/default writes. Preserve the current transfer-query promises. |
+| APR and lifecycle interactions | Cover both periodic execution routes, changed feature conditions between proposal and execution, and explicit creation/closure rules. Fixed setter extensions do not cover creation or early closure. Periodic proposal admission does not replace execution checks. |
+
+The existing core/interface limits remain concrete constraints on those proofs.
+The dedicated periodic APR entrypoint cannot change reserves; it returns only
+APR and the market explicitly retains its current ratio. Core closure resets
+APR/reserves outside the APR hook, and the optional transfer-policy interface
+cannot promise permanent transfer availability while a feature later imposes a
+global lock. An override must respect those contracts or identify separately
+scoped interface/core work; inheritance cannot resolve the conflict.
+
+Periodic retains only 1,899 bytes of stored-initcode headroom. New concrete
+compositions need their own size/deployment checks; unchanged production
+bytecode does not guarantee every future combination fits. No additional M3
+interface gap was demonstrated by this qualification. M4 may still expose one
+and feed a focused correction back into M2/M3, with the relevant staged review
+and verification. M5 retains final refactor qualification and contributor
+examples. Tranching economics, repayment/default policy, and core batching or
+accounting changes remain outside this refactor.
+
+### M3-06 evidence identities
+
+Paths below are relative to the ignored M3 evidence root. The final review
+receipt binds the documentation checkpoint, exact implementation, verification
+artifacts, and retained measurement references.
+
+| File | SHA-256 |
+| --- | --- |
+| `m3-06-qualification.json` | `9d7d5713ee20b635fe810177070b71270c86fc3f5630ec77bf03ac4bba4c0ede` |
+| `m3-06-inputs.sha256.json` | `5f97d472a8d3ddb9ee0b39ee83cb788e4e25065ba21fee866ec2ff323c4c3ee5` |
+| `m3-06-tests-default-receipt.json` | `bb028162be65981096c68a87e10e9ae8149cbf1005e5a9dbf344552a5663f3f8` |
+| `m3-06-tests-fixed-receipt.json` | `48f003eda2f10815ef3df79ddaaec53a71dd7663a6f4ac8266b3c353a100c44e` |
+| `m3-06-tests-deploy-receipt.json` | `dcebb0fb0aea291c226793b4112322fbe10970147b3ce948c0b0a711272037f5` |
+| `m3-06-tests-discovery.json` | `38ffdcaba758b43f969ff21890c8e3949c5e179501699115f4db74d687906f83` |
+| `m3-06-ownership-comparison.json` | `275bf9193a21c16f6a4c7b4062d61fdab824821440977b9646c157473cdd9e4f` |
+| `m3-06-abi-comparison.json` | `0e4b4c43dcdb33b9cf980462c7d8ab8c6185d9e2badcf0db3e8027bdbe60a17d` |
+| `m3-06-storage-comparison.json` | `35e3cc78ce8a9e2d5fef4455995be6e0c99d89e074c582260fcde38e8ae83354` |
+| `m3-06-sizes.json` | `a84494d601cff88bacba3d55c20fe6bc8fbbab1b8efb3d4b953b73b6e8efdb97` |
+| `m3-06-gas-reconciliation.json` | `d4be26ad106d58f9ee509876d1a7e6fba69b56df14556445400aaee8b10a3fb3` |
+| `m3-06-lint-comparison.json` | `8b740a57114847bdd6d4aa5744abc5d48be852be2b35306f4709f29d91c8c0ef` |
+
+M3 is complete and ready for the user's milestone review and push. M4 planning
+has not begun. The voice guide, reference PDF, and lifecycle sketch remain
+untracked and excluded; no push has been performed.
