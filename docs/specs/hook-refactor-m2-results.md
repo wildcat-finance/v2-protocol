@@ -6,6 +6,8 @@
 - Reference: approved [M1 design](hook-refactor-m1-design.md) and
   [M1 baseline](hook-refactor-m1-baseline.md).
 - Raw evidence root: `audits/hook-refactor/m2/2026-09-22/` (ignored).
+- Final qualification: [M2-06](#m2-06-qualification-and-m3-handoff) is complete;
+  [M3 handoff](#m3-handoff) awaits the user's M2 review and push.
 
 ## M2-01: Execution identity and reusable evidence
 
@@ -520,10 +522,12 @@ untracked and excluded.
 
 ## M2-05: APR strategy and both periodic execution routes
 
-Status: implemented, verified, and accepted by the user, including the revised
-comments. Included in this signed checkpoint; its hash will be recorded in the
-next update. Parent checkpoint is `95a2912e2398c368a929cb016e93abb24dddf408`
-(M2-04). The user authorized the commit and continuation to M2-06.
+Status: accepted and committed as `549bfaa8d01e27f30dca97b5858f5e8f22d75937`,
+with a verified kethcode SSH signature. The approved Solidity patch and file
+hashes, including the revised comments, match the commit; `m2-05-acceptance.json`
+records the verification. Parent checkpoint is
+`95a2912e2398c368a929cb016e93abb24dddf408` (M2-04). The user authorized the
+commit and continuation to M2-06.
 
 ### APR ownership and validation
 
@@ -700,3 +704,187 @@ review receipt binds the revised source hashes through this amendment.
 The user accepted M2-05 and authorized its signed commit and M2-06 qualification.
 The voice guide, reference PDF, and lifecycle sketch remain untracked and
 excluded from the checkpoint.
+
+## M2-06: Qualification and M3 handoff
+
+Status: complete against `549bfaa8d01e27f30dca97b5858f5e8f22d75937`.
+This checkpoint changes documentation only. No further Solidity changes or
+additional canonical tests were needed. M2 is ready for the user's milestone
+review and push; M3 planning has not started.
+
+### Final verification
+
+Ran the required commands on the completed M2 source, including the accepted
+comment revisions. The 279 source/test/script/settings inputs and 897 dependency
+files match their manifests. Forge/solc binary hashes, submodules, and effective
+default/deploy settings match the M1 qualification. Compiler source metadata
+matches the current files; default, deploy, and final gas artifacts have
+identical concrete-template ABIs and executable bytes.
+
+| Command | Result |
+| --- | --- |
+| `forge test` | 707 passed / 51 suites; zero failures or skips. |
+| `yarn test:fixed` | 707 passed / 51 suites; zero failures or skips. |
+| `FOUNDRY_PROFILE=deploy forge test` | 707 passed / 51 suites; zero failures or skips. |
+| `yarn lint:check` | Exit 1: the same 34 untouched formatting failures; no new failures. |
+| Standalone Solhint, using the package script's arguments | Exit 0: zero errors, the same 22 warnings; output identical to M2-01. |
+| Prettier on all 17 Solidity paths changed during M2 | Pass. |
+
+The invariant campaign retains all nine properties, 2,000 runs and 60,000
+handler calls per full run. Foundry reports that campaign as one test. Source
+entrypoints therefore number 706 at M1 and 715 at M2, while reported suite totals
+are 698 and 707. The net increase of nine is four transfer-extension cases and
+five APR-validation cases. Construction/action consolidation and new boundary
+checks otherwise balance; the access subtree changes from 132 to 141 entrypoints.
+Three new concrete owning suites account for the increase from 48 to 51 suites.
+
+### Final implementation and test ownership
+
+The shared function inventory confirms one production implementation of each
+moved coordinator/default, with no old concrete copy retained. Credential
+resolution still has its existing `BaseAccessControls` owner. APR/reserve
+mathematics and temporary-reserve state still have their existing
+`MarketConstraintHooks` owner. Packed configuration remains owned by each
+template; adapters expose it without a second stored representation.
+
+| Behavior | Final owner and protecting tests |
+| --- | --- |
+| Construction, creation ordering, access/dispatch flags, minimum management | `BaseHooks`; the first twelve `BaseHooksTest` cases exercise all three production templates, plus the configuration probe. Concrete suites retain distinct term decoding, widths, permissions, schedules, and public tuples. |
+| Deposits, transfers, and transfer-policy queries | `BaseHooks` coordinators/defaults; six common lender-action/view cases cover registration, rounding, blocks, credential effects, exemptions, and read-only queries. `BaseAccessControlsTest` remains the provider/cache/wrapper-resolution owner. |
+| Withdrawal access and empty callbacks | `BaseHooks`; common queue cases preserve known-lender access and credential effects without marking lenders known. The no-op matrix preserves unguarded caller behavior. Fixed/periodic suites retain maturity/window/closed-state ordering. |
+| Closure | Shared validation/effect coordination in `BaseHooks`; fixed/periodic suites own their different permissions, maturity/closed-state writes, proposal cancellation, and events. The common closure case preserves temporary-reserve state. |
+| APR selection and effective-value validation | `BaseHooks` coordinator/check; `MarketConstraintHooksTest` owns the default calculation. Fixed/periodic suites retain their guard/proposal state machines. The shared unregistered-caller case covers open/fixed; five `AprValidationTest` cases cover both periodic routes, unchanged reserves, data, skipped default effects, and rollback. |
+| Additional transfer rule | Four `HookExtensionsTest` cases cover acceptance/rejection, credential and known-state rollback, known/wrapper exemptions, and market scope. These remain test-only features. |
+
+`test/shared/` and `test/mocks/` declare no test or invariant entrypoints.
+Moved assertions have concrete owning suites, rather than inherited copies.
+The per-task migration maps and `m2-06-test-migration.json` retain the removed
+and replacement entrypoints; historical test counts alone are not the coverage
+argument.
+
+The full runs also exercise the existing integrations. `ProductionMatrixFixture`
+stores the current templates' actual initcode and deploys them through both
+production factories. Matrix scenarios, economics, borrower-account tests,
+and invariants use that fixture across standard/revolving markets. Factory and
+administrator-transfer suites exercise real deployment/authority paths; the
+latter uses open hooks, complemented by configuration/authority cases in all
+three template suites. Lens core/facade/aggregator tests retain real tuple and
+dispatch consumers. Wrapper integration uses the current hook artifacts and
+production markets; the production matrix supplies the full factory path.
+`HookDispatchTest` separately keeps its argument-recording hook mock to verify
+market callback boundaries. These checks remain in their existing suites.
+
+### Final compatibility, deployment size, and gas
+
+The three raw ABIs equal M2-05. Against M1, the only differences are names for
+previously unnamed top-level callback inputs: 24 open, 24 fixed, and 28 periodic
+input positions. Raw diffs are retained. Existing names, selectors, tuple
+fields/widths, errors/events, constructors, and mutability are unchanged.
+Canonical metadata/configuration tests preserve callback masks, family strings,
+and periodic `templateVersion() == 2`. Fresh storage-layout exports equal M1
+after removing compiler-generated IDs.
+
+| Template | Runtime bytes | Creation bytes | `STOP + creation` | Stored-initcode headroom | Runtime/creation delta from M1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Open | 15,653 | 18,379 | 18,380 | 6,196 | +349 / +349 |
+| Fixed | 17,014 | 19,741 | 19,742 | 4,834 | +413 / +413 |
+| Periodic | 19,949 | 22,676 | 22,677 | 1,899 | +678 / +678 |
+
+Runtime and stored-initcode remain below 24,576 bytes. Factory creation with
+empty constructor `args` occupies 18,475 / 19,837 / 22,772 bytes respectively,
+below the 49,152-byte initcode limit. These measurements accompany passing
+real-factory deployment tests. New bytecode hashes are recorded in
+`m2-06-sizes.json`; deployment inventories are unchanged.
+
+Replayed the original gas commands in a separate temporary checkout with the
+final production tree and the three archived concrete access fixtures from
+`9d52fe0`. Other test files use the final tree. The archived fixtures remain
+outside the canonical suite. Source manifests, commands, settings, and artifact
+identity checks bind the replay to the final contracts. All 97 original M1
+callback observations retain the same arguments, return/revert results, and
+direct/nested boundaries. All 47 measurements retained at M2-05 reproduce
+exactly; this replay also restores the observations lost from later traces
+when tests were consolidated.
+
+| Template | Deposit delta | Transfer delta | Queue delta | Closure delta | Ordinary APR delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Open | +477 to +479 | +460 to +506 | +502 to +598 | No M1 observation; behavior tested | +260 to +263 |
+| Fixed | +228 to +230 | +210 to +257 | -2,073 to +400 | -70 to +166 | +6 to +281 |
+| Periodic | +188 to +200 | +180 to +227 | +842 to +943 | -85 to -8 | +6 to +288 |
+
+Ranges include the recorded success/revert paths and preserve each observation's
+measurement boundary; they are not whole-transaction fee estimates. Dedicated
+periodic APR execution adds 702 gas on success and 111–126 on rejection. Fixed's
+ungated queue saves the old unconditional lender-status read. Other deltas
+reflect the access-view allocation/decoding, explicit helper calls and warm
+schedule rereads, and the retained `AprChange` allocation described in M2-02
+through M2-05. The compiler's shared allocation helper accounts for the final
+81-gas increase on affected open/periodic lender actions. These are the reviewed
+cost tradeoffs of the shared extension points.
+
+The same traces provide 70 additional comparisons: 30 creation calls, three
+live-minimum updates, and 37 transfer-policy queries. Creation adds 607–738 gas
+for open, 559–630 for fixed, and 486–647 for periodic. Setting/clearing the
+periodic live minimum adds 1,156/956 gas; its unauthorized path is unchanged.
+Queries add 777–898 gas. These include the adapter/allocation work discussed
+above, without another persisted configuration mapping. For creation comparisons,
+changed hook-instance address bits are recorded separately; all 96 configuration
+bits match, as do address zero-byte counts. Nine additional periodic creation
+calls with changed mock-market addresses are excluded from the comparison.
+None of those exclusions affects the original 97 callback observations.
+
+### M3 handoff
+
+M2 establishes shared behavior and the first extension checks. It does not yet
+prove general multi-policy composition or future tranching compatibility.
+After the user reviews and pushes M2, prepare M3's plan/tracker around the
+existing [M1 design](hook-refactor-m1-design.md) and these remaining changes:
+
+| Component | Remaining M3 work and protection |
+| --- | --- |
+| `FixedTermPolicy` | Move fixed packed configuration/dispatch ownership and its single initialization, maturity, queue, APR-guard, closure, and setter implementations out of the concrete hook. Add empty `_validateFixedTermChange` and `_afterFixedTermChange` defaults at the specified setter boundaries, preserving authority, equal-time/reduction rules, write/event order, and rollback. Fixed tests, shared matrices, production queue/APR/closure scenarios, and the final size/gas measurements protect the move. |
+| `PeriodicTermPolicy` | Move periodic configuration, pending proposals, schedule/window helpers, closure, proposal management, APR strategy, and dedicated execution API into one reusable owner. Add `_checkPeriodicProposal` after existing validation/window calculation and before cancellation/write/proposal events. Both execution routes must still reach `_checkAprChange`; reductions must still skip `_applyDefaultAprUpdate`. Periodic state-machine/boundary tests, `AprValidationTest`, and real-market scenarios protect those paths. |
+| Concrete templates and public types | Keep concrete constructors, family/revision identity, and public tuple adapters. Move/re-export types only as needed to avoid policy/concrete import cycles; preserve current named imports and ABI `internalType`/tuple layouts. Adjust qualified error/event references to their declaration owner without changing selectors. Open's packed adapters stay in `OpenTermHooks`; no separate open schedule component is required. |
+| Explicit integration choices | Retain named fixed/periodic validation/effect helpers and comments that name functions, variables, skipped defaults, and state/events. Resolve overlapping overrides deliberately in the final composition. No runtime policy stack or capability-ownership flag scheme is introduced. |
+
+Keep the same creation/authentication order, access versus dispatch distinction,
+credential exemptions, queue schedule/access order, and closure semantics.
+Closure still uses the market's direct APR/reserve reset and does not invent
+an APR-validation callback. Recheck actual template deployment and periodic's
+1,899-byte stored-initcode headroom as term code moves. Keep the staged Solidity
+review requirement for every implementation checkpoint.
+
+M4 still owes three-/four-policy compositions, overlapping checks, independent
+feature state/APIs across markets, deliberate default replacement and absence
+of skipped effects, unused-callback activation, exemptions, lifecycle paths,
+and rollback. M5 still owes final compatibility/performance/deployment
+qualification and contributor guidance. Tranching economics, repayment/default
+policy, and market batching/accounting changes remain outside this refactor.
+
+### M2-06 evidence identities
+
+Paths are relative to the same ignored evidence root. The command receipts bind
+all full-run log hashes; gas receipts bind both replay logs. `m2-06-qualification.json`
+records their reconciliation, with detailed environment, compiler-source,
+integration-suite, and implementation-ownership records alongside it. Raw M1
+and earlier checkpoint evidence remains intact.
+
+| File | SHA-256 |
+| --- | --- |
+| `m2-06-inputs.sha256.json` | `7c7bb28ef762e072f2f93df56df37683eff0ae43e311569b4bec948a2af5f8a7` |
+| `m2-06-command-receipts.json` | `5c8ae0161a311321f9248ba0221abb3f37417877b50d29bd29367cb4e78f3378` |
+| `m2-06-verification.json` | `6883c2dc57f0ee4b34f2d7c0bf71fb2e29368abc8610adccb5fcd1de78ea0713` |
+| `m2-06-test-migration.json` | `a92d8e760e34903af5de7743f8706cee36131153ff8cc3f7bbbfc83e4ddb58fd` |
+| `m2-06-implementation-ownership.json` | `3dab868fb48cdd41715437f12e0836cacd2d757df767904e63c79e33ca8299ca` |
+| `m2-06-abi-comparison.json` | `bdaa6a571e58d3436b88792cbbcb9d5e153d574601bcaf35c49565e299260819` |
+| `m2-06-storage-comparison.json` | `184850bb94b2170fe1b614e8dbbd67afd066fd8e06f85fabfa8210ecaaeff1fe` |
+| `m2-06-sizes.json` | `dcee308f64dbb56f047f9e409327c8edfd91af65d85bb581e6e89a3ea493daba` |
+| `m2-06-gas-identity.json` | `e2a3f06980f648c4fd7bae846ea7d19f0b035beb47926ece1b095b0d01393e5a` |
+| `m2-06-gas-receipts.json` | `f23fdae2490021267b54584493a82c49ed58a91926e35de6100b80e4d66eb0c7` |
+| `m2-06-gas-comparison.json` | `c29a39d9da67bb27eaa840eda5371f2e5265d71de5094e8febc2ca4d75351a52` |
+| `m2-06-creation-minimum-view-gas.json` | `617467cd14038dd3956718cb341837fcb0e43d39b82f8c55b8ef5671951eed69` |
+| `m2-06-qualification.json` | `f18a4e58013de18984c7c656bf6133254293e22028dd680d0637a9ea290d125d` |
+| `m2-05-acceptance.json` | `db4d235362b1e76e2167a2a0efcd0349861cf23c186d776181b6105380398289` |
+
+The voice guide, reference PDF, and lifecycle sketch remain untracked. Nothing
+has been pushed; milestone acceptance and push remain with the user.

@@ -1,10 +1,10 @@
 # M2 tracker: shared hook behavior
 
 - Plan: [M2 execution plan](hook-refactor-m2-plan.md).
-- Milestone status: in progress; M2-05 accepted.
-- Execution tasks complete: 5 of 6.
-- Active task: M2-06 qualification and M3 handoff.
-- Next action: run the final milestone checks and reconcile the evidence.
+- Milestone status: implementation and qualification complete; awaiting user review and push.
+- Execution tasks complete: 6 of 6.
+- Active task: none; M2 is ready for milestone review.
+- Next action: user review and push, then M3 planning.
 - Approved M1 handoff: `d454f26fcf54db847657ef08c355e75e72d4356a`.
 - Execution starting revision: `1b8e36c76713af709a9326adfceac33b15b5f619`.
 
@@ -41,7 +41,7 @@ what would resolve it. Unmet dependencies remain `Not started`.
 | [M2-03](hook-refactor-m2-plan.md#m2-03-deposit-transfer-views-and-early-extension-probe) | Share deposit/transfer behavior and views; add the early probe. | Done | M2-02. | [Implementation, ownership, and verification](hook-refactor-m2-results.md#m2-03-deposit-transfer-views-and-early-extension-probe); user accepted the staged checkpoint and authorized M2-04. |
 | [M2-04](hook-refactor-m2-plan.md#m2-04-queueing-closure-coordination-and-empty-callbacks) | Share queue, closure coordination, and empty callbacks. | Done | M2-03. | [Implementation and verification](hook-refactor-m2-results.md#m2-04-queueing-closure-coordination-and-empty-callbacks); user approved the staged changes and authorized the signed checkpoint. |
 | [M2-05](hook-refactor-m2-plan.md#m2-05-apr-strategy-and-both-periodic-execution-routes) | Share APR coordination and validate both periodic routes. | Done | M2-04. | [Implementation and verification](hook-refactor-m2-results.md#m2-05-apr-strategy-and-both-periodic-execution-routes); user accepted the code and revised comments and authorized the signed checkpoint. |
-| [M2-06](hook-refactor-m2-plan.md#m2-06-qualification-and-m3-handoff) | Qualify the milestone and record the M3 handoff. | In progress | M2-01 through M2-05. | Final checks and evidence reconciliation next. |
+| [M2-06](hook-refactor-m2-plan.md#m2-06-qualification-and-m3-handoff) | Qualify the milestone and record the M3 handoff. | Done | M2-01 through M2-05. | [Full verification, final comparisons, and M3 handoff](hook-refactor-m2-results.md#m2-06-qualification-and-m3-handoff); documentation-only checkpoint. |
 
 ## Review and checkpoint register
 
@@ -58,8 +58,8 @@ renewed review after substantive changes to an approved diff. All commits use
 | M2-02 | Verified; user approved the staged changes, including the comment revision. Cost deltas documented in results. | `9d52fe0`; kethcode SSH signature verified. |
 | M2-03 | Verified; user accepted the staged changes and authorized continuation. Callback/view costs and smaller bytecode documented. | `6859b70`; kethcode SSH signature verified. |
 | M2-04 | Verified; user accepted the staged changes and authorized continuation. Queue/closure behavior and cost comparisons recorded. | `95a2912`; kethcode SSH signature verified. |
-| M2-05 | Verified; user accepted the code and revised comments and authorized continuation. Both periodic validation routes, rollback, compatibility, and costs recorded. | Included in this signed checkpoint; hash recorded in the next update. |
-| M2-06 | In progress; qualification and handoff. | Pending. |
+| M2-05 | Verified; user accepted the code and revised comments and authorized continuation. Both periodic validation routes, rollback, compatibility, and costs recorded. | `549bfaa`; kethcode SSH signature verified. |
+| M2-06 | Full qualification complete; documentation/evidence only under existing commit authorization. | Included in this signed checkpoint; hash recorded in the next update. |
 
 ## Evidence register
 
@@ -75,9 +75,9 @@ relative paths, source/settings, and hashes. Raw evidence lives under ignored
 | Shared lender actions/views, extension acceptance/rejection, exemptions, and rollback. | M2-03. | [Verified](hook-refactor-m2-results.md#m2-03-verification): 226 tests / 15 suites pass in each focused profile, including the four-case extension probe and real wrapper integration. |
 | Queue schedule/access order, closure effects, no-ops, and unchanged batching. | M2-04. | [Verified](hook-refactor-m2-results.md#m2-04-verification): 308 tests / 16 suites pass in each focused profile, including standard/revolving lifecycle and closure/batch settlement. |
 | APR strategies, proposal effects, both validation routes, and skipped-default state/events. | M2-05. | [Verified](hook-refactor-m2-results.md#m2-05-verification): 317 tests / 18 suites pass in each profile, including five validator cases and borrower-account/real-market APR paths. |
-| Raw/semantic ABI, storage, deployment sizes/headroom, and comparable M1 gas scenarios. | M2-02 through M2-06. | [M2-05 comparisons](hook-refactor-m2-results.md#m2-05-size-and-gas-comparisons): 47 surviving M1 observations, including all 22 ordinary/dedicated APR calls. Raw ABIs match M2-04; layouts match M1. Periodic stored-initcode headroom is 1,899 bytes. Default/deploy/gas executable bytes match. Milestone qualification pending. |
-| Required default/fixed-seed/deploy tests and lint, production integrations, final coverage ownership. | M2-06. | Pending. |
-| Final source/evidence reconciliation and M3 handoff. | M2-06. | Pending. |
+| Raw/semantic ABI, storage, deployment sizes/headroom, and comparable M1 gas scenarios. | M2-02 through M2-06. | [Final comparisons](hook-refactor-m2-results.md#final-compatibility-deployment-size-and-gas): all 97 M1 callback observations replayed against final contracts; 70 additional creation/minimum/view comparisons. ABI differs only by allowed input names; storage matches M1. Periodic stored-initcode headroom is 1,899 bytes. Default/deploy/gas executable bytes match. |
+| Required default/fixed-seed/deploy tests and lint, production integrations, final coverage ownership. | M2-06. | [Verified](hook-refactor-m2-results.md#final-verification): 707 tests / 51 suites pass in each required run; no new lint failures. Shared ownership and existing production integrations reconciled. |
+| Final source/evidence reconciliation and M3 handoff. | M2-06. | [Complete](hook-refactor-m2-results.md#m3-handoff), against `549bfaa`; M3 term extraction and M4/M5 obligations remain explicit. |
 
 ## Implementation watchpoints
 
@@ -98,19 +98,18 @@ decisions or permission requests.
 
 ## Blockers and next action
 
-The user accepted M2-05, including the revised comments, and authorized its
-signed checkpoint and continuation. Both profiles pass 317 selected
-tests. Raw ABIs match M2-04 and storage layouts match M1.
-Runtime/creation code grows by 66–198 bytes from M2-04, leaving periodic 1,899
-bytes of stored-initcode headroom. Successful ordinary APR observations add
-260–288 gas; dedicated periodic execution adds 702 gas. Some open/periodic
-lender actions also add 81 gas because the compiler factors out a shared
-allocation helper. Full lint retains the same 34 formatting failures and
-22 Solhint warnings. Local reference documents remain untracked.
+M2-05 is committed as `549bfaa` with a verified kethcode signature. M2-06 is
+complete without further Solidity changes: default, fixed-seed, and deploy
+runs each pass 707 tests across 51 suites. The final ABI/storage comparisons
+hold, and all 97 original callback gas observations are reconciled. Periodic
+retains 1,899 bytes of stored-initcode headroom; measured cost tradeoffs remain
+documented. Full lint retains the same 34 untouched formatting failures and
+22 warnings, with no new failures. All 17 changed Solidity paths pass formatting.
 
-Next: M2-06 full milestone qualification, evidence reconciliation, and M3 handoff.
-Any new Solidity changes retain the staged review requirement.
-The user retains milestone review and push; M3 planning follows M2 acceptance.
+No implementation blocker remains. Next: the user's milestone review and push,
+then a separate M3 plan/tracker based on the [handoff](hook-refactor-m2-results.md#m3-handoff).
+M3 has not started. Reference documents and the voice guide remain untracked;
+no push has been performed. Future Solidity checkpoints retain staged review.
 
 ## Progress log
 
@@ -132,3 +131,5 @@ The user retains milestone review and push; M3 planning follows M2 acceptance.
 | 2026-09-23: M2-05 ready for review | Shared APR coordination/default strategy and both periodic validation routes implemented. Five focused validator cases cover applied values, skipped default effects, data, and rollback. Both profiles pass 317 selected tests. Raw ABI/storage, bytecode identity, size, gas, and lint evidence recorded; staged and uncommitted. |
 | M2-05 comment review | Restored the inline fixed-term revert explanation and revised APR comments to retain function/variable names and branch conditions. Only comments changed in four source files; all nine staged Solidity token streams match the tested versions. Formatting passes and Solhint output is unchanged. Original receipts retained with a separate comment-amendment record; still staged and uncommitted. |
 | M2-05 accepted | User approved the code and revised comments and instructed a signed kethcode commit and continuation. The approved patch and all staged file hashes match the retained review receipt. M2-06 begins with qualification; any further Solidity changes require staged review. |
+| 2026-09-23: M2-05 committed | Signed commit `549bfaa` as `kethcode <dave@wildcat.finance>`; SSH signature verified. The committed Solidity patch and file hashes match the approved comment-amended review receipt. |
+| 2026-09-23: M2-06 complete | All three required runs pass 707 tests / 51 suites. Final ownership, production integrations, ABI/storage, deployment limits, gas, toolchain/source identities, and baseline lint differences are reconciled. All 97 original callback measurements replayed in a separate temporary checkout; canonical suites remain consolidated. Recorded M3 handoff and M4/M5 obligations. Documentation-only checkpoint; M2 awaits user review and push. |
