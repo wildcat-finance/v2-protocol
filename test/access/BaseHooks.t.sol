@@ -456,6 +456,8 @@ contract BaseHooksTest is HookTemplateFixture {
       vm.expectRevert(BaseHooks.NotHookedMarket.selector);
       target.onTransfer(Lender, Lender, SecondLender, 0, state, '');
       vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      target.onQueueWithdrawal(Lender, 0, 1, state, '');
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
       target.isMarketTransferDisabled(MarketA);
       vm.expectRevert(BaseHooks.NotHookedMarket.selector);
       target.isMarketTransferRecipientAllowed(MarketA, Lender);
@@ -644,6 +646,149 @@ contract BaseHooksTest is HookTemplateFixture {
       target.onTransfer(SecondLender, SecondLender, Lender, 1, state, '');
       _assertCachedCredential(target, Lender);
       assertTrue(target.isKnownLenderOnMarket(Lender, MarketA), 'transfer records entry');
+    }
+  }
+
+  function _createQueueMarkets(
+    uint256 i,
+    HooksConfig requested
+  ) internal returns (BaseHooks target) {
+    vm.warp(StartTimestamp);
+    target = hooks[i];
+    _createMarket(target, MarketA, requested, _termData(HookKind(i)));
+    _createMarket(target, MarketB, requested, _termData(HookKind(i)));
+    if (HookKind(i) == HookKind.Fixed) vm.warp(FixedTermEnd);
+    if (HookKind(i) == HookKind.Periodic) vm.warp(FirstWindowStart);
+  }
+
+  function test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown() external {
+    MarketState memory state;
+    HooksConfig requested = EmptyHooksConfig
+      .setFlag(Bit_Enabled_Deposit)
+      .setFlag(Bit_Enabled_Transfer)
+      .setFlag(Bit_Enabled_QueueWithdrawal);
+    bytes memory credential = abi.encode('queue');
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = _createQueueMarkets(i, requested);
+      vm.prank(MarketA);
+      vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onQueueWithdrawal(Lender, 12, 34, state, '');
+
+      _addPullProvider(target);
+      target.blockFromDeposits(Lender);
+      provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
+      vm.expectEmit(address(target));
+      emit BaseAccessControls.AccountAccessGranted(
+        address(provider1),
+        Lender,
+        MarketA,
+        uint32(block.timestamp)
+      );
+      vm.prank(MarketA);
+      target.onQueueWithdrawal(
+        Lender,
+        12,
+        34,
+        state,
+        abi.encodePacked(address(provider1), credential)
+      );
+      LenderStatus memory status = target.getPreviousLenderStatus(Lender);
+      assertEq(status.lastProvider, address(provider1), 'queue caches provider');
+      assertEq(status.lastApprovalTimestamp, block.timestamp, 'queue caches credential');
+      assertTrue(status.canRefresh, 'pull credential');
+      assertTrue(status.isBlockedFromDeposits, 'deposit block survives queue');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketA), 'queue is not entry');
+
+      vm.prank(address(provider1));
+      target.revokeRole(Lender);
+      vm.prank(MarketA);
+      vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onQueueWithdrawal(Lender, 12, 34, state, '');
+    }
+  }
+
+  function test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(bool gated) external {
+    MarketState memory state;
+    HooksConfig requested = gated
+      ? EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
+        Bit_Enabled_QueueWithdrawal
+      )
+      : EmptyHooksConfig;
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = _createQueueMarkets(i, requested);
+      _addPullProvider(target);
+      vm.prank(address(provider1));
+      target.grantRole(Lender, uint32(block.timestamp));
+      vm.prank(MarketA);
+      target.onDeposit(Lender, 1, state, '');
+      target.blockFromDeposits(Lender);
+      target.removeRoleProvider(address(provider1));
+      assertFalse(target.getPreviousLenderStatus(Lender).hasCredential(), 'credential removed');
+      vm.prank(MarketA);
+      target.onQueueWithdrawal(Lender, 12, 34, state, '');
+
+      // open-term access is required whenever its callback runs, even if dispatch wasn't requested.
+      bool requiresAccess = gated || HookKind(i) == HookKind.Open;
+      vm.prank(MarketB);
+      if (requiresAccess) vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+      target.onQueueWithdrawal(Lender, 12, 34, state, '');
+      assertFalse(target.isKnownLenderOnMarket(Lender, MarketB), 'known status stays market-local');
+    }
+  }
+
+  function test_emptyCallbacks_StayUnguardedAndHaveNoEffects(
+    bool registeredCaller,
+    bytes calldata extraData
+  ) external {
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    state.reserveRatioBips = 500;
+    for (uint256 i; i < hooks.length; i++) {
+      BaseHooks target = hooks[i];
+      _createMarket(
+        target,
+        MarketA,
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
+          Bit_Enabled_QueueWithdrawal
+        ),
+        _termData(HookKind(i))
+      );
+      target.blockFromDeposits(Lender);
+      vm.record();
+      vm.recordLogs();
+      vm.startPrank(registeredCaller ? MarketA : MarketB);
+      target.onExecuteWithdrawal(Lender, 1, 2, state, extraData);
+      target.onBorrow(3, state, extraData);
+      target.onRepay(4, state, extraData);
+      target.onNukeFromOrbit(Lender, state, extraData);
+      target.onSetMaxTotalSupply(5, state, extraData);
+      target.onSetProtocolFeeBips(6, state, extraData);
+      if (HookKind(i) == HookKind.Open) target.onCloseMarket(state, extraData);
+      vm.stopPrank();
+      (, bytes32[] memory writes) = vm.accesses(address(target));
+      assertEq(writes.length, 0, 'no storage effects');
+      assertEq(vm.getRecordedLogs().length, 0, 'no events');
+    }
+  }
+
+  function test_onCloseMarket_DoesNotClearTemporaryReserves() external {
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    state.reserveRatioBips = 2_000;
+    for (uint256 i; i < uint256(HookKind.Periodic); i++) {
+      BaseHooks target = _createQueueMarkets(i, EmptyHooksConfig);
+      vm.prank(MarketA);
+      target.onSetAnnualInterestAndReserveRatioBips(700, 0, state, '');
+      (uint16 originalApr, uint16 originalReserve, uint32 expiry) = target
+        .temporaryExcessReserveRatio(MarketA);
+      assertTrue(expiry > block.timestamp, 'active temporary reserves before close');
+      vm.prank(MarketA);
+      target.onCloseMarket(state, '');
+      (uint16 afterApr, uint16 afterReserve, uint32 afterExpiry) = target
+        .temporaryExcessReserveRatio(MarketA);
+      assertEq(afterApr, originalApr, 'original APR retained');
+      assertEq(afterReserve, originalReserve, 'original reserve retained');
+      assertEq(afterExpiry, expiry, 'expiry retained');
     }
   }
 }

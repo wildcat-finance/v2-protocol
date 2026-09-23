@@ -236,7 +236,9 @@ this staged checkpoint before its signed commit and the start of M2-03.
 
 ## M2-03: Deposit, transfer, views, and early extension probe
 
-Status: implemented, verified, and accepted by the user for this signed checkpoint.
+Status: accepted and committed as `6859b70720a7755eef6010d67a3dd55cf2b0638b`,
+with a verified kethcode SSH signature. The approved Solidity patch matches the
+commit; `m2-03-acceptance.json` records the approval and verification.
 Parent checkpoint is `9d52fe09d132c5cb25bdf9235c82d324a7250386` (M2-02), whose
 SSH signature was verified. The user reviewed this checkpoint before M2-04.
 
@@ -372,3 +374,144 @@ manifest are distinct; the review receipt binds both and the staged patch.
 
 The user accepted this staged Solidity diff and authorized M2-04. The voice guide,
 reference PDF, and lifecycle sketch remain untracked and excluded.
+
+## M2-04: Queueing, closure coordination, and empty callbacks
+
+Status: implemented, verified, and accepted by the user for this signed checkpoint.
+Parent checkpoint is `6859b70720a7755eef6010d67a3dd55cf2b0638b` (M2-03).
+The user reviewed this checkpoint and authorized its commit and continuation.
+The existing Solidity review rule applies to the next checkpoint.
+
+### Shared coordinators and retained term behavior
+
+[BaseHooks](../../src/access/BaseHooks.sol) now owns queue coordination:
+registration, schedule, withdrawal access, then the additional queue check.
+The default access processor retains known-lender exemptions and credential
+caching without recording market entry. Its early return stays inside that
+processor, so an additional check is still reached. Open always requires access
+when this callback is invoked; fixed and periodic use their stored requested
+access setting. Fixed checks maturity before access, including when the supplied
+market state is closed. Periodic checks its existing windows unless either the
+market state or hook configuration is closed; access still applies afterward.
+
+Closure runs separate validation and effects. Open inherits empty, unguarded
+defaults. Fixed retains its registered-market check and the OR between its two
+early-close permissions, then updates the same maturity and emits the same
+event. Periodic retains registration, sets its closed flag, cancels any pending
+APR proposal, then emits closure. These term bodies remain in their concrete
+owners, exposed through named validation/effect helpers for later composition.
+
+The six empty callbacks now each have one shared external entry and an empty
+virtual internal check. They retain their existing lack of authentication and
+policy effects, including ungated execution of already queued withdrawals.
+The protocol-fee callback keeps its memory state argument; the others retain
+calldata. No callback flag changes. Markets still select batches and expiry,
+perform accounting, and reset APR/reserves on closure. Closure invokes no new
+APR callback and does not clear hook-owned temporary reserve state.
+
+### M2-04 test ownership
+
+| Property | Current owner |
+| --- | --- |
+| Registration before queue scheduling/access | Existing shared unregistered-market case, extended to queueing. |
+| Credential resolution/cache, deposit blocks, no known-state write, revoked credentials | `BaseHooksTest.test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown`, across all three production artifacts. |
+| Market-local known-lender exemption, provider removal, requested gating, open direct-call behavior | `BaseHooksTest.test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(bool)`. |
+| Six empty callbacks, unknown/registered callers, no writes/events, open closure | `BaseHooksTest.test_emptyCallbacks_StayUnguardedAndHaveNoEffects(bool,bytes)`, before fixed maturity/periodic windows with a blocked lender. |
+| Active temporary reserve state survives open/fixed closure callbacks | `BaseHooksTest.test_onCloseMarket_DoesNotClearTemporaryReserves`. |
+| Fixed maturity priority, boundary, permissions, maturity update/event | Concrete fixed queue and closure cases; credential mechanics moved to the shared owner. |
+| Periodic window priority/boundaries, both closed flags, access after closure, proposal cancellation/event order | Concrete periodic queue/window/closure cases. |
+| Market-owned APR/reserve reset, funded closure, pending/unpaid batch settlement, withdrawal dispatch | Existing `WildcatMarketTest`, production matrix, and dispatch suites; no market/test implementation changes. |
+
+Four shared cases replace the copied queue/no-op assertions. Concrete cases
+retain the distinct term checks, and the open APR case retains its unregistered
+caller behavior. The access subtree remains at 136 test entrypoints, including
+the existing overloaded access-control test. Shared fixtures have no test
+entrypoints. The migration inventory records removed, added, and renamed cases.
+
+### M2-04 verification
+
+| Check | Result |
+| --- | --- |
+| Default profile: M2-03's focused suites plus `WildcatMarketTest`, seed `0x5eed` | 308 passed / 16 suites; zero failures/skips. |
+| Deployment profile: same selection and seed | 308 passed / 16 suites; zero failures/skips. Real standard/revolving lifecycle, factory deployment, wrapper, batching, and closure paths pass. |
+| ABI comparison against M2-03, retaining M1's compatibility contract | Encoded surface unchanged. Only previously unnamed top-level queue/closure/empty-callback inputs gain labels: 20 each for open/fixed, 24 for periodic. Existing names, tuple fields, errors/events, selectors, and mutability match. Raw exports and allowed differences are retained. |
+| Compiler storage layouts | Identical to M1/M2-03 after ignoring compiler IDs. No new production state; each packed market configuration remains one slot. |
+| Measurement identity | Final production source matches the gas snapshot; default, deploy, and gas-measurement ABI/creation/runtime bytes match. Final inputs, all 897 baseline dependency files, submodules, effective settings, and tool hashes verified. |
+| `yarn lint:check` | Exits 1 for the same 34 untouched formatting paths; no new failure. |
+| Standalone Solhint | Exits 0 with the same 22 warnings. Both lint logs are byte-identical to M2-03. |
+
+These are checkpoint checks. Full milestone qualification remains M2-06.
+Build settings, dependencies, market accounting/batching, and tranching policy
+remain unchanged.
+
+### M2-04 size and gas comparisons
+
+| Template | Runtime bytes | Creation bytes | `STOP + creation` | Stored-initcode headroom | Runtime/creation delta from M2-03 | Delta from M1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Open | 15,587 | 18,313 | 18,314 | 6,262 | +31 / +31 | +283 / +283 |
+| Fixed | 16,933 | 19,660 | 19,661 | 4,915 | +69 / +69 | +332 / +332 |
+| Periodic | 19,751 | 22,478 | 22,479 | 2,097 | +230 / +230 | +480 / +480 |
+
+Runtime, stored-initcode, and factory constructor-payload limits remain satisfied.
+Periodic remains the tightest deployment limit.
+
+Measured before consolidating this task's tests, with unchanged fixtures from
+`6859b70`, M1's timestamp/seed, and the same direct/nested call boundaries.
+The recorded commands pass 11 selected tests plus the cached-deposit scenario.
+There are 61 comparable M1 callback observations, including all 19 queue/closure
+observations; their arguments and return/revert results match. The other 36 M1
+observations came from action tests removed in M2-03 and are not claimed as new
+M2-04 measurements. Their prior evidence remains intact. The 42 retained calls
+outside queue/closure have unchanged costs from M2-03.
+
+| Template | Queue observations / gas delta | Closure observations / gas delta |
+| --- | --- | --- |
+| Open | 3 / +421 to +517 | No M1 closure observation; empty behavior checked in the shared suite. |
+| Fixed | 5 / -2,073 for ungated queueing; +305 to +400 otherwise | 4 / -70 to +166 |
+| Periodic | 4 / +761 to +862 | 3 / -85 to -8 |
+
+These deltas are the same against M1 and M2-03 because those callbacks had not
+yet moved. They describe measured callback costs, not whole-transaction fees.
+Fixed's ungated case drops from 29,731 to 27,658 gas: the shared processor checks
+the access flag before loading lender status, avoiding the old unconditional
+read. For comparison, the periodic known-lender case rises from 32,529 to 33,332.
+
+The optimized IR shows the shared access adapter's memory allocation/decoding
+and helper calls. Fixed/periodic scheduling rereads the packed slot after
+registration, making that second read warm. Periodic also decodes its full
+schedule struct. These costs explain the queue increases; no new storage slot
+or deposit-dispatch read is introduced. Fixed closure keeps separate validation
+and effect phases, with a warm maturity reread; periodic retains its flag and
+proposal writes. Relevant IR is retained as `m2-04-<Template>-queue-close-ir.txt`.
+Empty feature checks compile away in the built-in templates. These measured
+costs and size increases are explicit review tradeoffs of the shared seams.
+
+The gas input manifest/snapshot is separate from the final consolidated-test
+manifest. Reproduction uses the retained production snapshot with `6859b70`'s
+tests in a separate checkout. Final source and executable identity qualify the
+gas measurements after test consolidation.
+
+### M2-04 evidence identities
+
+Paths are relative to the ignored M2 evidence root above. The run directory's
+date identifies the milestone run; this task's final checks ran on 2026-09-23.
+Receipts retain exact commands and log hashes. The review receipt binds the
+staged patch/files, manifests, compatibility comparisons, and raw evidence.
+
+| File | SHA-256 |
+| --- | --- |
+| `m2-04-inputs.sha256.json` | `b6265c6447705c716d40984f249c7812146901ae5295c67e1a9119a939fab024` |
+| `m2-04-test-receipts.json` | `dacd0cd6c009f922b06190066800572fc4eb5cb9fc121c104f4067fab29a21f7` |
+| `m2-04-abi-comparison.json` | `0160721b96c17a6f2cb96604b1a45e12c411219051e7991c9638477b9ce393ea` |
+| `m2-04-storage-comparison.json` | `dab0315457663c8c1b885ad0f53e8ec4a0e70445b72526842da559c1f22bcf9c` |
+| `m2-04-sizes.json` | `5250eb5f39a7ebefdd09e4a09f600f6e5df43c232c5a4581bc074e8d5b10611f` |
+| `m2-04-gas-receipts.json` | `0bdf7d2f6a27fda5d31ddaae17db271dc7fe95db3602cecbc905ca12b84352d5` |
+| `m2-04-gas-comparison.json` | `a024490b543d7695da079d9b230c5d270d5dd4ba7f6e898fef3d1f6e6f339ff7` |
+| `m2-04-lint-receipts.json` | `d158e3a704a62d33229ff3deb9ae77131c8628466e6557510bae5caad8f15011` |
+| `m2-04-test-migration.json` | `4dcb6bc10e30616a495d3ef6f825247276ff0049342cdde6ca3d594126578eaf` |
+| `m2-04-qualification.json` | `4b7f0b931267af7d187eb0447c482db7099c6611ea28f673d9eb173eb4daa4f7` |
+| `m2-03-acceptance.json` | `9c562f6dfc2c0f2b437f9cdd247f21f33e5b49550e537c6ba8988a898e837fc5` |
+
+The user accepted M2-04 and authorized M2-05. M2-05 and M2-06 have not started
+at this checkpoint. The voice guide, reference PDF, and lifecycle sketch stay
+untracked and excluded.

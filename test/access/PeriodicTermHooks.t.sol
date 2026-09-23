@@ -10,7 +10,6 @@ import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
-import { RAY } from 'src/libraries/MathUtils.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
@@ -180,10 +179,6 @@ contract PeriodicTermHooksTest is TestKernel {
   function _addPullProvider(PeriodicTermHooks target) internal {
     provider1.setIsPullProvider(true);
     target.addRoleProvider(address(provider1), type(uint32).max);
-  }
-
-  function _credentialData(bytes memory credential) internal view returns (bytes memory) {
-    return abi.encodePacked(address(provider1), credential);
   }
 
   function _expectedWindowOpen(uint256 timestamp) internal pure returns (bool) {
@@ -428,36 +423,45 @@ contract PeriodicTermHooksTest is TestKernel {
     vm.prank(MarketA);
     if (!shouldAllow) vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
   }
 
-  function test_onQueueWithdrawal_ValidatesCredentialsAndPreservesKnownLenders() external {
-    address market = _newAprMarket(1_000);
-    _createMarket(hooks, market, _requestedConfig(hooks, true, true, true), _hooksData());
-    vm.warp(FirstWithdrawalWindowStart);
-    MarketState memory state;
-    state.scaleFactor = uint112(RAY);
-
-    vm.prank(market);
-    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-
+  function test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure() external {
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, true, true, true), _hooksData());
     _addPullProvider(hooks);
-    bytes memory queueCredential = abi.encode('queue');
-    provider1.approveCredentialData(keccak256(queueCredential), uint32(block.timestamp));
-    vm.prank(market);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, _credentialData(queueCredential));
-
-    bytes memory depositCredential = abi.encode('deposit');
-    provider1.approveCredentialData(keccak256(depositCredential), uint32(block.timestamp));
-    vm.prank(market);
-    hooks.onDeposit(SecondLender, 1, state, _credentialData(depositCredential));
-    assertTrue(hooks.isKnownLenderOnMarket(SecondLender, market), 'known lender');
     vm.prank(address(provider1));
-    hooks.revokeRole(SecondLender);
-    vm.prank(market);
+    hooks.grantRole(Lender, uint32(block.timestamp));
+    MarketState memory state;
+    vm.prank(MarketA);
+    hooks.onDeposit(Lender, 1, state, '');
+    hooks.blockFromDeposits(Lender);
+
+    vm.prank(MarketA);
+    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
+    state.isClosed = true;
+    vm.prank(MarketA);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
+
+    state.isClosed = false;
+    vm.warp(FirstWithdrawalWindowStart);
+    vm.prank(MarketA);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+    vm.prank(MarketA);
+    vm.expectRevert(PeriodicTermHooks.WithdrawOutsideWindow.selector);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    hooks.onCloseMarket(state, '');
+    vm.prank(MarketA);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
     hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
   }
 
@@ -491,19 +495,6 @@ contract PeriodicTermHooksTest is TestKernel {
 
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
     hooks.onCloseMarket(state, '');
-  }
-
-  function test_unrestrictedCallbacks_AreNoOps() external {
-    MarketState memory state;
-    bytes memory extraData = abi.encode('unused');
-    vm.startPrank(MarketA);
-    hooks.onExecuteWithdrawal(Lender, 1, 2, state, extraData);
-    hooks.onBorrow(3, state, extraData);
-    hooks.onRepay(4, state, extraData);
-    hooks.onNukeFromOrbit(Lender, state, extraData);
-    hooks.onSetMaxTotalSupply(5, state, extraData);
-    hooks.onSetProtocolFeeBips(6, state, extraData);
-    vm.stopPrank();
   }
 
   function test_proposeAnnualInterestBips_AuthenticatesAndRejectsInvalidReductions() external {

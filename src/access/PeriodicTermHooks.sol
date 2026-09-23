@@ -450,86 +450,45 @@ contract PeriodicTermHooks is BaseHooks {
   //                                    Hooks                                   //
   // ========================================================================== //
 
-  /// @notice limits queueing to scheduled windows while the market is open.
-  /// @dev window start is inclusive and end is exclusive. a closed market may queue at any time.
-  ///      gated withdrawals additionally need market-specific known status or a current credential.
-  function onQueueWithdrawal(
-    address lender,
-    uint32 /* expiry */,
-    uint /* scaledAmount */,
+  /// @dev either closed flag opens the schedule. access checks still run afterward.
+  function _checkWithdrawalSchedule(
+    address,
+    uint32,
+    uint256,
     MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {
+    bytes calldata
+  ) internal view virtual override {
     HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
     if (!state.isClosed && !_isWithdrawalWindowOpen(market, block.timestamp)) {
       revert WithdrawOutsideWindow();
     }
-
-    if (market.withdrawalRequiresAccess) {
-      LenderStatus memory status = _lenderStatus[lender];
-      if (
-        !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)
-      ) {
-        revert NotApprovedLender();
-      }
-    }
   }
 
-  /// @dev execution is not window-gated once the lender has queued the withdrawal.
-  function onExecuteWithdrawal(
-    address /* lender */,
-    uint32 /* expiry */,
-    uint128 /* normalizedAmountWithdrawn */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
+  function _validateCloseMarket(
+    MarketState calldata,
+    bytes calldata
+  ) internal view virtual override {
+    _validatePeriodicCloseMarket();
+  }
 
-  /// @dev periodic-term policy does not constrain borrower draws.
-  function onBorrow(
-    uint /* normalizedAmount */,
-    MarketState calldata /* state */,
-    bytes calldata /* extraData */
-  ) external override {}
+  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
+    _applyPeriodicCloseMarket();
+  }
 
-  /// @dev periodic-term policy does not constrain repayments.
-  function onRepay(
-    uint /* normalizedAmount */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
+  function _validatePeriodicCloseMarket() internal view {
+    if (!_hookedMarkets[msg.sender].isHooked) revert NotHookedMarket();
+  }
 
-  /// @notice marks the schedule closed and cancels any pending APR reduction.
-  /// @dev closing permanently opens withdrawal queueing; this template has no reopen transition.
-  function onCloseMarket(
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {
-    HookedMarket storage market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-    market.isClosed = true;
-    // A closed market can never execute an APR change, so cancel any pending
-    // reduction proposal rather than leave it in storage forever.
+  /// @dev validation must run first. close the schedule, cancel any proposal, then emit closure.
+  function _applyPeriodicCloseMarket() internal {
+    _hookedMarkets[msg.sender].isClosed = true;
+    // a closed market can't execute the proposal. don't leave it sitting there forever.
     if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
       delete _pendingAprChanges[msg.sender];
       emit AnnualInterestBipsReductionProposalCancelled(msg.sender);
     }
     emit PeriodicTermClosed(msg.sender);
   }
-
-  /// @dev quarantine reaches the window check in the ordinary queue callback that follows.
-  function onNukeFromOrbit(
-    address /* lender */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
-  /// @dev this template adds no supply-cap policy.
-  function onSetMaxTotalSupply(
-    uint256 /* maxTotalSupply */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
 
   /// @dev applies an exact pending reduction after its response window and before expiry. the APR
   ///      must still be a strict reduction, and all scaled pending withdrawals must be paid first.
@@ -632,11 +591,4 @@ contract PeriodicTermHooks is BaseHooks {
         hooksData
       );
   }
-
-  /// @dev this template adds no protocol-fee policy.
-  function onSetProtocolFeeBips(
-    uint16 /* protocolFeeBips */,
-    MarketState memory /* intermediateState */,
-    bytes calldata /* extraData */
-  ) external override {}
 }

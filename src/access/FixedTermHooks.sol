@@ -233,68 +233,44 @@ contract FixedTermHooks is BaseHooks {
   //                                    Hooks                                   //
   // ========================================================================== //
 
-  /// @notice blocks withdrawal queueing before maturity, then applies any withdrawal access policy.
-  /// @dev at and after maturity, a gated withdrawal needs either market-specific known-lender
-  ///      status or a current credential. execution of an existing request is never term-gated.
-  function onQueueWithdrawal(
-    address lender,
-    uint32 /* expiry */,
-    uint /* scaledAmount */,
-    MarketState calldata /* state */,
-    bytes calldata hooksData
-  ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-    if (market.fixedTermEndTime > block.timestamp) {
+  /// @dev registration runs first in BaseHooks. maturity still wins over an access failure.
+  function _checkWithdrawalSchedule(
+    address,
+    uint32,
+    uint256,
+    MarketState calldata,
+    bytes calldata
+  ) internal view virtual override {
+    if (_hookedMarkets[msg.sender].fixedTermEndTime > block.timestamp)
       revert WithdrawBeforeTermEnd();
-    }
-    LenderStatus memory status = _lenderStatus[lender];
-    if (market.withdrawalRequiresAccess) {
-      if (
-        !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)
-      ) {
-        revert NotApprovedLender();
-      }
-    }
   }
 
-  /// @dev execution stays permissionless once the lender has queued the withdrawal.
-  function onExecuteWithdrawal(
-    address lender,
-    uint32 /* expiry */,
-    uint128 /* normalizedAmountWithdrawn */,
-    MarketState calldata /* state */,
-    bytes calldata hooksData
-  ) external override {}
+  function _validateCloseMarket(
+    MarketState calldata,
+    bytes calldata
+  ) internal view virtual override {
+    _validateFixedCloseMarket();
+  }
 
-  /// @dev fixed-term policy does not constrain borrower draws.
-  function onBorrow(
-    uint /* normalizedAmount */,
-    MarketState calldata /* state */,
-    bytes calldata /* extraData */
-  ) external override {}
+  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
+    _applyFixedCloseMarket();
+  }
 
-  /// @dev fixed-term policy does not constrain repayments.
-  function onRepay(
-    uint normalizedAmount,
-    MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {}
-
-  /// @notice enforces the deployment-time early-closure policy.
-  /// @dev before maturity, closure needs either `allowClosureBeforeTerm` or `allowTermReduction`.
-  ///      an allowed early close moves maturity to the closure timestamp. closure at or after
-  ///      maturity needs no term-policy permission.
-  function onCloseMarket(
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {
+  /// @dev either early-close permission is enough. keep the existing OR rule.
+  function _validateFixedCloseMarket() internal view {
     HookedMarket storage market = _hookedMarkets[msg.sender];
     if (!market.isHooked) revert NotHookedMarket();
     if (block.timestamp < market.fixedTermEndTime) {
       if (!(market.allowTermReduction || market.allowClosureBeforeTerm)) {
         revert ClosureDisabledBeforeTerm();
       }
+    }
+  }
+
+  /// @dev validation must run first. an allowed early close brings maturity forward to now.
+  function _applyFixedCloseMarket() internal {
+    HookedMarket storage market = _hookedMarkets[msg.sender];
+    if (block.timestamp < market.fixedTermEndTime) {
       uint32 previousFixedTermEndTime = market.fixedTermEndTime;
       market.fixedTermEndTime = uint32(block.timestamp);
       emit FixedTermUpdated(
@@ -305,20 +281,6 @@ contract FixedTermHooks is BaseHooks {
       );
     }
   }
-
-  /// @dev quarantine reaches the maturity check in the ordinary queue callback that follows.
-  function onNukeFromOrbit(
-    address /* lender */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
-  /// @dev this template adds no supply-cap policy.
-  function onSetMaxTotalSupply(
-    uint256 /* maxTotalSupply */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
 
   /// @notice rejects APR reductions before maturity, then applies the shared reserve policy.
   /// @dev equal or higher APRs are allowed during the term, subject to the shared bounds.
@@ -351,11 +313,4 @@ contract FixedTermHooks is BaseHooks {
         hooksData
       );
   }
-
-  /// @dev this template adds no protocol-fee policy.
-  function onSetProtocolFeeBips(
-    uint16 /* protocolFeeBips */,
-    MarketState memory /* intermediateState */,
-    bytes calldata /* extraData */
-  ) external override {}
 }

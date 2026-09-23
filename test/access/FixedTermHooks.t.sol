@@ -8,13 +8,11 @@ import { HookedMarket } from 'src/access/FixedTermHooks.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
-import { RAY } from 'src/libraries/MathUtils.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
-import { LenderStatus } from 'src/types/LenderStatus.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
@@ -105,10 +103,6 @@ contract FixedTermHooksTest is TestKernel {
   function _addPullProvider(FixedTermHooks target) internal {
     provider1.setIsPullProvider(true);
     target.addRoleProvider(address(provider1), type(uint32).max);
-  }
-
-  function _credentialData(bytes memory credential) internal view returns (bytes memory) {
-    return abi.encodePacked(address(provider1), credential);
   }
 
   function test_metadata_IsCanonical() external view {
@@ -252,49 +246,42 @@ contract FixedTermHooksTest is TestKernel {
     hooks.setFixedTermEndTime(MarketA, 0);
   }
 
-  function test_unhookedTermEndpoints_Reject() external {
+  function test_unhookedCloseMarket_Rejects() external {
     MarketState memory state;
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
     hooks.onCloseMarket(state, '');
   }
 
-  function test_onQueueWithdrawal_EnforcesTermAndRequestedAccess() external {
+  function test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess() external {
     uint32 term = _term();
-    _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term));
-    MarketState memory state;
-    vm.prank(MarketA);
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-
-    _createMarket(hooks, MarketB, _requestedConfig(hooks, true, true, true), abi.encode(term));
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, true, true, true), abi.encode(term));
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
     _addPullProvider(hooks);
     vm.prank(address(provider1));
     hooks.grantRole(Lender, uint32(block.timestamp));
-    state.scaleFactor = uint112(RAY);
-    vm.prank(MarketB);
+    MarketState memory state;
+    vm.prank(MarketA);
     hooks.onDeposit(Lender, 1, state, '');
-    vm.prank(address(provider1));
-    hooks.revokeRole(Lender);
+    hooks.blockFromDeposits(Lender);
+
+    vm.warp(term - 1);
+    state.isClosed = true;
+    vm.prank(MarketA);
+    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.prank(MarketA);
+    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
 
     vm.warp(term);
+    state.isClosed = false;
     vm.prank(MarketA);
-    hooks.onQueueWithdrawal(ThirdLender, 0, 1, state, '');
-    vm.prank(MarketB);
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-
-    vm.prank(MarketB);
+    vm.prank(MarketA);
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
     hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
-    bytes memory credential = abi.encode('fixed-term queue');
-    provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
     vm.prank(MarketB);
-    hooks.onQueueWithdrawal(SecondLender, 0, 1, state, _credentialData(credential));
-    LenderStatus memory status = hooks.getPreviousLenderStatus(SecondLender);
-    assertEq(status.lastProvider, address(provider1), 'last provider');
-    assertEq(status.lastApprovalTimestamp, uint32(block.timestamp), 'approval timestamp');
-    assertFalse(hooks.isKnownLenderOnMarket(SecondLender, MarketB), 'withdrawal known lender');
+    hooks.onQueueWithdrawal(ThirdLender, 0, 1, state, '');
   }
 
   function test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges() external {
@@ -360,18 +347,5 @@ contract FixedTermHooksTest is TestKernel {
     vm.prank(MarketC);
     hooks.onCloseMarket(state, '');
     assertEq(hooks.getHookedMarket(MarketC).fixedTermEndTime, term, 'elapsed term');
-  }
-
-  function test_unrestrictedCallbacks_AreNoOps() external {
-    MarketState memory state;
-    bytes memory extraData = abi.encode('unused');
-    vm.startPrank(MarketA);
-    hooks.onExecuteWithdrawal(Lender, 1, 2, state, extraData);
-    hooks.onBorrow(3, state, extraData);
-    hooks.onRepay(4, state, extraData);
-    hooks.onNukeFromOrbit(Lender, state, extraData);
-    hooks.onSetMaxTotalSupply(5, state, extraData);
-    hooks.onSetProtocolFeeBips(6, state, extraData);
-    vm.stopPrank();
   }
 }

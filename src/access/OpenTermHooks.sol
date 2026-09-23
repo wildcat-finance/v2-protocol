@@ -152,70 +152,6 @@ contract OpenTermHooks is BaseHooks {
   //                                    Hooks                                   //
   // ========================================================================== //
 
-  /// @notice allows a withdrawal request from a known lender or one with a current credential.
-  /// @dev known status is market-specific and survives credential expiry, revocation, provider
-  ///      removal, and local deposit blocks.
-  function onQueueWithdrawal(
-    address lender,
-    uint32 /* expiry */,
-    uint /* scaledAmount */,
-    MarketState calldata /* state */,
-    bytes calldata hooksData
-  ) external override {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!market.isHooked) revert NotHookedMarket();
-    LenderStatus memory status = _lenderStatus[lender];
-    if (
-      !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, hooksData)
-    ) {
-      revert NotApprovedLender();
-    }
-  }
-
-  /// @dev execution stays permissionless once the lender has queued the withdrawal.
-  function onExecuteWithdrawal(
-    address lender,
-    uint32 /* expiry */,
-    uint128 /* normalizedAmountWithdrawn */,
-    MarketState calldata /* state */,
-    bytes calldata hooksData
-  ) external override {}
-
-  /// @dev open-term access policy does not constrain borrower draws.
-  function onBorrow(
-    uint /* normalizedAmount */,
-    MarketState calldata /* state */,
-    bytes calldata /* extraData */
-  ) external override {}
-
-  /// @dev open-term access policy does not constrain repayments.
-  function onRepay(
-    uint normalizedAmount,
-    MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {}
-
-  /// @dev open-term markets have no hook-level closure restriction.
-  function onCloseMarket(
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
-  /// @dev the market uses its ordinary queue path after this; there is no separate quarantine
-  ///      bypass.
-  function onNukeFromOrbit(
-    address /* lender */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
-  /// @dev this template adds no supply-cap policy.
-  function onSetMaxTotalSupply(
-    uint256 /* maxTotalSupply */,
-    MarketState calldata /* state */,
-    bytes calldata /* hooksData */
-  ) external override {}
-
   /// @notice applies the shared APR bounds and temporary excess-reserve policy.
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
@@ -236,11 +172,4 @@ contract OpenTermHooks is BaseHooks {
         hooksData
       );
   }
-
-  /// @dev this template adds no protocol-fee policy.
-  function onSetProtocolFeeBips(
-    uint16 /* protocolFeeBips */,
-    MarketState memory /* intermediateState */,
-    bytes calldata /* extraData */
-  ) external override {}
 }

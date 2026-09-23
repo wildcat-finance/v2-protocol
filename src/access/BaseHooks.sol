@@ -281,4 +281,162 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     MarketState calldata state,
     bytes calldata extraData
   ) internal virtual {}
+
+  /// @notice checks the withdrawal schedule, lender access, and additional queue rules.
+  /// @dev the market still chooses the batch and expiry. queueing doesn't make a lender known.
+  function onQueueWithdrawal(
+    address lender,
+    uint32 expiry,
+    uint scaledAmount,
+    MarketState calldata state,
+    bytes calldata hooksData
+  ) external override {
+    AccessConfig memory access = _requireHookedMarket(msg.sender);
+    _checkWithdrawalSchedule(lender, expiry, scaledAmount, state, hooksData);
+    _processWithdrawalAccess(access, lender, hooksData);
+    _checkQueueWithdrawal(lender, expiry, scaledAmount, state, hooksData);
+  }
+
+  function _checkWithdrawalSchedule(
+    address lender,
+    uint32 expiry,
+    uint256 scaledAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal view virtual {}
+
+  /// @dev known status survives credential loss and deposit blocks. keep exemptions here so
+  ///      they don't skip the coordinator's additional queue check.
+  function _processWithdrawalAccess(
+    AccessConfig memory access,
+    address lender,
+    bytes calldata extraData
+  ) internal virtual {
+    if (!access.withdrawalRequiresAccess) return;
+    LenderStatus memory status = _lenderStatus[lender];
+    if (
+      !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, extraData)
+    ) {
+      revert NotApprovedLender();
+    }
+  }
+
+  function _checkQueueWithdrawal(
+    address lender,
+    uint32 expiry,
+    uint256 scaledAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  /// @notice validates closure before applying the hook's closure effects.
+  /// @dev the term policy owns caller checks. open-term closure stays an unguarded no-op.
+  ///      the market resets APR/reserves after this; don't invent an APR callback here.
+  function onCloseMarket(MarketState calldata state, bytes calldata hooksData) external override {
+    _validateCloseMarket(state, hooksData);
+    _applyCloseMarket(state, hooksData);
+  }
+
+  function _validateCloseMarket(
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal view virtual {}
+
+  function _applyCloseMarket(
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  // these empty defaults accept unknown callers too. a stateful feature must enable its callback
+  // and authenticate the market before trusting it. don't change that for every existing template.
+
+  /// @dev queued claims stay ungated by default. don't reuse the queue's credential/window checks.
+  function onExecuteWithdrawal(
+    address lender,
+    uint32 expiry,
+    uint128 normalizedAmountWithdrawn,
+    MarketState calldata state,
+    bytes calldata hooksData
+  ) external override {
+    _checkExecuteWithdrawal(lender, expiry, normalizedAmountWithdrawn, state, hooksData);
+  }
+
+  function _checkExecuteWithdrawal(
+    address lender,
+    uint32 expiry,
+    uint128 amount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  function onBorrow(
+    uint normalizedAmount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) external override {
+    _checkBorrow(normalizedAmount, state, extraData);
+  }
+
+  function _checkBorrow(
+    uint256 amount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  function onRepay(
+    uint normalizedAmount,
+    MarketState calldata state,
+    bytes calldata hooksData
+  ) external override {
+    _checkRepay(normalizedAmount, state, hooksData);
+  }
+
+  function _checkRepay(
+    uint256 amount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  /// @dev quarantine reaches the ordinary queue callback next, including its schedule checks.
+  function onNukeFromOrbit(
+    address lender,
+    MarketState calldata state,
+    bytes calldata hooksData
+  ) external override {
+    _checkNukeFromOrbit(lender, state, hooksData);
+  }
+
+  function _checkNukeFromOrbit(
+    address lender,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  function onSetMaxTotalSupply(
+    uint256 maxTotalSupply,
+    MarketState calldata state,
+    bytes calldata hooksData
+  ) external override {
+    _checkMaxTotalSupply(maxTotalSupply, state, hooksData);
+  }
+
+  function _checkMaxTotalSupply(
+    uint256 amount,
+    MarketState calldata state,
+    bytes calldata extraData
+  ) internal virtual {}
+
+  function onSetProtocolFeeBips(
+    uint16 protocolFeeBips,
+    MarketState memory intermediateState,
+    bytes calldata extraData
+  ) external override {
+    _checkProtocolFeeBips(protocolFeeBips, intermediateState, extraData);
+  }
+
+  function _checkProtocolFeeBips(
+    uint16 bips,
+    MarketState memory state,
+    bytes calldata extraData
+  ) internal virtual {}
 }
