@@ -296,3 +296,134 @@ Its reviewed Solidity and all 40 evidence hashes were verified unchanged before
 the signed kethcode commit; only completion-status documentation changed after
 review. M4-03 is next. The reference documents and voice guide remain untracked
 and excluded.
+
+## M4-03: Fourth feature and callback activation
+
+M4-02 was approved and committed as `d3811bbb21b09faf2610e507687aee92fe82c330`,
+with the kethcode SSH signature verified. M4-03 adds test-only code; all
+production sources and both frozen transfer-component files remain unchanged.
+
+### Independent feature and explicit integration
+
+`BorrowAmountPolicy` owns two market-keyed values: `maximumNormalizedBorrow`
+and `lastNormalizedBorrow`. Its management API delegates to the existing
+`FeatureAuthority` implementation, so administrator and market registration
+checks still have one owner. The limit applies to each borrow in underlying
+asset units. Zero prevents positive borrows; it does not disable transfers or
+withdrawals. Recording the last accepted amount provides an observable effect
+without introducing another cumulative counter or quota.
+
+`OpenBorrowHooks`, `FixedBorrowHooks`, and `PeriodicBorrowHooks` inherit the
+unchanged transfer assemblies plus that independent component. Each concrete
+hook declares required borrow dispatch, explicitly calls its existing transfer
+initializer before initializing the borrow limit from `parameters.maxTotalSupply`,
+and authenticates `msg.sender` with `_requireHookedMarket` before invoking the
+borrow feature. Initialization uses callback parameters while the market has
+no deployed code. No existing feature or reusable base/term implementation
+needed editing.
+
+The feature itself does not inherit `BaseHooks`. The concrete assembly wires
+its helper into `_checkBorrow`; this avoids adding a second `BaseHooks`
+inheritance branch and having to resolve unrelated term overrides. The original
+production templates retain their unguarded, empty borrow callback. Their
+existing no-op callback test remains unchanged and passes in both profiles.
+
+Two overloads in `ProductionMatrixFixture` accept custom template artifacts
+and an existing hook instance with exact requested flags. The original helper
+signatures retain the built-in templates and original default flags. Template
+storage, factory setup, and market deployment still have one implementation.
+The new cases request only deposit credentials, deliberately omitting both
+borrow and transfer dispatch. Actual market flags agree with the composition's
+public configuration, and uncredentialed transfers still reach the feature rules.
+
+### Behavioral proof and retained tests
+
+Four new properties belong to `ProductionMatrixScenariosTest`. Each covers all
+six open/fixed/periodic and standard/revolving combinations through real
+factories and actual stored initcode:
+
+| Property | Observable result |
+| --- | --- |
+| Factory deployment and activation | Registered markets use the selected stored template; required callbacks are enabled despite omitted request flags. Both creation defaults are present. Stored bytes, runtime size, and complete constructor payload meet deployment limits. |
+| Borrow bounds and retained transfer rules | Below/at/above-limit borrowing after interest moves `scaleFactor` above RAY uses normalized asset amounts. Accepted borrows transfer assets, record the amount/event, and increase revolving principal. Rejected borrowing preserves state/balances. Both prior transfer rules still reject and allow real transfers; recipient rejection restores the earlier volume write. |
+| Authority and market isolation | Two markets share one instance with distinct limits and accepted amounts. Unknown callback callers fail registration before the feature's amount check. Unauthorized and unknown-market management fail. Pending administrators have no authority; accepted transfer replaces authority while retaining both markets' state. |
+| Downstream failure and earlier core guards | A mocked underlying transfer returns false after the hook runs. The last accepted amount, market state, balances, and revolving principal roll back. Clearing the mock allows the same amount. Borrowability and closed-market errors precede the feature's zero-limit rejection. |
+
+Source comparison retains **all 737 existing test/invariant entrypoints byte
+for byte**, including their assertions and expectations. Four additions bring
+the source inventory to 741 entrypoints with the same 51 owning suites and no
+inherited or fixture-owned test entrypoints. This is an inventory, not a full
+suite run.
+
+Final focused default and deploy checks each pass **345 tests across 19 suites**,
+with 1,000 fuzz iterations and seed `0x5eed`. They retain the prior 339-case
+selection, add the four composition properties, and include the two existing
+production-economics cases because they also consume the changed shared fixture.
+All users of that fixture are covered. The three full canonical runs and
+invariant campaigns remain M4-06.
+
+All four touched Solidity files pass Prettier. Lint retains the same 33 untouched
+formatting failures, zero Solhint errors, and 22 warnings. Initial diagnostics
+exposed a reused market salt in the new matrix helper and two overlong comments;
+both were corrected before the final checks. No existing assertion was relaxed.
+
+### Deployment sizes, compatibility, and costs
+
+| Test composition | Runtime bytes | Creation bytes | Stored initcode bytes | Stored headroom | Actual constructor payload |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `OpenBorrowHooks` | 16,945 | 19,672 | 19,673 | 4,903 | 19,768 |
+| `FixedBorrowHooks` | 18,303 | 21,030 | 21,031 | 3,545 | 21,126 |
+| `PeriodicBorrowHooks` | 21,195 | 23,922 | 23,923 | 653 | 24,018 |
+
+Both profiles produce identical composition ABIs and executable bytes. Each
+adds 465 bytes to its M4-02 counterpart. Real factory deployments verify the
+`STOP || initcode` bytes and the 24,576-byte runtime/storage and 49,152-byte
+constructor limits, without a raised code-size setting. Constructor payloads
+include the actual administrator and empty `args`. Periodic fits with 653 bytes
+of stored-initcode headroom; further examples must keep measuring that limit.
+
+All three production ABIs, selectors, creation/runtime bytes, link references,
+and immutable patch positions remain identical to M3/M4-02 in both profiles.
+The prior transfer compositions' ABIs and bytecode also remain identical.
+Unchanged production sources qualify retained M4-02 layout and production gas
+evidence under their original conditions and exclusions; no fresh production
+layout or gas measurement is claimed here.
+
+Two canonical scenarios supply 48 trace-reported composed-market borrow calls,
+including 36 nested borrow callbacks and 12 earlier core rejections. Six failed
+asset transfers show the feature event before the failed transfer; the three
+revolving cases also show the principal update before rollback. Those trace
+events describe execution before a revert, not persisted logs. Tests separately
+assert the restored state and successful retry.
+
+Representative callback costs for below-limit entry, an at-limit update, and
+above-limit rejection are 30,111 / 13,011 / 6,566 gas for open, 30,073 / 12,973 /
+6,528 for fixed, and 30,308 / 13,208 / 6,763 for periodic. These nested callback
+costs match across the two market kinds in that scenario. Measurements use
+Foundry isolation, initial timestamp `1724284800`, seed `0x5eed`, and the exact
+source-bound states/inputs retained in the trace summary. They are probe costs,
+not a production regression or a full transaction estimate.
+
+### M4-03 evidence identities
+
+Paths are relative to the ignored M4 evidence root. The final manifest contains
+290 source/test/script/settings files and 897 dependency files. Tools, settings,
+and dependency identities remain unchanged. The review receipt binds the
+final tests, artifact comparisons, ownership check, lint, and borrow traces.
+
+| File | SHA-256 |
+| --- | --- |
+| `m4-03-qualification.json` | `946e2f2ac2236d8a828a2db08f0ce2c7e2ca8b2cd33ee25fff0585f9cb9d69fb` |
+| `m4-03-review-inputs.sha256.json` | `70305f7499bbbe27e0b5c2c0d9730a79cda7511a0553c095f5ed4db3fe572b10` |
+| `m4-03-review-tests-default-receipt.json` | `7a0e5445ae1fcd7f4058944ccd0c26aa82fce3e705ffe68d4138aa856f8eb020` |
+| `m4-03-review-tests-deploy-receipt.json` | `37f7f008ae9066408e0f1c49b85ef14c1f9af162ad377e784db15ccfcaedc723` |
+| `m4-03-ownership-comparison.json` | `e17b939332339487a9948a0325ad4bbc7e1411df8bd87d6b88ec695bfa257809` |
+| `m4-03-composition-artifacts.json` | `6d9f87ce25ca76020c7acb5e3c4d40756a6184c2656b4d154d5de7ce23f5b087` |
+| `m4-03-borrow-gas-summary.json` | `f953e7b603b89a6728055b92e2cfe98fd641a2c98c9bc891779de4212fb9bcc1` |
+| `m4-03-lint-comparison.json` | `352728115f1902a66fe7b58de7edcaf10af69b39f145a5e5f849af98861c8c70` |
+
+The user approved the M4-03 commit on 2026-09-24 and requested a hold for reboot.
+The reviewed index, all 52 evidence artifacts, and 1,187 qualified inputs were
+verified unchanged before the signed kethcode commit; only completion-status
+documentation changed after review. M4-04 has not started and waits for the user
+to resume. The voice guide, PDF, and lifecycle sketch remain excluded.

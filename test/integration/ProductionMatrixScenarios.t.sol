@@ -12,14 +12,420 @@ import { PendingAprChange, PeriodicTermHooks } from 'src/access/PeriodicTermHook
 import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.sol';
+import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
+import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
+import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
+import { BorrowAmountPolicy } from '../mocks/BorrowAmountPolicy.sol';
+import { OpenBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
+import { FixedBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
+import { PeriodicBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
+import { RecipientRestrictionPolicy } from '../mocks/TransferFeaturePolicies.sol';
+import { TransferAmountPolicy } from '../mocks/TransferFeaturePolicies.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
 contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
   uint256 internal constant AliceDeposit = 100_000e18;
   uint256 internal constant BobDeposit = 50_000e18;
   uint128 internal constant MinimumDeposit = 10_000e18;
+
+  function _borrowArtifacts() private pure returns (string[3] memory) {
+    return [
+      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(OpenBorrowHooks).name),
+      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(FixedBorrowHooks).name),
+      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(PeriodicBorrowHooks).name)
+    ];
+  }
+
+  function _deployBorrowCell(
+    ProductionStack memory stack,
+    uint256 index
+  ) private returns (MatrixCell memory cell) {
+    MatrixOptions memory options = _defaultMatrixOptions(
+      MatrixHooksKind(index % 3),
+      MatrixMarketKind(index / 3)
+    );
+    IHooksFactory factory = _factoryFor(stack, options.marketKind);
+    vm.prank(MatrixBorrower);
+    address hooks = factory.deployHooksInstance(stack.hooksTemplates[index % 3], '');
+    // request deposit credentials only. the composition must force borrow/transfer dispatch itself.
+    HooksConfig requested = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
+    cell = _deployMatrixCell(
+      stack,
+      options,
+      MatrixBorrower,
+      MatrixBorrower,
+      uint96(200 + index),
+      requested
+    );
+    vm.prank(MatrixBorrower);
+    cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
+  }
+
+  function test_fourPolicyFactoriesForceCallbacksAcrossProductionMatrix() external {
+    string[3] memory artifacts = _borrowArtifacts();
+    ProductionStack memory stack = _deployProductionStack(artifacts);
+    for (uint256 i; i < 6; i++) {
+      MatrixCell memory cell = _deployBorrowCell(stack, i);
+      IHooks hooks = IHooks(address(cell.hooks));
+      IHooksFactory factory = _factoryFor(stack, cell.options.marketKind);
+      assertEq(cell.market.factory(), address(factory), 'composed market factory');
+      assertEq(hooks.factory(), address(factory), 'composed hooks factory');
+      assertEq(cell.hooks.administrator(), MatrixBorrower, 'composed administrator');
+      assertEq(
+        factory.getHooksTemplateForInstance(address(cell.hooks)),
+        cell.hooksTemplate,
+        'composed stored template'
+      );
+      assertEq(
+        factory.getMarketsForHooksInstanceCount(address(cell.hooks)),
+        1,
+        'composed market count'
+      );
+      assertTrue(
+        stack.archController.isRegisteredMarket(address(cell.market)),
+        'composed registration'
+      );
+      assertTrue(hooks.config().requiredFlags().useOnBorrow(), 'declared borrow requirement');
+      assertTrue(hooks.config().requiredFlags().useOnTransfer(), 'declared transfer requirement');
+      assertTrue(cell.market.hooks().useOnBorrow(), 'forced borrow dispatch');
+      assertTrue(cell.market.hooks().useOnTransfer(), 'forced transfer dispatch');
+      assertEq(
+        HooksConfig.unwrap(cell.market.hooks()),
+        HooksConfig.unwrap(
+          hooks.config().requiredFlags().setFlag(Bit_Enabled_Deposit).setHooksAddress(
+            address(hooks)
+          )
+        ),
+        'effective flags match declaration'
+      );
+      assertEq(
+        BorrowAmountPolicy(address(hooks)).maximumNormalizedBorrow(address(cell.market)),
+        cell.options.maxTotalSupply,
+        'borrow default'
+      );
+      assertEq(
+        TransferAmountPolicy(address(hooks)).maximumScaledTransfer(address(cell.market)),
+        cell.options.maxTotalSupply,
+        'transfer default retained'
+      );
+      assertEq(
+        BorrowAmountPolicy(address(hooks)).lastNormalizedBorrow(address(cell.market)),
+        0,
+        'no initial borrow'
+      );
+
+      bytes memory creation = vm.getCode(artifacts[i % 3]);
+      assertEq(
+        cell.hooksTemplate.code,
+        abi.encodePacked(hex'00', creation),
+        'actual stored initcode'
+      );
+      assertTrue(cell.hooksTemplate.code.length <= 24_576, 'stored initcode limit');
+      assertTrue(address(hooks).code.length <= 24_576, 'composed runtime limit');
+      assertTrue(
+        abi.encodePacked(creation, abi.encode(MatrixBorrower, bytes(''))).length <= 49_152,
+        'constructor payload limit'
+      );
+    }
+  }
+
+  function test_fourPolicyBorrowLimitsRetainTransferRulesAcrossProductionMatrix() external {
+    ProductionStack memory stack = _deployProductionStack(_borrowArtifacts());
+    for (uint256 i; i < 6; i++) {
+      MatrixCell memory cell = _deployBorrowCell(stack, i);
+      _authorize(stack, cell, MatrixAlice);
+      _deposit(stack, cell, MatrixAlice, AliceDeposit);
+      // move scaleFactor off RAY. the borrow limit still uses the asset amount, not scaled shares.
+      vm.warp(vm.getBlockTimestamp() + 1 days);
+      cell.market.updateState();
+      assertTrue(cell.market.scaleFactor() > 1e27, 'interest accrued');
+      BorrowAmountPolicy feature = BorrowAmountPolicy(address(cell.hooks));
+      vm.prank(MatrixBorrower);
+      feature.setBorrowAmountLimit(address(cell.market), 100e18);
+      _assertRecordedBorrow(stack, cell, 25e18);
+      _assertRecordedBorrow(stack, cell, 100e18);
+
+      uint256 marketAssets = stack.asset.balanceOf(address(cell.market));
+      uint256 borrowerAssets = stack.asset.balanceOf(MatrixBorrower);
+      bytes32 previousState = keccak256(abi.encode(cell.market.previousState()));
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(BorrowAmountPolicy.BorrowAmountLimitExceeded.selector);
+      cell.market.borrow(100e18 + 1);
+      assertEq(
+        feature.lastNormalizedBorrow(address(cell.market)),
+        100e18,
+        'rejected borrow not recorded'
+      );
+      assertEq(stack.asset.balanceOf(address(cell.market)), marketAssets, 'rejected market assets');
+      assertEq(stack.asset.balanceOf(MatrixBorrower), borrowerAssets, 'rejected borrower assets');
+      assertEq(
+        keccak256(abi.encode(cell.market.previousState())),
+        previousState,
+        'rejected borrow state'
+      );
+      _assertComposedTransfers(cell);
+    }
+  }
+
+  function _assertRecordedBorrow(
+    ProductionStack memory stack,
+    MatrixCell memory cell,
+    uint256 amount
+  ) private {
+    uint256 marketAssets = stack.asset.balanceOf(address(cell.market));
+    uint256 borrowerAssets = stack.asset.balanceOf(MatrixBorrower);
+    uint256 drawn;
+    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
+      drawn = IWildcatMarketRevolving(address(cell.market)).drawnAmount();
+    }
+    vm.expectEmit(true, false, false, true, address(cell.hooks));
+    emit BorrowAmountPolicy.BorrowAmountRecorded(address(cell.market), amount);
+    _borrow(cell, amount);
+    assertEq(
+      BorrowAmountPolicy(address(cell.hooks)).lastNormalizedBorrow(address(cell.market)),
+      amount,
+      'accepted normalized amount'
+    );
+    assertEq(
+      stack.asset.balanceOf(address(cell.market)),
+      marketAssets - amount,
+      'borrowed market assets'
+    );
+    assertEq(
+      stack.asset.balanceOf(MatrixBorrower),
+      borrowerAssets + amount,
+      'borrower received assets'
+    );
+    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
+      assertEq(
+        IWildcatMarketRevolving(address(cell.market)).drawnAmount(),
+        drawn + amount,
+        'drawn principal'
+      );
+    }
+  }
+
+  function _assertComposedTransfers(MatrixCell memory cell) private {
+    TransferAmountPolicy amountFeature = TransferAmountPolicy(address(cell.hooks));
+    RecipientRestrictionPolicy recipientFeature = RecipientRestrictionPolicy(address(cell.hooks));
+    vm.startPrank(MatrixBorrower);
+    amountFeature.setTransferAmountLimit(address(cell.market), 1e18);
+    recipientFeature.setRestrictedRecipient(address(cell.market), MatrixBob);
+    vm.stopPrank();
+
+    vm.prank(MatrixAlice);
+    vm.expectRevert(RecipientRestrictionPolicy.RecipientRestricted.selector);
+    cell.market.transfer(MatrixBob, 1e18);
+    assertEq(
+      amountFeature.scaledTransferVolume(address(cell.market)),
+      0,
+      'recipient failure rolls back volume'
+    );
+    vm.prank(MatrixAlice);
+    vm.expectRevert(TransferAmountPolicy.TransferAmountLimitExceeded.selector);
+    cell.market.transfer(MatrixCaller, 2e18);
+    assertEq(cell.market.scaledBalanceOf(MatrixCaller), 0, 'amount failure rolls back transfer');
+
+    // MatrixCaller has no credentials. forced dispatch must not require transfer credentials.
+    vm.prank(MatrixAlice);
+    cell.market.transfer(MatrixCaller, 1e18);
+    assertTrue(cell.market.scaledBalanceOf(MatrixCaller) > 0, 'accepted transfer');
+    assertEq(
+      amountFeature.scaledTransferVolume(address(cell.market)),
+      cell.market.scaledBalanceOf(MatrixCaller),
+      'accepted scaled volume'
+    );
+  }
+
+  function test_fourPolicyBorrowAuthorityAndMarketsStayIsolated() external {
+    ProductionStack memory stack = _deployProductionStack(_borrowArtifacts());
+    stack.archController.registerBorrower(MatrixCaller);
+    for (uint256 i; i < 6; i++) {
+      MatrixCell memory cell = _deployBorrowCell(stack, i);
+      MatrixOptions memory siblingOptions = _defaultMatrixOptions(
+        cell.options.hooksKind,
+        cell.options.marketKind
+      );
+      siblingOptions.maxTotalSupply *= 2;
+      MatrixCell memory sibling = _deployMatrixCell(
+        stack,
+        siblingOptions,
+        MatrixBorrower,
+        MatrixBorrower,
+        uint96(210 + i),
+        EmptyHooksConfig.setHooksAddress(address(cell.hooks)).setFlag(Bit_Enabled_Deposit)
+      );
+      BorrowAmountPolicy feature = BorrowAmountPolicy(address(cell.hooks));
+      assertEq(
+        _factoryFor(stack, cell.options.marketKind).getMarketsForHooksInstanceCount(
+          address(cell.hooks)
+        ),
+        2,
+        'shared instance'
+      );
+      assertEq(
+        feature.maximumNormalizedBorrow(address(cell.market)),
+        cell.options.maxTotalSupply,
+        'first creation unchanged'
+      );
+      assertEq(
+        feature.maximumNormalizedBorrow(address(sibling.market)),
+        siblingOptions.maxTotalSupply,
+        'second creation default'
+      );
+      MarketState memory state;
+      vm.prank(MatrixCaller);
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      IHooks(address(cell.hooks)).onBorrow(1, state, '');
+      assertEq(
+        feature.lastNormalizedBorrow(MatrixCaller),
+        0,
+        'unknown caller has no feature state'
+      );
+      vm.prank(MatrixAlice);
+      vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+      feature.setBorrowAmountLimit(address(cell.market), 1);
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      feature.setBorrowAmountLimit(MatrixCaller, 1);
+
+      vm.expectEmit(true, false, false, true, address(feature));
+      emit BorrowAmountPolicy.BorrowAmountLimitUpdated(address(cell.market), 100e18);
+      vm.prank(MatrixBorrower);
+      feature.setBorrowAmountLimit(address(cell.market), 100e18);
+      vm.prank(MatrixBorrower);
+      feature.setBorrowAmountLimit(address(sibling.market), 50e18);
+      _authorize(stack, cell, MatrixAlice);
+      _deposit(stack, cell, MatrixAlice, AliceDeposit);
+      _deposit(stack, sibling, MatrixAlice, AliceDeposit);
+      _assertRecordedBorrow(stack, cell, 100e18);
+      assertEq(feature.lastNormalizedBorrow(address(sibling.market)), 0, 'first borrow isolated');
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(BorrowAmountPolicy.BorrowAmountLimitExceeded.selector);
+      sibling.market.borrow(100e18);
+      _assertRecordedBorrow(stack, sibling, 50e18);
+      assertEq(
+        feature.lastNormalizedBorrow(address(cell.market)),
+        100e18,
+        'second borrow isolated'
+      );
+
+      vm.prank(MatrixBorrower);
+      cell.hooks.requestAdministratorTransfer(MatrixCaller);
+      vm.prank(MatrixCaller);
+      vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+      feature.setBorrowAmountLimit(address(cell.market), 0);
+      vm.prank(MatrixCaller);
+      cell.hooks.acceptAdministratorTransfer();
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+      feature.setBorrowAmountLimit(address(cell.market), 0);
+      vm.prank(MatrixCaller);
+      feature.setBorrowAmountLimit(address(cell.market), 0);
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(BorrowAmountPolicy.BorrowAmountLimitExceeded.selector);
+      cell.market.borrow(1);
+      assertEq(
+        feature.maximumNormalizedBorrow(address(sibling.market)),
+        50e18,
+        'sibling limit retained'
+      );
+      assertEq(
+        feature.lastNormalizedBorrow(address(cell.market)),
+        100e18,
+        'accepted amount survives authority transfer'
+      );
+      _assertRecordedBorrow(stack, sibling, 25e18);
+    }
+  }
+
+  function test_fourPolicyBorrowRollbackAndCoreGuardsAcrossProductionMatrix() external {
+    ProductionStack memory stack = _deployProductionStack(_borrowArtifacts());
+    for (uint256 i; i < 6; i++) {
+      MatrixCell memory cell = _deployBorrowCell(stack, i);
+      _authorize(stack, cell, MatrixAlice);
+      _deposit(stack, cell, MatrixAlice, AliceDeposit);
+      _assertRecordedBorrow(stack, cell, 25e18);
+      vm.warp(vm.getBlockTimestamp() + 1 days);
+      _assertBorrowTransferRollback(stack, cell);
+
+      BorrowAmountPolicy feature = BorrowAmountPolicy(address(cell.hooks));
+      vm.prank(MatrixBorrower);
+      feature.setBorrowAmountLimit(address(cell.market), 0);
+      uint256 tooMuch = cell.market.borrowableAssets() + 1;
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(IMarketEventsAndErrors.BorrowAmountTooHigh.selector);
+      cell.market.borrow(tooMuch);
+      _approveBorrower(stack, cell, cell.options.maxTotalSupply);
+      _close(cell);
+      vm.prank(MatrixBorrower);
+      vm.expectRevert(IMarketEventsAndErrors.BorrowFromClosedMarket.selector);
+      cell.market.borrow(1);
+      assertEq(
+        feature.lastNormalizedBorrow(address(cell.market)),
+        100e18,
+        'core rejection leaves feature state'
+      );
+    }
+  }
+
+  function _assertBorrowTransferRollback(
+    ProductionStack memory stack,
+    MatrixCell memory cell
+  ) private {
+    uint256 amount = 100e18;
+    bytes32 previousState = keccak256(abi.encode(cell.market.previousState()));
+    uint256 marketAssets = stack.asset.balanceOf(address(cell.market));
+    uint256 borrowerAssets = stack.asset.balanceOf(MatrixBorrower);
+    uint256 drawn;
+    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
+      drawn = IWildcatMarketRevolving(address(cell.market)).drawnAmount();
+    }
+    vm.mockCall(
+      address(stack.asset),
+      abi.encodeWithSelector(stack.asset.transfer.selector, MatrixBorrower, amount),
+      abi.encode(false)
+    );
+    vm.expectCall(
+      address(cell.hooks),
+      abi.encodeCall(IHooks.onBorrow, (amount, cell.market.currentState(), bytes('')))
+    );
+    vm.prank(MatrixBorrower);
+    vm.expectRevert(LibERC20.TransferFailed.selector);
+    cell.market.borrow(amount);
+    assertEq(
+      BorrowAmountPolicy(address(cell.hooks)).lastNormalizedBorrow(address(cell.market)),
+      25e18,
+      'downstream failure restores accepted amount'
+    );
+    assertEq(
+      keccak256(abi.encode(cell.market.previousState())),
+      previousState,
+      'downstream failure restores market state'
+    );
+    assertEq(
+      stack.asset.balanceOf(address(cell.market)),
+      marketAssets,
+      'downstream failure restores market assets'
+    );
+    assertEq(
+      stack.asset.balanceOf(MatrixBorrower),
+      borrowerAssets,
+      'downstream failure restores borrower assets'
+    );
+    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
+      assertEq(
+        IWildcatMarketRevolving(address(cell.market)).drawnAmount(),
+        drawn,
+        'downstream failure restores principal'
+      );
+    }
+    vm.clearMockedCalls();
+    _assertRecordedBorrow(stack, cell, amount);
+  }
 
   function test_productionFactoriesDeployCompleteBuiltInMatrix() external {
     ProductionStack memory stack = _deployProductionStack();

@@ -96,6 +96,19 @@ abstract contract ProductionMatrixFixture is TestKernel {
   }
 
   function _deployProductionStack() internal returns (ProductionStack memory stack) {
+    return
+      _deployProductionStack(
+        [
+          'src/access/OpenTermHooks.sol:OpenTermHooks',
+          'src/access/FixedTermHooks.sol:FixedTermHooks',
+          'src/access/PeriodicTermHooks.sol:PeriodicTermHooks'
+        ]
+      );
+  }
+
+  function _deployProductionStack(
+    string[3] memory hooksArtifacts
+  ) internal returns (ProductionStack memory stack) {
     stack.archController = WildcatArchController(
       _deployCode('src/WildcatArchController.sol:WildcatArchController')
     );
@@ -133,7 +146,7 @@ abstract contract ProductionMatrixFixture is TestKernel {
     stack.archController.registerBorrower(MatrixBorrower);
     stack.standardFactory = _deployStandardFactory(stack);
     stack.revolvingFactory = _deployRevolvingFactory(stack);
-    _deployAndRegisterTemplates(stack);
+    _deployAndRegisterTemplates(stack, hooksArtifacts);
   }
 
   function _deployStandardFactory(
@@ -182,18 +195,12 @@ abstract contract ProductionMatrixFixture is TestKernel {
     factory.registerWithArchController();
   }
 
-  function _deployAndRegisterTemplates(ProductionStack memory stack) private {
-    stack.hooksTemplates[uint256(MatrixHooksKind.OpenTerm)] = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
-    stack.hooksTemplates[uint256(MatrixHooksKind.FixedTerm)] = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/FixedTermHooks.sol:FixedTermHooks')
-    );
-    stack.hooksTemplates[uint256(MatrixHooksKind.PeriodicTerm)] = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/PeriodicTermHooks.sol:PeriodicTermHooks')
-    );
-
+  function _deployAndRegisterTemplates(
+    ProductionStack memory stack,
+    string[3] memory hooksArtifacts
+  ) private {
     for (uint256 i; i < stack.hooksTemplates.length; i++) {
+      (stack.hooksTemplates[i], ) = _storeInitCode(hooksArtifacts[i]);
       string memory name = i == uint256(MatrixHooksKind.OpenTerm)
         ? 'Open Term'
         : i == uint256(MatrixHooksKind.FixedTerm)
@@ -303,21 +310,46 @@ abstract contract ProductionMatrixFixture is TestKernel {
     address borrowerPrincipal,
     uint96 nonce
   ) internal returns (MatrixCell memory cell) {
+    IHooksFactory factory = _factoryFor(stack, options.marketKind);
+    vm.prank(operationalBorrower);
+    address hooks = factory.deployHooksInstance(
+      stack.hooksTemplates[uint256(options.hooksKind)],
+      ''
+    );
+
+    HooksDeploymentConfig deploymentConfig = IHooks(hooks).config();
+    HooksConfig requestedHooks = deploymentConfig
+      .optionalFlags()
+      .setHooksAddress(hooks)
+      .mergeAllFlags(deploymentConfig.requiredFlags());
+    cell = _deployMatrixCell(
+      stack,
+      options,
+      operationalBorrower,
+      borrowerPrincipal,
+      nonce,
+      requestedHooks
+    );
+
+    vm.prank(borrowerPrincipal);
+    cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
+  }
+
+  /// @dev use an existing instance and the caller's exact flags, including omitted callbacks.
+  function _deployMatrixCell(
+    ProductionStack memory stack,
+    MatrixOptions memory options,
+    address operationalBorrower,
+    address borrowerPrincipal,
+    uint96 nonce,
+    HooksConfig requestedHooks
+  ) internal returns (MatrixCell memory cell) {
     cell.options = options;
     cell.operationalBorrower = operationalBorrower;
     cell.borrowerPrincipal = borrowerPrincipal;
     cell.deployedAt = vm.getBlockTimestamp();
     cell.hooksTemplate = stack.hooksTemplates[uint256(options.hooksKind)];
-    IHooksFactory factory = _factoryFor(stack, options.marketKind);
-
-    vm.prank(operationalBorrower);
-    cell.hooks = BaseAccessControls(factory.deployHooksInstance(cell.hooksTemplate, ''));
-
-    HooksDeploymentConfig deploymentConfig = IHooks(address(cell.hooks)).config();
-    HooksConfig requestedHooks = deploymentConfig
-      .optionalFlags()
-      .setHooksAddress(address(cell.hooks))
-      .mergeAllFlags(deploymentConfig.requiredFlags());
+    cell.hooks = BaseAccessControls(requestedHooks.hooksAddress());
     DeployMarketInputs memory inputs = _marketInputs(stack, options, requestedHooks);
     bytes memory hooksData = _hooksData(options, cell.deployedAt);
     bytes32 salt = _marketSalt(operationalBorrower, nonce);
@@ -339,9 +371,6 @@ abstract contract ProductionMatrixFixture is TestKernel {
         )
       );
     }
-
-    vm.prank(borrowerPrincipal);
-    cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
   }
 
   function _authorize(
