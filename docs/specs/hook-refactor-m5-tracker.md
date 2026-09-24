@@ -1,10 +1,10 @@
 # M5 tracker: integration compatibility and final documentation
 
 - Plan: [M5 execution plan](hook-refactor-m5-plan.md).
-- Milestone status: authorized and in progress; M5-01 complete.
-- Execution tasks complete: 1 of 6.
-- Active task: M5-02, public formats, identity, and source compatibility.
-- Next action: compare final public formats and consumers against M1 and M4.
+- Milestone status: authorized and in progress; M5-01 and M5-02 complete.
+- Execution tasks complete: 2 of 6.
+- Active task: M5-03, real integration behavior and deployment.
+- Next action: connect real factories to lens configuration/discovery and wrapper behavior.
 - Completed M4 checkpoint: `add362d22ab28b6d63f7e5627517f5f2e7e56121`.
 - Original compatibility reference: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
@@ -35,7 +35,7 @@ Record commit hashes in the next tracker update. Unmet dependencies remain
 | ID | Task | Status | Depends on | Evidence / result |
 | --- | --- | --- | --- | --- |
 | [M5-01](hook-refactor-m5-plan.md#m5-01-handoff-and-compatibility-inventory) | Qualify handoff and map consumer assumptions, proof owners, and gaps. | Done | Plan review and instruction to execute. | [Qualified identity, consumer assumptions, actual proof boundaries, and cleanup inventory](hook-refactor-m5-results.md#m5-01-handoff-and-compatibility-inventory). |
-| [M5-02](hook-refactor-m5-plan.md#m5-02-public-formats-identity-and-source-compatibility) | Qualify public encodings, metadata, decoders, imports, and artifact identity. | Not started | M5-01. | Pending. |
+| [M5-02](hook-refactor-m5-plan.md#m5-02-public-formats-identity-and-source-compatibility) | Qualify public encodings, metadata, decoders, imports, and artifact identity. | Done | M5-01. | [Full compiled/source comparison, abstract ABI labels, and controlled build-graph reproduction](hook-refactor-m5-results.md#m5-02-public-formats-identity-and-source-compatibility). |
 | [M5-03](hook-refactor-m5-plan.md#m5-03-real-integration-behavior-and-deployment) | Qualify actual consumer behavior and factory deployment. | Not started | M5-02. | Pending. |
 | [M5-04](hook-refactor-m5-plan.md#m5-04-maintained-integration-and-contributor-guides) | Update maintained integration and hook-development guides. | Not started | M5-02 and M5-03. | Pending. |
 | [M5-05](hook-refactor-m5-plan.md#m5-05-final-qualification-and-updated-spec) | Reconcile final tests/compatibility/costs and update the spec for export. | Not started | M5-01 through M5-04. | Pending. |
@@ -46,8 +46,8 @@ Record commit hashes in the next tracker update. Unmet dependencies remain
 | Checkpoint | Review state | Signed commit |
 | --- | --- | --- |
 | M5 planning | User approved execution on return from maintenance. | `f3d5e78`; kethcode SSH signature verified. |
-| M5-01 | Documentation/evidence only under existing authorization. | Signed with this checkpoint; hash recorded in the next tracker update. |
-| M5-02 | Not started; stage any Solidity changes for review. | Pending. |
+| M5-01 | Documentation/evidence only under existing authorization. | `118dab2`; kethcode SSH signature verified. |
+| M5-02 | Documentation/evidence only; no Solidity or configuration changes. | Signed with this checkpoint; hash recorded in the next tracker update. |
 | M5-03 | Not started; stage any Solidity changes for review. | Pending. |
 | M5-04 | Not started. | Pending. |
 | M5-05 | Not started; stage any Solidity changes for review. | Pending. |
@@ -96,8 +96,11 @@ M5-01 qualified 1,190 current inputs, 88 M4 artifacts, original M1 references,
 and tools/settings/dependencies, then mapped actual consumer assertions.
 Identified coverage additions are the real factory/lens connection (including
 fixed configuration and administrator discovery) and wrapper behavior through
-both real factories for all terms. M5-02 handles public formats first; those
-integration connections belong to M5-03. No export/deletion or push has occurred.
+both real factories for all terms. M5-02 compared all 115 original production declarations and 26 public source
+declarations/readers, reproduced the original hook hashes, and qualified both
+profiles. It records inherited labels in the abstract APR declaration and one
+reproduced compilation-source-set difference in cached lens code. M5-03 now owns
+the three missing real-consumer connections. No export/deletion or push has occurred.
 
 ## Progress log
 
@@ -105,3 +108,4 @@ integration connections belong to M5-03. No export/deletion or push has occurred
 | --- | --- |
 | 2026-09-24: M5 planning | Prioritized public and behavioral integration compatibility, mapped existing consumers/proof owners, retained all remaining milestone work, and added verified external spec/evidence handoff before removal of working documents. Prepared six tasks and preserved the staged Solidity review/signing workflow. Execution has not started. |
 | 2026-09-24: M5 authorized / M5-01 complete | User resumed after maintenance and instructed execution. Verified the unchanged M4 handoff, seven M1 reference files and all 1,166 original inputs, signatures, and tools/settings/dependencies. Inspected consumer assertions and mock boundaries, recorded three targeted integration connections, accepted source/ABI differences, and the exact 19-document cleanup set. Documentation-only signed checkpoint; M5-02 follows. |
+| 2026-09-24: M5-02 complete | Fresh M1/current full-production builds preserve all 115 selector/layout maps and 112 non-template code outputs. Recorded concrete input-label allowances, four inherited abstract APR labels, preserved public type imports/readers, and a controlled reproduction of cached lens build-graph sensitivity. Both profiles qualified; all 1,190 inputs unchanged. Documentation-only checkpoint; M5-03 follows. |

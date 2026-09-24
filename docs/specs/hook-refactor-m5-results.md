@@ -110,3 +110,101 @@ Paths are relative to the M5 raw evidence root above.
 
 M5-01 is a documentation/evidence-only checkpoint under the existing signing
 authorization. No Solidity, build configuration, or canonical test changed.
+
+## M5-02: Public formats, identity, and source compatibility
+
+M5-01 was committed as `118dab2`, signed kethcode and verified. Complete M1
+and current production snapshots were compiled with the pinned solc binary,
+unchanged dependencies, and canonical Cancun/viaIR/44-run/no-CBOR settings.
+Both snapshots were also compiled with the deploy profile's extra IR outputs.
+The original M1 creation/runtime hashes for all three hooks were reproduced.
+The comparison covers **115 original production declarations**, including
+37 concrete contracts and 61 nonempty runtimes; the four new abstract policy/
+base declarations have no original counterparts.
+
+### Compiled formats and consumer identity
+
+| Surface | Result |
+| --- | --- |
+| Complete ABI arrays | 111 original declarations match exactly in standalone compiler output. The three concrete hooks retain only the accepted 24 / 24 / 28 callback-input labels. The fourth difference is the abstract APR declaration described below. |
+| Wire formats | All 115 method-selector maps match. Complete ABI comparison includes constructors, events and indexing, errors, mutability, tuples, field names, and `internalType`; it does not reduce entries to selectors. |
+| Storage and links | All 115 normalized layouts and link references match M1. The three hooks retain their 11-entry layouts. Immutable patch positions match, apart from the already recorded hook-code movement. |
+| Consumer code | All 112 original declarations other than the three hook templates retain creation/runtime bytecode under matched production compilations. This includes markets, factories, lenses, wrappers, registry, and the relocated `IMarketApr` interface. |
+| Concrete hook code | Open / fixed / periodic creation bytes are 18,379 / 19,741 / 22,676; runtime bytes are 15,653 / 17,014 / 19,949. Code matches qualified M4/M3/M2. Accepted increases over M1 remain 349 / 413 / 678 bytes. |
+| Both cached Foundry profiles | Every original declaration matches full ABI entry content, selectors, links, immutable patch positions, and metadata source hashes. Standalone solc and Foundry order ABI entries differently; entry content is compared without dropping fields. All default and 114 deploy code outputs match the production compilation. The remaining cached lens artifact is explained below. |
+| Source declarations and consumers | 26 original public declarations/readers preserve signature and body tokens: public structs, getters, metadata, raw creation-data readers, and constraint access. All original concrete-file type re-exports remain. The complete production graphs compile the unchanged consumers, including family-specific lens imports. |
+
+Every metadata source hash was checked against its selected source revision or
+the pinned dependency. A successful compile cannot substitute a mixed-revision
+source for the baseline. Constructor/provider and creation-format compatibility
+also retain their original canonical runtime cases from M4: empty/nonempty
+arguments, defaults, partial words, low-bit booleans, checked narrowing, flag
+merging, registration, and event ordering. Real factory-to-lens behavior is the
+next task's separate proof boundary.
+
+### Abstract APR declaration labels
+
+Moving the APR callback implementation to `BaseHooks` leaves abstract
+`MarketConstraintHooks` inheriting the declaration from `IHooks`. Its ABI now
+uses these four inherited labels:
+
+| Position | M1 label | Current label |
+| --- | --- | --- |
+| Input 1 | Empty | `reserveRatioBips` |
+| Input 3 | Empty | `extraData` |
+| Output 0 | `newAnnualInterestBips` | `updatedAnnualInterestBips` |
+| Output 1 | `newReserveRatioBips` | `updatedReserveRatioBips` |
+
+This is an additional **abstract developer ABI** difference, separate from the
+approved concrete callback-input labels. Its types and selector are unchanged;
+the abstract contract has no creation/runtime code. All three concrete templates
+retain their original output labels. Bindings generated specifically from this
+abstract ABI see the renamed fields. Repository runtime consumers retain their
+ABI and code. Developer guidance must identify `BaseHooks` as the callback owner
+and the designated helper as the default strategy; duplicating a declaration
+just to preserve the abstract labels is not part of this refactor.
+
+The existing M1 source decision also applies: moved error/event references use
+their declaring base/policy, while original configuration types remain available
+through their concrete-file imports. No claim of universal source qualification
+compatibility is made.
+
+### Compilation source set and the cached lens artifact
+
+The cached deploy `MarketLensAggregator` has **21,120 creation / 20,852 runtime
+bytes**, versus **21,062 / 20,794** in the matched production compilations.
+Source metadata and code-generation settings match. Recompiling its recorded
+138-source build graph reproduces the cached code exactly. A controlled run
+changes **only the compilation source set**, keeping settings/output selection
+identical, and reproduces the production-only code instead. Both M1 and current
+complete-production builds match, with and without the extra deploy IR outputs.
+
+This is reproducible compilation-source-set sensitivity, not evidence of a
+refactor behavior change. Source hashes and optimizer settings alone do not
+identify the complete build graph. Cached artifacts were preserved; none was
+overwritten to obtain a match. Do not treat the two cached profile hashes as
+interchangeable. Final deployment evidence must bind the actual artifact, and
+bytecode comparisons require matched compilation inputs. This qualification
+does not claim bytecode equality across arbitrary source sets.
+
+### M5-02 evidence and disposition
+
+All 1,190 input hashes remain unchanged. This task adds compiler/source evidence;
+the prior qualified test runs remain prior runs. No Solidity, configuration,
+deployment inventory, or test expectation changed. No repository integration
+requires a public-format change. External SDK/app/subgraph execution is still
+outside the evidence; actual factory/lens/admin/wrapper connections proceed in
+M5-03.
+
+The qualification receipt binds the compiler requests, outputs, source/artifact
+comparisons, controlled reproduction, and helper scripts by hash. Paths below
+are relative to the M5 evidence root.
+
+| File | SHA-256 |
+| --- | --- |
+| `m5-02-qualification.json` | `25be43d5302801baab1a2adcbd2d46d6bcc18bae8119ef83733844951fce1e09` |
+| `m5-02-all-contract-comparison.json` | `6ade73d88e65a91f24d69dd087873b10b534759b3b33d6c9a4c1a07950b1d87d` |
+| `m5-02-profile-comparison.json` | `61efbb479470984de8fbca36632e5146c517eaa23bf9cc62c3ad0c076620ebee` |
+| `m5-02-source-comparison.json` | `2a44ca827c8c15603cea5ad2099242b930bfe1caf32ea92f13098ac2b9e50816` |
+| `m5-02-abstract-ABI-difference.json` | `163e035667e3fcc37111489c2f332b417c7fa84083a9ee821eb973ff4b56ec69` |
+| `m5-02-source-set-difference.json` | `b7d3d43efb427736c1d2c92ed816a7dd004d0b975721126c5f11bd26ced49861` |
