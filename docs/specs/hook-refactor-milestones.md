@@ -1,8 +1,8 @@
 # Hook refactor milestones
 
 - Status: M1, M2, and M3 complete, reviewed, and pushed. All six M4 tasks are
-  complete. The user authorized M5 after maintenance; M5-01 through M5-04 are complete;
-  final qualification and the updated spec are next. No later milestone push is inferred.
+  complete. The user authorized M5 after maintenance; M5-01 through M5-05 are complete;
+  verified external handoff and release-tree cleanup are next. No later milestone push is inferred.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.

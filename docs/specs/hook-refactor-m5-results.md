@@ -345,3 +345,73 @@ scope, input identity, link checker, and result. Its SHA-256 is
 `d5cf4da3845e3a88eb0da0cdb78a72771eb57a225ce3a94e9c5f1b7d975a0bbb`.
 M5-04 is complete under documentation-only signing authorization. M5-05 owns
 final complete-suite qualification and the self-contained updated spec.
+
+## M5-05: Final qualification and updated spec
+
+M5-04 is committed as `f53221a`, signed kethcode and verified. That exact
+revision qualifies the final source and maintained guides. This checkpoint
+changes only working documentation; all 1,190 compiler/test/dependency inputs
+retain their M5-03 hashes.
+
+| Final command | Result |
+| --- | --- |
+| `forge test` | 749 reported tests / 51 suites; zero failures or skips. |
+| `yarn test:fixed` | 749 / 51; timestamp `1724284800`, seed `0x5eed`; zero failures or skips. |
+| `FOUNDRY_PROFILE=deploy forge test` | 749 / 51; zero failures or skips. |
+
+All three runs discover the same 757 source entrypoints. Nine invariant
+properties are reported as one campaign: each run completes 2,000 invariant
+runs and 60,000 calls over 17 actions, with zero handler reverts/discards.
+Fuzz cases use 1,000 iterations. The complete inventories match the M4 owners
+plus exactly the three reviewed M5-03 properties; no old entrypoint or matrix
+helper was changed to make these runs pass.
+
+Foundry 1.8.3, solc 0.8.25, Node/Yarn, clean pinned dependency checkouts, and
+both effective profiles retain their qualified identities. All 248 cached
+artifacts (115 original production declarations and nine compositions in each
+profile) retain exact M5-03 hashes after the full runs. Copies are saved with
+the final evidence. The M5-02 complete ABI/selector/layout/source comparison
+and documented cached lens source-set variation remain valid. The M4 cost and
+size reconciliation remains attributable to unchanged executable bytes;
+accepted original size/gas increases and measurement exclusions are retained.
+
+Unchanged input identity retains the M5-03 lint receipts: 33 pre-existing
+formatting failures in untouched files, zero Solhint errors / 22 existing
+warnings, and passing formatting for changed Solidity. No unchanged lint or
+gas run was repeated solely to generate another filename.
+
+The [updated spec](hook-composition.md) now describes the implemented shared
+base and all three term policies, their ownership/adapters, explicit integration
+decisions, acceptance evidence, preserved public formats and known naming
+changes, actual deployment paths/headroom, and representative original gas
+deltas. It links only to surviving source and maintained guides. It separates
+proven hook extensibility from future V2.6 tranche economics/core requirements.
+Its external copy will use revision-pinned source links.
+
+All 259 local links/anchors across 39 retained release Markdown files and the
+updated spec resolve. No retained tracked file references one of the 19 planned
+removals. A full pre-cleanup scan also finds six stale references confined to
+the historical behavior map and M2 results; these remain historical records in
+the archive, not dependencies of the maintained guides or portable spec.
+
+The final qualification rechecks 87 bound M4 artifacts, complete M5-02/M5-03
+receipts and helpers, maintained-page hashes, all signed M5 checkpoints, and
+`git diff --check`. The export inventory preserves the exact 19-document
+removal list and hashes the three excluded user files. The external destination
+is still unused. Final export/readback verification and cleanup remain M5-06.
+
+### M5-05 evidence identities
+
+Paths are relative to the M5 evidence root. The qualification binds final run
+receipts/logs, inventories, configs, artifact/cost reconciliation, spec hash,
+export inventory, link results, and its helper. The artifact reconciliation
+also binds all 248 copied compiled outputs.
+
+| File | SHA-256 |
+| --- | --- |
+| `m5-05-qualification.json` | `27113adeb23db613b1ccea72a30c1e8aa97d8ab3330eb85357cb064a3e7f02cb` |
+| `m5-05-inputs.sha256.json` | `352f127ba1f33d4605ed0b66322cf616a5aa9a4b631b89a06d3af2e5e7a621e5` |
+| `m5-05-test-discovery.json` | `451409fc3d09d976acdc81cdb45aa26575edfd493061f6d337a4b425e52d7bb7` |
+| `m5-05-artifact-reconciliation.json` | `0dfa0802401f9b3cef0a29d099e6beed4aa55ff834423f57d3510c18426d9a7e` |
+| `m5-05-cost-reconciliation.json` | `0c480da4393e24dd18247c9abf95a3d81fc98e4a5944f10b944dc7d521094ed0` |
+| `m5-05-export-inventory.json` | `8cd9078d6f1a63d5e61751f36ad36eb89fbaf53f4c977b704737425bc82634d3` |
