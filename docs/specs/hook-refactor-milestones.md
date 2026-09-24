@@ -1,7 +1,7 @@
 # Hook refactor milestones
 
-- Status: M1, M2, and M3 complete, reviewed, and pushed. M4-01 through M4-04
-  complete; M4-05 is next.
+- Status: M1, M2, and M3 complete, reviewed, and pushed. M4-01 through M4-05
+  complete; M4-06 is next.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.

@@ -344,6 +344,28 @@ abstract contract ProductionMatrixFixture is TestKernel {
     uint96 nonce,
     HooksConfig requestedHooks
   ) internal returns (MatrixCell memory cell) {
+    return
+      _deployMatrixCell(
+        stack,
+        options,
+        operationalBorrower,
+        borrowerPrincipal,
+        nonce,
+        requestedHooks,
+        _hooksData(options, vm.getBlockTimestamp())
+      );
+  }
+
+  /// @dev explicit creation data lets lifecycle tests select term permissions independently.
+  function _deployMatrixCell(
+    ProductionStack memory stack,
+    MatrixOptions memory options,
+    address operationalBorrower,
+    address borrowerPrincipal,
+    uint96 nonce,
+    HooksConfig requestedHooks,
+    bytes memory hooksData
+  ) internal returns (MatrixCell memory cell) {
     cell.options = options;
     cell.operationalBorrower = operationalBorrower;
     cell.borrowerPrincipal = borrowerPrincipal;
@@ -351,7 +373,6 @@ abstract contract ProductionMatrixFixture is TestKernel {
     cell.hooksTemplate = stack.hooksTemplates[uint256(options.hooksKind)];
     cell.hooks = BaseAccessControls(requestedHooks.hooksAddress());
     DeployMarketInputs memory inputs = _marketInputs(stack, options, requestedHooks);
-    bytes memory hooksData = _hooksData(options, cell.deployedAt);
     bytes32 salt = _marketSalt(operationalBorrower, nonce);
 
     vm.prank(operationalBorrower);

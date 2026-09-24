@@ -562,3 +562,109 @@ The user approved M4-04 and continuation on 2026-09-24. Before committing, the
 reviewed index, all 59 evidence artifacts, and 1,190 qualified inputs were verified;
 only completion-status documentation changed after review. M4-05 is next. The
 voice guide, PDF, and lifecycle sketch remain excluded.
+
+## M4-05: Alternate routes and lifecycle integration
+
+M4-04 was approved and committed as `ba6f4af14be677c46303c78feaecba94fb1eae3c`
+with a verified kethcode SSH signature. M4-05 adds five properties to
+`ProductionMatrixScenariosTest`, using the same three APR replacement assemblies
+through the real standard/revolving factories. No production contract or
+existing test mock changed.
+
+### Changes and proof ownership
+
+`ProductionMatrixFixture` now accepts explicit market-creation hook data through
+one additional `_deployMatrixCell` overload. Its existing overload forwards the
+same default data, arguments, and current timestamp. The original factory body
+is reused unchanged after relocating the hook-data local; all other existing
+fixture and matrix-test methods retain identical tokens.
+
+The new properties cover 26 real factory deployments, with one owner for each
+integration behavior:
+
+| Property suffix after `test_replacement` | New evidence |
+| --- | --- |
+| `FactoriesApplyEffectiveAprAcrossProductionMatrix` | All six term/market combinations deploy with creation APR/reserves outside the update validator's bounds, proving creation is separate. Updates reject the selected reserve of 3,333 even when the caller requests zero. Once validation permits it, insufficient market liquidity still rejects the update and rolls back the hook's selected-APR record. Repayment permits the retry; the market stores the effective values and emits the corresponding update. |
+| `PeriodicExecutionRechecksBothMarketRoutes` | Both market types and both APR entrypoints accept a proposal before the validation bounds change. Execution rejects one second before the response window ends, then rejects unpaid response withdrawals. Funding the batch permits the term strategy to proceed even while its claim is unexecuted; the changed APR floor and reserve ceiling still reject execution. Each rejection restores the proposal and prior market state. Restoring both bounds permits APR 800 with the current reserve ratio 2,000. Neither reduction route selects the replacement default's 3,333 reserve or touches seeded temporary-reserve state. |
+| `PeriodicEqualityAndIncreaseUseMarketState` | On both market types, equal APR retains the proposal while applying replacement reserves. A rejected increase restores the proposal, prior selection, and market state; the accepted retry cancels the proposal and commits the selected APR. |
+| `ClosureRetainsBatchingAndAccessAcrossProductionMatrix` | All six combinations close with a positive APR floor and a reserve ceiling below 100%. Closure pulls the exact debt shortfall, emits repayment/closure events, then stores APR zero and reserves 10,000. It leaves the prior APR-selection record intact. Fixed maturity moves to the early closure time; periodic closure cancels its proposal and opens withdrawals outside the schedule. Unknown lenders still fail access, while a known lender blocked from deposits can exit. Shared pre-/post-closure batches pay the exact pro-rata claims and drain the markets to rounding dust; revolving drawn principal reaches zero. |
+| `FixedClosurePermissionsRemainIndependentAcrossMarkets` | All four combinations of `allowClosureBeforeTerm` and `allowTermReduction` run on both market types. The setter keeps its own reduction permission and does not invoke APR selection. Either permission allows early closure. With neither permission, the rejected close rolls back debt transfers and state; exact maturity permits closure. |
+
+Every periodic market execution has `deadbeef` appended to its calldata. The
+ordinary route also requests reserves of 7,777. The dedicated-route proof
+records the actual market-to-hook call and checks its complete calldata against
+`executePendingAnnualInterestBipsReduction(state)`: the appended bytes are absent.
+The unchanged `AprValidationTest` separately records the internal validator
+context and proves its hook data is empty. Together these distinguish the
+APR-only route from the ordinary callback; neither route can replace current
+reserves when executing a periodic proposal.
+
+Existing canonical owners retain the other distinct properties. In particular,
+`FixedTermHooksTest` covers added setter validation/effects, their rollback, and
+their exclusion from initialization and early closure. Existing periodic and
+market tests retain proposal expiry and the rest of the term/access lifecycle.
+These tests were rerun without changing their assertions or setup.
+
+The APR example deliberately allows normal market closure. `_checkAprChange`
+is an update boundary, so its floor does not prevent the core's forced APR zero
+or reserve reset. A future feature that restricts closure must use the closure
+boundary explicitly. This example makes no repayment/default or tranching-policy
+choice.
+
+### Verification and compatibility
+
+Final focused default and deploy runs each pass **357 tests across 19 suites**,
+with 1,000 fuzz iterations, seed `0x5eed`, and initial timestamp `1724284800`.
+They use the same contract filter as M4-04, adding the five properties to its
+352 cases. The receipts retain the exact commands and discovery lists. Full
+canonical runs and invariant campaigns remain M4-06.
+
+All **748 prior source entrypoints** retain identical tokens, including setup,
+assertions, and expected values. The tree now has 753 entrypoints across the
+same 51 owners, with none inherited or placed in fixtures. Both edited Solidity
+files pass Prettier. `yarn lint:check` stops at the same 33 untouched formatting
+failures; standalone Solhint reports the same zero errors and 22 warnings.
+
+Production hook ABIs, selectors, executable bytes, links, and immutable patch
+positions still match M3. All nine existing transfer, borrow, and APR replacement
+compositions retain their prior ABIs and code in both profiles. Production
+sources and all test mocks are unchanged, so previous layout and production
+cost evidence remains applicable under its original conditions; no fresh
+production layout or gas measurement is claimed.
+
+The three APR replacement assemblies now deploy through both real factories.
+Their M4-04 runtime/stored-initcode sizes are unchanged, including periodic
+stored-initcode headroom of **1,260 bytes**. Compiler settings and deployment
+limits are unchanged.
+
+Three traced canonical scenarios record **48 nested callbacks inside 50 market
+calls**: 44 APR callbacks and four closure callbacks. They distinguish 22 callback
+rejections from six successful callback returns subsequently rolled back by the
+market's liquidity check. For the accepted APR 1,000-to-1,100 update after funding
+liquidity, nested callback costs are 28,061 / 30,403 / 33,572 gas for open / fixed /
+periodic, on each market type. These are test-composition frame costs with call
+isolation and the recorded state/calldata, not transaction estimates or
+production cost deltas. Reverted trace events are not persisted logs.
+
+### M4-05 evidence identities
+
+Paths are relative to ignored `audits/hook-refactor/m4/2026-09-24/`. The manifest
+contains 293 source/test/script/settings files and 897 dependency files. Only
+the matrix test and its fixture differ from the approved M4-04 inputs.
+
+| File | SHA-256 |
+| --- | --- |
+| `m4-05-qualification.json` | `41d645b91ef2695df98944d4b3319c9a051c7a8427da39f6af7204cac63abf06` |
+| `m4-05-review-inputs.sha256.json` | `458ffe524fc3859d927f8f17ed3148ec60cfe64ac191c4fb11512ec309f28a7d` |
+| `m4-05-tests-default-receipt.json` | `f61b333e304ec231ec69e1dde0a2e904a68eefae6491c1c7aaef8aad7e49217f` |
+| `m4-05-tests-deploy-receipt.json` | `a6a99e751165a8f1aa936e3afb8b290d9ec04380df57e3ae8a18457f14104bad` |
+| `m4-05-ownership-comparison.json` | `b55ee8695475697478b7b9e41db6985fd62e944c44ea0f8cbeda08a9fec08bdb` |
+| `m4-05-fixture-comparison.json` | `9ec3eced7ffba247beecfa164aa0f39b4fc67f72f122016d2d348c9f18f81580` |
+| `m4-05-composition-artifacts.json` | `19e1afc1561dcd4f4d6b4937fb76157150912fafaa6c59c9199567a68212185a` |
+| `m4-05-market-observations.json` | `1ecb18295298c1ef4d3aef47959f2f71132fff230b03450582cab5c22199356a` |
+| `m4-05-lint-comparison.json` | `7fda175bcdfbfded2679abaedad6022716782b81ac584de0e97961ca5a19fb76` |
+
+The user approved M4-05 and continuation on 2026-09-24. Before committing, the
+reviewed index, all 59 evidence/helper artifacts, and 1,190 qualified inputs were
+verified; only completion-status documentation changed after review. M4-06 is
+next. The voice guide, PDF, and lifecycle sketch remain excluded.
