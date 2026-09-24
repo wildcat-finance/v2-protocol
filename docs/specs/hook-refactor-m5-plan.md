@@ -6,7 +6,8 @@
 - Original compatibility reference: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`,
   recorded in the [M1 baseline](hook-refactor-m1-baseline.md).
 - Final implementation boundaries: [M4 handoff](hook-refactor-m4-results.md#m5-handoff).
-- Status: proposed execution plan; M5 execution has not started.
+- Status: approved; the user authorized execution on return from maintenance
+  on 2026-09-24. The tracker records task progress.
 
 The user identified existing integration compatibility as M5's highest priority
 on 2026-09-24. Documentation, deployment/cost checks, and final qualification
@@ -75,8 +76,9 @@ original expectations; explain any mechanical test adaptations.
 Documentation-only checkpoints may be committed under the existing
 authorization. Commit as `kethcode <dave@wildcat.finance>` with the configured
 SSH key and verify the signature. The user reviews and pushes milestones.
-Prepare this plan now; begin execution after the M4 handoff and instruction to
-start M5. No push or follow-on tranching work is authorized by this plan.
+The user authorized M5 execution after the completed M4 handoff. No remote push
+is inferred from that instruction. No push or follow-on tranching work is
+authorized by this plan.
 
 The user has authorized final removal of the working documents. Execute that
 cleanup only after exporting and verifying the handoff described in M5-06.

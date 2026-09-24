@@ -4,7 +4,7 @@
 - Milestone status: M4 complete; ready for user milestone review and push.
 - Execution tasks complete: 6 of 6.
 - Active task: none; M5 has not started.
-- Next action: user reviews and pushes M4, followed by a separate M5 plan and tracker.
+- Next action: M5 execution is now authorized; milestone pushes remain with the user.
 - Approved M3 handoff: `eff4d5898a5384b35f16acba23fee2aca47745d0`.
 - Execution starting revision: `579bba16f5204b0a4b815811a527aed61dfb256f`.
 
