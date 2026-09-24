@@ -105,6 +105,47 @@ contract AprValidationTest is HookTemplateFixture {
     assertEq(logs[selectionIndex].data, abi.encode(apr, uint16(3_333)), 'selected values');
   }
 
+  function test_replacementAprCallbackAuthenticatesBeforeFeatureState() external {
+    for (uint256 i; i < 3; i++) {
+      HookKind kind = HookKind(i);
+      BaseHooks replacement = _newReplacement(kind);
+      AprReplacementPolicy feature = AprReplacementPolicy(address(replacement));
+      MarketState memory state = _state();
+      vm.prank(MarketA);
+      replacement.onSetAnnualInterestAndReserveRatioBips(1_000, 0, state, '');
+      _seedFor(replacement, TemporaryReserveRatio(1_200, 1_500, StartTimestamp + 1));
+      bytes32 temporaryBefore = _temporaryHashFor(replacement);
+
+      // MarketC isn't registered. even an otherwise valid update must fail before selection.
+      uint16[2] memory aprs = [uint16(1_100), type(uint16).max];
+      for (uint256 j; j < aprs.length; j++) {
+        vm.prank(MarketC);
+        vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+        replacement.onSetAnnualInterestAndReserveRatioBips(aprs[j], 0, state, '');
+        assertEq(feature.lastSelectedApr(MarketC), 0, 'unknown caller has no feature record');
+        assertEq(feature.lastSelectedApr(MarketA), 1_000, 'registered record preserved');
+        assertEq(feature.lastSelectedApr(MarketB), 0, 'other market unchanged');
+        assertEq(_temporaryHashFor(replacement), temporaryBefore, 'temporary reserve preserved');
+      }
+      if (kind == HookKind.Periodic) {
+        vm.prank(MarketC);
+        vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+        PeriodicTermPolicy(address(replacement)).executePendingAnnualInterestBipsReduction(state);
+      }
+
+      vm.prank(MarketA);
+      (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(
+        1_100,
+        0,
+        state,
+        ''
+      );
+      assertEq(apr, 1_100, 'registered update APR');
+      assertEq(reserve, 3_333, 'registered update reserves');
+      assertEq(feature.lastSelectedApr(MarketA), 1_100, 'registered update recorded');
+    }
+  }
+
   function test_replacementDefaultSkipsTemporaryReserveEffectsAcrossTerms() external {
     for (uint256 i; i < 3; i++) {
       HookKind kind = HookKind(i);

@@ -5,7 +5,7 @@
 - Execution starting revision: `579bba16f5204b0a4b815811a527aed61dfb256f`.
 - Approved M3 handoff: `eff4d5898a5384b35f16acba23fee2aca47745d0`.
 - Raw evidence roots: `audits/hook-refactor/m4/2026-09-23/` for M4-01 through
-  M4-03 and `audits/hook-refactor/m4/2026-09-24/` for M4-04 (ignored).
+  M4-03 and `audits/hook-refactor/m4/2026-09-24/` for M4-04 through M4-06 (ignored).
 
 ## M4-01: Handoff identity and proof map
 
@@ -668,3 +668,203 @@ The user approved M4-05 and continuation on 2026-09-24. Before committing, the
 reviewed index, all 59 evidence/helper artifacts, and 1,190 qualified inputs were
 verified; only completion-status documentation changed after review. M4-06 is
 next. The voice guide, PDF, and lifecycle sketch remain excluded.
+
+## M4-06: Qualification and M5 handoff
+
+M4-05 was approved and committed as `5c8c9033b70c89715d6b2018fc1196895d914ef0`,
+with its kethcode SSH signature verified. Final qualification is complete on
+the approved M4-06 tree. The user approved the two test-only APR caller checks,
+regression, and qualification checkpoint on 2026-09-24. No production contract
+changed during M4-06.
+
+### Authentication correction
+
+The full suite initially passed 745 reported tests, but review against the
+spec's stateful-extension requirement found a missing check. The original open
+and fixed APR callbacks accept unregistered callers. Their replacement examples
+added `lastSelectedApr[msg.sender]` writes and `AprDefaultSelected` events without
+authenticating the caller first. The periodic strategy already authenticates
+both APR routes.
+
+The open and fixed `_applyDefaultAprUpdate` implementations in
+[`AprReplacementHooks.sol`](../../test/mocks/AprReplacementHooks.sol) now call
+`_requireHookedMarket(msg.sender)` before bounds checking and `_selectAprUpdate`.
+The existing bounds and fixed maturity guard remain in place. All other assembly
+tokens are unchanged, including the periodic implementation. This is a correction
+to the new stateful examples; the original templates retain their qualified
+callback behavior.
+
+`test_replacementAprCallbackAuthenticatesBeforeFeatureState` in
+[`AprValidationTest`](../../test/access/AprValidation.t.sol) fails against the
+reviewed M4-05 examples and passes after the two checks. Across all three terms,
+an unknown market's otherwise-valid and out-of-range updates both fail with
+`NotHookedMarket`. Earlier selections, other markets, and seeded temporary-reserve
+state survive unchanged. The dedicated periodic route also rejects that caller;
+a registered market still updates successfully. This adds one property without
+editing prior cases. The pre-correction runs are archived separately under
+`m4-06-before-authentication/`; all results below use the corrected inputs.
+
+### Full verification and test ownership
+
+| Required command | Final result |
+| --- | --- |
+| `forge test` | 746 reported tests, 51 suites; zero failures or skips. |
+| `yarn test:fixed` | 746 reported tests, 51 suites; timestamp `1724284800`, seed `0x5eed`. |
+| `FOUNDRY_PROFILE=deploy forge test` | 746 reported tests, 51 suites; zero failures or skips. |
+| `yarn lint:check` | Same 33 untouched Prettier failures as M3; no new formatting failures. |
+| Standalone Solhint over `src` and `test` | Zero errors, the same 22 warnings as M3. |
+| Prettier over all 16 existing M4-changed Solidity paths | Pass. |
+
+Each full run uses 1,000 fuzz iterations and a nine-property invariant campaign
+of 2,000 runs at depth 30: 60,000 calls across 17 handler actions, with zero
+handler reverts or discards. The tree has **754 source entrypoints**; Foundry
+reports the nine invariants as one campaign, yielding 746 reported tests. The
+discovery comparison matches every source owner and entrypoint across all runs.
+
+Of M3's 727 entrypoints, 718 retain identical tokens, five change only moved-error
+owner qualifications, and four existing recipient tests expand to all three
+terms while retaining all 25 original assertions/revert expectations. None are
+removed or inherited. The 27 additions have existing owners: ten transfer
+properties, four borrow properties, seven APR replacement properties, five
+real-market lifecycle properties, and the authentication regression. The prior
+53-case replay remains separate M3 evidence, not a fresh M4 replay.
+
+### Requirement reconciliation
+
+The rows follow the [spec acceptance criteria](hook-composition.md#acceptance-criteria).
+Earlier task sections retain the individual properties, inputs, and exceptions.
+
+| Criterion | Evidence and owning tests |
+| --- | --- |
+| 1. One maintained implementation | M2/M3 shared and fixed/periodic ownership proofs, plus M4's open-policy extraction. All 12 original open members retain their tokens with one owner; type imports, comments, and public formats are preserved. Base/access/constraint and fixed/periodic production owners are unchanged from M3. |
+| 2. Existing behavior and canonical owners | All three full runs include the original common and term suites, lifecycle cases, and integration owners. The entrypoint comparison above accounts for every existing case. |
+| 3. Independent three-/four-policy compositions | `HookExtensionsTest` covers recipient and amount rules with each term, shared state/API authority, credential exemptions, error order, and rollback. The four `test_fourPolicy*` matrix properties add borrow through new component/assembly code without editing those reusable features or production policies. |
+| 4. Deliberate default replacement | `AprValidationTest` proves selected APR/reserves, effective-value validation, retained maturity, both periodic routes, absent skipped-default events, and preserved temporary state. The five `test_replacement*` matrix properties prove real-market rollback, proposal/payment changes, creation/setter separation, closure funding/reset, and continuing withdrawal batches. The new authentication regression covers the corrected stateful boundary. |
+| 5. Activation, isolation, and encodings | Transfer and borrow assembly tests distinguish requested credentials from forced callback dispatch, validate declared/effective flags, and isolate registered markets and administrator changes. Existing configuration and lens owners still pass; production encodings are unchanged. |
+| 6. Full integrations and suite rules | Factory, dispatch, administrator transfer, wrapper, borrower-account, lens, and standard/revolving owners pass in all three full runs. No fixture gains a test entrypoint or permanent legacy implementation. |
+| 7. ABI, layout, metadata, size, and costs | Fresh comparisons cover inherited ABI entries, selectors, tuple `internalType`, storage, executable bytes, links, and immutable positions against M3 and the M1 compatibility reference. Current metadata sources match the qualified inputs. Costs below preserve the original measurement boundaries. |
+| 8. Actual deployment limits | All three production templates and all six borrow/APR assemblies exercise both real factories. The three transfer-only assemblies exercise runtime and actual `STOP || initcode` storage deployment; their features also run through both factories in the larger assemblies. All measured limits pass. This does not claim that each transfer-only test assembly independently uses a factory path. |
+
+### Compatibility, deployment sizes, and costs
+
+The three production raw ABIs, selectors, creation/runtime executable bytes,
+links, and immutable patch positions match qualified M3 and M2. Compared with
+M1, the only ABI differences remain the accepted top-level callback input names:
+24 open, 24 fixed, and 28 periodic. Fresh normalized storage matches M1/M2/M3
+with 11 entries per template, no slot changes, and preserved periodic packing.
+The only M4 production source changes are the open-policy extraction/adoption;
+they leave the deployed executable output unchanged.
+
+| Production template | Runtime bytes | Creation bytes | Stored initcode bytes | Stored headroom |
+| --- | ---: | ---: | ---: | ---: |
+| `OpenTermHooks` | 15,653 | 18,379 | 18,380 | 6,196 |
+| `FixedTermHooks` | 17,014 | 19,741 | 19,742 | 4,834 |
+| `PeriodicTermHooks` | 19,949 | 22,676 | 22,677 | 1,899 |
+
+Production size deltas from M3 are zero. The already-reviewed runtime/creation
+increases from M1 remain 349 / 413 / 678 bytes for open / fixed / periodic; the
+M2 changes and their rationale are not erased by comparison with M3.
+
+| Test assembly | Runtime bytes | Creation bytes | Stored initcode bytes | Stored headroom |
+| --- | ---: | ---: | ---: | ---: |
+| `OpenTransferHooks` | 16,480 | 19,207 | 19,208 | 5,368 |
+| `FixedTransferHooks` | 17,838 | 20,565 | 20,566 | 4,010 |
+| `PeriodicTransferHooks` | 20,730 | 23,457 | 23,458 | 1,118 |
+| `OpenBorrowHooks` | 16,945 | 19,672 | 19,673 | 4,903 |
+| `FixedBorrowHooks` | 18,303 | 21,030 | 21,031 | 3,545 |
+| `PeriodicBorrowHooks` | 21,195 | 23,922 | 23,923 | 653 |
+| `OpenAprReplacementHooks` | 16,177 | 18,934 | 18,935 | 5,641 |
+| `FixedAprReplacementHooks` | 17,516 | 20,273 | 20,274 | 4,302 |
+| `PeriodicAprReplacementHooks` | 20,558 | 23,315 | 23,316 | 1,260 |
+
+The open/fixed APR caller checks add 10 runtime and creation bytes each. All
+other composition code and every composition ABI remain unchanged. Both profiles
+fit the 24,576-byte runtime/storage limit. Constructor payloads with empty `args`
+add 96 bytes to creation code and remain below 49,152 bytes. No compiler or
+code-size limit was changed to obtain these results.
+
+Unchanged production executable identity qualifies the original 97 callback,
+70 creation/minimum/query, and 14 management observations under their recorded
+conditions and exclusions. No fresh production gas replay is claimed. The
+15 transfer and 36 borrow composition observations also remain applicable.
+
+The affected APR examples were measured again: 27 direct APR observations and
+48 nested APR/closure callbacks inside 50 market calls. Registered call inputs,
+state, order, results, and observed events match M4-04/M4-05. The extra caller
+check costs 2,977 gas in the measured open APR paths and 998 in fixed paths that
+reach the replacement helper; fixed maturity rejections/closure and periodic
+paths are unchanged. An accepted real-market APR 1,000-to-1,100 update after
+funding now costs 31,038 / 31,401 / 33,572 gas in the open / fixed / periodic
+callback frame, on both market types. These are isolated frame observations at
+the recorded timestamp, seed, state, and calldata, not transaction estimates.
+Reverted trace events are not persisted logs.
+
+### M5 handoff
+
+M4 establishes source composition with explicit integration choices. It does
+not establish arbitrary compatibility among future policies or select tranching
+economics. M5 needs its own plan and tracker after the user reviews and pushes
+M4. Its documentation and final compatibility work should use these boundaries:
+
+- Use the reusable transfer/borrow components as the added-rule examples and
+  the APR replacement assemblies as the deliberate-default example. Explain
+  explicit ordering, one owner per state/API/event, and which behavior is kept
+  or replaced. There is no fixed limit of two feature policies or automatic
+  conflict resolver.
+- Preserve the distinction between requested access and required dispatch.
+  Initialization runs before market deployment. Stateful callbacks authenticate
+  registration before writing feature state; legacy callback differences must
+  not be generalized into permission for new unauthenticated stateful features.
+- Document effective-value APR validation on both routes. Dedicated periodic
+  execution uses current reserves and empty hook data. Creation, fixed-term
+  management, and closure are separate boundaries; closure's forced APR zero
+  and reserves 10,000 do not pass through the ordinary APR-update validator.
+- Keep view promises precise: recipient-only queries cannot validate an amount,
+  balance, or allowance. Known lenders and wrappers still face extra transfer
+  rules. The example amount limit is per transfer; saturating recorded volume
+  is observational and cannot exhaust a cumulative exit quota.
+- Preserve existing credential-data encoding. Multiple features need explicit
+  data integration; hooks are not a complete accounting or post-action event
+  feed. Future tranche repayment/default/accounting requirements still need
+  their own V2.5 core/interface assessment.
+- Carry deployment measurements into each new assembly. The periodic borrow
+  example has only 653 bytes of stored-initcode headroom. Record the exact
+  factory evidence for each template selected for release and retain existing
+  gas conditions/exclusions when evidence is reused.
+- Finish the contributor/integration documentation and final encoding, family,
+  version, factory/lens/wrapper/authority checks under M5's plan. These test
+  assemblies are not production product templates. External SDK/app/subgraph
+  changes, publication, and rewriting deployed inventories are not qualified
+  or performed by M4.
+
+### M4-06 evidence identities
+
+Paths are relative to ignored `audits/hook-refactor/m4/2026-09-24/`. The final
+manifest covers 293 source/test/script/settings files and 897 dependency files;
+only the APR mock and regression owner differ from M4-05. Foundry 1.8.3, solc
+0.8.25, Node 24.21.0, Yarn 1.22.22, all submodules, and effective default/deploy
+settings remain unchanged. The qualification binds the command receipts,
+discovery, source ownership, raw artifacts, fresh layout, gas comparisons,
+regression evidence, lint, and helper scripts.
+
+| File | SHA-256 |
+| --- | --- |
+| `m4-06-qualification.json` | `14202f129d0b07da747f23c2ff5c1c5164a02fa964724ac9a0fb063ce61b725b` |
+| `m4-06-inputs.sha256.json` | `07c348cf1f0e8149d84a681ee0e1ca2da77e54b75e4fcb04a1fb2ad3531b055d` |
+| `m4-06-tests-default-receipt.json` | `28842785dc17477b1c69558bebb7ccba06a82862fe811ba4be3f9e98f91eaf49` |
+| `m4-06-tests-fixed-receipt.json` | `e5cb5390eccfbb254d5bb51833a914d49baba093deb1917e23f75112bed42e41` |
+| `m4-06-tests-deploy-receipt.json` | `6099a35953be5fb8fdb564c1f7a832c9c3c05e0567543887115fa6a5d3e75c42` |
+| `m4-06-ownership-comparison.json` | `5768eb340a591b721676576d1c2b1d9c38fb24e751c09fb0d08bb2685ffdbc24` |
+| `m4-06-abi-comparison.json` | `de6746a6fcc42a0fd82fa60342681b5335e95a32c51ab17f7ee91fdeef2d6e78` |
+| `m4-06-storage-comparison.json` | `d2d4e51b3ab5f69a27deed70bdee1d37b02b79de0f43250d3dbfb80c94c2c8ec` |
+| `m4-06-composition-artifacts.json` | `376ff3d761119d10e7e88a4d711be7113d33074951a97512949defa064752d06` |
+| `m4-06-apr-cost-summary.json` | `88c80d3c2af3027bad6c7dc37629822279c9d22241234c9243ae7397dba7f88a` |
+| `m4-06-authentication-regression-before-receipt.json` | `f00e2e52c36dd8df062f873742c17c476d61e534a98f5a2498f17fe81882eea4` |
+| `m4-06-authentication-regression-after-receipt.json` | `73a06b4a8c33047e2e9f7bf56c82a1f1e656c85f9de484d6d0d6166b7608a8ae` |
+| `m4-06-lint-comparison.json` | `62648c0c64228fb0d58acad9a2dca99c85237699ad7d5a07f52375f3f3317702` |
+
+The user approved M4-06 on 2026-09-24. Before committing, the exact reviewed index,
+all 88 evidence/helper artifacts, archived earlier runs, and 1,190 qualified
+inputs were verified; only completion-status documentation changed after review.
+All six M4 tasks are complete and ready for user milestone review and push.
+M5 has not started. The voice guide, PDF, and lifecycle sketch remain excluded.

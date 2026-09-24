@@ -59,6 +59,8 @@ contract OpenAprReplacementHooks is OpenTransferPolicy, AprReplacementPolicy {
     uint16 annualInterestBips,
     MarketState calldata
   ) internal override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+    // open APR callbacks have no caller guard. authenticate before _selectAprUpdate writes state.
+    _requireHookedMarket(msg.sender);
     // replacing this helper also replaces its bounds check. keep the existing APR range explicit.
     assertValueInRange(
       annualInterestBips,
@@ -122,6 +124,8 @@ contract FixedAprReplacementHooks is FixedTransferPolicy, AprReplacementPolicy {
     uint16 annualInterestBips,
     MarketState calldata
   ) internal override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+    // fixed APR callbacks have no caller guard either. this replacement writes feature state.
+    _requireHookedMarket(msg.sender);
     // replacing this helper also replaces its bounds check. keep the existing APR range explicit.
     assertValueInRange(
       annualInterestBips,

@@ -1,10 +1,10 @@
 # M4 tracker: extension and composition proof
 
 - Plan: [M4 execution plan](hook-refactor-m4-plan.md).
-- Milestone status: authorized and in progress; M4-05 complete.
-- Execution tasks complete: 5 of 6.
-- Active task: M4-06, qualification and M5 handoff.
-- Next action: run final qualification, reconcile requirements and evidence, and prepare the M5 handoff.
+- Milestone status: M4 complete; ready for user milestone review and push.
+- Execution tasks complete: 6 of 6.
+- Active task: none; M5 has not started.
+- Next action: user reviews and pushes M4, followed by a separate M5 plan and tracker.
 - Approved M3 handoff: `eff4d5898a5384b35f16acba23fee2aca47745d0`.
 - Execution starting revision: `579bba16f5204b0a4b815811a527aed61dfb256f`.
 
@@ -41,7 +41,7 @@ for an actual impediment, stating what resolves it; unmet dependencies remain
 | [M4-03](hook-refactor-m4-plan.md#m4-03-fourth-feature-and-callback-activation) | Add borrow feature and prove real activation/deployment. | Done | M4-02. | [Independent borrow policy, six-cell real factory matrix, rollback/authority, unchanged existing entrypoints, and two 345-test passes](hook-refactor-m4-results.md#m4-03-fourth-feature-and-callback-activation). |
 | [M4-04](hook-refactor-m4-plan.md#m4-04-deliberate-apr-default-replacement) | Replace the APR default and prove skipped effects. | Done | M4-03. | [Shared replacement/validator, skipped effects and retained guards, original validator ABI/layout preservation, and two 352-test passes](hook-refactor-m4-results.md#m4-04-deliberate-apr-default-replacement). |
 | [M4-05](hook-refactor-m4-plan.md#m4-05-alternate-routes-and-lifecycle-integration) | Prove alternate routes and lifecycle behavior through real markets. | Done | M4-02 through M4-04. | [Five real-market lifecycle properties, unchanged prior tests/components, and two 357-test passes](hook-refactor-m4-results.md#m4-05-alternate-routes-and-lifecycle-integration). |
-| [M4-06](hook-refactor-m4-plan.md#m4-06-qualification-and-m5-handoff) | Qualify M4 and record the M5 handoff. | Not started | M4-01 through M4-05. | Pending. |
+| [M4-06](hook-refactor-m4-plan.md#m4-06-qualification-and-m5-handoff) | Qualify M4 and record the M5 handoff. | Done | M4-01 through M4-05. | [Test-only caller checks, three full 746-test passes, ownership/compatibility/cost reconciliation, and M5 handoff](hook-refactor-m4-results.md#m4-06-qualification-and-m5-handoff). |
 
 ## Review and checkpoint register
 
@@ -57,8 +57,8 @@ reviews and pushes the milestone.
 | M4-02 | User approved the staged checkpoint and authorized commit/continuation. | `d3811bb`; kethcode SSH signature verified. |
 | M4-03 | User approved commit and instructed a hold for reboot on 2026-09-24. | `81934d7`; kethcode SSH signature verified. |
 | M4-04 | User approved the staged checkpoint and authorized commit/continuation on 2026-09-24. | `ba6f4af`; kethcode SSH signature verified. |
-| M4-05 | User approved the staged checkpoint and authorized commit/continuation on 2026-09-24. | Signed with this checkpoint; hash recorded in the next tracker update. |
-| M4-06 | Not started; apply staged-review rule if qualification requires Solidity fixes. | Pending. |
+| M4-05 | User approved the staged checkpoint and authorized commit/continuation on 2026-09-24. | `5c8c903`; kethcode SSH signature verified. |
+| M4-06 | User approved the staged correction and qualification checkpoint on 2026-09-24. | Signed with this checkpoint; hash recorded in the next tracker update. |
 
 ## Evidence register
 
@@ -74,7 +74,7 @@ not fresh M4 passes.
 | Fourth feature without reusable-component edits, borrow activation/authentication, all six term/market deployment combinations | M4-03 | [Verified](hook-refactor-m4-results.md#m4-03-fourth-feature-and-callback-activation): four new properties cover real stored-initcode/factory deployment, normalized borrow bounds, prior transfer rules, shared-instance isolation, authority transfer, downstream rollback, and earlier core guards. 345 tests / 19 suites pass in both profiles. All 737 existing entrypoints and production/transfer components unchanged; periodic stored-initcode headroom 653 bytes. |
 | Selected APR result, retained guards, absent skipped-default effects, effective-value rejection | M4-04 | [Verified](hook-refactor-m4-results.md#m4-04-deliberate-apr-default-replacement): seven new properties, explicit bounds and unchanged term routing, successful-call event absence, seeded-state preservation, rollback, and retained access/transfer/withdrawal/authority rules. 352 tests / 19 suites pass in both profiles. Shared validator retains its ABI, 17 storage entries, and original rule statements; periodic replacement stored-initcode headroom 1,260 bytes. |
 | Changed proposal/execution conditions, both APR routes, separate creation/setter/closure behavior, market accounting | M4-05 | [Verified](hook-refactor-m4-results.md#m4-05-alternate-routes-and-lifecycle-integration): 26 real factory deployments across five new properties; effective APR/reserves, proposal/payment/validation guards and rollback, exact dedicated calldata, independent fixed permissions, funded closure and shared withdrawal batches. 357 tests / 19 suites pass in both profiles; all 748 prior entrypoints and production/mock implementations unchanged. |
-| Required suites/lint, test ownership, production compatibility/costs, composition deployability, final requirement map | M4-06 | Pending. |
+| Required suites/lint, test ownership, production compatibility/costs, composition deployability, final requirement map | M4-06 | [Verified](hook-refactor-m4-results.md#m4-06-qualification-and-m5-handoff): default/fixed-seed/deploy each pass 746 tests / 51 suites and the 2,000-run invariant campaign. All 727 M3 source entrypoints retained; 27 added. Production ABI/layout/code remains qualified. Regression fails before and passes after two test-only authentication guards; affected composition gas/sizes refreshed. Same lint baseline, all 16 existing M4-touched Solidity files formatted. |
 
 ## Starting evidence and watchpoints
 
@@ -103,10 +103,11 @@ not new M4 test runs.
 
 ## Blockers and next action
 
-M4-05 is approved and complete. M4-06 now qualifies the finished implementation
-and prepares the M5 handoff. Any Solidity correction still requires staged
-review before commit; documentation-only qualification may be signed under the
-existing authorization. The voice guide, PDF, and lifecycle sketch remain excluded.
+M4-06 is approved and complete, including the test-only authentication correction,
+final qualification, and [M5 handoff](hook-refactor-m4-results.md#m5-handoff).
+All six M4 tasks are complete. The user reviews and pushes the milestone; M5
+planning follows separately. The voice guide, PDF, and lifecycle sketch remain
+excluded.
 
 ## Progress log
 
@@ -123,3 +124,5 @@ existing authorization. The voice guide, PDF, and lifecycle sketch remain exclud
 | 2026-09-24: M4-04 approved | User approved the staged checkpoint and instructed continuation. Verified the exact reviewed index, all 59 evidence artifacts, and 1,190 qualified inputs before changing completion status only. Signed kethcode checkpoint; M4-05 is next. |
 | 2026-09-24: M4-05 ready for review | Added five lifecycle properties to the existing production matrix owner and an explicit creation-data overload to its factory fixture. All original test/helper bodies remain intact apart from that verified helper relocation. Both profiles pass 357 tests / 19 suites. Production and all existing mocks/composed artifacts are unchanged; real replacement deployment, 48 nested callback observations, rollback, closure funding, and continuing pro-rata batch withdrawals are verified. Staged for review before commit or M4-06. |
 | 2026-09-24: M4-05 approved | User approved the staged checkpoint and instructed continuation. Verified the exact reviewed index, all 59 evidence/helper artifacts, and 1,190 qualified inputs before changing completion status only. Signed kethcode checkpoint; M4-06 is next. |
+| 2026-09-24: M4-06 ready for review | Qualified the full canonical tree, then corrected missing caller authentication in two stateful APR test examples. The new regression fails before and passes after; registered behavior is unchanged. Final default/fixed-seed/deploy runs each pass 746 tests / 51 suites, including 60,000 invariant calls without handler reverts/discards. Reconciled all original test owners, ABI/layout/code, deployment limits, affected APR costs, and unchanged lint baseline. Staged the correction and M5 handoff; no M4-06 commit or M5 work before review. |
+| 2026-09-24: M4-06 approved; milestone complete | User approved the staged checkpoint. Verified the exact reviewed index, all 88 evidence/helper artifacts, archived earlier runs, and 1,190 qualified inputs before changing completion-status documentation only. Signed kethcode checkpoint; all six tasks complete and ready for user milestone review and push. M5 has not started. |
