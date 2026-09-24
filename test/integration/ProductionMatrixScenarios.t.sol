@@ -21,11 +21,22 @@ import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
+import { MarketParameterConstraints } from 'src/interfaces/WildcatStructsAndEnums.sol';
+import { MarketLensCore } from 'src/lens/MarketLensCore.sol';
+import { MarketLensAggregator } from 'src/lens/MarketLensAggregator.sol';
+import { MarketDataV2_5 } from 'src/lens/MarketData.sol';
+import { MarketHooksData, HooksInstanceKind } from 'src/lens/HooksConfigData.sol';
+import { HooksInstanceData } from 'src/lens/HooksInstanceData.sol';
+import { RoleProviderData } from 'src/lens/RoleProviderData.sol';
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { Bit_Enabled_Deposit } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
+import { Bit_Enabled_Transfer } from 'src/types/HooksConfig.sol';
+import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
+import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { BorrowAmountPolicy } from '../mocks/BorrowAmountPolicy.sol';
 import { OpenBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
 import { FixedBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
@@ -1065,6 +1076,395 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
     vm.clearMockedCalls();
     _assertRecordedBorrow(stack, cell, amount);
+  }
+
+  function test_lensDecodesFactoryMarketConfigurationAcrossProductionMatrix() external {
+    ProductionStack memory stack = _deployProductionStack();
+    MarketLensCore lens = MarketLensCore(
+      _deployCode(
+        'src/lens/MarketLensCore.sol:MarketLensCore',
+        abi.encode(address(stack.archController), address(stack.standardFactory))
+      )
+    );
+    address[] memory markets = new address[](12);
+    MarketHooksData[] memory expectedConfigs = new MarketHooksData[](12);
+    for (uint256 i; i < 12; i++) {
+      bool gated = i >= 6;
+      MatrixOptions memory options = _defaultMatrixOptions(
+        MatrixHooksKind(i % 3),
+        MatrixMarketKind((i % 6) / 3)
+      );
+      options.minimumDeposit = uint128((1_111 + i) * 1e18);
+      options.transfersDisabled = !gated;
+      options.fixedTermDuration = 62 days;
+      options.firstWindowDelay = 31 days;
+      options.periodDuration = 34 days;
+      options.withdrawalWindowDuration = 4 days;
+      IHooksFactory factory = _factoryFor(stack, options.marketKind);
+      vm.prank(MatrixBorrower);
+      address hooks = factory.deployHooksInstance(stack.hooksTemplates[i % 3], '');
+      HooksConfig requested = EmptyHooksConfig.setHooksAddress(hooks);
+      if (gated) {
+        requested = requested.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
+          Bit_Enabled_QueueWithdrawal
+        );
+      }
+      bytes memory hooksData = _hooksData(options, vm.getBlockTimestamp());
+      if (options.hooksKind == MatrixHooksKind.FixedTerm) {
+        hooksData = abi.encode(
+          uint32(vm.getBlockTimestamp() + options.fixedTermDuration),
+          options.minimumDeposit,
+          options.transfersDisabled,
+          gated,
+          !gated
+        );
+      }
+      MatrixCell memory cell = _deployMatrixCell(
+        stack,
+        options,
+        MatrixBorrower,
+        MatrixBorrower,
+        uint96(400 + i),
+        requested,
+        hooksData
+      );
+
+      // minimumDeposit and transfersDisabled force dispatch without requiring credentials.
+      // fixed/periodic queue dispatch is mandatory, even when withdrawalRequiresAccess is false.
+      MarketHooksData memory expected;
+      expected.hooksAddress = hooks;
+      expected.kind = HooksInstanceKind(1 + (i % 3));
+      expected.flags.useOnDeposit = true;
+      expected.flags.useOnTransfer = true;
+      expected.flags.useOnQueueWithdrawal = gated || options.hooksKind != MatrixHooksKind.OpenTerm;
+      expected.flags.useOnCloseMarket = options.hooksKind != MatrixHooksKind.OpenTerm;
+      expected.flags.useOnSetAnnualInterestAndReserveRatioBips = true;
+      expected.flags.useOnExecutePendingAnnualInterestBipsReduction =
+        options.hooksKind == MatrixHooksKind.PeriodicTerm;
+      expected.depositRequiresAccess = gated;
+      expected.transferRequiresAccess = gated;
+      expected.withdrawalRequiresAccess = gated;
+      expected.minimumDeposit = options.minimumDeposit;
+      expected.transfersDisabled = !gated;
+      if (options.hooksKind == MatrixHooksKind.FixedTerm) {
+        expected.fixedTermEndTime = uint32(cell.deployedAt + 62 days);
+        expected.allowClosureBeforeTerm = gated;
+        expected.allowTermReduction = !gated;
+      } else if (options.hooksKind == MatrixHooksKind.PeriodicTerm) {
+        expected.firstWithdrawalWindowStart = uint32(cell.deployedAt + 31 days);
+        expected.periodDuration = 34 days;
+        expected.withdrawalWindowDuration = 4 days;
+        assertEq(PeriodicTermHooks(hooks).templateVersion(), 2, 'periodic ABI revision');
+      }
+      MarketDataV2_5 memory data = lens.getMarketDataV2(address(cell.market));
+      assertEq(abi.encode(data.market.hooksConfig), abi.encode(expected), 'complete hook tuple');
+      assertEq(data.market.hooksFactory, address(factory), 'actual market factory');
+      assertEq(data.market.hooks.hooksTemplate.hooksTemplate, cell.hooksTemplate, 'template');
+      assertEq(data.market.borrower, MatrixBorrower, 'operational borrower');
+      assertEq(data.borrowerPrincipal, MatrixBorrower, 'principal');
+      assertEq(data.borrowerIdentityRegistry, address(stack.registry), 'identity registry');
+      bool revolving = options.marketKind == MatrixMarketKind.Revolving;
+      assertEq(data.commitmentFeeBips.isPresent, revolving, 'commitment fee presence');
+      assertEq(data.commitmentFeeBips.value, revolving ? 200 : 0, 'commitment fee');
+      assertEq(data.drawnAmount.isPresent, revolving, 'drawn amount presence');
+      assertEq(data.drawnAmount.value, 0, 'initial drawn amount');
+      if (options.hooksKind == MatrixHooksKind.PeriodicTerm) {
+        _close(cell);
+        data = lens.getMarketDataV2(address(cell.market));
+        expected.periodicTermClosed = true;
+        assertTrue(data.market.isClosed, 'core closure');
+        assertEq(abi.encode(data.market.hooksConfig), abi.encode(expected), 'closed hook tuple');
+      }
+      // reverse the request order so a factory-order response cannot accidentally pass.
+      markets[11 - i] = address(cell.market);
+      expectedConfigs[11 - i] = expected;
+    }
+    MarketDataV2_5[] memory batch = lens.getMarketsDataV2(markets);
+    assertEq(batch.length, 12, 'batch length');
+    for (uint256 i; i < batch.length; i++) {
+      assertEq(batch[i].market.marketToken.token, markets[i], 'batch market order');
+      assertEq(
+        abi.encode(batch[i].market.hooksConfig),
+        abi.encode(expectedConfigs[i]),
+        'batch tuple'
+      );
+    }
+  }
+
+  function _assertDiscoveredHooks(
+    HooksInstanceData memory actual,
+    ProductionStack memory stack,
+    MatrixCell memory cell,
+    address pullProvider,
+    address administrator,
+    address pendingAdministrator
+  ) private pure {
+    HooksInstanceData memory expected;
+    expected.hooksAddress = address(cell.hooks);
+    expected.administrator = administrator;
+    expected.pendingAdministrator = pendingAdministrator;
+    expected.name = 'Factory matrix';
+    expected.kind = HooksInstanceKind(1 + uint256(cell.options.hooksKind));
+    expected.hooksTemplate.hooksTemplate = cell.hooksTemplate;
+    expected.hooksTemplate.exists = true;
+    expected.hooksTemplate.enabled = true;
+    expected.hooksTemplate.index = uint24(uint256(cell.options.hooksKind));
+    expected.hooksTemplate.name = cell.options.hooksKind == MatrixHooksKind.OpenTerm
+      ? 'Open Term'
+      : cell.options.hooksKind == MatrixHooksKind.FixedTerm
+      ? 'Fixed Term'
+      : 'Periodic Term';
+    expected.hooksTemplate.totalMarkets = 1;
+    expected.totalMarkets = 1;
+    expected.constraints = MarketParameterConstraints(
+      0,
+      90 days,
+      0,
+      10_000,
+      0,
+      10_000,
+      0,
+      365 days,
+      0,
+      10_000
+    );
+    expected.deploymentFlags.optional.useOnDeposit = true;
+    expected.deploymentFlags.optional.useOnTransfer = true;
+    expected.deploymentFlags.optional.useOnQueueWithdrawal =
+      cell.options.hooksKind == MatrixHooksKind.OpenTerm;
+    expected.deploymentFlags.required.useOnQueueWithdrawal =
+      cell.options.hooksKind != MatrixHooksKind.OpenTerm;
+    expected.deploymentFlags.required.useOnCloseMarket =
+      cell.options.hooksKind != MatrixHooksKind.OpenTerm;
+    expected.deploymentFlags.required.useOnSetAnnualInterestAndReserveRatioBips = true;
+    expected.deploymentFlags.required.useOnExecutePendingAnnualInterestBipsReduction =
+      cell.options.hooksKind == MatrixHooksKind.PeriodicTerm;
+    expected.pushProviders = new RoleProviderData[](1);
+    expected.pushProviders[0] = RoleProviderData(
+      type(uint32).max,
+      address(stack.roleProvider),
+      type(uint24).max,
+      0,
+      false,
+      address(0),
+      address(0)
+    );
+    expected.pullProviders = new RoleProviderData[](1);
+    expected.pullProviders[0] = RoleProviderData(
+      777,
+      pullProvider,
+      0,
+      type(uint24).max,
+      false,
+      address(0),
+      address(0)
+    );
+    assertEq(abi.encode(actual), abi.encode(expected), 'complete discovered instance');
+  }
+
+  function test_lensTracksFactoryInstancesThroughAdministratorTransfer() external {
+    ProductionStack memory stack = _deployProductionStack();
+    stack.archController.registerBorrower(MatrixAlice);
+    MarketLensAggregator lens = MarketLensAggregator(
+      _deployCode(
+        'src/lens/MarketLensAggregator.sol:MarketLensAggregator',
+        abi.encode(address(stack.archController), address(stack.standardFactory))
+      )
+    );
+    MarketLensCore core = MarketLensCore(
+      _deployCode(
+        'src/lens/MarketLensCore.sol:MarketLensCore',
+        abi.encode(address(stack.archController), address(stack.standardFactory))
+      )
+    );
+    MockRoleProvider pullProvider = MockRoleProvider(
+      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
+    );
+    pullProvider.setIsPullProvider(true);
+    MatrixCell[6] memory cells;
+    for (uint256 i; i < 6; i++) {
+      MatrixCell memory cell = _deployMatrixCell(
+        stack,
+        _defaultMatrixOptions(MatrixHooksKind(i % 3), MatrixMarketKind(i / 3)),
+        MatrixBorrower,
+        MatrixBorrower,
+        uint96(420 + i)
+      );
+      cells[i] = cell;
+      IHooksFactory factory = _factoryFor(stack, cell.options.marketKind);
+      vm.startPrank(MatrixBorrower);
+      cell.hooks.setName('Factory matrix');
+      cell.hooks.addRoleProvider(address(pullProvider), 777);
+      vm.stopPrank();
+      HooksInstanceData[] memory found = lens.getHooksInstancesForBorrower(
+        address(factory),
+        MatrixBorrower
+      );
+      assertEq(found.length, 1, 'current administrator index');
+      _assertDiscoveredHooks(
+        found[0],
+        stack,
+        cell,
+        address(pullProvider),
+        MatrixBorrower,
+        address(0)
+      );
+      vm.prank(MatrixBorrower);
+      cell.hooks.requestAdministratorTransfer(MatrixAlice);
+      found = lens.getHooksInstancesForBorrower(address(factory), MatrixBorrower);
+      assertEq(found.length, 1, 'pending transfer keeps old index');
+      _assertDiscoveredHooks(
+        found[0],
+        stack,
+        cell,
+        address(pullProvider),
+        MatrixBorrower,
+        MatrixAlice
+      );
+      assertEq(
+        lens.getHooksInstancesForBorrower(address(factory), MatrixAlice).length,
+        i % 3,
+        'pending index excludes instance'
+      );
+      vm.prank(MatrixAlice);
+      cell.hooks.acceptAdministratorTransfer();
+      assertEq(
+        lens.getHooksInstancesForBorrower(address(factory), MatrixBorrower).length,
+        0,
+        'old index cleared'
+      );
+      found = lens.getHooksInstancesForBorrower(address(factory), MatrixAlice);
+      assertEq(found.length, 1 + (i % 3), 'new administrator index');
+      _assertDiscoveredHooks(
+        found[i % 3],
+        stack,
+        cell,
+        address(pullProvider),
+        MatrixAlice,
+        address(0)
+      );
+      MarketDataV2_5 memory data = core.getMarketDataV2(address(cell.market));
+      _assertDiscoveredHooks(
+        data.market.hooks,
+        stack,
+        cell,
+        address(pullProvider),
+        MatrixAlice,
+        address(0)
+      );
+      assertEq(data.market.borrower, MatrixBorrower, 'hook transfer preserves market borrower');
+      assertEq(data.borrowerPrincipal, MatrixBorrower, 'hook transfer preserves market principal');
+      assertEq(data.market.hooksFactory, address(factory), 'hook transfer preserves factory');
+    }
+    HooksInstanceData[] memory aggregated = lens.getAggregatedHooksInstancesForBorrower(
+      MatrixAlice
+    );
+    assertEq(aggregated.length, 6, 'both active factories');
+    for (uint256 i; i < 6; i++) {
+      _assertDiscoveredHooks(
+        aggregated[i],
+        stack,
+        cells[i],
+        address(pullProvider),
+        MatrixAlice,
+        address(0)
+      );
+    }
+    assertEq(
+      lens.getAggregatedHooksInstancesForBorrower(MatrixBorrower).length,
+      0,
+      'former administrator absent'
+    );
+  }
+
+  function test_wrappersKeepAccessAndBackingAcrossProductionMatrix() external {
+    ProductionStack memory stack = _deployProductionStack();
+    for (uint256 i; i < 6; i++) {
+      MatrixCell memory cell = _deployMatrixCell(
+        stack,
+        _defaultMatrixOptions(MatrixHooksKind(i % 3), MatrixMarketKind(i / 3)),
+        MatrixBorrower,
+        MatrixBorrower,
+        uint96(430 + i)
+      );
+      Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(
+        stack.wrapperFactory.createWrapper(address(cell.market))
+      );
+      assertEq(cell.market.registeredWrapper(), address(wrapper), 'market wrapper registration');
+      assertEq(
+        stack.wrapperFactory.wrapperForMarket(address(cell.market)),
+        address(wrapper),
+        'wrapper factory registration'
+      );
+      assertEq(wrapper.asset(), address(cell.market), 'wrapper holds market tokens');
+      _authorize(stack, cell, MatrixAlice);
+      _deposit(stack, cell, MatrixAlice, AliceDeposit);
+      // the exact registered wrapper needs no credential, even with a local deposit block.
+      vm.prank(MatrixBorrower);
+      cell.hooks.blockFromDeposits(address(wrapper));
+      assertTrue(
+        BaseHooks(address(cell.hooks)).isMarketTransferRecipientAllowed(
+          address(cell.market),
+          address(wrapper)
+        ),
+        'registered wrapper exemption'
+      );
+      assertTrue(wrapper.maxDeposit(MatrixAlice) >= AliceDeposit, 'wrapper ready');
+      vm.startPrank(MatrixAlice);
+      cell.market.approve(address(wrapper), AliceDeposit);
+      uint256 shares = wrapper.deposit(AliceDeposit, MatrixAlice);
+      vm.stopPrank();
+      assertEq(shares, AliceDeposit, 'initial scale shares');
+      assertEq(cell.market.scaledBalanceOf(address(wrapper)), shares, 'scaled backing');
+      assertEq(wrapper.totalSupply(), shares, 'share supply');
+      assertFalse(
+        cell.hooks.isKnownLenderOnMarket(address(wrapper), address(cell.market)),
+        'wrapper exemption does not mark known'
+      );
+
+      // redeeming sends market tokens. an uncredentialed recipient gets no wrapper exemption.
+      assertFalse(
+        BaseHooks(address(cell.hooks)).isMarketTransferRecipientAllowed(
+          address(cell.market),
+          MatrixBob
+        ),
+        'unknown recipient denied'
+      );
+      vm.prank(MatrixAlice);
+      vm.expectRevert(LibERC20.TransferFailed.selector);
+      wrapper.redeem(shares, MatrixBob, MatrixAlice);
+      assertEq(wrapper.balanceOf(MatrixAlice), shares, 'rejected redeem restores shares');
+      assertEq(wrapper.totalSupply(), shares, 'rejected redeem restores supply');
+      assertEq(
+        cell.market.scaledBalanceOf(address(wrapper)),
+        shares,
+        'rejected redeem keeps backing'
+      );
+      assertEq(cell.market.scaledBalanceOf(MatrixBob), 0, 'rejected recipient balance');
+
+      _authorize(stack, cell, MatrixBob);
+      _deposit(stack, cell, MatrixBob, 1e18);
+      vm.prank(MatrixBorrower);
+      cell.hooks.blockFromDeposits(MatrixBob);
+      assertTrue(
+        BaseHooks(address(cell.hooks)).isMarketTransferRecipientAllowed(
+          address(cell.market),
+          MatrixBob
+        ),
+        'known recipient survives local block'
+      );
+      vm.prank(MatrixAlice);
+      uint256 assets = wrapper.redeem(shares, MatrixBob, MatrixAlice);
+      assertEq(assets, AliceDeposit, 'redeemed market tokens');
+      assertEq(wrapper.balanceOf(MatrixAlice), 0, 'shares burned');
+      assertEq(wrapper.totalSupply(), 0, 'share supply cleared');
+      assertEq(cell.market.scaledBalanceOf(address(wrapper)), 0, 'backing returned');
+      assertEq(
+        cell.market.scaledBalanceOf(MatrixBob),
+        AliceDeposit + 1e18,
+        'known recipient balance'
+      );
+    }
   }
 
   function test_productionFactoriesDeployCompleteBuiltInMatrix() external {

@@ -208,3 +208,104 @@ are relative to the M5 evidence root.
 | `m5-02-source-comparison.json` | `2a44ca827c8c15603cea5ad2099242b930bfe1caf32ea92f13098ac2b9e50816` |
 | `m5-02-abstract-ABI-difference.json` | `163e035667e3fcc37111489c2f332b417c7fa84083a9ee821eb973ff4b56ec69` |
 | `m5-02-source-set-difference.json` | `b7d3d43efb427736c1d2c92ed816a7dd004d0b975721126c5f11bd26ced49861` |
+
+## M5-03: Real integration behavior and deployment
+
+M5-02 was committed as `ce44e8e`, signed kethcode and verified. The three missing
+consumer connections now live in `ProductionMatrixScenariosTest`, using the
+unchanged production fixture and actual standard/revolving factories. The only
+Solidity edit adds three properties and one assertion helper to that existing
+owner. No production contract, mock, shared fixture, or existing expectation
+changed.
+
+### New real-consumer evidence
+
+| Property | Explicit expectations and actual path |
+| --- | --- |
+| `test_lensDecodesFactoryMarketConfigurationAcrossProductionMatrix` | Twelve factory-created markets: every term/market combination with requested access enabled or omitted. Real `MarketLensCore` reads the complete hook tuple against independently constructed expected fields/flags. A positive minimum and disabled transfers force callbacks without forcing credentials; fixed/periodic queue dispatch remains distinct from withdrawal access. Asymmetric fixed permissions, non-default schedules/minimums, periodic revision 2 and closure, actual factory/template identity, principal/registry fields, and standard-versus-revolving optional values are checked. Reverse-order batch reads must preserve request order and the full expected tuple. |
+| `test_lensTracksFactoryInstancesThroughAdministratorTransfer` | Six factory-created markets, with real core/aggregation lenses. Full instance tuples include name, family, factory template/index/counts, original constraints and deployment flags, and distinct pull/push provider TTLs/indices. Pending transfer keeps the old index; acceptance removes it and populates the new index. The market lens discovers the new administrator independently while preserving market borrower/principal/factory. Active-factory aggregation returns all six expected instances. |
+| `test_wrappersKeepAccessAndBackingAcrossProductionMatrix` | Six factory-created markets and real factory-created wrappers. Both registration mappings and the market-token asset are checked. A locally blocked, uncredentialed registered wrapper can receive the lender's tokens without becoming a known lender. Wrapping retains scaled backing and share supply. Redemption to an unknown uncredentialed recipient fails and restores balances/supply/backing; redemption to a known recipient succeeds despite a later local deposit block. |
+
+These are **24 actual market deployments**, not direct callbacks or replacement
+lens/factory mocks. ERC20, provider, and sanctions mocks still represent their
+external interfaces. Expected lens fields come from the original public
+contract and explicit creation inputs, not a comparison against the same
+refactored getter. Existing narrower unit/mock tests retain their distinct
+malformed-return, authentication, boundary, and event assertions.
+
+All **754 prior test entrypoints** retain identical tokens, including setup and
+assertions. All **37 prior functions** in the edited matrix owner also retain
+identical tokens. Three additions yield 757 source entrypoints across the same
+51 owners, with no inherited test entrypoints or fixtures owning tests. The
+existing fixture and all 146 production/mock files are unchanged.
+
+### Verification and retained boundaries
+
+| Check | Result |
+| --- | --- |
+| New properties, initial default run | Three pass. |
+| Focused compatibility suites, default | 370 tests / 20 suites pass; zero failures/skips. |
+| Same selection, deploy | The same 370 tests / 20 suites pass; zero failures/skips. |
+| Run conditions | Timestamp `1724284800`, seed `0x5eed`, 1,000 fuzz iterations, unchanged Foundry/solc/settings and transaction isolation. |
+| Existing behavior rerun | Common access/constraints, all term owners, extensions/APR validation, factories, all lenses, administrator transfer, exact market callback dispatch, production matrix/economics, wrappers, markets, and borrower-account compatibility/origination. Every prior entrypoint in the selected owners remains discovered. |
+| Production artifacts | All 115 original declarations retain complete ABI entries, selectors, links, immutable patch positions, and qualified code in both profiles. The separately reproduced cached aggregator variant remains explicitly classified by compilation source set. |
+| Feature artifacts | All nine test assemblies retain M4 raw ABIs, executable bytes, links, immutable patch positions, and verified metadata source hashes in both profiles. |
+| Lint | Same 33 untouched Prettier failures; complete standalone Solhint output matches M4: zero errors, 22 warnings. The edited Solidity file passes Prettier. |
+
+Original callback dispatch, APR routes/rollback, closure, continued withdrawal
+batching, authority, and event order are owned by the unchanged cases rerun
+above. Full-suite invariant results remain the qualified M4 results; this task
+does not relabel a focused run as a complete suite or rerun invariants. Final
+default/fixed-seed/deploy qualification remains M5-05.
+
+### Deployment limits and costs
+
+All three original templates deploy through both real factories in this task.
+The rerun production-matrix cases also retain both-factory deployment for the
+three borrow and three APR replacement assemblies. Each transfer-only assembly
+retains its qualified direct runtime and actual `STOP || initcode` storage
+deployment evidence; its individual factory path is not inferred from a larger
+assembly using the same features.
+
+Both profiles retain the [M4 size table](hook-refactor-m4-results.md#compatibility-deployment-sizes-and-costs).
+Production stored-initcode headroom remains 6,196 / 4,834 / 1,899 bytes for
+open / fixed / periodic. The smallest test-composition margin remains 653 bytes
+for periodic borrow; periodic APR replacement retains 1,260 bytes. Runtime and
+stored-initcode limits remain 24,576 bytes. Empty-argument constructor payloads
+add 96 bytes to creation code and stay below 49,152 bytes. No limit or compiler
+setting was changed.
+
+Unchanged production code retains the qualified 97 callback, 70 creation/
+minimum/query, and 14 management observations, with their original state,
+calldata, call isolation, direct/nested boundaries, address qualifications, and
+exclusions. The qualified composition observations remain attributable to their
+unchanged artifacts. No fresh gas replay, whole-transaction estimate, or erased
+M1-to-M2 cost delta is claimed.
+
+No protocol compatibility fix was required. The initial run-wrapper command
+omitted its profile argument and exited before invoking Forge; the separately
+labeled command-error log/receipt is retained. The corrected focused command
+and both qualifying compatibility runs passed.
+
+The user approved continuation on 2026-09-24 and directed maintained docs to
+follow the existing README structure and link format. The exact reviewed index,
+bound evidence, and all 1,190 inputs verified before updating only completion
+status. M5-03 is committed under the established signing workflow; M5-04 follows.
+Final qualification, external export, and working-document removal remain
+pending. No push, external-consumer execution, or V2.6 implementation occurred.
+
+### M5-03 evidence identities
+
+Paths are relative to the M5 evidence root. The qualification binds run logs,
+receipts, source ownership, artifact identities/limits, lint, and helper scripts.
+The review receipt separately binds the final index and staged patch.
+
+| File | SHA-256 |
+| --- | --- |
+| `m5-03-qualification.json` | `04f7c6c92c6ffed2ef21dc9df3f433245a6f53f81629c1bc643f1002655dbb9a` |
+| `m5-03-inputs.sha256.json` | `352f127ba1f33d4605ed0b66322cf616a5aa9a4b631b89a06d3af2e5e7a621e5` |
+| `m5-03-tests-default-receipt.json` | `8c1a9a320377dbc0ea34624af96fdddf463010c16b779d08518686231737317e` |
+| `m5-03-tests-deploy-receipt.json` | `dd0dc3014dcdc00f96486512f1d4d16e198725c2f970875d8c97540e1d927533` |
+| `m5-03-ownership-comparison.json` | `c9c5f233e6cbd8c48c9c0f63196c9e2c42311837d2cdc05f9b87edb01dbe2a11` |
+| `m5-03-runtime-artifacts.json` | `8f21e2e7bad39b9da7dccca82a962ec87cb400d61e05820afcb983bda2a6ff26` |
+| `m5-03-lint-comparison.json` | `6bc1eb634b7a52c77414ad38ceef3974e9fe9a36635d40e4b4e41dac98202a7a` |
