@@ -18,6 +18,7 @@ import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { AprValidationHooks } from '../mocks/AprValidationHooks.sol';
+import { AprValidationPolicy } from '../mocks/AprValidationPolicy.sol';
 import { PeriodicAprMarketMock } from '../mocks/PeriodicAprMarketMock.sol';
 import { PeriodicProposalHooks } from '../mocks/PeriodicProposalHooks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
@@ -679,7 +680,7 @@ contract PeriodicTermHooksTest is TestKernel {
     );
 
     vm.recordLogs();
-    vm.expectRevert(abi.encodeWithSelector(AprValidationHooks.AprBelowFloor.selector, 899));
+    vm.expectRevert(abi.encodeWithSelector(AprValidationPolicy.AprBelowFloor.selector, 899));
     hooks.proposeAnnualInterestBips(market, 899);
     assertEq(vm.getRecordedLogs().length, 0, 'no proposal effects before validation');
     _assertNoPendingAprChange(market);
@@ -703,7 +704,7 @@ contract PeriodicTermHooksTest is TestKernel {
     uint32 responseEnd = responseStart + WithdrawalWindowDuration;
     target.setProposalWindow(market, responseStart, responseEnd);
     vm.recordLogs();
-    vm.expectRevert(abi.encodeWithSelector(AprValidationHooks.AprBelowFloor.selector, 899));
+    vm.expectRevert(abi.encodeWithSelector(AprValidationPolicy.AprBelowFloor.selector, 899));
     hooks.proposeAnnualInterestBips(market, 899);
     assertEq(vm.getRecordedLogs().length, 0, 'no cancellation or replacement events');
     _assertPendingAprChange(

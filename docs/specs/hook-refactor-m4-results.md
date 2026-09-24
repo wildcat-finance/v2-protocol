@@ -4,7 +4,8 @@
 - Current status: [M4 tracker](hook-refactor-m4-tracker.md).
 - Execution starting revision: `579bba16f5204b0a4b815811a527aed61dfb256f`.
 - Approved M3 handoff: `eff4d5898a5384b35f16acba23fee2aca47745d0`.
-- Raw evidence root: `audits/hook-refactor/m4/2026-09-23/` (ignored).
+- Raw evidence roots: `audits/hook-refactor/m4/2026-09-23/` for M4-01 through
+  M4-03 and `audits/hook-refactor/m4/2026-09-24/` for M4-04 (ignored).
 
 ## M4-01: Handoff identity and proof map
 
@@ -427,3 +428,137 @@ The reviewed index, all 52 evidence artifacts, and 1,187 qualified inputs were
 verified unchanged before the signed kethcode commit; only completion-status
 documentation changed after review. M4-04 has not started and waits for the user
 to resume. The voice guide, PDF, and lifecycle sketch remain excluded.
+
+## M4-04: Deliberate APR default replacement
+
+The user resumed execution on 2026-09-24. Verified the signed M4-03 handoff
+`81934d7df4b0db296bf6c475dc512acdc1357def`, all 52 retained evidence artifacts,
+and its 1,187 input hashes before implementation. M4-04 changes only test code
+and documentation. Production contracts and the existing transfer/borrow
+components remain unchanged.
+
+### Selected calculation and shared validation
+
+`AprReplacementPolicy` keeps the requested APR, selects a reserve ratio of
+3,333 bips, records `lastSelectedApr[market]`, and emits `AprDefaultSelected`.
+These are test observables, not proposed lending or tranching terms. The
+selected reserve differs from the original temporary-reserve calculation and
+provides a result for the effective-value validator to accept or reject.
+
+`OpenAprReplacementHooks`, `FixedAprReplacementHooks`, and
+`PeriodicAprReplacementHooks` combine that policy with the existing two transfer
+features. They replace only `_applyDefaultAprUpdate` and explicitly reapply the
+existing inclusive APR bounds before selecting the replacement. They never
+call the skipped implementation. Their `_checkAprChange` calls the shared
+effective-value validator after the selected calculation's effects.
+
+The term strategies remain inherited. Fixed maturity still rejects a requested
+APR reduction before the default is selected; preserving the requested APR
+also preserves that guard's meaning. Periodic increases cancel pending proposals
+and use the replacement; equality retains proposals and uses the replacement.
+Proposal-backed reductions through either route retain current reserves and
+bypass both the original default and its replacement.
+
+The existing validator's errors, two bounds fields, setter body, and validation
+statements move to `AprValidationPolicy`. `AprValidationHooks` adopts it while
+retaining its original context-recording fields and effects. The setter becomes
+`public virtual` so the new assemblies can add `onlyAdministrator` and delegate
+to the same implementation. The original harness retains its unrestricted
+test setup API. Nonzero temporary-reserve setup in the new assemblies is a
+separate harness-only API guarded by administrator and market registration.
+
+The first size probe included full context recording in the shared component;
+periodic exceeded the stored-initcode limit by 422 bytes. Keeping that recording
+in its existing harness removes the excess instrumentation from the compositions.
+The final shared component owns validation only; the replacement's accepted-APR
+record is sufficient to prove its effects and rollback.
+
+### Behavioral proof and retained tests
+
+Seven new properties belong to `AprValidationTest`, alongside its five existing
+cases:
+
+| Property | Observable result |
+| --- | --- |
+| Skipped temporary-reserve effects | Eleven cases cover inputs that would activate, update, cancel, or expire the inherited default. Nonzero seeded state stays unchanged and successful calls emit only the selected-default event plus any required periodic proposal cancellation. Periodic reductions cannot enter the original activation path; their bypass has its own test. |
+| Inclusive APR bounds | Zero and 10,000 bips pass for every term; 10,001 and `uint16.max` reject before the selected effect. Seeded temporary-reserve state stays intact. |
+| Effective-value validation and rollback | Requested/current reserves pass a ceiling that the selected 3,333 exceeds. Rejection restores the prior selected APR and any periodic proposal cancellation. A subsequent valid update succeeds even with an out-of-range requested reserve, because validation uses the selected value. APR-floor rejection is also covered. |
+| Fixed guard priority | One second before maturity, the term error precedes the selected calculation and APR-floor check. At maturity, effective-value validation applies; satisfying the floor permits the reduction. |
+| Both periodic reduction routes | Rejection retains the proposal, prior selected APR, and seeded default state. Retry returns the exact proposed APR and current reserves, consumes the proposal, and emits only the execution event. The replacement's accepted-APR record stays unchanged. |
+| Unrelated rules | Deposit minimum and credential checks, known-lender bookkeeping, both transfer rules and their rollback, withdrawal timing/access, and management authority remain effective after using the replacement. |
+| Deployment limits | Actual composed runtimes and `STOP || initcode` storage contracts deploy and fit the unchanged size limits, including the complete constructor payload. |
+
+All 741 prior test/invariant entrypoints remain. The only adaptations to old
+case bodies are six error-selector references in five cases: they now name
+`AprValidationPolicy`, which owns the unchanged errors. Inputs, assertions,
+expected values, and behavior are retained. Seven additions bring the source
+inventory to 748 entrypoints with the same 51 owners and no inherited or
+fixture-owned test entrypoints.
+
+Standalone before/after compilation confirms the original validator's raw ABI
+and all 17 normalized storage entries are unchanged. Current definitions also
+match both Foundry profiles; standalone solc and Foundry differ only in ABI
+entry ordering. Source comparison confirms identical moved declarations,
+setter body, validation statements, and retained recording statements/members.
+
+Final focused default and deploy runs each pass **352 tests across 19 suites**,
+with 1,000 fuzz iterations and seed `0x5eed`. This is the prior 345-case selection
+plus seven new properties. All six touched Solidity files pass Prettier. Full
+lint remains at 33 untouched formatting failures; Solhint has zero errors and
+the same 22 warnings. Full canonical runs and invariant campaigns remain M4-06.
+
+### Compatibility, deployment sizes, and costs
+
+| Test composition | Runtime bytes | Creation bytes | Stored initcode bytes | Stored headroom | Constructor payload with empty `args` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `OpenAprReplacementHooks` | 16,167 | 18,924 | 18,925 | 5,651 | 19,020 |
+| `FixedAprReplacementHooks` | 17,506 | 20,263 | 20,264 | 4,312 | 20,359 |
+| `PeriodicAprReplacementHooks` | 20,558 | 23,315 | 23,316 | 1,260 | 23,411 |
+
+Both profiles produce identical composition ABIs and executable bytes. All
+runtime/storage contracts fit 24,576 bytes and constructor payloads fit 49,152
+bytes without changing compiler or code-size settings. These assemblies combine
+APR replacement with the two transfer features; the independent borrow examples
+remain unchanged. Real factory-created replacement markets and their APR/closure
+lifecycle are M4-05 work, not a result claimed by this checkpoint.
+
+Production ABIs, selectors, creation/runtime bytes, links, and immutable patch
+positions remain identical to M3/M4-03. Existing transfer and borrow compositions
+retain their ABIs and bytecode. Unchanged production inputs qualify retained
+layout and gas evidence under their original conditions and exclusions; no fresh
+production layout or gas measurement is claimed.
+
+Three canonical scenarios provide 27 direct APR-callback observations. For an
+accepted update from recorded APR 1,000 to 1,100, callback gas is 34,449 for open,
+36,791 for fixed, and 44,155 for periodic. The periodic case also cancels a pending
+proposal. Costs use Foundry isolation, initial timestamp `1724284800`, seed
+`0x5eed`, and the exact stored states/calldata in the retained trace summary.
+They describe these test compositions, not production deltas or complete market
+transactions. Rejected traces show selected/proposal effects before rollback;
+successful-call event assertions establish absence of committed default events.
+
+### M4-04 evidence identities
+
+Paths below are relative to `audits/hook-refactor/m4/2026-09-24/`. The final
+manifest contains 293 source/test/script/settings files and 897 dependency files.
+Toolchain, settings, and dependency identities remain unchanged. The qualification
+record binds the final tests, artifact comparisons, validator extraction/layout,
+test ownership, lint, and APR observations.
+
+| File | SHA-256 |
+| --- | --- |
+| `m4-04-qualification.json` | `4689c3a6f2b07ba8f8f9849371d21017a406f112a2e8c7f828c113c131d54086` |
+| `m4-04-review-inputs.sha256.json` | `a49aebf1cc948cfa0b736e804aa0de13da8ccf6804c3961ddabb117b94983cb1` |
+| `m4-04-tests-default-receipt.json` | `8d40afc6b629831f697b7274a3d52aa35021dcbbfdf77bbc63eb4eff9270410f` |
+| `m4-04-tests-deploy-receipt.json` | `5e3b41799bec9b27da67738a13a6eb5b29ba93796e131644b499c3cdc8e262a0` |
+| `m4-04-validator-comparison.json` | `a1d02243081e4e29542078f07db34e92d9741628c49c65715b30917157c5d595` |
+| `m4-04-validator-move.json` | `03f9485e2dd2f499151662e0af33388a3da14eb0b4198dbd5dcf5dd4b580de00` |
+| `m4-04-ownership-comparison.json` | `9871aea316e54770007d00d397863b2eae799068afaaa4cdfc66c62b6652f2f4` |
+| `m4-04-composition-artifacts.json` | `17f61e1082061151bb381a4df7b79512655a9c4947b174f390d5b334756a08c6` |
+| `m4-04-apr-gas-summary.json` | `540d52714de55a76476bb0f6f5c633b37b669816293a3deda5ae9ab3b3b9a76c` |
+| `m4-04-lint-comparison.json` | `24ff7b26b5ab54c216f6967996b1900af0486cde990444aa30e9c2de0fc051b0` |
+
+The user approved M4-04 and continuation on 2026-09-24. Before committing, the
+reviewed index, all 59 evidence artifacts, and 1,190 qualified inputs were verified;
+only completion-status documentation changed after review. M4-05 is next. The
+voice guide, PDF, and lifecycle sketch remain excluded.

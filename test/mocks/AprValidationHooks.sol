@@ -5,25 +5,16 @@ import { AprChange } from 'src/access/BaseHooks.sol';
 import { TemporaryReserveRatio } from 'src/access/MarketConstraintHooks.sol';
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
+import { AprValidationPolicy } from './AprValidationPolicy.sol';
 
 /// @dev test-only effective-value constraint. keep the production APR strategies intact.
-contract AprValidationHooks is PeriodicTermHooks {
-  error AprBelowFloor(uint16 actual);
-  error ReserveAboveCeiling(uint16 actual);
-
-  uint16 public minimumApr;
-  uint16 public maximumReserve = 10_000;
+contract AprValidationHooks is PeriodicTermHooks, AprValidationPolicy {
   AprChange internal _lastChange;
   bytes32 public lastStateHash;
   bytes public lastData;
   uint32 public proposalTimestampAtValidation;
 
   constructor(address administrator) PeriodicTermHooks(administrator, '') {}
-
-  function setValidationBounds(uint16 aprFloor, uint16 reserveCeiling) external {
-    minimumApr = aprFloor;
-    maximumReserve = reserveCeiling;
-  }
 
   /// @dev seed nonzero default state so a reduction can't hide an accidental default call.
   function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external {
@@ -39,9 +30,7 @@ contract AprValidationHooks is PeriodicTermHooks {
     MarketState calldata state,
     bytes calldata extraData
   ) internal override {
-    if (change.effectiveApr < minimumApr) revert AprBelowFloor(change.effectiveApr);
-    if (change.effectiveReserve > maximumReserve)
-      revert ReserveAboveCeiling(change.effectiveReserve);
+    _validateAprChange(change);
     _lastChange = change;
     lastStateHash = keccak256(abi.encode(state));
     lastData = extraData;
