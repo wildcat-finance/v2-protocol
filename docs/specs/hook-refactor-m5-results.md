@@ -309,3 +309,39 @@ The review receipt separately binds the final index and staged patch.
 | `m5-03-ownership-comparison.json` | `c9c5f233e6cbd8c48c9c0f63196c9e2c42311837d2cdc05f9b87edb01dbe2a11` |
 | `m5-03-runtime-artifacts.json` | `8f21e2e7bad39b9da7dccca82a962ec87cb400d61e05820afcb983bda2a6ff26` |
 | `m5-03-lint-comparison.json` | `6bc1eb634b7a52c77414ad38ceef3974e9fe9a36635d40e4b4e41dac98202a7a` |
+
+## M5-04: Maintained integration and contributor guides
+
+M5-03 was committed as `57098fe`, signed kethcode and verified. The user asked
+that in-repository documentation follow the existing README and link format.
+The root README still routes to `docs/README.md`; its existing Integrations
+section now links to [Hook development](../integrations/hook-development.md).
+All new links use the repository's relative file/heading conventions.
+
+The development guide describes component/state ownership, exact internal
+extension points, adding checks versus replacing defaults, explicit conflict
+and ordering decisions, caller authentication, creation before market code,
+required dispatch versus requested credentials, both APR routes, separate
+management/closure boundaries, view/data limits, and deployment headroom. It
+links to the canonical compiling test examples instead of adding a second
+implementation. Test-only economic choices and actual deployment proof limits
+are explicit.
+
+Existing hook, access, fixed, periodic, event, wrapper, and borrower-identity
+guides link the relevant behavior to that extension contract. They retain the
+original user-facing guarantees and distinguish declaration ownership from
+emitter/ABI identity. Existing release/audit/deployment records are unchanged.
+The periodic execution description now identifies the applied proposal value,
+without suggesting the no-argument permissionless entrypoint takes a rate.
+
+Nine maintained Markdown files changed or were added. All 134 local links and
+heading anchors checked across these pages and the root README resolve. They
+contain no working-spec/tracker or scratch-evidence dependencies. All 1,190
+compiler/test/dependency inputs retain their M5-03 hashes; no suite was rerun
+for this documentation-only checkpoint. `git diff --check` passes.
+
+`m5-04-documentation.json` binds the exact maintained pages, source-review
+scope, input identity, link checker, and result. Its SHA-256 is
+`d5cf4da3845e3a88eb0da0cdb78a72771eb57a225ce3a94e9c5f1b7d975a0bbb`.
+M5-04 is complete under documentation-only signing authorization. M5-05 owns
+final complete-suite qualification and the self-contained updated spec.

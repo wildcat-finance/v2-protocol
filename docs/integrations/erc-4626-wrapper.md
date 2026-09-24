@@ -25,6 +25,9 @@ accounting.
   - [`test/vault/Wildcat4626Wrapper.t.sol`](../../test/vault/Wildcat4626Wrapper.t.sol)
   - [`test/vault/Wildcat4626WrapperFactory.t.sol`](../../test/vault/Wildcat4626WrapperFactory.t.sol)
   - [`test/integration/Wildcat4626WrapperIntegration.t.sol`](../../test/integration/Wildcat4626WrapperIntegration.t.sol)
+  - [`test/integration/ProductionMatrixScenarios.t.sol`](../../test/integration/ProductionMatrixScenarios.t.sol):
+    wrapper registration, backing, access, and redemption through both real
+    factories with every built-in term
 
 ## Wildcat scaling
 
@@ -183,6 +186,12 @@ requested receiver, so that receiver must pass the normal market policy. A
 known lender may still receive and exit after being blocked from new deposits;
 an unknown blocked or unauthorized receiver cannot. Transfers-disabled markets
 and sanctions checks remain hard stops.
+
+A custom hook's additional transfer rules still apply to the registered wrapper
+and known recipients. A recipient-only readiness query cannot promise that an
+amount-dependent rule will accept the transfer. See
+[Hook development](./hook-development.md#views-exemptions-and-callback-data)
+for keeping feature checks and query behavior consistent.
 
 #### Backing invariant
 

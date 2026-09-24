@@ -1,10 +1,10 @@
 # M5 tracker: integration compatibility and final documentation
 
 - Plan: [M5 execution plan](hook-refactor-m5-plan.md).
-- Milestone status: authorized and in progress; M5-01 through M5-03 complete.
-- Execution tasks complete: 3 of 6.
-- Active task: M5-04, maintained integration and contributor guides.
-- Next action: follow the existing README structure and relative-link conventions in maintained docs.
+- Milestone status: authorized and in progress; M5-01 through M5-04 complete.
+- Execution tasks complete: 4 of 6.
+- Active task: M5-05, final qualification and updated spec.
+- Next action: complete full-suite qualification and prepare the self-contained knowledge-base spec.
 - Completed M4 checkpoint: `add362d22ab28b6d63f7e5627517f5f2e7e56121`.
 - Original compatibility reference: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
 
@@ -37,7 +37,7 @@ Record commit hashes in the next tracker update. Unmet dependencies remain
 | [M5-01](hook-refactor-m5-plan.md#m5-01-handoff-and-compatibility-inventory) | Qualify handoff and map consumer assumptions, proof owners, and gaps. | Done | Plan review and instruction to execute. | [Qualified identity, consumer assumptions, actual proof boundaries, and cleanup inventory](hook-refactor-m5-results.md#m5-01-handoff-and-compatibility-inventory). |
 | [M5-02](hook-refactor-m5-plan.md#m5-02-public-formats-identity-and-source-compatibility) | Qualify public encodings, metadata, decoders, imports, and artifact identity. | Done | M5-01. | [Full compiled/source comparison, abstract ABI labels, and controlled build-graph reproduction](hook-refactor-m5-results.md#m5-02-public-formats-identity-and-source-compatibility). |
 | [M5-03](hook-refactor-m5-plan.md#m5-03-real-integration-behavior-and-deployment) | Qualify actual consumer behavior and factory deployment. | Done | M5-02. | [24 factory-created market connections, 370-test passes in both profiles, unchanged prior assertions/code/limits](hook-refactor-m5-results.md#m5-03-real-integration-behavior-and-deployment). |
-| [M5-04](hook-refactor-m5-plan.md#m5-04-maintained-integration-and-contributor-guides) | Update maintained integration and hook-development guides. | Not started | M5-02 and M5-03. | Pending. |
+| [M5-04](hook-refactor-m5-plan.md#m5-04-maintained-integration-and-contributor-guides) | Update maintained integration and hook-development guides. | Done | M5-02 and M5-03. | [Maintained guides and contributor instructions](hook-refactor-m5-results.md#m5-04-maintained-integration-and-contributor-guides), integrated through existing README/link conventions; 134 local links/anchors verified. |
 | [M5-05](hook-refactor-m5-plan.md#m5-05-final-qualification-and-updated-spec) | Reconcile final tests/compatibility/costs and update the spec for export. | Not started | M5-01 through M5-04. | Pending. |
 | [M5-06](hook-refactor-m5-plan.md#m5-06-handoff-export-and-release-tree-cleanup) | Verify external handoff, remove working documents, and qualify release tree. | Not started | M5-05. | Pending. |
 
@@ -48,8 +48,8 @@ Record commit hashes in the next tracker update. Unmet dependencies remain
 | M5 planning | User approved execution on return from maintenance. | `f3d5e78`; kethcode SSH signature verified. |
 | M5-01 | Documentation/evidence only under existing authorization. | `118dab2`; kethcode SSH signature verified. |
 | M5-02 | Documentation/evidence only; no Solidity or configuration changes. | `ce44e8e`; kethcode SSH signature verified. |
-| M5-03 | User approved continuation and specified the existing README/link format for maintained docs. Reviewed index and evidence verified unchanged before status updates. | Signed with this checkpoint; hash recorded in the next tracker update. |
-| M5-04 | Not started. | Pending. |
+| M5-03 | User approved continuation and specified the existing README/link format for maintained docs. Reviewed index and evidence verified unchanged before status updates. | `57098fe`; kethcode SSH signature verified. |
+| M5-04 | Documentation only; user README/link instruction followed. | Signed with this checkpoint; hash recorded in the next tracker update. |
 | M5-05 | Not started; stage any Solidity changes for review. | Pending. |
 | M5-06 | Not started; final documentation removal is authorized after verified export. | Record final status/commit in the external handoff receipt. |
 
@@ -102,7 +102,10 @@ three connections in the existing production matrix owner: 24 real deployments,
 370-test passes in each profile, all 754 prior entrypoints and all prior matrix
 helpers unchanged. Only that test file changed. The user approved continuation
 and directed maintained docs to follow the existing README and link format.
-M5-04 follows the signed M5-03 checkpoint. No export/deletion or push has occurred.
+M5-04 updates nine maintained pages with 134 verified local links/anchors and
+no working-record dependencies. All compiler/test inputs remain unchanged.
+M5-05 now owns final full-suite qualification and the updated spec. No
+export/deletion or push has occurred.
 
 ## Progress log
 
@@ -113,3 +116,4 @@ M5-04 follows the signed M5-03 checkpoint. No export/deletion or push has occurr
 | 2026-09-24: M5-02 complete | Fresh M1/current full-production builds preserve all 115 selector/layout maps and 112 non-template code outputs. Recorded concrete input-label allowances, four inherited abstract APR labels, preserved public type imports/readers, and a controlled reproduction of cached lens build-graph sensitivity. Both profiles qualified; all 1,190 inputs unchanged. Documentation-only checkpoint; M5-03 follows. |
 | 2026-09-24: M5-03 ready for review | Added real factory-to-lens configuration/discovery and wrapper properties across all terms and both market types. Both profiles pass 370 tests / 20 suites. Preserved all 754 existing entrypoints, 37 matrix functions, fixtures/mocks, production code/formats and deployment limits. Same lint baseline. Staged the test and evidence/status docs; hold before commit and M5-04 for user Solidity review. |
 | 2026-09-24: M5-03 approved | User approved continuation and asked that in-repo documentation follow the existing README structure and link format. Verified the exact staged patch, bound evidence, and all 1,190 inputs before updating only completion-status docs. Commit signed kethcode; M5-04 follows. |
+| 2026-09-24: M5-04 complete | Added the maintained hook-development guide through the existing docs README and relative-link conventions. Updated relevant behavior guides, documented compiling examples and exact extension obligations, and verified 134 links/anchors plus unchanged compiler/test inputs. Documentation-only signed checkpoint; M5-05 follows. |

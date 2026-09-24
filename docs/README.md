@@ -35,6 +35,8 @@ review coverage, or remediation status from source ancestry alone.
   [access control](./integrations/access-control.md),
   [fixed term hooks](./integrations/fixed-term-hooks.md), and
   [periodic term hooks](./integrations/periodic-term-hooks.md)
+- [Hook development](./integrations/hook-development.md): shared defaults,
+  reusable term policies, feature composition, and explicit override decisions
 - [Role providers](./integrations/role-providers.md): credential-provider
   capabilities and construction paths
 - [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md): wrapping, redemption,
