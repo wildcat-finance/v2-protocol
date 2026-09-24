@@ -58,7 +58,7 @@ reviews and pushes the milestone.
 | M4-03 | User approved commit and instructed a hold for reboot on 2026-09-24. | `81934d7`; kethcode SSH signature verified. |
 | M4-04 | User approved the staged checkpoint and authorized commit/continuation on 2026-09-24. | `ba6f4af`; kethcode SSH signature verified. |
 | M4-05 | User approved the staged checkpoint and authorized commit/continuation on 2026-09-24. | `5c8c903`; kethcode SSH signature verified. |
-| M4-06 | User approved the staged correction and qualification checkpoint on 2026-09-24. | Signed with this checkpoint; hash recorded in the next tracker update. |
+| M4-06 | User approved the staged correction and qualification checkpoint on 2026-09-24. | `add362d`; kethcode SSH signature verified. |
 
 ## Evidence register
 

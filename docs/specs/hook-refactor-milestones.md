@@ -1,7 +1,8 @@
 # Hook refactor milestones
 
 - Status: M1, M2, and M3 complete, reviewed, and pushed. All six M4 tasks are
-  complete; the milestone is ready for user review and push. M5 has not started.
+  complete; the milestone is ready for user review and push. M5's plan and
+  tracker are ready for review; execution has not started.
 - Scope: the [agreed hook composition spec](hook-composition.md), informed by
   the [V2.5 behavior and override map](hook-behavior-map.md).
 - Source baseline: `4ab8dbf9821d1ce9f9157cb1659d0b36f59fd62c`.
@@ -11,7 +12,8 @@ an [execution plan](hook-refactor-m1-plan.md) and [tracker](hook-refactor-m1-tra
 M2 has its own [plan](hook-refactor-m2-plan.md) and [tracker](hook-refactor-m2-tracker.md),
 as do M3 ([plan](hook-refactor-m3-plan.md), [tracker](hook-refactor-m3-tracker.md))
 and M4 ([plan](hook-refactor-m4-plan.md), [tracker](hook-refactor-m4-tracker.md)).
-M5 planning follows separately. A milestone
+M5 has a [plan](hook-refactor-m5-plan.md) and
+[tracker](hook-refactor-m5-tracker.md). A milestone
 may contain several implementation changes; it is not necessarily one commit
 or pull request.
 
@@ -151,6 +153,15 @@ the affected checks; a compiling composition alone does not complete M4.
 
 ## M5 — Qualify compatibility and document the result
 
+Execution: [plan](hook-refactor-m5-plan.md) and
+[current status](hook-refactor-m5-tracker.md).
+
+Existing integration compatibility is the leading acceptance condition, per
+the user's 2026-09-24 direction. Account for the actual formats and behavior
+each consumer relies on; test totals and matching selectors alone are not
+sufficient. Documentation, deployment/cost checks, and final qualification
+remain required.
+
 Check the final implementation against the M1 baseline and the spec:
 
 - Compare constructor/configuration encodings, selectors, returned tuples,
@@ -166,11 +177,16 @@ Check the final implementation against the M1 baseline and the spec:
 - Update the hook integration/contributor documentation with the final extension
   interfaces and examples of adding a rule and deliberately replacing a default.
   Record verification evidence against an exact source/toolchain identity.
+- Save the updated spec and final evidence in a verified handoff outside the
+  repository for the user's knowledge base. Then remove the refactor's working
+  spec, behavior map, baseline/design, plans, trackers, and results from the
+  release tree, repairing links and keeping the maintained guides self-contained.
 
 **Complete when:** all acceptance criteria have evidence, remaining limitations
 are stated, and the refactor is ready for code review with no parallel production
-implementation left behind. Publishing/deploying new templates and rewriting
-deployment inventories are not part of this milestone.
+implementation left behind. The updated spec is saved for handoff and working
+documents have been removed from the release tree. Publishing/deploying new
+templates and rewriting deployment inventories are not part of this milestone.
 
 ## Working boundaries
 
