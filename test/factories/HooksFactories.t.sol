@@ -15,9 +15,7 @@ import { ExistingProviderInputs } from 'src/access/ProviderStructs.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
-import {
-  ISphereXProtectedRegisteredBase
-} from 'src/interfaces/ISphereXProtectedRegisteredBase.sol';
+import { ISphereXProtectedRegisteredBase } from 'src/interfaces/ISphereXProtectedRegisteredBase.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
@@ -190,7 +188,9 @@ contract HooksFactoriesTest is TestKernel {
         withdrawalBatchDuration: 1 days,
         reserveRatioBips: 1_000,
         delinquencyGracePeriod: 1 days,
-        hooks: EmptyHooksConfig.setHooksAddress(hooksInstance)
+        hooks: EmptyHooksConfig.setHooksAddress(hooksInstance),
+        repaymentDate: 0,
+        repaymentPeriod: 0
       });
   }
 
@@ -1360,11 +1360,7 @@ contract HooksFactoriesTest is TestKernel {
         0
       );
       assertEq(WildcatMarket(validMarket).feeRecipient(), FeeRecipient, 'valid recipient');
-      assertEq(
-        WildcatMarket(zeroRecipientMarket).feeRecipient(),
-        address(0),
-        'zero recipient'
-      );
+      assertEq(WildcatMarket(zeroRecipientMarket).feeRecipient(), address(0), 'zero recipient');
       vm.startPrank(address(factory));
       vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeRecipientRequired.selector);
       WildcatMarket(zeroRecipientMarket).setProtocolFeeBips(1);

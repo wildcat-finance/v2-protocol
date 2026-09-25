@@ -128,7 +128,9 @@ contract MarketConstraintHooksTest is TestKernel {
       withdrawalBatchDuration: 0,
       reserveRatioBips: 0,
       delinquencyGracePeriod: 0,
-      hooks: EmptyHooksConfig
+      hooks: EmptyHooksConfig,
+      repaymentDate: 0,
+      repaymentPeriod: 0
     });
     vm.expectRevert(MarketConstraintHooks.AnnualInterestBipsOutOfBounds.selector);
     _createMarket(MarketC, inputs);

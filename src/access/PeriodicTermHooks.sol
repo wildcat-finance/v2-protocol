@@ -53,10 +53,10 @@ contract PeriodicTermHooks is PeriodicTermPolicy {
   //                               Market Queries                               //
   // ========================================================================== //
 
-  /// @notice returns the periodic-term configuration stored for `marketAddress`.
+  /// @notice returns the periodic-term configuration and effective closure for `marketAddress`.
   /// @dev an unattached market returns the zero-value struct.
   function getHookedMarket(address marketAddress) external view returns (HookedMarket memory) {
-    return _hookedMarkets[marketAddress];
+    return _effectiveHookedMarket(marketAddress);
   }
 
   /// @notice batch version of `getHookedMarket`, preserving input order.
@@ -65,7 +65,7 @@ contract PeriodicTermHooks is PeriodicTermPolicy {
   ) external view returns (HookedMarket[] memory hookedMarkets) {
     hookedMarkets = new HookedMarket[](marketAddresses.length);
     for (uint256 i = 0; i < marketAddresses.length; i++) {
-      hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];
+      hookedMarkets[i] = _effectiveHookedMarket(marketAddresses[i]);
     }
   }
 }

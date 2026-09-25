@@ -36,7 +36,8 @@ contract WildcatMarketTest is MarketFixture {
   bytes32 internal constant BorrowerStorageSlot = bytes32(type(uint256).max);
   bytes4 internal constant PanicSelector = 0x4e487b71;
   uint256 internal constant ArithmeticPanic = 0x11;
-  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(10));
+  // `_lifecycle` occupies slot 9; allowance is slot 10, and revolving principal follows.
+  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(11));
 
   function _arithmeticPanic() private pure returns (bytes memory) {
     return abi.encodeWithSelector(PanicSelector, ArithmeticPanic);
@@ -519,7 +520,7 @@ contract WildcatMarketTest is MarketFixture {
         abi.encodeCall(fixture.factory.getMarketParameters, ())
       );
       assertTrue(success, 'parameter read');
-      assertEq(encodedParameters.length, 0x2c0, 'encoded parameter length');
+      assertEq(encodedParameters.length, 0x300, '24-word encoded parameter length');
 
       uint256 encodedHooks;
       address encodedPrincipal;

@@ -73,6 +73,6 @@ internal audit-preparation papers are not protocol specifications.
 ## Working specifications
 
 - [V2.5 repayment and default preparation](./specs/v2.5-tranching-preparation.md):
-  implementation draft, confirmed requirements, remaining decisions, and the
-  next milestone plan. This feature is not implemented yet. These working
+  implementation draft, settled requirements, milestone plan, and current
+  prototype evidence. Implementation and qualification are in progress. These working
   records will be exported and removed before the final release.

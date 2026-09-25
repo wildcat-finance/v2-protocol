@@ -69,7 +69,9 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
       withdrawalBatchDuration: 1,
       reserveRatioBips: 10_000,
       delinquencyGracePeriod: 0,
-      hooks: EmptyHooksConfig
+      hooks: EmptyHooksConfig,
+      repaymentDate: 0,
+      repaymentPeriod: 0
     });
   }
 

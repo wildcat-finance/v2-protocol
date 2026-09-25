@@ -45,6 +45,7 @@ abstract contract FixedTermPolicy is BaseHooks {
   error ClosureDisabledBeforeTerm();
   /// @dev this market was not configured to allow term reductions.
   error TermReductionDisabled();
+  error RepaymentBeforeMaturity();
 
   // ========================================================================== //
   //                                    State                                   //
@@ -56,6 +57,17 @@ abstract contract FixedTermPolicy is BaseHooks {
   mapping(address => HookedMarket) internal _hookedMarkets;
   // keep immutable dispatch separate; adding it to HookedMarket would change the public tuple.
   mapping(address => bool) internal _depositHookEnabled;
+
+  function _getParameterConstraints()
+    internal
+    view
+    virtual
+    override
+    returns (MarketParameterConstraints memory constraints)
+  {
+    constraints = super._getParameterConstraints();
+    constraints.maximumRepaymentDateDelay = type(uint32).max;
+  }
 
   function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
     assembly {
@@ -98,6 +110,8 @@ abstract contract FixedTermPolicy is BaseHooks {
     ) {
       revert InvalidFixedTerm();
     }
+    if (parameters.repaymentDate != 0 && parameters.repaymentDate < fixedTermEndTime)
+      revert RepaymentBeforeMaturity();
     emit FixedTermUpdated(marketAddress, administrator_, 0, fixedTermEndTime);
 
     (

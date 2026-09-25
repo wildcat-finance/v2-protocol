@@ -11,6 +11,11 @@ struct TemporaryReserveRatio {
   uint32 expiry;
 }
 
+/// @dev callback-safe market closure query for scheduled completion.
+interface IMarketLifecycleView {
+  function isClosed() external view returns (bool);
+}
+
 /// @notice shared market-parameter bounds and default APR-reduction reserve policy.
 /// @dev OpenTerm and FixedTerm use the reduction policy; PeriodicTerm overrides reductions with its
 ///      proposal flow. ordinary updates ignore the borrower-supplied reserve ratio. reductions may
@@ -29,6 +34,16 @@ abstract contract MarketConstraintHooks is IHooks {
   error WithdrawalBatchDurationOutOfBounds();
   /// @dev the annual lender APR is outside this template's inclusive bounds.
   error AnnualInterestBipsOutOfBounds();
+  error RepaymentPeriodOutOfBounds();
+  error RepaymentDateOutOfBounds();
+
+  // terms are immutable in the core. retain the date here for callback policy checks.
+  mapping(address => uint32) internal _marketRepaymentDates;
+
+  function _isMarketInRepayment(address market) internal view returns (bool) {
+    uint256 date = _marketRepaymentDates[market];
+    return date != 0 && block.timestamp >= date;
+  }
 
   /// @notice emitted when an APR reduction starts a temporary excess-reserve period.
   event TemporaryExcessReserveRatioActivated(
@@ -94,34 +109,35 @@ abstract contract MarketConstraintHooks is IHooks {
     uint16 reserveRatioBips,
     uint32 delinquencyGracePeriod
   ) internal view virtual {
+    MarketParameterConstraints memory limits = _getParameterConstraints();
     assertValueInRange(
       annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
+      limits.minimumAnnualInterestBips,
+      limits.maximumAnnualInterestBips,
       AnnualInterestBipsOutOfBounds.selector
     );
     assertValueInRange(
       delinquencyFeeBips,
-      MinimumDelinquencyFeeBips,
-      MaximumDelinquencyFeeBips,
+      limits.minimumDelinquencyFeeBips,
+      limits.maximumDelinquencyFeeBips,
       DelinquencyFeeBipsOutOfBounds.selector
     );
     assertValueInRange(
       withdrawalBatchDuration,
-      MinimumWithdrawalBatchDuration,
-      MaximumWithdrawalBatchDuration,
+      limits.minimumWithdrawalBatchDuration,
+      limits.maximumWithdrawalBatchDuration,
       WithdrawalBatchDurationOutOfBounds.selector
     );
     assertValueInRange(
       reserveRatioBips,
-      MinimumReserveRatioBips,
-      MaximumReserveRatioBips,
+      limits.minimumReserveRatioBips,
+      limits.maximumReserveRatioBips,
       ReserveRatioBipsOutOfBounds.selector
     );
     assertValueInRange(
       delinquencyGracePeriod,
-      MinimumDelinquencyGracePeriod,
-      MaximumDelinquencyGracePeriod,
+      limits.minimumDelinquencyGracePeriod,
+      limits.maximumDelinquencyGracePeriod,
       DelinquencyGracePeriodOutOfBounds.selector
     );
   }
@@ -129,7 +145,17 @@ abstract contract MarketConstraintHooks is IHooks {
   /// @notice returns the parameter bounds enforced by this template during market creation.
   function getParameterConstraints()
     external
-    pure
+    view
+    returns (MarketParameterConstraints memory constraints)
+  {
+    return _getParameterConstraints();
+  }
+
+  /// @dev override this once to change both discovery and enforcement for a registered template.
+  function _getParameterConstraints()
+    internal
+    view
+    virtual
     returns (MarketParameterConstraints memory constraints)
   {
     constraints.minimumDelinquencyGracePeriod = MinimumDelinquencyGracePeriod;
@@ -142,11 +168,13 @@ abstract contract MarketConstraintHooks is IHooks {
     constraints.maximumWithdrawalBatchDuration = MaximumWithdrawalBatchDuration;
     constraints.minimumAnnualInterestBips = MinimumAnnualInterestBips;
     constraints.maximumAnnualInterestBips = MaximumAnnualInterestBips;
+    constraints.maximumRepaymentPeriod = 90 days;
+    constraints.maximumRepaymentDateDelay = 730 days;
   }
 
   function _onCreateMarket(
     address /* administrator */,
-    address /* marketAddress */,
+    address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata /* extraData */
   ) internal virtual override returns (HooksConfig) {
@@ -157,6 +185,14 @@ abstract contract MarketConstraintHooks is IHooks {
       parameters.reserveRatioBips,
       parameters.delinquencyGracePeriod
     );
+    MarketParameterConstraints memory limits = _getParameterConstraints();
+    if (parameters.repaymentPeriod > limits.maximumRepaymentPeriod)
+      revert RepaymentPeriodOutOfBounds();
+    if (parameters.repaymentDate != 0) {
+      if (parameters.repaymentDate > block.timestamp + limits.maximumRepaymentDateDelay)
+        revert RepaymentDateOutOfBounds();
+      _marketRepaymentDates[marketAddress] = parameters.repaymentDate;
+    }
   }
 
   /// @dev keeps the original reserve ratio for an APR reduction of 25% or less. above that, returns
@@ -215,6 +251,14 @@ abstract contract MarketConstraintHooks is IHooks {
     // get the existing temporary reserve ratio from storage, if any. `tmp` retains the original
     // APR and reserve ratio across later updates in the same period.
     TemporaryReserveRatio memory tmp = temporaryExcessReserveRatio[market];
+    // don't restore a pre-repayment reserve ratio. the effective validator must see 100% too.
+    if (_isMarketInRepayment(market)) {
+      if (tmp.expiry != 0) {
+        delete temporaryExcessReserveRatio[market];
+        emit TemporaryExcessReserveRatioCanceled(market);
+      }
+      return (annualInterestBips, 10_000);
+    }
 
     if (tmp.expiry > 0) {
       bool canExpire = (annualInterestBips >= intermediateState.annualInterestBips).and(

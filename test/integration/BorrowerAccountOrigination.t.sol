@@ -183,7 +183,9 @@ contract BorrowerAccountOriginationTest is TestKernel {
         withdrawalBatchDuration: 1 days,
         reserveRatioBips: 1_000,
         delinquencyGracePeriod: 1 days,
-        hooks: EmptyHooksConfig.setHooksAddress(hooksInstance)
+        hooks: EmptyHooksConfig.setHooksAddress(hooksInstance),
+        repaymentDate: 0,
+        repaymentPeriod: 0
       });
   }
 

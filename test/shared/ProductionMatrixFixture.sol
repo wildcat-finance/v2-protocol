@@ -56,6 +56,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
     uint32 firstWindowDelay;
     uint32 periodDuration;
     uint32 withdrawalWindowDuration;
+    uint32 repaymentDate;
+    uint32 repaymentPeriod;
   }
 
   struct ProductionStack {
@@ -301,6 +303,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
     inputs.reserveRatioBips = options.reserveRatioBips;
     inputs.delinquencyGracePeriod = options.delinquencyGracePeriod;
     inputs.hooks = hooks;
+    inputs.repaymentDate = options.repaymentDate;
+    inputs.repaymentPeriod = options.repaymentPeriod;
   }
 
   function _deployMatrixCell(

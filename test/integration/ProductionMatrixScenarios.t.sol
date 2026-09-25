@@ -1226,7 +1226,9 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
       0,
       365 days,
       0,
-      10_000
+      10_000,
+      90 days,
+      cell.options.hooksKind == MatrixHooksKind.FixedTerm ? type(uint32).max : uint32(730 days)
     );
     expected.deploymentFlags.optional.useOnDeposit = true;
     expected.deploymentFlags.optional.useOnTransfer = true;

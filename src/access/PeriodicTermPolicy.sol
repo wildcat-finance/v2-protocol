@@ -102,8 +102,21 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   function pendingAprChanges(
     address market
   ) external view returns (uint16 annualInterestBips, uint32 proposalTimestamp) {
+    if (_scheduledMarketClosed(market)) return (0, 0);
     PendingAprChangeStorage storage pendingAprChange = _pendingAprChanges[market];
     return (pendingAprChange.annualInterestBips, pendingAprChange.proposalTimestamp);
+  }
+
+  /// @dev scheduled closure bypasses onCloseMarket, so its authority is the core market.
+  function _scheduledMarketClosed(address market) internal view returns (bool) {
+    return _isMarketInRepayment(market) && IMarketLifecycleView(market).isClosed();
+  }
+
+  function _effectiveHookedMarket(
+    address market
+  ) internal view returns (HookedMarket memory result) {
+    result = _hookedMarkets[market];
+    if (result.isHooked && !result.isClosed) result.isClosed = _scheduledMarketClosed(market);
   }
 
   function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
@@ -223,7 +236,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     address market,
     uint16 annualInterestBips
   ) external onlyAdministrator {
-    HookedMarket memory hookedMarket = _hookedMarkets[market];
+    HookedMarket memory hookedMarket = _effectiveHookedMarket(market);
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (hookedMarket.isClosed) revert AprReductionProposalOnClosedMarket();
     if (_isWithdrawalWindowOpen(hookedMarket, block.timestamp)) {
@@ -287,7 +300,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   function isWithdrawalWindowOpen(address marketAddress) external view returns (bool) {
     HookedMarket memory market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
-    return _isWithdrawalWindowOpen(market, block.timestamp);
+    return _isMarketInRepayment(marketAddress) || _isWithdrawalWindowOpen(market, block.timestamp);
   }
 
   /// @notice returns a proposal and the response-window bounds fixed when it was created.
@@ -307,6 +320,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     HookedMarket memory market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
 
+    if (market.isClosed || _scheduledMarketClosed(marketAddress)) return (pendingAprChange, 0, 0);
     PendingAprChangeStorage memory stored = _pendingAprChanges[marketAddress];
     pendingAprChange = PendingAprChange({
       annualInterestBips: stored.annualInterestBips,
