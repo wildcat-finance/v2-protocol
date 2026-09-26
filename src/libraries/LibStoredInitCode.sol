@@ -57,6 +57,8 @@ library LibStoredInitCode {
   /// @dev raw stores start with STOP. executable stores return the original creation bytes
   ///      on STATICCALL, so compression stays inside that one storage contract. CREATE2 still
   ///      hashes the original init code, and old raw stores keep their existing format.
+  ///      registration tooling must authenticate the stored runtime against the artifact;
+  ///      a successful STATICCALL alone does not establish what code the reader will return.
   function getInitCode(address initCodeStorage) internal view returns (bytes memory initCode) {
     assembly ('memory-safe') {
       let size := extcodesize(initCodeStorage)
@@ -157,6 +159,15 @@ library LibStoredInitCode {
     uint256 value
   ) internal returns (address deployment) {
     bytes memory initCode = getInitCode(initCodeStorage);
+    return create2WithInitCode(initCode, salt, value);
+  }
+
+  /// @dev accepts already-read creation bytes so callers can verify their hash before CREATE2.
+  function create2WithInitCode(
+    bytes memory initCode,
+    bytes32 salt,
+    uint256 value
+  ) internal returns (address deployment) {
     assembly ('memory-safe') {
       let initCodePointer := add(initCode, 0x20)
       let initCodeSize := mload(initCode)

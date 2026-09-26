@@ -250,7 +250,7 @@
       "required": ["type", "target"],
       "properties": {
         "type": {
-          "enum": ["codePresent", "callEq", "callResultEq"]
+          "enum": ["codePresent", "codeHash", "callEq", "callResultEq"]
         },
         "target": {
           "$ref": "#/$defs/addressOrRef"
@@ -259,6 +259,7 @@
           "$ref": "#/$defs/predicateCall"
         },
         "expect": {},
+        "initCodeHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
         "resultIndex": {
           "type": "integer",
           "minimum": 0
@@ -266,6 +267,18 @@
       },
       "additionalProperties": false,
       "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "codeHash" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["expect"],
+            "properties": {
+              "expect": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+            }
+          }
+        },
         {
           "if": {
             "properties": {

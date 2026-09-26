@@ -804,11 +804,15 @@ contract HooksFactoryRevolving is
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
     }
-    if (
-      LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) !=
-      market
-    ) {
-      revert MarketDeploymentAddressMismatch();
+    {
+      bytes memory initCode = LibStoredInitCode.getInitCode(marketInitCodeStorage);
+      // check the artifact hash before executing its constructor. use these same decoded bytes.
+      if (uint256(keccak256(initCode)) != marketInitCodeHash) {
+        revert MarketDeploymentAddressMismatch();
+      }
+      if (LibStoredInitCode.create2WithInitCode(initCode, runtimeParams.salt, 0) != market) {
+        revert MarketDeploymentAddressMismatch();
+      }
     }
 
     IWildcatArchController(_archController).registerMarket(market);

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { createRequire } from 'node:module'
 import {
   encodeAbiParameters,
   encodeFunctionData,
   getAddress,
+  keccak256,
   parseAbi,
   parseAbiParameters,
   type Address,
@@ -29,6 +31,7 @@ import type {
 
 const plan = miniPlanJson as DeploymentPlan
 const executor = getAddress(plan.expectedExecutor)
+const { checkPredicate: checkCliPredicate, validatePlan } = createRequire(import.meta.url)('../../../../scripts/plan.js')
 
 class FakeTransport implements ExecutionTransport {
   chainId = plan.chainId
@@ -318,6 +321,97 @@ describe('fixture-driven engine semantics', () => {
       blockNumber: 10,
       status: 'verified',
     })
+  })
+
+  it('checks exact stored code in both runners, including STOP-only storage', async () => {
+    const transport = new FakeTransport()
+    const target = getAddress('0x1000000000000000000000000000000000000001')
+    const outputs = new Map([['store', target]])
+    for (const code of ['0x00', '0x006000', '0x6000'] as Hex[]) {
+      const predicate: Predicate = { type: 'codeHash', target: { $ref: 'store' }, expect: keccak256(code) }
+      for (const actual of [code, `${code}01` as Hex, '0x' as Hex]) {
+        transport.code.set(target.toLowerCase(), actual)
+        const ui = await evaluatePredicate(transport, predicate, outputs)
+        const cli = await checkCliPredicate(async (method: string, params: string[]) => {
+          expect(method).toBe('eth_getCode')
+          expect(params).toEqual([target, 'latest'])
+          return actual
+        }, predicate, outputs)
+        expect(ui).toEqual(cli)
+        expect(ui.ok).toBe(actual === code)
+      }
+    }
+  })
+
+  it('requires a literal artifact hash in storage predicates', () => {
+    const candidate = structuredClone(plan)
+    candidate.transactions[0].predicate = { type: 'codeHash', target: { $ref: 'fixture-token' }, expect: keccak256('0x00') }
+    expect(validatePlan(candidate, { checkArtifacts: false }).errors).toEqual([])
+    for (const expectValue of [undefined, '0x1234', { $ref: 'fixture-token' }]) {
+      candidate.transactions[0].predicate = { type: 'codeHash', target: { $ref: 'fixture-token' }, expect: expectValue } as Predicate
+      expect(validatePlan(candidate, { checkArtifacts: false }).errors.length).toBeGreaterThan(0)
+    }
+    for (const extra of [
+      { initCodeHash: '0x1234' },
+      { call: { sig: 'owner() view returns (address)', args: [] } },
+      { resultIndex: 0 },
+    ]) {
+      candidate.transactions[0].predicate = {
+        type: 'codeHash', target: { $ref: 'fixture-token' }, expect: keccak256('0x00'), ...extra,
+      } as Predicate
+      expect(validatePlan(candidate, { checkArtifacts: false }).errors.length).toBeGreaterThan(0)
+    }
+    candidate.transactions[0].predicate = {
+      type: 'codePresent', target: { $ref: 'fixture-token' }, initCodeHash: keccak256('0x00'),
+    } as Predicate
+    expect(validatePlan(candidate, { checkArtifacts: false }).errors).toContain(
+      '$.transactions[0].predicate: initCodeHash requires codeHash',
+    )
+  })
+
+  it('checks decoded bytes only after authenticating the storage runtime', async () => {
+    const target = getAddress('0x1000000000000000000000000000000000000001')
+    for (const runtime of ['0x006000', '0x6000'] as Hex[]) {
+      const transport = new FakeTransport()
+      const original: Hex = '0x6000'
+      const predicate: Predicate = {
+        type: 'codeHash', target, expect: keccak256(runtime), initCodeHash: keccak256(original),
+      }
+      transport.code.set(target.toLowerCase(), runtime)
+      transport.callResult = original
+      const rpc = async (method: string) => method === 'eth_getCode' ? runtime : transport.callResult
+      expect(await evaluatePredicate(transport, predicate, new Map())).toEqual(
+        await checkCliPredicate(rpc, predicate, new Map()),
+      )
+      expect((await evaluatePredicate(transport, predicate, new Map())).ok).toBe(true)
+      const wrong = { ...predicate, initCodeHash: keccak256('0xfe') }
+      expect((await evaluatePredicate(transport, wrong, new Map())).ok).toBe(false)
+      expect((await checkCliPredicate(rpc, wrong, new Map())).ok).toBe(false)
+    }
+    const predicate: Predicate = { type: 'codeHash', target, expect: keccak256('0x6000'), initCodeHash: keccak256('0x01') }
+    const transport = new FakeTransport()
+    transport.code.set(target.toLowerCase(), '0xfe')
+    transport.ethCall = async () => { throw new Error('must not call an unverified reader') }
+    expect((await evaluatePredicate(transport, predicate, new Map())).ok).toBe(false)
+    expect((await checkCliPredicate(async (method: string) => {
+      if (method !== 'eth_getCode') throw new Error('must not call an unverified reader')
+      return '0xfe'
+    }, predicate, new Map())).ok).toBe(false)
+  })
+
+  it('halts deployment after a stored-code hash mismatch and on resume', async () => {
+    const candidate = structuredClone(plan)
+    candidate.transactions[0].predicate = { type: 'codeHash', target: { $ref: 'fixture-token' }, expect: keccak256('0x6000') }
+    const transport = new FakeTransport()
+    transport.code.set('0x1000000000000000000000000000000000000001', '0xfe')
+    const store = new MemoryProgressStore()
+    const engine = new PlanExecutor(candidate, transport, store)
+    const prepared = await engine.prepareNext()
+    if (!prepared) throw new Error('expected deployment')
+    await expect(engine.execute(prepared)).rejects.toThrow('code hash mismatch')
+    transport.storedReceipt = await transport.waitForReceipt()
+    await expect(engine.resume()).rejects.toThrow('code hash mismatch')
+    expect(store.load()['deploy-token'].status).not.toBe('verified')
   })
 
   it('evaluates codePresent and call predicates exactly like plan.js', async () => {

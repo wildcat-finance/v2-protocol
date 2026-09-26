@@ -7,6 +7,7 @@ import 'solady/utils/LibString.sol';
 
 string constant bashFilePath = 'deployments/write-standard-json.sh';
 import 'src/libraries/LibStoredInitCode.sol';
+import 'src/libraries/LibCompressedInitCode.sol';
 
 using LibString for string;
 using LibString for address;
@@ -140,6 +141,26 @@ library LibDeployment {
   using LibDeployment for Json;
   using LibDeployment for ContractArtifact[];
 
+  /// @dev retain raw storage where it fits. larger artifacts use one compressed store.
+  function initCodeStorageRuntime(bytes memory creationCode) internal pure returns (bytes memory) {
+    if (creationCode.length <= 24_575) return bytes.concat(hex'00', creationCode);
+    return LibCompressedInitCode.getStorageRuntime(creationCode);
+  }
+
+  /// @dev the artifact is the trust anchor. matching one decoder response isn't enough:
+  ///      a different executable store could return different code to the factory.
+  function isValidInitCodeStorage(
+    address deployment,
+    bytes memory creationCode
+  ) internal view returns (bool) {
+    if (deployment.code.length == 0 || deployment.code.length > 24_576) return false;
+    bytes memory expectedRuntime = deployment.code[0] == bytes1(0)
+      ? bytes.concat(hex'00', creationCode)
+      : LibCompressedInitCode.getStorageRuntime(creationCode);
+    if (deployment.codehash != keccak256(expectedRuntime)) return false;
+    return keccak256(LibStoredInitCode.getInitCode(deployment)) == keccak256(creationCode);
+  }
+
   // ========================================================================== //
   //                                 Deployments                                //
   // ========================================================================== //
@@ -164,6 +185,7 @@ library LibDeployment {
       deployment = self.get(label);
       console.log(string.concat('Found ', namePath, ' at'), deployment);
     }
+    require(isValidInitCodeStorage(deployment, creationCode), 'Stored init code mismatch');
   }
 
   function addArtifactWithoutDeploying(
@@ -392,7 +414,9 @@ library LibDeployment {
     bytes memory creationCode
   ) internal returns (address deployment) {
     deployments.broadcast();
-    deployment = LibStoredInitCode.deployInitCode(creationCode);
+    deployment = creationCode.length <= 24_575
+      ? LibStoredInitCode.deployInitCode(creationCode)
+      : LibCompressedInitCode.deployInitCode(creationCode);
   }
 
   function findForgeArtifact(

@@ -80,9 +80,11 @@ capacity but cannot fix an oversized live market runtime. E05 plus E11 is the
 currently demonstrated runtime-fitting combination. Canonical runs 44 still
 leaves the revolving runtime oversized.
 
-Selecting E09 requires updating deployment tooling: `LibDeployment` still
-creates raw stores, and `DeployScriptBase` still verifies `STOP || initcode`.
-Those release paths are intentionally unchanged on this research branch. A
-release review must include the codec and executable-store trust boundary;
-registered storage contracts remain controlled deployment inputs. The existing
-raw format remains available, so hooks which already fit need not be compressed.
+The original E09 checkpoint left deployment tooling on raw storage.
+[E15](./E15-compression-integrity.md) adds preparation and verification of
+compressed artifacts to `LibDeployment`, `DeployScriptBase`, and the V2.5 plan
+scripts, with CLI/UI hash predicates. It also checks decoded market code before
+its constructor runs. A release review must still include the codec and
+executable-store trust boundary; registered storage contracts remain controlled
+deployment inputs. The raw format remains available, so hooks which already
+fit need not be compressed.

@@ -26,8 +26,6 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
   string internal constant MARKET_ARTIFACT =
     'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving';
   string internal constant FACTORY_ARTIFACT = 'src/HooksFactoryRevolving.sol:HooksFactoryRevolving';
-  string internal constant INIT_CODE_STORAGE_ARTIFACT =
-    'script/common/DeployScriptBase.sol:InitCodeStorage';
 
   string internal constant STANDARD_FACTORY_ENTRY_ID = 'deploy-hooks-factory-standard';
   string internal constant WRAPPER_OUTPUT = 'wildcat-4626-wrapper-factory';
@@ -109,16 +107,18 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     DeployPlanEntry memory storageEntry;
     storageEntry.sequence = 6;
     storageEntry.id = STORAGE_ENTRY_ID;
-    storageEntry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
+    storageEntry.artifactName = _initCodeStorageArtifact(inputs.marketCreationCode);
     storageEntry.decodedConstructorArgs = string.concat(
       '[',
-      _quoted(vm.toString(inputs.marketCreationCode)),
+      _quoted(vm.toString(_initCodeStorageConstructorInput(inputs.marketCreationCode))),
       ']'
     );
     storageEntry.output = STORAGE_OUTPUT;
-    storageEntry.description =
-      'Deploy the v2.5 WildcatMarketRevolving init-code storage contract.';
-    storageEntry.predicate = _planCodePresentPredicate(STORAGE_OUTPUT);
+    storageEntry.description = 'Deploy the v2.5 WildcatMarketRevolving init-code storage contract.';
+    storageEntry.predicate = _planInitCodeStoragePredicate(
+      STORAGE_OUTPUT,
+      inputs.marketCreationCode
+    );
     storageEntry.afterEntries = storageAfter;
     _planEntry(deployments, storageEntry);
 

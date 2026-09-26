@@ -50,8 +50,7 @@ struct DeployMarketRuntimeParameters {
 /// @title Wildcat hooks factory
 /// @notice manages hooks templates and instances, then deploys standard Wildcat markets with them.
 /// @dev market constructors read their parameters back from transient storage. templates hold
-///      stored initcode with a leading non-executable byte; this factory skips it during CREATE2
-///      deployment.
+///      raw or compressed creation code, recovered before CREATE2 deployment.
 contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactory {
   using LibERC20 for address;
 
@@ -749,11 +748,15 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
     }
-    if (
-      LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) !=
-      market
-    ) {
-      revert MarketDeploymentAddressMismatch();
+    {
+      bytes memory initCode = LibStoredInitCode.getInitCode(marketInitCodeStorage);
+      // check the artifact hash before executing its constructor. use these same decoded bytes.
+      if (uint256(keccak256(initCode)) != marketInitCodeHash) {
+        revert MarketDeploymentAddressMismatch();
+      }
+      if (LibStoredInitCode.create2WithInitCode(initCode, runtimeParams.salt, 0) != market) {
+        revert MarketDeploymentAddressMismatch();
+      }
     }
 
     IWildcatArchController(_archController).registerMarket(market);

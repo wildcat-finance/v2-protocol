@@ -9,17 +9,22 @@ import { LibZip } from 'solady/utils/LibZip.sol';
 library LibCompressedInitCode {
   error InitCodeDeploymentFailed();
 
-  function deployInitCode(bytes memory initCode) internal returns (address storageContract) {
+  /// @dev keep the encoder shared by deployment and artifact verification.
+  function getStorageRuntime(bytes memory initCode) internal pure returns (bytes memory runtime) {
     // creation itself is capped at 49,152 bytes, even if its compressed storage fits.
     if (initCode.length > 49_152) revert InitCodeDeploymentFailed();
     bytes memory compressed = LibZip.flzCompress(initCode);
-    bytes memory runtime = abi.encodePacked(
+    runtime = abi.encodePacked(
       type(CompressedInitCodeReader).runtimeCode,
       compressed,
       bytes2(uint16(compressed.length))
     );
     // the cap also keeps the length footer well inside uint16.
     if (runtime.length > 24_576) revert InitCodeDeploymentFailed();
+  }
+
+  function deployInitCode(bytes memory initCode) internal returns (address storageContract) {
+    bytes memory runtime = getStorageRuntime(initCode);
     assembly ('memory-safe') {
       let size := mload(runtime)
       // PUSH2 size; PUSH0; DUP2; PUSH1 10; PUSH0; CODECOPY; RETURN.

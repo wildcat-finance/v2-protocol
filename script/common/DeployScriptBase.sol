@@ -8,12 +8,22 @@ import 'solady/utils/LibString.sol';
 
 import './LibDeployment.sol';
 
-/// @dev Deployable form of LibStoredInitCode's STOP-prefixed runtime layout.
+/// @dev artifact-backed deployment of the raw storage format used in direct mode.
 ///      Plan entries need an artifact-backed CREATE transaction, while direct
 ///      mode uses LibStoredInitCode through LibDeployment.
 contract InitCodeStorage {
   constructor(bytes memory initCode) {
     bytes memory runtimeCode = bytes.concat(hex'00', initCode);
+    assembly ('memory-safe') {
+      return(add(runtimeCode, 0x20), mload(runtimeCode))
+    }
+  }
+}
+
+/// @dev alternative creation program for one compressed store. plan generation supplies the
+///      complete reader + payload + footer, so the transaction doesn't run the compressor.
+contract CompressedInitCodeStorage {
+  constructor(bytes memory runtimeCode) {
     assembly ('memory-safe') {
       return(add(runtimeCode, 0x20), mload(runtimeCode))
     }
@@ -48,7 +58,6 @@ abstract contract DeployScriptBase is Script {
 
   uint256 internal constant ETHEREUM_MAINNET_CHAIN_ID = 1;
   uint256 internal constant DEFAULT_PLASMA_MAINNET_CHAIN_ID = 9745;
-  uint256 internal constant MAX_INIT_CODE_STORAGE_PAYLOAD_SIZE = 24_575;
 
   function _sameStrings(string memory a, string memory b) internal pure returns (bool) {
     return keccak256(bytes(a)) == keccak256(bytes(b));
@@ -235,9 +244,11 @@ abstract contract DeployScriptBase is Script {
     bytes memory initCode,
     string memory label
   ) internal pure {
-    if (initCode.length > MAX_INIT_CODE_STORAGE_PAYLOAD_SIZE) {
-      revert(string.concat(label, ' exceeds the EIP-170 init-code storage limit'));
+    if (initCode.length > 49_152) {
+      revert(string.concat(label, ' exceeds the EIP-3860 creation-code limit'));
     }
+    // the encoder enforces the selected format's stored runtime limit before planning.
+    LibDeployment.initCodeStorageRuntime(initCode);
   }
 
   function _verifyStoredInitCode(
@@ -246,8 +257,7 @@ abstract contract DeployScriptBase is Script {
     bytes memory initCode
   ) internal view {
     _requireCode(deployment, label);
-    bytes32 expectedCodeHash = keccak256(bytes.concat(hex'00', initCode));
-    if (deployment.codehash != expectedCodeHash) {
+    if (!LibDeployment.isValidInitCodeStorage(deployment, initCode)) {
       revert(string.concat('Verification failed for ', label, ': stored init code mismatch'));
     }
   }
@@ -366,6 +376,36 @@ abstract contract DeployScriptBase is Script {
 
   function _planCodePresentPredicate(string memory output) internal pure returns (string memory) {
     return string.concat('{"type":"codePresent","target":', _ref(output), '}');
+  }
+
+  function _initCodeStorageArtifact(bytes memory initCode) internal pure returns (string memory) {
+    return
+      initCode.length <= 24_575
+        ? 'script/common/DeployScriptBase.sol:InitCodeStorage'
+        : 'script/common/DeployScriptBase.sol:CompressedInitCodeStorage';
+  }
+
+  function _initCodeStorageConstructorInput(
+    bytes memory initCode
+  ) internal pure returns (bytes memory) {
+    return initCode.length <= 24_575 ? initCode : LibCompressedInitCode.getStorageRuntime(initCode);
+  }
+
+  function _planInitCodeStoragePredicate(
+    string memory output,
+    bytes memory initCode
+  ) internal pure returns (string memory) {
+    bytes32 runtimeHash = keccak256(LibDeployment.initCodeStorageRuntime(initCode));
+    return
+      string.concat(
+        '{"type":"codeHash","target":',
+        _ref(output),
+        ',"expect":',
+        _quoted(vm.toString(runtimeHash)),
+        ',"initCodeHash":',
+        _quoted(vm.toString(keccak256(initCode))),
+        '}'
+      );
   }
 
   function _planCallEqPredicate(

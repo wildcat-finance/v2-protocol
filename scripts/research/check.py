@@ -31,7 +31,7 @@ def temporary_config(config):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("receipt", type=Path)
-    parser.add_argument("--scope", choices=("calls", "market", "hooks", "storage", "arithmetic", "invariants", "deployment", "all"), default="all")
+    parser.add_argument("--scope", choices=("calls", "market", "hooks", "storage", "compression", "arithmetic", "invariants", "deployment", "all"), default="all")
     parser.add_argument("--runs", type=int, default=44)
     parser.add_argument("--yul-steps")
     parser.add_argument("--gates", action="store_true")
@@ -61,8 +61,11 @@ def main():
         include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MarketLifecycle", "MarketEvents", "BoolUtils", "MarketState", "BoundedMarketState")}
     if args.scope in ("hooks", "all"):
         include |= set(ROOT.glob("test/access/*.t.sol")) | set(ROOT.glob("test/factories/*.t.sol"))
-    if args.scope in ("storage", "all"):
+    if args.scope in ("storage", "compression", "all"):
         include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("LibStoredInitCode", "CompressedInitCode")}
+    if args.scope in ("compression", "all"):
+        include |= {ROOT / "test/libraries/CompressionIntegrity.t.sol"}
+        include |= {ROOT / ("test/research/" + name + ".t.sol") for name in ("CompressedStorageTools", "CompressionFactoryIntegrity")}
     if args.scope in ("arithmetic", "all"):
         include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MathUtils", "FeeMath", "SafeCastLib")}
     if args.scope in ("invariants", "all"):
@@ -70,12 +73,12 @@ def main():
     if args.scope == "invariants":
         include.discard(ROOT / "test/libraries/LibFixedCall.t.sol")
     if args.scope == "deployment":
-        include = {ROOT / "test/research/SingleStorageDeployment.t.sol"}
+        include = {ROOT / ("test/research/" + name + ".t.sol") for name in ("SingleStorageDeployment", "CompressionFactoryIntegrity", "CompressedStorageTools")}
     include = {path for path in include if path.exists()}
     # archive uncommitted experiments too; HEAD alone does not identify what Forge tested.
     sources = {
         path.relative_to(ROOT).as_posix(): path.read_text()
-        for directory in (ROOT / 'src', ROOT / 'test')
+        for directory in (ROOT / 'src', ROOT / 'test', ROOT / 'script')
         for path in sorted(directory.rglob('*.sol'))
     }
     (args.receipt / 'project-sources.json').write_text(json.dumps(sources, indent=2) + '\n')
@@ -104,6 +107,10 @@ def main():
         if path.relative_to(ROOT).as_posix() not in reachable:
             command += ["--skip", path.relative_to(ROOT).as_posix()]
     gate_pattern = "(test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits|test_composition_FitsRuntimeAndStoredInitcodeLimits)"
+    if args.scope != "deployment":
+        # canonical runs 44 still exceeds runtime limits. keep real-limit deployment
+        # qualification separate from behavioral parity, just like the raw-storage gates.
+        gate_pattern = "(" + gate_pattern + "|test_realLimits_)"
     command += ["--match-test" if args.gates else "--no-match-test", gate_pattern]
     env = {**os.environ, "FOUNDRY_PROFILE": "research"}
     with temporary_config(config):

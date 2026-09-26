@@ -111,6 +111,11 @@ export function transactionValueLabel(value: string): string {
 }
 
 function plainPredicateResult(predicate: Predicate): string {
+  if (predicate.type === 'codeHash') {
+    return predicate.initCodeHash
+      ? 'The stored code and recovered creation code must match the reviewed artifact.'
+      : 'The stored code must match the reviewed artifact.'
+  }
   if (predicate.type === 'codePresent') {
     return 'The new contract must be present at its recorded address.'
   }
@@ -578,6 +583,19 @@ function CheckAssertion({
   verified: boolean
 }) {
   const mark = verified ? <span className="okmark"> ✓</span> : null
+  if (predicate.type === 'codeHash') {
+    return (
+      <span className="assert">
+        code hash at <TargetValue target={predicate.target} outputs={outputs} />
+        <span className="eq">==</span><code>{predicate.expect}</code>
+        {predicate.initCodeHash && <>
+          {'; decoded creation code hash'}<span className="eq">==</span>
+          <code>{predicate.initCodeHash}</code>
+        </>}
+        {mark}
+      </span>
+    )
+  }
   if (predicate.type === 'codePresent') {
     return (
       <span className="assert">

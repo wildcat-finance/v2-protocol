@@ -34,8 +34,6 @@ interface IProtocolAuthorityHelper {
 
 contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant FEE_PARAMETERS_PATH = 'deployments/template-fee-parameters.json';
-  string internal constant INIT_CODE_STORAGE_ARTIFACT =
-    'script/common/DeployScriptBase.sol:InitCodeStorage';
   string internal constant OPEN_TERM_ARTIFACT = 'src/access/OpenTermHooks.sol:OpenTermHooks';
   string internal constant FIXED_TERM_ARTIFACT = 'src/access/FixedTermHooks.sol:FixedTermHooks';
   string internal constant PERIODIC_TERM_ARTIFACT =
@@ -155,15 +153,15 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     DeployPlanEntry memory entry;
     entry.sequence = sequence;
     entry.id = entryId;
-    entry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
+    entry.artifactName = _initCodeStorageArtifact(template.creationCode);
     entry.decodedConstructorArgs = string.concat(
       '[',
-      _quoted(vm.toString(template.creationCode)),
+      _quoted(vm.toString(_initCodeStorageConstructorInput(template.creationCode))),
       ']'
     );
     entry.output = output;
     entry.description = string.concat('Deploy the v2.5 ', template.name, ' init-code storage.');
-    entry.predicate = _planCodePresentPredicate(output);
+    entry.predicate = _planInitCodeStoragePredicate(output, template.creationCode);
     entry.afterEntries = afterEntries;
     _planEntry(deployments, entry);
 

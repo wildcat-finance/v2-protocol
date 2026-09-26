@@ -187,6 +187,7 @@ describe('App server-render smoke', () => {
     expect(html).toContain(
       firstPredicate.type === 'codePresent'
         ? 'code present at'
+        : firstPredicate.type === 'codeHash' ? 'code hash at'
         : `${firstPredicate.call.sig.split('(')[0]}()`,
     )
     expect(html).toContain('Any failed on-chain check halts the ceremony')

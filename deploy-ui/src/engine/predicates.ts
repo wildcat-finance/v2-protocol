@@ -3,6 +3,7 @@ import {
   encodeFunctionData,
   getAddress,
   isAddress,
+  keccak256,
   parseAbiItem,
   type AbiFunction,
   type Address,
@@ -112,6 +113,34 @@ export async function evaluatePredicate(
     }
   }
 
+  if (predicate.type === 'codeHash') {
+    if (typeof predicate.expect !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(predicate.expect)) {
+      throw new Error('codeHash requires a literal bytes32 expectation')
+    }
+    const code = await transport.getCode(target)
+    const actual = typeof code === 'string' && code !== '0x' ? keccak256(code) : null
+    const ok = actual !== null && actual.toLowerCase() === predicate.expect.toLowerCase()
+    if (ok && predicate.initCodeHash !== undefined) {
+      if (typeof predicate.initCodeHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(predicate.initCodeHash)) {
+        throw new Error('codeHash requires a literal bytes32 initCodeHash')
+      }
+      const decoded = code!.slice(2, 4) === '00' ? `0x${code!.slice(4)}` as Hex :
+        await transport.ethCall(target, '0x')
+      const decodedHash = keccak256(decoded)
+      const decodedOk = decodedHash.toLowerCase() === predicate.initCodeHash.toLowerCase()
+      return {
+        ok: decodedOk,
+        detail: decodedOk ? `stored init code hash matches at ${target}` :
+          `decoded init code hash mismatch at ${target}: expected ${predicate.initCodeHash}, got ${decodedHash}`,
+      }
+    }
+    return {
+      ok,
+      detail: ok ? `code hash matches at ${target}` :
+        `code hash mismatch at ${target}: expected ${predicate.expect}, got ${actual ?? 'no code'}`,
+    }
+  }
+
   const abi = functionAbi(predicate.call.sig)
   const args = resolveReferences(predicate.call.args, outputs).map((value, index) =>
     normalizeForAbi(
@@ -144,7 +173,7 @@ export async function evaluatePredicate(
 }
 
 export function encodePredicateCall(
-  predicate: Exclude<Predicate, { type: 'codePresent' }>,
+  predicate: Exclude<Predicate, { type: 'codePresent' | 'codeHash' }>,
 ): Hex {
   const abi = functionAbi(predicate.call.sig)
   return encodeFunctionData({ abi: [abi], args: predicate.call.args as readonly unknown[] })

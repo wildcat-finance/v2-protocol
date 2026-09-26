@@ -7,8 +7,10 @@ pushed. The repository's normal compiler configuration remains runs 44.
 FastLZ is now the assumed candidate for continued verification. The invariant
 compilation blocker is resolved by [E13](./E13-invariant-parity.md), and
 [E14](./E14-qualification-fixtures.md) passes the broader qualification under
-both compiler configurations. Deployment-tool integration and full release
-qualification remain separate work.
+both compiler configurations. [E15](./E15-compression-integrity.md)
+integrates artifact verification into the V2.5 scripts and plan executors,
+adds independent codec checks, and qualifies real local transactions. Full
+release qualification remains outstanding.
 
 ## Demonstrated bundle
 
@@ -41,7 +43,8 @@ is still 485 bytes oversized, even with these source edits.
 All three production hooks and the three periodic composition examples fit.
 The latter's compressed stores are 17,054 bytes (transfer), 17,396 (borrow),
 and 16,965 (APR replacement). Both factories fit comfortably; E09 costs each
-101 runtime bytes under the selected compiler settings. Public ABIs and storage
+101 runtime bytes under the selected compiler settings. E15's pre-constructor
+market hash check adds a further 44 / 117 runtime bytes. Public ABIs and storage
 layouts remain unchanged across the measured contracts.
 
 ## Evidence
@@ -64,10 +67,18 @@ layouts remain unchanged across the measured contracts.
   templates and three periodic composition examples, through scheduled closure.
 - All ten final deployment artifacts exactly match the independent compiler
   measurements, including full ABIs and normalized storage layouts.
+- E15 passes 457 reported tests under both compiler configurations, including
+  all existing invariants with unchanged action counts and budgets. It checks
+  the codec against upstream C, rejects corrupted or context-dependent stores,
+  and compares raw/compressed initialized runtimes and constructor context.
+  Removing the integrity guards makes the intended tests fail.
+- Prepared compressed images pass 38 actual local transactions with code-size
+  and Osaka transaction gas limits enabled, including all six production
+  market/hook combinations. The largest buffered transaction is 9,645,811 gas.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
 [E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
-[E14](./E14-qualification-fixtures.md) and the
+[E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md) and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
 `/home/kethcode/wildcat/bytecode-research/2026-09-26/`.
@@ -79,11 +90,13 @@ allocated transition arena and the compressed deployment format. The smaller
 source candidates can be reviewed independently. Every source experiment has
 its own signed checkpoint and the rejected alternatives remain documented.
 
-For the assumed E09 candidate, update `script/common/LibDeployment.sol` and
-`script/common/DeployScriptBase.sol` to create and verify compressed stores;
-their release paths currently still use raw storage. Review the executable
-storage reader and codec as part of that deployment change. Raw stores remain
-supported, so already-fitting hooks do not have to use compression.
+E15 updates `script/common/LibDeployment.sol`, `script/common/DeployScriptBase.sol`,
+the V2.5 plan scripts, and CLI/UI execution to create and verify compressed
+stores. Images are encoded during preparation; their installation transactions
+do not run the compressor. Review this deployment change and its executable
+reader trust boundary before release. Raw stores remain supported, so
+already-fitting hooks do not have to use compression. The historical Sepolia
+fix-1 rotation generator remains a raw-only path.
 
 E13 resolves the existing invariant suite's compilation failure. The research
 runner now includes it in `--scope all` and supports `--scope invariants` for
@@ -107,6 +120,7 @@ texts outside the repository, and restores `foundry.toml` afterward.
 size_yul_steps='dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul'
 python3 scripts/research/check.py /tmp/wildcat-size-behavior --scope all --runs 1 --yul-steps "$size_yul_steps"
 python3 scripts/research/check.py /tmp/wildcat-size-deployment --scope deployment --runs 1 --yul-steps "$size_yul_steps" --code-size-limit 24576
+node scripts/research/compression-rpc.js /tmp/wildcat-size-transactions
 ```
 
 The ordinary raw-storage size gates are intentionally separate and unchanged.

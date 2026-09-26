@@ -8,9 +8,7 @@ import { PeriodicTransferHooks } from '../mocks/TransferFeatureHooks.sol';
 import { PeriodicBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
 import { PeriodicAprReplacementHooks } from '../mocks/AprReplacementHooks.sol';
 
-/// @dev run this suite with --code-size-limit 24576. no etching, oversized-code allowance,
-///      substituted market runtime, or second storage contract is needed for these deployments.
-contract SingleStorageDeploymentTest is ProductionMatrixFixture {
+abstract contract SingleStorageDeploymentFixture is ProductionMatrixFixture {
   event log_named_uint(string key, uint256 value);
 
   uint256 internal _storageContracts;
@@ -28,7 +26,11 @@ contract SingleStorageDeploymentTest is ProductionMatrixFixture {
     _storageContracts++;
     emit log_named_uint(artifact, store.code.length);
   }
+}
 
+/// @dev run this suite with --code-size-limit 24576. no etching, oversized-code allowance,
+///      substituted market runtime, or second storage contract is needed for these deployments.
+contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
   function test_realLimits_AllSixFactoryMarketCombinations() external {
     ProductionStack memory stack = _deployProductionStack();
     assertEq(_storageContracts, 5, 'two markets and three templates');

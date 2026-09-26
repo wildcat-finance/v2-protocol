@@ -53,6 +53,40 @@ ArchController. During an engine rotation:
 3. Update the controller and factories as one cutover.
 4. Migrate existing registered contracts in bounded batches.
 
+## Stored creation code
+
+The factory deploys markets and hook instances from reviewed creation-code
+artifacts. Hook policies are compiled into each concrete template before this
+step; the factory does not assemble policies during deployment.
+
+[`LibDeployment`](../../script/common/LibDeployment.sol) keeps the raw
+`STOP || creation code` format when the artifact fits its 24,575-byte payload
+limit. Larger artifacts use one contract containing the FastLZ reader,
+compressed payload, and length footer. Both formats recover the original
+creation code. Runtime and total creation-code limits still apply, including
+constructor arguments.
+
+Plan generation computes the complete compressed runtime locally.
+[`CompressedInitCodeStorage`](../../script/common/DeployScriptBase.sol) installs
+those prepared bytes; its deployment transaction does not run the compressor.
+The generated plan contains the bytes and two independent expectations derived
+from the reviewed artifact: the stored runtime hash and the original
+creation-code hash.
+
+Storage entries use the `codeHash` predicate with `expect` for the runtime hash
+and `initCodeHash` for the recovered creation code. The CLI and deployment UI
+verify the runtime before calling an executable reader, then verify its output.
+Resume repeats these checks. Existing-store reuse verifies both identities too.
+Build the plan, CLI, and UI from the same reviewed source; older executors do
+not support this predicate.
+
+Both factories additionally check the decoded market creation-code hash before
+`CREATE2`, using the same bytes for hashing and deployment. Hook registration
+remains owner-controlled and relies on the verified deployment tooling. An
+arbitrary executable store is not trusted just because one read returns the
+expected bytes. A hash reported by that same store is not an independent
+reference.
+
 ## Release workflow
 
 1. **Prepare.** Freeze the source commit and `deploy` Foundry profile. Build and
