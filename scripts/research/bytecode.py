@@ -93,6 +93,7 @@ def main():
     parser.add_argument("--details", type=json.loads, help="standard JSON optimizer.details object")
     parser.add_argument("--forge-reference", type=Path, help="require exact bytecode/ABI/layout matches")
     parser.add_argument("--reference", type=Path, help="compare against another runner receipt")
+    parser.add_argument("--source-receipt", type=Path, help="compile archived source texts instead of the working tree")
     args = parser.parse_args()
     args.receipt.mkdir(parents=True, exist_ok=False)
 
@@ -104,7 +105,7 @@ def main():
         optimizer["details"] = args.details
     compiler_input = {
         "language": "Solidity",
-        "sources": sources(),
+        "sources": json.loads((args.source_receipt / "input.json").read_text())["sources"] if args.source_receipt else sources(),
         "settings": {
             "remappings": REMAPPINGS,
             "optimizer": optimizer,
@@ -125,6 +126,7 @@ def main():
         "compiler_sha256": hashlib.sha256(args.solc.read_bytes()).hexdigest(),
         "started": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "settings": compiler_input["settings"],
+        "source_receipt": str(args.source_receipt) if args.source_receipt else None,
         "source_sha256": {
             path: hashlib.sha256(source["content"].encode()).hexdigest()
             for path, source in compiler_input["sources"].items()

@@ -1,0 +1,695 @@
+[
+  {
+    "receipt": "e10-combine",
+    "source_receipt": "/home/kethcode/wildcat/bytecode-research/2026-09-26/e05-combination",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1,
+      "details": {
+        "yulDetails": {
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmulvul"
+        }
+      }
+    },
+    "sizes": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 25808,
+        "runtime": 24121,
+        "stored_headroom": -1233,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 26429,
+        "runtime": 24678,
+        "stored_headroom": -1854,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 17851,
+        "runtime": 15367,
+        "stored_headroom": 6724,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 19298,
+        "runtime": 16813,
+        "stored_headroom": 5277,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 22585,
+        "runtime": 20100,
+        "stored_headroom": 1990,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 16794,
+        "runtime": 16088,
+        "stored_headroom": 7781,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 17257,
+        "runtime": 16565,
+        "stored_headroom": 7318,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 23426,
+        "runtime": 20941,
+        "stored_headroom": 1149,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 23890,
+        "runtime": 21405,
+        "stored_headroom": 685,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 23285,
+        "runtime": 20773,
+        "stored_headroom": 1290,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      }
+    ]
+  },
+  {
+    "receipt": "e10-repeat",
+    "source_receipt": "/home/kethcode/wildcat/bytecode-research/2026-09-26/e05-combination",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1,
+      "details": {
+        "yulDetails": {
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmuldhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul"
+        }
+      }
+    },
+    "sizes": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 25817,
+        "runtime": 24130,
+        "stored_headroom": -1242,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -9,
+        "runtime_saved": -9
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 26438,
+        "runtime": 24687,
+        "stored_headroom": -1863,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -9,
+        "runtime_saved": -9
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 17820,
+        "runtime": 15337,
+        "stored_headroom": 6755,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 31,
+        "runtime_saved": 30
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 19299,
+        "runtime": 16815,
+        "stored_headroom": 5276,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -1,
+        "runtime_saved": -2
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 22579,
+        "runtime": 20095,
+        "stored_headroom": 1996,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 6,
+        "runtime_saved": 5
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 16784,
+        "runtime": 16078,
+        "stored_headroom": 7791,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 10,
+        "runtime_saved": 10
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 17245,
+        "runtime": 16553,
+        "stored_headroom": 7330,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 12,
+        "runtime_saved": 12
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 23420,
+        "runtime": 20936,
+        "stored_headroom": 1155,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 6,
+        "runtime_saved": 5
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 23884,
+        "runtime": 21400,
+        "stored_headroom": 691,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 6,
+        "runtime_saved": 5
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 23279,
+        "runtime": 20768,
+        "stored_headroom": 1296,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 6,
+        "runtime_saved": 5
+      }
+    ]
+  },
+  {
+    "receipt": "e10-late-inline",
+    "source_receipt": "/home/kethcode/wildcat/bytecode-research/2026-09-26/e05-combination",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1,
+      "details": {
+        "yulDetails": {
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvfCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmulxifDnTOcmu"
+        }
+      }
+    },
+    "sizes": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 26324,
+        "runtime": 24638,
+        "stored_headroom": -1749,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -516,
+        "runtime_saved": -517
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 26964,
+        "runtime": 25212,
+        "stored_headroom": -2389,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -535,
+        "runtime_saved": -534
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 18214,
+        "runtime": 15726,
+        "stored_headroom": 6361,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -363,
+        "runtime_saved": -359
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 19659,
+        "runtime": 17170,
+        "stored_headroom": 4916,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -361,
+        "runtime_saved": -357
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 23114,
+        "runtime": 20625,
+        "stored_headroom": 1461,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -529,
+        "runtime_saved": -525
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 16853,
+        "runtime": 16100,
+        "stored_headroom": 7722,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -59,
+        "runtime_saved": -12
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 17429,
+        "runtime": 16676,
+        "stored_headroom": 7146,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -172,
+        "runtime_saved": -111
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 24113,
+        "runtime": 21624,
+        "stored_headroom": 462,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -687,
+        "runtime_saved": -683
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 24643,
+        "runtime": 22154,
+        "stored_headroom": -68,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -753,
+        "runtime_saved": -749
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 23950,
+        "runtime": 21434,
+        "stored_headroom": 625,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -665,
+        "runtime_saved": -661
+      }
+    ]
+  },
+  {
+    "receipt": "e10-orderLiterals",
+    "source_receipt": "/home/kethcode/wildcat/bytecode-research/2026-09-26/e08-additions-noF",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1,
+      "details": {
+        "yulDetails": {
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul"
+        },
+        "orderLiterals": true
+      }
+    },
+    "sizes": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 25796,
+        "runtime": 24109,
+        "stored_headroom": -1221,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 26413,
+        "runtime": 24662,
+        "stored_headroom": -1838,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 17851,
+        "runtime": 15367,
+        "stored_headroom": 6724,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 19298,
+        "runtime": 16813,
+        "stored_headroom": 5277,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 22585,
+        "runtime": 20100,
+        "stored_headroom": 1990,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 16794,
+        "runtime": 16088,
+        "stored_headroom": 7781,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 17257,
+        "runtime": 16565,
+        "stored_headroom": 7318,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 23426,
+        "runtime": 20941,
+        "stored_headroom": 1149,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 23890,
+        "runtime": 21405,
+        "stored_headroom": 685,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 23285,
+        "runtime": 20773,
+        "stored_headroom": 1290,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      }
+    ]
+  },
+  {
+    "receipt": "e10-cse",
+    "source_receipt": "/home/kethcode/wildcat/bytecode-research/2026-09-26/e08-additions-noF",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1,
+      "details": {
+        "yulDetails": {
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul"
+        },
+        "cse": false
+      }
+    },
+    "sizes": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 26138,
+        "runtime": 24300,
+        "stored_headroom": -1563,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -342,
+        "runtime_saved": -191
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 26753,
+        "runtime": 24853,
+        "stored_headroom": -2178,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -340,
+        "runtime_saved": -191
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 18183,
+        "runtime": 15678,
+        "stored_headroom": 6392,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -332,
+        "runtime_saved": -311
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 19977,
+        "runtime": 17471,
+        "stored_headroom": 4598,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -679,
+        "runtime_saved": -658
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 23331,
+        "runtime": 20825,
+        "stored_headroom": 1244,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -746,
+        "runtime_saved": -725
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 17302,
+        "runtime": 16600,
+        "stored_headroom": 7273,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -508,
+        "runtime_saved": -512
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 17814,
+        "runtime": 17126,
+        "stored_headroom": 6761,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -557,
+        "runtime_saved": -561
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 24202,
+        "runtime": 21696,
+        "stored_headroom": 373,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -776,
+        "runtime_saved": -755
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 24665,
+        "runtime": 22159,
+        "stored_headroom": -90,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -775,
+        "runtime_saved": -754
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 23994,
+        "runtime": 21448,
+        "stored_headroom": 581,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -709,
+        "runtime_saved": -675
+      }
+    ]
+  },
+  {
+    "receipt": "e10-constantOptimizer",
+    "source_receipt": "/home/kethcode/wildcat/bytecode-research/2026-09-26/e08-additions-noF",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1,
+      "details": {
+        "yulDetails": {
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul"
+        },
+        "constantOptimizer": false
+      }
+    },
+    "sizes": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 30125,
+        "runtime": 28223,
+        "stored_headroom": -5550,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -4329,
+        "runtime_saved": -4114
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 30802,
+        "runtime": 28836,
+        "stored_headroom": -6227,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -4389,
+        "runtime_saved": -4174
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 21547,
+        "runtime": 18741,
+        "stored_headroom": 3028,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -3696,
+        "runtime_saved": -3374
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 23404,
+        "runtime": 20597,
+        "stored_headroom": 1171,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -4106,
+        "runtime_saved": -3784
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 27433,
+        "runtime": 24626,
+        "stored_headroom": -2858,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -4848,
+        "runtime_saved": -4526
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 19685,
+        "runtime": 18935,
+        "stored_headroom": 4890,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -2891,
+        "runtime_saved": -2847
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 20244,
+        "runtime": 19508,
+        "stored_headroom": 4331,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -2987,
+        "runtime_saved": -2943
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 28462,
+        "runtime": 25655,
+        "stored_headroom": -3887,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -5036,
+        "runtime_saved": -4714
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 28996,
+        "runtime": 26189,
+        "stored_headroom": -4421,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -5106,
+        "runtime_saved": -4784
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 28586,
+        "runtime": 25725,
+        "stored_headroom": -4011,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": -5301,
+        "runtime_saved": -4952
+      }
+    ]
+  }
+]
