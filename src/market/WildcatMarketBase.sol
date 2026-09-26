@@ -8,6 +8,7 @@ import '../interfaces/IWildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
 import '../libraries/MarketLifecycle.sol';
+import '../libraries/BoolUtils.sol';
 import '../libraries/MarketErrors.sol';
 import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
@@ -21,6 +22,7 @@ contract WildcatMarketBase is
   ReentrancyGuard,
   IMarketEventsAndErrors
 {
+  using BoolUtils for bool;
   using SafeCastLib for uint256;
   using MathUtils for uint256;
   using FunctionTypeCasts for *;
@@ -233,7 +235,7 @@ contract WildcatMarketBase is
 
   function _isInRepayment() internal view returns (bool) {
     uint256 date = repaymentDate();
-    return date != 0 && block.timestamp >= date;
+    return (date != 0).and(block.timestamp >= date);
   }
 
   // ===================================================================== //
@@ -271,9 +273,11 @@ contract WildcatMarketBase is
     if (parameters.borrower == address(0)) revert InvalidBorrower();
     uint256 date = parameters.repaymentDate;
     uint256 period = parameters.repaymentPeriod;
+    // both terms came from uint32 fields, so evaluating date + period eagerly cannot overflow.
     if (
-      (date == 0 && period != 0) ||
-      (date != 0 && (date <= block.timestamp || date + period > type(uint32).max))
+      (date == 0).and(period != 0).or(
+        (date != 0).and((date <= block.timestamp).or(date + period > type(uint32).max))
+      )
     ) {
       revert_InvalidRepaymentTerms();
     }
@@ -630,7 +634,7 @@ contract WildcatMarketBase is
 
   /// @notice returns underlying assets left after the market's full collateral obligation.
   function borrowableAssets() external view nonReentrantView returns (uint256) {
-    if (_state.isClosed || _isInRepayment()) return 0;
+    if (_state.isClosed.or(_isInRepayment())) return 0;
     return _calculateCurrentStatePointers.asReturnsMarketState()().borrowableAssets(totalAssets());
   }
 
@@ -722,10 +726,10 @@ contract WildcatMarketBase is
       timeDelta
     );
     uint256 date = repaymentDate();
-    if (date != 0 && state.lastInterestAccruedTimestamp >= date && state.isDelinquent) {
+    if ((date != 0).and(state.lastInterestAccruedTimestamp >= date).and(state.isDelinquent)) {
       penaltyTime = timeDelta;
     }
-    if (penaltyTime > 0 && delinquencyFeeBips > 0) {
+    if ((penaltyTime > 0).and(delinquencyFeeBips > 0)) {
       delinquencyFeeRay = MathUtils.calculateLinearInterestFromBips(
         delinquencyFeeBips,
         penaltyTime
@@ -796,17 +800,17 @@ contract WildcatMarketBase is
     LifecycleTransition memory next = _calculateTransition(currentAssets, closeAtCurrentTimestamp);
     state = next.state;
     for (uint256 i; i <= next.accrualCount; ++i) {
-      if (next.batchExpired && next.expiryAfterAccrual == i)
+      if (next.batchExpired.and(next.expiryAfterAccrual == i))
         _commitTransitionBatch(next, _runtimeConstant(1) != 0);
       if (i < next.accrualCount) {
         LifecycleAccrual memory a = next.accruals[i];
         emit_InterestAndFeesAccrued(a);
       }
     }
-    if (!next.batchExpired && next.batchExpiry != 0)
+    if ((!next.batchExpired).and(next.batchExpiry != 0))
       _commitTransitionBatch(next, _runtimeConstant(0) != 0);
     if (next.repaymentActivated) emit_RepaymentDateReached(repaymentDate());
-    if (_lifecycle.defaultedAt == 0 && next.lifecycle.defaultedAt != 0) {
+    if ((_lifecycle.defaultedAt == 0).and(next.lifecycle.defaultedAt != 0)) {
       emit_DefaultRecorded(next.lifecycle.defaultedAt);
     }
     _lifecycle = next.lifecycle;
@@ -867,12 +871,12 @@ contract WildcatMarketBase is
     uint256 historicalAssets = _checkpointedTotalAssets();
     uint256 date = repaymentDate();
     uint256 deadline = repaymentDeadline();
-    bool datePending = date != 0 &&
-      date > state.lastInterestAccruedTimestamp &&
-      date <= block.timestamp;
-    bool deadlinePending = date != 0 &&
-      deadline >= state.lastInterestAccruedTimestamp &&
-      block.timestamp > deadline;
+    bool datePending = (date != 0).and(date > state.lastInterestAccruedTimestamp).and(
+      date <= block.timestamp
+    );
+    bool deadlinePending = (date != 0).and(deadline >= state.lastInterestAccruedTimestamp).and(
+      block.timestamp > deadline
+    );
     bool expiryPending = state.hasPendingExpiredBatch();
     if (state.pendingWithdrawalExpiry != 0) {
       next.batchExpiry = state.pendingWithdrawalExpiry;
@@ -880,11 +884,11 @@ contract WildcatMarketBase is
     }
     while (true) {
       uint256 target = block.timestamp;
-      if (datePending && date < target) target = date;
-      if (deadlinePending && deadline < target) target = deadline;
-      if (expiryPending && next.batchExpiry < target) target = next.batchExpiry;
+      if (datePending.and(date < target)) target = date;
+      if (deadlinePending.and(deadline < target)) target = deadline;
+      if (expiryPending.and(next.batchExpiry < target)) target = next.batchExpiry;
       _accrueTransition(next, target, date);
-      if (datePending && target == date) {
+      if (datePending.and(target == date)) {
         datePending = false;
         if (!state.isClosed) {
           next.repaymentActivated = true;
@@ -894,7 +898,7 @@ contract WildcatMarketBase is
         }
       }
       // An expiry exactly at the inclusive deadline is processed after judging that deadline.
-      if (deadlinePending && target == deadline) {
+      if (deadlinePending.and(target == deadline)) {
         deadlinePending = false;
         if (
           !state.isClosed &&
@@ -904,7 +908,7 @@ contract WildcatMarketBase is
           next.lifecycle.defaultedAt = uint32(deadline);
         }
       }
-      if (expiryPending && target == next.batchExpiry) {
+      if (expiryPending.and(target == next.batchExpiry)) {
         expiryPending = false;
         if (state.pendingWithdrawalExpiry != 0) {
           _payTransitionBatch(next, historicalAssets);
@@ -914,15 +918,12 @@ contract WildcatMarketBase is
           state.isDelinquent = state.liquidityRequired() > historicalAssets;
         }
       }
-      if (next.closedAt != 0 || target == block.timestamp) break;
+      if ((next.closedAt != 0).or(target == block.timestamp)) break;
     }
     if (next.closedAt != 0) state.lastInterestAccruedTimestamp = uint32(block.timestamp);
     if (state.pendingWithdrawalExpiry != 0) _payTransitionBatch(next, currentAssets);
     if (
-      closeNow &&
-      date != 0 &&
-      block.timestamp >= date &&
-      !state.isClosed &&
+      closeNow.and(date != 0).and(block.timestamp >= date).and(!state.isClosed) &&
       currentAssets >= state.totalDebts()
     ) {
       _previewAutomaticClosure(next, currentAssets, block.timestamp);
@@ -935,7 +936,7 @@ contract WildcatMarketBase is
     uint256 date
   ) internal view {
     MarketState memory state = next.state;
-    uint256 grace = date != 0 && state.lastInterestAccruedTimestamp >= date
+    uint256 grace = (date != 0).and(state.lastInterestAccruedTimestamp >= date)
       ? 0
       : delinquencyGracePeriod;
     next.lifecycle.accrueDefaultRun(state, timestamp, grace);
@@ -997,7 +998,7 @@ contract WildcatMarketBase is
     MarketState memory state,
     uint256 assets
   ) internal returns (uint256) {
-    if (state.isClosed || !_isInRepayment() || assets < state.totalDebts()) return assets;
+    if (state.isClosed.or(!_isInRepayment()) || assets < state.totalDebts()) return assets;
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 expiry = state.pendingWithdrawalExpiry;
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
@@ -1033,13 +1034,13 @@ contract WildcatMarketBase is
     currentTotalAssets = _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
-    if (!isDelinquent || state.isClosed) _lifecycle.penaltyCutoff = 0;
+    if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;
 
     // An arbitrary direct transfer can exceed uint152, so saturate rather than making every
     // state write revert. The uint104/uint112/uint128 accounting fields bound every payable
     // market liability below uint152, making the saturated value economically equivalent.
     uint256 checkpointedTotalAssets;
-    if (state.pendingWithdrawalExpiry != 0 || repaymentDate() != 0) {
+    if ((state.pendingWithdrawalExpiry != 0).or(repaymentDate() != 0)) {
       checkpointedTotalAssets = MathUtils.min(currentTotalAssets, type(uint152).max);
     }
 

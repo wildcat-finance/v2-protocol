@@ -42,7 +42,7 @@ abstract contract MarketConstraintHooks is IHooks {
 
   function _isMarketInRepayment(address market) internal view returns (bool) {
     uint256 date = _marketRepaymentDates[market];
-    return date != 0 && block.timestamp >= date;
+    return (date != 0).and(block.timestamp >= date);
   }
 
   /// @notice emitted when an APR reduction starts a temporary excess-reserve period.

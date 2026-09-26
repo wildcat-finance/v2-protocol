@@ -9,6 +9,7 @@ import './WildcatMarket.sol';
 ///         the drawn portion.
 /// @dev explicit repayments reconcile drawn principal. raw token transfers only add liquidity.
 contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
+  using BoolUtils for bool;
   using MathUtils for uint256;
   using SafeCastLib for uint256;
 
@@ -142,7 +143,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
       timeDelta = timestamp - state.lastInterestAccruedTimestamp;
       // `scaledTotalSupply` is uint104, so the product cannot overflow within
       // the market's finite timestamp horizon. It is only a compact zero check.
-      if (timeDelta * uint256(state.scaledTotalSupply) == 0 || state.isClosed) {
+      if ((timeDelta * uint256(state.scaledTotalSupply) == 0).or(state.isClosed)) {
         return 0;
       }
     }

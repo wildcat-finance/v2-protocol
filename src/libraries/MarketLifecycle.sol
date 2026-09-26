@@ -2,6 +2,7 @@
 pragma solidity 0.8.25;
 
 import './Withdrawal.sol';
+import './BoolUtils.sol';
 
 /// @dev keep this outside MarketState; that struct is copied directly into hook calldata.
 struct MarketLifecycle {
@@ -26,14 +27,17 @@ struct LifecycleTransition {
   WithdrawalBatch batch;
   uint32 batchExpiry;
   bool batchExpired;
-  uint8 expiryAfterAccrual;
-  uint8 accrualCount;
+  // these counters only live in memory. uint8 still takes a word and adds cleanup masks.
+  // the four-record array bounds accrualCount; expiryAfterAccrual copies that count.
+  uint256 expiryAfterAccrual;
+  uint256 accrualCount;
   LifecycleAccrual[4] accruals;
   uint32 closedAt;
   bool repaymentActivated;
 }
 
 library MarketLifecycleLib {
+  using BoolUtils for bool;
   using MathUtils for uint256;
   using SafeCastLib for uint256;
   uint256 internal constant DefaultDelay = 90 days;
@@ -47,7 +51,7 @@ library MarketLifecycleLib {
     uint256 gracePeriod
   ) internal pure {
     if (lifecycle.defaultedAt != 0) return;
-    if (!state.isDelinquent || state.isClosed) {
+    if ((!state.isDelinquent).or(state.isClosed)) {
       lifecycle.penaltyCutoff = 0;
       return;
     }
@@ -73,7 +77,7 @@ library MarketLifecycleLib {
     state.isDelinquent = state.liquidityRequired() > assets;
     if (state.isDelinquent) {
       uint40 cutoff = uint40(date + DefaultDelay);
-      if (lifecycle.penaltyCutoff == 0 || lifecycle.penaltyCutoff > cutoff) {
+      if ((lifecycle.penaltyCutoff == 0).or(lifecycle.penaltyCutoff > cutoff)) {
         lifecycle.penaltyCutoff = cutoff;
       }
     } else {
