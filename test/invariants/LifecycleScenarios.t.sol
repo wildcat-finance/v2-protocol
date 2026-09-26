@@ -5,8 +5,33 @@ import { LifecycleFixture } from './LifecycleFixture.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
+import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 
 contract LifecycleScenariosTest is LifecycleFixture {
+  function test_forcedQueueThatClosesMarketRetainsItsBatchClaim() external {
+    lifecycle.sanctionLender(0);
+    lifecycle.advance(1, 2, 34_689_600_001);
+    lifecycle.fund(2, 2, 95, true);
+    lifecycle.nukeFromOrbit(0);
+    WildcatMarket market = WildcatMarket(lifecycle.marketAt(2));
+    assertTrue(market.previousState().isClosed, 'forced queue completes funding');
+    assertEq(market.previousState().pendingWithdrawalExpiry, 0, 'closure releases the batch');
+    assertEq(lifecycle.trackedExpiryCount(2), 1, 'released batch remains tracked');
+    _assertLifecycle();
+    _finishLifecycle('forced-queue-regression');
+  }
+
+  function test_boundedPaymentRoundingCanFinishFundingAndClearPrincipal() external {
+    lifecycle.queueFullWithdrawal(0);
+    lifecycle.advance(1, 1, 0);
+    WildcatMarket market = WildcatMarket(lifecycle.marketAt(3));
+    lifecycle.fund(3, 2, 2, true);
+    assertTrue(market.previousState().isClosed, 'batch allocation completes funding');
+    assertEq(market.totalAssets(), market.totalDebts(), 'all remaining liabilities backed');
+    assertEq(IWildcatMarketRevolving(address(market)).drawnAmount(), 0, 'closure clears principal');
+    _assertLifecycle();
+  }
+
   function setUp() external {
     _setupLifecycle();
   }

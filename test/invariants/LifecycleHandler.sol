@@ -180,7 +180,7 @@ contract LifecycleHandler is MarketMatrixHandler {
       : abi.encodeCall(WildcatMarket.repay, (amount));
     (bool success, ) = _callAs(i, _borrower(), address(m), data);
     _check(i, success, 25);
-    _check(i, !revolving[i] || _drawnAmount(i) == expectedDrawn, 26);
+    _check(i, !revolving[i] || _drawnAmount(i) == _finalRepaymentDrawn(i, expectedDrawn), 26);
   }
 
   function donate(uint256 cellSeed, uint256 mode, uint256 amountSeed) external {
@@ -442,6 +442,9 @@ contract LifecycleHandler is MarketMatrixHandler {
       uint32 expiry = uint32(uint256(entry.topics[1]));
       WithdrawalBatch storage batch = observedBatches[i][expiry];
       if (entry.topics[0] == keccak256('WithdrawalQueued(uint256,address,uint256,uint256)')) {
+        // the same call can close the market and clear pendingWithdrawalExpiry. retain the
+        // emitted key even when nukeFromOrbit has no return value to recover it from.
+        _trackExpiry(i, expiry);
         (uint256 amount, ) = abi.decode(entry.data, (uint256, uint256));
         batch.scaledTotalAmount += uint104(amount);
       } else if (entry.topics[0] == keccak256('WithdrawalBatchPayment(uint256,uint256,uint256)')) {
@@ -579,6 +582,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     _check(i, dates == (p.dateReached ? 1 : 0), 17);
     _check(i, defaults == (old.defaultedAt == 0 && p.defaultedAt != 0 ? 1 : 0), 18);
     _check(i, closures == (!old.state.isClosed && nowState.isClosed ? 1 : 0), 19);
+    _check(i, previousTo == (p.closedAt == 0 ? vm.getBlockTimestamp() : p.closedAt), 44);
   }
 
   function _hasStateWrite(Vm.Log[] memory logs, address market) internal pure returns (bool) {
@@ -632,6 +636,16 @@ contract LifecycleHandler is MarketMatrixHandler {
     return super._expectedDrawnAfterRepay(i, s, cash, amount);
   }
 
+  // paying old batches can lower totalDebts by a rounding unit after _onRepay runs. if that
+  // finishes funding, automatic closure settles the remaining principal too. closure/backing
+  // and every batch liability are checked separately; don't leave phantom principal here.
+  function _finalRepaymentDrawn(
+    uint256 i,
+    uint256 expected
+  ) internal view override returns (uint256) {
+    return markets[i].previousState().isClosed ? 0 : expected;
+  }
+
   function _getRawPendingBatch(
     uint256 i,
     MarketState memory,
@@ -656,7 +670,16 @@ contract LifecycleHandler is MarketMatrixHandler {
         ? abi.encodeCall(WildcatMarket.updateState, ())
         : abi.encodeCall(WildcatMarket.repay, (amount))
     );
-    if (!success || !m.previousState().isClosed) return false;
+    if (!success) return false;
+    if (!m.previousState().isClosed) {
+      // totalDebts() includes a simulated pending payment. repayment can allocate in one
+      // payment instead of two, leaving a one-unit rounding shortfall against that quote.
+      // allow exactly that bound, then require closure; don't paper over a larger deficit.
+      if (m.previousState().totalDebts() != m.totalAssets() + 1) return false;
+      _fundBorrower(i, 1);
+      (success, ) = _callAs(i, _borrower(), address(m), abi.encodeCall(WildcatMarket.repay, (1)));
+      if (!success || !m.previousState().isClosed) return false;
+    }
     uint256 length = m.getUnpaidBatchExpiries().length;
     for (uint256 j; j < length; ++j) {
       (success, ) = _callAs(

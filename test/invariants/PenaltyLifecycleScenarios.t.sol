@@ -6,6 +6,24 @@ import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 
 contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
+  function test_donationAndPendingPaymentCanDrainAfterScheduledClosure() external {
+    lifecycle.advance(5, 0, 1);
+    lifecycle.advance(3, 3, 14 days);
+    lifecycle.sanctionLender(0);
+    lifecycle.nukeFromOrbit(0);
+    lifecycle.donate(2, 2, 86);
+    _assertLifecycle();
+    uint256 snapshot = vm.snapshot();
+    lifecycle.fund(2, 1, 0, false);
+    WildcatMarket market = WildcatMarket(lifecycle.marketAt(2));
+    MarketState memory state = market.previousState();
+    assertFalse(state.isClosed, 'preview quote leaves a rounding shortfall');
+    assertEq(state.totalDebts(), market.totalAssets() + 1, 'shortfall is exactly one unit');
+    _assertLifecycle();
+    assertTrue(vm.revertTo(snapshot), 'restore the liveness regression');
+    _finishLifecycle('donation-rounding-regression');
+  }
+
   function setUp() external {
     _setupPenaltyLifecycle();
   }

@@ -243,3 +243,29 @@ with seed counters separate. A fixture latch avoids counting a repeated final
 hook invocation as another sequence. `--lifecycle-coverage` archives the raw
 receipts and per-cell aggregates; Forge's reported run/call budget remains the
 authoritative campaign size.
+
+### Qualification counterexamples
+
+The first full runs exposed three more assumptions in the test model and final
+drain. Each has a minimized, deterministic regression; production code is
+unchanged.
+
+- Processing old batches can reduce debt by a rounding unit and complete
+  funding after repayment accounting runs. Closure then clears the remaining
+  revolving principal. The model now checks post-action closure before requiring
+  that principal balance, while retaining independent backing and liability checks.
+- A sanctioned forced withdrawal can create a batch and complete funding in
+  the same call. Closure clears `pendingWithdrawalExpiry`, so the handler must
+  retain the key from `WithdrawalQueued`, even though `nukeFromOrbit` returns
+  nothing. Every released claim remains in conservation and final collection.
+- `totalDebts()` includes a simulated pending payment. Allocating once during
+  repayment instead of splitting that allocation across the preview and the
+  payment can leave one unit outstanding against the quote. The scheduled drain
+  permits exactly one additional unit, requires automatic closure afterward,
+  and rejects any larger deficit. A regression checks the shortfall explicitly.
+
+The no-F failures and minimized sequences are retained in `e17-all-noF` and
+`e17-counterexamples/noF`; deterministic failing replays and traces are in
+`e17-noF-regressions-v2`. The earlier principal trace is in
+`e17-counterexamples/principal-model`. These are test-model corrections, not
+permission to reduce the campaign budgets or accounting assertions.

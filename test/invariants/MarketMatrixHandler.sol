@@ -319,8 +319,10 @@ contract MarketMatrixHandler {
       abi.encodeCall(WildcatMarket.repay, (action.amount))
     );
     if (!success) unexpectedActionFailures++;
-    else if (revolving[cellIndex] && _drawnAmount(cellIndex) != action.expectedDrawn)
-      drawnAmountFailures++;
+    else if (
+      revolving[cellIndex] &&
+      _drawnAmount(cellIndex) != _finalRepaymentDrawn(cellIndex, action.expectedDrawn)
+    ) drawnAmountFailures++;
     _observe(cellIndex);
   }
 
@@ -432,7 +434,8 @@ contract MarketMatrixHandler {
       )
     );
     if (!success) unexpectedActionFailures++;
-    else if (revolving[i] && _drawnAmount(i) != action.expectedDrawn) drawnAmountFailures++;
+    else if (revolving[i] && _drawnAmount(i) != _finalRepaymentDrawn(i, action.expectedDrawn))
+      drawnAmountFailures++;
     _observe(i);
   }
 
@@ -870,6 +873,10 @@ contract MarketMatrixHandler {
       assetsBefore + amount
     );
     return _expectedDrawnAfterRepay(cellIndex, state, assetsBefore, amount);
+  }
+
+  function _finalRepaymentDrawn(uint256, uint256 expected) internal view virtual returns (uint256) {
+    return expected;
   }
 
   function _expectedDrawnAfterRepay(

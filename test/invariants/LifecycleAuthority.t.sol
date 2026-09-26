@@ -5,8 +5,10 @@ import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
-import { HooksConfig, Bit_Enabled_ExecuteWithdrawal } from 'src/types/HooksConfig.sol';
+import { HooksConfig, Bit_Enabled_Deposit, Bit_Enabled_Transfer, Bit_Enabled_ExecuteWithdrawal, Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
 import { IHooks } from 'src/access/IHooks.sol';
+import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
+import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 
 /// @dev authority changes need the real factory callback and registry, not the small matrix stub.
 contract LifecycleAuthorityTest is ProductionMatrixFixture {
@@ -63,6 +65,72 @@ contract LifecycleAuthorityTest is ProductionMatrixFixture {
 }
 
 contract LifecycleCollectionConfigurationTest is MarketFixture {
+  error PolicyVeto();
+
+  function test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed() external {
+    vm.warp(1_800_000_000);
+    for (uint256 model; model < 2; ++model) {
+      for (uint256 dated; dated < 2; ++dated) {
+        Options memory options = _defaultOptions(HooksKind.OpenTerm);
+        options.revolving = model == 1;
+        options.requestedHooks = HooksConfig.wrap(
+          (1 << Bit_Enabled_Deposit) |
+            (1 << Bit_Enabled_Transfer) |
+            (1 << Bit_Enabled_QueueWithdrawal)
+        );
+        options.repaymentDate = dated == 0 ? 0 : uint32(vm.getBlockTimestamp() + 1 days);
+        Fixture memory fixture = _newMarket(options);
+        address lender = address(0xA11CE);
+        MockRoleProvider provider = MockRoleProvider(
+          _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
+        );
+        vm.prank(Borrower);
+        BaseAccessControls(address(fixture.hooks)).addRoleProvider(
+          address(provider),
+          type(uint32).max
+        );
+        vm.prank(address(provider));
+        BaseAccessControls(address(fixture.hooks)).grantRole(
+          lender,
+          uint32(vm.getBlockTimestamp())
+        );
+        _deposit(fixture, lender, 1_000e18);
+        vm.prank(Borrower);
+        fixture.market.borrow(800e18);
+        bytes memory veto = abi.encodeWithSelector(PolicyVeto.selector);
+        if (dated != 0) {
+          vm.mockCallRevert(
+            address(fixture.hooks),
+            abi.encodePacked(IHooks.onQueueWithdrawal.selector),
+            veto
+          );
+          vm.prank(lender);
+          vm.expectRevert(veto);
+          fixture.market.queueFullWithdrawal();
+          vm.warp(options.repaymentDate);
+        }
+        vm.prank(lender);
+        uint32 expiry = fixture.market.queueFullWithdrawal();
+        vm.mockCallRevert(
+          address(fixture.hooks),
+          abi.encodePacked(IHooks.onExecuteWithdrawal.selector),
+          veto
+        );
+        fixture.sentinel.setSanctioned(lender, true);
+        vm.warp(uint256(expiry) + 1);
+        uint256 amount = fixture.market.executeWithdrawal(lender, expiry);
+        assertTrue(amount != 0, 'payable claim executes despite policy veto');
+        assertEq(
+          fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()),
+          amount,
+          'sanctions still route collection'
+        );
+        assertEq(fixture.asset.balanceOf(lender), 0, 'sanctioned lender does not receive cash');
+        vm.clearMockedCalls();
+      }
+    }
+  }
+
   function test_replacementAprPolicyCannotLowerRepaymentReserve() external {
     vm.warp(1_800_000_000);
     for (uint256 model; model < 2; ++model) {
