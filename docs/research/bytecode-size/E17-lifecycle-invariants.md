@@ -1,7 +1,7 @@
 # E17: repayment and default invariants
 
-Source parent: `95e6f0c` (E16). Status: coverage mapping complete; implementation
-has not started.
+Source parent: `95e6f0c` (E16). Status: implementation in progress. Shared fixtures and the independent
+lifecycle oracle are implemented; generated lifecycle actions are next.
 
 Expand stateful coverage of the V2.5 repayment and default features before the
 deployment rehearsal. The user has confirmed that an Anvil-fork rehearsal is
@@ -130,7 +130,7 @@ path rather than forcing manual closure to rescue an otherwise broken state.
 | Task | Work | Completion evidence | Status |
 | --- | --- | --- | --- |
 | E17-01 | Map accepted behavior and current handler assumptions; record sequencing. | This plan names the untested transitions and preserves the existing campaign. | Complete |
-| E17-02 | Add lifecycle fixtures, shared handler extension points, independent bookkeeping, and coverage counters. | Existing no-date invariants still pass; new cells have valid terms and reach their intended starting states. | Pending |
+| E17-02 | Add lifecycle fixtures, shared handler extension points, independent bookkeeping, and coverage counters. | Shared matrix fixture, independent boundary oracle, per-cell seed/exploration counters, and initial scenario checks. Original campaign qualification below. | In progress |
 | E17-03 | Add stateful date/deadline/default, funding, admission, and APR properties. | Exact-cutoff, idle-crossing, cure/re-entry, and late-first-call scenarios validate the oracle; generated sequences exercise both default causes. | Pending |
 | E17-04 | Extend conservation and revolving expectations through automatic closure; prove batch collection and sanctions behavior. | Generated traces and final unwind cover partially funded FIFO batches, closure, surplus, and every lender's exit. | Pending |
 | E17-05 | Qualify both compiler configurations, varied seeds, and negative controls. | Existing/new campaigns and the relevant broader tests pass; transition counts, failures, traces, and artifact comparisons are archived. | Pending |
@@ -168,3 +168,29 @@ Then update the deployment ceremony and rehearse the actual plan on an Anvil
 fork, including ownership routing, interruption/resume, artifact readback, and
 bundle gas limits. Build reproducibility and release gates belong alongside
 that work, as directed by the user.
+
+## Implementation checkpoints
+
+### E17-02: shared fixture and independent oracle
+
+The original suite retains all nine properties, 17 selectors, and its final
+unwind. Its market setup now lives in `MarketMatrixFixture`, with optional
+repayment terms added to the existing `MarketFixture.Options`. Defaults remain
+zero, so existing fixtures retain their terms.
+
+`LifecycleOracle` sorts date, deadline, batch expiry, and current timestamp,
+then calculates expected accrual, default and closure from the last observed
+state and cash. It does not import production lifecycle helpers. A test-only
+reference contract keeps this calculation outside the inherited action bodies.
+`LifecycleHandler` consumes the same recorded calls as the original accounting
+checks, keeping seed coverage separate from randomized coverage.
+
+Returning a second `Vm.Log[]` through the original handler caused a solc Yul
+stack error. The shared handler instead exposes a post-call bookkeeping hook;
+its original return shape and fee checks are retained. This required no
+production or compiler changes.
+
+Development evidence: both initial lifecycle scenarios and the original
+campaign pass at 16 runs/depth 30. This reduced development run is not the
+qualification budget. The full original 2,000-run campaign is recorded in the
+checkpoint below once complete.

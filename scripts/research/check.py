@@ -38,6 +38,10 @@ def main():
     parser.add_argument("--code-size-limit", type=int, default=262144)
     parser.add_argument("--no-dynamic-test-linking", action="store_true")
     parser.add_argument("--solc", type=Path, help="optional compiler path for diagnostics")
+    parser.add_argument("--seed", default="0x5eed", help="recorded Forge fuzz/invariant seed")
+    parser.add_argument("--invariant-runs", type=int)
+    parser.add_argument("--invariant-depth", type=int)
+    parser.add_argument("--match-contract", help="optional focused campaign within the selected scope")
     args = parser.parse_args()
     args.receipt.mkdir(parents=True, exist_ok=False)
     config = (ROOT / "foundry.toml").read_text()
@@ -50,8 +54,18 @@ def main():
         config += "dynamic_test_linking = false\n"
     if args.yul_steps:
         config += "optimizer_details = { yulDetails = { optimizerSteps = " + json.dumps(args.yul_steps) + " } }\n"
+    if args.invariant_runs is not None or args.invariant_depth is not None:
+        config += "\n[profile.research.invariant]\n"
+        for name in ("runs", "depth"):
+            value = getattr(args, "invariant_" + name)
+            if value is not None:
+                if value < 1:
+                    parser.error("invariant budgets must be positive")
+                config += name + " = " + str(value) + "\n"
     (args.receipt / "foundry.toml").write_text(config)
-    command = ["forge", "test", "--root", str(ROOT), "--code-size-limit", str(args.code_size_limit), "--fuzz-seed", "0x5eed", "--skip", "script", "-vv"]
+    command = ["forge", "test", "--root", str(ROOT), "--code-size-limit", str(args.code_size_limit), "--fuzz-seed", args.seed, "--skip", "script", "-vv"]
+    if args.match_contract:
+        command += ["--match-contract", args.match_contract]
     if args.solc:
         command += ["--use", str(args.solc)]
     include = {ROOT / "test/libraries/LibFixedCall.t.sol"}

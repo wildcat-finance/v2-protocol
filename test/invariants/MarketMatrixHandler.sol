@@ -304,16 +304,7 @@ contract MarketMatrixHandler {
     uint256 marketAssets = market.totalAssets();
     uint256 outstandingDebt = market.totalDebts().satSub(marketAssets);
     uint256 amount = _bound(amountSeed, 1, _maximumRepayWithSurplus(outstandingDebt));
-    uint256 expectedDrawn;
-    MarketState memory expectedState;
-    if (revolving[cellIndex]) {
-      expectedState = _expectedUpdatedRevolvingState(
-        cellIndex,
-        market.previousState(),
-        marketAssets + amount
-      );
-      expectedDrawn = _expectedDrawnAfterRepay(cellIndex, expectedState, marketAssets, amount);
-    }
+    uint256 expectedDrawn = _repaymentExpectation(cellIndex, marketAssets, amount);
 
     _fundBorrower(cellIndex, amount);
     (bool success, ) = _callAs(
@@ -422,16 +413,7 @@ contract MarketMatrixHandler {
       uint256 outstandingDebt = market.totalDebts().satSub(market.totalAssets());
       uint256 amount = _bound(amountSeed, 0, _maximumRepayWithSurplus(outstandingDebt));
       uint256 maximumBatches = _bound(batchSeed, 0, 8);
-      uint256 drawnBefore = revolving[i] ? _drawnAmount(i) : 0;
-      uint256 expectedDrawn = drawnBefore;
-      if (revolving[i] && amount != 0) {
-        MarketState memory expectedState = _expectedUpdatedRevolvingState(
-          i,
-          market.previousState(),
-          market.totalAssets() + amount
-        );
-        expectedDrawn = _expectedDrawnAfterRepay(i, expectedState, market.totalAssets(), amount);
-      }
+      uint256 expectedDrawn = _repaymentExpectation(i, market.totalAssets(), amount);
       if (amount != 0) _fundBorrower(i, amount);
       (bool success, ) = _callAs(
         i,
@@ -474,7 +456,7 @@ contract MarketMatrixHandler {
         if (market.previousState().scaleFactor != expectedScaleFactor) {
           utilizationInterestFailures++;
         }
-        if (_drawnAmount(i) != drawnBefore) drawnAmountFailures++;
+        _checkDrawnUnchanged(i, drawnBefore);
       }
       _observe(i);
     }
@@ -510,7 +492,7 @@ contract MarketMatrixHandler {
         if (markets[i].previousState().scaleFactor != expectedScaleFactor) {
           utilizationInterestFailures++;
         }
-        if (_drawnAmount(i) != drawnBefore) drawnAmountFailures++;
+        _checkDrawnUnchanged(i, drawnBefore);
       }
       _observe(i);
     }
@@ -671,7 +653,9 @@ contract MarketMatrixHandler {
     if (
       accountScaledTotal != batch.scaledTotalAmount ||
       accountWithdrawnTotal > batch.normalizedAmountPaid
-    ) return (false, 0);
+    ) {
+      return (false, 0);
+    }
 
     uint256 allocationDust = batch.normalizedAmountPaid - accountAllocatedTotal;
     if (allocationDust > (participants == 0 ? 0 : participants - 1)) return (false, 0);
@@ -688,8 +672,9 @@ contract MarketMatrixHandler {
     for (uint256 i; i < markets.length; i++) {
       uint256 liveLiability = markets[i].previousState().accruedProtocolFees +
         assets[i].balanceOf(markets[i].feeRecipient());
-      if (liveLiability != initialProtocolFeeLiabilities[i] + observedProtocolFeesAccrued[i])
+      if (liveLiability != initialProtocolFeeLiabilities[i] + observedProtocolFeesAccrued[i]) {
         return false;
+      }
     }
     return true;
   }
@@ -755,7 +740,7 @@ contract MarketMatrixHandler {
     return (type(uint256).max, 0);
   }
 
-  function _closeCell(uint256 cellIndex) internal returns (bool) {
+  function _closeCell(uint256 cellIndex) internal virtual returns (bool) {
     WildcatMarket market = markets[cellIndex];
     if (market.isClosed()) return true;
 
@@ -806,7 +791,7 @@ contract MarketMatrixHandler {
     trackedExpiries[cellIndex].push(expiry);
   }
 
-  function _withdrawalsOpen(uint256 cellIndex) internal view returns (bool) {
+  function _withdrawalsOpen(uint256 cellIndex) internal view virtual returns (bool) {
     WildcatMarket market = markets[cellIndex];
     if (market.isClosed() || hooksKinds[cellIndex] == OpenTerm) return true;
     if (hooksKinds[cellIndex] == FixedTerm) {
@@ -826,7 +811,7 @@ contract MarketMatrixHandler {
     return revolving[cellIndex] ? _drawnAmount(cellIndex) : 0;
   }
 
-  function _checkDrawnUnchanged(uint256 cellIndex, uint256 drawnBefore) internal {
+  function _checkDrawnUnchanged(uint256 cellIndex, uint256 drawnBefore) internal virtual {
     if (revolving[cellIndex] && _drawnAmount(cellIndex) != drawnBefore) {
       drawnAmountFailures++;
     }
@@ -849,12 +834,27 @@ contract MarketMatrixHandler {
     return drawn + MathUtils.min(amount, debtsAfterBorrow - drawn);
   }
 
+  // keep the temporary MarketState out of the caller's repayment locals.
+  function _repaymentExpectation(
+    uint256 cellIndex,
+    uint256 assetsBefore,
+    uint256 amount
+  ) internal view returns (uint256) {
+    if (!revolving[cellIndex]) return 0;
+    MarketState memory state = _expectedUpdatedRevolvingState(
+      cellIndex,
+      markets[cellIndex].previousState(),
+      assetsBefore + amount
+    );
+    return _expectedDrawnAfterRepay(cellIndex, state, assetsBefore, amount);
+  }
+
   function _expectedDrawnAfterRepay(
     uint256 cellIndex,
     MarketState memory state,
     uint256 assetsBeforeRepayment,
     uint256 amount
-  ) internal view returns (uint256) {
+  ) internal view virtual returns (uint256) {
     uint256 drawn = _drawnAmount(cellIndex);
     uint256 outstandingDebtBeforeRepayment = state.totalDebts().satSub(assetsBeforeRepayment);
     uint256 nonPrincipalDebt = outstandingDebtBeforeRepayment.satSub(drawn);
@@ -881,7 +881,7 @@ contract MarketMatrixHandler {
     uint256 cellIndex,
     MarketState memory state,
     uint256 totalAssets
-  ) internal view returns (MarketState memory) {
+  ) internal view virtual returns (MarketState memory) {
     uint256 timestamp = vm.getBlockTimestamp();
     uint32 expiry = state.pendingWithdrawalExpiry;
     WithdrawalBatch memory batch;
@@ -911,7 +911,7 @@ contract MarketMatrixHandler {
     uint256 cellIndex,
     MarketState memory previousState,
     uint32 expiry
-  ) internal view returns (WithdrawalBatch memory batch) {
+  ) internal view virtual returns (WithdrawalBatch memory batch) {
     WildcatMarket market = markets[cellIndex];
     MarketState memory calculatedState = market.currentState();
     batch = market.getWithdrawalBatch(expiry);
@@ -1009,9 +1009,13 @@ contract MarketMatrixHandler {
     Vm.Log[] memory logs = vm.getRecordedLogs();
 
     if (record.success) _recordProtocolFeeTransition(record, logs);
+    _recordCallResult(record, logs);
     if (!record.success && _isArithmeticPanic(record.result)) arithmeticPanicCount++;
     return (record.success, record.result);
   }
+
+  // lifecycle bookkeeping consumes the same recorded call; no second log recorder.
+  function _recordCallResult(CallRecord memory, Vm.Log[] memory) internal virtual {}
 
   function _recordProtocolFeeTransition(CallRecord memory record, Vm.Log[] memory logs) internal {
     uint256 cellIndex = record.cellIndex;
