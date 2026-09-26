@@ -25,14 +25,16 @@ contract WildcatMarketConfig is WildcatMarketBase {
 
   /// @notice returns whether the market has been permanently closed.
   function isClosed() external view returns (bool) {
-    // Use stored state because the state update can not affect whether
-    // the market is closed.
-    return _state.isClosed;
+    // scheduled completion can close the market between writes. no hook call is needed here.
+    return
+      _state.isClosed ||
+      (_isInRepayment() && _calculateCurrentStatePointers.asReturnsMarketState()().isClosed);
   }
 
   /// @notice returns the most underlying assets a deposit can currently add.
   /// @dev includes interest accrued through this block and saturates at zero.
   function maximumDeposit() external view returns (uint256) {
+    if (_isInRepayment()) return 0;
     MarketState memory state = _calculateCurrentStatePointers.asReturnsMarketState()();
     return state.maximumDeposit();
   }
@@ -142,6 +144,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
     if (_reserveRatioBips > BIP) {
       revert_ReserveRatioBipsTooHigh();
     }
+    if (_isInRepayment() && _reserveRatioBips != BIP) revert_RepaymentReserveRequired();
 
     uint256 currentTotalAssets = totalAssets();
     if (_reserveRatioBips <= initialReserveRatioBips) {

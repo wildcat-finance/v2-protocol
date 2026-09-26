@@ -53,6 +53,8 @@ struct MarketParameters {
   // appended so the existing 20 parameter offsets remain unchanged.
   address borrowerPrincipal;
   address borrowerIdentityRegistry;
+  uint32 repaymentDate;
+  uint32 repaymentPeriod;
 }
 
 /// @notice borrower-selected terms passed to hooks before market deployment.
@@ -77,6 +79,8 @@ struct DeployMarketInputs {
   uint16 reserveRatioBips;
   uint32 delinquencyGracePeriod;
   HooksConfig hooks;
+  uint32 repaymentDate;
+  uint32 repaymentPeriod;
 }
 
 /// @notice controller configuration and market-term bounds for controller-based deployment.
@@ -149,4 +153,6 @@ struct MarketParameterConstraints {
   uint32 maximumWithdrawalBatchDuration;
   uint16 minimumAnnualInterestBips;
   uint16 maximumAnnualInterestBips;
+  uint32 maximumRepaymentPeriod;
+  uint32 maximumRepaymentDateDelay;
 }

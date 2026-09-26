@@ -35,6 +35,8 @@ review coverage, or remediation status from source ancestry alone.
   [access control](./integrations/access-control.md),
   [fixed term hooks](./integrations/fixed-term-hooks.md), and
   [periodic term hooks](./integrations/periodic-term-hooks.md)
+- [Hook development](./integrations/hook-development.md): shared defaults,
+  reusable term policies, feature composition, and explicit override decisions
 - [Role providers](./integrations/role-providers.md): credential-provider
   capabilities and construction paths
 - [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md): wrapping, redemption,
@@ -67,3 +69,10 @@ deployment facts.
 
 Historical checklists, completed ceremony records, generated tool output, and
 internal audit-preparation papers are not protocol specifications.
+
+## Working specifications
+
+- [V2.5 repayment and default preparation](./specs/v2.5-tranching-preparation.md):
+  implementation draft, settled requirements, milestone plan, and current
+  prototype evidence. Implementation and qualification are in progress. These working
+  records will be exported and removed before the final release.

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
+import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { MarketConstraintHooks } from 'src/access/MarketConstraintHooks.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { ReentrancyGuard } from 'src/ReentrancyGuard.sol';
@@ -34,7 +36,8 @@ contract WildcatMarketTest is MarketFixture {
   bytes32 internal constant BorrowerStorageSlot = bytes32(type(uint256).max);
   bytes4 internal constant PanicSelector = 0x4e487b71;
   uint256 internal constant ArithmeticPanic = 0x11;
-  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(10));
+  // `_lifecycle` occupies slot 9; allowance is slot 10, and revolving principal follows.
+  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(11));
 
   function _arithmeticPanic() private pure returns (bytes memory) {
     return abi.encodeWithSelector(PanicSelector, ArithmeticPanic);
@@ -65,9 +68,7 @@ contract WildcatMarketTest is MarketFixture {
     private
     returns (Fixture memory fixture, MarketConfigHooks configHooks)
   {
-    configHooks = MarketConfigHooks(
-      _deployCode('test/mocks/MarketMocks.sol:MarketConfigHooks')
-    );
+    configHooks = MarketConfigHooks(_deployCode('test/mocks/MarketMocks.sol:MarketConfigHooks'));
     fixture = _newMarket(_defaultOptions(HooksKind.OpenTerm), IHooks(address(configHooks)));
   }
 
@@ -519,7 +520,7 @@ contract WildcatMarketTest is MarketFixture {
         abi.encodeCall(fixture.factory.getMarketParameters, ())
       );
       assertTrue(success, 'parameter read');
-      assertEq(encodedParameters.length, 0x2c0, 'encoded parameter length');
+      assertEq(encodedParameters.length, 0x300, '24-word encoded parameter length');
 
       uint256 encodedHooks;
       address encodedPrincipal;
@@ -973,7 +974,7 @@ contract WildcatMarketTest is MarketFixture {
     _deposit(fixture, Holder, 1e18);
     fixture.sentinel.setSanctioned(Holder, true);
 
-    vm.expectRevert(FixedTermHooks.WithdrawBeforeTermEnd.selector);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
     fixture.market.nukeFromOrbit(Holder);
     assertEq(fixture.market.balanceOf(Holder), 1e18, 'balance after rejected nuke');
     assertEq(fixture.market.currentState().pendingWithdrawalExpiry, 0, 'pending after rejection');
@@ -1104,9 +1105,7 @@ contract WildcatMarketTest is MarketFixture {
     );
   }
 
-  function test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts()
-    external
-  {
+  function test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts() external {
     Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
     _deposit(fixture, Holder, 1e18);
 
@@ -1544,7 +1543,7 @@ contract WildcatMarketTest is MarketFixture {
       _fundAndApprove(fixture, Holder, 100);
 
       vm.prank(Holder);
-      vm.expectRevert(OpenTermHooks.DepositBelowMinimum.selector);
+      vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
       fixture.market.deposit(100);
     }
   }

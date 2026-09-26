@@ -200,6 +200,12 @@ Use these event families for authority and hook state:
 These state events belong to the current OpenTerm, FixedTerm, and PeriodicTerm
 template families.
 
+Shared events may now be declared in `BaseHooks` or a term policy. They are
+still emitted by the concrete hooks instance. Declaration ownership does not
+change their topics, indexed fields, payloads, or factory provenance. Solidity
+source references may need the declaring owner; indexers should continue to
+use the concrete implementation ABI and emitter.
+
 Market borrower transfer uses these integration-critical events:
 
 ```solidity

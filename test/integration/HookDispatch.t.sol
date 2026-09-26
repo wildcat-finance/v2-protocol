@@ -99,7 +99,9 @@ contract HookDispatchTest is TestKernel {
       sphereXEngine: address(0),
       hooks: enabledFlags.setHooksAddress(address(fixture.hooks)),
       borrowerPrincipal: Borrower,
-      borrowerIdentityRegistry: address(registry)
+      borrowerIdentityRegistry: address(registry),
+      repaymentDate: 0,
+      repaymentPeriod: 0
     });
     fixture.factory.setMarketParameters(parameters);
     fixture.market = WildcatMarket(

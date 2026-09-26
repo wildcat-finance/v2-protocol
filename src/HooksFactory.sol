@@ -33,6 +33,8 @@ struct TmpMarketParameterStorage {
   bytes32 packedSymbolWord1;
   uint8 decimals;
   HooksConfig hooks;
+  uint32 repaymentDate;
+  uint32 repaymentPeriod;
 }
 
 /// @dev deployment values outside `DeployMarketInputs`, grouped to stay within the stack limit.
@@ -94,17 +96,13 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     internal _hooksInstancesByAdministrator;
 
   /// @notice current administrator tracked for each hooks instance, or zero if unknown.
-  mapping(address hooksInstance => address administrator)
-    public
-    override getHooksAdministrator;
+  mapping(address hooksInstance => address administrator) public override getHooksAdministrator;
 
   /// @dev Position of each hooks instance in its administrator's array.
   mapping(address hooksInstance => uint256 index) internal _hooksInstanceIndex;
 
   /// @notice next CREATE2 deployment nonce for each hooks administrator.
-  mapping(address administrator => uint256 nonce)
-    public
-    override getHooksInstanceDeploymentNonce;
+  mapping(address administrator => uint256 nonce) public override getHooksInstanceDeploymentNonce;
 
   /**
    * @dev Mapping from hooks template to markets created with it.
@@ -200,9 +198,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _;
   }
 
-  function _resolveBorrowerPrincipal(
-    address borrower
-  ) internal view returns (address principal) {
+  function _resolveBorrowerPrincipal(address borrower) internal view returns (address principal) {
     (bool success, bytes memory returnData) = borrowerIdentityRegistry.staticcall(
       abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower))
     );
@@ -542,12 +538,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       RoleProvider[] memory pullProviders,
       RoleProvider[] memory pushProviders
     ) = getHooksInstanceRoleProviders(hooksInstance);
-    emit HooksInstanceRoleProviders(
-      hooksInstance,
-      metadataAvailable,
-      pullProviders,
-      pushProviders
-    );
+    emit HooksInstanceRoleProviders(hooksInstance, metadataAvailable, pullProviders, pushProviders);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
 
@@ -613,6 +604,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     parameters.hooks = tmp.hooks;
     parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
     parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
+    parameters.repaymentDate = tmp.repaymentDate;
+    parameters.repaymentPeriod = tmp.repaymentPeriod;
   }
 
   /// @dev returns the CREATE2 market address for `salt` and this factory's init code.
@@ -680,6 +673,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       runtimeParams.originationFeeAmount
     );
     emit MarketHooksData(market, hooksData);
+    emit MarketRepaymentTerms(market, tmp.repaymentDate, tmp.repaymentPeriod);
   }
 
   function _deployMarket(
@@ -729,24 +723,22 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
     string memory symbol = string.concat(parameters.symbolPrefix, parameters.asset.symbol());
 
-    TmpMarketParameterStorage memory tmp = TmpMarketParameterStorage({
-      borrower: msg.sender,
-      asset: parameters.asset,
-      packedNameWord0: bytes32(0),
-      packedNameWord1: bytes32(0),
-      packedSymbolWord0: bytes32(0),
-      packedSymbolWord1: bytes32(0),
-      decimals: decimals,
-      feeRecipient: templateDetails.feeRecipient,
-      protocolFeeBips: templateDetails.protocolFeeBips,
-      maxTotalSupply: parameters.maxTotalSupply,
-      annualInterestBips: parameters.annualInterestBips,
-      delinquencyFeeBips: parameters.delinquencyFeeBips,
-      withdrawalBatchDuration: parameters.withdrawalBatchDuration,
-      reserveRatioBips: parameters.reserveRatioBips,
-      delinquencyGracePeriod: parameters.delinquencyGracePeriod,
-      hooks: parameters.hooks
-    });
+    TmpMarketParameterStorage memory tmp;
+    tmp.borrower = msg.sender;
+    tmp.asset = parameters.asset;
+    tmp.decimals = decimals;
+    tmp.feeRecipient = templateDetails.feeRecipient;
+    tmp.protocolFeeBips = templateDetails.protocolFeeBips;
+    tmp.maxTotalSupply = parameters.maxTotalSupply;
+    tmp.annualInterestBips = parameters.annualInterestBips;
+    tmp.delinquencyFeeBips = parameters.delinquencyFeeBips;
+    tmp.withdrawalBatchDuration = parameters.withdrawalBatchDuration;
+    tmp.reserveRatioBips = parameters.reserveRatioBips;
+    tmp.delinquencyGracePeriod = parameters.delinquencyGracePeriod;
+    tmp.hooks = parameters.hooks;
+    tmp.repaymentDate = parameters.repaymentDate;
+    tmp.repaymentPeriod = parameters.repaymentPeriod;
+
     {
       (tmp.packedNameWord0, tmp.packedNameWord1) = _packString(name);
       (tmp.packedSymbolWord0, tmp.packedSymbolWord1) = _packString(symbol);
@@ -759,7 +751,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       revert MarketAlreadyExists();
     }
     if (
-      LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) != market
+      LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) !=
+      market
     ) {
       revert MarketDeploymentAddressMismatch();
     }
@@ -815,11 +808,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     if (!templateDetails.exists) {
       revert HooksTemplateNotFound();
     }
-    hooksInstance = _deployHooksInstance(
-      borrowerPrincipal,
-      hooksTemplate,
-      hooksTemplateArgs
-    );
+    hooksInstance = _deployHooksInstance(borrowerPrincipal, hooksTemplate, hooksTemplateArgs);
     parameters.hooks = parameters.hooks.setHooksAddress(hooksInstance);
     DeployMarketRuntimeParameters memory runtimeParams = DeployMarketRuntimeParameters({
       borrowerPrincipal: borrowerPrincipal,

@@ -16,6 +16,11 @@ Core interfaces:
 - [`IHooksFactory`](../../src/IHooksFactory.sol): template, instance, and market
   provenance
 
+The original templates share [`BaseHooks`](../../src/access/BaseHooks.sol) and
+reuse their open, fixed, or periodic term policy. Each remains one deployed
+contract with its existing public configuration. See
+[Hook development](./hook-development.md) for source composition and overrides.
+
 ## Template, instance, and market
 
 The hook lifecycle has three layers:
@@ -60,6 +65,12 @@ The hook address and enabled flags are immutable after market deployment. The
 hook's own state and administration can still change if its implementation
 allows it. Reusing an instance means sharing its state and authority domain
 across markets.
+
+Callback dispatch and credential requirements are separate. A positive minimum
+forces deposit dispatch without requiring deposit credentials. Fixed/periodic
+hooks always receive queue callbacks, even when withdrawal access is optional.
+Use the template's stored access fields rather than inferring access from every
+enabled bit. A feature must declare the callbacks it requires at construction.
 
 ## Callback surface
 
@@ -198,6 +209,13 @@ template-to-instance-to-market relationship. A display name or `version()`
 string is metadata, not implementation identity. See
 [Events](./events.md) for ordering and provenance.
 
+The lens classifies the exact original family strings and decodes each family's
+`getHookedMarket` tuple. Periodic `templateVersion()` remains 2. Shared inherited
+getters provide provider, constraint, and administrator data for all three
+families. A completed hook-administrator transfer updates factory discovery;
+it does not transfer the attached markets. New feature templates need explicit
+decoder support for any new identity or public format.
+
 See [role providers](./role-providers.md) for credentials, then
 [access control](./access-control.md),
 [fixed-term hooks](./fixed-term-hooks.md), and
@@ -209,7 +227,12 @@ See [role providers](./role-providers.md) for credentials, then
   optional and required merging, and callback encoding
 - [`MarketConstraintHooks.t.sol`](../../test/access/MarketConstraintHooks.t.sol):
   creation bounds and APR/reserve-ratio transitions
+- [`BaseHooks.t.sol`](../../test/access/BaseHooks.t.sol): shared initialization,
+  action defaults, requested access, and forced dispatch
 - [`HooksFactories.t.sol`](../../test/factories/HooksFactories.t.sol): templates,
   instances, identity resolution, market binding, and provenance
 - [`WildcatMarket.t.sol`](../../test/market/WildcatMarket.t.sol): callback
   dispatch and action ordering
+- [`ProductionMatrixScenarios.t.sol`](../../test/integration/ProductionMatrixScenarios.t.sol):
+  real factory-to-lens reads, administrator discovery, wrappers, and composed
+  operations across all three terms and both market implementations

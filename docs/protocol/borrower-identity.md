@@ -247,6 +247,14 @@ transfer. Acceptance updates the creating factory's administrator index. It
 does not rewrite provider configuration, lender status, hook-local blocks,
 known-lender state, or hooked-market configuration.
 
+The lens reads current and pending hook administrators separately from market
+borrower identity. A pending hook transfer retains the old factory association;
+acceptance moves instance discovery to the new administrator across all three
+built-in terms. See [Access control](../integrations/access-control.md#hook-administration)
+for that independent transfer path and
+[the production integration suite](../../test/integration/ProductionMatrixScenarios.t.sol)
+for real factory/lens coverage.
+
 V2.5 `AccessListRoleProvider` administration also uses an independent two-step
 transfer. The provider address, membership, and every hook attachment remain
 unchanged. Other role providers are not assumed to support that interface.

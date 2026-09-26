@@ -219,7 +219,8 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   }
 
   function _marketStateHash(Fixture memory fixture) private view returns (bytes32 result) {
-    bytes32[7] memory slots;
+    // include the new lifecycle slot and the shifted allowance/principal slots.
+    bytes32[12] memory slots;
     for (uint256 i; i < slots.length; i++) {
       slots[i] = vm.load(address(fixture.market), bytes32(i));
     }

@@ -3,9 +3,55 @@ pragma solidity 0.8.25;
 
 import 'src/interfaces/IMarketEventsAndErrors.sol';
 import 'src/libraries/MarketEvents.sol';
+import 'src/libraries/MarketErrors.sol';
+import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
 contract MarketEventsHarness {
+  function emitRepaymentDateReached(uint256 timestamp) external {
+    emit_RepaymentDateReached(timestamp);
+  }
+
+  function emitDefaultRecorded(uint256 timestamp) external {
+    emit_DefaultRecorded(timestamp);
+  }
+
+  function emitLifecycleAccrual(
+    uint32 from,
+    uint32 to,
+    uint112 scaleFactor,
+    uint256 baseInterestRay,
+    uint256 delinquencyFeeRay,
+    uint256 protocolFee,
+    uint256 dirty
+  ) external {
+    LifecycleAccrual memory accrual = LifecycleAccrual(
+      from,
+      to,
+      scaleFactor,
+      baseInterestRay,
+      delinquencyFeeRay,
+      protocolFee
+    );
+    // make the upper bits dirty deliberately. the encoder still owes us canonical ABI words.
+    assembly {
+      mstore(accrual, or(mload(accrual), and(dirty, not(0xffffffff))))
+      mstore(add(accrual, 0x20), or(mload(add(accrual, 0x20)), and(dirty, not(0xffffffff))))
+      mstore(
+        add(accrual, 0x40),
+        or(mload(add(accrual, 0x40)), and(dirty, not(sub(shl(112, 1), 1))))
+      )
+    }
+    emit_InterestAndFeesAccrued(accrual);
+  }
+
+  function revertLifecycle(uint256 kind) external pure {
+    if (kind == 0) revert_InvalidRepaymentTerms();
+    if (kind == 1) revert_UnsupportedExecuteWithdrawalHook();
+    if (kind == 2) revert_MarketInRepayment();
+    revert_RepaymentReserveRequired();
+  }
+
   function emitMaxTotalSupplyUpdated(
     address caller,
     uint256 previousValue,
@@ -56,6 +102,8 @@ contract MarketEventsHarness {
 }
 
 contract MarketEventsTest is TestKernel, IMarketEventsAndErrors {
+  event RepaymentDateReached(uint256 effectiveTimestamp);
+  event DefaultRecorded(uint256 effectiveTimestamp);
   event DrawnAmountUpdated(uint256 previousDrawnAmount, uint256 newDrawnAmount);
 
   MarketEventsHarness internal harness;
@@ -64,6 +112,57 @@ contract MarketEventsTest is TestKernel, IMarketEventsAndErrors {
     harness = MarketEventsHarness(
       _deployCode('test/libraries/MarketEvents.t.sol:MarketEventsHarness')
     );
+  }
+
+  function testFuzz_emitRepaymentEvents_matchesSolidityEncoding(uint256 timestamp) external {
+    vm.expectEmit(address(harness));
+    emit RepaymentDateReached(timestamp);
+    harness.emitRepaymentDateReached(timestamp);
+    vm.expectEmit(address(harness));
+    emit DefaultRecorded(timestamp);
+    harness.emitDefaultRecorded(timestamp);
+  }
+
+  function testFuzz_emitAccrualRecord_matchesSolidityEncoding(
+    uint32 from,
+    uint32 to,
+    uint112 scaleFactor,
+    uint256 baseInterestRay,
+    uint256 delinquencyFeeRay,
+    uint256 protocolFee,
+    uint256 dirty
+  ) external {
+    vm.expectEmit(address(harness));
+    emit InterestAndFeesAccrued(
+      from,
+      to,
+      scaleFactor,
+      baseInterestRay,
+      delinquencyFeeRay,
+      protocolFee
+    );
+    harness.emitLifecycleAccrual(
+      from,
+      to,
+      scaleFactor,
+      baseInterestRay,
+      delinquencyFeeRay,
+      protocolFee,
+      dirty
+    );
+  }
+
+  function test_repaymentErrorsMatchSolidityEncoding() external {
+    bytes4[4] memory selectors = [
+      WildcatMarketBase.InvalidRepaymentTerms.selector,
+      WildcatMarketBase.UnsupportedExecuteWithdrawalHook.selector,
+      WildcatMarketBase.MarketInRepayment.selector,
+      WildcatMarketBase.RepaymentReserveRequired.selector
+    ];
+    for (uint256 i; i < selectors.length; ++i) {
+      vm.expectRevert(abi.encodeWithSelector(selectors[i]));
+      harness.revertLifecycle(i);
+    }
   }
 
   function test_emitMaxTotalSupplyUpdated_matchesSolidityEncoding() external {

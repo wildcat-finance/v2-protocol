@@ -7,6 +7,8 @@ import '../interfaces/IMarketEventsAndErrors.sol';
 import '../interfaces/IWildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../libraries/FeeMath.sol';
+import '../libraries/MarketLifecycle.sol';
+import '../libraries/BoolUtils.sol';
 import '../libraries/MarketErrors.sol';
 import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
@@ -20,10 +22,13 @@ contract WildcatMarketBase is
   ReentrancyGuard,
   IMarketEventsAndErrors
 {
+  using BoolUtils for bool;
   using SafeCastLib for uint256;
   using MathUtils for uint256;
   using FunctionTypeCasts for *;
   using LibERC20 for address;
+  using MarketLifecycleLib for MarketLifecycle;
+  using MarketLifecycleLib for MarketState;
 
   // ==================================================================== //
   //                            Market Config                             //
@@ -79,23 +84,22 @@ contract WildcatMarketBase is
   /// @dev Reserved slots for borrower transfer and wrapper state. These are
   ///      the final five slots in the EVM storage range, from 2^256 - 1 through
   ///      2^256 - 5. Solidity assigns ordinary market storage from zero upward,
-  ///      so slots 0 through 10 keep their established layout and future market
-  ///      types can keep extending that layout without reaching this range.
+  ///      so ordinary state and future market types can keep extending that layout
+  ///      without reaching this range.
   ///
   ///      Mappings and dynamic arrays derive their element slots with keccak256.
   ///      Their chance of landing on one of these slots is the same negligible
   ///      256-bit collision risk as an ordinary namespaced storage slot. Other
   ///      manual storage must not use this five-slot range.
   bytes32 internal constant BORROWER_STORAGE_SLOT = bytes32(type(uint256).max);
-  bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT =
-    bytes32(type(uint256).max - 1);
+  bytes32 internal constant BORROWER_PRINCIPAL_STORAGE_SLOT = bytes32(type(uint256).max - 1);
   bytes32 internal constant PENDING_BORROWER_STORAGE_SLOT = bytes32(type(uint256).max - 2);
   bytes32 internal constant PENDING_BORROWER_PRINCIPAL_STORAGE_SLOT =
     bytes32(type(uint256).max - 3);
   bytes32 internal constant REGISTERED_WRAPPER_STORAGE_SLOT = bytes32(type(uint256).max - 4);
 
-  /// @dev ABI-encoded size of `MarketParameters`, which has 22 static fields.
-  uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x2c0;
+  /// @dev ABI-encoded size of `MarketParameters`, which has 24 static fields.
+  uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x300;
 
   /// @notice annual penalty rate added to lender interest during penalized delinquency, in bips.
   uint public immutable delinquencyFeeBips;
@@ -198,6 +202,41 @@ contract WildcatMarketBase is
   }
 
   WithdrawalData internal _withdrawalData;
+  MarketLifecycle internal _lifecycle;
+
+  uint64 internal immutable _repaymentTerms;
+
+  error InvalidRepaymentTerms();
+  error UnsupportedExecuteWithdrawalHook();
+  error MarketInRepayment();
+  error RepaymentReserveRequired();
+
+  event RepaymentDateReached(uint256 effectiveTimestamp);
+  event DefaultRecorded(uint256 effectiveTimestamp);
+
+  /// @notice scheduled start of full repayment, or zero when disabled. safe in hook callbacks.
+  function repaymentDate() public view returns (uint256) {
+    return uint32(_repaymentTerms);
+  }
+
+  /// @notice seconds from repayment date through the inclusive deadline; zero is valid.
+  function repaymentPeriod() public view returns (uint256) {
+    return _repaymentTerms >> 32;
+  }
+
+  function repaymentDeadline() public view returns (uint256) {
+    return repaymentDate() + repaymentPeriod();
+  }
+
+  /// @notice committed default cutoff. zero means no default has been recorded yet.
+  function defaultedAt() external view returns (uint256) {
+    return _lifecycle.defaultedAt;
+  }
+
+  function _isInRepayment() internal view returns (bool) {
+    uint256 date = repaymentDate();
+    return (date != 0).and(block.timestamp >= date);
+  }
 
   // ===================================================================== //
   //                             Constructor                               //
@@ -217,14 +256,7 @@ contract WildcatMarketBase is
       if iszero(
         and(
           eq(returndatasize(), _MARKET_PARAMETERS_SIZE),
-          staticcall(
-            gas(),
-            caller(),
-            0x1c,
-            0x04,
-            marketParametersPointer,
-            _MARKET_PARAMETERS_SIZE
-          )
+          staticcall(gas(), caller(), 0x1c, 0x04, marketParametersPointer, _MARKET_PARAMETERS_SIZE)
         )
       ) {
         revert(0, 0)
@@ -239,6 +271,18 @@ contract WildcatMarketBase is
     // zeroing out the memory buffer.
     MarketParameters memory parameters = _getMarketParameters.asReturnsMarketParameters()();
     if (parameters.borrower == address(0)) revert InvalidBorrower();
+    uint256 date = parameters.repaymentDate;
+    uint256 period = parameters.repaymentPeriod;
+    // both terms came from uint32 fields, so evaluating date + period eagerly cannot overflow.
+    if (
+      (date == 0).and(period != 0).or(
+        (date != 0).and((date <= block.timestamp).or(date + period > type(uint32).max))
+      )
+    ) {
+      revert_InvalidRepaymentTerms();
+    }
+    if (parameters.hooks.useOnExecuteWithdrawal()) revert_UnsupportedExecuteWithdrawalHook();
+    _repaymentTerms = uint64(date | (period << 32));
 
     // Set asset metadata
     asset = parameters.asset;
@@ -372,7 +416,10 @@ contract WildcatMarketBase is
   }
 
   /// @dev reverts if either borrower identity is raw-flagged by Chainalysis.
-  function _checkBorrowerNotSanctioned(address operationalBorrower, address principal) internal view {
+  function _checkBorrowerNotSanctioned(
+    address operationalBorrower,
+    address principal
+  ) internal view {
     address flaggedIdentity = _flaggedBorrowerIdentity(operationalBorrower, principal);
     if (flaggedIdentity != address(0)) {
       revert_BorrowerTransferWhileSanctioned(flaggedIdentity);
@@ -455,10 +502,7 @@ contract WildcatMarketBase is
       // changed, but an exact borrower/principal no-op is not. Unlike raw
       // addresses, each `eq` returns exactly 0 or 1, so `and` is safe here as a
       // logical AND.
-      if and(
-        eq(newBorrower, currentBorrower),
-        eq(newBorrowerPrincipal, currentBorrowerPrincipal)
-      ) {
+      if and(eq(newBorrower, currentBorrower), eq(newBorrowerPrincipal, currentBorrowerPrincipal)) {
         mstore(0, 0x5176bd60)
         revert(0x1c, 0x04)
       }
@@ -515,10 +559,7 @@ contract WildcatMarketBase is
     if (msg.sender != newBorrower) revert_NotPendingBorrower();
 
     address expectedPrincipal = pendingBorrowerPrincipal();
-    address newBorrowerPrincipal = _validateBorrowerTransferTarget(
-      newBorrower,
-      expectedPrincipal
-    );
+    address newBorrowerPrincipal = _validateBorrowerTransferTarget(newBorrower, expectedPrincipal);
     address previousBorrower = borrower();
     address previousBorrowerPrincipal = borrowerPrincipal();
 
@@ -593,6 +634,7 @@ contract WildcatMarketBase is
 
   /// @notice returns underlying assets left after the market's full collateral obligation.
   function borrowableAssets() external view nonReentrantView returns (uint256) {
+    if (_state.isClosed.or(_isInRepayment())) return 0;
     return _calculateCurrentStatePointers.asReturnsMarketState()().borrowableAssets(totalAssets());
   }
 
@@ -660,17 +702,42 @@ contract WildcatMarketBase is
   /// @dev derived market hook for quarantining a sanctioned lender's balance.
   function _blockAccount(MarketState memory state, address accountAddress) internal virtual {}
 
-  /// @dev accrues standard-market interest and fees through `timestamp` into cached state.
+  /// @dev revolving markets override only the base rate; fees and penalty timing stay shared.
+  function _calculateBaseInterest(
+    MarketState memory state,
+    uint256 timestamp
+  ) internal view virtual returns (uint256) {
+    return state.calculateBaseInterest(timestamp);
+  }
+
   function _updateScaleFactorAndFees(
     MarketState memory state,
     uint256 timestamp
   )
     internal
     view
-    virtual
     returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
   {
-    return state.updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, timestamp);
+    baseInterestRay = _calculateBaseInterest(state, timestamp);
+    if (state.protocolFeeBips > 0) protocolFee = state.applyProtocolFee(baseInterestRay);
+    uint256 timeDelta = timestamp - state.lastInterestAccruedTimestamp;
+    uint256 penaltyTime = state.updateTimeDelinquentAndGetPenaltyTime(
+      delinquencyGracePeriod,
+      timeDelta
+    );
+    uint256 date = repaymentDate();
+    if ((date != 0).and(state.lastInterestAccruedTimestamp >= date).and(state.isDelinquent)) {
+      penaltyTime = timeDelta;
+    }
+    if ((penaltyTime > 0).and(delinquencyFeeBips > 0)) {
+      delinquencyFeeRay = MathUtils.calculateLinearInterestFromBips(
+        delinquencyFeeBips,
+        penaltyTime
+      );
+    }
+    uint256 scale = state.scaleFactor;
+    state.scaleFactor = (scale + scale.rayMul(baseInterestRay + delinquencyFeeRay)).toUint112();
+    state.lastInterestAccruedTimestamp = timestamp.toUint32();
   }
 
   /// @dev derived-market accounting hook called before borrowed assets leave the market.
@@ -696,7 +763,7 @@ contract WildcatMarketBase is
 
   /**
    * @dev Returns the last asset balance observed by a state write while a current withdrawal
-   *      batch existed. The uint152 value occupies otherwise unused high bits in state slots
+   *      batch existed or repayment terms were enabled. The uint152 value occupies otherwise unused high bits in state slots
    *      zero and three, preserving the MarketState storage layout and hook ABI.
    */
   function _checkpointedTotalAssets() internal view returns (uint256 value) {
@@ -720,76 +787,65 @@ contract WildcatMarketBase is
    * @return state Market state after interest is accrued.
    */
   function _getUpdatedState() internal returns (MarketState memory state) {
-    state = _state;
-    // Handle expired withdrawal batch
-    if (state.hasPendingExpiredBatch()) {
-      uint256 expiry = state.pendingWithdrawalExpiry;
-      // Only accrue interest if time has passed since last update.
-      // This will only be false if withdrawalBatchDuration is 0.
-      uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
-      if (expiry != lastInterestAccruedTimestamp) {
-        (
-          uint256 baseInterestRay,
-          uint256 delinquencyFeeRay,
-          uint256 protocolFee
-        ) = _updateScaleFactorAndFees(state, expiry);
-        emit_InterestAndFeesAccrued(
-          lastInterestAccruedTimestamp,
-          expiry,
-          state.scaleFactor,
-          baseInterestRay,
-          delinquencyFeeRay,
-          protocolFee
-        );
+    // keep the view/write/repay callers on one transition body. constant flags clone it in viaIR.
+    return _getUpdatedState(_runtimeConstant(1) != 0);
+  }
+
+  /// @dev repayment transfers arrive before this call. defer today's closure until the explicit
+  ///      repayment accounting finishes; historical closure still applies at its own boundary.
+  function _getUpdatedState(
+    bool closeAtCurrentTimestamp
+  ) internal returns (MarketState memory state) {
+    uint256 currentAssets = totalAssets();
+    LifecycleTransition memory next = _calculateTransition(currentAssets, closeAtCurrentTimestamp);
+    state = next.state;
+    for (uint256 i; i <= next.accrualCount; ++i) {
+      if (next.batchExpired.and(next.expiryAfterAccrual == i))
+        _commitTransitionBatch(next, _runtimeConstant(1) != 0);
+      if (i < next.accrualCount) {
+        LifecycleAccrual memory a = next.accruals[i];
+        emit_InterestAndFeesAccrued(a);
       }
-      uint256 checkpointedTotalAssets = _checkpointedTotalAssets();
-      _processExpiredWithdrawalBatch(state, checkpointedTotalAssets);
-      // Settlement can change the requirement used to classify the post-expiry interval.
-      state.isDelinquent = state.liquidityRequired() > checkpointedTotalAssets;
     }
-    uint32 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
-    // Apply interest and fees accrued since last update (expiry or previous tx)
-    if (block.timestamp != lastInterestAccruedTimestamp) {
-      (
-        uint256 baseInterestRay,
-        uint256 delinquencyFeeRay,
-        uint256 protocolFee
-      ) = _updateScaleFactorAndFees(state, block.timestamp);
-      emit_InterestAndFeesAccrued(
-        lastInterestAccruedTimestamp,
-        block.timestamp,
-        state.scaleFactor,
-        baseInterestRay,
-        delinquencyFeeRay,
-        protocolFee
+    if ((!next.batchExpired).and(next.batchExpiry != 0))
+      _commitTransitionBatch(next, _runtimeConstant(0) != 0);
+    if (next.repaymentActivated) emit_RepaymentDateReached(repaymentDate());
+    if ((_lifecycle.defaultedAt == 0).and(next.lifecycle.defaultedAt != 0)) {
+      emit_DefaultRecorded(next.lifecycle.defaultedAt);
+    }
+    _lifecycle = next.lifecycle;
+    if (next.closedAt != 0) _commitAutomaticClosure(state, currentAssets, next.closedAt);
+  }
+
+  function _commitTransitionBatch(LifecycleTransition memory next, bool expired) internal {
+    uint32 expiry = next.batchExpiry;
+    WithdrawalBatch memory previous = _withdrawalData.batches[expiry];
+    WithdrawalBatch memory batch = next.batch;
+    if (batch.scaledAmountBurned != previous.scaledAmountBurned) {
+      uint128 paid = batch.normalizedAmountPaid - previous.normalizedAmountPaid;
+      emit_Transfer(address(this), _runtimeConstant(address(0)), paid);
+      emit_WithdrawalBatchPayment(
+        expiry,
+        batch.scaledAmountBurned - previous.scaledAmountBurned,
+        paid
       );
     }
-
-    // If there is a pending withdrawal batch which is not fully paid off, set aside
-    // up to the available liquidity for that batch.
-    if (state.pendingWithdrawalExpiry != 0) {
-      uint32 expiry = state.pendingWithdrawalExpiry;
-      WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
+    _withdrawalData.batches[expiry] = batch;
+    if (expired) {
+      emit_WithdrawalBatchExpired(
+        expiry,
+        batch.scaledTotalAmount,
+        batch.scaledAmountBurned,
+        batch.normalizedAmountPaid
+      );
       if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-        // Burn as much of the withdrawal batch as possible with available liquidity.
-        uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets());
-        if (availableLiquidity > 0) {
-          _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
-          _withdrawalData.batches[expiry] = batch;
-        }
+        _withdrawalData.unpaidBatches.push(expiry);
+      } else {
+        emit_WithdrawalBatchClosed(expiry);
       }
     }
   }
 
-  /**
-   * @dev Calculate the current state, applying fees and interest accrued since
-   *      the last state update as well as the effects of withdrawal batch expiry
-   *      on the market state.
-   *      Identical to _getUpdatedState() except it does not modify storage or
-   *      or emit events.
-   *      Returns expired batch data, if any, so queries against batches have
-   *      access to the most recent data.
-   */
   function _calculateCurrentState()
     internal
     view
@@ -799,50 +855,167 @@ contract WildcatMarketBase is
       WithdrawalBatch memory pendingBatch
     )
   {
-    state = _state;
-    // Handle expired withdrawal batch
-    if (state.hasPendingExpiredBatch()) {
-      pendingBatchExpiry = state.pendingWithdrawalExpiry;
-      // Only accrue interest if time has passed since last update.
-      // This will only be false if withdrawalBatchDuration is 0.
-      if (pendingBatchExpiry != state.lastInterestAccruedTimestamp) {
-        _updateScaleFactorAndFees(state, pendingBatchExpiry);
-      }
+    LifecycleTransition memory next = _calculateTransition(totalAssets(), _runtimeConstant(1) != 0);
+    return (next.state, next.batchExpiry, next.batch);
+  }
 
-      pendingBatch = _withdrawalData.batches[pendingBatchExpiry];
-      uint256 checkpointedTotalAssets = _checkpointedTotalAssets();
-      uint256 availableLiquidity = pendingBatch.availableLiquidityForPendingBatch(
-        state,
-        checkpointedTotalAssets
-      );
-      if (availableLiquidity > 0) {
-        _applyWithdrawalBatchPaymentView(pendingBatch, state, availableLiquidity);
-      }
-      state.pendingWithdrawalExpiry = 0;
-      // Mirror the post-settlement boundary used by the mutating state transition.
-      state.isDelinquent = state.liquidityRequired() > checkpointedTotalAssets;
-    }
-
-    if (state.lastInterestAccruedTimestamp != block.timestamp) {
-      _updateScaleFactorAndFees(state, block.timestamp);
-    }
-
-    // If there is a pending withdrawal batch which is not fully paid off, set aside
-    // up to the available liquidity for that batch.
+  /// @dev replay only the finite boundaries that change accounting. no daily loop, and no
+  ///      accrual split merely to record the separate 90-day default marker.
+  function _calculateTransition(
+    uint256 currentAssets,
+    bool closeNow
+  ) internal view returns (LifecycleTransition memory next) {
+    next.state = _state;
+    next.lifecycle = _lifecycle;
+    MarketState memory state = next.state;
+    uint256 historicalAssets = _checkpointedTotalAssets();
+    uint256 date = repaymentDate();
+    uint256 deadline = repaymentDeadline();
+    bool datePending = (date != 0).and(date > state.lastInterestAccruedTimestamp).and(
+      date <= block.timestamp
+    );
+    bool deadlinePending = (date != 0).and(deadline >= state.lastInterestAccruedTimestamp).and(
+      block.timestamp > deadline
+    );
+    bool expiryPending = state.hasPendingExpiredBatch();
     if (state.pendingWithdrawalExpiry != 0) {
-      pendingBatchExpiry = state.pendingWithdrawalExpiry;
-      pendingBatch = _withdrawalData.batches[pendingBatchExpiry];
-      if (pendingBatch.scaledAmountBurned < pendingBatch.scaledTotalAmount) {
-        // Burn as much of the withdrawal batch as possible with available liquidity.
-        uint256 availableLiquidity = pendingBatch.availableLiquidityForPendingBatch(
-          state,
-          totalAssets()
-        );
-        if (availableLiquidity > 0) {
-          _applyWithdrawalBatchPaymentView(pendingBatch, state, availableLiquidity);
+      next.batchExpiry = state.pendingWithdrawalExpiry;
+      next.batch = _withdrawalData.batches[next.batchExpiry];
+    }
+    while (true) {
+      uint256 target = block.timestamp;
+      if (datePending.and(date < target)) target = date;
+      if (deadlinePending.and(deadline < target)) target = deadline;
+      if (expiryPending.and(next.batchExpiry < target)) target = next.batchExpiry;
+      _accrueTransition(next, target, date);
+      if (datePending.and(target == date)) {
+        datePending = false;
+        if (!state.isClosed) {
+          next.repaymentActivated = true;
+          next.lifecycle.activateRepayment(state, historicalAssets, date);
+          if (historicalAssets >= state.totalDebts())
+            _previewAutomaticClosure(next, historicalAssets, target);
         }
       }
+      // An expiry exactly at the inclusive deadline is processed after judging that deadline.
+      if (deadlinePending.and(target == deadline)) {
+        deadlinePending = false;
+        if (
+          !state.isClosed &&
+          historicalAssets < state.totalDebts() &&
+          next.lifecycle.defaultedAt == 0
+        ) {
+          next.lifecycle.defaultedAt = uint32(deadline);
+        }
+      }
+      if (expiryPending.and(target == next.batchExpiry)) {
+        expiryPending = false;
+        if (state.pendingWithdrawalExpiry != 0) {
+          _payTransitionBatch(next, historicalAssets);
+          state.pendingWithdrawalExpiry = 0;
+          next.batchExpired = true;
+          next.expiryAfterAccrual = next.accrualCount;
+          state.isDelinquent = state.liquidityRequired() > historicalAssets;
+        }
+      }
+      if ((next.closedAt != 0).or(target == block.timestamp)) break;
     }
+    if (next.closedAt != 0) state.lastInterestAccruedTimestamp = uint32(block.timestamp);
+    if (state.pendingWithdrawalExpiry != 0) _payTransitionBatch(next, currentAssets);
+    if (
+      closeNow.and(date != 0).and(block.timestamp >= date).and(!state.isClosed) &&
+      currentAssets >= state.totalDebts()
+    ) {
+      _previewAutomaticClosure(next, currentAssets, block.timestamp);
+    }
+  }
+
+  function _accrueTransition(
+    LifecycleTransition memory next,
+    uint256 timestamp,
+    uint256 date
+  ) internal view {
+    MarketState memory state = next.state;
+    uint256 grace = (date != 0).and(state.lastInterestAccruedTimestamp >= date)
+      ? 0
+      : delinquencyGracePeriod;
+    next.lifecycle.accrueDefaultRun(state, timestamp, grace);
+    if (timestamp == state.lastInterestAccruedTimestamp) return;
+    // LifecycleTransition already allocated four records. fill the next slot in place.
+    LifecycleAccrual memory a = next.accruals[next.accrualCount++];
+    a.from = state.lastInterestAccruedTimestamp;
+    a.to = timestamp.toUint32();
+    (a.baseInterestRay, a.delinquencyFeeRay, a.protocolFee) = _updateScaleFactorAndFees(
+      state,
+      timestamp
+    );
+    a.scaleFactor = state.scaleFactor;
+  }
+
+  function _payTransitionBatch(LifecycleTransition memory next, uint256 assets) internal pure {
+    uint256 available = next.batch.availableLiquidityForPendingBatch(next.state, assets);
+    if (available != 0) _applyWithdrawalBatchPaymentView(next.batch, next.state, available);
+  }
+
+  function _previewAutomaticClosure(
+    LifecycleTransition memory next,
+    uint256 assets,
+    uint256 timestamp
+  ) internal pure {
+    MarketState memory state = next.state;
+    if (state.pendingWithdrawalExpiry != 0) {
+      _payTransitionBatch(next, assets);
+      state.pendingWithdrawalExpiry = 0;
+      next.batchExpired = true;
+      next.expiryAfterAccrual = next.accrualCount;
+    }
+    state.closeFundedState();
+    next.lifecycle.penaltyCutoff = 0;
+    next.closedAt = uint32(timestamp);
+  }
+
+  /// @dev closure freezes all fully backed claims. older batches can then finish in bounded FIFO
+  ///      calls. never give an arbitrary hook a veto over the scheduled obligation.
+  function _commitAutomaticClosure(
+    MarketState memory state,
+    uint256 assets,
+    uint256 timestamp
+  ) internal returns (uint256 remainingAssets) {
+    remainingAssets = state.totalDebts();
+    if (assets > remainingAssets) asset.safeTransfer(borrower(), assets - remainingAssets);
+    _onCloseMarket();
+    emit_AnnualInterestAndReserveRatioBipsUpdated(
+      borrower(),
+      _state.annualInterestBips,
+      0,
+      _state.reserveRatioBips,
+      10_000
+    );
+    emit_MarketClosed(borrower(), timestamp);
+  }
+
+  function _closeAfterCurrentAction(
+    MarketState memory state,
+    uint256 assets
+  ) internal returns (uint256) {
+    if (state.isClosed.or(!_isInRepayment()) || assets < state.totalDebts()) return assets;
+    if (state.pendingWithdrawalExpiry != 0) {
+      uint32 expiry = state.pendingWithdrawalExpiry;
+      WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
+      uint256 available = batch.availableLiquidityForPendingBatch(state, assets);
+      _applyWithdrawalBatchPayment(batch, state, expiry, available);
+      _withdrawalData.batches[expiry] = batch;
+      state.pendingWithdrawalExpiry = 0;
+      emit_WithdrawalBatchExpired(
+        expiry,
+        batch.scaledTotalAmount,
+        batch.scaledAmountBurned,
+        batch.normalizedAmountPaid
+      );
+      emit_WithdrawalBatchClosed(expiry);
+    }
+    state.closeFundedState();
+    return _commitAutomaticClosure(state, assets, block.timestamp);
   }
 
   /**
@@ -858,14 +1031,16 @@ contract WildcatMarketBase is
    *      external state-changing call.
    */
   function _writeState(MarketState memory state, uint256 currentTotalAssets) internal {
+    currentTotalAssets = _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
+    if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;
 
     // An arbitrary direct transfer can exceed uint152, so saturate rather than making every
     // state write revert. The uint104/uint112/uint128 accounting fields bound every payable
     // market liability below uint152, making the saturated value economically equivalent.
     uint256 checkpointedTotalAssets;
-    if (state.pendingWithdrawalExpiry != 0) {
+    if ((state.pendingWithdrawalExpiry != 0).or(repaymentDate() != 0)) {
       checkpointedTotalAssets = MathUtils.min(currentTotalAssets, type(uint152).max);
     }
 
@@ -1008,8 +1183,26 @@ contract WildcatMarketBase is
     uint32 expiry,
     uint256 availableLiquidity
   ) internal returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
-    uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
+    (scaledAmountBurned, normalizedAmountPaid) = _applyWithdrawalBatchPaymentView(
+      batch,
+      state,
+      availableLiquidity
+    );
+    if (scaledAmountBurned == 0) return (0, 0);
 
+    // Emit transfer for external trackers to indicate burn.
+    emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
+    emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
+  }
+
+  /// @dev shared by preview and execution. mutate only these memory structs; the caller commits
+  ///      storage and emits payment events when `scaledAmountBurned` is nonzero.
+  function _applyWithdrawalBatchPaymentView(
+    WithdrawalBatch memory batch,
+    MarketState memory state,
+    uint256 availableLiquidity
+  ) internal pure returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
+    uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return (0, 0);
 
@@ -1019,41 +1212,6 @@ contract WildcatMarketBase is
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
-
-    batch.scaledAmountBurned += scaledAmountBurned;
-    batch.normalizedAmountPaid += normalizedAmountPaid;
-    state.scaledPendingWithdrawals -= scaledAmountBurned;
-
-    // Update normalizedUnclaimedWithdrawals so the tokens are only accessible for withdrawals.
-    state.normalizedUnclaimedWithdrawals += normalizedAmountPaid;
-
-    // Burn market tokens to stop interest accrual upon withdrawal payment.
-    state.scaledTotalSupply -= scaledAmountBurned;
-
-    // Emit transfer for external trackers to indicate burn.
-    emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
-    emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
-  }
-
-  function _applyWithdrawalBatchPaymentView(
-    WithdrawalBatch memory batch,
-    MarketState memory state,
-    uint256 availableLiquidity
-  ) internal pure {
-    uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
-    // Do nothing if batch is already paid
-    if (scaledAmountOwed == 0) return;
-
-    uint256 scaledAvailableLiquidity = state.maxScaledSettleableAmount(availableLiquidity);
-    uint104 scaledAmountBurned = MathUtils
-      .min(scaledAvailableLiquidity, scaledAmountOwed)
-      .toUint104();
-    if (scaledAmountBurned == 0) return;
-    // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
-    // it is always possible to finish withdrawal batches on closed markets.
-    uint128 normalizedAmountPaid = MathUtils
-      .mulDiv(scaledAmountBurned, state.scaleFactor, RAY)
-      .toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;

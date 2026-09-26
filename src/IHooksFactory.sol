@@ -38,10 +38,7 @@ function getHooksInstanceString(
     mstore(ptr, shl(224, selectorWord))
     if staticcall(100000, hooksInstance, ptr, 0x04, ptr, 0x40) {
       let size := returndatasize()
-      if and(
-        and(iszero(lt(size, 0x40)), iszero(gt(size, 0x1040))),
-        eq(mload(ptr), 0x20)
-      ) {
+      if and(and(iszero(lt(size, 0x40)), iszero(gt(size, 0x1040))), eq(mload(ptr), 0x20)) {
         let length := mload(add(ptr, 0x20))
         if iszero(gt(length, sub(size, 0x40))) {
           value := ptr
@@ -67,10 +64,7 @@ function tryGetHooksInstanceRoleProviders(
     mstore(ptr, shl(224, selectorWord))
     if staticcall(1000000, hooksInstance, ptr, 0x04, ptr, 0x40) {
       let size := returndatasize()
-      if and(
-        and(iszero(lt(size, 0x40)), iszero(gt(size, 0x2040))),
-        eq(mload(ptr), 0x20)
-      ) {
+      if and(and(iszero(lt(size, 0x40)), iszero(gt(size, 0x2040))), eq(mload(ptr), 0x20)) {
         let length := mload(add(ptr, 0x20))
         if iszero(gt(length, shr(5, sub(size, 0x40)))) {
           providers := ptr
@@ -155,6 +149,13 @@ interface IHooksFactoryEventsAndErrors {
   error InvalidHooksInstanceAssociation();
 
   /// @notice emitted after a hooks instance is deployed and indexed.
+  /// @notice immutable repayment terms; a zero date disables scheduled repayment.
+  event MarketRepaymentTerms(
+    address indexed market,
+    uint256 repaymentDate,
+    uint256 repaymentPeriod
+  );
+
   event HooksInstanceDeployed(
     address indexed hooksInstance,
     address indexed hooksTemplate,

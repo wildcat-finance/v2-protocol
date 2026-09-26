@@ -47,6 +47,7 @@ contract WildcatMarket is
     MarketState memory state = _getUpdatedState();
 
     if (state.isClosed) revert_DepositToClosedMarket();
+    if (_isInRepayment()) revert_MarketInRepayment();
 
     // Reduce amount if it would exceed the maximum deposit (maxTotalSupply - totalSupply)
     amount = MathUtils.min(amount, state.maximumDeposit());
@@ -126,6 +127,7 @@ contract WildcatMarket is
 
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_BorrowFromClosedMarket();
+    if (_isInRepayment()) revert_MarketInRepayment();
 
     uint256 borrowable = state.borrowableAssets(totalAssets());
     if (amount > borrowable) revert_BorrowAmountTooHigh();
@@ -166,7 +168,7 @@ contract WildcatMarket is
     asset.safeTransferFrom(msg.sender, address(this), amount);
     emit_DebtRepaid(msg.sender, amount);
 
-    MarketState memory state = _getUpdatedState();
+    MarketState memory state = _getUpdatedState(_runtimeConstant(0) != 0);
     if (state.isClosed) revert_RepayToClosedMarket();
 
     // Execute repay hook if enabled

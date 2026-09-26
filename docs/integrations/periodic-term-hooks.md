@@ -4,6 +4,11 @@
 withdrawal windows and advance notice for APR reductions. It uses the
 credential and lender policy described in [Access control](./access-control.md).
 
+[`PeriodicTermPolicy`](../../src/access/PeriodicTermPolicy.sol) owns the reusable
+schedule and proposal implementation. The concrete template supplies its flags,
+family/revision metadata, and public configuration getters. See
+[Hook development](./hook-development.md) for additional policies.
+
 ## Withdrawal schedule
 
 ### Configuration
@@ -75,7 +80,7 @@ unchanged until execution.
 2. **Respond:** Lenders can queue withdrawals during that response window while
    the old APR remains active.
 3. **Execute:** Execution opens when the response window ends and closes when
-   the next window begins. The caller must provide the exact proposed APR. It
+   the next window begins. The applied APR must match the exact proposal. It
    must still be below the current APR, and `scaledPendingWithdrawals` must be
    zero.
 
@@ -93,6 +98,13 @@ Either of these paths can execute:
 
 Both paths keep the current reserve ratio. The borrower path ignores any new
 reserve-ratio value supplied with the reduction.
+
+Both routes run `_checkAprChange` against the effective APR and reserve ratio.
+The dedicated route provides empty callback data and cannot change reserves.
+`_checkPeriodicProposal` can add a proposal restriction, but execution rechecks
+applicable constraints against current state. Creation and closure remain
+separate from these APR-update checks; see
+[APR strategy and validation](./hook-development.md#apr-strategy-and-effective-value-validation).
 
 Other proposal transitions:
 

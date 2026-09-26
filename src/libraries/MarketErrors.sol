@@ -1,6 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+/// @dev same four-byte payload as `revert InvalidRepaymentTerms()`.
+function revert_InvalidRepaymentTerms() pure {
+  assembly {
+    mstore(0, 0x2c0a3eec)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev same four-byte payload as `revert UnsupportedExecuteWithdrawalHook()`.
+function revert_UnsupportedExecuteWithdrawalHook() pure {
+  assembly {
+    mstore(0, 0xb9285f99)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev same four-byte payload as `revert MarketInRepayment()`.
+function revert_MarketInRepayment() pure {
+  assembly {
+    mstore(0, 0xd01b8cf8)
+    revert(0x1c, 0x04)
+  }
+}
+
+/// @dev same four-byte payload as `revert RepaymentReserveRequired()`.
+function revert_RepaymentReserveRequired() pure {
+  assembly {
+    mstore(0, 0xfd97550f)
+    revert(0x1c, 0x04)
+  }
+}
+
 uint256 constant MaxSupplyExceeded_ErrorSelector = 0x8a164f63;
 
 uint256 constant NotWrapperFactory_ErrorSelector = 0x3780ab27;

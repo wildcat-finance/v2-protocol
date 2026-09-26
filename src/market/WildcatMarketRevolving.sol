@@ -9,6 +9,7 @@ import './WildcatMarket.sol';
 ///         the drawn portion.
 /// @dev explicit repayments reconcile drawn principal. raw token transfers only add liquidity.
 contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
+  using BoolUtils for bool;
   using MathUtils for uint256;
   using SafeCastLib for uint256;
 
@@ -132,17 +133,17 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
    *      closed or has no supply, as the commitment fee would otherwise
    *      accrue with no lenders to owe it to.
    */
-  function _calculateRevolvingBaseInterest(
+  function _calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
-  ) internal view returns (uint256 baseInterestRay) {
+  ) internal view override returns (uint256 baseInterestRay) {
     uint256 timeDelta;
     unchecked {
       // Accrual timestamps only move forward.
       timeDelta = timestamp - state.lastInterestAccruedTimestamp;
       // `scaledTotalSupply` is uint104, so the product cannot overflow within
       // the market's finite timestamp horizon. It is only a compact zero check.
-      if (timeDelta * uint256(state.scaledTotalSupply) == 0 || state.isClosed) {
+      if ((timeDelta * uint256(state.scaledTotalSupply) == 0).or(state.isClosed)) {
         return 0;
       }
     }
@@ -166,38 +167,5 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
       // approach uint256 over the market's finite timestamp horizon.
       baseInterestRay += MathUtils.mulDiv(annualInterestRay, drawnClamped, totalSupply);
     }
-  }
-
-  /// @dev Identical to `FeeMath.updateScaleFactorAndFees` except that the
-  ///      base interest rate uses the revolving calculation above.
-  function _updateScaleFactorAndFees(
-    MarketState memory state,
-    uint256 timestamp
-  )
-    internal
-    view
-    virtual
-    override
-    returns (uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
-  {
-    baseInterestRay = _calculateRevolvingBaseInterest(state, timestamp);
-
-    if (state.protocolFeeBips > 0) {
-      protocolFee = state.applyProtocolFee(baseInterestRay);
-    }
-
-    delinquencyFeeRay = state.updateDelinquency(
-      timestamp,
-      delinquencyFeeBips,
-      delinquencyGracePeriod
-    );
-
-    uint256 prevScaleFactor = state.scaleFactor;
-    uint256 scaleFactorDelta = prevScaleFactor.rayMul(baseInterestRay + delinquencyFeeRay);
-
-    // The checked cast deliberately reverts at the accepted finite uint112
-    // scale-factor horizon rather than truncating. See MarketState and Known Issues.
-    state.scaleFactor = (prevScaleFactor + scaleFactorDelta).toUint112();
-    state.lastInterestAccruedTimestamp = uint32(timestamp);
   }
 }

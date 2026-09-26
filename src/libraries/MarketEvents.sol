@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-uint256 constant InterestAndFeesAccrued_abi_head_size = 0xc0;
-uint256 constant InterestAndFeesAccrued_toTimestamp_offset = 0x20;
-uint256 constant InterestAndFeesAccrued_scaleFactor_offset = 0x40;
-uint256 constant InterestAndFeesAccrued_baseInterestRay_offset = 0x60;
-uint256 constant InterestAndFeesAccrued_delinquencyFeeRay_offset = 0x80;
-uint256 constant InterestAndFeesAccrued_protocolFees_offset = 0xa0;
+import { LifecycleAccrual } from './MarketLifecycle.sol';
 
 function emit_Transfer(address from, address to, uint256 value) {
   assembly {
@@ -36,12 +31,7 @@ function emit_MaxTotalSupplyUpdated(
   assembly {
     mstore(0, previousMaxTotalSupply)
     mstore(0x20, newMaxTotalSupply)
-    log2(
-      0,
-      0x40,
-      0xd017ca3aaecec8f5f194aa734b4f62d6a43d6a273268b625de051c3b692a2c6e,
-      eventCaller
-    )
+    log2(0, 0x40, 0xd017ca3aaecec8f5f194aa734b4f62d6a43d6a273268b625de051c3b692a2c6e, eventCaller)
   }
 }
 
@@ -53,12 +43,7 @@ function emit_ProtocolFeeBipsUpdated(
   assembly {
     mstore(0, previousProtocolFeeBips)
     mstore(0x20, newProtocolFeeBips)
-    log2(
-      0,
-      0x40,
-      0x54f104211bc2c1b4b49e83767e54234a36150ee5cbf00a5516a19e7a5026c509,
-      eventCaller
-    )
+    log2(0, 0x40, 0x54f104211bc2c1b4b49e83767e54234a36150ee5cbf00a5516a19e7a5026c509, eventCaller)
   }
 }
 
@@ -75,12 +60,7 @@ function emit_AnnualInterestAndReserveRatioBipsUpdated(
     mstore(add(dst, 0x20), newAnnualInterestBips)
     mstore(add(dst, 0x40), previousReserveRatioBips)
     mstore(add(dst, 0x60), newReserveRatioBips)
-    log2(
-      dst,
-      0x80,
-      0xe829464a47e4f00b1c8c879651d6d9f8238513fdd4721d8f8a0a93531a939e80,
-      eventCaller
-    )
+    log2(dst, 0x80, 0xe829464a47e4f00b1c8c879651d6d9f8238513fdd4721d8f8a0a93531a939e80, eventCaller)
   }
 }
 
@@ -158,33 +138,28 @@ function emit_StateUpdated(uint256 scaleFactor, bool isDelinquent) {
   }
 }
 
-function emit_InterestAndFeesAccrued(
-  uint256 fromTimestamp,
-  uint256 toTimestamp,
-  uint256 scaleFactor,
-  uint256 baseInterestRay,
-  uint256 delinquencyFeeRay,
-  uint256 protocolFees
-) {
+function emit_RepaymentDateReached(uint256 effectiveTimestamp) {
   assembly {
-    let dst := mload(0x40)
-    /// Copy fromTimestamp
-    mstore(dst, fromTimestamp)
-    /// Copy toTimestamp
-    mstore(add(dst, InterestAndFeesAccrued_toTimestamp_offset), toTimestamp)
-    /// Copy scaleFactor
-    mstore(add(dst, InterestAndFeesAccrued_scaleFactor_offset), scaleFactor)
-    /// Copy baseInterestRay
-    mstore(add(dst, InterestAndFeesAccrued_baseInterestRay_offset), baseInterestRay)
-    /// Copy delinquencyFeeRay
-    mstore(add(dst, InterestAndFeesAccrued_delinquencyFeeRay_offset), delinquencyFeeRay)
-    /// Copy protocolFees
-    mstore(add(dst, InterestAndFeesAccrued_protocolFees_offset), protocolFees)
-    log1(
-      dst,
-      InterestAndFeesAccrued_abi_head_size,
-      0x18247a393d0531b65fbd94f5e78bc5639801a4efda62ae7b43533c4442116c3a
-    )
+    mstore(0, effectiveTimestamp)
+    log1(0, 0x20, 0xc3157561a2540931c54c4d87f190fb36b67ec699ed45330099987708095831a8)
+  }
+}
+
+function emit_DefaultRecorded(uint256 effectiveTimestamp) {
+  assembly {
+    mstore(0, effectiveTimestamp)
+    log1(0, 0x20, 0xc60e2d68ebeaab1fd64af16f0dd22373068ea4ce1c7ee840494fcfc4ff6e94a3)
+  }
+}
+
+/// @dev LifecycleAccrual is already the six event words in ABI order. clean the narrow fields,
+///      then log that buffer directly. keep this aligned with the struct's memory layout.
+function emit_InterestAndFeesAccrued(LifecycleAccrual memory accrual) {
+  assembly {
+    mstore(accrual, and(mload(accrual), 0xffffffff))
+    mstore(add(accrual, 0x20), and(mload(add(accrual, 0x20)), 0xffffffff))
+    mstore(add(accrual, 0x40), and(mload(add(accrual, 0x40)), sub(shl(112, 1), 1)))
+    log1(accrual, 0xc0, 0x18247a393d0531b65fbd94f5e78bc5639801a4efda62ae7b43533c4442116c3a)
   }
 }
 
