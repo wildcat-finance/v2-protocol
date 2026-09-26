@@ -3,6 +3,7 @@
 
 import argparse
 import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -28,10 +29,11 @@ def temporary_config(config):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("receipt", type=Path)
-    parser.add_argument("--scope", choices=("calls", "market", "hooks", "all"), default="all")
+    parser.add_argument("--scope", choices=("calls", "market", "hooks", "storage", "deployment", "all"), default="all")
     parser.add_argument("--runs", type=int, default=44)
     parser.add_argument("--yul-steps")
     parser.add_argument("--gates", action="store_true")
+    parser.add_argument("--code-size-limit", type=int, default=262144)
     args = parser.parse_args()
     args.receipt.mkdir(parents=True, exist_ok=False)
     config = (ROOT / "foundry.toml").read_text()
@@ -43,7 +45,7 @@ def main():
     if args.yul_steps:
         config += "optimizer_details = { yulDetails = { optimizerSteps = " + json.dumps(args.yul_steps) + " } }\n"
     (args.receipt / "foundry.toml").write_text(config)
-    command = ["forge", "test", "--root", str(ROOT), "--code-size-limit", "262144", "--fuzz-seed", "0x5eed", "--skip", "script", "-vv"]
+    command = ["forge", "test", "--root", str(ROOT), "--code-size-limit", str(args.code_size_limit), "--fuzz-seed", "0x5eed", "--skip", "script", "-vv"]
     include = {ROOT / "test/libraries/LibFixedCall.t.sol"}
     if args.scope in ("market", "all"):
         include |= set(ROOT.glob("test/market/*.t.sol"))
@@ -51,7 +53,21 @@ def main():
         include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MarketLifecycle", "MarketEvents", "BoolUtils", "MarketState", "BoundedMarketState")}
     if args.scope in ("hooks", "all"):
         include |= set(ROOT.glob("test/access/*.t.sol")) | set(ROOT.glob("test/factories/*.t.sol"))
+    if args.scope in ("storage", "all"):
+        include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("LibStoredInitCode", "CompressedInitCode")}
+    if args.scope == "deployment":
+        include = {ROOT / "test/research/SingleStorageDeployment.t.sol"}
     include = {path for path in include if path.exists()}
+    # archive uncommitted experiments too; HEAD alone does not identify what Forge tested.
+    sources = {
+        path.relative_to(ROOT).as_posix(): path.read_text()
+        for directory in (ROOT / 'src', ROOT / 'test')
+        for path in sorted(directory.rglob('*.sol'))
+    }
+    (args.receipt / 'project-sources.json').write_text(json.dumps(sources, indent=2) + '\n')
+    (args.receipt / 'source-hashes.json').write_text(json.dumps({
+        path: hashlib.sha256(content.encode()).hexdigest() for path, content in sources.items()
+    }, indent=2) + '\n')
     for path in sorted(ROOT.glob("test/**/*.t.sol")):
         if path not in include:
             command += ["--skip", path.relative_to(ROOT).as_posix()]

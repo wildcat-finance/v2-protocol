@@ -11,9 +11,12 @@ selection criterion in this pass. Nothing is pushed automatically.
 ## Objective and constraints
 
 Make both market models and the supported hook/composition targets deployable
-while preserving their behavior. Runtime must fit 24,576 bytes. Each full
-creation-code payload plus its leading STOP must fit one 24,576-byte storage
-contract. **Split initcode storage is excluded by the user.** This research
+while preserving their behavior. Runtime must fit 24,576 bytes. Each market or
+template must use one storage contract whose runtime also fits 24,576 bytes.
+For the existing raw format, that means creation code plus its leading STOP.
+A compressed format must fit its reader and entire payload in that same contract;
+the decoded creation code must also satisfy the 49,152-byte creation limit.
+**Split initcode storage is excluded by the user.** This research
 must not work around the limit by dividing a market/template across storage
 contracts. Do not remove features or weaken tests to manufacture a size win.
 Yul, inline assembly and compiler experiments are explicitly in scope, subject

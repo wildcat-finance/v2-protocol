@@ -91,7 +91,7 @@ abstract contract ProductionMatrixFixture is TestKernel {
 
   function _storeInitCode(
     string memory artifact
-  ) internal returns (address storageContract, uint256 initCodeHash) {
+  ) internal virtual returns (address storageContract, uint256 initCodeHash) {
     bytes memory initCode = vm.getCode(artifact);
     storageContract = LibStoredInitCode.deployInitCode(initCode);
     initCodeHash = uint256(keccak256(initCode));

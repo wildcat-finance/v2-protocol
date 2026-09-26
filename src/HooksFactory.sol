@@ -495,12 +495,11 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
 
     uint256 deploymentNonce = getHooksInstanceDeploymentNonce[administrator];
     bytes32 salt;
+    bytes memory initCode = LibStoredInitCode.getInitCode(hooksTemplate);
     assembly {
       salt := or(shl(96, administrator), deploymentNonce)
-      let initCodePointer := mload(0x40)
-      let initCodeSize := sub(extcodesize(hooksTemplate), 1)
-      // Copy code from target address to memory starting at byte 1
-      extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
       // Write the administrator as the first parameter
       mstore(endInitCodePointer, administrator)

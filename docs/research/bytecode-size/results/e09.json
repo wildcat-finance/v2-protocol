@@ -1,0 +1,69 @@
+[
+  {
+    "receipt": "e09-e11-final-default",
+    "optimizer": {
+      "enabled": true,
+      "runs": 44
+    },
+    "sizes": [
+      {
+        "contract": "HooksFactory",
+        "creation": 17935,
+        "runtime": 17101,
+        "stored_headroom": 6640,
+        "creation_saved": -100,
+        "runtime_saved": -100,
+        "abi_unchanged": true,
+        "layout_unchanged": true
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 18765,
+        "runtime": 17945,
+        "stored_headroom": 5810,
+        "creation_saved": -100,
+        "runtime_saved": -100,
+        "abi_unchanged": true,
+        "layout_unchanged": true
+      }
+    ],
+    "note": "E09 final factory measurement; E11 affects market bytes only and is measured separately."
+  },
+  {
+    "receipt": "e09-e11-final-noF",
+    "optimizer": {
+      "enabled": true,
+      "runs": 1,
+      "details": {
+        "yulDetails": {
+          "optimizerSteps": "dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul"
+        }
+      }
+    },
+    "sizes": [
+      {
+        "contract": "HooksFactory",
+        "creation": 16895,
+        "runtime": 16189,
+        "stored_headroom": 7680,
+        "creation_saved": -101,
+        "runtime_saved": -101,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "exact_tested_forge_match": true
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 17358,
+        "runtime": 16666,
+        "stored_headroom": 7217,
+        "creation_saved": -101,
+        "runtime_saved": -101,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "exact_tested_forge_match": true
+      }
+    ],
+    "note": "E09 final factory measurement; E11 affects market bytes only and is measured separately."
+  }
+]
