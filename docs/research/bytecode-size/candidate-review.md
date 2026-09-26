@@ -11,7 +11,9 @@ both compiler configurations. [E15](./E15-compression-integrity.md)
 integrates artifact verification into the V2.5 scripts and plan executors,
 adds independent codec checks, and qualifies real local transactions.
 [E16](./E16-hook-artifact-commitment.md) adds on-chain hook artifact commitments
-and requalifies deployment. Full release qualification remains outstanding.
+and requalifies deployment. [E17](./E17-lifecycle-invariants.md) expands stateful
+repayment/default coverage with an independent timeline model. Full release
+qualification remains outstanding.
 
 ## Demonstrated bundle
 
@@ -84,11 +86,19 @@ tuples are preserved. Market and hook ABIs, layouts, and binaries are unchanged.
   and deployment guards reject wrong bytes. All 38 real local transactions pass
   again, with a largest buffered transaction of 9,645,839 gas. Its 16 tooling
   tests and the existing 42 UI tests pass.
+- E17 passes 483 focused tests under both configurations. The original nine
+  invariant properties retain their 2,000-run/depth-30 budget; two new six-cell
+  lifecycle campaigns each complete the same budget with zero handler reverts.
+  Additional seeds and sequences up to 256 actions exercise repayment, default,
+  cures, late closure, FIFO batches, and sanctions collection. Nine deliberately
+  broken protocol behaviors are detected. Four test-model assumptions were
+  corrected with minimized regressions; production source and all ten measured
+  target artifacts remain unchanged.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
 [E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
 [E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md),
-[E16](./E16-hook-artifact-commitment.md) and the
+[E16](./E16-hook-artifact-commitment.md), [E17](./E17-lifecycle-invariants.md) and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
 `/home/kethcode/wildcat/bytecode-research/2026-09-26/`.
@@ -120,12 +130,13 @@ direct qualification. No invariant assertions, actions or budgets were removed.
 This is still scoped behavioral and deployment qualification: the baseline's
 pending integration callback updates, full release checks and audit/refreeze
 work remain. The existing invariant matrix has no scheduled repayment dates;
-restoring that suite does not add a stateful repayment-date lifecycle model.
+E17 preserves it and adds separate repayment and penalty campaigns with
+independent observed-funding and boundary bookkeeping. Their setup and final
+drain are excluded from reported exploration coverage.
 
-[E17](./E17-lifecycle-invariants.md) is the next planned qualification step.
-It expands those lifecycle invariants before the required Anvil-fork rehearsal.
-The ceremony update and release-build gates follow or accompany that rehearsal;
-an additional execution client is not a selected requirement.
+Next are the deployment ceremony update and the required Anvil-fork rehearsal,
+with release-build gates alongside them. An additional execution client is not
+a selected requirement.
 
 The arena's offsets track three memory struct layouts and must be reviewed if
 those structs change. Revolving has only 232 runtime bytes spare. Recheck sizes

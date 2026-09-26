@@ -18,10 +18,13 @@ on-chain hook creation-code commitments and checks them before deployment.
 This does not adopt the research compiler settings
 or compressed deployment format into the release configuration.
 
-Next: [E17](./E17-lifecycle-invariants.md) plans stateful coverage of repayment
-dates, default, and automatic closure. The user has prioritized this before
-the required Anvil-fork deployment rehearsal; ceremony and release-gate work
-follow that expansion.
+[E17](./E17-lifecycle-invariants.md) adds independently checked repayment,
+default, and automatic-closure campaigns while retaining the original
+invariants. All 483 focused tests pass under both compiler configurations;
+longer sequences and deliberate faults qualify the new coverage.
+
+Next: update the deployment ceremony and rehearse the actual plan on an Anvil
+fork. Reproducible release-build gates accompany that work.
 
 ## Objective and constraints
 

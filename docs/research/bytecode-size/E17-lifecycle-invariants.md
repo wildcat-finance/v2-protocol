@@ -1,7 +1,7 @@
 # E17: repayment and default invariants
 
-Source parent: `95e6f0c` (E16). Status: lifecycle campaigns and boundary scenarios implemented. Final coverage
-refinements and qualification are in progress.
+Source parent: `95e6f0c` (E16). Status: complete. Both compiler configurations,
+additional seeds, longer sequences, and fault controls are qualified below.
 
 Expand stateful coverage of the V2.5 repayment and default features before the
 deployment rehearsal. The user has confirmed that an Anvil-fork rehearsal is
@@ -133,8 +133,8 @@ path rather than forcing manual closure to rescue an otherwise broken state.
 | E17-02 | Add lifecycle fixtures, shared handler extension points, independent bookkeeping, and coverage counters. | Shared matrix fixture, independent boundary oracle, per-cell seed/exploration counters, and initial scenario checks. Original campaign qualification below. | Complete |
 | E17-03 | Add stateful date/deadline/default, funding, admission, and APR properties. | Two six-cell campaigns, independent boundary scenarios, real-factory authority checks, and active APR/admission probes. Development qualification: 15 tests, including 64 runs/depth 30 for each new campaign. | Complete |
 | E17-04 | Extend conservation and revolving expectations through automatic closure; prove batch collection and sanctions behavior. | Event-derived batch ledger, FIFO/bounded processing checks, single/bulk collection, sanctions escrow, tied deadline/expiry cases, and scheduled drain pass development qualification. | Complete |
-| E17-05 | Qualify both compiler configurations, varied seeds, and negative controls. | Existing/new campaigns and the relevant broader tests pass; transition counts, failures, traces, and artifact comparisons are archived. | Pending |
-| E17-06 | Record results, any regressions/fixes, and the subsequent rehearsal scope. | Signed checkpoints and a reviewable report distinguish completed invariant coverage from outstanding ceremony/release work. | Pending |
+| E17-05 | Qualify both compiler configurations, varied seeds, and negative controls. | 483 focused tests under each configuration; 523,840 qualification handler calls with zero reverts; nine protocol fault types detected; all ten target artifacts unchanged. | Complete |
+| E17-06 | Record results, any regressions/fixes, and the subsequent rehearsal scope. | Signed implementation checkpoints, this report, machine-readable results, and updated catalogue/candidate review distinguish invariant completion from the remaining rehearsal/release work. | Complete |
 
 Implement and commit in task-sized increments, signed as `kethcode`. The user
 has authorized incremental research refinements; do not push. Keep the supplied
@@ -269,3 +269,113 @@ The no-F failures and minimized sequences are retained in `e17-all-noF` and
 `e17-noF-regressions-v2`. The earlier principal trace is in
 `e17-counterexamples/principal-model`. These are test-model corrections, not
 permission to reduce the campaign budgets or accounting assertions.
+
+## Qualification results
+
+Both runs 44 and the candidate runs-1/no-F configuration pass 483 focused tests.
+The original nine invariant properties remain grouped by Forge as one campaign, with the
+same 17 selectors and 2,000-run/depth-30 budget. Each new lifecycle campaign
+uses 25 selectors across six standard/revolving and open/fixed/periodic cells.
+Both new campaigns reject outer handler reverts; expected protocol reverts are
+caught and checked inside the actions.
+
+| Configuration | Scope | Seed | Runs per campaign | Depth | Handler calls | Handler reverts |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| Runs 44 | All three campaigns; 483 focused tests | `0x5eed` | 2,000 | 30 | 180,000 | 0 |
+| Runs 1/no F | All three campaigns; 483 focused tests | `0x5eed` | 2,000 | 30 | 180,000 | 0 |
+| Runs 44 | Both lifecycle campaigns | `0x2601` | 256 | 96 | 49,152 | 0 |
+| Runs 1/no F | Both lifecycle campaigns | `0x2602` | 256 | 96 | 49,152 | 0 |
+| Runs 1/no F | Both lifecycle campaigns | `0xc0ffee` | 128 | 256 | 65,536 | 0 |
+
+The five qualification runs total 523,840 handler calls with zero handler
+reverts. All assertions and final drains pass. The normal-profile full rebuild
+took about 4.2 minutes to compile and 3 minutes to test on this machine; the
+cached longer-sequence runs took roughly 1–1.6 minutes each.
+
+These are the research runner's market, hook, factory, compression, arithmetic,
+and invariant checks. They do not claim a full canonical release run or repeat
+E16's strict deployment checks. Scenario fuzz tests retain 1,000 cases. The
+normal release compiler configuration remains unchanged at runs 44.
+
+Coverage receipts separate fixture setup from exploration and are captured
+before the forced final unwind. The longer sequences exercise sanctioned
+collection and partial batch allocation in every model/policy cell, including
+the less frequently reached fixed and periodic exits. A no-date open cell in
+the penalty campaign intentionally never activates repayment or auto-closes.
+Its continuous-penalty default and collection coverage remain nonzero.
+
+Aggregating exploration receipts across both lifecycle campaigns and compiler
+configurations gives the following counts. Setup and final drains are excluded;
+archived counterexample replays can contribute exploration counts.
+
+| Model / policy | Deadline defaults | Penalty defaults | Automatic closures | Collections | To sanctions escrow |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Standard / open | 1,890 | 1,643 | 737 | 4,007 | 1,150 |
+| Standard / fixed | 1,758 | 1,133 | 905 | 585 | 334 |
+| Standard / periodic | 605 | 1,364 | 1,010 | 581 | 323 |
+| Revolving / open | 1,963 | 1,246 | 653 | 1,448 | 626 |
+| Revolving / fixed | 1,734 | 1,094 | 1,039 | 564 | 326 |
+| Revolving / periodic | 588 | 1,395 | 906 | 575 | 317 |
+
+The [machine-readable results](./results/e17.json) retain counts per campaign
+and cell, receipt hashes, compiler settings, and artifact comparisons. Receipt
+sequence counts can include a framework check or cached counterexample replay;
+the table uses Forge's reported run and call counts.
+
+### Fault detection
+
+Nine deliberately broken protocol behaviors fail their corresponding checks:
+
+1. Recording penalty default at the exact cutoff instead of after it.
+2. Activating repayment with a reserve below 100%.
+3. Letting current cash rewrite historical funding.
+4. Clearing a recorded default after cure or closure.
+5. Retaining a nonzero APR at closure.
+6. Adding an unearned unit to withdrawal liabilities.
+7. Accepting a replacement APR policy's lower repayment reserve without the core guard.
+8. Accepting the reserved execution-hook bit at construction.
+9. Allowing the queue hook to veto repayment-date withdrawal admission.
+
+Three additional controls undo the principal, released-batch, and bounded-drain
+model corrections. Their specific regressions fail, and restoring the test
+model passes. The batch-liability mutation was also repeated against the final
+model and fails the withdrawal-conservation assertion directly. Restoring the
+production source passes all 17 selected scenario/configuration tests.
+
+The initial queue-veto control used an invalid access configuration and failed
+before reaching the mutation. Its restored baseline failed too, so that receipt
+is rejected as evidence. The corrected test enables the required deposit and
+transfer access checks, authorizes the lender through a real role provider,
+then observes `PolicyVeto()` only before repayment. The corrected negative
+control reintroduces that veto after the date and fails as intended.
+
+### Artifact boundary and next work
+
+No production contract, ABI, storage layout, or release compiler setting changes
+in E17. All ten independently compiled targets have byte-identical creation
+and runtime code to E16 under both configurations. The fresh Forge artifacts
+are compared against those independent builds; the target set includes both
+markets, both factories, three templates, and three composition examples.
+
+The remaining work is the deployment ceremony update and the required Anvil-fork
+rehearsal, including ownership routing, interruption/resume, artifact readback,
+and transaction/bundle gas limits. Reproducible release-build gates belong
+alongside that work. Full release qualification, pending integration callback
+updates, and audit/refreeze work remain separate. A second execution client is
+not a requirement.
+
+## Reproduction
+
+Use a new directory for each receipt. The runner restores `foundry.toml` after
+each command; do not run two copies against the same checkout concurrently.
+
+```sh
+size_yul_steps='dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul'
+python3 scripts/research/check.py /tmp/e17-default --scope all --runs 44 --lifecycle-coverage
+python3 scripts/research/check.py /tmp/e17-noF --scope all --runs 1 --yul-steps "$size_yul_steps" --lifecycle-coverage
+python3 scripts/research/check.py /tmp/e17-stress --scope invariants --runs 1 --yul-steps "$size_yul_steps" --match-contract '(RepaymentLifecycleInvariantTest|PenaltyLifecycleInvariantTest)' --seed 0xc0ffee --invariant-runs 128 --invariant-depth 256 --lifecycle-coverage
+```
+
+Logs, exact tested source snapshots, minimized traces, native compiler products,
+and mutation controls are archived under
+`/home/kethcode/wildcat/bytecode-research/2026-09-26/` with the `e17-` prefix.

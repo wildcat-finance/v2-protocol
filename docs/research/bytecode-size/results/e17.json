@@ -1,0 +1,998 @@
+{
+  "source_parent": "95e6f0c",
+  "production_source_changes": false,
+  "release_compiler_changes": false,
+  "qualification_scope": "Focused research qualification, not the full canonical release suite. Actual-size deployment was already qualified in E16 and is not repeated for this test-only change.",
+  "archive_root": "/home/kethcode/wildcat/bytecode-research/2026-09-26",
+  "qualification": {
+    "e17-all-noF-v2": {
+      "exit_code": 0,
+      "head": "f0167547dd49443729470afbfd882e2613ad9e0f",
+      "optimizer_runs": 1,
+      "summary": {
+        "passed": 483,
+        "failed": 0,
+        "skipped": 0,
+        "total": 483
+      },
+      "seed": "0x5eed",
+      "invariant_depth": 30,
+      "campaigns": {
+        "MarketMatrixInvariantTest invariants": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_penaltyTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_repaymentTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        }
+      },
+      "log_sha256": "c02911b3f91e18ec4eee7699711d33e7047549023650a2eb21897b94923daacc",
+      "source_hashes_sha256": "96a3a96249f966a1419d5faf5d8a2e8b896a2d709fb53dd2c852d8cab1b2b302",
+      "coverage_sha256": "1e262bc95933772e3b8151f60490c09bfa087e8dd0da81c8f79d813feacffc25"
+    },
+    "e17-all-default-final": {
+      "exit_code": 0,
+      "head": "f0167547dd49443729470afbfd882e2613ad9e0f",
+      "optimizer_runs": 44,
+      "summary": {
+        "passed": 483,
+        "failed": 0,
+        "skipped": 0,
+        "total": 483
+      },
+      "seed": "0x5eed",
+      "invariant_depth": 30,
+      "campaigns": {
+        "MarketMatrixInvariantTest invariants": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_penaltyTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_repaymentTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        }
+      },
+      "log_sha256": "0599b1f03dc1240e30d524fe2b8c4e055f528f39e0233e769c20c8f58c23c3e9",
+      "source_hashes_sha256": "96a3a96249f966a1419d5faf5d8a2e8b896a2d709fb53dd2c852d8cab1b2b302",
+      "coverage_sha256": "65cf664452f42f759ea099d6beba6cdcd62b1e88272a4fb050f47aab15e4a932"
+    },
+    "e17-stress-noF-96": {
+      "exit_code": 0,
+      "head": "f0167547dd49443729470afbfd882e2613ad9e0f",
+      "optimizer_runs": 1,
+      "summary": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "total": 2
+      },
+      "seed": "0x2602",
+      "invariant_depth": 96,
+      "campaigns": {
+        "invariant_repaymentTimelineAndAccounting()": {
+          "runs": 256,
+          "calls": 24576,
+          "handler_reverts": 0
+        },
+        "invariant_penaltyTimelineAndAccounting()": {
+          "runs": 256,
+          "calls": 24576,
+          "handler_reverts": 0
+        }
+      },
+      "log_sha256": "6f3a81ed03463ee5766810be8b937caaea9b3144712971e643657f4a005dac66",
+      "source_hashes_sha256": "96a3a96249f966a1419d5faf5d8a2e8b896a2d709fb53dd2c852d8cab1b2b302",
+      "coverage_sha256": "9ff4050e4b890ceda6400f244243db0cfa4c3cb82207f1f132829f6921d6d715"
+    },
+    "e17-stress-noF-256": {
+      "exit_code": 0,
+      "head": "f0167547dd49443729470afbfd882e2613ad9e0f",
+      "optimizer_runs": 1,
+      "summary": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "total": 2
+      },
+      "seed": "0xc0ffee",
+      "invariant_depth": 256,
+      "campaigns": {
+        "invariant_repaymentTimelineAndAccounting()": {
+          "runs": 128,
+          "calls": 32768,
+          "handler_reverts": 0
+        },
+        "invariant_penaltyTimelineAndAccounting()": {
+          "runs": 128,
+          "calls": 32768,
+          "handler_reverts": 0
+        }
+      },
+      "log_sha256": "24cb30749dcf75ad3d79b0e1602ff365f8160fdd6cc7294ce26488b81a96809b",
+      "source_hashes_sha256": "96a3a96249f966a1419d5faf5d8a2e8b896a2d709fb53dd2c852d8cab1b2b302",
+      "coverage_sha256": "6d68433de83f273c558312aa966a9906333953dcae0143d6de26d3cb2f1c97c8"
+    },
+    "e17-stress-default-96": {
+      "exit_code": 0,
+      "head": "f0167547dd49443729470afbfd882e2613ad9e0f",
+      "optimizer_runs": 44,
+      "summary": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "total": 2
+      },
+      "seed": "0x2601",
+      "invariant_depth": 96,
+      "campaigns": {
+        "invariant_repaymentTimelineAndAccounting()": {
+          "runs": 256,
+          "calls": 24576,
+          "handler_reverts": 0
+        },
+        "invariant_penaltyTimelineAndAccounting()": {
+          "runs": 256,
+          "calls": 24576,
+          "handler_reverts": 0
+        }
+      },
+      "log_sha256": "b1ab53adf2d74ccac2c3048db29aac28550a2b9ff1e12b13396f71b7dfeffd74",
+      "source_hashes_sha256": "96a3a96249f966a1419d5faf5d8a2e8b896a2d709fb53dd2c852d8cab1b2b302",
+      "coverage_sha256": "13ad8192f367516b7ef7abb5a141d8d5a745cc01ab12c236edf076cee0d482f1"
+    }
+  },
+  "explored_coverage": {
+    "repayment:0": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 47285,
+        "idle_crossings": 7143,
+        "activations": 2204,
+        "deadline_defaults": 1890,
+        "penalty_defaults": 0,
+        "cures": 2046,
+        "closures": 737,
+        "late_closures": 487,
+        "donations": 1181,
+        "rejected_admission": 648,
+        "collections": 1706,
+        "escrow_collections": 535,
+        "partial_batches": 3332
+      },
+      "nonzero_sequences": {
+        "writes": 4648,
+        "idle_crossings": 3547,
+        "activations": 2204,
+        "deadline_defaults": 1890,
+        "penalty_defaults": 0,
+        "cures": 1930,
+        "closures": 737,
+        "late_closures": 487,
+        "donations": 1037,
+        "rejected_admission": 476,
+        "collections": 1510,
+        "escrow_collections": 475,
+        "partial_batches": 1861
+      }
+    },
+    "repayment:1": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 48342,
+        "idle_crossings": 7218,
+        "activations": 2226,
+        "deadline_defaults": 1534,
+        "penalty_defaults": 0,
+        "cures": 1501,
+        "closures": 604,
+        "late_closures": 331,
+        "donations": 981,
+        "rejected_admission": 499,
+        "collections": 330,
+        "escrow_collections": 186,
+        "partial_batches": 920
+      },
+      "nonzero_sequences": {
+        "writes": 4649,
+        "idle_crossings": 3550,
+        "activations": 2226,
+        "deadline_defaults": 1534,
+        "penalty_defaults": 0,
+        "cures": 1422,
+        "closures": 604,
+        "late_closures": 331,
+        "donations": 885,
+        "rejected_admission": 379,
+        "collections": 252,
+        "escrow_collections": 149,
+        "partial_batches": 500
+      }
+    },
+    "repayment:2": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 48903,
+        "idle_crossings": 7249,
+        "activations": 2229,
+        "deadline_defaults": 378,
+        "penalty_defaults": 245,
+        "cures": 1555,
+        "closures": 675,
+        "late_closures": 176,
+        "donations": 1147,
+        "rejected_admission": 570,
+        "collections": 320,
+        "escrow_collections": 176,
+        "partial_batches": 974
+      },
+      "nonzero_sequences": {
+        "writes": 4649,
+        "idle_crossings": 3558,
+        "activations": 2229,
+        "deadline_defaults": 378,
+        "penalty_defaults": 245,
+        "cures": 1485,
+        "closures": 675,
+        "late_closures": 176,
+        "donations": 998,
+        "rejected_admission": 432,
+        "collections": 243,
+        "escrow_collections": 142,
+        "partial_batches": 526
+      }
+    },
+    "repayment:3": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 52659,
+        "idle_crossings": 7251,
+        "activations": 2228,
+        "deadline_defaults": 1963,
+        "penalty_defaults": 0,
+        "cures": 1834,
+        "closures": 653,
+        "late_closures": 460,
+        "donations": 1032,
+        "rejected_admission": 528,
+        "collections": 733,
+        "escrow_collections": 311,
+        "partial_batches": 3398
+      },
+      "nonzero_sequences": {
+        "writes": 4650,
+        "idle_crossings": 3566,
+        "activations": 2228,
+        "deadline_defaults": 1963,
+        "penalty_defaults": 0,
+        "cures": 1699,
+        "closures": 653,
+        "late_closures": 460,
+        "donations": 911,
+        "rejected_admission": 393,
+        "collections": 574,
+        "escrow_collections": 252,
+        "partial_batches": 1728
+      }
+    },
+    "repayment:4": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 48475,
+        "idle_crossings": 7237,
+        "activations": 2230,
+        "deadline_defaults": 1524,
+        "penalty_defaults": 0,
+        "cures": 1520,
+        "closures": 664,
+        "late_closures": 377,
+        "donations": 1110,
+        "rejected_admission": 549,
+        "collections": 321,
+        "escrow_collections": 182,
+        "partial_batches": 930
+      },
+      "nonzero_sequences": {
+        "writes": 4650,
+        "idle_crossings": 3556,
+        "activations": 2230,
+        "deadline_defaults": 1524,
+        "penalty_defaults": 0,
+        "cures": 1446,
+        "closures": 664,
+        "late_closures": 377,
+        "donations": 988,
+        "rejected_admission": 438,
+        "collections": 243,
+        "escrow_collections": 147,
+        "partial_batches": 505
+      }
+    },
+    "repayment:5": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 48208,
+        "idle_crossings": 7229,
+        "activations": 2228,
+        "deadline_defaults": 376,
+        "penalty_defaults": 261,
+        "cures": 1468,
+        "closures": 584,
+        "late_closures": 146,
+        "donations": 900,
+        "rejected_admission": 448,
+        "collections": 325,
+        "escrow_collections": 178,
+        "partial_batches": 1038
+      },
+      "nonzero_sequences": {
+        "writes": 4649,
+        "idle_crossings": 3554,
+        "activations": 2228,
+        "deadline_defaults": 376,
+        "penalty_defaults": 261,
+        "cures": 1395,
+        "closures": 584,
+        "late_closures": 146,
+        "donations": 819,
+        "rejected_admission": 360,
+        "collections": 237,
+        "escrow_collections": 140,
+        "partial_batches": 555
+      }
+    },
+    "penalty:0": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 54182,
+        "idle_crossings": 7245,
+        "activations": 0,
+        "deadline_defaults": 0,
+        "penalty_defaults": 1643,
+        "cures": 2355,
+        "closures": 0,
+        "late_closures": 0,
+        "donations": 1328,
+        "rejected_admission": 0,
+        "collections": 2301,
+        "escrow_collections": 615,
+        "partial_batches": 2355
+      },
+      "nonzero_sequences": {
+        "writes": 4650,
+        "idle_crossings": 3510,
+        "activations": 0,
+        "deadline_defaults": 0,
+        "penalty_defaults": 1643,
+        "cures": 2128,
+        "closures": 0,
+        "late_closures": 0,
+        "donations": 1121,
+        "rejected_admission": 0,
+        "collections": 1989,
+        "escrow_collections": 533,
+        "partial_batches": 1510
+      }
+    },
+    "penalty:1": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 49514,
+        "idle_crossings": 7181,
+        "activations": 1113,
+        "deadline_defaults": 224,
+        "penalty_defaults": 1133,
+        "cures": 3347,
+        "closures": 301,
+        "late_closures": 213,
+        "donations": 1066,
+        "rejected_admission": 267,
+        "collections": 255,
+        "escrow_collections": 148,
+        "partial_batches": 801
+      },
+      "nonzero_sequences": {
+        "writes": 4649,
+        "idle_crossings": 3509,
+        "activations": 1113,
+        "deadline_defaults": 224,
+        "penalty_defaults": 1133,
+        "cures": 3148,
+        "closures": 301,
+        "late_closures": 213,
+        "donations": 928,
+        "rejected_admission": 204,
+        "collections": 170,
+        "escrow_collections": 104,
+        "partial_batches": 402
+      }
+    },
+    "penalty:2": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 50385,
+        "idle_crossings": 7223,
+        "activations": 1110,
+        "deadline_defaults": 227,
+        "penalty_defaults": 1119,
+        "cures": 3460,
+        "closures": 335,
+        "late_closures": 253,
+        "donations": 1190,
+        "rejected_admission": 323,
+        "collections": 261,
+        "escrow_collections": 147,
+        "partial_batches": 968
+      },
+      "nonzero_sequences": {
+        "writes": 4650,
+        "idle_crossings": 3515,
+        "activations": 1110,
+        "deadline_defaults": 227,
+        "penalty_defaults": 1119,
+        "cures": 3237,
+        "closures": 335,
+        "late_closures": 253,
+        "donations": 1030,
+        "rejected_admission": 232,
+        "collections": 186,
+        "escrow_collections": 106,
+        "partial_batches": 490
+      }
+    },
+    "penalty:3": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 58228,
+        "idle_crossings": 7316,
+        "activations": 0,
+        "deadline_defaults": 0,
+        "penalty_defaults": 1246,
+        "cures": 3479,
+        "closures": 0,
+        "late_closures": 0,
+        "donations": 1120,
+        "rejected_admission": 0,
+        "collections": 715,
+        "escrow_collections": 315,
+        "partial_batches": 3485
+      },
+      "nonzero_sequences": {
+        "writes": 4649,
+        "idle_crossings": 3523,
+        "activations": 0,
+        "deadline_defaults": 0,
+        "penalty_defaults": 1246,
+        "cures": 3153,
+        "closures": 0,
+        "late_closures": 0,
+        "donations": 976,
+        "rejected_admission": 0,
+        "collections": 549,
+        "escrow_collections": 241,
+        "partial_batches": 1731
+      }
+    },
+    "penalty:4": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 49647,
+        "idle_crossings": 7183,
+        "activations": 1112,
+        "deadline_defaults": 210,
+        "penalty_defaults": 1094,
+        "cures": 3434,
+        "closures": 375,
+        "late_closures": 235,
+        "donations": 1105,
+        "rejected_admission": 274,
+        "collections": 243,
+        "escrow_collections": 144,
+        "partial_batches": 729
+      },
+      "nonzero_sequences": {
+        "writes": 4649,
+        "idle_crossings": 3506,
+        "activations": 1112,
+        "deadline_defaults": 210,
+        "penalty_defaults": 1094,
+        "cures": 3261,
+        "closures": 375,
+        "late_closures": 235,
+        "donations": 956,
+        "rejected_admission": 222,
+        "collections": 175,
+        "escrow_collections": 109,
+        "partial_batches": 356
+      }
+    },
+    "penalty:5": {
+      "receipt_sequences": 4650,
+      "totals": {
+        "writes": 49682,
+        "idle_crossings": 7191,
+        "activations": 1106,
+        "deadline_defaults": 212,
+        "penalty_defaults": 1134,
+        "cures": 3295,
+        "closures": 322,
+        "late_closures": 203,
+        "donations": 946,
+        "rejected_admission": 251,
+        "collections": 250,
+        "escrow_collections": 139,
+        "partial_batches": 946
+      },
+      "nonzero_sequences": {
+        "writes": 4649,
+        "idle_crossings": 3510,
+        "activations": 1106,
+        "deadline_defaults": 212,
+        "penalty_defaults": 1134,
+        "cures": 3131,
+        "closures": 322,
+        "late_closures": 203,
+        "donations": 844,
+        "rejected_admission": 198,
+        "collections": 181,
+        "escrow_collections": 105,
+        "partial_batches": 471
+      }
+    }
+  },
+  "total_qualification_handler_calls": 523840,
+  "all_applicable_exploration_categories_nonzero_in_every_cell": true,
+  "preserved_invariant_properties": [
+    "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+    "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+    "invariant_drawnPrincipalFollowsRevolvingRules",
+    "invariant_revolvingUtilizationInterestMatchesTheFormula",
+    "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+    "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix",
+    "invariant_protocolFeesAreConservedAcrossTheMatrix",
+    "invariant_underwaterAndRandomizedPathsDoNotPanic",
+    "invariant_sanctionsAndExpectedActionsRemainSafe"
+  ],
+  "coverage_notes": [
+    "Only randomized exploration is summed here; setup and final unwind are excluded.",
+    "Receipt sequences can include an initial framework check and cached counterexample replay. Forge run/call counts remain authoritative.",
+    "Cures counts observed delinquent-to-healthy transitions, including funded closure. Separate cutoff/reset scenarios establish default-run reset semantics."
+  ],
+  "negative_controls": {
+    "e17-negative-controls": [
+      {
+        "control": "inclusive-penalty",
+        "file": "src/libraries/MarketLifecycle.sol",
+        "test": "testFuzz_penaltyCureAtCutoffAndOneSecondLate",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "4ebffc825e88633179a903a0942f2f4e2fb8bc373e2205c53967ca49b219f683",
+        "failures": [
+          "[FAIL: inclusive penalty cutoff: 1808121600 != 0; counterexample: calldata=0xe465a206000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 args=[7, false, true]] testFuzz_penaltyCureAtCutoffAndOneSecondLate(uint8,bool,bool) (runs: 1, \u03bc: 4874740, ~: 4874740)",
+          "[FAIL: inclusive penalty cutoff: 1808121600 != 0; counterexample: calldata=0xe465a206000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 args=[7, false, true]] testFuzz_penaltyCureAtCutoffAndOneSecondLate(uint8,bool,bool) (runs: 1, \u03bc: 4874740, ~: 4874740)"
+        ]
+      },
+      {
+        "control": "repayment-reserve",
+        "file": "src/libraries/MarketLifecycle.sol",
+        "test": "test_idleDateAndDeadlineCrossingMatchesOracle",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "2605e6768a81f248af187dce14e12cca4bc19adaeedd1ef34e6e317d6750dd66",
+        "failures": [
+          "[FAIL: lifecycle views] test_idleDateAndDeadlineCrossingMatchesOracle() (gas: 133372)",
+          "[FAIL: lifecycle views] test_idleDateAndDeadlineCrossingMatchesOracle() (gas: 133372)"
+        ]
+      },
+      {
+        "control": "historical-funding",
+        "file": "src/market/WildcatMarketBase.sol",
+        "test": "testFuzz_lateDonationCannotRewriteFunding",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "1fa2ab699824e233a1bb5513433b058f939fbbfd2deeaa3459069e85df83229b",
+        "failures": [
+          "[FAIL: last observed cash decides: 0 != 1805184000; counterexample: calldata=0x5e9e4f5400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 args=[0, true]] testFuzz_lateDonationCannotRewriteFunding(uint8,bool) (runs: 0, \u03bc: 0, ~: 0)",
+          "[FAIL: last observed cash decides: 0 != 1805184000; counterexample: calldata=0x5e9e4f5400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 args=[0, true]] testFuzz_lateDonationCannotRewriteFunding(uint8,bool) (runs: 0, \u03bc: 0, ~: 0)"
+        ]
+      },
+      {
+        "control": "permanent-default",
+        "file": "src/market/WildcatMarketBase.sol",
+        "test": "testFuzz_deadlineCureIsInclusive",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "e40974ab6c2bb8d2a4972689f42d97ceabf026465812656cdbad32968f57a568",
+        "failures": [
+          "[FAIL: inclusive cutoff: 0 != 1805184000; counterexample: calldata=0xbd7e7d95000000000000000000000000000000000000000000000000000000000000000f000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000083 args=[15, true, true, 131]] testFuzz_deadlineCureIsInclusive(uint8,bool,bool,uint8) (runs: 0, \u03bc: 0, ~: 0)",
+          "[FAIL: inclusive cutoff: 0 != 1805184000; counterexample: calldata=0xbd7e7d95000000000000000000000000000000000000000000000000000000000000000f000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000083 args=[15, true, true, 131]] testFuzz_deadlineCureIsInclusive(uint8,bool,bool,uint8) (runs: 0, \u03bc: 0, ~: 0)"
+        ]
+      },
+      {
+        "control": "closed-accrual",
+        "file": "src/libraries/MarketLifecycle.sol",
+        "test": "testFuzz_deadlineCureIsInclusive",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "5d29929a8d466e2a5362472ae42418d6f4f52f347dc17b5840951e37f70a7ff7",
+        "failures": [
+          "[FAIL: lifecycle oracle: 10 != 0; counterexample: calldata=0xbd7e7d95000000000000000000000000000000000000000000000000000000000000000f000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000083 args=[15, true, true, 131]] testFuzz_deadlineCureIsInclusive(uint8,bool,bool,uint8) (runs: 0, \u03bc: 0, ~: 0)",
+          "[FAIL: lifecycle oracle: 10 != 0; counterexample: calldata=0xbd7e7d95000000000000000000000000000000000000000000000000000000000000000f000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000083 args=[15, true, true, 131]] testFuzz_deadlineCureIsInclusive(uint8,bool,bool,uint8) (runs: 0, \u03bc: 0, ~: 0)"
+        ]
+      },
+      {
+        "control": "batch-liability",
+        "file": "src/market/WildcatMarketBase.sol",
+        "test": "test_partialBatchesSanctionedCollectionAndScheduledDrain",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "c899c6aab3a33c474a4ac726bba13afaa776c6a12dfb5d866afb4864034392e9",
+        "failures": [
+          "[FAIL: lifecycle oracle: 26 != 0] test_partialBatchesSanctionedCollectionAndScheduledDrain() (gas: 28353931)",
+          "[FAIL: lifecycle oracle: 26 != 0] test_partialBatchesSanctionedCollectionAndScheduledDrain() (gas: 28353931)"
+        ]
+      },
+      {
+        "control": "effective-apr-reserve",
+        "file": "src/market/WildcatMarketConfig.sol",
+        "test": "test_replacementAprPolicyCannotLowerRepaymentReserve",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "0011ab8eb890d392ce88505cab9cef6d29c8d24937ee305762fe813e57918385",
+        "failures": [
+          "[FAIL: Error != expected error: InsufficientReservesForOldLiquidityRatio() != RepaymentReserveRequired()] test_replacementAprPolicyCannotLowerRepaymentReserve() (gas: 14602108)",
+          "[FAIL: Error != expected error: InsufficientReservesForOldLiquidityRatio() != RepaymentReserveRequired()] test_replacementAprPolicyCannotLowerRepaymentReserve() (gas: 14602108)"
+        ]
+      },
+      {
+        "control": "reserved-execution-bit",
+        "file": "src/market/WildcatMarketBase.sol",
+        "test": "test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "5a663753e9b0f7cebeb73b4a1affddf0b2456a1097c2f1594e299aece740686a",
+        "failures": [
+          "[FAIL: next call did not revert as expected] test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms() (gas: 19368122)",
+          "[FAIL: next call did not revert as expected] test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms() (gas: 19368122)"
+        ]
+      },
+      {
+        "restored": true,
+        "exit_code": 0,
+        "passed": true
+      }
+    ],
+    "e17-followup-controls-v2": [
+      {
+        "control": "scheduled-queue-veto",
+        "file": "src/market/WildcatMarketWithdrawals.sol",
+        "test": "test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "83ed66dc6a40b95b76090ed2a01a9f84aed804f7f79b28dc26664dbe99ebeb5a",
+        "failures": [
+          "[FAIL: PolicyVeto()] test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed() (gas: 30334844)",
+          "[FAIL: PolicyVeto()] test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed() (gas: 30334844)"
+        ]
+      },
+      {
+        "control": "principal-model-regression",
+        "file": "test/invariants/LifecycleHandler.sol",
+        "test": "test_boundedPaymentRoundingCanFinishFundingAndClearPrincipal",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "299a093b684ef0d97ded7f927422ff727be69aa2a6993ea3e7ef82728affc7d2",
+        "failures": [
+          "[FAIL: lifecycle oracle: 26 != 0] test_boundedPaymentRoundingCanFinishFundingAndClearPrincipal() (gas: 2154571)",
+          "[FAIL: lifecycle oracle: 26 != 0] test_boundedPaymentRoundingCanFinishFundingAndClearPrincipal() (gas: 2154571)"
+        ]
+      },
+      {
+        "restored": true,
+        "exit_code": 0,
+        "passed": true
+      }
+    ],
+    "e17-model-controls-final": [
+      {
+        "control": "released-batch-model",
+        "file": "test/invariants/LifecycleHandler.sol",
+        "test": "test_forcedQueueThatClosesMarketRetainsItsBatchClaim",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "8ff51b39235578dcc447265d1edd64db679d01a76724b1c89a34e4162860ca71",
+        "failures": [
+          "[FAIL: released batch remains tracked: 0 != 1] test_forcedQueueThatClosesMarketRetainsItsBatchClaim() (gas: 4727380)",
+          "[FAIL: released batch remains tracked: 0 != 1] test_forcedQueueThatClosesMarketRetainsItsBatchClaim() (gas: 4727380)"
+        ]
+      },
+      {
+        "control": "rounding-drain-model",
+        "file": "test/invariants/LifecycleHandler.sol",
+        "test": "test_donationAndPendingPaymentCanDrainAfterScheduledClosure",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "d4d6f61c2575b07b819882e17fe4463e1c205adef8f31aafdaa54cf018bd3416",
+        "failures": [
+          "[FAIL: scheduled unwind: 5 != 0] test_donationAndPendingPaymentCanDrainAfterScheduledClosure() (gas: 9723468)",
+          "[FAIL: scheduled unwind: 5 != 0] test_donationAndPendingPaymentCanDrainAfterScheduledClosure() (gas: 9723468)"
+        ]
+      },
+      {
+        "restored": true,
+        "exit_code": 0,
+        "passed": true
+      }
+    ],
+    "e17-batch-control-final": [
+      {
+        "control": "batch-liability-final",
+        "file": "src/market/WildcatMarketBase.sol",
+        "test": "test_seededMatrixMatchesIndependentOracle",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "c899c6aab3a33c474a4ac726bba13afaa776c6a12dfb5d866afb4864034392e9",
+        "failures": [
+          "[FAIL: withdrawal liabilities] test_seededMatrixMatchesIndependentOracle() (gas: 1173762)",
+          "[FAIL: withdrawal liabilities] test_seededMatrixMatchesIndependentOracle() (gas: 1173762)"
+        ]
+      },
+      {
+        "restored": true,
+        "exit_code": 0,
+        "passed": true
+      }
+    ]
+  },
+  "protocol_fault_types": 9,
+  "test_model_fault_types": 3,
+  "batch_control_repeated_on_final_model": true,
+  "artifacts": {
+    "noF": {
+      "native_receipt": "e17-native-noF",
+      "fresh_forge_comparison": "e17-all-noF-v2/artifact-comparison.json",
+      "comparison_sha256": "dade097346aceb7ba639c35599746421b03a8cce145d05915267e81215eb42f8",
+      "targets": [
+        {
+          "contract": "WildcatMarket",
+          "creation_bytes": 25436,
+          "runtime_bytes": 23791,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "creation_bytes": 26053,
+          "runtime_bytes": 24344,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "creation_bytes": 17851,
+          "runtime_bytes": 15367,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "creation_bytes": 19298,
+          "runtime_bytes": 16813,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "creation_bytes": 22585,
+          "runtime_bytes": 20100,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "HooksFactory",
+          "creation_bytes": 17225,
+          "runtime_bytes": 16512,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "creation_bytes": 17775,
+          "runtime_bytes": 17062,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "creation_bytes": 23426,
+          "runtime_bytes": 20941,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "creation_bytes": 23890,
+          "runtime_bytes": 21405,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "creation_bytes": 23285,
+          "runtime_bytes": 20773,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        }
+      ]
+    },
+    "default": {
+      "native_receipt": "e17-native-default",
+      "fresh_forge_comparison": "e17-all-default-final/artifact-comparison.json",
+      "comparison_sha256": "6cb94a9d4744288d8912d255f66652b371d7b6f760834eaf9d7c4784d7545c0c",
+      "targets": [
+        {
+          "contract": "WildcatMarket",
+          "creation_bytes": 26068,
+          "runtime_bytes": 24488,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "creation_bytes": 26719,
+          "runtime_bytes": 25061,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "creation_bytes": 19075,
+          "runtime_bytes": 16349,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "creation_bytes": 20515,
+          "runtime_bytes": 17788,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "creation_bytes": 23742,
+          "runtime_bytes": 21015,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "HooksFactory",
+          "creation_bytes": 18282,
+          "runtime_bytes": 17441,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "creation_bytes": 19201,
+          "runtime_bytes": 18360,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "creation_bytes": 24562,
+          "runtime_bytes": 21835,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "creation_bytes": 25027,
+          "runtime_bytes": 22300,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "creation_bytes": 24311,
+          "runtime_bytes": 21554,
+          "creation_identical_to_e16": true,
+          "runtime_identical_to_e16": true,
+          "abi_identical_to_e16": true,
+          "layout_identical_to_e16": true
+        }
+      ]
+    }
+  },
+  "model_corrections": [
+    {
+      "regression": "test_idleQueueAllocationMatchesOracle",
+      "issue": "Public batch getter previews a payment; use an event-derived raw ledger to avoid applying it twice."
+    },
+    {
+      "regression": "test_boundedPaymentRoundingCanFinishFundingAndClearPrincipal",
+      "issue": "Post-repayment old-batch rounding can complete backing and close, clearing drawn principal."
+    },
+    {
+      "regression": "test_forcedQueueThatClosesMarketRetainsItsBatchClaim",
+      "issue": "Forced queue can close in the same call, clearing the pending key; preserve the emitted key."
+    },
+    {
+      "regression": "test_donationAndPendingPaymentCanDrainAfterScheduledClosure",
+      "issue": "Preview and actual pending payments can differ by one unit of allocation rounding. Permit only that bounded top-up in the drain; require automatic closure."
+    }
+  ],
+  "superseded_receipts": {
+    "e17-all-default": "Initial principal-model regression; fixed and retained as a deterministic scenario.",
+    "e17-all-noF": "Forced-queue tracking and one-unit final-drain assumptions failed; queue-veto fixture also lacked required access flags.",
+    "e17-followup-controls": "Invalid queue-veto fixture failed before reaching the mutation; restored baseline also failed. This receipt is rejected as control evidence and superseded by v2.",
+    "e17-noF-regressions": "Diagnostic logging event was not declared in the minimal test kernel; compile-only failure.",
+    "e17-noF-regressions-v2": "Deterministic failing reproductions of the two no-F model assumptions, with full traces.",
+    "e17-noF-regressions-v3": "Corrected test model passes all 17 selected scenarios/configuration tests."
+  },
+  "remaining_work": [
+    "Update the deployment ceremony and rehearse the actual plan on an Anvil fork, including ownership, resume, artifact readback and bundle gas limits.",
+    "Finalize reproducible release-build/CI gates alongside rehearsal.",
+    "Complete canonical release qualification, pending integration callback updates, audit delta/refreeze and inventory."
+  ],
+  "signed_checkpoints": [
+    "f016754 G kethcode <dave@wildcat.finance> test: retain released claims and bound lifecycle rounding corrections",
+    "b12379e G kethcode <dave@wildcat.finance> test: verify lifecycle batch collection and bounded scheduled exits",
+    "c86209a G kethcode <dave@wildcat.finance> test: exercise repayment and penalty lifecycles across the market matrix",
+    "97f09df G kethcode <dave@wildcat.finance> test: add independent lifecycle oracle and shared invariant fixtures",
+    "ff228c0 G kethcode <dave@wildcat.finance> research: plan repayment and default invariant expansion"
+  ]
+}
