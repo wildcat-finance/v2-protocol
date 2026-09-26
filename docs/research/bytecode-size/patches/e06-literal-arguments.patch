@@ -1,0 +1,75 @@
+diff --git a/src/market/WildcatMarketBase.sol b/src/market/WildcatMarketBase.sol
+index 0c75f5b..d94c9f0 100644
+--- a/src/market/WildcatMarketBase.sol
++++ b/src/market/WildcatMarketBase.sol
+@@ -525,7 +525,7 @@ contract WildcatMarketBase is
+   ) external onlyBorrower nonReentrant sphereXGuardExternal {
+     address newBorrowerPrincipal = _validateBorrowerTransferTarget(
+       newBorrower,
+-      _runtimeConstant(address(0))
++      address(0)
+     );
+     address previousPendingBorrower = pendingBorrower();
+     address previousPendingBorrowerPrincipal = pendingBorrowerPrincipal();
+@@ -674,7 +674,7 @@ contract WildcatMarketBase is
+   /// @dev these callers only need MarketState. skip the three-result wrapper and return its
+   ///      existing memory pointer without allocating another empty MarketState.
+   function _calculateCurrentStatePointers() internal view returns (uint256 state) {
+-    LifecycleTransition memory next = _calculateTransition(totalAssets(), _runtimeConstant(1) != 0);
++    LifecycleTransition memory next = _calculateTransition(totalAssets(), true);
+     assembly ('memory-safe') {
+       state := mload(next)
+     }
+@@ -791,7 +791,7 @@ contract WildcatMarketBase is
+    */
+   function _getUpdatedState() internal returns (MarketState memory state) {
+     // keep the view/write/repay callers on one transition body. constant flags clone it in viaIR.
+-    return _getUpdatedState(_runtimeConstant(1) != 0);
++    return _getUpdatedState(true);
+   }
+ 
+   /// @dev repayment transfers arrive before this call. defer today's closure until the explicit
+@@ -804,14 +804,14 @@ contract WildcatMarketBase is
+     state = next.state;
+     for (uint256 i; i <= next.accrualCount; ++i) {
+       if (next.batchExpired.and(next.expiryAfterAccrual == i))
+-        _commitTransitionBatch(next, _runtimeConstant(1) != 0);
++        _commitTransitionBatch(next, true);
+       if (i < next.accrualCount) {
+         LifecycleAccrual memory a = next.accruals[i];
+         emit_InterestAndFeesAccrued(a);
+       }
+     }
+     if ((!next.batchExpired).and(next.batchExpiry != 0))
+-      _commitTransitionBatch(next, _runtimeConstant(0) != 0);
++      _commitTransitionBatch(next, false);
+     if (next.repaymentActivated) emit_RepaymentDateReached(repaymentDate());
+     if ((_lifecycle.defaultedAt == 0).and(next.lifecycle.defaultedAt != 0)) {
+       emit_DefaultRecorded(next.lifecycle.defaultedAt);
+@@ -826,7 +826,7 @@ contract WildcatMarketBase is
+     WithdrawalBatch memory batch = next.batch;
+     if (batch.scaledAmountBurned != previous.scaledAmountBurned) {
+       uint128 paid = batch.normalizedAmountPaid - previous.normalizedAmountPaid;
+-      emit_Transfer(address(this), _runtimeConstant(address(0)), paid);
++      emit_Transfer(address(this), address(0), paid);
+       emit_WithdrawalBatchPayment(
+         expiry,
+         batch.scaledAmountBurned - previous.scaledAmountBurned,
+@@ -858,7 +858,7 @@ contract WildcatMarketBase is
+       WithdrawalBatch memory pendingBatch
+     )
+   {
+-    LifecycleTransition memory next = _calculateTransition(totalAssets(), _runtimeConstant(1) != 0);
++    LifecycleTransition memory next = _calculateTransition(totalAssets(), true);
+     return (next.state, next.batchExpiry, next.batch);
+   }
+ 
+@@ -1194,7 +1194,7 @@ contract WildcatMarketBase is
+     if (scaledAmountBurned == 0) return (0, 0);
+ 
+     // Emit transfer for external trackers to indicate burn.
+-    emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
++    emit_Transfer(address(this), address(0), normalizedAmountPaid);
+     emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
+   }
+ 
