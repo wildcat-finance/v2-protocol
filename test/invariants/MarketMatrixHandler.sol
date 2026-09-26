@@ -297,27 +297,30 @@ contract MarketMatrixHandler {
     }
   }
 
+  struct RepayAction {
+    uint256 amount;
+    uint256 expectedDrawn;
+    uint256 maximumBatches;
+  }
+
   function _repayCell(uint256 cellIndex, uint256 amountSeed) internal {
     WildcatMarket market = markets[cellIndex];
     if (market.isClosed()) return;
-
+    RepayAction memory action;
     uint256 marketAssets = market.totalAssets();
     uint256 outstandingDebt = market.totalDebts().satSub(marketAssets);
-    uint256 amount = _bound(amountSeed, 1, _maximumRepayWithSurplus(outstandingDebt));
-    uint256 expectedDrawn = _repaymentExpectation(cellIndex, marketAssets, amount);
-
-    _fundBorrower(cellIndex, amount);
+    action.amount = _bound(amountSeed, 1, _maximumRepayWithSurplus(outstandingDebt));
+    action.expectedDrawn = _repaymentExpectation(cellIndex, marketAssets, action.amount);
+    _fundBorrower(cellIndex, action.amount);
     (bool success, ) = _callAs(
       cellIndex,
       _borrower(),
       address(market),
-      abi.encodeCall(WildcatMarket.repay, (amount))
+      abi.encodeCall(WildcatMarket.repay, (action.amount))
     );
-    if (!success) {
-      unexpectedActionFailures++;
-    } else if (revolving[cellIndex] && _drawnAmount(cellIndex) != expectedDrawn) {
+    if (!success) unexpectedActionFailures++;
+    else if (revolving[cellIndex] && _drawnAmount(cellIndex) != action.expectedDrawn)
       drawnAmountFailures++;
-    }
     _observe(cellIndex);
   }
 
@@ -406,34 +409,31 @@ contract MarketMatrixHandler {
   }
 
   function repayAndProcess(uint256 amountSeed, uint256 batchSeed) external {
-    for (uint256 i; i < markets.length; i++) {
-      WildcatMarket market = markets[i];
-      if (market.isClosed()) continue;
+    for (uint256 i; i < markets.length; i++) _repayAndProcessCell(i, amountSeed, batchSeed);
+  }
 
-      uint256 outstandingDebt = market.totalDebts().satSub(market.totalAssets());
-      uint256 amount = _bound(amountSeed, 0, _maximumRepayWithSurplus(outstandingDebt));
-      uint256 maximumBatches = _bound(batchSeed, 0, 8);
-      uint256 expectedDrawn = _repaymentExpectation(i, market.totalAssets(), amount);
-      if (amount != 0) _fundBorrower(i, amount);
-      (bool success, ) = _callAs(
-        i,
-        _borrower(),
-        address(market),
-        abi.encodeWithSignature(
-          'repayAndProcessUnpaidWithdrawalBatches(uint256,uint256)',
-          amount,
-          maximumBatches
-        )
-      );
-      if (!success) {
-        unexpectedActionFailures++;
-      } else if (revolving[i]) {
-        if (_drawnAmount(i) != expectedDrawn) {
-          drawnAmountFailures++;
-        }
-      }
-      _observe(i);
-    }
+  function _repayAndProcessCell(uint256 i, uint256 amountSeed, uint256 batchSeed) internal {
+    WildcatMarket market = markets[i];
+    if (market.isClosed()) return;
+    RepayAction memory action;
+    uint256 outstandingDebt = market.totalDebts().satSub(market.totalAssets());
+    action.amount = _bound(amountSeed, 0, _maximumRepayWithSurplus(outstandingDebt));
+    action.maximumBatches = _bound(batchSeed, 0, 8);
+    action.expectedDrawn = _repaymentExpectation(i, market.totalAssets(), action.amount);
+    if (action.amount != 0) _fundBorrower(i, action.amount);
+    (bool success, ) = _callAs(
+      i,
+      _borrower(),
+      address(market),
+      abi.encodeWithSignature(
+        'repayAndProcessUnpaidWithdrawalBatches(uint256,uint256)',
+        action.amount,
+        action.maximumBatches
+      )
+    );
+    if (!success) unexpectedActionFailures++;
+    else if (revolving[i] && _drawnAmount(i) != action.expectedDrawn) drawnAmountFailures++;
+    _observe(i);
   }
 
   function updateState() external {
@@ -708,11 +708,23 @@ contract MarketMatrixHandler {
         address actor = actors[j];
         if (market.scaledBalanceOf(actor) == 0) continue;
         if (sanctionedActors[actor]) {
-          market.nukeFromOrbit(actor);
+          (bool success, ) = _callAs(
+            i,
+            actor,
+            address(market),
+            abi.encodeWithSignature('nukeFromOrbit(address)', actor)
+          );
+          if (!success) return (i, 8);
           _trackExpiry(i, market.previousState().pendingWithdrawalExpiry);
         } else {
-          vm.prank(actor);
-          _trackExpiry(i, market.queueFullWithdrawal());
+          (bool success, bytes memory result) = _callAs(
+            i,
+            actor,
+            address(market),
+            abi.encodeWithSignature('queueFullWithdrawal()')
+          );
+          if (!success) return (i, 8);
+          _trackExpiry(i, abi.decode(result, (uint32)));
         }
       }
     }
@@ -720,11 +732,22 @@ contract MarketMatrixHandler {
     vm.warp(vm.getBlockTimestamp() + 2);
     for (uint256 i; i < markets.length; i++) {
       WildcatMarket market = markets[i];
-      market.updateState();
+      (bool updated, ) = _callAs(
+        i,
+        address(this),
+        address(market),
+        abi.encodeCall(WildcatMarket.updateState, ())
+      );
+      if (!updated) return (i, 9);
       uint32[] storage expiries = trackedExpiries[i];
       for (uint256 j; j < expiries.length; j++) {
         for (uint256 k; k < actors.length; k++) {
-          try market.executeWithdrawal(actors[k], expiries[j]) {} catch {}
+          _callAs(
+            i,
+            address(this),
+            address(market),
+            abi.encodeWithSignature('executeWithdrawal(address,uint32)', actors[k], expiries[j])
+          );
         }
       }
 
@@ -988,6 +1011,18 @@ contract MarketMatrixHandler {
     address target,
     bytes memory data
   ) internal returns (bool, bytes memory) {
+    return this.executeRecordedCall(cellIndex, caller, target, data);
+  }
+
+  // don't inline Vm.Log[] decoding and fee bookkeeping into each action's locals. the
+  // explicit prank still controls the protocol caller; only this handler can use the helper.
+  function executeRecordedCall(
+    uint256 cellIndex,
+    address caller,
+    address target,
+    bytes memory data
+  ) external returns (bool, bytes memory) {
+    require(msg.sender == address(this), 'handler only');
     WildcatMarket market = markets[cellIndex];
     // keep fee bookkeeping in memory while solc decodes the nested Vm.Log[] return value.
     CallRecord memory record = CallRecord({

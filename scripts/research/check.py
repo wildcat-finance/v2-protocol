@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--invariant-runs", type=int)
     parser.add_argument("--invariant-depth", type=int)
     parser.add_argument("--match-contract", help="optional focused campaign within the selected scope")
+    parser.add_argument("--lifecycle-coverage", action="store_true", help="archive per-sequence E17 coverage before its final unwind")
     args = parser.parse_args()
     args.receipt.mkdir(parents=True, exist_ok=False)
     config = (ROOT / "foundry.toml").read_text()
@@ -127,6 +128,11 @@ def main():
         gate_pattern = "(" + gate_pattern + "|test_realLimits_)"
     command += ["--match-test" if args.gates else "--no-match-test", gate_pattern]
     env = {**os.environ, "FOUNDRY_PROFILE": "research"}
+    coverage_path = ROOT / "deploy-out/e17-lifecycle-coverage.jsonl"
+    if args.lifecycle_coverage:
+        coverage_path.parent.mkdir(exist_ok=True)
+        coverage_path.write_text("")
+        env["E17_COVERAGE_FILE"] = str(coverage_path)
     with temporary_config(config):
         config_result = subprocess.run(["forge", "config", "--json"], env=env, cwd=ROOT, text=True, capture_output=True, check=True)
         effective = json.loads(config_result.stdout)
@@ -143,6 +149,26 @@ def main():
     record["exit_code"] = result.returncode
     record["completed"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     (args.receipt / "receipt.json").write_text(json.dumps(record, indent=2) + "\n")
+    if args.lifecycle_coverage:
+        raw = coverage_path.read_text()
+        (args.receipt / "lifecycle-coverage.jsonl").write_text(raw)
+        names = ("writes", "idle_crossings", "activations", "deadline_defaults", "penalty_defaults", "cures", "closures", "late_closures", "donations", "rejected_admission", "collections", "escrow_collections", "partial_batches")
+        cells = {}
+        for line in raw.splitlines():
+            row = json.loads(line)
+            key = row["campaign"] + ":" + str(row["cell"])
+            def decode(value):
+                value = value.removeprefix("0x")
+                assert len(value) == len(names) * 64, "coverage ABI changed"
+                return dict(zip(names, (int(value[i:i + 64], 16) for i in range(0, len(value), 64))))
+            seed, explored = decode(row["seeded"]), decode(row["explored"])
+            cell = cells.setdefault(key, {"sequences": 0, "seeded_per_sequence": seed, "explored_total": dict.fromkeys(names, 0), "explored_nonzero_sequences": dict.fromkeys(names, 0)})
+            assert cell["seeded_per_sequence"] == seed, "seed coverage drifted"
+            cell["sequences"] += 1
+            for name, value in explored.items():
+                cell["explored_total"][name] += value
+                cell["explored_nonzero_sequences"][name] += int(value != 0)
+        (args.receipt / "lifecycle-coverage.json").write_text(json.dumps(cells, indent=2) + "\n")
     output = (args.receipt / "tests.log").read_text()
     print(output[-12000:], flush=True)
     if result.returncode == 0 and "tests passed" not in output and "test passed" not in output:

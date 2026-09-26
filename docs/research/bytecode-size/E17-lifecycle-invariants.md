@@ -1,7 +1,7 @@
 # E17: repayment and default invariants
 
-Source parent: `95e6f0c` (E16). Status: implementation in progress. Shared fixtures and the independent
-lifecycle oracle are implemented; generated lifecycle actions are next.
+Source parent: `95e6f0c` (E16). Status: lifecycle campaigns and boundary scenarios implemented. Final coverage
+refinements and qualification are in progress.
 
 Expand stateful coverage of the V2.5 repayment and default features before the
 deployment rehearsal. The user has confirmed that an Anvil-fork rehearsal is
@@ -130,8 +130,8 @@ path rather than forcing manual closure to rescue an otherwise broken state.
 | Task | Work | Completion evidence | Status |
 | --- | --- | --- | --- |
 | E17-01 | Map accepted behavior and current handler assumptions; record sequencing. | This plan names the untested transitions and preserves the existing campaign. | Complete |
-| E17-02 | Add lifecycle fixtures, shared handler extension points, independent bookkeeping, and coverage counters. | Shared matrix fixture, independent boundary oracle, per-cell seed/exploration counters, and initial scenario checks. Original campaign qualification below. | In progress |
-| E17-03 | Add stateful date/deadline/default, funding, admission, and APR properties. | Exact-cutoff, idle-crossing, cure/re-entry, and late-first-call scenarios validate the oracle; generated sequences exercise both default causes. | Pending |
+| E17-02 | Add lifecycle fixtures, shared handler extension points, independent bookkeeping, and coverage counters. | Shared matrix fixture, independent boundary oracle, per-cell seed/exploration counters, and initial scenario checks. Original campaign qualification below. | Complete |
+| E17-03 | Add stateful date/deadline/default, funding, admission, and APR properties. | Two six-cell campaigns, independent boundary scenarios, real-factory authority checks, and active APR/admission probes. Development qualification: 15 tests, including 64 runs/depth 30 for each new campaign. | Complete |
 | E17-04 | Extend conservation and revolving expectations through automatic closure; prove batch collection and sanctions behavior. | Generated traces and final unwind cover partially funded FIFO batches, closure, surplus, and every lender's exit. | Pending |
 | E17-05 | Qualify both compiler configurations, varied seeds, and negative controls. | Existing/new campaigns and the relevant broader tests pass; transition counts, failures, traces, and artifact comparisons are archived. | Pending |
 | E17-06 | Record results, any regressions/fixes, and the subsequent rehearsal scope. | Signed checkpoints and a reviewable report distinguish completed invariant coverage from outstanding ceremony/release work. | Pending |
@@ -192,5 +192,34 @@ production or compiler changes.
 
 Development evidence: both initial lifecycle scenarios and the original
 campaign pass at 16 runs/depth 30. This reduced development run is not the
-qualification budget. The full original 2,000-run campaign is recorded in the
-checkpoint below once complete.
+qualification budget. The full original campaign passed at 2,000 runs/depth 30: 60,000 calls, zero
+handler reverts (`e17-fixtures-default`). Later handler changes are requalified
+at the same budget before E17 completion.
+
+### E17-03: lifecycle actions and boundary scenarios
+
+`e17-actions-dev8` passes 15 tests under runs 44. The two new campaigns each
+completed 64 runs/depth 30 (1,920 calls, zero handler reverts), with strict
+`fail_on_revert` enabled. This is development evidence; the final budgets remain
+larger and include both compiler configurations.
+
+The first randomized failures reduced to advancing time and queuing a
+withdrawal. The oracle had treated `getWithdrawalBatch()` as a raw stored batch.
+That getter includes a simulated payment, and floor rounding can permit one
+more scaled unit immediately after a write. `test_idleQueueAllocationMatchesOracle`
+reproduced the one-unit discrepancy. The oracle now reconstructs committed
+batch totals from queue/payment events; the regression and both generated
+campaigns pass. No production change was needed.
+
+Additional checks cover exact deadline and penalty cures, one-unit shortfalls,
+late-observed donations, observed cure/re-entry, ready periodic APR proposals,
+replacement APR policy output, reserved execution-hook rejection, sanctions
+collection, FIFO ordering, and borrower/principal/hook-admin transfers through
+the real factory stack. The original final unwind now uses the shared recorded
+calls so the new oracle follows its accounting too. Scheduled markets close by
+funding their repayment obligation; only no-date cells retain manual closure.
+
+Some test-only call and donation bookkeeping uses self-call helpers to keep
+large struct and log-array decodes out of inherited action locals. Helpers
+reject callers other than their handler and are excluded from fuzz selectors.
+No compiler setting or production contract was changed to address stack limits.
