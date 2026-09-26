@@ -122,6 +122,11 @@ pending integration callback updates, full release checks and audit/refreeze
 work remain. The existing invariant matrix has no scheduled repayment dates;
 restoring that suite does not add a stateful repayment-date lifecycle model.
 
+[E17](./E17-lifecycle-invariants.md) is the next planned qualification step.
+It expands those lifecycle invariants before the required Anvil-fork rehearsal.
+The ceremony update and release-build gates follow or accompany that rehearsal;
+an additional execution client is not a selected requirement.
+
 The arena's offsets track three memory struct layouts and must be reviewed if
 those structs change. Revolving has only 232 runtime bytes spare. Recheck sizes
 after any selected-code or compiler change.

@@ -18,6 +18,11 @@ on-chain hook creation-code commitments and checks them before deployment.
 This does not adopt the research compiler settings
 or compressed deployment format into the release configuration.
 
+Next: [E17](./E17-lifecycle-invariants.md) plans stateful coverage of repayment
+dates, default, and automatic closure. The user has prioritized this before
+the required Anvil-fork deployment rehearsal; ceremony and release-gate work
+follow that expansion.
+
 ## Objective and constraints
 
 Make both market models and the supported hook/composition targets deployable
