@@ -87,6 +87,11 @@ qualification. This restores the existing six-cell invariant suite. Those cells
 have no scheduled repayment dates; this does not add a stateful repayment-date
 lifecycle model or complete FastLZ/release verification.
 
+Follow-up: [E14](./E14-qualification-fixtures.md) resolves the APR test's cached
+time expectation and the runner's artifact freshness. Both broader campaigns
+then pass all 436 reported tests, with fresh matches for all ten targets under
+each compiler configuration. The original E13 receipts above remain unchanged.
+
 Evidence is under `/home/kethcode/wildcat/bytecode-research/2026-09-26/`:
 
 - `e13-baseline-invariants/` and `e13-baseline-worktree/`;

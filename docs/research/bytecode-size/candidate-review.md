@@ -5,8 +5,10 @@ Baseline: `7b47eec`. No candidates have been adopted into the release branch or
 pushed. The repository's normal compiler configuration remains runs 44.
 
 FastLZ is now the assumed candidate for continued verification. The invariant
-compilation blocker is resolved by [E13](./E13-invariant-parity.md); deployment
-tool integration and full release qualification remain separate work.
+compilation blocker is resolved by [E13](./E13-invariant-parity.md), and
+[E14](./E14-qualification-fixtures.md) passes the broader qualification under
+both compiler configurations. Deployment-tool integration and full release
+qualification remain separate work.
 
 ## Demonstrated bundle
 
@@ -47,16 +49,15 @@ layouts remain unchanged across the measured contracts.
 - 375 focused tests pass at runs 44 before E12's annotation-only change.
 - 435 focused tests pass with the final size settings, including the additional
   arithmetic suites. Fuzz cases use 1,000 runs and seed 0x5eed.
-- E13 brings the candidate qualification to 436 reported tests by restoring all
-  nine invariant properties, which Forge reports as one group. The existing
+- E13 restores all nine invariant properties, which Forge reports as one group.
+  E14 passes all 436 reported tests under both compiler configurations. The existing
   2,000 runs, depth 30, 17 actions, six market/hook cells and final unwind remain.
   The campaign completes 60,000 handler calls with zero reverts under both the
-  candidate settings and runs 44. The seven production artifacts from both
-  broader builds match the independent compiler output exactly.
-- E13's broader runs-44 run has one remaining APR-test expiry mismatch, with
-  435 passing tests including all invariants. Its focused graph also leaves an
-  unused composition artifact stale; fresh all-ten comparisons use the strict
-  deployment graph. Both follow-ups are recorded in E13.
+  candidate settings and runs 44. All ten measured artifacts are fresh in both
+  broader builds and match the independent compiler output exactly.
+- E14 fixes the APR test's cached time expectation and adds every measured target
+  to the runner's build graph. E13's failed APR-test receipt and stale composition
+  artifact comparison remain archived; both follow-ups are resolved.
 - 70 arithmetic and bounded-call tests pass at runs 44 after E12.
 - Two tests deploy and exercise 12 factory/market/hook combinations with the
   actual code-size limit enforced. They cover both market types, three production
@@ -65,7 +66,8 @@ layouts remain unchanged across the measured contracts.
   measurements, including full ABIs and normalized storage layouts.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
-[E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md) and the
+[E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
+[E14](./E14-qualification-fixtures.md) and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
 `/home/kethcode/wildcat/bytecode-research/2026-09-26/`.

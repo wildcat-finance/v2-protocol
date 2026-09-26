@@ -1,0 +1,466 @@
+{
+  "source_parent": "59ca2c2",
+  "production_source_changes": false,
+  "qualification": {
+    "e14-baseline-hooks": {
+      "exit_code": 0,
+      "optimizer_runs": 44,
+      "summary": {
+        "passed": 197,
+        "failed": 0,
+        "skipped": 0,
+        "total": 197
+      },
+      "invariant_properties": [],
+      "invariant_metrics": null,
+      "invariant_depth": 30,
+      "seed": "0x5eed",
+      "actions": {},
+      "log_sha256": "5b8ec0b47e5d87e8c745b46c65bbd1ede97b2406d7974fe040def8e1e7ecbffb"
+    },
+    "e14-all-default": {
+      "exit_code": 0,
+      "optimizer_runs": 44,
+      "summary": {
+        "passed": 436,
+        "failed": 0,
+        "skipped": 0,
+        "total": 436
+      },
+      "invariant_properties": [
+        "invariant_drawnPrincipalFollowsRevolvingRules",
+        "invariant_protocolFeesAreConservedAcrossTheMatrix",
+        "invariant_revolvingUtilizationInterestMatchesTheFormula",
+        "invariant_sanctionsAndExpectedActionsRemainSafe",
+        "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+        "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+        "invariant_underwaterAndRandomizedPathsDoNotPanic",
+        "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+        "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix"
+      ],
+      "invariant_metrics": {
+        "runs": 2000,
+        "calls": 60000,
+        "handler_reverts": 0
+      },
+      "invariant_depth": 30,
+      "seed": "0x5eed",
+      "actions": {
+        "borrow": {
+          "calls": 3479,
+          "reverts": 0,
+          "discards": 0
+        },
+        "collectFees": {
+          "calls": 3557,
+          "reverts": 0,
+          "discards": 0
+        },
+        "deposit": {
+          "calls": 3519,
+          "reverts": 0,
+          "discards": 0
+        },
+        "executeAprReduction": {
+          "calls": 3581,
+          "reverts": 0,
+          "discards": 0
+        },
+        "executeWithdrawal": {
+          "calls": 3512,
+          "reverts": 0,
+          "discards": 0
+        },
+        "nukeFromOrbit": {
+          "calls": 3557,
+          "reverts": 0,
+          "discards": 0
+        },
+        "proposeAprReduction": {
+          "calls": 3535,
+          "reverts": 0,
+          "discards": 0
+        },
+        "queueFullWithdrawal": {
+          "calls": 3395,
+          "reverts": 0,
+          "discards": 0
+        },
+        "queueWithdrawal": {
+          "calls": 3598,
+          "reverts": 0,
+          "discards": 0
+        },
+        "queueWithdrawalScaled": {
+          "calls": 3568,
+          "reverts": 0,
+          "discards": 0
+        },
+        "repay": {
+          "calls": 3557,
+          "reverts": 0,
+          "discards": 0
+        },
+        "repayAndProcess": {
+          "calls": 3471,
+          "reverts": 0,
+          "discards": 0
+        },
+        "sanctionBorrower": {
+          "calls": 3573,
+          "reverts": 0,
+          "discards": 0
+        },
+        "sanctionLender": {
+          "calls": 3422,
+          "reverts": 0,
+          "discards": 0
+        },
+        "transfer": {
+          "calls": 3541,
+          "reverts": 0,
+          "discards": 0
+        },
+        "updateState": {
+          "calls": 3513,
+          "reverts": 0,
+          "discards": 0
+        },
+        "warp": {
+          "calls": 3622,
+          "reverts": 0,
+          "discards": 0
+        }
+      },
+      "log_sha256": "efccad555d5f3554d7bc423e4f21cabd228103aa83fac8f58976e99208e6a093",
+      "artifact_comparison": [
+        {
+          "contract": "WildcatMarket",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactory",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        }
+      ]
+    },
+    "e14-all-noF": {
+      "exit_code": 0,
+      "optimizer_runs": 1,
+      "summary": {
+        "passed": 436,
+        "failed": 0,
+        "skipped": 0,
+        "total": 436
+      },
+      "invariant_properties": [
+        "invariant_drawnPrincipalFollowsRevolvingRules",
+        "invariant_protocolFeesAreConservedAcrossTheMatrix",
+        "invariant_revolvingUtilizationInterestMatchesTheFormula",
+        "invariant_sanctionsAndExpectedActionsRemainSafe",
+        "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+        "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+        "invariant_underwaterAndRandomizedPathsDoNotPanic",
+        "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+        "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix"
+      ],
+      "invariant_metrics": {
+        "runs": 2000,
+        "calls": 60000,
+        "handler_reverts": 0
+      },
+      "invariant_depth": 30,
+      "seed": "0x5eed",
+      "actions": {
+        "borrow": {
+          "calls": 3479,
+          "reverts": 0,
+          "discards": 0
+        },
+        "collectFees": {
+          "calls": 3557,
+          "reverts": 0,
+          "discards": 0
+        },
+        "deposit": {
+          "calls": 3519,
+          "reverts": 0,
+          "discards": 0
+        },
+        "executeAprReduction": {
+          "calls": 3581,
+          "reverts": 0,
+          "discards": 0
+        },
+        "executeWithdrawal": {
+          "calls": 3512,
+          "reverts": 0,
+          "discards": 0
+        },
+        "nukeFromOrbit": {
+          "calls": 3557,
+          "reverts": 0,
+          "discards": 0
+        },
+        "proposeAprReduction": {
+          "calls": 3535,
+          "reverts": 0,
+          "discards": 0
+        },
+        "queueFullWithdrawal": {
+          "calls": 3395,
+          "reverts": 0,
+          "discards": 0
+        },
+        "queueWithdrawal": {
+          "calls": 3598,
+          "reverts": 0,
+          "discards": 0
+        },
+        "queueWithdrawalScaled": {
+          "calls": 3568,
+          "reverts": 0,
+          "discards": 0
+        },
+        "repay": {
+          "calls": 3557,
+          "reverts": 0,
+          "discards": 0
+        },
+        "repayAndProcess": {
+          "calls": 3471,
+          "reverts": 0,
+          "discards": 0
+        },
+        "sanctionBorrower": {
+          "calls": 3573,
+          "reverts": 0,
+          "discards": 0
+        },
+        "sanctionLender": {
+          "calls": 3422,
+          "reverts": 0,
+          "discards": 0
+        },
+        "transfer": {
+          "calls": 3541,
+          "reverts": 0,
+          "discards": 0
+        },
+        "updateState": {
+          "calls": 3513,
+          "reverts": 0,
+          "discards": 0
+        },
+        "warp": {
+          "calls": 3622,
+          "reverts": 0,
+          "discards": 0
+        }
+      },
+      "log_sha256": "c4d48823cf431bb31d9cd76d0df4626557784d63db09bfc71cbc09807abba2b9",
+      "artifact_comparison": [
+        {
+          "contract": "WildcatMarket",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactory",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        }
+      ]
+    }
+  },
+  "diagnostic_trace": {
+    "receipt": "e14-apr-before",
+    "exit_code": 1,
+    "expected_stale_expiry": 1726099200,
+    "emitted_correct_expiry": 1725494400,
+    "trace_sha256": "04d37ad1dd9ea436f8a34de9f035826a6d93dd9df16a245298c75de79ca689f2"
+  },
+  "strict_deployment_evidence": "e13-deployment-noF: 12 combinations, real code-size limit, all ten artifacts exactly match the unchanged native candidate binaries."
+}

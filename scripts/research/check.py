@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 from contextlib import contextmanager
-from bytecode import sources as collect_sources
+from bytecode import TARGETS, sources as collect_sources
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -83,6 +83,9 @@ def main():
         path: hashlib.sha256(content.encode()).hexdigest() for path, content in sources.items()
     }, indent=2) + '\n')
     roots = {path.relative_to(ROOT).as_posix() for path in include | set(ROOT.glob('src/**/*.sol'))}
+    # rebuild every measured artifact under this profile, including unused composition mocks.
+    # otherwise deploy-out can retain a target from an earlier compiler configuration.
+    roots |= set(TARGETS.values())
     while True:
         reachable = collect_sources(roots)
         # artifact deployment uses string paths too; keep those contracts in the build graph.
