@@ -9,8 +9,9 @@ compilation blocker is resolved by [E13](./E13-invariant-parity.md), and
 [E14](./E14-qualification-fixtures.md) passes the broader qualification under
 both compiler configurations. [E15](./E15-compression-integrity.md)
 integrates artifact verification into the V2.5 scripts and plan executors,
-adds independent codec checks, and qualifies real local transactions. Full
-release qualification remains outstanding.
+adds independent codec checks, and qualifies real local transactions.
+[E16](./E16-hook-artifact-commitment.md) adds on-chain hook artifact commitments
+and requalifies deployment. Full release qualification remains outstanding.
 
 ## Demonstrated bundle
 
@@ -44,8 +45,10 @@ All three production hooks and the three periodic composition examples fit.
 The latter's compressed stores are 17,054 bytes (transfer), 17,396 (borrow),
 and 16,965 (APR replacement). Both factories fit comfortably; E09 costs each
 101 runtime bytes under the selected compiler settings. E15's pre-constructor
-market hash check adds a further 44 / 117 runtime bytes. Public ABIs and storage
-layouts remain unchanged across the measured contracts.
+market hash check adds a further 44 / 117 runtime bytes. E16 adds 279 bytes to
+each factory for hook artifact commitments. It changes the registration selector
+and adds a getter, error, event, and mapping; existing factory slots and template
+tuples are preserved. Market and hook ABIs, layouts, and binaries are unchanged.
 
 ## Evidence
 
@@ -75,10 +78,17 @@ layouts remain unchanged across the measured contracts.
 - Prepared compressed images pass 38 actual local transactions with code-size
   and Osaka transaction gas limits enabled, including all six production
   market/hook combinations. The largest buffered transaction is 9,645,811 gas.
+- E16 passes 463 reported tests under both compiler configurations, including
+  unchanged invariant budgets and zero handler reverts. All 28 strict-deployment
+  tests pass. Four negative controls establish that each factory's registration
+  and deployment guards reject wrong bytes. All 38 real local transactions pass
+  again, with a largest buffered transaction of 9,645,839 gas. Its 16 tooling
+  tests and the existing 42 UI tests pass.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
 [E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
-[E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md) and the
+[E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md),
+[E16](./E16-hook-artifact-commitment.md) and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
 `/home/kethcode/wildcat/bytecode-research/2026-09-26/`.
@@ -97,6 +107,12 @@ do not run the compressor. Review this deployment change and its executable
 reader trust boundary before release. Raw stores remain supported, so
 already-fitting hooks do not have to use compression. The historical Sepolia
 fix-1 rotation generator remains a raw-only path.
+
+E16 requires an artifact hash at template registration and checks it again
+before every hook deployment. The V2.5 owner script, activation validator, and
+template-sync tool use the new interface. Historical factories and the fix-1
+ceremony require their pinned tooling. Regenerate release inventories and plans
+only after the final source and interface freeze.
 
 E13 resolves the existing invariant suite's compilation failure. The research
 runner now includes it in `--scope all` and supports `--scope invariants` for

@@ -49,15 +49,20 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ========================================================================== //
 
   /// @notice registers a hooks template and its fee configuration.
-  /// @dev only the ArchController owner can call this.
+  /// @dev only the ArchController owner can call this. initCodeHash must come from the compiled
+  ///      artifact, before per-instance constructor arguments are appended.
   function addHooksTemplate(
     address hooksTemplate,
     string calldata name,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
-    uint16 protocolFeeBips
+    uint16 protocolFeeBips,
+    bytes32 initCodeHash
   ) external;
+
+  /// @notice registered creation-code hash for a template, or zero if it is unknown.
+  function getHooksTemplateInitCodeHash(address hooksTemplate) external view returns (bytes32);
 
   /// @notice updates the fees used by future markets for `hooksTemplate`.
   /// @dev only the ArchController owner can call this. existing market protocol fees change only

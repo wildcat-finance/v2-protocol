@@ -180,7 +180,8 @@ contract CompressionHookArgsTest is SingleStorageDeploymentFixture {
       address(0),
       address(0),
       0,
-      0
+      0,
+      keccak256(_probeCode)
     );
     _stack.revolvingFactory.addHooksTemplate(
       _probeStore,
@@ -188,7 +189,8 @@ contract CompressionHookArgsTest is SingleStorageDeploymentFixture {
       address(0),
       address(0),
       0,
-      0
+      0,
+      keccak256(_probeCode)
     );
   }
 

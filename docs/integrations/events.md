@@ -190,6 +190,10 @@ Use these event families for authority and hook state:
 
 - Template admission and fees: `HooksTemplateAdded`, `HooksTemplateDisabled`,
   and `HooksTemplateFeesUpdated`.
+- Template artifact identity: `HooksTemplateInitCodeHashRecorded(address indexed
+  hooksTemplate, bytes32 initCodeHash)`, emitted with admission. The immutable
+  commitment is also readable through `getHooksTemplateInitCodeHash(address)`.
+  It hashes the original creation code before instance constructor arguments.
 - Hook administration: the hook's request, cancellation, and completion events,
   followed by `HooksInstanceAdministratorTransferred` from the factory.
 - Built-in hook state: `MinimumDepositUpdated`, `FixedTermUpdated`,

@@ -189,10 +189,12 @@ const ABI_CHANGES_SINCE_V2 = [
       "HooksInstanceDeployed identifies the template, administrator, deployer, name, and version.",
       "MarketDeployed identifies borrower, principal, identity registry, requested hooks, and accepted hooks; configuration and hook payload move to companion events.",
       "getMarketParameters() includes the borrower identity registry and wrapper factory.",
+      "addHooksTemplate requires the original creation artifact's initCodeHash as its final argument; the unchecked selector is removed.",
     ],
     added: [
       "HooksInstanceRoleProviders, HooksInstanceAdministratorTransferred, MarketDeploymentConfig, MarketHooksData, and RevolvingMarketDeployed events.",
       "borrowerIdentityRegistry(), wrapperFactory(), hook-administrator indexing, and administrator-transfer callback views.",
+      "getHooksTemplateInitCodeHash(address) and HooksTemplateInitCodeHashRecorded expose each template's permanent creation-code commitment, verified at registration and before every instance deployment.",
     ],
   },
   {

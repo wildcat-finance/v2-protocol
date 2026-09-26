@@ -82,10 +82,27 @@ not support this predicate.
 
 Both factories additionally check the decoded market creation-code hash before
 `CREATE2`, using the same bytes for hashing and deployment. Hook registration
-remains owner-controlled and relies on the verified deployment tooling. An
-arbitrary executable store is not trusted just because one read returns the
-expected bytes. A hash reported by that same store is not an independent
-reference.
+requires the original artifact's `initCodeHash` as the last `addHooksTemplate`
+argument. Each factory checks the decoded bytes, records that commitment, and
+checks it again before every hook deployment. A mismatch reverts before the
+constructor runs. This covers both hook-only and combined market/hook creation.
+Constructor arguments are appended after this check.
+
+The commitment is readable through `getHooksTemplateInitCodeHash` and emitted
+in `HooksTemplateInitCodeHashRecorded`. Fee changes and disabling a template
+cannot change it. Registration plan predicates check the recorded hash, and
+activation validation requires it to match the storage entry's artifact hash.
+There is no registration overload without a hash. An arbitrary executable
+store still fails canonical runtime verification in the supplied tools; a
+hash reported by that same store is not an independent reference.
+
+[`rcf-template-sync.js`](../../scripts/rcf-template-sync.js) requires these
+commitments before applying any changes to a new factory. An export from an
+older factory has `initCodeHash: null`; populate it from the reviewed original
+creation artifacts before using `--input`. The tool does not hash live decoder
+output to invent a commitment. Historical factories and the Sepolia fix-1
+ceremony require their pinned historical tooling; do not regenerate their
+plans with the current interface.
 
 ## Release workflow
 

@@ -133,7 +133,8 @@ contract BorrowerAccountOriginationTest is TestKernel {
       address(0),
       address(0),
       0,
-      0
+      0,
+      keccak256(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'))
     );
   }
 

@@ -124,6 +124,11 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     public
     override getHooksTemplateForInstance;
 
+  /// @notice immutable artifact commitment for each registered template.
+  mapping(address hooksTemplate => bytes32 initCodeHash)
+    public
+    override getHooksTemplateInitCodeHash;
+
   constructor(
     address archController_,
     address _sanctionsSentinel,
@@ -211,19 +216,24 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   // ========================================================================== //
 
   /// @dev Arch-controller-owner-only registration for a hooks template and fee config.
-  ///      Reverts if the template exists or fee configuration is invalid.
+  ///      initCodeHash commits to the compiled template before constructor arguments.
   function addHooksTemplate(
     address hooksTemplate,
     string calldata name,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
-    uint16 protocolFeeBips
+    uint16 protocolFeeBips,
+    bytes32 initCodeHash
   ) external override onlyArchControllerOwner {
     if (_templateDetails[hooksTemplate].exists) {
       revert HooksTemplateAlreadyExists();
     }
     _validateFees(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
+    if (keccak256(LibStoredInitCode.getInitCode(hooksTemplate)) != initCodeHash) {
+      revert HooksTemplateInitCodeHashMismatch();
+    }
+    getHooksTemplateInitCodeHash[hooksTemplate] = initCodeHash;
     _templateDetails[hooksTemplate] = HooksTemplate({
       exists: true,
       name: name,
@@ -244,6 +254,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       originationFeeAmount,
       protocolFeeBips
     );
+    emit HooksTemplateInitCodeHashRecorded(hooksTemplate, initCodeHash);
   }
 
   function _validateFees(
@@ -495,6 +506,10 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     uint256 deploymentNonce = getHooksInstanceDeploymentNonce[administrator];
     bytes32 salt;
     bytes memory initCode = LibStoredInitCode.getInitCode(hooksTemplate);
+    // hash these bytes before appending instance arguments, then pass the same buffer to CREATE2.
+    if (keccak256(initCode) != getHooksTemplateInitCodeHash[hooksTemplate]) {
+      revert HooksTemplateInitCodeHashMismatch();
+    }
     assembly {
       salt := or(shl(96, administrator), deploymentNonce)
       let initCodePointer := add(initCode, 0x20)

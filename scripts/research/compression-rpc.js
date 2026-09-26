@@ -306,14 +306,21 @@ async function main() {
       await call(arch, "registerControllerFactory", [factory.address]);
       await call(factory, "registerWithArchController");
       for (const [policy, template] of templates.entries()) {
-        await call(factory, "addHooksTemplate", [
+        const templateHash = keccak256(template.compiled.bytecode.object);
+        const registration = await call(factory, "addHooksTemplate", [
           template.store,
           template.name,
           ZeroAddress,
           ZeroAddress,
           0,
           0,
+          templateHash,
         ]);
+        equal(
+          await read(factory, "getHooksTemplateInitCodeHash", [template.store]),
+          templateHash,
+          "registered hook artifact hash"
+        );
         const nonce = await read(factory, "getHooksInstanceDeploymentNonce", [
           account,
         ]);
@@ -420,6 +427,8 @@ async function main() {
           runtimeBytes: (code.length - 2) / 2,
           runtimeMatchesExceptImmutables: true,
           checkedContextAndTerms: true,
+          hookCreationHash: templateHash,
+          registrationGasUsed: registration.entry.gasUsed,
           hookGasUsed: hookTx.entry.gasUsed,
           marketGasUsed: entry.gasUsed,
           marketBufferedGas: entry.bufferedGas,

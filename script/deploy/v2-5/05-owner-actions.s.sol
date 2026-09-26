@@ -209,6 +209,31 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     _callPlanEntry(deployments, entry);
   }
 
+  function _templateRegistrationArgs(
+    TemplateDeployment memory template,
+    address feeRecipient,
+    string memory storageOutput
+  ) internal pure returns (string memory) {
+    return
+      string.concat(
+        '[',
+        _ref(storageOutput),
+        ',',
+        _quoted(template.name),
+        ',',
+        _quoted(vm.toString(feeRecipient)),
+        ',',
+        _quoted(vm.toString(template.fees.originationFeeAsset)),
+        ',',
+        vm.toString(template.fees.originationFeeAmount),
+        ',',
+        vm.toString(template.fees.protocolFeeBips),
+        ',',
+        _quoted(vm.toString(keccak256(template.creationCode))),
+        ']'
+      );
+  }
+
   function _writeAddTemplatePlanEntry(
     Deployments memory deployments,
     TemplateDeployment memory template,
@@ -222,33 +247,20 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   ) internal {
     string[] memory afterEntries = new string[](1);
     afterEntries[0] = afterEntry;
-    string memory templateArgs = string.concat(
-      '[',
-      _ref(storageOutput),
-      ',',
-      _quoted(template.name),
-      ',',
-      _quoted(vm.toString(feeRecipient)),
-      ',',
-      _quoted(vm.toString(template.fees.originationFeeAsset)),
-      ',',
-      vm.toString(template.fees.originationFeeAmount),
-      ',',
-      vm.toString(template.fees.protocolFeeBips),
-      ']'
-    );
+    string memory templateArgs = _templateRegistrationArgs(template, feeRecipient, storageOutput);
     CallPlanEntry memory entry;
     entry.sequence = sequence;
     entry.id = entryId;
     entry.to = _ref(factoryOutput);
-    entry.functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16)';
+    entry
+      .functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)';
     entry.decodedArgs = templateArgs;
     entry.description = description;
     entry.predicate = _planCallEqPredicate(
       factoryOutput,
-      'isHooksTemplate(address) view returns (bool)',
+      'getHooksTemplateInitCodeHash(address) view returns (bytes32)',
       string.concat('[', _ref(storageOutput), ']'),
-      'true'
+      _quoted(vm.toString(keccak256(template.creationCode)))
     );
     entry.afterEntries = afterEntries;
     _callPlanEntry(deployments, entry);
@@ -450,7 +462,8 @@ contract OwnerActionsV25 is V25DeployScriptBase {
           feeRecipient,
           template.fees.originationFeeAsset,
           template.fees.originationFeeAmount,
-          template.fees.protocolFeeBips
+          template.fees.protocolFeeBips,
+          keccak256(template.creationCode)
         );
       } else {
         IProtocolAuthorityHelper(authorityHelper).executeProtocolAction(
@@ -463,13 +476,19 @@ contract OwnerActionsV25 is V25DeployScriptBase {
               feeRecipient,
               template.fees.originationFeeAsset,
               template.fees.originationFeeAmount,
-              template.fees.protocolFeeBips
+              template.fees.protocolFeeBips,
+              keccak256(template.creationCode)
             )
           )
         );
       }
     }
     HooksTemplate memory details = factory.getHooksTemplateDetails(template.deployment);
+    if (
+      factory.getHooksTemplateInitCodeHash(template.deployment) != keccak256(template.creationCode)
+    ) {
+      revert('Template init code hash mismatch');
+    }
     if (!details.exists || !details.enabled) revert('Template registration failed');
     if (!_sameStrings(details.name, template.name)) revert('Template name mismatch');
     if (

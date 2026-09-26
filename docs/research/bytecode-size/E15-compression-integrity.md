@@ -2,6 +2,9 @@
 
 Source parent: `050c0b1` (E14). FastLZ remains a research candidate.
 
+Follow-up: [E16](./E16-hook-artifact-commitment.md) adds the on-chain hook hash
+registry deliberately absent here. This document records E15's qualification.
+
 ## Guarantee
 
 Compression must preserve the exact compiled creation code. The factory must

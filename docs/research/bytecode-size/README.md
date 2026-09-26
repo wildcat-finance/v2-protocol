@@ -13,7 +13,9 @@ The current follow-up assumes FastLZ, subject to further verification.
 [E14](./E14-qualification-fixtures.md) passes the broader qualification under
 both compiler configurations. [E15](./E15-compression-integrity.md) adds artifact
 attestation, prepared deployment images, independent codec checks, and real
-transaction qualification. This does not adopt the research compiler settings
+transaction qualification. [E16](./E16-hook-artifact-commitment.md) adds permanent
+on-chain hook creation-code commitments and checks them before deployment.
+This does not adopt the research compiler settings
 or compressed deployment format into the release configuration.
 
 ## Objective and constraints

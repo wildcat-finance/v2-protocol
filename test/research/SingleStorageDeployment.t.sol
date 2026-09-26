@@ -55,7 +55,7 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
       'test/mocks/AprReplacementHooks.sol:PeriodicAprReplacementHooks'
     ];
     for (uint256 feature; feature < artifacts.length; ++feature) {
-      (address store, ) = _storeInitCode(artifacts[feature]);
+      (address store, uint256 initCodeHash) = _storeInitCode(artifacts[feature]);
       stack.hooksTemplates[uint256(MatrixHooksKind.PeriodicTerm)] = store;
       stack.standardFactory.addHooksTemplate(
         store,
@@ -63,7 +63,8 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
         address(0),
         address(0),
         0,
-        0
+        0,
+        bytes32(initCodeHash)
       );
       stack.revolvingFactory.addHooksTemplate(
         store,
@@ -71,7 +72,8 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
         address(0),
         address(0),
         0,
-        0
+        0,
+        bytes32(initCodeHash)
       );
       for (uint256 model; model < 2; ++model) {
         _exerciseCell(

@@ -202,7 +202,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
     string[3] memory hooksArtifacts
   ) private {
     for (uint256 i; i < stack.hooksTemplates.length; i++) {
-      (stack.hooksTemplates[i], ) = _storeInitCode(hooksArtifacts[i]);
+      uint256 initCodeHash;
+      (stack.hooksTemplates[i], initCodeHash) = _storeInitCode(hooksArtifacts[i]);
       string memory name = i == uint256(MatrixHooksKind.OpenTerm)
         ? 'Open Term'
         : i == uint256(MatrixHooksKind.FixedTerm)
@@ -214,7 +215,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
         address(0),
         address(0),
         0,
-        0
+        0,
+        bytes32(initCodeHash)
       );
       stack.revolvingFactory.addHooksTemplate(
         stack.hooksTemplates[i],
@@ -222,7 +224,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
         address(0),
         address(0),
         0,
-        0
+        0,
+        bytes32(initCodeHash)
       );
     }
   }

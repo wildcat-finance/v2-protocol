@@ -331,11 +331,20 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     MatrixMarketKind marketKind,
     uint96 nonce
   ) private returns (MatrixCell memory cell) {
-    address template = LibStoredInitCode.deployInitCode(
-      vm.getCode('test/mocks/BorrowerAccountMocks.sol:CredentialedBorrowHooksMock')
+    bytes memory initCode = vm.getCode(
+      'test/mocks/BorrowerAccountMocks.sol:CredentialedBorrowHooksMock'
     );
+    address template = LibStoredInitCode.deployInitCode(initCode);
     IHooksFactory factory = _factoryFor(stack, marketKind);
-    factory.addHooksTemplate(template, 'Credentialed Borrow', address(0), address(0), 0, 0);
+    factory.addHooksTemplate(
+      template,
+      'Credentialed Borrow',
+      address(0),
+      address(0),
+      0,
+      0,
+      keccak256(initCode)
+    );
 
     NameAndProviderInputs memory constructorInputs;
     constructorInputs.name = 'Borrower credential';

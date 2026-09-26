@@ -55,6 +55,8 @@ contract HooksFactoriesTest is TestKernel {
     MockERC20 feeToken;
   }
 
+  mapping(address => bytes32) internal _artifactHashes;
+
   address internal constant SanctionsSentinel = address(0x5A);
   address internal constant WrapperFactory = address(0x4626);
   address internal constant FeeRecipient = address(0xFEE);
@@ -67,6 +69,7 @@ contract HooksFactoriesTest is TestKernel {
     bytes memory initCode = vm.getCode(artifact);
     storageContract = LibStoredInitCode.deployInitCode(initCode);
     initCodeHash = uint256(keccak256(initCode));
+    _artifactHashes[storageContract] = bytes32(initCodeHash);
   }
 
   function _deployFactory(
@@ -120,12 +123,8 @@ contract HooksFactoriesTest is TestKernel {
       fixture.revolvingMarketStorage,
       fixture.revolvingMarketHash
     );
-    fixture.firstTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
-    fixture.secondTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
+    (fixture.firstTemplate, ) = _storeInitCode('src/access/OpenTermHooks.sol:OpenTermHooks');
+    (fixture.secondTemplate, ) = _storeInitCode('src/access/OpenTermHooks.sol:OpenTermHooks');
     fixture.asset = MockERC20(
       _deployCode(
         'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
@@ -159,7 +158,8 @@ contract HooksFactoriesTest is TestKernel {
       fees.recipient,
       fees.asset,
       fees.amount,
-      fees.protocolFeeBips
+      fees.protocolFeeBips,
+      _artifactHashes[template]
     );
   }
 
@@ -277,6 +277,7 @@ contract HooksFactoriesTest is TestKernel {
     assertEq(uint256(details.originationFeeAmount), uint256(fees.amount));
     assertEq(uint256(details.protocolFeeBips), uint256(fees.protocolFeeBips));
     assertTrue(factory.isHooksTemplate(template));
+    assertEq(factory.getHooksTemplateInitCodeHash(template), _artifactHashes[template]);
   }
 
   function test_constructorAndRegistration_AcrossFactories() external {
@@ -374,16 +375,48 @@ contract HooksFactoriesTest is TestKernel {
       IHooksFactory factory = factories[i];
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', address(0), address(0), 0, 1);
+      factory.addHooksTemplate(
+        fixture.firstTemplate,
+        'template',
+        address(0),
+        address(0),
+        0,
+        1,
+        _artifactHashes[fixture.firstTemplate]
+      );
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', address(0), FeeAsset, 1, 0);
+      factory.addHooksTemplate(
+        fixture.firstTemplate,
+        'template',
+        address(0),
+        FeeAsset,
+        1,
+        0,
+        _artifactHashes[fixture.firstTemplate]
+      );
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', FeeRecipient, address(0), 1, 0);
+      factory.addHooksTemplate(
+        fixture.firstTemplate,
+        'template',
+        FeeRecipient,
+        address(0),
+        1,
+        0,
+        _artifactHashes[fixture.firstTemplate]
+      );
 
       vm.expectRevert(IHooksFactoryEventsAndErrors.InvalidFeeConfiguration.selector);
-      factory.addHooksTemplate(fixture.firstTemplate, 'template', FeeRecipient, FeeAsset, 0, 1_001);
+      factory.addHooksTemplate(
+        fixture.firstTemplate,
+        'template',
+        FeeRecipient,
+        FeeAsset,
+        0,
+        1_001,
+        _artifactHashes[fixture.firstTemplate]
+      );
     }
   }
 
@@ -635,8 +668,8 @@ contract HooksFactoriesTest is TestKernel {
     }
 
     fixture.archController.registerBorrower(address(this));
-    address brokenTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('test/mocks/HooksFactoryMocks.sol:BrokenHooksTemplate')
+    (address brokenTemplate, ) = _storeInitCode(
+      'test/mocks/HooksFactoryMocks.sol:BrokenHooksTemplate'
     );
     for (uint256 i; i < factories.length; i++) {
       IHooksFactory factory = factories[i];

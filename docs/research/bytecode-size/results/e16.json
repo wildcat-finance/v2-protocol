@@ -1,0 +1,1002 @@
+{
+  "source_parent": "e649e19",
+  "plan_commit": "c9c3c25",
+  "qualification": {
+    "e16-all-default": {
+      "exit_code": 0,
+      "optimizer_runs": 44,
+      "code_size_limit": 262144,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "passed": 463,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "5a0221aa49863ff2f9ce52cd7c2d0593e940e5d523bbb1513dbb1bb93b1484aa",
+      "artifact_comparison": [
+        {
+          "contract": "WildcatMarket",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactory",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 44,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        }
+      ],
+      "invariants": {
+        "properties": [
+          "invariant_drawnPrincipalFollowsRevolvingRules",
+          "invariant_protocolFeesAreConservedAcrossTheMatrix",
+          "invariant_revolvingUtilizationInterestMatchesTheFormula",
+          "invariant_sanctionsAndExpectedActionsRemainSafe",
+          "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+          "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+          "invariant_underwaterAndRandomizedPathsDoNotPanic",
+          "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+          "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix"
+        ],
+        "runs": 2000,
+        "depth": 30,
+        "calls": 60000,
+        "reverts": 0,
+        "actions": {
+          "borrow": {
+            "calls": 3479,
+            "reverts": 0,
+            "discards": 0
+          },
+          "collectFees": {
+            "calls": 3557,
+            "reverts": 0,
+            "discards": 0
+          },
+          "deposit": {
+            "calls": 3519,
+            "reverts": 0,
+            "discards": 0
+          },
+          "executeAprReduction": {
+            "calls": 3581,
+            "reverts": 0,
+            "discards": 0
+          },
+          "executeWithdrawal": {
+            "calls": 3512,
+            "reverts": 0,
+            "discards": 0
+          },
+          "nukeFromOrbit": {
+            "calls": 3557,
+            "reverts": 0,
+            "discards": 0
+          },
+          "proposeAprReduction": {
+            "calls": 3535,
+            "reverts": 0,
+            "discards": 0
+          },
+          "queueFullWithdrawal": {
+            "calls": 3395,
+            "reverts": 0,
+            "discards": 0
+          },
+          "queueWithdrawal": {
+            "calls": 3598,
+            "reverts": 0,
+            "discards": 0
+          },
+          "queueWithdrawalScaled": {
+            "calls": 3568,
+            "reverts": 0,
+            "discards": 0
+          },
+          "repay": {
+            "calls": 3557,
+            "reverts": 0,
+            "discards": 0
+          },
+          "repayAndProcess": {
+            "calls": 3471,
+            "reverts": 0,
+            "discards": 0
+          },
+          "sanctionBorrower": {
+            "calls": 3573,
+            "reverts": 0,
+            "discards": 0
+          },
+          "sanctionLender": {
+            "calls": 3422,
+            "reverts": 0,
+            "discards": 0
+          },
+          "transfer": {
+            "calls": 3541,
+            "reverts": 0,
+            "discards": 0
+          },
+          "updateState": {
+            "calls": 3513,
+            "reverts": 0,
+            "discards": 0
+          },
+          "warp": {
+            "calls": 3622,
+            "reverts": 0,
+            "discards": 0
+          }
+        }
+      }
+    },
+    "e16-all-noF": {
+      "exit_code": 0,
+      "optimizer_runs": 1,
+      "code_size_limit": 262144,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "passed": 463,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "e022b918847b178003e20af300900455013b1ad80b8736d6498580bf73be0932",
+      "artifact_comparison": [
+        {
+          "contract": "WildcatMarket",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactory",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        }
+      ],
+      "invariants": {
+        "properties": [
+          "invariant_drawnPrincipalFollowsRevolvingRules",
+          "invariant_protocolFeesAreConservedAcrossTheMatrix",
+          "invariant_revolvingUtilizationInterestMatchesTheFormula",
+          "invariant_sanctionsAndExpectedActionsRemainSafe",
+          "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+          "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+          "invariant_underwaterAndRandomizedPathsDoNotPanic",
+          "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+          "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix"
+        ],
+        "runs": 2000,
+        "depth": 30,
+        "calls": 60000,
+        "reverts": 0,
+        "actions": {
+          "borrow": {
+            "calls": 3479,
+            "reverts": 0,
+            "discards": 0
+          },
+          "collectFees": {
+            "calls": 3557,
+            "reverts": 0,
+            "discards": 0
+          },
+          "deposit": {
+            "calls": 3519,
+            "reverts": 0,
+            "discards": 0
+          },
+          "executeAprReduction": {
+            "calls": 3581,
+            "reverts": 0,
+            "discards": 0
+          },
+          "executeWithdrawal": {
+            "calls": 3512,
+            "reverts": 0,
+            "discards": 0
+          },
+          "nukeFromOrbit": {
+            "calls": 3557,
+            "reverts": 0,
+            "discards": 0
+          },
+          "proposeAprReduction": {
+            "calls": 3535,
+            "reverts": 0,
+            "discards": 0
+          },
+          "queueFullWithdrawal": {
+            "calls": 3395,
+            "reverts": 0,
+            "discards": 0
+          },
+          "queueWithdrawal": {
+            "calls": 3598,
+            "reverts": 0,
+            "discards": 0
+          },
+          "queueWithdrawalScaled": {
+            "calls": 3568,
+            "reverts": 0,
+            "discards": 0
+          },
+          "repay": {
+            "calls": 3557,
+            "reverts": 0,
+            "discards": 0
+          },
+          "repayAndProcess": {
+            "calls": 3471,
+            "reverts": 0,
+            "discards": 0
+          },
+          "sanctionBorrower": {
+            "calls": 3573,
+            "reverts": 0,
+            "discards": 0
+          },
+          "sanctionLender": {
+            "calls": 3422,
+            "reverts": 0,
+            "discards": 0
+          },
+          "transfer": {
+            "calls": 3541,
+            "reverts": 0,
+            "discards": 0
+          },
+          "updateState": {
+            "calls": 3513,
+            "reverts": 0,
+            "discards": 0
+          },
+          "warp": {
+            "calls": 3622,
+            "reverts": 0,
+            "discards": 0
+          }
+        }
+      }
+    },
+    "e16-deployment-noF": {
+      "exit_code": 0,
+      "optimizer_runs": 1,
+      "code_size_limit": 24576,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "passed": 28,
+      "failed": 0,
+      "skipped": 0,
+      "log_sha256": "56d5f3af297ab67b08c75ab4cf432b856b5d3f94507a2b2b2986785dcdc70eac",
+      "artifact_comparison": [
+        {
+          "contract": "WildcatMarket",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactory",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "included_in_graph": true,
+          "optimizer_runs": 1,
+          "optimizer_runs_match": true,
+          "creation_matches": true,
+          "runtime_matches": true,
+          "abi_matches": true,
+          "layout_matches": true
+        }
+      ]
+    }
+  },
+  "sizes": {
+    "e16-native-noF": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 25436,
+        "runtime": 23791,
+        "stored_headroom": -861,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 26053,
+        "runtime": 24344,
+        "stored_headroom": -1478,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 17851,
+        "runtime": 15367,
+        "stored_headroom": 6724,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 19298,
+        "runtime": 16813,
+        "stored_headroom": 5277,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 22585,
+        "runtime": 20100,
+        "stored_headroom": 1990,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 17225,
+        "runtime": 16512,
+        "stored_headroom": 7350,
+        "abi_unchanged": false,
+        "layout_unchanged": false,
+        "creation_saved": -279,
+        "runtime_saved": -279
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 17775,
+        "runtime": 17062,
+        "stored_headroom": 6800,
+        "abi_unchanged": false,
+        "layout_unchanged": false,
+        "creation_saved": -279,
+        "runtime_saved": -279
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 23426,
+        "runtime": 20941,
+        "stored_headroom": 1149,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 23890,
+        "runtime": 21405,
+        "stored_headroom": 685,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 23285,
+        "runtime": 20773,
+        "stored_headroom": 1290,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      }
+    ],
+    "e16-native-default": [
+      {
+        "contract": "WildcatMarket",
+        "creation": 26068,
+        "runtime": 24488,
+        "stored_headroom": -1493,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "creation": 26719,
+        "runtime": 25061,
+        "stored_headroom": -2144,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "OpenTermHooks",
+        "creation": 19075,
+        "runtime": 16349,
+        "stored_headroom": 5500,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "FixedTermHooks",
+        "creation": 20515,
+        "runtime": 17788,
+        "stored_headroom": 4060,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "creation": 23742,
+        "runtime": 21015,
+        "stored_headroom": 833,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "HooksFactory",
+        "creation": 18282,
+        "runtime": 17441,
+        "stored_headroom": 6293,
+        "abi_unchanged": false,
+        "layout_unchanged": false,
+        "creation_saved": -295,
+        "runtime_saved": -295
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "creation": 19201,
+        "runtime": 18360,
+        "stored_headroom": 5374,
+        "abi_unchanged": false,
+        "layout_unchanged": false,
+        "creation_saved": -295,
+        "runtime_saved": -295
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "creation": 24562,
+        "runtime": 21835,
+        "stored_headroom": 13,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "creation": 25027,
+        "runtime": 22300,
+        "stored_headroom": -452,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "creation": 24311,
+        "runtime": 21554,
+        "stored_headroom": 264,
+        "abi_unchanged": true,
+        "layout_unchanged": true,
+        "creation_saved": 0,
+        "runtime_saved": 0
+      }
+    ]
+  },
+  "interface_delta": {
+    "receipt": "e16-interface-delta.json",
+    "sha256": "18c8243c258ca1bce4af92a4f7158037fdde7d65aba3b737dbfd3e65db839542",
+    "unchanged_creation_runtime_abi_layout": [
+      "WildcatMarket",
+      "WildcatMarketRevolving",
+      "OpenTermHooks",
+      "FixedTermHooks",
+      "PeriodicTermHooks",
+      "PeriodicTransferHooks",
+      "PeriodicBorrowHooks",
+      "PeriodicAprReplacementHooks"
+    ],
+    "factories": {
+      "registration_removed": "addHooksTemplate(address,string,address,address,uint80,uint16)",
+      "registration_added": "addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)",
+      "getter_added": "getHooksTemplateInitCodeHash(address)",
+      "error_added": "HooksTemplateInitCodeHashMismatch()",
+      "event_added": "HooksTemplateInitCodeHashRecorded(address,bytes32)",
+      "appended_mapping_slot": 9,
+      "existing_slots_and_other_abi_entries_unchanged": true
+    }
+  },
+  "negative_controls": {
+    "receipt": "e16-negative-guards",
+    "results": [
+      {
+        "model": "HooksFactory",
+        "guard_removed": "registration",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "531c5d9dfce7e4c3e130084cdfc6edcaaabe8f46a5348e0a97c211495243b4c4"
+      },
+      {
+        "model": "HooksFactory",
+        "guard_removed": "deployment",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "4fa80e628e41a9b5a451e122532c5362cea365aa6a726fcb6d48f8e859f660ae"
+      },
+      {
+        "model": "HooksFactoryRevolving",
+        "guard_removed": "registration",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "24deb41918afe16edcfc35147144bb9fd8582edb1c64d39dc19c242792b88d92"
+      },
+      {
+        "model": "HooksFactoryRevolving",
+        "guard_removed": "deployment",
+        "exit_code": 1,
+        "failed_as_expected": true,
+        "source_sha256": "0139146bd1dc9de9f72ed038c599140523f4956eb14709b0c8ac356d7df7ee31"
+      },
+      {
+        "restored": true,
+        "exit_code": 0,
+        "passed": true
+      }
+    ],
+    "log_hashes": {
+      "HooksFactory-deployment.log": "60d56cf43acade541f917d08d0f64b0541a7019e2cc1ef5715695b2e77df11f1",
+      "HooksFactoryRevolving-deployment.log": "0c2353f7c6c355f903e724952386ef59237da596f401efa98cb6ce8cb69fd073",
+      "HooksFactory-registration.log": "9a93771746b5f7b56e1ab5fcd437b2817e6d67d6307916e3c00243c1e6e0765f",
+      "restored.log": "0b462c826446825491366877623a6f8ac2a30257ab583918a99ec3cd2a65efb8",
+      "HooksFactoryRevolving-registration.log": "41d5fd6bac51cd12811c1f7a293a7bfb4401900b657a82f8c9a7ec515ed338f4"
+    }
+  },
+  "rpc": {
+    "receipt": "e16-rpc-receipts",
+    "sha256": "55bb8b67adc09825181c8a6e2e0e5118ef62a7975c28075ba36313eec9ca6841",
+    "transaction_count": 38,
+    "all_successful": true,
+    "hardfork": "osaka",
+    "transaction_gas_cap": 16777216,
+    "largest_gas_used": 7419876,
+    "largest_buffered_gas": 9645839,
+    "markets": [
+      {
+        "market": "WildcatMarket",
+        "policy": "OpenTermHooks",
+        "address": "0x312961DB94e6359bfa2DbF91900F69BEE3d2b702",
+        "hookAddress": "0x1b6Ed1aD1c5431b7E8D3499D8d3f26dB3C7BD5d5",
+        "creationHash": "0x79ddf9666b1e886c09c4f1fecd21a7ab6bbd9b996e16bd1e8166639ee22f022d",
+        "runtimeBytes": 23791,
+        "runtimeMatchesExceptImmutables": true,
+        "checkedContextAndTerms": true,
+        "hookCreationHash": "0x0b404bc0a8c5c58bd9f01354d88fd89be67a20552b3fd9d5e96649d642298ce2",
+        "registrationGasUsed": 162679,
+        "hookGasUsed": 3319290,
+        "marketGasUsed": 7262895,
+        "marketBufferedGas": 9441764,
+        "hook_gas_delta": 5646,
+        "registration_gas_delta": 35042
+      },
+      {
+        "market": "WildcatMarket",
+        "policy": "FixedTermHooks",
+        "address": "0x7A213E706a9b0Db87d5cF1C08cA920976F1e324D",
+        "hookAddress": "0x916d5757426960C3Be7eBd245f14922887698394",
+        "creationHash": "0x79ddf9666b1e886c09c4f1fecd21a7ab6bbd9b996e16bd1e8166639ee22f022d",
+        "runtimeBytes": 23791,
+        "runtimeMatchesExceptImmutables": true,
+        "checkedContextAndTerms": true,
+        "hookCreationHash": "0x10d15fae2bb4da508a18ecba5e77f080bc1cd801b8a6b38a25c7e2364cc9a6e2",
+        "registrationGasUsed": 146252,
+        "hookGasUsed": 3595668,
+        "marketGasUsed": 7251878,
+        "marketBufferedGas": 9427442,
+        "hook_gas_delta": 5922,
+        "registration_gas_delta": 35703
+      },
+      {
+        "market": "WildcatMarket",
+        "policy": "PeriodicTermHooks",
+        "address": "0xe5A416c64A25ea471D6CF641907457F0990A03BF",
+        "hookAddress": "0xcA9F707D8A5431E878A9377D1d547859dbc97d46",
+        "creationHash": "0x79ddf9666b1e886c09c4f1fecd21a7ab6bbd9b996e16bd1e8166639ee22f022d",
+        "runtimeBytes": 23791,
+        "runtimeMatchesExceptImmutables": true,
+        "checkedContextAndTerms": true,
+        "hookCreationHash": "0xa7cefd1d65fa3624e1fb31a286367fbc2bda6c83831623ab59751c2ab0a66a17",
+        "registrationGasUsed": 147782,
+        "hookGasUsed": 4256541,
+        "marketGasUsed": 7230258,
+        "marketBufferedGas": 9399336,
+        "hook_gas_delta": 6534,
+        "registration_gas_delta": 37197
+      },
+      {
+        "market": "WildcatMarketRevolving",
+        "policy": "OpenTermHooks",
+        "address": "0xD6F9B98785DB007A98F88bc6cF10fCfB71cf2AC3",
+        "hookAddress": "0x643B53fF63d56679F93E249Fa36f3957589422D0",
+        "creationHash": "0xb6907e156d7ff0bcbb8596e7005e924dffee8da303c17efba3fe16b036d179a9",
+        "runtimeBytes": 24344,
+        "runtimeMatchesExceptImmutables": true,
+        "checkedContextAndTerms": true,
+        "hookCreationHash": "0x0b404bc0a8c5c58bd9f01354d88fd89be67a20552b3fd9d5e96649d642298ce2",
+        "registrationGasUsed": 162759,
+        "hookGasUsed": 3319356,
+        "marketGasUsed": 7413821,
+        "marketBufferedGas": 9637968,
+        "hook_gas_delta": 5646,
+        "registration_gas_delta": 35064
+      },
+      {
+        "market": "WildcatMarketRevolving",
+        "policy": "FixedTermHooks",
+        "address": "0xB3C4C85Cfe730c350765bA4411a033645a9D3330",
+        "hookAddress": "0x16CC864d76F3946BF0F68F10F6DF63Fce481F90f",
+        "creationHash": "0xb6907e156d7ff0bcbb8596e7005e924dffee8da303c17efba3fe16b036d179a9",
+        "runtimeBytes": 24344,
+        "runtimeMatchesExceptImmutables": true,
+        "checkedContextAndTerms": true,
+        "hookCreationHash": "0x10d15fae2bb4da508a18ecba5e77f080bc1cd801b8a6b38a25c7e2364cc9a6e2",
+        "registrationGasUsed": 146332,
+        "hookGasUsed": 3595734,
+        "marketGasUsed": 7419876,
+        "marketBufferedGas": 9645839,
+        "hook_gas_delta": 5922,
+        "registration_gas_delta": 35725
+      },
+      {
+        "market": "WildcatMarketRevolving",
+        "policy": "PeriodicTermHooks",
+        "address": "0x842d88816400a6C446655c7cD634833cFdEc756c",
+        "hookAddress": "0x26b753016137fF763521d4324744e6bF0A23a5A0",
+        "creationHash": "0xb6907e156d7ff0bcbb8596e7005e924dffee8da303c17efba3fe16b036d179a9",
+        "runtimeBytes": 24344,
+        "runtimeMatchesExceptImmutables": true,
+        "checkedContextAndTerms": true,
+        "hookCreationHash": "0xa7cefd1d65fa3624e1fb31a286367fbc2bda6c83831623ab59751c2ab0a66a17",
+        "registrationGasUsed": 147862,
+        "hookGasUsed": 4256607,
+        "marketGasUsed": 7398256,
+        "marketBufferedGas": 9617733,
+        "hook_gas_delta": 6534,
+        "registration_gas_delta": 37219
+      }
+    ]
+  },
+  "tooling": {
+    "receipt": "e16-tooling",
+    "checks": [
+      {
+        "name": "commitments",
+        "command": [
+          "node",
+          "--test",
+          "scripts/__tests__/template-commitments.test.js"
+        ],
+        "cwd": "/home/kethcode/wildcat/v2-protocol",
+        "exit_code": 0
+      },
+      {
+        "name": "ui-tests",
+        "command": [
+          "npm",
+          "test"
+        ],
+        "cwd": "/home/kethcode/wildcat/v2-protocol/deploy-ui",
+        "exit_code": 0
+      },
+      {
+        "name": "ui-build",
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "cwd": "/home/kethcode/wildcat/v2-protocol/deploy-ui",
+        "exit_code": 0
+      },
+      {
+        "name": "commitments-final",
+        "tests": 16,
+        "exit_code": 0
+      }
+    ],
+    "ui_tests": 42,
+    "source_hashes_file": "e16-tooling/sha256.json",
+    "log_hashes": {
+      "ui-build.log": "6d0407bac7df88239da6c1757fa40446e8f6cdbc67207edad712b83cd159ccda",
+      "ui-tests.log": "d897a49232bdcd70ca128bd204350c54ce4adc1af89efb2a82cfeeef5be69ac9",
+      "commitments.log": "a9a6028c19a276f4ee34b7543d74d5c618abef020eb64eb16c19e970d84d930f",
+      "commitments-final.log": "3cd59a3805006b5d5e37ed97196c47cbf7dc4603c656520cb94b406da014bd72"
+    }
+  },
+  "caller_compilation": {
+    "e16-script-callers-v2": {
+      "exit_code": 0,
+      "errors": []
+    },
+    "e16-script-callers-noF": {
+      "exit_code": 0,
+      "errors": []
+    }
+  },
+  "retained_failed_receipts": {
+    "e16-compression-noF": "Missing DeployMarketInputs import in the new test; fixed in v2.",
+    "e16-script-callers": "Stack limit in owner-script argument construction; fixed by extraction in v2."
+  }
+}

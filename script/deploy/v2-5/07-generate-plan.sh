@@ -28,55 +28,10 @@ const fs = require("fs");
 
 const planPath = process.argv[2];
 const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
-const signature = "addHooksTemplate(address,string,address,address,uint80,uint16)";
-const factories = [
-  ["standard", "hooks-factory-standard"],
-  ["revolving", "hooks-factory-revolving"],
-];
-const templates = [
-  ["open-term", "open-term-hooks-init-code-storage", "OpenTermHooks"],
-  ["fixed-term", "fixed-term-hooks-init-code-storage", "FixedTermHooks"],
-  ["periodic-term", "periodic-term-hooks-init-code-storage", "PeriodicTermHooks"],
-];
-const expected = new Map(
-  factories.flatMap(([factoryId, factoryRef]) =>
-    templates.map(([templateId, storageRef, name]) => [
-      `add-${factoryId}-${templateId}-template`,
-      [factoryRef, storageRef, name],
-    ]),
-  ),
-);
-const logicalCall = (transaction) => transaction.forwardedCall || {
-  target: transaction.to,
-  functionSignature: transaction.functionSignature,
-  args: transaction.args,
-};
-const registrations = plan.transactions.filter(
-  (transaction) => logicalCall(transaction).functionSignature === signature,
-);
+const { assertActivationTemplateCommitments } = require("./scripts/template-commitments");
+assertActivationTemplateCommitments(plan);
 
-if (registrations.length !== expected.size) {
-  throw new Error(
-    `Expected ${expected.size} v2.5 template registrations, found ${registrations.length}`,
-  );
-}
-
-for (const [id, [factory, storage, name]] of expected) {
-  const transaction = registrations.find((candidate) => candidate.id === id);
-  const call = transaction && logicalCall(transaction);
-  if (
-    !transaction ||
-    call.target?.$ref !== factory ||
-    call.args?.[0]?.$ref !== storage ||
-    call.args?.[1] !== name
-  ) {
-    throw new Error(
-      `Invalid v2.5 template registration ${id}; expected ${name} from ${storage} on ${factory}`,
-    );
-  }
-}
-
-console.log("Template matrix valid: 6 registrations across 2 factories");
+console.log("Template matrix valid: 6 artifact-bound registrations across 2 factories");
 NODE
 # shellcheck disable=SC2016
 node -e '
