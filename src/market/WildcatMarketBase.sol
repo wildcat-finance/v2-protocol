@@ -1189,8 +1189,26 @@ contract WildcatMarketBase is
     uint32 expiry,
     uint256 availableLiquidity
   ) internal returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
-    uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
+    (scaledAmountBurned, normalizedAmountPaid) = _applyWithdrawalBatchPaymentView(
+      batch,
+      state,
+      availableLiquidity
+    );
+    if (scaledAmountBurned == 0) return (0, 0);
 
+    // Emit transfer for external trackers to indicate burn.
+    emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
+    emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
+  }
+
+  /// @dev shared by preview and execution. mutate only these memory structs; the caller commits
+  ///      storage and emits payment events when `scaledAmountBurned` is nonzero.
+  function _applyWithdrawalBatchPaymentView(
+    WithdrawalBatch memory batch,
+    MarketState memory state,
+    uint256 availableLiquidity
+  ) internal pure returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
+    uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return (0, 0);
 
@@ -1200,41 +1218,6 @@ contract WildcatMarketBase is
     // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
     // it is always possible to finish withdrawal batches on closed markets.
     normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
-
-    batch.scaledAmountBurned += scaledAmountBurned;
-    batch.normalizedAmountPaid += normalizedAmountPaid;
-    state.scaledPendingWithdrawals -= scaledAmountBurned;
-
-    // Update normalizedUnclaimedWithdrawals so the tokens are only accessible for withdrawals.
-    state.normalizedUnclaimedWithdrawals += normalizedAmountPaid;
-
-    // Burn market tokens to stop interest accrual upon withdrawal payment.
-    state.scaledTotalSupply -= scaledAmountBurned;
-
-    // Emit transfer for external trackers to indicate burn.
-    emit_Transfer(address(this), _runtimeConstant(address(0)), normalizedAmountPaid);
-    emit_WithdrawalBatchPayment(expiry, scaledAmountBurned, normalizedAmountPaid);
-  }
-
-  function _applyWithdrawalBatchPaymentView(
-    WithdrawalBatch memory batch,
-    MarketState memory state,
-    uint256 availableLiquidity
-  ) internal pure {
-    uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
-    // Do nothing if batch is already paid
-    if (scaledAmountOwed == 0) return;
-
-    uint256 scaledAvailableLiquidity = state.maxScaledSettleableAmount(availableLiquidity);
-    uint104 scaledAmountBurned = MathUtils
-      .min(scaledAvailableLiquidity, scaledAmountOwed)
-      .toUint104();
-    if (scaledAmountBurned == 0) return;
-    // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
-    // it is always possible to finish withdrawal batches on closed markets.
-    uint128 normalizedAmountPaid = MathUtils
-      .mulDiv(scaledAmountBurned, state.scaleFactor, RAY)
-      .toUint128();
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;
