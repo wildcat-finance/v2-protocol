@@ -13,3 +13,4 @@ is excluded. No experiment has been adopted into the release branch.
 | E04        | [Direct state-only view](./E04-state-view.md)                   | `3e77136`     | Saves 37 bytes per market; 137 tests pass        | Retained at runs 44; adds 2 bytes with E05                          |
 | E05        | [Combined compiler settings](./E05-compiler-combination.md)     | `fe2adad`     | Low runs/no F wins; raw storage still over       | Candidate settings; runtime qualification pending                   |
 | E06        | [Remove runtime-obscured constants](./E06-literal-arguments.md) | `28ee38c`     | Grows 2,395 bytes at runs 44; 48 with E05        | Rejected; patch archived, source restored                           |
+| E07        | [Additional Yul pass removals](./E07-additional-yul-passes.md)  | `ff6a6e1`     | All three unchanged or larger                    | Rejected; settings and results archived                             |
