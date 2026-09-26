@@ -120,6 +120,7 @@ contract LifecycleScenariosTest is LifecycleFixture {
     lifecycle.sanctionLender(2);
     for (uint256 i; i < MatrixSize; ++i) {
       for (uint256 j; j < lifecycle.trackedExpiryCount(i); ++j) {
+        lifecycle.collectClaims(i, 1, j);
         lifecycle.collectClaim(i, 1, j);
         lifecycle.collectClaim(i, 2, j);
         // a consumed entitlement cannot be collected again without another allocation.
@@ -132,5 +133,24 @@ contract LifecycleScenariosTest is LifecycleFixture {
     (, uint256 failure) = lifecycle.unwindAndDrain();
     assertEq(failure, 0, 'bounded scheduled exit');
     _assertLifecycle();
+  }
+
+  function testFuzz_batchExpiryAtInclusiveDeadline(bool late, bool process) external {
+    lifecycle.deposit(1, 1_000e18);
+    lifecycle.drawAvailable();
+    uint256 snapshot = vm.snapshot();
+    for (uint256 i; i < MatrixSize; ++i) {
+      WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
+      uint256 deadline = market.repaymentDeadline();
+      vm.warp(deadline - 1 days);
+      lifecycle.queueFullWithdrawal(1);
+      assertEq(market.previousState().pendingWithdrawalExpiry, deadline, 'batch/deadline tie');
+      vm.warp(deadline + (late ? 1 : 0));
+      lifecycle.fund(i, 1, 1, process);
+      assertEq(market.defaultedAt(), late ? deadline : 0, 'inclusive boundary ordering');
+      assertTrue(market.isClosed(), 'timely or late completion');
+      _assertLifecycle();
+      assertTrue(vm.revertTo(snapshot), 'restore tied boundary');
+    }
   }
 }

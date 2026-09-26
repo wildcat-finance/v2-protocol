@@ -132,7 +132,7 @@ path rather than forcing manual closure to rescue an otherwise broken state.
 | E17-01 | Map accepted behavior and current handler assumptions; record sequencing. | This plan names the untested transitions and preserves the existing campaign. | Complete |
 | E17-02 | Add lifecycle fixtures, shared handler extension points, independent bookkeeping, and coverage counters. | Shared matrix fixture, independent boundary oracle, per-cell seed/exploration counters, and initial scenario checks. Original campaign qualification below. | Complete |
 | E17-03 | Add stateful date/deadline/default, funding, admission, and APR properties. | Two six-cell campaigns, independent boundary scenarios, real-factory authority checks, and active APR/admission probes. Development qualification: 15 tests, including 64 runs/depth 30 for each new campaign. | Complete |
-| E17-04 | Extend conservation and revolving expectations through automatic closure; prove batch collection and sanctions behavior. | Generated traces and final unwind cover partially funded FIFO batches, closure, surplus, and every lender's exit. | Pending |
+| E17-04 | Extend conservation and revolving expectations through automatic closure; prove batch collection and sanctions behavior. | Event-derived batch ledger, FIFO/bounded processing checks, single/bulk collection, sanctions escrow, tied deadline/expiry cases, and scheduled drain pass development qualification. | Complete |
 | E17-05 | Qualify both compiler configurations, varied seeds, and negative controls. | Existing/new campaigns and the relevant broader tests pass; transition counts, failures, traces, and artifact comparisons are archived. | Pending |
 | E17-06 | Record results, any regressions/fixes, and the subsequent rehearsal scope. | Signed checkpoints and a reviewable report distinguish completed invariant coverage from outstanding ceremony/release work. | Pending |
 
@@ -223,3 +223,23 @@ Some test-only call and donation bookkeeping uses self-call helpers to keep
 large struct and log-array decodes out of inherited action locals. Helpers
 reject callers other than their handler and are excluded from fuzz selectors.
 No compiler setting or production contract was changed to address stack limits.
+
+### E17-04: collection, conservation, and coverage receipts
+
+`e17-collection-dev` passes 16 tests under runs 44, including 128 runs/depth 30
+for each new campaign (3,840 calls each, zero handler reverts). There are now
+25 lifecycle selectors. Single and bulk collection check pro-rata amounts and
+actual recipient/escrow balances; repeat claims cannot collect twice. A
+separate scenario ties batch expiry to the inclusive deadline for all six cells,
+including zero-period date/deadline ties and both repayment routes.
+
+A new claim queued after a market has already closed still belongs to its
+current batch. The collection driver respects that pending key; it distinguishes
+those claims from an existing batch released early by automatic closure.
+
+Coverage receipts now count actual payment/collection events for every action,
+not just the new collection selector. They are captured before the final unwind,
+with seed counters separate. A fixture latch avoids counting a repeated final
+hook invocation as another sequence. `--lifecycle-coverage` archives the raw
+receipts and per-cell aggregates; Forge's reported run/call budget remains the
+authoritative campaign size.

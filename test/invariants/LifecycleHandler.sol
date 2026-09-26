@@ -267,7 +267,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     WildcatMarket m = markets[i];
     ClaimCheck memory claim;
     claim.expiry = trackedExpiries[i][expirySeed % trackedExpiries[i].length];
-    if (claim.expiry >= vm.getBlockTimestamp() && !m.isClosed()) return;
+    if (!_claimable(i, claim.expiry)) return;
     claim.actor = _actor(actorSeed);
     {
       WithdrawalBatch memory batch = m.getWithdrawalBatch(claim.expiry);
@@ -296,9 +296,60 @@ contract LifecycleHandler is MarketMatrixHandler {
           assets[i].balanceOf(claim.recipient) == claim.balance + claim.amount,
         33
       );
-      ++_coverage(i).collections;
-      if (sanctionedActors[claim.actor]) ++_coverage(i).escrowCollections;
     }
+  }
+
+  function _claimable(uint256 i, uint32 expiry) internal view returns (bool) {
+    MarketState memory s = _preview(i, markets[i].totalAssets()).state;
+    return expiry != s.pendingWithdrawalExpiry && (expiry < vm.getBlockTimestamp() || s.isClosed);
+  }
+
+  function collectClaims(uint256 cellSeed, uint256 actorSeed, uint256 expirySeed) external {
+    uint256 i = cellSeed % markets.length;
+    if (trackedExpiries[i].length == 0) return;
+    uint32 expiry = trackedExpiries[i][expirySeed % trackedExpiries[i].length];
+    if (!_claimable(i, expiry)) return;
+    address[] memory accounts = new address[](2);
+    uint32[] memory expiries = new uint32[](2);
+    ClaimCheck[2] memory claims;
+    for (uint256 j; j < 2; ++j) {
+      accounts[j] = _actor((actorSeed % actors.length) + j);
+      expiries[j] = expiry;
+      claims[j] = _claimSnapshot(i, accounts[j], expiry);
+    }
+    (bool success, bytes memory result) = _callAs(
+      i,
+      address(this),
+      address(markets[i]),
+      abi.encodeCall(WildcatMarketWithdrawals.executeWithdrawals, (accounts, expiries))
+    );
+    _check(i, success == (claims[0].amount != 0 && claims[1].amount != 0), 40);
+    if (!success) return;
+    uint256[] memory received = abi.decode(result, (uint256[]));
+    _check(i, received.length == 2, 41);
+    for (uint256 j; j < 2; ++j) {
+      uint256 increase = claims[j].amount;
+      if (claims[0].recipient == claims[1].recipient) increase += claims[1 - j].amount;
+      _check(i, received[j] == claims[j].amount, 42);
+      _check(i, assets[i].balanceOf(claims[j].recipient) == claims[j].balance + increase, 43);
+    }
+  }
+
+  function _claimSnapshot(
+    uint256 i,
+    address actor,
+    uint32 expiry
+  ) internal view returns (ClaimCheck memory c) {
+    c.actor = actor;
+    c.expiry = expiry;
+    c.recipient = sanctionedActors[actor] ? sentinels[i].EscrowAddress() : actor;
+    c.balance = assets[i].balanceOf(c.recipient);
+    WithdrawalBatch memory batch = markets[i].getWithdrawalBatch(expiry);
+    AccountWithdrawalStatus memory status = markets[i].getAccountWithdrawalStatus(actor, expiry);
+    if (status.scaledAmount != 0)
+      c.amount =
+        MathUtils.mulDiv(batch.normalizedAmountPaid, status.scaledAmount, batch.scaledTotalAmount) -
+        status.normalizedAmountWithdrawn;
   }
 
   function _coverage(uint256 i) internal view returns (Coverage storage c) {
@@ -397,6 +448,12 @@ contract LifecycleHandler is MarketMatrixHandler {
         (uint256 burned, uint256 paid) = abi.decode(entry.data, (uint256, uint256));
         batch.scaledAmountBurned += uint104(burned);
         batch.normalizedAmountPaid += uint128(paid);
+        if (burned != 0 && batch.scaledAmountBurned < batch.scaledTotalAmount)
+          ++_coverage(i).partialBatches;
+      } else if (entry.topics[0] == keccak256('WithdrawalExecuted(uint256,address,uint256)')) {
+        ++_coverage(i).collections;
+        if (sanctionedActors[address(uint160(uint256(entry.topics[2])))])
+          ++_coverage(i).escrowCollections;
       } else if (entry.topics[0] == keccak256('WithdrawalBatchCreated(uint256)')) {
         _check(i, batch.scaledTotalAmount == 0, 35);
       }
@@ -483,9 +540,6 @@ contract LifecycleHandler is MarketMatrixHandler {
     observations[i].drawn = _drawnAmountIfRevolving(i);
     if (nowState.pendingWithdrawalExpiry != 0) {
       observations[i].batch = observedBatches[i][nowState.pendingWithdrawalExpiry];
-      WithdrawalBatch memory b = observations[i].batch;
-      if (b.scaledAmountBurned != 0 && b.scaledAmountBurned < b.scaledTotalAmount)
-        ++c.partialBatches;
     } else {
       delete observations[i].batch;
     }

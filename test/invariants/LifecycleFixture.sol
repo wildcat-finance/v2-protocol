@@ -7,6 +7,7 @@ import { MarketMatrixHandler } from './MarketMatrixHandler.sol';
 
 abstract contract LifecycleFixture is MarketMatrixFixture {
   LifecycleHandler internal lifecycle;
+  bool private coverageReported;
 
   function _setupLifecycle() internal {
     vm.warp(1_800_000_000);
@@ -53,7 +54,7 @@ abstract contract LifecycleFixture is MarketMatrixFixture {
   }
 
   function _lifecycleSelectors() internal pure returns (bytes4[] memory selectors) {
-    selectors = new bytes4[](24);
+    selectors = new bytes4[](25);
     selectors[0] = MarketMatrixHandler.deposit.selector;
     selectors[1] = MarketMatrixHandler.transfer.selector;
     selectors[2] = MarketMatrixHandler.borrow.selector;
@@ -78,13 +79,14 @@ abstract contract LifecycleFixture is MarketMatrixFixture {
     selectors[21] = LifecycleHandler.probeAdmission.selector;
     selectors[22] = LifecycleHandler.changeApr.selector;
     selectors[23] = LifecycleHandler.collectClaim.selector;
+    selectors[24] = LifecycleHandler.collectClaims.selector;
   }
 
   function _finishLifecycle(string memory campaign) internal {
     // optional research receipts, captured before the forced final unwind. don't count the
     // liveness proof as randomized coverage, and don't write files in ordinary test runs.
     string memory output = vm.envOr('E17_COVERAGE_FILE', string(''));
-    if (bytes(output).length != 0) {
+    if (!coverageReported && bytes(output).length != 0) {
       for (uint256 i; i < MatrixSize; ++i) {
         vm.writeLine(
           output,
@@ -102,6 +104,7 @@ abstract contract LifecycleFixture is MarketMatrixFixture {
         );
       }
     }
+    coverageReported = true;
     (, uint256 failure) = lifecycle.unwindAndDrain();
     assertEq(failure, 0, 'scheduled unwind');
     _assertLifecycle();
