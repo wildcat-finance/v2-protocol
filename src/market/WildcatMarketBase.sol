@@ -275,9 +275,9 @@ contract WildcatMarketBase is
       (date == 0 && period != 0) ||
       (date != 0 && (date <= block.timestamp || date + period > type(uint32).max))
     ) {
-      revert InvalidRepaymentTerms();
+      revert_InvalidRepaymentTerms();
     }
-    if (parameters.hooks.useOnExecuteWithdrawal()) revert UnsupportedExecuteWithdrawalHook();
+    if (parameters.hooks.useOnExecuteWithdrawal()) revert_UnsupportedExecuteWithdrawalHook();
     _repaymentTerms = uint64(date | (period << 32));
 
     // Set asset metadata
@@ -800,21 +800,14 @@ contract WildcatMarketBase is
         _commitTransitionBatch(next, _runtimeConstant(1) != 0);
       if (i < next.accrualCount) {
         LifecycleAccrual memory a = next.accruals[i];
-        emit_InterestAndFeesAccrued(
-          a.from,
-          a.to,
-          a.scaleFactor,
-          a.baseInterestRay,
-          a.delinquencyFeeRay,
-          a.protocolFee
-        );
+        emit_InterestAndFeesAccrued(a);
       }
     }
     if (!next.batchExpired && next.batchExpiry != 0)
       _commitTransitionBatch(next, _runtimeConstant(0) != 0);
-    if (next.repaymentActivated) emit RepaymentDateReached(repaymentDate());
+    if (next.repaymentActivated) emit_RepaymentDateReached(repaymentDate());
     if (_lifecycle.defaultedAt == 0 && next.lifecycle.defaultedAt != 0) {
-      emit DefaultRecorded(next.lifecycle.defaultedAt);
+      emit_DefaultRecorded(next.lifecycle.defaultedAt);
     }
     _lifecycle = next.lifecycle;
     if (next.closedAt != 0) _commitAutomaticClosure(state, currentAssets, next.closedAt);

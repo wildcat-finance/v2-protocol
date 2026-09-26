@@ -144,7 +144,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
     if (_reserveRatioBips > BIP) {
       revert_ReserveRatioBipsTooHigh();
     }
-    if (_isInRepayment() && _reserveRatioBips != BIP) revert RepaymentReserveRequired();
+    if (_isInRepayment() && _reserveRatioBips != BIP) revert_RepaymentReserveRequired();
 
     uint256 currentTotalAssets = totalAssets();
     if (_reserveRatioBips <= initialReserveRatioBips) {
