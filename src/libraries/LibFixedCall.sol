@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
+pragma solidity 0.8.25;
+
+library LibFixedCall {
+  /// @dev same ABI rules as a Solidity bool call: reject short/dirty returns, accept trailing
+  ///      data, and bubble reverts. the success path only copies the one word we need.
+  function readBool(
+    address target,
+    bytes4 selector,
+    address argument
+  ) internal view returns (bool value) {
+    uint256 selectorWord = uint32(selector);
+    assembly ('memory-safe') {
+      let pointer := mload(0x40)
+      mstore(pointer, selectorWord)
+      mstore(add(pointer, 0x20), and(argument, 0xffffffffffffffffffffffffffffffffffffffff))
+      if iszero(staticcall(gas(), target, add(pointer, 0x1c), 0x24, pointer, 0x20)) {
+        returndatacopy(pointer, 0, returndatasize())
+        revert(pointer, returndatasize())
+      }
+      if lt(returndatasize(), 0x20) {
+        revert(0, 0)
+      }
+      value := mload(pointer)
+      if gt(value, 1) {
+        revert(0, 0)
+      }
+    }
+  }
+}
