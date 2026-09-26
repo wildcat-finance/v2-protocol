@@ -57,7 +57,7 @@ library MathUtils {
    *      if it is positive or zero if it underflows.
    */
   function satSub(uint256 a, uint256 b) internal pure returns (uint256 c) {
-    assembly {
+    assembly ('memory-safe') {
       // (a > b) * (a - b)
       // If a-b underflows, the product will be zero
       c := mul(gt(a, b), sub(a, b))
@@ -84,7 +84,7 @@ library MathUtils {
     uint256 valueIfTrue,
     uint256 valueIfFalse
   ) internal pure returns (uint256 c) {
-    assembly {
+    assembly ('memory-safe') {
       c := add(valueIfFalse, mul(condition, sub(valueIfTrue, valueIfFalse)))
     }
   }
@@ -94,7 +94,7 @@ library MathUtils {
    *      see https://twitter.com/transmissions11/status/1451131036377571328
    */
   function bipMul(uint256 a, uint256 b) internal pure returns (uint256 c) {
-    assembly {
+    assembly ('memory-safe') {
       // equivalent to `require(b == 0 || a <= (type(uint256).max - HALF_BIP) / b)`
       if iszero(or(iszero(b), iszero(gt(a, div(sub(not(0), HALF_BIP), b))))) {
         // Store the Panic error signature.
@@ -114,7 +114,7 @@ library MathUtils {
    *      see https://twitter.com/transmissions11/status/1451131036377571328
    */
   function bipDiv(uint256 a, uint256 b) internal pure returns (uint256 c) {
-    assembly {
+    assembly ('memory-safe') {
       // equivalent to `require(b != 0 && a <= (type(uint256).max - b/2) / BIP)`
       if or(iszero(b), gt(a, div(sub(not(0), div(b, 2)), BIP))) {
         mstore(0, Panic_ErrorSelector)
@@ -131,7 +131,7 @@ library MathUtils {
    */
   function bipToRay(uint256 a) internal pure returns (uint256 b) {
     // to avoid overflow, b/BIP_RAY_RATIO == a
-    assembly {
+    assembly ('memory-safe') {
       b := mul(a, BIP_RAY_RATIO)
       // equivalent to `require((b = a * BIP_RAY_RATIO) / BIP_RAY_RATIO == a )
       if iszero(eq(div(b, BIP_RAY_RATIO), a)) {
@@ -147,7 +147,7 @@ library MathUtils {
    *      see https://twitter.com/transmissions11/status/1451131036377571328
    */
   function rayMul(uint256 a, uint256 b) internal pure returns (uint256 c) {
-    assembly {
+    assembly ('memory-safe') {
       // equivalent to `require(b == 0 || a <= (type(uint256).max - HALF_RAY) / b)`
       if iszero(or(iszero(b), iszero(gt(a, div(sub(not(0), HALF_RAY), b))))) {
         mstore(0, Panic_ErrorSelector)
@@ -164,7 +164,7 @@ library MathUtils {
    *      see https://twitter.com/transmissions11/status/1451131036377571328
    */
   function rayDiv(uint256 a, uint256 b) internal pure returns (uint256 c) {
-    assembly {
+    assembly ('memory-safe') {
       // equivalent to `require(b != 0 && a <= (type(uint256).max - halfB) / RAY)`
       if or(iszero(b), gt(a, div(sub(not(0), div(b, 2)), RAY))) {
         mstore(0, Panic_ErrorSelector)
@@ -182,7 +182,7 @@ library MathUtils {
    * @custom:author solady/src/utils/FixedPointMathLib.sol
    */
   function mulDiv(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
-    assembly {
+    assembly ('memory-safe') {
       // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
       if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
         // Store the function selector of `MulDivFailed()`.
@@ -200,7 +200,7 @@ library MathUtils {
    * @custom:author solady/src/utils/FixedPointMathLib.sol
    */
   function mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
-    assembly {
+    assembly ('memory-safe') {
       // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
       if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
         // Store the function selector of `MulDivFailed()`.

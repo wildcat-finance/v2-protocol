@@ -4,6 +4,9 @@ pragma solidity 0.8.25;
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
+import { PeriodicTransferHooks } from '../mocks/TransferFeatureHooks.sol';
+import { PeriodicBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
+import { PeriodicAprReplacementHooks } from '../mocks/AprReplacementHooks.sol';
 
 /// @dev run this suite with --code-size-limit 24576. no etching, oversized-code allowance,
 ///      substituted market runtime, or second storage contract is needed for these deployments.
@@ -40,6 +43,44 @@ contract SingleStorageDeploymentTest is ProductionMatrixFixture {
       }
     }
     assertEq(_storageContracts, 5, 'all deployments reuse the five single stores');
+  }
+
+  function test_realLimits_PeriodicFeatureCompositions() external {
+    ProductionStack memory stack = _deployProductionStack();
+    string[3] memory artifacts = [
+      'test/mocks/TransferFeatureHooks.sol:PeriodicTransferHooks',
+      'test/mocks/BorrowFeatureHooks.sol:PeriodicBorrowHooks',
+      'test/mocks/AprReplacementHooks.sol:PeriodicAprReplacementHooks'
+    ];
+    for (uint256 feature; feature < artifacts.length; ++feature) {
+      (address store, ) = _storeInitCode(artifacts[feature]);
+      stack.hooksTemplates[uint256(MatrixHooksKind.PeriodicTerm)] = store;
+      stack.standardFactory.addHooksTemplate(
+        store,
+        'Periodic feature',
+        address(0),
+        address(0),
+        0,
+        0
+      );
+      stack.revolvingFactory.addHooksTemplate(
+        store,
+        'Periodic feature',
+        address(0),
+        address(0),
+        0,
+        0
+      );
+      for (uint256 model; model < 2; ++model) {
+        _exerciseCell(
+          stack,
+          MatrixMarketKind(model),
+          MatrixHooksKind.PeriodicTerm,
+          uint96(10 + feature * 2 + model)
+        );
+      }
+    }
+    assertEq(_storageContracts, 8, 'five production stores plus one per composition');
   }
 
   function _exerciseCell(

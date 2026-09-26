@@ -32,7 +32,7 @@ REMAPPINGS = [
 ]
 
 
-def sources():
+def sources(roots=None):
     result = {}
 
     def visit(path):
@@ -52,7 +52,7 @@ def sources():
                         break
             visit(imported)
 
-    for path in TARGETS.values():
+    for path in TARGETS.values() if roots is None else roots:
         visit(path)
     return dict(sorted(result.items()))
 

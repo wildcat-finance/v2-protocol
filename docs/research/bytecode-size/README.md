@@ -113,3 +113,6 @@ compiler output and logs are under
 `/home/kethcode/wildcat/bytecode-research/2026-09-26/`; concise results and patches
 belong in this branch's [catalogue](./catalogue.md). These are working research
 records, to be exported and removed from the final release documentation.
+
+The [candidate review](./candidate-review.md) summarizes the resulting bundle
+which passes real-limit deployments, along with its remaining adoption work.

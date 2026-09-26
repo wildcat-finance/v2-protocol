@@ -29,3 +29,8 @@ qualification at runs 44 does not qualify different compiler settings.
 [Exact optimizer sequences and all sizes](./results/e05.json). Full external
 receipts retain source texts and compiler hashes, so the initial and E04
 combinations can be reproduced independently.
+
+Follow-up: E11 brings both live runtimes under the limit, and E09's compressed
+format fits their creation code into one store each. [E12](./E12-compiler-qualification.md)
+records 435 passing focused tests and 12 real-limit deployments on that final
+bundle, as well as the remaining full-invariant-suite compiler limitation.

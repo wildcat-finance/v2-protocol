@@ -525,7 +525,7 @@ contract WildcatMarketTest is MarketFixture {
       uint256 encodedHooks;
       address encodedPrincipal;
       address encodedIdentityRegistry;
-      assembly {
+      assembly ('memory-safe') {
         encodedHooks := mload(add(encodedParameters, 0x280))
         encodedPrincipal := mload(add(encodedParameters, 0x2a0))
         encodedIdentityRegistry := mload(add(encodedParameters, 0x2c0))
