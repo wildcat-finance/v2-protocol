@@ -947,7 +947,8 @@ contract WildcatMarketBase is
       : delinquencyGracePeriod;
     next.lifecycle.accrueDefaultRun(state, timestamp, grace);
     if (timestamp == state.lastInterestAccruedTimestamp) return;
-    LifecycleAccrual memory a;
+    // LifecycleTransition already allocated four records. fill the next slot in place.
+    LifecycleAccrual memory a = next.accruals[next.accrualCount++];
     a.from = state.lastInterestAccruedTimestamp;
     a.to = timestamp.toUint32();
     (a.baseInterestRay, a.delinquencyFeeRay, a.protocolFee) = _updateScaleFactorAndFees(
@@ -955,7 +956,6 @@ contract WildcatMarketBase is
       timestamp
     );
     a.scaleFactor = state.scaleFactor;
-    next.accruals[next.accrualCount++] = a;
   }
 
   function _payTransitionBatch(LifecycleTransition memory next, uint256 assets) internal pure {

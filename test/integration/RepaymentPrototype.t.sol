@@ -48,6 +48,60 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     _borrow(cell, 800e18);
   }
 
+  function test_AllFourAccrualIntervalsPreserveViewsAndEventChronology() public {
+    for (uint256 model; model < 2; ++model) {
+      uint256 start = vm.getBlockTimestamp();
+      MatrixOptions memory options = _defaultMatrixOptions(
+        MatrixHooksKind.OpenTerm,
+        MatrixMarketKind(model)
+      );
+      options.annualInterestBips = 0;
+      options.commitmentFeeBips = 0;
+      options.withdrawalBatchDuration = 2 days;
+      options.repaymentDate = uint32(start + 1 days);
+      options.repaymentPeriod = 2 days;
+      MatrixCell memory cell = _deployMatrixCell(
+        stack,
+        options,
+        MatrixBorrower,
+        MatrixBorrower,
+        uint96(100 + model)
+      );
+      _authorize(stack, cell, MatrixAlice);
+      _fundAndDraw(cell);
+      vm.prank(MatrixAlice);
+      uint32 expiry = cell.market.queueWithdrawal(300e18);
+      assertEq(expiry, start + 2 days, 'middle boundary');
+      vm.warp(start + 4 days);
+      bytes32 expectedState = keccak256(abi.encode(cell.market.currentState()));
+      assertEq(keccak256(abi.encode(cell.market.currentState())), expectedState, 'repeated view');
+      vm.recordLogs();
+      cell.market.updateState();
+      Vm.Log[] memory logs = vm.getRecordedLogs();
+      uint256 intervals;
+      bytes32 topic = keccak256(
+        'InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)'
+      );
+      for (uint256 i; i < logs.length; ++i) {
+        if (logs[i].emitter == address(cell.market) && logs[i].topics[0] == topic) {
+          (uint256 from, uint256 to, , , , ) = abi.decode(
+            logs[i].data,
+            (uint256, uint256, uint256, uint256, uint256, uint256)
+          );
+          assertEq(from, start + intervals * 1 days, 'interval start');
+          assertEq(to, start + (++intervals) * 1 days, 'interval end');
+        }
+      }
+      assertEq(intervals, 4, 'repayment, expiry, deadline, now');
+      assertEq(
+        keccak256(abi.encode(cell.market.previousState())),
+        expectedState,
+        'view/write parity'
+      );
+      assertEq(cell.market.defaultedAt(), start + 3 days, 'historical deadline');
+    }
+  }
+
   function test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits() public {
     string[2] memory artifacts = [
       'src/market/WildcatMarket.sol:WildcatMarket',
