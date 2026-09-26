@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import { MarketParameters } from '../interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from '../libraries/MarketState.sol';
 import { WithdrawalBatch } from '../libraries/Withdrawal.sol';
+import { LifecycleTransition } from './MarketLifecycle.sol';
 
 /**
  * @dev Type-casts to convert functions returning raw (uint) pointers
@@ -15,6 +16,15 @@ import { WithdrawalBatch } from '../libraries/Withdrawal.sol';
  *      With `viaIR` enabled, calling any of these functions is a noop.
  */
 library FunctionTypeCasts {
+  /// @dev use the allocator's arena; don't allocate a second empty transition.
+  function asTransitionAllocator(
+    function() internal pure returns (uint256) fnIn
+  ) internal pure returns (function() internal pure returns (LifecycleTransition memory) fnOut) {
+    assembly {
+      fnOut := fnIn
+    }
+  }
+
   /**
    * @dev Function type cast to avoid duplicate declaration/allocation
    *      of MarketState return parameter.

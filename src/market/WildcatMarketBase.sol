@@ -674,7 +674,8 @@ contract WildcatMarketBase is
   /// @dev these callers only need MarketState. skip the three-result wrapper and return its
   ///      existing memory pointer without allocating another empty MarketState.
   function _calculateCurrentStatePointers() internal view returns (uint256 state) {
-    LifecycleTransition memory next = _calculateTransition(totalAssets(), _runtimeConstant(1) != 0);
+    LifecycleTransition memory next = _allocateTransition.asTransitionAllocator()();
+    _calculateTransition(next, totalAssets(), _runtimeConstant(1) != 0);
     assembly ('memory-safe') {
       state := mload(next)
     }
@@ -800,7 +801,8 @@ contract WildcatMarketBase is
     bool closeAtCurrentTimestamp
   ) internal returns (MarketState memory state) {
     uint256 currentAssets = totalAssets();
-    LifecycleTransition memory next = _calculateTransition(currentAssets, closeAtCurrentTimestamp);
+    LifecycleTransition memory next = _allocateTransition.asTransitionAllocator()();
+    _calculateTransition(next, currentAssets, closeAtCurrentTimestamp);
     state = next.state;
     for (uint256 i; i <= next.accrualCount; ++i) {
       if (next.batchExpired.and(next.expiryAfterAccrual == i))
@@ -858,16 +860,38 @@ contract WildcatMarketBase is
       WithdrawalBatch memory pendingBatch
     )
   {
-    LifecycleTransition memory next = _calculateTransition(totalAssets(), _runtimeConstant(1) != 0);
+    LifecycleTransition memory next = _allocateTransition.asTransitionAllocator()();
+    _calculateTransition(next, totalAssets(), _runtimeConstant(1) != 0);
     return (next.state, next.batchExpiry, next.batch);
+  }
+
+  /// @dev one zeroed arena for the ten-word header, empty batch, four record pointers and
+  ///      four six-word accrual records. _calculateTransition loads state/lifecycle separately.
+  function _allocateTransition() private pure returns (uint256 pointer) {
+    assembly ('memory-safe') {
+      pointer := mload(0x40)
+      mstore(0x40, add(pointer, 0x520))
+      calldatacopy(pointer, calldatasize(), 0x520)
+      mstore(add(pointer, 0x40), add(pointer, 0x140))
+      let records := add(pointer, 0x1a0)
+      mstore(add(pointer, 0xe0), records)
+      for {
+        let i := 0
+      } lt(i, 4) {
+        i := add(i, 1)
+      } {
+        mstore(add(records, mul(i, 0x20)), add(add(pointer, 0x220), mul(i, 0xc0)))
+      }
+    }
   }
 
   /// @dev replay only the finite boundaries that change accounting. no daily loop, and no
   ///      accrual split merely to record the separate 90-day default marker.
   function _calculateTransition(
+    LifecycleTransition memory next,
     uint256 currentAssets,
     bool closeNow
-  ) internal view returns (LifecycleTransition memory next) {
+  ) internal view {
     next.state = _state;
     next.lifecycle = _lifecycle;
     MarketState memory state = next.state;
