@@ -11,3 +11,4 @@ is excluded. No experiment has been adopted into the release branch.
 | E02        | [Bounded constructor query](./E02-constructor-call.md)         | `2389da5`     | Saves 121/117 creation bytes; 132 tests pass     | Retained; independent of compiler variants                          |
 | E03        | [Bounded periodic APR query](./E03-periodic-call.md)           | `04c5c6a`     | Saves 44 periodic bytes; 207 tests pass          | Retained; shares E02 helper file                                    |
 | E04        | [Direct state-only view](./E04-state-view.md)                  | `3e77136`     | Saves 37 bytes per market; 137 tests pass        | Retained at runs 44; adds 2 bytes with E05                          |
+| E05        | [Combined compiler settings](./E05-compiler-combination.md)    | `fe2adad`     | Low runs/no F wins; raw storage still over       | Candidate settings; runtime qualification pending                   |
