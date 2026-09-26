@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import './BaseHooks.sol';
 import './types/PeriodicTermHookTypes.sol';
 import '../libraries/SafeCastLib.sol';
+import '../libraries/LibFixedCall.sol';
 
 using BoolUtils for bool;
 using MathUtils for uint256;
@@ -249,7 +250,9 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       AnnualInterestBipsOutOfBounds.selector
     );
 
-    if (annualInterestBips >= IMarketApr(market).annualInterestBips()) {
+    if (
+      annualInterestBips >= LibFixedCall.readWord(market, IMarketApr.annualInterestBips.selector)
+    ) {
       revert AprReductionProposalNotReduction();
     }
 

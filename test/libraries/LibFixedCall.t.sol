@@ -5,7 +5,17 @@ import 'src/libraries/LibFixedCall.sol';
 import 'src/interfaces/IWildcatArchController.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+import { IMarketApr } from 'src/access/types/PeriodicTermHookTypes.sol';
+
 contract FixedCallReader {
+  function referenceWord(address target) external view returns (uint256) {
+    return IMarketApr(target).annualInterestBips();
+  }
+
+  function candidateWord(address target) external view returns (uint256) {
+    return LibFixedCall.readWord(target, IMarketApr.annualInterestBips.selector);
+  }
+
   function referenceBool(address target, uint256 rawArgument) external view returns (bool) {
     address argument;
     assembly {
@@ -110,5 +120,47 @@ contract LibFixedCallTest is TestKernel {
     reader.candidateBool(address(0x1234), 123);
     vm.expectRevert();
     reader.referenceBool(address(0x1234), 123);
+  }
+
+  function _compareWord(bytes memory response, bool shouldRevert) internal {
+    target.configure(
+      response,
+      shouldRevert,
+      keccak256(abi.encodeCall(IMarketApr.annualInterestBips, ()))
+    );
+    (bool referenceSuccess, bytes memory referenceData) = address(reader).staticcall(
+      abi.encodeCall(FixedCallReader.referenceWord, (address(target)))
+    );
+    (bool candidateSuccess, bytes memory candidateData) = address(reader).staticcall(
+      abi.encodeCall(FixedCallReader.candidateWord, (address(target)))
+    );
+    assertEq(candidateSuccess, referenceSuccess);
+    assertEq(candidateData, referenceData);
+  }
+
+  function testFuzz_wordMatchesSolidity(bytes memory response, bool shouldRevert) external {
+    _compareWord(response, shouldRevert);
+  }
+
+  function testFuzz_wordValidWithTrailingData(uint256 value, bytes memory trailing) external {
+    _compareWord(bytes.concat(abi.encode(value), trailing), false);
+    assertEq(reader.candidateWord(address(target)), value);
+  }
+
+  function test_wordRejectsEveryShortLength() external {
+    for (uint256 length; length < 32; ++length) _compareWord(new bytes(length), false);
+  }
+
+  function testFuzz_wordPreservesFullWidth(uint256 word) external {
+    word = bound(word, 65536, type(uint256).max);
+    _compareWord(abi.encode(word), false);
+    assertEq(reader.candidateWord(address(target)), word);
+  }
+
+  function test_wordRejectsEmptyAccount() external {
+    vm.expectRevert();
+    reader.candidateWord(address(0x1234));
+    vm.expectRevert();
+    reader.referenceWord(address(0x1234));
   }
 }
