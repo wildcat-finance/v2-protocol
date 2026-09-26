@@ -76,3 +76,10 @@ Decision: retain the annotations with the E05 compiler candidate. They make the
 focused test graph buildable without changing measured production binaries.
 Canonical runs 44 remains the repository default. This does not claim complete
 release qualification or resolve the baseline's pending integration-test updates.
+
+Follow-up: [E13](./E13-invariant-parity.md) reproduces the baseline invariant run
+and isolates the handler regression to the annotation change. The baseline
+handler also compiles with no F; E12's source fails at runs 44 as well as no F.
+E13 restores the handler build and invariant coverage without changing production
+source or weakening the checks. The failure was not solely a limitation of the
+custom optimizer sequence.

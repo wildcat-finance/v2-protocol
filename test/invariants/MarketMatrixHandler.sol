@@ -28,6 +28,15 @@ contract MarketMatrixHandler {
     uint256 marketAssets;
   }
 
+  struct CallRecord {
+    uint256 cellIndex;
+    address target;
+    bytes data;
+    ProtocolFeeSnapshot beforeCall;
+    bool success;
+    bytes result;
+  }
+
   uint8 internal constant OpenTerm = 0;
   uint8 internal constant FixedTerm = 1;
   uint8 internal constant PeriodicTerm = 2;
@@ -199,31 +208,36 @@ contract MarketMatrixHandler {
   function deposit(uint256 actorSeed, uint256 amountSeed) external {
     address actor = _actor(actorSeed);
     for (uint256 i; i < markets.length; i++) {
-      WildcatMarket market = markets[i];
-      if (market.isClosed()) continue;
-      uint256 maximumDeposit = market.maximumDeposit();
-      uint256 minimumDeposit = MathUtils.mulDivUp(1, market.scaleFactor(), RAY);
-      if (maximumDeposit < minimumDeposit) continue;
-
-      uint256 amount = _bound(
-        amountSeed,
-        minimumDeposit,
-        MathUtils.min(maximumDeposit, MaximumActionAmount)
-      );
-      uint256 drawnBefore = _drawnAmountIfRevolving(i);
-      assets[i].mint(actor, amount);
-      vm.prank(actor);
-      assets[i].approve(address(market), amount);
-      (bool success, ) = _callAs(
-        i,
-        actor,
-        address(market),
-        abi.encodeCall(WildcatMarket.depositUpTo, (amount))
-      );
-      if (!success && !sanctionedActors[actor]) unexpectedActionFailures++;
-      _checkDrawnUnchanged(i, drawnBefore);
-      _observe(i);
+      _depositCell(i, actor, amountSeed);
     }
+  }
+
+  // keep deposit's per-cell locals out of the matrix loop; the size optimizer runs out of stack.
+  function _depositCell(uint256 cellIndex, address actor, uint256 amountSeed) internal {
+    WildcatMarket market = markets[cellIndex];
+    if (market.isClosed()) return;
+    uint256 maximumDeposit = market.maximumDeposit();
+    uint256 minimumDeposit = MathUtils.mulDivUp(1, market.scaleFactor(), RAY);
+    if (maximumDeposit < minimumDeposit) return;
+
+    uint256 amount = _bound(
+      amountSeed,
+      minimumDeposit,
+      MathUtils.min(maximumDeposit, MaximumActionAmount)
+    );
+    uint256 drawnBefore = _drawnAmountIfRevolving(cellIndex);
+    assets[cellIndex].mint(actor, amount);
+    vm.prank(actor);
+    assets[cellIndex].approve(address(market), amount);
+    (bool success, ) = _callAs(
+      cellIndex,
+      actor,
+      address(market),
+      abi.encodeCall(WildcatMarket.depositUpTo, (amount))
+    );
+    if (!success && !sanctionedActors[actor]) unexpectedActionFailures++;
+    _checkDrawnUnchanged(cellIndex, drawnBefore);
+    _observe(cellIndex);
   }
 
   function transfer(uint256 fromSeed, uint256 toSeed, uint256 amountSeed) external {
@@ -973,30 +987,35 @@ contract MarketMatrixHandler {
     address caller,
     address target,
     bytes memory data
-  ) internal returns (bool success, bytes memory result) {
+  ) internal returns (bool, bytes memory) {
     WildcatMarket market = markets[cellIndex];
-    ProtocolFeeSnapshot memory beforeCall = ProtocolFeeSnapshot({
-      accrued: market.previousState().accruedProtocolFees,
-      recipientBalance: assets[cellIndex].balanceOf(market.feeRecipient()),
-      marketAssets: assets[cellIndex].balanceOf(address(market))
+    // keep fee bookkeeping in memory while solc decodes the nested Vm.Log[] return value.
+    CallRecord memory record = CallRecord({
+      cellIndex: cellIndex,
+      target: target,
+      data: data,
+      beforeCall: ProtocolFeeSnapshot({
+        accrued: market.previousState().accruedProtocolFees,
+        recipientBalance: assets[cellIndex].balanceOf(market.feeRecipient()),
+        marketAssets: assets[cellIndex].balanceOf(address(market))
+      }),
+      success: false,
+      result: bytes('')
     });
 
     vm.recordLogs();
     vm.prank(caller);
-    (success, result) = target.call(data);
+    (record.success, record.result) = target.call(data);
     Vm.Log[] memory logs = vm.getRecordedLogs();
 
-    if (success) _recordProtocolFeeTransition(cellIndex, target, data, logs, beforeCall);
-    if (!success && _isArithmeticPanic(result)) arithmeticPanicCount++;
+    if (record.success) _recordProtocolFeeTransition(record, logs);
+    if (!record.success && _isArithmeticPanic(record.result)) arithmeticPanicCount++;
+    return (record.success, record.result);
   }
 
-  function _recordProtocolFeeTransition(
-    uint256 cellIndex,
-    address target,
-    bytes memory data,
-    Vm.Log[] memory logs,
-    ProtocolFeeSnapshot memory beforeCall
-  ) internal {
+  function _recordProtocolFeeTransition(CallRecord memory record, Vm.Log[] memory logs) internal {
+    uint256 cellIndex = record.cellIndex;
+    ProtocolFeeSnapshot memory beforeCall = record.beforeCall;
     WildcatMarket market = markets[cellIndex];
     uint256 newlyAccrued = _protocolFeesFromLogs(logs, address(market));
     observedProtocolFeesAccrued[cellIndex] += newlyAccrued;
@@ -1009,7 +1028,10 @@ contract MarketMatrixHandler {
       stateAfter.accruedProtocolFees + recipientBalanceAfter
     ) protocolFeeConservationFailures++;
 
-    if (target == address(market) && _selector(data) == WildcatMarket.collectFees.selector) {
+    if (
+      record.target == address(market) &&
+      _selector(record.data) == WildcatMarket.collectFees.selector
+    ) {
       uint256 collected = recipientBalanceAfter - beforeCall.recipientBalance;
       uint256 available = beforeCall.marketAssets.satSub(stateAfter.normalizedUnclaimedWithdrawals);
       uint256 expected = MathUtils.min(available, beforeCall.accrued + newlyAccrued);

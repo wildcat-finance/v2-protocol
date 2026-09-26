@@ -8,6 +8,11 @@ and test it, record the result, make a signed kethcode commit, and repeat.
 Candidates will be selected after the catalogue is reviewed. Gas is not a
 selection criterion in this pass. Nothing is pushed automatically.
 
+The current follow-up assumes FastLZ, subject to further verification. Restoring
+the existing invariant coverage takes priority over further size reductions;
+see [E13](./E13-invariant-parity.md). This does not adopt the research compiler
+settings or compressed deployment format into the release configuration.
+
 ## Objective and constraints
 
 Make both market models and the supported hook/composition targets deployable

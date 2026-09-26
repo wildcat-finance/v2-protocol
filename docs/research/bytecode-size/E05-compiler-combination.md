@@ -33,4 +33,6 @@ combinations can be reproduced independently.
 Follow-up: E11 brings both live runtimes under the limit, and E09's compressed
 format fits their creation code into one store each. [E12](./E12-compiler-qualification.md)
 records 435 passing focused tests and 12 real-limit deployments on that final
-bundle, as well as the remaining full-invariant-suite compiler limitation.
+bundle and the invariant compiler failure encountered at that point.
+[E13](./E13-invariant-parity.md) diagnoses and resolves that failure, restoring
+all nine invariant properties without changing the measured production binaries.

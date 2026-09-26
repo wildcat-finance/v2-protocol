@@ -1,0 +1,168 @@
+{
+  "source_parent": "b2b91a0",
+  "baseline": "7b47eec",
+  "compiler_controls": [
+    {
+      "case": "e13-handler-baseline-44",
+      "input_sha256": "ba85c47cf4c49e130057b6a62d4cfdeaff3a67d93b2cd713011db5390a019f67",
+      "compiles": true,
+      "errors": []
+    },
+    {
+      "case": "e13-handler-baseline-1",
+      "input_sha256": "6a045902d4f755f7c890c443768c12e2bafca601a762d2bbf382353d3832de23",
+      "compiles": true,
+      "errors": []
+    },
+    {
+      "case": "e13-handler-baseline-noF",
+      "input_sha256": "68bc931eb2d5305ac85f905e090ad0da37602fabb2da271bac542d00ab5c1edd",
+      "compiles": true,
+      "errors": []
+    },
+    {
+      "case": "e13-handler-candidate-44",
+      "input_sha256": "b63eccdf3195a8d7452b49f6ea1ea2370971086cac0e13b4524cfeed76b66955",
+      "compiles": false,
+      "errors": [
+        "YulException: Variable memPtr_3 is 1 too deep in the stack [ memPtr_3 RET expr_component data _3 expr_26154_mpos memPtr var_cellIndex memPtr_2 _43 _46 _45 src offset dst innerOffset memPtr_4 ]\nmemoryguard was present."
+      ]
+    },
+    {
+      "case": "e13-handler-candidate-1",
+      "input_sha256": "8cce62a8c68a0713942d426610c3da9172990fd52aea223133794b34ef7f4f9f",
+      "compiles": false,
+      "errors": [
+        "YulException: Variable memPtr_3 is 1 too deep in the stack [ memPtr_3 RET expr_component data _3 expr_26154_mpos memPtr var_cellIndex memPtr_2 _43 _46 _45 src offset dst innerOffset memPtr_4 ]\nmemoryguard was present."
+      ]
+    },
+    {
+      "case": "e13-handler-candidate-noF",
+      "input_sha256": "236004a8245609843bb410fbe697641964b33b927c0809e5c848c496bcef12a3",
+      "compiles": false,
+      "errors": [
+        "YulException: Variable _207 is 1 too deep in the stack [ JUNK JUNK JUNK _207 _3 _2 _208 _1 value1_3 expr_41 _206 var_i_13 expr_47 _214 expr_46 value_22 _212 _223 _230 _231 ]\nmemoryguard was present."
+      ]
+    },
+    {
+      "case": "e13-handler-deposit-and-full-record-44",
+      "input_sha256": "cc43a1045c8d972ec26eb89e909aef7c743f52275cf8927d2ff9257730e4bbba",
+      "compiles": true,
+      "errors": []
+    },
+    {
+      "case": "e13-handler-deposit-and-full-record-noF",
+      "input_sha256": "9b6b22a8c426504710bee144e00ecac0388bbc283606eb7a54373c0ed61053c7",
+      "compiles": true,
+      "errors": []
+    }
+  ],
+  "qualification": {
+    "e13-baseline-invariants": {
+      "exit_code": 0,
+      "summary": {
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "total": 1
+      },
+      "invariant_properties": [
+        "invariant_drawnPrincipalFollowsRevolvingRules",
+        "invariant_protocolFeesAreConservedAcrossTheMatrix",
+        "invariant_revolvingUtilizationInterestMatchesTheFormula",
+        "invariant_sanctionsAndExpectedActionsRemainSafe",
+        "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+        "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+        "invariant_underwaterAndRandomizedPathsDoNotPanic",
+        "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+        "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix"
+      ],
+      "invariant_metrics": {
+        "runs": 2000,
+        "calls": 60000,
+        "reverts": 0
+      },
+      "invariant_depth": 30,
+      "seed": "0x5eed",
+      "log_sha256": "37f6be991190c62705f6b131960bef7e0c2f2c6cad24bccc1bd107ed6a0ceac9"
+    },
+    "e13-all-noF": {
+      "exit_code": 0,
+      "summary": {
+        "passed": 436,
+        "failed": 0,
+        "skipped": 0,
+        "total": 436
+      },
+      "invariant_properties": [
+        "invariant_drawnPrincipalFollowsRevolvingRules",
+        "invariant_protocolFeesAreConservedAcrossTheMatrix",
+        "invariant_revolvingUtilizationInterestMatchesTheFormula",
+        "invariant_sanctionsAndExpectedActionsRemainSafe",
+        "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+        "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+        "invariant_underwaterAndRandomizedPathsDoNotPanic",
+        "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+        "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix"
+      ],
+      "invariant_metrics": {
+        "runs": 2000,
+        "calls": 60000,
+        "reverts": 0
+      },
+      "invariant_depth": 30,
+      "seed": "0x5eed",
+      "log_sha256": "7fa3eb44049fc74e98d59cd6d5321ff3f9483f20c970a39e58c84240d79f6c38"
+    },
+    "e13-all-default": {
+      "exit_code": 1,
+      "summary": {
+        "passed": 435,
+        "failed": 1,
+        "skipped": 0,
+        "total": 436
+      },
+      "invariant_properties": [
+        "invariant_drawnPrincipalFollowsRevolvingRules",
+        "invariant_protocolFeesAreConservedAcrossTheMatrix",
+        "invariant_revolvingUtilizationInterestMatchesTheFormula",
+        "invariant_sanctionsAndExpectedActionsRemainSafe",
+        "invariant_scaleFactorsNeverDecreaseAcrossTheMatrix",
+        "invariant_scaledSupplyIsConservedAcrossTheMatrix",
+        "invariant_underwaterAndRandomizedPathsDoNotPanic",
+        "invariant_withdrawalGatesAreEnforcedAcrossTheMatrix",
+        "invariant_withdrawalLiabilitiesAreConservedAcrossTheMatrix"
+      ],
+      "invariant_metrics": {
+        "runs": 2000,
+        "calls": 60000,
+        "reverts": 0
+      },
+      "invariant_depth": 30,
+      "seed": "0x5eed",
+      "log_sha256": "bfa461796cafe9d063ff99e8c60de70eaf18fc6dd2a5a45faa05e42e70876bc1"
+    },
+    "e13-deployment-noF": {
+      "exit_code": 0,
+      "summary": {
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0,
+        "total": 2
+      },
+      "invariant_properties": [],
+      "invariant_metrics": null,
+      "invariant_depth": 30,
+      "seed": "0x5eed",
+      "log_sha256": "3352606d13ef7666f6170a06995ec0c1a1f3f029550cd7506d5884627acec09e"
+    }
+  },
+  "artifact_checks": {
+    "candidate_broad": "Seven production targets and two reachable composition examples match native output. PeriodicBorrowHooks was outside the focused graph; its cached file is not counted as fresh qualification.",
+    "candidate_strict": "All ten freshly compiled targets match independent native creation/runtime bytes, ABIs and normalized layouts.",
+    "canonical_broad": "All seven production targets and two reachable composition examples match E12 native output. PeriodicBorrowHooks retains the preceding no-F artifact and is not a canonical measurement.",
+    "handler_public_abi_unchanged": true,
+    "handler_storage_layout_unchanged": true
+  },
+  "remaining_failure": "Runs-44 broad suite: MarketConstraintHooksTest.test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry reports expected expiry 1726099200 versus emitted 1725494400. All nine invariants pass."
+}

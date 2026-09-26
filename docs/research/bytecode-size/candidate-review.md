@@ -4,6 +4,10 @@ Research branch: `experiment/tranching-bytecode-size`.
 Baseline: `7b47eec`. No candidates have been adopted into the release branch or
 pushed. The repository's normal compiler configuration remains runs 44.
 
+FastLZ is now the assumed candidate for continued verification. The invariant
+compilation blocker is resolved by [E13](./E13-invariant-parity.md); deployment
+tool integration and full release qualification remain separate work.
+
 ## Demonstrated bundle
 
 E02's bounded constructor query, E03's bounded periodic query, E08's liability
@@ -43,6 +47,16 @@ layouts remain unchanged across the measured contracts.
 - 375 focused tests pass at runs 44 before E12's annotation-only change.
 - 435 focused tests pass with the final size settings, including the additional
   arithmetic suites. Fuzz cases use 1,000 runs and seed 0x5eed.
+- E13 brings the candidate qualification to 436 reported tests by restoring all
+  nine invariant properties, which Forge reports as one group. The existing
+  2,000 runs, depth 30, 17 actions, six market/hook cells and final unwind remain.
+  The campaign completes 60,000 handler calls with zero reverts under both the
+  candidate settings and runs 44. The seven production artifacts from both
+  broader builds match the independent compiler output exactly.
+- E13's broader runs-44 run has one remaining APR-test expiry mismatch, with
+  435 passing tests including all invariants. Its focused graph also leaves an
+  unused composition artifact stale; fresh all-ten comparisons use the strict
+  deployment graph. Both follow-ups are recorded in E13.
 - 70 arithmetic and bounded-call tests pass at runs 44 after E12.
 - Two tests deploy and exercise 12 factory/market/hook combinations with the
   actual code-size limit enforced. They cover both market types, three production
@@ -51,7 +65,8 @@ layouts remain unchanged across the measured contracts.
   measurements, including full ABIs and normalized storage layouts.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
-[E12](./E12-compiler-qualification.md) and the [complete catalogue](./catalogue.md).
+[E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md) and the
+[complete catalogue](./catalogue.md).
 The working evidence archive is
 `/home/kethcode/wildcat/bytecode-research/2026-09-26/`.
 
@@ -62,19 +77,19 @@ allocated transition arena and the compressed deployment format. The smaller
 source candidates can be reviewed independently. Every source experiment has
 its own signed checkpoint and the rejected alternatives remain documented.
 
-If E09 is selected, update `script/common/LibDeployment.sol` and
+For the assumed E09 candidate, update `script/common/LibDeployment.sol` and
 `script/common/DeployScriptBase.sol` to create and verify compressed stores;
 their release paths currently still use raw storage. Review the executable
 storage reader and codec as part of that deployment change. Raw stores remain
 supported, so already-fitting hooks do not have to use compression.
 
-If E05 is selected, the full invariant suite still needs compiler work:
-`MarketMatrixHandler.sol` fails under no F. It was outside the focused test
-scope before this research; the corrected focused runner now also excludes its
-unreachable helper source. No selected tests were weakened to get the passing
-results. This is a scoped behavioral and deployment qualification, not full
-release qualification. The baseline's pending integration callback updates,
-full release checks and audit/refreeze work also remain.
+E13 resolves the existing invariant suite's compilation failure. The research
+runner now includes it in `--scope all` and supports `--scope invariants` for
+direct qualification. No invariant assertions, actions or budgets were removed.
+This is still scoped behavioral and deployment qualification: the baseline's
+pending integration callback updates, full release checks and audit/refreeze
+work remain. The existing invariant matrix has no scheduled repayment dates;
+restoring that suite does not add a stateful repayment-date lifecycle model.
 
 The arena's offsets track three memory struct layouts and must be reviewed if
 those structs change. Revolving has only 232 runtime bytes spare. Recheck sizes
