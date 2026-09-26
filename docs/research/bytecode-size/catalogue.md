@@ -14,3 +14,4 @@ is excluded. No experiment has been adopted into the release branch.
 | E05        | [Combined compiler settings](./E05-compiler-combination.md)     | `fe2adad`     | Low runs/no F wins; raw storage still over       | Candidate settings; runtime qualification pending                   |
 | E06        | [Remove runtime-obscured constants](./E06-literal-arguments.md) | `28ee38c`     | Grows 2,395 bytes at runs 44; 48 with E05        | Rejected; patch archived, source restored                           |
 | E07        | [Additional Yul pass removals](./E07-additional-yul-passes.md)  | `ff6a6e1`     | All three unchanged or larger                    | Rejected; settings and results archived                             |
+| E08        | [Bounded liability additions](./E08-bounded-additions.md)       | `16b3d4d`     | Saves 11/15 bytes at runs 44; 154 tests pass     | Retain narrow draft; broader draft rejected                         |

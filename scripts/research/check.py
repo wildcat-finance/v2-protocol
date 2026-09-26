@@ -48,7 +48,7 @@ def main():
     if args.scope in ("market", "all"):
         include |= set(ROOT.glob("test/market/*.t.sol"))
         include |= {ROOT / "test/integration/RepaymentPrototype.t.sol"}
-        include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MarketLifecycle", "MarketEvents", "BoolUtils")}
+        include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MarketLifecycle", "MarketEvents", "BoolUtils", "MarketState", "BoundedMarketState")}
     if args.scope in ("hooks", "all"):
         include |= set(ROOT.glob("test/access/*.t.sol")) | set(ROOT.glob("test/factories/*.t.sol"))
     include = {path for path in include if path.exists()}

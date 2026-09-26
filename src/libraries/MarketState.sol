@@ -159,12 +159,19 @@ library MarketStateLib {
     } else {
       uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
       uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
-      normalizedSupplyRequired =
-        normalizedPendingWithdrawals +
-        normalizedOutstandingSupply.bipMul(reserveRatioBips);
+      // uint104 shares normalized by uint112 scaleFactor stay below 128 bits.
+      // even a full uint16 reserveRatioBips keeps this sum far below uint256.
+      unchecked {
+        normalizedSupplyRequired =
+          normalizedPendingWithdrawals +
+          normalizedOutstandingSupply.bipMul(reserveRatioBips);
+      }
     }
-    return
-      normalizedSupplyRequired + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
+    // normalizedSupplyRequired is below 132 bits; the remaining liabilities are uint128.
+    unchecked {
+      return
+        normalizedSupplyRequired + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
+    }
   }
 
   /**
@@ -208,9 +215,12 @@ library MarketStateLib {
 
   /// @dev returns lender supply, paid-but-unclaimed withdrawals, and accrued protocol fees.
   function totalDebts(MarketState memory state) internal pure returns (uint256) {
-    return
-      state.normalizeAmount(state.scaledTotalSupply) +
-      state.normalizedUnclaimedWithdrawals +
-      state.accruedProtocolFees;
+    // normalized uint104 supply is below 128 bits, and both other debts are uint128.
+    unchecked {
+      return
+        state.normalizeAmount(state.scaledTotalSupply) +
+        state.normalizedUnclaimedWithdrawals +
+        state.accruedProtocolFees;
+    }
   }
 }
