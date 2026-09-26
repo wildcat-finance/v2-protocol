@@ -671,15 +671,13 @@ contract WildcatMarketBase is
     }
   }
 
-  /**
-   * @dev Call `_calculateCurrentState()` and return only the `state` parameter.
-   *
-   *      Casting the function type prevents a duplicate declaration of the MarketState
-   *      return parameter, which would cause unnecessary zeroing and allocation of memory.
-   *      With `viaIR` enabled, the cast is a noop.
-   */
+  /// @dev these callers only need MarketState. skip the three-result wrapper and return its
+  ///      existing memory pointer without allocating another empty MarketState.
   function _calculateCurrentStatePointers() internal view returns (uint256 state) {
-    (state, , ) = _calculateCurrentState.asReturnsPointers()();
+    LifecycleTransition memory next = _calculateTransition(totalAssets(), _runtimeConstant(1) != 0);
+    assembly ('memory-safe') {
+      state := mload(next)
+    }
   }
 
   /// @notice returns current scaled supply after any calculable withdrawal-batch payment.
