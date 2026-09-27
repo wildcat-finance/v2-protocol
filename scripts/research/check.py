@@ -73,7 +73,7 @@ def main():
     if args.scope in ("market", "all"):
         include |= set(ROOT.glob("test/market/*.t.sol"))
         include |= {ROOT / "test/integration/RepaymentPrototype.t.sol"}
-        include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MarketLifecycle", "MarketEvents", "BoolUtils", "MarketState", "BoundedMarketState")}
+        include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MarketLifecycle", "MarketEvents", "MarketTransitionLayout", "BoolUtils", "MarketState", "BoundedMarketState")}
     if args.scope in ("hooks", "all"):
         include |= set(ROOT.glob("test/access/*.t.sol")) | set(ROOT.glob("test/factories/*.t.sol"))
     if args.scope in ("storage", "compression", "all"):

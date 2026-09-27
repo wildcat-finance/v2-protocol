@@ -867,7 +867,7 @@ contract WildcatMarketBase is
 
   /// @dev one zeroed arena for the ten-word header, empty batch, four record pointers and
   ///      four six-word accrual records. _calculateTransition loads state/lifecycle separately.
-  function _allocateTransition() private pure returns (uint256 pointer) {
+  function _allocateTransition() internal pure returns (uint256 pointer) {
     assembly ('memory-safe') {
       pointer := mload(0x40)
       mstore(0x40, add(pointer, 0x520))

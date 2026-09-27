@@ -26,7 +26,7 @@ mechanism, tranche policy, repayment terms, or default rules are part of E18.
 | --- | --- | --- |
 | E18-01 | Reproduce recipient rejection, isolate automatic closure from surplus collection, and test borrower-only recovery against every liability category on both models. | Complete; final campaign budgets remain in E18-04. |
 | E18-02 | Skip closed markets in both fee-update loops; retain pagination, whole-batch rollback for unexpected failures, and existing setter errors. | Complete; 209 hook/factory tests pass. |
-| E18-03 | Compare the transition allocator with Solidity-created structs; pin field layout, zeroing, and non-aliasing. Retain the existing accrual-event encoding test. | Pending |
+| E18-03 | Compare the transition allocator with Solidity-created structs; pin field layout, zeroing, and non-aliasing. Retain the existing accrual-event encoding test. | Complete under both compiler configurations, including negative controls. |
 | E18-04 | Requalify focused suites and E17 campaigns under both compiler configurations; measure runtime/storage sizes and record ABI/storage compatibility. | Pending |
 
 Each completed task gets a signed kethcode checkpoint. Do not push. Keep the
@@ -111,3 +111,24 @@ open/stored-closed/effectively-closed markets, closed-only pages, later pages,
 failed and malformed queries, failed setters, whole-page rollback, and valid
 bool returns with trailing data. Interface comments now state the skip rule;
 function signatures and errors remain unchanged.
+
+## E18-03: allocator representation
+
+The test harness calls the actual `_allocateTransition` after poisoning its
+free-memory region and placing guards on both sides. It compares the zeroed
+object with Solidity's default struct allocation, then writes every field
+through the arena's existing nested pointers and compares the full encoding
+with a separate Solidity allocation of the fuzz input. Replacing the batch or
+accrual pointers with fresh objects would hide an aliasing bug, so the test
+deliberately fills their individual fields instead.
+
+`MarketTransitionLayoutTest` and the ten existing event/error tests pass in
+`e18-layout-default` and `e18-layout-noF`, with 1,000 fuzz cases per property.
+The allocator changes from private to internal so the test harness can call it.
+Both market creation and runtime binaries remain byte-identical to E18-01
+under both configurations; public ABIs and storage layouts remain unchanged.
+
+`e18-layout-controls` uses a disposable copy of the project. Aliasing all four
+record pointers fails the Solidity-encoding comparison, and omitting the zero
+fill fails the dirty-memory check. Restoring the source passes. The working
+tree is never mutated for these controls.
