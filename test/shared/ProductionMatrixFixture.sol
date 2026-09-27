@@ -111,6 +111,16 @@ abstract contract ProductionMatrixFixture is TestKernel {
   function _deployProductionStack(
     string[3] memory hooksArtifacts
   ) internal returns (ProductionStack memory stack) {
+    stack = _deployProductionDependencies();
+    stack.archController.registerBorrower(MatrixBorrower);
+    stack.standardFactory = _deployStandardFactory(stack);
+    stack.revolvingFactory = _deployRevolvingFactory(stack);
+    _deployAndRegisterTemplates(stack, hooksArtifacts);
+  }
+
+  // keep dependency-deployment locals out of the factory/template setup; the full matrix hits
+  // the Yul stack limit when all of these deployment encodings share one function.
+  function _deployProductionDependencies() private returns (ProductionStack memory stack) {
     stack.archController = WildcatArchController(
       _deployCode('src/WildcatArchController.sol:WildcatArchController')
     );
@@ -144,11 +154,6 @@ abstract contract ProductionMatrixFixture is TestKernel {
     stack.roleProvider = MockRoleProvider(
       _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
     );
-
-    stack.archController.registerBorrower(MatrixBorrower);
-    stack.standardFactory = _deployStandardFactory(stack);
-    stack.revolvingFactory = _deployRevolvingFactory(stack);
-    _deployAndRegisterTemplates(stack, hooksArtifacts);
   }
 
   function _deployStandardFactory(

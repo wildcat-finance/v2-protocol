@@ -31,7 +31,7 @@ def temporary_config(config):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("receipt", type=Path)
-    parser.add_argument("--scope", choices=("calls", "market", "hooks", "storage", "compression", "arithmetic", "invariants", "deployment", "all"), default="all")
+    parser.add_argument("--scope", choices=("calls", "market", "hooks", "storage", "compression", "arithmetic", "invariants", "integration", "deployment", "all", "full"), default="all")
     parser.add_argument("--runs", type=int, default=44)
     parser.add_argument("--yul-steps")
     parser.add_argument("--gates", action="store_true")
@@ -87,6 +87,10 @@ def main():
         include |= set(ROOT.glob("test/invariants/*.t.sol"))
     if args.scope == "invariants":
         include.discard(ROOT / "test/libraries/LibFixedCall.t.sol")
+    if args.scope == "integration":
+        include = set(ROOT.glob("test/integration/*.t.sol"))
+    if args.scope == "full":
+        include = set(ROOT.glob("test/**/*.t.sol"))
     if args.scope == "deployment":
         include = {ROOT / ("test/research/" + name + ".t.sol") for name in ("SingleStorageDeployment", "CompressionFactoryIntegrity", "CompressedStorageTools", "HookArtifactCommitment")}
     include = {path for path in include if path.exists()}
