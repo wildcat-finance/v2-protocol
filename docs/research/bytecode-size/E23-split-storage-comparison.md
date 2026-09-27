@@ -1,8 +1,9 @@
 # E23: two-contract initcode storage versus FastLZ
 
 Source parent: `94c0a42`. Branch: `codex/split-initcode-comparison`.
-Status: comparison qualified; split storage is available for review, not selected
-for release.
+Status: comparison qualified; the user selected split storage on 2026-09-27.
+[E24](./E24-split-storage-adoption.md) tracks deployment-tooling adoption. The
+measurements and limitations below describe the E23 comparison checkpoint.
 
 The user explicitly requested a branch comparing two storage contracts with
 the current FastLZ workflow. This authorizes the comparison despite the earlier
