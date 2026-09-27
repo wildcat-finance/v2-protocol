@@ -36,7 +36,7 @@ ABIs. Market, factory, and hook source and bytecode remain unchanged.
 [E22](./E22-gas-and-runs-sweep.md) completes the hot-path gas comparison and
 the runs-1-through-44 size sweep. Both market runtimes fit at 1–14 with the
 adopted Yul sequence; revolving fails at 15–44. All 56 benchmark scenarios pass
-with matching comparable accounting. The recommendation remains runs 1;
+with matching comparable accounting. The user confirmed retaining runs 1;
 production compiler settings and source are unchanged.
 
 ## Demonstrated bundle

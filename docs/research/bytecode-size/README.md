@@ -59,8 +59,8 @@ The return ABI changes; market/factory/hook source and binaries are unchanged.
 with the adopted Yul sequence: both market runtimes fit at 1–14, while revolving
 fails at 15–44. Six gas builds pass 56 matched scenarios, including the release
 baseline; all comparable accounting fingerprints match. Runs 13 saves 78–339
-gas per common call at a cost of 24 market runtime bytes. The recommendation is
-to retain runs 1 for its headroom; production configuration is unchanged.
+gas per common call at a cost of 24 market runtime bytes. The user confirmed
+retaining runs 1 for its headroom; production configuration is unchanged.
 
 Next: update the deployment ceremony and rehearse the actual plan on an Anvil
 fork. Reproducible release-build gates and creation-gas comparisons accompany

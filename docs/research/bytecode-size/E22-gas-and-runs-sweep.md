@@ -147,9 +147,11 @@ costs 83,060 / 85,339; surplus recovery costs 61,817 on both. These are complete
 operation costs, not incremental overhead. The separate lifecycle rows and all
 common rows are in [e22-gas.tsv](./results/e22-gas.tsv).
 
-## Recommendation
+## Decision
 
-Retain runs 1 for its headroom. The measured higher-runs savings are small:
+The user confirmed retaining runs 1 on 2026-09-27 after reviewing these results.
+The adopted Yul sequence and `foundry.toml` remain unchanged. The measured
+higher-runs savings are small:
 
 | Adopted-Yul setting | Extra revolving bytes versus 1 | Gas saved per common sample versus 1 | Percentage saved |
 | ---: | ---: | ---: | ---: |
@@ -157,9 +159,9 @@ Retain runs 1 for its headroom. The measured higher-runs savings are small:
 | 13 | 24 | 78–339 | 0.05–0.37% |
 | 14 | 113 | 204–565 | 0.14–0.64% |
 
-Runs 13 is the alternative to consider if spending 24 bytes for those savings
-is worthwhile. Runs 14 consumes almost half the current revolving headroom for
-less than 1% improvement in these samples. No production setting was changed.
+Runs 13 would spend 24 bytes for those savings. Runs 14 consumes almost half
+the current revolving headroom for less than 1% improvement in these samples.
+No production setting was changed.
 Selecting either alternative still requires the ordinary suites, compressed-store
 and strict-deployment checks, and regenerated deployment artifacts.
 
