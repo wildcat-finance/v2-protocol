@@ -42,7 +42,7 @@ The `deploy` profile inherits the compiler settings in
 optimizer runs `1`, and the pinned Yul sequence without FunctionSpecializer.
 Use the complete settings for artifact reproduction and source verification;
 the run count alone does not reproduce the deployment bytecode. Both market
-runtimes fit EIP-170 with this configuration. Compressed storage addresses
+runtimes fit EIP-170 with this configuration. Split storage addresses
 creation-code storage size and does not change that runtime limit.
 
 Wildcat V2 bytecode uses EIP-1153 transient storage. The target chain must
@@ -69,24 +69,36 @@ step; the factory does not assemble policies during deployment.
 
 [`LibDeployment`](../../script/common/LibDeployment.sol) keeps the raw
 `STOP || creation code` format when the artifact fits its 24,575-byte payload
-limit. Larger artifacts use one contract containing the FastLZ reader,
-compressed payload, and length footer. Both formats recover the original
-creation code. Runtime and total creation-code limits still apply, including
-constructor arguments.
+limit. Larger artifacts use [two storage contracts](../../src/libraries/LibSplitInitCode.sol).
+The primary holds a small reader and the first bytes; the secondary holds
+`STOP || remaining bytes`. The factory receives the primary address, whose
+reader copies and returns the original creation code. There is no compression.
+Each storage runtime must fit 24,576 bytes. The current reader leaves room for
+49,013 original bytes across the pair; total creation code including constructor
+arguments must also fit the separate 49,152-byte limit.
 
-Plan generation computes the complete compressed runtime locally.
-[`CompressedInitCodeStorage`](../../script/common/DeployScriptBase.sol) installs
-those prepared bytes; its deployment transaction does not run the compressor.
-The generated plan contains the bytes and two independent expectations derived
-from the reviewed artifact: the stored runtime hash and the original
-creation-code hash.
+Plan generation prepares both images locally. The
+[`PreparedInitCodeStorage` and `LinkedInitCodeStorage` constructors](../../script/common/PreparedInitCodeStorage.sol)
+install the secondary first, then bind its address into the primary's prepared
+footer. The reader, payload and lengths are copied unchanged. Each secondary
+gets its own plan output, transaction, inventory record and deployment label;
+the label appends `_secondary` to its primary's label. Original template and
+factory references continue to use the primary.
 
-Storage entries use the `codeHash` predicate with `expect` for the runtime hash
-and `initCodeHash` for the recovered creation code. The CLI and deployment UI
-verify the runtime before calling an executable reader, then verify its output.
-Resume repeats these checks. Existing-store reuse verifies both identities too.
-Build the plan, CLI, and UI from the same reviewed source; older executors do
-not support this predicate.
+Raw storage uses `codeHash`, with `expect` for its runtime and `initCodeHash`
+for the original creation code. Split storage uses `splitCodeHash`: `expect`
+commits the primary runtime with its secondary-address field zeroed;
+`secondary` identifies that deployment, and `secondaryCodeHash` commits its
+complete runtime. The CLI and UI check the embedded link, both complete images,
+and then the reader's output against `initCodeHash`. They authenticate the
+reader before calling it. Resume repeats all checks.
+
+Direct deployment verifies and reuses a recorded secondary if installation
+stopped before the primary. Reusing a complete primary verifies both images
+and their link; a conflicting recorded secondary fails. Build the plan, CLI,
+and UI from the same reviewed source; older executors do not support the split
+predicate. The historical compression experiment remains available for research
+but is not accepted by the current direct-deployment verifier.
 
 Both factories additionally check the decoded market creation-code hash before
 `CREATE2`, using the same bytes for hashing and deployment. Hook registration
@@ -236,6 +248,11 @@ Do not repair a live ceremony in place.
 - The release contract list and ABI artifacts.
 - Routing and indexing rules.
 - Available plan and run-state provenance.
+
+Storage records require verified plan metadata to identify their actual
+installer. Split companions appear as separate release contracts, using the
+primary deployment key with `_secondary` appended. Preserve both receipts
+and addresses when exporting the handoff.
 
 Its `--check` mode validates the JSON and Markdown pair against current
 deployment state.

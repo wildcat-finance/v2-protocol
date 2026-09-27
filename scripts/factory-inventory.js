@@ -6,11 +6,14 @@ const { execFileSync } = require("child_process");
 const {
   REGISTRATION_SIGNATURE,
   assertActivationTemplateCommitments,
+  assertSplitStorageCommitments,
 } = require("./template-commitments");
 
 const INIT_CODE_STORAGE_ARTIFACTS = [
   "script/common/DeployScriptBase.sol:InitCodeStorage",
   "script/common/DeployScriptBase.sol:CompressedInitCodeStorage",
+  "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+  "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage",
 ];
 
 const LEGACY_INVENTORY_SCHEMA_VERSION = "1.0.0";
@@ -732,7 +735,17 @@ function assertActivationPlan(plan, network, options = {}) {
   }
   const expectedTransactions = allExpectedTransactions.filter(
     ({ id }) => !omittedDeploymentIds.has(id)
-  );
+  ).flatMap((expected) => {
+    const transaction = plan.transactions.find((entry) => entry.id === expected.id);
+    if (expected.artifactNames && transaction?.artifactName ===
+        "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage") {
+      return [{
+        id: `${expected.id}-secondary`, kind: "deploy",
+        artifactName: "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      }, expected];
+    }
+    return [expected];
+  });
   const authorityHelper = authorizedHelperContext(network);
   if (plan.transactions.length !== expectedTransactions.length) {
     throw new Error(
@@ -757,6 +770,7 @@ function assertActivationPlan(plan, network, options = {}) {
     }
   }
   assertAuthorizedHelperBoundary(plan, authorityHelper);
+  assertSplitStorageCommitments(plan);
   assertActivationTemplateCommitments(plan);
 
   const requiredDeployments = [

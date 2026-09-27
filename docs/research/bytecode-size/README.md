@@ -1,6 +1,7 @@
 # V2.5 bytecode size research
 
-Experimental branch: `experiment/tranching-bytecode-size`.
+Current branch: `codex/split-initcode-comparison`.
+Parent research branch: `experiment/tranching-bytecode-size`.
 Baseline: `7b47eecb3832b74a37416d88e16a67bb8e7b060a`.
 
 The user authorized a research loop: state a hypothesis, implement it, measure
@@ -9,10 +10,12 @@ Candidates will be selected after the catalogue is reviewed. The initial size
 pass excluded gas; E22 adds the subsequently requested gas qualification and
 runs sweep. Nothing is pushed automatically.
 
-The parent branch assumes FastLZ, subject to further verification. The user
-subsequently requested [E23's two-contract comparison](./E23-split-storage-comparison.md)
-on `codex/split-initcode-comparison`; that experiment is an explicit exception
-to the original single-store constraint and does not select a release format.
+The user selected split storage after
+[E23's two-contract comparison](./E23-split-storage-comparison.md).
+[E24](./E24-split-storage-adoption.md) adopts prepared raw/split installation,
+plan execution/resume verification, inventory and handoff records. This
+supersedes the earlier single-store constraint and FastLZ selection. Fitting
+hooks remain raw; oversized artifacts use exactly two immutable contracts.
 [E13](./E13-invariant-parity.md) restores the existing invariant suite, and
 [E14](./E14-qualification-fixtures.md) passes the broader qualification under
 both compiler configurations. [E15](./E15-compression-integrity.md) adds artifact
@@ -73,15 +76,21 @@ markets. The full suite passes 880 tests, the strict deployment matrices pass,
 and 114 real local transactions qualify the comparison. Raw storage remains
 appropriate for the currently fitting hooks.
 
-Next: review the storage choice, integrate the selected deployment format, and
-rehearse the actual plan on an Anvil fork. Reproducible release-build gates,
+E24 passes all 883 Solidity tests with split as the normal fixture path,
+including 180,000 invariant calls with zero reverts. Strict deployment tests,
+35 Node tests, 44 UI tests and an actual interrupted/resumed storage plan pass.
+All fourteen existing target artifacts remain unchanged in both profiles.
+
+Next: finalize network limits and rehearse the actual plan on an Anvil fork.
+Reproducible release-build gates,
 inventory, freeze, and audit delta accompany that work; the selected compiler
 settings are already applied.
 
 ## Objective and constraints
 
 The original E00–E22 constraints below remain the basis of those experiments.
-E23 separately permits two storage contracts, at the user's explicit request.
+E23 separately permits two storage contracts, at the user's explicit request;
+E24 adopts that format. The single-store rule below is historical.
 
 Make both market models and the supported hook/composition targets deployable
 while preserving their behavior. Runtime must fit 24,576 bytes. Each market or
@@ -89,9 +98,9 @@ template must use one storage contract whose runtime also fits 24,576 bytes.
 For the existing raw format, that means creation code plus its leading STOP.
 A compressed format must fit its reader and entire payload in that same contract;
 the decoded creation code must also satisfy the 49,152-byte creation limit.
-**Split initcode storage is excluded by the user.** This research
-must not work around the limit by dividing a market/template across storage
-contracts. Do not remove features or weaken tests to manufacture a size win.
+**E00–E22 excluded split initcode storage.** Those experiments could not work
+around the limit by dividing a market/template across storage contracts.
+Do not remove features or weaken tests to manufacture a size win.
 Yul, inline assembly and compiler experiments are explicitly in scope, subject
 to that same single-storage constraint and behavioral verification.
 
@@ -163,7 +172,7 @@ allowance alone is not deployment evidence.
 5. **Larger extraction candidates.** If local changes cannot meet the budget,
    measure a separately deployed immutable calculation helper or other explicit
    architecture changes. Record trust, ABI and deployment consequences. Split
-   initcode storage remains excluded.
+   initcode storage was excluded from these original hypotheses.
 
 The list can change based on measurements. Do not continue a weak hypothesis
 just to complete a preset list.

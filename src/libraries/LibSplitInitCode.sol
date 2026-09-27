@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-/// @notice experimental two-contract storage for uncompressed creation code.
+/// @notice two-contract storage for uncompressed creation code.
 /// @dev the primary holds the reader and first chunk; the secondary is STOP plus the rest.
 ///      factories still receive one address and authenticate the reconstructed initcode hash.
 library LibSplitInitCode {
@@ -16,6 +16,16 @@ library LibSplitInitCode {
 
   function maximumInitCodeSize() internal pure returns (uint256) {
     return firstChunkCapacity() + CodeSizeLimit - 1;
+  }
+
+  /// @dev reads the link only. callers must still authenticate both complete runtimes.
+  function getSecondaryAddress(address primary) internal view returns (address secondary) {
+    uint256 size = primary.code.length;
+    if (size < FooterSize || primary.code[0] == bytes1(0)) return address(0);
+    assembly ('memory-safe') {
+      extcodecopy(primary, 0, sub(size, 24), 20)
+      secondary := shr(96, mload(0))
+    }
   }
 
   function _firstLength(bytes memory initCode) private pure returns (uint256) {

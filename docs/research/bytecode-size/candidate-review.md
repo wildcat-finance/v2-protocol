@@ -1,19 +1,26 @@
-# Candidate review: single-storage deployment
+# Candidate review: deployable markets and creation-code storage
 
-Research branch: `experiment/tranching-bytecode-size`.
+Current branch: `codex/split-initcode-comparison`.
+Parent research branch: `experiment/tranching-bytecode-size`.
 Baseline: `7b47eec`. Work remains on the research branch. E20 applies the
 qualified runs-1 compiler configuration to normal repository builds and tests.
 
-This document describes the compressed candidate. The later user-authorized
-[E23 comparison](./E23-split-storage-comparison.md) lives on
-`codex/split-initcode-comparison` and compares it with exactly two storage
-contracts. Split costs more to install but saves about two million gas per
-market, recovering the premium on the first deployment. The factory still
-receives one address and verifies the same creation-code hash. Both formats
-remain available for review; this branch has not switched the release ceremony.
+The user selected split storage after the
+[E23 comparison](./E23-split-storage-comparison.md).
+[E24](./E24-split-storage-adoption.md) adopts it in production preparation,
+CLI/UI execution and resume, inventory/handoff generation, and normal fixtures.
+Oversized artifacts use exactly two immutable contracts; fitting hooks remain
+raw. The factory still receives one primary address and verifies the same
+creation-code hash. Full release rehearsal and freeze remain outstanding.
 
-FastLZ is now the assumed candidate for continued verification. The invariant
-compilation blocker is resolved by [E13](./E13-invariant-parity.md), and
+Split costs more to install but saves about two million gas per market,
+recovering the premium on the first deployment. E24 passes 883 Solidity tests,
+180,000 invariant calls with zero reverts, 27 strict deployment tests, 35 Node
+tests and 44 UI tests. The actual storage-plan resume check passes. The fourteen
+tracked market/factory/hook/lens artifacts are unchanged in both profiles.
+
+The earlier compression candidate and its evidence remain below for comparison.
+The invariant compilation blocker is resolved by [E13](./E13-invariant-parity.md), and
 [E14](./E14-qualification-fixtures.md) passes the broader qualification under
 both compiler configurations. [E15](./E15-compression-integrity.md)
 integrates artifact verification into the V2.5 scripts and plan executors,
@@ -47,7 +54,7 @@ adopted Yul sequence; revolving fails at 15–44. All 56 benchmark scenarios pas
 with matching comparable accounting. The user confirmed retaining runs 1;
 production compiler settings and source are unchanged.
 
-## Demonstrated bundle
+## Earlier compressed bundle
 
 E02's bounded constructor query, E03's bounded periodic query, E08's liability
 additions and E11's transition arena are combined with E05's runs-1 optimizer
@@ -176,17 +183,16 @@ The working evidence archive is
 ## Selection and release work
 
 The meaningful choices are the custom optimizer settings, the manually
-allocated transition arena and the compressed deployment format. The smaller
+allocated transition arena and the creation-code storage format. The smaller
 source candidates can be reviewed independently. Every source experiment has
 its own signed checkpoint and the rejected alternatives remain documented.
 
-E15 updates `script/common/LibDeployment.sol`, `script/common/DeployScriptBase.sol`,
-the V2.5 plan scripts, and CLI/UI execution to create and verify compressed
-stores. Images are encoded during preparation; their installation transactions
-do not run the compressor. Review this deployment change and its executable
-reader trust boundary before release. Raw stores remain supported, so
-already-fitting hooks do not have to use compression. The historical Sepolia
-fix-1 rotation generator remains a raw-only path.
+E24 replaces E15's compressed installation path in `LibDeployment`, the V2.5
+scripts and CLI/UI. It prepares both split images, installs the secondary,
+then binds its address in the primary's footer. Execution and resume verify
+both complete runtimes and the original artifact hash. The new reader and
+link constructor remain audit scope. Fitting hooks keep raw storage. The
+historical Sepolia fix-1 rotation generator requires its pinned tooling.
 
 E16 requires an artifact hash at template registration and checks it again
 before every hook deployment. The V2.5 owner script, activation validator, and
@@ -213,9 +219,8 @@ compiler change; they are not attributed solely to lifecycle storage. Equivalent
 scenarios, compiler/EVM settings, and call isolation are recorded. Raised test
 limits for oversized controls do not qualify them for deployment.
 
-Next review E23's storage comparison, then complete the selected deployment
-ceremony update and required Anvil-fork rehearsal,
-with release-build gates alongside them, followed by the final inventory,
+Next finalize the network limits and complete the required Anvil-fork rehearsal,
+with release-build gates alongside it, followed by the final inventory,
 freeze, and audit review delta. An additional execution client is not a selected
 requirement.
 
@@ -265,9 +270,10 @@ texts outside the repository, and restores `foundry.toml` afterward.
 size_yul_steps='dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul'
 python3 scripts/research/check.py /tmp/wildcat-size-full --scope full --runs 1 --yul-steps "$size_yul_steps"
 python3 scripts/research/check.py /tmp/wildcat-size-deployment --scope deployment --runs 1 --yul-steps "$size_yul_steps" --code-size-limit 24576
-node scripts/research/compression-rpc.js /tmp/wildcat-size-transactions
+FOUNDRY_PROFILE=deploy forge test --match-contract InitCodeStorageToolsTest --fuzz-seed 0x5eed
+node scripts/research/split-plan-rpc.js /tmp/wildcat-split-plan-transactions
 ```
 
-E19 updates the artifact gates to the selected raw/compressed format without
-changing their size bounds. The full selection includes every size test; the
+E24 updates the normal artifact gates to raw/split without changing their size
+bounds, retaining explicit compression controls. The full selection includes every size test; the
 strict deployment command separately enforces the actual EVM code-size limit.

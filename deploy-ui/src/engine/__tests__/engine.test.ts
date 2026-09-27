@@ -365,8 +365,84 @@ describe('fixture-driven engine semantics', () => {
       type: 'codePresent', target: { $ref: 'fixture-token' }, initCodeHash: keccak256('0x00'),
     } as Predicate
     expect(validatePlan(candidate, { checkArtifacts: false }).errors).toContain(
-      '$.transactions[0].predicate: initCodeHash requires codeHash',
+      '$.transactions[0].predicate: initCodeHash requires codeHash or splitCodeHash',
     )
+  })
+
+  it('authenticates both split runtimes and their link before calling the reader', async () => {
+    const target = getAddress('0x1000000000000000000000000000000000000001')
+    const secondary = getAddress('0x2000000000000000000000000000000000000002')
+    const original: Hex = '0xabcdef'
+    const image: Hex = `0x600060005260206000f3abcd${'00'.repeat(20)}00020001`
+    const linked = (image.slice(0, -48) + secondary.slice(2) + image.slice(-8)) as Hex
+    const tail: Hex = '0x00ef'
+    const predicate: Predicate = {
+      type: 'splitCodeHash', target: { $ref: 'primary' }, expect: keccak256(image),
+      secondary: { $ref: 'secondary' }, secondaryCodeHash: keccak256(tail),
+      initCodeHash: keccak256(original),
+    }
+    const outputs = new Map([['primary', target], ['secondary', secondary]])
+    const cases: [Hex, Hex, Hex, boolean, boolean][] = [
+      [linked, tail, original, true, true],
+      ['0x', tail, original, false, false],
+      [`0xfe${linked.slice(4)}`, tail, original, false, false],
+      [image, tail, original, false, false],
+      [`${linked}00`, tail, original, false, false],
+      [linked, '0x', original, false, false],
+      [linked, '0x00ee', original, false, false],
+      [linked, '0x00ef00', original, false, false],
+      [linked, '0x60ef', original, false, false],
+      [linked, tail, '0xfe', false, true],
+    ]
+    for (const [primaryCode, secondaryCode, returned, ok, shouldCall] of cases) {
+      const transport = new FakeTransport()
+      transport.code.set(target.toLowerCase(), primaryCode)
+      transport.code.set(secondary.toLowerCase(), secondaryCode)
+      let uiCalls = 0
+      let cliCalls = 0
+      transport.ethCall = async () => {
+        uiCalls++
+        if (!shouldCall) throw new Error('unverified store executed')
+        return returned
+      }
+      const cli = await checkCliPredicate(async (method: string, params: any[]) => {
+        if (method === 'eth_getCode') return transport.code.get(params[0].toLowerCase())
+        cliCalls++
+        if (!shouldCall) throw new Error('unverified store executed')
+        return returned
+      }, predicate, outputs)
+      const ui = await evaluatePredicate(transport, predicate, outputs)
+      expect(ui).toEqual(cli)
+      expect(ui.ok).toBe(ok)
+      expect(uiCalls).toBe(shouldCall ? 1 : 0)
+      expect(cliCalls).toBe(uiCalls)
+    }
+  })
+
+  it('requires complete split commitments and resolvable secondary references', () => {
+    const candidate = structuredClone(plan)
+    const valid: Predicate = {
+      type: 'splitCodeHash', target: { $ref: 'fixture-token' }, expect: keccak256('0x60'),
+      secondary: getAddress('0x2000000000000000000000000000000000000002'),
+      secondaryCodeHash: keccak256('0x00'), initCodeHash: keccak256('0x'),
+    }
+    candidate.transactions[0].predicate = valid
+    expect(validatePlan(candidate, { checkArtifacts: false }).errors).toEqual([])
+    for (const field of ['expect', 'secondary', 'secondaryCodeHash', 'initCodeHash']) {
+      const malformed = { ...valid } as any
+      delete malformed[field]
+      candidate.transactions[0].predicate = malformed
+      expect(validatePlan(candidate, { checkArtifacts: false }).errors.length).toBeGreaterThan(0)
+    }
+    for (const extra of [
+      { expect: { $ref: 'fixture-token' } },
+      { secondary: { $ref: 'missing-secondary' } },
+      { secondaryCodeHash: '0x12' },
+      { call: { sig: 'owner() view returns (address)', args: [] } },
+    ]) {
+      candidate.transactions[0].predicate = { ...valid, ...extra } as Predicate
+      expect(validatePlan(candidate, { checkArtifacts: false }).errors.length).toBeGreaterThan(0)
+    }
   })
 
   it('checks decoded bytes only after authenticating the storage runtime', async () => {

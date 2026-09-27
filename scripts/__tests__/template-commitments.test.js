@@ -8,6 +8,7 @@ const {
   assertActivationTemplateCommitments,
 } = require("../template-commitments");
 const { assertActivationPlan } = require("../factory-inventory");
+const { keccak256 } = require("ethers");
 const {
   normalizeTemplate,
   diffTemplateDetails,
@@ -126,6 +127,41 @@ function firstRegistration(plan) {
 test("activation accepts raw and prepared compressed storage with matching commitments", () => {
   for (const compressed of [false, true])
     assertActivationPlan(activationPlan(compressed), "commitment-test");
+});
+
+test("activation accepts split markets and future split templates with their companion entries", () => {
+  for (const includeHooks of [false, true]) {
+    const candidate = activationPlan();
+    const selected = candidate.transactions.filter((tx) =>
+      tx.artifactName === RAW && (includeHooks || tx.output.startsWith("wildcat-market"))
+    );
+    for (const primary of selected) {
+      const output = `${primary.output}-secondary`;
+      const image = "0x600060005260206000f3abcd" + "00".repeat(20) + "00020001";
+      const tail = "0x00ef";
+      const hash = keccak256("0xabcdef");
+      primary.artifactName = "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage";
+      primary.constructorArgs = { decoded: [image, ref(output)] };
+      primary.predicate = { type: "splitCodeHash", target: ref(primary.output), expect: keccak256(image),
+        secondary: ref(output), secondaryCodeHash: keccak256(tail), initCodeHash: hash };
+      candidate.transactions.splice(candidate.transactions.indexOf(primary), 0, {
+        id: `${primary.id}-secondary`, kind: "deploy", output,
+        artifactName: "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+        constructorArgs: { decoded: [tail] },
+        predicate: { type: "codeHash", target: ref(output), expect: keccak256(tail) },
+      });
+      for (const registration of candidate.transactions.filter((tx) =>
+        tx.functionSignature === REGISTRATION_SIGNATURE && tx.args[0].$ref === primary.output
+      )) {
+        registration.args[6] = hash;
+        registration.predicate.expect = hash;
+      }
+    }
+    assertActivationPlan(candidate, "commitment-test");
+    const malformed = structuredClone(candidate);
+    malformed.transactions.find((tx) => tx.predicate?.type === "splitCodeHash").predicate.secondaryCodeHash = HASH_B;
+    assert.throws(() => assertActivationPlan(malformed, "commitment-test"), /split storage/);
+  }
 });
 
 test("commitment matrix follows authorized-helper logical calls", () => {

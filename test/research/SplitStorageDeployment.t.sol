@@ -196,6 +196,17 @@ contract SplitStorageDeploymentTest is SplitStorageFixture {
 }
 
 contract SplitStorageParityTest is ProductionMatrixFixture {
+  // keep the E23 compression control explicit now that the shared fixture uses split storage.
+  function _storeInitCode(
+    string memory artifact
+  ) internal override returns (address store, uint256 hash) {
+    bytes memory original = vm.getCode(artifact);
+    store = original.length <= 24_575
+      ? LibStoredInitCode.deployInitCode(original)
+      : LibCompressedInitCode.deployInitCode(original);
+    return (store, uint256(keccak256(original)));
+  }
+
   struct Observation {
     address market;
     address hooks;

@@ -7,7 +7,7 @@ import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
-import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
+import { LibSplitInitCode } from 'src/libraries/LibSplitInitCode.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
@@ -544,16 +544,23 @@ contract HookExtensionsTest is HookTemplateFixture {
         'creation payload limit'
       );
       uint64 nonce = vm.getNonce(address(this));
-      address stored = initCode.length + 1 <= 24_576
-        ? LibStoredInitCode.deployInitCode(initCode)
-        : LibCompressedInitCode.deployInitCode(initCode);
-      assertEq(vm.getNonce(address(this)), nonce + 1, 'one storage contract');
+      address stored;
+      if (initCode.length <= 24_575) stored = LibStoredInitCode.deployInitCode(initCode);
+      else (stored, ) = LibSplitInitCode.deployInitCode(initCode);
+      assertEq(
+        vm.getNonce(address(this)),
+        nonce + (initCode.length <= 24_575 ? 1 : 2),
+        'selected storage count'
+      );
       assertTrue(stored.code.length <= 24_576, 'stored initcode limit');
       assertEq(
         stored.code,
         initCode.length + 1 <= 24_576
           ? abi.encodePacked(bytes1(0), initCode)
-          : LibCompressedInitCode.getStorageRuntime(initCode),
+          : LibSplitInitCode.getPrimaryRuntime(
+            initCode,
+            LibSplitInitCode.getSecondaryAddress(stored)
+          ),
         'actual stored image'
       );
       assertEq(LibStoredInitCode.getInitCode(stored), initCode, 'decoded creation code');
