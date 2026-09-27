@@ -25,7 +25,7 @@ mechanism, tranche policy, repayment terms, or default rules are part of E18.
 | Task | Required evidence | Status |
 | --- | --- | --- |
 | E18-01 | Reproduce recipient rejection, isolate automatic closure from surplus collection, and test borrower-only recovery against every liability category on both models. | Complete; final campaign budgets remain in E18-04. |
-| E18-02 | Skip closed markets in both fee-update loops; retain pagination, whole-batch rollback for unexpected failures, and existing setter errors. | Pending |
+| E18-02 | Skip closed markets in both fee-update loops; retain pagination, whole-batch rollback for unexpected failures, and existing setter errors. | Complete; 209 hook/factory tests pass. |
 | E18-03 | Compare the transition allocator with Solidity-created structs; pin field layout, zeroing, and non-aliasing. Retain the existing accrual-event encoding test. | Pending |
 | E18-04 | Requalify focused suites and E17 campaigns under both compiler configurations; measure runtime/storage sizes and record ABI/storage compatibility. | Pending |
 
@@ -94,3 +94,20 @@ zero handler reverts. Final qualification retains the original 2,000-run budget.
 Native receipts: `e18-f1-native-default` and `e18-f1-native-noF`, compared with
 the E17 receipts. All ten measured ABIs and storage layouts are unchanged;
 factories, hooks, and composition targets are byte-identical at this checkpoint.
+
+## E18-02: fee pushes
+
+Both factory loops read the live `isClosed()` result before calling the setter.
+The bounded read requires a full, canonical bool; short/dirty returns and
+reverting queries use the existing `SetProtocolFeeBipsFailed` error. Closed
+markets are skipped without committing their pending closure. Other failures
+still revert every prior update in that page. The selector `0xc2b6b58c` was
+checked against `cast sig 'isClosed()'`.
+
+`e18-f5-before` fails the new closed-market and query-failure tests against the
+old loops, with all 27 previous factory tests passing. `e18-f5-hooks` passes all
+209 hook/factory tests after the change. New cases cover both factories, mixed
+open/stored-closed/effectively-closed markets, closed-only pages, later pages,
+failed and malformed queries, failed setters, whole-page rollback, and valid
+bool returns with trailing data. Interface comments now state the skip rule;
+function signatures and errors remain unchanged.

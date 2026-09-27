@@ -871,7 +871,17 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     for (uint256 i = 0; i < count; i++) {
       address market = markets[marketStartIndex + i];
       assembly {
-        if iszero(call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)) {
+        // isClosed() includes funded repayment closure that hasn't been written yet.
+        mstore(0, 0xc2b6b58c)
+        let success := staticcall(gas(), market, 0x1c, 0x04, 0, 0x20)
+        // require a complete, canonical bool. failed reads must not silently skip a market.
+        if or(lt(returndatasize(), 0x20), gt(mload(0), 1)) {
+          success := 0
+        }
+        if and(success, iszero(mload(0))) {
+          success := call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)
+        }
+        if iszero(success) {
           // Equivalent to `revert SetProtocolFeeBipsFailed()`
           mstore(0, 0x4484a4a9)
           revert(0x1c, 0x04)

@@ -455,7 +455,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   /// @notice pushes a template's current protocol fee to markets in an index range.
   /// @dev permissionless. `marketEndIndex` is clamped to the market count; after that, equal bounds
-  ///      are a no-op and `marketStartIndex > marketEndIndex` reverts.
+  ///      are a no-op and `marketStartIndex > marketEndIndex` reverts. closed markets are skipped;
+  ///      a failed closure query or fee update reverts the whole call.
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
     uint marketStartIndex,
@@ -463,6 +464,6 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ) external;
 
   /// @notice pushes a template's current protocol fee to all of its markets.
-  /// @dev permissionless. one market failure reverts the whole call.
+  /// @dev permissionless. closed markets are skipped; any other market failure reverts the call.
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external;
 }
