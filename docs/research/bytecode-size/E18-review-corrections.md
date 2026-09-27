@@ -1,6 +1,6 @@
 # E18: closure isolation and review corrections
 
-Source parent: `f56c30e` (E17). Status: in progress.
+Source parent: `f56c30e` (E17). Status: complete within the research scope below.
 
 The September 26 external review found that automatic closure sends excess
 underlying assets to the borrower inside ordinary state updates. A token that
@@ -24,10 +24,10 @@ mechanism, tranche policy, repayment terms, or default rules are part of E18.
 
 | Task | Required evidence | Status |
 | --- | --- | --- |
-| E18-01 | Reproduce recipient rejection, isolate automatic closure from surplus collection, and test borrower-only recovery against every liability category on both models. | Complete; final campaign budgets remain in E18-04. |
+| E18-01 | Reproduce recipient rejection, isolate automatic closure from surplus collection, and test borrower-only recovery against every liability category on both models. | Complete; final campaigns pass in E18-04. |
 | E18-02 | Skip closed markets in both fee-update loops; retain pagination, whole-batch rollback for unexpected failures, and existing setter errors. | Complete; 209 hook/factory tests pass. |
 | E18-03 | Compare the transition allocator with Solidity-created structs; pin field layout, zeroing, and non-aliasing. Retain the existing accrual-event encoding test. | Complete under both compiler configurations, including negative controls. |
-| E18-04 | Requalify focused suites and E17 campaigns under both compiler configurations; measure runtime/storage sizes and record ABI/storage compatibility. | Pending |
+| E18-04 | Requalify focused suites and E17 campaigns under both compiler configurations; measure runtime/storage sizes and record ABI/storage compatibility. | Complete; 497 tests per configuration, 425,536 invariant calls with zero reverts, 28 strict-deployment tests, and 38 real local transactions. |
 
 Each completed task gets a signed kethcode checkpoint. Do not push. Keep the
 external review handoff, source PDFs, old sketch, and voice guide uncommitted.
@@ -132,3 +132,80 @@ under both configurations; public ABIs and storage layouts remain unchanged.
 record pointers fails the Solidity-encoding comparison, and omitting the zero
 fill fails the dirty-memory check. Restoring the source passes. The working
 tree is never mutated for these controls.
+
+## E18-04: qualification and deployment
+
+The final production checkpoint is `17f85e5`, following `b17ce52` (closure and
+recovery) and `49afb9c` (fee updates). Market and hook signatures, errors,
+events, and storage layouts remain unchanged by E18. The expanded behavior of
+`rescueTokens(asset)` is intentional and documented in
+[Markets](../../protocol/markets.md#closure) and
+[Known limitations](../../security/known-issues.md#credit-and-borrower-authority).
+
+`e18-all-noF` and `e18-all-default` each pass all 497 focused tests. The original nine invariant
+properties and both lifecycle campaigns each complete 2,000 runs/depth 30,
+60,000 calls, and zero handler reverts. `e18-stress-noF` adds 128 runs/depth 256
+for each lifecycle campaign using seed `0xc0ffee`: another 65,536 calls with
+zero handler reverts. Its coverage receipts contain successful nonzero surplus
+recoveries in every scheduled cell, separate from setup and the final drain.
+The two no-date penalty cells do not close during exploration and correctly
+have no surplus recoveries there.
+
+Across both full runs and the deeper run, the campaigns complete 425,536
+handler calls with zero reverts. All ten fresh Forge artifacts exactly match
+their independent compiler outputs under both configurations: creation code,
+runtime, full ABI, and normalized storage layout. The allocator's visibility
+change leaves both market binaries identical to E18-01. Formatting and
+`solhint` pass on all changed Solidity files (zero errors, five existing
+warnings); `node --check` passes on the deployment qualification script.
+
+`e18-deployment` passes all 28 tests with the actual 24,576-byte code-size
+limit, including twelve factory/market/hook combinations. `e18-rpc-v2`
+passes 38 real local transactions and checks the decoded artifact hashes,
+deployed runtimes, constructor context, and repayment terms for six production
+combinations. The Anvil node enforces Osaka's transaction cap and rejects an
+over-cap control. The largest buffered transaction is 9,666,890 gas.
+This local deployment check is not the required Anvil-fork ceremony rehearsal.
+
+The first transaction receipt, `e18-rpc`, records nine successful setup
+transactions followed by a test-token constructor mismatch. Two dependencies
+define `MockERC20`; Foundry's artifact collision paths had moved, so a guessed
+path selected the forge-std mock instead of Solmate's constructor-based mock.
+The qualification script now resolves that explicit source through the build
+cache and validates the artifact's compilation target. No protocol change was
+needed. The failed receipt and the successful rerun are both retained.
+
+| Target | Candidate runtime | Runtime headroom | Compressed store | Storage headroom |
+| --- | ---: | ---: | ---: | ---: |
+| Standard market | 23,778 | 798 | 17,759 | 6,817 |
+| Revolving market | 24,334 | 242 | 18,254 | 6,322 |
+| Standard factory | 16,576 | 8,000 | n/a | n/a |
+| Revolving factory | 17,126 | 7,450 | n/a | n/a |
+
+The fee-query guard adds 64 runtime bytes to each factory under the candidate
+settings, or 126 at runs 44. Compression remains necessary for market creation
+storage. The normal runs-44 configuration remains unchanged, with revolving
+474 runtime bytes above EIP-170. Compiler adoption and gas measurements remain
+release decisions.
+
+The complete machine-readable summary is [results/e18.json](./results/e18.json).
+Full canonical release qualification, pending integration callback updates,
+the actual deployment ceremony/fork rehearsal, and audit/refreeze work remain
+outside this checkpoint.
+
+### Reproduce
+
+Use new receipt directories. `check.py` records the commands, source texts,
+effective compiler settings, and logs, then restores `foundry.toml`.
+
+```sh
+size_yul_steps='dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul'
+python3 scripts/research/check.py /tmp/e18-default --scope all --lifecycle-coverage
+python3 scripts/research/check.py /tmp/e18-candidate --scope all --runs 1 --yul-steps "$size_yul_steps" --lifecycle-coverage
+python3 scripts/research/check.py /tmp/e18-stress --scope invariants --match-contract '^(RepaymentLifecycleInvariantTest|PenaltyLifecycleInvariantTest)$' --runs 1 --yul-steps "$size_yul_steps" --invariant-runs 128 --invariant-depth 256 --seed 0xc0ffee --lifecycle-coverage
+python3 scripts/research/check.py /tmp/e18-deployment --scope deployment --runs 1 --yul-steps "$size_yul_steps" --code-size-limit 24576
+node scripts/research/compression-rpc.js /tmp/e18-transactions
+```
+
+Keep the deployment and transaction checks adjacent: the transaction script
+consumes the candidate artifacts and prepared images from that build.

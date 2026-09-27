@@ -16,12 +16,16 @@ So is adverse use of authority that a market explicitly grants its borrower,
 including drawing available assets and making permitted term changes. A lender
 must evaluate the borrower, market terms, and hook policy.
 
-Closing a market returns only assets left after all lender debt, paid and unpaid
-withdrawal liabilities, and protocol fees are accounted for. If the operational
-borrower or its recorded principal has since been flagged by the sanctions
-oracle, closure can still send that unencumbered surplus to the operational
-borrower. The sanctions check on `borrow` prevents either flagged identity from
-drawing lender-backed value; closure is allowed to settle the market.
+Manual closure returns only assets left after all lender debt, paid and unpaid
+withdrawal liabilities, and protocol fees are accounted for. Automatic closure
+retains that surplus for a separate borrower call to `rescueTokens(asset)`.
+If the operational borrower or its recorded principal has since been flagged
+by the sanctions oracle, manual closure and surplus recovery can still send
+that unencumbered value to the operational borrower. The sanctions check on
+`borrow` prevents either flagged identity from drawing lender-backed value;
+closure and recovery are allowed to settle the market. A token's own recipient
+restriction can make recovery fail, but automatic closure does not attempt that
+transfer and therefore does not pass that failure on to lender actions.
 
 ## Lazy delinquency accounting
 

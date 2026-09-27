@@ -34,8 +34,29 @@ const artifacts = new Map();
 function artifact(file, name) {
   const key = `${file}:${name}`;
   if (artifacts.has(key)) return artifacts.get(key);
-  const location = path.join(ROOT, "deploy-out", file + ".sol", name + ".json");
+  let artifactPath = path.join(file + ".sol", name + ".json");
+  if (file.endsWith(".sol")) {
+    // Foundry moves colliding basenames between builds. Resolve an explicit source
+    // through the build cache, then check that the artifact belongs to that source.
+    const cache = JSON.parse(
+      fs.readFileSync(path.join(ROOT, "deploy-cache/solidity-files-cache.json"))
+    );
+    const versions = cache.files[file]?.artifacts[name];
+    const paths = new Set(
+      Object.values(versions || {}).flatMap((profiles) =>
+        Object.values(profiles).map((entry) => entry.path)
+      )
+    );
+    if (paths.size !== 1) throw new Error(`missing or ambiguous artifact: ${key}`);
+    [artifactPath] = paths;
+  }
+  const location = path.join(ROOT, "deploy-out", artifactPath);
   const value = JSON.parse(fs.readFileSync(location));
+  if (
+    file.endsWith(".sol") &&
+    value.metadata.settings.compilationTarget[file] !== name
+  )
+    throw new Error(`artifact source mismatch: ${key}`);
   fs.copyFileSync(location, path.join(receiptDirectory, name + ".json"));
   artifacts.set(key, value);
   return value;
@@ -263,7 +284,7 @@ async function main() {
     const asset = await deploy(
       "MockERC20",
       ["Matrix Token", "MTRX", 18],
-      "mocks/MockERC20"
+      "lib/solmate/src/test/utils/mocks/MockERC20.sol"
     );
     await call(arch, "registerBorrower", [account]);
     const templates = [];

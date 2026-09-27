@@ -15,6 +15,12 @@ and requalifies deployment. [E17](./E17-lifecycle-invariants.md) expands statefu
 repayment/default coverage with an independent timeline model. Full release
 qualification remains outstanding.
 
+[E18](./E18-review-corrections.md) addresses the external review's closure,
+factory fee-update, and allocator-test findings. Automatic closure retains
+surplus; the operational borrower recovers it separately using `rescueTokens`.
+This preserves all lender and protocol-fee liabilities and prevents a rejected
+borrower transfer from blocking lender actions.
+
 ## Demonstrated bundle
 
 E02's bounded constructor query, E03's bounded periodic query, E08's liability
@@ -30,18 +36,18 @@ checking that particular combination.
 
 | Market | Live runtime | Runtime headroom | Single storage contract | Storage headroom |
 | --- | ---: | ---: | ---: | ---: |
-| Standard | 23,791 | 785 | 17,769 | 6,807 |
-| Revolving | 24,344 | 232 | 18,248 | 6,328 |
+| Standard | 23,778 | 798 | 17,759 | 6,817 |
+| Revolving | 24,334 | 242 | 18,254 | 6,322 |
 
 All figures are bytes; both limits are 24,576. Each storage figure includes its
 decoder and entire compressed payload. The decoder is part of that same
 contract. Factories recover the original creation code and deploy normally.
 There is no second storage contract or separately deployed decoder.
 
-The creation code itself is 25,436 / 26,053 bytes. It therefore still fails the
+The creation code itself is 25,416 / 26,036 bytes. It therefore still fails the
 old raw `STOP || initcode` storage limit. Compression solves that limit; E05 and
 E11 solve the live-runtime limit. At canonical runs 44, the revolving runtime
-is still 485 bytes oversized, even with these source edits.
+is still 474 bytes oversized, even with these source edits.
 
 All three production hooks and the three periodic composition examples fit.
 The latter's compressed stores are 17,054 bytes (transfer), 17,396 (borrow),
@@ -50,7 +56,9 @@ and 16,965 (APR replacement). Both factories fit comfortably; E09 costs each
 market hash check adds a further 44 / 117 runtime bytes. E16 adds 279 bytes to
 each factory for hook artifact commitments. It changes the registration selector
 and adds a getter, error, event, and mapping; existing factory slots and template
-tuples are preserved. Market and hook ABIs, layouts, and binaries are unchanged.
+tuples are preserved. E16 leaves market and hook ABIs, layouts, and binaries
+unchanged. E18 saves 13 / 10 runtime bytes on the markets and adds 64 to each
+factory; it preserves all ten measured public ABIs and storage layouts.
 
 ## Evidence
 
@@ -94,14 +102,24 @@ tuples are preserved. Market and hook ABIs, layouts, and binaries are unchanged.
   broken protocol behaviors are detected. Four test-model assumptions were
   corrected with minimized regressions; production source and all ten measured
   target artifacts remain unchanged.
+- E18 reproduces the blocked-withdrawal defect, fixes both closure paths, and
+  verifies borrower-only surplus recovery against every liability category.
+  All 497 focused tests pass under both configurations; the full and deeper
+  campaigns total 425,536 calls with zero handler reverts. Two deliberately
+  broken allocators fail the new layout test. All 28 strict-deployment tests
+  and 38 local transactions pass with the new artifacts. An artifact-path
+  collision between two test tokens was corrected in the qualification script;
+  the failed receipt remains archived. No public ABI or storage layout changes.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
 [E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
 [E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md),
-[E16](./E16-hook-artifact-commitment.md), [E17](./E17-lifecycle-invariants.md) and the
+[E16](./E16-hook-artifact-commitment.md), [E17](./E17-lifecycle-invariants.md),
+[E18](./E18-review-corrections.md) and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
-`/home/kethcode/wildcat/bytecode-research/2026-09-26/`.
+`/home/kethcode/wildcat/bytecode-research/2026-09-26/`, with E18 receipts under
+`/home/kethcode/wildcat/bytecode-research/2026-09-27/`.
 
 ## Selection and release work
 
@@ -138,9 +156,11 @@ Next are the deployment ceremony update and the required Anvil-fork rehearsal,
 with release-build gates alongside them. An additional execution client is not
 a selected requirement.
 
-The arena's offsets track three memory struct layouts and must be reviewed if
-those structs change. Revolving has only 232 runtime bytes spare. Recheck sizes
-after any selected-code or compiler change.
+E18 compares the arena's zeroing and nested fields with independently allocated
+Solidity structs, including negative controls for aliases and dirty memory.
+Its offsets still require review when those structs change. Revolving has only
+242 runtime bytes spare. Recheck sizes after any selected-code or compiler
+change. Compiler selection and hot-path gas measurements remain release work.
 
 ## Reproduce the selected checks
 

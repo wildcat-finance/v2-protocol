@@ -83,9 +83,23 @@ conversion. See [Rounding](./scaling-and-rounding.md#rounding).
 
 Interest and delinquency fees stop at closure.
 
-Closure also pays the current batch and walks every unpaid withdrawal batch.
+Manual closure also pays the current batch and walks every unpaid withdrawal batch.
 Markets with long unpaid queues should process them incrementally before
 closure; see [Withdrawals](./withdrawals.md#closing-a-market).
+
+Markets with repayment terms close automatically once their repayment date has
+been reached and their assets fully cover `totalDebts()`. Automatic closure
+pays the current batch; older unpaid batches can finish in bounded calls to
+`repayAndProcessUnpaidWithdrawalBatches(0, count)`.
+
+Automatic closure retains surplus assets in the market. After closure, the
+operational borrower can call `rescueTokens(asset)` to collect only
+`totalAssets() - totalDebts()`, including later donations. This preserves live
+shares, unpaid batches, paid unclaimed withdrawals, and protocol fees. A token
+that rejects payment to the borrower can prevent that recovery call from
+succeeding, but it cannot block lender actions through automatic closure.
+Unrelated tokens remain recoverable by the borrower, and the market token
+itself cannot be rescued.
 
 ## Borrower identity and transfer
 

@@ -23,8 +23,18 @@ default, and automatic-closure campaigns while retaining the original
 invariants. All 483 focused tests pass under both compiler configurations;
 longer sequences and deliberate faults qualify the new coverage.
 
+[E18](./E18-review-corrections.md) addresses the external review: automatic
+closure retains surplus for borrower recovery through `rescueTokens`, fee
+pushes skip closed markets, and a fuzz test pins the transition allocator's
+layout. Recovery reserves all lender claims and protocol fees, and a rejected
+borrower transfer cannot block lender actions.
+All 497 focused tests pass under both configurations, with 425,536 invariant
+calls and zero handler reverts across the full and deeper campaigns. Real-limit
+deployment checks and all 38 local transactions pass with the new artifacts.
+
 Next: update the deployment ceremony and rehearse the actual plan on an Anvil
-fork. Reproducible release-build gates accompany that work.
+fork. Reproducible release-build gates and gas measurements accompany that
+work; compiler selection remains a final release decision.
 
 ## Objective and constraints
 
