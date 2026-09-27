@@ -1159,6 +1159,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
         expected.firstWithdrawalWindowStart = uint32(cell.deployedAt + 31 days);
         expected.periodDuration = 34 days;
         expected.withdrawalWindowDuration = 4 days;
+        expected.pendingAprChange.isPresent = true;
         assertEq(PeriodicTermHooks(hooks).templateVersion(), 2, 'periodic ABI revision');
       }
       MarketDataV2_5 memory data = lens.getMarketDataV2(address(cell.market));
@@ -1177,6 +1178,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
         _close(cell);
         data = lens.getMarketDataV2(address(cell.market));
         expected.periodicTermClosed = true;
+        expected.periodicWithdrawalWindowOpen = true;
         assertTrue(data.market.isClosed, 'core closure');
         assertEq(abi.encode(data.market.hooksConfig), abi.encode(expected), 'closed hook tuple');
       }
@@ -1203,7 +1205,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     address pullProvider,
     address administrator,
     address pendingAdministrator
-  ) private pure {
+  ) private view {
     HooksInstanceData memory expected;
     expected.hooksAddress = address(cell.hooks);
     expected.administrator = administrator;
@@ -1220,7 +1222,12 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
       ? 'Fixed Term'
       : 'Periodic Term';
     expected.hooksTemplate.totalMarkets = 1;
+    expected.hooksTemplate.initCodeHash.isPresent = true;
+    expected.hooksTemplate.initCodeHash.value = keccak256(
+      LibStoredInitCode.getInitCode(cell.hooksTemplate)
+    );
     expected.totalMarkets = 1;
+    expected.repaymentConstraintsAvailable = true;
     expected.constraints = MarketParameterConstraints(
       0,
       90 days,

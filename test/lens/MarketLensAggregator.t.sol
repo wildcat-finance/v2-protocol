@@ -257,6 +257,44 @@ contract MarketLensAggregatorTest is MarketFixture {
     );
   }
 
+  function test_templateCommitments_KeepFactoryScopeAndLegacyAbsence() external {
+    HooksTemplateData memory legacy = aggregator.getHooksTemplateForBorrower(
+      Borrower,
+      SharedTemplate
+    );
+    assertFalse(legacy.initCodeHash.isPresent, 'old factory lacks getter');
+    bytes memory input = abi.encodeWithSignature(
+      'getHooksTemplateInitCodeHash(address)',
+      SharedTemplate
+    );
+    bytes32 hashA = keccak256('artifact A');
+    bytes32 hashB = keccak256('artifact B');
+    vm.mockCall(address(factoryA), input, abi.encode(hashA));
+    vm.mockCall(address(factoryB), input, abi.encode(hashB, uint256(123)));
+    FactoryScopedHooksTemplateData[] memory scoped = aggregator
+      .getAggregatedHooksTemplatesForBorrowerWithFactory(Borrower);
+    assertEq(scoped[1].hooksFactory, address(factoryA), 'A provenance');
+    assertTrue(scoped[1].hooksTemplateData.initCodeHash.isPresent, 'A getter present');
+    assertEq(scoped[1].hooksTemplateData.initCodeHash.value, hashA, 'A commitment');
+    assertEq(scoped[2].hooksFactory, address(factoryB), 'B provenance');
+    assertTrue(scoped[2].hooksTemplateData.initCodeHash.isPresent, 'B getter present');
+    assertEq(scoped[2].hooksTemplateData.initCodeHash.value, hashB, 'B commitment');
+    assertEq(
+      aggregator.getAggregatedAllHooksTemplatesForBorrower(Borrower)[1].initCodeHash.value,
+      hashA,
+      'deduplication keeps first factory'
+    );
+
+    vm.mockCall(address(factoryA), input, abi.encode(bytes32(0)));
+    legacy = aggregator.getHooksTemplateForBorrower(Borrower, SharedTemplate);
+    assertTrue(legacy.initCodeHash.isPresent, 'zero hash still returned');
+    assertEq(legacy.initCodeHash.value, bytes32(0), 'zero value');
+    vm.mockCall(address(factoryA), input, new bytes(31));
+    legacy = aggregator.getHooksTemplateForBorrower(Borrower, SharedTemplate);
+    assertFalse(legacy.initCodeHash.isPresent, 'short hash absent');
+    assertEq(legacy.initCodeHash.value, bytes32(0), 'no partial hash');
+  }
+
   function test_aggregationHelpers_DedupeFirstSeenAndIsolateFactoryFailures() external view {
     address[] memory none = new address[](0);
     assertEq(

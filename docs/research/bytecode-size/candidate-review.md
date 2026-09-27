@@ -29,6 +29,10 @@ then expands qualification to the entire Solidity test tree.
 `foundry.toml`, including the exact Yul optimizer sequence. The default and
 deployment profiles inherit the same configuration.
 
+[E21](./E21-lens-feature-surfaces.md) exposes the new features through the
+lenses, adds compatibility and boundary tests, and documents the changed return
+ABIs. Market, factory, and hook source and bytecode remain unchanged.
+
 ## Demonstrated bundle
 
 E02's bounded constructor query, E03's bounded periodic query, E08's liability
@@ -134,16 +138,25 @@ factory; it preserves all ten measured public ABIs and storage layouts.
   Two redundant inline research-profile annotations are removed; their strict
   revert behavior remains inherited from the default annotation and is checked
   with independent controls.
+- E21 passes 869 tests in each required profile, including 17 new lens tests,
+  with 540,000 invariant calls and zero handler reverts. Strict deployments
+  cover the four lenses and both market families alongside the existing
+  twelve-combination market/hook matrix. The largest lens runtime is 21,997
+  bytes; every production artifact fits. Clean lens builds match across
+  profiles, and the ten earlier target binaries and ABIs remain unchanged.
+  Return tuples change and need new consumer decoders. Repository-wide
+  formatting still flags 26 unchanged files; every changed file passes its
+  formatting and lint checks.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
 [E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
 [E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md),
 [E16](./E16-hook-artifact-commitment.md), [E17](./E17-lifecycle-invariants.md),
 [E18](./E18-review-corrections.md), [E19](./E19-integration-qualification.md),
-[E20](./E20-compiler-adoption.md) and the
+[E20](./E20-compiler-adoption.md), [E21](./E21-lens-feature-surfaces.md), and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
-`/home/kethcode/wildcat/bytecode-research/2026-09-26/`, with E18/E19/E20 receipts under
+`/home/kethcode/wildcat/bytecode-research/2026-09-26/`, with E18–E21 receipts under
 `/home/kethcode/wildcat/bytecode-research/2026-09-27/`.
 
 ## Selection and release work

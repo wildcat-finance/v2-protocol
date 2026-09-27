@@ -142,6 +142,28 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(marketData[0].underlyingToken.symbol, 'LEGACY', 'market underlying symbol');
   }
 
+  function test_legacyHookConstraints_FullReadsPreserveOriginalBounds() external {
+    MarketData memory current = core.getMarketData(address(fixture.market));
+    assertTrue(current.hooks.repaymentConstraintsAvailable, 'current bounds supported');
+    bytes memory legacy = abi.encode(current.hooks.constraints);
+    assembly ('memory-safe') {
+      mstore(legacy, 0x140)
+    }
+    vm.mockCall(
+      address(fixture.hooks),
+      abi.encodeWithSignature('getParameterConstraints()'),
+      legacy
+    );
+    MarketDataV2_5 memory data = core.getMarketDataV2(address(fixture.market));
+    assertFalse(data.market.hooks.repaymentConstraintsAvailable, 'legacy bounds unavailable');
+    assertEq(
+      abi.encode(data.market.hooks.constraints),
+      bytes.concat(legacy, new bytes(64)),
+      'old bounds preserved'
+    );
+    assertTrue(data.lifecycle.isPresent, 'market lifecycle independent of hook generation');
+  }
+
   function test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity() external {
     Fixture memory revolving = _newRevolvingMarket(HooksKind.OpenTerm);
     _deposit(revolving, Lender, 100e18);
@@ -302,6 +324,11 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(lenderBatch.lenderStatus.lender, Lender, 'lender');
     assertEq(lenderBatch.lenderStatus.scaledAmount, batch.scaledTotalAmount, 'lender amount');
     assertEq(
+      lenderBatch.lenderStatus.availableWithdrawalAmount,
+      0,
+      'pending assets not collectible'
+    );
+    assertEq(
       abi.encode(
         core.getWithdrawalBatchesDataWithLenderStatus(address(fixture.market), expiries, Lender)[0]
       ),
@@ -322,6 +349,16 @@ contract MarketLensCoreTest is MarketFixture {
     vm.warp(uint256(expiry) + 1);
     batch = core.getWithdrawalBatchData(address(fixture.market), expiry);
     assertEq(uint256(batch.status), uint256(BatchStatus.Expired), 'expired');
+    lenderBatch = core.getWithdrawalBatchDataWithLenderStatus(
+      address(fixture.market),
+      expiry,
+      Lender
+    );
+    assertEq(
+      lenderBatch.lenderStatus.availableWithdrawalAmount,
+      fixture.market.getAvailableWithdrawalAmount(Lender, expiry),
+      'expired collectible parity'
+    );
     fixture.market.updateState();
     batch = core.getWithdrawalBatchData(address(fixture.market), expiry);
     assertEq(uint256(batch.status), uint256(BatchStatus.Unpaid), 'unpaid');

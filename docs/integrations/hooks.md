@@ -216,6 +216,11 @@ families. A completed hook-administrator transfer updates factory discovery;
 it does not transfer the attached markets. New feature templates need explicit
 decoder support for any new identity or public format.
 
+See [market lenses](./lenses.md) for repayment-bound availability, periodic
+proposal views, and factory-scoped creation-code commitments. New nested fields
+require the ABI for the deployed lens, even when its input selectors match an
+older lens.
+
 See [role providers](./role-providers.md) for credentials, then
 [access control](./access-control.md),
 [fixed-term hooks](./fixed-term-hooks.md), and

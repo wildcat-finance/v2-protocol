@@ -1,0 +1,775 @@
+{
+  "source_parent": "ea2729a",
+  "archive_root": "/home/kethcode/wildcat/bytecode-research/2026-09-27/e21-lens-feature-surfaces",
+  "scope": "Lens interfaces, shared data fillers, boundary/probe tests, production-matrix tuple expectations, and documentation.",
+  "market_factory_hook_source_changed": false,
+  "compiler_configuration_changed": false,
+  "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+  "return_abi_changed": true,
+  "function_selectors_changed": false,
+  "new_facade_error": "InvalidParameterConstraints()",
+  "required_tests": {
+    "default-final": {
+      "command": [
+        "forge",
+        "test",
+        "--summary"
+      ],
+      "profile": "default",
+      "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T05:09:17.116291+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T05:12:06.851446+00:00",
+      "log_sha256": "796573d6652836a6ab48998f8d57ebf70daef8efe94583cbf3377796f36d5c09",
+      "passed": 869,
+      "failed": 0,
+      "skipped": 0,
+      "suites": 72,
+      "invariant_campaigns": [
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        }
+      ]
+    },
+    "fixed-final": {
+      "command": [
+        "npm",
+        "run",
+        "test:fixed",
+        "--",
+        "--summary"
+      ],
+      "profile": "default",
+      "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T05:12:06.875155+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T05:14:33.227487+00:00",
+      "log_sha256": "2850e25d244bf3c8c8045384de37bff952551542cb8120f1736e84f5a7022951",
+      "passed": 869,
+      "failed": 0,
+      "skipped": 0,
+      "suites": 72,
+      "invariant_campaigns": [
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        }
+      ]
+    },
+    "deploy-final": {
+      "command": [
+        "forge",
+        "test",
+        "--summary"
+      ],
+      "profile": "deploy",
+      "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T05:14:33.253064+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T05:16:58.356223+00:00",
+      "log_sha256": "fe442ddc7cc200b751045bb841ef452e81c8906877ea0e880a1756972a7ce75b",
+      "passed": 869,
+      "failed": 0,
+      "skipped": 0,
+      "suites": 72,
+      "invariant_campaigns": [
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        }
+      ]
+    }
+  },
+  "strict_deployment": {
+    "command": [
+      "forge",
+      "test",
+      "--match-contract",
+      "^(SingleStorageDeploymentTest|MarketLensDeploymentTest)$",
+      "--code-size-limit",
+      "24576",
+      "-vv"
+    ],
+    "profile": "deploy",
+    "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+    "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+    "started": "2026-09-27T05:07:05.407211+00:00",
+    "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+    "exit_code": 0,
+    "completed": "2026-09-27T05:07:28.651691+00:00",
+    "log_sha256": "972af0c24351b560ec7bec8debfb6c0827469c1b97ed7fe4a619283f5d976de8",
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 2,
+    "invariant_campaigns": []
+  },
+  "checks": {
+    "clean-default-build": {
+      "command": [
+        "forge",
+        "build",
+        "--force"
+      ],
+      "profile": "default",
+      "solidity_sources_sha256": "9fb14f5d27d4b722ca057bcabb60d65e1f0f607df92932ca1f5c4af91955cba6",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T04:51:45.455009+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T04:57:02.094181+00:00",
+      "log_sha256": "d4d89847f31f6b85db31aeade7f337af89e620864f9c040e75f12d04c39de022"
+    },
+    "clean-deploy-build": {
+      "command": [
+        "forge",
+        "build",
+        "--force"
+      ],
+      "profile": "deploy",
+      "solidity_sources_sha256": "9fb14f5d27d4b722ca057bcabb60d65e1f0f607df92932ca1f5c4af91955cba6",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T04:51:45.438050+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T04:57:03.936051+00:00",
+      "log_sha256": "b7523cb4a6407c36f4a32f1174898b0a4c1912727d5c3ac7a59b79a694f39b1f"
+    },
+    "production-sizes": {
+      "command": [
+        "forge",
+        "build",
+        "--sizes",
+        "src"
+      ],
+      "profile": "deploy",
+      "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T05:16:58.380087+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T05:16:58.478776+00:00",
+      "log_sha256": "4d606c67e9c9fa04118ad5861ba5eba447df9df00bcc7e13ac300817ab2181f5"
+    },
+    "qualified-format": {
+      "command": [
+        "./node_modules/.bin/prettier",
+        "--check",
+        "src/lens/HooksConfigData.sol",
+        "src/lens/HooksInstanceData.sol",
+        "src/lens/HooksTemplateData.sol",
+        "src/lens/MarketData.sol",
+        "src/lens/MarketLens.sol",
+        "src/lens/MarketLifecycleData.sol",
+        "src/lens/MarketLiveData.sol",
+        "src/lens/OptionalData.sol",
+        "src/lens/WithdrawalBatchData.sol",
+        "src/lens/interfaces/IMarketLensCore.sol",
+        "src/lens/interfaces/IMarketLensLive.sol",
+        "test/integration/ProductionMatrixScenarios.t.sol",
+        "test/lens/MarketLensAggregator.t.sol",
+        "test/lens/MarketLensCore.t.sol",
+        "test/lens/MarketLensDeployment.t.sol",
+        "test/lens/MarketLensLifecycle.t.sol",
+        "test/lens/MarketLensOptionalData.t.sol",
+        "test/mocks/LensMocks.sol"
+      ],
+      "profile": "default",
+      "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T05:10:09.259525+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T05:10:10.302399+00:00",
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    "qualified-solhint": {
+      "command": [
+        "./node_modules/.bin/solhint",
+        "--config",
+        ".solhint.json",
+        "--ignore-path",
+        ".solhintignore",
+        "src/lens/HooksConfigData.sol",
+        "src/lens/HooksInstanceData.sol",
+        "src/lens/HooksTemplateData.sol",
+        "src/lens/MarketData.sol",
+        "src/lens/MarketLens.sol",
+        "src/lens/MarketLifecycleData.sol",
+        "src/lens/MarketLiveData.sol",
+        "src/lens/OptionalData.sol",
+        "src/lens/WithdrawalBatchData.sol",
+        "src/lens/interfaces/IMarketLensCore.sol",
+        "src/lens/interfaces/IMarketLensLive.sol",
+        "test/integration/ProductionMatrixScenarios.t.sol",
+        "test/lens/MarketLensAggregator.t.sol",
+        "test/lens/MarketLensCore.t.sol",
+        "test/lens/MarketLensDeployment.t.sol",
+        "test/lens/MarketLensLifecycle.t.sol",
+        "test/lens/MarketLensOptionalData.t.sol",
+        "test/mocks/LensMocks.sol"
+      ],
+      "profile": "default",
+      "solidity_sources_sha256": "96f161f4ba52e50aae9cf7bbe12d9e3b836f66e901074785eb00694ddd3b2146",
+      "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+      "started": "2026-09-27T05:10:10.327664+00:00",
+      "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+      "exit_code": 0,
+      "completed": "2026-09-27T05:10:11.304083+00:00",
+      "log_sha256": "8097d6c9e97717730715edd8a4d1e3590f589ece3d667bdb1d3c11384797e4d5"
+    }
+  },
+  "artifacts": {
+    "unchanged_targets": [
+      {
+        "contract": "WildcatMarket",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 23778,
+            "runtime_sha256": "f27e8b3e95182607cb8070f50b150206cc74a16a5f2320ea8826fb0280232f09"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 23778,
+            "runtime_sha256": "f27e8b3e95182607cb8070f50b150206cc74a16a5f2320ea8826fb0280232f09"
+          }
+        }
+      },
+      {
+        "contract": "WildcatMarketRevolving",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 24334,
+            "runtime_sha256": "dbe361834354521ab51359e0dab9eb954ae523df9bfd5fbdd98a27bd1e9c2f0b"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 24334,
+            "runtime_sha256": "dbe361834354521ab51359e0dab9eb954ae523df9bfd5fbdd98a27bd1e9c2f0b"
+          }
+        }
+      },
+      {
+        "contract": "OpenTermHooks",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 15367,
+            "runtime_sha256": "31b0964036b1cf37f573b879f98554834dd2b43be91dd0ad49364378a8c03ec9"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 15367,
+            "runtime_sha256": "31b0964036b1cf37f573b879f98554834dd2b43be91dd0ad49364378a8c03ec9"
+          }
+        }
+      },
+      {
+        "contract": "FixedTermHooks",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 16813,
+            "runtime_sha256": "8a21ccc1388f08a45e2a8391e9baf66d77c701142898e3aae96b3941b9b3cb66"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 16813,
+            "runtime_sha256": "8a21ccc1388f08a45e2a8391e9baf66d77c701142898e3aae96b3941b9b3cb66"
+          }
+        }
+      },
+      {
+        "contract": "PeriodicTermHooks",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 20100,
+            "runtime_sha256": "e7e61087b31bd3c17456d7c13a56cb111e5abf5962ced74ece4900973a09aee8"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 20100,
+            "runtime_sha256": "e7e61087b31bd3c17456d7c13a56cb111e5abf5962ced74ece4900973a09aee8"
+          }
+        }
+      },
+      {
+        "contract": "HooksFactory",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 16576,
+            "runtime_sha256": "f57ef02bb96935306fd13e241444db5509b6d618e9a0db1080735944ffd82b19"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 16576,
+            "runtime_sha256": "f57ef02bb96935306fd13e241444db5509b6d618e9a0db1080735944ffd82b19"
+          }
+        }
+      },
+      {
+        "contract": "HooksFactoryRevolving",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 17126,
+            "runtime_sha256": "bf9c90812b30b93a06ed333d45ad2d9a2557eeea99c0149a1a469d7675f48595"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 17126,
+            "runtime_sha256": "bf9c90812b30b93a06ed333d45ad2d9a2557eeea99c0149a1a469d7675f48595"
+          }
+        }
+      },
+      {
+        "contract": "PeriodicTransferHooks",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 20941,
+            "runtime_sha256": "ff71ad46b6794f20bee9f6df78bae2e0c36e028453fd63703797df2ddab15987"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 20941,
+            "runtime_sha256": "ff71ad46b6794f20bee9f6df78bae2e0c36e028453fd63703797df2ddab15987"
+          }
+        }
+      },
+      {
+        "contract": "PeriodicBorrowHooks",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 21405,
+            "runtime_sha256": "dfacd17619e08b82ffc0d5a97fcce100a60882b7e10527a8cb5025bedaebdb48"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 21405,
+            "runtime_sha256": "dfacd17619e08b82ffc0d5a97fcce100a60882b7e10527a8cb5025bedaebdb48"
+          }
+        }
+      },
+      {
+        "contract": "PeriodicAprReplacementHooks",
+        "profiles": {
+          "out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 20773,
+            "runtime_sha256": "eff9244a939a4d3497c4306cb70e9f5566a6a9236fcae71c1febfb8c10575b7f"
+          },
+          "deploy-out": {
+            "exact_qualified_bytecode_and_abi": true,
+            "runtime_bytes": 20773,
+            "runtime_sha256": "eff9244a939a4d3497c4306cb70e9f5566a6a9236fcae71c1febfb8c10575b7f"
+          }
+        }
+      }
+    ],
+    "lenses": [
+      {
+        "contract": "MarketLens",
+        "profiles": {
+          "out": {
+            "runtime_bytes": 4512,
+            "runtime_headroom": 20064,
+            "creation_bytes": 4888,
+            "runtime_sha256": "90025a48e306976e8461238871ad7de0b85eed18a3a691b02a4bde75c59d4950",
+            "creation_sha256": "7367587b03a9467621cca34145a7e19e7c2d8a45de919ecd146ca7437bdaa6b1",
+            "abi_sha256": "6af6bc7d7addae2da09bbe95127e7a384be96f9d956bfd8190ba1366b719a0bd"
+          },
+          "deploy-out": {
+            "runtime_bytes": 4512,
+            "runtime_headroom": 20064,
+            "creation_bytes": 4888,
+            "runtime_sha256": "90025a48e306976e8461238871ad7de0b85eed18a3a691b02a4bde75c59d4950",
+            "creation_sha256": "7367587b03a9467621cca34145a7e19e7c2d8a45de919ecd146ca7437bdaa6b1",
+            "abi_sha256": "6af6bc7d7addae2da09bbe95127e7a384be96f9d956bfd8190ba1366b719a0bd"
+          }
+        },
+        "default_and_deploy_identical": true
+      },
+      {
+        "contract": "MarketLensCore",
+        "profiles": {
+          "out": {
+            "runtime_bytes": 20991,
+            "runtime_headroom": 3585,
+            "creation_bytes": 21161,
+            "runtime_sha256": "904b13e05e34a0a8afe2d0bdd872adfc777c3d0c9c2654dd298ef975c72ef3a7",
+            "creation_sha256": "8381f15facafdf98653518396571e110cc6bad83266b8994f288a53ef70bd312",
+            "abi_sha256": "46282a1714843b7273cd38cd779089b2548e025efd502dec8015e67de1d1c7b9"
+          },
+          "deploy-out": {
+            "runtime_bytes": 20991,
+            "runtime_headroom": 3585,
+            "creation_bytes": 21161,
+            "runtime_sha256": "904b13e05e34a0a8afe2d0bdd872adfc777c3d0c9c2654dd298ef975c72ef3a7",
+            "creation_sha256": "8381f15facafdf98653518396571e110cc6bad83266b8994f288a53ef70bd312",
+            "abi_sha256": "46282a1714843b7273cd38cd779089b2548e025efd502dec8015e67de1d1c7b9"
+          }
+        },
+        "default_and_deploy_identical": true
+      },
+      {
+        "contract": "MarketLensAggregator",
+        "profiles": {
+          "out": {
+            "runtime_bytes": 21997,
+            "runtime_headroom": 2579,
+            "creation_bytes": 22265,
+            "runtime_sha256": "0c4c10bed8a2d39a502d408b90f8791c1d906d5a78c82f7bf2c3011472cb1f87",
+            "creation_sha256": "cda3c61aebc5f46e04c031918a5df83c521de3f7bde0a47ade77433b44af8954",
+            "abi_sha256": "d8c052b28ade2b94749f8d88caaa7494124d5582a5f7bc8337805d1fb937f97f"
+          },
+          "deploy-out": {
+            "runtime_bytes": 21997,
+            "runtime_headroom": 2579,
+            "creation_bytes": 22265,
+            "runtime_sha256": "0c4c10bed8a2d39a502d408b90f8791c1d906d5a78c82f7bf2c3011472cb1f87",
+            "creation_sha256": "cda3c61aebc5f46e04c031918a5df83c521de3f7bde0a47ade77433b44af8954",
+            "abi_sha256": "d8c052b28ade2b94749f8d88caaa7494124d5582a5f7bc8337805d1fb937f97f"
+          }
+        },
+        "default_and_deploy_identical": true
+      },
+      {
+        "contract": "MarketLensLive",
+        "profiles": {
+          "out": {
+            "runtime_bytes": 5777,
+            "runtime_headroom": 18799,
+            "creation_bytes": 5947,
+            "runtime_sha256": "e421d4cfc7f043583b8d227847c6a9341ca56cc116f65e568639adbb05da31b6",
+            "creation_sha256": "83fe44a55f256b4df743a979087c03cf43600008fa7965039d42a96632f016f6",
+            "abi_sha256": "10052f579c4324c8960fe3fd3fbade7e656b80378301a8e5654cea5882649c00"
+          },
+          "deploy-out": {
+            "runtime_bytes": 5777,
+            "runtime_headroom": 18799,
+            "creation_bytes": 5947,
+            "runtime_sha256": "e421d4cfc7f043583b8d227847c6a9341ca56cc116f65e568639adbb05da31b6",
+            "creation_sha256": "83fe44a55f256b4df743a979087c03cf43600008fa7965039d42a96632f016f6",
+            "abi_sha256": "10052f579c4324c8960fe3fd3fbade7e656b80378301a8e5654cea5882649c00"
+          }
+        },
+        "default_and_deploy_identical": true
+      }
+    ]
+  },
+  "initial_full_run": {
+    "command": [
+      "forge",
+      "test",
+      "--summary"
+    ],
+    "profile": "default",
+    "solidity_sources_sha256": "79174aadfbd082dbc6ce7478c763e6972c44e0a48e67743877727429497b90d7",
+    "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+    "started": "2026-09-27T04:46:44.511134+00:00",
+    "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+    "exit_code": 1,
+    "completed": "2026-09-27T04:50:31.708182+00:00",
+    "log_sha256": "e9172c2fc84402eb1856ab61ddb4c9113017b7ffeaa32e6379ae1a253edb9ecb",
+    "passed": 866,
+    "failed": 2,
+    "skipped": 0,
+    "suites": 71,
+    "invariant_campaigns": [
+      {
+        "runs": 2000,
+        "calls": 60000,
+        "handler_reverts": 0
+      },
+      {
+        "runs": 2000,
+        "calls": 60000,
+        "handler_reverts": 0
+      },
+      {
+        "runs": 2000,
+        "calls": 60000,
+        "handler_reverts": 0
+      }
+    ]
+  },
+  "initial_strict_deployment": {
+    "command": [
+      "forge",
+      "test",
+      "--match-contract",
+      "^(SingleStorageDeploymentTest|MarketLensLifecycleTest)$",
+      "--code-size-limit",
+      "24576",
+      "-vv"
+    ],
+    "profile": "deploy",
+    "solidity_sources_sha256": "9fb14f5d27d4b722ca057bcabb60d65e1f0f607df92932ca1f5c4af91955cba6",
+    "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+    "started": "2026-09-27T05:04:21.002332+00:00",
+    "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+    "exit_code": 1,
+    "completed": "2026-09-27T05:04:21.419329+00:00",
+    "log_sha256": "25e0f868902a301397f46a32b1fa830a25588a2ea5d024b65e0db378a2f6a6a9",
+    "passed": 2,
+    "failed": 1,
+    "skipped": 0,
+    "suites": 2,
+    "invariant_campaigns": []
+  },
+  "strict_deployment_resolution": "Add a 10,896-byte deployment-only test harness; preserve the larger lifecycle scenario suite in full runs and the 24,576-byte strict limit.",
+  "initial_full_run_resolution": "Extend two independently constructed complete hook tuples for the new fields; keep all original comparisons.",
+  "incremental_artifact_comparison": [
+    {
+      "folder": "out",
+      "contract": "MarketLens",
+      "source_id": 58,
+      "runtime_bytes": 4512,
+      "runtime_sha256": "90025a48e306976e8461238871ad7de0b85eed18a3a691b02a4bde75c59d4950"
+    },
+    {
+      "folder": "out",
+      "contract": "MarketLensCore",
+      "source_id": 60,
+      "runtime_bytes": 20991,
+      "runtime_sha256": "904b13e05e34a0a8afe2d0bdd872adfc777c3d0c9c2654dd298ef975c72ef3a7"
+    },
+    {
+      "folder": "out",
+      "contract": "MarketLensAggregator",
+      "source_id": 59,
+      "runtime_bytes": 22055,
+      "runtime_sha256": "f669995bb4a8c7a6c9c1cb2f802ae70833a95e000a8aaca70155ee5185dd7d75"
+    },
+    {
+      "folder": "out",
+      "contract": "MarketLensLive",
+      "source_id": 61,
+      "runtime_bytes": 5777,
+      "runtime_sha256": "e421d4cfc7f043583b8d227847c6a9341ca56cc116f65e568639adbb05da31b6"
+    },
+    {
+      "folder": "deploy-out",
+      "contract": "MarketLens",
+      "source_id": 80,
+      "runtime_bytes": 4512,
+      "runtime_sha256": "90025a48e306976e8461238871ad7de0b85eed18a3a691b02a4bde75c59d4950"
+    },
+    {
+      "folder": "deploy-out",
+      "contract": "MarketLensCore",
+      "source_id": 82,
+      "runtime_bytes": 20991,
+      "runtime_sha256": "904b13e05e34a0a8afe2d0bdd872adfc777c3d0c9c2654dd298ef975c72ef3a7"
+    },
+    {
+      "folder": "deploy-out",
+      "contract": "MarketLensAggregator",
+      "source_id": 81,
+      "runtime_bytes": 21997,
+      "runtime_sha256": "0c4c10bed8a2d39a502d408b90f8791c1d906d5a78c82f7bf2c3011472cb1f87"
+    },
+    {
+      "folder": "deploy-out",
+      "contract": "MarketLensLive",
+      "source_id": 83,
+      "runtime_bytes": 5777,
+      "runtime_sha256": "e421d4cfc7f043583b8d227847c6a9341ca56cc116f65e568639adbb05da31b6"
+    }
+  ],
+  "incremental_comparison_resolution": "Clean 315-file default and deployment builds produce identical lens binaries and ABIs; existing ten targets remain identical to E18/E20.",
+  "repository_lint": {
+    "command": [
+      "npm",
+      "run",
+      "lint:check"
+    ],
+    "profile": "default",
+    "solidity_sources_sha256": "79174aadfbd082dbc6ce7478c763e6972c44e0a48e67743877727429497b90d7",
+    "head": "ea2729af9bf29635cf92e9de456d0ce6425fec60",
+    "started": "2026-09-27T04:46:44.523999+00:00",
+    "foundry_config_sha256": "48473cc0ef03a905aa4c76225fcf89e62b242dbda0a59d0e82487489cd7ff913",
+    "exit_code": 1,
+    "completed": "2026-09-27T04:46:51.517133+00:00",
+    "log_sha256": "797f1e763a7c538b429c18f9e82bf42274b064c740340f5837e3a948d6308639"
+  },
+  "preexisting_formatting_failures": [
+    {
+      "path": "src/access/BaseAccessControls.sol",
+      "sha256": "9cf87be39e4fb4a96e85296b9a67e67a89fc703558a18cf3a5b0e2ffa3242083",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/interfaces/IBorrowerIdentityRegistry.sol",
+      "sha256": "c063aebff9ddaf42e83ea5f9880488370c0b12c040b7c1ca078e65725a3d4004",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/interfaces/IMarketEventsAndErrors.sol",
+      "sha256": "1e46d2f30f9460c979fc1b124a62fe3a14b0ec30e0eb0f95875eb83245a0688a",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/AccessListRoleProviderFactory.sol",
+      "sha256": "b3ad82e6e552026a0380267275251f1b49d3ef17fe3ab61f02299e7a4d3ea04d",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC1155RoleProvider.sol",
+      "sha256": "a6a28c7e1dec9540006bd5a723a433bf4d39063e9c7d6ff9027c1124add7b489",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC1155RoleProviderFactory.sol",
+      "sha256": "99623320f77188efa98c79ec5ed7948c6c3f8de994ef93e15022bddbbd8603fc",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC20RoleProviderFactory.sol",
+      "sha256": "b31c510d16a6d9c302e4d210e8550c0e39edf5dc23d9626c0073da64c5d1ef80",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC4626AssetsRoleProviderFactory.sol",
+      "sha256": "2b02451315eff654d22a45f7db0e22f6ece874e758b46c7873bebba7542b8e9f",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC5192RoleProvider.sol",
+      "sha256": "aa184972aa6eeadf4eeb7abe342a8ae67375ec963c698e33ac5954efd20d690c",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC5484RoleProvider.sol",
+      "sha256": "3420d21f2901226c704a287bdfcc1389ae973bbb52ee6779bad2f2b14031375c",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC721RoleProvider.sol",
+      "sha256": "32def650fba2954f823a53a44bc5ad48026d1d4f2f2cf4ddd8e30ac50555836d",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ERC721RoleProviderFactory.sol",
+      "sha256": "e2b65aa3d5589ffd6bf0bc4318b430b28127af5ed9a8bc5b621d04549b2031e2",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/IMerkleRoleProvider.sol",
+      "sha256": "4cced9ad1d380febf20b8a8a864e6b3f51f2276d83d6247a1a3397ebb7203ca2",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/ManagedRoleProvider.sol",
+      "sha256": "783c4f2c349b21cfd8e92db076a741bfdda3d7e0e196af7ec09f7a0ea52b365f",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/MerkleRoleProvider.sol",
+      "sha256": "c6fd5e048e82777b72f08bf30746ba68b0fd599ccc3d029094c46ee37aa48e03",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/providers/MerkleRoleProviderFactory.sol",
+      "sha256": "bda6423e898ac48c5b082c2cd7bb79a9478a19af4107524d7cde4e6a90ec2035",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/vault/Wildcat4626Wrapper.sol",
+      "sha256": "a12122d91a267fe3a38ecbeccaa47a3a4c5c73be26b299ab88e71c7b06bb71c6",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/WildcatBorrowerIdentityRegistry.sol",
+      "sha256": "da135c31c2c0b7b98023d234864aaa69d640ee0e2a0ff8c1512c2daccf2b3e59",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "src/WildcatSanctionsSentinel.sol",
+      "sha256": "13a21d967c9deb0cc97e8026b6c687351cbcb42ba7d8fecb84fff7e784edc72f",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "test/integration/Wildcat4626WrapperIntegration.t.sol",
+      "sha256": "ae0702b9800aeb7a2a6dff0992b0c14aa987494970303c36bcc8904b621e1c70",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "test/libraries/LibStoredInitCode.t.sol",
+      "sha256": "35d4be1b74d0258fac9ab719f1fd7921c87647443e235925a102a39525d6b60e",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "test/libraries/StringQuery.t.sol",
+      "sha256": "0001c743cdfa958c55c4fa2200281650a4ebad4f22256cd3df86e1f65b653ef9",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "test/root/ReentrancyGuard.t.sol",
+      "sha256": "b573dcef9c75f17e543584b6de79928c1ee3e0c2abcadf5326f0f283cb465588",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "test/types/HooksConfig.t.sol",
+      "sha256": "eb8d20eef134e6ddbbb22319dd23d694f9456c8def24d0ae60e8f2bffd9e600c",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "test/types/LenderStatus.t.sol",
+      "sha256": "14af8e7bfb690693b25e57e443ba1bf1c7493abc444fab52e0de6d0538f61e19",
+      "identical_to_source_parent": true
+    },
+    {
+      "path": "test/vault/Wildcat4626WrapperFactory.t.sol",
+      "sha256": "19b4f51f5f0ec2a457365a71aa423a578d501d7613aef42f471880a798ef65cf",
+      "identical_to_source_parent": true
+    }
+  ],
+  "repository_lint_resolution": "All 26 flagged files match ea2729a byte-for-byte. Every changed Solidity file passes Prettier and Solhint; three existing import-line length warnings remain."
+}

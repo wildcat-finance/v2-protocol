@@ -41,6 +41,8 @@ review coverage, or remediation status from source ancestry alone.
   capabilities and construction paths
 - [ERC-4626 wrapper](./integrations/erc-4626-wrapper.md): wrapping, redemption,
   rounding, sanctions, and integration constraints
+- [Market lenses](./integrations/lenses.md): lifecycle, liquidity, hook policies,
+  factory commitments, withdrawal claims, and return-ABI compatibility
 - [Event model](./integrations/events.md): ABI families, event ordering,
   deployment discovery, and indexer replay
 

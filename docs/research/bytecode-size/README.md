@@ -48,6 +48,12 @@ recorded there: all 852 tests pass under default, fixed-seed, and deployment
 settings, with 540,000 invariant calls and zero reverts. The strict deployment
 matrix and production size report pass without changing production source.
 
+[E21](./E21-lens-feature-surfaces.md) updates the full/live/aggregated lens
+surfaces for repayment, recorded default, liquidity and surplus, wrapper
+registration, periodic proposals, and template commitments. It also preserves
+legacy constraint reads and aligns batch collectibility with automatic closure.
+The return ABI changes; market/factory/hook source and binaries are unchanged.
+
 Next: update the deployment ceremony and rehearse the actual plan on an Anvil
 fork. Reproducible release-build gates and gas measurements accompany that
 work; the selected compiler settings are now applied on this branch.

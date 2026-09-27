@@ -28,13 +28,45 @@ struct HooksInstanceData {
   RoleProviderData[] pullProviders;
   RoleProviderData[] pushProviders;
   uint256 totalMarkets;
+  /// @dev false for older ten-word constraint tuples or unknown hook families.
+  bool repaymentConstraintsAvailable;
 }
 
 /// @notice builds hooks-instance views from factory records and bounded optional probes.
 library HooksInstanceDataLib {
   using RoleProviderDataLib for *;
 
+  error InvalidParameterConstraints();
+
   bytes4 internal constant _BORROWER_SELECTOR = bytes4(keccak256('borrower()'));
+
+  function _readConstraints(
+    address hooksAddress
+  ) internal view returns (MarketParameterConstraints memory constraints, bool hasRepaymentBounds) {
+    bytes memory result = new bytes(0x180);
+    uint256 selector = uint32(bytes4(keccak256('getParameterConstraints()')));
+    uint256 size;
+    assembly ('memory-safe') {
+      let ptr := add(result, 0x20)
+      mstore(ptr, shl(224, selector))
+      let success := staticcall(gas(), hooksAddress, ptr, 4, ptr, 0x180)
+      size := returndatasize()
+      if iszero(success) {
+        let errorPtr := mload(0x40)
+        returndatacopy(errorPtr, 0, size)
+        revert(errorPtr, size)
+      }
+      // older hooks return ten words. pad only the two new bounds, then let abi.decode
+      // validate every uint16/uint32 field just as the typed call did.
+      if eq(size, 0x140) {
+        mstore(add(ptr, 0x140), 0)
+        mstore(add(ptr, 0x160), 0)
+      }
+    }
+    if (size != 0x140 && size < 0x180) revert InvalidParameterConstraints();
+    constraints = abi.decode(result, (MarketParameterConstraints));
+    hasRepaymentBounds = size >= 0x180;
+  }
 
   function _tryReadAddress(
     address target,
@@ -93,7 +125,7 @@ library HooksInstanceDataLib {
       OpenTermHooks hooks = OpenTermHooks(hooksAddress);
       data.pullProviders = hooks.getPullProviders().toRoleProviderDatas();
       data.pushProviders = hooks.getPushProviders().toRoleProviderDatas();
-      data.constraints = hooks.getParameterConstraints();
+      (data.constraints, data.repaymentConstraintsAvailable) = _readConstraints(hooksAddress);
       data.name = hooks.name();
     }
 

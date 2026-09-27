@@ -13,13 +13,14 @@ import './interfaces/IMarketLensCore.sol';
 import './interfaces/IMarketLensLive.sol';
 
 /// @title Wildcat market lens
-/// @notice stable read facade over separate core, aggregation, and live-data helpers.
+/// @notice read facade over separate core, aggregation, and live-data helpers.
 /// @dev each function forwards its original calldata by `staticcall` and passes the helper's exact
 ///      result through. splitting the implementation keeps the facade under the code-size limit.
 contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   /// @dev Declared for ABI completeness: raised in the data-filling libraries
   ///      and bubbled up to callers through `_delegate`.
   error NotV2Market();
+  error InvalidParameterConstraints();
 
   /// @notice ArchController configured for this facade.
   WildcatArchController public immutable archController;

@@ -64,7 +64,10 @@ library WithdrawalBatchDataLib {
     data.scaledTotalAmount = batch.scaledTotalAmount;
     data.scaledAmountBurned = batch.scaledAmountBurned;
     data.normalizedAmountPaid = batch.normalizedAmountPaid;
-    bool isPendingBatch = expiry != 0 && expiry == market.previousState().pendingWithdrawalExpiry;
+    // funded closure releases the current batch before expiry, including before the next write.
+    bool isPendingBatch = expiry != 0 &&
+      expiry == market.previousState().pendingWithdrawalExpiry &&
+      !market.isClosed();
     if (isPendingBatch) {
       data.status = expiry >= block.timestamp ? BatchStatus.Pending : BatchStatus.Expired;
     } else {
@@ -97,9 +100,13 @@ library WithdrawalBatchDataLib {
     data.normalizedAmountOwed =
       MathUtils.mulDiv(batch.normalizedTotalAmount, data.scaledAmount, batch.scaledTotalAmount) -
       data.normalizedAmountWithdrawn;
-    data.availableWithdrawalAmount =
-      MathUtils.mulDiv(batch.normalizedAmountPaid, data.scaledAmount, batch.scaledTotalAmount) -
-      data.normalizedAmountWithdrawn;
+    // reserved assets in a pending batch aren't collectible yet. normalizedAmountOwed still
+    // includes them, so callers can distinguish their queued claim from an executable withdrawal.
+    if (batch.status != BatchStatus.Pending) {
+      data.availableWithdrawalAmount =
+        MathUtils.mulDiv(batch.normalizedAmountPaid, data.scaledAmount, batch.scaledTotalAmount) -
+        data.normalizedAmountWithdrawn;
+    }
   }
 
   function fill(
