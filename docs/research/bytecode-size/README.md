@@ -9,7 +9,10 @@ Candidates will be selected after the catalogue is reviewed. The initial size
 pass excluded gas; E22 adds the subsequently requested gas qualification and
 runs sweep. Nothing is pushed automatically.
 
-The current follow-up assumes FastLZ, subject to further verification.
+The parent branch assumes FastLZ, subject to further verification. The user
+subsequently requested [E23's two-contract comparison](./E23-split-storage-comparison.md)
+on `codex/split-initcode-comparison`; that experiment is an explicit exception
+to the original single-store constraint and does not select a release format.
 [E13](./E13-invariant-parity.md) restores the existing invariant suite, and
 [E14](./E14-qualification-fixtures.md) passes the broader qualification under
 both compiler configurations. [E15](./E15-compression-integrity.md) adds artifact
@@ -62,11 +65,23 @@ baseline; all comparable accounting fingerprints match. Runs 13 saves 78–339
 gas per common call at a cost of 24 market runtime bytes. The user confirmed
 retaining runs 1 for its headroom; production configuration is unchanged.
 
-Next: update the deployment ceremony and rehearse the actual plan on an Anvil
-fork. Reproducible release-build gates and creation-gas comparisons accompany
-that work; the selected compiler settings are now applied on this branch.
+[E23](./E23-split-storage-comparison.md) compares FastLZ with two immutable
+storage contracts through unchanged factories. Split pays back its larger
+installation cost on the first market and saves 1.996 / 2.066 million gas per
+standard / revolving deployment. Both routes produce identical deployed
+markets. The full suite passes 880 tests, the strict deployment matrices pass,
+and 114 real local transactions qualify the comparison. Raw storage remains
+appropriate for the currently fitting hooks.
+
+Next: review the storage choice, integrate the selected deployment format, and
+rehearse the actual plan on an Anvil fork. Reproducible release-build gates,
+inventory, freeze, and audit delta accompany that work; the selected compiler
+settings are already applied.
 
 ## Objective and constraints
+
+The original E00–E22 constraints below remain the basis of those experiments.
+E23 separately permits two storage contracts, at the user's explicit request.
 
 Make both market models and the supported hook/composition targets deployable
 while preserving their behavior. Runtime must fit 24,576 bytes. Each market or

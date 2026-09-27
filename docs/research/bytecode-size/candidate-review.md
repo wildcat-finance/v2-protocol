@@ -4,6 +4,14 @@ Research branch: `experiment/tranching-bytecode-size`.
 Baseline: `7b47eec`. Work remains on the research branch. E20 applies the
 qualified runs-1 compiler configuration to normal repository builds and tests.
 
+This document describes the compressed candidate. The later user-authorized
+[E23 comparison](./E23-split-storage-comparison.md) lives on
+`codex/split-initcode-comparison` and compares it with exactly two storage
+contracts. Split costs more to install but saves about two million gas per
+market, recovering the premium on the first deployment. The factory still
+receives one address and verifies the same creation-code hash. Both formats
+remain available for review; this branch has not switched the release ceremony.
+
 FastLZ is now the assumed candidate for continued verification. The invariant
 compilation blocker is resolved by [E13](./E13-invariant-parity.md), and
 [E14](./E14-qualification-fixtures.md) passes the broader qualification under
@@ -205,13 +213,17 @@ compiler change; they are not attributed solely to lifecycle storage. Equivalent
 scenarios, compiler/EVM settings, and call isolation are recorded. Raised test
 limits for oversized controls do not qualify them for deployment.
 
-Next complete the deployment ceremony update and required Anvil-fork rehearsal,
+Next review E23's storage comparison, then complete the selected deployment
+ceremony update and required Anvil-fork rehearsal,
 with release-build gates alongside them, followed by the final inventory,
 freeze, and audit review delta. An additional execution client is not a selected
 requirement.
 
-Measure creation gas against a raw-storage control alongside the ceremony.
-E22 covers method execution and excludes setup/deployment costs.
+E23 measures storage installation and market creation gas for both formats,
+with raw controls for the fitting composition hooks. Market creation code is
+too large for a single raw store; the uncompressed market control uses the
+two-contract format. E22 separately covers method execution and excludes
+setup/deployment costs. Recheck the finalized ceremony's transaction budgets.
 
 Downstream work includes regenerating the complete lens bindings, including
 common V2.0/V2.1 market reads; indexing `MarketRepaymentTerms`,
