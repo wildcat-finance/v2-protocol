@@ -4,6 +4,8 @@ pragma solidity 0.8.25;
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
+import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
+import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
 import { Vm } from 'forge-std/Vm.sol';
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
@@ -108,10 +110,21 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
       'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
     ];
     for (uint256 i; i < artifacts.length; i++) {
-      assertTrue(
-        vm.getCode(artifacts[i]).length + 1 <= 24_576,
-        'STOP plus initcode must fit EIP-170'
+      bytes memory creation = vm.getCode(artifacts[i]);
+      uint64 nonce = vm.getNonce(address(this));
+      (address stored, uint256 initCodeHash) = _storeInitCode(artifacts[i]);
+      assertEq(vm.getNonce(address(this)), nonce + 1, 'one storage contract');
+      assertEq(initCodeHash, uint256(keccak256(creation)), 'original creation hash');
+      assertTrue(creation.length <= 49_152, 'creation payload limit');
+      assertTrue(stored.code.length <= 24_576, 'stored image must fit EIP-170');
+      assertEq(
+        stored.code,
+        creation.length + 1 <= 24_576
+          ? abi.encodePacked(hex'00', creation)
+          : LibCompressedInitCode.getStorageRuntime(creation),
+        'actual stored image'
       );
+      assertEq(LibStoredInitCode.getInitCode(stored), creation, 'decoded creation code');
       assertTrue(vm.getDeployedCode(artifacts[i]).length <= 24_576, 'runtime must fit EIP-170');
     }
   }

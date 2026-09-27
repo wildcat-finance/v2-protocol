@@ -1,6 +1,7 @@
 # E19: integration-test updates
 
-Source parent: `7d73ded` (E18). Status: in progress.
+Source parent: `7d73ded` (E18). Status: complete; the normal compiler's known
+runtime-size failures remain explicit below.
 
 The user requested completion of the integration-test updates before release
 qualification. The earlier repayment work deliberately removed market dispatch
@@ -14,7 +15,7 @@ complete failure list before changing their assertions.
 | --- | --- | --- |
 | E19-01 | Run all integration tests against the E18 contracts, recording stale expectations and any other failures. Extend the receipt runner to select integrations and the complete test tree. | Complete; fixture split restores compilation, then 78 pass and three fail for the reasons below. |
 | E19-02 | Update callback expectations to the agreed collection guarantee. Retain batch amounts, claim accounting, sanctions, calldata, and unaffected callback checks. Cover both market models and reject reserved execution-hook configurations. | Complete at runs 44: 82 integration behavior tests pass; both configurations follow in E19-03. |
-| E19-03 | Update remaining artifact gates to the selected storage format, then run the complete test tree under runs 44 and the candidate settings. Preserve invariant budgets, compare fresh production artifacts, and explicitly report any runtime-size failures at runs 44. | Pending |
+| E19-03 | Update remaining artifact gates to the selected storage format, then run the complete test tree under runs 44 and the candidate settings. Preserve invariant budgets, compare fresh production artifacts, and explicitly report any runtime-size failures at runs 44. | Complete; all 852 pass under the candidate settings, 849 pass with three known runtime-size failures at runs 44, and all 28 actual-limit deployment tests pass. |
 
 Use signed kethcode checkpoints on the existing research branch; do not push.
 Keep the user's PDFs, review handoff, earlier sketch, and voice guide untracked.
@@ -30,9 +31,10 @@ storage, runtime, and creation-payload limits. Candidate deployment must still
 pass the existing tests with actual size limits.
 
 `check.py --scope integration` selects every integration test;
-`--scope full` selects every test file, including providers, lenses, token
-wrappers, borrower identity, and lower-level libraries absent from the focused
-research selection. `--scope all` retains its historical focused meaning.
+`--scope full` selects every test file and does not filter size gates. This
+includes providers, lenses, token wrappers, borrower identity, and lower-level
+libraries absent from the focused research selection. `--scope all` retains
+its historical focused meaning.
 
 ## Initial build diagnosis
 
@@ -78,3 +80,73 @@ The same old raw-only assumption remains in the two standalone artifact gates.
 E19-03 will update those expectations too. The complete runner will execute
 size gates rather than silently filtering them; the known revolving runtime
 overage at runs 44 must remain visible until the final compiler decision.
+
+Both standalone artifact gates now install the selected raw/compressed image,
+require exactly one storage contract, compare its complete runtime with the
+prepared image, and decode the original creation code exactly. The hook gate
+retains its constructor-argument payload check. The market gate additionally
+checks the creation hash and EIP-3860 payload bound. All EIP-170 limits remain
+24,576 bytes. The low-level raw-storage tests are unchanged.
+
+## Complete runs-44 result
+
+`e19-full-default` discovers all 67 test files and runs 852 reported tests:
+849 pass, three fail, none are skipped. The failures are exactly the known
+revolving runtime overage:
+
+- `test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits`;
+- `test_realLimits_AllSixFactoryMarketCombinations`;
+- `test_realLimits_PeriodicFeatureCompositions`.
+
+The standalone hook-composition gate and all behavior assertions pass. The
+original nine invariant properties and both lifecycle campaigns each retain
+2,000 runs/depth 30, complete 60,000 calls, and report zero handler reverts.
+All ten fresh Forge artifacts exactly match E18's independent runs-44 compiler
+output for creation/runtime bytes, complete ABI, and normalized storage layout.
+Production code and compiler selection have not changed.
+
+## Complete candidate result
+
+`e19-full-noF` passes all 852 tests across 69 suites, with no failures, skipped
+tests, or test-name filters. This includes all 83 integration tests and both
+standalone artifact gates. Both full runs use identical Solidity source
+snapshots, 1,000 fuzz cases, and seed `0x5eed`. The original invariant group
+and both lifecycle campaigns again complete 2,000 runs/depth 30 with 60,000
+calls each and zero handler reverts. Together the two complete runs account
+for 360,000 invariant calls. No invariant action, budget, or assertion changed.
+
+All ten fresh candidate artifacts match E18's independent compiler output
+exactly for creation/runtime bytes, full ABI, and normalized storage layout.
+No production source changed. Candidate runtimes remain 23,778 / 24,334 bytes,
+with 798 / 242 bytes spare. Normal runs 44 still leaves revolving at 25,050
+bytes, or 474 above the runtime limit.
+
+The full runs retain the established 262,144-byte test-harness allowance.
+`e19-deployment` separately enforces the actual 24,576-byte code-size limit and
+passes all 28 tests, including twelve factory/market/hook combinations. The
+storage images remain 17,759 / 18,254 bytes for the two markets. E18's real
+local transaction receipts apply to these unchanged production artifacts;
+that transaction campaign is not repeated for test-only edits.
+
+Changed-file Prettier, Solhint, and whitespace checks pass with no warnings or
+errors. The normal `foundry.toml` is restored unchanged. Signed implementation
+checkpoints are `74cfc72` (fixture compilation and baseline) and `04f08ee`
+(callback expectations and production storage selection). The complete
+machine-readable record is [results/e19.json](./results/e19.json).
+
+Final compiler selection, gas measurements, release-profile checks on the
+frozen configuration, the actual deployment ceremony/Anvil-fork rehearsal,
+inventory, and audit/refreeze review remain separate release work. No pending
+integration expectation update remains from the failures recorded here.
+
+## Reproduce
+
+Each receipt directory must be new. The runs-44 full command intentionally
+returns a nonzero exit status for the three runtime-size gates listed above.
+
+```sh
+size_yul_steps='dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul'
+python3 scripts/research/check.py /tmp/e19-default --scope full --lifecycle-coverage
+python3 scripts/research/check.py /tmp/e19-candidate --scope full --runs 1 --yul-steps "$size_yul_steps" --lifecycle-coverage
+python3 scripts/research/check.py /tmp/e19-deployment --scope deployment --runs 1 --yul-steps "$size_yul_steps" --code-size-limit 24576
+```

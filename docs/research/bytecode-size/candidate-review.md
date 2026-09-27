@@ -21,6 +21,10 @@ surplus; the operational borrower recovers it separately using `rescueTokens`.
 This preserves all lender and protocol-fee liabilities and prevents a rejected
 borrower transfer from blocking lender actions.
 
+[E19](./E19-integration-qualification.md) aligns the integration expectations
+with hook-independent collection and the selected artifact storage format,
+then expands qualification to the entire Solidity test tree.
+
 ## Demonstrated bundle
 
 E02's bounded constructor query, E03's bounded periodic query, E08's liability
@@ -110,15 +114,23 @@ factory; it preserves all ten measured public ABIs and storage layouts.
   and 38 local transactions pass with the new artifacts. An artifact-path
   collision between two test tokens was corrected in the qualification script;
   the failed receipt remains archived. No public ABI or storage layout changes.
+- E19 runs every test file and every size gate: all 852 tests pass under the
+  candidate settings. Runs 44 passes 849 and fails only the three revolving
+  runtime-size checks. Both full runs retain the invariant budgets and total
+  360,000 calls with zero handler reverts. All 28 actual-limit deployment tests
+  pass, and all ten production/composition artifacts are unchanged from E18.
+  Withdrawal tests now prove collection ignores a live hook veto while
+  preserving batch accounting and sanctions escrow routing. Artifact gates
+  verify the selected raw/compressed image without relaxing their size bounds.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
 [E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
 [E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md),
 [E16](./E16-hook-artifact-commitment.md), [E17](./E17-lifecycle-invariants.md),
-[E18](./E18-review-corrections.md) and the
+[E18](./E18-review-corrections.md), [E19](./E19-integration-qualification.md) and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
-`/home/kethcode/wildcat/bytecode-research/2026-09-26/`, with E18 receipts under
+`/home/kethcode/wildcat/bytecode-research/2026-09-26/`, with E18/E19 receipts under
 `/home/kethcode/wildcat/bytecode-research/2026-09-27/`.
 
 ## Selection and release work
@@ -145,9 +157,9 @@ only after the final source and interface freeze.
 E13 resolves the existing invariant suite's compilation failure. The research
 runner now includes it in `--scope all` and supports `--scope invariants` for
 direct qualification. No invariant assertions, actions or budgets were removed.
-This is still scoped behavioral and deployment qualification: the baseline's
-pending integration callback updates, full release checks and audit/refreeze
-work remain. The existing invariant matrix has no scheduled repayment dates;
+E19 resolves the baseline's pending integration callback updates and runs the
+complete test tree. Final release-configuration checks and audit/refreeze work
+remain. The original invariant matrix has no scheduled repayment dates;
 E17 preserves it and adds separate repayment and penalty campaigns with
 independent observed-funding and boundary bookkeeping. Their setup and final
 drain are excluded from reported exploration coverage.
@@ -170,10 +182,11 @@ texts outside the repository, and restores `foundry.toml` afterward.
 
 ```sh
 size_yul_steps='dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul'
-python3 scripts/research/check.py /tmp/wildcat-size-behavior --scope all --runs 1 --yul-steps "$size_yul_steps"
+python3 scripts/research/check.py /tmp/wildcat-size-full --scope full --runs 1 --yul-steps "$size_yul_steps"
 python3 scripts/research/check.py /tmp/wildcat-size-deployment --scope deployment --runs 1 --yul-steps "$size_yul_steps" --code-size-limit 24576
 node scripts/research/compression-rpc.js /tmp/wildcat-size-transactions
 ```
 
-The ordinary raw-storage size gates are intentionally separate and unchanged.
-Use the strict deployment test to assess the compressed format.
+E19 updates the artifact gates to the selected raw/compressed format without
+changing their size bounds. The full selection includes every size test; the
+strict deployment command separately enforces the actual EVM code-size limit.

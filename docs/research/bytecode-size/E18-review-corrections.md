@@ -193,6 +193,9 @@ Full canonical release qualification, pending integration callback updates,
 the actual deployment ceremony/fork rehearsal, and audit/refreeze work remain
 outside this checkpoint.
 
+Follow-up: [E19](./E19-integration-qualification.md) resolves the integration
+callback and storage-format test updates and runs the complete test tree.
+
 ### Reproduce
 
 Use new receipt directories. `check.py` records the commands, source texts,

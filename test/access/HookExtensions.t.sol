@@ -6,7 +6,8 @@ import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
 import { PeriodicTermPolicy } from 'src/access/PeriodicTermPolicy.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
-import { LibStoredInitCodeExternal } from '../libraries/wrappers/LibStoredInitCodeExternal.sol';
+import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
+import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
@@ -535,23 +536,27 @@ contract HookExtensionsTest is HookTemplateFixture {
   }
 
   function test_composition_FitsRuntimeAndStoredInitcodeLimits() external {
-    LibStoredInitCodeExternal lib = LibStoredInitCodeExternal(
-      _deployCode('test/libraries/wrappers/LibStoredInitCodeExternal.sol:LibStoredInitCodeExternal')
-    );
     for (uint256 i; i < hooks.length; i++) {
       bytes memory initCode = vm.getCode(_artifact(HookKind(i)));
       assertTrue(address(hooks[i]).code.length <= 24_576, 'runtime limit');
-      assertTrue(initCode.length + 1 <= 24_576, 'stored initcode limit');
       assertTrue(
         initCode.length + abi.encode(address(this), bytes('')).length <= 49_152,
         'creation payload limit'
       );
-      address stored = lib.deployInitCode(initCode);
+      uint64 nonce = vm.getNonce(address(this));
+      address stored = initCode.length + 1 <= 24_576
+        ? LibStoredInitCode.deployInitCode(initCode)
+        : LibCompressedInitCode.deployInitCode(initCode);
+      assertEq(vm.getNonce(address(this)), nonce + 1, 'one storage contract');
+      assertTrue(stored.code.length <= 24_576, 'stored initcode limit');
       assertEq(
         stored.code,
-        abi.encodePacked(bytes1(0), initCode),
-        'actual STOP plus initcode deployment'
+        initCode.length + 1 <= 24_576
+          ? abi.encodePacked(bytes1(0), initCode)
+          : LibCompressedInitCode.getStorageRuntime(initCode),
+        'actual stored image'
       );
+      assertEq(LibStoredInitCode.getInitCode(stored), initCode, 'decoded creation code');
     }
   }
 }

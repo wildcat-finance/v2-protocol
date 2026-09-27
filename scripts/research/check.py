@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run focused behavioral tests with archived settings and separate size gates."""
+"""Run recorded test selections; the full scope includes every size gate."""
 
 import argparse
 import datetime
@@ -127,10 +127,13 @@ def main():
             command += ["--skip", path.relative_to(ROOT).as_posix()]
     gate_pattern = "(test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits|test_composition_FitsRuntimeAndStoredInitcodeLimits)"
     if args.scope != "deployment":
-        # canonical runs 44 still exceeds runtime limits. keep real-limit deployment
-        # qualification separate from behavioral parity, just like the raw-storage gates.
+        # focused behavior selections keep size qualification separate. full runs
+        # include these gates, exposing the known runs-44 runtime overage.
         gate_pattern = "(" + gate_pattern + "|test_realLimits_)"
-    command += ["--match-test" if args.gates else "--no-match-test", gate_pattern]
+    if args.gates:
+        command += ["--match-test", gate_pattern]
+    elif args.scope != "full":
+        command += ["--no-match-test", gate_pattern]
     env = {**os.environ, "FOUNDRY_PROFILE": "research"}
     coverage_path = ROOT / "deploy-out/e17-lifecycle-coverage.jsonl"
     if args.lifecycle_coverage:

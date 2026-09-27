@@ -1,0 +1,358 @@
+{
+  "source_parent": "7d73ded",
+  "implementation_checkpoints": [
+    "74cfc72",
+    "04f08ee"
+  ],
+  "production_source_changes": false,
+  "release_compiler_changes": false,
+  "archive_root": "/home/kethcode/wildcat/bytecode-research/2026-09-27",
+  "qualification_scope": "All 67 Solidity test files, with all artifact and deployment-size gates included in full runs. The full suite retains the established oversized test-harness allowance; the separate deployment receipt enforces EIP-170. This is not the Anvil-fork deployment ceremony or final release configuration adoption.",
+  "qualification": {
+    "e19-integration-before": {
+      "exit_code": 1,
+      "head": "7d73ded488ab6ee2f991f2df29927a21246833e9",
+      "selected_test_files": 8,
+      "optimizer_runs": 44,
+      "code_size_limit": 262144,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "test_name_filter": true,
+      "summary": null,
+      "failed_tests": [],
+      "invariant_depth": 30,
+      "campaigns": {},
+      "log_sha256": "a5f19793afac700de48834ad7d49f4565a51d342a2522a67e4e9f27067ab525d",
+      "source_hashes_sha256": "78509863f4bcd67f6e4c24f314f324c8bc412f5dc7a9075a048636e86b8cd9b0"
+    },
+    "e19-integration-fixture": {
+      "exit_code": 1,
+      "head": "7d73ded488ab6ee2f991f2df29927a21246833e9",
+      "selected_test_files": 8,
+      "optimizer_runs": 44,
+      "code_size_limit": 262144,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "test_name_filter": true,
+      "summary": {
+        "passed": 78,
+        "failed": 3,
+        "skipped": 0,
+        "total": 81
+      },
+      "failed_tests": [
+        "test_executeWithdrawal_DispatchesExactCalldata(bytes)",
+        "test_executeWithdrawals_DispatchesEachEntryWithoutBatchExtraData(bytes)",
+        "test_fourPolicyFactoriesForceCallbacksAcrossProductionMatrix()"
+      ],
+      "invariant_depth": 30,
+      "campaigns": {},
+      "log_sha256": "76b8caef18b8e199eb4453d1a3c9b53e65057fa5a16d2133ee05ff9f86c1b03e",
+      "source_hashes_sha256": "7207e0edd4b6bcb1c18d91322bfd128d499e8d3cdbf0c4c738ecbc6115f4eb5e"
+    },
+    "e19-integration-updated": {
+      "exit_code": 0,
+      "head": "74cfc7297bce88d94264309ddc6c5d8391a4aa66",
+      "selected_test_files": 8,
+      "optimizer_runs": 44,
+      "code_size_limit": 262144,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "test_name_filter": true,
+      "summary": {
+        "passed": 82,
+        "failed": 0,
+        "skipped": 0,
+        "total": 82
+      },
+      "failed_tests": [],
+      "invariant_depth": 30,
+      "campaigns": {},
+      "log_sha256": "158404f4a398b671bced7c9df2abca1301b8fea852a36694fe53c7b0682c5f33",
+      "source_hashes_sha256": "866d497626673a8ccf677852b3ff4c9a1adfc7b87765b42ff39692254aeeb454"
+    },
+    "e19-full-default": {
+      "exit_code": 1,
+      "head": "04f08eeaf23de99897854929acba24c534557f25",
+      "selected_test_files": 67,
+      "optimizer_runs": 44,
+      "code_size_limit": 262144,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "test_name_filter": false,
+      "summary": {
+        "passed": 849,
+        "failed": 3,
+        "skipped": 0,
+        "total": 852
+      },
+      "failed_tests": [
+        "test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits()",
+        "test_realLimits_AllSixFactoryMarketCombinations()",
+        "test_realLimits_PeriodicFeatureCompositions()"
+      ],
+      "invariant_depth": 30,
+      "campaigns": {
+        "MarketMatrixInvariantTest invariants": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_penaltyTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_repaymentTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        }
+      },
+      "log_sha256": "2e941937d6cf614879ca032ed00f0f64fbcb683d0cdf0c411827e43523497b6c",
+      "source_hashes_sha256": "0a57ef2449ae430bde9a3df48ee3cf522f85c2db0d97f63196a68e058c0c068f",
+      "artifact_comparison": [
+        {
+          "contract": "WildcatMarket",
+          "creation_bytes": 26047,
+          "runtime_bytes": 24474,
+          "creation_sha256": "730402dbddab11ec5b9fdbe37e4f7c8b5ae45209aec51728df4f3da31395a5ec",
+          "runtime_sha256": "c5f8f8ed3d011c470527175f966f45eeee54dd410b71d942c87b92aa930c964f",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "creation_bytes": 26701,
+          "runtime_bytes": 25050,
+          "creation_sha256": "76cf0e54d1f7ccd80ca56e3115b3ce80cf3ee18859220bd223ed360409083738",
+          "runtime_sha256": "29b68a70581def4db521e36e26f57406f549ea30f055d8fae6a88f567543cb49",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "creation_bytes": 19075,
+          "runtime_bytes": 16349,
+          "creation_sha256": "07666ab0dab7fee2db4ea57485f517783f5c500cc888256887d3ee2f0cc5d371",
+          "runtime_sha256": "e3959d92cd2c7e26d7e98b526d7fb38c785faa624617cfe65235205b4a65c7fa",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "creation_bytes": 20515,
+          "runtime_bytes": 17788,
+          "creation_sha256": "2cc6d2414eec4983634cffd61ce9de4ed725214bcb148a639f878194e147e7b2",
+          "runtime_sha256": "70d15431f53f1db44f1607d3906be3a7c755eed5baf17d903e67392be51b9d60",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "creation_bytes": 23742,
+          "runtime_bytes": 21015,
+          "creation_sha256": "acb6344c1782fb746ca1c321ff2744684064f98cd1c6ace9f1c3601b5996c145",
+          "runtime_sha256": "8cff6550d432b1ee77ab389c1b5d68d36fcc381900156fff2671d0c4d96cf8e2",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "HooksFactory",
+          "creation_bytes": 18408,
+          "runtime_bytes": 17567,
+          "creation_sha256": "78695d495cbdd418e0b0e20f2f705c248e15cb4196620f92a2cfb9dab35ea1cf",
+          "runtime_sha256": "ec6a1cd827d391af7cfc6339133cd92d3c6af75408ea0ae83ece118b4f359870",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "creation_bytes": 19327,
+          "runtime_bytes": 18486,
+          "creation_sha256": "e1bd962e8067d4101b210d237b8a41d570a1d95e64bb5fbfda92a91e2f241553",
+          "runtime_sha256": "171a0c65a28911495f0a41405cb6fee53d8d490caa1935f378f659a884d7df64",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "creation_bytes": 24562,
+          "runtime_bytes": 21835,
+          "creation_sha256": "4641b479dc69fc9e30697484cfa2072daeb3badebc9b8f0a298166fcff805da9",
+          "runtime_sha256": "f38ed299f6ee788e11c320931c54d7fa291e30c018522d5fd6165995421fd15c",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "creation_bytes": 25027,
+          "runtime_bytes": 22300,
+          "creation_sha256": "941e21f9993c17e94866adc1efa55866e8e61408fea10c960b9b0256264bafbd",
+          "runtime_sha256": "27427bcc72a72304dcc864df86581de8979cf4766fe7d3d6a9f81448a2ef530c",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "creation_bytes": 24311,
+          "runtime_bytes": 21554,
+          "creation_sha256": "73db19c227ade4af64bfb358e82874c74c12cc7470480a3f98b163512f5b7a4c",
+          "runtime_sha256": "24fb8a6a4d9134a6230a936d700f11af828d9306dd549476c5a6d8e9060852d8",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        }
+      ],
+      "coverage_sha256": "84430d2053bd38c4c1de3da885a4b8370c3e0af05c950d1150655e6d5acec3b8"
+    },
+    "e19-full-noF": {
+      "exit_code": 0,
+      "head": "04f08eeaf23de99897854929acba24c534557f25",
+      "selected_test_files": 67,
+      "optimizer_runs": 1,
+      "code_size_limit": 262144,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "test_name_filter": false,
+      "summary": {
+        "passed": 852,
+        "failed": 0,
+        "skipped": 0,
+        "total": 852
+      },
+      "failed_tests": [],
+      "invariant_depth": 30,
+      "campaigns": {
+        "MarketMatrixInvariantTest invariants": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_penaltyTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        },
+        "invariant_repaymentTimelineAndAccounting()": {
+          "runs": 2000,
+          "calls": 60000,
+          "handler_reverts": 0
+        }
+      },
+      "log_sha256": "913b04e85761d6195cdd3424671d4a5d6a108f80fc5d002943f2ef7085dcfdfe",
+      "source_hashes_sha256": "0a57ef2449ae430bde9a3df48ee3cf522f85c2db0d97f63196a68e058c0c068f",
+      "artifact_comparison": [
+        {
+          "contract": "WildcatMarket",
+          "creation_bytes": 25416,
+          "runtime_bytes": 23778,
+          "creation_sha256": "1d2cce1afb26d2431de15a68c3986dbb8f5d6e572610bd8bbf8d9063d6eb4488",
+          "runtime_sha256": "f27e8b3e95182607cb8070f50b150206cc74a16a5f2320ea8826fb0280232f09",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "WildcatMarketRevolving",
+          "creation_bytes": 26036,
+          "runtime_bytes": 24334,
+          "creation_sha256": "c204dd1a0140b7262511db76a67745cabb21e39cc5aaf9fa16c4a164bc60cdb3",
+          "runtime_sha256": "dbe361834354521ab51359e0dab9eb954ae523df9bfd5fbdd98a27bd1e9c2f0b",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "OpenTermHooks",
+          "creation_bytes": 17851,
+          "runtime_bytes": 15367,
+          "creation_sha256": "9f5b094684f59b7baf25a41ecf2869890300a6c7d8b051f317bc47a7c9063beb",
+          "runtime_sha256": "31b0964036b1cf37f573b879f98554834dd2b43be91dd0ad49364378a8c03ec9",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "FixedTermHooks",
+          "creation_bytes": 19298,
+          "runtime_bytes": 16813,
+          "creation_sha256": "f9efed2883031d538498023edf68d1cbde381e7b94f2894198492b4723954e3b",
+          "runtime_sha256": "8a21ccc1388f08a45e2a8391e9baf66d77c701142898e3aae96b3941b9b3cb66",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicTermHooks",
+          "creation_bytes": 22585,
+          "runtime_bytes": 20100,
+          "creation_sha256": "0d85ccd3c0d61c7d664d2a1d0acd0b14d58a42d4261740498d39fa3294f942c1",
+          "runtime_sha256": "e7e61087b31bd3c17456d7c13a56cb111e5abf5962ced74ece4900973a09aee8",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "HooksFactory",
+          "creation_bytes": 17289,
+          "runtime_bytes": 16576,
+          "creation_sha256": "944fadc36d177cdcdec4201c08b8f28c8c5e5f38e93b2d802f7d2aa9e91bd843",
+          "runtime_sha256": "f57ef02bb96935306fd13e241444db5509b6d618e9a0db1080735944ffd82b19",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "HooksFactoryRevolving",
+          "creation_bytes": 17839,
+          "runtime_bytes": 17126,
+          "creation_sha256": "330bf255988aa443fb6d1514e7e45b21496bfb7c9a154a4794fc848aa0ffeb1c",
+          "runtime_sha256": "bf9c90812b30b93a06ed333d45ad2d9a2557eeea99c0149a1a469d7675f48595",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicTransferHooks",
+          "creation_bytes": 23426,
+          "runtime_bytes": 20941,
+          "creation_sha256": "4bb9b853e66adecef4ecc00844e89b2389ce1fbbd21a0c1767c225f2a0305e2b",
+          "runtime_sha256": "ff71ad46b6794f20bee9f6df78bae2e0c36e028453fd63703797df2ddab15987",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicBorrowHooks",
+          "creation_bytes": 23890,
+          "runtime_bytes": 21405,
+          "creation_sha256": "57e8c40401cbf2e8c94215733fd3780719cd5079dd2b19c7026c9655696fc6d3",
+          "runtime_sha256": "dfacd17619e08b82ffc0d5a97fcce100a60882b7e10527a8cb5025bedaebdb48",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        },
+        {
+          "contract": "PeriodicAprReplacementHooks",
+          "creation_bytes": 23285,
+          "runtime_bytes": 20773,
+          "creation_sha256": "8fe8cc69c4a9e5c892ca8fb664045bc6083db234ea23b7d6594ba6f5517c400d",
+          "runtime_sha256": "eff9244a939a4d3497c4306cb70e9f5566a6a9236fcae71c1febfb8c10575b7f",
+          "matches_e18_native_bytecode_abi_and_layout": true
+        }
+      ],
+      "coverage_sha256": "a00215a7a4b6e400440e38f0935409e7e1a187ed42b60093ca004ba431f0cbba"
+    },
+    "e19-deployment": {
+      "exit_code": 0,
+      "head": "04f08eeaf23de99897854929acba24c534557f25",
+      "selected_test_files": 4,
+      "optimizer_runs": 1,
+      "code_size_limit": 24576,
+      "fuzz_runs": 1000,
+      "fuzz_seed": "0x5eed",
+      "test_name_filter": true,
+      "summary": {
+        "passed": 28,
+        "failed": 0,
+        "skipped": 0,
+        "total": 28
+      },
+      "failed_tests": [],
+      "invariant_depth": 30,
+      "campaigns": {},
+      "log_sha256": "1a24133cb53b4b3bbfbee4eb63b937a5521eeeda93da4881a097568e3ee9186b",
+      "source_hashes_sha256": "0a57ef2449ae430bde9a3df48ee3cf522f85c2db0d97f63196a68e058c0c068f"
+    }
+  },
+  "total_qualification_invariant_calls": 360000,
+  "changes": [
+    "Split production dependency setup from factory/template registration to resolve a test-only Yul stack failure, preserving deployment order and arguments.",
+    "Replace obsolete execution-callback expectations with single/bulk collection, live hook-veto controls, exact claim accounting, pending/repeat rejection, and sanctions escrow routing across both market models.",
+    "Explicitly reject reserved execution-hook configurations at creation, with and without repayment terms, across both models.",
+    "Use raw storage for fitting artifacts and the selected compressed format for oversized artifacts in the shared production matrix fixture.",
+    "Update composition and market artifact gates to verify actual single-contract images, original creation hashes/bytes, and unchanged storage/runtime/creation limits.",
+    "Add recorded integration and full-tree selections; full does not filter any test or size gate."
+  ],
+  "known_compiler_dependent_failures": {
+    "normal_runs_44": "Revolving runtime is still 25,050 bytes, 474 above EIP-170. Its artifact gate and both real-limit matrix tests fail explicitly; all other tests pass.",
+    "candidate_runs_1_noF": "Both runtimes fit. All 852 tests and the separate 28 actual-limit deployment tests pass. Revolving runtime remains 24,334 bytes with 242 bytes spare."
+  },
+  "remaining_work": [
+    "Gas measurements and final release compiler selection.",
+    "Deployment-ceremony update and actual Anvil-fork rehearsal, including release artifact gates and ownership/resume flows.",
+    "Final release-profile checks on the frozen configuration, inventory, and audit/refreeze review."
+  ]
+}

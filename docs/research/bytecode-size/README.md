@@ -32,6 +32,15 @@ All 497 focused tests pass under both configurations, with 425,536 invariant
 calls and zero handler reverts across the full and deeper campaigns. Real-limit
 deployment checks and all 38 local transactions pass with the new artifacts.
 
+[E19](./E19-integration-qualification.md) updates the remaining integration
+expectations for withdrawal collection and compressed artifact storage. It
+adds a complete test-tree selection alongside the earlier focused research
+selection, including every artifact and deployment-size gate.
+All 852 tests pass under the candidate settings. Runs 44 passes 849 and fails
+only the three checks for the known revolving runtime overage. Both full runs
+retain their invariant budgets, with 360,000 calls and zero handler reverts;
+all ten measured artifacts remain unchanged from E18.
+
 Next: update the deployment ceremony and rehearse the actual plan on an Anvil
 fork. Reproducible release-build gates and gas measurements accompany that
 work; compiler selection remains a final release decision.
@@ -55,9 +64,10 @@ Compiler run counts and optimizer details may be experimented with. The main
 release configuration stays at 44 until a selected experiment explicitly
 changes it. A compiler-only measurement is not runtime qualification.
 
-The baseline has 324 passing focused behavior tests and two failing size
-gates. Full release qualification and earlier intentional integration callback
-updates remain outstanding. This work does not silently redefine that scope.
+The baseline had 324 passing focused behavior tests and two failing size
+gates. E19 resolves the intentional integration callback updates. Final release
+configuration, deployment-ceremony, and audit qualification remain outstanding;
+research test results do not replace those steps.
 
 ## Baseline byte budget
 
