@@ -33,6 +33,12 @@ deployment profiles inherit the same configuration.
 lenses, adds compatibility and boundary tests, and documents the changed return
 ABIs. Market, factory, and hook source and bytecode remain unchanged.
 
+[E22](./E22-gas-and-runs-sweep.md) completes the hot-path gas comparison and
+the runs-1-through-44 size sweep. Both market runtimes fit at 1–14 with the
+adopted Yul sequence; revolving fails at 15–44. All 56 benchmark scenarios pass
+with matching comparable accounting. The recommendation remains runs 1;
+production compiler settings and source are unchanged.
+
 ## Demonstrated bundle
 
 E02's bounded constructor query, E03's bounded periodic query, E08's liability
@@ -191,19 +197,21 @@ E17 preserves it and adds separate repayment and penalty campaigns with
 independent observed-funding and boundary bookkeeping. Their setup and final
 drain are excluded from reported exploration coverage.
 
-Before freeze, measure market and hook hot-path gas using three pinned builds:
-current source with the adopted settings, current source with runs 44 and the
-default Yul sequence, and the release/v2.5 baseline with those former settings.
-The first comparison measures the compiler change. The second measures the
-combined source changes; it does not isolate lifecycle storage costs by itself.
-Use equivalent scenarios and record compiler/EVM settings and call isolation.
-Oversized reference artifacts may be benchmarked with a raised test limit, but
-that is not deployment qualification.
+E22 measures market and hook hot-path gas using current source under both
+compiler configurations, three higher-runs candidates, and the release/v2.5
+baseline. Adopted runs 1 adds 0.60–2.16% over current source at the former compiler
+settings in the common samples. The combined source changes cost more than the
+compiler change; they are not attributed solely to lifecycle storage. Equivalent
+scenarios, compiler/EVM settings, and call isolation are recorded. Raised test
+limits for oversized controls do not qualify them for deployment.
 
-Then complete the deployment ceremony update and required Anvil-fork rehearsal,
+Next complete the deployment ceremony update and required Anvil-fork rehearsal,
 with release-build gates alongside them, followed by the final inventory,
 freeze, and audit review delta. An additional execution client is not a selected
 requirement.
+
+Measure creation gas against a raw-storage control alongside the ceremony.
+E22 covers method execution and excludes setup/deployment costs.
 
 Downstream work includes regenerating the complete lens bindings, including
 common V2.0/V2.1 market reads; indexing `MarketRepaymentTerms`,

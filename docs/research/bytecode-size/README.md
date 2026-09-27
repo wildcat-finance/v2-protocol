@@ -5,8 +5,9 @@ Baseline: `7b47eecb3832b74a37416d88e16a67bb8e7b060a`.
 
 The user authorized a research loop: state a hypothesis, implement it, measure
 and test it, record the result, make a signed kethcode commit, and repeat.
-Candidates will be selected after the catalogue is reviewed. Gas is not a
-selection criterion in this pass. Nothing is pushed automatically.
+Candidates will be selected after the catalogue is reviewed. The initial size
+pass excluded gas; E22 adds the subsequently requested gas qualification and
+runs sweep. Nothing is pushed automatically.
 
 The current follow-up assumes FastLZ, subject to further verification.
 [E13](./E13-invariant-parity.md) restores the existing invariant suite, and
@@ -54,9 +55,16 @@ registration, periodic proposals, and template commitments. It also preserves
 legacy constraint reads and aligns batch collectibility with automatic closure.
 The return ABI changes; market/factory/hook source and binaries are unchanged.
 
+[E22](./E22-gas-and-runs-sweep.md) measures every runs value from 1 through 44
+with the adopted Yul sequence: both market runtimes fit at 1–14, while revolving
+fails at 15–44. Six gas builds pass 56 matched scenarios, including the release
+baseline; all comparable accounting fingerprints match. Runs 13 saves 78–339
+gas per common call at a cost of 24 market runtime bytes. The recommendation is
+to retain runs 1 for its headroom; production configuration is unchanged.
+
 Next: update the deployment ceremony and rehearse the actual plan on an Anvil
-fork. Reproducible release-build gates and gas measurements accompany that
-work; the selected compiler settings are now applied on this branch.
+fork. Reproducible release-build gates and creation-gas comparisons accompany
+that work; the selected compiler settings are now applied on this branch.
 
 ## Objective and constraints
 
