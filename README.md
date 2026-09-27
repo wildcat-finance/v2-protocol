@@ -21,8 +21,11 @@ forge build
 forge test
 ```
 
-[`foundry.toml`](./foundry.toml) pins Solidity `0.8.25` and the Cancun EVM
-target. [`TESTS.md`](./TESTS.md) covers the full test setup.
+[`foundry.toml`](./foundry.toml) pins Solidity `0.8.25`, the Cancun EVM target,
+via-IR, optimizer runs `1`, and the exact Yul optimizer sequence. These settings
+keep both market runtimes within the deployment size limit and apply to normal
+builds, tests, and the `deploy` profile. [`TESTS.md`](./TESTS.md) covers the full
+test setup.
 
 ## Start here
 

@@ -5,7 +5,6 @@ import { StdInvariant } from 'forge-std/StdInvariant.sol';
 import { LifecycleFixture } from './LifecycleFixture.sol';
 
 /// forge-config: default.invariant.fail-on-revert = true
-/// forge-config: research.invariant.fail-on-revert = true
 contract RepaymentLifecycleInvariantTest is LifecycleFixture, StdInvariant {
   function setUp() external {
     _setupLifecycle();

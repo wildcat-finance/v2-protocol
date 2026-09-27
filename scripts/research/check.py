@@ -32,8 +32,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("receipt", type=Path)
     parser.add_argument("--scope", choices=("calls", "market", "hooks", "storage", "compression", "arithmetic", "invariants", "integration", "deployment", "all", "full"), default="all")
-    parser.add_argument("--runs", type=int, default=44)
-    parser.add_argument("--yul-steps")
+    parser.add_argument("--runs", type=int, help="override the repository optimizer run count")
+    parser.add_argument("--yul-steps", help="override the repository Yul optimizer sequence")
     parser.add_argument("--gates", action="store_true")
     parser.add_argument("--code-size-limit", type=int, default=262144)
     parser.add_argument("--no-dynamic-test-linking", action="store_true")
@@ -50,7 +50,8 @@ def main():
     config += "\n[profile.research]\nout = 'deploy-out'\ncache_path = 'deploy-cache'\n"
     config += "extra_output_files = ['irOptimized', 'ir']\n"
     config += "extra_output = ['storageLayout']\n"
-    config += "optimizer_runs = " + str(args.runs) + "\n"
+    if args.runs is not None:
+        config += "optimizer_runs = " + str(args.runs) + "\n"
     if args.no_dynamic_test_linking:
         config += "dynamic_test_linking = false\n"
     if args.yul_steps:
@@ -128,7 +129,7 @@ def main():
     gate_pattern = "(test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits|test_composition_FitsRuntimeAndStoredInitcodeLimits)"
     if args.scope != "deployment":
         # focused behavior selections keep size qualification separate. full runs
-        # include these gates, exposing the known runs-44 runtime overage.
+        # include these gates so compiler experiments cannot hide runtime overages.
         gate_pattern = "(" + gate_pattern + "|test_realLimits_)"
     if args.gates:
         command += ["--match-test", gate_pattern]
@@ -143,7 +144,8 @@ def main():
     with temporary_config(config):
         config_result = subprocess.run(["forge", "config", "--json"], env=env, cwd=ROOT, text=True, capture_output=True, check=True)
         effective = json.loads(config_result.stdout)
-        assert effective["optimizer_runs"] == args.runs
+        if args.runs is not None:
+            assert effective["optimizer_runs"] == args.runs
         if args.no_dynamic_test_linking:
             assert effective["dynamic_test_linking"] is False
         if args.yul_steps:

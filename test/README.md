@@ -9,6 +9,11 @@
 
 Plain `forge test` needs no timestamp, seed, profile, or environment setup.
 
+The default, fixed-seed, and `deploy` runs use optimizer runs `1` and the
+exact Yul sequence pinned in [`foundry.toml`](../foundry.toml). The suite
+includes the market and hook artifact limits and the real factory deployment
+matrix. Keep those checks enabled when changing compiler settings.
+
 This suite replaced a frozen, inheritance-heavy oracle after a
 property-by-property review. The migration evidence remains in Git history.
 Parity tooling is not ongoing infrastructure.

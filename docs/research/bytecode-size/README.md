@@ -15,8 +15,8 @@ both compiler configurations. [E15](./E15-compression-integrity.md) adds artifac
 attestation, prepared deployment images, independent codec checks, and real
 transaction qualification. [E16](./E16-hook-artifact-commitment.md) adds permanent
 on-chain hook creation-code commitments and checks them before deployment.
-This does not adopt the research compiler settings
-or compressed deployment format into the release configuration.
+Those checkpoints qualified the candidate; E20 below adopts its compiler
+settings for normal repository builds and tests.
 
 [E17](./E17-lifecycle-invariants.md) adds independently checked repayment,
 default, and automatic-closure campaigns while retaining the original
@@ -41,9 +41,16 @@ only the three checks for the known revolving runtime overage. Both full runs
 retain their invariant budgets, with 360,000 calls and zero handler reverts;
 all ten measured artifacts remain unchanged from E18.
 
+[E20](./E20-compiler-adoption.md) adopts runs `1` and the pinned Yul sequence
+without FunctionSpecializer in the default compiler profile. The `deploy`
+profile inherits the same settings. Ordinary build and test qualification is
+recorded there: all 852 tests pass under default, fixed-seed, and deployment
+settings, with 540,000 invariant calls and zero reverts. The strict deployment
+matrix and production size report pass without changing production source.
+
 Next: update the deployment ceremony and rehearse the actual plan on an Anvil
 fork. Reproducible release-build gates and gas measurements accompany that
-work; compiler selection remains a final release decision.
+work; the selected compiler settings are now applied on this branch.
 
 ## Objective and constraints
 
@@ -59,10 +66,10 @@ contracts. Do not remove features or weaken tests to manufacture a size win.
 Yul, inline assembly and compiler experiments are explicitly in scope, subject
 to that same single-storage constraint and behavioral verification.
 
-Keep Solidity 0.8.25, Cancun, viaIR and metadata settings fixed initially.
-Compiler run counts and optimizer details may be experimented with. The main
-release configuration stays at 44 until a selected experiment explicitly
-changes it. A compiler-only measurement is not runtime qualification.
+Keep Solidity 0.8.25, Cancun, viaIR and metadata settings fixed. Compiler run
+counts and optimizer details were experimental through E19; E20 applies the
+qualified settings to the repository configuration. A compiler-only measurement
+is not runtime qualification.
 
 The baseline had 324 passing focused behavior tests and two failing size
 gates. E19 resolves the intentional integration callback updates. Final release

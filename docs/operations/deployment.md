@@ -37,6 +37,14 @@ verified receipt.
 
 ## Runtime requirements
 
+The `deploy` profile inherits the compiler settings in
+[`foundry.toml`](../../foundry.toml): Solidity `0.8.25`, Cancun, via-IR,
+optimizer runs `1`, and the pinned Yul sequence without FunctionSpecializer.
+Use the complete settings for artifact reproduction and source verification;
+the run count alone does not reproduce the deployment bytecode. Both market
+runtimes fit EIP-170 with this configuration. Compressed storage addresses
+creation-code storage size and does not change that runtime limit.
+
 Wildcat V2 bytecode uses EIP-1153 transient storage. The target chain must
 support `TSTORE` and `TLOAD` on every execution path. Successful bytecode
 deployment does not prove this.

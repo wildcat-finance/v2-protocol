@@ -1,8 +1,8 @@
 # Candidate review: single-storage deployment
 
 Research branch: `experiment/tranching-bytecode-size`.
-Baseline: `7b47eec`. No candidates have been adopted into the release branch or
-pushed. The repository's normal compiler configuration remains runs 44.
+Baseline: `7b47eec`. Work remains on the research branch. E20 applies the
+qualified runs-1 compiler configuration to normal repository builds and tests.
 
 FastLZ is now the assumed candidate for continued verification. The invariant
 compilation blocker is resolved by [E13](./E13-invariant-parity.md), and
@@ -24,6 +24,10 @@ borrower transfer from blocking lender actions.
 [E19](./E19-integration-qualification.md) aligns the integration expectations
 with hook-independent collection and the selected artifact storage format,
 then expands qualification to the entire Solidity test tree.
+
+[E20](./E20-compiler-adoption.md) adopts the tested compiler settings in
+`foundry.toml`, including the exact Yul optimizer sequence. The default and
+deployment profiles inherit the same configuration.
 
 ## Demonstrated bundle
 
@@ -50,7 +54,7 @@ There is no second storage contract or separately deployed decoder.
 
 The creation code itself is 25,416 / 26,036 bytes. It therefore still fails the
 old raw `STOP || initcode` storage limit. Compression solves that limit; E05 and
-E11 solve the live-runtime limit. At canonical runs 44, the revolving runtime
+E11 solve the live-runtime limit. At the former runs-44 settings, the revolving runtime
 is still 474 bytes oversized, even with these source edits.
 
 All three production hooks and the three periodic composition examples fit.
@@ -122,15 +126,24 @@ factory; it preserves all ten measured public ABIs and storage layouts.
   Withdrawal tests now prove collection ignores a live hook veto while
   preserving batch accounting and sanctions escrow routing. Artifact gates
   verify the selected raw/compressed image without relaxing their size bounds.
+- E20 adopts the candidate compiler settings as the repository default. All
+  852 tests pass in each of the default, fixed-seed, and deployment-profile runs,
+  with 540,000 invariant calls and zero handler reverts. The ordinary build,
+  production size report, and strict deployment matrix pass. All ten default
+  and deployment artifacts match the previously qualified bytecode and ABIs.
+  Two redundant inline research-profile annotations are removed; their strict
+  revert behavior remains inherited from the default annotation and is checked
+  with independent controls.
 
 See [E09](./E09-compressed-storage.md), [E11](./E11-transition-arena.md),
 [E12](./E12-compiler-qualification.md), [E13](./E13-invariant-parity.md),
 [E14](./E14-qualification-fixtures.md), [E15](./E15-compression-integrity.md),
 [E16](./E16-hook-artifact-commitment.md), [E17](./E17-lifecycle-invariants.md),
-[E18](./E18-review-corrections.md), [E19](./E19-integration-qualification.md) and the
+[E18](./E18-review-corrections.md), [E19](./E19-integration-qualification.md),
+[E20](./E20-compiler-adoption.md) and the
 [complete catalogue](./catalogue.md).
 The working evidence archive is
-`/home/kethcode/wildcat/bytecode-research/2026-09-26/`, with E18/E19 receipts under
+`/home/kethcode/wildcat/bytecode-research/2026-09-26/`, with E18/E19/E20 receipts under
 `/home/kethcode/wildcat/bytecode-research/2026-09-27/`.
 
 ## Selection and release work
@@ -158,8 +171,9 @@ E13 resolves the existing invariant suite's compilation failure. The research
 runner now includes it in `--scope all` and supports `--scope invariants` for
 direct qualification. No invariant assertions, actions or budgets were removed.
 E19 resolves the baseline's pending integration callback updates and runs the
-complete test tree. Final release-configuration checks and audit/refreeze work
-remain. The original invariant matrix has no scheduled repayment dates;
+complete test tree. E20 applies the tested compiler configuration; final frozen
+release-artifact checks and audit/refreeze work remain. The original invariant
+matrix has no scheduled repayment dates;
 E17 preserves it and adds separate repayment and penalty campaigns with
 independent observed-funding and boundary bookkeeping. Their setup and final
 drain are excluded from reported exploration coverage.
@@ -172,7 +186,7 @@ E18 compares the arena's zeroing and nested fields with independently allocated
 Solidity structs, including negative controls for aliases and dirty memory.
 Its offsets still require review when those structs change. Revolving has only
 242 runtime bytes spare. Recheck sizes after any selected-code or compiler
-change. Compiler selection and hot-path gas measurements remain release work.
+change. Hot-path gas measurements remain release work.
 
 ## Reproduce the selected checks
 

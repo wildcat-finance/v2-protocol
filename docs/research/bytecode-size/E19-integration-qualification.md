@@ -141,6 +141,10 @@ integration expectation update remains from the failures recorded here.
 
 ## Reproduce
 
+These commands describe E19 at `836304c`, before E20 adopted the candidate
+compiler settings. Use that source/configuration for the historical runs-44
+comparison; the current runner inherits the current repository defaults.
+
 Each receipt directory must be new. The runs-44 full command intentionally
 returns a nonzero exit status for the three runtime-size gates listed above.
 
