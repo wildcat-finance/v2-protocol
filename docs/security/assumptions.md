@@ -52,9 +52,30 @@ An enabled callback can reject its corresponding market action. Market
 liveness therefore depends on the selected hook implementation and
 configuration.
 
+New V2.5 markets do not permit execution hooks to veto collection. Markets with
+repayment terms also bypass queue hooks from their date and closure hooks for
+automatic completion. Token transfers, sanctions dependencies and other enabled
+callbacks retain their own failure boundaries. See
+[repayment and default](../protocol/repayment-and-default.md).
+
 Sanctions quarantine uses the ordinary withdrawal path. A withdrawal hook may
 therefore defer `nukeFromOrbit` until the market's normal term or withdrawal
-window permits queueing.
+window permits queueing, or until an enabled repayment date bypasses that queue
+hook. The nuke callback itself can still reject the action.
+
+## Creation-code storage
+
+Deployment tooling prepares one raw store or two split stores from the reviewed
+creation artifact. A split primary contains a reader and an immutable link to
+its secondary; neither contract exposes a mutation path. Verification checks
+both complete runtime images, their link, and the returned original bytes.
+
+The factory separately hashes recovered creation code before CREATE2. Market
+hashes are fixed at factory deployment; hook hashes are fixed at template
+registration. The hash must come from the reviewed artifact. A store's own
+claim about its output does not establish that identity. Review the reader,
+installation constructors, plan commitments and execution tooling together;
+see [deployment](../operations/deployment.md#stored-creation-code).
 
 ## Sanctions dependency
 

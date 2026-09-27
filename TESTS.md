@@ -1,7 +1,8 @@
 # Testing
 
-The Foundry suite lives in [`test/`](./test/). It is the only protocol test
-suite. There is no legacy suite, parity oracle, or alternate discovery profile.
+All protocol tests live in [`test/`](./test/) and run in the canonical Foundry
+suite. Deployment-format comparisons and lifecycle invariants are part of that
+tree, not an alternate release-test profile.
 
 ## Required commands
 
@@ -25,6 +26,27 @@ separate transaction contexts, so gas comparisons must preserve that setting
 and distinguish direct test calls from callbacks nested inside market actions.
 Deployment fixtures continue to use production artifacts and the real factory
 paths where deployment identity and behavior are under test.
+
+The complete suite also uses Python 3 and a local C compiler (`cc`) for the
+offline [storage-codec reference](./test/reference/fastlz/README.md). Foundry FFI
+is enabled in the repository configuration. That reference qualifies the
+historical compression comparison; current deployment tooling selects raw or
+split storage.
+
+## Deployment tooling
+
+After installing the root and deployment-UI JavaScript dependencies, run:
+
+```sh
+node --test scripts/__tests__/*.test.js
+npm --prefix deploy-ui test
+npm --prefix deploy-ui run build
+```
+
+These cover plan commitments, template registration, handoff records, predicate
+verification and the UI executor. They supplement the contract suite. A release
+also needs the [deployment rehearsal](./docs/operations/deployment.md#release-workflow)
+on a pinned target-chain fork with the actual frozen plan.
 
 See [`test/README.md`](./test/README.md) for suite ownership, fixture rules,
 stateful testing, and the focused coverage boundary.

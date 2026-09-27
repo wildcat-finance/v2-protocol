@@ -29,6 +29,11 @@ order in which lenders later execute.
 reports the normalized value at queue time. `queueFullWithdrawal` only includes
 the caller's direct market-token balance.
 
+At an enabled repayment date the market stops calling `onQueueWithdrawal`.
+Lenders can queue regardless of hook access or term restrictions; market
+sanctions checks remain. Default alone does not open queueing. The repayment
+phase keeps the configured batch duration, allocation and priority rules.
+
 ## Batch states
 
 - **Current:** accepts requests until expiry. It can remain recorded as current
@@ -94,8 +99,14 @@ received assets to the resulting unpaid queue in the same transaction, subject
 to `maxBatches` and FIFO order.
 
 _Execution_ transfers a lender's paid pro-rata claim out of the market. Anyone
-can execute for an account and batch after the batch expires. If the lender is
+can execute for an account and batch once it is no longer the current pending
+batch, normally after expiry or after closure releases it. If the lender is
 sanctioned, the market sends the assets to that lender's sanctions escrow.
+
+New V2.5 markets never call `onExecuteWithdrawal`, including markets without
+repayment terms. They reject a hook configuration enabling it. A hook cannot
+add another eligibility check when collecting an accepted, payable claim.
+Token transfers and sanctions dependencies can still fail.
 
 See
 [`WildcatMarketWithdrawals`](../../src/market/WildcatMarketWithdrawals.sol) for
@@ -129,3 +140,16 @@ repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)
 
 Once the queue is small enough, `closeMarket()` can finish it in one
 transaction.
+
+Automatic closure at or after a repayment date pays and releases the current
+batch without walking the old queue. The older obligations stay backed and
+can finish through the same zero-repayment processor after closure. A current
+batch released by closure is collectible even before its original expiry.
+
+New requests after closure use the existing closed-market rule: batch duration
+is zero. A processed expiry key is never reused; the market may choose the
+next second or reject a further collision. Repayment and default do not change
+that key-protection rule.
+
+See [repayment and default](./repayment-and-default.md) for the funding and
+deadline conditions. Closure does not require lenders to collect every claim.

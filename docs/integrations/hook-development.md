@@ -53,7 +53,7 @@ for customization; the public callback bodies are not a general override API.
 | Withdrawal queue | Registration, `_checkWithdrawalSchedule`, `_processWithdrawalAccess`, then `_checkQueueWithdrawal`. The market still selects the batch and expiry. |
 | APR/reserves | `_applyAprUpdate` selects a strategy, usually `_applyDefaultAprUpdate`; `_checkAprChange` validates the effective result after that strategy's effects. |
 | Closure | `_validateCloseMarket`, then `_applyCloseMarket`. Fixed/periodic policies supply their existing validation and effects. |
-| Other callbacks | `_checkExecuteWithdrawal`, `_checkBorrow`, `_checkRepay`, `_checkNukeFromOrbit`, `_checkMaxTotalSupply`, and `_checkProtocolFeeBips` extend the existing empty defaults. |
+| Other callbacks | `_checkBorrow`, `_checkRepay`, `_checkNukeFromOrbit`, `_checkMaxTotalSupply`, and `_checkProtocolFeeBips` extend the existing empty defaults. |
 | Recipient query | `_featureTransferRecipientAllowed` adds a recipient condition to the default transfer-policy answer. |
 
 An additional check can reject an action and, where its signature permits,
@@ -120,6 +120,13 @@ Capture requested access choices before forcing feature callbacks. Required
 transfer dispatch, for example, must not silently require transfer credentials.
 The original flag rules are described in [Hooks](./hooks.md#callback-flags).
 Callback bits cannot be enabled later on an existing market.
+
+The market owns the repayment and collection guarantees. It skips queue hooks
+from an enabled repayment date, bypasses closure hooks for automatic closure,
+and never dispatches `onExecuteWithdrawal`. The historical execution callback
+and `_checkExecuteWithdrawal` remain in the shared interface/base, but new
+markets reject that flag. Feature bookkeeping must not require those callbacks
+to run. See [repayment and default](../protocol/repayment-and-default.md).
 
 ## Caller authentication and authority
 
@@ -188,10 +195,12 @@ or `_applyCloseMarket`. The fixed helpers enforce either permitted early-close
 flag and bring maturity forward. The periodic helpers close the schedule and
 cancel a proposal. Open closure starts as an empty, unauthenticated default.
 
-The market resets APR to zero and reserves to 10,000 after its closure callback;
-it does not call the ordinary APR-update validator. Creation also has its own
-rate validation. An APR feature must decide separately how it treats those
-transitions.
+Manual closure resets APR to zero and reserves to 10,000 after its closure
+callback; it does not call the ordinary APR-update validator. Scheduled
+automatic closure applies those values without calling the closure hook.
+Creation also has its own rate validation. An APR feature must account for
+each transition. Periodic views use the market's effective closure state so
+they remain correct when the hook's own closure storage was not written.
 
 All callback effects occur at the existing
 [intermediate-state boundary](./hooks.md#intermediate-state-ordering). An
@@ -246,36 +255,24 @@ inventories; a matching interface is not a deployment or an upgrade.
 
 ## Deployment limits
 
-Measure each concrete composition with the pinned settings in
-[`foundry.toml`](../../foundry.toml): solc 0.8.25, Cancun, via IR, optimizer 44
-runs, and no appended CBOR metadata. Source deduplication does not imply smaller
-deployed code.
+Measure each concrete composition with the complete pinned settings in
+[`foundry.toml`](../../foundry.toml): solc 0.8.25, Cancun, via IR, optimizer
+runs `1`, the exact Yul sequence without FunctionSpecializer, and no appended
+CBOR metadata. Source deduplication does not imply smaller deployed code.
 
-Both deployed runtime and `STOP || initcode` storage must fit 24,576 bytes.
-Factory constructor payloads must fit 49,152 bytes; `(address, bytes)` with
-empty `args` adds 96 bytes to creation code. Larger provider arguments consume
-additional payload space and must be checked for the intended deployment.
+Deployed hook runtime must fit 24,576 bytes. Fitting creation artifacts use one
+raw `STOP || initcode` store. Larger artifacts use two immutable stores, each
+within that same runtime limit, through one template address. Storage splitting
+does not relax the hook runtime limit. See
+[stored creation code](../operations/deployment.md#stored-creation-code).
 
-Current original-template sizes are:
-
-| Template | Runtime bytes | Creation bytes | Stored-initcode headroom |
-| --- | ---: | ---: | ---: |
-| Open | 15,653 | 18,379 | 6,196 |
-| Fixed | 17,014 | 19,741 | 4,834 |
-| Periodic | 19,949 | 22,676 | 1,899 |
-
-The example assemblies show the remaining stored-initcode margin:
-
-| Assembly | Open | Fixed | Periodic | Deployment evidence |
-| --- | ---: | ---: | ---: | --- |
-| Two transfer features | 5,368 | 4,010 | 1,118 | Direct runtime and actual initcode storage deployment. |
-| Transfer features plus borrow | 4,903 | 3,545 | 653 | Both real market factories. |
-| Transfer features plus APR replacement | 5,641 | 4,302 | 1,260 | Both real market factories. |
-
-All three original templates also deploy through both real factories. A larger
-assembly's factory test does not establish that a different concrete artifact
-has been tested through that path. The periodic borrow example leaves little
-room for further code; measure the selected combination before relying on it.
+The complete CREATE payload must fit 49,152 bytes. The instance constructor's
+`(address, bytes)` envelope with empty `args` adds 96 bytes to creation code;
+larger provider arguments consume additional space. The three supplied
+templates and current composition examples fit raw storage with the selected
+settings. Measure and deploy the exact feature combination through both market
+factories before treating it as supported. Another assembly's successful test
+does not qualify a different artifact.
 
 For reproducible bytecode comparisons, retain the complete compilation source
 set and output settings as well as revision, compiler, and optimizer settings.

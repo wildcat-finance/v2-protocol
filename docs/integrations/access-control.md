@@ -224,6 +224,10 @@ restrictions; it cannot predict amount-dependent checks.
 
 ### Queueing withdrawals
 
+These hook checks apply before an enabled repayment date, or throughout a
+market without repayment terms. From the date, the market skips
+`onQueueWithdrawal` while retaining its sanctions checks.
+
 If withdrawal access is enabled, a known lender can queue without a current
 credential. An unknown lender must validate. Fixed maturity and periodic
 withdrawal windows still apply.
@@ -234,9 +238,9 @@ an account that would then be unable to queue them.
 
 ### Executing withdrawals
 
-`onExecuteWithdrawal` performs no access check. Credential expiry, revocation,
-provider removal, and deposit blocks cannot stop execution of an already queued
-withdrawal.
+New V2.5 markets do not call `onExecuteWithdrawal` and reject its configuration
+flag. Credential expiry, revocation, provider removal, and deposit blocks cannot
+stop execution of an already queued withdrawal.
 
 ## Known lenders
 

@@ -59,6 +59,8 @@ been written. Default itself does not imply closure.
 
 Markets without repayment terms still return `isPresent == true` when these
 getters exist. They can record a default from a consecutive penalty run.
+See [repayment and default](../protocol/repayment-and-default.md) for inclusive
+cutoffs, observed funding and automatic closure.
 
 ## Capacity and surplus
 

@@ -20,6 +20,8 @@ review coverage, or remediation status from source ancestry alone.
 
 - [Markets](./protocol/markets.md): configuration, implementations, and borrower
   authority
+- [Repayment and default](./protocol/repayment-and-default.md): immutable terms,
+  inclusive deadlines, penalty runs, automatic closure, and collection
 - [Accounting](./protocol/accounting.md) and
   [scaling](./protocol/scaling-and-rounding.md): collateral obligations,
   interest, fees, balances, and rounding
@@ -59,10 +61,10 @@ review coverage, or remediation status from source ancestry alone.
 
 - [Release notes](./releases/README.md): V2.0, V2.1, and V2.5 source boundaries
   and compatibility changes
-- [V2.5 audit scope](./releases/v2.5-audit-scope.md): candidate provenance,
-  review boundary, properties, and freeze gates
-- [V2.5 verification receipt](./releases/v2.5-verification.md): pre-freeze build,
-  test, inventory, size, and lint evidence
+- [V2.5 audit scope](./releases/v2.5-audit-scope.md): prior freeze provenance,
+  required review delta, properties, and release gates
+- [V2.5 verification receipt](./releases/v2.5-verification.md): dated evidence
+  for the earlier source candidate
 - [Deployment](./operations/deployment.md): inventory, plans, ceremonies,
   verification, and handoffs
 
@@ -71,10 +73,3 @@ deployment facts.
 
 Historical checklists, completed ceremony records, generated tool output, and
 internal audit-preparation papers are not protocol specifications.
-
-## Working specifications
-
-- [V2.5 repayment and default preparation](./specs/v2.5-tranching-preparation.md):
-  implementation draft, settled requirements, milestone plan, and current
-  prototype evidence. Implementation and qualification are in progress. These working
-  records will be exported and removed before the final release.

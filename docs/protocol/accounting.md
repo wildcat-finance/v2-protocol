@@ -50,11 +50,17 @@ The delinquency fee applies to time above `delinquencyGracePeriod`. The timer
 decays instead of resetting. Once it passes the grace period, the borrower pays
 the penalty while the timer rises and while the excess later decays.
 
+At an enabled repayment date, underfunded intervals incur penalty immediately;
+unused grace no longer delays it. The separate 90-day default run resets on a
+healthy state write, even if the ordinary delinquency timer still has residual
+decay. See [repayment and default](./repayment-and-default.md).
+
 Each accrual interval uses the previously stored `isDelinquent` value. The final
 state write compares the updated liquidity requirement with the current
 underlying balance. That result becomes the status for the next interval.
 
-Nothing changes autonomously between state writes.
+Views can project accrued state, but only a successful state write commits
+accounting, default records and events.
 
 ## Interest and fees
 
@@ -87,11 +93,11 @@ rounding.
 State-changing market functions advance prior accounting before giving their
 own economic effect to an elapsed interval. Repayment assets may be transferred
 first so one transaction can also process withdrawals, but an unprocessed
-expiry uses the asset balance from the preceding checkpoint. Interest and fees
-only advance when the timestamp changes. Later calls in the same timestamp do
-not accrue the interval again.
+expiry or repayment boundary uses the asset balance from the preceding
+checkpoint. Interest and fees only advance when the timestamp changes.
+Later calls in the same timestamp do not accrue the interval again.
 
-Without an expired batch, an update:
+Without an intervening expiry or repayment boundary, an update:
 
 1. accrues base interest, delinquency fees, and protocol fees;
 2. advances or decays the delinquency timer; and
@@ -107,6 +113,13 @@ expiry:
 
 The borrower does not pay interest on assets after they could have been reserved
 for the expiring withdrawal.
+
+Scheduled markets also split at the repayment date and inclusive deadline.
+The same transition calculation serves views and state updates. Coincident
+boundaries apply the date, then judge the deadline, then process batch expiry;
+the default marker is not recorded at the cutoff timestamp itself. Full
+historical funding can close a scheduled market at its repayment date. No
+interest accrues after that effective closure timestamp.
 
 The final write recalculates delinquency from the updated liquidity requirement
 and current underlying balance. See

@@ -127,8 +127,10 @@ plans with the current interface.
 ## Release workflow
 
 1. **Prepare.** Freeze the source commit and `deploy` Foundry profile. Build and
-   test that source. Validate, lint, and reconcile the inventory against the
-   target chain.
+   test that source. Finalize network parameters, including the fixed-term
+   maximum, repayment-date and period caps, and the periodic policy's
+   `TODO FOR MAINNET` constants. Validate, lint, and reconcile the inventory
+   against the target chain.
 2. **Assemble.** Run the numbered release scripts in plan mode. Assemble them
    with [`plan.js`](../../scripts/plan.js). Validate the plan schema and the
    activation or retirement boundary.
