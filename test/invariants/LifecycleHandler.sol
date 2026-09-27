@@ -32,6 +32,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     uint256 collections;
     uint256 escrowCollections;
     uint256 partialBatches;
+    uint256 surplusRecoveries;
   }
 
   LifecycleOracle.Terms[] internal terms;
@@ -113,6 +114,28 @@ contract LifecycleHandler is MarketMatrixHandler {
     return trackedExpiries[i].length;
   }
 
+  /// @dev recovery must leave the entire liability ledger backed, including old unpaid batches.
+  function recoverSurplus(uint256 cellSeed) public {
+    uint256 i = cellSeed % markets.length;
+    WildcatMarket m = markets[i];
+    if (!m.isClosed()) return;
+    uint256 debts = m.totalDebts();
+    uint256 surplus = m.totalAssets().satSub(debts);
+    uint256 borrowerBefore = assets[i].balanceOf(_borrower());
+    (bool success, ) = _callAs(
+      i,
+      _borrower(),
+      address(m),
+      abi.encodeCall(WildcatMarket.rescueTokens, (address(assets[i])))
+    );
+    _check(i, success && m.totalAssets() == debts && m.totalDebts() == debts, 47);
+    _check(i, assets[i].balanceOf(_borrower()) == borrowerBefore + surplus, 48);
+    if (success && surplus != 0) {
+      Coverage storage c = exploring ? explored[i] : seeded[i];
+      ++c.surplusRecoveries;
+    }
+  }
+
   /// @dev leave storage alone when time moves. the next action must resolve every crossed
   ///      boundary itself, including when that action transfers repayment before accrual.
   function advance(uint256 cellSeed, uint256 boundarySeed, uint256 offsetSeed) external {
@@ -186,7 +209,6 @@ contract LifecycleHandler is MarketMatrixHandler {
   function donate(uint256 cellSeed, uint256 mode, uint256 amountSeed) external {
     uint256 i = cellSeed % markets.length;
     WildcatMarket m = markets[i];
-    if (m.previousState().isClosed) return;
     uint256 due = m.totalDebts().satSub(m.totalAssets());
     uint256 amount = mode % 3 == 0 ? due / 2 : mode % 3 == 1
       ? due
@@ -652,6 +674,12 @@ contract LifecycleHandler is MarketMatrixHandler {
     uint32
   ) internal view override returns (WithdrawalBatch memory) {
     return observations[i].batch;
+  }
+
+  function _recoverSurplusAfterDrain(uint256 i) internal override returns (bool) {
+    uint256 failuresBefore = lifecycleFailures;
+    recoverSurplus(i);
+    return lifecycleFailures == failuresBefore;
   }
 
   /// @dev no manual close to rescue this campaign. reach the date, fully back the debt, and

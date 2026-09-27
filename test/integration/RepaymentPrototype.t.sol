@@ -415,10 +415,13 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     assertEq(cell.market.defaultedAt(), date, 'donation observed too late');
     assertTrue(cell.market.isClosed(), 'donation can back funded closure');
     assertEq(
-      stack.asset.balanceOf(MatrixBorrower) - borrowerBefore,
-      excess,
-      'surplus returned to borrower'
+      stack.asset.balanceOf(MatrixBorrower),
+      borrowerBefore,
+      'automatic closure retains surplus'
     );
+    vm.prank(MatrixBorrower);
+    cell.market.rescueTokens(address(stack.asset));
+    assertEq(stack.asset.balanceOf(MatrixBorrower) - borrowerBefore, excess, 'surplus recovered');
     assertEq(
       IWildcatMarketRevolving(address(cell.market)).drawnAmount(),
       0,

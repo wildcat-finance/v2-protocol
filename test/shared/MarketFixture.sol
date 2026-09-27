@@ -98,7 +98,7 @@ abstract contract MarketFixture is TestKernel {
       abi.encode(fixedTermEndTime, options.minimumDeposit, options.transfersDisabled, true, true);
   }
 
-  function _deployFixtureDependencies() private returns (Fixture memory fixture) {
+  function _deployFixtureDependencies() internal virtual returns (Fixture memory fixture) {
     fixture.archController = WildcatArchController(
       _deployCode('src/WildcatArchController.sol:WildcatArchController')
     );

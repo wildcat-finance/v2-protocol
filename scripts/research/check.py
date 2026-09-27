@@ -152,7 +152,7 @@ def main():
     if args.lifecycle_coverage:
         raw = coverage_path.read_text()
         (args.receipt / "lifecycle-coverage.jsonl").write_text(raw)
-        names = ("writes", "idle_crossings", "activations", "deadline_defaults", "penalty_defaults", "cures", "closures", "late_closures", "donations", "rejected_admission", "collections", "escrow_collections", "partial_batches")
+        names = ("writes", "idle_crossings", "activations", "deadline_defaults", "penalty_defaults", "cures", "closures", "late_closures", "donations", "rejected_admission", "collections", "escrow_collections", "partial_batches", "surplus_recoveries")
         cells = {}
         for line in raw.splitlines():
             row = json.loads(line)

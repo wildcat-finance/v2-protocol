@@ -54,7 +54,7 @@ abstract contract LifecycleFixture is MarketMatrixFixture {
   }
 
   function _lifecycleSelectors() internal pure returns (bytes4[] memory selectors) {
-    selectors = new bytes4[](25);
+    selectors = new bytes4[](26);
     selectors[0] = MarketMatrixHandler.deposit.selector;
     selectors[1] = MarketMatrixHandler.transfer.selector;
     selectors[2] = MarketMatrixHandler.borrow.selector;
@@ -80,6 +80,7 @@ abstract contract LifecycleFixture is MarketMatrixFixture {
     selectors[22] = LifecycleHandler.changeApr.selector;
     selectors[23] = LifecycleHandler.collectClaim.selector;
     selectors[24] = LifecycleHandler.collectClaims.selector;
+    selectors[25] = LifecycleHandler.recoverSurplus.selector;
   }
 
   function _finishLifecycle(string memory campaign) internal {

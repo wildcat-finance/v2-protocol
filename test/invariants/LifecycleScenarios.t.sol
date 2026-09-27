@@ -8,6 +8,19 @@ import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.so
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 
 contract LifecycleScenariosTest is LifecycleFixture {
+  function test_surplusRecoveryPreservesScheduledDrain() external {
+    for (uint256 i; i < MatrixSize; ++i) {
+      WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
+      uint256 deadline = market.repaymentDeadline();
+      if (vm.getBlockTimestamp() < deadline) vm.warp(deadline);
+      lifecycle.fund(i, 3, 50e18, true);
+      lifecycle.recoverSurplus(i);
+      assertEq(market.totalAssets(), market.totalDebts(), 'every liability retained');
+      _assertLifecycle();
+    }
+    _finishLifecycle('surplus-recovery');
+  }
+
   function test_forcedQueueThatClosesMarketRetainsItsBatchClaim() external {
     lifecycle.sanctionLender(0);
     lifecycle.advance(1, 2, 34_689_600_001);

@@ -26,14 +26,21 @@ contract WildcatMarket is
     _writeState(state);
   }
 
-  /// @notice sends the market's entire balance of an unrelated token to the borrower.
-  /// @dev the underlying asset and the market token can't be rescued.
-  /// @param token token accidentally sent to the market.
+  /// @notice sends unrelated tokens or surplus underlying assets after closure to the borrower.
+  /// @dev totalDebts protects live shares, unpaid batches, paid claims, and protocol fees.
+  ///      the market token can't be rescued. a failed surplus transfer affects only this call.
+  /// @param token token to recover; underlying assets require a fully funded, closed market.
   function rescueTokens(address token) external nonReentrant onlyBorrower {
-    if ((token == asset).or(token == address(this))) {
-      revert_BadRescueAsset();
+    if (token == address(this)) revert_BadRescueAsset();
+    if (token == asset) {
+      MarketState memory state = _getUpdatedState();
+      if (!state.isClosed) revert_BadRescueAsset();
+      uint256 totalDebts = state.totalDebts();
+      token.safeTransfer(msg.sender, totalAssets() - totalDebts);
+      _writeState(state, totalDebts);
+    } else {
+      token.safeTransferAll(msg.sender);
     }
-    token.safeTransferAll(msg.sender);
   }
 
   /// @dev deposits up to `amount`, capped by current capacity, and mints floor-scaled shares.

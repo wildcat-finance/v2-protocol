@@ -819,7 +819,7 @@ contract WildcatMarketBase is
       emit_DefaultRecorded(next.lifecycle.defaultedAt);
     }
     _lifecycle = next.lifecycle;
-    if (next.closedAt != 0) _commitAutomaticClosure(state, currentAssets, next.closedAt);
+    if (next.closedAt != 0) _commitAutomaticClosure(next.closedAt);
   }
 
   function _commitTransitionBatch(LifecycleTransition memory next, bool expired) internal {
@@ -1002,14 +1002,9 @@ contract WildcatMarketBase is
   }
 
   /// @dev closure freezes all fully backed claims. older batches can then finish in bounded FIFO
-  ///      calls. never give an arbitrary hook a veto over the scheduled obligation.
-  function _commitAutomaticClosure(
-    MarketState memory state,
-    uint256 assets,
-    uint256 timestamp
-  ) internal returns (uint256 remainingAssets) {
-    remainingAssets = state.totalDebts();
-    if (assets > remainingAssets) asset.safeTransfer(borrower(), assets - remainingAssets);
+  ///      calls. leave surplus for rescueTokens; a failed borrower transfer must not block lenders.
+  ///      never give an arbitrary hook a veto over the scheduled obligation.
+  function _commitAutomaticClosure(uint256 timestamp) internal {
     _onCloseMarket();
     emit_AnnualInterestAndReserveRatioBipsUpdated(
       borrower(),
@@ -1021,11 +1016,8 @@ contract WildcatMarketBase is
     emit_MarketClosed(borrower(), timestamp);
   }
 
-  function _closeAfterCurrentAction(
-    MarketState memory state,
-    uint256 assets
-  ) internal returns (uint256) {
-    if (state.isClosed.or(!_isInRepayment()) || assets < state.totalDebts()) return assets;
+  function _closeAfterCurrentAction(MarketState memory state, uint256 assets) internal {
+    if (state.isClosed.or(!_isInRepayment()) || assets < state.totalDebts()) return;
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 expiry = state.pendingWithdrawalExpiry;
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
@@ -1042,7 +1034,7 @@ contract WildcatMarketBase is
       emit_WithdrawalBatchClosed(expiry);
     }
     state.closeFundedState();
-    return _commitAutomaticClosure(state, assets, block.timestamp);
+    _commitAutomaticClosure(block.timestamp);
   }
 
   /**
@@ -1058,7 +1050,7 @@ contract WildcatMarketBase is
    *      external state-changing call.
    */
   function _writeState(MarketState memory state, uint256 currentTotalAssets) internal {
-    currentTotalAssets = _closeAfterCurrentAction(state, currentTotalAssets);
+    _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
     if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;

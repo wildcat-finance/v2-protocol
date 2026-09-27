@@ -755,6 +755,7 @@ contract MarketMatrixHandler {
       }
 
       if (!_collectFeesAfterDrain(i)) return (i, 6);
+      if (!_recoverSurplusAfterDrain(i)) return (i, 10);
 
       if (market.getUnpaidBatchExpiries().length != 0) return (i, 1);
       if (market.scaledTotalSupply() != 0) return (i, 2);
@@ -781,6 +782,10 @@ contract MarketMatrixHandler {
       abi.encodeCall(WildcatMarket.closeMarket, ())
     );
     return success;
+  }
+
+  function _recoverSurplusAfterDrain(uint256) internal virtual returns (bool) {
+    return true;
   }
 
   function _collectFeesAfterDrain(uint256 cellIndex) internal returns (bool) {
