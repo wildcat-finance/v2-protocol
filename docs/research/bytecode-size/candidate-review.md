@@ -191,15 +191,49 @@ E17 preserves it and adds separate repayment and penalty campaigns with
 independent observed-funding and boundary bookkeeping. Their setup and final
 drain are excluded from reported exploration coverage.
 
-Next are the deployment ceremony update and the required Anvil-fork rehearsal,
-with release-build gates alongside them. An additional execution client is not
-a selected requirement.
+Before freeze, measure market and hook hot-path gas using three pinned builds:
+current source with the adopted settings, current source with runs 44 and the
+default Yul sequence, and the release/v2.5 baseline with those former settings.
+The first comparison measures the compiler change. The second measures the
+combined source changes; it does not isolate lifecycle storage costs by itself.
+Use equivalent scenarios and record compiler/EVM settings and call isolation.
+Oversized reference artifacts may be benchmarked with a raised test limit, but
+that is not deployment qualification.
+
+Then complete the deployment ceremony update and required Anvil-fork rehearsal,
+with release-build gates alongside them, followed by the final inventory,
+freeze, and audit review delta. An additional execution client is not a selected
+requirement.
+
+Downstream work includes regenerating the complete lens bindings, including
+common V2.0/V2.1 market reads; indexing `MarketRepaymentTerms`,
+`RepaymentDateReached`, `DefaultRecorded`, and
+`HooksTemplateInitCodeHashRecorded`; and updating callers of `addHooksTemplate`
+for its initcode-hash argument. Use the ABI for each deployment generation.
+Before release, export the updated spec and evidence, then remove the working
+`docs/specs/` and `docs/research/` documents from the release tree.
 
 E18 compares the arena's zeroing and nested fields with independently allocated
 Solidity structs, including negative controls for aliases and dirty memory.
 Its offsets still require review when those structs change. Revolving has only
 242 runtime bytes spare. Recheck sizes after any selected-code or compiler
-change. Hot-path gas measurements remain release work.
+change.
+
+## External second pass: 2026-09-27
+
+The reviewer examined the nine commits after `f56c30e` through `04cfbd0`, read
+their tests and research records, and measured artifacts. They did not run the
+test suite. They confirmed the E18 closure/surplus, fee-update, and allocator
+fixes, the E20 compiler adoption, and the E21 lens implementation. Their market
+runtime and raw creation-code measurements match the figures above; the largest
+lens is 21,997 bytes, with 2,579 bytes spare. Compression remains necessary for
+single-contract initcode storage.
+
+The optional surplus-recovery event, avoiding zero-value sweep transfers, and
+changing the pre-existing manual-close surplus push are not selected changes.
+The reviewer's approximate event-size estimate has not been measured. The
+remaining required work is the release qualification and downstream integration
+listed above, not a newly identified Solidity fix.
 
 ## Reproduce the selected checks
 

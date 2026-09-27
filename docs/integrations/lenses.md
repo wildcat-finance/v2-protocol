@@ -12,6 +12,13 @@ nested fields even where the input selector is unchanged. Regenerate SDK and
 application decoders when adopting this lens deployment. Reading older
 contracts does not make its return ABI compatible with an older lens ABI.
 
+This includes the common `getMarketData` result used for V2.0/V2.1 markets:
+its nested `MarketHooksData` changed too. Common market arrays, lender-paired
+results, and aggregation results containing these types need the new decoder,
+as do hook-instance and template metadata. Regenerate the lens bindings as a
+whole, including integrations that only read older markets. Previously deployed
+lenses retain their own ABIs.
+
 ## Choosing a read
 
 | Need | Interface |
