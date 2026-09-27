@@ -15,6 +15,7 @@ import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
+import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
@@ -93,7 +94,10 @@ abstract contract ProductionMatrixFixture is TestKernel {
     string memory artifact
   ) internal virtual returns (address storageContract, uint256 initCodeHash) {
     bytes memory initCode = vm.getCode(artifact);
-    storageContract = LibStoredInitCode.deployInitCode(initCode);
+    // match deployment tooling: keep fitting artifacts raw, compress oversized initcode.
+    storageContract = initCode.length + 1 <= 24_576
+      ? LibStoredInitCode.deployInitCode(initCode)
+      : LibCompressedInitCode.deployInitCode(initCode);
     initCodeHash = uint256(keccak256(initCode));
   }
 

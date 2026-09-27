@@ -13,8 +13,8 @@ complete failure list before changing their assertions.
 | Task | Required evidence | Status |
 | --- | --- | --- |
 | E19-01 | Run all integration tests against the E18 contracts, recording stale expectations and any other failures. Extend the receipt runner to select integrations and the complete test tree. | Complete; fixture split restores compilation, then 78 pass and three fail for the reasons below. |
-| E19-02 | Update callback expectations to the agreed collection guarantee. Retain batch amounts, claim accounting, sanctions, calldata, and unaffected callback checks. Cover both market models and reject reserved execution-hook configurations. | Pending |
-| E19-03 | Run integrations and the full behavioral test tree under runs 44 and the candidate settings. Preserve invariant budgets, compare fresh production artifacts, and separately report deployment-size gates. | Pending |
+| E19-02 | Update callback expectations to the agreed collection guarantee. Retain batch amounts, claim accounting, sanctions, calldata, and unaffected callback checks. Cover both market models and reject reserved execution-hook configurations. | Complete at runs 44: 82 integration behavior tests pass; both configurations follow in E19-03. |
+| E19-03 | Update remaining artifact gates to the selected storage format, then run the complete test tree under runs 44 and the candidate settings. Preserve invariant budgets, compare fresh production artifacts, and explicitly report any runtime-size failures at runs 44. | Pending |
 
 Use signed kethcode checkpoints on the existing research branch; do not push.
 Keep the user's PDFs, review handoff, earlier sketch, and voice guide untracked.
@@ -23,9 +23,11 @@ Large receipts belong outside the repository under
 
 No production behavior or compiler setting change is planned. Any unexpected
 failure needs a concrete diagnosis; do not turn it into an accepted behavior
-change just to make the suite pass. The unchanged raw-storage and runtime size
-gates remain separate from behavior checks, as in earlier research. Candidate
-deployment must still pass the existing tests with actual size limits.
+change just to make the suite pass. The initial behavior run separates size
+gates, as in earlier research. The complete qualification must update obsolete
+raw-only artifact assumptions to the selected format while preserving all
+storage, runtime, and creation-payload limits. Candidate deployment must still
+pass the existing tests with actual size limits.
 
 `check.py --scope integration` selects every integration test;
 `--scope full` selects every test file, including providers, lenses, token
@@ -54,3 +56,25 @@ actual stored image and decoded creation bytes. Retain every size bound.
 The setup extraction changes no production source, test assertions, constructor
 arguments, or deployment order. It is checkpointed separately from the behavior
 expectation updates.
+
+## Callback and storage-format updates
+
+`e19-integration-updated` passes all 82 selected integration behavior tests at
+runs 44. Single and bulk execution fuzz arbitrary trailing data, both market
+models, and sanctions applied after queuing. A direct control call proves the
+mocked execution veto is active; collection then succeeds without dispatching
+it. Assertions check exact returned amounts, lender/escrow balances, consumed
+claims, empty reserved liabilities, and rejection of repeat collection. The
+single path retains the pending-batch rejection. Creation rejects the reserved
+bit on both market models, with and without repayment terms. Unaffected callback
+calldata expectations remain intact.
+
+The shared production fixture now follows `LibDeployment.broadcastDeployInitcode`:
+raw storage through 24,575 creation bytes, compressed storage above that. The
+four-policy composition test checks its actual stored image, decoded original
+creation code, and all previous size bounds. Production source is unchanged.
+
+The same old raw-only assumption remains in the two standalone artifact gates.
+E19-03 will update those expectations too. The complete runner will execute
+size gates rather than silently filtering them; the known revolving runtime
+overage at runs 44 must remain visible until the final compiler decision.

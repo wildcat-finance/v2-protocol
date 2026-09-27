@@ -29,6 +29,8 @@ import { MarketHooksData, HooksInstanceKind } from 'src/lens/HooksConfigData.sol
 import { HooksInstanceData } from 'src/lens/HooksInstanceData.sol';
 import { RoleProviderData } from 'src/lens/RoleProviderData.sol';
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
+import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
+import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
@@ -771,9 +773,12 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
       bytes memory creation = vm.getCode(artifacts[i % 3]);
       assertEq(
         cell.hooksTemplate.code,
-        abi.encodePacked(hex'00', creation),
-        'actual stored initcode'
+        creation.length + 1 <= 24_576
+          ? abi.encodePacked(hex'00', creation)
+          : LibCompressedInitCode.getStorageRuntime(creation),
+        'actual stored image'
       );
+      assertEq(LibStoredInitCode.getInitCode(cell.hooksTemplate), creation, 'decoded initcode');
       assertTrue(cell.hooksTemplate.code.length <= 24_576, 'stored initcode limit');
       assertTrue(address(hooks).code.length <= 24_576, 'composed runtime limit');
       assertTrue(
