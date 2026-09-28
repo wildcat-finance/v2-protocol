@@ -3,6 +3,18 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const {
+  REGISTRATION_SIGNATURE,
+  assertActivationTemplateCommitments,
+  assertSplitStorageCommitments,
+} = require("./template-commitments");
+
+const INIT_CODE_STORAGE_ARTIFACTS = [
+  "script/common/DeployScriptBase.sol:InitCodeStorage",
+  "script/common/DeployScriptBase.sol:CompressedInitCodeStorage",
+  "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+  "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage",
+];
 
 const LEGACY_INVENTORY_SCHEMA_VERSION = "1.0.0";
 const INVENTORY_SCHEMA_VERSION = "1.1.0";
@@ -629,7 +641,7 @@ function assertActivationPlan(plan, network, options = {}) {
     {
       id: "deploy-wildcat-market-init-code-storage",
       kind: "deploy",
-      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+      artifactNames: INIT_CODE_STORAGE_ARTIFACTS,
     },
     {
       id: "deploy-hooks-factory-standard",
@@ -639,7 +651,7 @@ function assertActivationPlan(plan, network, options = {}) {
     {
       id: "deploy-wildcat-market-revolving-init-code-storage",
       kind: "deploy",
-      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+      artifactNames: INIT_CODE_STORAGE_ARTIFACTS,
     },
     {
       id: "deploy-hooks-factory-revolving",
@@ -669,17 +681,17 @@ function assertActivationPlan(plan, network, options = {}) {
     {
       id: "deploy-open-term-hooks-init-code-storage",
       kind: "deploy",
-      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+      artifactNames: INIT_CODE_STORAGE_ARTIFACTS,
     },
     {
       id: "deploy-fixed-term-hooks-init-code-storage",
       kind: "deploy",
-      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+      artifactNames: INIT_CODE_STORAGE_ARTIFACTS,
     },
     {
       id: "deploy-periodic-term-hooks-init-code-storage",
       kind: "deploy",
-      artifactName: "script/common/DeployScriptBase.sol:InitCodeStorage",
+      artifactNames: INIT_CODE_STORAGE_ARTIFACTS,
     },
     {
       id: "register-controller-factory-standard",
@@ -701,8 +713,7 @@ function assertActivationPlan(plan, network, options = {}) {
     ].map((id) => ({
       id,
       kind: "call",
-      functionSignature:
-        "addHooksTemplate(address,string,address,address,uint80,uint16)",
+      functionSignature: REGISTRATION_SIGNATURE,
     })),
     {
       id: "register-hooks-factory-standard",
@@ -724,7 +735,17 @@ function assertActivationPlan(plan, network, options = {}) {
   }
   const expectedTransactions = allExpectedTransactions.filter(
     ({ id }) => !omittedDeploymentIds.has(id)
-  );
+  ).flatMap((expected) => {
+    const transaction = plan.transactions.find((entry) => entry.id === expected.id);
+    if (expected.artifactNames && transaction?.artifactName ===
+        "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage") {
+      return [{
+        id: `${expected.id}-secondary`, kind: "deploy",
+        artifactName: "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage",
+      }, expected];
+    }
+    return [expected];
+  });
   const authorityHelper = authorizedHelperContext(network);
   if (plan.transactions.length !== expectedTransactions.length) {
     throw new Error(
@@ -738,6 +759,8 @@ function assertActivationPlan(plan, network, options = {}) {
       transaction.kind !== expected.kind ||
       (expected.artifactName &&
         transaction.artifactName !== expected.artifactName) ||
+      (expected.artifactNames &&
+        !expected.artifactNames.includes(transaction.artifactName)) ||
       (expected.functionSignature &&
         logicalCall(transaction)?.functionSignature !== expected.functionSignature)
     ) {
@@ -747,6 +770,8 @@ function assertActivationPlan(plan, network, options = {}) {
     }
   }
   assertAuthorizedHelperBoundary(plan, authorityHelper);
+  assertSplitStorageCommitments(plan);
+  assertActivationTemplateCommitments(plan);
 
   const requiredDeployments = [
     {

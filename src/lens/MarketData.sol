@@ -12,6 +12,8 @@ import './HooksTemplateData.sol';
 import './LenderAccountData.sol';
 import './TokenData.sol';
 import './WithdrawalBatchData.sol';
+import './OptionalData.sol';
+import './MarketLifecycleData.sol';
 
 using MarketDataLib for MarketData global;
 using MarketDataLib for MarketDataV2_5 global;
@@ -19,8 +21,8 @@ using MarketDataLib for MarketDataWithLenderStatus global;
 using MarketDataLib for LenderAccountQueryResult global;
 
 /// @notice full static configuration, hooks metadata, and accrued state for one V2 market.
-/// @dev this is the compatibility tuple used across V2 generations. use `MarketDataV2_5` for the
-///      borrower-principal and revolving-market extensions.
+/// @dev reads the common V2 interfaces; nested hook fields use this lens deployment's ABI.
+///      use `MarketDataV2_5` for identity, lifecycle, liquidity, and revolving-market extensions.
 struct MarketData {
   // -- token metadata --
   TokenMetadata marketToken;
@@ -53,7 +55,7 @@ struct MarketData {
   uint256 lastAccruedProtocolFees;
   uint256 normalizedUnclaimedWithdrawals;
   uint256 scaledPendingWithdrawals;
-  /// @dev current batch expiry, or an expired stored batch that the accrued view can fully fund.
+  /// @dev current batch key, or a stored batch fully released by the accrued view before a write.
   uint256 pendingWithdrawalExpiry;
   bool isDelinquent;
   uint256 timeDelinquent;
@@ -63,13 +65,7 @@ struct MarketData {
   uint256 coverageLiquidity;
 }
 
-/// @notice optional numeric field that distinguishes an absent getter from a real zero value.
-struct OptionalUintDataV2_5 {
-  bool isPresent;
-  uint256 value;
-}
-
-/// @notice V2.5 market data layered on the stable `MarketData` tuple.
+/// @notice V2.5 market data, including lifecycle terms, current capacity, and registered wrapper.
 /// @dev revolving-only values are absent for standard markets instead of being reported as zero.
 struct MarketDataV2_5 {
   MarketData market;
@@ -79,6 +75,10 @@ struct MarketDataV2_5 {
   address borrowerIdentityRegistry;
   OptionalUintDataV2_5 commitmentFeeBips;
   OptionalUintDataV2_5 drawnAmount;
+  /// @dev the market's registered ERC-4626 wrapper, not an inferred tranche-vault address.
+  address registeredWrapper;
+  MarketLifecycleData lifecycle;
+  MarketLiquidityData liquidity;
 }
 
 /// @notice full market data paired with one lender's current status.
@@ -197,6 +197,9 @@ library MarketDataLib {
     data.borrowerIdentityRegistry = market.borrowerIdentityRegistry();
     _tryFillOptionalUint(data.commitmentFeeBips, address(market), _COMMITMENT_FEE_BIPS_SELECTOR);
     _tryFillOptionalUint(data.drawnAmount, address(market), _DRAWN_AMOUNT_SELECTOR);
+    data.registeredWrapper = market.registeredWrapper();
+    data.lifecycle.fill(market, data.market.isClosed);
+    data.liquidity.fill(market, data.market.isClosed, data.market.totalAssets);
   }
 
   /// @notice fills compatibility data for each market in input order.
@@ -224,23 +227,10 @@ library MarketDataLib {
     address target,
     bytes4 selector
   ) internal view {
-    // these getters only exist on some market shapes. a missing method, revert, or short return
-    // means "not present" here; it shouldn't break the rest of the lens result.
-    uint256 selectorWord = uint32(selector);
-    assembly ('memory-safe') {
-      // borrow one word at the free-memory pointer. put the selector in its first four bytes,
-      // then reuse the same word for the return value.
-      let ptr := mload(0x40)
-      mstore(ptr, shl(224, selectorWord))
-      let success := staticcall(gas(), target, ptr, 4, ptr, 0x20)
-
-      // only touch the result struct when the call returned a complete word. data points to
-      // isPresent, and its next word is value. harmless trailing return data stays uncopied.
-      if and(success, iszero(lt(returndatasize(), 0x20))) {
-        mstore(data, 1)
-        mstore(add(data, 0x20), mload(ptr))
-      }
-    }
+    (data.isPresent, data.value) = OptionalDataLib.readWord(
+      target,
+      abi.encodeWithSelector(selector)
+    );
   }
 
   /// @notice probes optional temporary reserve-ratio state on the market's hooks instance.

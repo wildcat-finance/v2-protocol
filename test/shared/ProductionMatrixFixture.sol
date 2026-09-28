@@ -15,6 +15,7 @@ import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
+import { LibSplitInitCode } from 'src/libraries/LibSplitInitCode.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
@@ -91,9 +92,14 @@ abstract contract ProductionMatrixFixture is TestKernel {
 
   function _storeInitCode(
     string memory artifact
-  ) internal returns (address storageContract, uint256 initCodeHash) {
+  ) internal virtual returns (address storageContract, uint256 initCodeHash) {
     bytes memory initCode = vm.getCode(artifact);
-    storageContract = LibStoredInitCode.deployInitCode(initCode);
+    // match deployment tooling: keep fitting artifacts raw, split oversized initcode.
+    if (initCode.length <= 24_575) {
+      storageContract = LibStoredInitCode.deployInitCode(initCode);
+    } else {
+      (storageContract, ) = LibSplitInitCode.deployInitCode(initCode);
+    }
     initCodeHash = uint256(keccak256(initCode));
   }
 
@@ -111,6 +117,16 @@ abstract contract ProductionMatrixFixture is TestKernel {
   function _deployProductionStack(
     string[3] memory hooksArtifacts
   ) internal returns (ProductionStack memory stack) {
+    stack = _deployProductionDependencies();
+    stack.archController.registerBorrower(MatrixBorrower);
+    stack.standardFactory = _deployStandardFactory(stack);
+    stack.revolvingFactory = _deployRevolvingFactory(stack);
+    _deployAndRegisterTemplates(stack, hooksArtifacts);
+  }
+
+  // keep dependency-deployment locals out of the factory/template setup; the full matrix hits
+  // the Yul stack limit when all of these deployment encodings share one function.
+  function _deployProductionDependencies() private returns (ProductionStack memory stack) {
     stack.archController = WildcatArchController(
       _deployCode('src/WildcatArchController.sol:WildcatArchController')
     );
@@ -144,11 +160,6 @@ abstract contract ProductionMatrixFixture is TestKernel {
     stack.roleProvider = MockRoleProvider(
       _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
     );
-
-    stack.archController.registerBorrower(MatrixBorrower);
-    stack.standardFactory = _deployStandardFactory(stack);
-    stack.revolvingFactory = _deployRevolvingFactory(stack);
-    _deployAndRegisterTemplates(stack, hooksArtifacts);
   }
 
   function _deployStandardFactory(
@@ -202,7 +213,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
     string[3] memory hooksArtifacts
   ) private {
     for (uint256 i; i < stack.hooksTemplates.length; i++) {
-      (stack.hooksTemplates[i], ) = _storeInitCode(hooksArtifacts[i]);
+      uint256 initCodeHash;
+      (stack.hooksTemplates[i], initCodeHash) = _storeInitCode(hooksArtifacts[i]);
       string memory name = i == uint256(MatrixHooksKind.OpenTerm)
         ? 'Open Term'
         : i == uint256(MatrixHooksKind.FixedTerm)
@@ -214,7 +226,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
         address(0),
         address(0),
         0,
-        0
+        0,
+        bytes32(initCodeHash)
       );
       stack.revolvingFactory.addHooksTemplate(
         stack.hooksTemplates[i],
@@ -222,7 +235,8 @@ abstract contract ProductionMatrixFixture is TestKernel {
         address(0),
         address(0),
         0,
-        0
+        0,
+        bytes32(initCodeHash)
       );
     }
   }

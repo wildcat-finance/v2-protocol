@@ -20,16 +20,16 @@ interface IMarketLensCore {
     address[] calldata tokens
   ) external view returns (TokenMetadata[] memory infos);
 
-  /// @notice returns the stable V2 compatibility tuple for `market`.
+  /// @notice returns common V2 market data using this lens deployment's return ABI.
   /// @dev reverts with `NotV2Market` unless `version()` begins with `2`.
   function getMarketData(address market) external view returns (MarketData memory data);
 
-  /// @notice returns stable V2 compatibility tuples in market input order.
+  /// @notice returns common V2 market data in input order.
   function getMarketsData(
     address[] calldata markets
   ) external view returns (MarketData[] memory data);
 
-  /// @notice returns the V2.5 tuple, including borrower identity and optional revolving fields.
+  /// @notice returns V2.5 identity, lifecycle, liquidity, wrapper, and optional revolving fields.
   function getMarketDataV2(address market) external view returns (MarketDataV2_5 memory data);
 
   /// @notice returns V2.5 tuples in market input order.

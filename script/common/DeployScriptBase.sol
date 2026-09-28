@@ -8,9 +8,7 @@ import 'solady/utils/LibString.sol';
 
 import './LibDeployment.sol';
 
-/// @dev Deployable form of LibStoredInitCode's STOP-prefixed runtime layout.
-///      Plan entries need an artifact-backed CREATE transaction, while direct
-///      mode uses LibStoredInitCode through LibDeployment.
+/// @dev retained raw constructor for historical plans. current plans install prepared images.
 contract InitCodeStorage {
   constructor(bytes memory initCode) {
     bytes memory runtimeCode = bytes.concat(hex'00', initCode);
@@ -18,6 +16,11 @@ contract InitCodeStorage {
       return(add(runtimeCode, 0x20), mload(runtimeCode))
     }
   }
+}
+
+/// @dev retained for the compression comparison and historical prepared-image plans.
+contract CompressedInitCodeStorage is PreparedInitCodeStorage {
+  constructor(bytes memory runtimeCode) PreparedInitCodeStorage(runtimeCode) {}
 }
 
 abstract contract DeployScriptBase is Script {
@@ -48,7 +51,6 @@ abstract contract DeployScriptBase is Script {
 
   uint256 internal constant ETHEREUM_MAINNET_CHAIN_ID = 1;
   uint256 internal constant DEFAULT_PLASMA_MAINNET_CHAIN_ID = 9745;
-  uint256 internal constant MAX_INIT_CODE_STORAGE_PAYLOAD_SIZE = 24_575;
 
   function _sameStrings(string memory a, string memory b) internal pure returns (bool) {
     return keccak256(bytes(a)) == keccak256(bytes(b));
@@ -235,9 +237,11 @@ abstract contract DeployScriptBase is Script {
     bytes memory initCode,
     string memory label
   ) internal pure {
-    if (initCode.length > MAX_INIT_CODE_STORAGE_PAYLOAD_SIZE) {
-      revert(string.concat(label, ' exceeds the EIP-170 init-code storage limit'));
+    if (initCode.length > 49_152) {
+      revert(string.concat(label, ' exceeds the EIP-3860 creation-code limit'));
     }
+    // preparation enforces both stored runtime limits before planning.
+    LibDeployment.initCodeStorageRuntime(initCode);
   }
 
   function _verifyStoredInitCode(
@@ -246,8 +250,7 @@ abstract contract DeployScriptBase is Script {
     bytes memory initCode
   ) internal view {
     _requireCode(deployment, label);
-    bytes32 expectedCodeHash = keccak256(bytes.concat(hex'00', initCode));
-    if (deployment.codehash != expectedCodeHash) {
+    if (!LibDeployment.isValidInitCodeStorage(deployment, initCode)) {
       revert(string.concat('Verification failed for ', label, ': stored init code mismatch'));
     }
   }
@@ -312,26 +315,11 @@ abstract contract DeployScriptBase is Script {
   function _getOrDeployInitCodeStorageByLabel(
     Deployments memory deployments,
     string memory label,
-    string memory artifactName,
+    string memory,
     bytes memory initCode
   ) internal returns (address deployment, bool didDeploy) {
     _requireInitCodeStoragePayloadFits(initCode, label);
-    if (deployments.has(label)) {
-      deployment = deployments.get(label);
-      _verifyStoredInitCode(deployment, label, initCode);
-      console.log(string.concat('Found and verified ', label, ' at'), deployment);
-      return (deployment, false);
-    }
-
-    deployment = deployments.broadcastDeployInitcode(initCode);
-    ContractArtifact memory artifact = parseContractNamePath(artifactName);
-    artifact.customLabel = label;
-    artifact.deployment = deployment;
-    deployments.set(label, deployment);
-    deployments.pushArtifact(artifact);
-    _verifyStoredInitCode(deployment, label, initCode);
-    console.log(string.concat('Deployed ', label, ' to'), deployment);
-    return (deployment, true);
+    return deployments.getOrDeployInitcodeStorageByLabel(label, initCode, false);
   }
 
   function _ref(string memory output) internal pure returns (string memory) {
@@ -366,6 +354,197 @@ abstract contract DeployScriptBase is Script {
 
   function _planCodePresentPredicate(string memory output) internal pure returns (string memory) {
     return string.concat('{"type":"codePresent","target":', _ref(output), '}');
+  }
+
+  function _initCodeStorageArtifact(bytes memory initCode) internal pure returns (string memory) {
+    return
+      initCode.length <= 24_575
+        ? LibDeployment.PreparedStorageArtifact
+        : LibDeployment.LinkedStorageArtifact;
+  }
+
+  function _initCodeStorageConstructorInput(
+    bytes memory initCode
+  ) internal pure returns (bytes memory) {
+    return LibDeployment.initCodeStorageRuntime(initCode);
+  }
+
+  function _planInitCodeStoragePredicate(
+    string memory output,
+    bytes memory initCode
+  ) internal pure returns (string memory) {
+    bytes32 runtimeHash = keccak256(LibDeployment.initCodeStorageRuntime(initCode));
+    if (initCode.length > 24_575) {
+      return
+        string.concat(
+          '{"type":"splitCodeHash","target":',
+          _ref(output),
+          ',"expect":',
+          _quoted(vm.toString(runtimeHash)),
+          ',"secondary":',
+          _ref(string.concat(output, '-secondary')),
+          ',"secondaryCodeHash":',
+          _quoted(vm.toString(keccak256(LibSplitInitCode.getSecondaryRuntime(initCode)))),
+          ',"initCodeHash":',
+          _quoted(vm.toString(keccak256(initCode))),
+          '}'
+        );
+    }
+    return
+      string.concat(
+        '{"type":"codeHash","target":',
+        _ref(output),
+        ',"expect":',
+        _quoted(vm.toString(runtimeHash)),
+        ',"initCodeHash":',
+        _quoted(vm.toString(keccak256(initCode))),
+        '}'
+      );
+  }
+
+  function _planInitCodeStorageEntry(
+    Deployments memory deployments,
+    DeployPlanEntry memory entry,
+    bytes memory initCode
+  ) internal {
+    _requireInitCodeStoragePayloadFits(initCode, entry.output);
+    entry.artifactName = _initCodeStorageArtifact(initCode);
+    entry.decodedConstructorArgs = string.concat(
+      '[',
+      _quoted(vm.toString(_initCodeStorageConstructorInput(initCode)))
+    );
+    entry.predicate = _planInitCodeStoragePredicate(entry.output, initCode);
+    if (initCode.length > 24_575) {
+      DeployPlanEntry memory secondary;
+      secondary.sequence = entry.sequence;
+      secondary.id = string.concat(entry.id, '-secondary');
+      secondary.output = string.concat(entry.output, '-secondary');
+      secondary.artifactName = LibDeployment.PreparedStorageArtifact;
+      bytes memory runtime = LibSplitInitCode.getSecondaryRuntime(initCode);
+      secondary.decodedConstructorArgs = string.concat('[', _quoted(vm.toString(runtime)), ']');
+      secondary.description = string.concat('Deploy the secondary chunk for ', entry.output, '.');
+      secondary.predicate = string.concat(
+        '{"type":"codeHash","target":',
+        _ref(secondary.output),
+        ',"expect":',
+        _quoted(vm.toString(keccak256(runtime))),
+        '}'
+      );
+      secondary.afterEntries = entry.afterEntries;
+      _planEntry(deployments, secondary);
+      entry.decodedConstructorArgs = string.concat(
+        entry.decodedConstructorArgs,
+        ',',
+        _ref(secondary.output)
+      );
+      entry.afterEntries = new string[](1);
+      entry.afterEntries[0] = secondary.id;
+    }
+    entry.decodedConstructorArgs = string.concat(entry.decodedConstructorArgs, ']');
+    _planEntry(deployments, entry);
+  }
+
+  function _writeInitCodeStorageInventory(
+    Deployments memory deployments,
+    uint256 sequence,
+    string memory networkName,
+    string memory label,
+    string memory primaryJson,
+    string memory secondaryJson,
+    bytes32 initCodeHash,
+    bytes32 secondaryCodeHash
+  ) private {
+    string memory link = '';
+    if (bytes(secondaryJson).length != 0) {
+      link = string.concat(
+        ',"secondary":',
+        secondaryJson,
+        ',"secondaryCodeHash":',
+        _quoted(vm.toString(secondaryCodeHash))
+      );
+      string memory secondaryLabel = string.concat(label, '_secondary');
+      _inventoryRecord(
+        deployments,
+        sequence,
+        secondaryLabel,
+        string.concat(
+          '{"recordType":"deployment","role":"initCodeStorageSecondary","network":',
+          _quoted(networkName),
+          ',"chainId":',
+          vm.toString(block.chainid),
+          ',"deploymentKey":',
+          _quoted(secondaryLabel),
+          ',"address":',
+          secondaryJson,
+          ',"primary":',
+          primaryJson,
+          ',"runtimeCodeHash":',
+          _quoted(vm.toString(secondaryCodeHash)),
+          '}'
+        )
+      );
+    }
+    _inventoryRecord(
+      deployments,
+      sequence,
+      label,
+      string.concat(
+        '{"recordType":"initCodeStorage","network":',
+        _quoted(networkName),
+        ',"chainId":',
+        vm.toString(block.chainid),
+        ',"deploymentKey":',
+        _quoted(label),
+        ',"address":',
+        primaryJson,
+        ',"initCodeHash":',
+        _quoted(vm.toString(initCodeHash)),
+        link,
+        '}'
+      )
+    );
+  }
+
+  function _writePlanInitCodeStorageInventory(
+    Deployments memory deployments,
+    uint256 sequence,
+    string memory networkName,
+    string memory label,
+    string memory output,
+    bytes memory initCode
+  ) internal {
+    bool split = initCode.length > 24_575;
+    _writeInitCodeStorageInventory(
+      deployments,
+      sequence,
+      networkName,
+      label,
+      _ref(output),
+      split ? _ref(string.concat(output, '-secondary')) : '',
+      keccak256(initCode),
+      split ? keccak256(LibSplitInitCode.getSecondaryRuntime(initCode)) : bytes32(0)
+    );
+  }
+
+  function _writeLiveInitCodeStorageInventory(
+    Deployments memory deployments,
+    uint256 sequence,
+    string memory networkName,
+    string memory label,
+    address primary,
+    uint256 initCodeHash
+  ) internal {
+    address secondary = LibDeployment.initCodeStorageSecondary(primary);
+    _writeInitCodeStorageInventory(
+      deployments,
+      sequence,
+      networkName,
+      label,
+      _quoted(vm.toString(primary)),
+      secondary == address(0) ? '' : _quoted(vm.toString(secondary)),
+      bytes32(initCodeHash),
+      secondary.codehash
+    );
   }
 
   function _planCallEqPredicate(

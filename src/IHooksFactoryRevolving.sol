@@ -49,15 +49,20 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   // ========================================================================== //
 
   /// @notice registers a hooks template and its fee configuration.
-  /// @dev only the ArchController owner can call this.
+  /// @dev only the ArchController owner can call this. initCodeHash must come from the compiled
+  ///      artifact, before per-instance constructor arguments are appended.
   function addHooksTemplate(
     address hooksTemplate,
     string calldata name,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
-    uint16 protocolFeeBips
+    uint16 protocolFeeBips,
+    bytes32 initCodeHash
   ) external;
+
+  /// @notice registered creation-code hash for a template, or zero if it is unknown.
+  function getHooksTemplateInitCodeHash(address hooksTemplate) external view returns (bytes32);
 
   /// @notice updates the fees used by future markets for `hooksTemplate`.
   /// @dev only the ArchController owner can call this. existing market protocol fees change only
@@ -225,7 +230,8 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
 
   /// @notice pushes a template's current protocol fee to markets in an index range.
   /// @dev permissionless. `marketEndIndex` is clamped to the market count; after that, equal bounds
-  ///      are a no-op and `marketStartIndex > marketEndIndex` reverts.
+  ///      are a no-op and `marketStartIndex > marketEndIndex` reverts. closed markets are skipped;
+  ///      a failed closure query or fee update reverts the whole call.
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
     uint marketStartIndex,
@@ -233,6 +239,6 @@ interface IHooksFactoryRevolving is IHooksFactoryEventsAndErrors {
   ) external;
 
   /// @notice pushes a template's current protocol fee to all of its markets.
-  /// @dev permissionless. one market failure reverts the whole call.
+  /// @dev permissionless. closed markets are skipped; any other market failure reverts the call.
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external;
 }

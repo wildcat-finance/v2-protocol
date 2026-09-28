@@ -14,6 +14,7 @@ import '../libraries/MarketEvents.sol';
 import '../libraries/Withdrawal.sol';
 import '../libraries/FunctionTypeCasts.sol';
 import '../libraries/LibERC20.sol';
+import '../libraries/LibFixedCall.sol';
 import '../types/HooksConfig.sol';
 
 /// @notice shared market storage, accounting, identity, sanctions, and state-update machinery.
@@ -378,7 +379,11 @@ contract WildcatMarketBase is
     }
     if (
       parameters.borrowerPrincipal == address(0) ||
-      !IWildcatArchController(archController_).isRegisteredBorrower(parameters.borrowerPrincipal)
+      !LibFixedCall.readBool(
+        archController_,
+        IWildcatArchController.isRegisteredBorrower.selector,
+        parameters.borrowerPrincipal
+      )
     ) {
       revert BorrowerPrincipalNotRegistered();
     }
@@ -666,15 +671,14 @@ contract WildcatMarketBase is
     }
   }
 
-  /**
-   * @dev Call `_calculateCurrentState()` and return only the `state` parameter.
-   *
-   *      Casting the function type prevents a duplicate declaration of the MarketState
-   *      return parameter, which would cause unnecessary zeroing and allocation of memory.
-   *      With `viaIR` enabled, the cast is a noop.
-   */
+  /// @dev these callers only need MarketState. skip the three-result wrapper and return its
+  ///      existing memory pointer without allocating another empty MarketState.
   function _calculateCurrentStatePointers() internal view returns (uint256 state) {
-    (state, , ) = _calculateCurrentState.asReturnsPointers()();
+    LifecycleTransition memory next = _allocateTransition.asTransitionAllocator()();
+    _calculateTransition(next, totalAssets(), _runtimeConstant(1) != 0);
+    assembly ('memory-safe') {
+      state := mload(next)
+    }
   }
 
   /// @notice returns current scaled supply after any calculable withdrawal-batch payment.
@@ -797,7 +801,8 @@ contract WildcatMarketBase is
     bool closeAtCurrentTimestamp
   ) internal returns (MarketState memory state) {
     uint256 currentAssets = totalAssets();
-    LifecycleTransition memory next = _calculateTransition(currentAssets, closeAtCurrentTimestamp);
+    LifecycleTransition memory next = _allocateTransition.asTransitionAllocator()();
+    _calculateTransition(next, currentAssets, closeAtCurrentTimestamp);
     state = next.state;
     for (uint256 i; i <= next.accrualCount; ++i) {
       if (next.batchExpired.and(next.expiryAfterAccrual == i))
@@ -814,7 +819,7 @@ contract WildcatMarketBase is
       emit_DefaultRecorded(next.lifecycle.defaultedAt);
     }
     _lifecycle = next.lifecycle;
-    if (next.closedAt != 0) _commitAutomaticClosure(state, currentAssets, next.closedAt);
+    if (next.closedAt != 0) _commitAutomaticClosure(next.closedAt);
   }
 
   function _commitTransitionBatch(LifecycleTransition memory next, bool expired) internal {
@@ -855,16 +860,38 @@ contract WildcatMarketBase is
       WithdrawalBatch memory pendingBatch
     )
   {
-    LifecycleTransition memory next = _calculateTransition(totalAssets(), _runtimeConstant(1) != 0);
+    LifecycleTransition memory next = _allocateTransition.asTransitionAllocator()();
+    _calculateTransition(next, totalAssets(), _runtimeConstant(1) != 0);
     return (next.state, next.batchExpiry, next.batch);
+  }
+
+  /// @dev one zeroed arena for the ten-word header, empty batch, four record pointers and
+  ///      four six-word accrual records. _calculateTransition loads state/lifecycle separately.
+  function _allocateTransition() internal pure returns (uint256 pointer) {
+    assembly ('memory-safe') {
+      pointer := mload(0x40)
+      mstore(0x40, add(pointer, 0x520))
+      calldatacopy(pointer, calldatasize(), 0x520)
+      mstore(add(pointer, 0x40), add(pointer, 0x140))
+      let records := add(pointer, 0x1a0)
+      mstore(add(pointer, 0xe0), records)
+      for {
+        let i := 0
+      } lt(i, 4) {
+        i := add(i, 1)
+      } {
+        mstore(add(records, mul(i, 0x20)), add(add(pointer, 0x220), mul(i, 0xc0)))
+      }
+    }
   }
 
   /// @dev replay only the finite boundaries that change accounting. no daily loop, and no
   ///      accrual split merely to record the separate 90-day default marker.
   function _calculateTransition(
+    LifecycleTransition memory next,
     uint256 currentAssets,
     bool closeNow
-  ) internal view returns (LifecycleTransition memory next) {
+  ) internal view {
     next.state = _state;
     next.lifecycle = _lifecycle;
     MarketState memory state = next.state;
@@ -975,14 +1002,9 @@ contract WildcatMarketBase is
   }
 
   /// @dev closure freezes all fully backed claims. older batches can then finish in bounded FIFO
-  ///      calls. never give an arbitrary hook a veto over the scheduled obligation.
-  function _commitAutomaticClosure(
-    MarketState memory state,
-    uint256 assets,
-    uint256 timestamp
-  ) internal returns (uint256 remainingAssets) {
-    remainingAssets = state.totalDebts();
-    if (assets > remainingAssets) asset.safeTransfer(borrower(), assets - remainingAssets);
+  ///      calls. leave surplus for rescueTokens; a failed borrower transfer must not block lenders.
+  ///      never give an arbitrary hook a veto over the scheduled obligation.
+  function _commitAutomaticClosure(uint256 timestamp) internal {
     _onCloseMarket();
     emit_AnnualInterestAndReserveRatioBipsUpdated(
       borrower(),
@@ -994,11 +1016,8 @@ contract WildcatMarketBase is
     emit_MarketClosed(borrower(), timestamp);
   }
 
-  function _closeAfterCurrentAction(
-    MarketState memory state,
-    uint256 assets
-  ) internal returns (uint256) {
-    if (state.isClosed.or(!_isInRepayment()) || assets < state.totalDebts()) return assets;
+  function _closeAfterCurrentAction(MarketState memory state, uint256 assets) internal {
+    if (state.isClosed.or(!_isInRepayment()) || assets < state.totalDebts()) return;
     if (state.pendingWithdrawalExpiry != 0) {
       uint32 expiry = state.pendingWithdrawalExpiry;
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
@@ -1015,7 +1034,7 @@ contract WildcatMarketBase is
       emit_WithdrawalBatchClosed(expiry);
     }
     state.closeFundedState();
-    return _commitAutomaticClosure(state, assets, block.timestamp);
+    _commitAutomaticClosure(block.timestamp);
   }
 
   /**
@@ -1031,7 +1050,7 @@ contract WildcatMarketBase is
    *      external state-changing call.
    */
   function _writeState(MarketState memory state, uint256 currentTotalAssets) internal {
-    currentTotalAssets = _closeAfterCurrentAction(state, currentTotalAssets);
+    _closeAfterCurrentAction(state, currentTotalAssets);
     bool isDelinquent = state.liquidityRequired() > currentTotalAssets;
     state.isDelinquent = isDelinquent;
     if ((!isDelinquent).or(state.isClosed)) _lifecycle.penaltyCutoff = 0;

@@ -5,7 +5,7 @@ import './Errors.sol';
 
 library SafeCastLib {
   function _assertNonOverflow(bool didNotOverflow) private pure {
-    assembly {
+    assembly ('memory-safe') {
       if iszero(didNotOverflow) {
         mstore(0, Panic_ErrorSelector)
         mstore(Panic_ErrorCodePointer, Panic_Arithmetic)

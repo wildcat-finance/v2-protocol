@@ -7,6 +7,9 @@ import { HooksTemplate } from 'src/IHooksFactory.sol';
 import { MarketDataLib, OptionalUintDataV2_5 } from 'src/lens/MarketData.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
+import { HooksInstanceDataLib, MarketParameterConstraints } from 'src/lens/HooksInstanceData.sol';
+import { PeriodicPendingAprChangeData } from 'src/lens/HooksConfigData.sol';
+import { MarketLifecycleData, WildcatMarket } from 'src/lens/MarketLifecycleData.sol';
 
 contract LensArchControllerMock {
   address[] internal _controllers;
@@ -287,6 +290,26 @@ contract OptionalUintTargetMock {
 }
 
 contract LensProbeHarness {
+  function constraints(
+    address target
+  ) external view returns (MarketParameterConstraints memory data, bool hasRepaymentBounds) {
+    return HooksInstanceDataLib._readConstraints(target);
+  }
+
+  function lifecycle(
+    address target,
+    bool isClosed
+  ) external view returns (MarketLifecycleData memory data) {
+    data.fill(WildcatMarket(target), isClosed);
+  }
+
+  function pendingAprChange(
+    address target,
+    address market
+  ) external view returns (PeriodicPendingAprChangeData memory data) {
+    HooksConfigDataLib._fillPendingAprChange(data, target, market);
+  }
+
   function isV2Market(address target) external view returns (bool) {
     return MarketDataLib._isV2Market(target);
   }

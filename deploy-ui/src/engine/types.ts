@@ -12,6 +12,15 @@ export type PlanValue =
 
 export type Predicate =
   | { type: 'codePresent'; target: Address | Reference }
+  | { type: 'codeHash'; target: Address | Reference; expect: Hex; initCodeHash?: Hex }
+  | {
+      type: 'splitCodeHash'
+      target: Address | Reference
+      expect: Hex
+      secondary: Address | Reference
+      secondaryCodeHash: Hex
+      initCodeHash: Hex
+    }
   | {
       type: 'callEq'
       target: Address | Reference

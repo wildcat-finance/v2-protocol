@@ -456,6 +456,7 @@ contract DeployV2 is Script {
       HooksFactory(hooksFactory).addHooksTemplate({
         hooksTemplate: openTermTemplate,
         name: 'OpenTermHooks',
+        initCodeHash: keccak256(_getCreationCode(deployments, 'OpenTermHooks')),
         feeRecipient: owner,
         originationFeeAsset: address(0),
         originationFeeAmount: 0,
@@ -467,6 +468,7 @@ contract DeployV2 is Script {
       HooksFactory(hooksFactory).addHooksTemplate({
         hooksTemplate: fixedTermTemplate,
         name: 'FixedTermHooks',
+        initCodeHash: keccak256(_getCreationCode(deployments, 'FixedTermHooks')),
         feeRecipient: owner,
         originationFeeAsset: address(0),
         originationFeeAmount: 0,

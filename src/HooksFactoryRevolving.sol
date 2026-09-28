@@ -130,6 +130,11 @@ contract HooksFactoryRevolving is
     public
     override getHooksTemplateForInstance;
 
+  /// @notice immutable artifact commitment for each registered template.
+  mapping(address hooksTemplate => bytes32 initCodeHash)
+    public
+    override getHooksTemplateInitCodeHash;
+
   constructor(
     address archController_,
     address _sanctionsSentinel,
@@ -243,12 +248,17 @@ contract HooksFactoryRevolving is
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
-    uint16 protocolFeeBips
+    uint16 protocolFeeBips,
+    bytes32 initCodeHash
   ) external override onlyArchControllerOwner {
     if (_templateDetails[hooksTemplate].exists) {
       revert HooksTemplateAlreadyExists();
     }
     _validateFees(feeRecipient, originationFeeAsset, originationFeeAmount, protocolFeeBips);
+    if (keccak256(LibStoredInitCode.getInitCode(hooksTemplate)) != initCodeHash) {
+      revert HooksTemplateInitCodeHashMismatch();
+    }
+    getHooksTemplateInitCodeHash[hooksTemplate] = initCodeHash;
     _templateDetails[hooksTemplate] = HooksTemplate({
       exists: true,
       name: name_,
@@ -269,6 +279,7 @@ contract HooksFactoryRevolving is
       originationFeeAmount,
       protocolFeeBips
     );
+    emit HooksTemplateInitCodeHashRecorded(hooksTemplate, initCodeHash);
   }
 
   function _validateFees(
@@ -523,12 +534,15 @@ contract HooksFactoryRevolving is
 
     uint256 deploymentNonce = getHooksInstanceDeploymentNonce[administrator];
     bytes32 salt;
+    bytes memory initCode = LibStoredInitCode.getInitCode(hooksTemplate);
+    // hash these bytes before appending instance arguments, then pass the same buffer to CREATE2.
+    if (keccak256(initCode) != getHooksTemplateInitCodeHash[hooksTemplate]) {
+      revert HooksTemplateInitCodeHashMismatch();
+    }
     assembly {
       salt := or(shl(96, administrator), deploymentNonce)
-      let initCodePointer := mload(0x40)
-      let initCodeSize := sub(extcodesize(hooksTemplate), 1)
-      // Copy code from target address to memory starting at byte 1
-      extcodecopy(hooksTemplate, initCodePointer, 1, initCodeSize)
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
       let endInitCodePointer := add(initCodePointer, initCodeSize)
       // Write the administrator as the first parameter
       mstore(endInitCodePointer, administrator)
@@ -805,11 +819,15 @@ contract HooksFactoryRevolving is
     if (market.code.length != 0) {
       revert MarketAlreadyExists();
     }
-    if (
-      LibStoredInitCode.create2WithStoredInitCode(marketInitCodeStorage, runtimeParams.salt) !=
-      market
-    ) {
-      revert MarketDeploymentAddressMismatch();
+    {
+      bytes memory initCode = LibStoredInitCode.getInitCode(marketInitCodeStorage);
+      // check the artifact hash before executing its constructor. use these same decoded bytes.
+      if (uint256(keccak256(initCode)) != marketInitCodeHash) {
+        revert MarketDeploymentAddressMismatch();
+      }
+      if (LibStoredInitCode.create2WithInitCode(initCode, runtimeParams.salt, 0) != market) {
+        revert MarketDeploymentAddressMismatch();
+      }
     }
 
     IWildcatArchController(_archController).registerMarket(market);
@@ -920,7 +938,17 @@ contract HooksFactoryRevolving is
     for (uint256 i = 0; i < count; i++) {
       address market = markets[marketStartIndex + i];
       assembly {
-        if iszero(call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)) {
+        // isClosed() includes funded repayment closure that hasn't been written yet.
+        mstore(0, 0xc2b6b58c)
+        let success := staticcall(gas(), market, 0x1c, 0x04, 0, 0x20)
+        // require a complete, canonical bool. failed reads must not silently skip a market.
+        if or(lt(returndatasize(), 0x20), gt(mload(0), 1)) {
+          success := 0
+        }
+        if and(success, iszero(mload(0))) {
+          success := call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)
+        }
+        if iszero(success) {
           // Equivalent to `revert SetProtocolFeeBipsFailed()`
           mstore(0, 0x4484a4a9)
           revert(0x1c, 0x04)

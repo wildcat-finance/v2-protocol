@@ -25,7 +25,7 @@ struct MarketLiveDataV2_5 {
   uint256 lastAccruedProtocolFees;
   uint256 normalizedUnclaimedWithdrawals;
   uint256 scaledPendingWithdrawals;
-  /// @dev current batch expiry, or an expired stored batch that the accrued view can fully fund.
+  /// @dev current batch key, or a stored batch fully released by the accrued view before a write.
   uint256 pendingWithdrawalExpiry;
   bool isDelinquent;
   uint256 timeDelinquent;
@@ -33,6 +33,8 @@ struct MarketLiveDataV2_5 {
   uint256 coverageLiquidity;
   OptionalUintDataV2_5 commitmentFeeBips;
   OptionalUintDataV2_5 drawnAmount;
+  MarketLifecycleData lifecycle;
+  MarketLiquidityData liquidity;
 }
 
 /// @notice compact market state paired with one lender's current status.
@@ -86,6 +88,8 @@ library MarketLiveDataLib {
       address(market),
       MarketDataLib._DRAWN_AMOUNT_SELECTOR
     );
+    data.lifecycle.fill(market, data.isClosed);
+    data.liquidity.fill(market, data.isClosed, data.totalAssets);
   }
 
   function fill(

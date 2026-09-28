@@ -694,6 +694,9 @@ function transactionReferenceFields(transaction) {
 
 function predicateReferenceFields(transaction) {
   const values = [transaction.predicate?.target];
+  if (transaction.predicate?.type === "splitCodeHash") {
+    values.push(transaction.predicate.secondary);
+  }
   if (
     transaction.predicate?.type === "callEq" ||
     transaction.predicate?.type === "callResultEq"
@@ -919,6 +922,13 @@ function validatePlan(plan, options = {}) {
       }
     }
 
+    if (transaction.predicate?.initCodeHash !== undefined && !["codeHash", "splitCodeHash"].includes(transaction.predicate?.type)) {
+      errors.push(`${transactionPath}.predicate: initCodeHash requires codeHash or splitCodeHash`);
+    }
+    if (transaction.predicate?.type !== "splitCodeHash" &&
+        (transaction.predicate?.secondary !== undefined || transaction.predicate?.secondaryCodeHash !== undefined)) {
+      errors.push(`${transactionPath}.predicate: secondary fields require splitCodeHash`);
+    }
     if (transaction.predicate?.type === "codePresent") {
       if (Object.prototype.hasOwnProperty.call(transaction.predicate, "call")) {
         errors.push(
@@ -931,6 +941,11 @@ function validatePlan(plan, options = {}) {
         errors.push(
           `${transactionPath}.predicate: codePresent must not contain expect`
         );
+      }
+    } else if (["codeHash", "splitCodeHash"].includes(transaction.predicate?.type)) {
+      if (Object.prototype.hasOwnProperty.call(transaction.predicate, "call") ||
+          Object.prototype.hasOwnProperty.call(transaction.predicate, "resultIndex")) {
+        errors.push(`${transactionPath}.predicate: ${transaction.predicate.type} must not contain call or resultIndex`);
       }
     } else if (
       transaction.predicate?.type === "callEq" &&
@@ -1398,6 +1413,53 @@ async function checkPredicate(rpc, predicate, outputs) {
   }
   if (predicate.type === "codePresent") {
     return codePresent(rpc, target);
+  }
+  if (predicate.type === "codeHash" || predicate.type === "splitCodeHash") {
+    if (typeof predicate.expect !== "string" || !/^0x[a-fA-F0-9]{64}$/.test(predicate.expect)) {
+      throw new Error("codeHash requires a literal bytes32 expectation");
+    }
+    const code = await rpc("eth_getCode", [target, "latest"]);
+    let committedCode = code;
+    if (predicate.type === "splitCodeHash") {
+      const secondary = resolveReferences(predicate.secondary, outputs);
+      if (!ADDRESS_REGEX.test(secondary || "") || typeof predicate.secondaryCodeHash !== "string" ||
+          !/^0x[a-fA-F0-9]{64}$/.test(predicate.secondaryCodeHash) ||
+          typeof predicate.initCodeHash !== "string" || !/^0x[a-fA-F0-9]{64}$/.test(predicate.initCodeHash)) {
+        throw new Error("splitCodeHash requires a secondary address and literal runtime/initcode hashes");
+      }
+      if (typeof code !== "string" || code.length < 66 || code.length > 49154 ||
+          `0x${code.slice(-48, -8)}`.toLowerCase() !== secondary.toLowerCase()) {
+        return { ok: false, detail: `split storage secondary link mismatch at ${target}` };
+      }
+      // Commit every primary byte except the independently checked secondary address.
+      committedCode = code.slice(0, -48) + "00".repeat(20) + code.slice(-8);
+      const secondaryCode = await rpc("eth_getCode", [secondary, "latest"]);
+      if (typeof secondaryCode !== "string" || !secondaryCode.startsWith("0x00") ||
+          secondaryCode.length > 49154 || keccak256(secondaryCode).toLowerCase() !== predicate.secondaryCodeHash.toLowerCase()) {
+        return { ok: false, detail: `split storage secondary code mismatch at ${secondary}` };
+      }
+    }
+    const actual = typeof committedCode === "string" && committedCode !== "0x" ? keccak256(committedCode) : null;
+    const ok = actual !== null && actual.toLowerCase() === predicate.expect.toLowerCase();
+    if (ok && predicate.initCodeHash !== undefined) {
+      if (typeof predicate.initCodeHash !== "string" || !/^0x[a-fA-F0-9]{64}$/.test(predicate.initCodeHash)) {
+        throw new Error("codeHash requires a literal bytes32 initCodeHash");
+      }
+      const decoded = code.slice(2, 4) === "00" ? `0x${code.slice(4)}` :
+        await rpc("eth_call", [{ to: target, data: "0x" }, "latest"]);
+      const decodedHash = keccak256(decoded);
+      const decodedOk = decodedHash.toLowerCase() === predicate.initCodeHash.toLowerCase();
+      return {
+        ok: decodedOk,
+        detail: decodedOk ? `stored init code hash matches at ${target}` :
+          `decoded init code hash mismatch at ${target}: expected ${predicate.initCodeHash}, got ${decodedHash}`,
+      };
+    }
+    return {
+      ok,
+      detail: ok ? `code hash matches at ${target}` :
+        `code hash mismatch at ${target}: expected ${predicate.expect}, got ${actual ?? "no code"}`,
+    };
   }
   if (predicate.type === "callEq" || predicate.type === "callResultEq") {
     const args = resolveReferences(predicate.call.args, outputs);

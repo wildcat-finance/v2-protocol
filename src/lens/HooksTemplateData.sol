@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 import '../HooksFactory.sol';
 import './TokenData.sol';
+import './OptionalData.sol';
 
 using HooksTemplateDataLib for HooksTemplateData global;
 using HooksTemplateDataLib for FeeConfiguration global;
@@ -16,6 +17,8 @@ struct HooksTemplateData {
   uint24 index;
   string name;
   uint256 totalMarkets;
+  /// @dev factory-registered creation-code commitment. older factories may not expose it.
+  OptionalBytes32Data initCodeHash;
 }
 
 /// @notice template fee terms, with optional balance and allowance data for one borrower.
@@ -51,6 +54,12 @@ library HooksTemplateDataLib {
     data.name = template.name;
     data.totalMarkets = factory.getMarketsForHooksTemplateCount(hooksTemplate);
     data.fees.fill(template, factory, borrower);
+    uint256 hash;
+    (data.initCodeHash.isPresent, hash) = OptionalDataLib.readWord(
+      address(factory),
+      abi.encodeCall(IHooksFactory.getHooksTemplateInitCodeHash, (hooksTemplate))
+    );
+    data.initCodeHash.value = bytes32(hash);
   }
 
   /// @notice fills the fee tuple from an already-loaded template.

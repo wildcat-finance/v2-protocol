@@ -27,6 +27,17 @@ const FACTORY_ARTIFACTS = {
     "src/vault/Wildcat4626WrapperFactory.sol:IWildcat4626WrapperFactoryV1",
 };
 
+const PREPARED_STORAGE =
+  "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage";
+const LINKED_STORAGE =
+  "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage";
+const STORAGE_ARTIFACTS = [
+  "script/common/DeployScriptBase.sol:InitCodeStorage",
+  "script/common/DeployScriptBase.sol:CompressedInitCodeStorage",
+  PREPARED_STORAGE,
+  LINKED_STORAGE,
+];
+
 const RELEASE_CONTRACTS = [
   {
     key: "WildcatBorrowerIdentityRegistry",
@@ -189,10 +200,12 @@ const ABI_CHANGES_SINCE_V2 = [
       "HooksInstanceDeployed identifies the template, administrator, deployer, name, and version.",
       "MarketDeployed identifies borrower, principal, identity registry, requested hooks, and accepted hooks; configuration and hook payload move to companion events.",
       "getMarketParameters() includes the borrower identity registry and wrapper factory.",
+      "addHooksTemplate requires the original creation artifact's initCodeHash as its final argument; the unchecked selector is removed.",
     ],
     added: [
       "HooksInstanceRoleProviders, HooksInstanceAdministratorTransferred, MarketDeploymentConfig, MarketHooksData, and RevolvingMarketDeployed events.",
       "borrowerIdentityRegistry(), wrapperFactory(), hook-administrator indexing, and administrator-transfer callback views.",
+      "getHooksTemplateInitCodeHash(address) and HooksTemplateInitCodeHashRecorded expose each template's permanent creation-code commitment, verified at registration and before every instance deployment.",
     ],
   },
   {
@@ -499,8 +512,42 @@ function loadRunMetadata(planPath, runStatePath, network, release) {
   return { plan, runState, byOutput, byAddress };
 }
 
+function releaseDefinitions(
+  release,
+  deployments,
+  runMetadata = { byOutput: new Map() }
+) {
+  return RELEASE_CONTRACTS.flatMap((definition) => {
+    const deploymentKey = `${definition.key}_${release}`;
+    const storage = definition.key.endsWith("_initCodeStorage");
+    const primary = { ...definition, deploymentKey, storage };
+    if (!storage) return [primary];
+    primary.artifactNames = STORAGE_ARTIFACTS;
+    const secondaryKey = `${deploymentKey}_secondary`;
+    const secondaryOutput = `${definition.planOutput}-secondary`;
+    if (
+      !deployments[secondaryKey] &&
+      !runMetadata.byOutput.has(secondaryOutput) &&
+      runMetadata.byOutput.get(definition.planOutput)?.forgeArtifactName !== LINKED_STORAGE
+    ) {
+      return [primary];
+    }
+    return [
+      primary,
+      {
+        deploymentKey: secondaryKey,
+        planOutput: secondaryOutput,
+        kind: `${definition.kind}-secondary`,
+        storage: true,
+        forgeArtifactName: PREPARED_STORAGE,
+        abiArtifactName: PREPARED_STORAGE,
+      },
+    ];
+  });
+}
+
 function releaseDeployment(definition, release, deployments, runMetadata) {
-  const deploymentKey = `${definition.key}_${release}`;
+  const deploymentKey = definition.deploymentKey || `${definition.key}_${release}`;
   const fromDeployments = deployments[deploymentKey];
   const fromRun = runMetadata.byOutput.get(definition.planOutput);
   const address = fromDeployments || fromRun?.address;
@@ -514,12 +561,20 @@ function releaseDeployment(definition, release, deployments, runMetadata) {
   ) {
     throw new Error(`Run-state address mismatch for ${deploymentKey}`);
   }
+  const acceptedArtifacts = definition.artifactNames || [
+    definition.forgeArtifactName,
+  ];
+  if (definition.storage && !fromRun?.forgeArtifactName) {
+    throw new Error(
+      `Storage deployment ${deploymentKey} requires verified plan artifact metadata`
+    );
+  }
   if (
     fromRun?.forgeArtifactName &&
-    fromRun.forgeArtifactName !== definition.forgeArtifactName
+    !acceptedArtifacts.includes(fromRun.forgeArtifactName)
   ) {
     throw new Error(
-      `Plan artifact mismatch for ${deploymentKey}: expected ${definition.forgeArtifactName}, got ${fromRun.forgeArtifactName}`
+      `Plan artifact mismatch for ${deploymentKey}: expected ${acceptedArtifacts.join(" or ")}, got ${fromRun.forgeArtifactName}`
     );
   }
   return {
@@ -528,7 +583,7 @@ function releaseDeployment(definition, release, deployments, runMetadata) {
     address,
     startBlock: fromRun?.startBlock ?? null,
     deployTxHash: fromRun?.txHash ?? null,
-    forgeArtifactName: definition.forgeArtifactName,
+    forgeArtifactName: fromRun?.forgeArtifactName || definition.forgeArtifactName,
     abiArtifactName: definition.abiArtifactName,
   };
 }
@@ -597,7 +652,7 @@ function buildHandoff({
     "wrapper factory"
   );
 
-  const releaseContracts = RELEASE_CONTRACTS.map((definition) => {
+  const releaseContracts = releaseDefinitions(release, deployments, runMetadata).map((definition) => {
     const contract = releaseDeployment(
       definition,
       release,
@@ -606,7 +661,7 @@ function buildHandoff({
     );
     if (!contract) {
       throw new Error(
-        `Missing release deployment ${definition.key}_${release}`
+        `Missing release deployment ${definition.deploymentKey}`
       );
     }
     return contract;
@@ -739,9 +794,10 @@ function validateHandoff(
   if (!Array.isArray(handoff?.releaseContracts)) {
     errors.push("releaseContracts must be an array");
   } else {
-    if (handoff.releaseContracts.length !== RELEASE_CONTRACTS.length) {
+    const definitions = releaseDefinitions(expectedRelease, deployments);
+    if (handoff.releaseContracts.length !== definitions.length) {
       errors.push(
-        `releaseContracts must include all ${RELEASE_CONTRACTS.length} release deployments`
+        `releaseContracts must include all ${definitions.length} release deployments`
       );
     }
     const deploymentAddresses = new Set(
@@ -753,18 +809,29 @@ function validateHandoff(
         contract,
       ])
     );
-    for (const definition of RELEASE_CONTRACTS) {
-      const deploymentKey = `${definition.key}_${expectedRelease}`;
+    for (const definition of definitions) {
+      const deploymentKey = definition.deploymentKey;
       const contract = releaseContractsByKey.get(deploymentKey);
       if (!contract) {
         errors.push(`releaseContracts omits ${deploymentKey}`);
       } else {
         if (
-          contract.forgeArtifactName !== definition.forgeArtifactName ||
+          !(definition.artifactNames || [definition.forgeArtifactName]).includes(
+            contract.forgeArtifactName
+          ) ||
           contract.abiArtifactName !== definition.abiArtifactName
         ) {
           errors.push(
             `release contract ${deploymentKey} has an invalid artifact name`
+          );
+        }
+        if (
+          definition.storage &&
+          (contract.forgeArtifactName === LINKED_STORAGE) !==
+            Boolean(deployments[`${deploymentKey}_secondary`])
+        ) {
+          errors.push(
+            `release contract ${deploymentKey} has an inconsistent secondary deployment`
           );
         }
         const deploymentAddress = deployments[deploymentKey];
@@ -1036,9 +1103,13 @@ function main() {
   console.log(`Release contracts: ${handoff.releaseContracts.length}`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error.message || error);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error.message || error);
+    process.exit(1);
+  }
 }
+
+module.exports = { buildHandoff, validateHandoff, releaseDefinitions };

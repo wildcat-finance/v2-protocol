@@ -35,6 +35,8 @@ abstract contract MarketFixture is TestKernel {
     bool transfersDisabled;
     bool revolving;
     uint16 commitmentFeeBips;
+    uint32 repaymentDate;
+    uint32 repaymentPeriod;
   }
 
   struct Fixture {
@@ -96,7 +98,7 @@ abstract contract MarketFixture is TestKernel {
       abi.encode(fixedTermEndTime, options.minimumDeposit, options.transfersDisabled, true, true);
   }
 
-  function _deployFixtureDependencies() private returns (Fixture memory fixture) {
+  function _deployFixtureDependencies() internal virtual returns (Fixture memory fixture) {
     fixture.archController = WildcatArchController(
       _deployCode('src/WildcatArchController.sol:WildcatArchController')
     );
@@ -141,6 +143,8 @@ abstract contract MarketFixture is TestKernel {
     parameters.withdrawalBatchDuration = options.withdrawalBatchDuration;
     parameters.reserveRatioBips = options.reserveRatioBips;
     parameters.delinquencyGracePeriod = options.delinquencyGracePeriod;
+    parameters.repaymentDate = options.repaymentDate;
+    parameters.repaymentPeriod = options.repaymentPeriod;
     parameters.archController = address(fixture.archController);
     parameters.hooks = marketHooks;
     parameters.borrowerPrincipal = Borrower;
@@ -161,6 +165,8 @@ abstract contract MarketFixture is TestKernel {
     inputs.withdrawalBatchDuration = options.withdrawalBatchDuration;
     inputs.reserveRatioBips = options.reserveRatioBips;
     inputs.delinquencyGracePeriod = options.delinquencyGracePeriod;
+    inputs.repaymentDate = options.repaymentDate;
+    inputs.repaymentPeriod = options.repaymentPeriod;
     inputs.hooks = requestedHooks;
   }
 

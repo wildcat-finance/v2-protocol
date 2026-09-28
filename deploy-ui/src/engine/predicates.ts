@@ -3,6 +3,7 @@ import {
   encodeFunctionData,
   getAddress,
   isAddress,
+  keccak256,
   parseAbiItem,
   type AbiFunction,
   type Address,
@@ -112,6 +113,54 @@ export async function evaluatePredicate(
     }
   }
 
+  if (predicate.type === 'codeHash' || predicate.type === 'splitCodeHash') {
+    if (typeof predicate.expect !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(predicate.expect)) {
+      throw new Error('codeHash requires a literal bytes32 expectation')
+    }
+    const code = await transport.getCode(target)
+    let committedCode = code
+    if (predicate.type === 'splitCodeHash') {
+      const secondaryValue = resolveReferences(predicate.secondary, outputs)
+      if (typeof secondaryValue !== 'string' || !isAddress(secondaryValue) ||
+          typeof predicate.secondaryCodeHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(predicate.secondaryCodeHash) ||
+          typeof predicate.initCodeHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(predicate.initCodeHash)) {
+        throw new Error('splitCodeHash requires a secondary address and literal runtime/initcode hashes')
+      }
+      const secondary = getAddress(secondaryValue)
+      if (typeof code !== 'string' || code.length < 66 || code.length > 49154 ||
+          `0x${code.slice(-48, -8)}`.toLowerCase() !== secondary.toLowerCase()) {
+        return { ok: false, detail: `split storage secondary link mismatch at ${target}` }
+      }
+      committedCode = (code.slice(0, -48) + '00'.repeat(20) + code.slice(-8)) as Hex
+      const secondaryCode = await transport.getCode(secondary)
+      if (typeof secondaryCode !== 'string' || !secondaryCode.startsWith('0x00') ||
+          secondaryCode.length > 49154 || keccak256(secondaryCode).toLowerCase() !== predicate.secondaryCodeHash.toLowerCase()) {
+        return { ok: false, detail: `split storage secondary code mismatch at ${secondary}` }
+      }
+    }
+    const actual = typeof committedCode === 'string' && committedCode !== '0x' ? keccak256(committedCode) : null
+    const ok = actual !== null && actual.toLowerCase() === predicate.expect.toLowerCase()
+    if (ok && predicate.initCodeHash !== undefined) {
+      if (typeof predicate.initCodeHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(predicate.initCodeHash)) {
+        throw new Error('codeHash requires a literal bytes32 initCodeHash')
+      }
+      const decoded = code!.slice(2, 4) === '00' ? `0x${code!.slice(4)}` as Hex :
+        await transport.ethCall(target, '0x')
+      const decodedHash = keccak256(decoded)
+      const decodedOk = decodedHash.toLowerCase() === predicate.initCodeHash.toLowerCase()
+      return {
+        ok: decodedOk,
+        detail: decodedOk ? `stored init code hash matches at ${target}` :
+          `decoded init code hash mismatch at ${target}: expected ${predicate.initCodeHash}, got ${decodedHash}`,
+      }
+    }
+    return {
+      ok,
+      detail: ok ? `code hash matches at ${target}` :
+        `code hash mismatch at ${target}: expected ${predicate.expect}, got ${actual ?? 'no code'}`,
+    }
+  }
+
   const abi = functionAbi(predicate.call.sig)
   const args = resolveReferences(predicate.call.args, outputs).map((value, index) =>
     normalizeForAbi(
@@ -144,7 +193,7 @@ export async function evaluatePredicate(
 }
 
 export function encodePredicateCall(
-  predicate: Exclude<Predicate, { type: 'codePresent' }>,
+  predicate: Exclude<Predicate, { type: 'codePresent' | 'codeHash' | 'splitCodeHash' }>,
 ): Hex {
   const abi = functionAbi(predicate.call.sig)
   return encodeFunctionData({ abi: [abi], args: predicate.call.args as readonly unknown[] })

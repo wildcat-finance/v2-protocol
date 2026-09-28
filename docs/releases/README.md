@@ -13,12 +13,14 @@ source unit and ABI-bearing declaration to a release commit.
 [V2.5](./v2.5.md) is the active release line.
 
 - The final tag and source commit will be recorded after source freeze.
-- The candidate [contract inventory](./inventory/v2.5.json) pins the current
-  source and ABI boundary.
-- The [audit scope](./v2.5-audit-scope.md) records candidate provenance,
-  priority surfaces, properties, and freeze gates.
-- The [pre-freeze receipt](./v2.5-verification.md) records the current local
-  build, test, inventory, size, and lint evidence.
+- The retained [contract inventory](./inventory/v2.5.json) pins the earlier
+  audit source, not the current branch.
+- The [audit scope](./v2.5-audit-scope.md) identifies the prior freeze and the
+  changes that require a new review boundary.
+- The [pre-freeze receipt](./v2.5-verification.md) is dated evidence for an
+  earlier candidate. It must not be used as current verification.
+- Final source, compiler settings, inventory and the deployment ceremony need
+  a new freeze and receipt before release.
 - The release page describes changes from V2.1.
 - Current technical docs define the detailed behavior.
 

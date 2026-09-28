@@ -82,7 +82,8 @@ contract MarketConstraintHooksTest is TestKernel {
     uint16 newApr
   ) internal returns (uint32 expiry, uint16 temporaryReserveRatio) {
     temporaryReserveRatio = _expectedTemporaryReserveRatio(newApr, 1_000, 2_000);
-    expiry = uint32(block.timestamp + 2 weeks);
+    // vm.warp can change time inside one test call; block.timestamp can be cached by solc.
+    expiry = uint32(vm.getBlockTimestamp() + 2 weeks);
     vm.expectEmit(address(hooks));
     emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
       market,
@@ -178,7 +179,7 @@ contract MarketConstraintHooksTest is TestKernel {
         originalApr,
         originalReserveRatio
       );
-      uint32 expiry = uint32(block.timestamp + 2 weeks);
+      uint32 expiry = uint32(vm.getBlockTimestamp() + 2 weeks);
       vm.expectEmit(address(hooks));
       emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(
         MarketA,
@@ -235,7 +236,7 @@ contract MarketConstraintHooksTest is TestKernel {
   function test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry() external {
     (uint32 firstExpiry, ) = _activateReduction(MarketA, 700);
     vm.warp(StartTimestamp + 1 weeks);
-    uint32 extendedExpiry = uint32(block.timestamp + 2 weeks);
+    uint32 extendedExpiry = uint32(vm.getBlockTimestamp() + 2 weeks);
     vm.expectEmit(address(hooks));
     emit MarketConstraintHooks.TemporaryExcessReserveRatioUpdated(
       MarketA,
@@ -286,7 +287,7 @@ contract MarketConstraintHooksTest is TestKernel {
   function test_onSetApr_FurtherReductionAfterExpiryStartsANewWindow() external {
     (uint32 expiry, ) = _activateReduction(MarketA, 700);
     vm.warp(expiry);
-    uint32 newExpiry = uint32(block.timestamp + 2 weeks);
+    uint32 newExpiry = uint32(vm.getBlockTimestamp() + 2 weeks);
     vm.expectEmit(address(hooks));
     emit MarketConstraintHooks.TemporaryExcessReserveRatioUpdated(MarketA, 2_000, 8_000, newExpiry);
     (uint16 updatedApr, uint16 updatedReserveRatio) = _setApr(MarketA, 600, 0, 700, 6_000);

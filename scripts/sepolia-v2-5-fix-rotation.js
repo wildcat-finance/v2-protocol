@@ -333,6 +333,17 @@ function loadDeployArtifact(source, contract) {
     );
   }
   const artifact = readJson(filePath);
+  if (
+    artifact.abi.some(
+      (entry) =>
+        entry.type === "function" &&
+        entry.name === "getHooksTemplateInitCodeHash"
+    )
+  ) {
+    throw new Error(
+      "The fix-1 ceremony uses the historical factory interface. Use its pinned source to reproduce it; use script/deploy/v2-5 for new artifact-bound registrations."
+    );
+  }
   const metadata =
     typeof artifact.metadata === "string"
       ? JSON.parse(artifact.metadata)

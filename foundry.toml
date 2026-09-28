@@ -34,7 +34,10 @@ ignored_warnings_from = ["src/", "test/"]
 bytecode_hash = 'none'
 via_ir = true
 optimizer = true
-optimizer_runs = 44
+# Runs 1 and the pinned Yul sequence without FunctionSpecializer keep both market
+# runtimes below EIP-170. All normal build and test profiles inherit these settings.
+optimizer_runs = 1
+optimizer_details = { yulDetails = { optimizerSteps = 'dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul' } }
 cbor_metadata = false
 
 [lint]

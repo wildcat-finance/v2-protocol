@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-/// @notice deploys and reuses large creation bytecode through inert code-storage contracts.
+/// @notice deploys raw code storage and reads either raw or executable init-code stores.
 library LibStoredInitCode {
   /// @notice deploying the inert init-code storage contract failed.
   error InitCodeDeploymentFailed();
@@ -12,7 +12,7 @@ library LibStoredInitCode {
   /// @notice deploys `data` as inert runtime code and returns its storage contract.
   /// @dev runtime code is `STOP || data`; deployment helpers skip the leading byte.
   function deployInitCode(bytes memory data) internal returns (address initCodeStorage) {
-    assembly {
+    assembly ('memory-safe') {
       let size := mload(data)
       let createSize := add(size, 0x0b)
       // Prefix code
@@ -54,12 +54,50 @@ library LibStoredInitCode {
     }
   }
 
+  /// @dev raw stores start with STOP. executable stores return the original creation bytes
+  ///      on STATICCALL, so compression stays inside that one storage contract. CREATE2 still
+  ///      hashes the original init code, and old raw stores keep their existing format.
+  ///      registration tooling must authenticate the stored runtime against the artifact;
+  ///      a successful STATICCALL alone does not establish what code the reader will return.
+  function getInitCode(address initCodeStorage) internal view returns (bytes memory initCode) {
+    assembly ('memory-safe') {
+      let size := extcodesize(initCodeStorage)
+      if iszero(size) {
+        mstore(0, 0x30116425) // DeploymentFailed()
+        revert(0x1c, 4)
+      }
+      initCode := mload(0x40)
+      let data := add(initCode, 0x20)
+      extcodecopy(initCodeStorage, 0, 0, 1)
+      switch byte(0, mload(0))
+      case 0 {
+        size := sub(size, 1)
+        extcodecopy(initCodeStorage, data, 1, size)
+      }
+      default {
+        if iszero(staticcall(gas(), initCodeStorage, 0, 0, 0, 0)) {
+          mstore(0, 0x30116425)
+          revert(0x1c, 4)
+        }
+        size := returndatasize()
+        if gt(size, 49152) {
+          mstore(0, 0x30116425)
+          revert(0x1c, 4)
+        }
+        returndatacopy(data, 0, size)
+      }
+      mstore(initCode, size)
+      mstore(add(data, size), 0)
+      mstore(0x40, and(add(add(data, size), 31), not(31)))
+    }
+  }
+
   /**
    * @dev Returns the create2 prefix for a given deployer address.
    *      Equivalent to `uint256(uint160(deployer)) | (0xff << 160)`
    */
   function getCreate2Prefix(address deployer) internal pure returns (uint256 create2Prefix) {
-    assembly {
+    assembly ('memory-safe') {
       create2Prefix := or(deployer, 0xff0000000000000000000000000000000000000000)
     }
   }
@@ -71,24 +109,16 @@ library LibStoredInitCode {
     bytes32 salt,
     uint256 initCodeHash
   ) internal pure returns (address create2Address) {
-    assembly {
-      // Cache the free memory pointer so it can be restored at the end
-      let freeMemoryPointer := mload(0x40)
-
-      // Write 0xff + address to bytes 11:32
-      mstore(0x00, create2Prefix)
-
-      // Write salt to bytes 32:64
-      mstore(0x20, salt)
-
-      // Write initcode hash to bytes 64:96
-      mstore(0x40, initCodeHash)
-
-      // Calculate create2 address
-      create2Address := and(keccak256(0x0b, 0x55), 0xffffffffffffffffffffffffffffffffffffffff)
-
-      // Restore the free memory pointer
-      mstore(0x40, freeMemoryPointer)
+    assembly ('memory-safe') {
+      // temporary hash input above the free memory pointer. don't borrow the pointer slot.
+      let pointer := mload(0x40)
+      mstore(pointer, create2Prefix)
+      mstore(add(pointer, 0x20), salt)
+      mstore(add(pointer, 0x40), initCodeHash)
+      create2Address := and(
+        keccak256(add(pointer, 0x0b), 0x55),
+        0xffffffffffffffffffffffffffffffffffffffff
+      )
     }
   }
 
@@ -102,11 +132,10 @@ library LibStoredInitCode {
     address initCodeStorage,
     uint256 value
   ) internal returns (address deployment) {
-    assembly {
-      let initCodePointer := mload(0x40)
-      let initCodeSize := sub(extcodesize(initCodeStorage), 1)
-      // Stored runtime is STOP || initcode. Skip the first byte.
-      extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
+    bytes memory initCode = getInitCode(initCodeStorage);
+    assembly ('memory-safe') {
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
       deployment := create(value, initCodePointer, initCodeSize)
       if iszero(deployment) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
@@ -129,11 +158,19 @@ library LibStoredInitCode {
     bytes32 salt,
     uint256 value
   ) internal returns (address deployment) {
-    assembly {
-      let initCodePointer := mload(0x40)
-      let initCodeSize := sub(extcodesize(initCodeStorage), 1)
-      // Stored runtime is STOP || initcode. Skip the first byte.
-      extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
+    bytes memory initCode = getInitCode(initCodeStorage);
+    return create2WithInitCode(initCode, salt, value);
+  }
+
+  /// @dev accepts already-read creation bytes so callers can verify their hash before CREATE2.
+  function create2WithInitCode(
+    bytes memory initCode,
+    bytes32 salt,
+    uint256 value
+  ) internal returns (address deployment) {
+    assembly ('memory-safe') {
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
       deployment := create2(value, initCodePointer, initCodeSize, salt)
       if iszero(deployment) {
         mstore(0x00, 0x30116425) // DeploymentFailed()
@@ -149,11 +186,10 @@ library LibStoredInitCode {
     uint256 value,
     bytes memory constructorArgs
   ) internal returns (address deployment) {
-    assembly {
-      let initCodePointer := mload(0x40)
-      let initCodeSize := sub(extcodesize(initCodeStorage), 1)
-      // Stored runtime is STOP || initcode. Skip the first byte.
-      extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
+    bytes memory initCode = getInitCode(initCodeStorage);
+    assembly ('memory-safe') {
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
       // Copy constructor args from memory to initcode
       let constructorArgsSize := mload(constructorArgs)
       mcopy(add(initCodePointer, initCodeSize), add(constructorArgs, 0x20), constructorArgsSize)
@@ -182,11 +218,10 @@ library LibStoredInitCode {
     uint256 value,
     bytes calldata constructorArgs
   ) internal returns (address deployment) {
-    assembly {
-      let initCodePointer := mload(0x40)
-      let initCodeSize := sub(extcodesize(initCodeStorage), 1)
-      // Stored runtime is STOP || initcode. Skip the first byte.
-      extcodecopy(initCodeStorage, initCodePointer, 1, initCodeSize)
+    bytes memory initCode = getInitCode(initCodeStorage);
+    assembly ('memory-safe') {
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
       // Copy constructor args from calldata to end of initcode
       let constructorArgsSize := constructorArgs.length
       calldatacopy(add(initCodePointer, initCodeSize), constructorArgs.offset, constructorArgsSize)

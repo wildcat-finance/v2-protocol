@@ -119,6 +119,8 @@ interface IHooksFactoryEventsAndErrors {
   error HooksTemplateNotAvailable();
   /// @dev the requested hooks template is already registered.
   error HooksTemplateAlreadyExists();
+  /// @dev decoded template creation code does not match its registered artifact hash.
+  error HooksTemplateInitCodeHashMismatch();
   /// @dev CREATE2 failed while deploying a hooks instance.
   error DeploymentFailed();
   /// @dev the requested hooks instance was not deployed by this factory.
@@ -187,6 +189,8 @@ interface IHooksFactoryEventsAndErrors {
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
   );
+  /// @notice immutable creation-code hash committed when a template is registered.
+  event HooksTemplateInitCodeHashRecorded(address indexed hooksTemplate, bytes32 initCodeHash);
   /// @notice emitted when the ArchController owner disables new deployments from a template.
   event HooksTemplateDisabled(address indexed hooksTemplate, address indexed caller);
   /// @notice emitted when a template's fees for future markets change.
@@ -273,16 +277,20 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   /// @notice registers a hooks template and its fee configuration.
   ///
-  /// @dev only the ArchController owner can call this. the template address is expected to contain
-  ///      the factory's stored-initcode format; deployment is where bad code finally fails.
+  /// @dev only the ArchController owner can call this. initCodeHash must come from the compiled
+  ///      artifact, before per-instance constructor arguments are appended.
   function addHooksTemplate(
     address hooksTemplate,
     string calldata name,
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount,
-    uint16 protocolFeeBips
+    uint16 protocolFeeBips,
+    bytes32 initCodeHash
   ) external;
+
+  /// @notice registered creation-code hash for a template, or zero if it is unknown.
+  function getHooksTemplateInitCodeHash(address hooksTemplate) external view returns (bytes32);
 
   /// @notice updates the fees used by future markets for `hooksTemplate`.
   /// @dev only the ArchController owner can call this. existing market protocol fees change only
@@ -447,7 +455,8 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
 
   /// @notice pushes a template's current protocol fee to markets in an index range.
   /// @dev permissionless. `marketEndIndex` is clamped to the market count; after that, equal bounds
-  ///      are a no-op and `marketStartIndex > marketEndIndex` reverts.
+  ///      are a no-op and `marketStartIndex > marketEndIndex` reverts. closed markets are skipped;
+  ///      a failed closure query or fee update reverts the whole call.
   function pushProtocolFeeBipsUpdates(
     address hooksTemplate,
     uint marketStartIndex,
@@ -455,6 +464,6 @@ interface IHooksFactory is IHooksFactoryEventsAndErrors {
   ) external;
 
   /// @notice pushes a template's current protocol fee to all of its markets.
-  /// @dev permissionless. one market failure reverts the whole call.
+  /// @dev permissionless. closed markets are skipped; any other market failure reverts the call.
   function pushProtocolFeeBipsUpdates(address hooksTemplate) external;
 }

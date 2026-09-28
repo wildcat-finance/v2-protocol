@@ -56,7 +56,15 @@ contract HooksAdministratorTransferTest is TestKernel {
   function _configureFactory(Fixture memory fixture, IHooksFactory factory) internal {
     fixture.archController.registerControllerFactory(address(factory));
     factory.registerWithArchController();
-    factory.addHooksTemplate(fixture.hooksTemplate, 'Open Term', address(0), address(0), 0, 0);
+    factory.addHooksTemplate(
+      fixture.hooksTemplate,
+      'Open Term',
+      address(0),
+      address(0),
+      0,
+      0,
+      keccak256(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'))
+    );
   }
 
   function _newFixture() internal returns (Fixture memory fixture) {

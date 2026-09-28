@@ -16,12 +16,16 @@ So is adverse use of authority that a market explicitly grants its borrower,
 including drawing available assets and making permitted term changes. A lender
 must evaluate the borrower, market terms, and hook policy.
 
-Closing a market returns only assets left after all lender debt, paid and unpaid
-withdrawal liabilities, and protocol fees are accounted for. If the operational
-borrower or its recorded principal has since been flagged by the sanctions
-oracle, closure can still send that unencumbered surplus to the operational
-borrower. The sanctions check on `borrow` prevents either flagged identity from
-drawing lender-backed value; closure is allowed to settle the market.
+Manual closure returns only assets left after all lender debt, paid and unpaid
+withdrawal liabilities, and protocol fees are accounted for. Automatic closure
+retains that surplus for a separate borrower call to `rescueTokens(asset)`.
+If the operational borrower or its recorded principal has since been flagged
+by the sanctions oracle, manual closure and surplus recovery can still send
+that unencumbered value to the operational borrower. The sanctions check on
+`borrow` prevents either flagged identity from drawing lender-backed value;
+closure and recovery are allowed to settle the market. A token's own recipient
+restriction can make recovery fail, but automatic closure does not attempt that
+transfer and therefore does not pass that failure on to lender actions.
 
 ## Lazy delinquency accounting
 
@@ -32,13 +36,21 @@ transactions is therefore recognized at the next checkpoint, not at the exact
 second of the crossing. Permissionless state updates and the Hydra keeper
 reduce this timing difference but cannot remove block and polling latency.
 
-Withdrawal expiry is a stricter boundary. A delayed update settles the expired
-batch and classifies the post-expiry interval using the last asset balance that
-the market checkpointed at or before expiry. A direct transfer first observed
-after expiry becomes current liquidity but does not rewrite the elapsed
-history. Because an ERC-20 balance does not retain transfer timestamps, a
-direct transfer intended to count at expiry must be followed by a market state
-write no later than that timestamp.
+Withdrawal expiry and repayment boundaries use historical asset checkpoints.
+A delayed update settles them against the last asset balance the market
+recorded at or before each boundary. A transfer first observed later becomes
+current liquidity but cannot rewrite that history. Because an ERC-20 balance
+does not retain transfer timestamps, a direct transfer intended to count at
+expiry or at a repayment deadline must be followed by a market state write no
+later than that timestamp.
+
+`defaultedAt` is a permanent stored marker, not a live prediction. It can remain
+zero after an uncured cutoff until a successful update records it. A healthy
+write at the exact 90-day cutoff resets the separate penalty run; default is
+sealed only at a later timestamp. The ordinary `timeDelinquent` decay and fee
+calculation remain separate. A zero-day repayment period is valid and gives no
+extra interval beyond the repayment-date timestamp. See
+[repayment and default](../protocol/repayment-and-default.md).
 
 Closing accrues through the close timestamp, then clears the delinquency timer.
 Interest and delinquency fees do not continue through the remaining grace or
@@ -52,7 +64,8 @@ See [accounting](../protocol/accounting.md#delinquency) and
 ### Timestamp horizon
 
 V2.x encodes absolute Unix timestamps in `uint32` across market accrual
-checkpoints, withdrawal-batch expiries, hook deadlines, and lender credentials.
+checkpoints, withdrawal-batch expiries, repayment terms, default records, hook
+deadlines, and lender credentials.
 The final representable timestamp is `type(uint32).max`, or
 2106-02-07 06:28:15 UTC. This is an accepted lifetime bound for the V2.x
 generation, not a rollover scheme.
@@ -126,6 +139,10 @@ payment and is not carried forward.
 in the queue length. Work down a large queue in bounded calls to
 `repayAndProcessUnpaidWithdrawalBatches(0, maxBatches)` before closing.
 
+Automatic closure pays and releases the current batch but leaves older batches
+for that bounded processor. Their funds remain protected after closure. The
+repayment date itself leaves batching unchanged while the market is open.
+
 ## Protocol fees
 
 Each accounting checkpoint rounds that interval's protocol fee independently
@@ -146,12 +163,19 @@ new markets, while a fee-rate push changes only the rate of an existing market.
 V2.5 rejects a positive fee-rate push to a market whose immutable recipient is
 zero.
 
+Factory fee-update pages skip markets whose `isClosed()` view is true, including
+pending automatic closure. That read does not itself commit closure. A failed
+or malformed read, or a failed update to an open market, still reverts the whole
+page.
+
 ## Hooks
 
 The selected hook address and enabled callback set are immutable. Mutable hook
 state or administration can still make an enabled callback reject its market
-action. A bad hook implementation can permanently disable the corresponding
-path; a defect in a protocol-supplied hook template is still reportable.
+action. New V2.5 markets never dispatch execution hooks; dated repayment also
+bypasses queue hooks and automatic-closure hooks. For other enabled paths, a
+bad hook implementation can permanently disable the action. A defect in a
+protocol-supplied hook template is still reportable.
 
 Hooks are not an exact accounting event stream. Withdrawal-batch payments do
 not have a dedicated callback, so consumers that need exact live batch or
@@ -174,7 +198,9 @@ paths and override boundary.
 
 `nukeFromOrbit` intentionally uses the ordinary withdrawal hook. Fixed-term and
 periodic-term restrictions can therefore defer quarantine until withdrawals
-are permitted. In a periodic market, the delay can recur once per period.
+are permitted. In a periodic market, the delay can recur once per period before
+an enabled repayment date. From that date, queue-hook restrictions are skipped;
+the nuke callback and remaining sanctions checks still apply.
 
 ## Assets
 

@@ -7,6 +7,8 @@ import 'solady/utils/LibString.sol';
 
 string constant bashFilePath = 'deployments/write-standard-json.sh';
 import 'src/libraries/LibStoredInitCode.sol';
+import 'src/libraries/LibSplitInitCode.sol';
+import './PreparedInitCodeStorage.sol';
 
 using LibString for string;
 using LibString for address;
@@ -140,6 +142,42 @@ library LibDeployment {
   using LibDeployment for Json;
   using LibDeployment for ContractArtifact[];
 
+  string internal constant PreparedStorageArtifact =
+    'script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage';
+  string internal constant LinkedStorageArtifact =
+    'script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage';
+
+  /// @dev an oversized artifact returns an unlinked primary image. bind its secondary at install.
+  function initCodeStorageRuntime(bytes memory creationCode) internal pure returns (bytes memory) {
+    if (creationCode.length <= 24_575) return bytes.concat(hex'00', creationCode);
+    return LibSplitInitCode.getPrimaryRuntime(creationCode, address(0));
+  }
+
+  function initCodeStorageSecondary(address deployment) internal view returns (address secondary) {
+    return LibSplitInitCode.getSecondaryAddress(deployment);
+  }
+
+  /// @dev the artifact is the trust anchor. matching one reader response isn't enough:
+  ///      a different executable store could return different code to the factory.
+  function isValidInitCodeStorage(
+    address deployment,
+    bytes memory creationCode
+  ) internal view returns (bool) {
+    if (deployment.code.length == 0 || deployment.code.length > 24_576) return false;
+    if (creationCode.length > LibSplitInitCode.maximumInitCodeSize()) return false;
+    bytes memory expectedRuntime;
+    if (deployment.code[0] == bytes1(0)) {
+      expectedRuntime = bytes.concat(hex'00', creationCode);
+    } else {
+      address secondary = initCodeStorageSecondary(deployment);
+      if (secondary.codehash != keccak256(LibSplitInitCode.getSecondaryRuntime(creationCode)))
+        return false;
+      expectedRuntime = LibSplitInitCode.getPrimaryRuntime(creationCode, secondary);
+    }
+    if (deployment.codehash != keccak256(expectedRuntime)) return false;
+    return keccak256(LibStoredInitCode.getInitCode(deployment)) == keccak256(creationCode);
+  }
+
   // ========================================================================== //
   //                                 Deployments                                //
   // ========================================================================== //
@@ -152,18 +190,66 @@ library LibDeployment {
   ) internal returns (address deployment, bool didDeploy) {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
     string memory label = string.concat(artifact.name, '_initCodeStorage');
-    if (overrideExisting || !self.has(label)) {
-      deployment = self.broadcastDeployInitcode(creationCode);
+    return getOrDeployInitcodeStorageByLabel(self, label, creationCode, overrideExisting);
+  }
 
-      artifact.deployment = deployment;
-
-      self.set(label, deployment);
-      self.pushArtifact(artifact);
-      didDeploy = true;
-    } else {
+  function getOrDeployInitcodeStorageByLabel(
+    Deployments memory self,
+    string memory label,
+    bytes memory creationCode,
+    bool overrideExisting
+  ) internal returns (address deployment, bool didDeploy) {
+    bytes memory runtime = initCodeStorageRuntime(creationCode);
+    string memory secondaryLabel = string.concat(label, '_secondary');
+    if (!overrideExisting && self.has(label)) {
       deployment = self.get(label);
-      console.log(string.concat('Found ', namePath, ' at'), deployment);
+      require(isValidInitCodeStorage(deployment, creationCode), 'Stored init code mismatch');
+      address secondary = initCodeStorageSecondary(deployment);
+      if (secondary != address(0)) {
+        if (self.has(secondaryLabel)) {
+          require(self.get(secondaryLabel) == secondary, 'Stored secondary address mismatch');
+        } else {
+          // recover the inventory link only after authenticating both complete runtimes.
+          self.addArtifactWithoutDeploying(
+            secondaryLabel,
+            PreparedStorageArtifact,
+            secondary,
+            abi.encode(LibSplitInitCode.getSecondaryRuntime(creationCode))
+          );
+        }
+      }
+      return (deployment, false);
     }
+
+    if (creationCode.length <= 24_575) {
+      bytes memory args = abi.encode(runtime);
+      deployment = self.broadcastCreate(type(PreparedInitCodeStorage).creationCode, args);
+      self.addArtifactWithoutDeploying(label, PreparedStorageArtifact, deployment, args);
+    } else {
+      bytes memory secondaryRuntime = LibSplitInitCode.getSecondaryRuntime(creationCode);
+      address secondary;
+      if (!overrideExisting && self.has(secondaryLabel)) {
+        secondary = self.get(secondaryLabel);
+        require(
+          secondary.codehash == keccak256(secondaryRuntime),
+          'Stored secondary code mismatch'
+        );
+      } else {
+        bytes memory secondaryArgs = abi.encode(secondaryRuntime);
+        secondary = self.broadcastCreate(type(PreparedInitCodeStorage).creationCode, secondaryArgs);
+        self.addArtifactWithoutDeploying(
+          secondaryLabel,
+          PreparedStorageArtifact,
+          secondary,
+          secondaryArgs
+        );
+      }
+      bytes memory args = abi.encode(runtime, secondary);
+      deployment = self.broadcastCreate(type(LinkedInitCodeStorage).creationCode, args);
+      self.addArtifactWithoutDeploying(label, LinkedStorageArtifact, deployment, args);
+    }
+    require(isValidInitCodeStorage(deployment, creationCode), 'Stored init code mismatch');
+    return (deployment, true);
   }
 
   function addArtifactWithoutDeploying(
@@ -391,8 +477,23 @@ library LibDeployment {
     Deployments memory deployments,
     bytes memory creationCode
   ) internal returns (address deployment) {
-    deployments.broadcast();
-    deployment = LibStoredInitCode.deployInitCode(creationCode);
+    bytes memory runtime = initCodeStorageRuntime(creationCode);
+    if (creationCode.length <= 24_575) {
+      return
+        deployments.broadcastCreate(
+          type(PreparedInitCodeStorage).creationCode,
+          abi.encode(runtime)
+        );
+    }
+    address secondary = deployments.broadcastCreate(
+      type(PreparedInitCodeStorage).creationCode,
+      abi.encode(LibSplitInitCode.getSecondaryRuntime(creationCode))
+    );
+    return
+      deployments.broadcastCreate(
+        type(LinkedInitCodeStorage).creationCode,
+        abi.encode(runtime, secondary)
+      );
   }
 
   function findForgeArtifact(

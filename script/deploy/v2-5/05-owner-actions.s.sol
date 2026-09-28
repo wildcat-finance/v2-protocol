@@ -34,8 +34,6 @@ interface IProtocolAuthorityHelper {
 
 contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant FEE_PARAMETERS_PATH = 'deployments/template-fee-parameters.json';
-  string internal constant INIT_CODE_STORAGE_ARTIFACT =
-    'script/common/DeployScriptBase.sol:InitCodeStorage';
   string internal constant OPEN_TERM_ARTIFACT = 'src/access/OpenTermHooks.sol:OpenTermHooks';
   string internal constant FIXED_TERM_ARTIFACT = 'src/access/FixedTermHooks.sol:FixedTermHooks';
   string internal constant PERIODIC_TERM_ARTIFACT =
@@ -155,32 +153,19 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     DeployPlanEntry memory entry;
     entry.sequence = sequence;
     entry.id = entryId;
-    entry.artifactName = INIT_CODE_STORAGE_ARTIFACT;
-    entry.decodedConstructorArgs = string.concat(
-      '[',
-      _quoted(vm.toString(template.creationCode)),
-      ']'
-    );
     entry.output = output;
     entry.description = string.concat('Deploy the v2.5 ', template.name, ' init-code storage.');
-    entry.predicate = _planCodePresentPredicate(output);
     entry.afterEntries = afterEntries;
-    _planEntry(deployments, entry);
+    _planInitCodeStorageEntry(deployments, entry, template.creationCode);
 
-    string memory recordJson = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(template.deploymentLabel),
-      ',"address":',
-      _ref(output),
-      ',"initCodeHash":',
-      _quoted(vm.toString(keccak256(template.creationCode))),
-      '}'
+    _writePlanInitCodeStorageInventory(
+      deployments,
+      sequence,
+      networkName,
+      template.deploymentLabel,
+      output,
+      template.creationCode
     );
-    _inventoryRecord(deployments, sequence, template.deploymentLabel, recordJson);
   }
 
   function _writeRegisterControllerFactoryPlanEntry(
@@ -211,6 +196,31 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     _callPlanEntry(deployments, entry);
   }
 
+  function _templateRegistrationArgs(
+    TemplateDeployment memory template,
+    address feeRecipient,
+    string memory storageOutput
+  ) internal pure returns (string memory) {
+    return
+      string.concat(
+        '[',
+        _ref(storageOutput),
+        ',',
+        _quoted(template.name),
+        ',',
+        _quoted(vm.toString(feeRecipient)),
+        ',',
+        _quoted(vm.toString(template.fees.originationFeeAsset)),
+        ',',
+        vm.toString(template.fees.originationFeeAmount),
+        ',',
+        vm.toString(template.fees.protocolFeeBips),
+        ',',
+        _quoted(vm.toString(keccak256(template.creationCode))),
+        ']'
+      );
+  }
+
   function _writeAddTemplatePlanEntry(
     Deployments memory deployments,
     TemplateDeployment memory template,
@@ -224,33 +234,20 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   ) internal {
     string[] memory afterEntries = new string[](1);
     afterEntries[0] = afterEntry;
-    string memory templateArgs = string.concat(
-      '[',
-      _ref(storageOutput),
-      ',',
-      _quoted(template.name),
-      ',',
-      _quoted(vm.toString(feeRecipient)),
-      ',',
-      _quoted(vm.toString(template.fees.originationFeeAsset)),
-      ',',
-      vm.toString(template.fees.originationFeeAmount),
-      ',',
-      vm.toString(template.fees.protocolFeeBips),
-      ']'
-    );
+    string memory templateArgs = _templateRegistrationArgs(template, feeRecipient, storageOutput);
     CallPlanEntry memory entry;
     entry.sequence = sequence;
     entry.id = entryId;
     entry.to = _ref(factoryOutput);
-    entry.functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16)';
+    entry
+      .functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)';
     entry.decodedArgs = templateArgs;
     entry.description = description;
     entry.predicate = _planCallEqPredicate(
       factoryOutput,
-      'isHooksTemplate(address) view returns (bool)',
+      'getHooksTemplateInitCodeHash(address) view returns (bytes32)',
       string.concat('[', _ref(storageOutput), ']'),
-      'true'
+      _quoted(vm.toString(keccak256(template.creationCode)))
     );
     entry.afterEntries = afterEntries;
     _callPlanEntry(deployments, entry);
@@ -395,20 +392,14 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       template.artifactName,
       template.creationCode
     );
-    string memory recordJson = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(template.deploymentLabel),
-      ',"address":',
-      _quoted(vm.toString(template.deployment)),
-      ',"initCodeHash":',
-      _quoted(vm.toString(keccak256(template.creationCode))),
-      '}'
+    _writeLiveInitCodeStorageInventory(
+      deployments,
+      sequence,
+      networkName,
+      template.deploymentLabel,
+      template.deployment,
+      uint256(keccak256(template.creationCode))
     );
-    _inventoryRecord(deployments, sequence, template.deploymentLabel, recordJson);
     console.log(string.concat('Did deploy ', template.name, ' init-code storage:'), didDeploy);
     return template;
   }
@@ -452,7 +443,8 @@ contract OwnerActionsV25 is V25DeployScriptBase {
           feeRecipient,
           template.fees.originationFeeAsset,
           template.fees.originationFeeAmount,
-          template.fees.protocolFeeBips
+          template.fees.protocolFeeBips,
+          keccak256(template.creationCode)
         );
       } else {
         IProtocolAuthorityHelper(authorityHelper).executeProtocolAction(
@@ -465,13 +457,19 @@ contract OwnerActionsV25 is V25DeployScriptBase {
               feeRecipient,
               template.fees.originationFeeAsset,
               template.fees.originationFeeAmount,
-              template.fees.protocolFeeBips
+              template.fees.protocolFeeBips,
+              keccak256(template.creationCode)
             )
           )
         );
       }
     }
     HooksTemplate memory details = factory.getHooksTemplateDetails(template.deployment);
+    if (
+      factory.getHooksTemplateInitCodeHash(template.deployment) != keccak256(template.creationCode)
+    ) {
+      revert('Template init code hash mismatch');
+    }
     if (!details.exists || !details.enabled) revert('Template registration failed');
     if (!_sameStrings(details.name, template.name)) revert('Template name mismatch');
     if (
