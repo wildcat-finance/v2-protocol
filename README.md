@@ -27,6 +27,9 @@ keep both market runtimes within the deployment size limit and apply to normal
 builds, tests, and the `deploy` profile. [`TESTS.md`](./TESTS.md) covers the full
 test setup.
 
+See [deployment](./docs/operations/deployment.md) for creation-code storage,
+artifact verification, and release ceremonies.
+
 ## Start here
 
 - [Technical documentation](./docs/README.md)

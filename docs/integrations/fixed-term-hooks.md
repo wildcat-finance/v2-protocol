@@ -24,11 +24,20 @@ bool allowTermReduction         // optional; defaults to false
 The maturity can equal the creation timestamp. It cannot be in the past or more
 than 365 days after creation. Missing optional words decode as zero.
 
+If the market has repayment terms, `repaymentDate` must be on or after maturity.
+These immutable terms are separate fields in `DeployMarketInputs`, not extra
+words in fixed-term `hooksData`. See
+[repayment terms](../protocol/repayment-and-default.md#repayment-terms).
+
 ## Maturity and withdrawals
 
 `queueWithdrawal`, `queueWithdrawalScaled`, and `queueFullWithdrawal` revert
 while `block.timestamp < fixedTermEndTime`. Queueing opens at the exact maturity
 timestamp. Maturity does not gate execution of an existing withdrawal.
+
+At an enabled repayment date, the market skips the queue hook entirely,
+including its credential and term checks. A default marker alone does not
+bypass them.
 
 Reaching maturity does not close the market, stop deposits or borrowing, replace
 its hook, or establish a repayment deadline.
@@ -58,6 +67,8 @@ constraints in [Hooks](./hooks.md#built-in-parameter-constraints).
 
 At and after maturity, reductions use the shared two-week temporary
 reserve-ratio policy. This template ignores the borrower-supplied reserve ratio.
+Once scheduled repayment begins, the market's funding and closure rules
+prevent further APR changes through either route.
 
 ## Other market policy
 

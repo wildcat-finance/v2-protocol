@@ -78,10 +78,10 @@ def main():
     if args.scope in ("hooks", "all"):
         include |= set(ROOT.glob("test/access/*.t.sol")) | set(ROOT.glob("test/factories/*.t.sol"))
     if args.scope in ("storage", "compression", "all"):
-        include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("LibStoredInitCode", "CompressedInitCode")}
+        include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("LibStoredInitCode", "CompressedInitCode", "SplitInitCode")}
     if args.scope in ("compression", "all"):
         include |= {ROOT / "test/libraries/CompressionIntegrity.t.sol"}
-        include |= {ROOT / ("test/research/" + name + ".t.sol") for name in ("CompressedStorageTools", "CompressionFactoryIntegrity", "HookArtifactCommitment")}
+        include |= {ROOT / ("test/research/" + name + ".t.sol") for name in ("InitCodeStorageTools", "CompressionFactoryIntegrity", "HookArtifactCommitment")}
     if args.scope in ("arithmetic", "all"):
         include |= {ROOT / ("test/libraries/" + name + ".t.sol") for name in ("MathUtils", "FeeMath", "SafeCastLib")}
     if args.scope in ("invariants", "all"):
@@ -93,7 +93,7 @@ def main():
     if args.scope == "full":
         include = set(ROOT.glob("test/**/*.t.sol"))
     if args.scope == "deployment":
-        include = {ROOT / ("test/research/" + name + ".t.sol") for name in ("SingleStorageDeployment", "CompressionFactoryIntegrity", "CompressedStorageTools", "HookArtifactCommitment")}
+        include = {ROOT / ("test/research/" + name + ".t.sol") for name in ("SingleStorageDeployment", "SplitStorageDeployment", "CompressionFactoryIntegrity", "InitCodeStorageTools", "HookArtifactCommitment")}
     include = {path for path in include if path.exists()}
     # archive uncommitted experiments too; HEAD alone does not identify what Forge tested.
     sources = {

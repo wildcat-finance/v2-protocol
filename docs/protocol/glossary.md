@@ -83,7 +83,8 @@ scaled ownership into a batch; payment burns it.
 
 An implementation approved by a hooks factory as the basis for new hook
 instances. The factory records whether it is available and how its fees are
-configured.
+configured, plus an immutable hash of its original creation code. A split
+template still has one primary address in the factory registry.
 
 ### Hooks instance
 
@@ -179,6 +180,28 @@ The state where the market's underlying balance is below
 the market is healthy. The penalty rate applies while that timer exceeds
 `delinquencyGracePeriod`.
 
+Scheduled repayment removes unused grace while the market is underfunded.
+
+### Repayment date and deadline
+
+Optional immutable market terms. The date starts the full-funding obligation,
+100% reserves and immediate underfunded penalty. The deadline is that date plus
+the repayment period, inclusive. These terms are separate from hook maturity
+and withdrawal windows. See [repayment and default](./repayment-and-default.md).
+
+### Default marker
+
+`defaultedAt`, a permanent recorded timestamp. It identifies the first missed
+repayment deadline or uncured 90-day penalty cutoff. It does not itself change
+market permissions, rates or closure. Zero means no default has been recorded.
+
+### Closure
+
+Permanent funded settlement that stops interest and penalty accrual. It can be
+requested manually or occur automatically once a scheduled market is fully
+funded at or after its repayment date. Lender collection and surplus recovery
+continue; lending and borrowing do not resume.
+
 ### Interest and fees
 
 - `annualInterestBips`: the base annual rate paid to lenders
@@ -210,6 +233,6 @@ as unclaimed withdrawals.
 
 ### Withdrawal execution
 
-The transfer of a lender's share from a paid batch after expiry. Anyone can
-execute for an account and batch. Assets owed to a sanctioned account go to its
-sanctions escrow.
+The transfer of a lender's share from a paid batch after expiry or closure
+releases the batch. Anyone can execute for an account and batch. Assets owed to
+a sanctioned account go to its sanctions escrow.

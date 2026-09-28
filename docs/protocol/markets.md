@@ -34,6 +34,9 @@ Markets are configured with the following values:
   liquid reserves
 - `delinquencyGracePeriod`: how long a market may remain delinquent before the
   penalty rate begins
+- `repaymentDate`: the optional, immutable start of full repayment; zero disables it
+- `repaymentPeriod`: seconds from that date through the inclusive repayment deadline;
+  zero is valid with an enabled date
 - `archController`: the registry for factories, controllers, and markets
 - `sphereXEngine`: the SphereX transaction-checking engine
 - `hooks`: the market's hook policy and hook instance address
@@ -100,6 +103,12 @@ that rejects payment to the borrower can prevent that recovery call from
 succeeding, but it cannot block lender actions through automatic closure.
 Unrelated tokens remain recoverable by the borrower, and the market token
 itself cannot be rescued.
+
+Automatic closure bypasses the closure hook. Manual closure retains its hook
+checks and surplus transfer. A permanent `defaultedAt` marker is independent
+of either closure path. See [repayment and default](./repayment-and-default.md)
+for dated funding, penalty runs and the distinction between stored and accrued
+lifecycle state.
 
 ## Borrower identity and transfer
 

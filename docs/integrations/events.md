@@ -114,11 +114,25 @@ event MarketDeploymentConfig(
 event MarketHooksData(address indexed market, bytes hooksData);
 ```
 
-Revolving factories then emit:
+Revolving factories additionally emit:
 
 ```solidity
 event RevolvingMarketDeployed(address indexed market, uint256 commitmentFeeBips);
 ```
+
+Both factories finish the bundle with:
+
+```solidity
+event MarketRepaymentTerms(
+  address indexed market,
+  uint256 repaymentDate,
+  uint256 repaymentPeriod
+);
+```
+
+The standard order is `MarketDeployed`, `MarketDeploymentConfig`,
+`MarketHooksData`, then `MarketRepaymentTerms`. Revolving inserts
+`RevolvingMarketDeployed` immediately before `MarketRepaymentTerms`.
 
 The events split the initial state:
 
@@ -128,6 +142,8 @@ The events split the initial state:
 - `MarketHooksData` records the opaque payload accepted by `onCreateMarket`.
 - `RevolvingMarketDeployed` identifies the revolving market family and records
   its initial commitment fee.
+- `MarketRepaymentTerms` records the immutable date and period, including
+  `(0, 0)` for a market without scheduled repayment. It does not mark closure.
 
 Decode `hooksData` only against the exact approved hook template revision.
 
@@ -319,6 +335,40 @@ independent:
 See [`IMarketEventsAndErrors.sol`](../../src/interfaces/IMarketEventsAndErrors.sol)
 and [`IWildcatMarketRevolving.sol`](../../src/interfaces/IWildcatMarketRevolving.sol).
 
+## Repayment, default, and closure
+
+Markets emit these lifecycle events:
+
+```solidity
+event RepaymentDateReached(uint256 effectiveTimestamp);
+event DefaultRecorded(uint256 effectiveTimestamp);
+event MarketClosed(address indexed borrower, uint256 timestamp);
+```
+
+`RepaymentDateReached` records activation of the scheduled 100% reserve
+requirement and repayment restrictions. It is emitted on a successful state
+update, not autonomously at the date, and not for a market already closed
+before the date. Do not require a borrower reserve-update event to detect it.
+
+`DefaultRecorded` records the permanent `defaultedAt` cutoff once. It has no
+reason field and does not mean the market closed. Neither a repayment-date
+event nor a default event replaces the existing withdrawal-batch events.
+
+`MarketClosed` serves both manual and automatic closure. Automatic closure
+can be effective at an earlier repayment date when checkpointed funding was
+already sufficient. Preserve event timestamps separately from the emitting
+block time, and continue applying logs in their original order. A reverting
+action records no event, even if its state calculation reached a boundary.
+
+Scheduled automatic closure does not call the hook. In particular, periodic
+hook closure/cancellation events need not accompany the market's event;
+periodic public views use the core market's effective closure state.
+
+Surplus recovered through `rescueTokens(asset)` produces the underlying
+token's transfer to the operational borrower. It has no dedicated market
+recovery event and is not a `Borrow` operation. See
+[repayment and default](../protocol/repayment-and-default.md) for the state rules.
+
 ## Wrappers, withdrawals, and sanctions
 
 Canonical V2.5 wrapper creation emits:
@@ -361,3 +411,5 @@ wrapper-share escrow hold different assets and represent different transitions.
    attached providers visible as unknown.
 5. Keep operational borrower separate from legal principal, and revolving
    borrow proceeds separate from drawn principal.
+6. Keep repayment terms, committed default and closure as separate state;
+   retain effective lifecycle timestamps as well as transaction provenance.

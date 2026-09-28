@@ -153,32 +153,19 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     DeployPlanEntry memory entry;
     entry.sequence = sequence;
     entry.id = entryId;
-    entry.artifactName = _initCodeStorageArtifact(template.creationCode);
-    entry.decodedConstructorArgs = string.concat(
-      '[',
-      _quoted(vm.toString(_initCodeStorageConstructorInput(template.creationCode))),
-      ']'
-    );
     entry.output = output;
     entry.description = string.concat('Deploy the v2.5 ', template.name, ' init-code storage.');
-    entry.predicate = _planInitCodeStoragePredicate(output, template.creationCode);
     entry.afterEntries = afterEntries;
-    _planEntry(deployments, entry);
+    _planInitCodeStorageEntry(deployments, entry, template.creationCode);
 
-    string memory recordJson = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(template.deploymentLabel),
-      ',"address":',
-      _ref(output),
-      ',"initCodeHash":',
-      _quoted(vm.toString(keccak256(template.creationCode))),
-      '}'
+    _writePlanInitCodeStorageInventory(
+      deployments,
+      sequence,
+      networkName,
+      template.deploymentLabel,
+      output,
+      template.creationCode
     );
-    _inventoryRecord(deployments, sequence, template.deploymentLabel, recordJson);
   }
 
   function _writeRegisterControllerFactoryPlanEntry(
@@ -405,20 +392,14 @@ contract OwnerActionsV25 is V25DeployScriptBase {
       template.artifactName,
       template.creationCode
     );
-    string memory recordJson = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(template.deploymentLabel),
-      ',"address":',
-      _quoted(vm.toString(template.deployment)),
-      ',"initCodeHash":',
-      _quoted(vm.toString(keccak256(template.creationCode))),
-      '}'
+    _writeLiveInitCodeStorageInventory(
+      deployments,
+      sequence,
+      networkName,
+      template.deploymentLabel,
+      template.deployment,
+      uint256(keccak256(template.creationCode))
     );
-    _inventoryRecord(deployments, sequence, template.deploymentLabel, recordJson);
     console.log(string.concat('Did deploy ', template.name, ' init-code storage:'), didDeploy);
     return template;
   }

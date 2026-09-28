@@ -5,7 +5,7 @@ import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
-import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
+import { LibSplitInitCode } from 'src/libraries/LibSplitInitCode.sol';
 import { Vm } from 'forge-std/Vm.sol';
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
@@ -113,7 +113,11 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
       bytes memory creation = vm.getCode(artifacts[i]);
       uint64 nonce = vm.getNonce(address(this));
       (address stored, uint256 initCodeHash) = _storeInitCode(artifacts[i]);
-      assertEq(vm.getNonce(address(this)), nonce + 1, 'one storage contract');
+      assertEq(
+        vm.getNonce(address(this)),
+        nonce + (creation.length <= 24_575 ? 1 : 2),
+        'selected storage count'
+      );
       assertEq(initCodeHash, uint256(keccak256(creation)), 'original creation hash');
       assertTrue(creation.length <= 49_152, 'creation payload limit');
       assertTrue(stored.code.length <= 24_576, 'stored image must fit EIP-170');
@@ -121,7 +125,10 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
         stored.code,
         creation.length + 1 <= 24_576
           ? abi.encodePacked(hex'00', creation)
-          : LibCompressedInitCode.getStorageRuntime(creation),
+          : LibSplitInitCode.getPrimaryRuntime(
+            creation,
+            LibSplitInitCode.getSecondaryAddress(stored)
+          ),
         'actual stored image'
       );
       assertEq(LibStoredInitCode.getInitCode(stored), creation, 'decoded creation code');

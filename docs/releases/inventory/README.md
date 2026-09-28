@@ -17,6 +17,11 @@ The generator rejects:
 Recorded compiler settings describe ABI extraction. They do not attest to
 deployed bytecode.
 
+The retained `v2.5.json` describes the prior `7fad3de` audit source. It must be
+regenerated after the next source freeze; it does not inventory the current
+lifecycle, hook, storage or lens changes. Preserve its pinned identity until
+that replacement is produced.
+
 Build the exact release checkout first. Then run the generator from a current
 checkout containing
 [`generate-contract-inventory.js`](../../../scripts/generate-contract-inventory.js):

@@ -29,7 +29,7 @@ import { MarketHooksData, HooksInstanceKind } from 'src/lens/HooksConfigData.sol
 import { HooksInstanceData } from 'src/lens/HooksInstanceData.sol';
 import { RoleProviderData } from 'src/lens/RoleProviderData.sol';
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
-import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
+import { LibSplitInitCode } from 'src/libraries/LibSplitInitCode.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
@@ -775,7 +775,10 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
         cell.hooksTemplate.code,
         creation.length + 1 <= 24_576
           ? abi.encodePacked(hex'00', creation)
-          : LibCompressedInitCode.getStorageRuntime(creation),
+          : LibSplitInitCode.getPrimaryRuntime(
+            creation,
+            LibSplitInitCode.getSecondaryAddress(cell.hooksTemplate)
+          ),
         'actual stored image'
       );
       assertEq(LibStoredInitCode.getInitCode(cell.hooksTemplate), creation, 'decoded initcode');

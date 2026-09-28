@@ -107,20 +107,10 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     DeployPlanEntry memory storageEntry;
     storageEntry.sequence = 6;
     storageEntry.id = STORAGE_ENTRY_ID;
-    storageEntry.artifactName = _initCodeStorageArtifact(inputs.marketCreationCode);
-    storageEntry.decodedConstructorArgs = string.concat(
-      '[',
-      _quoted(vm.toString(_initCodeStorageConstructorInput(inputs.marketCreationCode))),
-      ']'
-    );
     storageEntry.output = STORAGE_OUTPUT;
     storageEntry.description = 'Deploy the v2.5 WildcatMarketRevolving init-code storage contract.';
-    storageEntry.predicate = _planInitCodeStoragePredicate(
-      STORAGE_OUTPUT,
-      inputs.marketCreationCode
-    );
     storageEntry.afterEntries = storageAfter;
-    _planEntry(deployments, storageEntry);
+    _planInitCodeStorageEntry(deployments, storageEntry, inputs.marketCreationCode);
 
     string[] memory factoryAfter = new string[](1);
     factoryAfter[0] = STORAGE_ENTRY_ID;
@@ -166,20 +156,14 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
     address borrowerIdentityRegistry,
     uint256 initCodeHash
   ) internal {
-    string memory storageRecord = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(storageLabel),
-      ',"address":',
-      _quoted(vm.toString(initCodeStorage)),
-      ',"initCodeHash":',
-      _quoted(vm.toString(bytes32(initCodeHash))),
-      '}'
+    _writeLiveInitCodeStorageInventory(
+      deployments,
+      6,
+      networkName,
+      storageLabel,
+      initCodeStorage,
+      initCodeHash
     );
-    _inventoryRecord(deployments, 6, storageLabel, storageRecord);
 
     string memory factoryRecord = string.concat(
       '{"recordType":"hooksFactory","network":',
@@ -206,23 +190,18 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
   function _writePlanInventoryRecords(
     Deployments memory deployments,
     string memory networkName,
-    uint256 initCodeHash
+    uint256 initCodeHash,
+    bytes memory creationCode
   ) internal {
     string memory storageLabel = _label('WildcatMarketRevolving_initCodeStorage');
-    string memory storageRecord = string.concat(
-      '{"recordType":"initCodeStorage","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(storageLabel),
-      ',"address":',
-      _ref(STORAGE_OUTPUT),
-      ',"initCodeHash":',
-      _quoted(vm.toString(bytes32(initCodeHash))),
-      '}'
+    _writePlanInitCodeStorageInventory(
+      deployments,
+      6,
+      networkName,
+      storageLabel,
+      STORAGE_OUTPUT,
+      creationCode
     );
-    _inventoryRecord(deployments, 6, storageLabel, storageRecord);
 
     string memory factoryLabel = _label('HooksFactoryRevolving');
     string memory factoryRecord = string.concat(
@@ -326,7 +305,12 @@ contract DeployHooksFactoryRevolvingV25 is V25DeployScriptBase {
 
     if (_isPlanMode(ownerMode)) {
       _writePlanEntries(deployments, inputs);
-      _writePlanInventoryRecords(deployments, networkName, inputs.initCodeHash);
+      _writePlanInventoryRecords(
+        deployments,
+        networkName,
+        inputs.initCodeHash,
+        inputs.marketCreationCode
+      );
       return;
     }
 

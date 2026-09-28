@@ -4,6 +4,44 @@ const HASH_GETTER =
   "getHooksTemplateInitCodeHash(address) view returns (bytes32)";
 const HASH = /^0x[0-9a-fA-F]{64}$/;
 const ZERO_HASH = `0x${"00".repeat(32)}`;
+const { keccak256 } = require("ethers");
+
+function assertSplitStorageCommitments(plan) {
+  for (const [index, primary] of plan.transactions.entries()) {
+    if (primary.artifactName !== "script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage") continue;
+    const output = `${primary.output}-secondary`;
+    const secondary = plan.transactions.slice(0, index).find((entry) => entry.output === output);
+    const args = primary.constructorArgs?.decoded;
+    const tailArgs = secondary?.constructorArgs?.decoded;
+    const predicate = primary.predicate;
+    const image = args?.[0];
+    const tail = tailArgs?.[0];
+    if (args?.length !== 2 || args[1]?.$ref !== output ||
+        typeof image !== "string" || !/^0x(?:[a-fA-F0-9]{2}){32,24576}$/.test(image) ||
+        image.slice(-48, -8) !== "00".repeat(20) ||
+        secondary?.id !== `${primary.id}-secondary` || secondary?.kind !== "deploy" ||
+        secondary?.artifactName !== "script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage" ||
+        tailArgs?.length !== 1 || typeof tail !== "string" || !/^0x00(?:[a-fA-F0-9]{2}){0,24575}$/.test(tail) ||
+        predicate?.type !== "splitCodeHash" || predicate.target?.$ref !== primary.output ||
+        predicate.secondary?.$ref !== output || secondary.predicate?.type !== "codeHash" ||
+        secondary.predicate.target?.$ref !== output ||
+        requireArtifactHash(predicate.expect, primary.id) !== keccak256(image) ||
+        requireArtifactHash(predicate.secondaryCodeHash, primary.id) !== keccak256(tail) ||
+        requireArtifactHash(secondary.predicate.expect, secondary.id) !== keccak256(tail)) {
+      throw new Error(`${primary.id}: split storage artifacts or secondary link do not match`);
+    }
+    const firstLength = parseInt(image.slice(-8, -4), 16);
+    const secondLength = parseInt(image.slice(-4), 16);
+    const imageLength = (image.length - 2) / 2;
+    if (firstLength + 24 >= imageLength || secondLength !== (tail.length - 4) / 2) {
+      throw new Error(`${primary.id}: split storage lengths do not match`);
+    }
+    const first = firstLength ? image.slice(-48 - firstLength * 2, -48) : "";
+    if (requireArtifactHash(predicate.initCodeHash, primary.id) !== keccak256(`0x${first}${tail.slice(4)}`)) {
+      throw new Error(`${primary.id}: split storage creation artifact hash does not match`);
+    }
+  }
+}
 
 function requireArtifactHash(hash, label) {
   if (typeof hash !== "string" || !HASH.test(hash) || hash === ZERO_HASH) {
@@ -54,7 +92,7 @@ function assertActivationTemplateCommitments(plan) {
       const expectedHash = requireArtifactHash(call.args[6], id);
       const store = transactions.find((entry) => entry.output === storeOutput);
       if (
-        store?.predicate?.type !== "codeHash" ||
+        !["codeHash", "splitCodeHash"].includes(store?.predicate?.type) ||
         store.predicate.target?.$ref !== storeOutput ||
         requireArtifactHash(store.predicate.initCodeHash, storeOutput) !==
           expectedHash
@@ -86,4 +124,5 @@ module.exports = {
   HASH_GETTER,
   requireArtifactHash,
   assertActivationTemplateCommitments,
+  assertSplitStorageCommitments,
 };

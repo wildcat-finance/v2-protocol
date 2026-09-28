@@ -47,6 +47,9 @@ Those counts are a historical baseline, not a growth limit.
   scenarios, and stateful properties.
 - `libraries/`, `types/`, `lens/`, and `spherex/`: Focused unit and boundary
   tests.
+- `research/`: Stored-initcode integrity, format comparisons and deployment
+  limits. These executable regressions remain in the canonical suite even when
+  working research documents are archived.
 - `mocks/` and `shared/`: Capability-sized fixtures and test-only
   infrastructure. No test entry points.
 
@@ -65,6 +68,20 @@ Those counts are a historical baseline, not a growth limit.
 - Every bug fix needs the smallest regression that fails without it. Prefer
   assertions over logs and explicit revert expectations over
   `testFail_*` naming.
+
+## Lifecycle and deployment coverage
+
+The original market matrix retains its ordinary-market properties. Separate
+repayment and penalty campaigns check inclusive cutoffs, observed-funding
+history, cure/reset behavior, closure and final withdrawal allocation against
+independent models. Keep the original assertions and the configured run/depth
+budgets when changing lifecycle code.
+
+Normal production fixtures choose raw storage for fitting artifacts and split
+storage for larger ones. Explicit compressed controls preserve the comparison
+and factory hash-check regressions. Size checks and strict deployment harnesses
+enforce the real 24,576-byte runtime limit; a larger allowance for test contracts
+does not qualify a production artifact for deployment.
 
 ## Coverage boundary
 
