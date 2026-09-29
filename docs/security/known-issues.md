@@ -172,6 +172,11 @@ to the underlying atomic unit. Fractional remainders are not carried, so update
 cadence can change the total protocol fee and can round short intervals to zero.
 Lender balances are unaffected by the protocol-fee rounding itself.
 
+Nearest rounding can also overstate aggregate fees. Intermediate ray-rounding
+errors can be amplified by supply and scale factor, so a half-atom bound applies
+only to the final rounding step. See the [focused fee review](./protocol-fee-rounding-review.md)
+for same-interest-path measurements and carry design options.
+
 The stated lender APR is linear inside each accrual interval and is applied to
 the scale factor stored at that checkpoint. Splitting one wall-clock span across
 more checkpoints therefore compounds lender interest. For example, at 10% APR,
