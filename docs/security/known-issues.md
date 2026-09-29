@@ -222,8 +222,11 @@ the nuke callback and remaining sanctions checks still apply.
 The protocol assumes listed assets have stable ERC-20 transfer and metadata
 behavior. Fee-on-transfer, rebasing, callbacks, mutable or malformed metadata,
 and unusual zero-value transfer behavior can break accounting, deployment,
-lens reads, or fee paths. Listing review is the control; arbitrary deployability
-does not establish compatibility.
+lens reads, or fee paths. There is no built-in metadata allowlist, and creation
+checks cannot establish that metadata will remain readable or stable. Arbitrary
+deployability does not establish compatibility. See the
+[token metadata review](./token-metadata-review.md) for the current decoder,
+packing and lens limitations and the proposed compatibility improvements.
 
 ## Reused singleton behavior
 
