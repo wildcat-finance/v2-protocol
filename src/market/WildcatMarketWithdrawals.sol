@@ -36,11 +36,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       return pendingBatch;
     }
 
-    WithdrawalBatch storage _batch = _withdrawalData.batches[expiry];
-    batch.scaledTotalAmount = _batch.scaledTotalAmount;
-    batch.scaledAmountBurned = _batch.scaledAmountBurned;
-    batch.normalizedAmountPaid = _batch.normalizedAmountPaid;
-    batch.paymentRemainder = _batch.paymentRemainder;
+    return _withdrawalData.batches[expiry];
   }
 
   /// @notice returns `accountAddress`'s fixed share and amount already claimed from a batch.

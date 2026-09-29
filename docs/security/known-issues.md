@@ -144,8 +144,9 @@ than one atomic unit per payment. Arbitrary ERC20 admission has always been
 possible; reconsidering this issue does not reflect a policy change.
 
 This experimental branch carries the fraction between payments and includes it
-in debt and reserve accounting. It is not deployable under the current revolving
-market bytecode limit and does not change the disposition of existing markets.
+in debt and reserve accounting. The smaller candidate fits the market bytecode
+limit, but is not an approved release and still requires consumer migration.
+It does not change the disposition of existing markets.
 See [the implementation and tradeoffs](./withdrawal-rounding-experiment.md).
 Final per-lender pro-rata division still leaves indivisible token dust.
 

@@ -162,41 +162,23 @@ library MarketStateLib {
   function liquidityRequired(
     MarketState memory state
   ) internal pure returns (uint256 _liquidityRequired) {
-    uint256 reserveRatioBips = state.reserveRatioBips;
-    uint256 normalizedSupplyRequired;
-    // 0% is the usual case, and 100% should recombine exactly to totalSupply.
-    // only intermediate ratios need the normalized pending/outstanding partition.
-    if (reserveRatioBips == 0) {
-      normalizedSupplyRequired = state.normalizeWithRemainder(
-        state.scaledPendingWithdrawals,
-        state.withdrawalRemainder
-      );
-    } else if (reserveRatioBips == BIP) {
-      normalizedSupplyRequired = state.normalizeWithRemainder(
-        state.scaledTotalSupply,
-        state.withdrawalRemainder
-      );
-    } else {
-      uint256 normalizedPendingWithdrawals = state.normalizeWithRemainder(
-        state.scaledPendingWithdrawals,
-        state.withdrawalRemainder
-      );
-      uint256 normalizedOutstandingSupply = state.normalizeWithRemainder(
-        state.scaledTotalSupply,
-        state.withdrawalRemainder
-      ) - normalizedPendingWithdrawals;
-      // uint104 shares normalized by uint112 scaleFactor stay below 128 bits.
-      // even a full uint16 reserveRatioBips keeps this sum far below uint256.
-      unchecked {
-        normalizedSupplyRequired =
-          normalizedPendingWithdrawals +
-          normalizedOutstandingSupply.bipMul(reserveRatioBips);
-      }
-    }
-    // normalizedSupplyRequired is below 132 bits; the remaining liabilities are uint128.
+    uint256 normalizedPendingWithdrawals = state.normalizeWithRemainder(
+      state.scaledPendingWithdrawals,
+      state.withdrawalRemainder
+    );
+    uint256 normalizedOutstandingSupply = state.normalizeWithRemainder(
+      state.scaledTotalSupply,
+      state.withdrawalRemainder
+    ) - normalizedPendingWithdrawals;
+    // The same partition handles 0% and 100% exactly, without separate branches.
+    // Normalized supply is below 128 bits; even a uint16 reserve ratio stays far
+    // below uint256, as do both uint128 funded liabilities.
     unchecked {
       return
-        normalizedSupplyRequired + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
+        normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(state.reserveRatioBips) +
+        state.accruedProtocolFees +
+        state.normalizedUnclaimedWithdrawals;
     }
   }
 
