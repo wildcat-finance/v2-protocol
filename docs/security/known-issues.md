@@ -234,6 +234,14 @@ of opaque text remain compatibility limitations. See the
 [lens metadata contract](../integrations/lenses.md#token-labels-and-denominations)
 and [metadata review](./token-metadata-review.md).
 
+The current factories skip origination-fee transfers when the fee amount is
+zero, while still requiring the supplied token and amount to match the template
+and recording both in deployment events. Positive fees require a successful
+transfer. Legacy factories retain the zero-transfer behavior. Optional
+zero-amount draws, empty rescues and empty sanctions-escrow releases can still
+fail on tokens rejecting zero transfers; this alone does not make positive
+payments fail. See the [zero-transfer review](./zero-value-transfer-review.md).
+
 ## Reused singleton behavior
 
 The V2.5 release plan reuses the deployed ArchController and sanctions

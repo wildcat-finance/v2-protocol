@@ -13,19 +13,21 @@ import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 /// @dev Conventional balance accounting, with configurable transfer rejection.
 contract ZeroTransferReviewToken is MockERC20 {
   bool internal immutable rejectZeroAmount;
+  uint256 public transferFromCalls;
 
   constructor(bool rejectZeroAmount_) MockERC20('Review Fee Token', 'RFT', 18) {
     rejectZeroAmount = rejectZeroAmount_;
   }
 
   function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+    transferFromCalls++;
     require(to != address(0), 'ZERO_RECIPIENT');
     require(!rejectZeroAmount || amount != 0, 'ZERO_AMOUNT');
     return super.transferFrom(from, to, amount);
   }
 }
 
-/// @dev Characterization of the unchanged factories, not assertions of a fix.
+/// @dev Regression coverage for amount-based origination-fee transfers.
 contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
   ProductionStack internal stack;
   address internal constant FeeRecipient = address(0xFEE);
@@ -57,6 +59,39 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
       amount,
       0
     );
+  }
+
+  function _expectDeploymentConfig(
+    MatrixMarketKind kind,
+    address feeAsset,
+    address recipient,
+    uint96 nonce
+  ) internal {
+    IHooksFactory factory = _factoryFor(stack, kind);
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, kind);
+    address expectedMarket = factory.computeMarketAddress(_marketSalt(MatrixBorrower, nonce));
+    vm.expectEmit(address(factory));
+    emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
+      expectedMarket,
+      options.maxTotalSupply,
+      options.annualInterestBips,
+      options.delinquencyFeeBips,
+      options.withdrawalBatchDuration,
+      options.reserveRatioBips,
+      options.delinquencyGracePeriod,
+      recipient,
+      0,
+      feeAsset,
+      0
+    );
+  }
+
+  function _assertDeployed(address market) internal view {
+    assertEq(WildcatMarket(market).asset(), address(stack.asset));
+    assertEq(WildcatMarket(market).borrower(), MatrixBorrower);
+    address hooks = WildcatMarket(market).hooks().hooksAddress();
+    assertTrue(hooks != address(0));
+    assertTrue(stack.archController.isRegisteredMarket(market));
   }
 
   /// @dev An external boundary keeps expectRevert focused on the complete deployment,
@@ -124,29 +159,44 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     vm.stopPrank();
   }
 
-  function test_zeroFeeConfiguredTokenRejectsZeroAcrossFactoriesAndRoutes() external {
+  function test_zeroFeeSkipsRejectingTokenAcrossFactoriesAndRoutes() external {
     ZeroTransferReviewToken token = _feeToken(true);
     for (uint256 i; i < 2; i++) {
       MatrixMarketKind kind = MatrixMarketKind(i);
       _configureFee(kind, FeeRecipient, address(token), 0);
       for (uint256 route; route < 2; route++) {
-        vm.expectRevert(LibERC20.TransferFromFailed.selector);
-        this.deployCell(kind, route == 1, address(token), 0, uint96(route + 1));
+        _expectDeploymentConfig(kind, address(token), FeeRecipient, uint96(route + 1));
+        _assertDeployed(this.deployCell(kind, route == 1, address(token), 0, uint96(route + 1)));
       }
     }
   }
 
-  function test_zeroFeeNullRecipientRejectedEvenWhenTokenAcceptsZeroAmount() external {
+  function test_zeroFeeNullRecipientNeedsNoTransferAcrossFactoriesAndRoutes() external {
     ZeroTransferReviewToken token = _feeToken(false);
     for (uint256 i; i < 2; i++) {
       MatrixMarketKind kind = MatrixMarketKind(i);
       // This configuration is permitted by _validateFees.
       _configureFee(kind, address(0), address(token), 0);
       for (uint256 route; route < 2; route++) {
-        vm.expectRevert(LibERC20.TransferFromFailed.selector);
-        this.deployCell(kind, route == 1, address(token), 0, uint96(route + 1));
+        _expectDeploymentConfig(kind, address(token), address(0), uint96(route + 1));
+        _assertDeployed(this.deployCell(kind, route == 1, address(token), 0, uint96(route + 1)));
       }
     }
+  }
+
+  function test_zeroFeeMakesNoCallEvenWhenTokenWouldAcceptTransfer() external {
+    ZeroTransferReviewToken token = _feeToken(false);
+    for (uint256 i; i < 2; i++) {
+      MatrixMarketKind kind = MatrixMarketKind(i);
+      _configureFee(kind, FeeRecipient, address(token), 0);
+      for (uint256 route; route < 2; route++) {
+        _expectDeploymentConfig(kind, address(token), FeeRecipient, uint96(route + 1));
+        _assertDeployed(this.deployCell(kind, route == 1, address(token), 0, uint96(route + 1)));
+      }
+    }
+    assertEq(token.transferFromCalls(), 0);
+    assertEq(token.balanceOf(FeeRecipient), 0);
+    assertEq(token.balanceOf(MatrixBorrower), 0);
   }
 
   function test_positiveFeeTransfersExactlyOnceAcrossFactoriesAndRoutes() external {
@@ -165,6 +215,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
       assertEq(token.allowance(MatrixBorrower, address(_factoryFor(stack, kind))), 0);
     }
     assertEq(token.balanceOf(MatrixBorrower), 0);
+    assertEq(token.transferFromCalls(), 4);
   }
 
   function test_noFeeTokenNeedsNoTransferAcrossFactoriesAndRoutes() external {
@@ -185,6 +236,34 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
       for (uint256 route; route < 2; route++) {
         vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
         this.deployCell(kind, route == 1, address(token), 1, uint96(route + 1));
+        vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
+        this.deployCell(kind, route == 1, address(0), 0, uint96(route + 1));
+      }
+    }
+  }
+
+  function test_positiveFeeCannotBeBypassedWithZeroAmount() external {
+    ZeroTransferReviewToken token = _feeToken(true);
+    for (uint256 i; i < 2; i++) {
+      MatrixMarketKind kind = MatrixMarketKind(i);
+      _configureFee(kind, FeeRecipient, address(token), 123);
+      for (uint256 route; route < 2; route++) {
+        vm.expectRevert(IHooksFactoryEventsAndErrors.FeeMismatch.selector);
+        this.deployCell(kind, route == 1, address(token), 0, uint96(route + 1));
+      }
+    }
+  }
+
+  function test_positiveFeeStillRequiresSuccessfulTransfer() external {
+    ZeroTransferReviewToken token = _feeToken(true);
+    token.mint(MatrixBorrower, 492);
+    // Deliberately omit approval: positive fees must still fail deployment.
+    for (uint256 i; i < 2; i++) {
+      MatrixMarketKind kind = MatrixMarketKind(i);
+      _configureFee(kind, FeeRecipient, address(token), 123);
+      for (uint256 route; route < 2; route++) {
+        vm.expectRevert(LibERC20.TransferFromFailed.selector);
+        this.deployCell(kind, route == 1, address(token), 123, uint96(route + 1));
       }
     }
   }
