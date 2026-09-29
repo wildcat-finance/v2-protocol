@@ -3,6 +3,10 @@
 Status: local experiment branching from the cumulative-counter fix
 `23c47cde20c60d42c8e7a6aa1d4639968e45f9fb`. Not a deployment recommendation.
 
+Protocol selection comes first: establish the immutable accounting and interfaces,
+then adapt the subgraph, SDK and app. Existing consumer models do not constrain
+the protocol design. Their migration is subsequent integration work.
+
 ## Smaller complete-accounting candidate — 2026-09-29
 
 `experiment/withdrawal-rounding-size` branches from the saved carry checkpoint
@@ -75,6 +79,90 @@ logs, comparison source and size hashes are retained locally under
 `artifacts/withdrawal-rounding-size/` in the same persistent artifact collection
 as the original experiment.
 
+### Protocol correctness review — 2026-09-29
+
+The follow-up review adds independent accounting checks without changing
+production source or its measured runtime. The payment identity is:
+
+```text
+S = live shares, F = factor, G = aggregate carry, U = funded unclaimed units
+k = shares burned, r = old batch carry, R = RAY
+p = floor((k*F + r) / R), r' = (k*F + r) mod R
+
+G' = G - r + r' = G + k*F - p*R
+S'*F + G' = (S-k)*F + G + k*F - p*R = S*F + G - p*R
+U' = U + p
+```
+
+Removing an integer multiple of R before half-up normalization, then adding the
+same integer to U, preserves total debt exactly. The same identity applies to
+pending shares, so both normalized pending and total supply decrease by p.
+Their difference is unchanged. Required reserves therefore also stay unchanged
+at a fixed factor, for every reserve ratio. Repayment changes backing assets;
+allocation itself cannot create or erase a reserve obligation.
+
+For closure, let X be the prior batches' unsettled numerator and Y the current
+batch's unsettled numerator, each including its own carry. Then:
+
+```text
+roundHalfUp((X+Y)/R) - roundHalfUp(X/R) >= floor(Y/R)
+```
+
+Consequently cash equal to recorded debt covers a complete current-batch payment
+while protecting prior batches. A FIFO payment likewise fits the free cash when
+total debt is backed. Payments conserve debt; final fraction release lowers it
+by at most one atom and never raises required reserves at ratios from 0% through
+100%. These properties establish the accounting basis for closing without an
+extra funding unit. They do not prove every contract entrypoint or lifecycle path.
+
+The argument depends on these maintained invariants:
+
+- Aggregate carry equals the sum of all retained batch carries; each is below R.
+- A batch's live unpaid difference is part of pending supply, bounded by live
+  uint104 supply. Its cumulative counters may independently exceed uint104.
+- The factor is positive, starts at R and does not decrease. Burned fractions
+  do not subsequently earn interest.
+- Funded unclaimed withdrawals include every paid unit less executed claims;
+  carry is an additional unfunded fractional liability.
+- Release occurs only when the batch is fully paid and cannot accept requests.
+
+With uint104 live shares and a uint112 factor, products fit below 2^216. The
+inverse branch bounds liquidity by the full batch price before multiplying it
+by R. At most 2^32 distinct expiry buckets bound aggregate carry below 2^122.
+These width arguments, checked liability mutations and source lifecycle rules
+connect the mathematical integer identities to the implementation.
+
+Added checks:
+
+- The six-cell market invariant now checks the summed carry and sub-R batch
+  bounds alongside pending shares, funded liabilities, account allocations and
+  actual claims. A fixed-seed run passed 2,000 sequences / 60,000 actions.
+- `WithdrawalCarrySequence.t.sol` uses an independent exact-numerator ledger
+  and binary-search affordability oracle. It checks three batches through cash
+  additions, factor increases, growing requests, partial payments and terminal
+  release, then funds exactly its independently reconstructed debt and finishes
+  all batches. It also tests a paid current batch growing again with its fraction
+  retained. The final run passed 10,000 sequences of 32 generated actions.
+- The capacity fuzz now checks reserve conservation with free supply, another
+  batch's carry, fees and varying reserve ratios, for 10,000 cases.
+- The hook test creates carry through real interest accrual and verifies the
+  nonzero final state word and arbitrary trailing data through repayment,
+  repayment/FIFO processing and manual closure, for both market types. It passed
+  10,000 cases, without injecting storage.
+- Z3 5.1.0 finds no counterexample to 16 arithmetic lemmas under explicit
+  premises: conservation, affordability, overflow bounds, funding, reserve
+  partition/monotonicity and final-release bounds. These are proofs about the
+  mathematical formulas, not Solidity/EVM program equivalence or an independent
+  external review. The exact script and output are retained in
+  `artifacts/withdrawal-carry-validation/`.
+
+`forge test --summary --fuzz-seed 0xc414`: **910 passed, zero failed or skipped**
+across 82 suites, including the strengthened market, repayment and penalty
+invariants. Production source is unchanged from `5800b64`; runtime hashes still
+match that candidate and its deployment build. This pass found no new accounting
+failure. It is additional source/test evidence, not release approval or a proof
+of the entire protocol.
+
 ### Alternatives and remaining decision
 
 | Option                                                 | Consequence                                                                                                                                                       |
@@ -93,7 +181,8 @@ The recommended next step is to review this as a candidate, not deploy it merely
 because it fits. Per-lender pro-rata floor dust remains: integer ERC20 units cannot
 represent every fractional entitlement. The carry changes bound the discarded
 payment fraction per completed batch; they do not promise exact per-lender payouts.
-SDK/subgraph migrations and an independently reviewed rollout remain open.
+The protocol decision remains open. The stack follows the selected protocol;
+its future migration is not a reason to retain an incorrect immutable design.
 
 ## Maintenance checkpoint — 2026-09-29
 

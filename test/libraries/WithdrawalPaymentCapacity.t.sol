@@ -75,6 +75,37 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     _checkPayment(type(uint104).max, type(uint112).max, uint128(RAY - 1), 1);
   }
 
+  function testFuzz_paymentPreservesReservesWithFreeSupplyAndOtherCarry(
+    uint104 owed,
+    uint104 extraSupply,
+    uint112 factor,
+    uint128 ownRemainder,
+    uint128 otherRemainder,
+    uint16 ratio,
+    uint256 available
+  ) external view {
+    extraSupply = uint104(bound(extraSupply, 0, type(uint104).max - owed));
+    factor = uint112(bound(factor, RAY, type(uint112).max));
+    ownRemainder = uint128(bound(ownRemainder, 0, RAY - 1));
+    otherRemainder = uint128(bound(otherRemainder, 0, RAY - 1));
+    MarketState memory state;
+    state.scaleFactor = factor;
+    state.scaledTotalSupply = owed + extraSupply;
+    state.scaledPendingWithdrawals = owed + extraSupply / 2;
+    state.withdrawalRemainder = ownRemainder + otherRemainder;
+    state.normalizedUnclaimedWithdrawals = 3;
+    state.accruedProtocolFees = 7;
+    state.reserveRatioBips = uint16(bound(ratio, 0, 10000));
+    WithdrawalBatch memory batch;
+    batch.scaledTotalAmount = uint128(owed) + 1;
+    batch.scaledAmountBurned = 1;
+    batch.normalizedAmountPaid = 1;
+    batch.paymentRemainder = ownRemainder;
+    (, MarketState memory afterState, , ) = harness.applyPayment(batch, state, available);
+    assertEq(afterState.totalDebts(), state.totalDebts(), 'all debt conserved');
+    assertEq(afterState.liquidityRequired(), state.liquidityRequired(), 'all reserves conserved');
+  }
+
   function test_zeroAndOneUnitLiquidityPreserveCarry() external view {
     _checkPayment(4, uint112((5 * RAY) / 4), uint128((3 * RAY) / 4), 0);
     _checkPayment(4, uint112((5 * RAY) / 4), uint128((3 * RAY) / 4), 1);

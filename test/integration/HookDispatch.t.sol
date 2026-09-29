@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
+import { RAY } from 'src/libraries/MathUtils.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { WildcatMarketRevolving } from 'src/market/WildcatMarketRevolving.sol';
@@ -705,6 +706,92 @@ contract HookDispatchTest is TestKernel {
       )
     );
     assertEq(disabled.hooks.callCount(), 0);
+  }
+
+  function test_nonzeroCarrySurvivesRepayAndCloseCalldata(
+    bytes memory extraData,
+    bool revolving
+  ) external {
+    Fixture memory fixture = _newFixture(
+      _flag(Bit_Enabled_Repay).setFlag(Bit_Enabled_CloseMarket),
+      revolving
+    );
+    _deposit(fixture, Lender, 4);
+    _callMarket(fixture.market, Borrower, abi.encodeWithSelector(WildcatMarket.borrow.selector, 4));
+    _callMarket(
+      fixture.market,
+      Borrower,
+      abi.encodeWithSelector(
+        WildcatMarketConfig.setAnnualInterestAndReserveRatioBips.selector,
+        2500,
+        0
+      )
+    );
+    vm.warp(vm.getBlockTimestamp() + 365 days);
+    _callMarket(
+      fixture.market,
+      Lender,
+      abi.encodeWithSelector(WildcatMarketWithdrawals.queueWithdrawalScaled.selector, 3)
+    );
+    _fundAndApprove(fixture, Borrower, 10);
+
+    // Build the post-payment callback state independently, including its final word.
+    MarketState memory expected = fixture.market.previousState();
+    assertEq(expected.scaleFactor, (5 * RAY) / 4);
+    expected.scaledTotalSupply = 1;
+    expected.scaledPendingWithdrawals = 0;
+    expected.normalizedUnclaimedWithdrawals = 3;
+    expected.withdrawalRemainder = uint128((3 * RAY) / 4);
+    _callMarket(
+      fixture.market,
+      Borrower,
+      _append(abi.encodeWithSelector(WildcatMarket.repay.selector, 3), extraData)
+    );
+    _assertCall(
+      fixture.hooks,
+      0,
+      abi.encodeWithSelector(IHooks.onRepay.selector, 3, expected, extraData)
+    );
+    assertEq(fixture.market.previousState().withdrawalRemainder, (3 * RAY) / 4);
+
+    expected = fixture.market.currentState();
+    _callMarket(
+      fixture.market,
+      Borrower,
+      _append(
+        abi.encodeWithSelector(
+          WildcatMarketWithdrawals.repayAndProcessUnpaidWithdrawalBatches.selector,
+          1,
+          1
+        ),
+        extraData
+      )
+    );
+    _assertCall(
+      fixture.hooks,
+      1,
+      abi.encodeWithSelector(IHooks.onRepay.selector, 1, expected, extraData)
+    );
+
+    expected = fixture.market.currentState();
+    _callMarket(
+      fixture.market,
+      Borrower,
+      _append(abi.encodeWithSelector(WildcatMarket.closeMarket.selector), extraData)
+    );
+    _assertCall(
+      fixture.hooks,
+      2,
+      abi.encodeWithSelector(IHooks.onRepay.selector, 1, expected, extraData)
+    );
+    _assertCall(
+      fixture.hooks,
+      3,
+      abi.encodeWithSelector(IHooks.onCloseMarket.selector, expected, extraData)
+    );
+    assertEq(fixture.hooks.callCount(), 4);
+    assertTrue(fixture.market.isClosed());
+    assertEq(fixture.market.previousState().withdrawalRemainder, 0);
   }
 
   function test_closeMarket_DispatchesExactCalldata(bytes memory extraData) external {

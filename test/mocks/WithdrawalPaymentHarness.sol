@@ -18,4 +18,20 @@ contract WithdrawalPaymentHarness is WildcatMarketBase {
     (burned, paid) = _applyWithdrawalBatchPaymentView(batch, state, available);
     return (batch, state, burned, paid);
   }
+
+  function release(
+    WithdrawalBatch memory batch,
+    MarketState memory state
+  ) external pure returns (WithdrawalBatch memory, MarketState memory) {
+    batch.releaseRemainder(state);
+    return (batch, state);
+  }
+
+  function pendingLiquidity(
+    WithdrawalBatch memory batch,
+    MarketState memory state,
+    uint256 assets
+  ) external pure returns (uint256) {
+    return batch.availableLiquidityForPendingBatch(state, assets);
+  }
 }
