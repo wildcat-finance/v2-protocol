@@ -104,11 +104,19 @@ close, reduce rates, or offer a migration well before the ceiling.
 ### Withdrawal batches
 
 Batch totals, paid shares, and each account's queued amount are cumulative
-`uint104` values for one expiry. Checked arithmetic reverts instead of wrapping.
-At the minimum scale factor, saturation requires roughly `2.03e13` nominal
-tokens for an 18-decimal asset or `2.03e25` for a 6-decimal asset, together with
-repeated replacement of paid shares before the same expiry. Revisit the bound
-before listing assets with higher decimals or unusually valuable atomic units.
+`uint128` values for one expiry in the active source. Earlier immutable markets
+retain `uint104`; the widening does not remediate those deployments. Payment
+burns live shares, so repeated replacement before one expiry can exceed the
+live supply bound even when every individual deposit fits.
+
+Checked arithmetic reverts instead of wrapping. At the initial scale factor,
+the new cumulative scaled ceiling is roughly `3.40e20` nominal tokens for an
+18-decimal asset, or `3.40e8` for a 30-decimal asset. The earlier `uint104`
+ceiling was roughly 20.28 tokens at 30 decimals. This is a bounded mitigation,
+not support for arbitrary denominations: normalized paid amounts and unclaimed
+liabilities remain `uint128`, and live balances and supply remain `uint104`.
+Underlying assets are not assumed to be Foundation-preapproved. Assess their
+denomination and expected amounts against all of these representations.
 
 See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation),
 [withdrawal representation limits](../protocol/withdrawals.md#representation-limits),

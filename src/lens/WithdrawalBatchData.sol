@@ -10,6 +10,7 @@ import './HooksInstanceData.sol';
 import './HooksTemplateData.sol';
 import './LenderAccountData.sol';
 import './TokenData.sol';
+import { FixedPointMathLib } from 'solady/utils/FixedPointMathLib.sol';
 
 using WithdrawalBatchDataLib for WithdrawalBatchData global;
 using WithdrawalBatchDataLib for WithdrawalBatchLenderStatus global;
@@ -97,8 +98,15 @@ library WithdrawalBatchDataLib {
     AccountWithdrawalStatus memory status = market.getAccountWithdrawalStatus(lender, batch.expiry);
     data.scaledAmount = status.scaledAmount;
     data.normalizedAmountWithdrawn = status.normalizedAmountWithdrawn;
+    // Paid volume is uint128, but adding interest on the remaining live shares
+    // can take the quoted total above uint128. Preserve its full-width product
+    // with cumulative ownership before dividing; the final claim still fits.
     data.normalizedAmountOwed =
-      MathUtils.mulDiv(batch.normalizedTotalAmount, data.scaledAmount, batch.scaledTotalAmount) -
+      FixedPointMathLib.fullMulDiv(
+        batch.normalizedTotalAmount,
+        data.scaledAmount,
+        batch.scaledTotalAmount
+      ) -
       data.normalizedAmountWithdrawn;
     // reserved assets in a pending batch aren't collectible yet. normalizedAmountOwed still
     // includes them, so callers can distinguish their queued claim from an executable withdrawal.

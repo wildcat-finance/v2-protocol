@@ -383,6 +383,39 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(outstanding.length, 0, 'no outstanding batches');
   }
 
+  function test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount() external {
+    // A batch can accumulate paid volume near uint128 while its remaining live
+    // share accrues interest. The quoted total can exceed uint128 even after
+    // the lender has collected the paid portion. Mock only the market reads;
+    // the actual lens must preserve the exact remaining four-unit claim.
+    uint256 total = type(uint128).max;
+    uint32 expiry = 1;
+    vm.mockCall(
+      address(fixture.market),
+      abi.encodeWithSignature('getWithdrawalBatch(uint32)', expiry),
+      abi.encode(total, total - 1, total - 1)
+    );
+    vm.mockCall(
+      address(fixture.market),
+      abi.encodeWithSignature('getAccountWithdrawalStatus(address,uint32)', Lender, expiry),
+      abi.encode(total, total - 1)
+    );
+    vm.mockCall(
+      address(fixture.market),
+      abi.encodeWithSignature('scaleFactor()'),
+      abi.encode(4e27)
+    );
+
+    WithdrawalBatchDataWithLenderStatus memory data = core.getWithdrawalBatchDataWithLenderStatus(
+      address(fixture.market),
+      expiry,
+      Lender
+    );
+    assertEq(data.batch.normalizedTotalAmount, total + 3, 'paid and accrued unpaid total');
+    assertEq(data.lenderStatus.normalizedAmountOwed, 4, 'remaining accrued claim');
+    assertEq(data.lenderStatus.availableWithdrawalAmount, 0, 'paid claim already collected');
+  }
+
   function _assertLenderAccount(LenderAccountData memory account, address lender) internal view {
     assertEq(account.lender, lender, 'lender address');
     assertEq(account.scaledBalance, fixture.market.scaledBalanceOf(lender), 'scaled balance');

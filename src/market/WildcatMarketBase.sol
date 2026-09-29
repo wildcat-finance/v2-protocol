@@ -1221,7 +1221,7 @@ contract WildcatMarketBase is
     MarketState memory state,
     uint256 availableLiquidity
   ) internal pure returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
-    uint104 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
+    uint128 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
     // Do nothing if batch is already paid
     if (scaledAmountOwed == 0) return (0, 0);
 

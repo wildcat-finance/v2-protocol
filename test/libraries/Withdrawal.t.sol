@@ -16,6 +16,7 @@ contract WithdrawalTest is TestKernel {
     uint128 totalAssets,
     uint104 scaledTotalPendingWithdrawals,
     uint104 scaledBatchAmount,
+    uint128 scaledAmountBurned,
     uint128 normalizedUnclaimedWithdrawals,
     uint96 scaleFactor,
     uint128 accruedProtocolFees
@@ -24,13 +25,17 @@ contract WithdrawalTest is TestKernel {
       bound(scaledTotalPendingWithdrawals, 1, type(uint104).max)
     );
     scaledBatchAmount = uint104(bound(scaledBatchAmount, 1, scaledTotalPendingWithdrawals));
+    scaledAmountBurned = uint128(
+      bound(scaledAmountBurned, 0, type(uint128).max - scaledBatchAmount)
+    );
     MarketState memory state;
     state.normalizedUnclaimedWithdrawals = normalizedUnclaimedWithdrawals;
     state.accruedProtocolFees = accruedProtocolFees;
     state.scaleFactor = scaleFactor;
     state.scaledPendingWithdrawals = scaledTotalPendingWithdrawals;
     WithdrawalBatch memory batch;
-    batch.scaledTotalAmount = scaledBatchAmount;
+    batch.scaledTotalAmount = scaledAmountBurned + scaledBatchAmount;
+    batch.scaledAmountBurned = scaledAmountBurned;
     uint256 totalReserved = uint256(normalizedUnclaimedWithdrawals) +
       uint256(accruedProtocolFees) +
       state.normalizeAmount(scaledTotalPendingWithdrawals - scaledBatchAmount);

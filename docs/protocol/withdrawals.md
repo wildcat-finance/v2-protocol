@@ -115,9 +115,31 @@ queueing, payment, and execution.
 ## Representation limits
 
 Batch totals, paid scaled amounts, and each account's queued amount use
-`uint104`. Totals are cumulative for one expiry and do not shrink when lenders
-execute paid shares. Checked arithmetic reverts instead of wrapping if a batch
-or account reaches the limit.
+`uint128`. Totals are cumulative for one expiry and do not shrink when lenders
+execute paid shares. Payment burns live shares, so repeated deposits and queues
+can make these counters exceed the market's live `uint104` supply. Individual
+queue amounts, live balances, supply, and outstanding unpaid scaled withdrawals
+retain their `uint104` bounds. Paid underlying amounts and unclaimed withdrawal
+liabilities retain their existing `uint128` bounds.
+
+The two scaled batch counters share one slot; normalized payments occupy a
+second. An account's scaled ownership and normalized amount withdrawn share
+one slot. Widening the cumulative scaled fields adds no storage slots, but
+changes packed offsets. This is a new-market representation, not an in-place
+storage migration. Older immutable markets, including earlier V2.5 builds,
+retain their original `uint104` counters.
+
+Checked arithmetic still reverts instead of wrapping at the relevant limit.
+This raises cumulative scaled capacity by roughly `2^24`; it does not make
+arbitrary asset denominations safe or remove normalized-amount limits. See
+[known limitations](../security/known-issues.md#withdrawal-batches).
+
+The return types of `getWithdrawalBatch(uint32)` and
+`getAccountWithdrawalStatus(address,uint32)` widen with these fields. Their
+selectors and word counts are unchanged, but consumers must use a compatible
+decoder. A `uint128` decoder accepts the older `uint104` values too. Withdrawal
+event signatures and the lens's outward `uint256` fields are unchanged. See
+[lens compatibility](../integrations/lenses.md#withdrawal-compatibility).
 
 Batch keys are absolute `uint32` Unix timestamps. Creating a batch requires
 `block.timestamp + withdrawalBatchDuration <= type(uint32).max`; the checked

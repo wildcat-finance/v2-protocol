@@ -138,6 +138,28 @@ These are amounts owed to the lender. Sanctions may redirect collection into
 escrow. Reading a collectible amount does not guarantee that an arbitrary
 asset's transfer succeeds. See [withdrawals](../protocol/withdrawals.md).
 
+### Withdrawal compatibility
+
+The active market source uses `uint128` cumulative scaled withdrawal counters.
+V2.0/V2.1 and earlier V2.5 builds keep their original `uint104` counters. The
+lens compiled from this source reads both representations through the same
+selectors and still exposes `uint256` amounts. Its outstanding-claim quote
+uses full-precision multiplication because paid volume plus interest on
+remaining unpaid shares can exceed `uint128` before the pro-rata division.
+
+Redeploy the lens and move SDK consumers to that deployment with the protocol
+rollout. Retire earlier lenses for the new markets: their Solidity `uint104`
+decoders reject larger values. Regenerate direct market getter bindings with
+the wider outputs as well; ethers 5.7.2 silently truncates values exceeding
+the width declared in the old ABI. The wider decoder also accepts old market
+values, so this change needs no separate withdrawal read route by generation.
+Existing generation and capability checks for other behavior still apply.
+
+Withdrawal events are unchanged and already expose amounts as `uint256`.
+Indexers using those events and arbitrary-precision amounts need no new event
+family or narrower-to-wider data migration. Refresh their market ABI artifacts
+when adopting the source, and preserve historical market provenance.
+
 ## Tests
 
 - [`MarketLensDeployment.t.sol`](../../test/lens/MarketLensDeployment.t.sol):

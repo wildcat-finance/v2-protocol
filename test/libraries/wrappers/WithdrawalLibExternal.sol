@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 import { WithdrawalBatch, WithdrawalLib, MarketState } from 'src/libraries/Withdrawal.sol';
 
 library WithdrawalLibExternal {
-  function $scaledOwedAmount(WithdrawalBatch memory batch) external pure returns (uint104) {
+  function $scaledOwedAmount(WithdrawalBatch memory batch) external pure returns (uint128) {
     return WithdrawalLib.scaledOwedAmount(batch);
   }
 
