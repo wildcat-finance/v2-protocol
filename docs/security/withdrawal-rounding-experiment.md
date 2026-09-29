@@ -3,6 +3,38 @@
 Status: local experiment branching from the cumulative-counter fix
 `23c47cde20c60d42c8e7a6aa1d4639968e45f9fb`. Not a deployment recommendation.
 
+## Maintenance checkpoint — 2026-09-29
+
+Work paused at the user's request for machine maintenance. Implementation and
+tests are committed locally; no changes have been pushed or deployed, and the
+umbrella submodule pin has not been updated.
+
+| Remediation | Saved revision | Status |
+| --- | --- | --- |
+| F-03: cumulative withdrawal-counter exhaustion | `experiment/withdrawal-counters-128` at `23c47cde20c60d42c8e7a6aa1d4639968e45f9fb` | Implemented and validated locally. Cumulative counters widen to uint128 without additional storage slots. The 887-test suite passed in default and deployment configurations; revolving runtime retains 409 bytes of headroom. Not deployed. |
+| Repeated partial-payment rounding | `experiment/withdrawal-rounding-carry` implementation at `3ea7a25567f135841d6cd2673b60facb0849a0bb`, followed by this checkpoint | Complete accounting experiment; 896 tests pass, with three size-gate failures. Deployment blocked by the revolving runtime exceeding EIP-170 by 407 bytes. Detailed costs and evidence below. |
+
+The rounding branch is checked out in the normal component checkout. The
+counter-only branch remains independently available. Committed implementation,
+tests and this assessment do not depend on temporary worktrees surviving a
+restart. Raw verification reports, logs and the patch are also retained in the
+local persistent Codex Security artifact collection under
+`artifacts/withdrawal-counters-128/` and `artifacts/withdrawal-rounding-carry/`.
+
+Resume with the choice of whether to recover bytecode space for this approach,
+try a smaller alternative, or retain the known issue. Do not treat the current
+experiment as an approved release. SDK/subgraph migrations remain unimplemented;
+their required accounting changes are described below. Existing market behavior
+and known-issue dispositions have not been changed by deployment.
+
+The broader task is to revisit known issues whose rationale assumed approved
+underlying assets, then assess other reasonably supportable ERC20 quirks.
+Arbitrary ERC20 admission has always been possible, including V2.0. Rebasing,
+fee-on-transfer and explicitly malicious token behavior remain unsupported.
+Continue that review after the withdrawal-remediation decision; the broader
+assessment is not complete. Work remains solo, and replacement lenses must
+continue reading older market generations even when consumers migrate SDKs.
+
 ## Accounting
 
 Each batch retains a ray numerator `paymentRemainder < RAY`. A payment adds
