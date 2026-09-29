@@ -22,7 +22,7 @@ contract MarketTransitionLayoutTest is MarketFixture {
   ) external view {
     (bool zeroed, bool matches, bool guardsIntact, uint256 allocatedBytes) = harness
       .compareWithSolidity(input);
-    assertEq(allocatedBytes, 0x520, 'arena reservation');
+    assertEq(allocatedBytes, 0x540, 'arena reservation');
     assertTrue(zeroed, 'dirty memory cleared');
     assertTrue(matches, 'all fields match independent Solidity allocation');
     assertTrue(guardsIntact, 'no writes outside the arena');

@@ -84,10 +84,22 @@ Payment can happen:
 - during a state update for the current batch; or
 - through `repayAndProcessUnpaidWithdrawalBatches` for expired unpaid batches.
 
-Each partial payment converts available underlying into a settleable scaled
-amount. The normalized payment rounds down independently, discarding less than
-one atomic unit of the underlying. Fractional remainders do not carry into the
-next payment.
+On the experimental carry branch, each partial payment adds the exact
+`scaledAmountBurned * scaleFactor` numerator to the batch's carried fraction.
+The integer quotient is funded and the sub-RAY remainder stays as unpaid,
+non-interest-bearing debt. Market debt and required reserves include the sum
+of these remainders before rounding; pending-batch liquidity excludes that
+batch's own remainder from the liabilities protected for earlier batches.
+
+A fully paid current batch retains its remainder while later requests can join.
+Once it is fully paid and expired or released by closure, its terminal fraction
+is removed from the market-wide sum. Funding truncation is therefore less than
+one atomic unit per completed batch. Lender execution still rounds each
+cumulative pro-rata entitlement to an integer.
+
+This is an undeployed experiment with deployment-size and ABI costs; see
+[the experiment assessment](../security/withdrawal-rounding-experiment.md).
+Earlier sources floor every partial payment independently.
 
 Plain `repay` transfers assets into the market and updates state. It does not
 walk the unpaid queue. Use `repayAndProcessUnpaidWithdrawalBatches` when the

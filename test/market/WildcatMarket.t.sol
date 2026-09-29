@@ -36,8 +36,8 @@ contract WildcatMarketTest is MarketFixture {
   bytes32 internal constant BorrowerStorageSlot = bytes32(type(uint256).max);
   bytes4 internal constant PanicSelector = 0x4e487b71;
   uint256 internal constant ArithmeticPanic = 0x11;
-  // `_lifecycle` occupies slot 9; allowance is slot 10, and revolving principal follows.
-  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(11));
+  // `_lifecycle` occupies slot 10; allowance is slot 11, and revolving principal follows.
+  bytes32 internal constant RevolvingDrawnAmountSlot = bytes32(uint256(12));
 
   function _arithmeticPanic() private pure returns (bytes memory) {
     return abi.encodeWithSelector(PanicSelector, ArithmeticPanic);
@@ -212,9 +212,9 @@ contract WildcatMarketTest is MarketFixture {
   }
 
   function _forceWithdrawalBatchExists(WildcatMarket market, uint32 expiry) private {
-    // `_withdrawalData` starts at slot 5 and its `batches` mapping is the third slot.
+    // `_withdrawalData` starts at slot 6 and its `batches` mapping is the third slot.
     // Writing one to the first packed batch word gives it a nonzero scaled total.
-    bytes32 batchSlot = keccak256(abi.encode(uint256(expiry), uint256(7)));
+    bytes32 batchSlot = keccak256(abi.encode(uint256(expiry), uint256(8)));
     vm.store(address(market), batchSlot, bytes32(uint256(1)));
     assertEq(market.getWithdrawalBatch(expiry).scaledTotalAmount, 1, 'forced batch');
   }

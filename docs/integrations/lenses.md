@@ -19,6 +19,20 @@ as do hook-instance and template metadata. Regenerate the lens bindings as a
 whole, including integrations that only read older markets. Previously deployed
 lenses retain their own ABIs.
 
+## Experimental carry compatibility
+
+The withdrawal-rounding experiment appends a `uint128` aggregate remainder to
+`MarketState` and a `uint128` remainder to `WithdrawalBatch`. New lenses use
+`MarketAccountingReader` to accept both the exact older tuples and the extended
+tuples, treating a missing remainder as zero. Their public result tuples remain
+unchanged by this experiment; coverage, debt and withdrawal estimates use the
+extra precision internally. Malformed or truncated tuples still fail ABI decoding.
+
+Market hook selectors change because their state tuple changes. New carry markets
+require matching hook implementations. SDK and subgraph debt calculations must
+also account for the remainder; retaining the old `supply + funded claims + fees`
+formula understates debt. See the [experiment assessment](../security/withdrawal-rounding-experiment.md).
+
 ## Choosing a read
 
 | Need | Interface |

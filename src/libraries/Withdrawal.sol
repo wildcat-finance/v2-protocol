@@ -18,6 +18,8 @@ struct WithdrawalBatch {
   uint128 scaledTotalAmount;
   uint128 scaledAmountBurned;
   uint128 normalizedAmountPaid;
+  // Ray numerator retained between payments; always less than RAY.
+  uint128 paymentRemainder;
 }
 
 /// @notice one account's ownership and executed amount for a withdrawal batch.
@@ -40,6 +42,15 @@ struct WithdrawalData {
 }
 
 library WithdrawalLib {
+  /// @dev only call once this batch cannot accept more requests. No whole token is owed
+  ///      by its final sub-RAY remainder; release it from the market-wide liability.
+  function releaseRemainder(WithdrawalBatch memory batch, MarketState memory state) internal pure {
+    if (batch.scaledTotalAmount == batch.scaledAmountBurned) {
+      state.withdrawalRemainder -= batch.paymentRemainder;
+      batch.paymentRemainder = 0;
+    }
+  }
+
   /// @dev returns the scaled part of `batch` that still needs payment.
   function scaledOwedAmount(WithdrawalBatch memory batch) internal pure returns (uint128) {
     return batch.scaledTotalAmount - batch.scaledAmountBurned;
@@ -59,7 +70,10 @@ library WithdrawalLib {
     // withdrawals and protocol fees.
     uint256 priorScaledAmountPending = (state.scaledPendingWithdrawals - batch.scaledOwedAmount());
     uint256 unavailableAssets = state.normalizedUnclaimedWithdrawals +
-      state.normalizeAmount(priorScaledAmountPending) +
+      state.normalizeWithRemainder(
+        priorScaledAmountPending,
+        state.withdrawalRemainder - batch.paymentRemainder
+      ) +
       state.accruedProtocolFees;
     return totalAssets.satSub(unavailableAssets);
   }

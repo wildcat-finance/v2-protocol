@@ -103,13 +103,13 @@ contract WildcatMarketBase is
   uint256 internal constant _MARKET_PARAMETERS_SIZE = 0x300;
 
   /// @notice annual penalty rate added to lender interest during penalized delinquency, in bips.
-  uint public immutable delinquencyFeeBips;
+  uint256 public immutable delinquencyFeeBips;
 
   /// @notice delinquent time before the penalty rate applies, in seconds.
-  uint public immutable delinquencyGracePeriod;
+  uint256 public immutable delinquencyGracePeriod;
 
   /// @notice duration of each withdrawal batch, in seconds.
-  uint public immutable withdrawalBatchDuration;
+  uint256 public immutable withdrawalBatchDuration;
 
   /// @notice market-token decimals copied from the underlying asset.
   uint8 public immutable decimals;
@@ -298,10 +298,10 @@ contract WildcatMarketBase is
       // Initialize the market state - all values in slots 1 and 2 of the struct are
       // initialized to zero, so they are skipped.
 
-      uint maxTotalSupply = parameters.maxTotalSupply;
-      uint reserveRatioBips = parameters.reserveRatioBips;
-      uint annualInterestBips = parameters.annualInterestBips;
-      uint protocolFeeBips = parameters.protocolFeeBips;
+      uint256 maxTotalSupply = parameters.maxTotalSupply;
+      uint256 reserveRatioBips = parameters.reserveRatioBips;
+      uint256 annualInterestBips = parameters.annualInterestBips;
+      uint256 protocolFeeBips = parameters.protocolFeeBips;
 
       assembly {
         // MarketState Slot 0 Storage Layout:
@@ -658,7 +658,7 @@ contract WildcatMarketBase is
     MarketState memory state = _state;
 
     assembly {
-      return(state, 0x1c0)
+      return(state, 0x1e0)
     }
   }
 
@@ -667,7 +667,7 @@ contract WildcatMarketBase is
   function currentState() external view nonReentrantView returns (MarketState memory state) {
     state = _calculateCurrentStatePointers.asReturnsMarketState()();
     assembly {
-      return(state, 0x1c0)
+      return(state, 0x1e0)
     }
   }
 
@@ -805,15 +805,17 @@ contract WildcatMarketBase is
     _calculateTransition(next, currentAssets, closeAtCurrentTimestamp);
     state = next.state;
     for (uint256 i; i <= next.accrualCount; ++i) {
-      if (next.batchExpired.and(next.expiryAfterAccrual == i))
+      if (next.batchExpired.and(next.expiryAfterAccrual == i)) {
         _commitTransitionBatch(next, _runtimeConstant(1) != 0);
+      }
       if (i < next.accrualCount) {
         LifecycleAccrual memory a = next.accruals[i];
         emit_InterestAndFeesAccrued(a);
       }
     }
-    if ((!next.batchExpired).and(next.batchExpiry != 0))
+    if ((!next.batchExpired).and(next.batchExpiry != 0)) {
       _commitTransitionBatch(next, _runtimeConstant(0) != 0);
+    }
     if (next.repaymentActivated) emit_RepaymentDateReached(repaymentDate());
     if ((_lifecycle.defaultedAt == 0).and(next.lifecycle.defaultedAt != 0)) {
       emit_DefaultRecorded(next.lifecycle.defaultedAt);
@@ -865,22 +867,22 @@ contract WildcatMarketBase is
     return (next.state, next.batchExpiry, next.batch);
   }
 
-  /// @dev one zeroed arena for the ten-word header, empty batch, four record pointers and
+  /// @dev one zeroed arena for the ten-word header, four-word batch, four record pointers and
   ///      four six-word accrual records. _calculateTransition loads state/lifecycle separately.
   function _allocateTransition() internal pure returns (uint256 pointer) {
     assembly ('memory-safe') {
       pointer := mload(0x40)
-      mstore(0x40, add(pointer, 0x520))
-      calldatacopy(pointer, calldatasize(), 0x520)
+      mstore(0x40, add(pointer, 0x540))
+      calldatacopy(pointer, calldatasize(), 0x540)
       mstore(add(pointer, 0x40), add(pointer, 0x140))
-      let records := add(pointer, 0x1a0)
+      let records := add(pointer, 0x1c0)
       mstore(add(pointer, 0xe0), records)
       for {
         let i := 0
       } lt(i, 4) {
         i := add(i, 1)
       } {
-        mstore(add(records, mul(i, 0x20)), add(add(pointer, 0x220), mul(i, 0xc0)))
+        mstore(add(records, mul(i, 0x20)), add(add(pointer, 0x240), mul(i, 0xc0)))
       }
     }
   }
@@ -920,8 +922,9 @@ contract WildcatMarketBase is
         if (!state.isClosed) {
           next.repaymentActivated = true;
           next.lifecycle.activateRepayment(state, historicalAssets, date);
-          if (historicalAssets >= state.totalDebts())
+          if (historicalAssets >= state.totalDebts()) {
             _previewAutomaticClosure(next, historicalAssets, target);
+          }
         }
       }
       // An expiry exactly at the inclusive deadline is processed after judging that deadline.
@@ -939,6 +942,7 @@ contract WildcatMarketBase is
         expiryPending = false;
         if (state.pendingWithdrawalExpiry != 0) {
           _payTransitionBatch(next, historicalAssets);
+          next.batch.releaseRemainder(state);
           state.pendingWithdrawalExpiry = 0;
           next.batchExpired = true;
           next.expiryAfterAccrual = next.accrualCount;
@@ -992,6 +996,7 @@ contract WildcatMarketBase is
     MarketState memory state = next.state;
     if (state.pendingWithdrawalExpiry != 0) {
       _payTransitionBatch(next, assets);
+      next.batch.releaseRemainder(state);
       state.pendingWithdrawalExpiry = 0;
       next.batchExpired = true;
       next.expiryAfterAccrual = next.accrualCount;
@@ -1023,6 +1028,7 @@ contract WildcatMarketBase is
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
       uint256 available = batch.availableLiquidityForPendingBatch(state, assets);
       _applyWithdrawalBatchPayment(batch, state, expiry, available);
+      batch.releaseRemainder(state);
       _withdrawalData.batches[expiry] = batch;
       state.pendingWithdrawalExpiry = 0;
       emit_WithdrawalBatchExpired(
@@ -1065,7 +1071,7 @@ contract WildcatMarketBase is
 
     {
       bool isClosed = state.isClosed;
-      uint maxTotalSupply = state.maxTotalSupply;
+      uint256 maxTotalSupply = state.maxTotalSupply;
       assembly {
         // Slot 0 Storage Layout:
         // [0:15]  | low 120 bits of checkpointedTotalAssets
@@ -1080,8 +1086,8 @@ contract WildcatMarketBase is
       }
     }
     {
-      uint accruedProtocolFees = state.accruedProtocolFees;
-      uint normalizedUnclaimedWithdrawals = state.normalizedUnclaimedWithdrawals;
+      uint256 accruedProtocolFees = state.accruedProtocolFees;
+      uint256 normalizedUnclaimedWithdrawals = state.normalizedUnclaimedWithdrawals;
       assembly {
         // Slot 1 Storage Layout:
         // [0:16] | state.normalizedUnclaimedWithdrawals
@@ -1091,9 +1097,9 @@ contract WildcatMarketBase is
       }
     }
     {
-      uint scaledTotalSupply = state.scaledTotalSupply;
-      uint scaledPendingWithdrawals = state.scaledPendingWithdrawals;
-      uint pendingWithdrawalExpiry = state.pendingWithdrawalExpiry;
+      uint256 scaledTotalSupply = state.scaledTotalSupply;
+      uint256 scaledPendingWithdrawals = state.scaledPendingWithdrawals;
+      uint256 pendingWithdrawalExpiry = state.pendingWithdrawalExpiry;
       assembly {
         // Slot 2 Storage Layout:
         // [1:2] | state.isDelinquent
@@ -1111,12 +1117,12 @@ contract WildcatMarketBase is
       }
     }
     {
-      uint timeDelinquent = state.timeDelinquent;
-      uint protocolFeeBips = state.protocolFeeBips;
-      uint annualInterestBips = state.annualInterestBips;
-      uint reserveRatioBips = state.reserveRatioBips;
-      uint scaleFactor = state.scaleFactor;
-      uint lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
+      uint256 timeDelinquent = state.timeDelinquent;
+      uint256 protocolFeeBips = state.protocolFeeBips;
+      uint256 annualInterestBips = state.annualInterestBips;
+      uint256 reserveRatioBips = state.reserveRatioBips;
+      uint256 scaleFactor = state.scaleFactor;
+      uint256 lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
       assembly {
         // Slot 3 Storage Layout:
         // [0:4] | high 32 bits of checkpointedTotalAssets
@@ -1142,6 +1148,7 @@ contract WildcatMarketBase is
         sstore(add(_state.slot, 3), slot3)
       }
     }
+    _state.withdrawalRemainder = state.withdrawalRemainder;
     emit_StateUpdated(state.scaleFactor, isDelinquent);
   }
 
@@ -1173,6 +1180,8 @@ contract WildcatMarketBase is
         _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
       }
     }
+
+    batch.releaseRemainder(state);
 
     emit_WithdrawalBatchExpired(
       expiry,
@@ -1228,9 +1237,21 @@ contract WildcatMarketBase is
     uint256 scaledAvailableLiquidity = state.maxScaledSettleableAmount(availableLiquidity);
     scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
     if (scaledAmountBurned == 0) return (0, 0);
-    // Use mulDiv instead of normalizeAmount to round `normalizedAmountPaid` down, ensuring
-    // it is always possible to finish withdrawal batches on closed markets.
-    normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY).toUint128();
+    uint256 paymentRay;
+    unchecked {
+      // uint104 * uint112 plus a sub-RAY remainder cannot overflow uint256.
+      paymentRay = uint256(scaledAmountBurned) * state.scaleFactor + batch.paymentRemainder;
+      // The old floor-price capacity can overstate affordability by one share.
+      // scaleFactor >= RAY, so subtracting one share always removes the excess unit.
+      if (paymentRay / RAY > availableLiquidity) {
+        --scaledAmountBurned;
+        paymentRay -= state.scaleFactor;
+      }
+    }
+    normalizedAmountPaid = (paymentRay / RAY).toUint128();
+    uint128 nextRemainder = uint128(paymentRay % RAY);
+    state.withdrawalRemainder = state.withdrawalRemainder - batch.paymentRemainder + nextRemainder;
+    batch.paymentRemainder = nextRemainder;
 
     batch.scaledAmountBurned += scaledAmountBurned;
     batch.normalizedAmountPaid += normalizedAmountPaid;

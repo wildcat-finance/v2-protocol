@@ -40,6 +40,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     batch.scaledTotalAmount = _batch.scaledTotalAmount;
     batch.scaledAmountBurned = _batch.scaledAmountBurned;
     batch.normalizedAmountPaid = _batch.normalizedAmountPaid;
+    batch.paymentRemainder = _batch.paymentRemainder;
   }
 
   /// @notice returns `accountAddress`'s fixed share and amount already claimed from a batch.
@@ -103,8 +104,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     Account memory account,
     address accountAddress,
     uint104 scaledAmount,
-    uint normalizedAmount,
-    uint baseCalldataSize
+    uint256 normalizedAmount,
+    uint256 baseCalldataSize
   ) internal returns (uint32 expiry) {
     // Cache batch expiry on the stack for gas savings
     expiry = state.pendingWithdrawalExpiry;
@@ -112,7 +113,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // If there is no pending withdrawal batch, create a new one.
     if (expiry == 0) {
       // If the market is closed, use zero for withdrawal batch duration.
-      uint duration = state.isClosed.ternary(0, withdrawalBatchDuration);
+      uint256 duration = state.isClosed.ternary(0, withdrawalBatchDuration);
       expiry = (block.timestamp + duration).toUint32();
 
       // Reopening a processed batch mixes pre- and post-close accounting,
@@ -395,6 +396,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       availableLiquidity
     );
 
+    batch.releaseRemainder(state);
     // Update stored batch
     _withdrawalData.batches[expiry] = batch;
 

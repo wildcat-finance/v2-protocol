@@ -139,9 +139,15 @@ same scaled amounts and entry timing; execution routes the sanctioned lender's
 share to escrow. The caller controls when quarantine is attempted but receives
 no special entitlement, and the batch conserves its aggregate reserved assets.
 
-Each partial payment to a batch floors its normalized payment independently.
-The discarded fraction is less than one atomic unit of the underlying per
-payment and is not carried forward.
+Earlier market sources floor every partial payment independently, losing less
+than one atomic unit per payment. Arbitrary ERC20 admission has always been
+possible; reconsidering this issue does not reflect a policy change.
+
+This experimental branch carries the fraction between payments and includes it
+in debt and reserve accounting. It is not deployable under the current revolving
+market bytecode limit and does not change the disposition of existing markets.
+See [the implementation and tradeoffs](./withdrawal-rounding-experiment.md).
+Final per-lender pro-rata division still leaves indivisible token dust.
 
 `closeMarket()` walks every unpaid withdrawal batch. Its gas cost is unbounded
 in the queue length. Work down a large queue in bounded calls to
