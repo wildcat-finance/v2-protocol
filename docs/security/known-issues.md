@@ -224,9 +224,15 @@ behavior. Fee-on-transfer, rebasing, callbacks, mutable or malformed metadata,
 and unusual zero-value transfer behavior can break accounting, deployment,
 lens reads, or fee paths. There is no built-in metadata allowlist, and creation
 checks cannot establish that metadata will remain readable or stable. Arbitrary
-deployability does not establish compatibility. See the
-[token metadata review](./token-metadata-review.md) for the current decoder,
-packing and lens limitations and the proposed compatibility improvements.
+deployability does not establish compatibility.
+
+The current source accepts canonical empty names and symbols. Lens cosmetic
+metadata reads are bounded and best effort: failure yields empty text rather
+than aborting a market/token batch. Decimals and required accounting remain
+strict. Long factory labels, failed or changing decimals, and client handling
+of opaque text remain compatibility limitations. See the
+[lens metadata contract](../integrations/lenses.md#token-labels-and-denominations)
+and [metadata review](./token-metadata-review.md).
 
 ## Reused singleton behavior
 

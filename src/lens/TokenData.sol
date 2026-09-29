@@ -7,7 +7,8 @@ import '../interfaces/IERC20.sol';
 using LibERC20 for address;
 using TokenMetadataLib for TokenMetadata global;
 
-/// @notice ERC-20 identity metadata used in lens responses.
+/// @notice ERC-20 metadata used in lens responses; token identity is its chain and address.
+/// @dev empty name/symbol can mean valid empty text or an unavailable cosmetic read.
 struct TokenMetadata {
   address token;
   string name;
@@ -22,20 +23,21 @@ library TokenMetadataLib {
   function checkIsMock(address tokenAddress) internal view returns (bool isMock) {
     assembly {
       mstore(0, 0x28ccaa29)
-      let success := staticcall(gas(), tokenAddress, 0x1c, 4, 0, 32)
-      isMock := and(success, eq(mload(0), 1))
+      let success := staticcall(50000, tokenAddress, 0x1c, 4, 0, 32)
+      isMock := and(success, and(eq(returndatasize(), 32), eq(mload(0), 1)))
     }
   }
 
-  /// @notice fills required ERC-20 metadata for `tokenAddress`.
-  /// @dev a zero address leaves the struct empty. malformed required metadata calls revert.
+  /// @notice fills metadata for `tokenAddress`, with best-effort cosmetic labels.
+  /// @dev a zero address leaves the struct empty. decimals remain strict; failed,
+  ///      malformed, oversized or gas-limited name/symbol reads yield empty text.
   function fill(TokenMetadata memory data, address tokenAddress) internal view {
     if (tokenAddress == address(0)) {
       return;
     }
     data.token = tokenAddress;
-    data.name = tokenAddress.name();
-    data.symbol = tokenAddress.symbol();
+    data.name = queryStringOrBytes32AsStringOrEmpty(tokenAddress, 0x06fdde03);
+    data.symbol = queryStringOrBytes32AsStringOrEmpty(tokenAddress, 0x95d89b41);
     data.decimals = tokenAddress.decimals();
     data.isMock = checkIsMock(tokenAddress);
   }

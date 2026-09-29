@@ -51,6 +51,36 @@ Strict batch reads preserve input order and revert if any required read fails.
 Cross-factory discovery retains its existing failure-isolation and
 deduplication behavior.
 
+## Token labels and denominations
+
+`TokenMetadata` keeps its existing fields and ABI. The lens reads token names
+and symbols independently as best-effort cosmetic metadata. Valid dynamic
+strings, including empty strings, and legacy `bytes32` labels are accepted.
+Each label call receives at most 50,000 gas; dynamic text is limited to 256
+bytes and the complete response to 320 bytes. Failed, malformed, oversized or
+gas-limited reads produce an empty string, without discarding readable market
+accounting or other tokens in the batch. Text is never silently truncated.
+
+An empty label can mean genuinely empty text or unavailable metadata; this
+tuple does not distinguish those cases. Display an address-based fallback and
+identify tokens by chain and address. Labels are opaque bytes on-chain: the
+lens does not validate UTF-8 or sanitize Unicode, control characters or
+confusables. Client decoding and rendering still need their own handling.
+The optional `isMock` probe is also gas-bounded; only a successful, complete
+32-byte true word sets the marker.
+
+Decimals remain a strict read. Missing, malformed or failed decimals still
+revert token and full market reads; the lens does not guess 18. Market-token
+decimals are cached at creation, while underlying-token decimals come from
+the current underlying metadata. A mismatch must be handled explicitly before
+using display units or normalized token conversions. Cosmetic fallbacks do
+not mask required accounting or known-hook failures.
+
+The factory uses the strict metadata decoder. It now accepts canonical empty
+strings, but still rejects missing or malformed names/symbols and requires
+prefix plus underlying label to fit the market's 63-byte representation.
+Best-effort lens labels do not relax deployment checks.
+
 ## Repayment and default
 
 Both full and live V2.5 results contain the same `MarketLifecycleData`:
