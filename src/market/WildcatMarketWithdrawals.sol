@@ -36,10 +36,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       return pendingBatch;
     }
 
-    WithdrawalBatch storage _batch = _withdrawalData.batches[expiry];
-    batch.scaledTotalAmount = _batch.scaledTotalAmount;
-    batch.scaledAmountBurned = _batch.scaledAmountBurned;
-    batch.normalizedAmountPaid = _batch.normalizedAmountPaid;
+    return _withdrawalData.batches[expiry];
   }
 
   /// @notice returns `accountAddress`'s fixed share and amount already claimed from a batch.
@@ -103,8 +100,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     Account memory account,
     address accountAddress,
     uint104 scaledAmount,
-    uint normalizedAmount,
-    uint baseCalldataSize
+    uint256 normalizedAmount,
+    uint256 baseCalldataSize
   ) internal returns (uint32 expiry) {
     // Cache batch expiry on the stack for gas savings
     expiry = state.pendingWithdrawalExpiry;
@@ -112,7 +109,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // If there is no pending withdrawal batch, create a new one.
     if (expiry == 0) {
       // If the market is closed, use zero for withdrawal batch duration.
-      uint duration = state.isClosed.ternary(0, withdrawalBatchDuration);
+      uint256 duration = state.isClosed.ternary(0, withdrawalBatchDuration);
       expiry = (block.timestamp + duration).toUint32();
 
       // Reopening a processed batch mixes pre- and post-close accounting,
@@ -143,7 +140,19 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // Add scaled withdrawal amount to account withdrawal status, withdrawal batch and market state.
     _withdrawalData.accountStatuses[expiry][accountAddress].scaledAmount += scaledAmount;
-    batch.scaledTotalAmount += scaledAmount;
+    // Retain the wider ABI layout, but preserve the original uint104 admission bound and panic.
+    assembly ('memory-safe') {
+      let total := add(
+        and(mload(batch), 0xffffffffffffffffffffffffffffffff),
+        and(scaledAmount, 0xffffffffffffffffffffffffff)
+      )
+      if gt(total, 0xffffffffffffffffffffffffff) {
+        mstore(0, 0x4e487b71)
+        mstore(0x20, 0x11)
+        revert(0x1c, 0x24)
+      }
+      mstore(batch, total)
+    }
     state.scaledPendingWithdrawals += scaledAmount;
 
     emit_WithdrawalQueued(expiry, accountAddress, scaledAmount, normalizedAmount);
@@ -395,6 +404,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       availableLiquidity
     );
 
+    batch.releaseRemainder(state);
     // Update stored batch
     _withdrawalData.batches[expiry] = batch;
 

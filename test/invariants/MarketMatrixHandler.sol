@@ -598,11 +598,14 @@ contract MarketMatrixHandler {
       MarketState memory state = markets[i].currentState();
       uint256 scaledPending;
       uint256 normalizedLiabilities;
+      uint256 aggregateRemainder;
       uint32[] storage expiries = trackedExpiries[i];
       for (uint256 j; j < expiries.length; j++) {
         WithdrawalBatch memory batch = markets[i].getWithdrawalBatch(expiries[j]);
         if (batch.scaledAmountBurned > batch.scaledTotalAmount) return false;
+        if (batch.paymentRemainder >= RAY) return false;
         scaledPending += batch.scaledTotalAmount - batch.scaledAmountBurned;
+        aggregateRemainder += batch.paymentRemainder;
         (bool valid, uint256 normalizedLiability) = _batchLiabilityMatchesAccounts(
           i,
           expiries[j],
@@ -613,6 +616,7 @@ contract MarketMatrixHandler {
       }
       if (scaledPending != state.scaledPendingWithdrawals) return false;
       if (normalizedLiabilities != state.normalizedUnclaimedWithdrawals) return false;
+      if (aggregateRemainder != state.withdrawalRemainder) return false;
     }
     return true;
   }
@@ -929,6 +933,10 @@ contract MarketMatrixHandler {
         _accrueExpectedRevolvingInterest(cellIndex, state, expiry);
       }
       _applyExpectedPendingBatchPayment(state, batch, totalAssets);
+      if (batch.scaledAmountBurned == batch.scaledTotalAmount) {
+        state.withdrawalRemainder -= batch.paymentRemainder;
+        batch.paymentRemainder = 0;
+      }
       state.pendingWithdrawalExpiry = 0;
     }
 
@@ -960,6 +968,11 @@ contract MarketMatrixHandler {
       previousState.normalizedUnclaimedWithdrawals;
     batch.scaledAmountBurned -= uint104(scaledAmountBurned);
     batch.normalizedAmountPaid -= uint128(normalizedAmountPaid);
+    batch.paymentRemainder = uint128(
+      uint256(previousState.withdrawalRemainder) +
+        batch.paymentRemainder -
+        calculatedState.withdrawalRemainder
+    );
   }
 
   function _applyExpectedPendingBatchPayment(
@@ -971,17 +984,22 @@ contract MarketMatrixHandler {
     uint256 availableLiquidity = batch.availableLiquidityForPendingBatch(state, totalAssets);
     if (availableLiquidity == 0) return;
 
-    uint256 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
-    uint256 scaledAmountBurned = MathUtils.min(
-      state.maxScaledSettleableAmount(availableLiquidity),
-      scaledAmountOwed
+    uint256 owed = batch.scaledTotalAmount - batch.scaledAmountBurned;
+    uint256 burned = owed;
+    if ((burned * state.scaleFactor + batch.paymentRemainder) / RAY > availableLiquidity) {
+      burned = ((availableLiquidity + 1) * RAY - 1 - batch.paymentRemainder) / state.scaleFactor;
+    }
+    uint256 numerator = burned * state.scaleFactor + batch.paymentRemainder;
+    uint256 paid = numerator / RAY;
+    state.withdrawalRemainder = uint128(
+      uint256(state.withdrawalRemainder) - batch.paymentRemainder + (numerator % RAY)
     );
-    if (scaledAmountBurned == 0) return;
-
-    uint256 normalizedAmountPaid = MathUtils.mulDiv(scaledAmountBurned, state.scaleFactor, RAY);
-    state.scaledPendingWithdrawals -= uint104(scaledAmountBurned);
-    state.normalizedUnclaimedWithdrawals += uint128(normalizedAmountPaid);
-    state.scaledTotalSupply -= uint104(scaledAmountBurned);
+    batch.paymentRemainder = uint128(numerator % RAY);
+    batch.scaledAmountBurned += uint128(burned);
+    batch.normalizedAmountPaid += uint128(paid);
+    state.scaledPendingWithdrawals -= uint104(burned);
+    state.normalizedUnclaimedWithdrawals += uint128(paid);
+    state.scaledTotalSupply -= uint104(burned);
   }
 
   function _accrueExpectedRevolvingInterest(

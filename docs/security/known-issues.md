@@ -103,12 +103,27 @@ close, reduce rates, or offer a migration well before the ceiling.
 
 ### Withdrawal batches
 
-Batch totals, paid shares, and each account's queued amount are cumulative
-`uint104` values for one expiry. Checked arithmetic reverts instead of wrapping.
-At the minimum scale factor, saturation requires roughly `2.03e13` nominal
-tokens for an 18-decimal asset or `2.03e25` for a 6-decimal asset, together with
-repeated replacement of paid shares before the same expiry. Revisit the bound
-before listing assets with higher decimals or unusually valuable atomic units.
+Batch totals, paid shares, and each account's queued amount are declared as
+cumulative `uint128` values for one expiry, but the active source caps valid
+batch ownership at `type(uint104).max`. Payment burns live shares, so repeated
+replacement before one expiry can reach that cap even when every individual
+deposit fits and live supply remains below it.
+
+At the initial scale factor, the cumulative cap represents roughly `2.03e13`
+tokens for an 18-decimal asset or 20.28 tokens for a 30-decimal asset. If a
+request would cross the cap, voluntary queues and `nukeFromOrbit` revert; the
+balance remains live until a later batch opens. Existing batch claims remain
+payable. Even at the maximum `uint112` scale factor, the cap keeps one batch's
+cumulative normalized payments below `uint128.max`.
+
+`normalizedUnclaimedWithdrawals` is a `uint128` total across batches. At extreme
+factors, several uncollected batches can temporarily consume that capacity and
+make a later payment revert. Older batches are already executable when a new
+batch opens, and anyone can execute those claims to release the global capacity
+before retrying payment. A failing or restricted underlying-token transfer can
+delay that recovery under the unsupported-token behaviors below. Underlying
+assets are not assumed to be Foundation-preapproved, so assess denominations
+and expected amounts against the cumulative batch cap.
 
 See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation),
 [withdrawal representation limits](../protocol/withdrawals.md#representation-limits),
@@ -131,9 +146,16 @@ same scaled amounts and entry timing; execution routes the sanctioned lender's
 share to escrow. The caller controls when quarantine is attempted but receives
 no special entitlement, and the batch conserves its aggregate reserved assets.
 
-Each partial payment to a batch floors its normalized payment independently.
-The discarded fraction is less than one atomic unit of the underlying per
-payment and is not carried forward.
+Earlier market sources floor every partial payment independently, losing less
+than one atomic unit per payment. Arbitrary ERC20 admission has always been
+possible; reconsidering this issue does not reflect a policy change.
+
+This experimental branch carries the fraction between payments and includes it
+in debt and reserve accounting. The smaller candidate fits the market bytecode
+limit, but is not an approved release and still requires consumer migration.
+It does not change the disposition of existing markets.
+See [the implementation and tradeoffs](./withdrawal-rounding-experiment.md).
+Final per-lender pro-rata division still leaves indivisible token dust.
 
 `closeMarket()` walks every unpaid withdrawal batch. Its gas cost is unbounded
 in the queue length. Work down a large queue in bounded calls to
@@ -149,6 +171,11 @@ Each accounting checkpoint rounds that interval's protocol fee independently
 to the underlying atomic unit. Fractional remainders are not carried, so update
 cadence can change the total protocol fee and can round short intervals to zero.
 Lender balances are unaffected by the protocol-fee rounding itself.
+
+Nearest rounding can also overstate aggregate fees. Intermediate ray-rounding
+errors can be amplified by supply and scale factor, so a half-atom bound applies
+only to the final rounding step. See the [focused fee review](./protocol-fee-rounding-review.md)
+for same-interest-path measurements and carry design options.
 
 The stated lender APR is linear inside each accrual interval and is applied to
 the scale factor stored at that checkpoint. Splitting one wall-clock span across
@@ -167,6 +194,13 @@ Factory fee-update pages skip markets whose `isClosed()` view is true, including
 pending automatic closure. That read does not itself commit closure. A failed
 or malformed read, or a failed update to an open market, still reverts the whole
 page.
+
+Revolving markets also floor the utilization-weighted interest rate to ray
+precision at each checkpoint. A fraction below one ray is discarded when the
+timestamp advances. Its magnitude depends on supply, scale factor and update
+cadence; a decimal range alone is not a universal economic bound. See the
+[utilization-interest precision review](./revolving-interest-dust-review.md)
+for quantified examples and the distinction from protocol-fee rounding.
 
 ## Hooks
 
@@ -207,8 +241,25 @@ the nuke callback and remaining sanctions checks still apply.
 The protocol assumes listed assets have stable ERC-20 transfer and metadata
 behavior. Fee-on-transfer, rebasing, callbacks, mutable or malformed metadata,
 and unusual zero-value transfer behavior can break accounting, deployment,
-lens reads, or fee paths. Listing review is the control; arbitrary deployability
-does not establish compatibility.
+lens reads, or fee paths. There is no built-in metadata allowlist, and creation
+checks cannot establish that metadata will remain readable or stable. Arbitrary
+deployability does not establish compatibility.
+
+The current source accepts canonical empty names and symbols. Lens cosmetic
+metadata reads are bounded and best effort: failure yields empty text rather
+than aborting a market/token batch. Decimals and required accounting remain
+strict. Long factory labels, failed or changing decimals, and client handling
+of opaque text remain compatibility limitations. See the
+[lens metadata contract](../integrations/lenses.md#token-labels-and-denominations)
+and [metadata review](./token-metadata-review.md).
+
+The current factories skip origination-fee transfers when the fee amount is
+zero, while still requiring the supplied token and amount to match the template
+and recording both in deployment events. Positive fees require a successful
+transfer. Legacy factories retain the zero-transfer behavior. Optional
+zero-amount draws, empty rescues and empty sanctions-escrow releases can still
+fail on tokens rejecting zero transfers; this alone does not make positive
+payments fail. See the [zero-transfer review](./zero-value-transfer-review.md).
 
 ## Reused singleton behavior
 

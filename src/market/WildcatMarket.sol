@@ -235,8 +235,9 @@ contract WildcatMarket is
           availableLiquidity
         );
         availableLiquidity -= normalizedAmountPaid;
-        _withdrawalData.batches[expiry] = batch;
       }
+      batch.releaseRemainder(state);
+      _withdrawalData.batches[expiry] = batch;
 
       // Remove the pending batch to ensure new withdrawals are not
       // added to it after the market is closed.

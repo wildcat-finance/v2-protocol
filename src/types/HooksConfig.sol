@@ -48,7 +48,7 @@ uint256 constant Bit_Enabled_SetAnnualInterestAndReserveRatioBips = 86;
 uint256 constant Bit_Enabled_SetProtocolFeeBips = 85;
 uint256 constant Bit_Enabled_ExecutePendingAnnualInterestBipsReduction = 84;
 
-uint256 constant MarketStateSize = 0x01c0;
+uint256 constant MarketStateSize = 0x01e0;
 
 /// @notice packs a hook address and the callback flags accepted by this legacy-shaped helper.
 /// @dev the periodic APR execution flag isn't an argument here and remains disabled unless set
@@ -300,12 +300,12 @@ library LibHooksConfig {
 
   uint256 internal constant DepositCalldataSize = 0x24;
   // Size of lender + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant DepositHook_Base_Size = 0x0244;
+  uint256 internal constant DepositHook_Base_Size = 0x0264;
   uint256 internal constant DepositHook_ScaledAmount_Offset = 0x20;
   uint256 internal constant DepositHook_State_Offset = 0x40;
-  uint256 internal constant DepositHook_ExtraData_Head_Offset = 0x200;
-  uint256 internal constant DepositHook_ExtraData_Length_Offset = 0x0220;
-  uint256 internal constant DepositHook_ExtraData_TailOffset = 0x0240;
+  uint256 internal constant DepositHook_ExtraData_Head_Offset = 0x0220;
+  uint256 internal constant DepositHook_ExtraData_Length_Offset = 0x0240;
+  uint256 internal constant DepositHook_ExtraData_TailOffset = 0x0260;
 
   /// @dev calls `onDeposit` when enabled and forwards bytes appended after the deposit arguments.
   function onDeposit(
@@ -357,13 +357,13 @@ library LibHooksConfig {
   // ========================================================================== //
 
   // Size of lender + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0264;
+  uint256 internal constant QueueWithdrawalHook_Base_Size = 0x0284;
   uint256 internal constant QueueWithdrawalHook_Expiry_Offset = 0x20;
   uint256 internal constant QueueWithdrawalHook_ScaledAmount_Offset = 0x40;
   uint256 internal constant QueueWithdrawalHook_State_Offset = 0x60;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Head_Offset = 0x220;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset = 0x0240;
-  uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset = 0x0260;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_Head_Offset = 0x0240;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_Length_Offset = 0x0260;
+  uint256 internal constant QueueWithdrawalHook_ExtraData_TailOffset = 0x0280;
 
   /// @dev calls `onQueueWithdrawal` when enabled and forwards trailing `extraData` unchanged.
   function onQueueWithdrawal(
@@ -419,13 +419,13 @@ library LibHooksConfig {
   // ========================================================================== //
 
   // Size of lender + expiry + normalizedAmountWithdrawn + state + extraData.offset + extraData.length
-  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0264;
+  uint256 internal constant ExecuteWithdrawalHook_Base_Size = 0x0284;
   uint256 internal constant ExecuteWithdrawalHook_Expiry_Offset = 0x20;
   uint256 internal constant ExecuteWithdrawalHook_NormalizedAmount_Offset = 0x40;
   uint256 internal constant ExecuteWithdrawalHook_State_Offset = 0x60;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0220;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0240;
-  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0260;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Head_Offset = 0x0240;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_Length_Offset = 0x0260;
+  uint256 internal constant ExecuteWithdrawalHook_ExtraData_TailOffset = 0x0280;
 
   /// @dev calls `onExecuteWithdrawal` when enabled and forwards trailing `extraData` unchanged.
   function onExecuteWithdrawal(
@@ -484,14 +484,14 @@ library LibHooksConfig {
   // ========================================================================== //
 
   // Size of caller + from + to + scaledAmount + state + extraData.offset + extraData.length
-  uint256 internal constant TransferHook_Base_Size = 0x0284;
+  uint256 internal constant TransferHook_Base_Size = 0x02a4;
   uint256 internal constant TransferHook_From_Offset = 0x20;
   uint256 internal constant TransferHook_To_Offset = 0x40;
   uint256 internal constant TransferHook_ScaledAmount_Offset = 0x60;
   uint256 internal constant TransferHook_State_Offset = 0x80;
-  uint256 internal constant TransferHook_ExtraData_Head_Offset = 0x240;
-  uint256 internal constant TransferHook_ExtraData_Length_Offset = 0x0260;
-  uint256 internal constant TransferHook_ExtraData_TailOffset = 0x0280;
+  uint256 internal constant TransferHook_ExtraData_Head_Offset = 0x0260;
+  uint256 internal constant TransferHook_ExtraData_Length_Offset = 0x0280;
+  uint256 internal constant TransferHook_ExtraData_TailOffset = 0x02a0;
 
   /// @dev calls `onTransfer` when enabled and reports the original market caller to the hook.
   function onTransfer(
@@ -550,11 +550,11 @@ library LibHooksConfig {
 
   uint256 internal constant BorrowCalldataSize = 0x24;
   // Size of normalizedAmount + state + extraData.offset + extraData.length
-  uint256 internal constant BorrowHook_Base_Size = 0x0224;
+  uint256 internal constant BorrowHook_Base_Size = 0x0244;
   uint256 internal constant BorrowHook_State_Offset = 0x20;
-  uint256 internal constant BorrowHook_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant BorrowHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant BorrowHook_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant BorrowHook_ExtraData_Head_Offset = 0x0200;
+  uint256 internal constant BorrowHook_ExtraData_Length_Offset = 0x0220;
+  uint256 internal constant BorrowHook_ExtraData_TailOffset = 0x0240;
 
   /// @dev calls `onBorrow` when enabled and forwards bytes appended after the borrow amount.
   function onBorrow(HooksConfig self, uint256 normalizedAmount, MarketState memory state) internal {
@@ -599,11 +599,11 @@ library LibHooksConfig {
   // ========================================================================== //
 
   // Size of normalizedAmount + state + extraData.offset + extraData.length
-  uint256 internal constant RepayHook_Base_Size = 0x0224;
+  uint256 internal constant RepayHook_Base_Size = 0x0244;
   uint256 internal constant RepayHook_State_Offset = 0x20;
-  uint256 internal constant RepayHook_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant RepayHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant RepayHook_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant RepayHook_ExtraData_Head_Offset = 0x0200;
+  uint256 internal constant RepayHook_ExtraData_Length_Offset = 0x0220;
+  uint256 internal constant RepayHook_ExtraData_TailOffset = 0x0240;
 
   /// @dev calls `onRepay` when enabled and forwards trailing `extraData` unchanged.
   function onRepay(
@@ -653,10 +653,10 @@ library LibHooksConfig {
   uint256 internal constant CloseMarketCalldataSize = 0x04;
 
   // Base size of calldata for `hooks.onCloseMarket()`
-  uint256 internal constant CloseMarketHook_Base_Size = 0x0204;
+  uint256 internal constant CloseMarketHook_Base_Size = 0x0224;
   uint256 internal constant CloseMarketHook_ExtraData_Head_Offset = MarketStateSize;
-  uint256 internal constant CloseMarketHook_ExtraData_Length_Offset = 0x01e0;
-  uint256 internal constant CloseMarketHook_ExtraData_TailOffset = 0x0200;
+  uint256 internal constant CloseMarketHook_ExtraData_Length_Offset = 0x0200;
+  uint256 internal constant CloseMarketHook_ExtraData_TailOffset = 0x0220;
 
   /// @dev calls `onCloseMarket` when enabled and forwards trailing `extraData` unchanged.
   function onCloseMarket(HooksConfig self, MarketState memory state) internal {
@@ -700,11 +700,11 @@ library LibHooksConfig {
 
   uint256 internal constant SetMaxTotalSupplyCalldataSize = 0x24;
   // Size of maxTotalSupply + state + extraData.offset + extraData.length
-  uint256 internal constant SetMaxTotalSupplyHook_Base_Size = 0x0224;
+  uint256 internal constant SetMaxTotalSupplyHook_Base_Size = 0x0244;
   uint256 internal constant SetMaxTotalSupplyHook_State_Offset = 0x20;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Head_Offset = 0x0200;
+  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_Length_Offset = 0x0220;
+  uint256 internal constant SetMaxTotalSupplyHook_ExtraData_TailOffset = 0x0240;
 
   /// @dev calls `onSetMaxTotalSupply` when enabled; the hook may accept or revert, not rewrite it.
   function onSetMaxTotalSupply(
@@ -754,13 +754,13 @@ library LibHooksConfig {
 
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsCalldataSize = 0x44;
   // Size of annualInterestBips + reserveRatioBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0244;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_Base_Size = 0x0264;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset = 0x20;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_State_Offset = 0x40;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x0200;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x0220;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset =
-    0x0220;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset = 0x0240;
+    0x0240;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset = 0x0260;
 
   /// @dev calls the term-change hook when enabled and returns its final APR and reserve ratio.
   ///      returns the caller's values unchanged when the hook is disabled.
@@ -839,16 +839,16 @@ library LibHooksConfig {
 
   uint256 internal constant SetProtocolFeeBipsCalldataSize = 0x24;
   // Size of protocolFeeBips + state + extraData.offset + extraData.length
-  uint256 internal constant SetProtocolFeeBips_Base_Size = 0x0224;
+  uint256 internal constant SetProtocolFeeBips_Base_Size = 0x0244;
   uint256 internal constant SetProtocolFeeBips_State_Offset = 0x20;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_Head_Offset = 0x0200;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_Length_Offset = 0x0220;
+  uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset = 0x0240;
 
   /// @dev calls `onSetProtocolFeeBips` when enabled and bubbles any hook revert.
   function onSetProtocolFeeBips(
     HooksConfig self,
-    uint protocolFeeBips,
+    uint256 protocolFeeBips,
     MarketState memory state
   ) internal {
     address target = self.hooksAddress();
@@ -893,11 +893,11 @@ library LibHooksConfig {
 
   uint256 internal constant NukeFromOrbitCalldataSize = 0x24;
   // Size of lender + state + extraData.offset + extraData.length
-  uint256 internal constant NukeFromOrbit_Base_Size = 0x0224;
+  uint256 internal constant NukeFromOrbit_Base_Size = 0x0244;
   uint256 internal constant NukeFromOrbit_State_Offset = 0x20;
-  uint256 internal constant NukeFromOrbit_ExtraData_Head_Offset = 0x01e0;
-  uint256 internal constant NukeFromOrbit_ExtraData_Length_Offset = 0x0200;
-  uint256 internal constant NukeFromOrbit_ExtraData_TailOffset = 0x0220;
+  uint256 internal constant NukeFromOrbit_ExtraData_Head_Offset = 0x0200;
+  uint256 internal constant NukeFromOrbit_ExtraData_Length_Offset = 0x0220;
+  uint256 internal constant NukeFromOrbit_ExtraData_TailOffset = 0x0240;
 
   /// @dev calls `onNukeFromOrbit` before the market quarantines a sanctioned lender.
   function onNukeFromOrbit(HooksConfig self, address lender, MarketState memory state) internal {

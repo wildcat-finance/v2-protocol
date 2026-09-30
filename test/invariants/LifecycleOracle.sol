@@ -2,7 +2,7 @@
 pragma solidity 0.8.25;
 
 import { MarketState } from 'src/libraries/MarketState.sol';
-import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
+import { MathUtils, RAY, HALF_RAY } from 'src/libraries/MathUtils.sol';
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 
 /// @dev test model, not a call into MarketLifecycleLib. sort the observed boundaries, then
@@ -89,6 +89,7 @@ library LifecycleOracle {
       }
       if (expires && at == expiry && p.state.pendingWithdrawalExpiry != 0) {
         _payBatch(p, old.cash);
+        _releaseFraction(p);
         p.state.pendingWithdrawalExpiry = 0;
         p.state.isDelinquent = p.state.liquidityRequired() > old.cash;
       }
@@ -153,20 +154,45 @@ library LifecycleOracle {
     WithdrawalBatch memory b = p.batch;
     uint256 owed = b.scaledTotalAmount - b.scaledAmountBurned;
     uint256 prior = s.scaledPendingWithdrawals - owed;
+    uint256 protected = (prior *
+      s.scaleFactor +
+      s.withdrawalRemainder -
+      b.paymentRemainder +
+      HALF_RAY) / RAY;
     uint256 available = cash.satSub(
-      s.normalizedUnclaimedWithdrawals + s.normalizeAmount(prior) + s.accruedProtocolFees
+      s.normalizedUnclaimedWithdrawals + protected + s.accruedProtocolFees
     );
-    uint256 burn = MathUtils.min(s.maxScaledSettleableAmount(available), owed);
-    uint256 paid = MathUtils.mulDiv(burn, s.scaleFactor, RAY);
-    b.scaledAmountBurned += uint104(burn);
+    // Solve the affordability inequality directly, independently of the production
+    // helper's floor-price capacity and one-share correction.
+    uint256 burn = owed;
+    if ((burn * s.scaleFactor + b.paymentRemainder) / RAY > available) {
+      burn = ((available + 1) * RAY - 1 - b.paymentRemainder) / s.scaleFactor;
+    }
+    uint256 numerator = burn * s.scaleFactor + b.paymentRemainder;
+    uint256 paid = numerator / RAY;
+    s.withdrawalRemainder = uint128(
+      uint256(s.withdrawalRemainder) - b.paymentRemainder + (numerator % RAY)
+    );
+    b.paymentRemainder = uint128(numerator % RAY);
+    b.scaledAmountBurned += uint128(burn);
     b.normalizedAmountPaid += uint128(paid);
     s.scaledPendingWithdrawals -= uint104(burn);
     s.scaledTotalSupply -= uint104(burn);
     s.normalizedUnclaimedWithdrawals += uint128(paid);
   }
 
+  function _releaseFraction(Preview memory p) private pure {
+    if (p.batch.scaledAmountBurned == p.batch.scaledTotalAmount) {
+      p.state.withdrawalRemainder -= p.batch.paymentRemainder;
+      p.batch.paymentRemainder = 0;
+    }
+  }
+
   function _close(Preview memory p, uint256 cash, uint256 at) private pure {
-    if (p.state.pendingWithdrawalExpiry != 0) _payBatch(p, cash);
+    if (p.state.pendingWithdrawalExpiry != 0) {
+      _payBatch(p, cash);
+      _releaseFraction(p);
+    }
     p.state.pendingWithdrawalExpiry = 0;
     p.state.isClosed = true;
     p.state.isDelinquent = false;

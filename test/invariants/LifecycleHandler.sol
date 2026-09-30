@@ -412,6 +412,11 @@ contract LifecycleHandler is MarketMatrixHandler {
     for (uint256 i; i < markets.length; ++i) {
       WildcatMarket m = markets[i];
       LifecycleOracle.Preview memory p = _preview(i, m.totalAssets());
+      uint256 aggregateRemainder;
+      for (uint256 j; j < trackedExpiries[i].length; ++j) {
+        aggregateRemainder += observedBatches[i][trackedExpiries[i][j]].paymentRemainder;
+      }
+      if (aggregateRemainder != m.previousState().withdrawalRemainder) return false;
       if (keccak256(abi.encode(p.state)) != keccak256(abi.encode(m.currentState()))) return false;
       if (m.defaultedAt() != observations[i].defaultedAt) return false;
       if (m.repaymentDate() != terms[i].date || m.repaymentPeriod() != terms[i].period)
@@ -473,12 +478,23 @@ contract LifecycleHandler is MarketMatrixHandler {
         (uint256 burned, uint256 paid) = abi.decode(entry.data, (uint256, uint256));
         batch.scaledAmountBurned += uint104(burned);
         batch.normalizedAmountPaid += uint128(paid);
+        // Payment events omit the retained fraction. Read the committed extra word;
+        // the oracle still independently predicts subsequent payment transitions.
+        bytes32 slot = keccak256(abi.encode(uint256(expiry), uint256(8)));
+        batch.paymentRemainder = uint128(
+          uint256(vm.load(address(markets[i]), bytes32(uint256(slot) + 1))) >> 128
+        );
         if (burned != 0 && batch.scaledAmountBurned < batch.scaledTotalAmount)
           ++_coverage(i).partialBatches;
       } else if (entry.topics[0] == keccak256('WithdrawalExecuted(uint256,address,uint256)')) {
         ++_coverage(i).collections;
         if (sanctionedActors[address(uint160(uint256(entry.topics[2])))])
           ++_coverage(i).escrowCollections;
+      } else if (
+        entry.topics[0] == keccak256('WithdrawalBatchClosed(uint256)') ||
+        entry.topics[0] == keccak256('WithdrawalBatchExpired(uint256,uint256,uint256,uint256)')
+      ) {
+        if (batch.scaledAmountBurned == batch.scaledTotalAmount) batch.paymentRemainder = 0;
       } else if (entry.topics[0] == keccak256('WithdrawalBatchCreated(uint256)')) {
         _check(i, batch.scaledTotalAmount == 0, 35);
       }

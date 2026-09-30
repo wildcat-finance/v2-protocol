@@ -7,18 +7,20 @@ import { TestKernel } from '../shared/TestKernel.sol';
 contract BoundedMarketStateTest is TestKernel {
   using MathUtils for uint256;
 
-  /// @dev checked formulas from before the size experiment. don't share the optimized helpers.
+  /// @dev independent checked formulas. The unified partition now checks normalized
+  ///      pending <= supply at every reserve ratio, including 0% and 100%.
   function referenceValues(
     MarketState memory state
   ) external pure returns (uint256 supply, uint256 liquidity, uint256 debts) {
     supply = uint256(state.scaledTotalSupply).rayMul(state.scaleFactor);
     uint256 pending = uint256(state.scaledPendingWithdrawals).rayMul(state.scaleFactor);
+    uint256 outstanding = supply - pending;
     if (state.reserveRatioBips == 0) {
       liquidity = pending;
     } else if (state.reserveRatioBips == BIP) {
       liquidity = supply;
     } else {
-      liquidity = pending + (supply - pending).bipMul(state.reserveRatioBips);
+      liquidity = pending + outstanding.bipMul(state.reserveRatioBips);
     }
     liquidity += state.accruedProtocolFees + uint256(state.normalizedUnclaimedWithdrawals);
     debts = supply + state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees;
@@ -82,9 +84,12 @@ contract BoundedMarketStateTest is TestKernel {
     state.scaledTotalSupply = 1;
     state.scaledPendingWithdrawals = 2;
     state.scaleFactor = uint112(RAY);
-    state.reserveRatioBips = 5000;
-    _compare(state);
-    vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
-    this.candidateValues(state);
+    uint16[3] memory reserves = [uint16(0), 5000, 10000];
+    for (uint256 i; i < reserves.length; ++i) {
+      state.reserveRatioBips = reserves[i];
+      _compare(state);
+      vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
+      this.candidateValues(state);
+    }
   }
 }

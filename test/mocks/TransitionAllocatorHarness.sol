@@ -20,12 +20,12 @@ contract TransitionAllocatorHarness is WildcatMarketBase {
       mstore(0x40, start)
       for {
         let offset := 0
-      } lt(offset, 0x520) {
+      } lt(offset, 0x540) {
         offset := add(offset, 0x20)
       } {
         mstore(add(start, offset), not(0))
       }
-      mstore(add(start, 0x520), 0x87654321)
+      mstore(add(start, 0x540), 0x87654321)
     }
     LifecycleTransition memory actual = _allocateTransition.asTransitionAllocator()();
     assembly {
@@ -49,6 +49,7 @@ contract TransitionAllocatorHarness is WildcatMarketBase {
     actual.batch.scaledTotalAmount = input.batch.scaledTotalAmount;
     actual.batch.scaledAmountBurned = input.batch.scaledAmountBurned;
     actual.batch.normalizedAmountPaid = input.batch.normalizedAmountPaid;
+    actual.batch.paymentRemainder = input.batch.paymentRemainder;
     actual.batchExpiry = input.batchExpiry;
     actual.batchExpired = input.batchExpired;
     actual.expiryAfterAccrual = input.expiryAfterAccrual;
@@ -68,7 +69,7 @@ contract TransitionAllocatorHarness is WildcatMarketBase {
     assembly {
       guardsIntact := and(
         eq(mload(sub(start, 0x20)), 0x12345678),
-        eq(mload(add(start, 0x520)), 0x87654321)
+        eq(mload(add(start, 0x540)), 0x87654321)
       )
     }
   }

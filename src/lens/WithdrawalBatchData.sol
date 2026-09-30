@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import './MarketAccountingReader.sol';
+
 import '../WildcatArchController.sol';
 import '../market/WildcatMarket.sol';
 import '../types/HooksConfig.sol';
@@ -10,6 +12,7 @@ import './HooksInstanceData.sol';
 import './HooksTemplateData.sol';
 import './LenderAccountData.sol';
 import './TokenData.sol';
+import { FixedPointMathLib } from 'solady/utils/FixedPointMathLib.sol';
 
 using WithdrawalBatchDataLib for WithdrawalBatchData global;
 using WithdrawalBatchDataLib for WithdrawalBatchLenderStatus global;
@@ -59,14 +62,14 @@ library WithdrawalBatchDataLib {
     WildcatMarket market,
     uint32 expiry
   ) internal view {
-    WithdrawalBatch memory batch = market.getWithdrawalBatch(expiry);
+    WithdrawalBatch memory batch = MarketAccountingReader.withdrawalBatch(market, expiry);
     data.expiry = expiry;
     data.scaledTotalAmount = batch.scaledTotalAmount;
     data.scaledAmountBurned = batch.scaledAmountBurned;
     data.normalizedAmountPaid = batch.normalizedAmountPaid;
     // funded closure releases the current batch before expiry, including before the next write.
     bool isPendingBatch = expiry != 0 &&
-      expiry == market.previousState().pendingWithdrawalExpiry &&
+      expiry == MarketAccountingReader.previousState(market).pendingWithdrawalExpiry &&
       !market.isClosed();
     if (isPendingBatch) {
       data.status = expiry >= block.timestamp ? BatchStatus.Pending : BatchStatus.Expired;
@@ -77,7 +80,10 @@ library WithdrawalBatchDataLib {
     }
     if (data.scaledAmountBurned != data.scaledTotalAmount) {
       uint256 scaledAmountOwed = data.scaledTotalAmount - data.scaledAmountBurned;
-      uint256 normalizedAmountOwed = MathUtils.rayMul(scaledAmountOwed, market.scaleFactor());
+      uint256 normalizedAmountOwed = (scaledAmountOwed *
+        market.scaleFactor() +
+        batch.paymentRemainder +
+        HALF_RAY) / RAY;
       data.normalizedTotalAmount = data.normalizedAmountPaid + normalizedAmountOwed;
     } else {
       data.normalizedTotalAmount = data.normalizedAmountPaid;
@@ -97,8 +103,15 @@ library WithdrawalBatchDataLib {
     AccountWithdrawalStatus memory status = market.getAccountWithdrawalStatus(lender, batch.expiry);
     data.scaledAmount = status.scaledAmount;
     data.normalizedAmountWithdrawn = status.normalizedAmountWithdrawn;
+    // Paid volume is uint128, but adding interest on the remaining live shares
+    // can take the quoted total above uint128. Preserve its full-width product
+    // with cumulative ownership before dividing; the final claim still fits.
     data.normalizedAmountOwed =
-      MathUtils.mulDiv(batch.normalizedTotalAmount, data.scaledAmount, batch.scaledTotalAmount) -
+      FixedPointMathLib.fullMulDiv(
+        batch.normalizedTotalAmount,
+        data.scaledAmount,
+        batch.scaledTotalAmount
+      ) -
       data.normalizedAmountWithdrawn;
     // reserved assets in a pending batch aren't collectible yet. normalizedAmountOwed still
     // includes them, so callers can distinguish their queued claim from an executable withdrawal.

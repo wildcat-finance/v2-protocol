@@ -57,6 +57,8 @@ struct MarketState {
   // typical 10-15% cumulative rates it exceeds 100 years. See Known Issues.
   uint112 scaleFactor;
   uint32 lastInterestAccruedTimestamp;
+  // Sum of live batch payment remainders. Does not earn interest.
+  uint128 withdrawalRemainder;
 }
 
 /// @notice one lender's direct scaled market-token balance.
@@ -101,6 +103,18 @@ library MarketStateLib {
     uint256 amount
   ) internal pure returns (uint256) {
     return amount.rayMul(state.scaleFactor);
+  }
+
+  /// @dev combine live shares and non-interest-bearing fractional withdrawal debt before
+  ///      rounding. Callers bound shares by uint104 and the remainder sum by uint128.
+  function normalizeWithRemainder(
+    MarketState memory state,
+    uint256 scaledAmount,
+    uint256 remainder
+  ) internal pure returns (uint256) {
+    unchecked {
+      return (scaledAmount * state.scaleFactor + remainder + HALF_RAY) / RAY;
+    }
   }
 
   /**
@@ -148,29 +162,23 @@ library MarketStateLib {
   function liquidityRequired(
     MarketState memory state
   ) internal pure returns (uint256 _liquidityRequired) {
-    uint256 reserveRatioBips = state.reserveRatioBips;
-    uint256 normalizedSupplyRequired;
-    // 0% is the usual case, and 100% should recombine exactly to totalSupply.
-    // only intermediate ratios need the normalized pending/outstanding partition.
-    if (reserveRatioBips == 0) {
-      normalizedSupplyRequired = state.normalizeAmount(state.scaledPendingWithdrawals);
-    } else if (reserveRatioBips == BIP) {
-      normalizedSupplyRequired = state.totalSupply();
-    } else {
-      uint256 normalizedPendingWithdrawals = state.normalizeAmount(state.scaledPendingWithdrawals);
-      uint256 normalizedOutstandingSupply = state.totalSupply() - normalizedPendingWithdrawals;
-      // uint104 shares normalized by uint112 scaleFactor stay below 128 bits.
-      // even a full uint16 reserveRatioBips keeps this sum far below uint256.
-      unchecked {
-        normalizedSupplyRequired =
-          normalizedPendingWithdrawals +
-          normalizedOutstandingSupply.bipMul(reserveRatioBips);
-      }
-    }
-    // normalizedSupplyRequired is below 132 bits; the remaining liabilities are uint128.
+    uint256 normalizedPendingWithdrawals = state.normalizeWithRemainder(
+      state.scaledPendingWithdrawals,
+      state.withdrawalRemainder
+    );
+    uint256 normalizedOutstandingSupply = state.normalizeWithRemainder(
+      state.scaledTotalSupply,
+      state.withdrawalRemainder
+    ) - normalizedPendingWithdrawals;
+    // The same partition handles 0% and 100% exactly, without separate branches.
+    // Normalized supply is below 128 bits; even a uint16 reserve ratio stays far
+    // below uint256, as do both uint128 funded liabilities.
     unchecked {
       return
-        normalizedSupplyRequired + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
+        normalizedPendingWithdrawals +
+        normalizedOutstandingSupply.bipMul(state.reserveRatioBips) +
+        state.accruedProtocolFees +
+        state.normalizedUnclaimedWithdrawals;
     }
   }
 
@@ -218,7 +226,7 @@ library MarketStateLib {
     // normalized uint104 supply is below 128 bits, and both other debts are uint128.
     unchecked {
       return
-        state.normalizeAmount(state.scaledTotalSupply) +
+        state.normalizeWithRemainder(state.scaledTotalSupply, state.withdrawalRemainder) +
         state.normalizedUnclaimedWithdrawals +
         state.accruedProtocolFees;
     }
