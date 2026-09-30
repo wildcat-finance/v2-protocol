@@ -9,8 +9,9 @@ using WithdrawalLib for WithdrawalBatch global;
 
 /// @notice aggregate accounting for requests sharing one expiry.
 /// @dev tokens keep earning interest until payment reserves assets and burns scaled supply.
-///      Cumulative counters can exceed live uint104 supply as paid shares are replaced.
-///      The scaled counters share one slot; normalized payments occupy a second.
+///      The fields retain a uint128 ABI, but queue admission caps cumulative scaled ownership
+///      at uint104.max so cumulative normalized payments remain representable. The scaled
+///      counters share one slot; normalized payments occupy a second.
 /// @param scaledTotalAmount cumulative scaled amount requested for the batch.
 /// @param scaledAmountBurned scaled amount already paid and removed from live supply.
 /// @param normalizedAmountPaid underlying assets reserved for the paid portion.
@@ -23,7 +24,8 @@ struct WithdrawalBatch {
 }
 
 /// @notice one account's ownership and executed amount for a withdrawal batch.
-/// @dev both cumulative fields share one slot; ownership can exceed a live uint104 balance.
+/// @dev both cumulative fields share one slot; valid ownership is bounded by the batch's
+///      uint104 cumulative admission cap.
 /// @param scaledAmount account's fixed pro-rata share of the batch.
 /// @param normalizedAmountWithdrawn amount already transferred or sent to sanctions escrow.
 struct AccountWithdrawalStatus {

@@ -103,20 +103,27 @@ close, reduce rates, or offer a migration well before the ceiling.
 
 ### Withdrawal batches
 
-Batch totals, paid shares, and each account's queued amount are cumulative
-`uint128` values for one expiry in the active source. Earlier immutable markets
-retain `uint104`; the widening does not remediate those deployments. Payment
-burns live shares, so repeated replacement before one expiry can exceed the
-live supply bound even when every individual deposit fits.
+Batch totals, paid shares, and each account's queued amount are declared as
+cumulative `uint128` values for one expiry, but the active source caps valid
+batch ownership at `type(uint104).max`. Payment burns live shares, so repeated
+replacement before one expiry can reach that cap even when every individual
+deposit fits and live supply remains below it.
 
-Checked arithmetic reverts instead of wrapping. At the initial scale factor,
-the new cumulative scaled ceiling is roughly `3.40e20` nominal tokens for an
-18-decimal asset, or `3.40e8` for a 30-decimal asset. The earlier `uint104`
-ceiling was roughly 20.28 tokens at 30 decimals. This is a bounded mitigation,
-not support for arbitrary denominations: normalized paid amounts and unclaimed
-liabilities remain `uint128`, and live balances and supply remain `uint104`.
-Underlying assets are not assumed to be Foundation-preapproved. Assess their
-denomination and expected amounts against all of these representations.
+At the initial scale factor, the cumulative cap represents roughly `2.03e13`
+tokens for an 18-decimal asset or 20.28 tokens for a 30-decimal asset. If a
+request would cross the cap, voluntary queues and `nukeFromOrbit` revert; the
+balance remains live until a later batch opens. Existing batch claims remain
+payable. Even at the maximum `uint112` scale factor, the cap keeps one batch's
+cumulative normalized payments below `uint128.max`.
+
+`normalizedUnclaimedWithdrawals` is a `uint128` total across batches. At extreme
+factors, several uncollected batches can temporarily consume that capacity and
+make a later payment revert. Older batches are already executable when a new
+batch opens, and anyone can execute those claims to release the global capacity
+before retrying payment. A failing or restricted underlying-token transfer can
+delay that recovery under the unsupported-token behaviors below. Underlying
+assets are not assumed to be Foundation-preapproved, so assess denominations
+and expected amounts against the cumulative batch cap.
 
 See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation),
 [withdrawal representation limits](../protocol/withdrawals.md#representation-limits),

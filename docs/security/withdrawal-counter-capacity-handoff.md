@@ -1,9 +1,8 @@
 # Withdrawal-counter capacity: review handoff
 
-Observed 2026-09-29; handoff prepared 2026-09-30. This is an unresolved
-accounting-capacity concern for pre-deployment source, not an established
-deployed exposure. The user assigned further assessment to another session;
-do not interpret this note as approval to modify or adopt either experiment.
+Observed 2026-09-29; handoff prepared and disposition reviewed 2026-09-30.
+This records a pre-deployment accounting-capacity concern and the selected
+remediation. It does not establish exposure in any deployed market.
 
 | Comparison | Explicit source |
 | --- | --- |
@@ -15,6 +14,31 @@ do not interpret this note as approval to modify or adopt either experiment.
 The relevant market source is unchanged between the carry source and the latest
 compatibility stack. The metadata and origination-fee changes do not address
 this concern. Source revisions do not establish deployment identity.
+
+## Disposition
+
+Keep the packed `uint128` field declarations, but reject any queue operation
+that would take one batch's cumulative scaled ownership above
+`type(uint104).max`. The check occurs at the original cumulative-addition
+boundary and preserves its `Panic(0x11)` behavior. Normalized, scaled and full
+withdrawals, together with `nukeFromOrbit`, all use that boundary.
+
+This restores the old mathematical guarantee without reverting the carry
+accounting or changing the current getter ABI and storage packing. A rejected
+balance remains live and can enter the next batch. The focused regression in
+[`WithdrawalCounters.t.sol`](../../test/market/WithdrawalCounters.t.sol) covers
+all admission routes, all four market/hook combinations, narrow-reader
+compatibility, rollover, and the maximum-factor bound.
+
+The separate global `normalizedUnclaimedWithdrawals` counter can temporarily
+fill across several extreme-factor batches. That state is recoverable: older
+batches are executable before a new batch opens, anyone can execute their
+claims, and execution releases global capacity before payment is retried. The
+regression suite records that recovery path. Underlying-token transfer failure
+can still delay it under the documented unsupported-token boundary.
+
+The evidence below remains unchanged as characterization of the rejected
+widening behavior and to preserve its provenance.
 
 ## Why widening might move the failure boundary
 
@@ -95,24 +119,23 @@ Do not add this characterization to a release suite as an assertion that
 unsettleable requests are acceptable. Keep the original bytes and provenance;
 derive remediation tests separately if a fix is selected.
 
-## Questions for the next reviewer
+## Review resolution
 
-1. Verify the old implicit normalized bound and the widened admission domain
-   directly against each revision. Compare rejection before admission with
-   failure after admission; counter widths alone do not decide safety.
-2. Determine whether production constraints bound lifetime volume tightly
-   enough: factor growth, batch duration, asset units, transaction feasibility,
-   liquidity, borrowing and all queue/claim paths. State which conditions are
-   injected and which can be established through normal history.
-3. Check existing requests when prices accrue after admission, along with
-   partial funding, expiration, sanctions paths and manual/automatic closure.
-   A check only at queue time may not cover later growth.
-4. If remediation is warranted, compare admission bounds, wider/changed payment
-   representation and batch rollover/separation. Define the accepted-request
-   invariant first; preserve debt, reserved assets, pro-rata ownership and exits.
-5. Record an explicit disposition: fix, reject the widening, or accept a
-   quantified operating boundary with rationale. Practical exposure remains
-   unestablished until that review supplies evidence.
+1. The old implicit normalized bound and the unsafe widened admission domain
+   were reproduced against explicit revisions.
+2. Practical exploitation was not established: the natural-factor example
+   requires about 12.3 years at 100% APR and no realistic affected asset was
+   identified. Arbitrary ERC20 admission still makes the broken invariant
+   unsuitable for immutable source.
+3. The restored cap holds across rising factors and partial payments because
+   every paid share uses a factor no larger than `uint112.max`; carry preserves
+   the same cumulative numerator.
+4. Widening normalized payments to 160 bits would add an account-status slot,
+   require full-precision claim arithmetic, and expand downstream review. The
+   admission cap is the narrower complete fix.
+5. The widening behavior is rejected. The physical `uint128` layout remains
+   for compatibility, while valid cumulative ownership retains the earlier
+   `uint104` limit.
 
 Original local traces, layout measurements and characterization results were
 retained under `artifacts/withdrawal-counter-review/` in the protocol's local
