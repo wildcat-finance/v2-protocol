@@ -91,9 +91,7 @@ contract StringQueryTest is TestKernel {
     bytes32Metadata = Bytes32Metadata(
       _deployCode('test/libraries/StringQuery.t.sol:Bytes32Metadata')
     );
-    stringMetadata = StringMetadata(
-      _deployCode('test/libraries/StringQuery.t.sol:StringMetadata')
-    );
+    stringMetadata = StringMetadata(_deployCode('test/libraries/StringQuery.t.sol:StringMetadata'));
     longStrings = LongStrings(_deployCode('test/libraries/StringQuery.t.sol:LongStrings'));
     badStrings = BadStrings(_deployCode('test/libraries/StringQuery.t.sol:BadStrings'));
     malformedStringMetadata = MalformedStringMetadata(
@@ -110,6 +108,116 @@ contract StringQueryTest is TestKernel {
 
   function querySymbol(address token) external view returns (string memory) {
     return token.symbol();
+  }
+
+  function queryNameOrEmpty(address token) external view returns (string memory) {
+    return queryStringOrBytes32AsStringOrEmpty(token, 0x06fdde03);
+  }
+
+  function queryNamesOrEmpty(
+    address firstToken,
+    address secondToken
+  ) external view returns (bytes32 firstHash, string memory first, string memory second) {
+    first = queryStringOrBytes32AsStringOrEmpty(firstToken, 0x06fdde03);
+    firstHash = keccak256(bytes(first));
+    second = queryStringOrBytes32AsStringOrEmpty(secondToken, 0x06fdde03);
+  }
+
+  function testFuzz_bestEffort_ArbitraryReturnDataPreservesLaterReads(
+    bytes memory response
+  ) external {
+    vm.mockCall(address(bytes32Metadata), abi.encodeWithSignature('name()'), response);
+    (bytes32 firstHash, string memory first, string memory second) = this.queryNamesOrEmpty(
+      address(bytes32Metadata),
+      address(stringMetadata)
+    );
+    assertTrue(bytes(first).length <= 256, 'arbitrary returndata cannot escape text bound');
+    assertEq(
+      uint256(keccak256(bytes(first))),
+      uint256(firstHash),
+      'later read preserves prior allocation'
+    );
+    assertEq(second, 'TestB', 'malformed or missing first label does not corrupt later metadata');
+  }
+
+  function test_emptyDynamicStrings_AcceptCanonicalEncoding() external {
+    vm.mockCall(address(stringMetadata), abi.encodeWithSignature('name()'), abi.encode(''));
+    vm.mockCall(address(stringMetadata), abi.encodeWithSignature('symbol()'), abi.encode(''));
+    assertEq(this.queryName(address(stringMetadata)), '');
+    assertEq(this.querySymbol(address(stringMetadata)), '');
+    assertEq(this.queryNameOrEmpty(address(stringMetadata)), '');
+  }
+
+  function test_emptyDynamicHeader_RejectsNonzeroLengthAndWrongOffset() external {
+    bytes memory selector = abi.encodeWithSignature('name()');
+    bytes[] memory malformed = new bytes[](3);
+    malformed[0] = abi.encode(uint256(32), uint256(1));
+    malformed[1] = abi.encode(uint256(64), uint256(0));
+    malformed[2] = abi.encode(uint256(32), type(uint256).max);
+    for (uint256 i; i < malformed.length; i++) {
+      vm.mockCall(address(stringMetadata), selector, malformed[i]);
+      vm.expectRevert(bytes4(0x4cb9c000));
+      this.queryName(address(stringMetadata));
+      assertEq(this.queryNameOrEmpty(address(stringMetadata)), '', 'malformed fallback');
+    }
+  }
+
+  function test_bestEffort_FailedMissingAndOversizedResponsesAreEmpty() external {
+    assertEq(this.queryNameOrEmpty(address(badStrings)), '', 'revert without data');
+    badStrings.setGiveRevertData(true);
+    assertEq(this.queryNameOrEmpty(address(badStrings)), '', 'revert with data');
+    assertEq(this.queryNameOrEmpty(address(0xDEAD)), '', 'no code');
+    assertEq(this.queryNameOrEmpty(address(malformedStringMetadata)), '', 'truncated data');
+
+    bytes memory oversized = new bytes(321);
+    vm.mockCall(address(stringMetadata), abi.encodeWithSignature('name()'), oversized);
+    assertEq(this.queryNameOrEmpty(address(stringMetadata)), '', 'response bound');
+    vm.mockCall(address(stringMetadata), abi.encodeWithSignature('name()'), hex'41');
+    assertEq(this.queryNameOrEmpty(address(stringMetadata)), '', 'short response');
+    vm.mockCallRevert(address(stringMetadata), abi.encodeWithSignature('name()'), new bytes(4096));
+    assertEq(this.queryNameOrEmpty(address(stringMetadata)), '', 'large revert is not copied');
+  }
+
+  function test_bestEffort_AcceptsLegacyAndTrailingData() external view {
+    assertEq(this.queryNameOrEmpty(address(bytes32Metadata)), 'TestA');
+    assertEq(this.queryNameOrEmpty(address(trailingStringMetadata)), 'A');
+  }
+
+  function testFuzz_dynamicStrings_RoundTripWithinCosmeticBound(bytes memory value) external {
+    if (value.length > 512) return;
+    vm.mockCall(
+      address(stringMetadata),
+      abi.encodeWithSignature('name()'),
+      abi.encode(string(value))
+    );
+    assertEq(bytes(this.queryName(address(stringMetadata))), value, 'strict bytes round-trip');
+    if (value.length <= 256) {
+      assertEq(
+        bytes(this.queryNameOrEmpty(address(stringMetadata))),
+        value,
+        'cosmetic bytes round-trip'
+      );
+    } else {
+      assertEq(this.queryNameOrEmpty(address(stringMetadata)), '', 'text bound');
+    }
+  }
+
+  function test_bestEffort_TextLengthBoundaries() external {
+    uint256[8] memory lengths = [uint256(0), 1, 31, 32, 33, 255, 256, 257];
+    for (uint256 i; i < lengths.length; i++) {
+      bytes memory value = new bytes(lengths[i]);
+      for (uint256 j; j < value.length; j++) value[j] = 'x';
+      vm.mockCall(
+        address(stringMetadata),
+        abi.encodeWithSignature('name()'),
+        abi.encode(string(value))
+      );
+      if (value.length <= 256) {
+        assertEq(bytes(this.queryNameOrEmpty(address(stringMetadata))), value);
+      } else {
+        assertEq(this.queryNameOrEmpty(address(stringMetadata)), '');
+      }
+    }
   }
 
   function test_name() external {

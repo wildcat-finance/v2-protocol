@@ -51,6 +51,36 @@ Strict batch reads preserve input order and revert if any required read fails.
 Cross-factory discovery retains its existing failure-isolation and
 deduplication behavior.
 
+## Token labels and denominations
+
+`TokenMetadata` keeps its existing fields and ABI. The lens reads token names
+and symbols independently as best-effort cosmetic metadata. Valid dynamic
+strings, including empty strings, and legacy `bytes32` labels are accepted.
+Each label call receives at most 50,000 gas; dynamic text is limited to 256
+bytes and the complete response to 320 bytes. Failed, malformed, oversized or
+gas-limited reads produce an empty string, without discarding readable market
+accounting or other tokens in the batch. Text is never silently truncated.
+
+An empty label can mean genuinely empty text or unavailable metadata; this
+tuple does not distinguish those cases. Display an address-based fallback and
+identify tokens by chain and address. Labels are opaque bytes on-chain: the
+lens does not validate UTF-8 or sanitize Unicode, control characters or
+confusables. Client decoding and rendering still need their own handling.
+The optional `isMock` probe is also gas-bounded; only a successful, complete
+32-byte true word sets the marker.
+
+Decimals remain a strict read. Missing, malformed or failed decimals still
+revert token and full market reads; the lens does not guess 18. Market-token
+decimals are cached at creation, while underlying-token decimals come from
+the current underlying metadata. A mismatch must be handled explicitly before
+using display units or normalized token conversions. Cosmetic fallbacks do
+not mask required accounting or known-hook failures.
+
+The factory uses the strict metadata decoder. It now accepts canonical empty
+strings, but still rejects missing or malformed names/symbols and requires
+prefix plus underlying label to fit the market's 63-byte representation.
+Best-effort lens labels do not relax deployment checks.
+
 ## Repayment and default
 
 Both full and live V2.5 results contain the same `MarketLifecycleData`:
@@ -154,20 +184,18 @@ asset's transfer succeeds. See [withdrawals](../protocol/withdrawals.md).
 
 ### Withdrawal compatibility
 
-The active market source uses `uint128` cumulative scaled withdrawal counters.
-V2.0/V2.1 and earlier V2.5 builds keep their original `uint104` counters. The
-lens compiled from this source reads both representations through the same
-selectors and still exposes `uint256` amounts. Its outstanding-claim quote
-uses full-precision multiplication because paid volume plus interest on
-remaining unpaid shares can exceed `uint128` before the pro-rata division.
+The active market ABI declares cumulative scaled withdrawal counters as
+`uint128`; V2.0/V2.1 and earlier V2.5 builds declare `uint104`. Queue admission
+caps successful values at `uint104.max`, so both narrow legacy decoders and the
+current wider decoder accept every valid result. The lens exposes `uint256`
+amounts and retains full-precision multiplication as defensive handling for
+wider compatible responses.
 
-Redeploy the lens and move SDK consumers to that deployment with the protocol
-rollout. Retire earlier lenses for the new markets: their Solidity `uint104`
-decoders reject larger values. Regenerate direct market getter bindings with
-the wider outputs as well; ethers 5.7.2 silently truncates values exceeding
-the width declared in the old ABI. The wider decoder also accepts old market
-values, so this change needs no separate withdrawal read route by generation.
-Existing generation and capability checks for other behavior still apply.
+Redeploy the lens and move SDK consumers with the protocol rollout for the
+other V2.5 behavior changes. The counter declaration alone does not require a
+separate read route or retirement of a legacy lens. Regenerate direct market
+getter bindings when adopting the current ABI, and preserve each market's
+generation and source provenance.
 
 Withdrawal events are unchanged and already expose amounts as `uint256`.
 Indexers using those events and arbitrary-precision amounts need no new event
