@@ -1230,24 +1230,24 @@ contract WildcatMarketBase is
     MarketState memory state,
     uint256 availableLiquidity
   ) internal pure returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
-    uint128 scaledAmountOwed = batch.scaledTotalAmount - batch.scaledAmountBurned;
-    // Do nothing if batch is already paid
-    if (scaledAmountOwed == 0) return (0, 0);
-
-    uint256 scaledAvailableLiquidity = state.maxScaledSettleableAmount(availableLiquidity);
-    scaledAmountBurned = MathUtils.min(scaledAvailableLiquidity, scaledAmountOwed).toUint104();
-    if (scaledAmountBurned == 0) return (0, 0);
+    // Valid cumulative totals and their live difference are capped at uint104,
+    // although the packed batch fields retain their uint128 ABI types.
+    uint256 burned = uint256(batch.scaledTotalAmount - batch.scaledAmountBurned).toUint104();
     uint256 paymentRay;
     unchecked {
-      // uint104 * uint112 plus a sub-RAY remainder cannot overflow uint256.
-      paymentRay = uint256(scaledAmountBurned) * state.scaleFactor + batch.paymentRemainder;
-      // The old floor-price capacity can overstate affordability by one share.
-      // scaleFactor >= RAY, so subtracting one share always removes the excess unit.
+      // uint104 owed * uint112 factor plus a sub-RAY remainder fits uint256.
+      paymentRay = burned * state.scaleFactor + batch.paymentRemainder;
       if (paymentRay / RAY > availableLiquidity) {
-        --scaledAmountBurned;
-        paymentRay -= state.scaleFactor;
+        // Solve floor((burned * factor + remainder) / RAY) <= available directly.
+        // This branch bounds available before multiplying by RAY, including huge donations.
+        burned = ((availableLiquidity + 1) * RAY - 1 - batch.paymentRemainder) / state.scaleFactor;
+        paymentRay = burned * state.scaleFactor + batch.paymentRemainder;
       }
     }
+    // Covers both an already paid batch and liquidity that cannot fund one share.
+    if (burned == 0) return (0, 0);
+    // The affordability inverse can only reduce the checked live amount.
+    scaledAmountBurned = uint104(burned);
     normalizedAmountPaid = (paymentRay / RAY).toUint128();
     uint128 nextRemainder = uint128(paymentRay % RAY);
     state.withdrawalRemainder = state.withdrawalRemainder - batch.paymentRemainder + nextRemainder;

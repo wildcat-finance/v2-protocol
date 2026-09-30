@@ -36,11 +36,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       return pendingBatch;
     }
 
-    WithdrawalBatch storage _batch = _withdrawalData.batches[expiry];
-    batch.scaledTotalAmount = _batch.scaledTotalAmount;
-    batch.scaledAmountBurned = _batch.scaledAmountBurned;
-    batch.normalizedAmountPaid = _batch.normalizedAmountPaid;
-    batch.paymentRemainder = _batch.paymentRemainder;
+    return _withdrawalData.batches[expiry];
   }
 
   /// @notice returns `accountAddress`'s fixed share and amount already claimed from a batch.
@@ -144,7 +140,19 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     // Add scaled withdrawal amount to account withdrawal status, withdrawal batch and market state.
     _withdrawalData.accountStatuses[expiry][accountAddress].scaledAmount += scaledAmount;
-    batch.scaledTotalAmount += scaledAmount;
+    // Retain the wider ABI layout, but preserve the original uint104 admission bound and panic.
+    assembly ('memory-safe') {
+      let total := add(
+        and(mload(batch), 0xffffffffffffffffffffffffffffffff),
+        and(scaledAmount, 0xffffffffffffffffffffffffff)
+      )
+      if gt(total, 0xffffffffffffffffffffffffff) {
+        mstore(0, 0x4e487b71)
+        mstore(0x20, 0x11)
+        revert(0x1c, 0x24)
+      }
+      mstore(batch, total)
+    }
     state.scaledPendingWithdrawals += scaledAmount;
 
     emit_WithdrawalQueued(expiry, accountAddress, scaledAmount, normalizedAmount);

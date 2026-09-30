@@ -598,11 +598,14 @@ contract MarketMatrixHandler {
       MarketState memory state = markets[i].currentState();
       uint256 scaledPending;
       uint256 normalizedLiabilities;
+      uint256 aggregateRemainder;
       uint32[] storage expiries = trackedExpiries[i];
       for (uint256 j; j < expiries.length; j++) {
         WithdrawalBatch memory batch = markets[i].getWithdrawalBatch(expiries[j]);
         if (batch.scaledAmountBurned > batch.scaledTotalAmount) return false;
+        if (batch.paymentRemainder >= RAY) return false;
         scaledPending += batch.scaledTotalAmount - batch.scaledAmountBurned;
+        aggregateRemainder += batch.paymentRemainder;
         (bool valid, uint256 normalizedLiability) = _batchLiabilityMatchesAccounts(
           i,
           expiries[j],
@@ -613,6 +616,7 @@ contract MarketMatrixHandler {
       }
       if (scaledPending != state.scaledPendingWithdrawals) return false;
       if (normalizedLiabilities != state.normalizedUnclaimedWithdrawals) return false;
+      if (aggregateRemainder != state.withdrawalRemainder) return false;
     }
     return true;
   }
