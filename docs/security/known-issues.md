@@ -183,6 +183,13 @@ pending automatic closure. That read does not itself commit closure. A failed
 or malformed read, or a failed update to an open market, still reverts the whole
 page.
 
+Revolving markets also floor the utilization-weighted interest rate to ray
+precision at each checkpoint. A fraction below one ray is discarded when the
+timestamp advances. Its magnitude depends on supply, scale factor and update
+cadence; a decimal range alone is not a universal economic bound. See the
+[utilization-interest precision review](./revolving-interest-dust-review.md)
+for quantified examples and the distinction from protocol-fee rounding.
+
 ## Hooks
 
 The selected hook address and enabled callback set are immutable. Mutable hook
