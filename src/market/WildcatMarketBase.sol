@@ -1230,7 +1230,8 @@ contract WildcatMarketBase is
     MarketState memory state,
     uint256 availableLiquidity
   ) internal pure returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
-    // The live difference is uint104 even though cumulative batch totals are uint128.
+    // Valid cumulative totals and their live difference are capped at uint104,
+    // although the packed batch fields retain their uint128 ABI types.
     uint256 burned = uint256(batch.scaledTotalAmount - batch.scaledAmountBurned).toUint104();
     uint256 paymentRay;
     unchecked {
