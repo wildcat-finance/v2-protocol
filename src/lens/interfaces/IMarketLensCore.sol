@@ -11,8 +11,9 @@ import '../WithdrawalBatchData.sol';
 /// @dev batch calls preserve input order and revert as a unit if any required dependency read
 ///      fails.
 interface IMarketLensCore {
-  /// @notice returns required ERC-20 metadata plus the optional mock marker.
-  /// @dev a zero token returns an empty struct; malformed required metadata reverts.
+  /// @notice returns strict decimals, best-effort cosmetic labels and the optional mock marker.
+  /// @dev a zero token returns an empty struct. failed cosmetic reads yield empty
+  ///      text; malformed or unavailable decimals still revert.
   function getTokenInfo(address token) external view returns (TokenMetadata memory info);
 
   /// @notice returns token metadata in input order.

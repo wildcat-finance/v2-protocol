@@ -766,7 +766,8 @@ contract HooksFactoryRevolving is
       revert FeeMismatch();
     }
 
-    if (runtimeParams.originationFeeAsset != address(0)) {
+    // Positive template fees require a token and recipient; zero fees need no token call.
+    if (runtimeParams.originationFeeAmount != 0) {
       runtimeParams.originationFeeAsset.safeTransferFrom(
         msg.sender,
         templateDetails.feeRecipient,

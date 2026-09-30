@@ -159,7 +159,8 @@ library MarketDataLib {
   }
 
   /// @notice fills the complete compatibility tuple for a V2 market.
-  /// @dev required token, market, and known-hooks reads are strict and may revert.
+  /// @dev token decimals, market and known-hooks reads remain strict; cosmetic
+  ///      token names and symbols are best effort.
   function fill(MarketData memory data, WildcatMarket market) internal view {
     data.marketToken.fill(address(market));
     data.underlyingToken.fill(market.asset());
