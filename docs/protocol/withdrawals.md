@@ -126,32 +126,41 @@ queueing, payment, and execution.
 
 ## Representation limits
 
-Batch totals, paid scaled amounts, and each account's queued amount use
-`uint128`. Totals are cumulative for one expiry and do not shrink when lenders
-execute paid shares. Payment burns live shares, so repeated deposits and queues
-can make these counters exceed the market's live `uint104` supply. Individual
-queue amounts, live balances, supply, and outstanding unpaid scaled withdrawals
-retain their `uint104` bounds. Paid underlying amounts and unclaimed withdrawal
-liabilities retain their existing `uint128` bounds.
+Batch totals, paid scaled amounts, and each account's queued amount are stored
+as `uint128`, preserving the current packed layout and getter ABI. Queue
+admission deliberately caps a batch's cumulative scaled total at
+`type(uint104).max`. Paid shares cannot exceed that total, and account shares
+sum to it. Individual queue amounts, live balances, supply, and outstanding
+unpaid scaled withdrawals also retain their `uint104` bounds. Paid underlying
+amounts and unclaimed withdrawal liabilities remain `uint128`.
+
+The cumulative cap preserves the representation invariant at every legal scale
+factor:
+
+```text
+floor((2^104 - 1) * (2^112 - 1) / 10^27) < 2^128 - 1
+```
+
+The bound also holds when partial payments use different factors; carry keeps
+the fractional numerators in the same cumulative calculation. If another
+request would cross the cap, every admission route reverts atomically with the
+same arithmetic panic as the earlier `uint104` layout. The lender keeps the
+unqueued balance and can enter the next batch after the current one expires.
+This also applies to sanctions quarantine through `nukeFromOrbit`.
 
 The two scaled batch counters share one slot; normalized payments occupy a
 second. An account's scaled ownership and normalized amount withdrawn share
-one slot. Widening the cumulative scaled fields adds no storage slots, but
-changes packed offsets. This is a new-market representation, not an in-place
-storage migration. Older immutable markets, including earlier V2.5 builds,
-retain their original `uint104` counters.
-
-Checked arithmetic still reverts instead of wrapping at the relevant limit.
-This raises cumulative scaled capacity by roughly `2^24`; it does not make
-arbitrary asset denominations safe or remove normalized-amount limits. See
-[known limitations](../security/known-issues.md#withdrawal-batches).
+one slot. The wider declarations add no storage slots, but change packed
+offsets. This is a new-market representation, not an in-place storage
+migration. Older immutable markets retain their original `uint104` fields.
 
 The return types of `getWithdrawalBatch(uint32)` and
-`getAccountWithdrawalStatus(address,uint32)` widen with these fields. Their
-selectors and word counts are unchanged, but consumers must use a compatible
-decoder. A `uint128` decoder accepts the older `uint104` values too. Withdrawal
-event signatures and the lens's outward `uint256` fields are unchanged. See
-[lens compatibility](../integrations/lenses.md#withdrawal-compatibility).
+`getAccountWithdrawalStatus(address,uint32)` declare the fields as `uint128`.
+Their selectors and word counts are unchanged. Successful values remain within
+`uint104`, so older narrow decoders continue to accept them; a `uint128`
+decoder also accepts older markets. Withdrawal events and the lens's outward
+`uint256` fields are unchanged. See [known limitations](../security/known-issues.md#withdrawal-batches)
+and [lens compatibility](../integrations/lenses.md#withdrawal-compatibility).
 
 Batch keys are absolute `uint32` Unix timestamps. Creating a batch requires
 `block.timestamp + withdrawalBatchDuration <= type(uint32).max`; the checked
