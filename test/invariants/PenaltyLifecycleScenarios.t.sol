@@ -17,8 +17,8 @@ contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
     lifecycle.fund(2, 1, 0, false);
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(2));
     MarketState memory state = market.previousState();
-    assertFalse(state.isClosed, 'preview quote leaves a rounding shortfall');
-    assertEq(state.totalDebts(), market.totalAssets() + 1, 'shortfall is exactly one unit');
+    assertTrue(state.isClosed, 'carry makes the debt quote sufficient for closure');
+    assertTrue(market.totalAssets() >= state.totalDebts(), 'every remaining liability is backed');
     _assertLifecycle();
     assertTrue(vm.revertTo(snapshot), 'restore the liveness regression');
     _finishLifecycle('donation-rounding-regression');

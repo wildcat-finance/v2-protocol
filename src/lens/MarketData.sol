@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import './MarketAccountingReader.sol';
+
 import '../WildcatArchController.sol';
 import '../IHooksFactory.sol';
 import '../market/WildcatMarket.sol';
@@ -157,7 +159,8 @@ library MarketDataLib {
   }
 
   /// @notice fills the complete compatibility tuple for a V2 market.
-  /// @dev required token, market, and known-hooks reads are strict and may revert.
+  /// @dev token decimals, market and known-hooks reads remain strict; cosmetic
+  ///      token names and symbols are best effort.
   function fill(MarketData memory data, WildcatMarket market) internal view {
     data.marketToken.fill(address(market));
     data.underlyingToken.fill(market.asset());
@@ -278,7 +281,7 @@ library MarketDataLib {
   function fillState(MarketData memory data) internal view {
     WildcatMarket market = WildcatMarket(data.marketToken.token);
     data.unpaidWithdrawalBatchExpiries = market.getUnpaidBatchExpiries();
-    MarketState memory state = market.currentState();
+    MarketState memory state = MarketAccountingReader.currentState(market);
     data.isClosed = state.isClosed;
     data.protocolFeeBips = state.protocolFeeBips;
     data.reserveRatioBips = state.reserveRatioBips;
@@ -297,9 +300,14 @@ library MarketDataLib {
     data.lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
 
     if (state.pendingWithdrawalExpiry == 0) {
-      uint32 expiredBatchExpiry = market.previousState().pendingWithdrawalExpiry;
+      uint32 expiredBatchExpiry = MarketAccountingReader
+        .previousState(market)
+        .pendingWithdrawalExpiry;
       if (expiredBatchExpiry > 0) {
-        WithdrawalBatch memory expiredBatch = market.getWithdrawalBatch(expiredBatchExpiry);
+        WithdrawalBatch memory expiredBatch = MarketAccountingReader.withdrawalBatch(
+          market,
+          expiredBatchExpiry
+        );
 
         if (expiredBatch.scaledTotalAmount == expiredBatch.scaledAmountBurned) {
           data.pendingWithdrawalExpiry = expiredBatchExpiry;

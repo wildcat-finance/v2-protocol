@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+import './MarketAccountingReader.sol';
+
 import '../WildcatArchController.sol';
 import '../market/WildcatMarket.sol';
 import '../types/HooksConfig.sol';
@@ -60,14 +62,14 @@ library WithdrawalBatchDataLib {
     WildcatMarket market,
     uint32 expiry
   ) internal view {
-    WithdrawalBatch memory batch = market.getWithdrawalBatch(expiry);
+    WithdrawalBatch memory batch = MarketAccountingReader.withdrawalBatch(market, expiry);
     data.expiry = expiry;
     data.scaledTotalAmount = batch.scaledTotalAmount;
     data.scaledAmountBurned = batch.scaledAmountBurned;
     data.normalizedAmountPaid = batch.normalizedAmountPaid;
     // funded closure releases the current batch before expiry, including before the next write.
     bool isPendingBatch = expiry != 0 &&
-      expiry == market.previousState().pendingWithdrawalExpiry &&
+      expiry == MarketAccountingReader.previousState(market).pendingWithdrawalExpiry &&
       !market.isClosed();
     if (isPendingBatch) {
       data.status = expiry >= block.timestamp ? BatchStatus.Pending : BatchStatus.Expired;
@@ -78,7 +80,10 @@ library WithdrawalBatchDataLib {
     }
     if (data.scaledAmountBurned != data.scaledTotalAmount) {
       uint256 scaledAmountOwed = data.scaledTotalAmount - data.scaledAmountBurned;
-      uint256 normalizedAmountOwed = MathUtils.rayMul(scaledAmountOwed, market.scaleFactor());
+      uint256 normalizedAmountOwed = (scaledAmountOwed *
+        market.scaleFactor() +
+        batch.paymentRemainder +
+        HALF_RAY) / RAY;
       data.normalizedTotalAmount = data.normalizedAmountPaid + normalizedAmountOwed;
     } else {
       data.normalizedTotalAmount = data.normalizedAmountPaid;
