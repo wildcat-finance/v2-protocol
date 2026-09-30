@@ -125,7 +125,8 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     harness.applyPayment(batch, state, 1);
   }
 
-  function test_wideCumulativeTotalsKeepTheirSmallLiveDifference() external view {
+  // Defensive helper behavior for synthetic state outside the queue-admission invariant.
+  function test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference() external view {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
     state.scaledTotalSupply = 7;
