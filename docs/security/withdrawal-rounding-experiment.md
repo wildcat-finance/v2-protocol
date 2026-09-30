@@ -2,6 +2,11 @@
 
 Status: local experiment branching from the cumulative-counter fix
 `23c47cde20c60d42c8e7a6aa1d4639968e45f9fb`. Not a deployment recommendation.
+The later capacity review rejected unbounded cumulative-counter widening. The
+selected pre-deployment remediation retains the packed `uint128` declarations
+but caps successful batch admission at `uint104.max`; see
+[the capacity handoff](./withdrawal-counter-capacity-handoff.md). Historical
+measurements below describe their named revisions and are not current guidance.
 
 Protocol selection comes first: establish the immutable accounting and interfaces,
 then adapt the subgraph, SDK and app. Existing consumer models do not constrain
@@ -17,8 +22,10 @@ below, but reduces runtime by 429 bytes with three changes:
   largest affordable burn directly as
   `((available + 1) * RAY - 1 - batchRemainder) / scaleFactor`. The conditional
   bounds `available` before multiplying, including arbitrary direct donations.
-  The live amount is checked against uint104 before calculation; cumulative
-  counters stay uint128. Payment, liability and counter checks remain intact.
+  The live amount is checked against uint104 before calculation; the physical
+  cumulative fields stay uint128. The selected remediation also bounds valid
+  cumulative batch ownership to uint104. Payment, liability and counter checks
+  remain intact.
 - Use the same carry-aware pending/outstanding reserve partition at every
   reserve ratio. It already gives exactly the old results at 0% and 100%, so
   those separate branches are unnecessary. It also rejects the unreachable
@@ -72,9 +79,9 @@ endpoint formulas. No production guard was removed to make that test pass.
 
 New tests call the real payment helper through `WithdrawalPaymentHarness`. They
 cover exact funded price, maximal affordable burn, debt conservation, zero/one-unit
-liquidity, maximum factors, uint256-max donations, wide cumulative counters with
-small live differences, and checked liability failures. The original fragmentation
-and closure regressions still pass across both market and hook types. Reports,
+liquidity, maximum factors, uint256-max donations, defensive synthetic wide-state
+behavior with small live differences, and checked liability failures. The original
+fragmentation and closure regressions still pass across both market and hook types. Reports,
 logs, comparison source and size hashes are retained locally under
 `artifacts/withdrawal-rounding-size/` in the same persistent artifact collection
 as the original experiment.
@@ -119,7 +126,8 @@ The argument depends on these maintained invariants:
 
 - Aggregate carry equals the sum of all retained batch carries; each is below R.
 - A batch's live unpaid difference is part of pending supply, bounded by live
-  uint104 supply. Its cumulative counters may independently exceed uint104.
+  uint104 supply. The carry experiment originally assumed cumulative counters
+  could exceed uint104; the later capacity review rejected that admission domain.
 - The factor is positive, starts at R and does not decrease. Burned fractions
   do not subsequently earn interest.
 - Funded unclaimed withdrawals include every paid unit less executed claims;
@@ -168,7 +176,7 @@ of the entire protocol.
 | Option                                                 | Consequence                                                                                                                                                       |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Complete carry, with the size reductions above         | Retains each payment fraction and conserves debt. Requires the additional aggregate slot, new hook inputs and consumer accounting changes.                        |
-| Counter fix alone, retaining the rounding issue        | Keeps the original rounding behavior and avoids the carry's additional state/hook migration. Counter-width reader compatibility still needs the assessed updates. |
+| Capped counter representation, retaining the rounding issue | Keeps the original rounding behavior and avoids the carry's additional state/hook migration. The current uint128 ABI declarations require regenerated bindings, but valid values remain compatible with legacy narrow readers. |
 | Round each payment up                                  | Replaces repeated underpayment with repeated overpayment. Simply changing the payment rounding does not reconcile closure debt.                                   |
 | Reserve an extra whole unit for each retained fraction | Can conservatively fund payments, but overstates liabilities/reserves and can change delinquency or closure timing, particularly for low-decimal assets.          |
 | Fund only complete batches                             | Reduces fragmentation but delays lender access; shares left unburned continue earning interest. This changes market economics.                                    |
@@ -193,7 +201,7 @@ umbrella submodule pin has not been updated.
 
 | Remediation                                    | Saved revision                                                                                                                   | Status                                                                                                                                                                                                                                       |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F-03: cumulative withdrawal-counter exhaustion | `experiment/withdrawal-counters-128` at `23c47cde20c60d42c8e7a6aa1d4639968e45f9fb`                                               | Implemented and validated locally. Cumulative counters widen to uint128 without additional storage slots. The 887-test suite passed in default and deployment configurations; revolving runtime retains 409 bytes of headroom. Not deployed. |
+| F-03: cumulative withdrawal-counter exhaustion | `experiment/withdrawal-counters-128` at `23c47cde20c60d42c8e7a6aa1d4639968e45f9fb`                                               | Superseded after capacity validation: unbounded widening admits batches whose normalized payment cannot fit. The selected remediation keeps the packed uint128 layout but restores the uint104 cumulative admission cap. The historical branch was not deployed. |
 | Repeated partial-payment rounding              | `experiment/withdrawal-rounding-carry` implementation at `3ea7a25567f135841d6cd2673b60facb0849a0bb`, followed by this checkpoint | Complete accounting experiment; 896 tests pass, with three size-gate failures. Deployment blocked by the revolving runtime exceeding EIP-170 by 407 bytes. Detailed costs and evidence below.                                                |
 
 The original rounding and counter-only branches remain independently available.
@@ -205,7 +213,8 @@ local persistent Codex Security artifact collection under
 
 At this checkpoint the choice was whether to recover bytecode space, try a smaller
 alternative, or retain the known issue. The smaller candidate above addresses the
-size gate. Neither experiment is an approved release. SDK/subgraph migrations remain unimplemented;
+size gate. The carry work remains a candidate; the unbounded widening was later
+rejected and replaced by the capped representation described above. SDK/subgraph migrations remain unimplemented;
 their required accounting changes are described below. Existing market behavior
 and known-issue dispositions have not been changed by deployment.
 
