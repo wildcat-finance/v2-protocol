@@ -113,6 +113,56 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     _checkPayment(0, uint112(RAY), uint128(RAY - 1), 0);
   }
 
+  function test_globalUnclaimedHeadroomCapsPayment() external view {
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+    state.scaledTotalSupply = 10;
+    state.scaledPendingWithdrawals = 10;
+    state.normalizedUnclaimedWithdrawals = type(uint128).max - 7;
+    WithdrawalBatch memory batch;
+    batch.scaledTotalAmount = 10;
+
+    (
+      WithdrawalBatch memory afterBatch,
+      MarketState memory afterState,
+      uint104 burned,
+      uint128 paid
+    ) = harness.applyPayment(batch, state, type(uint256).max);
+
+    assertEq(burned, 7, 'burn limited to global headroom');
+    assertEq(paid, 7, 'payment fills global headroom');
+    assertEq(afterBatch.scaledAmountBurned, 7);
+    assertEq(afterBatch.normalizedAmountPaid, 7);
+    assertEq(afterState.normalizedUnclaimedWithdrawals, type(uint128).max);
+    assertEq(afterState.scaledPendingWithdrawals, 3);
+    assertEq(afterState.totalDebts(), state.totalDebts(), 'payment conserves debt');
+  }
+
+  function test_zeroGlobalUnclaimedHeadroomLeavesPositivePaymentUnprocessed() external view {
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+    state.scaledTotalSupply = 1;
+    state.scaledPendingWithdrawals = 1;
+    state.normalizedUnclaimedWithdrawals = type(uint128).max;
+    WithdrawalBatch memory batch;
+    batch.scaledTotalAmount = 1;
+
+    (
+      WithdrawalBatch memory afterBatch,
+      MarketState memory afterState,
+      uint104 burned,
+      uint128 paid
+    ) = harness.applyPayment(batch, state, 1);
+
+    assertEq(burned, 0);
+    assertEq(paid, 0);
+    assertEq(afterBatch.scaledAmountBurned, 0);
+    assertEq(afterBatch.normalizedAmountPaid, 0);
+    assertEq(afterState.normalizedUnclaimedWithdrawals, type(uint128).max);
+    assertEq(afterState.scaledPendingWithdrawals, 1);
+    assertEq(afterState.totalDebts(), state.totalDebts());
+  }
+
   function test_cumulativePaidOverflowStillReverts() external {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
