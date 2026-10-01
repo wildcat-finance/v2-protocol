@@ -118,12 +118,13 @@ cumulative normalized payments below `uint128.max`.
 
 `normalizedUnclaimedWithdrawals` is a `uint128` total across batches. At extreme
 factors, several uncollected batches can temporarily consume that capacity and
-make a later payment revert. Older batches are already executable when a new
-batch opens, and anyone can execute those claims to release the global capacity
-before retrying payment. A failing or restricted underlying-token transfer can
-delay that recovery under the unsupported-token behaviors below. Underlying
-assets are not assumed to be Foundation-preapproved, so assess denominations
-and expected amounts against the cumulative batch cap.
+defer a later payment. Payments are capped at the remaining global capacity;
+older batches are already executable when a new batch opens, and anyone can
+execute those claims to release capacity before the later batch continues. A
+failing or restricted underlying-token transfer can delay that recovery under
+the unsupported-token behaviors below. Underlying assets are not assumed to be
+Foundation-preapproved, so assess denominations and expected amounts against
+the cumulative batch cap.
 
 See [scaling](../protocol/scaling-and-rounding.md#finite-scale-factor-representation),
 [withdrawal representation limits](../protocol/withdrawals.md#representation-limits),

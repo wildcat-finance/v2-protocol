@@ -845,11 +845,16 @@ contract WildcatMarketBase is
         batch.scaledAmountBurned,
         batch.normalizedAmountPaid
       );
-      if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-        _withdrawalData.unpaidBatches.push(expiry);
-      } else {
-        emit_WithdrawalBatchClosed(expiry);
-      }
+      _closeOrQueueWithdrawalBatch(expiry, batch);
+    }
+  }
+
+  /// @dev Fully paid batches close; capped or underfunded batches remain reachable through FIFO.
+  function _closeOrQueueWithdrawalBatch(uint32 expiry, WithdrawalBatch memory batch) internal {
+    if (batch.scaledAmountBurned == batch.scaledTotalAmount) {
+      emit_WithdrawalBatchClosed(expiry);
+    } else {
+      _withdrawalData.unpaidBatches.push(expiry);
     }
   }
 
@@ -1037,7 +1042,7 @@ contract WildcatMarketBase is
         batch.scaledAmountBurned,
         batch.normalizedAmountPaid
       );
-      emit_WithdrawalBatchClosed(expiry);
+      _closeOrQueueWithdrawalBatch(expiry, batch);
     }
     state.closeFundedState();
     _commitAutomaticClosure(block.timestamp);
@@ -1230,6 +1235,11 @@ contract WildcatMarketBase is
     MarketState memory state,
     uint256 availableLiquidity
   ) internal pure returns (uint104 scaledAmountBurned, uint128 normalizedAmountPaid) {
+    // Paid-but-unclaimed withdrawals share one uint128 counter across every batch.
+    // Leave any excess liquidity unallocated until older claims release capacity.
+    // The uint128 complement is exactly type(uint128).max minus the stored value.
+    uint256 headroom = ~state.normalizedUnclaimedWithdrawals;
+    if (availableLiquidity > headroom) availableLiquidity = headroom;
     // Valid cumulative totals and their live difference are capped at uint104,
     // although the packed batch fields retain their uint128 ABI types.
     uint256 burned = uint256(batch.scaledTotalAmount - batch.scaledAmountBurned).toUint104();

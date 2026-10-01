@@ -29,6 +29,12 @@ contract WithdrawalCountersTest is MarketFixture {
   address internal constant OtherLender = address(0xB0B);
   uint256 internal constant RAY = 1e27;
 
+  struct CapacityScenario {
+    Fixture fixture;
+    uint256 amount;
+    uint32[4] expiries;
+  }
+
   function _fixture(bool revolving, HooksKind kind) private returns (Fixture memory fixture) {
     Options memory options = _defaultOptions(kind);
     options.revolving = revolving;
@@ -189,55 +195,194 @@ contract WithdrawalCountersTest is MarketFixture {
     );
   }
 
-  function test_globalUnclaimedCapacityRecoversWhenPriorClaimExecutes() external {
-    Options memory options = _defaultOptions(HooksKind.OpenTerm);
+  function _globalCapacityFixture(
+    bool revolving,
+    HooksKind kind,
+    uint32 repaymentDate
+  ) private returns (CapacityScenario memory scenario) {
+    Options memory options = _defaultOptions(kind);
+    options.revolving = revolving;
     options.maxTotalSupply = type(uint128).max;
     options.reserveRatioBips = 0;
     options.annualInterestBips = 0;
+    options.commitmentFeeBips = 0;
     options.protocolFeeBips = 0;
     options.delinquencyFeeBips = 0;
-    Fixture memory fixture = _newMarket(options);
-    _setFactor(fixture, uint112(4e33));
+    options.repaymentDate = repaymentDate;
+    options.repaymentPeriod = repaymentDate == 0 ? 0 : 10 days;
+    scenario.fixture = _newMarket(options);
+    _setFactor(scenario.fixture, uint112(4e33));
 
-    uint256 amount = uint256(type(uint104).max) * 4_000_000;
-    uint32[] memory expiries = new uint32[](4);
+    scenario.amount = uint256(type(uint104).max) * 4_000_000;
     for (uint256 i; i < 4; i++) {
-      expiries[i] = _queue(fixture, Lender, amount);
-      vm.warp(uint256(expiries[i]) + 1);
-      fixture.market.updateState();
+      scenario.expiries[i] = _queue(scenario.fixture, Lender, scenario.amount);
+      vm.warp(uint256(scenario.expiries[i]) + 1);
+      scenario.fixture.market.updateState();
     }
     assertEq(
-      fixture.market.previousState().normalizedUnclaimedWithdrawals,
-      amount * 4,
+      scenario.fixture.market.previousState().normalizedUnclaimedWithdrawals,
+      scenario.amount * 4,
       'four batches reserved'
     );
+  }
 
+  function _openUnfundedBatch(
+    Fixture memory fixture,
+    uint256 amount
+  ) private returns (uint32 expiry) {
     _deposit(fixture, Lender, amount);
     vm.prank(Borrower);
     fixture.market.borrow(amount);
     vm.prank(Lender);
-    uint32 unpaidExpiry = fixture.market.queueFullWithdrawal();
+    expiry = fixture.market.queueFullWithdrawal();
+  }
+
+  function test_globalUnclaimedCapacityRecoversWhenPriorClaimExecutes() external {
+    CapacityScenario memory scenario = _globalCapacityFixture(false, HooksKind.OpenTerm, 0);
+    uint32 unpaidExpiry = _openUnfundedBatch(scenario.fixture, scenario.amount);
     vm.warp(uint256(unpaidExpiry) + 1);
 
+    uint256 headroom =
+      type(uint128).max - scenario.fixture.market.previousState().normalizedUnclaimedWithdrawals;
     vm.startPrank(Borrower);
-    fixture.asset.approve(address(fixture.market), amount);
-    vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
-    fixture.market.repayAndProcessUnpaidWithdrawalBatches(amount, 1);
+    scenario.fixture.asset.approve(address(scenario.fixture.market), scenario.amount);
+    scenario.fixture.market.repayAndProcessUnpaidWithdrawalBatches(scenario.amount, 1);
     vm.stopPrank();
 
-    assertEq(fixture.market.executeWithdrawal(Lender, expiries[0]), amount, 'old claim exits');
-    vm.startPrank(Borrower);
-    fixture.asset.approve(address(fixture.market), amount);
-    fixture.market.repayAndProcessUnpaidWithdrawalBatches(amount, 1);
-    vm.stopPrank();
+    WithdrawalBatch memory capped = scenario.fixture.market.getWithdrawalBatch(unpaidExpiry);
+    assertTrue(capped.normalizedAmountPaid > 0, 'available headroom used');
+    assertTrue(capped.normalizedAmountPaid <= headroom, 'global headroom respected');
+    assertTrue(capped.scaledAmountBurned < capped.scaledTotalAmount, 'remainder stays unpaid');
 
-    WithdrawalBatch memory recovered = fixture.market.getWithdrawalBatch(unpaidExpiry);
+    assertEq(
+      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]),
+      scenario.amount,
+      'old claim exits'
+    );
+    scenario.fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+
+    WithdrawalBatch memory recovered = scenario.fixture.market.getWithdrawalBatch(unpaidExpiry);
     assertEq(recovered.scaledAmountBurned, type(uint104).max, 'pending batch paid');
     for (uint256 i = 1; i < 4; i++) {
-      assertEq(fixture.market.executeWithdrawal(Lender, expiries[i]), amount, 'old claim pays');
+      assertEq(
+        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]),
+        scenario.amount,
+        'old claim pays'
+      );
     }
-    assertEq(fixture.market.executeWithdrawal(Lender, unpaidExpiry), amount, 'new claim pays');
-    assertEq(fixture.market.totalAssets(), 0, 'all claims collected');
+    assertEq(
+      scenario.fixture.market.executeWithdrawal(Lender, unpaidExpiry),
+      scenario.amount,
+      'new claim pays'
+    );
+    assertEq(scenario.fixture.market.totalAssets(), 0, 'all claims collected');
+  }
+
+  function _checkDirectDonationDoesNotBlockPriorClaim(bool revolving, HooksKind kind) private {
+    CapacityScenario memory scenario = _globalCapacityFixture(revolving, kind, 0);
+    uint32 currentExpiry = _openUnfundedBatch(scenario.fixture, scenario.amount);
+    assertTrue(block.timestamp < currentExpiry, 'batch is still current');
+
+    uint256 reservedBefore = scenario.fixture.market.previousState().normalizedUnclaimedWithdrawals;
+    uint256 headroom = type(uint128).max - reservedBefore;
+    scenario.fixture.asset.mint(OtherLender, scenario.amount);
+    vm.prank(OtherLender);
+    scenario.fixture.asset.transfer(address(scenario.fixture.market), scenario.amount);
+
+    WithdrawalBatch memory capped = scenario.fixture.market.getWithdrawalBatch(currentExpiry);
+    assertTrue(capped.normalizedAmountPaid > 0, 'donation uses available headroom');
+    assertTrue(capped.normalizedAmountPaid <= headroom, 'donation cannot overflow aggregate');
+    assertTrue(capped.scaledAmountBurned < capped.scaledTotalAmount, 'excess stays pending');
+    assertEq(
+      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]),
+      scenario.amount,
+      'old claim exits'
+    );
+
+    scenario.fixture.market.updateState();
+    WithdrawalBatch memory recovered = scenario.fixture.market.getWithdrawalBatch(currentExpiry);
+    assertEq(recovered.scaledAmountBurned, type(uint104).max, 'freed capacity funds remainder');
+    assertEq(recovered.normalizedAmountPaid, scenario.amount, 'current batch fully paid');
+    for (uint256 i = 1; i < 4; i++) {
+      assertEq(
+        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]),
+        scenario.amount,
+        'old claim pays'
+      );
+    }
+    vm.warp(uint256(currentExpiry) + 1);
+    assertEq(
+      scenario.fixture.market.executeWithdrawal(Lender, currentExpiry),
+      scenario.amount,
+      'new claim pays'
+    );
+    assertEq(scenario.fixture.market.totalAssets(), 0, 'all claims collected');
+  }
+
+  function test_directDonationCannotBlockPriorClaim_AcrossMarketKinds() external {
+    for (uint256 i; i < 4; i++) {
+      _checkDirectDonationDoesNotBlockPriorClaim(i >= 2, HooksKind(i % 2));
+    }
+  }
+
+  function _checkRepaymentClosureQueuesHeadroomLimitedBatch(bool revolving) private {
+    uint32 repaymentDate = uint32(vm.getBlockTimestamp() + 4 days + 12 hours);
+    CapacityScenario memory scenario = _globalCapacityFixture(
+      revolving,
+      HooksKind.OpenTerm,
+      repaymentDate
+    );
+    uint32 currentExpiry = _openUnfundedBatch(scenario.fixture, scenario.amount);
+    assertTrue(repaymentDate < currentExpiry, 'repayment precedes batch expiry');
+
+    vm.warp(repaymentDate);
+    vm.startPrank(Borrower);
+    scenario.fixture.asset.approve(address(scenario.fixture.market), scenario.amount);
+    scenario.fixture.market.repay(scenario.amount);
+    vm.stopPrank();
+
+    assertTrue(scenario.fixture.market.previousState().isClosed, 'fully backed market closes');
+    assertEq(
+      scenario.fixture.market.previousState().pendingWithdrawalExpiry,
+      0,
+      'current key cleared'
+    );
+    uint32[] memory unpaid = scenario.fixture.market.getUnpaidBatchExpiries();
+    assertEq(unpaid.length, 1, 'partial batch remains reachable');
+    assertEq(unpaid[0], currentExpiry, 'partial batch queued');
+    WithdrawalBatch memory capped = scenario.fixture.market.getWithdrawalBatch(currentExpiry);
+    assertTrue(capped.normalizedAmountPaid > 0, 'headroom reserved');
+    assertTrue(capped.scaledAmountBurned < capped.scaledTotalAmount, 'batch remains partial');
+
+    assertEq(
+      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]),
+      scenario.amount,
+      'old claim exits'
+    );
+    scenario.fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
+    assertEq(
+      scenario.fixture.market.getUnpaidBatchExpiries().length,
+      0,
+      'partial batch completed'
+    );
+    for (uint256 i = 1; i < 4; i++) {
+      assertEq(
+        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]),
+        scenario.amount,
+        'old claim pays'
+      );
+    }
+    assertEq(
+      scenario.fixture.market.executeWithdrawal(Lender, currentExpiry),
+      scenario.amount,
+      'new claim pays'
+    );
+    assertEq(scenario.fixture.market.totalAssets(), 0, 'all claims collected');
+  }
+
+  function test_repaymentClosureQueuesHeadroomLimitedBatch_AcrossMarketKinds() external {
+    _checkRepaymentClosureQueuesHeadroomLimitedBatch(false);
+    _checkRepaymentClosureQueuesHeadroomLimitedBatch(true);
   }
 
   function test_uint104CapKeepsWorstCaseNormalizedPaymentWithinUint128() external pure {
