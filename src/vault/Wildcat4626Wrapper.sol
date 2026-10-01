@@ -86,7 +86,7 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   string private _name;
   string private _symbol;
 
-  /// @dev remembers which escrows this wrapper actually used to quarantine sanctioned shares.
+  /// @dev remembers which escrows currently have one release authorized by this wrapper.
   mapping(address escrow => bool authorized) private _authorizedEscrows;
 
   /// @param marketAddress Wildcat market token to wrap.
@@ -875,8 +875,8 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     }
   }
 
-  /// @dev `from` only gets the release exception if this wrapper authorized it and it still matches
-  ///      `account` under its original principal.
+  /// @dev `from` only gets the release exception if this wrapper currently authorizes it and it
+  ///      still matches `account` under its original principal.
   function _isEscrowRelease(address from, address account) internal view returns (bool) {
     if (!_authorizedEscrows[from]) return false;
     address escrowPrincipal;
@@ -987,12 +987,13 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
   }
 
   /// @dev enforces solvency and sanctions on share moves. a sanctioned holder may only move to its
-  ///      deterministic escrow; an authorized escrow may release back under its original principal.
+  ///      deterministic escrow; an authorized escrow gets one release under its original principal.
   function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
     address principal = _readMarketAddress(IWildcatMarketToken.borrowerPrincipal.selector);
     bool fromIsSanctioned = _isSanctioned(from, principal);
     bool toIsSanctioned = _isSanctioned(to, principal);
-    if ((fromIsSanctioned || toIsSanctioned) && _isEscrowRelease(from, to)) {
+    bool isEscrowRelease = _isEscrowRelease(from, to);
+    if ((fromIsSanctioned || toIsSanctioned) && isEscrowRelease) {
       _requireOperational(principal);
     } else {
       if (fromIsSanctioned) {
@@ -1005,6 +1006,9 @@ contract Wildcat4626Wrapper is ERC4626, ReentrancyGuard {
     }
     if (amount == 0) {
       return;
+    }
+    if (isEscrowRelease) {
+      delete _authorizedEscrows[from];
     }
   }
 }
