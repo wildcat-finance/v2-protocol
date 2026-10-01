@@ -686,6 +686,8 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.sanctionsList.sanction(oldEscrow);
     vm.prank(Borrower);
     fixture.sentinel.overrideSanction(Lender);
+    vm.prank(Outsider);
+    wrapper.transferFrom(oldEscrow, Lender, 0);
     IWildcatSanctionsEscrow(oldEscrow).releaseEscrow();
 
     assertEq(wrapper.balanceOf(Lender), shares, 'old escrow release');
@@ -705,6 +707,88 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     IWildcatSanctionsEscrow(newEscrow).releaseEscrow();
     assertEq(wrapper.balanceOf(Lender), shares, 'new escrow release');
     assertEq(wrapper.balanceOf(newEscrow), 0, 'new escrow remainder');
+  }
+
+  function test_oldEscrowAuthorizationIsConsumedAfterPrincipalMigration() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
+    uint256 lenderShares = _wrap(fixture, wrapper, Lender, DepositAmount);
+    uint256 donorShares = _wrap(fixture, wrapper, OtherLender, DepositAmount);
+
+    fixture.sanctionsList.sanction(Lender);
+    wrapper.nukeFromOrbit(Lender);
+    address oldEscrow = fixture.sentinel.getEscrowAddress(Borrower, Lender, address(wrapper));
+
+    _registerPrincipal(fixture, SecondPrincipal);
+    _transferBorrower(fixture, Borrower, SecondPrincipal);
+    vm.prank(Borrower);
+    fixture.sentinel.overrideSanction(Lender);
+    IWildcatSanctionsEscrow(oldEscrow).releaseEscrow();
+
+    assertEq(wrapper.balanceOf(Lender), lenderShares, 'first release');
+    assertTrue(fixture.sentinel.isSanctioned(SecondPrincipal, Lender), 'live sanction');
+
+    vm.prank(OtherLender);
+    wrapper.transfer(oldEscrow, donorShares);
+    vm.expectRevert(LibERC20.TransferFailed.selector);
+    IWildcatSanctionsEscrow(oldEscrow).releaseEscrow();
+
+    assertEq(wrapper.balanceOf(oldEscrow), donorShares, 'refill rollback');
+    assertEq(wrapper.balanceOf(Lender), lenderShares, 'sanctioned holder balance');
+  }
+
+  function test_unsanctionedReleaseAlsoConsumesOldEscrowAuthorization() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
+    uint256 lenderShares = _wrap(fixture, wrapper, Lender, DepositAmount);
+    uint256 donorShares = _wrap(fixture, wrapper, OtherLender, DepositAmount);
+
+    fixture.sanctionsList.sanction(Lender);
+    wrapper.nukeFromOrbit(Lender);
+    address oldEscrow = fixture.sentinel.getEscrowAddress(Borrower, Lender, address(wrapper));
+
+    vm.prank(Borrower);
+    fixture.sentinel.overrideSanction(Lender);
+    IWildcatSanctionsEscrow(oldEscrow).releaseEscrow();
+    assertEq(wrapper.balanceOf(Lender), lenderShares, 'unsanctioned release');
+
+    _registerPrincipal(fixture, SecondPrincipal);
+    _transferBorrower(fixture, Borrower, SecondPrincipal);
+    assertTrue(fixture.sentinel.isSanctioned(SecondPrincipal, Lender), 'live sanction');
+
+    vm.prank(OtherLender);
+    wrapper.transfer(oldEscrow, donorShares);
+    vm.expectRevert(LibERC20.TransferFailed.selector);
+    IWildcatSanctionsEscrow(oldEscrow).releaseEscrow();
+
+    assertEq(wrapper.balanceOf(oldEscrow), donorShares, 'refill rollback');
+    assertEq(wrapper.balanceOf(Lender), lenderShares, 'sanctioned holder balance');
+  }
+
+  function test_laterNukeReauthorizesConsumedEscrow() external {
+    Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
+    Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
+    uint256 shares = _wrap(fixture, wrapper, Lender, DepositAmount);
+
+    fixture.sanctionsList.sanction(Lender);
+    wrapper.nukeFromOrbit(Lender);
+    address escrow = fixture.sentinel.getEscrowAddress(Borrower, Lender, address(wrapper));
+
+    vm.prank(Borrower);
+    fixture.sentinel.overrideSanction(Lender);
+    IWildcatSanctionsEscrow(escrow).releaseEscrow();
+    assertEq(wrapper.balanceOf(Lender), shares, 'first release');
+
+    vm.prank(Borrower);
+    fixture.sentinel.removeSanctionOverride(Lender);
+    wrapper.nukeFromOrbit(Lender);
+    assertEq(wrapper.balanceOf(escrow), shares, 'reauthorized escrow');
+
+    vm.prank(Borrower);
+    fixture.sentinel.overrideSanction(Lender);
+    IWildcatSanctionsEscrow(escrow).releaseEscrow();
+    assertEq(wrapper.balanceOf(Lender), shares, 'reauthorized release');
+    assertEq(wrapper.balanceOf(escrow), 0, 'escrow remainder');
   }
 
   function test_wrapperNamespaceAndSweepAuthorityFollowTheLiveBorrowerIdentity() external {
