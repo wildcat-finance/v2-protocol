@@ -7,9 +7,7 @@ import { TestKernel } from '../shared/TestKernel.sol';
 
 contract ReentrancyGuardTest is TestKernel {
   function _newHarness() internal returns (ReentrancyHarness harness) {
-    harness = ReentrancyHarness(
-      _deployCode('test/mocks/ReentrancyHarness.sol:ReentrancyHarness')
-    );
+    harness = ReentrancyHarness(_deployCode('test/mocks/ReentrancyHarness.sol:ReentrancyHarness'));
   }
 
   function test_guard_AllowsOrdinaryStatefulAndViewCalls() external {

@@ -57,8 +57,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   TransientBytesArray internal constant _tmpMarketParameters =
     TransientBytesArray.wrap(uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1);
 
-  uint256 internal constant _TMP_BORROWER_PRINCIPAL_SLOT =
-    uint256(keccak256('Transient:TmpBorrowerPrincipal')) - 1;
+  uint256 internal constant _TMP_BORROWER_PRINCIPAL_SLOT = uint256(keccak256('Transient:TmpBorrowerPrincipal')) - 1;
 
   uint256 internal immutable ownCreate2Prefix = LibStoredInitCode.getCreate2Prefix(address(this));
 
@@ -91,8 +90,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   address[] internal _hooksTemplates;
 
   /// @dev Hooks instances currently administered by each address.
-  mapping(address administrator => address[] hooksInstances)
-    internal _hooksInstancesByAdministrator;
+  mapping(address administrator => address[] hooksInstances) internal _hooksInstancesByAdministrator;
 
   /// @notice current administrator tracked for each hooks instance, or zero if unknown.
   mapping(address hooksInstance => address administrator) public override getHooksAdministrator;
@@ -120,14 +118,10 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
    */
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
 
-  mapping(address hooksInstance => address hooksTemplate)
-    public
-    override getHooksTemplateForInstance;
+  mapping(address hooksInstance => address hooksTemplate) public override getHooksTemplateForInstance;
 
   /// @notice immutable artifact commitment for each registered template.
-  mapping(address hooksTemplate => bytes32 initCodeHash)
-    public
-    override getHooksTemplateInitCodeHash;
+  mapping(address hooksTemplate => bytes32 initCodeHash) public override getHooksTemplateInitCodeHash;
 
   constructor(
     address archController_,
@@ -162,11 +156,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   /**
    * @dev Get the temporary market parameters from transient storage.
    */
-  function _getTmpMarketParameters()
-    internal
-    view
-    returns (TmpMarketParameterStorage memory parameters)
-  {
+  function _getTmpMarketParameters() internal view returns (TmpMarketParameterStorage memory parameters) {
     return abi.decode(_tmpMarketParameters.read(), (TmpMarketParameterStorage));
   }
 
@@ -203,9 +193,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   }
 
   function _resolveBorrowerPrincipal(address borrower) internal view returns (address principal) {
-    (bool success, bytes memory returnData) = borrowerIdentityRegistry.staticcall(
-      abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower))
-    );
+    (bool success, bytes memory returnData) =
+      borrowerIdentityRegistry.staticcall(abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower)));
     if (!success || returnData.length != 0x20) revert NotApprovedBorrower();
     principal = abi.decode(returnData, (address));
     if (principal == address(0)) revert NotApprovedBorrower();
@@ -225,7 +214,11 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     uint80 originationFeeAmount,
     uint16 protocolFeeBips,
     bytes32 initCodeHash
-  ) external override onlyArchControllerOwner {
+  )
+    external
+    override
+    onlyArchControllerOwner
+  {
     if (_templateDetails[hooksTemplate].exists) {
       revert HooksTemplateAlreadyExists();
     }
@@ -262,15 +255,16 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address originationFeeAsset,
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
-  ) internal pure {
+  )
+    internal
+    pure
+  {
     bool hasOriginationFee = originationFeeAmount > 0;
     bool nullFeeRecipient = feeRecipient == address(0);
     bool nullOriginationFeeAsset = originationFeeAsset == address(0);
     if (
-      (protocolFeeBips > 0 && nullFeeRecipient) ||
-      (hasOriginationFee && nullFeeRecipient) ||
-      (hasOriginationFee && nullOriginationFeeAsset) ||
-      protocolFeeBips > 1_000
+      (protocolFeeBips > 0 && nullFeeRecipient) || (hasOriginationFee && nullFeeRecipient)
+        || (hasOriginationFee && nullOriginationFeeAsset) || protocolFeeBips > 1_000
     ) {
       revert InvalidFeeConfiguration();
     }
@@ -283,7 +277,11 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address originationFeeAsset,
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
-  ) external override onlyArchControllerOwner {
+  )
+    external
+    override
+    onlyArchControllerOwner
+  {
     if (!_templateDetails[hooksTemplate].exists) {
       revert HooksTemplateNotFound();
     }
@@ -323,9 +321,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     emit HooksTemplateDisabled(hooksTemplate, msg.sender);
   }
 
-  function getHooksTemplateDetails(
-    address hooksTemplate
-  ) external view override returns (HooksTemplate memory) {
+  function getHooksTemplateDetails(address hooksTemplate) external view override returns (HooksTemplate memory) {
     return _templateDetails[hooksTemplate];
   }
 
@@ -337,10 +333,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     return _hooksTemplates;
   }
 
-  function getHooksTemplates(
-    uint256 start,
-    uint256 end
-  ) external view override returns (address[] memory arr) {
+  function getHooksTemplates(uint256 start, uint256 end) external view override returns (address[] memory arr) {
     uint256 len = _hooksTemplates.length;
     end = MathUtils.min(end, len);
     if (start >= end) return new address[](0);
@@ -355,9 +348,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     return _hooksTemplates.length;
   }
 
-  function getMarketsForHooksTemplate(
-    address hooksTemplate
-  ) external view override returns (address[] memory) {
+  function getMarketsForHooksTemplate(address hooksTemplate) external view override returns (address[] memory) {
     return _marketsByHooksTemplate[hooksTemplate];
   }
 
@@ -365,7 +356,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address hooksTemplate,
     uint256 start,
     uint256 end
-  ) external view override returns (address[] memory arr) {
+  )
+    external
+    view
+    override
+    returns (address[] memory arr)
+  {
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
     uint256 len = markets.length;
     end = MathUtils.min(end, len);
@@ -377,9 +373,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
   }
 
-  function getMarketsForHooksTemplateCount(
-    address hooksTemplate
-  ) external view override returns (uint256) {
+  function getMarketsForHooksTemplateCount(address hooksTemplate) external view override returns (uint256) {
     return _marketsByHooksTemplate[hooksTemplate].length;
   }
 
@@ -394,14 +388,17 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   function deployHooksInstance(
     address hooksTemplate,
     bytes calldata constructorArgs
-  ) external override nonReentrant returns (address hooksInstance) {
+  )
+    external
+    override
+    nonReentrant
+    returns (address hooksInstance)
+  {
     address administrator = _resolveBorrowerPrincipal(msg.sender);
     hooksInstance = _deployHooksInstance(administrator, hooksTemplate, constructorArgs);
   }
 
-  function getHooksInstancesForAdministrator(
-    address administrator
-  ) external view override returns (address[] memory) {
+  function getHooksInstancesForAdministrator(address administrator) external view override returns (address[] memory) {
     return _hooksInstancesByAdministrator[administrator];
   }
 
@@ -409,7 +406,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address administrator,
     uint256 start,
     uint256 end
-  ) external view override returns (address[] memory arr) {
+  )
+    external
+    view
+    override
+    returns (address[] memory arr)
+  {
     address[] storage hooksInstances = _hooksInstancesByAdministrator[administrator];
     end = MathUtils.min(end, hooksInstances.length);
     if (start >= end) return new address[](0);
@@ -420,21 +422,15 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
   }
 
-  function getHooksInstancesCountForAdministrator(
-    address administrator
-  ) external view override returns (uint256) {
+  function getHooksInstancesCountForAdministrator(address administrator) external view override returns (uint256) {
     return _hooksInstancesByAdministrator[administrator].length;
   }
 
-  function getHooksInstancesForBorrower(
-    address borrower
-  ) external view override returns (address[] memory) {
+  function getHooksInstancesForBorrower(address borrower) external view override returns (address[] memory) {
     return _hooksInstancesByAdministrator[borrower];
   }
 
-  function getHooksInstancesCountForBorrower(
-    address borrower
-  ) external view override returns (uint256) {
+  function getHooksInstancesCountForBorrower(address borrower) external view override returns (uint256) {
     return _hooksInstancesByAdministrator[borrower].length;
   }
 
@@ -442,25 +438,26 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   function onHooksAdministratorTransferred(
     address previousAdministrator,
     address newAdministrator
-  ) external override nonReentrant {
+  )
+    external
+    override
+    nonReentrant
+  {
     address hooksInstance = msg.sender;
     if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
       revert HooksInstanceNotFound();
     }
     if (
-      previousAdministrator == newAdministrator ||
-      newAdministrator == address(0) ||
-      getHooksAdministrator[hooksInstance] != previousAdministrator ||
-      IHooksAdministrator(hooksInstance).administrator() != newAdministrator ||
-      IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0) ||
-      !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
+      previousAdministrator == newAdministrator || newAdministrator == address(0)
+        || getHooksAdministrator[hooksInstance] != previousAdministrator
+        || IHooksAdministrator(hooksInstance).administrator() != newAdministrator
+        || IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0)
+        || !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
     ) {
       revert InvalidHooksAdministrator();
     }
 
-    address[] storage previousHooksInstances = _hooksInstancesByAdministrator[
-      previousAdministrator
-    ];
+    address[] storage previousHooksInstances = _hooksInstancesByAdministrator[previousAdministrator];
     uint256 indexToRemove = _hooksInstanceIndex[hooksInstance];
     uint256 previousCount = previousHooksInstances.length;
     if (indexToRemove >= previousCount || previousHooksInstances[indexToRemove] != hooksInstance) {
@@ -478,11 +475,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     _hooksInstancesByAdministrator[newAdministrator].push(hooksInstance);
     getHooksAdministrator[hooksInstance] = newAdministrator;
 
-    emit HooksInstanceAdministratorTransferred(
-      hooksInstance,
-      previousAdministrator,
-      newAdministrator
-    );
+    emit HooksInstanceAdministratorTransferred(hooksInstance, previousAdministrator, newAdministrator);
   }
 
   /// @inheritdoc IHooksFactory
@@ -494,7 +487,10 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address administrator,
     address hooksTemplate,
     bytes calldata constructorArgs
-  ) internal returns (address hooksInstance) {
+  )
+    internal
+    returns (address hooksInstance)
+  {
     HooksTemplate storage template = _templateDetails[hooksTemplate];
     if (!template.exists) {
       revert HooksTemplateNotFound();
@@ -546,11 +542,8 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
       getHooksInstanceString(hooksInstance, bytes4(keccak256('name()'))),
       getHooksInstanceString(hooksInstance, IHooks.version.selector)
     );
-    (
-      bool metadataAvailable,
-      RoleProvider[] memory pullProviders,
-      RoleProvider[] memory pushProviders
-    ) = getHooksInstanceRoleProviders(hooksInstance);
+    (bool metadataAvailable, RoleProvider[] memory pullProviders, RoleProvider[] memory pushProviders) =
+      getHooksInstanceRoleProviders(hooksInstance);
     emit HooksInstanceRoleProviders(hooksInstance, metadataAvailable, pullProviders, pushProviders);
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
@@ -559,9 +552,7 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
   //                                   Markets                                  //
   // ========================================================================== //
 
-  function getMarketsForHooksInstance(
-    address hooksInstance
-  ) external view override returns (address[] memory) {
+  function getMarketsForHooksInstance(address hooksInstance) external view override returns (address[] memory) {
     return _marketsByHooksInstance[hooksInstance];
   }
 
@@ -569,7 +560,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address hooksInstance,
     uint256 start,
     uint256 end
-  ) external view override returns (address[] memory arr) {
+  )
+    external
+    view
+    override
+    returns (address[] memory arr)
+  {
     address[] storage markets = _marketsByHooksInstance[hooksInstance];
     end = MathUtils.min(end, markets.length);
     if (start >= end) return new address[](0);
@@ -580,19 +576,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
   }
 
-  function getMarketsForHooksInstanceCount(
-    address hooksInstance
-  ) external view override returns (uint256) {
+  function getMarketsForHooksInstanceCount(address hooksInstance) external view override returns (uint256) {
     return _marketsByHooksInstance[hooksInstance].length;
   }
 
   /// @inheritdoc IHooksFactory
-  function getMarketParameters()
-    external
-    view
-    override
-    returns (MarketParameters memory parameters)
-  {
+  function getMarketParameters() external view override returns (MarketParameters memory parameters) {
     TmpMarketParameterStorage memory tmp = _getTmpMarketParameters();
 
     parameters.asset = tmp.asset;
@@ -658,7 +647,9 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     TmpMarketParameterStorage memory tmp,
     DeployMarketRuntimeParameters memory runtimeParams,
     bytes memory hooksData
-  ) internal {
+  )
+    internal
+  {
     emit MarketDeployed(
       runtimeParams.hooksTemplate,
       runtimeParams.requestedHooks.hooksAddress(),
@@ -693,7 +684,10 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     DeployMarketInputs memory parameters,
     bytes memory hooksData,
     DeployMarketRuntimeParameters memory runtimeParams
-  ) internal returns (address market) {
+  )
+    internal
+    returns (address market)
+  {
     HooksTemplate memory templateDetails = _templateDetails[runtimeParams.hooksTemplate];
     if (IWildcatArchController(_archController).isBlacklistedAsset(parameters.asset)) {
       revert AssetBlacklisted();
@@ -705,33 +699,22 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     }
 
     if (
-      runtimeParams.originationFeeAsset != templateDetails.originationFeeAsset ||
-      runtimeParams.originationFeeAmount != templateDetails.originationFeeAmount
+      runtimeParams.originationFeeAsset != templateDetails.originationFeeAsset
+        || runtimeParams.originationFeeAmount != templateDetails.originationFeeAmount
     ) {
       revert FeeMismatch();
     }
 
     // Positive template fees require a token and recipient; zero fees need no token call.
     if (runtimeParams.originationFeeAmount != 0) {
-      runtimeParams.originationFeeAsset.safeTransferFrom(
-        msg.sender,
-        templateDetails.feeRecipient,
-        runtimeParams.originationFeeAmount
-      );
+      runtimeParams.originationFeeAsset
+        .safeTransferFrom(msg.sender, templateDetails.feeRecipient, runtimeParams.originationFeeAmount);
     }
 
-    market = LibStoredInitCode.calculateCreate2Address(
-      ownCreate2Prefix,
-      runtimeParams.salt,
-      marketInitCodeHash
-    );
+    market = LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, runtimeParams.salt, marketInitCodeHash);
 
-    parameters.hooks = IHooks(hooksInstance).onCreateMarket(
-      runtimeParams.borrowerPrincipal,
-      market,
-      parameters,
-      hooksData
-    );
+    parameters.hooks =
+      IHooks(hooksInstance).onCreateMarket(runtimeParams.borrowerPrincipal, market, parameters, hooksData);
     uint8 decimals = parameters.asset.decimals();
 
     string memory name = string.concat(parameters.namePrefix, parameters.asset.name());
@@ -793,7 +776,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     bytes32 salt,
     address originationFeeAsset,
     uint256 originationFeeAmount
-  ) external override nonReentrant returns (address market) {
+  )
+    external
+    override
+    nonReentrant
+    returns (address market)
+  {
     address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
     address hooksInstance = parameters.hooks.hooksAddress();
     address hooksTemplate = getHooksTemplateForInstance[hooksInstance];
@@ -820,7 +808,12 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     bytes32 salt,
     address originationFeeAsset,
     uint256 originationFeeAmount
-  ) external override nonReentrant returns (address market, address hooksInstance) {
+  )
+    external
+    override
+    nonReentrant
+    returns (address market, address hooksInstance)
+  {
     address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
     HooksTemplate memory templateDetails = _templateDetails[hooksTemplate];
     if (!templateDetails.exists) {
@@ -844,7 +837,11 @@ contract HooksFactory is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooks
     address hooksTemplate,
     uint marketStartIndex,
     uint marketEndIndex
-  ) public override nonReentrant {
+  )
+    public
+    override
+    nonReentrant
+  {
     HooksTemplate memory details = _templateDetails[hooksTemplate];
     if (!details.exists) revert HooksTemplateNotFound();
 

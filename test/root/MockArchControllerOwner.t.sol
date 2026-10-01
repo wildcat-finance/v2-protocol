@@ -23,11 +23,7 @@ contract MockArchControllerOwnerTest is TestKernel {
 
   event AccountAuthorized(address indexed authorizer, address indexed account);
   event AccountDeauthorized(address indexed authorizer, address indexed account);
-  event ProtocolActionExecuted(
-    address indexed executor,
-    address indexed target,
-    bytes4 indexed selector
-  );
+  event ProtocolActionExecuted(address indexed executor, address indexed target, bytes4 indexed selector);
 
   address internal constant OldExecutor = 0xca732651410E915090d7A7D889A1E44eF4575fcE;
   address internal constant NewExecutor = 0xCa7007a75296b532Ce1606d9e130eAa849800Ca7;
@@ -35,15 +31,16 @@ contract MockArchControllerOwnerTest is TestKernel {
   address internal constant BadCaller = address(0xBAD);
 
   function _deployArchController() internal returns (WildcatArchController archController) {
-    archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
   }
 
   function _deployHelper(
     WildcatArchController archController,
     address[] memory initialExecutors
-  ) internal returns (MockArchControllerOwner helper) {
+  )
+    internal
+    returns (MockArchControllerOwner helper)
+  {
     helper = MockArchControllerOwner(
       _deployCode(
         'script/mock/MockArchControllerOwner.sol:MockArchControllerOwner',
@@ -52,24 +49,24 @@ contract MockArchControllerOwnerTest is TestKernel {
     );
   }
 
-  function _deployProtocolTarget(
-    address archController
-  ) internal returns (ArchControllerOwnerProtocolTargetMock target) {
+  function _deployProtocolTarget(address archController)
+    internal
+    returns (ArchControllerOwnerProtocolTargetMock target)
+  {
     target = ArchControllerOwnerProtocolTargetMock(
       _deployCode(
-        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerProtocolTargetMock',
-        abi.encode(archController)
+        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerProtocolTargetMock', abi.encode(archController)
       )
     );
   }
 
-  function _deployLegacyFactory(
-    address archController
-  ) internal returns (ArchControllerOwnerLegacyFactoryMock factory) {
+  function _deployLegacyFactory(address archController)
+    internal
+    returns (ArchControllerOwnerLegacyFactoryMock factory)
+  {
     factory = ArchControllerOwnerLegacyFactoryMock(
       _deployCode(
-        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerLegacyFactoryMock',
-        abi.encode(archController)
+        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerLegacyFactoryMock', abi.encode(archController)
       )
     );
   }
@@ -245,15 +242,11 @@ contract MockArchControllerOwnerTest is TestKernel {
 
   function test_executeProtocolAction_CallsArchController() external {
     Fixture memory fixture = _newFixture();
-    bytes memory data = abi.encodeCall(
-      WildcatArchController.registerControllerFactory,
-      (address(fixture.protocolTarget))
-    );
+    bytes memory data =
+      abi.encodeCall(WildcatArchController.registerControllerFactory, (address(fixture.protocolTarget)));
     vm.prank(NewExecutor);
     fixture.helper.executeProtocolAction(address(fixture.archController), data);
-    assertTrue(
-      fixture.archController.isRegisteredControllerFactory(address(fixture.protocolTarget))
-    );
+    assertTrue(fixture.archController.isRegisteredControllerFactory(address(fixture.protocolTarget)));
   }
 
   function test_executeProtocolAction_EmitsForBoundTargetAndReturnsData() external {
@@ -267,10 +260,7 @@ contract MockArchControllerOwnerTest is TestKernel {
       ArchControllerOwnerProtocolTargetMock.setValue.selector
     );
     vm.prank(NewExecutor);
-    bytes memory result = fixture.helper.executeProtocolAction(
-      address(fixture.protocolTarget),
-      data
-    );
+    bytes memory result = fixture.helper.executeProtocolAction(address(fixture.protocolTarget), data);
 
     assertEq(abi.decode(result, (uint256)), 43);
     assertEq(fixture.protocolTarget.value(), 42);
@@ -281,9 +271,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     Fixture memory fixture = _newFixture();
     bytes memory data = abi.encodeCall(ArchControllerOwnerProtocolTargetMock.fail, (17));
 
-    vm.expectRevert(
-      abi.encodeWithSelector(ArchControllerOwnerProtocolTargetMock.ExpectedFailure.selector, 17)
-    );
+    vm.expectRevert(abi.encodeWithSelector(ArchControllerOwnerProtocolTargetMock.ExpectedFailure.selector, 17));
     vm.prank(NewExecutor);
     fixture.helper.executeProtocolAction(address(fixture.protocolTarget), data);
   }
@@ -301,9 +289,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     fixture.helper.executeProtocolAction(address(fixture.helper), data);
 
     WildcatArchController otherArchController = _deployArchController();
-    ArchControllerOwnerProtocolTargetMock wrongArchTarget = _deployProtocolTarget(
-      address(otherArchController)
-    );
+    ArchControllerOwnerProtocolTargetMock wrongArchTarget = _deployProtocolTarget(address(otherArchController));
     vm.expectRevert(MockArchControllerOwner.InvalidProtocolTarget.selector);
     vm.prank(NewExecutor);
     fixture.helper.executeProtocolAction(address(wrongArchTarget), data);
@@ -339,13 +325,10 @@ contract MockArchControllerOwnerTest is TestKernel {
     Fixture memory fixture = _newFixture();
     address feeRecipient = address(0xFEE);
     vm.prank(NewExecutor);
-    fixture.helper.setProtocolFeeConfiguration(
-      ILegacyWildcatMarketControllerFactory(address(fixture.legacyFactory)),
-      feeRecipient,
-      address(0),
-      0,
-      200
-    );
+    fixture.helper
+      .setProtocolFeeConfiguration(
+        ILegacyWildcatMarketControllerFactory(address(fixture.legacyFactory)), feeRecipient, address(0), 0, 200
+      );
 
     assertEq(fixture.legacyFactory.feeRecipient(), feeRecipient);
     assertEq(fixture.legacyFactory.originationFeeAsset(), address(0));
@@ -354,13 +337,10 @@ contract MockArchControllerOwnerTest is TestKernel {
 
     vm.expectRevert(MockArchControllerOwner.NotAuthorized.selector);
     vm.prank(BadCaller);
-    fixture.helper.setProtocolFeeConfiguration(
-      ILegacyWildcatMarketControllerFactory(address(fixture.legacyFactory)),
-      feeRecipient,
-      address(0),
-      0,
-      500
-    );
+    fixture.helper
+      .setProtocolFeeConfiguration(
+        ILegacyWildcatMarketControllerFactory(address(fixture.legacyFactory)), feeRecipient, address(0), 0, 500
+      );
   }
 
   // ========================================================================== //
@@ -374,18 +354,19 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertEq(fixture.archController.pendingSphereXAdmin(), address(fixture.helper));
 
     vm.prank(NewExecutor);
-    fixture.helper.executeProtocolAction(
-      address(fixture.archController),
-      abi.encodeCall(IWildcatArchController.acceptSphereXAdminRole, ())
-    );
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.archController), abi.encodeCall(IWildcatArchController.acceptSphereXAdminRole, ())
+      );
     assertEq(fixture.archController.sphereXAdmin(), address(fixture.helper));
     assertEq(fixture.archController.pendingSphereXAdmin(), address(0));
 
     vm.prank(NewExecutor);
-    fixture.helper.executeProtocolAction(
-      address(fixture.archController),
-      abi.encodeCall(IWildcatArchController.changeSphereXOperator, (address(fixture.helper)))
-    );
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.archController),
+        abi.encodeCall(IWildcatArchController.changeSphereXOperator, (address(fixture.helper)))
+      );
     assertEq(fixture.archController.sphereXOperator(), address(fixture.helper));
     assertEq(fixture.archController.sphereXEngine(), address(fixture.sphereXEngine));
   }
@@ -399,48 +380,46 @@ contract MockArchControllerOwnerTest is TestKernel {
 
     vm.warp(uint256(acceptSchedule) + 1);
     vm.prank(NewExecutor);
-    fixture.helper.executeProtocolAction(
-      address(fixture.sphereXEngine),
-      abi.encodeCall(IAccessControlDefaultAdminRules.acceptDefaultAdminTransfer, ())
-    );
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.sphereXEngine), abi.encodeCall(IAccessControlDefaultAdminRules.acceptDefaultAdminTransfer, ())
+      );
     assertEq(fixture.sphereXEngine.defaultAdmin(), address(fixture.helper));
 
     bytes32 operatorRole = fixture.sphereXEngine.OPERATOR_ROLE();
     vm.prank(NewExecutor);
-    fixture.helper.executeProtocolAction(
-      address(fixture.sphereXEngine),
-      abi.encodeCall(IAccessControl.grantRole, (operatorRole, address(fixture.helper)))
-    );
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.sphereXEngine),
+        abi.encodeCall(IAccessControl.grantRole, (operatorRole, address(fixture.helper)))
+      );
     assertTrue(fixture.sphereXEngine.hasRole(operatorRole, address(fixture.helper)));
 
     vm.prank(NewExecutor);
-    fixture.helper.executeProtocolAction(
-      address(fixture.sphereXEngine),
-      abi.encodeCall(IAccessControl.revokeRole, (operatorRole, OldExecutor))
-    );
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.sphereXEngine), abi.encodeCall(IAccessControl.revokeRole, (operatorRole, OldExecutor))
+      );
     assertFalse(fixture.sphereXEngine.hasRole(operatorRole, OldExecutor));
     assertTrue(
-      fixture.sphereXEngine.hasRole(
-        fixture.sphereXEngine.SENDER_ADDER_ROLE(),
-        address(fixture.archController)
-      )
+      fixture.sphereXEngine.hasRole(fixture.sphereXEngine.SENDER_ADDER_ROLE(), address(fixture.archController))
     );
   }
 
   function test_oldAndNewExecutors_OperateConcurrently() external {
     Fixture memory fixture = _newFixture();
     vm.prank(OldExecutor);
-    fixture.helper.executeProtocolAction(
-      address(fixture.protocolTarget),
-      abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (1))
-    );
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.protocolTarget), abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (1))
+      );
     assertEq(fixture.protocolTarget.value(), 1);
 
     vm.prank(NewExecutor);
-    fixture.helper.executeProtocolAction(
-      address(fixture.protocolTarget),
-      abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (2))
-    );
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.protocolTarget), abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (2))
+      );
     assertEq(fixture.protocolTarget.value(), 2);
   }
 }

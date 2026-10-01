@@ -12,15 +12,9 @@ interface IManagedRoleProvider {
     address indexed pendingAdministrator
   );
   /// @notice emitted when the administrator cancels a pending transfer.
-  event AdministratorTransferCancelled(
-    address indexed administrator,
-    address indexed cancelledPendingAdministrator
-  );
+  event AdministratorTransferCancelled(address indexed administrator, address indexed cancelledPendingAdministrator);
   /// @notice emitted when the pending administrator accepts authority.
-  event AdministratorTransferred(
-    address indexed previousAdministrator,
-    address indexed newAdministrator
-  );
+  event AdministratorTransferred(address indexed previousAdministrator, address indexed newAdministrator);
 
   /// @dev the caller is not the current provider administrator.
   error CallerNotAdministrator();

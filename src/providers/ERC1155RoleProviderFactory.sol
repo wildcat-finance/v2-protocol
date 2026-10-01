@@ -10,37 +10,31 @@ import './IERC1155RoleProviderFactory.sol';
 contract ERC1155RoleProviderFactory is IERC1155RoleProviderFactory {
   /// @notice decodes `ERC1155RoleProviderFactoryInputs` and deploys for `msg.sender`.
   /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
-  function createRoleProvider(
-    bytes calldata data
-  ) external override returns (address provider) {
-    ERC1155RoleProviderFactoryInputs memory inputs = abi.decode(
-      data,
-      (ERC1155RoleProviderFactoryInputs)
-    );
+  function createRoleProvider(bytes calldata data) external override returns (address provider) {
+    ERC1155RoleProviderFactoryInputs memory inputs = abi.decode(data, (ERC1155RoleProviderFactoryInputs));
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
   /// @notice deploys an ERC1155 provider in `msg.sender`'s CREATE2 namespace.
-  function createERC1155RoleProvider(
-    ERC1155RoleProviderFactoryInputs calldata inputs
-  ) external override returns (address provider) {
+  function createERC1155RoleProvider(ERC1155RoleProviderFactoryInputs calldata inputs)
+    external
+    override
+    returns (address provider)
+  {
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
   function _createRoleProvider(
     address deployer,
     ERC1155RoleProviderFactoryInputs memory inputs
-  ) internal returns (address provider) {
+  )
+    internal
+    returns (address provider)
+  {
     address expectedProvider = _computeRoleProviderAddress(deployer, inputs);
     if (expectedProvider.code.length != 0) revert RoleProviderAlreadyExists();
     bytes32 salt = _deriveSalt(deployer, inputs.salt);
-    provider = address(
-      new ERC1155RoleProvider{ salt: salt }(
-        inputs.token,
-        inputs.tokenId,
-        inputs.skipInterfaceCheck
-      )
-    );
+    provider = address(new ERC1155RoleProvider{ salt: salt }(inputs.token, inputs.tokenId, inputs.skipInterfaceCheck));
     emit ERC1155RoleProviderDeployed(
       provider,
       inputs.token,
@@ -55,31 +49,32 @@ contract ERC1155RoleProviderFactory is IERC1155RoleProviderFactory {
   function computeRoleProviderAddress(
     address deployer,
     ERC1155RoleProviderFactoryInputs calldata inputs
-  ) external view override returns (address provider) {
+  )
+    external
+    view
+    override
+    returns (address provider)
+  {
     provider = _computeRoleProviderAddress(deployer, inputs);
   }
 
   function _computeRoleProviderAddress(
     address deployer,
     ERC1155RoleProviderFactoryInputs memory inputs
-  ) internal view returns (address provider) {
+  )
+    internal
+    view
+    returns (address provider)
+  {
     bytes32 initCodeHash = keccak256(
       abi.encodePacked(
-        type(ERC1155RoleProvider).creationCode,
-        abi.encode(inputs.token, inputs.tokenId, inputs.skipInterfaceCheck)
+        type(ERC1155RoleProvider).creationCode, abi.encode(inputs.token, inputs.tokenId, inputs.skipInterfaceCheck)
       )
     );
     provider = address(
       uint160(
         uint256(
-          keccak256(
-            abi.encodePacked(
-              bytes1(0xff),
-              address(this),
-              _deriveSalt(deployer, inputs.salt),
-              initCodeHash
-            )
-          )
+          keccak256(abi.encodePacked(bytes1(0xff), address(this), _deriveSalt(deployer, inputs.salt), initCodeHash))
         )
       )
     );

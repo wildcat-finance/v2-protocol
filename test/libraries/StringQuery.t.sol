@@ -16,10 +16,8 @@ contract StringMetadata {
 }
 
 contract LongStrings {
-  string public name =
-    'Wow this is such a long name you would never expect this to be used in a real token';
-  string public symbol =
-    'The symbol too? what is going on here? surely this is far too long for a ticker';
+  string public name = 'Wow this is such a long name you would never expect this to be used in a real token';
+  string public symbol = 'The symbol too? what is going on here? surely this is far too long for a ticker';
 }
 
 contract BadStrings {
@@ -88,18 +86,14 @@ contract StringQueryTest is TestKernel {
   TrailingStringMetadata internal trailingStringMetadata;
 
   function setUp() external {
-    bytes32Metadata = Bytes32Metadata(
-      _deployCode('test/libraries/StringQuery.t.sol:Bytes32Metadata')
-    );
+    bytes32Metadata = Bytes32Metadata(_deployCode('test/libraries/StringQuery.t.sol:Bytes32Metadata'));
     stringMetadata = StringMetadata(_deployCode('test/libraries/StringQuery.t.sol:StringMetadata'));
     longStrings = LongStrings(_deployCode('test/libraries/StringQuery.t.sol:LongStrings'));
     badStrings = BadStrings(_deployCode('test/libraries/StringQuery.t.sol:BadStrings'));
-    malformedStringMetadata = MalformedStringMetadata(
-      _deployCode('test/libraries/StringQuery.t.sol:MalformedStringMetadata')
-    );
-    trailingStringMetadata = TrailingStringMetadata(
-      _deployCode('test/libraries/StringQuery.t.sol:TrailingStringMetadata')
-    );
+    malformedStringMetadata =
+      MalformedStringMetadata(_deployCode('test/libraries/StringQuery.t.sol:MalformedStringMetadata'));
+    trailingStringMetadata =
+      TrailingStringMetadata(_deployCode('test/libraries/StringQuery.t.sol:TrailingStringMetadata'));
   }
 
   function queryName(address token) external view returns (string memory) {
@@ -117,26 +111,22 @@ contract StringQueryTest is TestKernel {
   function queryNamesOrEmpty(
     address firstToken,
     address secondToken
-  ) external view returns (bytes32 firstHash, string memory first, string memory second) {
+  )
+    external
+    view
+    returns (bytes32 firstHash, string memory first, string memory second)
+  {
     first = queryStringOrBytes32AsStringOrEmpty(firstToken, 0x06fdde03);
     firstHash = keccak256(bytes(first));
     second = queryStringOrBytes32AsStringOrEmpty(secondToken, 0x06fdde03);
   }
 
-  function testFuzz_bestEffort_ArbitraryReturnDataPreservesLaterReads(
-    bytes memory response
-  ) external {
+  function testFuzz_bestEffort_ArbitraryReturnDataPreservesLaterReads(bytes memory response) external {
     vm.mockCall(address(bytes32Metadata), abi.encodeWithSignature('name()'), response);
-    (bytes32 firstHash, string memory first, string memory second) = this.queryNamesOrEmpty(
-      address(bytes32Metadata),
-      address(stringMetadata)
-    );
+    (bytes32 firstHash, string memory first, string memory second) =
+      this.queryNamesOrEmpty(address(bytes32Metadata), address(stringMetadata));
     assertTrue(bytes(first).length <= 256, 'arbitrary returndata cannot escape text bound');
-    assertEq(
-      uint256(keccak256(bytes(first))),
-      uint256(firstHash),
-      'later read preserves prior allocation'
-    );
+    assertEq(uint256(keccak256(bytes(first))), uint256(firstHash), 'later read preserves prior allocation');
     assertEq(second, 'TestB', 'malformed or missing first label does not corrupt later metadata');
   }
 
@@ -185,18 +175,10 @@ contract StringQueryTest is TestKernel {
 
   function testFuzz_dynamicStrings_RoundTripWithinCosmeticBound(bytes memory value) external {
     if (value.length > 512) return;
-    vm.mockCall(
-      address(stringMetadata),
-      abi.encodeWithSignature('name()'),
-      abi.encode(string(value))
-    );
+    vm.mockCall(address(stringMetadata), abi.encodeWithSignature('name()'), abi.encode(string(value)));
     assertEq(bytes(this.queryName(address(stringMetadata))), value, 'strict bytes round-trip');
     if (value.length <= 256) {
-      assertEq(
-        bytes(this.queryNameOrEmpty(address(stringMetadata))),
-        value,
-        'cosmetic bytes round-trip'
-      );
+      assertEq(bytes(this.queryNameOrEmpty(address(stringMetadata))), value, 'cosmetic bytes round-trip');
     } else {
       assertEq(this.queryNameOrEmpty(address(stringMetadata)), '', 'text bound');
     }
@@ -206,12 +188,10 @@ contract StringQueryTest is TestKernel {
     uint256[8] memory lengths = [uint256(0), 1, 31, 32, 33, 255, 256, 257];
     for (uint256 i; i < lengths.length; i++) {
       bytes memory value = new bytes(lengths[i]);
-      for (uint256 j; j < value.length; j++) value[j] = 'x';
-      vm.mockCall(
-        address(stringMetadata),
-        abi.encodeWithSignature('name()'),
-        abi.encode(string(value))
-      );
+      for (uint256 j; j < value.length; j++) {
+        value[j] = 'x';
+      }
+      vm.mockCall(address(stringMetadata), abi.encodeWithSignature('name()'), abi.encode(string(value)));
       if (value.length <= 256) {
         assertEq(bytes(this.queryNameOrEmpty(address(stringMetadata))), value);
       } else {
@@ -224,8 +204,7 @@ contract StringQueryTest is TestKernel {
     assertEq(address(bytes32Metadata).name(), 'TestA');
     assertEq(address(stringMetadata).name(), 'TestB');
     assertEq(
-      address(longStrings).name(),
-      'Wow this is such a long name you would never expect this to be used in a real token'
+      address(longStrings).name(), 'Wow this is such a long name you would never expect this to be used in a real token'
     );
 
     vm.expectRevert(LibERC20.NameFailed.selector);
@@ -240,8 +219,7 @@ contract StringQueryTest is TestKernel {
     assertEq(address(bytes32Metadata).symbol(), 'TestA');
     assertEq(address(stringMetadata).symbol(), 'TestB');
     assertEq(
-      address(longStrings).symbol(),
-      'The symbol too? what is going on here? surely this is far too long for a ticker'
+      address(longStrings).symbol(), 'The symbol too? what is going on here? surely this is far too long for a ticker'
     );
 
     vm.expectRevert(LibERC20.SymbolFailed.selector);

@@ -14,7 +14,7 @@ contract AprValidationHooks is PeriodicTermHooks, AprValidationPolicy {
   bytes public lastData;
   uint32 public proposalTimestampAtValidation;
 
-  constructor(address administrator) PeriodicTermHooks(administrator, '') {}
+  constructor(address administrator) PeriodicTermHooks(administrator, '') { }
 
   /// @dev seed nonzero default state so a reduction can't hide an accidental default call.
   function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external {
@@ -29,7 +29,10 @@ contract AprValidationHooks is PeriodicTermHooks, AprValidationPolicy {
     AprChange memory change,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal override {
+  )
+    internal
+    override
+  {
     _validateAprChange(change);
     _lastChange = change;
     lastStateHash = keccak256(abi.encode(state));

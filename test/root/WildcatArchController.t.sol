@@ -45,14 +45,10 @@ contract WildcatArchControllerTest is TestKernel {
   address internal constant SphereXOperator = address(0x5EED);
 
   function _deployArchController() internal returns (WildcatArchController archController) {
-    archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
   }
 
-  function _newRegistryFixture(
-    RegistryKind kind
-  ) internal returns (RegistryFixture memory fixture) {
+  function _newRegistryFixture(RegistryKind kind) internal returns (RegistryFixture memory fixture) {
     fixture.archController = _deployArchController();
     fixture.first = FirstEntry;
     fixture.second = SecondEntry;
@@ -70,12 +66,7 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
-  function _add(
-    RegistryKind kind,
-    RegistryFixture memory fixture,
-    address entry,
-    address caller
-  ) internal {
+  function _add(RegistryKind kind, RegistryFixture memory fixture, address entry, address caller) internal {
     vm.prank(caller);
     if (kind == RegistryKind.ControllerFactory) {
       fixture.archController.registerControllerFactory(entry);
@@ -90,12 +81,7 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
-  function _remove(
-    RegistryKind kind,
-    RegistryFixture memory fixture,
-    address entry,
-    address caller
-  ) internal {
+  function _remove(RegistryKind kind, RegistryFixture memory fixture, address entry, address caller) internal {
     vm.prank(caller);
     if (kind == RegistryKind.ControllerFactory) {
       fixture.archController.removeControllerFactory(entry);
@@ -114,7 +100,11 @@ contract WildcatArchControllerTest is TestKernel {
     RegistryKind kind,
     WildcatArchController archController,
     address entry
-  ) internal view returns (bool) {
+  )
+    internal
+    view
+    returns (bool)
+  {
     if (kind == RegistryKind.ControllerFactory) {
       return archController.isRegisteredControllerFactory(entry);
     }
@@ -127,7 +117,11 @@ contract WildcatArchControllerTest is TestKernel {
   function _getAll(
     RegistryKind kind,
     WildcatArchController archController
-  ) internal view returns (address[] memory entries) {
+  )
+    internal
+    view
+    returns (address[] memory entries)
+  {
     if (kind == RegistryKind.ControllerFactory) {
       return archController.getRegisteredControllerFactories();
     }
@@ -142,7 +136,11 @@ contract WildcatArchControllerTest is TestKernel {
     WildcatArchController archController,
     uint256 start,
     uint256 end
-  ) internal view returns (address[] memory entries) {
+  )
+    internal
+    view
+    returns (address[] memory entries)
+  {
     if (kind == RegistryKind.ControllerFactory) {
       return archController.getRegisteredControllerFactories(start, end);
     }
@@ -154,10 +152,7 @@ contract WildcatArchControllerTest is TestKernel {
     return archController.getBlacklistedAssets(start, end);
   }
 
-  function _getCount(
-    RegistryKind kind,
-    WildcatArchController archController
-  ) internal view returns (uint256) {
+  function _getCount(RegistryKind kind, WildcatArchController archController) internal view returns (uint256) {
     if (kind == RegistryKind.ControllerFactory) {
       return archController.getRegisteredControllerFactoriesCount();
     }
@@ -185,8 +180,9 @@ contract WildcatArchControllerTest is TestKernel {
     if (kind == RegistryKind.ControllerFactory) {
       return WildcatArchController.ControllerFactoryDoesNotExist.selector;
     }
-    if (kind == RegistryKind.Controller)
+    if (kind == RegistryKind.Controller) {
       return WildcatArchController.ControllerDoesNotExist.selector;
+    }
     if (kind == RegistryKind.Market) return WildcatArchController.MarketDoesNotExist.selector;
     if (kind == RegistryKind.Borrower) return WildcatArchController.BorrowerDoesNotExist.selector;
     return WildcatArchController.AssetNotBlacklisted.selector;
@@ -198,11 +194,7 @@ contract WildcatArchControllerTest is TestKernel {
     return Ownable.Unauthorized.selector;
   }
 
-  function _expectAddedEvent(
-    RegistryKind kind,
-    RegistryFixture memory fixture,
-    address entry
-  ) internal {
+  function _expectAddedEvent(RegistryKind kind, RegistryFixture memory fixture, address entry) internal {
     vm.expectEmit(address(fixture.archController));
     if (kind == RegistryKind.ControllerFactory) {
       emit ControllerFactoryAdded(entry);
@@ -217,11 +209,7 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
-  function _expectRemovedEvent(
-    RegistryKind kind,
-    RegistryFixture memory fixture,
-    address entry
-  ) internal {
+  function _expectRemovedEvent(RegistryKind kind, RegistryFixture memory fixture, address entry) internal {
     vm.expectEmit(address(fixture.archController));
     if (kind == RegistryKind.ControllerFactory) {
       emit ControllerFactoryRemoved(entry);
@@ -340,21 +328,19 @@ contract WildcatArchControllerTest is TestKernel {
   //                       Registered SphereX propagation                       //
   // ========================================================================== //
 
-  function _deployRegisteredTarget(
-    bool blockEngineUpdates
-  ) internal returns (ArchControllerRegisteredTargetMock target) {
+  function _deployRegisteredTarget(bool blockEngineUpdates)
+    internal
+    returns (ArchControllerRegisteredTargetMock target)
+  {
     target = ArchControllerRegisteredTargetMock(
       _deployCode(
-        'test/mocks/ArchControllerMocks.sol:ArchControllerRegisteredTargetMock',
-        abi.encode(blockEngineUpdates)
+        'test/mocks/ArchControllerMocks.sol:ArchControllerRegisteredTargetMock', abi.encode(blockEngineUpdates)
       )
     );
   }
 
   function _deployEngine() internal returns (ArchControllerEngineMock engine) {
-    engine = ArchControllerEngineMock(
-      _deployCode('test/mocks/ArchControllerMocks.sol:ArchControllerEngineMock')
-    );
+    engine = ArchControllerEngineMock(_deployCode('test/mocks/ArchControllerMocks.sol:ArchControllerEngineMock'));
   }
 
   function _registerSphereXTargets(
@@ -404,30 +390,21 @@ contract WildcatArchControllerTest is TestKernel {
     address[] memory markets = _singleton(address(market));
 
     vm.expectEmit(address(factory));
-    emit ArchControllerRegisteredTargetMock.ChangedSpherexEngineAddress(
-      address(0),
-      address(engine)
-    );
+    emit ArchControllerRegisteredTargetMock.ChangedSpherexEngineAddress(address(0), address(engine));
     vm.expectEmit(address(engine));
     emit ArchControllerEngineMock.NewSenderOnEngine(address(factory));
     vm.expectEmit(address(archController));
     emit NewAllowedSenderOnchain(address(factory));
 
     vm.expectEmit(address(controller));
-    emit ArchControllerRegisteredTargetMock.ChangedSpherexEngineAddress(
-      address(0),
-      address(engine)
-    );
+    emit ArchControllerRegisteredTargetMock.ChangedSpherexEngineAddress(address(0), address(engine));
     vm.expectEmit(address(engine));
     emit ArchControllerEngineMock.NewSenderOnEngine(address(controller));
     vm.expectEmit(address(archController));
     emit NewAllowedSenderOnchain(address(controller));
 
     vm.expectEmit(address(market));
-    emit ArchControllerRegisteredTargetMock.ChangedSpherexEngineAddress(
-      address(0),
-      address(engine)
-    );
+    emit ArchControllerRegisteredTargetMock.ChangedSpherexEngineAddress(address(0), address(engine));
     vm.expectEmit(address(engine));
     emit ArchControllerEngineMock.NewSenderOnEngine(address(market));
     vm.expectEmit(address(archController));
@@ -502,10 +479,7 @@ contract WildcatArchControllerTest is TestKernel {
 
   function test_updateSphereXEngine_BubblesRegisteredContractRevert() external {
     WildcatArchController archController = _deployArchController();
-    (, ArchControllerRegisteredTargetMock controller, ) = _registerSphereXTargets(
-      archController,
-      true
-    );
+    (, ArchControllerRegisteredTargetMock controller,) = _registerSphereXTargets(archController, true);
     address[] memory empty = new address[](0);
     address[] memory controllers = _singleton(address(controller));
 

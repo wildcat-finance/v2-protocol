@@ -165,10 +165,7 @@ library LibERC20 {
       // Reverts if the call fails, does not return exactly 32 bytes, or the returndata
       // exceeds 8 bits.
       if iszero(
-        and(
-          and(eq(returndatasize(), 0x20), lt(mload(0), 0x100)),
-          staticcall(gas(), token, 0x1c, 0x04, 0, 0x20)
-        )
+        and(and(eq(returndatasize(), 0x20), lt(mload(0), 0x100)), staticcall(gas(), token, 0x1c, 0x04, 0, 0x20))
       ) {
         mstore(0x00, 0x3394d170) // `DecimalsFailed()`.
         revert(0x1c, 0x04)

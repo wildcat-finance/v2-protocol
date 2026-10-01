@@ -45,7 +45,10 @@ library HooksTemplateDataLib {
     IHooksFactory factory,
     address hooksTemplate,
     address borrower
-  ) internal view {
+  )
+    internal
+    view
+  {
     HooksTemplate memory template = factory.getHooksTemplateDetails(hooksTemplate);
     data.hooksTemplate = hooksTemplate;
     data.exists = template.exists;
@@ -56,8 +59,7 @@ library HooksTemplateDataLib {
     data.fees.fill(template, factory, borrower);
     uint256 hash;
     (data.initCodeHash.isPresent, hash) = OptionalDataLib.readWord(
-      address(factory),
-      abi.encodeCall(IHooksFactory.getHooksTemplateInitCodeHash, (hooksTemplate))
+      address(factory), abi.encodeCall(IHooksFactory.getHooksTemplateInitCodeHash, (hooksTemplate))
     );
     data.initCodeHash.value = bytes32(hash);
   }
@@ -68,7 +70,10 @@ library HooksTemplateDataLib {
     HooksTemplate memory template,
     IHooksFactory factory,
     address borrower
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.feeRecipient = template.feeRecipient;
     data.protocolFeeBips = template.protocolFeeBips;
     data.originationFeeAmount = template.originationFeeAmount;

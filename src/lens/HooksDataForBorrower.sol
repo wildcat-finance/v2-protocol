@@ -25,7 +25,10 @@ library HooksDataForBorrowerLib {
     WildcatArchController archController,
     IHooksFactory factory,
     address borrower
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.borrower = borrower;
     data.isRegisteredBorrower = archController.isRegisteredBorrower(borrower);
     address[] memory hooksInstances = factory.getHooksInstancesForBorrower(borrower);

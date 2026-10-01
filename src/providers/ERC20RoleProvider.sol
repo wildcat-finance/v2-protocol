@@ -30,10 +30,7 @@ contract ERC20RoleProvider is IERC20RoleProvider {
   }
 
   /// @notice runs the live balance check for `account`; caller data is ignored.
-  function validateCredential(
-    address account,
-    bytes calldata
-  ) external view override returns (uint32 timestamp) {
+  function validateCredential(address account, bytes calldata) external view override returns (uint32 timestamp) {
     return _credentialTimestamp(account);
   }
 

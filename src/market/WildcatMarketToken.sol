@@ -18,10 +18,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   /// @notice returns `account`'s normalized balance with interest accrued through this block.
   /// @param account lender whose direct market-token balance is queried.
   function balanceOf(address account) public view virtual nonReentrantView returns (uint256) {
-    return
-      _calculateCurrentStatePointers.asReturnsMarketState()().normalizeAmount(
-        _accounts[account].scaledBalance
-      );
+    return _calculateCurrentStatePointers.asReturnsMarketState()().normalizeAmount(_accounts[account].scaledBalance);
   }
 
   /// @notice returns normalized supply with interest accrued through this block.
@@ -37,10 +34,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   /// @param spender account allowed to spend the caller's tokens.
   /// @param amount new normalized allowance.
   /// @return always true when the approval succeeds.
-  function approve(
-    address spender,
-    uint256 amount
-  ) external virtual nonReentrant sphereXGuardExternal returns (bool) {
+  function approve(address spender, uint256 amount) external virtual nonReentrant sphereXGuardExternal returns (bool) {
     _approve(msg.sender, spender, amount);
     return true;
   }
@@ -51,10 +45,7 @@ contract WildcatMarketToken is WildcatMarketBase {
   /// @param to recipient of the scaled shares.
   /// @param amount normalized amount used to derive the scaled transfer.
   /// @return always true when the transfer succeeds.
-  function transfer(
-    address to,
-    uint256 amount
-  ) external virtual nonReentrant sphereXGuardExternal returns (bool) {
+  function transfer(address to, uint256 amount) external virtual nonReentrant sphereXGuardExternal returns (bool) {
     _transfer(msg.sender, to, amount, 0x44);
     return true;
   }
@@ -69,7 +60,13 @@ contract WildcatMarketToken is WildcatMarketBase {
     address from,
     address to,
     uint256 amount
-  ) external virtual nonReentrant sphereXGuardExternal returns (bool) {
+  )
+    external
+    virtual
+    nonReentrant
+    sphereXGuardExternal
+    returns (bool)
+  {
     uint256 allowed = allowance[from][msg.sender];
 
     // Saves gas for unlimited approvals.
@@ -88,12 +85,7 @@ contract WildcatMarketToken is WildcatMarketBase {
     emit_Approval(approver, spender, amount);
   }
 
-  function _transfer(
-    address from,
-    address to,
-    uint256 amount,
-    uint baseCalldataSize
-  ) internal virtual {
+  function _transfer(address from, address to, uint256 amount, uint baseCalldataSize) internal virtual {
     MarketState memory state = _getUpdatedState();
     uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
 

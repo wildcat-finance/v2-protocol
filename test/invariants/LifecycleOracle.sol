@@ -44,7 +44,11 @@ library LifecycleOracle {
     Terms memory terms,
     uint256 timestamp,
     uint256 liveCash
-  ) internal pure returns (Preview memory p) {
+  )
+    internal
+    pure
+    returns (Preview memory p)
+  {
     p.state = old.state;
     p.batch = old.batch;
     p.cutoff = old.cutoff;
@@ -126,14 +130,12 @@ library LifecycleOracle {
       if (s.isClosed || supply == 0) {
         base = 0;
       } else {
-        base =
-          MathUtils.calculateLinearInterestFromBips(t.commitmentBips, elapsed) +
-          MathUtils.mulDiv(base, MathUtils.min(drawn, supply), supply);
+        base = MathUtils.calculateLinearInterestFromBips(t.commitmentBips, elapsed)
+          + MathUtils.mulDiv(base, MathUtils.min(drawn, supply), supply);
       }
     }
-    uint256 fee = uint256(s.scaledTotalSupply).rayMul(
-      uint256(s.scaleFactor).rayMul(uint256(s.protocolFeeBips).bipMul(base))
-    );
+    uint256 fee =
+      uint256(s.scaledTotalSupply).rayMul(uint256(s.scaleFactor).rayMul(uint256(s.protocolFeeBips).bipMul(base)));
     s.accruedProtocolFees += uint128(fee);
     p.fees += fee;
     uint256 penalized;
@@ -154,14 +156,8 @@ library LifecycleOracle {
     WithdrawalBatch memory b = p.batch;
     uint256 owed = b.scaledTotalAmount - b.scaledAmountBurned;
     uint256 prior = s.scaledPendingWithdrawals - owed;
-    uint256 protected = (prior *
-      s.scaleFactor +
-      s.withdrawalRemainder -
-      b.paymentRemainder +
-      HALF_RAY) / RAY;
-    uint256 available = cash.satSub(
-      s.normalizedUnclaimedWithdrawals + protected + s.accruedProtocolFees
-    );
+    uint256 protected = (prior * s.scaleFactor + s.withdrawalRemainder - b.paymentRemainder + HALF_RAY) / RAY;
+    uint256 available = cash.satSub(s.normalizedUnclaimedWithdrawals + protected + s.accruedProtocolFees);
     // Solve the affordability inequality directly, independently of the production
     // helper's floor-price capacity and one-share correction.
     uint256 burn = owed;
@@ -170,9 +166,7 @@ library LifecycleOracle {
     }
     uint256 numerator = burn * s.scaleFactor + b.paymentRemainder;
     uint256 paid = numerator / RAY;
-    s.withdrawalRemainder = uint128(
-      uint256(s.withdrawalRemainder) - b.paymentRemainder + (numerator % RAY)
-    );
+    s.withdrawalRemainder = uint128(uint256(s.withdrawalRemainder) - b.paymentRemainder + (numerator % RAY));
     b.paymentRemainder = uint128(numerator % RAY);
     b.scaledAmountBurned += uint128(burn);
     b.normalizedAmountPaid += uint128(paid);
@@ -212,7 +206,11 @@ contract LifecycleReference {
     LifecycleOracle.Terms memory terms,
     uint256 timestamp,
     uint256 liveCash
-  ) external pure returns (LifecycleOracle.Preview memory) {
+  )
+    external
+    pure
+    returns (LifecycleOracle.Preview memory)
+  {
     return LifecycleOracle.preview(old, terms, timestamp, liveCash);
   }
 }

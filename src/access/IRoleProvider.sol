@@ -19,8 +19,5 @@ interface IRoleProvider {
   ///      future timestamps and apply their own provider TTL to nonzero results.
   /// @param data provider-specific bytes following the packed provider address in hook data.
   /// @return timestamp time the credential was granted, or zero when validation fails.
-  function validateCredential(
-    address account,
-    bytes calldata data
-  ) external returns (uint32 timestamp);
+  function validateCredential(address account, bytes calldata data) external returns (uint32 timestamp);
 }

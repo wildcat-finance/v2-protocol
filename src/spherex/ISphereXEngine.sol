@@ -17,11 +17,7 @@ struct ModifierLocals {
 /// @dev complete rule semantics live in the configured engine implementation.
 interface ISphereXEngine {
   /// @notice starts validation for an external call and returns storage slots to snapshot.
-  function sphereXValidatePre(
-    int256 num,
-    address sender,
-    bytes calldata data
-  ) external returns (bytes32[] memory);
+  function sphereXValidatePre(int256 num, address sender, bytes calldata data) external returns (bytes32[] memory);
 
   /// @notice completes validation for an external call using before and after storage values.
   function sphereXValidatePost(
@@ -29,7 +25,8 @@ interface ISphereXEngine {
     uint256 gas,
     bytes32[] calldata valuesBefore,
     bytes32[] calldata valuesAfter
-  ) external;
+  )
+    external;
 
   /// @notice starts validation for an engine-identified internal call.
   function sphereXValidateInternalPre(int256 num) external returns (bytes32[] memory);
@@ -40,7 +37,8 @@ interface ISphereXEngine {
     uint256 gas,
     bytes32[] calldata valuesBefore,
     bytes32[] calldata valuesAfter
-  ) external;
+  )
+    external;
 
   /// @notice allows a protected contract to send validation calls to the engine.
   function addAllowedSenderOnChain(address sender) external;

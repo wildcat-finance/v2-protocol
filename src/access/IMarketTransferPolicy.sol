@@ -11,8 +11,5 @@ interface IMarketTransferPolicy {
   /// @notice says whether `recipient` can receive `market` tokens right now without hook data.
   /// @dev this doesn't check balance, allowance, or amount-specific failures. false is an ordinary
   ///      policy denial; integrations can treat a revert as an unavailable policy answer.
-  function isMarketTransferRecipientAllowed(
-    address market,
-    address recipient
-  ) external view returns (bool);
+  function isMarketTransferRecipientAllowed(address market, address recipient) external view returns (bool);
 }

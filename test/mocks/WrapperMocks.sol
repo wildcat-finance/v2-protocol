@@ -103,11 +103,7 @@ contract WrapperFactoryMarketMock is IWildcatMarketToken, IMarketTransferPolicy 
     hooksAddress = hooksAddress_;
   }
 
-  function setTransferPolicy(
-    bool transfersDisabled_,
-    bool recipientAllowed_,
-    bool recipientCheckReverts_
-  ) external {
+  function setTransferPolicy(bool transfersDisabled_, bool recipientAllowed_, bool recipientCheckReverts_) external {
     transfersDisabled = transfersDisabled_;
     recipientAllowed = recipientAllowed_;
     recipientCheckReverts = recipientCheckReverts_;

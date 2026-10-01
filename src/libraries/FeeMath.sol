@@ -16,10 +16,7 @@ library FeeMath {
    * @param timeDelta The time elapsed since the last interest accrual
    * @return result The interest rate linearly accumulated during the timeDelta, in ray
    */
-  function calculateLinearInterestFromBips(
-    uint256 rateBip,
-    uint256 timeDelta
-  ) internal pure returns (uint256 result) {
+  function calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) internal pure returns (uint256 result) {
     uint256 rate = rateBip.bipToRay();
     uint256 accumulatedInterestRay = rate * timeDelta;
     unchecked {
@@ -31,10 +28,13 @@ library FeeMath {
   function calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
-  ) internal pure returns (uint256 baseInterestRay) {
+  )
+    internal
+    pure
+    returns (uint256 baseInterestRay)
+  {
     baseInterestRay = MathUtils.calculateLinearInterestFromBips(
-      state.annualInterestBips,
-      timestamp - state.lastInterestAccruedTimestamp
+      state.annualInterestBips, timestamp - state.lastInterestAccruedTimestamp
     );
   }
 
@@ -43,12 +43,14 @@ library FeeMath {
   function applyProtocolFee(
     MarketState memory state,
     uint256 baseInterestRay
-  ) internal pure returns (uint256 protocolFee) {
+  )
+    internal
+    pure
+    returns (uint256 protocolFee)
+  {
     // Protocol fee is charged in addition to the interest paid to lenders.
     uint256 protocolFeeRay = uint(state.protocolFeeBips).bipMul(baseInterestRay);
-    protocolFee = uint256(state.scaledTotalSupply).rayMul(
-      uint256(state.scaleFactor).rayMul(protocolFeeRay)
-    );
+    protocolFee = uint256(state.scaledTotalSupply).rayMul(uint256(state.scaleFactor).rayMul(protocolFeeRay));
     state.accruedProtocolFees = (state.accruedProtocolFees + protocolFee).toUint128();
   }
 
@@ -59,13 +61,15 @@ library FeeMath {
     uint256 timestamp,
     uint256 delinquencyFeeBips,
     uint256 delinquencyGracePeriod
-  ) internal pure returns (uint256 delinquencyFeeRay) {
+  )
+    internal
+    pure
+    returns (uint256 delinquencyFeeRay)
+  {
     // Calculate the number of seconds the borrower spent in penalized
     // delinquency since the last update.
     uint256 timeWithPenalty = updateTimeDelinquentAndGetPenaltyTime(
-      state,
-      delinquencyGracePeriod,
-      timestamp - state.lastInterestAccruedTimestamp
+      state, delinquencyGracePeriod, timestamp - state.lastInterestAccruedTimestamp
     );
 
     if (timeWithPenalty > 0 && delinquencyFeeBips > 0) {
@@ -94,7 +98,13 @@ library FeeMath {
     MarketState memory state,
     uint256 delinquencyGracePeriod,
     uint256 timeDelta
-  ) internal pure returns (uint256 /* timeWithPenalty */) {
+  )
+    internal
+    pure
+    returns (
+      uint256 /* timeWithPenalty */
+    )
+  {
     // Seconds in delinquency at last update
     uint256 previousTimeDelinquent = state.timeDelinquent;
 
@@ -105,9 +115,7 @@ library FeeMath {
 
       // Calculate the number of seconds the borrower had remaining
       // in the grace period.
-      uint256 secondsRemainingWithoutPenalty = delinquencyGracePeriod.satSub(
-        previousTimeDelinquent
-      );
+      uint256 secondsRemainingWithoutPenalty = delinquencyGracePeriod.satSub(previousTimeDelinquent);
 
       // Penalties apply for the number of seconds the market spent in
       // delinquency outside of the grace period since the last update.
@@ -158,11 +166,7 @@ library FeeMath {
       protocolFee = state.applyProtocolFee(baseInterestRay);
     }
 
-    delinquencyFeeRay = state.updateDelinquency(
-      timestamp,
-      delinquencyFeeBips,
-      delinquencyGracePeriod
-    );
+    delinquencyFeeRay = state.updateDelinquency(timestamp, delinquencyFeeBips, delinquencyGracePeriod);
 
     // Calculate new scaleFactor
     uint256 prevScaleFactor = state.scaleFactor;

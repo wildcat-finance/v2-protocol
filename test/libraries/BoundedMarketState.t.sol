@@ -9,9 +9,11 @@ contract BoundedMarketStateTest is TestKernel {
 
   /// @dev independent checked formulas. The unified partition now checks normalized
   ///      pending <= supply at every reserve ratio, including 0% and 100%.
-  function referenceValues(
-    MarketState memory state
-  ) external pure returns (uint256 supply, uint256 liquidity, uint256 debts) {
+  function referenceValues(MarketState memory state)
+    external
+    pure
+    returns (uint256 supply, uint256 liquidity, uint256 debts)
+  {
     supply = uint256(state.scaledTotalSupply).rayMul(state.scaleFactor);
     uint256 pending = uint256(state.scaledPendingWithdrawals).rayMul(state.scaleFactor);
     uint256 outstanding = supply - pending;
@@ -26,19 +28,15 @@ contract BoundedMarketStateTest is TestKernel {
     debts = supply + state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees;
   }
 
-  function candidateValues(
-    MarketState memory state
-  ) external pure returns (uint256, uint256, uint256) {
+  function candidateValues(MarketState memory state) external pure returns (uint256, uint256, uint256) {
     return (state.totalSupply(), state.liquidityRequired(), state.totalDebts());
   }
 
   function _compare(MarketState memory state) internal view {
-    (bool expectedSuccess, bytes memory expectedData) = address(this).staticcall(
-      abi.encodeCall(this.referenceValues, (state))
-    );
-    (bool actualSuccess, bytes memory actualData) = address(this).staticcall(
-      abi.encodeCall(this.candidateValues, (state))
-    );
+    (bool expectedSuccess, bytes memory expectedData) =
+      address(this).staticcall(abi.encodeCall(this.referenceValues, (state)));
+    (bool actualSuccess, bytes memory actualData) =
+      address(this).staticcall(abi.encodeCall(this.candidateValues, (state)));
     assertEq(actualSuccess, expectedSuccess);
     assertEq(actualData, expectedData);
   }
@@ -50,7 +48,10 @@ contract BoundedMarketStateTest is TestKernel {
     uint16 reserve,
     uint128 fees,
     uint128 unclaimed
-  ) external view {
+  )
+    external
+    view
+  {
     MarketState memory state;
     state.scaledTotalSupply = supply;
     state.scaledPendingWithdrawals = pending;

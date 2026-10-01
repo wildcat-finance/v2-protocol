@@ -32,22 +32,13 @@ contract MarketLensFacadeTest is TestKernel {
   LensProbeHarness internal probes;
 
   function setUp() external {
-    address core = _deployCode(
-      'test/mocks/LensMocks.sol:LensDelegateTargetMock',
-      abi.encode(CoreResponse, false)
-    );
-    address aggregation = _deployCode(
-      'test/mocks/LensMocks.sol:LensDelegateTargetMock',
-      abi.encode(AggregationResponse, false)
-    );
-    address live = _deployCode(
-      'test/mocks/LensMocks.sol:LensDelegateTargetMock',
-      abi.encode(LiveResponse, false)
-    );
+    address core = _deployCode('test/mocks/LensMocks.sol:LensDelegateTargetMock', abi.encode(CoreResponse, false));
+    address aggregation =
+      _deployCode('test/mocks/LensMocks.sol:LensDelegateTargetMock', abi.encode(AggregationResponse, false));
+    address live = _deployCode('test/mocks/LensMocks.sol:LensDelegateTargetMock', abi.encode(LiveResponse, false));
     lens = MarketLens(
       _deployCode(
-        'src/lens/MarketLens.sol:MarketLens',
-        abi.encode(address(0xA11CE), address(0xFAC7), core, aggregation, live)
+        'src/lens/MarketLens.sol:MarketLens', abi.encode(address(0xA11CE), address(0xFAC7), core, aggregation, live)
       )
     );
     probes = LensProbeHarness(_deployCode('test/mocks/LensMocks.sol:LensProbeHarness'));
@@ -78,135 +69,56 @@ contract MarketLensFacadeTest is TestKernel {
     assertEq(address(lens.hooksFactory()), factory, 'factory');
 
     _aggregationRoute(abi.encodeWithSignature('getHooksDataForBorrower(address)', borrower));
-    _aggregationRoute(
-      abi.encodeWithSignature('getHooksDataForBorrower(address,address)', factory, borrower)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAggregatedHooksDataForBorrower(address)', borrower)
-    );
+    _aggregationRoute(abi.encodeWithSignature('getHooksDataForBorrower(address,address)', factory, borrower));
+    _aggregationRoute(abi.encodeWithSignature('getAggregatedHooksDataForBorrower(address)', borrower));
     _aggregationRoute(abi.encodeWithSignature('getHooksInstancesForBorrower(address)', borrower));
+    _aggregationRoute(abi.encodeWithSignature('getHooksInstancesForBorrower(address,address)', factory, borrower));
+    _aggregationRoute(abi.encodeWithSignature('getAggregatedHooksInstancesForBorrower(address)', borrower));
+    _aggregationRoute(abi.encodeWithSignature('getHooksTemplateForBorrower(address,address)', borrower, template));
     _aggregationRoute(
-      abi.encodeWithSignature('getHooksInstancesForBorrower(address,address)', factory, borrower)
+      abi.encodeWithSignature('getHooksTemplateForBorrower(address,address,address)', factory, borrower, template)
     );
+    _aggregationRoute(abi.encodeWithSignature('getHooksTemplatesForBorrower(address,address[])', borrower, templates));
     _aggregationRoute(
-      abi.encodeWithSignature('getAggregatedHooksInstancesForBorrower(address)', borrower)
+      abi.encodeWithSignature('getHooksTemplatesForBorrower(address,address,address[])', factory, borrower, templates)
     );
-    _aggregationRoute(
-      abi.encodeWithSignature('getHooksTemplateForBorrower(address,address)', borrower, template)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature(
-        'getHooksTemplateForBorrower(address,address,address)',
-        factory,
-        borrower,
-        template
-      )
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature(
-        'getHooksTemplatesForBorrower(address,address[])',
-        borrower,
-        templates
-      )
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature(
-        'getHooksTemplatesForBorrower(address,address,address[])',
-        factory,
-        borrower,
-        templates
-      )
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAllHooksTemplatesForBorrower(address)', borrower)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAllHooksTemplatesForBorrower(address,address)', factory, borrower)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAggregatedAllHooksTemplatesForBorrower(address)', borrower)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature(
-        'getAggregatedHooksTemplatesForBorrowerWithFactory(address)',
-        borrower
-      )
-    );
+    _aggregationRoute(abi.encodeWithSignature('getAllHooksTemplatesForBorrower(address)', borrower));
+    _aggregationRoute(abi.encodeWithSignature('getAllHooksTemplatesForBorrower(address,address)', factory, borrower));
+    _aggregationRoute(abi.encodeWithSignature('getAggregatedAllHooksTemplatesForBorrower(address)', borrower));
+    _aggregationRoute(abi.encodeWithSignature('getAggregatedHooksTemplatesForBorrowerWithFactory(address)', borrower));
   }
 
   function test_aggregationMarketRoutes_AreComplete() external view {
     address factory = address(0xFAC7);
     address template = address(0x7E4);
 
+    _aggregationRoute(abi.encodeWithSignature('getMarketsForHooksTemplateCount(address)', template));
+    _aggregationRoute(abi.encodeWithSignature('getMarketsForHooksTemplateCount(address,address)', factory, template));
+    _aggregationRoute(abi.encodeWithSignature('getAggregatedMarketsForHooksTemplateCount(address)', template));
     _aggregationRoute(
-      abi.encodeWithSignature('getMarketsForHooksTemplateCount(address)', template)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getMarketsForHooksTemplateCount(address,address)', factory, template)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAggregatedMarketsForHooksTemplateCount(address)', template)
+      abi.encodeWithSignature('getPaginatedMarketsDataForHooksTemplate(address,uint256,uint256)', template, 1, 2)
     );
     _aggregationRoute(
       abi.encodeWithSignature(
-        'getPaginatedMarketsDataForHooksTemplate(address,uint256,uint256)',
-        template,
-        1,
-        2
+        'getPaginatedMarketsDataForHooksTemplate(address,address,uint256,uint256)', factory, template, 1, 2
       )
+    );
+    _aggregationRoute(
+      abi.encodeWithSignature('getPaginatedMarketsDataV2ForHooksTemplate(address,uint256,uint256)', template, 1, 2)
     );
     _aggregationRoute(
       abi.encodeWithSignature(
-        'getPaginatedMarketsDataForHooksTemplate(address,address,uint256,uint256)',
-        factory,
-        template,
-        1,
-        2
+        'getPaginatedMarketsDataV2ForHooksTemplate(address,address,uint256,uint256)', factory, template, 1, 2
       )
     );
+    _aggregationRoute(abi.encodeWithSignature('getAllMarketsDataForHooksTemplate(address)', template));
+    _aggregationRoute(abi.encodeWithSignature('getAllMarketsDataForHooksTemplate(address,address)', factory, template));
+    _aggregationRoute(abi.encodeWithSignature('getAllMarketsDataV2ForHooksTemplate(address)', template));
     _aggregationRoute(
-      abi.encodeWithSignature(
-        'getPaginatedMarketsDataV2ForHooksTemplate(address,uint256,uint256)',
-        template,
-        1,
-        2
-      )
+      abi.encodeWithSignature('getAllMarketsDataV2ForHooksTemplate(address,address)', factory, template)
     );
-    _aggregationRoute(
-      abi.encodeWithSignature(
-        'getPaginatedMarketsDataV2ForHooksTemplate(address,address,uint256,uint256)',
-        factory,
-        template,
-        1,
-        2
-      )
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAllMarketsDataForHooksTemplate(address)', template)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature(
-        'getAllMarketsDataForHooksTemplate(address,address)',
-        factory,
-        template
-      )
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAllMarketsDataV2ForHooksTemplate(address)', template)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature(
-        'getAllMarketsDataV2ForHooksTemplate(address,address)',
-        factory,
-        template
-      )
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAggregatedAllMarketsDataForHooksTemplate(address)', template)
-    );
-    _aggregationRoute(
-      abi.encodeWithSignature('getAggregatedAllMarketsDataV2ForHooksTemplate(address)', template)
-    );
+    _aggregationRoute(abi.encodeWithSignature('getAggregatedAllMarketsDataForHooksTemplate(address)', template));
+    _aggregationRoute(abi.encodeWithSignature('getAggregatedAllMarketsDataV2ForHooksTemplate(address)', template));
   }
 
   function test_coreAndLiveRoutes_AreComplete() external view {
@@ -227,81 +139,43 @@ contract MarketLensFacadeTest is TestKernel {
     _coreRoute(abi.encodeWithSignature('getMarketsData(address[])', addresses));
     _coreRoute(abi.encodeWithSignature('getMarketDataV2(address)', market));
     _coreRoute(abi.encodeWithSignature('getMarketsDataV2(address[])', addresses));
-    _coreRoute(
-      abi.encodeWithSignature('getMarketDataWithLenderStatus(address,address)', lender, market)
-    );
-    _coreRoute(
-      abi.encodeWithSignature(
-        'getMarketsDataWithLenderStatus(address,address[])',
-        lender,
-        addresses
-      )
-    );
+    _coreRoute(abi.encodeWithSignature('getMarketDataWithLenderStatus(address,address)', lender, market));
+    _coreRoute(abi.encodeWithSignature('getMarketsDataWithLenderStatus(address,address[])', lender, addresses));
     _coreRoute(abi.encodeWithSignature('getLenderAccountData(address,address)', lender, market));
-    _coreRoute(
-      abi.encodeWithSignature('getLenderAccountData(address,address[])', lender, addresses)
-    );
-    _coreRoute(
-      abi.encodeWithSignature('getLenderAccountsData(address,address[])', market, addresses)
-    );
+    _coreRoute(abi.encodeWithSignature('getLenderAccountData(address,address[])', lender, addresses));
+    _coreRoute(abi.encodeWithSignature('getLenderAccountsData(address,address[])', market, addresses));
     _coreRoute(abi.encodeWithSignature('queryLenderAccount((address,address,uint32[]))', query));
-    _coreRoute(
-      abi.encodeWithSignature('queryLenderAccounts((address,address,uint32[])[])', queries)
-    );
-    _coreRoute(
-      abi.encodeWithSignature('getWithdrawalBatchData(address,uint32)', market, uint32(123))
-    );
-    _coreRoute(
-      abi.encodeWithSignature('getWithdrawalBatchesData(address,uint32[])', market, expiries)
-    );
+    _coreRoute(abi.encodeWithSignature('queryLenderAccounts((address,address,uint32[])[])', queries));
+    _coreRoute(abi.encodeWithSignature('getWithdrawalBatchData(address,uint32)', market, uint32(123)));
+    _coreRoute(abi.encodeWithSignature('getWithdrawalBatchesData(address,uint32[])', market, expiries));
     _coreRoute(
       abi.encodeWithSignature(
-        'getWithdrawalBatchesDataWithLenderStatus(address,uint32[],address)',
-        market,
-        expiries,
-        lender
+        'getWithdrawalBatchesDataWithLenderStatus(address,uint32[],address)', market, expiries, lender
       )
     );
     _coreRoute(
       abi.encodeWithSignature(
-        'getWithdrawalBatchDataWithLenderStatus(address,uint32,address)',
-        market,
-        uint32(123),
-        lender
+        'getWithdrawalBatchDataWithLenderStatus(address,uint32,address)', market, uint32(123), lender
       )
     );
     _coreRoute(
       abi.encodeWithSignature(
-        'getWithdrawalBatchDataWithLendersStatus(address,uint32,address[])',
-        market,
-        uint32(123),
-        addresses
+        'getWithdrawalBatchDataWithLendersStatus(address,uint32,address[])', market, uint32(123), addresses
       )
     );
 
+    _assertRoute(abi.encodeWithSignature('getMarketsLiveDataV2(address[])', addresses), LiveResponse);
     _assertRoute(
-      abi.encodeWithSignature('getMarketsLiveDataV2(address[])', addresses),
-      LiveResponse
-    );
-    _assertRoute(
-      abi.encodeWithSignature(
-        'getMarketsLiveDataWithLenderStatusV2(address,address[])',
-        lender,
-        addresses
-      ),
+      abi.encodeWithSignature('getMarketsLiveDataWithLenderStatusV2(address,address[])', lender, addresses),
       LiveResponse
     );
   }
 
   function test_delegate_BubblesExactHelperRevert() external {
-    address revertingCore = _deployCode(
-      'test/mocks/LensMocks.sol:LensDelegateTargetMock',
-      abi.encode(uint256(0), true)
-    );
+    address revertingCore = _deployCode('test/mocks/LensMocks.sol:LensDelegateTargetMock', abi.encode(uint256(0), true));
     MarketLens revertingLens = MarketLens(
       _deployCode(
-        'src/lens/MarketLens.sol:MarketLens',
-        abi.encode(address(0), address(0), revertingCore, address(0), address(0))
+        'src/lens/MarketLens.sol:MarketLens', abi.encode(address(0), address(0), revertingCore, address(0), address(0))
       )
     );
 
@@ -310,18 +184,15 @@ contract MarketLensFacadeTest is TestKernel {
   }
 
   function test_getMarketData_BubblesCanonicalNotV2MarketError() external {
-    MarketLensCore core = MarketLensCore(
-      _deployCode('src/lens/MarketLensCore.sol:MarketLensCore', abi.encode(address(0), address(0)))
-    );
+    MarketLensCore core =
+      MarketLensCore(_deployCode('src/lens/MarketLensCore.sol:MarketLensCore', abi.encode(address(0), address(0))));
     MarketLens productionCoreLens = MarketLens(
       _deployCode(
-        'src/lens/MarketLens.sol:MarketLens',
-        abi.encode(address(0), address(0), address(core), address(0), address(0))
+        'src/lens/MarketLens.sol:MarketLens', abi.encode(address(0), address(0), address(core), address(0), address(0))
       )
     );
-    LensV1MarketMock v1Market = LensV1MarketMock(
-      _deployCode('test/mocks/LensMocks.sol:LensV1MarketMock', abi.encode(address(0)))
-    );
+    LensV1MarketMock v1Market =
+      LensV1MarketMock(_deployCode('test/mocks/LensMocks.sol:LensV1MarketMock', abi.encode(address(0))));
 
     vm.expectRevert(MarketLens.NotV2Market.selector);
     productionCoreLens.getMarketData(address(v1Market));
@@ -340,33 +211,24 @@ contract MarketLensFacadeTest is TestKernel {
     assertFalse(probes.isV2Market(address(v1)), 'v1');
     assertFalse(probes.isV2Market(address(empty)), 'empty');
     assertEq(uint256(probes.hooksKind(address(openTerm))), uint256(HooksInstanceKind.OpenTerm));
-    assertEq(
-      uint256(probes.hooksKind(address(fixedTerm))),
-      uint256(HooksInstanceKind.FixedTermLoan)
-    );
-    assertEq(
-      uint256(probes.hooksKind(address(periodicTerm))),
-      uint256(HooksInstanceKind.PeriodicTerm)
-    );
+    assertEq(uint256(probes.hooksKind(address(fixedTerm))), uint256(HooksInstanceKind.FixedTermLoan));
+    assertEq(uint256(probes.hooksKind(address(periodicTerm))), uint256(HooksInstanceKind.PeriodicTerm));
     assertEq(uint256(probes.hooksKind(address(empty))), uint256(HooksInstanceKind.Unknown));
     assertEq(uint256(probes.hooksKind(address(unknown))), uint256(HooksInstanceKind.Unknown));
   }
 
   function test_versionAndHooksKindProbes_RejectMalformedDataAndBubbleReverts() external {
     for (uint256 i; i < 3; i++) {
-      address malformed = _deployCode(
-        'test/mocks/LensMocks.sol:MalformedVersionMock',
-        abi.encode(MalformedVersionMock.Shape(i))
-      );
+      address malformed =
+        _deployCode('test/mocks/LensMocks.sol:MalformedVersionMock', abi.encode(MalformedVersionMock.Shape(i)));
       vm.expectRevert();
       probes.isV2Market(malformed);
       vm.expectRevert();
       probes.hooksKind(malformed);
     }
 
-    RevertingVersionMock revertingTarget = RevertingVersionMock(
-      _deployCode('test/mocks/LensMocks.sol:RevertingVersionMock')
-    );
+    RevertingVersionMock revertingTarget =
+      RevertingVersionMock(_deployCode('test/mocks/LensMocks.sol:RevertingVersionMock'));
     vm.expectRevert(RevertingVersionMock.VersionReadFailed.selector);
     probes.isV2Market(address(revertingTarget));
     vm.expectRevert(RevertingVersionMock.VersionReadFailed.selector);
@@ -378,10 +240,7 @@ contract MarketLensFacadeTest is TestKernel {
     OptionalUintTargetMock zero = _optionalTarget(0, OptionalUintTargetMock.Shape.Word);
     OptionalUintTargetMock value = _optionalTarget(42, OptionalUintTargetMock.Shape.Long);
     OptionalUintTargetMock short = _optionalTarget(42, OptionalUintTargetMock.Shape.Short);
-    OptionalUintTargetMock revertingTarget = _optionalTarget(
-      42,
-      OptionalUintTargetMock.Shape.Revert
-    );
+    OptionalUintTargetMock revertingTarget = _optionalTarget(42, OptionalUintTargetMock.Shape.Revert);
 
     (bool present, uint256 result) = _optionalResult(address(zero), selector);
     assertTrue(present, 'zero present');
@@ -428,24 +287,22 @@ contract MarketLensFacadeTest is TestKernel {
   }
 
   function _version(string memory version) internal returns (VersionStringMock target) {
-    target = VersionStringMock(
-      _deployCode('test/mocks/LensMocks.sol:VersionStringMock', abi.encode(version))
-    );
+    target = VersionStringMock(_deployCode('test/mocks/LensMocks.sol:VersionStringMock', abi.encode(version)));
   }
 
   function _optionalTarget(
     uint256 value,
     OptionalUintTargetMock.Shape shape
-  ) internal returns (OptionalUintTargetMock target) {
+  )
+    internal
+    returns (OptionalUintTargetMock target)
+  {
     target = OptionalUintTargetMock(
       _deployCode('test/mocks/LensMocks.sol:OptionalUintTargetMock', abi.encode(value, shape))
     );
   }
 
-  function _optionalResult(
-    address target,
-    bytes4 selector
-  ) internal view returns (bool present, uint256 value) {
+  function _optionalResult(address target, bytes4 selector) internal view returns (bool present, uint256 value) {
     OptionalUintDataV2_5 memory data = probes.optionalUint(target, selector);
     return (data.isPresent, data.value);
   }

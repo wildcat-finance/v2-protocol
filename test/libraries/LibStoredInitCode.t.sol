@@ -19,9 +19,7 @@ contract LibStoredInitCodeTest is TestKernel {
 
   function setUp() external {
     lib = LibStoredInitCodeExternal(
-      _deployCode(
-        'test/libraries/wrappers/LibStoredInitCodeExternal.sol:LibStoredInitCodeExternal'
-      )
+      _deployCode('test/libraries/wrappers/LibStoredInitCodeExternal.sol:LibStoredInitCodeExternal')
     );
   }
 
@@ -64,16 +62,10 @@ contract LibStoredInitCodeTest is TestKernel {
   //           calculateCreate2Address(uint256,bytes32,uint256)            //
   // ===================================================================== //
 
-  function test_calculateCreate2Address(
-    uint256 create2Prefix,
-    bytes32 salt,
-    uint256 initCodeHash
-  ) external view {
+  function test_calculateCreate2Address(uint256 create2Prefix, bytes32 salt, uint256 initCodeHash) external view {
     assertEq(
       lib.calculateCreate2Address(create2Prefix, salt, initCodeHash),
-      address(
-        uint160(uint256(keccak256(abi.encodePacked(uint168(create2Prefix), salt, initCodeHash))))
-      )
+      address(uint160(uint256(keccak256(abi.encodePacked(uint168(create2Prefix), salt, initCodeHash)))))
     );
   }
 
@@ -127,10 +119,7 @@ contract LibStoredInitCodeTest is TestKernel {
     assertEq(deployed.codehash, address(new TestContract()).codehash, 'codehash');
     assertEq(deployed.balance, 0, 'balance');
     assertEq(
-      deployed,
-      address(
-        uint160(uint256(keccak256(abi.encodePacked(uint168(create2Prefix), salt, initCodeHash))))
-      )
+      deployed, address(uint160(uint256(keccak256(abi.encodePacked(uint168(create2Prefix), salt, initCodeHash)))))
     );
   }
 
@@ -156,10 +145,7 @@ contract LibStoredInitCodeTest is TestKernel {
     assertEq(deployed.codehash, address(new TestContract()).codehash, 'codehash');
     assertEq(deployed.balance, 1e18, 'balance');
     assertEq(
-      deployed,
-      address(
-        uint160(uint256(keccak256(abi.encodePacked(uint168(create2Prefix), salt, initCodeHash))))
-      )
+      deployed, address(uint160(uint256(keccak256(abi.encodePacked(uint168(create2Prefix), salt, initCodeHash)))))
     );
   }
 

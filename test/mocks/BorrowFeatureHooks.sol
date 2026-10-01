@@ -28,15 +28,15 @@ contract OpenBorrowHooks is OpenTransferPolicy, BorrowAmountPolicy {
       administrator,
       args,
       encodeHooksDeploymentConfig(
-        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
-          Bit_Enabled_QueueWithdrawal
-        ),
-        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(Bit_Enabled_Borrow).setFlag(
-          Bit_Enabled_SetAnnualInterestAndReserveRatioBips
-        )
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
+          .setFlag(Bit_Enabled_Transfer)
+          .setFlag(Bit_Enabled_QueueWithdrawal),
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
+          .setFlag(Bit_Enabled_Borrow)
+          .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
       )
     )
-  {}
+  { }
 
   function _onMarketConfigured(
     address administrator,
@@ -44,17 +44,16 @@ contract OpenBorrowHooks is OpenTransferPolicy, BorrowAmountPolicy {
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
     HooksConfig hooks
-  ) internal override {
+  )
+    internal
+    override
+  {
     OpenTransferPolicy._onMarketConfigured(administrator, market, parameters, hooksData, hooks);
     // creation runs before the market exists. initialize from parameters, not a market getter.
     _setBorrowAmountLimit(market, parameters.maxTotalSupply);
   }
 
-  function _checkBorrow(
-    uint256 normalizedAmount,
-    MarketState calldata,
-    bytes calldata
-  ) internal override {
+  function _checkBorrow(uint256 normalizedAmount, MarketState calldata, bytes calldata) internal override {
     // onBorrow has no shared caller guard. authenticate before touching feature state.
     _requireHookedMarket(msg.sender);
     _recordBorrowAmount(msg.sender, normalizedAmount);
@@ -75,15 +74,14 @@ contract FixedBorrowHooks is FixedTransferPolicy, BorrowAmountPolicy {
       args,
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
-        EmptyHooksConfig
-          .setFlag(Bit_Enabled_Transfer)
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
           .setFlag(Bit_Enabled_Borrow)
           .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
           .setFlag(Bit_Enabled_CloseMarket)
           .setFlag(Bit_Enabled_QueueWithdrawal)
       )
     )
-  {}
+  { }
 
   function _onMarketConfigured(
     address administrator,
@@ -91,16 +89,15 @@ contract FixedBorrowHooks is FixedTransferPolicy, BorrowAmountPolicy {
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
     HooksConfig hooks
-  ) internal override {
+  )
+    internal
+    override
+  {
     FixedTransferPolicy._onMarketConfigured(administrator, market, parameters, hooksData, hooks);
     _setBorrowAmountLimit(market, parameters.maxTotalSupply);
   }
 
-  function _checkBorrow(
-    uint256 normalizedAmount,
-    MarketState calldata,
-    bytes calldata
-  ) internal override {
+  function _checkBorrow(uint256 normalizedAmount, MarketState calldata, bytes calldata) internal override {
     // onBorrow has no shared caller guard. authenticate before touching feature state.
     _requireHookedMarket(msg.sender);
     _recordBorrowAmount(msg.sender, normalizedAmount);
@@ -121,8 +118,7 @@ contract PeriodicBorrowHooks is PeriodicTransferPolicy, BorrowAmountPolicy {
       args,
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
-        EmptyHooksConfig
-          .setFlag(Bit_Enabled_Transfer)
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
           .setFlag(Bit_Enabled_Borrow)
           .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
           .setFlag(Bit_Enabled_CloseMarket)
@@ -130,7 +126,7 @@ contract PeriodicBorrowHooks is PeriodicTransferPolicy, BorrowAmountPolicy {
           .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction)
       )
     )
-  {}
+  { }
 
   function _onMarketConfigured(
     address administrator,
@@ -138,16 +134,15 @@ contract PeriodicBorrowHooks is PeriodicTransferPolicy, BorrowAmountPolicy {
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
     HooksConfig hooks
-  ) internal override {
+  )
+    internal
+    override
+  {
     PeriodicTransferPolicy._onMarketConfigured(administrator, market, parameters, hooksData, hooks);
     _setBorrowAmountLimit(market, parameters.maxTotalSupply);
   }
 
-  function _checkBorrow(
-    uint256 normalizedAmount,
-    MarketState calldata,
-    bytes calldata
-  ) internal override {
+  function _checkBorrow(uint256 normalizedAmount, MarketState calldata, bytes calldata) internal override {
     // onBorrow has no shared caller guard. authenticate before touching feature state.
     _requireHookedMarket(msg.sender);
     _recordBorrowAmount(msg.sender, normalizedAmount);

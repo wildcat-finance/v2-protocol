@@ -7,7 +7,13 @@ import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegistry.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
-import { Bit_Enabled_Borrow, EmptyHooksConfig, HooksConfig, HooksDeploymentConfig, encodeHooksDeploymentConfig } from 'src/types/HooksConfig.sol';
+import {
+  Bit_Enabled_Borrow,
+  EmptyHooksConfig,
+  HooksConfig,
+  HooksDeploymentConfig,
+  encodeHooksDeploymentConfig
+} from 'src/types/HooksConfig.sol';
 import { LenderStatus } from 'src/types/LenderStatus.sol';
 
 contract ExecutingBorrowerAccountMock {
@@ -19,17 +25,13 @@ contract ExecutingBorrowerAccountMock {
     registry = IBorrowerIdentityRegistry(registry_);
   }
 
-  receive() external payable {}
+  receive() external payable { }
 
   function principal() public view returns (address) {
     return registry.principalOf(address(this));
   }
 
-  function execute(
-    address target,
-    uint256 value,
-    bytes calldata data
-  ) external payable returns (bytes memory result) {
+  function execute(address target, uint256 value, bytes calldata data) external payable returns (bytes memory result) {
     if (msg.sender != principal()) revert CallerNotPrincipal();
 
     bool success;
@@ -70,14 +72,8 @@ contract CredentialedBorrowHooksMock is IHooks, BaseAccessControls {
   mapping(address market => address) public lastBorrower;
   mapping(address market => address) public lastBorrowerPrincipal;
 
-  constructor(
-    address administrator_,
-    bytes memory constructorArgs
-  ) IHooks() BaseAccessControls(administrator_) {
-    config = encodeHooksDeploymentConfig(
-      EmptyHooksConfig,
-      EmptyHooksConfig.setFlag(Bit_Enabled_Borrow)
-    );
+  constructor(address administrator_, bytes memory constructorArgs) IHooks() BaseAccessControls(administrator_) {
+    config = encodeHooksDeploymentConfig(EmptyHooksConfig, EmptyHooksConfig.setFlag(Bit_Enabled_Borrow));
     if (constructorArgs.length != 0) {
       _initialize(abi.decode(constructorArgs, (NameAndProviderInputs)));
     }
@@ -92,7 +88,11 @@ contract CredentialedBorrowHooksMock is IHooks, BaseAccessControls {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata
-  ) internal override returns (HooksConfig) {
+  )
+    internal
+    override
+    returns (HooksConfig)
+  {
     if (marketAdministrator != administrator) revert CallerNotAdministrator();
     isHookedMarket[marketAddress] = true;
     return parameters.hooks.mergeFlags(config);
@@ -111,49 +111,35 @@ contract CredentialedBorrowHooksMock is IHooks, BaseAccessControls {
     lastBorrowerPrincipal[msg.sender] = principal;
   }
 
-  function onDeposit(address, uint256, MarketState calldata, bytes calldata) external override {}
+  function onDeposit(address, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onQueueWithdrawal(
-    address,
-    uint32,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onQueueWithdrawal(address, uint32, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onExecuteWithdrawal(
-    address,
-    uint32,
-    uint128,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onExecuteWithdrawal(address, uint32, uint128, MarketState calldata, bytes calldata) external override { }
 
-  function onTransfer(
-    address,
-    address,
-    address,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onTransfer(address, address, address, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onRepay(uint256, MarketState calldata, bytes calldata) external override {}
+  function onRepay(uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onCloseMarket(MarketState calldata, bytes calldata) external override {}
+  function onCloseMarket(MarketState calldata, bytes calldata) external override { }
 
-  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override {}
+  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override { }
 
-  function onSetMaxTotalSupply(uint256, MarketState calldata, bytes calldata) external override {}
+  function onSetMaxTotalSupply(uint256, MarketState calldata, bytes calldata) external override { }
 
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
     MarketState calldata,
     bytes calldata
-  ) external pure override returns (uint16, uint16) {
+  )
+    external
+    pure
+    override
+    returns (uint16, uint16)
+  {
     return (annualInterestBips, reserveRatioBips);
   }
 
-  function onSetProtocolFeeBips(uint16, MarketState memory, bytes calldata) external override {}
+  function onSetProtocolFeeBips(uint16, MarketState memory, bytes calldata) external override { }
 }

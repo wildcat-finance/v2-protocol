@@ -22,7 +22,11 @@ contract WithdrawalPaymentHarness is WildcatMarketBase {
   function release(
     WithdrawalBatch memory batch,
     MarketState memory state
-  ) external pure returns (WithdrawalBatch memory, MarketState memory) {
+  )
+    external
+    pure
+    returns (WithdrawalBatch memory, MarketState memory)
+  {
     batch.releaseRemainder(state);
     return (batch, state);
   }
@@ -31,7 +35,11 @@ contract WithdrawalPaymentHarness is WildcatMarketBase {
     WithdrawalBatch memory batch,
     MarketState memory state,
     uint256 assets
-  ) external pure returns (uint256) {
+  )
+    external
+    pure
+    returns (uint256)
+  {
     return batch.availableLiquidityForPendingBatch(state, assets);
   }
 }

@@ -12,12 +12,14 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
     uint128 supply,
     MatrixHooksKind hooksKind,
     uint256 drawn
-  ) internal returns (MatrixCell memory cell) {
+  )
+    internal
+    returns (MatrixCell memory cell)
+  {
     ProductionStack memory stack = _deployProductionStack();
     stack.asset = MockERC20(
       _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Dust Review Asset', 'DRA', decimals)
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Dust Review Asset', 'DRA', decimals)
       )
     );
     MatrixOptions memory options = _defaultMatrixOptions(hooksKind, MatrixMarketKind.Revolving);
@@ -78,11 +80,7 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
   function test_eighteenDecimalExactThresholdRetainsOneRayAcrossHooks() external {
     uint256 start = vm.getBlockTimestamp();
     uint128 supply = 110_000_000e18;
-    uint256 threshold = MathUtils.mulDivUp(
-      supply,
-      1,
-      MathUtils.calculateLinearInterestFromBips(1, 12)
-    );
+    uint256 threshold = MathUtils.mulDivUp(supply, 1, MathUtils.calculateLinearInterestFromBips(1, 12));
     for (uint256 hook; hook < 2; hook++) {
       vm.warp(start);
       MatrixCell memory cell = _reviewMarket(18, supply, MatrixHooksKind(hook), threshold);

@@ -5,10 +5,7 @@ import 'src/libraries/MathUtils.sol';
 library MathUtilsExternal {
   error MulDivFailed();
 
-  function calculateLinearInterestFromBips(
-    uint256 rateBip,
-    uint256 timeDelta
-  ) external pure returns (uint256 result) {
+  function calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) external pure returns (uint256 result) {
     return MathUtils.calculateLinearInterestFromBips(rateBip, timeDelta);
   }
 
@@ -28,11 +25,7 @@ library MathUtilsExternal {
     return MathUtils.satAdd(a, b, maxValue);
   }
 
-  function ternary(
-    bool condition,
-    uint256 valueIfTrue,
-    uint256 valueIfFalse
-  ) external pure returns (uint256 c) {
+  function ternary(bool condition, uint256 valueIfTrue, uint256 valueIfFalse) external pure returns (uint256 c) {
     return MathUtils.ternary(condition, valueIfTrue, valueIfFalse);
   }
 

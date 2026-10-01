@@ -29,11 +29,6 @@ contract MockRoleProviderFactory is IRoleProviderFactory {
 
   function computeProviderAddress(bytes32 salt) external view returns (address) {
     bytes32 initCodeHash = keccak256(type(MockRoleProvider).creationCode);
-    return
-      address(
-        uint160(
-          uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash)))
-        )
-      );
+    return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash)))));
   }
 }

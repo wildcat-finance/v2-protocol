@@ -19,8 +19,7 @@ contract ProtocolFeeReadOnDepositHooks is IHooks {
   }
 
   function config() public pure override returns (HooksDeploymentConfig) {
-    return
-      encodeHooksDeploymentConfig(EmptyHooksConfig.setFlag(Bit_Enabled_Deposit), EmptyHooksConfig);
+    return encodeHooksDeploymentConfig(EmptyHooksConfig.setFlag(Bit_Enabled_Deposit), EmptyHooksConfig);
   }
 
   function _onCreateMarket(
@@ -28,14 +27,17 @@ contract ProtocolFeeReadOnDepositHooks is IHooks {
     address,
     DeployMarketInputs calldata parameters,
     bytes calldata
-  ) internal pure override returns (HooksConfig) {
+  )
+    internal
+    pure
+    override
+    returns (HooksConfig)
+  {
     return parameters.hooks.mergeFlags(config());
   }
 
   function onDeposit(address, uint256, MarketState calldata, bytes calldata) external override {
-    (bool success, bytes memory data) = msg.sender.staticcall(
-      abi.encodeWithSignature('withdrawableProtocolFees()')
-    );
+    (bool success, bytes memory data) = msg.sender.staticcall(abi.encodeWithSignature('withdrawableProtocolFees()'));
     protocolFeeReadSucceeded = success;
     if (success && data.length >= 32) {
       protocolFeeReadValue = abi.decode(data, (uint128));
@@ -48,51 +50,37 @@ contract ProtocolFeeReadOnDepositHooks is IHooks {
     }
   }
 
-  function onQueueWithdrawal(
-    address,
-    uint32,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onQueueWithdrawal(address, uint32, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onExecuteWithdrawal(
-    address,
-    uint32,
-    uint128,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onExecuteWithdrawal(address, uint32, uint128, MarketState calldata, bytes calldata) external override { }
 
-  function onTransfer(
-    address,
-    address,
-    address,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onTransfer(address, address, address, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onBorrow(uint256, MarketState calldata, bytes calldata) external override {}
+  function onBorrow(uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onRepay(uint256, MarketState calldata, bytes calldata) external override {}
+  function onRepay(uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onCloseMarket(MarketState calldata, bytes calldata) external override {}
+  function onCloseMarket(MarketState calldata, bytes calldata) external override { }
 
-  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override {}
+  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override { }
 
-  function onSetMaxTotalSupply(uint256, MarketState calldata, bytes calldata) external override {}
+  function onSetMaxTotalSupply(uint256, MarketState calldata, bytes calldata) external override { }
 
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
     MarketState calldata,
     bytes calldata
-  ) external pure override returns (uint16, uint16) {
+  )
+    external
+    pure
+    override
+    returns (uint16, uint16)
+  {
     return (annualInterestBips, reserveRatioBips);
   }
 
-  function onSetProtocolFeeBips(uint16, MarketState memory, bytes calldata) external override {}
+  function onSetProtocolFeeBips(uint16, MarketState memory, bytes calldata) external override { }
 }
 
 contract MarketConfigHooks is IHooks {
@@ -109,13 +97,11 @@ contract MarketConfigHooks is IHooks {
   }
 
   function config() public pure override returns (HooksDeploymentConfig) {
-    return
-      encodeHooksDeploymentConfig(
-        EmptyHooksConfig,
-        EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips).setFlag(
-          Bit_Enabled_ExecutePendingAnnualInterestBipsReduction
-        )
-      );
+    return encodeHooksDeploymentConfig(
+      EmptyHooksConfig,
+      EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+        .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction)
+    );
   }
 
   function _onCreateMarket(
@@ -123,14 +109,16 @@ contract MarketConfigHooks is IHooks {
     address,
     DeployMarketInputs calldata parameters,
     bytes calldata
-  ) internal pure override returns (HooksConfig) {
+  )
+    internal
+    pure
+    override
+    returns (HooksConfig)
+  {
     return parameters.hooks.mergeFlags(config());
   }
 
-  function setAprAndReserveRatioReturn(
-    uint16 annualInterestBips,
-    uint16 reserveRatioBips
-  ) external {
+  function setAprAndReserveRatioReturn(uint16 annualInterestBips, uint16 reserveRatioBips) external {
     _replaceAprAndReserveRatio = true;
     _annualInterestBips = annualInterestBips;
     _reserveRatioBips = reserveRatioBips;
@@ -140,60 +128,47 @@ contract MarketConfigHooks is IHooks {
     pendingAnnualInterestBipsReduction = annualInterestBips;
   }
 
-  function executePendingAnnualInterestBipsReduction(
-    MarketState calldata intermediateState
-  ) external returns (uint16 annualInterestBips) {
+  function executePendingAnnualInterestBipsReduction(MarketState calldata intermediateState)
+    external
+    returns (uint16 annualInterestBips)
+  {
     lastIntermediateAnnualInterestBips = intermediateState.annualInterestBips;
     lastIntermediateReserveRatioBips = intermediateState.reserveRatioBips;
     return pendingAnnualInterestBipsReduction;
   }
 
-  function onDeposit(address, uint256, MarketState calldata, bytes calldata) external override {}
+  function onDeposit(address, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onQueueWithdrawal(
-    address,
-    uint32,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onQueueWithdrawal(address, uint32, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onExecuteWithdrawal(
-    address,
-    uint32,
-    uint128,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onExecuteWithdrawal(address, uint32, uint128, MarketState calldata, bytes calldata) external override { }
 
-  function onTransfer(
-    address,
-    address,
-    address,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {}
+  function onTransfer(address, address, address, uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onBorrow(uint256, MarketState calldata, bytes calldata) external override {}
+  function onBorrow(uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onRepay(uint256, MarketState calldata, bytes calldata) external override {}
+  function onRepay(uint256, MarketState calldata, bytes calldata) external override { }
 
-  function onCloseMarket(MarketState calldata, bytes calldata) external override {}
+  function onCloseMarket(MarketState calldata, bytes calldata) external override { }
 
-  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override {}
+  function onNukeFromOrbit(address, MarketState calldata, bytes calldata) external override { }
 
-  function onSetMaxTotalSupply(uint256, MarketState calldata, bytes calldata) external override {}
+  function onSetMaxTotalSupply(uint256, MarketState calldata, bytes calldata) external override { }
 
   function onSetAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
     MarketState calldata,
     bytes calldata
-  ) external view override returns (uint16, uint16) {
+  )
+    external
+    view
+    override
+    returns (uint16, uint16)
+  {
     if (_replaceAprAndReserveRatio) return (_annualInterestBips, _reserveRatioBips);
     return (annualInterestBips, reserveRatioBips);
   }
 
-  function onSetProtocolFeeBips(uint16, MarketState memory, bytes calldata) external override {}
+  function onSetProtocolFeeBips(uint16, MarketState memory, bytes calldata) external override { }
 }

@@ -23,11 +23,7 @@ contract SphereXEngineMock {
 }
 
 contract SphereXConfigHarness is SphereXConfig {
-  constructor(
-    address admin,
-    address operator,
-    address engine
-  ) SphereXConfig(admin, operator, engine) {}
+  constructor(address admin, address operator, address engine) SphereXConfig(admin, operator, engine) { }
 
   function addSender(address sender) external spherexOnlyOperatorOrAdmin {
     _addAllowedSenderOnChain(sender);

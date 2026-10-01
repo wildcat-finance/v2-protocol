@@ -86,30 +86,22 @@ library HooksConfigDataLib {
     PeriodicPendingAprChangeData memory data,
     address hooksAddress,
     address marketAddress
-  ) internal view {
+  )
+    internal
+    view
+  {
     bytes memory input = abi.encodeWithSignature('getPendingAprChange(address)', marketAddress);
     bytes memory result = new bytes(0x80);
     bool success;
     assembly ('memory-safe') {
-      success := staticcall(
-        gas(),
-        hooksAddress,
-        add(input, 0x20),
-        mload(input),
-        add(result, 0x20),
-        0x80
-      )
+      success := staticcall(gas(), hooksAddress, add(input, 0x20), mload(input), add(result, 0x20), 0x80)
       success := and(success, iszero(lt(returndatasize(), 0x80)))
     }
     // older periodic hooks lack the response-window getter. don't invent bounds from today's
     // schedule; these are the bounds recorded when the proposal was made.
     if (!success) return;
-    (
-      data.annualInterestBips,
-      data.proposalTimestamp,
-      data.responseWindowStart,
-      data.responseWindowEnd
-    ) = abi.decode(result, (uint16, uint32, uint32, uint32));
+    (data.annualInterestBips, data.proposalTimestamp, data.responseWindowStart, data.responseWindowEnd) =
+      abi.decode(result, (uint16, uint32, uint32, uint32));
     data.isPresent = true;
   }
 
@@ -237,11 +229,9 @@ library HooksConfigDataLib {
     data.useOnCloseMarket = hooksConfig.useOnCloseMarket();
     data.useOnNukeFromOrbit = hooksConfig.useOnNukeFromOrbit();
     data.useOnSetMaxTotalSupply = hooksConfig.useOnSetMaxTotalSupply();
-    data.useOnSetAnnualInterestAndReserveRatioBips = hooksConfig
-      .useOnSetAnnualInterestAndReserveRatioBips();
+    data.useOnSetAnnualInterestAndReserveRatioBips = hooksConfig.useOnSetAnnualInterestAndReserveRatioBips();
     data.useOnSetProtocolFeeBips = hooksConfig.useOnSetProtocolFeeBips();
-    data.useOnExecutePendingAnnualInterestBipsReduction = hooksConfig
-      .useOnExecutePendingAnnualInterestBipsReduction();
+    data.useOnExecutePendingAnnualInterestBipsReduction = hooksConfig.useOnExecutePendingAnnualInterestBipsReduction();
   }
 
   /// @notice expands the optional and required callback flags in `config`.

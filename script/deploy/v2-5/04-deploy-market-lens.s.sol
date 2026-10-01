@@ -21,8 +21,7 @@ import '../../common/DeployScriptBase.sol';
 
 contract DeployMarketLensV25 is V25DeployScriptBase {
   string internal constant CORE_ARTIFACT = 'src/lens/MarketLensCore.sol:MarketLensCore';
-  string internal constant AGGREGATOR_ARTIFACT =
-    'src/lens/MarketLensAggregator.sol:MarketLensAggregator';
+  string internal constant AGGREGATOR_ARTIFACT = 'src/lens/MarketLensAggregator.sol:MarketLensAggregator';
   string internal constant LIVE_ARTIFACT = 'src/lens/MarketLensLive.sol:MarketLensLive';
   string internal constant FACADE_ARTIFACT = 'src/lens/MarketLens.sol:MarketLens';
 
@@ -48,10 +47,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     bool didDeployFacade;
   }
 
-  function _twoAddressArgs(
-    address first,
-    string memory secondRef
-  ) internal pure returns (string memory) {
+  function _twoAddressArgs(address first, string memory secondRef) internal pure returns (string memory) {
     return string.concat('[', _quoted(vm.toString(first)), ',', _ref(secondRef), ']');
   }
 
@@ -64,7 +60,9 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string memory description,
     string memory afterEntry,
     address archController
-  ) internal {
+  )
+    internal
+  {
     string[] memory afterEntries = new string[](1);
     afterEntries[0] = afterEntry;
     DeployPlanEntry memory entry;
@@ -74,12 +72,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     entry.decodedConstructorArgs = _twoAddressArgs(archController, FACTORY_OUTPUT);
     entry.output = output;
     entry.description = description;
-    entry.predicate = _planCallEqPredicate(
-      output,
-      'hooksFactory() view returns (address)',
-      '[]',
-      _ref(FACTORY_OUTPUT)
-    );
+    entry.predicate = _planCallEqPredicate(output, 'hooksFactory() view returns (address)', '[]', _ref(FACTORY_OUTPUT));
     entry.afterEntries = afterEntries;
     _planEntry(deployments, entry);
   }
@@ -138,10 +131,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     facadeEntry.output = FACADE_OUTPUT;
     facadeEntry.description = 'Deploy the v2.5 market-lens facade wired to its helpers.';
     facadeEntry.predicate = _planCallEqPredicate(
-      FACADE_OUTPUT,
-      'aggregationHelper() view returns (address)',
-      '[]',
-      _ref(AGGREGATOR_OUTPUT)
+      FACADE_OUTPUT, 'aggregationHelper() view returns (address)', '[]', _ref(AGGREGATOR_OUTPUT)
     );
     facadeEntry.afterEntries = facadeAfter;
     _planEntry(deployments, facadeEntry);
@@ -152,21 +142,12 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string memory label,
     address archController,
     address hooksFactory
-  ) internal view {
-    _verifyAddressCall(
-      helper,
-      label,
-      'archController',
-      abi.encodeWithSignature('archController()'),
-      archController
-    );
-    _verifyAddressCall(
-      helper,
-      label,
-      'hooksFactory',
-      abi.encodeWithSignature('hooksFactory()'),
-      hooksFactory
-    );
+  )
+    internal
+    view
+  {
+    _verifyAddressCall(helper, label, 'archController', abi.encodeWithSignature('archController()'), archController);
+    _verifyAddressCall(helper, label, 'hooksFactory', abi.encodeWithSignature('hooksFactory()'), hooksFactory);
   }
 
   function _verifyFacade(
@@ -175,81 +156,49 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     address archController,
     address hooksFactory,
     LensSet memory lens
-  ) internal view {
+  )
+    internal
+    view
+  {
     _verifyHelper(facade, label, archController, hooksFactory);
+    _verifyAddressCall(facade, label, 'coreHelper', abi.encodeWithSignature('coreHelper()'), lens.core);
     _verifyAddressCall(
-      facade,
-      label,
-      'coreHelper',
-      abi.encodeWithSignature('coreHelper()'),
-      lens.core
+      facade, label, 'aggregationHelper', abi.encodeWithSignature('aggregationHelper()'), lens.aggregator
     );
-    _verifyAddressCall(
-      facade,
-      label,
-      'aggregationHelper',
-      abi.encodeWithSignature('aggregationHelper()'),
-      lens.aggregator
-    );
-    _verifyAddressCall(
-      facade,
-      label,
-      'liveHelper',
-      abi.encodeWithSignature('liveHelper()'),
-      lens.live
-    );
+    _verifyAddressCall(facade, label, 'liveHelper', abi.encodeWithSignature('liveHelper()'), lens.live);
   }
 
   function _deployLensSet(
     Deployments memory deployments,
     address archController,
     address hooksFactory
-  ) internal returns (LensSet memory lens) {
+  )
+    internal
+    returns (LensSet memory lens)
+  {
     bytes memory helperArgs = abi.encode(archController, hooksFactory);
     string memory coreLabel = _label('MarketLensCore');
     (lens.core, lens.didDeployCore) = _getOrDeployByLabel(
-      deployments,
-      coreLabel,
-      CORE_ARTIFACT,
-      _getCreationCode(deployments, CORE_ARTIFACT),
-      helperArgs
+      deployments, coreLabel, CORE_ARTIFACT, _getCreationCode(deployments, CORE_ARTIFACT), helperArgs
     );
     _verifyHelper(lens.core, coreLabel, archController, hooksFactory);
 
     string memory aggregatorLabel = _label('MarketLensAggregator');
     (lens.aggregator, lens.didDeployAggregator) = _getOrDeployByLabel(
-      deployments,
-      aggregatorLabel,
-      AGGREGATOR_ARTIFACT,
-      _getCreationCode(deployments, AGGREGATOR_ARTIFACT),
-      helperArgs
+      deployments, aggregatorLabel, AGGREGATOR_ARTIFACT, _getCreationCode(deployments, AGGREGATOR_ARTIFACT), helperArgs
     );
     _verifyHelper(lens.aggregator, aggregatorLabel, archController, hooksFactory);
 
     string memory liveLabel = _label('MarketLensLive');
     (lens.live, lens.didDeployLive) = _getOrDeployByLabel(
-      deployments,
-      liveLabel,
-      LIVE_ARTIFACT,
-      _getCreationCode(deployments, LIVE_ARTIFACT),
-      helperArgs
+      deployments, liveLabel, LIVE_ARTIFACT, _getCreationCode(deployments, LIVE_ARTIFACT), helperArgs
     );
     _verifyHelper(lens.live, liveLabel, archController, hooksFactory);
 
     string memory facadeLabel = _label('MarketLens');
-    bytes memory facadeArgs = abi.encode(
-      archController,
-      hooksFactory,
-      lens.core,
-      lens.aggregator,
-      lens.live
-    );
+    bytes memory facadeArgs = abi.encode(archController, hooksFactory, lens.core, lens.aggregator, lens.live);
     (lens.facade, lens.didDeployFacade) = _getOrDeployByLabel(
-      deployments,
-      facadeLabel,
-      FACADE_ARTIFACT,
-      _getCreationCode(deployments, FACADE_ARTIFACT),
-      facadeArgs
+      deployments, facadeLabel, FACADE_ARTIFACT, _getCreationCode(deployments, FACADE_ARTIFACT), facadeArgs
     );
     _verifyFacade(lens.facade, facadeLabel, archController, hooksFactory, lens);
   }
@@ -261,7 +210,9 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string memory name,
     string memory role,
     address deployment
-  ) internal {
+  )
+    internal
+  {
     string memory label = _label(name);
     string memory recordJson = string.concat(
       '{"recordType":"deployment","network":',
@@ -283,16 +234,11 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     Deployments memory deployments,
     string memory networkName,
     LensSet memory lens
-  ) internal {
+  )
+    internal
+  {
     _writeInventoryRecord(deployments, networkName, 8, 'MarketLensCore', 'core', lens.core);
-    _writeInventoryRecord(
-      deployments,
-      networkName,
-      9,
-      'MarketLensAggregator',
-      'aggregator',
-      lens.aggregator
-    );
+    _writeInventoryRecord(deployments, networkName, 9, 'MarketLensAggregator', 'aggregator', lens.aggregator);
     _writeInventoryRecord(deployments, networkName, 10, 'MarketLensLive', 'live', lens.live);
     _writeInventoryRecord(deployments, networkName, 11, 'MarketLens', 'facade', lens.facade);
   }
@@ -304,7 +250,9 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     string memory name,
     string memory role,
     string memory output
-  ) internal {
+  )
+    internal
+  {
     string memory label = _label(name);
     string memory recordJson = string.concat(
       '{"recordType":"deployment","network":',
@@ -322,19 +270,9 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
     _inventoryRecord(deployments, sequence, label, recordJson);
   }
 
-  function _writePlanInventoryRecords(
-    Deployments memory deployments,
-    string memory networkName
-  ) internal {
+  function _writePlanInventoryRecords(Deployments memory deployments, string memory networkName) internal {
     _writePlanInventoryRecord(deployments, networkName, 8, 'MarketLensCore', 'core', CORE_OUTPUT);
-    _writePlanInventoryRecord(
-      deployments,
-      networkName,
-      9,
-      'MarketLensAggregator',
-      'aggregator',
-      AGGREGATOR_OUTPUT
-    );
+    _writePlanInventoryRecord(deployments, networkName, 9, 'MarketLensAggregator', 'aggregator', AGGREGATOR_OUTPUT);
     _writePlanInventoryRecord(deployments, networkName, 10, 'MarketLensLive', 'live', LIVE_OUTPUT);
     _writePlanInventoryRecord(deployments, networkName, 11, 'MarketLens', 'facade', FACADE_OUTPUT);
   }
@@ -342,11 +280,7 @@ contract DeployMarketLensV25 is V25DeployScriptBase {
   function run() external {
     string memory ownerMode = _ownerMode();
     (Deployments memory deployments, string memory networkName) = _resolveDeployments();
-    address archController = _resolveExisting(
-      deployments,
-      'WildcatArchController',
-      'ARCH_CONTROLLER'
-    );
+    address archController = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
 
     if (_isPlanMode(ownerMode)) {
       _writePlanEntries(deployments, archController);

@@ -43,7 +43,10 @@ library LenderAccountDataLib {
     IERC20 underlying,
     OpenTermHooks hooks,
     address lenderAddress
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.lender = lenderAddress;
 
     data.scaledBalance = market.scaledBalanceOf(lenderAddress);
@@ -63,21 +66,13 @@ library LenderAccountDataLib {
     }
   }
 
-  function fill(
-    LenderAccountData memory data,
-    WildcatMarket market,
-    address lenderAddress
-  ) internal view {
+  function fill(LenderAccountData memory data, WildcatMarket market, address lenderAddress) internal view {
     IERC20 underlying = IERC20(market.asset());
     OpenTermHooks hooks = OpenTermHooks(market.hooks().hooksAddress());
     data.fill(market, underlying, hooks, lenderAddress);
   }
 
-  function fill(
-    LenderAccountData memory data,
-    MarketData memory market,
-    address lenderAddress
-  ) internal view {
+  function fill(LenderAccountData memory data, MarketData memory market, address lenderAddress) internal view {
     data.fill(
       WildcatMarket(market.marketToken.token),
       IERC20(market.underlyingToken.token),

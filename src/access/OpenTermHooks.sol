@@ -25,13 +25,13 @@ contract OpenTermHooks is OpenTermPolicy {
       _administrator,
       args,
       encodeHooksDeploymentConfig(
-        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
-          Bit_Enabled_QueueWithdrawal
-        ),
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
+          .setFlag(Bit_Enabled_Transfer)
+          .setFlag(Bit_Enabled_QueueWithdrawal),
         EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
       )
     )
-  {}
+  { }
 
   function version() external pure override returns (string memory) {
     return 'OpenTermHooks';
@@ -48,9 +48,11 @@ contract OpenTermHooks is OpenTermPolicy {
   }
 
   /// @notice batch version of `getHookedMarket`, preserving input order.
-  function getHookedMarkets(
-    address[] calldata marketAddresses
-  ) external view returns (HookedMarket[] memory hookedMarkets) {
+  function getHookedMarkets(address[] calldata marketAddresses)
+    external
+    view
+    returns (HookedMarket[] memory hookedMarkets)
+  {
     hookedMarkets = new HookedMarket[](marketAddresses.length);
     for (uint256 i = 0; i < marketAddresses.length; i++) {
       hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];

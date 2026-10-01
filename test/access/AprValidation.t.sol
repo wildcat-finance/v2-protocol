@@ -29,23 +29,19 @@ contract AprValidationTest is HookTemplateFixture {
   AprValidationHooks internal target;
 
   function _replacementArtifact(HookKind kind) private pure returns (string memory) {
-    return
-      kind == HookKind.Open
-        ? 'test/mocks/AprReplacementHooks.sol:OpenAprReplacementHooks'
-        : kind == HookKind.Fixed
+    return kind == HookKind.Open
+      ? 'test/mocks/AprReplacementHooks.sol:OpenAprReplacementHooks'
+      : kind == HookKind.Fixed
         ? 'test/mocks/AprReplacementHooks.sol:FixedAprReplacementHooks'
         : 'test/mocks/AprReplacementHooks.sol:PeriodicAprReplacementHooks';
   }
 
   function _newReplacement(HookKind kind) private returns (BaseHooks replacement) {
     vm.warp(StartTimestamp);
-    replacement = BaseHooks(
-      _deployCode(_replacementArtifact(kind), abi.encode(address(this), bytes('')))
-    );
+    replacement = BaseHooks(_deployCode(_replacementArtifact(kind), abi.encode(address(this), bytes(''))));
     DeployMarketInputs memory inputs;
     inputs.maxTotalSupply = 1_000;
-    inputs.hooks = EmptyHooksConfig
-      .setHooksAddress(address(replacement))
+    inputs.hooks = EmptyHooksConfig.setHooksAddress(address(replacement))
       .setFlag(Bit_Enabled_Deposit)
       .setFlag(Bit_Enabled_Transfer)
       .setFlag(Bit_Enabled_QueueWithdrawal);
@@ -64,11 +60,7 @@ contract AprValidationTest is HookTemplateFixture {
   }
 
   function _proposeFor(BaseHooks replacement, uint16 currentApr) private {
-    vm.mockCall(
-      MarketA,
-      abi.encodeWithSignature('annualInterestBips()'),
-      abi.encode(uint256(currentApr))
-    );
+    vm.mockCall(MarketA, abi.encodeWithSignature('annualInterestBips()'), abi.encode(uint256(currentApr)));
     PeriodicTermPolicy(address(replacement)).proposeAnnualInterestBips(MarketA, 700);
   }
 
@@ -84,22 +76,21 @@ contract AprValidationTest is HookTemplateFixture {
     Vm.Log[] memory logs,
     uint16 apr,
     bool cancelledProposal
-  ) private pure {
+  )
+    private
+    pure
+  {
     uint256 selectionIndex = cancelledProposal ? 1 : 0;
     assertEq(logs.length, selectionIndex + 1, 'no skipped-default events');
     if (cancelledProposal) {
       assertEq(logs[0].emitter, replacement, 'cancellation owner');
       assertEq(
-        logs[0].topics[0],
-        keccak256('AnnualInterestBipsReductionProposalCancelled(address)'),
-        'proposal cancellation'
+        logs[0].topics[0], keccak256('AnnualInterestBipsReductionProposalCancelled(address)'), 'proposal cancellation'
       );
     }
     assertEq(logs[selectionIndex].emitter, replacement, 'selected-default event owner');
     assertEq(
-      logs[selectionIndex].topics[0],
-      keccak256('AprDefaultSelected(address,uint16,uint16)'),
-      'selected-default event'
+      logs[selectionIndex].topics[0], keccak256('AprDefaultSelected(address,uint16,uint16)'), 'selected-default event'
     );
     assertEq(logs[selectionIndex].topics[1], bytes32(uint256(uint160(MarketA))), 'selected market');
     assertEq(logs[selectionIndex].data, abi.encode(apr, uint16(3_333)), 'selected values');
@@ -134,12 +125,7 @@ contract AprValidationTest is HookTemplateFixture {
       }
 
       vm.prank(MarketA);
-      (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(
-        1_100,
-        0,
-        state,
-        ''
-      );
+      (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(1_100, 0, state, '');
       assertEq(apr, 1_100, 'registered update APR');
       assertEq(reserve, 3_333, 'registered update reserves');
       assertEq(feature.lastSelectedApr(MarketA), 1_100, 'registered update recorded');
@@ -174,41 +160,21 @@ contract AprValidationTest is HookTemplateFixture {
         vm.recordLogs();
         vm.prank(MarketA);
         (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(
-          requestedApr,
-          type(uint16).max,
-          state,
-          abi.encode('selected default')
+          requestedApr, type(uint16).max, state, abi.encode('selected default')
         );
         _assertSelectionLogs(
-          address(replacement),
-          vm.getRecordedLogs(),
-          requestedApr,
-          kind == HookKind.Periodic && effect != 3
+          address(replacement), vm.getRecordedLogs(), requestedApr, kind == HookKind.Periodic && effect != 3
         );
         assertEq(apr, requestedApr, 'selected APR');
         assertEq(reserve, 3_333, 'selected reserve');
-        assertEq(
-          AprReplacementPolicy(address(replacement)).lastSelectedApr(MarketA),
-          apr,
-          'selected effect'
-        );
-        assertEq(
-          AprReplacementPolicy(address(replacement)).lastSelectedApr(MarketB),
-          0,
-          'other market unchanged'
-        );
-        assertEq(
-          _temporaryHashFor(replacement),
-          temporaryBefore,
-          'skipped default state untouched'
-        );
+        assertEq(AprReplacementPolicy(address(replacement)).lastSelectedApr(MarketA), apr, 'selected effect');
+        assertEq(AprReplacementPolicy(address(replacement)).lastSelectedApr(MarketB), 0, 'other market unchanged');
+        assertEq(_temporaryHashFor(replacement), temporaryBefore, 'skipped default state untouched');
         if (kind == HookKind.Periodic) {
-          if (effect == 3)
+          if (effect == 3) {
             assertEq(_proposalHashFor(replacement), proposalBefore, 'equality retains proposal');
-          else {
-            (, uint32 timestamp) = PeriodicTermPolicy(address(replacement)).pendingAprChanges(
-              MarketA
-            );
+          } else {
+            (, uint32 timestamp) = PeriodicTermPolicy(address(replacement)).pendingAprChanges(MarketA);
             assertEq(timestamp, 0, 'increase cancels proposal');
           }
         }
@@ -235,12 +201,7 @@ contract AprValidationTest is HookTemplateFixture {
             'bounds reject before selected effect'
           );
         } else {
-          (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(
-            values[j],
-            0,
-            state,
-            ''
-          );
+          (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(values[j], 0, state, '');
           assertEq(apr, values[j], 'inclusive APR boundary');
           assertEq(reserve, 3_333, 'bounded replacement reserve');
         }
@@ -269,42 +230,27 @@ contract AprValidationTest is HookTemplateFixture {
         vm.expectRevert(
           rejectApr == 1
             ? abi.encodeWithSelector(AprValidationPolicy.AprBelowFloor.selector, uint16(1_100))
-            : abi.encodeWithSelector(
-              AprValidationPolicy.ReserveAboveCeiling.selector,
-              uint16(3_333)
-            )
+            : abi.encodeWithSelector(AprValidationPolicy.ReserveAboveCeiling.selector, uint16(3_333))
         );
         // requested/current reserves pass. only the selected 3,333 exceeds this ceiling.
         replacement.onSetAnnualInterestAndReserveRatioBips(1_100, 0, state, '');
         assertEq(feature.lastSelectedApr(MarketA), 1_000, 'selected effect rolled back');
         assertEq(_temporaryHashFor(replacement), temporaryBefore, 'seeded default untouched');
-        if (i == uint256(HookKind.Periodic))
+        if (i == uint256(HookKind.Periodic)) {
           assertEq(_proposalHashFor(replacement), proposalBefore, 'cancellation rolled back');
+        }
       }
       feature.setValidationBounds(1_100, 3_333);
       // record only this successful call. reverted traces may still contain emitted events.
       vm.recordLogs();
       vm.prank(MarketA);
-      (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(
-        1_100,
-        type(uint16).max,
-        state,
-        ''
-      );
-      _assertSelectionLogs(
-        address(replacement),
-        vm.getRecordedLogs(),
-        1_100,
-        i == uint256(HookKind.Periodic)
-      );
+      (uint16 apr, uint16 reserve) =
+        replacement.onSetAnnualInterestAndReserveRatioBips(1_100, type(uint16).max, state, '');
+      _assertSelectionLogs(address(replacement), vm.getRecordedLogs(), 1_100, i == uint256(HookKind.Periodic));
       assertEq(apr, 1_100, 'effective APR at floor');
       assertEq(reserve, 3_333, 'effective reserve at ceiling');
       assertEq(feature.lastSelectedApr(MarketA), 1_100, 'selected effect committed');
-      assertEq(
-        _temporaryHashFor(replacement),
-        temporaryBefore,
-        'successful replacement skips default'
-      );
+      assertEq(_temporaryHashFor(replacement), temporaryBefore, 'successful replacement skips default');
     }
   }
 
@@ -323,23 +269,12 @@ contract AprValidationTest is HookTemplateFixture {
 
     vm.warp(FixedTermEnd);
     vm.prank(MarketA);
-    vm.expectRevert(
-      abi.encodeWithSelector(AprValidationPolicy.AprBelowFloor.selector, uint16(600))
-    );
+    vm.expectRevert(abi.encodeWithSelector(AprValidationPolicy.AprBelowFloor.selector, uint16(600)));
     replacement.onSetAnnualInterestAndReserveRatioBips(600, 0, state, '');
-    assertEq(
-      feature.lastSelectedApr(MarketA),
-      1_000,
-      'validation rolls back replacement at maturity'
-    );
+    assertEq(feature.lastSelectedApr(MarketA), 1_000, 'validation rolls back replacement at maturity');
     feature.setValidationBounds(600, 3_333);
     vm.prank(MarketA);
-    (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(
-      600,
-      0,
-      state,
-      ''
-    );
+    (uint16 apr, uint16 reserve) = replacement.onSetAnnualInterestAndReserveRatioBips(600, 0, state, '');
     assertEq(apr, 600, 'reduction allowed at maturity');
     assertEq(reserve, 3_333, 'selected calculation after maturity');
   }
@@ -348,7 +283,10 @@ contract AprValidationTest is HookTemplateFixture {
     BaseHooks replacement,
     bool dedicated,
     MarketState memory state
-  ) private returns (uint16 apr, uint16 reserve) {
+  )
+    private
+    returns (uint16 apr, uint16 reserve)
+  {
     vm.prank(MarketA);
     if (dedicated) {
       return (
@@ -359,10 +297,7 @@ contract AprValidationTest is HookTemplateFixture {
     return replacement.onSetAnnualInterestAndReserveRatioBips(700, 0, state, 'replacement route');
   }
 
-  function test_replacementPeriodicReductionBypassesDefaultOnBothRoutes(
-    bool dedicated,
-    bool rejectApr
-  ) external {
+  function test_replacementPeriodicReductionBypassesDefaultOnBothRoutes(bool dedicated, bool rejectApr) external {
     BaseHooks replacement = _newReplacement(HookKind.Periodic);
     AprReplacementPolicy feature = AprReplacementPolicy(address(replacement));
     MarketState memory state = _state();
@@ -381,16 +316,8 @@ contract AprValidationTest is HookTemplateFixture {
     );
     _replacementReduction(replacement, dedicated, state);
     assertEq(_proposalHashFor(replacement), proposalBefore, 'rejected reduction retains proposal');
-    assertEq(
-      _temporaryHashFor(replacement),
-      temporaryBefore,
-      'rejected reduction retains default state'
-    );
-    assertEq(
-      feature.lastSelectedApr(MarketA),
-      1_000,
-      'rejected reduction has no replacement effect'
-    );
+    assertEq(_temporaryHashFor(replacement), temporaryBefore, 'rejected reduction retains default state');
+    assertEq(feature.lastSelectedApr(MarketA), 1_000, 'rejected reduction has no replacement effect');
 
     feature.setValidationBounds(700, 2_000);
     vm.recordLogs();
@@ -399,22 +326,13 @@ contract AprValidationTest is HookTemplateFixture {
     assertEq(apr, 700, 'exact proposed APR');
     assertEq(reserve, 2_000, 'current reserves, not replacement reserves');
     assertEq(feature.lastSelectedApr(MarketA), 1_000, 'successful reduction bypasses replacement');
-    assertEq(
-      _temporaryHashFor(replacement),
-      temporaryBefore,
-      'successful reduction skips original default'
-    );
-    (uint16 pendingApr, uint32 timestamp) = PeriodicTermPolicy(address(replacement))
-      .pendingAprChanges(MarketA);
+    assertEq(_temporaryHashFor(replacement), temporaryBefore, 'successful reduction skips original default');
+    (uint16 pendingApr, uint32 timestamp) = PeriodicTermPolicy(address(replacement)).pendingAprChanges(MarketA);
     assertEq(pendingApr, 0, 'proposal consumed');
     assertEq(timestamp, 0, 'proposal timestamp cleared');
     assertEq(logs.length, 1, 'no original or replacement default event');
     assertEq(logs[0].emitter, address(replacement), 'execution event owner');
-    assertEq(
-      logs[0].topics[0],
-      keccak256('AnnualInterestBipsReductionExecuted(address,uint16)'),
-      'execution event'
-    );
+    assertEq(logs[0].topics[0], keccak256('AnnualInterestBipsReductionExecuted(address,uint16)'), 'execution event');
     assertEq(logs[0].data, abi.encode(uint16(700)), 'executed APR');
   }
 
@@ -451,9 +369,7 @@ contract AprValidationTest is HookTemplateFixture {
       vm.prank(MarketA);
       vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
       replacement.onDeposit(lender, 10, state, '');
-      MockRoleProvider provider = MockRoleProvider(
-        _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-      );
+      MockRoleProvider provider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
       replacement.addRoleProvider(address(provider), type(uint32).max);
       vm.startPrank(address(provider));
       replacement.grantRole(lender, StartTimestamp);
@@ -461,10 +377,7 @@ contract AprValidationTest is HookTemplateFixture {
       vm.stopPrank();
       vm.prank(MarketA);
       replacement.onDeposit(lender, 10, state, '');
-      assertTrue(
-        replacement.isKnownLenderOnMarket(lender, MarketA),
-        'deposit bookkeeping retained'
-      );
+      assertTrue(replacement.isKnownLenderOnMarket(lender, MarketA), 'deposit bookkeeping retained');
       transfers.setRestrictedRecipient(MarketA, restricted);
       transfers.setTransferAmountLimit(MarketA, 10);
       vm.prank(MarketA);
@@ -476,11 +389,7 @@ contract AprValidationTest is HookTemplateFixture {
       replacement.onTransfer(lender, lender, lender, 11, state, '');
       vm.prank(MarketA);
       replacement.onTransfer(lender, lender, lender, 10, state, '');
-      assertEq(
-        transfers.scaledTransferVolume(MarketA),
-        10,
-        'both transfer rules allow valid action'
-      );
+      assertEq(transfers.scaledTransferVolume(MarketA), 10, 'both transfer rules allow valid action');
 
       if (kind != HookKind.Open) {
         vm.prank(MarketA);
@@ -513,8 +422,7 @@ contract AprValidationTest is HookTemplateFixture {
       assertTrue(stored.code.length <= 24_576, 'stored initcode limit');
       assertTrue(address(replacement).code.length <= 24_576, 'runtime limit');
       assertTrue(
-        abi.encodePacked(creation, abi.encode(address(this), bytes(''))).length <= 49_152,
-        'constructor payload limit'
+        abi.encodePacked(creation, abi.encode(address(this), bytes(''))).length <= 49_152, 'constructor payload limit'
       );
     }
   }
@@ -525,11 +433,7 @@ contract AprValidationTest is HookTemplateFixture {
       _deployCode('test/mocks/AprValidationHooks.sol:AprValidationHooks', abi.encode(address(this)))
     );
     _createMarket(target, MarketA, EmptyHooksConfig, _termData(HookKind.Periodic));
-    vm.mockCall(
-      MarketA,
-      abi.encodeWithSignature('annualInterestBips()'),
-      abi.encode(uint256(1_000))
-    );
+    vm.mockCall(MarketA, abi.encodeWithSignature('annualInterestBips()'), abi.encode(uint256(1_000)));
     target.proposeAnnualInterestBips(MarketA, 700);
   }
 
@@ -562,7 +466,10 @@ contract AprValidationTest is HookTemplateFixture {
     uint16 requestedReserve,
     MarketState memory state,
     bytes memory data
-  ) internal returns (uint16 apr, uint16 reserve) {
+  )
+    internal
+    returns (uint16 apr, uint16 reserve)
+  {
     vm.prank(MarketA);
     if (dedicated) {
       return (target.executePendingAnnualInterestBipsReduction(state), state.reserveRatioBips);
@@ -578,15 +485,12 @@ contract AprValidationTest is HookTemplateFixture {
     uint16 effectiveReserve,
     MarketState memory state,
     bytes memory data
-  ) internal view {
-    AprChange memory expected = AprChange(
-      MarketA,
-      route,
-      requestedApr,
-      requestedReserve,
-      effectiveApr,
-      effectiveReserve
-    );
+  )
+    internal
+    view
+  {
+    AprChange memory expected =
+      AprChange(MarketA, route, requestedApr, requestedReserve, effectiveApr, effectiveReserve);
     assertEq(abi.encode(target.lastChange()), abi.encode(expected), 'applied change context');
     assertEq(target.lastStateHash(), keccak256(abi.encode(state)), 'original market state');
     assertEq(target.lastData(), data, 'callback data');
@@ -597,7 +501,9 @@ contract AprValidationTest is HookTemplateFixture {
     bool seeded,
     uint16 requestedReserve,
     bytes calldata data
-  ) external {
+  )
+    external
+  {
     _ready();
     if (seeded) _seedTemporaryReserve(uint32(block.timestamp + 1 days));
     bytes32 temporaryBefore = _temporaryHash();
@@ -620,17 +526,10 @@ contract AprValidationTest is HookTemplateFixture {
     Vm.Log[] memory logs = vm.getRecordedLogs();
     assertEq(logs.length, 1, 'execution event only');
     assertEq(logs[0].emitter, address(target), 'event owner');
-    assertEq(
-      logs[0].topics[0],
-      keccak256('AnnualInterestBipsReductionExecuted(address,uint16)'),
-      'execution event'
-    );
+    assertEq(logs[0].topics[0], keccak256('AnnualInterestBipsReductionExecuted(address,uint16)'), 'execution event');
   }
 
-  function test_periodicReduction_RejectionRestoresProposalOnBothRoutes(
-    bool dedicated,
-    bool rejectApr
-  ) external {
+  function test_periodicReduction_RejectionRestoresProposalOnBothRoutes(bool dedicated, bool rejectApr) external {
     _ready();
     _seedTemporaryReserve(uint32(block.timestamp + 1 days));
     bytes32 proposalBefore = _proposalHash();
@@ -659,9 +558,7 @@ contract AprValidationTest is HookTemplateFixture {
     bytes32 proposalBefore = _proposalHash();
     target.setValidationBounds(0, 1_999);
     vm.prank(MarketA);
-    vm.expectRevert(
-      abi.encodeWithSelector(AprValidationPolicy.ReserveAboveCeiling.selector, uint16(2_000))
-    );
+    vm.expectRevert(abi.encodeWithSelector(AprValidationPolicy.ReserveAboveCeiling.selector, uint16(2_000)));
     target.onSetAnnualInterestAndReserveRatioBips(1_100, 0, state, '');
     assertEq(_proposalHash(), proposalBefore, 'cancellation rolled back');
 
@@ -670,12 +567,7 @@ contract AprValidationTest is HookTemplateFixture {
     vm.expectEmit(address(target));
     emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(MarketA);
     vm.prank(MarketA);
-    (uint16 apr, uint16 reserve) = target.onSetAnnualInterestAndReserveRatioBips(
-      1_100,
-      type(uint16).max,
-      state,
-      data
-    );
+    (uint16 apr, uint16 reserve) = target.onSetAnnualInterestAndReserveRatioBips(1_100, type(uint16).max, state, data);
     assertEq(apr, 1_100, 'increased APR');
     assertEq(reserve, 2_000, 'requested reserves ignored');
     assertEq(target.proposalTimestampAtValidation(), 0, 'cancellation before validation');
@@ -691,9 +583,7 @@ contract AprValidationTest is HookTemplateFixture {
     bytes32 temporaryBefore = _temporaryHash();
     target.setValidationBounds(0, 1_999);
     vm.prank(MarketA);
-    vm.expectRevert(
-      abi.encodeWithSelector(AprValidationPolicy.ReserveAboveCeiling.selector, uint16(2_000))
-    );
+    vm.expectRevert(abi.encodeWithSelector(AprValidationPolicy.ReserveAboveCeiling.selector, uint16(2_000)));
     target.onSetAnnualInterestAndReserveRatioBips(800, 0, state, '');
     assertEq(_temporaryHash(), temporaryBefore, 'default expiry rolled back');
     assertEq(_proposalHash(), proposalBefore, 'equality retains proposal');
@@ -702,12 +592,7 @@ contract AprValidationTest is HookTemplateFixture {
     vm.expectEmit(address(target));
     emit MarketConstraintHooks.TemporaryExcessReserveRatioExpired(MarketA);
     vm.prank(MarketA);
-    (uint16 apr, uint16 reserve) = target.onSetAnnualInterestAndReserveRatioBips(
-      800,
-      type(uint16).max,
-      state,
-      ''
-    );
+    (uint16 apr, uint16 reserve) = target.onSetAnnualInterestAndReserveRatioBips(800, type(uint16).max, state, '');
     assertEq(reserve, 2_000, 'restored reserves pass despite requested and current reserves');
     assertEq(_temporaryHash(), keccak256(abi.encode(uint16(0), uint16(0), uint32(0))), 'expired');
     assertEq(_proposalHash(), proposalBefore, 'proposal still retained');
@@ -715,15 +600,10 @@ contract AprValidationTest is HookTemplateFixture {
     _assertChange(AprRoute.Ordinary, 800, type(uint16).max, apr, reserve, state, '');
   }
 
-  function test_dedicatedReduction_PassesEmptyDataEvenWithTrailingCalldata(
-    bytes calldata data
-  ) external {
+  function test_dedicatedReduction_PassesEmptyDataEvenWithTrailingCalldata(bytes calldata data) external {
     _ready();
     MarketState memory state = _state();
-    bytes memory payload = bytes.concat(
-      abi.encodeCall(target.executePendingAnnualInterestBipsReduction, (state)),
-      data
-    );
+    bytes memory payload = bytes.concat(abi.encodeCall(target.executePendingAnnualInterestBipsReduction, (state)), data);
     vm.prank(MarketA);
     (bool success, bytes memory result) = address(target).call(payload);
     assertTrue(success, 'dedicated execution');

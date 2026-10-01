@@ -59,9 +59,7 @@ contract TransientBytesArrayTest is TestKernel {
   function test_read_InvalidShortEncodingLengthReverts() external {
     TransientBytesArrayExternal externalArray = new TransientBytesArrayExternal();
 
-    vm.expectRevert(
-      abi.encodeWithSelector(TestPanicErrorSelector, TestPanicInvalidStorageByteArray)
-    );
+    vm.expectRevert(abi.encodeWithSelector(TestPanicErrorSelector, TestPanicInvalidStorageByteArray));
     externalArray.readInvalidShortEncoding();
   }
 

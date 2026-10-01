@@ -15,10 +15,7 @@ struct OptionalBytes32Data {
 
 /// @notice bounded return-data reads for optional lens fields.
 library OptionalDataLib {
-  function readWord(
-    address target,
-    bytes memory callData
-  ) internal view returns (bool success, uint256 value) {
+  function readWord(address target, bytes memory callData) internal view returns (bool success, uint256 value) {
     assembly ('memory-safe') {
       // copy one word. a missing, reverting, or short getter is unavailable; extra words
       // don't belong to this field and don't need to be copied.

@@ -24,19 +24,13 @@ abstract contract ManagedRoleProvider is IManagedRoleProvider {
   /// @notice starts or replaces a pending provider-administrator transfer.
   /// @dev the target must be nonzero and different from the current administrator. pending status
   ///      grants no authority.
-  function requestAdministratorTransfer(
-    address newAdministrator
-  ) external override onlyAdministrator {
+  function requestAdministratorTransfer(address newAdministrator) external override onlyAdministrator {
     if (newAdministrator == address(0) || newAdministrator == administrator) {
       revert InvalidAdministratorTransferTarget();
     }
     address previousPendingAdministrator = pendingAdministrator;
     pendingAdministrator = newAdministrator;
-    emit AdministratorTransferRequested(
-      msg.sender,
-      previousPendingAdministrator,
-      newAdministrator
-    );
+    emit AdministratorTransferRequested(msg.sender, previousPendingAdministrator, newAdministrator);
   }
 
   /// @notice cancels the pending transfer without changing provider authority.

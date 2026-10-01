@@ -25,7 +25,11 @@ contract InitCodeStorageToolHarness is DeployScriptBase {
   function planDeployment(
     bytes memory original,
     address secondary
-  ) external pure returns (string memory artifact, bytes memory args) {
+  )
+    external
+    pure
+    returns (string memory artifact, bytes memory args)
+  {
     artifact = _initCodeStorageArtifact(original);
     bytes memory input = _initCodeStorageConstructorInput(original);
     args = original.length <= 24_575 ? abi.encode(input) : abi.encode(input, secondary);
@@ -45,14 +49,10 @@ contract InitCodeStorageToolHarness is DeployScriptBase {
     deployments.privateKeyVarName = 'E24_TEST_DEPLOYER';
     if (store != address(0)) deployments.set('Test_initCodeStorage', store);
     if (secondary != address(0)) deployments.set('Test_initCodeStorage_secondary', secondary);
-    (primary, didDeploy) = LibDeployment.getOrDeployInitcodeStorage(
-      deployments,
-      'Test',
-      original,
-      false
-    );
-    if (deployments.has('Test_initCodeStorage_secondary'))
+    (primary, didDeploy) = LibDeployment.getOrDeployInitcodeStorage(deployments, 'Test', original, false);
+    if (deployments.has('Test_initCodeStorage_secondary')) {
       recordedSecondary = deployments.get('Test_initCodeStorage_secondary');
+    }
     artifacts = deployments.artifacts.length;
   }
 
@@ -65,14 +65,7 @@ contract InitCodeStorageToolHarness is DeployScriptBase {
     entry.output = 'store';
     entry.description = 'Deploy the selected initcode storage format.';
     _planInitCodeStorageEntry(deployments, entry, original);
-    _writePlanInitCodeStorageInventory(
-      deployments,
-      1,
-      'anvil',
-      'Test_initCodeStorage',
-      'store',
-      original
-    );
+    _writePlanInitCodeStorageInventory(deployments, 1, 'anvil', 'Test_initCodeStorage', 'store', original);
   }
 }
 
@@ -99,12 +92,9 @@ contract InitCodeStorageToolsTest is TestKernel {
   InitCodeStorageToolHarness internal toolsHarness;
 
   function setUp() external {
-    storageHarness = SplitCodeHarness(
-      _deployCode('test/libraries/SplitInitCode.t.sol:SplitCodeHarness')
-    );
-    toolsHarness = InitCodeStorageToolHarness(
-      _deployCode('test/research/InitCodeStorageTools.t.sol:InitCodeStorageToolHarness')
-    );
+    storageHarness = SplitCodeHarness(_deployCode('test/libraries/SplitInitCode.t.sol:SplitCodeHarness'));
+    toolsHarness =
+      InitCodeStorageToolHarness(_deployCode('test/research/InitCodeStorageTools.t.sol:InitCodeStorageToolHarness'));
   }
 
   function _expectMismatch(address store, bytes memory original) internal {
@@ -117,10 +107,10 @@ contract InitCodeStorageToolsTest is TestKernel {
     (address primary, address secondary) = storageHarness.split(original);
     toolsHarness.verify(raw, original);
     toolsHarness.verify(primary, original);
-    (address reused, , , bool deployed) = toolsHarness.reuse(raw, address(0), original);
+    (address reused,,, bool deployed) = toolsHarness.reuse(raw, address(0), original);
     assertEq(reused, raw);
     assertFalse(deployed);
-    (reused, , , deployed) = toolsHarness.reuse(primary, secondary, original);
+    (reused,,, deployed) = toolsHarness.reuse(primary, secondary, original);
     assertEq(reused, primary);
     assertFalse(deployed);
   }
@@ -129,8 +119,10 @@ contract InitCodeStorageToolsTest is TestKernel {
     bytes memory original,
     uint256 indexSeed,
     uint8 difference
-  ) external {
-    (address primary, ) = storageHarness.split(original);
+  )
+    external
+  {
+    (address primary,) = storageHarness.split(original);
     bytes memory runtime = primary.code;
     uint256 readerLength = type(SplitInitCodeReader).runtimeCode.length;
     uint256[4] memory offsets = [
@@ -172,8 +164,7 @@ contract InitCodeStorageToolsTest is TestKernel {
   function test_rejectsContextDependentReaderEvenWhenReadbackMatches() external {
     bytes memory original = hex'600160005260206000f3';
     address store = _deployCode(
-      'test/research/InitCodeStorageTools.t.sol:ContextDependentCodeReader',
-      abi.encode(address(toolsHarness), original)
+      'test/research/InitCodeStorageTools.t.sol:ContextDependentCodeReader', abi.encode(address(toolsHarness), original)
     );
     assertEq(toolsHarness.read(store), original, 'one read does not authenticate a reader');
     assertEq(storageHarness.read(store), hex'fe', 'different program for the factory');
@@ -190,11 +181,8 @@ contract InitCodeStorageToolsTest is TestKernel {
   function test_partialReuseAuthenticatesSecondaryAndRecoversInventoryLink() external {
     bytes memory original = new bytes(25_000);
     (address primary, address secondary) = storageHarness.split(original);
-    (address reused, address linked, uint256 artifacts, bool deployed) = toolsHarness.reuse(
-      primary,
-      address(0),
-      original
-    );
+    (address reused, address linked, uint256 artifacts, bool deployed) =
+      toolsHarness.reuse(primary, address(0), original);
     assertEq(reused, primary);
     assertEq(linked, secondary);
     assertEq(artifacts, 1, 'only the missing secondary inventory record');
@@ -212,11 +200,8 @@ contract InitCodeStorageToolsTest is TestKernel {
 
   function test_directDeploymentTracksBothPreparedArtifacts() external {
     bytes memory original = new bytes(25_000);
-    (address primary, address secondary, uint256 artifacts, bool deployed) = toolsHarness.reuse(
-      address(0),
-      address(0),
-      original
-    );
+    (address primary, address secondary, uint256 artifacts, bool deployed) =
+      toolsHarness.reuse(address(0), address(0), original);
     assertTrue(deployed);
     assertEq(artifacts, 2);
     assertEq(LibSplitInitCode.getSecondaryAddress(primary), secondary);
@@ -229,31 +214,21 @@ contract InitCodeStorageToolsTest is TestKernel {
       original[length - 1] = 0xab;
       toolsHarness.fits(original);
       address secondary;
-      if (length > 24_575)
+      if (length > 24_575) {
         secondary = _deployCode(
-          LibDeployment.PreparedStorageArtifact,
-          abi.encode(LibSplitInitCode.getSecondaryRuntime(original))
+          LibDeployment.PreparedStorageArtifact, abi.encode(LibSplitInitCode.getSecondaryRuntime(original))
         );
-      (string memory artifact, bytes memory args) = toolsHarness.planDeployment(
-        original,
-        secondary
-      );
+      }
+      (string memory artifact, bytes memory args) = toolsHarness.planDeployment(original, secondary);
       address planned = _deployCode(artifact, args);
-      bytes memory expected = length <= 24_575
-        ? bytes.concat(hex'00', original)
-        : LibSplitInitCode.getPrimaryRuntime(original, secondary);
+      bytes memory expected =
+        length <= 24_575 ? bytes.concat(hex'00', original) : LibSplitInitCode.getPrimaryRuntime(original, secondary);
       assertEq(planned.code, expected, 'prepared installation preserves every byte');
       toolsHarness.verify(planned, original);
       assertEq(storageHarness.read(planned), original);
       string memory predicate = toolsHarness.predicate(original);
-      assertEq(
-        vm.parseJsonString(predicate, '.type'),
-        length <= 24_575 ? 'codeHash' : 'splitCodeHash'
-      );
-      assertEq(
-        vm.parseJsonBytes32(predicate, '.expect'),
-        keccak256(LibDeployment.initCodeStorageRuntime(original))
-      );
+      assertEq(vm.parseJsonString(predicate, '.type'), length <= 24_575 ? 'codeHash' : 'splitCodeHash');
+      assertEq(vm.parseJsonBytes32(predicate, '.expect'), keccak256(LibDeployment.initCodeStorageRuntime(original)));
       assertEq(vm.parseJsonBytes32(predicate, '.initCodeHash'), keccak256(original));
       assertTrue(planned.code.length <= 24_576);
     }
@@ -275,45 +250,32 @@ contract InitCodeStorageToolsTest is TestKernel {
     vm.setEnv('EXPECTED_EXECUTOR', vm.toString(address(0x1234)));
     bytes memory original = vm.getCode('src/market/WildcatMarket.sol:WildcatMarket');
     toolsHarness.exportPlan(original);
-    string memory primary = vm.readFile(
-      'deploy-out/split-storage-plan-test/plan-entries/01-deploy-store.json'
-    );
-    string memory secondary = vm.readFile(
-      'deploy-out/split-storage-plan-test/plan-entries/01-deploy-store-secondary.json'
-    );
+    string memory primary = vm.readFile('deploy-out/split-storage-plan-test/plan-entries/01-deploy-store.json');
+    string memory secondary =
+      vm.readFile('deploy-out/split-storage-plan-test/plan-entries/01-deploy-store-secondary.json');
     assertEq(vm.parseJsonString(primary, '.after[0]'), 'deploy-store-secondary');
     assertEq(vm.parseJsonString(primary, '.constructorArgs.decoded[1].$ref'), 'store-secondary');
     assertEq(vm.parseJsonString(primary, '.predicate.secondary.$ref'), 'store-secondary');
     assertEq(
-      vm.parseJsonBytes32(primary, '.predicate.secondaryCodeHash'),
-      vm.parseJsonBytes32(secondary, '.predicate.expect')
+      vm.parseJsonBytes32(primary, '.predicate.secondaryCodeHash'), vm.parseJsonBytes32(secondary, '.predicate.expect')
     );
     assertEq(vm.parseJsonBytes32(primary, '.predicate.initCodeHash'), keccak256(original));
-    string memory record = vm.readFile(
-      'deploy-out/split-storage-plan-test/inventory-pending/01-Test_initCodeStorage.json'
-    );
+    string memory record =
+      vm.readFile('deploy-out/split-storage-plan-test/inventory-pending/01-Test_initCodeStorage.json');
     assertEq(vm.parseJsonString(record, '.secondary.$ref'), 'store-secondary');
-    assertTrue(
-      vm.exists(
-        'deploy-out/split-storage-plan-test/inventory-pending/01-Test_initCodeStorage_secondary.json'
-      )
-    );
+    assertTrue(vm.exists('deploy-out/split-storage-plan-test/inventory-pending/01-Test_initCodeStorage_secondary.json'));
   }
 
   function test_exportHistoricalCompressionControl() external {
-    string[2] memory paths = [
-      'src/market/WildcatMarket.sol:WildcatMarket',
-      'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
-    ];
+    string[2] memory paths =
+      ['src/market/WildcatMarket.sol:WildcatMarket', 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'];
     string memory output;
     for (uint256 i; i < paths.length; ++i) {
       bytes memory original = vm.getCode(paths[i]);
       string memory name = i == 0 ? 'WildcatMarket' : 'WildcatMarketRevolving';
       vm.serializeBytes('compression-rpc', string.concat(name, '_creation'), original);
       output = vm.serializeBytes(
-        'compression-rpc',
-        string.concat(name, '_runtime'),
-        LibCompressedInitCode.getStorageRuntime(original)
+        'compression-rpc', string.concat(name, '_runtime'), LibCompressedInitCode.getStorageRuntime(original)
       );
     }
     vm.writeJson(output, 'deploy-out/compression-rpc.json');

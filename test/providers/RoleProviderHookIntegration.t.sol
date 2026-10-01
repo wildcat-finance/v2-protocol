@@ -43,12 +43,8 @@ contract RoleProviderHookIntegrationTest is TestKernel {
   // ========================================================================== //
 
   function _deployHooks(address market) internal returns (OpenTermHooks hooks) {
-    hooks = OpenTermHooks(
-      _deployCode(
-        'src/access/OpenTermHooks.sol:OpenTermHooks',
-        abi.encode(address(this), bytes(''))
-      )
-    );
+    hooks =
+      OpenTermHooks(_deployCode('src/access/OpenTermHooks.sol:OpenTermHooks', abi.encode(address(this), bytes(''))));
 
     DeployMarketInputs memory parameters;
     parameters.hooks = encodeHooksConfig({
@@ -68,78 +64,46 @@ contract RoleProviderHookIntegrationTest is TestKernel {
     hooks.onCreateMarket(address(this), market, parameters, '');
   }
 
-  function _deployPullProvider(
-    PullProviderKind kind,
-    RoleProviderTokenMock token
-  ) internal returns (address provider) {
+  function _deployPullProvider(PullProviderKind kind, RoleProviderTokenMock token) internal returns (address provider) {
     if (kind == PullProviderKind.ERC20) {
-      return
-        _deployCode(
-          'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider',
-          abi.encode(address(token), 1)
-        );
+      return _deployCode('src/providers/ERC20RoleProvider.sol:ERC20RoleProvider', abi.encode(address(token), 1));
     }
     if (kind == PullProviderKind.ERC721) {
-      return
-        _deployCode(
-          'src/providers/ERC721RoleProvider.sol:ERC721RoleProvider',
-          abi.encode(address(token), false)
-        );
+      return _deployCode('src/providers/ERC721RoleProvider.sol:ERC721RoleProvider', abi.encode(address(token), false));
     }
     if (kind == PullProviderKind.ERC1155) {
-      return
-        _deployCode(
-          'src/providers/ERC1155RoleProvider.sol:ERC1155RoleProvider',
-          abi.encode(address(token), TokenId, false)
-        );
-    }
-    return
-      _deployCode(
-        'src/providers/ERC4626AssetsRoleProvider.sol:ERC4626AssetsRoleProvider',
-        abi.encode(address(token), 1)
+      return _deployCode(
+        'src/providers/ERC1155RoleProvider.sol:ERC1155RoleProvider', abi.encode(address(token), TokenId, false)
       );
+    }
+    return _deployCode(
+      'src/providers/ERC4626AssetsRoleProvider.sol:ERC4626AssetsRoleProvider', abi.encode(address(token), 1)
+    );
   }
 
-  function _deployPushProvider(
-    PushProviderKind kind,
-    RoleProviderTokenMock token
-  ) internal returns (address provider) {
+  function _deployPushProvider(PushProviderKind kind, RoleProviderTokenMock token) internal returns (address provider) {
     if (kind == PushProviderKind.ERC5192) {
-      return
-        _deployCode(
-          'src/providers/ERC5192RoleProvider.sol:ERC5192RoleProvider',
-          abi.encode(address(token), true, false)
-        );
-    }
-    return
-      _deployCode(
-        'src/providers/ERC5484RoleProvider.sol:ERC5484RoleProvider',
-        abi.encode(address(token), uint8(1), false)
+      return _deployCode(
+        'src/providers/ERC5192RoleProvider.sol:ERC5192RoleProvider', abi.encode(address(token), true, false)
       );
+    }
+    return _deployCode(
+      'src/providers/ERC5484RoleProvider.sol:ERC5484RoleProvider', abi.encode(address(token), uint8(1), false)
+    );
   }
 
-  function _newPullFixture(
-    PullProviderKind kind,
-    uint32 timeToLive
-  ) internal returns (AccessFixture memory fixture) {
+  function _newPullFixture(PullProviderKind kind, uint32 timeToLive) internal returns (AccessFixture memory fixture) {
     fixture.market = address(uint160(0xCAFE + uint8(kind)));
     fixture.hooks = _deployHooks(fixture.market);
-    fixture.token = RoleProviderTokenMock(
-      _deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock')
-    );
+    fixture.token = RoleProviderTokenMock(_deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock'));
     fixture.provider = _deployPullProvider(kind, fixture.token);
     fixture.hooks.addRoleProvider(fixture.provider, timeToLive);
   }
 
-  function _newPushFixture(
-    PushProviderKind kind,
-    uint32 timeToLive
-  ) internal returns (AccessFixture memory fixture) {
+  function _newPushFixture(PushProviderKind kind, uint32 timeToLive) internal returns (AccessFixture memory fixture) {
     fixture.market = address(uint160(0xBEEF + uint8(kind)));
     fixture.hooks = _deployHooks(fixture.market);
-    fixture.token = RoleProviderTokenMock(
-      _deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock')
-    );
+    fixture.token = RoleProviderTokenMock(_deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock'));
     fixture.provider = _deployPushProvider(kind, fixture.token);
     fixture.hooks.addRoleProvider(fixture.provider, timeToLive);
   }
@@ -149,7 +113,9 @@ contract RoleProviderHookIntegrationTest is TestKernel {
     RoleProviderTokenMock token,
     address account,
     bool eligible
-  ) internal {
+  )
+    internal
+  {
     uint256 balance = eligible ? 1 : 0;
     if (kind == PullProviderKind.ERC1155) {
       token.setBalance(account, TokenId, balance);
@@ -162,11 +128,7 @@ contract RoleProviderHookIntegrationTest is TestKernel {
     token.setReadReverts(shouldRevert, false, false, false, false);
   }
 
-  function _setPushEligibility(
-    PushProviderKind kind,
-    RoleProviderTokenMock token,
-    address account
-  ) internal {
+  function _setPushEligibility(PushProviderKind kind, RoleProviderTokenMock token, address account) internal {
     token.setOwner(TokenId, account);
     if (kind == PushProviderKind.ERC5192) {
       token.setLocked(TokenId, true);
@@ -181,22 +143,14 @@ contract RoleProviderHookIntegrationTest is TestKernel {
     fixture.hooks.onDeposit(lender, 1, state, hooksData);
   }
 
-  function _expectDepositDenied(
-    AccessFixture memory fixture,
-    address lender,
-    bytes memory hooksData
-  ) internal {
+  function _expectDepositDenied(AccessFixture memory fixture, address lender, bytes memory hooksData) internal {
     MarketState memory state;
     vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
     vm.prank(fixture.market);
     fixture.hooks.onDeposit(lender, 1, state, hooksData);
   }
 
-  function _assertCredential(
-    AccessFixture memory fixture,
-    address lender,
-    address expectedProvider
-  ) internal view {
+  function _assertCredential(AccessFixture memory fixture, address lender, address expectedProvider) internal view {
     LenderStatus memory status = fixture.hooks.getPreviousLenderStatus(lender);
     assertEq(status.lastProvider, expectedProvider, 'credential provider');
     assertEq(status.lastApprovalTimestamp, uint32(vm.getBlockTimestamp()), 'credential timestamp');
@@ -258,9 +212,8 @@ contract RoleProviderHookIntegrationTest is TestKernel {
 
       _expectDepositDenied(fixture, Holder, '');
 
-      RoleProviderTokenMock validToken = RoleProviderTokenMock(
-        _deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock')
-      );
+      RoleProviderTokenMock validToken =
+        RoleProviderTokenMock(_deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock'));
       _setPullEligibility(kind, validToken, Holder, true);
       address validProvider = _deployPullProvider(kind, validToken);
       fixture.hooks.addRoleProvider(validProvider, 0);

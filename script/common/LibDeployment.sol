@@ -50,7 +50,9 @@ struct Deployments {
  */
 struct ContractArtifact {
   string namePath;
-  /** The name of the contract */
+  /**
+   * The name of the contract
+   */
   string name;
   string artifactDir;
   string customLabel;
@@ -71,9 +73,7 @@ struct Json {
  * @dev Get the deployments object for a given network.
  *      If the deployments directory does not exist, it will be created
  */
-function getDeploymentsForNetwork(
-  string memory networkName
-) returns (Deployments memory deployments) {
+function getDeploymentsForNetwork(string memory networkName) returns (Deployments memory deployments) {
   checkFfiEnabled();
   deployments.dir = pathJoin('deployments', networkName);
   checkDirectoryExistsAndAccessible(deployments.dir, true);
@@ -85,13 +85,7 @@ function getDeploymentsForNetwork(
     console.log(string.concat('Reading deployments from ', deployments.filePath));
     deployments.deployments = JsonUtil.create(forgeVm.readFile(deployments.filePath));
   } else {
-    console.log(
-      string.concat(
-        'No deployments found at ',
-        deployments.filePath,
-        '. Creating new deployments file'
-      )
-    );
+    console.log(string.concat('No deployments found at ', deployments.filePath, '. Creating new deployments file'));
     deployments.deployments = JsonUtil.create();
   }
 }
@@ -144,8 +138,7 @@ library LibDeployment {
 
   string internal constant PreparedStorageArtifact =
     'script/common/PreparedInitCodeStorage.sol:PreparedInitCodeStorage';
-  string internal constant LinkedStorageArtifact =
-    'script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage';
+  string internal constant LinkedStorageArtifact = 'script/common/PreparedInitCodeStorage.sol:LinkedInitCodeStorage';
 
   /// @dev an oversized artifact returns an unlinked primary image. bind its secondary at install.
   function initCodeStorageRuntime(bytes memory creationCode) internal pure returns (bytes memory) {
@@ -159,10 +152,7 @@ library LibDeployment {
 
   /// @dev the artifact is the trust anchor. matching one reader response isn't enough:
   ///      a different executable store could return different code to the factory.
-  function isValidInitCodeStorage(
-    address deployment,
-    bytes memory creationCode
-  ) internal view returns (bool) {
+  function isValidInitCodeStorage(address deployment, bytes memory creationCode) internal view returns (bool) {
     if (deployment.code.length == 0 || deployment.code.length > 24_576) return false;
     if (creationCode.length > LibSplitInitCode.maximumInitCodeSize()) return false;
     bytes memory expectedRuntime;
@@ -170,8 +160,9 @@ library LibDeployment {
       expectedRuntime = bytes.concat(hex'00', creationCode);
     } else {
       address secondary = initCodeStorageSecondary(deployment);
-      if (secondary.codehash != keccak256(LibSplitInitCode.getSecondaryRuntime(creationCode)))
+      if (secondary.codehash != keccak256(LibSplitInitCode.getSecondaryRuntime(creationCode))) {
         return false;
+      }
       expectedRuntime = LibSplitInitCode.getPrimaryRuntime(creationCode, secondary);
     }
     if (deployment.codehash != keccak256(expectedRuntime)) return false;
@@ -187,7 +178,10 @@ library LibDeployment {
     string memory namePath,
     bytes memory creationCode,
     bool overrideExisting
-  ) internal returns (address deployment, bool didDeploy) {
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
     string memory label = string.concat(artifact.name, '_initCodeStorage');
     return getOrDeployInitcodeStorageByLabel(self, label, creationCode, overrideExisting);
@@ -198,7 +192,10 @@ library LibDeployment {
     string memory label,
     bytes memory creationCode,
     bool overrideExisting
-  ) internal returns (address deployment, bool didDeploy) {
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
     bytes memory runtime = initCodeStorageRuntime(creationCode);
     string memory secondaryLabel = string.concat(label, '_secondary');
     if (!overrideExisting && self.has(label)) {
@@ -230,19 +227,11 @@ library LibDeployment {
       address secondary;
       if (!overrideExisting && self.has(secondaryLabel)) {
         secondary = self.get(secondaryLabel);
-        require(
-          secondary.codehash == keccak256(secondaryRuntime),
-          'Stored secondary code mismatch'
-        );
+        require(secondary.codehash == keccak256(secondaryRuntime), 'Stored secondary code mismatch');
       } else {
         bytes memory secondaryArgs = abi.encode(secondaryRuntime);
         secondary = self.broadcastCreate(type(PreparedInitCodeStorage).creationCode, secondaryArgs);
-        self.addArtifactWithoutDeploying(
-          secondaryLabel,
-          PreparedStorageArtifact,
-          secondary,
-          secondaryArgs
-        );
+        self.addArtifactWithoutDeploying(secondaryLabel, PreparedStorageArtifact, secondary, secondaryArgs);
       }
       bytes memory args = abi.encode(runtime, secondary);
       deployment = self.broadcastCreate(type(LinkedInitCodeStorage).creationCode, args);
@@ -258,7 +247,9 @@ library LibDeployment {
     string memory namePath,
     address deploymentAddress,
     bytes memory constructorArgs
-  ) internal {
+  )
+    internal
+  {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
     artifact.customLabel = customLabel;
     artifact.deployment = deploymentAddress;
@@ -309,7 +300,10 @@ library LibDeployment {
     bytes memory creationCode,
     bytes memory constructorArgs,
     bool overrideExisting
-  ) internal returns (address deployment, bool didDeploy) {
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
     if (overrideExisting || !self.has(artifact.name)) {
       deployment = broadcastCreate(self, creationCode, constructorArgs);
@@ -328,10 +322,7 @@ library LibDeployment {
     }
   }
 
-  function getDeployment(
-    Deployments memory self,
-    string memory namePath
-  ) internal returns (address deployment) {
+  function getDeployment(Deployments memory self, string memory namePath) internal returns (address deployment) {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
     return self.get(artifact.name);
   }
@@ -341,7 +332,10 @@ library LibDeployment {
     string memory namePath,
     bytes memory creationCode,
     bytes memory constructorArgs
-  ) internal returns (address deployment, bool didDeploy) {
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
     return getOrDeploy(deployments, namePath, creationCode, constructorArgs, false);
   }
 
@@ -350,7 +344,10 @@ library LibDeployment {
     string memory namePath,
     bytes memory creationCode,
     bool overrideExisting
-  ) internal returns (address deployment, bool didDeploy) {
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
     return getOrDeploy(self, namePath, creationCode, '', overrideExisting);
   }
 
@@ -359,8 +356,11 @@ library LibDeployment {
     string memory namePath,
     bytes memory creationCode,
     bytes memory constructorArgs
-  ) internal returns (address deployment) {
-    (deployment, ) = getOrDeploy(deployments, namePath, creationCode, constructorArgs, true);
+  )
+    internal
+    returns (address deployment)
+  {
+    (deployment,) = getOrDeploy(deployments, namePath, creationCode, constructorArgs, true);
   }
 
   // ========================================================================== //
@@ -372,10 +372,7 @@ library LibDeployment {
    *      `deployments/<network-name>/<contract-name>-<deployment-address>/`
    *      with both the the solc output file and standard input json.
    */
-  function writeDeploymentArtifact(
-    Deployments memory deployments,
-    ContractArtifact memory artifact
-  ) internal {
+  function writeDeploymentArtifact(Deployments memory deployments, ContractArtifact memory artifact) internal {
     string memory deploymentName = bytes(artifact.customLabel).length > 0
       ? artifact.customLabel
       : string.concat(artifact.name, '-', artifact.deployment.toHexString());
@@ -385,10 +382,7 @@ library LibDeployment {
 
     StandardInputJson.writeStandardJson(artifact);
     if (artifact.constructorArgs.length > 0) {
-      forgeVm.writeFile(
-        pathJoin(artifact.artifactDir, 'constructor-args'),
-        artifact.constructorArgs.toHexString()
-      );
+      forgeVm.writeFile(pathJoin(artifact.artifactDir, 'constructor-args'), artifact.constructorArgs.toHexString());
     }
     string memory jsonPath = findForgeArtifact(artifact, deployments.forgeOutDir);
     forgeVm.copyFile(jsonPath, pathJoin(artifact.artifactDir, 'output.json'));
@@ -415,10 +409,7 @@ library LibDeployment {
     }
   }
 
-  function pushArtifact(
-    Deployments memory deployments,
-    ContractArtifact memory artifact
-  ) internal pure {
+  function pushArtifact(Deployments memory deployments, ContractArtifact memory artifact) internal pure {
     ContractArtifact[] memory artifacts = deployments.artifacts;
     ContractArtifact[] memory newArtifacts = new ContractArtifact[](artifacts.length + 1);
     for (uint256 i = 0; i < artifacts.length; i++) {
@@ -431,7 +422,11 @@ library LibDeployment {
   function pushArtifactFor(
     Deployments memory deployments,
     string memory namePath
-  ) internal pure returns (ContractArtifact memory) {
+  )
+    internal
+    pure
+    returns (ContractArtifact memory)
+  {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
     deployments.pushArtifact(artifact);
     return artifact;
@@ -462,7 +457,10 @@ library LibDeployment {
     Deployments memory deployments,
     bytes memory creationCode,
     bytes memory constructorArgs
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     bytes memory initCode = abi.encodePacked(creationCode, constructorArgs);
     deployments.broadcast();
     assembly {
@@ -476,30 +474,27 @@ library LibDeployment {
   function broadcastDeployInitcode(
     Deployments memory deployments,
     bytes memory creationCode
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     bytes memory runtime = initCodeStorageRuntime(creationCode);
     if (creationCode.length <= 24_575) {
-      return
-        deployments.broadcastCreate(
-          type(PreparedInitCodeStorage).creationCode,
-          abi.encode(runtime)
-        );
+      return deployments.broadcastCreate(type(PreparedInitCodeStorage).creationCode, abi.encode(runtime));
     }
     address secondary = deployments.broadcastCreate(
-      type(PreparedInitCodeStorage).creationCode,
-      abi.encode(LibSplitInitCode.getSecondaryRuntime(creationCode))
+      type(PreparedInitCodeStorage).creationCode, abi.encode(LibSplitInitCode.getSecondaryRuntime(creationCode))
     );
-    return
-      deployments.broadcastCreate(
-        type(LinkedInitCodeStorage).creationCode,
-        abi.encode(runtime, secondary)
-      );
+    return deployments.broadcastCreate(type(LinkedInitCodeStorage).creationCode, abi.encode(runtime, secondary));
   }
 
   function findForgeArtifact(
     ContractArtifact memory artifact,
     string memory forgeOutDir
-  ) internal returns (string memory) {
+  )
+    internal
+    returns (string memory)
+  {
     if (bytes(artifact.namePath).length != bytes(artifact.name).length) {
       string memory namePath = artifact.namePath.split(':')[0];
       string[] memory components = namePath.split('/');
@@ -514,10 +509,7 @@ library LibDeployment {
         }
       }
     }
-    string memory jsonPath = pathJoin(
-      forgeOutDir,
-      string.concat(artifact.name, '.sol/', artifact.name, '.json')
-    );
+    string memory jsonPath = pathJoin(forgeOutDir, string.concat(artifact.name, '.sol/', artifact.name, '.json'));
     if (forgeVm.exists(jsonPath)) {
       return jsonPath;
     }
@@ -527,7 +519,11 @@ library LibDeployment {
   function withPrivateKeyVarName(
     Deployments memory deployments,
     string memory privateKeyVarName
-  ) internal pure returns (Deployments memory) {
+  )
+    internal
+    pure
+    returns (Deployments memory)
+  {
     deployments.privateKeyVarName = privateKeyVarName;
     return deployments;
   }
@@ -555,11 +551,7 @@ function pathJoin(string memory a, string memory b) pure returns (string memory)
   return join(a, b, '/');
 }
 
-function join(
-  string memory a,
-  string memory b,
-  string memory separator
-) pure returns (string memory) {
+function join(string memory a, string memory b, string memory separator) pure returns (string memory) {
   if (bytes(a).length == 0) return b;
   if (bytes(b).length == 0) return a;
   return string.concat(a, separator, b);
@@ -603,8 +595,8 @@ function parseContractNamePath(string memory namePath) pure returns (ContractArt
 library StandardInputJson {
   function checkForBashFile() internal {
     if (!forgeVm.exists(bashFilePath)) {
-      string
-        memory bashFile = 'forge verify-contract --show-standard-json-input 0x0000000000000000000000000000000000000000 $1 > $2 && echo ok';
+      string memory bashFile =
+        'forge verify-contract --show-standard-json-input 0x0000000000000000000000000000000000000000 $1 > $2 && echo ok';
       forgeVm.writeFile(bashFilePath, bashFile);
       console.log(string.concat('Wrote bash file to ', bashFilePath));
     }
@@ -735,19 +727,10 @@ function checkFfiEnabled() {
 }
 
 function checkDirectoryExistsAndAccessible(string memory dir, bool writeAccess) {
-  string memory requestString = string.concat(
-    ' Please grant read',
-    writeAccess ? '-write' : '',
-    ' permission for `',
-    dir,
-    '` in foundry.toml.'
-  );
-  string memory readErrorMessage = string.concat(
-    'LibDeployment requires access to the `',
-    dir,
-    '` directory.',
-    requestString
-  );
+  string memory requestString =
+    string.concat(' Please grant read', writeAccess ? '-write' : '', ' permission for `', dir, '` in foundry.toml.');
+  string memory readErrorMessage =
+    string.concat('LibDeployment requires access to the `', dir, '` directory.', requestString);
   string memory writeErrorMessage = string.concat(
     'LibDeployment requires access to the `',
     dir,

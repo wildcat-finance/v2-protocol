@@ -20,14 +20,13 @@ contract WithdrawalTest is TestKernel {
     uint128 normalizedUnclaimedWithdrawals,
     uint96 scaleFactor,
     uint128 accruedProtocolFees
-  ) external pure {
-    scaledTotalPendingWithdrawals = uint104(
-      bound(scaledTotalPendingWithdrawals, 1, type(uint104).max)
-    );
+  )
+    external
+    pure
+  {
+    scaledTotalPendingWithdrawals = uint104(bound(scaledTotalPendingWithdrawals, 1, type(uint104).max));
     scaledBatchAmount = uint104(bound(scaledBatchAmount, 1, scaledTotalPendingWithdrawals));
-    scaledAmountBurned = uint128(
-      bound(scaledAmountBurned, 0, type(uint128).max - scaledBatchAmount)
-    );
+    scaledAmountBurned = uint128(bound(scaledAmountBurned, 0, type(uint128).max - scaledBatchAmount));
     MarketState memory state;
     state.normalizedUnclaimedWithdrawals = normalizedUnclaimedWithdrawals;
     state.accruedProtocolFees = accruedProtocolFees;
@@ -36,9 +35,8 @@ contract WithdrawalTest is TestKernel {
     WithdrawalBatch memory batch;
     batch.scaledTotalAmount = scaledAmountBurned + scaledBatchAmount;
     batch.scaledAmountBurned = scaledAmountBurned;
-    uint256 totalReserved = uint256(normalizedUnclaimedWithdrawals) +
-      uint256(accruedProtocolFees) +
-      state.normalizeAmount(scaledTotalPendingWithdrawals - scaledBatchAmount);
+    uint256 totalReserved = uint256(normalizedUnclaimedWithdrawals) + uint256(accruedProtocolFees)
+      + state.normalizeAmount(scaledTotalPendingWithdrawals - scaledBatchAmount);
     uint256 expected = totalAssets > totalReserved ? totalAssets - totalReserved : 0;
     assertEq(batch.$availableLiquidityForPendingBatch(state, totalAssets), expected);
   }

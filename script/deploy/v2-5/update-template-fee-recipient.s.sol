@@ -24,10 +24,7 @@ interface ITemplateFeeAuthorityHelper {
 
   function authorizedAccounts(address account) external view returns (bool);
 
-  function executeProtocolAction(
-    address target,
-    bytes calldata data
-  ) external returns (bytes memory result);
+  function executeProtocolAction(address target, bytes calldata data) external returns (bytes memory result);
 }
 
 contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
@@ -57,11 +54,7 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     uint24 index;
   }
 
-  function _requireRecordedAddress(
-    Deployments memory deployments,
-    string memory key,
-    address expected
-  ) internal view {
+  function _requireRecordedAddress(Deployments memory deployments, string memory key, address expected) internal view {
     if (!deployments.has(key) || deployments.get(key) != expected) {
       revert(string.concat('Unexpected deployments.json address for ', key));
     }
@@ -76,22 +69,19 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     targets[5] = TemplateTarget(REVOLVING_FACTORY, PERIODIC_TERM_TEMPLATE, 'PeriodicTermHooks', 2);
   }
 
-  function _assertExpectedTemplate(
-    TemplateTarget memory target,
-    HooksTemplate memory details
-  ) internal pure {
+  function _assertExpectedTemplate(TemplateTarget memory target, HooksTemplate memory details) internal pure {
     if (!details.exists || !details.enabled) revert('Template is not enabled');
     if (keccak256(bytes(details.name)) != keccak256(bytes(target.name))) {
       revert('Template name mismatch');
     }
     if (details.index != target.index) revert('Template index mismatch');
     if (
-      details.originationFeeAsset != address(0) ||
-      details.originationFeeAmount != 0 ||
-      details.protocolFeeBips != EXPECTED_PROTOCOL_FEE_BIPS
+      details.originationFeeAsset != address(0) || details.originationFeeAmount != 0
+        || details.protocolFeeBips != EXPECTED_PROTOCOL_FEE_BIPS
     ) revert('Template fee parameters differ from the activated package');
-    if (details.feeRecipient != PREVIOUS_FEE_RECIPIENT && details.feeRecipient != NEW_FEE_RECIPIENT)
+    if (details.feeRecipient != PREVIOUS_FEE_RECIPIENT && details.feeRecipient != NEW_FEE_RECIPIENT) {
       revert('Template has an unexpected fee recipient');
+    }
   }
 
   function _preflightTemplate(TemplateTarget memory target) internal view {
@@ -103,25 +93,18 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     console.log('Current fee recipient:', details.feeRecipient);
   }
 
-  function _assertUpdate(
-    TemplateTarget memory target,
-    HooksTemplate memory beforeDetails
-  ) internal view {
-    HooksTemplate memory afterDetails = IHooksFactory(target.factory).getHooksTemplateDetails(
-      target.template
-    );
+  function _assertUpdate(TemplateTarget memory target, HooksTemplate memory beforeDetails) internal view {
+    HooksTemplate memory afterDetails = IHooksFactory(target.factory).getHooksTemplateDetails(target.template);
     _assertExpectedTemplate(target, afterDetails);
     if (afterDetails.feeRecipient != NEW_FEE_RECIPIENT) {
       revert('Template fee recipient update failed');
     }
     if (
-      afterDetails.originationFeeAsset != beforeDetails.originationFeeAsset ||
-      afterDetails.originationFeeAmount != beforeDetails.originationFeeAmount ||
-      afterDetails.protocolFeeBips != beforeDetails.protocolFeeBips ||
-      afterDetails.exists != beforeDetails.exists ||
-      afterDetails.enabled != beforeDetails.enabled ||
-      afterDetails.index != beforeDetails.index ||
-      keccak256(bytes(afterDetails.name)) != keccak256(bytes(beforeDetails.name))
+      afterDetails.originationFeeAsset != beforeDetails.originationFeeAsset
+        || afterDetails.originationFeeAmount != beforeDetails.originationFeeAmount
+        || afterDetails.protocolFeeBips != beforeDetails.protocolFeeBips || afterDetails.exists != beforeDetails.exists
+        || afterDetails.enabled != beforeDetails.enabled || afterDetails.index != beforeDetails.index
+        || keccak256(bytes(afterDetails.name)) != keccak256(bytes(beforeDetails.name))
     ) revert('Template changed outside the fee-recipient field');
   }
 
@@ -129,7 +112,10 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     ITemplateFeeAuthorityHelper helper,
     TemplateTarget memory target,
     uint256 privateKey
-  ) internal returns (bool updated) {
+  )
+    internal
+    returns (bool updated)
+  {
     IHooksFactory factory = IHooksFactory(target.factory);
     HooksTemplate memory beforeDetails = factory.getHooksTemplateDetails(target.template);
     if (beforeDetails.feeRecipient == NEW_FEE_RECIPIENT) {
@@ -162,25 +148,13 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     _requireRecordedAddress(deployments, 'HooksFactory_v2-5', STANDARD_FACTORY);
     _requireRecordedAddress(deployments, 'HooksFactoryRevolving_v2-5', REVOLVING_FACTORY);
     _requireRecordedAddress(deployments, 'OpenTermHooks_initCodeStorage_v2-5', OPEN_TERM_TEMPLATE);
-    _requireRecordedAddress(
-      deployments,
-      'FixedTermHooks_initCodeStorage_v2-5',
-      FIXED_TERM_TEMPLATE
-    );
-    _requireRecordedAddress(
-      deployments,
-      'PeriodicTermHooks_initCodeStorage_v2-5',
-      PERIODIC_TERM_TEMPLATE
-    );
+    _requireRecordedAddress(deployments, 'FixedTermHooks_initCodeStorage_v2-5', FIXED_TERM_TEMPLATE);
+    _requireRecordedAddress(deployments, 'PeriodicTermHooks_initCodeStorage_v2-5', PERIODIC_TERM_TEMPLATE);
 
     if (
-      ARCH_CONTROLLER.code.length == 0 ||
-      AUTHORITY_HELPER.code.length == 0 ||
-      STANDARD_FACTORY.code.length == 0 ||
-      REVOLVING_FACTORY.code.length == 0 ||
-      OPEN_TERM_TEMPLATE.code.length == 0 ||
-      FIXED_TERM_TEMPLATE.code.length == 0 ||
-      PERIODIC_TERM_TEMPLATE.code.length == 0
+      ARCH_CONTROLLER.code.length == 0 || AUTHORITY_HELPER.code.length == 0 || STANDARD_FACTORY.code.length == 0
+        || REVOLVING_FACTORY.code.length == 0 || OPEN_TERM_TEMPLATE.code.length == 0
+        || FIXED_TERM_TEMPLATE.code.length == 0 || PERIODIC_TERM_TEMPLATE.code.length == 0
     ) revert('One or more repair targets have no code');
     if (AUTHORITY_HELPER.codehash != AUTHORITY_HELPER_RUNTIME_HASH) {
       revert('Authority helper runtime does not match the reviewed deployment');
@@ -198,14 +172,14 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
       revert('New executor is not authorized on the replacement helper');
     }
     if (
-      IHooksFactory(STANDARD_FACTORY).archController() != ARCH_CONTROLLER ||
-      IHooksFactory(REVOLVING_FACTORY).archController() != ARCH_CONTROLLER
+      IHooksFactory(STANDARD_FACTORY).archController() != ARCH_CONTROLLER
+        || IHooksFactory(REVOLVING_FACTORY).archController() != ARCH_CONTROLLER
     ) revert('A v2.5 factory is bound to the wrong ArchController');
     if (
-      !archController.isRegisteredControllerFactory(STANDARD_FACTORY) ||
-      !archController.isRegisteredControllerFactory(REVOLVING_FACTORY) ||
-      !archController.isRegisteredController(STANDARD_FACTORY) ||
-      !archController.isRegisteredController(REVOLVING_FACTORY)
+      !archController.isRegisteredControllerFactory(STANDARD_FACTORY)
+        || !archController.isRegisteredControllerFactory(REVOLVING_FACTORY)
+        || !archController.isRegisteredController(STANDARD_FACTORY)
+        || !archController.isRegisteredController(REVOLVING_FACTORY)
     ) revert('A v2.5 factory is not fully registered');
 
     TemplateTarget[6] memory targets = _targets();
@@ -244,9 +218,7 @@ contract UpdateTemplateFeeRecipientV25 is DeployScriptBase {
     for (uint256 i; i < targets.length; i++) {
       _preflightTemplate(targets[i]);
       if (
-        IHooksFactory(targets[i].factory)
-          .getHooksTemplateDetails(targets[i].template)
-          .feeRecipient != NEW_FEE_RECIPIENT
+        IHooksFactory(targets[i].factory).getHooksTemplateDetails(targets[i].template).feeRecipient != NEW_FEE_RECIPIENT
       ) revert('Final fee-recipient verification failed');
     }
 

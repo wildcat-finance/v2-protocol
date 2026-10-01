@@ -15,12 +15,10 @@ abstract contract SphereXConfig {
   //                                Storage Slots                               //
   // ========================================================================== //
 
-  bytes32 private constant SPHEREX_ADMIN_STORAGE_SLOT =
-    bytes32(uint256(keccak256('eip1967.spherex.spherex')) - 1);
+  bytes32 private constant SPHEREX_ADMIN_STORAGE_SLOT = bytes32(uint256(keccak256('eip1967.spherex.spherex')) - 1);
   bytes32 private constant SPHEREX_PENDING_ADMIN_STORAGE_SLOT =
     bytes32(uint256(keccak256('eip1967.spherex.pending')) - 1);
-  bytes32 private constant SPHEREX_OPERATOR_STORAGE_SLOT =
-    bytes32(uint256(keccak256('eip1967.spherex.operator')) - 1);
+  bytes32 private constant SPHEREX_OPERATOR_STORAGE_SLOT = bytes32(uint256(keccak256('eip1967.spherex.operator')) - 1);
   bytes32 private constant SPHEREX_ENGINE_STORAGE_SLOT =
     bytes32(uint256(keccak256('eip1967.spherex.spherex_engine')) - 1);
 
@@ -156,8 +154,8 @@ abstract contract SphereXConfig {
   /// @dev requires `newSphereXEngine` to be zero or report the `ISphereXEngine` interface.
   function _setSphereXEngine(address newSphereXEngine) internal {
     if (
-      newSphereXEngine != address(0) &&
-      !ISphereXEngine(newSphereXEngine).supportsInterface(type(ISphereXEngine).interfaceId)
+      newSphereXEngine != address(0)
+        && !ISphereXEngine(newSphereXEngine).supportsInterface(type(ISphereXEngine).interfaceId)
     ) {
       revert_SphereXNotEngine();
     }

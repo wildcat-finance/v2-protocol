@@ -54,10 +54,7 @@ contract FixedTermHooksTest is TestKernel {
     return registeredBorrowers[account];
   }
 
-  function onHooksAdministratorTransferred(
-    address previousAdministrator,
-    address newAdministrator
-  ) external {
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
     assertEq(msg.sender, address(hooks), 'callback caller');
     callbackPreviousAdministrator = previousAdministrator;
     callbackNewAdministrator = newAdministrator;
@@ -66,12 +63,12 @@ contract FixedTermHooksTest is TestKernel {
   function _newHooks(
     address administrator,
     NameAndProviderInputs memory inputs
-  ) internal returns (FixedTermHooks deployed) {
+  )
+    internal
+    returns (FixedTermHooks deployed)
+  {
     deployed = FixedTermHooks(
-      _deployCode(
-        'src/access/FixedTermHooks.sol:FixedTermHooks',
-        abi.encode(administrator, abi.encode(inputs))
-      )
+      _deployCode('src/access/FixedTermHooks.sol:FixedTermHooks', abi.encode(administrator, abi.encode(inputs)))
     );
   }
 
@@ -81,10 +78,7 @@ contract FixedTermHooksTest is TestKernel {
 
   function _newManagementHooks() internal returns (FixedTermManagementHooks target) {
     target = FixedTermManagementHooks(
-      _deployCode(
-        'test/mocks/FixedTermManagementHooks.sol:FixedTermManagementHooks',
-        abi.encode(address(this))
-      )
+      _deployCode('test/mocks/FixedTermManagementHooks.sol:FixedTermManagementHooks', abi.encode(address(this)))
     );
   }
 
@@ -93,7 +87,11 @@ contract FixedTermHooksTest is TestKernel {
     bool deposit,
     bool queueWithdrawal,
     bool transfer
-  ) internal pure returns (HooksConfig config) {
+  )
+    internal
+    pure
+    returns (HooksConfig config)
+  {
     config = EmptyHooksConfig.setHooksAddress(address(target));
     if (deposit) config = config.setFlag(Bit_Enabled_Deposit);
     if (queueWithdrawal) config = config.setFlag(Bit_Enabled_QueueWithdrawal);
@@ -105,7 +103,10 @@ contract FixedTermHooksTest is TestKernel {
     address market,
     HooksConfig requestedConfig,
     bytes memory hooksData
-  ) internal returns (HooksConfig effectiveConfig) {
+  )
+    internal
+    returns (HooksConfig effectiveConfig)
+  {
     DeployMarketInputs memory inputs;
     inputs.hooks = requestedConfig;
     effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
@@ -130,26 +131,18 @@ contract FixedTermHooksTest is TestKernel {
     hooks.onCreateMarket(address(this), MarketA, inputs, abi.encode(uint32(block.timestamp - 1)));
 
     vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
-    hooks.onCreateMarket(
-      address(this),
-      MarketA,
-      inputs,
-      abi.encode(uint32(block.timestamp + 365 days + 1))
-    );
+    hooks.onCreateMarket(address(this), MarketA, inputs, abi.encode(uint32(block.timestamp + 365 days + 1)));
 
-    _createMarket(
-      hooks,
-      MarketD,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(uint32(block.timestamp))
-    );
+    _createMarket(hooks, MarketD, _requestedConfig(hooks, false, false, false), abi.encode(uint32(block.timestamp)));
     assertEq(hooks.getHookedMarket(MarketD).fixedTermEndTime, block.timestamp, 'zero term');
   }
 
   function test_onCreateMarket_PreservesTermPermissionsAndBatchReads(
     bool allowClosureBeforeTerm,
     bool allowTermReduction
-  ) external {
+  )
+    external
+  {
     _createMarket(
       hooks,
       MarketA,
@@ -168,11 +161,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(abi.encode(configs[0]), abi.encode(config), 'batch configuration');
     HookedMarket memory empty;
     assertEq(abi.encode(configs[1]), abi.encode(empty), 'unknown batch configuration');
-    assertEq(
-      abi.encode(hooks.getHookedMarket(MarketB)),
-      abi.encode(empty),
-      'unknown single configuration'
-    );
+    assertEq(abi.encode(hooks.getHookedMarket(MarketB)), abi.encode(empty), 'unknown single configuration');
   }
 
   function test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder() external {
@@ -181,17 +170,11 @@ contract FixedTermHooksTest is TestKernel {
     hooks.onCreateMarket(address(this), MarketA, inputs, new bytes(31));
     vm.expectRevert(FixedTermPolicy.InvalidFixedTerm.selector);
     hooks.onCreateMarket(
-      address(this),
-      MarketA,
-      inputs,
-      abi.encode(uint256(vm.getBlockTimestamp()) - 1, uint256(type(uint128).max) + 1)
+      address(this), MarketA, inputs, abi.encode(uint256(vm.getBlockTimestamp()) - 1, uint256(type(uint128).max) + 1)
     );
     vm.expectRevert(abi.encodePacked(PanicSelector, PanicArithmetic));
     hooks.onCreateMarket(
-      address(this),
-      MarketA,
-      inputs,
-      abi.encode(uint256(type(uint32).max) + 1, uint256(type(uint128).max) + 1)
+      address(this), MarketA, inputs, abi.encode(uint256(type(uint32).max) + 1, uint256(type(uint128).max) + 1)
     );
     _createMarket(
       hooks,
@@ -208,10 +191,7 @@ contract FixedTermHooksTest is TestKernel {
   function test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority() external {
     uint32 term = _term();
     _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(term, uint128(100), true, true, true)
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(100), true, true, true)
     );
     bytes32 configBefore = keccak256(abi.encode(hooks.getHookedMarket(MarketA)));
     registeredBorrowers[NewAdministrator] = true;
@@ -233,10 +213,7 @@ contract FixedTermHooksTest is TestKernel {
   function test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority() external {
     uint32 term = _term();
     _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(term, uint128(0), false, false, true)
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     vm.expectEmit(address(hooks));
     emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), term, term - 1 days);
@@ -260,10 +237,7 @@ contract FixedTermHooksTest is TestKernel {
   function test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior() external {
     uint32 term = _term();
     _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(term, uint128(0), false, false, true)
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term));
 
@@ -298,17 +272,12 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(reserve, 1_000, 'current reserves');
   }
 
-  function test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(
-    uint32 reductionSeed
-  ) external {
+  function test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(uint32 reductionSeed) external {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
     uint32 reduction = uint32(_bound(reductionSeed, 1, 30 days));
     _createMarket(
-      target,
-      MarketA,
-      _requestedConfig(target, false, false, false),
-      abi.encode(term, uint128(0), false, false, true)
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     target.setTermChangeLimits(MarketA, term - 2 * reduction, 2 * reduction);
 
@@ -318,12 +287,7 @@ contract FixedTermHooksTest is TestKernel {
       vm.expectEmit(address(target));
       emit FixedTermPolicy.FixedTermUpdated(MarketA, address(this), previousTime, newTime);
       vm.expectEmit(address(target));
-      emit FixedTermManagementHooks.TermReductionRecorded(
-        MarketA,
-        previousTime,
-        newTime,
-        i * reduction
-      );
+      emit FixedTermManagementHooks.TermReductionRecorded(MarketA, previousTime, newTime, i * reduction);
       target.setFixedTermEndTime(MarketA, newTime);
       assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, newTime, 'updated maturity');
       assertEq(target.totalTermReduction(MarketA), i * reduction, 'accumulated reduction');
@@ -335,10 +299,7 @@ contract FixedTermHooksTest is TestKernel {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
     _createMarket(
-      target,
-      MarketA,
-      _requestedConfig(target, false, false, false),
-      abi.encode(term, uint128(0), false, false, true)
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     target.setTermChangeLimits(MarketA, term - 10 days, 20 days);
     target.setFixedTermEndTime(MarketA, term - 5 days);
@@ -358,10 +319,7 @@ contract FixedTermHooksTest is TestKernel {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
     _createMarket(
-      target,
-      MarketA,
-      _requestedConfig(target, false, false, false),
-      abi.encode(term, uint128(0), false, false, true)
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     _createMarket(target, MarketB, _requestedConfig(target, false, false, false), abi.encode(term));
     // every attempted update also fails the feature rule if it gets that far.
@@ -397,10 +355,7 @@ contract FixedTermHooksTest is TestKernel {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
     _createMarket(
-      target,
-      MarketA,
-      _requestedConfig(target, false, false, false),
-      abi.encode(term, uint128(0), false, false, true)
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     target.setTermChangeLimits(MarketA, 0, 10 days);
     target.setFixedTermEndTime(MarketA, term - 5 days);
@@ -421,10 +376,7 @@ contract FixedTermHooksTest is TestKernel {
     uint32 term = _term();
     target.setTermChangeLimits(MarketA, term + 1, 0);
     _createMarket(
-      target,
-      MarketA,
-      _requestedConfig(target, false, false, false),
-      abi.encode(term, uint128(0), false, true, false)
+      target, MarketA, _requestedConfig(target, false, false, false), abi.encode(term, uint128(0), false, true, false)
     );
     assertEq(target.getHookedMarket(MarketA).fixedTermEndTime, term, 'creation keeps its rules');
 
@@ -487,19 +439,14 @@ contract FixedTermHooksTest is TestKernel {
     hooks.onSetAnnualInterestAndReserveRatioBips(99, 500, state, '');
 
     vm.prank(MarketA);
-    (uint16 annualInterestBips, uint16 reserveRatioBips) = hooks
-      .onSetAnnualInterestAndReserveRatioBips(101, 500, state, '');
+    (uint16 annualInterestBips, uint16 reserveRatioBips) =
+      hooks.onSetAnnualInterestAndReserveRatioBips(101, 500, state, '');
     assertEq(annualInterestBips, 101, 'increased APR');
     assertEq(reserveRatioBips, 1_000, 'increased reserve ratio');
 
     vm.warp(term);
     vm.prank(MarketA);
-    (annualInterestBips, reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(
-      99,
-      500,
-      state,
-      ''
-    );
+    (annualInterestBips, reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(99, 500, state, '');
     assertEq(annualInterestBips, 99, 'post-term APR');
     assertEq(reserveRatioBips, 1_000, 'post-term reserve ratio');
   }
@@ -508,10 +455,7 @@ contract FixedTermHooksTest is TestKernel {
     uint32 term = _term();
     MarketState memory state;
     _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(term, uint128(0), false, true, false)
+      hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, true, false)
     );
     vm.expectEmit(address(hooks));
     emit FixedTermPolicy.FixedTermUpdated(MarketA, MarketA, term, uint32(block.timestamp));
@@ -520,10 +464,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(hooks.getHookedMarket(MarketA).fixedTermEndTime, block.timestamp, 'closure term');
 
     _createMarket(
-      hooks,
-      MarketB,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(term, uint128(0), false, false, true)
+      hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(term, uint128(0), false, false, true)
     );
     vm.prank(MarketB);
     hooks.onCloseMarket(state, '');

@@ -14,11 +14,8 @@ library LibCompressedInitCode {
     // creation itself is capped at 49,152 bytes, even if its compressed storage fits.
     if (initCode.length > 49_152) revert InitCodeDeploymentFailed();
     bytes memory compressed = LibZip.flzCompress(initCode);
-    runtime = abi.encodePacked(
-      type(CompressedInitCodeReader).runtimeCode,
-      compressed,
-      bytes2(uint16(compressed.length))
-    );
+    runtime =
+      abi.encodePacked(type(CompressedInitCodeReader).runtimeCode, compressed, bytes2(uint16(compressed.length)));
     // the cap also keeps the length footer well inside uint16.
     if (runtime.length > 24_576) revert InitCodeDeploymentFailed();
   }

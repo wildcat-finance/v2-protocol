@@ -24,10 +24,7 @@ contract LinkedInitCodeStorage {
       if and(word, addressMask) {
         revert(0, 0)
       }
-      mstore(
-        lastWord,
-        or(word, shl(32, and(secondary, 0xffffffffffffffffffffffffffffffffffffffff)))
-      )
+      mstore(lastWord, or(word, shl(32, and(secondary, 0xffffffffffffffffffffffffffffffffffffffff))))
       return(add(runtimeCode, 0x20), mload(runtimeCode))
     }
   }

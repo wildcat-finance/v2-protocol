@@ -41,9 +41,7 @@ abstract contract MarketMatrixFixture is MarketFixture {
     actors[3] = Dave;
   }
 
-  function _deployMatrix(
-    address[] memory actors
-  ) internal returns (MatrixDeployment memory matrix) {
+  function _deployMatrix(address[] memory actors) internal returns (MatrixDeployment memory matrix) {
     // Keep the arrays in one memory bundle. Besides making the matrix shape
     // explicit, this lets Forge's accurate non-IR coverage compiler lower setup.
     matrix.markets = new address[](MatrixSize);
@@ -54,19 +52,12 @@ abstract contract MarketMatrixFixture is MarketFixture {
     matrix.revolving = new bool[](MatrixSize);
     matrix.fixedTermEnds = new uint32[](MatrixSize);
     matrix.commitmentFeeBips = new uint16[](MatrixSize);
-    MockRoleProvider provider = MockRoleProvider(
-      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-    );
+    MockRoleProvider provider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
 
     for (uint256 i; i < MatrixSize; i++) {
       uint8 hooksKind = uint8(i % 3);
       bool isRevolving = i >= 3;
-      (Fixture memory fixture, uint32 fixedTermEnd) = _deployMatrixCell(
-        hooksKind,
-        isRevolving,
-        provider,
-        actors
-      );
+      (Fixture memory fixture, uint32 fixedTermEnd) = _deployMatrixCell(hooksKind, isRevolving, provider, actors);
       _deposit(fixture, Alice, 10_000e18);
 
       matrix.markets[i] = address(fixture.market);
@@ -80,10 +71,7 @@ abstract contract MarketMatrixFixture is MarketFixture {
     }
   }
 
-  function _matrixOptions(
-    uint8,
-    bool isRevolving
-  ) internal view virtual returns (Options memory options) {
+  function _matrixOptions(uint8, bool isRevolving) internal view virtual returns (Options memory options) {
     options = _defaultOptions(HooksKind.OpenTerm);
     options.maxTotalSupply = 1_000_000e18;
     options.protocolFeeBips = 1_000;
@@ -98,12 +86,15 @@ abstract contract MarketMatrixFixture is MarketFixture {
     bool isRevolving,
     MockRoleProvider provider,
     address[] memory actors
-  ) internal returns (Fixture memory fixture, uint32 fixedTermEnd) {
+  )
+    internal
+    returns (Fixture memory fixture, uint32 fixedTermEnd)
+  {
     string memory artifact = hooksKind == OpenTerm
       ? 'src/access/OpenTermHooks.sol:OpenTermHooks'
       : hooksKind == FixedTerm
-      ? 'src/access/FixedTermHooks.sol:FixedTermHooks'
-      : 'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
+        ? 'src/access/FixedTermHooks.sol:FixedTermHooks'
+        : 'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
     IHooks hooks = IHooks(_deployCode(artifact, abi.encode(Borrower, bytes(''))));
 
     Options memory options = _matrixOptions(hooksKind, isRevolving);
@@ -116,13 +107,8 @@ abstract contract MarketMatrixFixture is MarketFixture {
       fixedTermEnd = uint32(vm.getBlockTimestamp() + _fixedTermDelay());
       hooksData = abi.encode(fixedTermEnd, uint128(0), false, true, true);
     } else {
-      hooksData = abi.encode(
-        uint32(vm.getBlockTimestamp() + 30 days),
-        uint32(30 days),
-        uint32(7 days),
-        uint128(0),
-        false
-      );
+      hooksData =
+        abi.encode(uint32(vm.getBlockTimestamp() + 30 days), uint32(30 days), uint32(7 days), uint128(0), false);
     }
 
     fixture = _newMarket(options, hooks, hooksData);

@@ -16,41 +16,27 @@ library MarketStateLibExternal {
   }
 
   /// @dev Normalize an amount of scaled tokens using the current scale factor.
-  function $normalizeAmount(
-    MarketState memory state,
-    uint256 amount
-  ) external pure returns (uint256) {
+  function $normalizeAmount(MarketState memory state, uint256 amount) external pure returns (uint256) {
     return MarketStateLib.normalizeAmount(state, amount);
   }
 
   /// @dev Scale an amount of normalized tokens using the current scale factor,
   /// rounding down.
-  function $scaleAmountDown(
-    MarketState memory state,
-    uint256 amount
-  ) external pure returns (uint256) {
+  function $scaleAmountDown(MarketState memory state, uint256 amount) external pure returns (uint256) {
     return MarketStateLib.scaleAmountDown(state, amount);
   }
 
-  function $maxScaledSettleableAmount(
-    MarketState memory state,
-    uint256 amount
-  ) external pure returns (uint256) {
+  function $maxScaledSettleableAmount(MarketState memory state, uint256 amount) external pure returns (uint256) {
     return MarketStateLib.maxScaledSettleableAmount(state, amount);
   }
 
   /// Collateralization requires all pending withdrawals be covered
   /// and reserve ratio for remaining liquidity.
-  function $liquidityRequired(
-    MarketState memory state
-  ) external pure returns (uint256 _liquidityRequired) {
+  function $liquidityRequired(MarketState memory state) external pure returns (uint256 _liquidityRequired) {
     return MarketStateLib.liquidityRequired(state);
   }
 
-  function $borrowableAssets(
-    MarketState memory state,
-    uint256 totalAssets
-  ) external pure returns (uint256) {
+  function $borrowableAssets(MarketState memory state, uint256 totalAssets) external pure returns (uint256) {
     return MarketStateLib.borrowableAssets(state, totalAssets);
   }
 
@@ -58,10 +44,7 @@ library MarketStateLibExternal {
     return MarketStateLib.hasPendingExpiredBatch(state);
   }
 
-  function $withdrawableProtocolFees(
-    MarketState memory state,
-    uint256 totalAssets
-  ) external pure returns (uint256) {
+  function $withdrawableProtocolFees(MarketState memory state, uint256 totalAssets) external pure returns (uint256) {
     return MarketStateLib.withdrawableProtocolFees(state, totalAssets);
   }
 

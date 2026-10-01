@@ -27,8 +27,5 @@ interface IHooksFactoryAdministratorCallback {
   function archController() external view returns (address);
 
   /// @dev the factory must authenticate `msg.sender` as the hooks instance being reindexed.
-  function onHooksAdministratorTransferred(
-    address previousAdministrator,
-    address newAdministrator
-  ) external;
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external;
 }

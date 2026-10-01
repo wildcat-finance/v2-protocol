@@ -27,11 +27,8 @@ contract FeeMathTest is TestKernel {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      0,
-      delinquencyGracePeriod,
-      block.timestamp
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
+      state.$updateScaleFactorAndFees(0, delinquencyGracePeriod, block.timestamp);
 
     assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
     assertEq(protocolFee, 1e16, 'incorrect protocolFee');
@@ -52,11 +49,8 @@ contract FeeMathTest is TestKernel {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      1000,
-      delinquencyGracePeriod,
-      block.timestamp
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
+      state.$updateScaleFactorAndFees(1000, delinquencyGracePeriod, block.timestamp);
 
     assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
     assertEq(protocolFee, 0, 'incorrect protocolFee');
@@ -78,11 +72,8 @@ contract FeeMathTest is TestKernel {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      1000,
-      delinquencyGracePeriod,
-      block.timestamp
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
+      state.$updateScaleFactorAndFees(1000, delinquencyGracePeriod, block.timestamp);
     assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
 
     assertEq(protocolFee, 1e16, 'incorrect feesAccrued');
@@ -103,11 +94,8 @@ contract FeeMathTest is TestKernel {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      0,
-      delinquencyGracePeriod,
-      block.timestamp
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
+      state.$updateScaleFactorAndFees(0, delinquencyGracePeriod, block.timestamp);
 
     assertEq(state.lastInterestAccruedTimestamp, block.timestamp);
     assertEq(protocolFee, 0, 'incorrect protocolFee');
@@ -126,11 +114,8 @@ contract FeeMathTest is TestKernel {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      0,
-      2 days,
-      10 days + 6 hours
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
+      state.$updateScaleFactorAndFees(0, 2 days, 10 days + 6 hours);
 
     assertEq(state.timeDelinquent, 1 days + 6 hours, 'incorrect accumulated delinquency time');
     assertEq(state.lastInterestAccruedTimestamp, 10 days + 6 hours, 'incorrect update timestamp');
@@ -149,11 +134,8 @@ contract FeeMathTest is TestKernel {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      0,
-      1 days,
-      10 days + 6 hours
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
+      state.$updateScaleFactorAndFees(0, 1 days, 10 days + 6 hours);
 
     assertEq(state.timeDelinquent, 1 days + 18 hours, 'incorrect recovered delinquency time');
     assertEq(state.lastInterestAccruedTimestamp, 10 days + 6 hours, 'incorrect update timestamp');
@@ -185,11 +167,7 @@ contract FeeMathTest is TestKernel {
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      0,
-      0,
-      1 days + 1
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(0, 0, 1 days + 1);
 
     assertEq(state.scaleFactor, type(uint112).max, 'incorrect scaleFactor');
     assertEq(state.lastInterestAccruedTimestamp, 1 days + 1);
@@ -202,17 +180,17 @@ contract FeeMathTest is TestKernel {
     MarketState calldata stateInput,
     uint16 delinquencyFeeBips,
     uint32 delinquencyGracePeriod
-  ) external pure {
+  )
+    external
+    pure
+  {
     MarketState memory state = stateInput;
     bytes32 stateHash = keccak256(abi.encode(state));
     uint256 baseInterestRay;
     uint256 delinquencyFeeRay;
     uint256 protocolFee;
-    (state, baseInterestRay, delinquencyFeeRay, protocolFee) = state.$updateScaleFactorAndFees(
-      delinquencyFeeBips,
-      delinquencyGracePeriod,
-      state.lastInterestAccruedTimestamp
-    );
+    (state, baseInterestRay, delinquencyFeeRay, protocolFee) =
+      state.$updateScaleFactorAndFees(delinquencyFeeBips, delinquencyGracePeriod, state.lastInterestAccruedTimestamp);
     assertEq(baseInterestRay, 0, 'incorrect baseInterestRay');
     assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
     assertEq(protocolFee, 0, 'incorrect protocolFee');
@@ -224,17 +202,17 @@ contract FeeMathTest is TestKernel {
     uint32 previousTimeDelinquent,
     uint32 timeDelta,
     uint32 delinquencyGracePeriod
-  ) external pure {
+  )
+    external
+    pure
+  {
     MarketState memory state;
     state.isDelinquent = isCurrentlyDelinquent;
     previousTimeDelinquent = uint32(bound(previousTimeDelinquent, 0, type(uint32).max - timeDelta));
     state.timeDelinquent = previousTimeDelinquent;
 
     uint256 timeWithPenalty;
-    (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(
-      delinquencyGracePeriod,
-      timeDelta
-    );
+    (state, timeWithPenalty) = state.$updateTimeDelinquentAndGetPenaltyTime(delinquencyGracePeriod, timeDelta);
     if (isCurrentlyDelinquent) {
       if (previousTimeDelinquent >= delinquencyGracePeriod) {
         // If already past grace period, full delta incurs penalty
@@ -251,21 +229,13 @@ contract FeeMathTest is TestKernel {
         // If delta does not cross grace period, no penalty
         assertEq(timeWithPenalty, 0, 'should be no penalty when not past grace period');
       }
-      assertEq(
-        state.timeDelinquent,
-        previousTimeDelinquent + timeDelta,
-        'incorrect timeDelinquent'
-      );
+      assertEq(state.timeDelinquent, previousTimeDelinquent + timeDelta, 'incorrect timeDelinquent');
     } else {
       if (previousTimeDelinquent >= delinquencyGracePeriod) {
         uint32 timeLeftWithPenalty = previousTimeDelinquent - delinquencyGracePeriod;
         if (timeLeftWithPenalty >= timeDelta) {
           // If time left with penalty is greater than delta, full delta incurs penalty
-          assertEq(
-            timeWithPenalty,
-            timeDelta,
-            'should be full delta when time left with penalty is >= delta'
-          );
+          assertEq(timeWithPenalty, timeDelta, 'should be full delta when time left with penalty is >= delta');
         } else {
           // If the penalty time is shorter than the delta, only that portion
           // incurs a penalty.
@@ -283,11 +253,7 @@ contract FeeMathTest is TestKernel {
       if (previousTimeDelinquent <= timeDelta) {
         assertEq(state.timeDelinquent, 0, 'incorrect timeDelinquent');
       } else {
-        assertEq(
-          state.timeDelinquent,
-          previousTimeDelinquent - timeDelta,
-          'incorrect timeDelinquent'
-        );
+        assertEq(state.timeDelinquent, previousTimeDelinquent - timeDelta, 'incorrect timeDelinquent');
       }
     }
   }

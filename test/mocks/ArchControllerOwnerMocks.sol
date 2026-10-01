@@ -45,7 +45,9 @@ contract ArchControllerOwnerLegacyFactoryMock {
     address originationFeeAsset_,
     uint80 originationFeeAmount_,
     uint16 protocolFeeBips_
-  ) external {
+  )
+    external
+  {
     if (msg.sender != WildcatArchController(archController).owner()) {
       revert CallerNotArchControllerOwner();
     }
@@ -63,41 +65,32 @@ contract ArchControllerOwnerSphereXEngineMock is AccessControlDefaultAdminRules,
   constructor(
     uint48 initialDelay,
     address initialDefaultAdmin
-  ) AccessControlDefaultAdminRules(initialDelay, initialDefaultAdmin) {
+  )
+    AccessControlDefaultAdminRules(initialDelay, initialDefaultAdmin)
+  {
     _grantRole(OPERATOR_ROLE, initialDefaultAdmin);
   }
 
-  function sphereXValidatePre(
-    int256,
-    address,
-    bytes calldata
-  ) external pure returns (bytes32[] memory values) {
+  function sphereXValidatePre(int256, address, bytes calldata) external pure returns (bytes32[] memory values) {
     values = new bytes32[](0);
   }
 
-  function sphereXValidatePost(
-    int256,
-    uint256,
-    bytes32[] calldata,
-    bytes32[] calldata
-  ) external pure {}
+  function sphereXValidatePost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
 
   function sphereXValidateInternalPre(int256) external pure returns (bytes32[] memory values) {
     values = new bytes32[](0);
   }
 
-  function sphereXValidateInternalPost(
-    int256,
-    uint256,
-    bytes32[] calldata,
-    bytes32[] calldata
-  ) external pure {}
+  function sphereXValidateInternalPost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
 
-  function addAllowedSenderOnChain(address) external onlyRole(SENDER_ADDER_ROLE) {}
+  function addAllowedSenderOnChain(address) external onlyRole(SENDER_ADDER_ROLE) { }
 
-  function supportsInterface(
-    bytes4 interfaceId
-  ) public view override(AccessControlDefaultAdminRules, ISphereXEngine) returns (bool) {
+  function supportsInterface(bytes4 interfaceId)
+    public
+    view
+    override(AccessControlDefaultAdminRules, ISphereXEngine)
+    returns (bool)
+  {
     return interfaceId == type(ISphereXEngine).interfaceId || super.supportsInterface(interfaceId);
   }
 }

@@ -35,7 +35,10 @@ function queryStringOrBytes32AsString(
   address target,
   uint256 leftPaddedFunctionSelector,
   uint256 leftPaddedGenericErrorSelector
-) view returns (string memory str) {
+)
+  view
+  returns (string memory str)
+{
   bool isBytes32;
   assembly {
     // the selector is left-padded, so its four useful bytes start at 0x1c.
@@ -79,10 +82,7 @@ function queryStringOrBytes32AsString(
       // the addition overflowed, which is just malformed returndata with extra steps.
       let paddedLength := and(add(length, 0x1f), not(0x1f))
       // data has to start at 0x40 and fit inside returndata. extra trailing bytes are fine.
-      if or(
-        xor(mload(0), 0x20),
-        or(lt(paddedLength, length), gt(paddedLength, sub(returnSize, 0x40)))
-      ) {
+      if or(xor(mload(0), 0x20), or(lt(paddedLength, length), gt(paddedLength, sub(returnSize, 0x40)))) {
         mstore(0, 0x4cb9c000)
         revert(0x1c, 0x04)
       }
@@ -105,7 +105,10 @@ function queryStringOrBytes32AsString(
 function queryStringOrBytes32AsStringOrEmpty(
   address target,
   uint256 leftPaddedFunctionSelector
-) view returns (string memory str) {
+)
+  view
+  returns (string memory str)
+{
   bool valid;
   bool isBytes32;
   bytes32 legacyValue;
@@ -128,10 +131,7 @@ function queryStringOrBytes32AsStringOrEmpty(
           let length := mload(0x20)
           let paddedLength := and(add(length, 0x1f), not(0x1f))
           // The explicit 256-byte bound also rules out padded-length overflow.
-          if and(
-            eq(mload(0), 0x20),
-            and(lt(length, 0x101), iszero(gt(paddedLength, sub(size, 0x40))))
-          ) {
+          if and(eq(mload(0), 0x20), and(lt(length, 0x101), iszero(gt(paddedLength, sub(size, 0x40))))) {
             str := mload(0x40)
             let allocSize := add(0x20, paddedLength)
             mstore(0x40, add(str, allocSize))

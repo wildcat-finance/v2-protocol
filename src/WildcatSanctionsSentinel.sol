@@ -26,9 +26,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
 
   TmpEscrowParams public override tmpEscrowParams;
 
-  mapping(address borrower => mapping(address account => bool sanctionOverride))
-    public
-    override sanctionOverrides;
+  mapping(address borrower => mapping(address account => bool sanctionOverride)) public override sanctionOverrides;
 
   // ========================================================================== //
   //                                 Constructor                                //
@@ -49,11 +47,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   }
 
   /// @dev derives the CREATE2 salt for one borrower, account, and asset tuple.
-  function _deriveSalt(
-    address borrower,
-    address account,
-    address asset
-  ) internal pure returns (bytes32 salt) {
+  function _deriveSalt(address borrower, address account, address asset) internal pure returns (bytes32 salt) {
     assembly {
       // Cache free memory pointer
       let freeMemoryPointer := mload(0x40)
@@ -72,9 +66,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
   // ========================================================================== //
 
   /// @inheritdoc IWildcatSanctionsSentinel
-  function isFlaggedByChainalysis(
-    address account
-  ) public view override returns (bool) {
+  function isFlaggedByChainalysis(address account) public view override returns (bool) {
     bool isFlagged;
     address sanctionsList = chainalysisSanctionsList;
     assembly ('memory-safe') {
@@ -136,7 +128,11 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     address borrower,
     address account,
     address asset
-  ) public override returns (address escrowContract) {
+  )
+    public
+    override
+    returns (address escrowContract)
+  {
     escrowContract = getEscrowAddress(borrower, account, asset);
 
     // Skip creation if the address code size is non-zero
@@ -160,7 +156,12 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     address borrower,
     address account,
     address asset
-  ) public view override returns (address escrowAddress) {
+  )
+    public
+    view
+    override
+    returns (address escrowAddress)
+  {
     bytes32 salt = _deriveSalt(borrower, account, asset);
     bytes32 initCodeHash = WildcatSanctionsEscrowInitcodeHash;
     assembly {

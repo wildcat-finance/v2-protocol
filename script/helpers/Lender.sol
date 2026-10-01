@@ -49,25 +49,10 @@ library LibLender {
     console.log(string.concat('Minted ', amount.toString(), ' to ', self.account.toHexString()));
     self.broadcast();
     self.underlying.approve(address(self.market), amount);
-    console.log(
-      string.concat(
-        'Lender ',
-        self.account.toHexString(),
-        ' approved market for ',
-        amount.toString()
-      )
-    );
+    console.log(string.concat('Lender ', self.account.toHexString(), ' approved market for ', amount.toString()));
     self.broadcast();
     self.market.deposit(amount);
-    console.log(
-      string.concat(
-        'Lender ',
-        self.account.toHexString(),
-        ' deposited ',
-        amount.toString(),
-        ' into market'
-      )
-    );
+    console.log(string.concat('Lender ', self.account.toHexString(), ' deposited ', amount.toString(), ' into market'));
   }
 
   function withdraw(Lender memory self, uint256 amount) internal {

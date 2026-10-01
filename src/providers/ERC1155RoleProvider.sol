@@ -25,10 +25,7 @@ contract ERC1155RoleProvider is IERC1155RoleProvider {
   /// @param skipInterfaceCheck whether to skip ERC165 and ERC1155 checks during deployment.
   constructor(address token_, uint256 tokenId_, bool skipInterfaceCheck) {
     if (token_.code.length == 0) revert InvalidTokenAddress();
-    if (
-      !skipInterfaceCheck &&
-      (!_supportsERC165(token_) || !_supportsInterface(token_, ERC1155_INTERFACE_ID))
-    ) {
+    if (!skipInterfaceCheck && (!_supportsERC165(token_) || !_supportsInterface(token_, ERC1155_INTERFACE_ID))) {
       revert InvalidERC1155();
     }
     token = token_;
@@ -40,10 +37,7 @@ contract ERC1155RoleProvider is IERC1155RoleProvider {
   }
 
   /// @notice runs the live token-ID balance check for `account`; caller data is ignored.
-  function validateCredential(
-    address account,
-    bytes calldata
-  ) external view override returns (uint32 timestamp) {
+  function validateCredential(address account, bytes calldata) external view override returns (uint32 timestamp) {
     return _credentialTimestamp(account);
   }
 
@@ -55,15 +49,10 @@ contract ERC1155RoleProvider is IERC1155RoleProvider {
   }
 
   function _supportsERC165(address target) internal view returns (bool) {
-    return
-      _supportsInterface(target, ERC165_INTERFACE_ID) &&
-      !_supportsInterface(target, INVALID_INTERFACE_ID);
+    return _supportsInterface(target, ERC165_INTERFACE_ID) && !_supportsInterface(target, INVALID_INTERFACE_ID);
   }
 
-  function _supportsInterface(
-    address target,
-    bytes4 interfaceId
-  ) internal view returns (bool) {
+  function _supportsInterface(address target, bytes4 interfaceId) internal view returns (bool) {
     try IERC165SupportsInterface(target).supportsInterface(interfaceId) returns (bool supported) {
       return supported;
     } catch {

@@ -6,11 +6,7 @@ pragma solidity 0.8.25;
 ///         escrows.
 /// @dev dependency failures are not treated as an unflagged account; they bubble to the caller.
 interface IWildcatSanctionsSentinel {
-  event NewSanctionsEscrow(
-    address indexed borrower,
-    address indexed account,
-    address indexed asset
-  );
+  event NewSanctionsEscrow(address indexed borrower, address indexed account, address indexed asset);
 
   event SanctionOverride(address indexed borrower, address indexed account);
 
@@ -33,10 +29,7 @@ interface IWildcatSanctionsSentinel {
 
   /// @notice constructor parameters exposed only while an escrow is being deployed.
   /// @dev returns nonzero placeholders outside a sentinel-managed deployment.
-  function tmpEscrowParams()
-    external
-    view
-    returns (address borrower, address account, address asset);
+  function tmpEscrowParams() external view returns (address borrower, address account, address asset);
 
   /// @notice returns the raw sanctions-list result for `account`.
   function isFlaggedByChainalysis(address account) external view returns (bool);
@@ -58,14 +51,13 @@ interface IWildcatSanctionsSentinel {
     address borrower,
     address account,
     address asset
-  ) external view returns (address escrowContract);
+  )
+    external
+    view
+    returns (address escrowContract);
 
   /// @notice deploys the escrow for `(borrower, account, asset)`, or returns the existing one.
   /// @dev the new escrow is automatically exempted in `borrower`'s namespace so it can receive
   ///      quarantined assets. callers do not need permission.
-  function createEscrow(
-    address borrower,
-    address account,
-    address asset
-  ) external returns (address escrowContract);
+  function createEscrow(address borrower, address account, address asset) external returns (address escrowContract);
 }

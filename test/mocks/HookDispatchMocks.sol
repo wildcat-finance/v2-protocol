@@ -71,9 +71,7 @@ contract HookDispatchFactoryMock {
     return _lensHooksTemplate;
   }
 
-  function getHooksTemplateDetails(
-    address hooksTemplate
-  ) external view returns (HooksTemplate memory data) {
+  function getHooksTemplateDetails(address hooksTemplate) external view returns (HooksTemplate memory data) {
     data.exists = hooksTemplate == _lensHooksTemplate;
     data.enabled = data.exists;
     data.name = data.exists ? 'Fixture Hooks' : '';
@@ -87,11 +85,7 @@ contract HookDispatchFactoryMock {
     return 1;
   }
 
-  function setRevolvingMarketCommitmentFeeResponse(
-    uint256 response,
-    uint256 responseSize,
-    bool shouldRevert
-  ) external {
+  function setRevolvingMarketCommitmentFeeResponse(uint256 response, uint256 responseSize, bool shouldRevert) external {
     _revolvingCommitmentFeeResponse = response;
     _revolvingCommitmentFeeResponseSize = responseSize;
     _revolvingCommitmentFeeReverts = shouldRevert;
@@ -145,10 +139,7 @@ contract HookDispatchMock {
     return _calls[index];
   }
 
-  function setAnnualInterestAndReserveRatioBips(
-    uint16 annualInterestBips,
-    uint16 reserveRatioBips
-  ) external {
+  function setAnnualInterestAndReserveRatioBips(uint16 annualInterestBips, uint16 reserveRatioBips) external {
     _replaceAprAndReserveRatio = true;
     _annualInterestBips = annualInterestBips;
     _reserveRatioBips = reserveRatioBips;
@@ -159,16 +150,10 @@ contract HookDispatchMock {
     uint256 scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
-    _calls.push(
-      abi.encodeWithSelector(
-        IHooks.onDeposit.selector,
-        lender,
-        scaledAmount,
-        intermediateState,
-        extraData
-      )
-    );
+  )
+    external
+  {
+    _calls.push(abi.encodeWithSelector(IHooks.onDeposit.selector, lender, scaledAmount, intermediateState, extraData));
   }
 
   function onQueueWithdrawal(
@@ -177,15 +162,12 @@ contract HookDispatchMock {
     uint256 scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
+  )
+    external
+  {
     _calls.push(
       abi.encodeWithSelector(
-        IHooks.onQueueWithdrawal.selector,
-        lender,
-        expiry,
-        scaledAmount,
-        intermediateState,
-        extraData
+        IHooks.onQueueWithdrawal.selector, lender, expiry, scaledAmount, intermediateState, extraData
       )
     );
   }
@@ -196,15 +178,12 @@ contract HookDispatchMock {
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
+  )
+    external
+  {
     _calls.push(
       abi.encodeWithSelector(
-        IHooks.onExecuteWithdrawal.selector,
-        lender,
-        expiry,
-        normalizedAmountWithdrawn,
-        intermediateState,
-        extraData
+        IHooks.onExecuteWithdrawal.selector, lender, expiry, normalizedAmountWithdrawn, intermediateState, extraData
       )
     );
   }
@@ -216,17 +195,11 @@ contract HookDispatchMock {
     uint256 scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
+  )
+    external
+  {
     _calls.push(
-      abi.encodeWithSelector(
-        IHooks.onTransfer.selector,
-        caller,
-        from,
-        to,
-        scaledAmount,
-        intermediateState,
-        extraData
-      )
+      abi.encodeWithSelector(IHooks.onTransfer.selector, caller, from, to, scaledAmount, intermediateState, extraData)
     );
   }
 
@@ -234,63 +207,39 @@ contract HookDispatchMock {
     uint256 normalizedAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
-    _calls.push(
-      abi.encodeWithSelector(
-        IHooks.onBorrow.selector,
-        normalizedAmount,
-        intermediateState,
-        extraData
-      )
-    );
+  )
+    external
+  {
+    _calls.push(abi.encodeWithSelector(IHooks.onBorrow.selector, normalizedAmount, intermediateState, extraData));
   }
 
   function onRepay(
     uint256 normalizedAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
-    _calls.push(
-      abi.encodeWithSelector(
-        IHooks.onRepay.selector,
-        normalizedAmount,
-        intermediateState,
-        extraData
-      )
-    );
+  )
+    external
+  {
+    _calls.push(abi.encodeWithSelector(IHooks.onRepay.selector, normalizedAmount, intermediateState, extraData));
   }
 
-  function onCloseMarket(
-    MarketState calldata intermediateState,
-    bytes calldata extraData
-  ) external {
-    _calls.push(
-      abi.encodeWithSelector(IHooks.onCloseMarket.selector, intermediateState, extraData)
-    );
+  function onCloseMarket(MarketState calldata intermediateState, bytes calldata extraData) external {
+    _calls.push(abi.encodeWithSelector(IHooks.onCloseMarket.selector, intermediateState, extraData));
   }
 
-  function onNukeFromOrbit(
-    address lender,
-    MarketState calldata intermediateState,
-    bytes calldata extraData
-  ) external {
-    _calls.push(
-      abi.encodeWithSelector(IHooks.onNukeFromOrbit.selector, lender, intermediateState, extraData)
-    );
+  function onNukeFromOrbit(address lender, MarketState calldata intermediateState, bytes calldata extraData) external {
+    _calls.push(abi.encodeWithSelector(IHooks.onNukeFromOrbit.selector, lender, intermediateState, extraData));
   }
 
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
+  )
+    external
+  {
     _calls.push(
-      abi.encodeWithSelector(
-        IHooks.onSetMaxTotalSupply.selector,
-        maxTotalSupply,
-        intermediateState,
-        extraData
-      )
+      abi.encodeWithSelector(IHooks.onSetMaxTotalSupply.selector, maxTotalSupply, intermediateState, extraData)
     );
   }
 
@@ -299,7 +248,10 @@ contract HookDispatchMock {
     uint16 reserveRatioBips,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips) {
+  )
+    external
+    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
+  {
     _calls.push(
       abi.encodeWithSelector(
         IHooks.onSetAnnualInterestAndReserveRatioBips.selector,
@@ -317,14 +269,11 @@ contract HookDispatchMock {
     uint16 protocolFeeBips,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external {
+  )
+    external
+  {
     _calls.push(
-      abi.encodeWithSelector(
-        IHooks.onSetProtocolFeeBips.selector,
-        protocolFeeBips,
-        intermediateState,
-        extraData
-      )
+      abi.encodeWithSelector(IHooks.onSetProtocolFeeBips.selector, protocolFeeBips, intermediateState, extraData)
     );
   }
 }

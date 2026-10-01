@@ -74,7 +74,7 @@ contract LibERC20FalseReturnToken {
 }
 
 contract LibERC20NoBalanceReturnToken {
-  function balanceOf(address) external pure {}
+  function balanceOf(address) external pure { }
 
   function transfer(address, uint256) external pure returns (bool) {
     return true;
@@ -91,7 +91,7 @@ contract LibERC20BalanceFalseTransferToken {
   }
 }
 
-contract LibERC20MissingDecimalsToken {}
+contract LibERC20MissingDecimalsToken { }
 
 contract LibERC20Test is TestKernel {
   LibERC20External internal wrapper;

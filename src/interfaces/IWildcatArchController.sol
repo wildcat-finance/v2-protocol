@@ -91,10 +91,7 @@ interface IWildcatArchController {
 
   /// @notice returns controller factories in `[start, min(end, count))`.
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
-  function getRegisteredControllerFactories(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory);
+  function getRegisteredControllerFactories(uint256 start, uint256 end) external view returns (address[] memory);
 
   /// @notice returns the current number of registered controller factories.
   function getRegisteredControllerFactoriesCount() external view returns (uint256);
@@ -125,10 +122,7 @@ interface IWildcatArchController {
 
   /// @notice returns controllers in `[start, min(end, count))`.
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
-  function getRegisteredControllers(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory);
+  function getRegisteredControllers(uint256 start, uint256 end) external view returns (address[] memory);
 
   /// @notice returns the current number of registered controllers.
   function getRegisteredControllersCount() external view returns (uint256);
@@ -159,10 +153,7 @@ interface IWildcatArchController {
 
   /// @notice returns borrowers in `[start, min(end, count))`.
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
-  function getRegisteredBorrowers(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory);
+  function getRegisteredBorrowers(uint256 start, uint256 end) external view returns (address[] memory);
 
   /// @notice returns the current number of registered borrowers.
   function getRegisteredBorrowersCount() external view returns (uint256);
@@ -204,10 +195,7 @@ interface IWildcatArchController {
 
   /// @notice returns blacklisted assets in `[start, min(end, count))`.
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
-  function getBlacklistedAssets(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory);
+  function getBlacklistedAssets(uint256 start, uint256 end) external view returns (address[] memory);
 
   /// @notice returns the current number of blacklisted assets.
   function getBlacklistedAssetsCount() external view returns (uint256);
@@ -227,10 +215,7 @@ interface IWildcatArchController {
 
   /// @notice returns markets in `[start, min(end, count))`.
   /// @dev retained singleton behavior panics when `start` exceeds the clamped end.
-  function getRegisteredMarkets(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory);
+  function getRegisteredMarkets(uint256 start, uint256 end) external view returns (address[] memory);
 
   /// @notice returns the current number of registered markets.
   function getRegisteredMarketsCount() external view returns (uint256);

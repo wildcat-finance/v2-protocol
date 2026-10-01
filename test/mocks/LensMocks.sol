@@ -32,7 +32,7 @@ contract LensArchControllerMock {
   }
 }
 
-contract LensNonHooksControllerMock {}
+contract LensNonHooksControllerMock { }
 
 contract LensHooksMock {
   address public immutable pendingAdministrator;
@@ -85,7 +85,9 @@ contract LensFactoryMock {
     address feeRecipient,
     address originationFeeAsset,
     uint80 originationFeeAmount
-  ) external {
+  )
+    external
+  {
     HooksTemplate storage details = _templateDetails[template];
     details.originationFeeAsset = originationFeeAsset;
     details.originationFeeAmount = originationFeeAmount;
@@ -146,7 +148,11 @@ contract LensFactoryMock {
     address template,
     uint256 start,
     uint256 end
-  ) external view returns (address[] memory markets) {
+  )
+    external
+    view
+    returns (address[] memory markets)
+  {
     if (_revertMarkets) revert('markets');
     address[] storage source = _templateMarkets[template];
     if (end > source.length) end = source.length;
@@ -290,23 +296,26 @@ contract OptionalUintTargetMock {
 }
 
 contract LensProbeHarness {
-  function constraints(
-    address target
-  ) external view returns (MarketParameterConstraints memory data, bool hasRepaymentBounds) {
+  function constraints(address target)
+    external
+    view
+    returns (MarketParameterConstraints memory data, bool hasRepaymentBounds)
+  {
     return HooksInstanceDataLib._readConstraints(target);
   }
 
-  function lifecycle(
-    address target,
-    bool isClosed
-  ) external view returns (MarketLifecycleData memory data) {
+  function lifecycle(address target, bool isClosed) external view returns (MarketLifecycleData memory data) {
     data.fill(WildcatMarket(target), isClosed);
   }
 
   function pendingAprChange(
     address target,
     address market
-  ) external view returns (PeriodicPendingAprChangeData memory data) {
+  )
+    external
+    view
+    returns (PeriodicPendingAprChangeData memory data)
+  {
     HooksConfigDataLib._fillPendingAprChange(data, target, market);
   }
 
@@ -322,10 +331,7 @@ contract LensProbeHarness {
     data.fill(config);
   }
 
-  function optionalUint(
-    address target,
-    bytes4 selector
-  ) external view returns (OptionalUintDataV2_5 memory data) {
+  function optionalUint(address target, bytes4 selector) external view returns (OptionalUintDataV2_5 memory data) {
     MarketDataLib._tryFillOptionalUint(data, target, selector);
   }
 }

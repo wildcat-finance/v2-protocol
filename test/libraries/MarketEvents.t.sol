@@ -24,23 +24,16 @@ contract MarketEventsHarness {
     uint256 delinquencyFeeRay,
     uint256 protocolFee,
     uint256 dirty
-  ) external {
-    LifecycleAccrual memory accrual = LifecycleAccrual(
-      from,
-      to,
-      scaleFactor,
-      baseInterestRay,
-      delinquencyFeeRay,
-      protocolFee
-    );
+  )
+    external
+  {
+    LifecycleAccrual memory accrual =
+      LifecycleAccrual(from, to, scaleFactor, baseInterestRay, delinquencyFeeRay, protocolFee);
     // make the upper bits dirty deliberately. the encoder still owes us canonical ABI words.
     assembly {
       mstore(accrual, or(mload(accrual), and(dirty, not(0xffffffff))))
       mstore(add(accrual, 0x20), or(mload(add(accrual, 0x20)), and(dirty, not(0xffffffff))))
-      mstore(
-        add(accrual, 0x40),
-        or(mload(add(accrual, 0x40)), and(dirty, not(sub(shl(112, 1), 1))))
-      )
+      mstore(add(accrual, 0x40), or(mload(add(accrual, 0x40)), and(dirty, not(sub(shl(112, 1), 1)))))
     }
     emit_InterestAndFeesAccrued(accrual);
   }
@@ -52,19 +45,11 @@ contract MarketEventsHarness {
     revert_RepaymentReserveRequired();
   }
 
-  function emitMaxTotalSupplyUpdated(
-    address caller,
-    uint256 previousValue,
-    uint256 newValue
-  ) external {
+  function emitMaxTotalSupplyUpdated(address caller, uint256 previousValue, uint256 newValue) external {
     emit_MaxTotalSupplyUpdated(caller, previousValue, newValue);
   }
 
-  function emitProtocolFeeBipsUpdated(
-    address caller,
-    uint256 previousValue,
-    uint256 newValue
-  ) external {
+  function emitProtocolFeeBipsUpdated(address caller, uint256 previousValue, uint256 newValue) external {
     emit_ProtocolFeeBipsUpdated(caller, previousValue, newValue);
   }
 
@@ -74,13 +59,11 @@ contract MarketEventsHarness {
     uint256 newAnnualInterestBips,
     uint256 previousReserveRatioBips,
     uint256 newReserveRatioBips
-  ) external {
+  )
+    external
+  {
     emit_AnnualInterestAndReserveRatioBipsUpdated(
-      caller,
-      previousAnnualInterestBips,
-      newAnnualInterestBips,
-      previousReserveRatioBips,
-      newReserveRatioBips
+      caller, previousAnnualInterestBips, newAnnualInterestBips, previousReserveRatioBips, newReserveRatioBips
     );
   }
 
@@ -109,9 +92,7 @@ contract MarketEventsTest is TestKernel, IMarketEventsAndErrors {
   MarketEventsHarness internal harness;
 
   function setUp() external {
-    harness = MarketEventsHarness(
-      _deployCode('test/libraries/MarketEvents.t.sol:MarketEventsHarness')
-    );
+    harness = MarketEventsHarness(_deployCode('test/libraries/MarketEvents.t.sol:MarketEventsHarness'));
   }
 
   function testFuzz_emitRepaymentEvents_matchesSolidityEncoding(uint256 timestamp) external {
@@ -131,25 +112,12 @@ contract MarketEventsTest is TestKernel, IMarketEventsAndErrors {
     uint256 delinquencyFeeRay,
     uint256 protocolFee,
     uint256 dirty
-  ) external {
+  )
+    external
+  {
     vm.expectEmit(address(harness));
-    emit InterestAndFeesAccrued(
-      from,
-      to,
-      scaleFactor,
-      baseInterestRay,
-      delinquencyFeeRay,
-      protocolFee
-    );
-    harness.emitLifecycleAccrual(
-      from,
-      to,
-      scaleFactor,
-      baseInterestRay,
-      delinquencyFeeRay,
-      protocolFee,
-      dirty
-    );
+    emit InterestAndFeesAccrued(from, to, scaleFactor, baseInterestRay, delinquencyFeeRay, protocolFee);
+    harness.emitLifecycleAccrual(from, to, scaleFactor, baseInterestRay, delinquencyFeeRay, protocolFee, dirty);
   }
 
   function test_repaymentErrorsMatchSolidityEncoding() external {

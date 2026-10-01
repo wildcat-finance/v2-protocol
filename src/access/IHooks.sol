@@ -40,7 +40,10 @@ abstract contract IHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
-  ) external returns (HooksConfig) {
+  )
+    external
+    returns (HooksConfig)
+  {
     if (msg.sender != factory) revert CallerNotFactory();
     return _onCreateMarket(administrator, marketAddress, parameters, extraData);
   }
@@ -50,7 +53,10 @@ abstract contract IHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata extraData
-  ) internal virtual returns (HooksConfig);
+  )
+    internal
+    virtual
+    returns (HooksConfig);
 
   /// @notice called before the market accepts a deposit.
   /// @param scaledAmount amount of market-token shares that the deposit would mint.
@@ -60,7 +66,9 @@ abstract contract IHooks {
     uint256 scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice called before the market adds a lender's shares to a withdrawal batch.
   /// @param expiry exact batch expiry selected by the market.
@@ -72,7 +80,9 @@ abstract contract IHooks {
     uint scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice called before the market pays a lender from the batch keyed by `expiry`.
   /// @dev `expiry` is the batch being claimed. don't infer it from the current pending batch in
@@ -83,7 +93,9 @@ abstract contract IHooks {
     uint128 normalizedAmountWithdrawn,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice called before market-token balances change.
   /// @param caller account that initiated the transfer. this may differ from `from`.
@@ -95,28 +107,31 @@ abstract contract IHooks {
     uint scaledAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice called before borrowed assets leave the market.
   function onBorrow(
     uint normalizedAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice called after repayment assets arrive and before repayment accounting is applied.
   function onRepay(
     uint normalizedAmount,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice called before the market is closed.
   /// @dev if closure needs a final repayment, the market calls `onRepay` first.
-  function onCloseMarket(
-    MarketState calldata intermediateState,
-    bytes calldata extraData
-  ) external virtual;
+  function onCloseMarket(MarketState calldata intermediateState, bytes calldata extraData) external virtual;
 
   /// @notice called before a sanctioned lender's full balance is queued for withdrawal.
   /// @dev the market calls `onQueueWithdrawal` after this, so term policy can still block the
@@ -125,14 +140,18 @@ abstract contract IHooks {
     address lender,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice called before the market updates its maximum total supply.
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 
   /// @notice constrains an APR and reserve-ratio update before the market applies it.
   /// @return updatedAnnualInterestBips APR the market should apply.
@@ -142,12 +161,17 @@ abstract contract IHooks {
     uint16 reserveRatioBips,
     MarketState calldata intermediateState,
     bytes calldata extraData
-  ) external virtual returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips);
+  )
+    external
+    virtual
+    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips);
 
   /// @notice called before the market applies a factory-supplied protocol fee.
   function onSetProtocolFeeBips(
     uint16 protocolFeeBips,
     MarketState memory intermediateState,
     bytes calldata extraData
-  ) external virtual;
+  )
+    external
+    virtual;
 }

@@ -26,13 +26,12 @@ contract FixedTermHooks is FixedTermPolicy {
       args,
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
-        EmptyHooksConfig
-          .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
+        EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
           .setFlag(Bit_Enabled_CloseMarket)
           .setFlag(Bit_Enabled_QueueWithdrawal)
       )
     )
-  {}
+  { }
 
   function version() external pure override returns (string memory) {
     return 'FixedTermHooks';
@@ -49,9 +48,11 @@ contract FixedTermHooks is FixedTermPolicy {
   }
 
   /// @notice batch version of `getHookedMarket`, preserving input order.
-  function getHookedMarkets(
-    address[] calldata marketAddresses
-  ) external view returns (HookedMarket[] memory hookedMarkets) {
+  function getHookedMarkets(address[] calldata marketAddresses)
+    external
+    view
+    returns (HookedMarket[] memory hookedMarkets)
+  {
     hookedMarkets = new HookedMarket[](marketAddresses.length);
     for (uint256 i = 0; i < marketAddresses.length; i++) {
       hookedMarkets[i] = _hookedMarkets[marketAddresses[i]];

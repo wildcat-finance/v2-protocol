@@ -31,10 +31,7 @@ contract ERC4626AssetsRoleProvider is IERC4626AssetsRoleProvider {
   }
 
   /// @notice runs the live share-value check for `account`; caller data is ignored.
-  function validateCredential(
-    address account,
-    bytes calldata
-  ) external view override returns (uint32 timestamp) {
+  function validateCredential(address account, bytes calldata) external view override returns (uint32 timestamp) {
     return _credentialTimestamp(account);
   }
 

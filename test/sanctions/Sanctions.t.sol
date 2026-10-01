@@ -16,11 +16,7 @@ contract SanctionsTest is TestKernel {
     MockERC20 asset;
   }
 
-  event NewSanctionsEscrow(
-    address indexed borrower,
-    address indexed account,
-    address indexed asset
-  );
+  event NewSanctionsEscrow(address indexed borrower, address indexed account, address indexed asset);
   event SanctionOverride(address indexed borrower, address indexed account);
   event SanctionOverrideRemoved(address indexed borrower, address indexed account);
   event EscrowReleased(address indexed account, address indexed asset, uint256 amount);
@@ -33,24 +29,23 @@ contract SanctionsTest is TestKernel {
   function _deploySentinel(
     address archController,
     address sanctionsList
-  ) internal returns (WildcatSanctionsSentinel sentinel) {
+  )
+    internal
+    returns (WildcatSanctionsSentinel sentinel)
+  {
     sentinel = WildcatSanctionsSentinel(
       _deployCode(
-        'src/WildcatSanctionsSentinel.sol:WildcatSanctionsSentinel',
-        abi.encode(archController, sanctionsList)
+        'src/WildcatSanctionsSentinel.sol:WildcatSanctionsSentinel', abi.encode(archController, sanctionsList)
       )
     );
   }
 
   function _newFixture() internal returns (Fixture memory fixture) {
-    fixture.sanctionsList = SanctionsListMock(
-      _deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock')
-    );
+    fixture.sanctionsList = SanctionsListMock(_deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock'));
     fixture.sentinel = _deploySentinel(ArchController, address(fixture.sanctionsList));
     fixture.asset = MockERC20(
       _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Mock ERC20', 'MOCK', uint8(18))
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Mock ERC20', 'MOCK', uint8(18))
       )
     );
   }
@@ -59,10 +54,11 @@ contract SanctionsTest is TestKernel {
     Fixture memory fixture,
     address borrower,
     address account
-  ) internal returns (WildcatSanctionsEscrow escrow) {
-    escrow = WildcatSanctionsEscrow(
-      fixture.sentinel.createEscrow(borrower, account, address(fixture.asset))
-    );
+  )
+    internal
+    returns (WildcatSanctionsEscrow escrow)
+  {
+    escrow = WildcatSanctionsEscrow(fixture.sentinel.createEscrow(borrower, account, address(fixture.asset)));
   }
 
   function _expectedEscrowAddress(
@@ -70,22 +66,25 @@ contract SanctionsTest is TestKernel {
     address borrower,
     address account,
     address asset
-  ) internal view returns (address) {
-    return
-      address(
-        uint160(
-          uint256(
-            keccak256(
-              abi.encodePacked(
-                bytes1(0xff),
-                address(sentinel),
-                keccak256(abi.encode(borrower, account, asset)),
-                sentinel.WildcatSanctionsEscrowInitcodeHash()
-              )
+  )
+    internal
+    view
+    returns (address)
+  {
+    return address(
+      uint160(
+        uint256(
+          keccak256(
+            abi.encodePacked(
+              bytes1(0xff),
+              address(sentinel),
+              keccak256(abi.encode(borrower, account, asset)),
+              sentinel.WildcatSanctionsEscrowInitcodeHash()
             )
           )
         )
-      );
+      )
+    );
   }
 
   function test_constructor_StoresDependenciesHashAndResetParameters() external {
@@ -133,7 +132,9 @@ contract SanctionsTest is TestKernel {
     address account,
     bool sanctioned,
     bool overridden
-  ) external {
+  )
+    external
+  {
     Fixture memory fixture = _newFixture();
     if (sanctioned) fixture.sanctionsList.sanction(account);
     if (overridden) {
@@ -163,11 +164,7 @@ contract SanctionsTest is TestKernel {
     assertTrue(fixture.sentinel.isSanctioned(Borrower, Account));
   }
 
-  function testFuzz_getEscrowAddress_MatchesCreate2Formula(
-    address borrower,
-    address account,
-    address asset
-  ) external {
+  function testFuzz_getEscrowAddress_MatchesCreate2Formula(address borrower, address account, address asset) external {
     Fixture memory fixture = _newFixture();
     assertEq(
       fixture.sentinel.getEscrowAddress(borrower, account, asset),
@@ -198,11 +195,7 @@ contract SanctionsTest is TestKernel {
     assertEq(asset, address(1));
   }
 
-  function testFuzz_escrowTracksAssetAndBalance(
-    address borrower,
-    address account,
-    uint256 amount
-  ) external {
+  function testFuzz_escrowTracksAssetAndBalance(address borrower, address account, uint256 amount) external {
     Fixture memory fixture = _newFixture();
     WildcatSanctionsEscrow escrow = _createEscrow(fixture, borrower, account);
 
@@ -239,13 +232,11 @@ contract SanctionsTest is TestKernel {
     address borrower,
     address account,
     uint256 amount
-  ) external {
+  )
+    external
+  {
     Fixture memory fixture = _newFixture();
-    address predictedEscrow = fixture.sentinel.getEscrowAddress(
-      borrower,
-      account,
-      address(fixture.asset)
-    );
+    address predictedEscrow = fixture.sentinel.getEscrowAddress(borrower, account, address(fixture.asset));
     vm.assume(caller != VmAddress);
     vm.assume(account != predictedEscrow);
     WildcatSanctionsEscrow escrow = _createEscrow(fixture, borrower, account);

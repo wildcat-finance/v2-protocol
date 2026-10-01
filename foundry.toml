@@ -40,6 +40,22 @@ optimizer_runs = 1
 optimizer_details = { yulDetails = { optimizerSteps = 'dhfoDgvulfnTUtnIf[xa[r]EscLMcCTUtTOntnfDIulLculVcul [j]Tpeulxa[rul]xa[r]cLgvifCTUca[r]LSsTOtfDnca[r]Iulc]jmul[jul] VcTOcul jmul' } }
 cbor_metadata = false
 
+[fmt]
+line_length = 120
+tab_width = 2
+bracket_spacing = true
+quote_style = 'single'
+multiline_func_header = 'all'
+prefer_compact = 'none'
+int_types = 'preserve'
+number_underscore = 'preserve'
+hex_underscore = 'preserve'
+wrap_comments = false
+docs_style = 'preserve'
+single_line_statement_blocks = 'preserve'
+sort_imports = false
+namespace_import_style = 'preserve'
+
 [lint]
 lint_on_build = false
 

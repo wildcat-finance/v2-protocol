@@ -30,31 +30,17 @@ contract ArchControllerEngineMock is ISphereXEngine {
 
   mapping(address sender => uint256 calls) public allowedSenderCalls;
 
-  function sphereXValidatePre(
-    int256,
-    address,
-    bytes calldata
-  ) external pure returns (bytes32[] memory values) {
+  function sphereXValidatePre(int256, address, bytes calldata) external pure returns (bytes32[] memory values) {
     values = new bytes32[](0);
   }
 
-  function sphereXValidatePost(
-    int256,
-    uint256,
-    bytes32[] calldata,
-    bytes32[] calldata
-  ) external pure {}
+  function sphereXValidatePost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
 
   function sphereXValidateInternalPre(int256) external pure returns (bytes32[] memory values) {
     values = new bytes32[](0);
   }
 
-  function sphereXValidateInternalPost(
-    int256,
-    uint256,
-    bytes32[] calldata,
-    bytes32[] calldata
-  ) external pure {}
+  function sphereXValidateInternalPost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
 
   function addAllowedSenderOnChain(address sender) external {
     allowedSenderCalls[sender]++;

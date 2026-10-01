@@ -21,10 +21,7 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
 
   /// @param administrator_ initial authority over membership and provider administration.
   /// @param initialMembers initial nonzero members. a duplicate reverts deployment.
-  constructor(
-    address administrator_,
-    address[] memory initialMembers
-  ) ManagedRoleProvider(administrator_) {
+  constructor(address administrator_, address[] memory initialMembers) ManagedRoleProvider(administrator_) {
     _addMembers(initialMembers);
   }
 
@@ -81,10 +78,7 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
     return _members.values();
   }
 
-  function getMembers(
-    uint256 start,
-    uint256 end
-  ) external view override returns (address[] memory members) {
+  function getMembers(uint256 start, uint256 end) external view override returns (address[] memory members) {
     if (start > end) revert InvalidPaginationRange();
     uint256 length = _members.length();
     if (end > length) end = length;
@@ -105,9 +99,7 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
   // ========================================================================== //
 
   /// @dev returns the current timestamp for a member and zero for everyone else.
-  function getCredential(
-    address account
-  ) external view override returns (uint32 credentialTimestamp) {
+  function getCredential(address account) external view override returns (uint32 credentialTimestamp) {
     if (_members.contains(account)) credentialTimestamp = block.timestamp.toUint32();
   }
 
@@ -116,7 +108,12 @@ contract AccessListRoleProvider is IAccessListRoleProvider, ManagedRoleProvider 
   function validateCredential(
     address account,
     bytes calldata
-  ) external view override returns (uint32 credentialTimestamp) {
+  )
+    external
+    view
+    override
+    returns (uint32 credentialTimestamp)
+  {
     if (_members.contains(account)) credentialTimestamp = block.timestamp.toUint32();
   }
 }

@@ -67,16 +67,17 @@ library WithdrawalLib {
     WithdrawalBatch memory batch,
     MarketState memory state,
     uint256 totalAssets
-  ) internal pure returns (uint256) {
+  )
+    internal
+    pure
+    returns (uint256)
+  {
     // Subtract normalized value of pending scaled withdrawals, processed
     // withdrawals and protocol fees.
     uint256 priorScaledAmountPending = (state.scaledPendingWithdrawals - batch.scaledOwedAmount());
-    uint256 unavailableAssets = state.normalizedUnclaimedWithdrawals +
-      state.normalizeWithRemainder(
-        priorScaledAmountPending,
-        state.withdrawalRemainder - batch.paymentRemainder
-      ) +
-      state.accruedProtocolFees;
+    uint256 unavailableAssets = state.normalizedUnclaimedWithdrawals
+      + state.normalizeWithRemainder(priorScaledAmountPending, state.withdrawalRemainder - batch.paymentRemainder)
+      + state.accruedProtocolFees;
     return totalAssets.satSub(unavailableAssets);
   }
 }

@@ -13,18 +13,11 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
   function setUp() external {
     Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
     harness = WithdrawalPaymentHarness(
-      fixture.factory.deployMarket(
-        vm.getCode('test/mocks/WithdrawalPaymentHarness.sol:WithdrawalPaymentHarness')
-      )
+      fixture.factory.deployMarket(vm.getCode('test/mocks/WithdrawalPaymentHarness.sol:WithdrawalPaymentHarness'))
     );
   }
 
-  function _checkPayment(
-    uint104 owed,
-    uint112 factor,
-    uint128 remainder,
-    uint256 available
-  ) private view {
+  function _checkPayment(uint104 owed, uint112 factor, uint128 remainder, uint256 available) private view {
     MarketState memory state;
     state.scaleFactor = factor;
     state.scaledTotalSupply = owed;
@@ -36,12 +29,8 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     batch.scaledAmountBurned = 1;
     batch.normalizedAmountPaid = 1;
     batch.paymentRemainder = remainder;
-    (
-      WithdrawalBatch memory afterBatch,
-      MarketState memory afterState,
-      uint104 burned,
-      uint128 paid
-    ) = harness.applyPayment(batch, state, available);
+    (WithdrawalBatch memory afterBatch, MarketState memory afterState, uint104 burned, uint128 paid) =
+      harness.applyPayment(batch, state, available);
     uint256 numerator = uint256(burned) * factor + remainder;
     assertTrue(burned <= owed, 'cannot burn more than owed');
     assertTrue(paid <= available, 'cannot reserve more than available');
@@ -63,7 +52,10 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     uint112 factor,
     uint128 remainder,
     uint256 available
-  ) external view {
+  )
+    external
+    view
+  {
     remainder = uint128(bound(remainder, 0, RAY - 1));
     factor = uint112(bound(factor, RAY, type(uint112).max));
     _checkPayment(owed, factor, remainder, available);
@@ -83,7 +75,10 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     uint128 otherRemainder,
     uint16 ratio,
     uint256 available
-  ) external view {
+  )
+    external
+    view
+  {
     extraSupply = uint104(bound(extraSupply, 0, type(uint104).max - owed));
     factor = uint112(bound(factor, RAY, type(uint112).max));
     ownRemainder = uint128(bound(ownRemainder, 0, RAY - 1));
@@ -101,7 +96,7 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     batch.scaledAmountBurned = 1;
     batch.normalizedAmountPaid = 1;
     batch.paymentRemainder = ownRemainder;
-    (, MarketState memory afterState, , ) = harness.applyPayment(batch, state, available);
+    (, MarketState memory afterState,,) = harness.applyPayment(batch, state, available);
     assertEq(afterState.totalDebts(), state.totalDebts(), 'all debt conserved');
     assertEq(afterState.liquidityRequired(), state.liquidityRequired(), 'all reserves conserved');
   }
@@ -122,12 +117,8 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     WithdrawalBatch memory batch;
     batch.scaledTotalAmount = 10;
 
-    (
-      WithdrawalBatch memory afterBatch,
-      MarketState memory afterState,
-      uint104 burned,
-      uint128 paid
-    ) = harness.applyPayment(batch, state, type(uint256).max);
+    (WithdrawalBatch memory afterBatch, MarketState memory afterState, uint104 burned, uint128 paid) =
+      harness.applyPayment(batch, state, type(uint256).max);
 
     assertEq(burned, 7, 'burn limited to global headroom');
     assertEq(paid, 7, 'payment fills global headroom');
@@ -147,12 +138,8 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     WithdrawalBatch memory batch;
     batch.scaledTotalAmount = 1;
 
-    (
-      WithdrawalBatch memory afterBatch,
-      MarketState memory afterState,
-      uint104 burned,
-      uint128 paid
-    ) = harness.applyPayment(batch, state, 1);
+    (WithdrawalBatch memory afterBatch, MarketState memory afterState, uint104 burned, uint128 paid) =
+      harness.applyPayment(batch, state, 1);
 
     assertEq(burned, 0);
     assertEq(paid, 0);
@@ -186,12 +173,8 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     batch.scaledTotalAmount = type(uint128).max;
     batch.scaledAmountBurned = type(uint128).max - 7;
     batch.normalizedAmountPaid = type(uint128).max - 7;
-    (
-      WithdrawalBatch memory afterBatch,
-      MarketState memory afterState,
-      uint104 burned,
-      uint128 paid
-    ) = harness.applyPayment(batch, state, type(uint256).max);
+    (WithdrawalBatch memory afterBatch, MarketState memory afterState, uint104 burned, uint128 paid) =
+      harness.applyPayment(batch, state, type(uint256).max);
     assertEq(burned, 7);
     assertEq(paid, 7);
     assertEq(afterBatch.scaledAmountBurned, type(uint128).max);

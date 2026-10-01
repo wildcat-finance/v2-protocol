@@ -37,36 +37,16 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
   }
 
   function _feeToken(bool rejectZeroAmount) internal returns (ZeroTransferReviewToken) {
-    return
-      ZeroTransferReviewToken(
-        _deployCode(
-          'test/factories/ZeroValueTransferReview.t.sol:ZeroTransferReviewToken',
-          abi.encode(rejectZeroAmount)
-        )
-      );
-  }
-
-  function _configureFee(
-    MatrixMarketKind kind,
-    address recipient,
-    address token,
-    uint80 amount
-  ) internal {
-    _factoryFor(stack, kind).updateHooksTemplateFees(
-      stack.hooksTemplates[0],
-      recipient,
-      token,
-      amount,
-      0
+    return ZeroTransferReviewToken(
+      _deployCode('test/factories/ZeroValueTransferReview.t.sol:ZeroTransferReviewToken', abi.encode(rejectZeroAmount))
     );
   }
 
-  function _expectDeploymentConfig(
-    MatrixMarketKind kind,
-    address feeAsset,
-    address recipient,
-    uint96 nonce
-  ) internal {
+  function _configureFee(MatrixMarketKind kind, address recipient, address token, uint80 amount) internal {
+    _factoryFor(stack, kind).updateHooksTemplateFees(stack.hooksTemplates[0], recipient, token, amount, 0);
+  }
+
+  function _expectDeploymentConfig(MatrixMarketKind kind, address feeAsset, address recipient, uint96 nonce) internal {
     IHooksFactory factory = _factoryFor(stack, kind);
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, kind);
     address expectedMarket = factory.computeMarketAddress(_marketSalt(MatrixBorrower, nonce));
@@ -102,7 +82,10 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     address feeAsset,
     uint256 feeAmount,
     uint96 nonce
-  ) external returns (address market) {
+  )
+    external
+    returns (address market)
+  {
     require(msg.sender == address(this));
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, kind);
     IHooksFactory factory = _factoryFor(stack, kind);
@@ -111,49 +94,25 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     if (!newHooks) {
       address instance = factory.deployHooksInstance(stack.hooksTemplates[0], '');
       HooksDeploymentConfig config = IHooks(instance).config();
-      hooks = config.optionalFlags().setHooksAddress(instance).mergeAllFlags(
-        config.requiredFlags()
-      );
+      hooks = config.optionalFlags().setHooksAddress(instance).mergeAllFlags(config.requiredFlags());
     }
     DeployMarketInputs memory inputs = _marketInputs(stack, options, hooks);
     bytes memory hooksData = _hooksData(options, vm.getBlockTimestamp());
     bytes32 salt = _marketSalt(MatrixBorrower, nonce);
     if (kind == MatrixMarketKind.Standard) {
       if (newHooks) {
-        (market, ) = factory.deployMarketAndHooks(
-          stack.hooksTemplates[0],
-          '',
-          inputs,
-          hooksData,
-          salt,
-          feeAsset,
-          feeAmount
-        );
+        (market,) =
+          factory.deployMarketAndHooks(stack.hooksTemplates[0], '', inputs, hooksData, salt, feeAsset, feeAmount);
       } else {
         market = factory.deployMarket(inputs, hooksData, salt, feeAsset, feeAmount);
       }
     } else {
       bytes memory marketData = abi.encode(uint8(1), options.commitmentFeeBips);
       if (newHooks) {
-        (market, ) = stack.revolvingFactory.deployMarketAndHooks(
-          stack.hooksTemplates[0],
-          '',
-          inputs,
-          hooksData,
-          marketData,
-          salt,
-          feeAsset,
-          feeAmount
-        );
+        (market,) = stack.revolvingFactory
+          .deployMarketAndHooks(stack.hooksTemplates[0], '', inputs, hooksData, marketData, salt, feeAsset, feeAmount);
       } else {
-        market = stack.revolvingFactory.deployMarket(
-          inputs,
-          hooksData,
-          marketData,
-          salt,
-          feeAsset,
-          feeAmount
-        );
+        market = stack.revolvingFactory.deployMarket(inputs, hooksData, marketData, salt, feeAsset, feeAmount);
       }
     }
     vm.stopPrank();

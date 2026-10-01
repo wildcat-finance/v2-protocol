@@ -44,21 +44,11 @@ interface IBorrowerIdentityRegistry {
   error InvalidPaginationRange();
 
   /// @notice emitted when the ArchController owner approves an account factory.
-  event AccountFactoryAdded(
-    address indexed administrator,
-    address indexed accountFactory
-  );
+  event AccountFactoryAdded(address indexed administrator, address indexed accountFactory);
   /// @notice emitted when the ArchController owner removes an account factory.
-  event AccountFactoryRemoved(
-    address indexed administrator,
-    address indexed accountFactory
-  );
+  event AccountFactoryRemoved(address indexed administrator, address indexed accountFactory);
   /// @notice emitted when an approved factory registers a borrower account.
-  event BorrowerAccountRegistered(
-    address indexed account,
-    address indexed principal,
-    address indexed accountFactory
-  );
+  event BorrowerAccountRegistered(address indexed account, address indexed principal, address indexed accountFactory);
   /// @notice emitted when a principal starts or replaces an account's principal transfer.
   event BorrowerAccountPrincipalTransferRequested(
     address indexed account,
@@ -111,10 +101,7 @@ interface IBorrowerIdentityRegistry {
 
   /// @notice returns account factories in the half-open range `[start, end)`.
   /// @dev clamps `end` to the current count. `start > end` reverts.
-  function getAccountFactories(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory);
+  function getAccountFactories(uint256 start, uint256 end) external view returns (address[] memory);
 
   /// @notice returns the current number of approved account factories.
   function getAccountFactoriesCount() external view returns (uint256);
@@ -141,20 +128,14 @@ interface IBorrowerIdentityRegistry {
 
   /// @notice returns `principal`'s current accounts in `[start, min(end, count))`.
   /// @dev `start > end` reverts; an empty or out-of-bounds range returns an empty array.
-  function getBorrowerAccounts(
-    address principal,
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory);
+  function getBorrowerAccounts(address principal, uint256 start, uint256 end) external view returns (address[] memory);
 
   /// @notice returns the current number of borrower accounts for `principal`.
   function getBorrowerAccountsCount(address principal) external view returns (uint256);
 
   /// @notice returns every account originally registered by `accountFactory`.
   /// @dev principal transfers do not change this provenance list.
-  function getBorrowerAccountsForFactory(
-    address accountFactory
-  ) external view returns (address[] memory);
+  function getBorrowerAccountsForFactory(address accountFactory) external view returns (address[] memory);
 
   /// @notice returns factory-provenance accounts in `[start, min(end, count))`.
   /// @dev `start > end` reverts; an empty or out-of-bounds range returns an empty array.
@@ -162,10 +143,11 @@ interface IBorrowerIdentityRegistry {
     address accountFactory,
     uint256 start,
     uint256 end
-  ) external view returns (address[] memory);
+  )
+    external
+    view
+    returns (address[] memory);
 
   /// @notice returns how many accounts `accountFactory` originally registered.
-  function getBorrowerAccountsForFactoryCount(
-    address accountFactory
-  ) external view returns (uint256);
+  function getBorrowerAccountsForFactoryCount(address accountFactory) external view returns (uint256);
 }

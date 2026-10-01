@@ -32,15 +32,17 @@ abstract contract HookTemplateFixture is TestKernel {
 
   function _setUpHooks() internal {
     vm.warp(StartTimestamp);
-    for (uint256 i; i < hooks.length; i++) hooks[i] = _newHooks(HookKind(i), '');
+    for (uint256 i; i < hooks.length; i++) {
+      hooks[i] = _newHooks(HookKind(i), '');
+    }
   }
 
   function _newHooks(HookKind kind, bytes memory args) internal returns (BaseHooks) {
     string memory artifact = kind == HookKind.Open
       ? 'src/access/OpenTermHooks.sol:OpenTermHooks'
       : kind == HookKind.Fixed
-      ? 'src/access/FixedTermHooks.sol:FixedTermHooks'
-      : 'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
+        ? 'src/access/FixedTermHooks.sol:FixedTermHooks'
+        : 'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
     return BaseHooks(_deployCode(artifact, abi.encode(address(this), args)));
   }
 
@@ -50,11 +52,7 @@ abstract contract HookTemplateFixture is TestKernel {
     return abi.encode(FirstWindowStart, PeriodDuration, WindowDuration);
   }
 
-  function _marketData(
-    HookKind kind,
-    uint256 minimum,
-    bool disabled
-  ) internal pure returns (bytes memory) {
+  function _marketData(HookKind kind, uint256 minimum, bool disabled) internal pure returns (bytes memory) {
     return bytes.concat(_termData(kind), abi.encode(minimum, disabled));
   }
 
@@ -63,7 +61,10 @@ abstract contract HookTemplateFixture is TestKernel {
     address market,
     HooksConfig requested,
     bytes memory data
-  ) internal returns (HooksConfig) {
+  )
+    internal
+    returns (HooksConfig)
+  {
     DeployMarketInputs memory inputs;
     inputs.hooks = requested.setHooksAddress(address(target));
     return target.onCreateMarket(address(this), market, inputs, data);
@@ -71,38 +72,21 @@ abstract contract HookTemplateFixture is TestKernel {
 
   /// @dev use the public getters so these checks cover the tuples callers actually receive.
   ///      don't add a test-only getter for shared state.
-  function _access(
-    HookKind kind,
-    BaseHooks target,
-    address market
-  ) internal view returns (AccessConfig memory access) {
+  function _access(HookKind kind, BaseHooks target, address market) internal view returns (AccessConfig memory access) {
     if (kind == HookKind.Open) {
       OpenMarket memory config = OpenTermHooks(address(target)).getHookedMarket(market);
-      return
-        AccessConfig(
-          config.isHooked,
-          config.transferRequiresAccess,
-          config.depositRequiresAccess,
-          true,
-          config.minimumDeposit,
-          config.transfersDisabled
-        );
+      return AccessConfig(
+        config.isHooked,
+        config.transferRequiresAccess,
+        config.depositRequiresAccess,
+        true,
+        config.minimumDeposit,
+        config.transfersDisabled
+      );
     }
     if (kind == HookKind.Fixed) {
       FixedMarket memory config = FixedTermHooks(address(target)).getHookedMarket(market);
-      return
-        AccessConfig(
-          config.isHooked,
-          config.transferRequiresAccess,
-          config.depositRequiresAccess,
-          config.withdrawalRequiresAccess,
-          config.minimumDeposit,
-          config.transfersDisabled
-        );
-    }
-    PeriodicMarket memory config = PeriodicTermHooks(address(target)).getHookedMarket(market);
-    return
-      AccessConfig(
+      return AccessConfig(
         config.isHooked,
         config.transferRequiresAccess,
         config.depositRequiresAccess,
@@ -110,5 +94,15 @@ abstract contract HookTemplateFixture is TestKernel {
         config.minimumDeposit,
         config.transfersDisabled
       );
+    }
+    PeriodicMarket memory config = PeriodicTermHooks(address(target)).getHookedMarket(market);
+    return AccessConfig(
+      config.isHooked,
+      config.transferRequiresAccess,
+      config.depositRequiresAccess,
+      config.withdrawalRequiresAccess,
+      config.minimumDeposit,
+      config.transfersDisabled
+    );
   }
 }

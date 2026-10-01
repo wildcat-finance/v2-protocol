@@ -14,21 +14,11 @@ contract CompressedCodeHarness is LibStoredInitCodeExternal {
     return LibStoredInitCode.getInitCode(store);
   }
 
-  function create2Memory(
-    address store,
-    bytes32 salt,
-    uint256 value,
-    bytes memory args
-  ) external returns (address) {
+  function create2Memory(address store, bytes32 salt, uint256 value, bytes memory args) external returns (address) {
     return LibStoredInitCode.create2WithStoredInitCode(store, salt, value, args);
   }
 
-  function create2Calldata(
-    address store,
-    bytes32 salt,
-    uint256 value,
-    bytes calldata args
-  ) external returns (address) {
+  function create2Calldata(address store, bytes32 salt, uint256 value, bytes calldata args) external returns (address) {
     return LibStoredInitCode.create2WithStoredInitCodeCD(store, salt, value, args);
   }
 }
@@ -65,9 +55,7 @@ contract CompressedInitCodeTest is TestKernel {
   CompressedCodeHarness internal harness;
 
   function setUp() external {
-    harness = CompressedCodeHarness(
-      _deployCode('test/libraries/CompressedInitCode.t.sol:CompressedCodeHarness')
-    );
+    harness = CompressedCodeHarness(_deployCode('test/libraries/CompressedInitCode.t.sol:CompressedCodeHarness'));
   }
 
   function testFuzz_roundTripAndExactlyOneStorageContract(bytes memory data) external {
@@ -131,9 +119,7 @@ contract CompressedInitCodeTest is TestKernel {
   }
 
   function test_createPreservesFactoryContextAndValue() external {
-    bytes memory code = vm.getCode(
-      'test/libraries/wrappers/LibStoredInitCodeExternal.sol:TestContract'
-    );
+    bytes memory code = vm.getCode('test/libraries/wrappers/LibStoredInitCodeExternal.sol:TestContract');
     address store = harness.compress(code);
     vm.deal(address(harness), 1 ether);
     address deployed = harness.createWithStoredInitCode(store, 1 ether);
@@ -142,16 +128,11 @@ contract CompressedInitCodeTest is TestKernel {
   }
 
   function test_create2HashesOriginalBytesAndRejectsDuplicateSalt() external {
-    bytes memory code = vm.getCode(
-      'test/libraries/wrappers/LibStoredInitCodeExternal.sol:TestContract'
-    );
+    bytes memory code = vm.getCode('test/libraries/wrappers/LibStoredInitCodeExternal.sol:TestContract');
     address store = harness.compress(code);
     bytes32 salt = keccak256('compressed');
-    address expected = harness.calculateCreate2Address(
-      harness.getCreate2Prefix(address(harness)),
-      salt,
-      uint256(keccak256(code))
-    );
+    address expected =
+      harness.calculateCreate2Address(harness.getCreate2Prefix(address(harness)), salt, uint256(keccak256(code)));
     address actual = harness.create2WithStoredInitCode(store, salt);
     assertEq(actual, expected);
     assertEq(TestContract(actual).getValue(), 123);
@@ -160,18 +141,14 @@ contract CompressedInitCodeTest is TestKernel {
   }
 
   function testFuzz_constructorArgsMemoryAndCalldata(bytes memory data, bytes32 salt) external {
-    bytes memory code = vm.getCode(
-      'test/libraries/CompressedInitCode.t.sol:CompressedConstructorProbe'
-    );
+    bytes memory code = vm.getCode('test/libraries/CompressedInitCode.t.sol:CompressedConstructorProbe');
     address store = harness.compress(code);
     bytes memory args = abi.encode(data);
     vm.deal(address(harness), 2 ether);
     for (uint256 i; i < 2; ++i) {
       bytes32 actualSalt = keccak256(abi.encode(salt, i));
       address expected = harness.calculateCreate2Address(
-        harness.getCreate2Prefix(address(harness)),
-        actualSalt,
-        uint256(keccak256(bytes.concat(code, args)))
+        harness.getCreate2Prefix(address(harness)), actualSalt, uint256(keccak256(bytes.concat(code, args)))
       );
       address deployed = i == 0
         ? harness.create2Memory(store, actualSalt, 1 ether, args)

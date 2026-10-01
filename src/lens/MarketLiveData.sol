@@ -70,14 +70,9 @@ library MarketLiveDataLib {
     data.lastInterestAccruedTimestamp = state.lastInterestAccruedTimestamp;
 
     if (state.pendingWithdrawalExpiry == 0) {
-      uint32 expiredBatchExpiry = MarketAccountingReader
-        .previousState(market)
-        .pendingWithdrawalExpiry;
+      uint32 expiredBatchExpiry = MarketAccountingReader.previousState(market).pendingWithdrawalExpiry;
       if (expiredBatchExpiry > 0) {
-        WithdrawalBatch memory expiredBatch = MarketAccountingReader.withdrawalBatch(
-          market,
-          expiredBatchExpiry
-        );
+        WithdrawalBatch memory expiredBatch = MarketAccountingReader.withdrawalBatch(market, expiredBatchExpiry);
         if (expiredBatch.scaledTotalAmount == expiredBatch.scaledAmountBurned) {
           data.pendingWithdrawalExpiry = expiredBatchExpiry;
         }
@@ -86,24 +81,14 @@ library MarketLiveDataLib {
 
     data.coverageLiquidity = state.liquidityRequired();
     MarketDataLib._tryFillOptionalUint(
-      data.commitmentFeeBips,
-      address(market),
-      MarketDataLib._COMMITMENT_FEE_BIPS_SELECTOR
+      data.commitmentFeeBips, address(market), MarketDataLib._COMMITMENT_FEE_BIPS_SELECTOR
     );
-    MarketDataLib._tryFillOptionalUint(
-      data.drawnAmount,
-      address(market),
-      MarketDataLib._DRAWN_AMOUNT_SELECTOR
-    );
+    MarketDataLib._tryFillOptionalUint(data.drawnAmount, address(market), MarketDataLib._DRAWN_AMOUNT_SELECTOR);
     data.lifecycle.fill(market, data.isClosed);
     data.liquidity.fill(market, data.isClosed, data.totalAssets);
   }
 
-  function fill(
-    MarketLiveDataWithLenderStatusV2_5 memory data,
-    WildcatMarket market,
-    address lender
-  ) internal view {
+  function fill(MarketLiveDataWithLenderStatusV2_5 memory data, WildcatMarket market, address lender) internal view {
     data.market.fill(market);
     data.lenderStatus.fill(market, lender);
   }

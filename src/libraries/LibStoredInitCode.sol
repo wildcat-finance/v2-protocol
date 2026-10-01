@@ -108,17 +108,18 @@ library LibStoredInitCode {
     uint256 create2Prefix,
     bytes32 salt,
     uint256 initCodeHash
-  ) internal pure returns (address create2Address) {
+  )
+    internal
+    pure
+    returns (address create2Address)
+  {
     assembly ('memory-safe') {
       // temporary hash input above the free memory pointer. don't borrow the pointer slot.
       let pointer := mload(0x40)
       mstore(pointer, create2Prefix)
       mstore(add(pointer, 0x20), salt)
       mstore(add(pointer, 0x40), initCodeHash)
-      create2Address := and(
-        keccak256(add(pointer, 0x0b), 0x55),
-        0xffffffffffffffffffffffffffffffffffffffff
-      )
+      create2Address := and(keccak256(add(pointer, 0x0b), 0x55), 0xffffffffffffffffffffffffffffffffffffffff)
     }
   }
 
@@ -128,10 +129,7 @@ library LibStoredInitCode {
   }
 
   /// @dev deploys stored init code with CREATE and forwards `value` wei.
-  function createWithStoredInitCode(
-    address initCodeStorage,
-    uint256 value
-  ) internal returns (address deployment) {
+  function createWithStoredInitCode(address initCodeStorage, uint256 value) internal returns (address deployment) {
     bytes memory initCode = getInitCode(initCodeStorage);
     assembly ('memory-safe') {
       let initCodePointer := add(initCode, 0x20)
@@ -145,10 +143,7 @@ library LibStoredInitCode {
   }
 
   /// @dev deploys stored init code with CREATE2, `salt`, and no ETH.
-  function create2WithStoredInitCode(
-    address initCodeStorage,
-    bytes32 salt
-  ) internal returns (address deployment) {
+  function create2WithStoredInitCode(address initCodeStorage, bytes32 salt) internal returns (address deployment) {
     deployment = create2WithStoredInitCode(initCodeStorage, salt, 0);
   }
 
@@ -157,7 +152,10 @@ library LibStoredInitCode {
     address initCodeStorage,
     bytes32 salt,
     uint256 value
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     bytes memory initCode = getInitCode(initCodeStorage);
     return create2WithInitCode(initCode, salt, value);
   }
@@ -167,7 +165,10 @@ library LibStoredInitCode {
     bytes memory initCode,
     bytes32 salt,
     uint256 value
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     assembly ('memory-safe') {
       let initCodePointer := add(initCode, 0x20)
       let initCodeSize := mload(initCode)
@@ -185,7 +186,10 @@ library LibStoredInitCode {
     bytes32 salt,
     uint256 value,
     bytes memory constructorArgs
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     bytes memory initCode = getInitCode(initCodeStorage);
     assembly ('memory-safe') {
       let initCodePointer := add(initCode, 0x20)
@@ -207,7 +211,10 @@ library LibStoredInitCode {
     address initCodeStorage,
     bytes32 salt,
     bytes memory constructorArgs
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     return create2WithStoredInitCode(initCodeStorage, salt, 0, constructorArgs);
   }
 
@@ -217,7 +224,10 @@ library LibStoredInitCode {
     bytes32 salt,
     uint256 value,
     bytes calldata constructorArgs
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     bytes memory initCode = getInitCode(initCodeStorage);
     assembly ('memory-safe') {
       let initCodePointer := add(initCode, 0x20)
@@ -239,7 +249,10 @@ library LibStoredInitCode {
     address initCodeStorage,
     bytes32 salt,
     bytes calldata constructorArgs
-  ) internal returns (address deployment) {
+  )
+    internal
+    returns (address deployment)
+  {
     return create2WithStoredInitCodeCD(initCodeStorage, salt, 0, constructorArgs);
   }
 }

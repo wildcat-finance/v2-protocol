@@ -33,7 +33,11 @@ abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
     DeployMarketInputs calldata parameters,
     bytes calldata,
     HooksConfig
-  ) internal virtual override {
+  )
+    internal
+    virtual
+    override
+  {
     // the initial scale factor is RAY. use maxTotalSupply as this probe's initial scaled limit.
     // the market isn't deployed yet; all inputs come from the creation callback.
     _setTransferAmountLimit(market, parameters.maxTotalSupply);
@@ -46,14 +50,24 @@ abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
     uint256 scaledAmount,
     MarketState calldata,
     bytes calldata
-  ) internal virtual override {
+  )
+    internal
+    virtual
+    override
+  {
     _applyTransferFeatures(msg.sender, to, scaledAmount);
   }
 
   function _featureTransferRecipientAllowed(
     address market,
     address recipient
-  ) internal view virtual override returns (bool) {
+  )
+    internal
+    view
+    virtual
+    override
+    returns (bool)
+  {
     return _recipientAllowed(market, recipient);
   }
 
@@ -61,11 +75,11 @@ abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
     return _hookedMarkets[market];
   }
 
-  function getHookedMarkets(
-    address[] calldata markets
-  ) external view returns (OpenMarket[] memory result) {
+  function getHookedMarkets(address[] calldata markets) external view returns (OpenMarket[] memory result) {
     result = new OpenMarket[](markets.length);
-    for (uint256 i; i < markets.length; i++) result[i] = _hookedMarkets[markets[i]];
+    for (uint256 i; i < markets.length; i++) {
+      result[i] = _hookedMarkets[markets[i]];
+    }
   }
 }
 
@@ -78,15 +92,13 @@ contract OpenTransferHooks is OpenTransferPolicy {
       administrator,
       args,
       encodeHooksDeploymentConfig(
-        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
-          Bit_Enabled_QueueWithdrawal
-        ),
-        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
-          Bit_Enabled_SetAnnualInterestAndReserveRatioBips
-        )
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
+          .setFlag(Bit_Enabled_Transfer)
+          .setFlag(Bit_Enabled_QueueWithdrawal),
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
       )
     )
-  {}
+  { }
 
   function version() external pure override returns (string memory) {
     return 'OpenTransferHooks';
@@ -105,7 +117,11 @@ abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
     DeployMarketInputs calldata parameters,
     bytes calldata,
     HooksConfig
-  ) internal virtual override {
+  )
+    internal
+    virtual
+    override
+  {
     // the initial scale factor is RAY. use maxTotalSupply as this probe's initial scaled limit.
     // the market isn't deployed yet; all inputs come from the creation callback.
     _setTransferAmountLimit(market, parameters.maxTotalSupply);
@@ -118,14 +134,24 @@ abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
     uint256 scaledAmount,
     MarketState calldata,
     bytes calldata
-  ) internal virtual override {
+  )
+    internal
+    virtual
+    override
+  {
     _applyTransferFeatures(msg.sender, to, scaledAmount);
   }
 
   function _featureTransferRecipientAllowed(
     address market,
     address recipient
-  ) internal view virtual override returns (bool) {
+  )
+    internal
+    view
+    virtual
+    override
+    returns (bool)
+  {
     return _recipientAllowed(market, recipient);
   }
 
@@ -133,11 +159,11 @@ abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
     return _hookedMarkets[market];
   }
 
-  function getHookedMarkets(
-    address[] calldata markets
-  ) external view returns (FixedMarket[] memory result) {
+  function getHookedMarkets(address[] calldata markets) external view returns (FixedMarket[] memory result) {
     result = new FixedMarket[](markets.length);
-    for (uint256 i; i < markets.length; i++) result[i] = _hookedMarkets[markets[i]];
+    for (uint256 i; i < markets.length; i++) {
+      result[i] = _hookedMarkets[markets[i]];
+    }
   }
 }
 
@@ -151,14 +177,13 @@ contract FixedTransferHooks is FixedTransferPolicy {
       args,
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
-        EmptyHooksConfig
-          .setFlag(Bit_Enabled_Transfer)
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
           .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
           .setFlag(Bit_Enabled_CloseMarket)
           .setFlag(Bit_Enabled_QueueWithdrawal)
       )
     )
-  {}
+  { }
 
   function version() external pure override returns (string memory) {
     return 'FixedTransferHooks';
@@ -177,7 +202,11 @@ abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures
     DeployMarketInputs calldata parameters,
     bytes calldata,
     HooksConfig
-  ) internal virtual override {
+  )
+    internal
+    virtual
+    override
+  {
     // the initial scale factor is RAY. use maxTotalSupply as this probe's initial scaled limit.
     // the market isn't deployed yet; all inputs come from the creation callback.
     _setTransferAmountLimit(market, parameters.maxTotalSupply);
@@ -190,14 +219,24 @@ abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures
     uint256 scaledAmount,
     MarketState calldata,
     bytes calldata
-  ) internal virtual override {
+  )
+    internal
+    virtual
+    override
+  {
     _applyTransferFeatures(msg.sender, to, scaledAmount);
   }
 
   function _featureTransferRecipientAllowed(
     address market,
     address recipient
-  ) internal view virtual override returns (bool) {
+  )
+    internal
+    view
+    virtual
+    override
+    returns (bool)
+  {
     return _recipientAllowed(market, recipient);
   }
 
@@ -205,11 +244,11 @@ abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures
     return _hookedMarkets[market];
   }
 
-  function getHookedMarkets(
-    address[] calldata markets
-  ) external view returns (PeriodicMarket[] memory result) {
+  function getHookedMarkets(address[] calldata markets) external view returns (PeriodicMarket[] memory result) {
     result = new PeriodicMarket[](markets.length);
-    for (uint256 i; i < markets.length; i++) result[i] = _hookedMarkets[markets[i]];
+    for (uint256 i; i < markets.length; i++) {
+      result[i] = _hookedMarkets[markets[i]];
+    }
   }
 }
 
@@ -223,15 +262,14 @@ contract PeriodicTransferHooks is PeriodicTransferPolicy {
       args,
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
-        EmptyHooksConfig
-          .setFlag(Bit_Enabled_Transfer)
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
           .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
           .setFlag(Bit_Enabled_CloseMarket)
           .setFlag(Bit_Enabled_QueueWithdrawal)
           .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction)
       )
     )
-  {}
+  { }
 
   function version() external pure override returns (string memory) {
     return 'PeriodicTransferHooks';

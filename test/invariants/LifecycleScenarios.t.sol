@@ -66,17 +66,14 @@ contract LifecycleScenariosTest is LifecycleFixture {
     _assertLifecycle();
   }
 
-  function testFuzz_deadlineCureIsInclusive(
-    uint8 cell,
-    bool late,
-    bool process,
-    uint8 updates
-  ) external {
+  function testFuzz_deadlineCureIsInclusive(uint8 cell, bool late, bool process, uint8 updates) external {
     uint256 i = uint256(cell) % MatrixSize;
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
     uint256 deadline = market.repaymentDeadline();
     vm.warp(deadline + (late ? 1 : 0));
-    for (uint256 n; n < uint256(updates) % 3; ++n) lifecycle.checkpoint(i);
+    for (uint256 n; n < uint256(updates) % 3; ++n) {
+      lifecycle.checkpoint(i);
+    }
     lifecycle.fund(i, 1, 1, process);
     assertTrue(market.previousState().isClosed, 'full funding closes');
     assertEq(market.defaultedAt(), late ? deadline : 0, 'inclusive cutoff');
@@ -158,7 +155,9 @@ contract LifecycleScenariosTest is LifecycleFixture {
     lifecycle.queueWithdrawalScaled(1, 250e18);
     lifecycle.queueWithdrawal(2, 200e18);
     lifecycle.queueFullWithdrawal(0);
-    for (uint256 i; i < MatrixSize; ++i) lifecycle.fund(i, 0, 2, false);
+    for (uint256 i; i < MatrixSize; ++i) {
+      lifecycle.fund(i, 0, 2, false);
+    }
     vm.warp(vm.getBlockTimestamp() + 2 days);
     lifecycle.updateState();
     lifecycle.sanctionLender(2);

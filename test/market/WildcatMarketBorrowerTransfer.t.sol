@@ -74,7 +74,11 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   function _marketParameters(
     Fixture memory fixture,
     HooksConfig hooksConfig
-  ) private pure returns (MarketParameters memory parameters) {
+  )
+    private
+    pure
+    returns (MarketParameters memory parameters)
+  {
     (parameters.packedNameWord0, parameters.packedNameWord1) = _packString('Wildcat Token');
     (parameters.packedSymbolWord0, parameters.packedSymbolWord1) = _packString('WCTKN');
     parameters.asset = address(fixture.asset);
@@ -99,7 +103,11 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   function _deploymentInputs(
     Fixture memory fixture,
     HooksConfig hooksConfig
-  ) private pure returns (DeployMarketInputs memory inputs) {
+  )
+    private
+    pure
+    returns (DeployMarketInputs memory inputs)
+  {
     inputs.asset = address(fixture.asset);
     inputs.namePrefix = 'Wildcat ';
     inputs.symbolPrefix = 'WC';
@@ -113,42 +121,32 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   }
 
   function _newFixture() private returns (Fixture memory fixture) {
-    fixture.archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    fixture.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
     fixture.registry = WildcatBorrowerIdentityRegistry(
       _deployCode(
         'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
         abi.encode(address(fixture.archController))
       )
     );
-    fixture.sanctionsList = SanctionsListMock(
-      _deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock')
-    );
+    fixture.sanctionsList = SanctionsListMock(_deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock'));
     fixture.sentinel = WildcatSanctionsSentinel(
       _deployCode(
         'src/WildcatSanctionsSentinel.sol:WildcatSanctionsSentinel',
         abi.encode(address(fixture.archController), address(fixture.sanctionsList))
       )
     );
-    fixture.marketFactory = HookDispatchFactoryMock(
-      _deployCode('test/mocks/HookDispatchMocks.sol:HookDispatchFactoryMock')
-    );
+    fixture.marketFactory =
+      HookDispatchFactoryMock(_deployCode('test/mocks/HookDispatchMocks.sol:HookDispatchFactoryMock'));
     fixture.accountFactory = BorrowerIdentityAccountFactoryMock(
       _deployCode(
-        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock',
-        abi.encode(address(fixture.registry))
+        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock', abi.encode(address(fixture.registry))
       )
     );
     fixture.asset = MockERC20(
-      _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Token', 'TKN', uint8(18))
-      )
+      _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Token', 'TKN', uint8(18)))
     );
-    fixture.hooks = OpenTermHooks(
-      _deployCode('src/access/OpenTermHooks.sol:OpenTermHooks', abi.encode(Borrower, bytes('')))
-    );
+    fixture.hooks =
+      OpenTermHooks(_deployCode('src/access/OpenTermHooks.sol:OpenTermHooks', abi.encode(Borrower, bytes(''))));
 
     fixture.archController.registerBorrower(Borrower);
     fixture.registry.addAccountFactory(address(fixture.accountFactory));
@@ -156,16 +154,13 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     HooksConfig requestedHooks = EmptyHooksConfig.setHooksAddress(address(fixture.hooks));
     HooksConfig marketHooks = requestedHooks.mergeFlags(fixture.hooks.config());
     fixture.marketFactory.setMarketParameters(_marketParameters(fixture, marketHooks));
-    fixture.market = WildcatMarket(
-      fixture.marketFactory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket'))
-    );
+    fixture.market =
+      WildcatMarket(fixture.marketFactory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket')));
 
-    HooksConfig configuredHooks = fixture.hooks.onCreateMarket(
-      Borrower,
-      address(fixture.market),
-      _deploymentInputs(fixture, requestedHooks),
-      abi.encode(uint128(0), false)
-    );
+    HooksConfig configuredHooks = fixture.hooks
+      .onCreateMarket(
+        Borrower, address(fixture.market), _deploymentInputs(fixture, requestedHooks), abi.encode(uint128(0), false)
+      );
     assertEq(HooksConfig.unwrap(configuredHooks), HooksConfig.unwrap(marketHooks), 'hooks config');
 
     fixture.archController.registerControllerFactory(address(fixture.marketFactory));
@@ -181,10 +176,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     }
   }
 
-  function _deployAccount(
-    Fixture memory fixture,
-    address principal
-  ) private returns (address account) {
+  function _deployAccount(Fixture memory fixture, address principal) private returns (address account) {
     _registerPrincipal(fixture, principal);
     account = _deployCode('test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountMock');
     fixture.accountFactory.registerAccount(account, principal);
@@ -195,7 +187,9 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     address account,
     address currentPrincipal,
     address newPrincipal
-  ) private {
+  )
+    private
+  {
     _registerPrincipal(fixture, newPrincipal);
     vm.prank(currentPrincipal);
     fixture.registry.requestBorrowerAccountPrincipalTransfer(account, newPrincipal);
@@ -239,11 +233,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     fixture.market.deposit(amount);
   }
 
-  function _assertPending(
-    Fixture memory fixture,
-    address borrower,
-    address principal
-  ) private view {
+  function _assertPending(Fixture memory fixture, address borrower, address principal) private view {
     assertEq(fixture.market.pendingBorrower(), borrower, 'pending borrower');
     assertEq(fixture.market.pendingBorrowerPrincipal(), principal, 'pending principal');
   }
@@ -251,7 +241,10 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   function _escrowSanctionedPosition(
     Fixture memory fixture,
     address lender
-  ) private returns (address escrow, uint256 escrowedAmount) {
+  )
+    private
+    returns (address escrow, uint256 escrowedAmount)
+  {
     _deposit(fixture, lender, 10e18);
     fixture.sanctionsList.sanction(lender);
     fixture.market.nukeFromOrbit(lender);
@@ -259,11 +252,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     vm.warp(uint256(expiry) + 1);
     fixture.market.updateState();
     fixture.market.executeWithdrawal(lender, expiry);
-    escrow = fixture.sentinel.getEscrowAddress(
-      fixture.market.borrowerPrincipal(),
-      lender,
-      address(fixture.asset)
-    );
+    escrow = fixture.sentinel.getEscrowAddress(fixture.market.borrowerPrincipal(), lender, address(fixture.asset));
     escrowedAmount = fixture.asset.balanceOf(escrow);
     assertTrue(escrowedAmount > 0, 'escrowed amount');
   }
@@ -275,14 +264,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     bytes32 stateHash = _marketStateHash(fixture);
 
     vm.expectEmit(address(fixture.market));
-    emit BorrowerTransferRequested(
-      Borrower,
-      address(0),
-      SecondPrincipal,
-      Borrower,
-      address(0),
-      SecondPrincipal
-    );
+    emit BorrowerTransferRequested(Borrower, address(0), SecondPrincipal, Borrower, address(0), SecondPrincipal);
     _request(fixture, Borrower, SecondPrincipal);
     _assertPending(fixture, SecondPrincipal, SecondPrincipal);
     assertEq(fixture.market.borrower(), Borrower, 'current borrower');
@@ -293,14 +275,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     fixture.market.setMaxTotalSupply(type(uint104).max - 1);
 
     vm.expectEmit(address(fixture.market));
-    emit BorrowerTransferRequested(
-      Borrower,
-      SecondPrincipal,
-      ThirdPrincipal,
-      Borrower,
-      SecondPrincipal,
-      ThirdPrincipal
-    );
+    emit BorrowerTransferRequested(Borrower, SecondPrincipal, ThirdPrincipal, Borrower, SecondPrincipal, ThirdPrincipal);
     _request(fixture, Borrower, ThirdPrincipal);
     _assertPending(fixture, ThirdPrincipal, ThirdPrincipal);
 
@@ -346,10 +321,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   function test_requestRejectsMalformedRegistryResponses() external {
     Fixture memory fixture = _newFixture();
     _registerPrincipal(fixture, SecondPrincipal);
-    bytes memory resolveCall = abi.encodeCall(
-      IBorrowerIdentityRegistry.resolveBorrower,
-      (SecondPrincipal)
-    );
+    bytes memory resolveCall = abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (SecondPrincipal));
 
     vm.mockCall(address(fixture.registry), resolveCall, hex'01');
     vm.prank(Borrower);
@@ -415,21 +387,10 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     bytes32 stateHash = _marketStateHash(fixture);
 
     _transferAccountPrincipal(fixture, account, Borrower, expectedPrincipal);
-    assertEq(
-      fixture.market.borrowerPrincipal(),
-      Borrower,
-      'principal changed before market accepts'
-    );
+    assertEq(fixture.market.borrowerPrincipal(), Borrower, 'principal changed before market accepts');
 
     vm.expectEmit(address(fixture.market));
-    emit BorrowerTransferRequested(
-      account,
-      address(0),
-      account,
-      Borrower,
-      address(0),
-      expectedPrincipal
-    );
+    emit BorrowerTransferRequested(account, address(0), account, Borrower, address(0), expectedPrincipal);
     _request(fixture, account, account);
     _assertPending(fixture, account, expectedPrincipal);
 
@@ -437,9 +398,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     vm.prank(account);
     vm.expectRevert(
       abi.encodeWithSelector(
-        IMarketEventsAndErrors.PendingBorrowerPrincipalChanged.selector,
-        expectedPrincipal,
-        changedPrincipal
+        IMarketEventsAndErrors.PendingBorrowerPrincipalChanged.selector, expectedPrincipal, changedPrincipal
       )
     );
     fixture.market.acceptBorrowerTransfer();
@@ -471,12 +430,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     vm.prank(Borrower);
     currentFixture.sentinel.overrideSanction(Borrower);
     vm.prank(Borrower);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector,
-        Borrower
-      )
-    );
+    vm.expectRevert(abi.encodeWithSelector(IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector, Borrower));
     currentFixture.market.requestBorrowerTransfer(SecondPrincipal);
 
     Fixture memory targetFixture = _newFixture();
@@ -484,10 +438,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     targetFixture.sanctionsList.sanction(SecondPrincipal);
     vm.prank(Borrower);
     vm.expectRevert(
-      abi.encodeWithSelector(
-        IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector,
-        SecondPrincipal
-      )
+      abi.encodeWithSelector(IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector, SecondPrincipal)
     );
     targetFixture.market.requestBorrowerTransfer(SecondPrincipal);
 
@@ -497,12 +448,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     _transferAccountPrincipal(migrationFixture, account, Borrower, SecondPrincipal);
     migrationFixture.sanctionsList.sanction(Borrower);
     vm.prank(account);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector,
-        Borrower
-      )
-    );
+    vm.expectRevert(abi.encodeWithSelector(IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector, Borrower));
     migrationFixture.market.requestBorrowerTransfer(account);
   }
 
@@ -539,12 +485,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     _request(currentSanctionFixture, currentAccount, SecondPrincipal);
     currentSanctionFixture.sanctionsList.sanction(Borrower);
     vm.prank(SecondPrincipal);
-    vm.expectRevert(
-      abi.encodeWithSelector(
-        IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector,
-        Borrower
-      )
-    );
+    vm.expectRevert(abi.encodeWithSelector(IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector, Borrower));
     currentSanctionFixture.market.acceptBorrowerTransfer();
 
     Fixture memory accountSanctionFixture = _newFixture();
@@ -553,10 +494,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     accountSanctionFixture.sanctionsList.sanction(sanctionedAccount);
     vm.prank(sanctionedAccount);
     vm.expectRevert(
-      abi.encodeWithSelector(
-        IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector,
-        sanctionedAccount
-      )
+      abi.encodeWithSelector(IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector, sanctionedAccount)
     );
     accountSanctionFixture.market.acceptBorrowerTransfer();
 
@@ -566,10 +504,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     targetSanctionFixture.sanctionsList.sanction(SecondPrincipal);
     vm.prank(targetAccount);
     vm.expectRevert(
-      abi.encodeWithSelector(
-        IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector,
-        SecondPrincipal
-      )
+      abi.encodeWithSelector(IMarketEventsAndErrors.BorrowerTransferWhileSanctioned.selector, SecondPrincipal)
     );
     targetSanctionFixture.market.acceptBorrowerTransfer();
   }
@@ -631,22 +566,15 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     Fixture memory namespaceFixture = _newFixture();
     address account = _deployAccount(namespaceFixture, SecondPrincipal);
     _transfer(namespaceFixture, Borrower, account);
-    (address principalEscrow, ) = _escrowSanctionedPosition(namespaceFixture, Lender);
-    address accountEscrow = namespaceFixture.sentinel.getEscrowAddress(
-      account,
-      Lender,
-      address(namespaceFixture.asset)
-    );
+    (address principalEscrow,) = _escrowSanctionedPosition(namespaceFixture, Lender);
+    address accountEscrow = namespaceFixture.sentinel.getEscrowAddress(account, Lender, address(namespaceFixture.asset));
 
     assertTrue(principalEscrow != accountEscrow, 'escrow namespaces');
     assertEq(accountEscrow.code.length, 0, 'operational account escrow');
     assertEq(IWildcatSanctionsEscrow(principalEscrow).borrower(), SecondPrincipal, 'escrow owner');
 
     Fixture memory migrationFixture = _newFixture();
-    (address oldEscrow, uint256 escrowedAmount) = _escrowSanctionedPosition(
-      migrationFixture,
-      Lender
-    );
+    (address oldEscrow, uint256 escrowedAmount) = _escrowSanctionedPosition(migrationFixture, Lender);
     _registerPrincipal(migrationFixture, SecondPrincipal);
     _transfer(migrationFixture, Borrower, SecondPrincipal);
     vm.prank(Borrower);
@@ -654,15 +582,8 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
 
     uint256 lenderBalanceBefore = migrationFixture.asset.balanceOf(Lender);
     IWildcatSanctionsEscrow(oldEscrow).releaseEscrow();
-    assertEq(
-      migrationFixture.asset.balanceOf(Lender),
-      lenderBalanceBefore + escrowedAmount,
-      'released old escrow'
-    );
-    assertTrue(
-      migrationFixture.sentinel.isSanctioned(SecondPrincipal, Lender),
-      'new namespace sanction'
-    );
+    assertEq(migrationFixture.asset.balanceOf(Lender), lenderBalanceBefore + escrowedAmount, 'released old escrow');
+    assertTrue(migrationFixture.sentinel.isSanctioned(SecondPrincipal, Lender), 'new namespace sanction');
   }
 
   function test_acceptPreservesActiveDelinquentAndClosedAccounting() external {
@@ -701,10 +622,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     assertEq(_marketStateHash(closedFixture), closedHash, 'closed accounting');
   }
 
-  function testFuzz_replacementAcceptsOnlyLatestTarget(
-    uint160 firstSeed,
-    uint160 secondSeed
-  ) external {
+  function testFuzz_replacementAcceptsOnlyLatestTarget(uint160 firstSeed, uint160 secondSeed) external {
     Fixture memory fixture = _newFixture();
     address firstTarget = address(uint160(bound(firstSeed, 1, type(uint160).max)));
     address secondTarget = address(uint160(bound(secondSeed, 1, type(uint160).max)));

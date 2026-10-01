@@ -20,28 +20,18 @@ contract SplitCodeHarness is LibStoredInitCodeExternal {
     return (LibSplitInitCode.firstChunkCapacity(), LibSplitInitCode.maximumInitCodeSize());
   }
 
-  function create2WithValue(
-    address store,
-    bytes32 salt,
-    uint256 value,
-    bytes memory args
-  ) external returns (address) {
+  function create2WithValue(address store, bytes32 salt, uint256 value, bytes memory args) external returns (address) {
     return LibStoredInitCode.create2WithStoredInitCode(store, salt, value, args);
   }
 
   function verify(address primary, address secondary, bytes memory original) external view {
     require(
-      secondary.codehash == keccak256(LibSplitInitCode.getSecondaryRuntime(original)),
-      'secondary runtime mismatch'
+      secondary.codehash == keccak256(LibSplitInitCode.getSecondaryRuntime(original)), 'secondary runtime mismatch'
     );
     require(
-      primary.codehash == keccak256(LibSplitInitCode.getPrimaryRuntime(original, secondary)),
-      'primary runtime mismatch'
+      primary.codehash == keccak256(LibSplitInitCode.getPrimaryRuntime(original, secondary)), 'primary runtime mismatch'
     );
-    require(
-      keccak256(LibStoredInitCode.getInitCode(primary)) == keccak256(original),
-      'read mismatch'
-    );
+    require(keccak256(LibStoredInitCode.getInitCode(primary)) == keccak256(original), 'read mismatch');
   }
 }
 
@@ -86,17 +76,7 @@ contract SplitInitCodeTest is TestKernel {
 
   function test_chunkBoundariesAndCapacity() external {
     (uint256 first, uint256 total) = harness.capacity();
-    uint256[9] memory lengths = [
-      uint256(0),
-      1,
-      31,
-      32,
-      first - 1,
-      first,
-      first + 1,
-      total - 1,
-      total
-    ];
+    uint256[9] memory lengths = [uint256(0), 1, 31, 32, first - 1, first, first + 1, total - 1, total];
     for (uint256 i; i < lengths.length; ++i) {
       bytes memory data = new bytes(lengths[i]);
       if (data.length > 0) data[data.length - 1] = 0xab;
@@ -107,7 +87,7 @@ contract SplitInitCodeTest is TestKernel {
   }
 
   function test_rejectsMissingTruncatedTrailingAndExecutableSecondary() external {
-    (uint256 first, ) = harness.capacity();
+    (uint256 first,) = harness.capacity();
     bytes memory original = new bytes(first + 33);
     (address primary, address secondary) = _check(original);
     bytes memory saved = secondary.code;
@@ -127,7 +107,7 @@ contract SplitInitCodeTest is TestKernel {
   }
 
   function test_attestationRejectsMutatedPayloadFooterAndReader() external {
-    (uint256 first, ) = harness.capacity();
+    (uint256 first,) = harness.capacity();
     bytes memory original = new bytes(first + 33);
     (address primary, address secondary) = _check(original);
     bytes memory savedPrimary = primary.code;
@@ -151,22 +131,15 @@ contract SplitInitCodeTest is TestKernel {
     vm.etch(secondary, tail);
     vm.expectRevert(bytes('secondary runtime mismatch'));
     harness.verify(primary, secondary, original);
-    assertTrue(
-      keccak256(harness.read(primary)) != keccak256(original),
-      'hash must catch wrong bytes'
-    );
+    assertTrue(keccak256(harness.read(primary)) != keccak256(original), 'hash must catch wrong bytes');
   }
 
   function testFuzz_constructorContextValueAndCreate2(bytes memory data, bytes32 salt) external {
-    bytes memory code = vm.getCode(
-      'test/libraries/CompressedInitCode.t.sol:CompressedConstructorProbe'
-    );
-    (address store, ) = harness.split(code);
+    bytes memory code = vm.getCode('test/libraries/CompressedInitCode.t.sol:CompressedConstructorProbe');
+    (address store,) = harness.split(code);
     bytes memory args = abi.encode(data);
     address expected = harness.calculateCreate2Address(
-      harness.getCreate2Prefix(address(harness)),
-      salt,
-      uint256(keccak256(bytes.concat(code, args)))
+      harness.getCreate2Prefix(address(harness)), salt, uint256(keccak256(bytes.concat(code, args)))
     );
     address deployed = harness.create2WithStoredInitCodeCD(store, salt, args);
     assertEq(deployed, expected, 'original initcode controls CREATE2');

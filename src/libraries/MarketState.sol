@@ -98,10 +98,7 @@ library MarketStateLib {
   /**
    * @dev Normalize an amount of scaled tokens using the current scale factor.
    */
-  function normalizeAmount(
-    MarketState memory state,
-    uint256 amount
-  ) internal pure returns (uint256) {
+  function normalizeAmount(MarketState memory state, uint256 amount) internal pure returns (uint256) {
     return amount.rayMul(state.scaleFactor);
   }
 
@@ -111,7 +108,11 @@ library MarketStateLib {
     MarketState memory state,
     uint256 scaledAmount,
     uint256 remainder
-  ) internal pure returns (uint256) {
+  )
+    internal
+    pure
+    returns (uint256)
+  {
     unchecked {
       return (scaledAmount * state.scaleFactor + remainder + HALF_RAY) / RAY;
     }
@@ -132,7 +133,11 @@ library MarketStateLib {
   function maxScaledSettleableAmount(
     MarketState memory state,
     uint256 normalizedAmount
-  ) internal pure returns (uint256) {
+  )
+    internal
+    pure
+    returns (uint256)
+  {
     // withdrawal amounts only get uint104. cap here before multiplying liquidity by RAY;
     // direct token transfers can make `normalizedAmount` arbitrarily large.
     uint256 maxScaledAmount = type(uint104).max;
@@ -145,10 +150,7 @@ library MarketStateLib {
    * @dev Scale an amount of normalized tokens using the current scale factor,
    *      rounding down.
    */
-  function scaleAmountDown(
-    MarketState memory state,
-    uint256 amount
-  ) internal pure returns (uint256) {
+  function scaleAmountDown(MarketState memory state, uint256 amount) internal pure returns (uint256) {
     return (amount * RAY) / state.scaleFactor;
   }
 
@@ -159,26 +161,17 @@ library MarketStateLib {
    *      - reserve ratio times the outstanding debt (supply - pending withdrawals)
    *      - accrued protocol fees
    */
-  function liquidityRequired(
-    MarketState memory state
-  ) internal pure returns (uint256 _liquidityRequired) {
-    uint256 normalizedPendingWithdrawals = state.normalizeWithRemainder(
-      state.scaledPendingWithdrawals,
-      state.withdrawalRemainder
-    );
-    uint256 normalizedOutstandingSupply = state.normalizeWithRemainder(
-      state.scaledTotalSupply,
-      state.withdrawalRemainder
-    ) - normalizedPendingWithdrawals;
+  function liquidityRequired(MarketState memory state) internal pure returns (uint256 _liquidityRequired) {
+    uint256 normalizedPendingWithdrawals =
+      state.normalizeWithRemainder(state.scaledPendingWithdrawals, state.withdrawalRemainder);
+    uint256 normalizedOutstandingSupply =
+      state.normalizeWithRemainder(state.scaledTotalSupply, state.withdrawalRemainder) - normalizedPendingWithdrawals;
     // The same partition handles 0% and 100% exactly, without separate branches.
     // Normalized supply is below 128 bits; even a uint16 reserve ratio stays far
     // below uint256, as do both uint128 funded liabilities.
     unchecked {
-      return
-        normalizedPendingWithdrawals +
-        normalizedOutstandingSupply.bipMul(state.reserveRatioBips) +
-        state.accruedProtocolFees +
-        state.normalizedUnclaimedWithdrawals;
+      return normalizedPendingWithdrawals + normalizedOutstandingSupply.bipMul(state.reserveRatioBips)
+        + state.accruedProtocolFees + state.normalizedUnclaimedWithdrawals;
     }
   }
 
@@ -187,10 +180,7 @@ library MarketStateLib {
    *      for protocol fees. The only debts with higher priority are
    *      processed withdrawals that have not been executed.
    */
-  function withdrawableProtocolFees(
-    MarketState memory state,
-    uint256 totalAssets
-  ) internal pure returns (uint128) {
+  function withdrawableProtocolFees(MarketState memory state, uint256 totalAssets) internal pure returns (uint128) {
     uint256 totalAvailableAssets = totalAssets.satSub(state.normalizedUnclaimedWithdrawals);
     return uint128(MathUtils.min(totalAvailableAssets, state.accruedProtocolFees));
   }
@@ -205,10 +195,7 @@ library MarketStateLib {
    *
    *      Any underlying assets in the market above this amount can be borrowed.
    */
-  function borrowableAssets(
-    MarketState memory state,
-    uint256 totalAssets
-  ) internal pure returns (uint256) {
+  function borrowableAssets(MarketState memory state, uint256 totalAssets) internal pure returns (uint256) {
     return totalAssets.satSub(state.liquidityRequired());
   }
 
@@ -225,10 +212,8 @@ library MarketStateLib {
   function totalDebts(MarketState memory state) internal pure returns (uint256) {
     // normalized uint104 supply is below 128 bits, and both other debts are uint128.
     unchecked {
-      return
-        state.normalizeWithRemainder(state.scaledTotalSupply, state.withdrawalRemainder) +
-        state.normalizedUnclaimedWithdrawals +
-        state.accruedProtocolFees;
+      return state.normalizeWithRemainder(state.scaledTotalSupply, state.withdrawalRemainder)
+        + state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees;
     }
   }
 }

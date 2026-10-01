@@ -34,9 +34,7 @@ contract DeployV2 is Script {
     // seedLender('LENDER_2', false, 13e18, 6e18, 2e18);
     // forceDeployLens();
     deployAll();
-
   }
-
 
   function addSphereXPatterns(Deployments memory deployments) internal {
     address archController = deployments.get('WildcatArchController');
@@ -44,8 +42,7 @@ contract DeployV2 is Script {
 
     IEngine engine = IEngine(sphereXEngine);
     engine.grantRole(
-      0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929,
-      0x0C2914FD10086443A8800e2bB5258D4c463A88a0
+      0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929, 0x0C2914FD10086443A8800e2bB5258D4c463A88a0
     );
     uint216[] memory patterns = new uint216[](5);
     patterns[0] = 94418217012137984803774416703850667173250690997694159855897612912;
@@ -61,7 +58,7 @@ contract DeployV2 is Script {
   function deployAll() internal virtual {
     Deployments memory deployments = getDeploymentsForNetwork('mainnet');
     // .withPrivateKeyVarName(
-      // 'PVT_KEY'
+    // 'PVT_KEY'
     // );
 
     // addSphereXPatterns(deployments);
@@ -75,10 +72,8 @@ contract DeployV2 is Script {
     //                                Hooks Factory                               //
     // ========================================================================== //
 
-    (address hooksFactory, bool didDeployHooksFactory) = _setUpHooksFactory(
-      deployments,
-      WildcatArchController(archController)
-    );
+    (address hooksFactory, bool didDeployHooksFactory) =
+      _setUpHooksFactory(deployments, WildcatArchController(archController));
 
     // ========================================================================== //
     //                                    Lens                                    //
@@ -90,9 +85,9 @@ contract DeployV2 is Script {
       didDeployHooksFactory
     );
 
-/* -------------------------------------------------------------------------- */
-/*                            Validate Deployments                            */
-/* -------------------------------------------------------------------------- */
+    /* -------------------------------------------------------------------------- */
+    /*                            Validate Deployments                            */
+    /* -------------------------------------------------------------------------- */
 
     HooksFactory factory = HooksFactory(hooksFactory);
     assertEq(factory.getHooksTemplatesCount(), 2, 'Wrong # of templates');
@@ -100,18 +95,11 @@ contract DeployV2 is Script {
     assertEq(factory.getHooksTemplates(0, 1)[0], OpenTermHooks, 'First template is not open term');
 
     address FixedTermHooks = deployments.get('FixedTermHooks_initCodeStorage');
-    assertEq(
-      factory.getHooksTemplates(1, 2)[0],
-      FixedTermHooks,
-      'Second template is not fixed term'
-    );
+    assertEq(factory.getHooksTemplates(1, 2)[0], FixedTermHooks, 'Second template is not fixed term');
     deployments.write();
   }
 
-  function _getCreationCode(
-    Deployments memory deployments,
-    string memory namePath
-  ) internal returns (bytes memory) {
+  function _getCreationCode(Deployments memory deployments, string memory namePath) internal returns (bytes memory) {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
 
     string memory jsonPath = LibDeployment.findForgeArtifact(artifact, deployments.forgeOutDir);
@@ -120,19 +108,14 @@ contract DeployV2 is Script {
     return creationCode;
   }
 
-  function _storeMarketInitCode(
-    Deployments memory deployments
-  )
+  function _storeMarketInitCode(Deployments memory deployments)
     internal
     virtual
     returns (address initCodeStorage, bool didDeployInitcodeStorage, uint256 initCodeHash)
   {
     bytes memory initCode = _getCreationCode(deployments, 'WildcatMarket');
-    (initCodeStorage, didDeployInitcodeStorage) = deployments.getOrDeployInitcodeStorage(
-      'WildcatMarket',
-      initCode,
-      RedoAllDeployments
-    );
+    (initCodeStorage, didDeployInitcodeStorage) =
+      deployments.getOrDeployInitcodeStorage('WildcatMarket', initCode, RedoAllDeployments);
     initCodeHash = uint(keccak256(initCode));
   }
 
@@ -155,14 +138,14 @@ contract DeployV2 is Script {
   function _setUpHooksFactory(
     Deployments memory deployments,
     WildcatArchController archController
-  ) internal returns (address hooksFactory, bool didDeployHooksFactory) {
+  )
+    internal
+    returns (address hooksFactory, bool didDeployHooksFactory)
+  {
     address sentinel = deployments.get('WildcatSanctionsSentinel');
 
-    (
-      address marketTemplate,
-      bool didDeployMarketTemplate,
-      uint256 marketInitCodeHash
-    ) = _storeMarketInitCode(deployments);
+    (address marketTemplate, bool didDeployMarketTemplate, uint256 marketInitCodeHash) =
+      _storeMarketInitCode(deployments);
     (hooksFactory, didDeployHooksFactory) = deployments.getOrDeploy(
       'HooksFactory',
       _getCreationCode(deployments, 'HooksFactory'),
@@ -171,15 +154,11 @@ contract DeployV2 is Script {
 
     bool registerAsFactory = !archController.isRegisteredControllerFactory(hooksFactory);
     bool registerAsController = !archController.isRegisteredController(hooksFactory);
-    (address openTermTemplate, ) = deployments.getOrDeployInitcodeStorage(
-      'OpenTermHooks',
-      _getCreationCode(deployments, 'OpenTermHooks'),
-      RedoAllDeployments
+    (address openTermTemplate,) = deployments.getOrDeployInitcodeStorage(
+      'OpenTermHooks', _getCreationCode(deployments, 'OpenTermHooks'), RedoAllDeployments
     );
-    (address fixedTermTemplate, ) = deployments.getOrDeployInitcodeStorage(
-      'FixedTermHooks',
-      _getCreationCode(deployments, 'FixedTermHooks'),
-      RedoAllDeployments
+    (address fixedTermTemplate,) = deployments.getOrDeployInitcodeStorage(
+      'FixedTermHooks', _getCreationCode(deployments, 'FixedTermHooks'), RedoAllDeployments
     );
     bool addOpenTermTemplate = !HooksFactory(hooksFactory).isHooksTemplate(openTermTemplate);
     bool addFixedTermTemplate = !HooksFactory(hooksFactory).isHooksTemplate(fixedTermTemplate);

@@ -18,13 +18,12 @@ struct StandardRoleProvider {
 using { toRoleProvider } for StandardRoleProvider global;
 
 function toRoleProvider(StandardRoleProvider memory input) pure returns (RoleProvider) {
-  return
-    encodeRoleProvider({
-      providerAddress: input.providerAddress,
-      timeToLive: input.timeToLive,
-      pullProviderIndex: input.pullProviderIndex,
-      pushProviderIndex: input.pushProviderIndex
-    });
+  return encodeRoleProvider({
+    providerAddress: input.providerAddress,
+    timeToLive: input.timeToLive,
+    pullProviderIndex: input.pullProviderIndex,
+    pushProviderIndex: input.pushProviderIndex
+  });
 }
 
 struct StandardHooksConfig {
@@ -74,7 +73,10 @@ function toHooksConfig(StandardHooksConfig memory input) pure returns (HooksConf
 function mergeSharedFlags(
   StandardHooksConfig memory a,
   StandardHooksConfig memory b
-) pure returns (StandardHooksConfig memory merged) {
+)
+  pure
+  returns (StandardHooksConfig memory merged)
+{
   merged = StandardHooksConfig({
     hooksAddress: a.hooksAddress,
     useOnDeposit: a.useOnDeposit && b.useOnDeposit,
@@ -86,47 +88,38 @@ function mergeSharedFlags(
     useOnCloseMarket: a.useOnCloseMarket && b.useOnCloseMarket,
     useOnNukeFromOrbit: a.useOnNukeFromOrbit && b.useOnNukeFromOrbit,
     useOnSetMaxTotalSupply: a.useOnSetMaxTotalSupply && b.useOnSetMaxTotalSupply,
-    useOnSetAnnualInterestAndReserveRatioBips: a.useOnSetAnnualInterestAndReserveRatioBips &&
-      b.useOnSetAnnualInterestAndReserveRatioBips,
+    useOnSetAnnualInterestAndReserveRatioBips: a.useOnSetAnnualInterestAndReserveRatioBips
+      && b.useOnSetAnnualInterestAndReserveRatioBips,
     useOnSetProtocolFeeBips: a.useOnSetProtocolFeeBips && b.useOnSetProtocolFeeBips,
-    useOnExecutePendingAnnualInterestBipsReduction: a
-      .useOnExecutePendingAnnualInterestBipsReduction &&
-      b.useOnExecutePendingAnnualInterestBipsReduction
+    useOnExecutePendingAnnualInterestBipsReduction: a.useOnExecutePendingAnnualInterestBipsReduction
+      && b.useOnExecutePendingAnnualInterestBipsReduction
   });
 }
 
-function toHooksDeploymentConfig(
-  StandardHooksDeploymentConfig memory input
-) pure returns (HooksDeploymentConfig) {
-  return
-    encodeHooksDeploymentConfig(input.optional.toHooksConfig(), input.required.toHooksConfig());
+function toHooksDeploymentConfig(StandardHooksDeploymentConfig memory input) pure returns (HooksDeploymentConfig) {
+  return encodeHooksDeploymentConfig(input.optional.toHooksConfig(), input.required.toHooksConfig());
 }
 
 function mergeFlags(
   StandardHooksConfig memory config,
   StandardHooksDeploymentConfig memory flags
-) pure returns (StandardHooksConfig memory merged) {
+)
+  pure
+  returns (StandardHooksConfig memory merged)
+{
   merged = config.mergeSharedFlags(flags.optional);
   merged.useOnDeposit = merged.useOnDeposit || flags.required.useOnDeposit;
   merged.useOnQueueWithdrawal = merged.useOnQueueWithdrawal || flags.required.useOnQueueWithdrawal;
-  merged.useOnExecuteWithdrawal =
-    merged.useOnExecuteWithdrawal ||
-    flags.required.useOnExecuteWithdrawal;
+  merged.useOnExecuteWithdrawal = merged.useOnExecuteWithdrawal || flags.required.useOnExecuteWithdrawal;
   merged.useOnTransfer = merged.useOnTransfer || flags.required.useOnTransfer;
   merged.useOnBorrow = merged.useOnBorrow || flags.required.useOnBorrow;
   merged.useOnRepay = merged.useOnRepay || flags.required.useOnRepay;
   merged.useOnCloseMarket = merged.useOnCloseMarket || flags.required.useOnCloseMarket;
   merged.useOnNukeFromOrbit = merged.useOnNukeFromOrbit || flags.required.useOnNukeFromOrbit;
-  merged.useOnSetMaxTotalSupply =
-    merged.useOnSetMaxTotalSupply ||
-    flags.required.useOnSetMaxTotalSupply;
+  merged.useOnSetMaxTotalSupply = merged.useOnSetMaxTotalSupply || flags.required.useOnSetMaxTotalSupply;
   merged.useOnSetAnnualInterestAndReserveRatioBips =
-    merged.useOnSetAnnualInterestAndReserveRatioBips ||
-    flags.required.useOnSetAnnualInterestAndReserveRatioBips;
-  merged.useOnSetProtocolFeeBips =
-    merged.useOnSetProtocolFeeBips ||
-    flags.required.useOnSetProtocolFeeBips;
-  merged.useOnExecutePendingAnnualInterestBipsReduction =
-    merged.useOnExecutePendingAnnualInterestBipsReduction ||
-    flags.required.useOnExecutePendingAnnualInterestBipsReduction;
+    merged.useOnSetAnnualInterestAndReserveRatioBips || flags.required.useOnSetAnnualInterestAndReserveRatioBips;
+  merged.useOnSetProtocolFeeBips = merged.useOnSetProtocolFeeBips || flags.required.useOnSetProtocolFeeBips;
+  merged.useOnExecutePendingAnnualInterestBipsReduction = merged.useOnExecutePendingAnnualInterestBipsReduction
+    || flags.required.useOnExecutePendingAnnualInterestBipsReduction;
 }

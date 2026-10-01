@@ -52,10 +52,7 @@ contract MarketStateTest is TestKernel {
     assertEq(state.$maxScaledSettleableAmount(type(uint104).max - 1), type(uint104).max - 1);
   }
 
-  function test_maxScaledSettleableAmount_IsMaximal(
-    uint112 scaleFactor,
-    uint256 availableLiquidity
-  ) external pure {
+  function test_maxScaledSettleableAmount_IsMaximal(uint112 scaleFactor, uint256 availableLiquidity) external pure {
     scaleFactor = uint112(bound(scaleFactor, RAY, type(uint112).max));
     MarketState memory state;
     state.scaleFactor = scaleFactor;
@@ -64,15 +61,11 @@ contract MarketStateTest is TestKernel {
     uint256 maxScaledAmount = type(uint104).max;
 
     assertTrue(scaledAmount <= maxScaledAmount, 'uint104 cap');
-    assertTrue(
-      MathUtils.mulDiv(scaledAmount, scaleFactor, RAY) <= availableLiquidity,
-      'returned amount fits liquidity'
-    );
+    assertTrue(MathUtils.mulDiv(scaledAmount, scaleFactor, RAY) <= availableLiquidity, 'returned amount fits liquidity');
 
     if (scaledAmount < maxScaledAmount) {
       assertTrue(
-        MathUtils.mulDiv(scaledAmount + 1, scaleFactor, RAY) > availableLiquidity,
-        'next scaled unit does not fit'
+        MathUtils.mulDiv(scaledAmount + 1, scaleFactor, RAY) > availableLiquidity, 'next scaled unit does not fit'
       );
     }
   }
@@ -98,7 +91,10 @@ contract MarketStateTest is TestKernel {
     uint16 reserveRatioBips,
     uint128 accruedProtocolFees,
     uint128 normalizedUnclaimedWithdrawals
-  ) external pure {
+  )
+    external
+    pure
+  {
     reserveRatioBips = uint16(bound(reserveRatioBips, 0, BIP));
     scaledPendingWithdrawals = uint104(bound(scaledPendingWithdrawals, 0, scaledTotalSupply));
 
@@ -115,10 +111,8 @@ contract MarketStateTest is TestKernel {
 
     assertEq(
       state.$liquidityRequired(),
-      normalizedPendingWithdrawals +
-        normalizedOutstandingSupply.bipMul(reserveRatioBips) +
-        state.normalizedUnclaimedWithdrawals +
-        uint256(accruedProtocolFees)
+      normalizedPendingWithdrawals + normalizedOutstandingSupply.bipMul(reserveRatioBips)
+        + state.normalizedUnclaimedWithdrawals + uint256(accruedProtocolFees)
     );
   }
 
@@ -129,7 +123,10 @@ contract MarketStateTest is TestKernel {
     uint16 reserveRatioBips,
     uint128 accruedProtocolFees,
     uint128 normalizedUnclaimedWithdrawals
-  ) external pure {
+  )
+    external
+    pure
+  {
     scaleFactor = uint112(bound(scaleFactor, RAY, type(uint112).max));
     scaledPendingWithdrawals = uint104(bound(scaledPendingWithdrawals, 0, scaledTotalSupply));
     reserveRatioBips = uint16(bound(reserveRatioBips, 0, BIP));
@@ -149,18 +146,12 @@ contract MarketStateTest is TestKernel {
 
     assertEq(
       state.$liquidityRequired(),
-      normalizedPendingWithdrawals +
-        normalizedOutstandingSupply.bipMul(reserveRatioBips) +
-        otherDebts,
+      normalizedPendingWithdrawals + normalizedOutstandingSupply.bipMul(reserveRatioBips) + otherDebts,
       'normalized partition'
     );
 
     state.reserveRatioBips = 0;
-    assertEq(
-      state.$liquidityRequired(),
-      normalizedPendingWithdrawals + otherDebts,
-      'zero reserve ratio'
-    );
+    assertEq(state.$liquidityRequired(), normalizedPendingWithdrawals + otherDebts, 'zero reserve ratio');
 
     state.reserveRatioBips = uint16(BIP);
     assertEq(state.$liquidityRequired(), state.$totalDebts(), 'full reserve ratio');
@@ -188,10 +179,7 @@ contract MarketStateTest is TestKernel {
     MarketState memory state;
     state.pendingWithdrawalExpiry = pendingWithdrawalExpiry;
 
-    assertEq(
-      state.$hasPendingExpiredBatch(),
-      pendingWithdrawalExpiry > 0 && pendingWithdrawalExpiry < timestamp
-    );
+    assertEq(state.$hasPendingExpiredBatch(), pendingWithdrawalExpiry > 0 && pendingWithdrawalExpiry < timestamp);
   }
 
   function test_borrowableAssets(
@@ -201,7 +189,10 @@ contract MarketStateTest is TestKernel {
     uint128 accruedProtocolFees,
     uint128 normalizedUnclaimedWithdrawals,
     uint128 totalAssets
-  ) external pure {
+  )
+    external
+    pure
+  {
     reserveRatioBips = uint16(bound(reserveRatioBips, 0, BIP));
     scaledPendingWithdrawals = uint104(bound(scaledPendingWithdrawals, 0, scaledTotalSupply));
 
@@ -218,10 +209,8 @@ contract MarketStateTest is TestKernel {
 
     assertEq(
       state.$liquidityRequired(),
-      normalizedPendingWithdrawals +
-        normalizedOutstandingSupply.bipMul(reserveRatioBips) +
-        state.normalizedUnclaimedWithdrawals +
-        uint256(accruedProtocolFees)
+      normalizedPendingWithdrawals + normalizedOutstandingSupply.bipMul(reserveRatioBips)
+        + state.normalizedUnclaimedWithdrawals + uint256(accruedProtocolFees)
     );
     assertEq(
       state.$borrowableAssets(totalAssets),
@@ -233,19 +222,19 @@ contract MarketStateTest is TestKernel {
     uint256 accruedProtocolFees,
     uint256 normalizedUnclaimedWithdrawals,
     uint256 totalAssets
-  ) external pure {
+  )
+    external
+    pure
+  {
     accruedProtocolFees = bound(accruedProtocolFees, 0, type(uint128).max);
     normalizedUnclaimedWithdrawals = bound(normalizedUnclaimedWithdrawals, 0, type(uint128).max);
     totalAssets = bound(totalAssets, 0, type(uint128).max);
     MarketState memory state;
     state.accruedProtocolFees = uint128(accruedProtocolFees);
     state.normalizedUnclaimedWithdrawals = uint128(normalizedUnclaimedWithdrawals);
-    uint256 availableAssets = totalAssets < normalizedUnclaimedWithdrawals
-      ? 0
-      : totalAssets - normalizedUnclaimedWithdrawals;
-    uint256 expectedWithdrawable = accruedProtocolFees > availableAssets
-      ? availableAssets
-      : accruedProtocolFees;
+    uint256 availableAssets =
+      totalAssets < normalizedUnclaimedWithdrawals ? 0 : totalAssets - normalizedUnclaimedWithdrawals;
+    uint256 expectedWithdrawable = accruedProtocolFees > availableAssets ? availableAssets : accruedProtocolFees;
 
     assertEq(state.$withdrawableProtocolFees(totalAssets), expectedWithdrawable);
   }
@@ -255,7 +244,10 @@ contract MarketStateTest is TestKernel {
     uint104 scaledTotalSupply,
     uint128 normalizedUnclaimedWithdrawals,
     uint128 accruedProtocolFees
-  ) external pure {
+  )
+    external
+    pure
+  {
     scaleFactor = uint112(bound(scaleFactor, RAY, type(uint112).max));
     MarketState memory state;
     state.scaleFactor = scaleFactor;
@@ -263,9 +255,8 @@ contract MarketStateTest is TestKernel {
     state.normalizedUnclaimedWithdrawals = normalizedUnclaimedWithdrawals;
     state.accruedProtocolFees = accruedProtocolFees;
 
-    uint256 expected = ((uint256(scaledTotalSupply) * scaleFactor + HALF_RAY) / RAY) +
-      normalizedUnclaimedWithdrawals +
-      accruedProtocolFees;
+    uint256 expected = ((uint256(scaledTotalSupply) * scaleFactor + HALF_RAY) / RAY) + normalizedUnclaimedWithdrawals
+      + accruedProtocolFees;
     assertEq(state.$totalDebts(), expected);
   }
 }

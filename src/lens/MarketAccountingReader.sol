@@ -6,11 +6,7 @@ import '../market/WildcatMarket.sol';
 /// @dev Older markets return one fewer word for state and batch tuples. Pad only the
 ///      exact legacy shape; normal ABI decoding still rejects truncated or dirty values.
 library MarketAccountingReader {
-  function _read(
-    address market,
-    bytes memory input,
-    uint256 legacySize
-  ) private view returns (bytes memory data) {
+  function _read(address market, bytes memory input, uint256 legacySize) private view returns (bytes memory data) {
     bool success;
     (success, data) = market.staticcall(input);
     if (!success) {
@@ -23,32 +19,18 @@ library MarketAccountingReader {
 
   function currentState(WildcatMarket market) internal view returns (MarketState memory) {
     return
-      abi.decode(
-        _read(address(market), abi.encodeWithSelector(market.currentState.selector), 0x1c0),
-        (MarketState)
-      );
+      abi.decode(_read(address(market), abi.encodeWithSelector(market.currentState.selector), 0x1c0), (MarketState));
   }
 
   function previousState(WildcatMarket market) internal view returns (MarketState memory) {
     return
-      abi.decode(
-        _read(address(market), abi.encodeWithSelector(market.previousState.selector), 0x1c0),
-        (MarketState)
-      );
+      abi.decode(_read(address(market), abi.encodeWithSelector(market.previousState.selector), 0x1c0), (MarketState));
   }
 
-  function withdrawalBatch(
-    WildcatMarket market,
-    uint32 expiry
-  ) internal view returns (WithdrawalBatch memory) {
-    return
-      abi.decode(
-        _read(
-          address(market),
-          abi.encodeWithSelector(market.getWithdrawalBatch.selector, expiry),
-          0x60
-        ),
-        (WithdrawalBatch)
-      );
+  function withdrawalBatch(WildcatMarket market, uint32 expiry) internal view returns (WithdrawalBatch memory) {
+    return abi.decode(
+      _read(address(market), abi.encodeWithSelector(market.getWithdrawalBatch.selector, expiry), 0x60),
+      (WithdrawalBatch)
+    );
   }
 }

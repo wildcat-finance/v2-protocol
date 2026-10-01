@@ -40,9 +40,11 @@ library HooksInstanceDataLib {
 
   bytes4 internal constant _BORROWER_SELECTOR = bytes4(keccak256('borrower()'));
 
-  function _readConstraints(
-    address hooksAddress
-  ) internal view returns (MarketParameterConstraints memory constraints, bool hasRepaymentBounds) {
+  function _readConstraints(address hooksAddress)
+    internal
+    view
+    returns (MarketParameterConstraints memory constraints, bool hasRepaymentBounds)
+  {
     bytes memory result = new bytes(0x180);
     uint256 selector = uint32(bytes4(keccak256('getParameterConstraints()')));
     uint256 size;
@@ -68,10 +70,7 @@ library HooksInstanceDataLib {
     hasRepaymentBounds = size >= 0x180;
   }
 
-  function _tryReadAddress(
-    address target,
-    bytes4 selector
-  ) private view returns (bool success, address value) {
+  function _tryReadAddress(address target, bytes4 selector) private view returns (bool success, address value) {
     uint256 word;
     uint32 selectorWord = uint32(selector);
     assembly ('memory-safe') {
@@ -97,7 +96,10 @@ library HooksInstanceDataLib {
     IHooksFactory factory,
     address administrator,
     HooksInstanceKind kind
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.hooksAddress = hooksAddress;
     if (administrator != address(0)) {
       data.administrator = administrator;
@@ -107,19 +109,14 @@ library HooksInstanceDataLib {
     data.kind = kind;
 
     if (data.administrator == address(0)) {
-      (bool hasAdministrator, address currentAdministrator) = _tryReadAddress(
-        hooksAddress,
-        IHooksAdministrator.administrator.selector
-      );
+      (bool hasAdministrator, address currentAdministrator) =
+        _tryReadAddress(hooksAddress, IHooksAdministrator.administrator.selector);
       if (!hasAdministrator) {
         (, currentAdministrator) = _tryReadAddress(hooksAddress, _BORROWER_SELECTOR);
       }
       data.administrator = currentAdministrator;
     }
-    (, data.pendingAdministrator) = _tryReadAddress(
-      hooksAddress,
-      IHooksAdministrator.pendingAdministrator.selector
-    );
+    (, data.pendingAdministrator) = _tryReadAddress(hooksAddress, IHooksAdministrator.pendingAdministrator.selector);
 
     if (data.kind != HooksInstanceKind.Unknown) {
       OpenTermHooks hooks = OpenTermHooks(hooksAddress);

@@ -27,10 +27,7 @@ library LibLenderStatus {
    *      this function will always return false. Should always be used
    *      in conjunction with `hasCredential`.
    */
-  function credentialExpired(
-    LenderStatus memory status,
-    RoleProvider provider
-  ) internal view returns (bool) {
+  function credentialExpired(LenderStatus memory status, RoleProvider provider) internal view returns (bool) {
     return provider.calculateExpiry(status.lastApprovalTimestamp) < block.timestamp;
   }
 
@@ -47,19 +44,12 @@ library LibLenderStatus {
    *      this function will always return true. Should always be used
    *      in conjunction with `hasCredential`.
    */
-  function credentialNotExpired(
-    LenderStatus memory status,
-    RoleProvider provider
-  ) internal view returns (bool) {
+  function credentialNotExpired(LenderStatus memory status, RoleProvider provider) internal view returns (bool) {
     return provider.calculateExpiry(status.lastApprovalTimestamp) >= block.timestamp;
   }
 
   /// @dev replaces cached credential metadata and only enables refresh for a pull provider.
-  function setCredential(
-    LenderStatus memory status,
-    RoleProvider provider,
-    uint256 timestamp
-  ) internal pure {
+  function setCredential(LenderStatus memory status, RoleProvider provider, uint256 timestamp) internal pure {
     // user is approved, update status with the new approval timestamp and provider
     status.lastApprovalTimestamp = uint32(timestamp);
     status.lastProvider = provider.providerAddress();

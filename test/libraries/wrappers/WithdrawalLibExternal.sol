@@ -14,7 +14,11 @@ library WithdrawalLibExternal {
     WithdrawalBatch memory batch,
     MarketState memory state,
     uint256 totalAssets
-  ) external pure returns (uint256) {
+  )
+    external
+    pure
+    returns (uint256)
+  {
     return WithdrawalLib.availableLiquidityForPendingBatch(batch, state, totalAssets);
   }
 }

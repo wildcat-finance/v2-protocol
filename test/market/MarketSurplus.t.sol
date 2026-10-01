@@ -19,9 +19,8 @@ contract MarketSurplusTest is MarketFixture {
 
   function _deployFixtureDependencies() internal override returns (Fixture memory fixture) {
     fixture = super._deployFixtureDependencies();
-    fixture.asset = RecipientRejectingERC20(
-      _deployCode('test/mocks/RecipientRejectingERC20.sol:RecipientRejectingERC20')
-    );
+    fixture.asset =
+      RecipientRejectingERC20(_deployCode('test/mocks/RecipientRejectingERC20.sol:RecipientRejectingERC20'));
   }
 
   function _fixture(bool revolving, bool interest) private returns (Fixture memory fixture) {
@@ -45,11 +44,7 @@ contract MarketSurplusTest is MarketFixture {
     assertTrue(fixture.market.previousState().isClosed, 'closure committed');
     assertTrue(fixture.market.totalAssets() >= fixture.market.totalDebts(), 'claims fully backed');
     if (revolving) {
-      assertEq(
-        IWildcatMarketRevolving(address(fixture.market)).drawnAmount(),
-        0,
-        'principal cleared'
-      );
+      assertEq(IWildcatMarketRevolving(address(fixture.market)).drawnAmount(), 0, 'principal cleared');
     }
   }
 
@@ -166,25 +161,16 @@ contract MarketSurplusTest is MarketFixture {
       fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
       assertEq(fixture.market.getUnpaidBatchExpiries().length, 0, 'old batch processed');
       assertTrue(fixture.market.executeWithdrawal(Holder, oldExpiry) > 0, 'old claim collected');
-      assertTrue(
-        fixture.market.executeWithdrawal(Holder, currentExpiry) > 0,
-        'current claim collected'
-      );
+      assertTrue(fixture.market.executeWithdrawal(Holder, currentExpiry) > 0, 'current claim collected');
       vm.prank(Holder);
       uint32 finalExpiry = fixture.market.queueFullWithdrawal();
       vm.warp(uint256(finalExpiry) + 1);
       fixture.market.updateState();
-      assertTrue(
-        fixture.market.executeWithdrawal(Holder, finalExpiry) > 0,
-        'remaining supply collected'
-      );
+      assertTrue(fixture.market.executeWithdrawal(Holder, finalExpiry) > 0, 'remaining supply collected');
       fixture.market.collectFees();
       assertEq(fixture.market.scaledTotalSupply(), 0, 'all shares settled');
       assertEq(fixture.market.currentState().accruedProtocolFees, 0, 'fees collected');
-      assertTrue(
-        fixture.market.totalAssets() >= fixture.market.totalDebts(),
-        'rounding liabilities protected'
-      );
+      assertTrue(fixture.market.totalAssets() >= fixture.market.totalDebts(), 'rounding liabilities protected');
     }
   }
 
@@ -209,16 +195,8 @@ contract MarketSurplusTest is MarketFixture {
       fixture.asset.mint(address(fixture.market), 7e18);
       vm.prank(Borrower);
       fixture.market.rescueTokens(address(fixture.asset));
-      assertEq(
-        fixture.asset.balanceOf(Borrower) - borrowerBefore,
-        7e18,
-        'later donation recovered'
-      );
-      assertEq(
-        fixture.market.totalAssets(),
-        fixture.market.totalDebts(),
-        'lender backing unchanged'
-      );
+      assertEq(fixture.asset.balanceOf(Borrower) - borrowerBefore, 7e18, 'later donation recovered');
+      assertEq(fixture.market.totalAssets(), fixture.market.totalDebts(), 'lender backing unchanged');
     }
   }
 
@@ -233,16 +211,8 @@ contract MarketSurplusTest is MarketFixture {
       vm.prank(Borrower);
       fixture.market.rescueTokens(address(fixture.asset));
       _assertClosed(fixture, model != 0);
-      assertEq(
-        fixture.market.totalAssets(),
-        fixture.market.totalDebts(),
-        'sweep leaves every debt'
-      );
-      assertEq(
-        fixture.market.previousState().lastInterestAccruedTimestamp,
-        vm.getBlockTimestamp(),
-        'state persisted'
-      );
+      assertEq(fixture.market.totalAssets(), fixture.market.totalDebts(), 'sweep leaves every debt');
+      assertEq(fixture.market.previousState().lastInterestAccruedTimestamp, vm.getBlockTimestamp(), 'state persisted');
     }
   }
 
@@ -262,17 +232,9 @@ contract MarketSurplusTest is MarketFixture {
       vm.prank(Borrower);
       vm.expectRevert(LibERC20.TransferFailed.selector);
       fixture.market.rescueTokens(address(fixture.asset));
-      assertEq(
-        keccak256(abi.encode(fixture.market.previousState())),
-        stored,
-        'failed recovery rolls back state'
-      );
+      assertEq(keccak256(abi.encode(fixture.market.previousState())), stored, 'failed recovery rolls back state');
       if (model != 0) {
-        assertEq(
-          IWildcatMarketRevolving(address(fixture.market)).drawnAmount(),
-          800e18,
-          'principal change rolled back'
-        );
+        assertEq(IWildcatMarketRevolving(address(fixture.market)).drawnAmount(), 800e18, 'principal change rolled back');
       }
       assertEq(fixture.market.executeWithdrawal(Holder, expiry), 200e18, 'lender still collects');
       _assertClosed(fixture, model != 0);
@@ -357,11 +319,7 @@ contract MarketSurplusTest is MarketFixture {
         vm.prank(Borrower);
         fixture.market.repay(amount);
         _assertClosed(fixture, model != 0);
-        assertEq(
-          fixture.market.totalAssets() - fixture.market.totalDebts(),
-          50e18,
-          'excess retained'
-        );
+        assertEq(fixture.market.totalAssets() - fixture.market.totalDebts(), 50e18, 'excess retained');
       }
     }
   }

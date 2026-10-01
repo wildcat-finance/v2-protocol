@@ -33,11 +33,7 @@ struct MarketLiquidityData {
 
 /// @notice shared full/live lens reads for lifecycle and available liquidity.
 library MarketLifecycleDataLib {
-  function fill(
-    MarketLifecycleData memory data,
-    WildcatMarket market,
-    bool isClosed
-  ) internal view {
+  function fill(MarketLifecycleData memory data, WildcatMarket market, bool isClosed) internal view {
     bytes4[4] memory selectors = [
       WildcatMarketBase.repaymentDate.selector,
       WildcatMarketBase.repaymentPeriod.selector,
@@ -46,10 +42,7 @@ library MarketLifecycleDataLib {
     ];
     uint256[4] memory values;
     for (uint256 i; i < selectors.length; i++) {
-      (bool success, uint256 value) = OptionalDataLib.readWord(
-        address(market),
-        abi.encodeWithSelector(selectors[i])
-      );
+      (bool success, uint256 value) = OptionalDataLib.readWord(address(market), abi.encodeWithSelector(selectors[i]));
       // don't publish a partially supported lifecycle as complete zero-valued terms.
       if (!success) return;
       values[i] = value;
@@ -67,7 +60,10 @@ library MarketLifecycleDataLib {
     WildcatMarket market,
     bool isClosed,
     uint256 totalAssets
-  ) internal view {
+  )
+    internal
+    view
+  {
     data.maximumDeposit = market.maximumDeposit();
     data.borrowableAssets = market.borrowableAssets();
     data.totalDebts = market.totalDebts();

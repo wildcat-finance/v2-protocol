@@ -44,9 +44,7 @@ contract RepayExpiryDelinquencyTest is MarketFixture {
     options.withdrawalBatchDuration = 365 days;
   }
 
-  function _setUpPendingBatch(
-    bool revolving
-  ) private returns (Fixture memory fixture, uint32 expiry) {
+  function _setUpPendingBatch(bool revolving) private returns (Fixture memory fixture, uint32 expiry) {
     fixture = _newMarket(_options(revolving));
     _deposit(fixture, Holder, InitialSupply);
 
@@ -57,9 +55,7 @@ contract RepayExpiryDelinquencyTest is MarketFixture {
     expiry = fixture.market.queueFullWithdrawal();
   }
 
-  function _setUpExpiredBatch(
-    bool revolving
-  ) private returns (Fixture memory fixture, uint32 expiry) {
+  function _setUpExpiredBatch(bool revolving) private returns (Fixture memory fixture, uint32 expiry) {
     (fixture, expiry) = _setUpPendingBatch(revolving);
 
     _fundAndApprove(fixture, Payer, Repayment);
@@ -71,7 +67,11 @@ contract RepayExpiryDelinquencyTest is MarketFixture {
     Fixture memory fixture,
     uint32 expiry,
     bool revolving
-  ) private view returns (Outcome memory outcome) {
+  )
+    private
+    view
+    returns (Outcome memory outcome)
+  {
     MarketState memory state = fixture.market.previousState();
     WithdrawalBatch memory batch = fixture.market.getWithdrawalBatch(expiry);
     outcome.scaleFactor = state.scaleFactor;
@@ -156,9 +156,7 @@ contract RepayExpiryDelinquencyTest is MarketFixture {
       MarketState memory projectedState = fixture.market.currentState();
       fixture.market.updateState();
       assertEq(
-        keccak256(abi.encode(fixture.market.previousState())),
-        keccak256(abi.encode(projectedState)),
-        'projected state'
+        keccak256(abi.encode(fixture.market.previousState())), keccak256(abi.encode(projectedState)), 'projected state'
       );
       fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
       Outcome memory lateDonation = _capture(fixture, expiry, revolving);
@@ -186,11 +184,7 @@ contract RepayExpiryDelinquencyTest is MarketFixture {
       assertEq(batch.normalizedAmountPaid, Repayment, 'batch payment');
       assertEq(fixture.market.totalDebts(), Repayment, 'total debt');
       if (revolving) {
-        assertEq(
-          IWildcatMarketRevolving(address(fixture.market)).drawnAmount(),
-          0,
-          'drawn principal'
-        );
+        assertEq(IWildcatMarketRevolving(address(fixture.market)).drawnAmount(), 0, 'drawn principal');
       }
     }
   }
@@ -236,11 +230,7 @@ contract RepayExpiryDelinquencyTest is MarketFixture {
     uint256 oversizedBalance = uint256(type(uint152).max) + 123;
     _donate(fixture, oversizedBalance - splitBalance);
     fixture.market.updateState();
-    assertEq(
-      _readCheckpointedTotalAssets(address(fixture.market)),
-      type(uint152).max,
-      'saturated balance'
-    );
+    assertEq(_readCheckpointedTotalAssets(address(fixture.market)), type(uint152).max, 'saturated balance');
 
     MarketState memory state = fixture.market.previousState();
     assertFalse(state.isClosed, 'closed');

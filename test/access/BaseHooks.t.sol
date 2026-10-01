@@ -46,17 +46,18 @@ contract BaseHooksTest is HookTemplateFixture {
     _setUpHooks();
     provider1 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
     provider2 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
-    providerFactory = MockRoleProviderFactory(
-      _deployCode('test/mocks/MockRoleProviderFactory.sol:MockRoleProviderFactory')
-    );
+    providerFactory =
+      MockRoleProviderFactory(_deployCode('test/mocks/MockRoleProviderFactory.sol:MockRoleProviderFactory'));
   }
 
   function _requiredFlags(HookKind kind) internal pure returns (HooksConfig flags) {
     flags = EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips);
-    if (kind != HookKind.Open)
+    if (kind != HookKind.Open) {
       flags = flags.setFlag(Bit_Enabled_CloseMarket).setFlag(Bit_Enabled_QueueWithdrawal);
-    if (kind == HookKind.Periodic)
+    }
+    if (kind == HookKind.Periodic) {
       flags = flags.setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
+    }
   }
 
   function _addPullProvider(BaseHooks target) internal {
@@ -66,12 +67,7 @@ contract BaseHooksTest is HookTemplateFixture {
 
   function _expectCredentialEntry(BaseHooks target, address market, address lender) internal {
     vm.expectEmit(address(target));
-    emit BaseAccessControls.AccountAccessGranted(
-      address(provider1),
-      lender,
-      market,
-      uint32(block.timestamp)
-    );
+    emit BaseAccessControls.AccountAccessGranted(address(provider1), lender, market, uint32(block.timestamp));
     vm.expectEmit(address(target));
     emit BaseAccessControls.AccountMadeFirstDeposit(market, lender);
   }
@@ -84,13 +80,7 @@ contract BaseHooksTest is HookTemplateFixture {
     assertFalse(status.isBlockedFromDeposits, 'not blocked');
   }
 
-  function _assertProvider(
-    BaseHooks target,
-    address account,
-    uint32 ttl,
-    bool pull,
-    uint24 index
-  ) internal view {
+  function _assertProvider(BaseHooks target, address account, uint32 ttl, bool pull, uint24 index) internal view {
     RoleProvider provider = target.getRoleProvider(account);
     assertEq(provider.providerAddress(), account, 'provider address');
     assertEq(provider.timeToLive(), ttl, 'provider ttl');
@@ -104,15 +94,11 @@ contract BaseHooksTest is HookTemplateFixture {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
       BaseHooks target = hooks[i];
-      HooksConfig optional = EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(
-        Bit_Enabled_Transfer
-      );
+      HooksConfig optional = EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer);
       if (kind == HookKind.Open) optional = optional.setFlag(Bit_Enabled_QueueWithdrawal);
       HooksDeploymentConfig expected = encodeHooksDeploymentConfig(optional, _requiredFlags(kind));
       assertEq(
-        HooksDeploymentConfig.unwrap(target.config()),
-        HooksDeploymentConfig.unwrap(expected),
-        'deployment flags'
+        HooksDeploymentConfig.unwrap(target.config()), HooksDeploymentConfig.unwrap(expected), 'deployment flags'
       );
       assertEq(target.factory(), address(this), 'factory');
       assertEq(target.administrator(), address(this), 'administrator');
@@ -132,7 +118,9 @@ contract BaseHooksTest is HookTemplateFixture {
     bool secondPull,
     uint32 firstTtl,
     uint32 secondTtl
-  ) external {
+  )
+    external
+  {
     provider1.setIsPullProvider(firstPull);
     provider2.setIsPullProvider(secondPull);
     NameAndProviderInputs memory inputs;
@@ -143,13 +131,7 @@ contract BaseHooksTest is HookTemplateFixture {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = _newHooks(HookKind(i), abi.encode(inputs));
       _assertProvider(target, address(provider1), firstTtl, firstPull, 0);
-      _assertProvider(
-        target,
-        address(provider2),
-        secondTtl,
-        secondPull,
-        firstPull == secondPull ? 1 : 0
-      );
+      _assertProvider(target, address(provider2), secondTtl, secondPull, firstPull == secondPull ? 1 : 0);
       assertEq(target.name(), inputs.name, 'name');
     }
   }
@@ -159,7 +141,9 @@ contract BaseHooksTest is HookTemplateFixture {
     bool secondPull,
     uint32 firstTtl,
     uint32 secondTtl
-  ) external {
+  )
+    external
+  {
     for (uint256 i; i < hooks.length; i++) {
       bytes32 firstSalt = bytes32(i * 2 + 1);
       bytes32 secondSalt = bytes32(i * 2 + 2);
@@ -167,14 +151,8 @@ contract BaseHooksTest is HookTemplateFixture {
       inputs.name = 'new providers';
       inputs.roleProviderFactory = address(providerFactory);
       inputs.newProviderInputs = new CreateProviderInputs[](2);
-      inputs.newProviderInputs[0] = CreateProviderInputs(
-        firstTtl,
-        abi.encode(firstSalt, firstPull)
-      );
-      inputs.newProviderInputs[1] = CreateProviderInputs(
-        secondTtl,
-        abi.encode(secondSalt, secondPull)
-      );
+      inputs.newProviderInputs[0] = CreateProviderInputs(firstTtl, abi.encode(firstSalt, firstPull));
+      inputs.newProviderInputs[1] = CreateProviderInputs(secondTtl, abi.encode(secondSalt, secondPull));
       address first = providerFactory.computeProviderAddress(firstSalt);
       address second = providerFactory.computeProviderAddress(secondSalt);
       BaseHooks target = _newHooks(HookKind(i), abi.encode(inputs));
@@ -189,7 +167,9 @@ contract BaseHooksTest is HookTemplateFixture {
     bool secondPull,
     uint32 firstTtl,
     uint32 secondTtl
-  ) external {
+  )
+    external
+  {
     provider1.setIsPullProvider(firstPull);
     for (uint256 i; i < hooks.length; i++) {
       bytes32 salt = bytes32(i + 1);
@@ -246,12 +226,12 @@ contract BaseHooksTest is HookTemplateFixture {
     bool transfer,
     uint128 requestedMinimum,
     bool disabled
-  ) external {
+  )
+    external
+  {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
-      uint128 minimum = kind == HookKind.Periodic
-        ? uint128(uint96(requestedMinimum))
-        : requestedMinimum;
+      uint128 minimum = kind == HookKind.Periodic ? uint128(uint96(requestedMinimum)) : requestedMinimum;
       HooksConfig requested = EmptyHooksConfig;
       if (deposit) requested = requested.setFlag(Bit_Enabled_Deposit);
       if (queue) requested = requested.setFlag(Bit_Enabled_QueueWithdrawal);
@@ -262,15 +242,8 @@ contract BaseHooksTest is HookTemplateFixture {
         assertFalse(_access(kind, hooks[i], MarketA).isHooked, 'invalid config not stored');
         continue;
       }
-      HooksConfig actual = _createMarket(
-        hooks[i],
-        MarketA,
-        requested,
-        _marketData(kind, minimum, disabled)
-      );
-      HooksConfig expected = HooksConfig.wrap(
-        HooksConfig.unwrap(requested) | HooksConfig.unwrap(_requiredFlags(kind))
-      );
+      HooksConfig actual = _createMarket(hooks[i], MarketA, requested, _marketData(kind, minimum, disabled));
+      HooksConfig expected = HooksConfig.wrap(HooksConfig.unwrap(requested) | HooksConfig.unwrap(_requiredFlags(kind)));
       expected = expected.setHooksAddress(address(hooks[i]));
       if (minimum > 0 || queue) expected = expected.setFlag(Bit_Enabled_Deposit);
       if (disabled || queue) expected = expected.setFlag(Bit_Enabled_Transfer);
@@ -279,8 +252,9 @@ contract BaseHooksTest is HookTemplateFixture {
       assertTrue(access.isHooked, 'registered');
       assertEq(access.depositRequiresAccess, deposit, 'requested deposit access');
       assertEq(access.transferRequiresAccess, transfer, 'requested transfer access');
-      if (kind != HookKind.Open)
+      if (kind != HookKind.Open) {
         assertEq(access.withdrawalRequiresAccess, queue, 'requested queue access');
+      }
       assertEq(access.minimumDeposit, minimum, 'minimum');
       assertEq(access.transfersDisabled, disabled, 'disabled');
       assertEq(hooks[i].isMarketTransferDisabled(MarketA), disabled, 'disabled query');
@@ -303,11 +277,7 @@ contract BaseHooksTest is HookTemplateFixture {
       uint256 padding = kind == HookKind.Periodic ? 20 : 16;
       bytes memory partialData = bytes.concat(_termData(kind), new bytes(padding), hex'01');
       _createMarket(hooks[i], MarketB, EmptyHooksConfig, partialData);
-      assertEq(
-        _access(kind, hooks[i], MarketB).minimumDeposit,
-        uint256(1) << ((31 - padding) * 8),
-        'partial minimum'
-      );
+      assertEq(_access(kind, hooks[i], MarketB).minimumDeposit, uint256(1) << ((31 - padding) * 8), 'partial minimum');
       bytes memory boolData = bytes.concat(_termData(kind), abi.encode(uint256(0), uint256(2)));
       _createMarket(hooks[i], MarketC, EmptyHooksConfig, boolData);
       assertFalse(_access(kind, hooks[i], MarketC).transfersDisabled, 'even low bit');
@@ -320,9 +290,7 @@ contract BaseHooksTest is HookTemplateFixture {
   function test_onCreateMarket_ChecksMinimumWidthBeforeAccessConfiguration() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
-      uint256 overflow = kind == HookKind.Periodic
-        ? uint256(type(uint96).max) + 1
-        : uint256(type(uint128).max) + 1;
+      uint256 overflow = kind == HookKind.Periodic ? uint256(type(uint96).max) + 1 : uint256(type(uint128).max) + 1;
       bytes memory data = _marketData(kind, overflow, false);
       vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
       _createMarket(hooks[i], MarketA, EmptyHooksConfig, data);
@@ -368,11 +336,7 @@ contract BaseHooksTest is HookTemplateFixture {
       assertEq(_access(kind, hooks[i], MarketA).minimumDeposit, maximum, 'full width');
       hooks[i].setMinimumDeposit(MarketA, 0);
       hooks[i].setMinimumDeposit(MarketA, 1);
-      assertEq(
-        _access(kind, hooks[i], MarketA).minimumDeposit,
-        1,
-        'dispatch survives zero minimum'
-      );
+      assertEq(_access(kind, hooks[i], MarketA).minimumDeposit, 1, 'dispatch survives zero minimum');
       uint128 tooWide = uint128(type(uint96).max) + 1;
       vm.expectRevert(BaseHooks.DepositHookNotEnabled.selector);
       hooks[i].setMinimumDeposit(MarketB, tooWide);
@@ -386,11 +350,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
     vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
     hooks[2].setMinimumDeposit(MarketA, uint128(type(uint96).max) + 1);
-    assertEq(
-      _access(HookKind.Periodic, hooks[2], MarketA).minimumDeposit,
-      1,
-      'overflow rolls back'
-    );
+    assertEq(_access(HookKind.Periodic, hooks[2], MarketA).minimumDeposit, 1, 'overflow rolls back');
   }
 
   function _assertUnchangedTermFields(HookKind kind, BaseHooks target) internal view {
@@ -417,24 +377,12 @@ contract BaseHooksTest is HookTemplateFixture {
 
   function test_onMarketConfigured_SeesBoundStateBeforeDeploymentAndRevertsAtomically() external {
     MarketConfigurationHooks target = MarketConfigurationHooks(
-      _deployCode(
-        'test/mocks/MarketConfigurationHooks.sol:MarketConfigurationHooks',
-        abi.encode(address(this))
-      )
+      _deployCode('test/mocks/MarketConfigurationHooks.sol:MarketConfigurationHooks', abi.encode(address(this)))
     );
-    HooksConfig effective = _createMarket(
-      target,
-      MarketA,
-      EmptyHooksConfig,
-      _marketData(HookKind.Periodic, 100, false)
-    );
+    HooksConfig effective = _createMarket(target, MarketA, EmptyHooksConfig, _marketData(HookKind.Periodic, 100, false));
     assertEq(target.configuredMarket(), MarketA, 'configured market');
     assertEq(target.configuredMinimum(), 100, 'configured minimum');
-    assertEq(
-      HooksConfig.unwrap(target.configuredFlags()),
-      HooksConfig.unwrap(effective),
-      'configured flags'
-    );
+    assertEq(HooksConfig.unwrap(target.configuredFlags()), HooksConfig.unwrap(effective), 'configured flags');
     assertEq(MarketA.code.length, 0, 'market has no code');
     target.setRejectConfiguration(true);
     vm.expectRevert(MarketConfigurationHooks.ConfigurationRejected.selector);
@@ -442,11 +390,7 @@ contract BaseHooksTest is HookTemplateFixture {
     assertFalse(target.getHookedMarket(MarketB).isHooked, 'registration rolled back');
     assertEq(target.configuredMarket(), MarketA, 'feature state rolled back');
     assertEq(target.configuredMinimum(), 100, 'feature minimum rolled back');
-    assertEq(
-      HooksConfig.unwrap(target.configuredFlags()),
-      HooksConfig.unwrap(effective),
-      'feature flags rolled back'
-    );
+    assertEq(HooksConfig.unwrap(target.configuredFlags()), HooksConfig.unwrap(effective), 'feature flags rolled back');
   }
 
   function test_lenderActionsAndTransferViews_RejectUnregisteredMarkets() external {
@@ -492,17 +436,13 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
-  function test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(
-    bool requiresAccess
-  ) external {
+  function test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(bool requiresAccess) external {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
     bytes memory credential = abi.encode('deposit');
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
-      HooksConfig requested = requiresAccess
-        ? EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
-        : EmptyHooksConfig;
+      HooksConfig requested = requiresAccess ? EmptyHooksConfig.setFlag(Bit_Enabled_Deposit) : EmptyHooksConfig;
       _createMarket(target, MarketA, requested, _termData(HookKind(i)));
       _createMarket(target, MarketB, requested, _termData(HookKind(i)));
       vm.prank(MarketA);
@@ -566,16 +506,12 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
-  function test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(
-    bool requiresAccess
-  ) external {
+  function test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(bool requiresAccess) external {
     MarketState memory state;
     bytes memory credential = abi.encode('transfer');
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
-      HooksConfig requested = requiresAccess
-        ? EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
-        : EmptyHooksConfig;
+      HooksConfig requested = requiresAccess ? EmptyHooksConfig.setFlag(Bit_Enabled_Transfer) : EmptyHooksConfig;
       _createMarket(target, MarketA, requested, _termData(HookKind(i)));
       _createMarket(target, MarketB, requested, _termData(HookKind(i)));
       assertFalse(target.isMarketTransferDisabled(MarketA), 'global transfers enabled');
@@ -590,14 +526,7 @@ contract BaseHooksTest is HookTemplateFixture {
       assertEq(target.isMarketTransferRecipientAllowed(MarketA, Lender), !requiresAccess);
       _expectCredentialEntry(target, MarketA, Lender);
       vm.prank(MarketA);
-      target.onTransfer(
-        SecondLender,
-        SecondLender,
-        Lender,
-        1,
-        state,
-        abi.encodePacked(address(provider1), credential)
-      );
+      target.onTransfer(SecondLender, SecondLender, Lender, 1, state, abi.encodePacked(address(provider1), credential));
       _assertCachedCredential(target, Lender);
       assertTrue(target.isKnownLenderOnMarket(Lender, MarketA), 'credentialed entry');
       assertTrue(target.isMarketTransferRecipientAllowed(MarketB, Lender), 'cached credential');
@@ -616,14 +545,7 @@ contract BaseHooksTest is HookTemplateFixture {
 
       vm.prank(MarketB);
       vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-      target.onTransfer(
-        SecondLender,
-        SecondLender,
-        Lender,
-        1,
-        state,
-        abi.encodePacked(address(provider1), credential)
-      );
+      target.onTransfer(SecondLender, SecondLender, Lender, 1, state, abi.encodePacked(address(provider1), credential));
       assertFalse(target.isMarketTransferDisabled(MarketA), 'recipient block keeps global promise');
     }
   }
@@ -632,12 +554,7 @@ contract BaseHooksTest is HookTemplateFixture {
     MarketState memory state;
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
-      _createMarket(
-        target,
-        MarketA,
-        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer),
-        _termData(HookKind(i))
-      );
+      _createMarket(target, MarketA, EmptyHooksConfig.setFlag(Bit_Enabled_Transfer), _termData(HookKind(i)));
       _addPullProvider(target);
       provider1.setCredential(Lender, uint32(block.timestamp));
       assertTrue(target.isMarketTransferRecipientAllowed(MarketA, Lender), 'pull view');
@@ -651,10 +568,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
-  function _createQueueMarkets(
-    uint256 i,
-    HooksConfig requested
-  ) internal returns (BaseHooks target) {
+  function _createQueueMarkets(uint256 i, HooksConfig requested) internal returns (BaseHooks target) {
     vm.warp(StartTimestamp);
     target = hooks[i];
     _createMarket(target, MarketA, requested, _termData(HookKind(i)));
@@ -665,10 +579,8 @@ contract BaseHooksTest is HookTemplateFixture {
 
   function test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown() external {
     MarketState memory state;
-    HooksConfig requested = EmptyHooksConfig
-      .setFlag(Bit_Enabled_Deposit)
-      .setFlag(Bit_Enabled_Transfer)
-      .setFlag(Bit_Enabled_QueueWithdrawal);
+    HooksConfig requested =
+      EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(Bit_Enabled_QueueWithdrawal);
     bytes memory credential = abi.encode('queue');
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = _createQueueMarkets(i, requested);
@@ -680,20 +592,9 @@ contract BaseHooksTest is HookTemplateFixture {
       target.blockFromDeposits(Lender);
       provider1.approveCredentialData(keccak256(credential), uint32(block.timestamp));
       vm.expectEmit(address(target));
-      emit BaseAccessControls.AccountAccessGranted(
-        address(provider1),
-        Lender,
-        MarketA,
-        uint32(block.timestamp)
-      );
+      emit BaseAccessControls.AccountAccessGranted(address(provider1), Lender, MarketA, uint32(block.timestamp));
       vm.prank(MarketA);
-      target.onQueueWithdrawal(
-        Lender,
-        12,
-        34,
-        state,
-        abi.encodePacked(address(provider1), credential)
-      );
+      target.onQueueWithdrawal(Lender, 12, 34, state, abi.encodePacked(address(provider1), credential));
       LenderStatus memory status = target.getPreviousLenderStatus(Lender);
       assertEq(status.lastProvider, address(provider1), 'queue caches provider');
       assertEq(status.lastApprovalTimestamp, block.timestamp, 'queue caches credential');
@@ -712,9 +613,7 @@ contract BaseHooksTest is HookTemplateFixture {
   function test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(bool gated) external {
     MarketState memory state;
     HooksConfig requested = gated
-      ? EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
-        Bit_Enabled_QueueWithdrawal
-      )
+      ? EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(Bit_Enabled_QueueWithdrawal)
       : EmptyHooksConfig;
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = _createQueueMarkets(i, requested);
@@ -738,10 +637,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
-  function test_emptyCallbacks_StayUnguardedAndHaveNoEffects(
-    bool registeredCaller,
-    bytes calldata extraData
-  ) external {
+  function test_emptyCallbacks_StayUnguardedAndHaveNoEffects(bool registeredCaller, bytes calldata extraData) external {
     MarketState memory state;
     state.annualInterestBips = 1_000;
     state.reserveRatioBips = 500;
@@ -750,9 +646,9 @@ contract BaseHooksTest is HookTemplateFixture {
       _createMarket(
         target,
         MarketA,
-        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
-          Bit_Enabled_QueueWithdrawal
-        ),
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
+          .setFlag(Bit_Enabled_Transfer)
+          .setFlag(Bit_Enabled_QueueWithdrawal),
         _termData(HookKind(i))
       );
       target.blockFromDeposits(Lender);
@@ -781,13 +677,11 @@ contract BaseHooksTest is HookTemplateFixture {
       BaseHooks target = _createQueueMarkets(i, EmptyHooksConfig);
       vm.prank(MarketA);
       target.onSetAnnualInterestAndReserveRatioBips(700, 0, state, '');
-      (uint16 originalApr, uint16 originalReserve, uint32 expiry) = target
-        .temporaryExcessReserveRatio(MarketA);
+      (uint16 originalApr, uint16 originalReserve, uint32 expiry) = target.temporaryExcessReserveRatio(MarketA);
       assertTrue(expiry > block.timestamp, 'active temporary reserves before close');
       vm.prank(MarketA);
       target.onCloseMarket(state, '');
-      (uint16 afterApr, uint16 afterReserve, uint32 afterExpiry) = target
-        .temporaryExcessReserveRatio(MarketA);
+      (uint16 afterApr, uint16 afterReserve, uint32 afterExpiry) = target.temporaryExcessReserveRatio(MarketA);
       assertEq(afterApr, originalApr, 'original APR retained');
       assertEq(afterReserve, originalReserve, 'original reserve retained');
       assertEq(afterExpiry, expiry, 'expiry retained');
@@ -800,12 +694,8 @@ contract BaseHooksTest is HookTemplateFixture {
     state.reserveRatioBips = 500;
     for (uint256 i; i < uint256(HookKind.Periodic); i++) {
       vm.prank(MarketA);
-      (uint16 apr, uint16 reserve) = hooks[i].onSetAnnualInterestAndReserveRatioBips(
-        1_000,
-        9_999,
-        state,
-        abi.encode('unused')
-      );
+      (uint16 apr, uint16 reserve) =
+        hooks[i].onSetAnnualInterestAndReserveRatioBips(1_000, 9_999, state, abi.encode('unused'));
       assertEq(apr, 1_000, 'APR');
       assertEq(reserve, 500, 'requested reserves ignored');
     }

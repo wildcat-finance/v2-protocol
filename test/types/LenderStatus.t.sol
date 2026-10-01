@@ -6,17 +6,11 @@ import { NullProviderIndex, RoleProvider, encodeRoleProvider } from 'src/types/R
 import { TestKernel } from '../shared/TestKernel.sol';
 
 contract LenderStatusHarness {
-  function credentialExpired(
-    LenderStatus memory status,
-    RoleProvider provider
-  ) external view returns (bool) {
+  function credentialExpired(LenderStatus memory status, RoleProvider provider) external view returns (bool) {
     return status.credentialExpired(provider);
   }
 
-  function credentialNotExpired(
-    LenderStatus memory status,
-    RoleProvider provider
-  ) external view returns (bool) {
+  function credentialNotExpired(LenderStatus memory status, RoleProvider provider) external view returns (bool) {
     return status.credentialNotExpired(provider);
   }
 
@@ -28,7 +22,11 @@ contract LenderStatusHarness {
     LenderStatus memory status,
     RoleProvider provider,
     uint32 timestamp
-  ) external pure returns (LenderStatus memory) {
+  )
+    external
+    pure
+    returns (LenderStatus memory)
+  {
     status.setCredential(provider, timestamp);
     return status;
   }
@@ -43,23 +41,16 @@ contract LenderStatusTest is TestKernel {
   LenderStatusHarness internal harness;
 
   function setUp() external {
-    harness = LenderStatusHarness(
-      _deployCode('test/types/LenderStatus.t.sol:LenderStatusHarness')
-    );
+    harness = LenderStatusHarness(_deployCode('test/types/LenderStatus.t.sol:LenderStatusHarness'));
   }
 
-  function _provider(
-    address providerAddress,
-    uint32 timeToLive,
-    bool canRefresh
-  ) internal pure returns (RoleProvider) {
-    return
-      encodeRoleProvider({
-        providerAddress: providerAddress,
-        timeToLive: timeToLive,
-        pullProviderIndex: canRefresh ? 0 : NullProviderIndex,
-        pushProviderIndex: canRefresh ? NullProviderIndex : 0
-      });
+  function _provider(address providerAddress, uint32 timeToLive, bool canRefresh) internal pure returns (RoleProvider) {
+    return encodeRoleProvider({
+      providerAddress: providerAddress,
+      timeToLive: timeToLive,
+      pullProviderIndex: canRefresh ? 0 : NullProviderIndex,
+      pushProviderIndex: canRefresh ? NullProviderIndex : 0
+    });
   }
 
   function _expiry(uint32 approvalTimestamp, uint32 timeToLive) internal pure returns (uint256) {
@@ -67,24 +58,14 @@ contract LenderStatusTest is TestKernel {
     return expiry > type(uint32).max ? type(uint32).max : expiry;
   }
 
-  function test_credentialExpired(
-    uint32 timeToLive,
-    uint32 approvalTimestamp,
-    uint32 currentTimestamp
-  ) external {
+  function test_credentialExpired(uint32 timeToLive, uint32 approvalTimestamp, uint32 currentTimestamp) external {
     vm.warp(currentTimestamp);
     LenderStatus memory status;
     status.lastApprovalTimestamp = approvalTimestamp;
     RoleProvider provider = _provider(address(1), timeToLive, true);
 
-    assertEq(
-      harness.credentialExpired(status, provider),
-      _expiry(approvalTimestamp, timeToLive) < currentTimestamp
-    );
-    assertEq(
-      harness.credentialNotExpired(status, provider),
-      _expiry(approvalTimestamp, timeToLive) >= currentTimestamp
-    );
+    assertEq(harness.credentialExpired(status, provider), _expiry(approvalTimestamp, timeToLive) < currentTimestamp);
+    assertEq(harness.credentialNotExpired(status, provider), _expiry(approvalTimestamp, timeToLive) >= currentTimestamp);
   }
 
   function test_hasCredential(uint32 approvalTimestamp) external view {
@@ -93,12 +74,7 @@ contract LenderStatusTest is TestKernel {
     assertEq(harness.hasCredential(status), approvalTimestamp > 0);
   }
 
-  function test_setCredential(
-    bool blocked,
-    bool canRefresh,
-    address providerAddress,
-    uint32 timestamp
-  ) external view {
+  function test_setCredential(bool blocked, bool canRefresh, address providerAddress, uint32 timestamp) external view {
     LenderStatus memory status;
     status.isBlockedFromDeposits = blocked;
     RoleProvider provider = _provider(providerAddress, 1 days, canRefresh);
@@ -115,7 +91,10 @@ contract LenderStatusTest is TestKernel {
     bool canRefresh,
     address providerAddress,
     uint32 timestamp
-  ) external view {
+  )
+    external
+    view
+  {
     LenderStatus memory status = LenderStatus({
       isBlockedFromDeposits: blocked,
       lastProvider: providerAddress,

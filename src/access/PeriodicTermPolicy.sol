@@ -100,9 +100,11 @@ abstract contract PeriodicTermPolicy is BaseHooks {
 
   /// @notice returns the proposed APR and proposal time in the first template version's ABI.
   /// @dev use `getPendingAprChange` when the fixed response-window bounds are also needed.
-  function pendingAprChanges(
-    address market
-  ) external view returns (uint16 annualInterestBips, uint32 proposalTimestamp) {
+  function pendingAprChanges(address market)
+    external
+    view
+    returns (uint16 annualInterestBips, uint32 proposalTimestamp)
+  {
     if (_scheduledMarketClosed(market)) return (0, 0);
     PendingAprChangeStorage storage pendingAprChange = _pendingAprChanges[market];
     return (pendingAprChange.annualInterestBips, pendingAprChange.proposalTimestamp);
@@ -113,9 +115,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     return _isMarketInRepayment(market) && IMarketLifecycleView(market).isClosed();
   }
 
-  function _effectiveHookedMarket(
-    address market
-  ) internal view returns (HookedMarket memory result) {
+  function _effectiveHookedMarket(address market) internal view returns (HookedMarket memory result) {
     result = _hookedMarkets[market];
     if (result.isHooked && !result.isClosed) result.isClosed = _scheduledMarketClosed(market);
   }
@@ -153,17 +153,17 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal virtual override returns (HooksConfig marketHooksConfig) {
+  )
+    internal
+    virtual
+    override
+    returns (HooksConfig marketHooksConfig)
+  {
     if (hooksData.length < 0x60) revert PeriodicWindowNotProvided();
     uint32 firstWithdrawalWindowStart = _readUint32Cd(hooksData, 0);
     uint32 periodDuration = _readUint32Cd(hooksData, 0x20);
     uint32 withdrawalWindowDuration = _readUint32Cd(hooksData, 0x40);
-    _validatePeriodicTerm(
-      firstWithdrawalWindowStart,
-      periodDuration,
-      withdrawalWindowDuration,
-      block.timestamp
-    );
+    _validatePeriodicTerm(firstWithdrawalWindowStart, periodDuration, withdrawalWindowDuration, block.timestamp);
     emit PeriodicTermUpdated(
       marketAddress,
       administrator_,
@@ -173,17 +173,9 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     );
 
     uint96 minimumDeposit = _readUint96Cd(hooksData, 0x60);
-    (
-      AccessConfig memory access,
-      bool depositHookEnabled,
-      HooksConfig effective
-    ) = _configureMarketAccess(
-        administrator_,
-        marketAddress,
-        parameters.hooks,
-        minimumDeposit,
-        _readBoolCd(hooksData, 0x80)
-      );
+    (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective) = _configureMarketAccess(
+      administrator_, marketAddress, parameters.hooks, minimumDeposit, _readBoolCd(hooksData, 0x80)
+    );
     _hookedMarkets[marketAddress] = HookedMarket({
       isHooked: access.isHooked,
       transferRequiresAccess: access.transferRequiresAccess,
@@ -204,19 +196,16 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   //                              Market Management                             //
   // ========================================================================== //
 
-  function _readAccessConfig(
-    address market
-  ) internal view virtual override returns (AccessConfig memory) {
+  function _readAccessConfig(address market) internal view virtual override returns (AccessConfig memory) {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
-    return
-      AccessConfig({
-        isHooked: hookedMarket.isHooked,
-        transferRequiresAccess: hookedMarket.transferRequiresAccess,
-        depositRequiresAccess: hookedMarket.depositRequiresAccess,
-        withdrawalRequiresAccess: hookedMarket.withdrawalRequiresAccess,
-        minimumDeposit: hookedMarket.minimumDeposit,
-        transfersDisabled: hookedMarket.transfersDisabled
-      });
+    return AccessConfig({
+      isHooked: hookedMarket.isHooked,
+      transferRequiresAccess: hookedMarket.transferRequiresAccess,
+      depositRequiresAccess: hookedMarket.depositRequiresAccess,
+      withdrawalRequiresAccess: hookedMarket.withdrawalRequiresAccess,
+      minimumDeposit: hookedMarket.minimumDeposit,
+      transfersDisabled: hookedMarket.transfersDisabled
+    });
   }
 
   function _isDepositHookEnabled(address market) internal view virtual override returns (bool) {
@@ -233,10 +222,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   /// @dev only the hooks administrator may propose. the market must be hooked, open, and outside a
   ///      withdrawal window. a new valid proposal replaces the old one and emits its cancellation.
   /// @param annualInterestBips proposed APR in basis points, below the market's current APR.
-  function proposeAnnualInterestBips(
-    address market,
-    uint16 annualInterestBips
-  ) external onlyAdministrator {
+  function proposeAnnualInterestBips(address market, uint16 annualInterestBips) external onlyAdministrator {
     HookedMarket memory hookedMarket = _effectiveHookedMarket(market);
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     if (hookedMarket.isClosed) revert AprReductionProposalOnClosedMarket();
@@ -244,21 +230,15 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       revert AprReductionProposalDuringWithdrawalWindow();
     }
     assertValueInRange(
-      annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
-      AnnualInterestBipsOutOfBounds.selector
+      annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips, AnnualInterestBipsOutOfBounds.selector
     );
 
-    if (
-      annualInterestBips >= LibFixedCall.readWord(market, IMarketApr.annualInterestBips.selector)
-    ) {
+    if (annualInterestBips >= LibFixedCall.readWord(market, IMarketApr.annualInterestBips.selector)) {
       revert AprReductionProposalNotReduction();
     }
 
     uint32 proposalTimestamp = block.timestamp.toUint32();
-    uint32 responseWindowStart = _getNextWithdrawalWindowStart(hookedMarket, proposalTimestamp)
-      .toUint32();
+    uint32 responseWindowStart = _getNextWithdrawalWindowStart(hookedMarket, proposalTimestamp).toUint32();
     uint32 responseWindowEnd = responseWindowStart + hookedMarket.withdrawalWindowDuration;
 
     _checkPeriodicProposal(market, annualInterestBips, responseWindowStart, responseWindowEnd);
@@ -291,7 +271,10 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     uint16 proposedApr,
     uint32 responseStart,
     uint32 responseEnd
-  ) internal view virtual {}
+  )
+    internal
+    view
+    virtual { }
 
   // ========================================================================== //
   //                               Market Queries                               //
@@ -309,36 +292,25 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   /// @notice returns a proposal and the response-window bounds fixed when it was created.
   /// @dev an expired proposal remains readable until it is replaced, cancelled by an APR increase
   ///      or closure, or executed.
-  function getPendingAprChange(
-    address marketAddress
-  )
+  function getPendingAprChange(address marketAddress)
     external
     view
-    returns (
-      PendingAprChange memory pendingAprChange,
-      uint32 responseWindowStart,
-      uint32 responseWindowEnd
-    )
+    returns (PendingAprChange memory pendingAprChange, uint32 responseWindowStart, uint32 responseWindowEnd)
   {
     HookedMarket memory market = _hookedMarkets[marketAddress];
     if (!market.isHooked) revert NotHookedMarket();
 
     if (market.isClosed || _scheduledMarketClosed(marketAddress)) return (pendingAprChange, 0, 0);
     PendingAprChangeStorage memory stored = _pendingAprChanges[marketAddress];
-    pendingAprChange = PendingAprChange({
-      annualInterestBips: stored.annualInterestBips,
-      proposalTimestamp: stored.proposalTimestamp
-    });
+    pendingAprChange =
+      PendingAprChange({ annualInterestBips: stored.annualInterestBips, proposalTimestamp: stored.proposalTimestamp });
     if (stored.proposalTimestamp != 0) {
       responseWindowStart = stored.responseWindowStart;
       responseWindowEnd = stored.responseWindowEnd;
     }
   }
 
-  function _isWithdrawalWindowOpen(
-    HookedMarket memory market,
-    uint256 timestamp
-  ) internal pure returns (bool) {
+  function _isWithdrawalWindowOpen(HookedMarket memory market, uint256 timestamp) internal pure returns (bool) {
     if (market.isClosed) return true;
     if (timestamp < market.firstWithdrawalWindowStart) return false;
 
@@ -349,13 +321,16 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   function _getNextWithdrawalWindowStart(
     HookedMarket memory market,
     uint256 timestamp
-  ) internal pure returns (uint256 windowStart) {
+  )
+    internal
+    pure
+    returns (uint256 windowStart)
+  {
     if (timestamp < market.firstWithdrawalWindowStart) {
       return market.firstWithdrawalWindowStart;
     }
 
-    uint256 periodsElapsed = (timestamp - market.firstWithdrawalWindowStart) /
-      market.periodDuration;
+    uint256 periodsElapsed = (timestamp - market.firstWithdrawalWindowStart) / market.periodDuration;
     return market.firstWithdrawalWindowStart + ((periodsElapsed + 1) * market.periodDuration);
   }
 
@@ -366,14 +341,14 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     uint32 periodDuration,
     uint32 withdrawalWindowDuration,
     uint256 currentTimestamp
-  ) internal pure {
+  )
+    internal
+    pure
+  {
     if (periodDuration < MinimumPeriodDuration || periodDuration > MaximumPeriodDuration) {
       revert PeriodDurationOutOfBounds();
     }
-    if (
-      withdrawalWindowDuration < MinimumWithdrawalWindowDuration ||
-      withdrawalWindowDuration >= periodDuration
-    ) {
+    if (withdrawalWindowDuration < MinimumWithdrawalWindowDuration || withdrawalWindowDuration >= periodDuration) {
       revert WithdrawalWindowDurationOutOfBounds();
     }
 
@@ -396,17 +371,19 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     uint256,
     MarketState calldata state,
     bytes calldata
-  ) internal view virtual override {
+  )
+    internal
+    view
+    virtual
+    override
+  {
     HookedMarket memory market = _hookedMarkets[msg.sender];
     if (!state.isClosed && !_isWithdrawalWindowOpen(market, block.timestamp)) {
       revert WithdrawOutsideWindow();
     }
   }
 
-  function _validateCloseMarket(
-    MarketState calldata,
-    bytes calldata
-  ) internal view virtual override {
+  function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
     _validatePeriodicCloseMarket();
   }
 
@@ -437,7 +414,10 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     MarketState calldata intermediateState,
     uint16 annualInterestBips,
     PendingAprChangeStorage memory pendingAprChange
-  ) internal returns (uint16 updatedAnnualInterestBips) {
+  )
+    internal
+    returns (uint16 updatedAnnualInterestBips)
+  {
     if (pendingAprChange.proposalTimestamp == 0) revert NoPendingAprChange();
     if (pendingAprChange.annualInterestBips != annualInterestBips) {
       revert AprChangeDoesNotMatchProposal();
@@ -446,19 +426,15 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       revert AprReductionProposalNotReduction();
     }
     assertValueInRange(
-      annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
-      AnnualInterestBipsOutOfBounds.selector
+      annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips, AnnualInterestBipsOutOfBounds.selector
     );
 
     uint256 responseWindowEnd = pendingAprChange.responseWindowEnd;
     if (block.timestamp < responseWindowEnd) revert AprChangeNotReady();
     if (
-      block.timestamp >=
-      pendingAprChange.responseWindowStart +
-        uint256(hookedMarket.periodDuration) *
-        AprReductionProposalValidityPeriods
+      block.timestamp
+        >= pendingAprChange.responseWindowStart + uint256(hookedMarket.periodDuration)
+          * AprReductionProposalValidityPeriods
     ) {
       revert AprReductionProposalExpired();
     }
@@ -472,17 +448,15 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   /// @notice lets a hooked market apply its matured APR reduction through the permissionless path.
   /// @dev users call the market; the market calls this hook and keeps its current reserve ratio.
   /// @return annualInterestBips exact proposed APR for the market to apply.
-  function executePendingAnnualInterestBipsReduction(
-    MarketState calldata intermediateState
-  ) external returns (uint16 annualInterestBips) {
+  function executePendingAnnualInterestBipsReduction(MarketState calldata intermediateState)
+    external
+    returns (uint16 annualInterestBips)
+  {
     HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
     PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
     annualInterestBips = _executePeriodicReduction(
-      hookedMarket,
-      intermediateState,
-      pendingAprChange.annualInterestBips,
-      pendingAprChange
+      hookedMarket, intermediateState, pendingAprChange.annualInterestBips, pendingAprChange
     );
     // `executePendingAnnualInterestBipsReduction` only returns an APR. the market keeps
     // `intermediateState.reserveRatioBips`, so validate that ratio and pass empty callback data.
@@ -510,7 +484,12 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     uint16,
     MarketState calldata intermediateState,
     bytes calldata
-  ) internal virtual override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+  )
+    internal
+    virtual
+    override
+    returns (uint16 effectiveApr, uint16 effectiveReserve)
+  {
     HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
 
@@ -523,12 +502,8 @@ abstract contract PeriodicTermPolicy is BaseHooks {
       }
     } else if (annualInterestBips < intermediateState.annualInterestBips) {
       PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
-      annualInterestBips = _executePeriodicReduction(
-        hookedMarket,
-        intermediateState,
-        annualInterestBips,
-        pendingAprChange
-      );
+      annualInterestBips =
+        _executePeriodicReduction(hookedMarket, intermediateState, annualInterestBips, pendingAprChange);
       return (annualInterestBips, intermediateState.reserveRatioBips);
     }
 

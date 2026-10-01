@@ -2,11 +2,7 @@
 pragma solidity 0.8.25;
 
 import 'src/access/IRoleProvider.sol';
-import {
-  IERC165SupportsInterface,
-  IERC5484BurnAuth,
-  IERC721OwnerOf
-} from './TokenInterfaces.sol';
+import { IERC165SupportsInterface, IERC5484BurnAuth, IERC721OwnerOf } from './TokenInterfaces.sol';
 
 /// @notice validates ownership and burn authority for a caller-supplied ERC5484 token ID.
 /// @dev `allowedBurnAuthMask` uses bit 0 for IssuerOnly, bit 1 for OwnerOnly, bit 2 for Both, and
@@ -39,10 +35,10 @@ contract ERC5484RoleProvider is IRoleProvider {
       revert InvalidBurnAuthMask();
     }
     if (
-      !skipInterfaceCheck &&
-      (!_supportsERC165(token_) ||
-        !_supportsInterface(token_, ERC721_INTERFACE_ID) ||
-        !_supportsInterface(token_, ERC5484_INTERFACE_ID))
+      !skipInterfaceCheck
+        && (!_supportsERC165(token_)
+          || !_supportsInterface(token_, ERC721_INTERFACE_ID)
+          || !_supportsInterface(token_, ERC5484_INTERFACE_ID))
     ) {
       revert InvalidERC5484();
     }
@@ -61,10 +57,7 @@ contract ERC5484RoleProvider is IRoleProvider {
   }
 
   /// @return timestamp current timestamp when `account` owns a token with allowed burn authority.
-  function validateCredential(
-    address account,
-    bytes calldata data
-  ) external view override returns (uint32 timestamp) {
+  function validateCredential(address account, bytes calldata data) external view override returns (uint32 timestamp) {
     if (data.length != 0x20) return 0;
     uint256 tokenId;
     assembly {
@@ -97,15 +90,10 @@ contract ERC5484RoleProvider is IRoleProvider {
   }
 
   function _supportsERC165(address target) internal view returns (bool) {
-    return
-      _supportsInterface(target, ERC165_INTERFACE_ID) &&
-      !_supportsInterface(target, INVALID_INTERFACE_ID);
+    return _supportsInterface(target, ERC165_INTERFACE_ID) && !_supportsInterface(target, INVALID_INTERFACE_ID);
   }
 
-  function _supportsInterface(
-    address target,
-    bytes4 interfaceId
-  ) internal view returns (bool) {
+  function _supportsInterface(address target, bytes4 interfaceId) internal view returns (bool) {
     try IERC165SupportsInterface(target).supportsInterface(interfaceId) returns (bool supported) {
       return supported;
     } catch {

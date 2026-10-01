@@ -18,10 +18,7 @@ interface NarrowWithdrawalReader {
 
   function getWithdrawalBatch(uint32 expiry) external view returns (Batch memory);
 
-  function getAccountWithdrawalStatus(
-    address lender,
-    uint32 expiry
-  ) external view returns (Status memory);
+  function getAccountWithdrawalStatus(address lender, uint32 expiry) external view returns (Status memory);
 }
 
 contract WithdrawalCountersTest is MarketFixture {
@@ -52,9 +49,7 @@ contract WithdrawalCountersTest is MarketFixture {
     return fixture.market.queueFullWithdrawal();
   }
 
-  function _fillCurrentBatchToCapMinusOne(
-    Fixture memory fixture
-  ) private returns (uint32 expiry) {
+  function _fillCurrentBatchToCapMinusOne(Fixture memory fixture) private returns (uint32 expiry) {
     uint256 tranche = type(uint104).max / 2;
     expiry = _queue(fixture, Lender, tranche);
     assertEq(_queue(fixture, Lender, tranche), expiry, 'same batch after payment');
@@ -66,9 +61,7 @@ contract WithdrawalCountersTest is MarketFixture {
   }
 
   function readNarrowAccount(address market, uint32 expiry) external view returns (uint256) {
-    return NarrowWithdrawalReader(market)
-      .getAccountWithdrawalStatus(Lender, expiry)
-      .scaledAmount;
+    return NarrowWithdrawalReader(market).getAccountWithdrawalStatus(Lender, expiry).scaledAmount;
   }
 
   function _checkCumulativeCap(bool revolving, HooksKind kind) private {
@@ -77,19 +70,12 @@ contract WithdrawalCountersTest is MarketFixture {
     uint256 total = type(uint104).max - 1;
 
     assertEq(this.readNarrowBatch(address(fixture.market), expiry), total, 'legacy batch decoder');
-    assertEq(
-      this.readNarrowAccount(address(fixture.market), expiry),
-      total,
-      'legacy account decoder'
-    );
+    assertEq(this.readNarrowAccount(address(fixture.market), expiry), total, 'legacy account decoder');
 
     _deposit(fixture, Lender, 2);
     bytes memory stateBefore = abi.encode(fixture.market.previousState());
     WithdrawalBatch memory batchBefore = fixture.market.getWithdrawalBatch(expiry);
-    AccountWithdrawalStatus memory statusBefore = fixture.market.getAccountWithdrawalStatus(
-      Lender,
-      expiry
-    );
+    AccountWithdrawalStatus memory statusBefore = fixture.market.getAccountWithdrawalStatus(Lender, expiry);
 
     vm.startPrank(Lender);
     vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
@@ -97,11 +83,7 @@ contract WithdrawalCountersTest is MarketFixture {
     vm.stopPrank();
 
     assertEq(abi.encode(fixture.market.previousState()), stateBefore, 'state unchanged');
-    assertEq(
-      abi.encode(fixture.market.getWithdrawalBatch(expiry)),
-      abi.encode(batchBefore),
-      'batch unchanged'
-    );
+    assertEq(abi.encode(fixture.market.getWithdrawalBatch(expiry)), abi.encode(batchBefore), 'batch unchanged');
     assertEq(
       abi.encode(fixture.market.getAccountWithdrawalStatus(Lender, expiry)),
       abi.encode(statusBefore),
@@ -132,16 +114,8 @@ contract WithdrawalCountersTest is MarketFixture {
 
     vm.prank(OtherLender);
     assertEq(fixture.market.queueFullWithdrawal(), expiry, 'exact cap joins batch');
-    assertEq(
-      fixture.market.getWithdrawalBatch(expiry).scaledTotalAmount,
-      type(uint104).max,
-      'exact cap stored'
-    );
-    assertEq(
-      this.readNarrowBatch(address(fixture.market), expiry),
-      type(uint104).max,
-      'legacy decoder accepts cap'
-    );
+    assertEq(fixture.market.getWithdrawalBatch(expiry).scaledTotalAmount, type(uint104).max, 'exact cap stored');
+    assertEq(this.readNarrowBatch(address(fixture.market), expiry), type(uint104).max, 'legacy decoder accepts cap');
 
     _deposit(fixture, OtherLender, 1);
     vm.prank(OtherLender);
@@ -172,34 +146,25 @@ contract WithdrawalCountersTest is MarketFixture {
       }
 
       assertEq(fixture.market.scaledBalanceOf(OtherLender), 2, 'balance unchanged');
-      assertEq(
-        fixture.market.getAccountWithdrawalStatus(OtherLender, expiry).scaledAmount,
-        0,
-        'status unchanged'
-      );
-      assertEq(
-        fixture.market.getWithdrawalBatch(expiry).scaledTotalAmount,
-        type(uint104).max - 1,
-        'batch unchanged'
-      );
+      assertEq(fixture.market.getAccountWithdrawalStatus(OtherLender, expiry).scaledAmount, 0, 'status unchanged');
+      assertEq(fixture.market.getWithdrawalBatch(expiry).scaledTotalAmount, type(uint104).max - 1, 'batch unchanged');
     }
   }
 
   function _setFactor(Fixture memory fixture, uint112 factor) private {
     uint256 packed = uint256(vm.load(address(fixture.market), bytes32(uint256(3))));
     uint256 mask = uint256(type(uint112).max) << 80;
-    vm.store(
-      address(fixture.market),
-      bytes32(uint256(3)),
-      bytes32((packed & ~mask) | (uint256(factor) << 80))
-    );
+    vm.store(address(fixture.market), bytes32(uint256(3)), bytes32((packed & ~mask) | (uint256(factor) << 80)));
   }
 
   function _globalCapacityFixture(
     bool revolving,
     HooksKind kind,
     uint32 repaymentDate
-  ) private returns (CapacityScenario memory scenario) {
+  )
+    private
+    returns (CapacityScenario memory scenario)
+  {
     Options memory options = _defaultOptions(kind);
     options.revolving = revolving;
     options.maxTotalSupply = type(uint128).max;
@@ -226,10 +191,7 @@ contract WithdrawalCountersTest is MarketFixture {
     );
   }
 
-  function _openUnfundedBatch(
-    Fixture memory fixture,
-    uint256 amount
-  ) private returns (uint32 expiry) {
+  function _openUnfundedBatch(Fixture memory fixture, uint256 amount) private returns (uint32 expiry) {
     _deposit(fixture, Lender, amount);
     vm.prank(Borrower);
     fixture.market.borrow(amount);
@@ -242,8 +204,7 @@ contract WithdrawalCountersTest is MarketFixture {
     uint32 unpaidExpiry = _openUnfundedBatch(scenario.fixture, scenario.amount);
     vm.warp(uint256(unpaidExpiry) + 1);
 
-    uint256 headroom =
-      type(uint128).max - scenario.fixture.market.previousState().normalizedUnclaimedWithdrawals;
+    uint256 headroom = type(uint128).max - scenario.fixture.market.previousState().normalizedUnclaimedWithdrawals;
     vm.startPrank(Borrower);
     scenario.fixture.asset.approve(address(scenario.fixture.market), scenario.amount);
     scenario.fixture.market.repayAndProcessUnpaidWithdrawalBatches(scenario.amount, 1);
@@ -255,9 +216,7 @@ contract WithdrawalCountersTest is MarketFixture {
     assertTrue(capped.scaledAmountBurned < capped.scaledTotalAmount, 'remainder stays unpaid');
 
     assertEq(
-      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]),
-      scenario.amount,
-      'old claim exits'
+      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]), scenario.amount, 'old claim exits'
     );
     scenario.fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
 
@@ -265,16 +224,10 @@ contract WithdrawalCountersTest is MarketFixture {
     assertEq(recovered.scaledAmountBurned, type(uint104).max, 'pending batch paid');
     for (uint256 i = 1; i < 4; i++) {
       assertEq(
-        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]),
-        scenario.amount,
-        'old claim pays'
+        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]), scenario.amount, 'old claim pays'
       );
     }
-    assertEq(
-      scenario.fixture.market.executeWithdrawal(Lender, unpaidExpiry),
-      scenario.amount,
-      'new claim pays'
-    );
+    assertEq(scenario.fixture.market.executeWithdrawal(Lender, unpaidExpiry), scenario.amount, 'new claim pays');
     assertEq(scenario.fixture.market.totalAssets(), 0, 'all claims collected');
   }
 
@@ -294,9 +247,7 @@ contract WithdrawalCountersTest is MarketFixture {
     assertTrue(capped.normalizedAmountPaid <= headroom, 'donation cannot overflow aggregate');
     assertTrue(capped.scaledAmountBurned < capped.scaledTotalAmount, 'excess stays pending');
     assertEq(
-      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]),
-      scenario.amount,
-      'old claim exits'
+      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]), scenario.amount, 'old claim exits'
     );
 
     scenario.fixture.market.updateState();
@@ -305,17 +256,11 @@ contract WithdrawalCountersTest is MarketFixture {
     assertEq(recovered.normalizedAmountPaid, scenario.amount, 'current batch fully paid');
     for (uint256 i = 1; i < 4; i++) {
       assertEq(
-        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]),
-        scenario.amount,
-        'old claim pays'
+        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]), scenario.amount, 'old claim pays'
       );
     }
     vm.warp(uint256(currentExpiry) + 1);
-    assertEq(
-      scenario.fixture.market.executeWithdrawal(Lender, currentExpiry),
-      scenario.amount,
-      'new claim pays'
-    );
+    assertEq(scenario.fixture.market.executeWithdrawal(Lender, currentExpiry), scenario.amount, 'new claim pays');
     assertEq(scenario.fixture.market.totalAssets(), 0, 'all claims collected');
   }
 
@@ -327,11 +272,7 @@ contract WithdrawalCountersTest is MarketFixture {
 
   function _checkRepaymentClosureQueuesHeadroomLimitedBatch(bool revolving) private {
     uint32 repaymentDate = uint32(vm.getBlockTimestamp() + 4 days + 12 hours);
-    CapacityScenario memory scenario = _globalCapacityFixture(
-      revolving,
-      HooksKind.OpenTerm,
-      repaymentDate
-    );
+    CapacityScenario memory scenario = _globalCapacityFixture(revolving, HooksKind.OpenTerm, repaymentDate);
     uint32 currentExpiry = _openUnfundedBatch(scenario.fixture, scenario.amount);
     assertTrue(repaymentDate < currentExpiry, 'repayment precedes batch expiry');
 
@@ -342,11 +283,7 @@ contract WithdrawalCountersTest is MarketFixture {
     vm.stopPrank();
 
     assertTrue(scenario.fixture.market.previousState().isClosed, 'fully backed market closes');
-    assertEq(
-      scenario.fixture.market.previousState().pendingWithdrawalExpiry,
-      0,
-      'current key cleared'
-    );
+    assertEq(scenario.fixture.market.previousState().pendingWithdrawalExpiry, 0, 'current key cleared');
     uint32[] memory unpaid = scenario.fixture.market.getUnpaidBatchExpiries();
     assertEq(unpaid.length, 1, 'partial batch remains reachable');
     assertEq(unpaid[0], currentExpiry, 'partial batch queued');
@@ -355,28 +292,16 @@ contract WithdrawalCountersTest is MarketFixture {
     assertTrue(capped.scaledAmountBurned < capped.scaledTotalAmount, 'batch remains partial');
 
     assertEq(
-      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]),
-      scenario.amount,
-      'old claim exits'
+      scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[0]), scenario.amount, 'old claim exits'
     );
     scenario.fixture.market.repayAndProcessUnpaidWithdrawalBatches(0, 1);
-    assertEq(
-      scenario.fixture.market.getUnpaidBatchExpiries().length,
-      0,
-      'partial batch completed'
-    );
+    assertEq(scenario.fixture.market.getUnpaidBatchExpiries().length, 0, 'partial batch completed');
     for (uint256 i = 1; i < 4; i++) {
       assertEq(
-        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]),
-        scenario.amount,
-        'old claim pays'
+        scenario.fixture.market.executeWithdrawal(Lender, scenario.expiries[i]), scenario.amount, 'old claim pays'
       );
     }
-    assertEq(
-      scenario.fixture.market.executeWithdrawal(Lender, currentExpiry),
-      scenario.amount,
-      'new claim pays'
-    );
+    assertEq(scenario.fixture.market.executeWithdrawal(Lender, currentExpiry), scenario.amount, 'new claim pays');
     assertEq(scenario.fixture.market.totalAssets(), 0, 'all claims collected');
   }
 
@@ -386,9 +311,7 @@ contract WithdrawalCountersTest is MarketFixture {
   }
 
   function test_uint104CapKeepsWorstCaseNormalizedPaymentWithinUint128() external pure {
-    uint256 worstCase =
-      (uint256(type(uint104).max) * uint256(type(uint112).max)) /
-      RAY;
+    uint256 worstCase = (uint256(type(uint104).max) * uint256(type(uint112).max)) / RAY;
     assertTrue(worstCase < type(uint128).max);
   }
 }

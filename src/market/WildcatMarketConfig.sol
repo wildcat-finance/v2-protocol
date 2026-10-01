@@ -9,9 +9,9 @@ interface IPeriodicTermAprReductionHooks {
   /// @dev validates the pending proposal against `intermediateState` and consumes it.
   /// @param intermediateState market state after current accrual and batch processing.
   /// @return annualInterestBips exact reduced APR the market should apply, in bips.
-  function executePendingAnnualInterestBipsReduction(
-    MarketState calldata intermediateState
-  ) external returns (uint16 annualInterestBips);
+  function executePendingAnnualInterestBipsReduction(MarketState calldata intermediateState)
+    external
+    returns (uint16 annualInterestBips);
 }
 
 /// @notice market configuration, sanctions quarantine, and term-change entry points.
@@ -26,9 +26,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /// @notice returns whether the market has been permanently closed.
   function isClosed() external view returns (bool) {
     // scheduled completion can close the market between writes. no hook call is needed here.
-    return
-      _state.isClosed ||
-      (_isInRepayment() && _calculateCurrentStatePointers.asReturnsMarketState()().isClosed);
+    return _state.isClosed || (_isInRepayment() && _calculateCurrentStatePointers.asReturnsMarketState()().isClosed);
   }
 
   /// @notice returns the most underlying assets a deposit can currently add.
@@ -114,9 +112,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
   /// @dev only the borrower can call. the hook may accept or revert but can't rewrite the value.
   ///      this does not cap interest growth or force existing supply down.
   /// @param _maxTotalSupply new normalized deposit cap.
-  function setMaxTotalSupply(
-    uint256 _maxTotalSupply
-  ) external onlyBorrower nonReentrant sphereXGuardExternal {
+  function setMaxTotalSupply(uint256 _maxTotalSupply) external onlyBorrower nonReentrant sphereXGuardExternal {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_CapacityChangeOnClosedMarket();
 
@@ -134,7 +130,9 @@ contract WildcatMarketConfig is WildcatMarketBase {
     uint16 _annualInterestBips,
     uint16 _reserveRatioBips,
     uint256 initialReserveRatioBips
-  ) internal {
+  )
+    internal
+  {
     uint256 previousAnnualInterestBips = state.annualInterestBips;
     uint256 previousReserveRatioBips = state.reserveRatioBips;
     if (_annualInterestBips > BIP) {
@@ -162,11 +160,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
 
     _writeState(state, currentTotalAssets);
     emit_AnnualInterestAndReserveRatioBipsUpdated(
-      msg.sender,
-      previousAnnualInterestBips,
-      _annualInterestBips,
-      previousReserveRatioBips,
-      _reserveRatioBips
+      msg.sender, previousAnnualInterestBips, _annualInterestBips, previousReserveRatioBips, _reserveRatioBips
     );
   }
 
@@ -179,24 +173,21 @@ contract WildcatMarketConfig is WildcatMarketBase {
   function setAnnualInterestAndReserveRatioBips(
     uint16 _annualInterestBips,
     uint16 _reserveRatioBips
-  ) external onlyBorrower nonReentrant sphereXGuardExternal {
+  )
+    external
+    onlyBorrower
+    nonReentrant
+    sphereXGuardExternal
+  {
     MarketState memory state = _getUpdatedState();
     if (state.isClosed) revert_AprChangeOnClosedMarket();
 
     uint256 initialReserveRatioBips = state.reserveRatioBips;
 
-    (_annualInterestBips, _reserveRatioBips) = hooks.onSetAnnualInterestAndReserveRatioBips(
-      _annualInterestBips,
-      _reserveRatioBips,
-      state
-    );
+    (_annualInterestBips, _reserveRatioBips) =
+      hooks.onSetAnnualInterestAndReserveRatioBips(_annualInterestBips, _reserveRatioBips, state);
 
-    _applyAnnualInterestAndReserveRatioBips(
-      state,
-      _annualInterestBips,
-      _reserveRatioBips,
-      initialReserveRatioBips
-    );
+    _applyAnnualInterestAndReserveRatioBips(state, _annualInterestBips, _reserveRatioBips, initialReserveRatioBips);
   }
 
   /// @notice permissionlessly applies an executable periodic-term APR reduction.
@@ -210,8 +201,8 @@ contract WildcatMarketConfig is WildcatMarketBase {
     }
 
     uint16 currentAnnualInterestBips = state.annualInterestBips;
-    uint16 _annualInterestBips = IPeriodicTermAprReductionHooks(hooks.hooksAddress())
-      .executePendingAnnualInterestBipsReduction(state);
+    uint16 _annualInterestBips =
+      IPeriodicTermAprReductionHooks(hooks.hooksAddress()).executePendingAnnualInterestBipsReduction(state);
 
     if (_annualInterestBips >= currentAnnualInterestBips) {
       revert_AprReductionNotReduction();
@@ -219,10 +210,7 @@ contract WildcatMarketConfig is WildcatMarketBase {
 
     uint16 currentReserveRatioBips = state.reserveRatioBips;
     _applyAnnualInterestAndReserveRatioBips(
-      state,
-      _annualInterestBips,
-      currentReserveRatioBips,
-      currentReserveRatioBips
+      state, _annualInterestBips, currentReserveRatioBips, currentReserveRatioBips
     );
   }
 

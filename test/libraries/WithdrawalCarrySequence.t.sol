@@ -26,9 +26,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
   function setUp() external {
     Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
     harness = WithdrawalPaymentHarness(
-      fixture.factory.deployMarket(
-        vm.getCode('test/mocks/WithdrawalPaymentHarness.sol:WithdrawalPaymentHarness')
-      )
+      fixture.factory.deployMarket(vm.getCode('test/mocks/WithdrawalPaymentHarness.sol:WithdrawalPaymentHarness'))
     );
   }
 
@@ -37,7 +35,11 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
     WithdrawalBatch memory batch,
     uint112 factor,
     uint256 available
-  ) private pure returns (uint256 low) {
+  )
+    private
+    pure
+    returns (uint256 low)
+  {
     uint256 high = batch.scaledTotalAmount - batch.scaledAmountBurned;
     while (low < high) {
       uint256 middle = low + (high - low + 1) / 2;
@@ -53,11 +55,8 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
       fractions += s.batches[i].paymentRemainder;
       funded += s.batches[i].normalizedAmountPaid;
     }
-    return
-      (uint256(s.state.scaledTotalSupply) * s.state.scaleFactor + fractions + RAY / 2) /
-      RAY +
-      funded +
-      s.state.accruedProtocolFees;
+    return (uint256(s.state.scaledTotalSupply) * s.state.scaleFactor + fractions + RAY / 2) / RAY + funded
+      + s.state.accruedProtocolFees;
   }
 
   function _assertLedger(Sequence memory s) private pure {
@@ -69,10 +68,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
       WithdrawalBatch memory batch = s.batches[i];
       assertTrue(batch.paymentRemainder < RAY, 'batch fraction bound');
       assertEq(
-        uint256(batch.normalizedAmountPaid) *
-          RAY +
-          batch.paymentRemainder +
-          s.releasedNumerators[i],
+        uint256(batch.normalizedAmountPaid) * RAY + batch.paymentRemainder + s.releasedNumerators[i],
         s.burnedNumerators[i],
         'exact lifetime numerator ledger'
       );
@@ -97,11 +93,9 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
     uint256 beforeDebt = _debts(s);
     uint256 beforeReserves = s.state.liquidityRequired();
     uint256 expectedBurn = _affordable(s.batches[index], s.state.scaleFactor, available);
-    uint256 expectedPrice = (expectedBurn *
-      s.state.scaleFactor +
-      s.batches[index].paymentRemainder) / RAY;
-    (WithdrawalBatch memory batch, MarketState memory state, uint104 burned, uint128 paid) = harness
-      .applyPayment(s.batches[index], s.state, available);
+    uint256 expectedPrice = (expectedBurn * s.state.scaleFactor + s.batches[index].paymentRemainder) / RAY;
+    (WithdrawalBatch memory batch, MarketState memory state, uint104 burned, uint128 paid) =
+      harness.applyPayment(s.batches[index], s.state, available);
     assertEq(burned, expectedBurn, 'independent maximal burn');
     assertEq(paid, expectedPrice, 'exact price');
     s.burnedNumerators[index] += uint256(burned) * s.state.scaleFactor;
@@ -116,10 +110,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
     uint256 beforeDebt = _debts(s);
     uint256 beforeReserves = s.state.liquidityRequired();
     uint128 oldRemainder = s.batches[index].paymentRemainder;
-    (WithdrawalBatch memory batch, MarketState memory state) = harness.release(
-      s.batches[index],
-      s.state
-    );
+    (WithdrawalBatch memory batch, MarketState memory state) = harness.release(s.batches[index], s.state);
     s.releasedNumerators[index] += oldRemainder - batch.paymentRemainder;
     s.batches[index] = batch;
     s.state = state;
@@ -141,10 +132,8 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
       priorShares += s.batches[i].scaledTotalAmount - s.batches[i].scaledAmountBurned;
       priorFractions += s.batches[i].paymentRemainder;
     }
-    uint256 protected = s.state.normalizedUnclaimedWithdrawals +
-      s.state.accruedProtocolFees +
-      (priorShares * s.state.scaleFactor + priorFractions + RAY / 2) /
-      RAY;
+    uint256 protected = s.state.normalizedUnclaimedWithdrawals + s.state.accruedProtocolFees
+      + (priorShares * s.state.scaleFactor + priorFractions + RAY / 2) / RAY;
     uint256 expected = s.cash > protected ? s.cash - protected : 0;
     actual = harness.pendingLiquidity(s.batches[2], s.state, s.cash);
     assertEq(actual, expected, 'pending batch must protect the independent prior ledger');
@@ -177,9 +166,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
       if (action == 0) {
         s.cash += 1 + ((seed >> 8) % 17);
       } else if (action == 1) {
-        uint256 beforeNumerator = uint256(s.state.scaledTotalSupply) *
-          s.state.scaleFactor +
-          s.state.withdrawalRemainder;
+        uint256 beforeNumerator = uint256(s.state.scaledTotalSupply) * s.state.scaleFactor + s.state.withdrawalRemainder;
         uint112 increase = uint112(1 + ((seed >> 8) % (RAY / 20)));
         uint128 beforeFraction = s.state.withdrawalRemainder;
         s.state.scaleFactor += increase;
@@ -196,9 +183,7 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
         // The current batch can grow again even if fully paid: do not release it.
       } else {
         uint256 index = s.finalized[0] ? 1 : 0;
-        uint256 available = s.cash -
-          s.state.normalizedUnclaimedWithdrawals -
-          s.state.accruedProtocolFees;
+        uint256 available = s.cash - s.state.normalizedUnclaimedWithdrawals - s.state.accruedProtocolFees;
         _pay(s, index, available);
         _release(s, index);
       }
@@ -222,7 +207,9 @@ contract WithdrawalCarrySequenceTest is MarketFixture {
     assertEq(s.state.scaledTotalSupply, 0);
     assertEq(s.state.scaledPendingWithdrawals, 0);
     assertEq(s.state.withdrawalRemainder, 0);
-    for (uint256 i; i < 3; ++i) assertTrue(s.finalized[i]);
+    for (uint256 i; i < 3; ++i) {
+      assertTrue(s.finalized[i]);
+    }
     assertTrue(s.cash >= _debts(s), 'closed claims and fees fully backed');
   }
 

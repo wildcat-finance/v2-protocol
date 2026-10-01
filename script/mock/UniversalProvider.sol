@@ -10,10 +10,7 @@ contract UniversalProvider is IRoleProvider {
     return uint32(block.timestamp);
   }
 
-  function validateCredential(
-    address,
-    bytes calldata
-  ) external view override returns (uint32 timestamp) {
+  function validateCredential(address, bytes calldata) external view override returns (uint32 timestamp) {
     return uint32(block.timestamp);
   }
 }

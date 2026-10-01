@@ -28,10 +28,7 @@ contract HooksConfigTarget is IHooks {
     return encodeHooksDeploymentConfig(EmptyHooksConfig, EmptyHooksConfig);
   }
 
-  function setAnnualInterestAndReserveRatioBips(
-    uint16 annualInterestBips,
-    uint16 reserveRatioBips
-  ) external {
+  function setAnnualInterestAndReserveRatioBips(uint16 annualInterestBips, uint16 reserveRatioBips) external {
     annualInterestBipsToReturn = annualInterestBips;
     reserveRatioBipsToReturn = reserveRatioBips;
   }
@@ -45,7 +42,12 @@ contract HooksConfigTarget is IHooks {
     address,
     DeployMarketInputs calldata parameters,
     bytes calldata
-  ) internal pure override returns (HooksConfig) {
+  )
+    internal
+    pure
+    override
+    returns (HooksConfig)
+  {
     return parameters.hooks;
   }
 
@@ -58,34 +60,15 @@ contract HooksConfigTarget is IHooks {
     _recordCall();
   }
 
-  function onQueueWithdrawal(
-    address,
-    uint32,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {
+  function onQueueWithdrawal(address, uint32, uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
-  function onExecuteWithdrawal(
-    address,
-    uint32,
-    uint128,
-    MarketState calldata,
-    bytes calldata
-  ) external override {
+  function onExecuteWithdrawal(address, uint32, uint128, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
-  function onTransfer(
-    address,
-    address,
-    address,
-    uint256,
-    MarketState calldata,
-    bytes calldata
-  ) external override {
+  function onTransfer(address, address, address, uint256, MarketState calldata, bytes calldata) external override {
     _recordCall();
   }
 
@@ -114,7 +97,11 @@ contract HooksConfigTarget is IHooks {
     uint16,
     MarketState calldata,
     bytes calldata
-  ) external override returns (uint16, uint16) {
+  )
+    external
+    override
+    returns (uint16, uint16)
+  {
     _recordCall();
     return (annualInterestBipsToReturn, reserveRatioBipsToReturn);
   }
@@ -125,5 +112,5 @@ contract HooksConfigTarget is IHooks {
 }
 
 contract HooksConfigShortReturnTarget {
-  fallback() external {}
+  fallback() external { }
 }

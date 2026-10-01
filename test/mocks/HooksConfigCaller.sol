@@ -26,11 +26,7 @@ contract HooksConfigCaller {
     hooks.onQueueWithdrawal(msg.sender, expiry, scaledAmount, state, 0x44);
   }
 
-  function executeWithdrawal(
-    address lender,
-    uint32 expiry,
-    uint128 normalizedAmountWithdrawn
-  ) external {
+  function executeWithdrawal(address lender, uint32 expiry, uint128 normalizedAmountWithdrawn) external {
     hooks.onExecuteWithdrawal(lender, expiry, normalizedAmountWithdrawn, state, 0x64);
   }
 
@@ -61,9 +57,11 @@ contract HooksConfigCaller {
   function setAnnualInterestAndReserveRatioBips(
     uint16 annualInterestBips,
     uint16 reserveRatioBips
-  ) external returns (uint16, uint16) {
-    return
-      hooks.onSetAnnualInterestAndReserveRatioBips(annualInterestBips, reserveRatioBips, state);
+  )
+    external
+    returns (uint16, uint16)
+  {
+    return hooks.onSetAnnualInterestAndReserveRatioBips(annualInterestBips, reserveRatioBips, state);
   }
 
   function setProtocolFeeBips(uint16 protocolFeeBips) external {

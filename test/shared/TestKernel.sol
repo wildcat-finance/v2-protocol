@@ -19,10 +19,7 @@ abstract contract TestKernel {
     return _deployCode(artifact, '');
   }
 
-  function _deployCode(
-    string memory artifact,
-    bytes memory constructorArguments
-  ) internal returns (address deployed) {
+  function _deployCode(string memory artifact, bytes memory constructorArguments) internal returns (address deployed) {
     bytes memory creationCode = abi.encodePacked(vm.getCode(artifact), constructorArguments);
     assembly ('memory-safe') {
       deployed := create(0, add(creationCode, 0x20), mload(creationCode))

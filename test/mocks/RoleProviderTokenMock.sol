@@ -36,20 +36,16 @@ contract RoleProviderTokenMock {
     bool supportsERC165_,
     bool invalidERC165,
     bool revertSupportsInterface
-  ) external {
+  )
+    external
+  {
     _supportedStandards = supportedStandards;
     _supportsERC165 = supportsERC165_;
     _invalidERC165 = invalidERC165;
     _revertSupportsInterface = revertSupportsInterface;
   }
 
-  function setReadReverts(
-    bool balance,
-    bool conversion,
-    bool owner,
-    bool isLocked,
-    bool authorization
-  ) external {
+  function setReadReverts(bool balance, bool conversion, bool owner, bool isLocked, bool authorization) external {
     _revertBalance = balance;
     _revertConversion = conversion;
     _revertOwner = owner;

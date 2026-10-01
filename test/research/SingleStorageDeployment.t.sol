@@ -13,9 +13,7 @@ abstract contract SingleStorageDeploymentFixture is ProductionMatrixFixture {
 
   uint256 internal _storageContracts;
 
-  function _storeInitCode(
-    string memory artifact
-  ) internal override returns (address store, uint256 codeHash) {
+  function _storeInitCode(string memory artifact) internal override returns (address store, uint256 codeHash) {
     bytes memory initCode = vm.getCode(artifact);
     uint64 nonce = vm.getNonce(address(this));
     store = LibCompressedInitCode.deployInitCode(initCode);
@@ -36,12 +34,7 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
     assertEq(_storageContracts, 5, 'two markets and three templates');
     for (uint256 model; model < 2; ++model) {
       for (uint256 policy; policy < 3; ++policy) {
-        _exerciseCell(
-          stack,
-          MatrixMarketKind(model),
-          MatrixHooksKind(policy),
-          uint96(1 + model * 3 + policy)
-        );
+        _exerciseCell(stack, MatrixMarketKind(model), MatrixHooksKind(policy), uint96(1 + model * 3 + policy));
       }
     }
     assertEq(_storageContracts, 5, 'all deployments reuse the five single stores');
@@ -57,31 +50,12 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
     for (uint256 feature; feature < artifacts.length; ++feature) {
       (address store, uint256 initCodeHash) = _storeInitCode(artifacts[feature]);
       stack.hooksTemplates[uint256(MatrixHooksKind.PeriodicTerm)] = store;
-      stack.standardFactory.addHooksTemplate(
-        store,
-        'Periodic feature',
-        address(0),
-        address(0),
-        0,
-        0,
-        bytes32(initCodeHash)
-      );
-      stack.revolvingFactory.addHooksTemplate(
-        store,
-        'Periodic feature',
-        address(0),
-        address(0),
-        0,
-        0,
-        bytes32(initCodeHash)
-      );
+      stack.standardFactory
+        .addHooksTemplate(store, 'Periodic feature', address(0), address(0), 0, 0, bytes32(initCodeHash));
+      stack.revolvingFactory
+        .addHooksTemplate(store, 'Periodic feature', address(0), address(0), 0, 0, bytes32(initCodeHash));
       for (uint256 model; model < 2; ++model) {
-        _exerciseCell(
-          stack,
-          MatrixMarketKind(model),
-          MatrixHooksKind.PeriodicTerm,
-          uint96(10 + feature * 2 + model)
-        );
+        _exerciseCell(stack, MatrixMarketKind(model), MatrixHooksKind.PeriodicTerm, uint96(10 + feature * 2 + model));
       }
     }
     assertEq(_storageContracts, 8, 'five production stores plus one per composition');
@@ -92,20 +66,14 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
     MatrixMarketKind model,
     MatrixHooksKind policy,
     uint96 nonce
-  ) internal {
+  )
+    internal
+  {
     MatrixOptions memory options = _defaultMatrixOptions(policy, model);
     options.repaymentDate = uint32(vm.getBlockTimestamp() + 90 days);
     options.repaymentPeriod = 7 days;
-    address expected = _factoryFor(stack, model).computeMarketAddress(
-      _marketSalt(MatrixBorrower, nonce)
-    );
-    MatrixCell memory cell = _deployMatrixCell(
-      stack,
-      options,
-      MatrixBorrower,
-      MatrixBorrower,
-      nonce
-    );
+    address expected = _factoryFor(stack, model).computeMarketAddress(_marketSalt(MatrixBorrower, nonce));
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
     assertEq(address(cell.market), expected, 'CREATE2 uses the original initcode hash');
     assertTrue(address(cell.market).code.length <= 24_576, 'market runtime fits');
     assertTrue(address(cell.hooks).code.length <= 24_576, 'hook runtime fits');

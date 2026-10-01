@@ -48,9 +48,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     _;
   }
 
-  function addAccountFactory(
-    address accountFactory
-  ) external override onlyArchControllerOwner {
+  function addAccountFactory(address accountFactory) external override onlyArchControllerOwner {
     if (accountFactory == address(0) || accountFactory.code.length == 0) {
       revert InvalidAccountFactory();
     }
@@ -60,9 +58,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     emit AccountFactoryAdded(msg.sender, accountFactory);
   }
 
-  function removeAccountFactory(
-    address accountFactory
-  ) external override onlyArchControllerOwner {
+  function removeAccountFactory(address accountFactory) external override onlyArchControllerOwner {
     if (!_accountFactories.remove(accountFactory)) {
       revert AccountFactoryDoesNotExist();
     }
@@ -77,10 +73,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     return _accountFactories.values();
   }
 
-  function getAccountFactories(
-    uint256 start,
-    uint256 end
-  ) external view override returns (address[] memory arr) {
+  function getAccountFactories(uint256 start, uint256 end) external view override returns (address[] memory arr) {
     if (start > end) revert InvalidPaginationRange();
     uint256 length = _accountFactories.length();
     if (end > length) end = length;
@@ -96,10 +89,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     return _accountFactories.length();
   }
 
-  function registerBorrowerAccount(
-    address account,
-    address principal
-  ) external override onlyAccountFactory {
+  function registerBorrowerAccount(address account, address principal) external override onlyAccountFactory {
     if (principal == address(0)) revert BorrowerPrincipalNotRegistered();
     if (account == address(0) || account == principal || account.code.length == 0) {
       revert InvalidBorrowerAccount();
@@ -123,22 +113,14 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     emit BorrowerAccountRegistered(account, principal, msg.sender);
   }
 
-  function requestBorrowerAccountPrincipalTransfer(
-    address account,
-    address newPrincipal
-  ) external override {
+  function requestBorrowerAccountPrincipalTransfer(address account, address newPrincipal) external override {
     address currentPrincipal = _getAccountPrincipal(account);
     if (msg.sender != currentPrincipal) revert CallerNotBorrowerAccountPrincipal();
     _validatePrincipalTransferTarget(account, currentPrincipal, newPrincipal);
 
     address previousPendingPrincipal = pendingPrincipalOf[account];
     pendingPrincipalOf[account] = newPrincipal;
-    emit BorrowerAccountPrincipalTransferRequested(
-      account,
-      currentPrincipal,
-      previousPendingPrincipal,
-      newPrincipal
-    );
+    emit BorrowerAccountPrincipalTransferRequested(account, currentPrincipal, previousPendingPrincipal, newPrincipal);
   }
 
   function cancelBorrowerAccountPrincipalTransfer(address account) external override {
@@ -150,11 +132,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
       revert NoPendingBorrowerAccountPrincipalTransfer();
     }
     delete pendingPrincipalOf[account];
-    emit BorrowerAccountPrincipalTransferCancelled(
-      account,
-      currentPrincipal,
-      cancelledPendingPrincipal
-    );
+    emit BorrowerAccountPrincipalTransferCancelled(account, currentPrincipal, cancelledPendingPrincipal);
   }
 
   function acceptBorrowerAccountPrincipalTransfer(address account) external override {
@@ -187,9 +165,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     }
   }
 
-  function getBorrowerAccounts(
-    address principal
-  ) external view override returns (address[] memory) {
+  function getBorrowerAccounts(address principal) external view override returns (address[] memory) {
     return _borrowerAccounts[principal].values();
   }
 
@@ -197,7 +173,12 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     address principal,
     uint256 start,
     uint256 end
-  ) external view override returns (address[] memory) {
+  )
+    external
+    view
+    override
+    returns (address[] memory)
+  {
     return _getAddressSetSlice(_borrowerAccounts[principal], start, end);
   }
 
@@ -205,9 +186,7 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     return _borrowerAccounts[principal].length();
   }
 
-  function getBorrowerAccountsForFactory(
-    address accountFactory
-  ) external view override returns (address[] memory) {
+  function getBorrowerAccountsForFactory(address accountFactory) external view override returns (address[] memory) {
     return _borrowerAccountsForFactory[accountFactory];
   }
 
@@ -215,13 +194,16 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     address accountFactory,
     uint256 start,
     uint256 end
-  ) external view override returns (address[] memory) {
+  )
+    external
+    view
+    override
+    returns (address[] memory)
+  {
     return _getAddressSlice(_borrowerAccountsForFactory[accountFactory], start, end);
   }
 
-  function getBorrowerAccountsForFactoryCount(
-    address accountFactory
-  ) external view override returns (uint256) {
+  function getBorrowerAccountsForFactoryCount(address accountFactory) external view override returns (uint256) {
     return _borrowerAccountsForFactory[accountFactory].length;
   }
 
@@ -229,7 +211,11 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     address[] storage values,
     uint256 start,
     uint256 end
-  ) internal view returns (address[] memory arr) {
+  )
+    internal
+    view
+    returns (address[] memory arr)
+  {
     if (start > end) revert InvalidPaginationRange();
     uint256 length = values.length;
     if (end > length) end = length;
@@ -250,12 +236,11 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     address account,
     address currentPrincipal,
     address newPrincipal
-  ) internal view {
-    if (
-      newPrincipal == address(0) ||
-      newPrincipal == account ||
-      newPrincipal == currentPrincipal
-    ) {
+  )
+    internal
+    view
+  {
+    if (newPrincipal == address(0) || newPrincipal == account || newPrincipal == currentPrincipal) {
       revert InvalidBorrowerAccountPrincipalTransferTarget();
     }
 
@@ -321,7 +306,11 @@ contract WildcatBorrowerIdentityRegistry is IBorrowerIdentityRegistry {
     EnumerableSet.AddressSet storage values,
     uint256 start,
     uint256 end
-  ) internal view returns (address[] memory arr) {
+  )
+    internal
+    view
+    returns (address[] memory arr)
+  {
     if (start > end) revert InvalidPaginationRange();
     uint256 length = values.length();
     if (end > length) end = length;

@@ -64,10 +64,7 @@ contract WildcatMarketTest is MarketFixture {
     return _newMarket(_withdrawalOptions(kind));
   }
 
-  function _newConfigMarket()
-    private
-    returns (Fixture memory fixture, MarketConfigHooks configHooks)
-  {
+  function _newConfigMarket() private returns (Fixture memory fixture, MarketConfigHooks configHooks) {
     configHooks = MarketConfigHooks(_deployCode('test/mocks/MarketMocks.sol:MarketConfigHooks'));
     fixture = _newMarket(_defaultOptions(HooksKind.OpenTerm), IHooks(address(configHooks)));
   }
@@ -76,7 +73,11 @@ contract WildcatMarketTest is MarketFixture {
     uint16 commitmentFeeBips,
     uint16 annualInterestBips,
     uint16 protocolFeeBips
-  ) private pure returns (Options memory options) {
+  )
+    private
+    pure
+    returns (Options memory options)
+  {
     options = _defaultRevolvingOptions(HooksKind.OpenTerm);
     options.commitmentFeeBips = commitmentFeeBips;
     options.annualInterestBips = annualInterestBips;
@@ -94,19 +95,13 @@ contract WildcatMarketTest is MarketFixture {
   }
 
   function _accruedDebtAboveDrawn(Fixture memory fixture) private view returns (uint256) {
-    return
-      fixture.market.totalDebts() -
-      fixture.market.totalAssets() -
-      _revolving(fixture).drawnAmount();
+    return fixture.market.totalDebts() - fixture.market.totalAssets() - _revolving(fixture).drawnAmount();
   }
 
   function _assertNoDrawnAmountUpdate(Vm.Log[] memory logs) private pure {
     bytes32 eventSignature = keccak256('DrawnAmountUpdated(uint256,uint256)');
     for (uint256 i; i < logs.length; i++) {
-      assertFalse(
-        logs[i].topics.length > 0 && logs[i].topics[0] == eventSignature,
-        'unexpected drawn amount update'
-      );
+      assertFalse(logs[i].topics.length > 0 && logs[i].topics[0] == eventSignature, 'unexpected drawn amount update');
     }
   }
 
@@ -115,37 +110,29 @@ contract WildcatMarketTest is MarketFixture {
     uint256 drawn,
     uint16 annualInterestBips,
     uint32 elapsed
-  ) private pure returns (uint256) {
-    return
-      MathUtils.mulDiv(
-        MathUtils.calculateLinearInterestFromBips(annualInterestBips, elapsed),
-        drawn,
-        totalSupply
-      );
+  )
+    private
+    pure
+    returns (uint256)
+  {
+    return MathUtils.mulDiv(MathUtils.calculateLinearInterestFromBips(annualInterestBips, elapsed), drawn, totalSupply);
   }
 
   function _minimumDrawForInterest(
     uint256 totalSupply,
     uint16 annualInterestBips,
     uint32 elapsed
-  ) private pure returns (uint256) {
-    uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(
-      annualInterestBips,
-      elapsed
-    );
+  )
+    private
+    pure
+    returns (uint256)
+  {
+    uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(annualInterestBips, elapsed);
     return totalSupply / annualInterestRay + 1;
   }
 
-  function _assertObservedRevolvingDust(
-    uint128 totalSupply,
-    uint16 annualInterestBips,
-    uint32 elapsed
-  ) private {
-    assertEq(
-      _minimumDrawForInterest(totalSupply, annualInterestBips, elapsed),
-      1,
-      'observed minimum draw'
-    );
+  function _assertObservedRevolvingDust(uint128 totalSupply, uint16 annualInterestBips, uint32 elapsed) private {
+    assertEq(_minimumDrawForInterest(totalSupply, annualInterestBips, elapsed), 1, 'observed minimum draw');
     uint256 expectedInterest = _utilizationInterestRay(totalSupply, 1, annualInterestBips, elapsed);
     assertTrue(expectedInterest > 0, 'observed utilization interest');
 
@@ -160,24 +147,14 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(fixture.market.scaleFactor(), RAY + expectedInterest, 'observed dust accrual');
   }
 
-  function _assertRevolvingDustBoundary(
-    uint128 totalSupply,
-    uint16 annualInterestBips,
-    uint32 elapsed
-  ) private {
+  function _assertRevolvingDustBoundary(uint128 totalSupply, uint16 annualInterestBips, uint32 elapsed) private {
     uint256 minimumDraw = _minimumDrawForInterest(totalSupply, annualInterestBips, elapsed);
     assertTrue(minimumDraw > 1, 'stress minimum draw');
     assertTrue(minimumDraw < totalSupply, 'stress borrowable threshold');
     assertEq(
-      _utilizationInterestRay(totalSupply, minimumDraw - 1, annualInterestBips, elapsed),
-      0,
-      'below-threshold interest'
+      _utilizationInterestRay(totalSupply, minimumDraw - 1, annualInterestBips, elapsed), 0, 'below-threshold interest'
     );
-    assertEq(
-      _utilizationInterestRay(totalSupply, minimumDraw, annualInterestBips, elapsed),
-      1,
-      'boundary interest'
-    );
+    assertEq(_utilizationInterestRay(totalSupply, minimumDraw, annualInterestBips, elapsed), 1, 'boundary interest');
 
     Options memory options = _revolvingOptions(0, annualInterestBips, 0);
     options.maxTotalSupply = totalSupply;
@@ -202,11 +179,7 @@ contract WildcatMarketTest is MarketFixture {
     _deposit(fixture, account, amount);
   }
 
-  function _assertSupplyAndBalance(
-    Fixture memory fixture,
-    address account,
-    uint256 expected
-  ) private view {
+  function _assertSupplyAndBalance(Fixture memory fixture, address account, uint256 expected) private view {
     assertEq(fixture.market.totalSupply(), expected, 'total supply');
     assertEq(fixture.market.balanceOf(account), expected, 'account balance');
   }
@@ -232,9 +205,8 @@ contract WildcatMarketTest is MarketFixture {
   }
 
   function _temporaryReserveRatioHash(Fixture memory fixture) private view returns (bytes32) {
-    (uint16 originalApr, uint16 originalReserveRatio, uint32 expiry) = MarketConstraintHooks(
-      address(fixture.hooks)
-    ).temporaryExcessReserveRatio(address(fixture.market));
+    (uint16 originalApr, uint16 originalReserveRatio, uint32 expiry) =
+      MarketConstraintHooks(address(fixture.hooks)).temporaryExcessReserveRatio(address(fixture.market));
     return keccak256(abi.encode(originalApr, originalReserveRatio, expiry));
   }
 
@@ -249,17 +221,17 @@ contract WildcatMarketTest is MarketFixture {
     uint256 scaledTotal,
     uint256 scaledBurned,
     uint256 normalizedPaid
-  ) private view {
+  )
+    private
+    view
+  {
     WithdrawalBatch memory batch = fixture.market.getWithdrawalBatch(expiry);
     assertEq(batch.scaledTotalAmount, scaledTotal, 'batch scaled total');
     assertEq(batch.scaledAmountBurned, scaledBurned, 'batch scaled burn');
     assertEq(batch.normalizedAmountPaid, normalizedPaid, 'batch normalized payment');
   }
 
-  function _makeUnpaidBatch(
-    Fixture memory fixture,
-    address lender
-  ) private returns (uint32 expiry) {
+  function _makeUnpaidBatch(Fixture memory fixture, address lender) private returns (uint32 expiry) {
     _deposit(fixture, lender, 1e18);
     _borrow(fixture, 8e17);
     vm.prank(lender);
@@ -272,7 +244,10 @@ contract WildcatMarketTest is MarketFixture {
   function _makeTwoUnpaidBatches(
     Fixture memory fixture,
     address lender
-  ) private returns (uint32 firstExpiry, uint32 secondExpiry) {
+  )
+    private
+    returns (uint32 firstExpiry, uint32 secondExpiry)
+  {
     _deposit(fixture, lender, 2e18);
     _borrow(fixture, 16e17);
     vm.prank(lender);
@@ -360,10 +335,7 @@ contract WildcatMarketTest is MarketFixture {
   function _assertNoWithdrawalPayment(Vm.Log[] memory logs) private pure {
     bytes32 paymentSignature = keccak256('WithdrawalBatchPayment(uint256,uint256,uint256)');
     for (uint256 i; i < logs.length; i++) {
-      assertFalse(
-        logs[i].topics.length > 0 && logs[i].topics[0] == paymentSignature,
-        'unexpected withdrawal payment'
-      );
+      assertFalse(logs[i].topics.length > 0 && logs[i].topics[0] == paymentSignature, 'unexpected withdrawal payment');
     }
   }
 
@@ -376,10 +348,7 @@ contract WildcatMarketTest is MarketFixture {
     topics[0] = signature;
   }
 
-  function _twoTopics(
-    bytes32 signature,
-    bytes32 indexedValue
-  ) private pure returns (bytes32[] memory topics) {
+  function _twoTopics(bytes32 signature, bytes32 indexedValue) private pure returns (bytes32[] memory topics) {
     topics = new bytes32[](2);
     topics[0] = signature;
     topics[1] = indexedValue;
@@ -389,7 +358,11 @@ contract WildcatMarketTest is MarketFixture {
     bytes32 signature,
     bytes32 firstIndexedValue,
     bytes32 secondIndexedValue
-  ) private pure returns (bytes32[] memory topics) {
+  )
+    private
+    pure
+    returns (bytes32[] memory topics)
+  {
     topics = new bytes32[](3);
     topics[0] = signature;
     topics[1] = firstIndexedValue;
@@ -402,15 +375,17 @@ contract WildcatMarketTest is MarketFixture {
     bytes32[] memory expectedTopics,
     bytes memory expectedData,
     string memory message
-  ) private pure {
+  )
+    private
+    pure
+  {
     bytes32 topicsHash = keccak256(abi.encode(expectedTopics));
     bytes32 dataHash = keccak256(expectedData);
     uint256 matches;
     for (uint256 i; i < logs.length; i++) {
       if (
-        logs[i].emitter == emitter &&
-        keccak256(abi.encode(logs[i].topics)) == topicsHash &&
-        keccak256(logs[i].data) == dataHash
+        logs[i].emitter == emitter && keccak256(abi.encode(logs[i].topics)) == topicsHash
+          && keccak256(logs[i].data) == dataHash
       ) {
         matches++;
       }
@@ -418,9 +393,7 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(matches, 1, message);
   }
 
-  function _expectedInitialState(
-    Options memory options
-  ) private view returns (MarketState memory state) {
+  function _expectedInitialState(Options memory options) private view returns (MarketState memory state) {
     state.maxTotalSupply = options.maxTotalSupply;
     state.protocolFeeBips = options.protocolFeeBips;
     state.annualInterestBips = options.annualInterestBips;
@@ -429,18 +402,11 @@ contract WildcatMarketTest is MarketFixture {
     state.lastInterestAccruedTimestamp = uint32(vm.getBlockTimestamp());
   }
 
-  function _assertConstructorConfiguration(
-    Fixture memory fixture,
-    Options memory options
-  ) private view {
+  function _assertConstructorConfiguration(Fixture memory fixture, Options memory options) private view {
     assertEq(fixture.market.asset(), address(fixture.asset), 'asset');
     assertEq(fixture.market.borrower(), Borrower, 'borrower');
     assertEq(fixture.market.borrowerPrincipal(), Borrower, 'borrower principal');
-    assertEq(
-      fixture.market.borrowerIdentityRegistry(),
-      address(fixture.registry),
-      'borrower registry'
-    );
+    assertEq(fixture.market.borrowerIdentityRegistry(), address(fixture.registry), 'borrower registry');
     assertEq(fixture.market.archController(), address(fixture.archController), 'arch controller');
     assertEq(fixture.market.factory(), address(fixture.factory), 'factory');
     assertEq(fixture.market.feeRecipient(), FeeRecipient, 'fee recipient');
@@ -448,16 +414,8 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(fixture.market.wrapperFactory(), WrapperFactory, 'wrapper factory');
     assertEq(fixture.market.maxTotalSupply(), options.maxTotalSupply, 'maximum supply');
     assertEq(fixture.market.delinquencyFeeBips(), options.delinquencyFeeBips, 'delinquency fee');
-    assertEq(
-      fixture.market.withdrawalBatchDuration(),
-      options.withdrawalBatchDuration,
-      'withdrawal duration'
-    );
-    assertEq(
-      fixture.market.delinquencyGracePeriod(),
-      options.delinquencyGracePeriod,
-      'delinquency grace period'
-    );
+    assertEq(fixture.market.withdrawalBatchDuration(), options.withdrawalBatchDuration, 'withdrawal duration');
+    assertEq(fixture.market.delinquencyGracePeriod(), options.delinquencyGracePeriod, 'delinquency grace period');
     assertEq(fixture.market.pendingBorrower(), address(0), 'pending borrower');
     assertEq(fixture.market.pendingBorrowerPrincipal(), address(0), 'pending principal');
     assertEq(fixture.market.registeredWrapper(), address(0), 'registered wrapper');
@@ -486,9 +444,7 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
-  function test_constructorPreservesDistinctBorrowerPrincipalAndParameterLayout_AcrossHookKinds()
-    external
-  {
+  function test_constructorPreservesDistinctBorrowerPrincipalAndParameterLayout_AcrossHookKinds() external {
     for (uint256 i; i < 2; i++) {
       Options memory options = _defaultOptions(HooksKind(i));
       Fixture memory fixture = _newMarket(options);
@@ -496,29 +452,20 @@ contract WildcatMarketTest is MarketFixture {
       address principal = address(uint160(0xA110 + i));
       fixture.archController.registerBorrower(principal);
 
-      MarketParameters memory parameters = _buildMarketParameters(
-        fixture,
-        options,
-        fixture.market.hooks()
-      );
+      MarketParameters memory parameters = _buildMarketParameters(fixture, options, fixture.market.hooks());
       parameters.borrower = operationalBorrower;
       parameters.borrowerPrincipal = principal;
       WildcatMarket distinctIdentityMarket = _deployMarketFromParameters(fixture, parameters);
 
       assertEq(distinctIdentityMarket.borrower(), operationalBorrower, 'operational borrower');
       assertEq(distinctIdentityMarket.borrowerPrincipal(), principal, 'principal');
-      assertEq(
-        distinctIdentityMarket.borrowerIdentityRegistry(),
-        address(fixture.registry),
-        'identity registry'
-      );
+      assertEq(distinctIdentityMarket.borrowerIdentityRegistry(), address(fixture.registry), 'identity registry');
       assertEq(distinctIdentityMarket.factory(), address(fixture.factory), 'parameter factory');
       assertFalse(fixture.archController.isRegisteredBorrower(operationalBorrower));
       assertTrue(fixture.archController.isRegisteredBorrower(principal));
 
-      (bool success, bytes memory encodedParameters) = address(fixture.factory).staticcall(
-        abi.encodeCall(fixture.factory.getMarketParameters, ())
-      );
+      (bool success, bytes memory encodedParameters) =
+        address(fixture.factory).staticcall(abi.encodeCall(fixture.factory.getMarketParameters, ()));
       assertTrue(success, 'parameter read');
       assertEq(encodedParameters.length, 0x300, '24-word encoded parameter length');
 
@@ -542,11 +489,7 @@ contract WildcatMarketTest is MarketFixture {
     address operationalBorrower = address(0xD00D);
     address principal = address(0xA110);
     fixture.archController.registerBorrower(principal);
-    MarketParameters memory parameters = _buildMarketParameters(
-      fixture,
-      options,
-      fixture.market.hooks()
-    );
+    MarketParameters memory parameters = _buildMarketParameters(fixture, options, fixture.market.hooks());
     parameters.borrower = operationalBorrower;
     parameters.borrowerPrincipal = principal;
 
@@ -555,13 +498,11 @@ contract WildcatMarketTest is MarketFixture {
     vm.expectRevert(IMarketEventsAndErrors.InvalidBorrowerIdentityRegistry.selector);
     _deployStoredMarket(fixture);
 
-    WildcatArchController otherController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    WildcatArchController otherController =
+      WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
     WildcatBorrowerIdentityRegistry otherRegistry = WildcatBorrowerIdentityRegistry(
       _deployCode(
-        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
-        abi.encode(address(otherController))
+        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry', abi.encode(address(otherController))
       )
     );
     parameters.borrowerIdentityRegistry = address(otherRegistry);
@@ -617,17 +558,9 @@ contract WildcatMarketTest is MarketFixture {
       assertEq(current.lastInterestAccruedTimestamp, vm.getBlockTimestamp(), 'current timestamp');
       assertEq(fixture.market.scaleFactor(), 1.1e27, 'scale-factor getter');
       assertEq(fixture.market.totalSupply(), depositAmount + expectedInterest, 'current supply');
-      assertEq(
-        fixture.market.totalDebts(),
-        depositAmount + expectedInterest + expectedProtocolFees,
-        'current debts'
-      );
+      assertEq(fixture.market.totalDebts(), depositAmount + expectedInterest + expectedProtocolFees, 'current debts');
       assertEq(fixture.market.accruedProtocolFees(), expectedProtocolFees, 'fee getter');
-      assertEq(
-        fixture.market.withdrawableProtocolFees(),
-        expectedProtocolFees,
-        'withdrawable fees'
-      );
+      assertEq(fixture.market.withdrawableProtocolFees(), expectedProtocolFees, 'withdrawable fees');
       assertEq(fixture.market.coverageLiquidity(), 11_500e18, 'current coverage');
       assertEq(fixture.market.borrowableAssets(), 38_500e18, 'current borrowable');
       assertEq(fixture.market.totalAssets(), depositAmount, 'assets remain unmodified');
@@ -652,17 +585,15 @@ contract WildcatMarketTest is MarketFixture {
       assertTrue(fixture.market.currentState().isDelinquent, 'market delinquent');
 
       vm.warp(vm.getBlockTimestamp() + 2_000);
-      uint256 expectedScaleFactor = uint256(1.1e27) +
-        MathUtils.rayMul(1.1e27, MathUtils.calculateLinearInterestFromBips(1_000, 2_000));
+      uint256 expectedScaleFactor =
+        uint256(1.1e27) + MathUtils.rayMul(1.1e27, MathUtils.calculateLinearInterestFromBips(1_000, 2_000));
       MarketState memory current = fixture.market.currentState();
       assertEq(current.scaleFactor, expectedScaleFactor, 'grace-period scale factor');
       assertEq(current.timeDelinquent, 2_000, 'delinquency time');
     }
   }
 
-  function test_withdrawableProtocolFeesRemainCappedAcrossPendingWithdrawals_AcrossHookKinds()
-    external
-  {
+  function test_withdrawableProtocolFeesRemainCappedAcrossPendingWithdrawals_AcrossHookKinds() external {
     uint256 initialBlockTimestamp = vm.getBlockTimestamp();
 
     for (uint256 i; i < 2; i++) {
@@ -683,9 +614,8 @@ contract WildcatMarketTest is MarketFixture {
   }
 
   function test_withdrawableProtocolFeesRejectsStateChangingReentrancy() external {
-    ProtocolFeeReadOnDepositHooks testHooks = ProtocolFeeReadOnDepositHooks(
-      _deployCode('test/mocks/MarketMocks.sol:ProtocolFeeReadOnDepositHooks')
-    );
+    ProtocolFeeReadOnDepositHooks testHooks =
+      ProtocolFeeReadOnDepositHooks(_deployCode('test/mocks/MarketMocks.sol:ProtocolFeeReadOnDepositHooks'));
     Options memory options = _defaultOptions(HooksKind.OpenTerm);
     options.requestedHooks = options.requestedHooks.setFlag(Bit_Enabled_Deposit);
     Fixture memory fixture = _newMarket(options, IHooks(address(testHooks)));
@@ -699,9 +629,7 @@ contract WildcatMarketTest is MarketFixture {
     );
   }
 
-  function test_configurationGettersAndMaximumDeposit_AcrossHookKinds(
-    uint104 rawDepositAmount
-  ) external {
+  function test_configurationGettersAndMaximumDeposit_AcrossHookKinds(uint104 rawDepositAmount) external {
     uint256 depositAmount = bound(rawDepositAmount, 1, MaximumMarketSupply);
     uint256 initialBlockTimestamp = vm.getBlockTimestamp();
 
@@ -717,11 +645,7 @@ contract WildcatMarketTest is MarketFixture {
       assertEq(fixture.market.maximumDeposit(), MaximumMarketSupply, 'initial deposit capacity');
 
       _deposit(fixture, Holder, depositAmount);
-      assertEq(
-        fixture.market.maximumDeposit(),
-        MaximumMarketSupply - depositAmount,
-        'remaining deposit capacity'
-      );
+      assertEq(fixture.market.maximumDeposit(), MaximumMarketSupply - depositAmount, 'remaining deposit capacity');
 
       uint256 remainingCapacity = MaximumMarketSupply - depositAmount;
       if (remainingCapacity != 0) _deposit(fixture, Holder, remainingCapacity);
@@ -736,17 +660,11 @@ contract WildcatMarketTest is MarketFixture {
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newMarket(HooksKind(i));
       assertEq(
-        address(uint160(uint256(vm.load(address(fixture.market), BorrowerStorageSlot)))),
-        Borrower,
-        'stored borrower'
+        address(uint160(uint256(vm.load(address(fixture.market), BorrowerStorageSlot)))), Borrower, 'stored borrower'
       );
 
       address newBorrower = address(uint160(0xB0B0 + i));
-      vm.store(
-        address(fixture.market),
-        BorrowerStorageSlot,
-        bytes32(uint256(uint160(newBorrower)))
-      );
+      vm.store(address(fixture.market), BorrowerStorageSlot, bytes32(uint256(uint160(newBorrower))));
       assertEq(fixture.market.borrower(), newBorrower, 'borrower getter');
 
       vm.prank(Borrower);
@@ -763,7 +681,9 @@ contract WildcatMarketTest is MarketFixture {
     uint104 rawSupply,
     uint128 rawHighCapacity,
     uint104 rawLowCapacity
-  ) external {
+  )
+    external
+  {
     uint256 supply = bound(rawSupply, 1, MaximumMarketSupply);
     uint256 highCapacity = bound(rawHighCapacity, supply, type(uint128).max);
     uint256 lowCapacity = bound(rawLowCapacity, 0, supply - 1);
@@ -773,11 +693,7 @@ contract WildcatMarketTest is MarketFixture {
       _deposit(fixture, Holder, supply);
 
       vm.expectEmit(address(fixture.market));
-      emit IMarketEventsAndErrors.MaxTotalSupplyUpdated(
-        Borrower,
-        MaximumMarketSupply,
-        highCapacity
-      );
+      emit IMarketEventsAndErrors.MaxTotalSupplyUpdated(Borrower, MaximumMarketSupply, highCapacity);
       vm.prank(Borrower);
       fixture.market.setMaxTotalSupply(highCapacity);
       assertEq(fixture.market.maxTotalSupply(), highCapacity, 'high capacity');
@@ -791,9 +707,7 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
-  function test_setMaxTotalSupplyRejectsInvalidCallerClosedMarketAndOverflow_AcrossHookKinds()
-    external
-  {
+  function test_setMaxTotalSupplyRejectsInvalidCallerClosedMarketAndOverflow_AcrossHookKinds() external {
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newMarket(HooksKind(i));
       vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
@@ -813,60 +727,40 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
-  function test_setProtocolFeeBipsUpdatesFromFactory_AcrossHookKinds(
-    uint16 rawProtocolFee
-  ) external {
+  function test_setProtocolFeeBipsUpdatesFromFactory_AcrossHookKinds(uint16 rawProtocolFee) external {
     uint16 protocolFee = uint16(bound(rawProtocolFee, 0, 999));
 
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newMarket(HooksKind(i));
       vm.expectEmit(address(fixture.market));
-      emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(
-        address(fixture.factory),
-        1_000,
-        protocolFee
-      );
-      fixture.factory.callMarket(
-        address(fixture.market),
-        abi.encodeCall(fixture.market.setProtocolFeeBips, (protocolFee))
-      );
+      emit IMarketEventsAndErrors.ProtocolFeeBipsUpdated(address(fixture.factory), 1_000, protocolFee);
+      fixture.factory
+        .callMarket(address(fixture.market), abi.encodeCall(fixture.market.setProtocolFeeBips, (protocolFee)));
       assertEq(fixture.market.previousState().protocolFeeBips, protocolFee, 'protocol fee');
 
-      fixture.factory.callMarket(
-        address(fixture.market),
-        abi.encodeCall(fixture.market.setProtocolFeeBips, (protocolFee))
-      );
+      fixture.factory
+        .callMarket(address(fixture.market), abi.encodeCall(fixture.market.setProtocolFeeBips, (protocolFee)));
       assertEq(fixture.market.previousState().protocolFeeBips, protocolFee, 'unchanged fee');
     }
   }
 
-  function test_setProtocolFeeBipsRejectsInvalidCallerFeeAndClosedMarket_AcrossHookKinds()
-    external
-  {
+  function test_setProtocolFeeBipsRejectsInvalidCallerFeeAndClosedMarket_AcrossHookKinds() external {
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newMarket(HooksKind(i));
       vm.expectRevert(IMarketEventsAndErrors.NotFactory.selector);
       fixture.market.setProtocolFeeBips(0);
 
       vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeTooHigh.selector);
-      fixture.factory.callMarket(
-        address(fixture.market),
-        abi.encodeCall(fixture.market.setProtocolFeeBips, (1_001))
-      );
+      fixture.factory.callMarket(address(fixture.market), abi.encodeCall(fixture.market.setProtocolFeeBips, (1_001)));
 
       vm.prank(Borrower);
       fixture.market.closeMarket();
       vm.expectRevert(IMarketEventsAndErrors.ProtocolFeeChangeOnClosedMarket.selector);
-      fixture.factory.callMarket(
-        address(fixture.market),
-        abi.encodeCall(fixture.market.setProtocolFeeBips, (0))
-      );
+      fixture.factory.callMarket(address(fixture.market), abi.encodeCall(fixture.market.setProtocolFeeBips, (0)));
     }
   }
 
-  function test_nukeFromOrbitQueuesEntireSanctionedBalanceAndIsIdempotent_AcrossHookKinds(
-    address lender
-  ) external {
+  function test_nukeFromOrbitQueuesEntireSanctionedBalanceAndIsIdempotent_AcrossHookKinds(address lender) external {
     vm.assume(lender != address(0) && lender != Borrower);
     uint256 initialBlockTimestamp = vm.getBlockTimestamp();
 
@@ -878,29 +772,18 @@ contract WildcatMarketTest is MarketFixture {
       uint32 expiry = uint32(initialBlockTimestamp + 1 days);
 
       vm.expectEmit(address(fixture.market));
-      emit IMarketEventsAndErrors.SanctionedAccountAssetsQueuedForWithdrawal(
-        lender,
-        expiry,
-        1e18,
-        1e18
-      );
+      emit IMarketEventsAndErrors.SanctionedAccountAssetsQueuedForWithdrawal(lender, expiry, 1e18, 1e18);
       fixture.market.nukeFromOrbit(lender);
 
       assertEq(fixture.market.balanceOf(lender), 0, 'sanctioned lender balance');
       assertEq(
-        fixture.market.getAccountWithdrawalStatus(lender, expiry).scaledAmount,
-        1e18,
-        'sanctions withdrawal amount'
+        fixture.market.getAccountWithdrawalStatus(lender, expiry).scaledAmount, 1e18, 'sanctions withdrawal amount'
       );
       assertEq(fixture.market.currentState().pendingWithdrawalExpiry, expiry, 'pending expiry');
 
       vm.warp(uint256(expiry) + 1);
       fixture.market.executeWithdrawal(lender, expiry);
-      assertEq(
-        fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()),
-        1e18,
-        'sanctions escrow balance'
-      );
+      assertEq(fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()), 1e18, 'sanctions escrow balance');
       assertEq(fixture.sentinel.createEscrowCalls(), 1, 'sanctions escrow calls');
       assertEq(
         fixture.market.getAccountWithdrawalStatus(lender, expiry).normalizedAmountWithdrawn,
@@ -910,16 +793,12 @@ contract WildcatMarketTest is MarketFixture {
 
       fixture.market.nukeFromOrbit(lender);
       assertEq(
-        fixture.market.getAccountWithdrawalStatus(lender, expiry).scaledAmount,
-        1e18,
-        'idempotent sanctions withdrawal'
+        fixture.market.getAccountWithdrawalStatus(lender, expiry).scaledAmount, 1e18, 'idempotent sanctions withdrawal'
       );
     }
   }
 
-  function test_nukeFromOrbitHandlesEmptyBalancesAndRejectsUnsanctionedAccounts_AcrossHookKinds()
-    external
-  {
+  function test_nukeFromOrbitHandlesEmptyBalancesAndRejectsUnsanctionedAccounts_AcrossHookKinds() external {
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newMarket(HooksKind(i));
       vm.expectRevert(IMarketEventsAndErrors.BadLaunchCode.selector);
@@ -929,20 +808,14 @@ contract WildcatMarketTest is MarketFixture {
       fixture.market.nukeFromOrbit(Holder);
       assertEq(fixture.sentinel.createEscrowCalls(), 0, 'empty sanctions escrow calls');
       assertEq(fixture.market.currentState().pendingWithdrawalExpiry, 0, 'empty pending expiry');
-      assertEq(
-        fixture.market.getAccountWithdrawalStatus(Holder, 0).scaledAmount,
-        0,
-        'empty sanctions withdrawal'
-      );
+      assertEq(fixture.market.getAccountWithdrawalStatus(Holder, 0).scaledAmount, 0, 'empty sanctions withdrawal');
 
       fixture.sentinel.setSanctioned(address(0), true);
       fixture.market.nukeFromOrbit(address(0));
     }
   }
 
-  function test_registerWrapperAuthenticatesFactoryAndProtectsCanonicalWrapper_AcrossHookKinds()
-    external
-  {
+  function test_registerWrapperAuthenticatesFactoryAndProtectsCanonicalWrapper_AcrossHookKinds() external {
     address wrapper = address(0xA4626);
 
     for (uint256 i; i < 2; i++) {
@@ -983,15 +856,13 @@ contract WildcatMarketTest is MarketFixture {
   function test_setAnnualInterestAndReserveRatioBipsAppliesProductionConstraints_AcrossHookKinds(
     uint16 rawAnnualInterestBips,
     uint16 requestedReserveRatioBips
-  ) external {
+  )
+    external
+  {
     uint16 annualInterestBips = uint16(bound(rawAnnualInterestBips, 1, 10_000));
     uint256 reserveRatioBips = 2_000;
     if (annualInterestBips < 750) {
-      uint256 temporaryReserveRatio = MathUtils.mulDiv(
-        20_000,
-        1_000 - uint256(annualInterestBips),
-        1_000
-      );
+      uint256 temporaryReserveRatio = MathUtils.mulDiv(20_000, 1_000 - uint256(annualInterestBips), 1_000);
       reserveRatioBips = MathUtils.min(10_000, temporaryReserveRatio);
     }
 
@@ -1006,10 +877,7 @@ contract WildcatMarketTest is MarketFixture {
         reserveRatioBips
       );
       vm.prank(Borrower);
-      fixture.market.setAnnualInterestAndReserveRatioBips(
-        annualInterestBips,
-        requestedReserveRatioBips
-      );
+      fixture.market.setAnnualInterestAndReserveRatioBips(annualInterestBips, requestedReserveRatioBips);
 
       assertEq(fixture.market.annualInterestBips(), annualInterestBips, 'updated APR');
       assertEq(fixture.market.reserveRatioBips(), reserveRatioBips, 'updated reserve ratio');
@@ -1046,9 +914,7 @@ contract WildcatMarketTest is MarketFixture {
     reserveFixture.market.setAnnualInterestAndReserveRatioBips(1_000, 2_000);
   }
 
-  function test_setAnnualInterestAndReserveRatioBipsEnforcesLiquidityBeforeAndAfterChange()
-    external
-  {
+  function test_setAnnualInterestAndReserveRatioBipsEnforcesLiquidityBeforeAndAfterChange() external {
     (Fixture memory oldRatioFixture, MarketConfigHooks oldRatioHooks) = _newConfigMarket();
     _deposit(oldRatioFixture, Holder, 1e18);
     vm.prank(Borrower);
@@ -1098,11 +964,7 @@ contract WildcatMarketTest is MarketFixture {
 
     assertEq(_storedMarketStateHash(fixture), marketStateBefore, 'market state rollback');
     assertEq(_temporaryReserveRatioHash(fixture), hookStateBefore, 'hook state rollback');
-    assertEq(
-      fixture.asset.balanceOf(address(fixture.market)),
-      marketAssetsBefore,
-      'market assets rollback'
-    );
+    assertEq(fixture.asset.balanceOf(address(fixture.market)), marketAssetsBefore, 'market assets rollback');
   }
 
   function test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts() external {
@@ -1113,15 +975,12 @@ contract WildcatMarketTest is MarketFixture {
     fixture.market.setAnnualInterestAndReserveRatioBips(500, 0);
     assertEq(fixture.market.reserveRatioBips(), 10_000, 'temporary reserve ratio');
 
-    (, , uint32 originalExpiry) = MarketConstraintHooks(address(fixture.hooks))
-      .temporaryExcessReserveRatio(address(fixture.market));
+    (,, uint32 originalExpiry) =
+      MarketConstraintHooks(address(fixture.hooks)).temporaryExcessReserveRatio(address(fixture.market));
     fixture.asset.burn(address(fixture.market), 1e17);
     vm.warp(vm.getBlockTimestamp() + 1 days);
     assertTrue(originalExpiry > vm.getBlockTimestamp(), 'temporary window active');
-    assertTrue(
-      originalExpiry < vm.getBlockTimestamp() + 2 weeks,
-      'further reduction would extend window'
-    );
+    assertTrue(originalExpiry < vm.getBlockTimestamp() + 2 weeks, 'further reduction would extend window');
 
     bytes32 marketStateBefore = _storedMarketStateHash(fixture);
     bytes32 hookStateBefore = _temporaryReserveRatioHash(fixture);
@@ -1133,27 +992,15 @@ contract WildcatMarketTest is MarketFixture {
 
     assertEq(_storedMarketStateHash(fixture), marketStateBefore, 'active market state rollback');
     assertEq(_temporaryReserveRatioHash(fixture), hookStateBefore, 'active hook state rollback');
-    assertEq(
-      fixture.asset.balanceOf(address(fixture.market)),
-      marketAssetsBefore,
-      'active market assets rollback'
-    );
+    assertEq(fixture.asset.balanceOf(address(fixture.market)), marketAssetsBefore, 'active market assets rollback');
   }
 
-  function test_executePendingAnnualInterestBipsReductionIsPermissionlessAndUsesHookState()
-    external
-  {
+  function test_executePendingAnnualInterestBipsReductionIsPermissionlessAndUsesHookState() external {
     (Fixture memory fixture, MarketConfigHooks configHooks) = _newConfigMarket();
     configHooks.setPendingAnnualInterestBipsReduction(999);
 
     vm.expectEmit(address(fixture.market));
-    emit IMarketEventsAndErrors.AnnualInterestAndReserveRatioBipsUpdated(
-      Holder,
-      1_000,
-      999,
-      2_000,
-      2_000
-    );
+    emit IMarketEventsAndErrors.AnnualInterestAndReserveRatioBipsUpdated(Holder, 1_000, 999, 2_000, 2_000);
     vm.prank(Holder);
     fixture.market.executePendingAnnualInterestBipsReduction();
 
@@ -1163,9 +1010,7 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(configHooks.lastIntermediateReserveRatioBips(), 2_000, 'intermediate reserve ratio');
   }
 
-  function test_executePendingAnnualInterestBipsReductionRejectsInvalidMarketAndHookStates()
-    external
-  {
+  function test_executePendingAnnualInterestBipsReductionRejectsInvalidMarketAndHookStates() external {
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newMarket(HooksKind(i));
       vm.expectRevert(IMarketEventsAndErrors.ExecutePendingAprReductionNotEnabled.selector);
@@ -1215,11 +1060,7 @@ contract WildcatMarketTest is MarketFixture {
 
       bytes32 stateHash = keccak256(abi.encode(expected));
       fixture.market.updateState();
-      assertEq(
-        keccak256(abi.encode(fixture.market.previousState())),
-        stateHash,
-        'same-block state'
-      );
+      assertEq(keccak256(abi.encode(fixture.market.previousState())), stateHash, 'same-block state');
     }
   }
 
@@ -1293,35 +1134,19 @@ contract WildcatMarketTest is MarketFixture {
 
       uint256 checkpointTimestamp = uint256(secondExpiry) + 4 days;
       uint256 firstSegmentDuration = secondExpiry - beforeSecondExpiry.lastInterestAccruedTimestamp;
-      uint256 firstSegmentBaseInterest = MathUtils.calculateLinearInterestFromBips(
-        10_000,
-        firstSegmentDuration
-      );
-      uint256 firstSegmentDelinquencyFee = MathUtils.calculateLinearInterestFromBips(
-        10_000,
-        firstSegmentDuration
-      );
+      uint256 firstSegmentBaseInterest = MathUtils.calculateLinearInterestFromBips(10_000, firstSegmentDuration);
+      uint256 firstSegmentDelinquencyFee = MathUtils.calculateLinearInterestFromBips(10_000, firstSegmentDuration);
       uint256 expectedScaleFactor = beforeSecondExpiry.scaleFactor;
       expectedScaleFactor += MathUtils.rayMul(
-        expectedScaleFactor,
-        firstSegmentBaseInterest + firstSegmentDelinquencyFee
+        expectedScaleFactor, firstSegmentBaseInterest + firstSegmentDelinquencyFee
       );
       uint256 secondSegmentDuration = checkpointTimestamp - secondExpiry;
-      uint256 secondSegmentBaseInterest = MathUtils.calculateLinearInterestFromBips(
-        10_000,
-        secondSegmentDuration
-      );
-      uint256 recoveryPenaltyDuration = MathUtils.min(
-        uint256(beforeSecondExpiry.timeDelinquent) + firstSegmentDuration,
-        secondSegmentDuration
-      );
-      uint256 secondSegmentDelinquencyFee = MathUtils.calculateLinearInterestFromBips(
-        10_000,
-        recoveryPenaltyDuration
-      );
+      uint256 secondSegmentBaseInterest = MathUtils.calculateLinearInterestFromBips(10_000, secondSegmentDuration);
+      uint256 recoveryPenaltyDuration =
+        MathUtils.min(uint256(beforeSecondExpiry.timeDelinquent) + firstSegmentDuration, secondSegmentDuration);
+      uint256 secondSegmentDelinquencyFee = MathUtils.calculateLinearInterestFromBips(10_000, recoveryPenaltyDuration);
       expectedScaleFactor += MathUtils.rayMul(
-        expectedScaleFactor,
-        secondSegmentBaseInterest + secondSegmentDelinquencyFee
+        expectedScaleFactor, secondSegmentBaseInterest + secondSegmentDelinquencyFee
       );
 
       fixture.asset.mint(Recipient, 2);
@@ -1339,9 +1164,7 @@ contract WildcatMarketTest is MarketFixture {
 
       fixture.market.updateState();
       assertEq(
-        keccak256(abi.encode(fixture.market.previousState())),
-        keccak256(abi.encode(current)),
-        'persisted current state'
+        keccak256(abi.encode(fixture.market.previousState())), keccak256(abi.encode(current)), 'persisted current state'
       );
       WithdrawalBatch memory paidBatch = fixture.market.getWithdrawalBatch(secondExpiry);
       assertEq(paidBatch.scaledAmountBurned, 1, 'settled scaled amount');
@@ -1365,11 +1188,7 @@ contract WildcatMarketTest is MarketFixture {
     _assertExactEvent(
       logs,
       address(fixture.market),
-      _threeTopics(
-        keccak256('Transfer(address,address,uint256)'),
-        _addressTopic(address(0)),
-        _addressTopic(Holder)
-      ),
+      _threeTopics(keccak256('Transfer(address,address,uint256)'), _addressTopic(address(0)), _addressTopic(Holder)),
       abi.encode(1e18),
       'market-token mint event'
     );
@@ -1382,9 +1201,7 @@ contract WildcatMarketTest is MarketFixture {
       logs,
       address(fixture.market),
       _threeTopics(
-        keccak256('Transfer(address,address,uint256)'),
-        _addressTopic(Holder),
-        _addressTopic(address(fixture.market))
+        keccak256('Transfer(address,address,uint256)'), _addressTopic(Holder), _addressTopic(address(fixture.market))
       ),
       abi.encode(1e18),
       'withdrawal transfer event'
@@ -1393,9 +1210,7 @@ contract WildcatMarketTest is MarketFixture {
       logs,
       address(fixture.market),
       _threeTopics(
-        keccak256('WithdrawalQueued(uint256,address,uint256,uint256)'),
-        bytes32(uint256(expiry)),
-        _addressTopic(Holder)
+        keccak256('WithdrawalQueued(uint256,address,uint256,uint256)'), bytes32(uint256(expiry)), _addressTopic(Holder)
       ),
       abi.encode(1e18, 1e18),
       'withdrawal queued event'
@@ -1410,19 +1225,14 @@ contract WildcatMarketTest is MarketFixture {
     _assertExactEvent(
       logs,
       address(fixture.market),
-      _singleTopic(
-        keccak256('InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)')
-      ),
+      _singleTopic(keccak256('InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)')),
       abi.encode(initialTimestamp, expiry, scaleAtExpiry, 1e24, 0, 0),
       'first accrual event'
     );
     _assertExactEvent(
       logs,
       address(fixture.market),
-      _twoTopics(
-        keccak256('WithdrawalBatchExpired(uint256,uint256,uint256,uint256)'),
-        bytes32(uint256(expiry))
-      ),
+      _twoTopics(keccak256('WithdrawalBatchExpired(uint256,uint256,uint256,uint256)'), bytes32(uint256(expiry))),
       abi.encode(1e18, 1e18, 1e18),
       'batch expired event'
     );
@@ -1436,9 +1246,7 @@ contract WildcatMarketTest is MarketFixture {
     _assertExactEvent(
       logs,
       address(fixture.market),
-      _singleTopic(
-        keccak256('InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)')
-      ),
+      _singleTopic(keccak256('InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)')),
       abi.encode(expiry, initialTimestamp + 2 days, scaleAtUpdate, 1e24, 0, 0),
       'second accrual event'
     );
@@ -1458,8 +1266,7 @@ contract WildcatMarketTest is MarketFixture {
       logs,
       address(fixture.market),
       _twoTopics(
-        keccak256('SanctionedAccountWithdrawalSentToEscrow(address,address,uint32,uint256)'),
-        _addressTopic(Holder)
+        keccak256('SanctionedAccountWithdrawalSentToEscrow(address,address,uint32,uint256)'), _addressTopic(Holder)
       ),
       abi.encode(fixture.sentinel.EscrowAddress(), expiry, 1e18),
       'sanctioned escrow event'
@@ -1468,9 +1275,7 @@ contract WildcatMarketTest is MarketFixture {
       logs,
       address(fixture.market),
       _threeTopics(
-        keccak256('WithdrawalExecuted(uint256,address,uint256)'),
-        bytes32(uint256(expiry)),
-        _addressTopic(Holder)
+        keccak256('WithdrawalExecuted(uint256,address,uint256)'), bytes32(uint256(expiry)), _addressTopic(Holder)
       ),
       abi.encode(1e18),
       'withdrawal executed event'
@@ -1664,11 +1469,7 @@ contract WildcatMarketTest is MarketFixture {
       vm.prank(Borrower);
       debtFixture.market.closeMarket();
       _assertClosedMarket(debtFixture);
-      assertEq(
-        debtFixture.asset.balanceOf(address(debtFixture.market)),
-        1e18,
-        'closed debt assets'
-      );
+      assertEq(debtFixture.asset.balanceOf(address(debtFixture.market)), 1e18, 'closed debt assets');
 
       vm.warp(initialBlockTimestamp);
       Fixture memory excessFixture = _newMarket(HooksKind(i));
@@ -1678,11 +1479,7 @@ contract WildcatMarketTest is MarketFixture {
       vm.prank(Borrower);
       excessFixture.market.closeMarket();
       _assertClosedMarket(excessFixture);
-      assertEq(
-        excessFixture.asset.balanceOf(Borrower),
-        borrowerBalanceBefore + 5e17,
-        'returned excess assets'
-      );
+      assertEq(excessFixture.asset.balanceOf(Borrower), borrowerBalanceBefore + 5e17, 'returned excess assets');
 
       vm.warp(initialBlockTimestamp);
       Fixture memory transferFailureFixture = _newMarket(HooksKind(i));
@@ -1744,21 +1541,11 @@ contract WildcatMarketTest is MarketFixture {
       mixedFixture.market.closeMarket();
 
       assertEq(mixedFixture.market.getUnpaidBatchExpiries().length, 0, 'post-close unpaid');
+      assertEq(mixedFixture.market.previousState().scaledPendingWithdrawals, 0, 'post-close pending');
       assertEq(
-        mixedFixture.market.previousState().scaledPendingWithdrawals,
-        0,
-        'post-close pending'
+        mixedFixture.market.getWithdrawalBatch(unpaidExpiry).scaledAmountBurned, 1e18, 'closed unpaid batch burn'
       );
-      assertEq(
-        mixedFixture.market.getWithdrawalBatch(unpaidExpiry).scaledAmountBurned,
-        1e18,
-        'closed unpaid batch burn'
-      );
-      assertEq(
-        mixedFixture.market.getWithdrawalBatch(nextExpiry).scaledAmountBurned,
-        1e18,
-        'closed next batch burn'
-      );
+      assertEq(mixedFixture.market.getWithdrawalBatch(nextExpiry).scaledAmountBurned, 1e18, 'closed next batch burn');
 
       vm.warp(initialBlockTimestamp);
       Fixture memory failedFixture = _newMarket(HooksKind(i));
@@ -1849,9 +1636,7 @@ contract WildcatMarketTest is MarketFixture {
       fixture.market.executeWithdrawal(Holder, oldExpiry);
 
       bytes32 oldBatchHash = keccak256(abi.encode(fixture.market.getWithdrawalBatch(oldExpiry)));
-      bytes32 oldStatusHash = keccak256(
-        abi.encode(fixture.market.getAccountWithdrawalStatus(Holder, oldExpiry))
-      );
+      bytes32 oldStatusHash = keccak256(abi.encode(fixture.market.getAccountWithdrawalStatus(Holder, oldExpiry)));
       uint256 recipientScaledBalance = fixture.market.scaledBalanceOf(Recipient);
       uint256 recipientAssetBalance = fixture.asset.balanceOf(Recipient);
 
@@ -1860,16 +1645,8 @@ contract WildcatMarketTest is MarketFixture {
       uint32 newExpiry = fixture.market.queueFullWithdrawal();
 
       assertEq(newExpiry, oldExpiry + 1, 'fallback expiry');
-      assertEq(
-        fixture.market.previousState().pendingWithdrawalExpiry,
-        newExpiry,
-        'fallback pending'
-      );
-      assertEq(
-        keccak256(abi.encode(fixture.market.getWithdrawalBatch(oldExpiry))),
-        oldBatchHash,
-        'fallback old batch'
-      );
+      assertEq(fixture.market.previousState().pendingWithdrawalExpiry, newExpiry, 'fallback pending');
+      assertEq(keccak256(abi.encode(fixture.market.getWithdrawalBatch(oldExpiry))), oldBatchHash, 'fallback old batch');
       assertEq(
         keccak256(abi.encode(fixture.market.getAccountWithdrawalStatus(Holder, oldExpiry))),
         oldStatusHash,
@@ -1882,11 +1659,7 @@ contract WildcatMarketTest is MarketFixture {
 
       vm.warp(uint256(newExpiry) + 1);
       uint256 payout = fixture.market.executeWithdrawal(Recipient, newExpiry);
-      assertEq(
-        fixture.asset.balanceOf(Recipient),
-        recipientAssetBalance + payout,
-        'fallback payout'
-      );
+      assertEq(fixture.asset.balanceOf(Recipient), recipientAssetBalance + payout, 'fallback payout');
     }
   }
 
@@ -1928,16 +1701,11 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(fixture.market.scaledBalanceOf(Holder), scaledBalance, 'overflow balance');
   }
 
-  function test_rescueTokensAuthenticatesBorrowerAndProtectsMarketAssets_AcrossHookKinds()
-    external
-  {
+  function test_rescueTokensAuthenticatesBorrowerAndProtectsMarketAssets_AcrossHookKinds() external {
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newMarket(HooksKind(i));
       MockERC20 stray = MockERC20(
-        _deployCode(
-          'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-          abi.encode('Stray', 'STRAY', uint8(18))
-        )
+        _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Stray', 'STRAY', uint8(18)))
       );
       stray.mint(address(fixture.market), 1e18);
 
@@ -1964,18 +1732,11 @@ contract WildcatMarketTest is MarketFixture {
       assertEq(fixture.market.symbol(), 'WCTKN', 'symbol');
       assertEq(fixture.market.decimals(), 18, 'decimals');
       assertEq(fixture.market.version(), '2.5', 'version');
-      assertEq(
-        fixture.market.scaledTransferRounding(),
-        keccak256('scaleAmountDown'),
-        'rounding marker'
-      );
+      assertEq(fixture.market.scaledTransferRounding(), keccak256('scaleAmountDown'), 'rounding marker');
     }
   }
 
-  function test_tokenMintAndBurnAccounting_AcrossHookKinds(
-    uint104 rawMintAmount,
-    uint104 rawBurnAmount
-  ) external {
+  function test_tokenMintAndBurnAccounting_AcrossHookKinds(uint104 rawMintAmount, uint104 rawBurnAmount) external {
     uint256 mintAmount = bound(rawMintAmount, 1, MaximumMarketSupply);
     uint256 burnAmount = bound(rawBurnAmount, 1, mintAmount);
     uint256 initialBlockTimestamp = vm.getBlockTimestamp();
@@ -1991,10 +1752,7 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
-  function test_approveStoresExactAllowance_AcrossHookKinds(
-    address spender,
-    uint256 amount
-  ) external {
+  function test_approveStoresExactAllowance_AcrossHookKinds(address spender, uint256 amount) external {
     for (uint256 i; i < 2; i++) {
       Fixture memory fixture = _newTokenMarket(HooksKind(i));
       vm.prank(Holder);
@@ -2006,7 +1764,9 @@ contract WildcatMarketTest is MarketFixture {
   function test_transferMovesBalanceAndPreservesSupply_AcrossHookKinds(
     address fuzzRecipient,
     uint104 rawAmount
-  ) external {
+  )
+    external
+  {
     vm.assume(fuzzRecipient != address(0) && fuzzRecipient != Holder);
     uint256 amount = bound(rawAmount, 1, MaximumMarketSupply);
 
@@ -2031,7 +1791,9 @@ contract WildcatMarketTest is MarketFixture {
     address fuzzRecipient,
     uint104 rawAmount,
     uint104 rawExtraApproval
-  ) external {
+  )
+    external
+  {
     vm.assume(fuzzRecipient != Holder);
     uint256 amount = bound(rawAmount, 1, MaximumMarketSupply);
     uint256 extraApproval = bound(rawExtraApproval, 0, MaximumMarketSupply - amount);
@@ -2043,10 +1805,7 @@ contract WildcatMarketTest is MarketFixture {
       vm.prank(Holder);
       finiteFixture.market.approve(Delegate, finiteApproval);
       vm.prank(Delegate);
-      assertTrue(
-        finiteFixture.market.transferFrom(Holder, fuzzRecipient, amount),
-        'finite transferFrom result'
-      );
+      assertTrue(finiteFixture.market.transferFrom(Holder, fuzzRecipient, amount), 'finite transferFrom result');
       assertEq(finiteFixture.market.allowance(Holder, Delegate), extraApproval, 'finite allowance');
       assertEq(finiteFixture.market.totalSupply(), amount, 'finite supply');
       assertEq(finiteFixture.market.balanceOf(Holder), 0, 'finite sender');
@@ -2057,15 +1816,8 @@ contract WildcatMarketTest is MarketFixture {
       vm.prank(Holder);
       infiniteFixture.market.approve(Delegate, type(uint256).max);
       vm.prank(Delegate);
-      assertTrue(
-        infiniteFixture.market.transferFrom(Holder, Holder, amount),
-        'infinite self transferFrom result'
-      );
-      assertEq(
-        infiniteFixture.market.allowance(Holder, Delegate),
-        type(uint256).max,
-        'infinite allowance'
-      );
+      assertTrue(infiniteFixture.market.transferFrom(Holder, Holder, amount), 'infinite self transferFrom result');
+      assertEq(infiniteFixture.market.allowance(Holder, Delegate), type(uint256).max, 'infinite allowance');
       _assertSupplyAndBalance(infiniteFixture, Holder, amount);
     }
   }
@@ -2073,7 +1825,9 @@ contract WildcatMarketTest is MarketFixture {
   function test_transfersRejectInsufficientBalancesAndAllowances_AcrossHookKinds(
     uint104 rawMintAmount,
     uint104 rawExcess
-  ) external {
+  )
+    external
+  {
     uint256 mintAmount = bound(rawMintAmount, 1, MaximumMarketSupply - 1);
     uint256 sendAmount = mintAmount + bound(rawExcess, 1, MaximumMarketSupply - mintAmount);
 
@@ -2166,11 +1920,7 @@ contract WildcatMarketTest is MarketFixture {
       vm.expectRevert(_arithmeticPanic());
       fixture.market.queueWithdrawalScaled(scaledBalance + 1);
 
-      assertEq(
-        keccak256(abi.encode(fixture.market.currentState())),
-        stateHash,
-        'failed queue state'
-      );
+      assertEq(keccak256(abi.encode(fixture.market.currentState())), stateHash, 'failed queue state');
       assertEq(fixture.market.scaledBalanceOf(Holder), scaledBalance, 'failed queue balance');
     }
   }
@@ -2194,14 +1944,8 @@ contract WildcatMarketTest is MarketFixture {
       assertEq(fixture.market.queueFullWithdrawal(), expiry, 'second lender expiry');
 
       _assertBatch(fixture, expiry, 5e18, 5e18, 5e18);
-      AccountWithdrawalStatus memory holderStatus = fixture.market.getAccountWithdrawalStatus(
-        Holder,
-        expiry
-      );
-      AccountWithdrawalStatus memory recipientStatus = fixture.market.getAccountWithdrawalStatus(
-        Recipient,
-        expiry
-      );
+      AccountWithdrawalStatus memory holderStatus = fixture.market.getAccountWithdrawalStatus(Holder, expiry);
+      AccountWithdrawalStatus memory recipientStatus = fixture.market.getAccountWithdrawalStatus(Recipient, expiry);
       assertEq(holderStatus.scaledAmount, 3e18, 'holder status');
       assertEq(recipientStatus.scaledAmount, 2e18, 'recipient status');
       MarketState memory state = fixture.market.previousState();
@@ -2268,9 +2012,7 @@ contract WildcatMarketTest is MarketFixture {
         'equivalent batch'
       );
       assertEq(
-        keccak256(
-          abi.encode(scaledFixture.market.getAccountWithdrawalStatus(Holder, scaledExpiry))
-        ),
+        keccak256(abi.encode(scaledFixture.market.getAccountWithdrawalStatus(Holder, scaledExpiry))),
         keccak256(abi.encode(fullFixture.market.getAccountWithdrawalStatus(Holder, fullExpiry))),
         'equivalent account status'
       );
@@ -2337,9 +2079,7 @@ contract WildcatMarketTest is MarketFixture {
       assertEq(payout, 6e17, 'payout');
       assertEq(fixture.asset.balanceOf(Holder), 6e17, 'holder assets');
       assertEq(
-        fixture.market.getAccountWithdrawalStatus(Holder, expiry).normalizedAmountWithdrawn,
-        6e17,
-        'withdrawn status'
+        fixture.market.getAccountWithdrawalStatus(Holder, expiry).normalizedAmountWithdrawn, 6e17, 'withdrawn status'
       );
 
       vm.expectRevert(IMarketEventsAndErrors.NullWithdrawalAmount.selector);
@@ -2368,11 +2108,7 @@ contract WildcatMarketTest is MarketFixture {
       vm.prank(Borrower);
       expiredFixture.market.closeMarket();
       vm.warp(uint256(expiredExpiry) + 1);
-      assertEq(
-        expiredFixture.market.executeWithdrawal(Holder, expiredExpiry),
-        1e18,
-        'expired payout'
-      );
+      assertEq(expiredFixture.market.executeWithdrawal(Holder, expiredExpiry), 1e18, 'expired payout');
     }
   }
 
@@ -2433,10 +2169,7 @@ contract WildcatMarketTest is MarketFixture {
       duplicateFixture.market.executeWithdrawals(duplicateAccounts, duplicateExpiries);
       assertEq(duplicateFixture.asset.balanceOf(Holder), 0, 'atomic payout rollback');
       assertEq(
-        duplicateFixture
-          .market
-          .getAccountWithdrawalStatus(Holder, duplicateExpiry)
-          .normalizedAmountWithdrawn,
+        duplicateFixture.market.getAccountWithdrawalStatus(Holder, duplicateExpiry).normalizedAmountWithdrawn,
         0,
         'atomic status rollback'
       );
@@ -2466,11 +2199,7 @@ contract WildcatMarketTest is MarketFixture {
       expiries[1] = expiry;
       fixture.market.executeWithdrawals(accounts, expiries);
 
-      assertEq(
-        fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()),
-        5e17,
-        'escrowed withdrawal'
-      );
+      assertEq(fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()), 5e17, 'escrowed withdrawal');
       assertEq(fixture.asset.balanceOf(Recipient), 5e17, 'ordinary withdrawal');
       assertEq(fixture.sentinel.createEscrowCalls(), 1, 'escrow calls');
     }
@@ -2630,9 +2359,7 @@ contract WildcatMarketTest is MarketFixture {
     }
   }
 
-  function test_withdrawalViewsReflectMissingPendingPaidAndUnpaidBatches_AcrossHookKinds()
-    external
-  {
+  function test_withdrawalViewsReflectMissingPendingPaidAndUnpaidBatches_AcrossHookKinds() external {
     uint256 initialBlockTimestamp = vm.getBlockTimestamp();
 
     for (uint256 i; i < 2; i++) {
@@ -2670,17 +2397,10 @@ contract WildcatMarketTest is MarketFixture {
       vm.warp(initialBlockTimestamp);
       Fixture memory fixture = _newWithdrawalMarket(HooksKind(i));
       uint32 expiry = _makeUnpaidBatch(fixture, Holder);
-      AccountWithdrawalStatus memory status = fixture.market.getAccountWithdrawalStatus(
-        Holder,
-        expiry
-      );
+      AccountWithdrawalStatus memory status = fixture.market.getAccountWithdrawalStatus(Holder, expiry);
       assertEq(status.scaledAmount, 1e18, 'initial status scale');
       assertEq(status.normalizedAmountWithdrawn, 0, 'initial status withdrawn');
-      assertEq(
-        fixture.market.getAvailableWithdrawalAmount(Holder, expiry),
-        2e17,
-        'first available'
-      );
+      assertEq(fixture.market.getAvailableWithdrawalAmount(Holder, expiry), 2e17, 'first available');
       assertEq(fixture.market.executeWithdrawal(Holder, expiry), 2e17, 'first claim');
 
       fixture.asset.mint(address(fixture.market), 8e17);
@@ -2708,17 +2428,9 @@ contract WildcatMarketTest is MarketFixture {
       vm.expectRevert(IMarketEventsAndErrors.WithdrawalBatchNotExpired.selector);
       fixture.market.getAvailableWithdrawalAmount(Holder, expiry);
       vm.warp(uint256(expiry) + 1);
-      assertEq(
-        fixture.market.getAvailableWithdrawalAmount(Holder, expiry),
-        2e17,
-        'expired view available'
-      );
+      assertEq(fixture.market.getAvailableWithdrawalAmount(Holder, expiry), 2e17, 'expired view available');
       fixture.market.updateState();
-      assertEq(
-        fixture.market.getAvailableWithdrawalAmount(Holder, expiry),
-        2e17,
-        'stored unpaid available'
-      );
+      assertEq(fixture.market.getAvailableWithdrawalAmount(Holder, expiry), 2e17, 'stored unpaid available');
     }
   }
 
@@ -2755,17 +2467,11 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(revolvingMarket.drawnAmount(), 0, 'initial drawn amount');
     assertEq(fixture.market.borrowerPrincipal(), Borrower, 'borrower principal');
 
-    MarketParameters memory parameters = _buildMarketParameters(
-      fixture,
-      options,
-      fixture.market.hooks()
-    );
+    MarketParameters memory parameters = _buildMarketParameters(fixture, options, fixture.market.hooks());
     fixture.factory.setRevolvingMarketCommitmentFeeResponse(type(uint16).max, 32, false);
     WildcatMarket maximumFeeMarket = _deployMarketFromParameters(fixture, parameters, true);
     assertEq(
-      IWildcatMarketRevolving(address(maximumFeeMarket)).commitmentFeeBips(),
-      type(uint16).max,
-      'maximum commitment fee'
+      IWildcatMarketRevolving(address(maximumFeeMarket)).commitmentFeeBips(), type(uint16).max, 'maximum commitment fee'
     );
 
     fixture.factory.setRevolvingMarketCommitmentFeeResponse(200, 31, false);
@@ -2978,11 +2684,7 @@ contract WildcatMarketTest is MarketFixture {
     fixture.market.updateState();
 
     assertEq(fixture.market.scaleFactor(), RAY + baseInterest, 'combined scale factor');
-    assertEq(
-      fixture.market.previousState().accruedProtocolFees,
-      expectedProtocolFees,
-      'revolving protocol fees'
-    );
+    assertEq(fixture.market.previousState().accruedProtocolFees, expectedProtocolFees, 'revolving protocol fees');
     assertEq(_revolving(fixture).drawnAmount(), 500e18, 'accrual drawn amount');
   }
 
@@ -3060,8 +2762,7 @@ contract WildcatMarketTest is MarketFixture {
     uint256 commitmentInterest = MathUtils.calculateLinearInterestFromBips(500, elapsed);
     assertEq(feeOnlyFixture.market.scaleFactor(), RAY + commitmentInterest, 'fee-only accrual');
     assertTrue(
-      feeOnlyFixture.market.scaleFactor() <
-        RAY + MathUtils.calculateLinearInterestFromBips(1_000, elapsed),
+      feeOnlyFixture.market.scaleFactor() < RAY + MathUtils.calculateLinearInterestFromBips(1_000, elapsed),
       'undrawn APR leak'
     );
 
@@ -3089,31 +2790,15 @@ contract WildcatMarketTest is MarketFixture {
     clampedFixture.market.updateState();
     uint256 fullUtilization = MathUtils.calculateLinearInterestFromBips(1_000, 365 days);
     uint256 commitmentInterest = MathUtils.calculateLinearInterestFromBips(200, 365 days);
-    assertEq(
-      clampedFixture.market.scaleFactor(),
-      RAY + commitmentInterest + fullUtilization,
-      'clamped utilization'
-    );
+    assertEq(clampedFixture.market.scaleFactor(), RAY + commitmentInterest + fullUtilization, 'clamped utilization');
 
     assertEq(_minimumDrawForInterest(1_000e6, 1, 12), 1, '1k six-decimal threshold');
     assertEq(_minimumDrawForInterest(110_000_000e6, 1, 12), 1, '110m six-decimal threshold');
-    assertEq(
-      _minimumDrawForInterest(110_000_000e6, 1_000, 12),
-      1,
-      '110m high-APR six-decimal threshold'
-    );
+    assertEq(_minimumDrawForInterest(110_000_000e6, 1_000, 12), 1, '110m high-APR six-decimal threshold');
     assertEq(_minimumDrawForInterest(110_000_000e6, 1, 1), 1, 'one-second six-decimal threshold');
     assertEq(_minimumDrawForInterest(110_000_000e18, 1, 12), 2_890_800_001, '18-decimal threshold');
-    assertEq(
-      _minimumDrawForInterest(110_000_000e18, 1_000, 12),
-      2_890_801,
-      'high-APR 18-decimal threshold'
-    );
-    assertEq(
-      _minimumDrawForInterest(110_000_000e18, 1, 1),
-      34_689_600_001,
-      'one-second 18-decimal threshold'
-    );
+    assertEq(_minimumDrawForInterest(110_000_000e18, 1_000, 12), 2_890_801, 'high-APR 18-decimal threshold');
+    assertEq(_minimumDrawForInterest(110_000_000e18, 1, 1), 34_689_600_001, 'one-second 18-decimal threshold');
 
     _assertObservedRevolvingDust(1_000e6, 1, 12);
     _assertObservedRevolvingDust(110_000_000e6, 1, 12);
@@ -3145,30 +2830,20 @@ contract WildcatMarketTest is MarketFixture {
     vm.warp(vm.getBlockTimestamp() + 45 days);
     standardFixture.market.updateState();
     revolvingFixture.market.updateState();
-    assertEq(
-      revolvingFixture.market.scaleFactor(),
-      standardFixture.market.scaleFactor(),
-      'first segment differential'
-    );
+    assertEq(revolvingFixture.market.scaleFactor(), standardFixture.market.scaleFactor(), 'first segment differential');
     assertTrue(standardFixture.market.scaleFactor() > RAY, 'first segment accrual');
 
     uint256 scaleFactorBefore = revolvingFixture.market.scaleFactor();
     uint256 supplyBefore = revolvingFixture.market.totalSupply();
-    uint256 secondSegmentInterest = _utilizationInterestRay(
-      supplyBefore,
-      depositAmount,
-      revolvingOptions.annualInterestBips,
-      30 days
-    );
-    uint256 expectedRevolving = scaleFactorBefore +
-      MathUtils.rayMul(scaleFactorBefore, secondSegmentInterest);
+    uint256 secondSegmentInterest =
+      _utilizationInterestRay(supplyBefore, depositAmount, revolvingOptions.annualInterestBips, 30 days);
+    uint256 expectedRevolving = scaleFactorBefore + MathUtils.rayMul(scaleFactorBefore, secondSegmentInterest);
     vm.warp(vm.getBlockTimestamp() + 30 days);
     standardFixture.market.updateState();
     revolvingFixture.market.updateState();
     assertEq(revolvingFixture.market.scaleFactor(), expectedRevolving, 'second segment oracle');
     assertTrue(
-      revolvingFixture.market.scaleFactor() < standardFixture.market.scaleFactor(),
-      'second segment differential'
+      revolvingFixture.market.scaleFactor() < standardFixture.market.scaleFactor(), 'second segment differential'
     );
   }
 
@@ -3191,8 +2866,7 @@ contract WildcatMarketTest is MarketFixture {
 
     uint256 scaleFactorBefore = fixture.market.scaleFactor();
     uint256 commitmentInterest = MathUtils.calculateLinearInterestFromBips(300, 15 days);
-    uint256 expectedScaleFactor = scaleFactorBefore +
-      MathUtils.rayMul(scaleFactorBefore, commitmentInterest);
+    uint256 expectedScaleFactor = scaleFactorBefore + MathUtils.rayMul(scaleFactorBefore, commitmentInterest);
     vm.warp(vm.getBlockTimestamp() + 15 days);
     fixture.market.updateState();
     assertEq(fixture.market.scaleFactor(), expectedScaleFactor, 'post-repay fee-only accrual');
@@ -3215,10 +2889,6 @@ contract WildcatMarketTest is MarketFixture {
     assertEq(fixture.market.borrower(), newBorrower, 'transferred borrower');
     assertEq(fixture.market.borrowerPrincipal(), newBorrower, 'transferred principal');
     assertEq(_revolving(fixture).drawnAmount(), 400e18, 'transferred drawn amount');
-    assertEq(
-      vm.load(address(fixture.market), RevolvingDrawnAmountSlot),
-      drawnAmountWord,
-      'drawn storage word'
-    );
+    assertEq(vm.load(address(fixture.market), RevolvingDrawnAmountSlot), drawnAmountWord, 'drawn storage word');
   }
 }

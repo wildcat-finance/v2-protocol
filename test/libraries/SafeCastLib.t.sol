@@ -16,9 +16,7 @@ contract SafeCastLibTest is TestKernel {
   bytes internal ArithmeticError = abi.encodePacked(Panic_ErrorSelector, Panic_Arithmetic);
 
   function setUp() external {
-    wrapper = SafeCastLibExternal(
-      _deployCode('test/libraries/wrappers/SafeCastLibExternal.sol:SafeCastLibExternal')
-    );
+    wrapper = SafeCastLibExternal(_deployCode('test/libraries/wrappers/SafeCastLibExternal.sol:SafeCastLibExternal'));
   }
 
   function test_toUint8(uint256 x) external {

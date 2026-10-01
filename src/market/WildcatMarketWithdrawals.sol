@@ -28,9 +28,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   ///      this block without writing state.
   /// @param expiry batch key and scheduled expiry timestamp.
   /// @return batch current aggregate accounting for that key.
-  function getWithdrawalBatch(
-    uint32 expiry
-  ) external view nonReentrantView returns (WithdrawalBatch memory batch) {
+  function getWithdrawalBatch(uint32 expiry) external view nonReentrantView returns (WithdrawalBatch memory batch) {
     (, uint32 pendingBatchExpiry, WithdrawalBatch memory pendingBatch) = _calculateCurrentState();
     if ((expiry == pendingBatchExpiry).and(expiry > 0)) {
       return pendingBatch;
@@ -46,10 +44,13 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   function getAccountWithdrawalStatus(
     address accountAddress,
     uint32 expiry
-  ) external view nonReentrantView returns (AccountWithdrawalStatus memory status) {
-    AccountWithdrawalStatus storage _status = _withdrawalData.accountStatuses[expiry][
-      accountAddress
-    ];
+  )
+    external
+    view
+    nonReentrantView
+    returns (AccountWithdrawalStatus memory status)
+  {
+    AccountWithdrawalStatus storage _status = _withdrawalData.accountStatuses[expiry][accountAddress];
     status.scaledAmount = _status.scaledAmount;
     status.normalizedAmountWithdrawn = _status.normalizedAmountWithdrawn;
   }
@@ -62,12 +63,14 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   function getAvailableWithdrawalAmount(
     address accountAddress,
     uint32 expiry
-  ) external view nonReentrantView returns (uint256) {
-    (
-      MarketState memory state,
-      uint32 pendingBatchExpiry,
-      WithdrawalBatch memory pendingBatch
-    ) = _calculateCurrentState();
+  )
+    external
+    view
+    nonReentrantView
+    returns (uint256)
+  {
+    (MarketState memory state, uint32 pendingBatchExpiry, WithdrawalBatch memory pendingBatch) =
+      _calculateCurrentState();
     // funded closure releases the current batch early. report the same claim execution accepts.
     if (expiry == state.pendingWithdrawalExpiry || (expiry >= block.timestamp && !state.isClosed)) {
       revert_WithdrawalBatchNotExpired();
@@ -82,10 +85,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // Rounding errors will lead to some dust accumulating in the batch, but the cost of
     // executing a withdrawal will be lower for users.
     uint256 previousTotalWithdrawn = status.normalizedAmountWithdrawn;
-    uint256 newTotalWithdrawn = uint256(batch.normalizedAmountPaid).mulDiv(
-      status.scaledAmount,
-      batch.scaledTotalAmount
-    );
+    uint256 newTotalWithdrawn = uint256(batch.normalizedAmountPaid).mulDiv(status.scaledAmount, batch.scaledTotalAmount);
     return newTotalWithdrawn - previousTotalWithdrawn;
   }
 
@@ -102,7 +102,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     uint104 scaledAmount,
     uint256 normalizedAmount,
     uint256 baseCalldataSize
-  ) internal returns (uint32 expiry) {
+  )
+    internal
+    returns (uint32 expiry)
+  {
     // Cache batch expiry on the stack for gas savings
     expiry = state.pendingWithdrawalExpiry;
 
@@ -142,10 +145,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     _withdrawalData.accountStatuses[expiry][accountAddress].scaledAmount += scaledAmount;
     // Retain the wider ABI layout, but preserve the original uint104 admission bound and panic.
     assembly ('memory-safe') {
-      let total := add(
-        and(mload(batch), 0xffffffffffffffffffffffffffffffff),
-        and(scaledAmount, 0xffffffffffffffffffffffffff)
-      )
+      let total :=
+        add(and(mload(batch), 0xffffffffffffffffffffffffffffffff), and(scaledAmount, 0xffffffffffffffffffffffffff))
       if gt(total, 0xffffffffffffffffffffffffff) {
         mstore(0, 0x4e487b71)
         mstore(0x20, 0x11)
@@ -174,9 +175,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   /// @notice queues the floor-scaled portion of `amount` normalized market tokens.
   /// @param amount normalized amount used to derive the scaled request.
   /// @return expiry batch joined or created by this request.
-  function queueWithdrawal(
-    uint256 amount
-  ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
+  function queueWithdrawal(uint256 amount) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
     uint104 scaledAmount = state.scaleAmountDown(amount).toUint104();
@@ -185,8 +184,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     // Cache account data
     Account memory account = _getAccount(msg.sender);
 
-    return
-      _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, _runtimeConstant(0x24));
+    return _queueWithdrawal(state, account, msg.sender, scaledAmount, amount, _runtimeConstant(0x24));
   }
 
   /// @notice queues exactly `scaledAmount` scaled market tokens.
@@ -194,9 +192,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   ///      scaled shares and must not round through a normalized amount first.
   /// @param scaledAmount exact scaled shares to move into the batch.
   /// @return expiry batch joined or created by this request.
-  function queueWithdrawalScaled(
-    uint256 scaledAmount
-  ) external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
+  function queueWithdrawalScaled(uint256 scaledAmount)
+    external
+    nonReentrant
+    sphereXGuardExternal
+    returns (uint32 expiry)
+  {
     MarketState memory state = _getUpdatedState();
 
     uint104 amount = scaledAmount.toUint104();
@@ -207,25 +208,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint256 normalizedAmount = state.normalizeAmount(amount);
 
-    return
-      _queueWithdrawal(
-        state,
-        account,
-        msg.sender,
-        amount,
-        normalizedAmount,
-        _runtimeConstant(0x24)
-      );
+    return _queueWithdrawal(state, account, msg.sender, amount, normalizedAmount, _runtimeConstant(0x24));
   }
 
   /// @notice queues the caller's entire direct scaled market-token balance.
   /// @return expiry batch joined or created by this request.
-  function queueFullWithdrawal()
-    external
-    nonReentrant
-    sphereXGuardExternal
-    returns (uint32 expiry)
-  {
+  function queueFullWithdrawal() external nonReentrant sphereXGuardExternal returns (uint32 expiry) {
     MarketState memory state = _getUpdatedState();
 
     // Cache account data
@@ -236,15 +224,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
 
     uint256 normalizedAmount = state.normalizeAmount(scaledAmount);
 
-    return
-      _queueWithdrawal(
-        state,
-        account,
-        msg.sender,
-        scaledAmount,
-        normalizedAmount,
-        _runtimeConstant(0x04)
-      );
+    return _queueWithdrawal(state, account, msg.sender, scaledAmount, normalizedAmount, _runtimeConstant(0x04));
   }
 
   /// @notice claims `accountAddress`'s newly paid share of an expired batch.
@@ -256,7 +236,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   function executeWithdrawal(
     address accountAddress,
     uint32 expiry
-  ) public nonReentrant sphereXGuardExternal returns (uint256) {
+  )
+    public
+    nonReentrant
+    sphereXGuardExternal
+    returns (uint256)
+  {
     MarketState memory state = _getUpdatedState();
     uint256 normalizedAmountWithdrawn = _executeWithdrawal(state, accountAddress, expiry);
     // Update stored state
@@ -272,7 +257,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   function executeWithdrawals(
     address[] calldata accountAddresses,
     uint32[] calldata expiries
-  ) external nonReentrant sphereXGuardExternal returns (uint256[] memory amounts) {
+  )
+    external
+    nonReentrant
+    sphereXGuardExternal
+    returns (uint256[] memory amounts)
+  {
     if (accountAddresses.length != expiries.length) revert_InvalidArrayLength();
 
     amounts = new uint256[](accountAddresses.length);
@@ -292,17 +282,17 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     MarketState memory state,
     address accountAddress,
     uint32 expiry
-  ) internal returns (uint256) {
+  )
+    internal
+    returns (uint256)
+  {
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
     if (expiry == state.pendingWithdrawalExpiry) revert_WithdrawalBatchNotExpired();
 
-    AccountWithdrawalStatus storage status = _withdrawalData.accountStatuses[expiry][
-      accountAddress
-    ];
+    AccountWithdrawalStatus storage status = _withdrawalData.accountStatuses[expiry][accountAddress];
 
-    uint128 newTotalWithdrawn = uint128(
-      MathUtils.mulDiv(batch.normalizedAmountPaid, status.scaledAmount, batch.scaledTotalAmount)
-    );
+    uint128 newTotalWithdrawn =
+      uint128(MathUtils.mulDiv(batch.normalizedAmountPaid, status.scaledAmount, batch.scaledTotalAmount));
 
     uint128 normalizedAmountWithdrawn = newTotalWithdrawn - status.normalizedAmountWithdrawn;
 
@@ -319,12 +309,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
       asset.safeTransfer(escrow, normalizedAmountWithdrawn);
 
       // Emit `SanctionedAccountWithdrawalSentToEscrow` event using a custom emitter.
-      emit_SanctionedAccountWithdrawalSentToEscrow(
-        accountAddress,
-        escrow,
-        expiry,
-        normalizedAmountWithdrawn
-      );
+      emit_SanctionedAccountWithdrawalSentToEscrow(accountAddress, escrow, expiry, normalizedAmountWithdrawn);
     } else {
       asset.safeTransfer(accountAddress, normalizedAmountWithdrawn);
     }
@@ -342,7 +327,12 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   function repayAndProcessUnpaidWithdrawalBatches(
     uint256 repayAmount,
     uint256 maxBatches
-  ) public virtual nonReentrant sphereXGuardExternal {
+  )
+    public
+    virtual
+    nonReentrant
+    sphereXGuardExternal
+  {
     // Repay before updating state to ensure the paid amount is counted towards
     // any pending or unpaid withdrawals.
     if (repayAmount > 0) {
@@ -364,9 +354,8 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     }
 
     // Calculate assets available to process the first batch - will be updated after each batch
-    uint256 availableLiquidity = currentTotalAssets.satSub(
-      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
-    );
+    uint256 availableLiquidity =
+      currentTotalAssets.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
 
     // Get the maximum number of batches to process
     uint256 numBatches = MathUtils.min(maxBatches, _withdrawalData.unpaidBatches.length());
@@ -389,7 +378,10 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
   function _processUnpaidWithdrawalBatch(
     MarketState memory state,
     uint256 availableLiquidity
-  ) internal returns (uint256 normalizedAmountPaid) {
+  )
+    internal
+    returns (uint256 normalizedAmountPaid)
+  {
     // Get the next unpaid batch timestamp from storage (reverts if none)
     uint32 expiry = _withdrawalData.unpaidBatches.first();
 
@@ -397,12 +389,7 @@ contract WildcatMarketWithdrawals is WildcatMarketBase {
     WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
 
     // Pay up to the available liquidity to the batch
-    (, normalizedAmountPaid) = _applyWithdrawalBatchPayment(
-      batch,
-      state,
-      expiry,
-      availableLiquidity
-    );
+    (, normalizedAmountPaid) = _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
 
     batch.releaseRemainder(state);
     // Update stored batch

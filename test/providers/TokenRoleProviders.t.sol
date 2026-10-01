@@ -24,100 +24,82 @@ contract TokenRoleProvidersTest is TestKernel {
 
   function setUp() external {
     vm.warp(1_714_737_030);
-    token = RoleProviderTokenMock(
-      _deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock')
+    token = RoleProviderTokenMock(_deployCode('test/mocks/RoleProviderTokenMock.sol:RoleProviderTokenMock'));
+  }
+
+  function _deployERC20(address tokenAddress, uint256 minimum) internal returns (ERC20RoleProvider) {
+    return ERC20RoleProvider(
+      _deployCode('src/providers/ERC20RoleProvider.sol:ERC20RoleProvider', abi.encode(tokenAddress, minimum))
     );
   }
 
-  function _deployERC20(
-    address tokenAddress,
-    uint256 minimum
-  ) internal returns (ERC20RoleProvider) {
-    return
-      ERC20RoleProvider(
-        _deployCode(
-          'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider',
-          abi.encode(tokenAddress, minimum)
-        )
-      );
-  }
-
-  function _deployERC721(
-    address tokenAddress,
-    bool skipInterfaceCheck
-  ) internal returns (ERC721RoleProvider) {
-    return
-      ERC721RoleProvider(
-        _deployCode(
-          'src/providers/ERC721RoleProvider.sol:ERC721RoleProvider',
-          abi.encode(tokenAddress, skipInterfaceCheck)
-        )
-      );
+  function _deployERC721(address tokenAddress, bool skipInterfaceCheck) internal returns (ERC721RoleProvider) {
+    return ERC721RoleProvider(
+      _deployCode(
+        'src/providers/ERC721RoleProvider.sol:ERC721RoleProvider', abi.encode(tokenAddress, skipInterfaceCheck)
+      )
+    );
   }
 
   function _deployERC1155(
     address tokenAddress,
     uint256 tokenId,
     bool skipInterfaceCheck
-  ) internal returns (ERC1155RoleProvider) {
-    return
-      ERC1155RoleProvider(
-        _deployCode(
-          'src/providers/ERC1155RoleProvider.sol:ERC1155RoleProvider',
-          abi.encode(tokenAddress, tokenId, skipInterfaceCheck)
-        )
-      );
+  )
+    internal
+    returns (ERC1155RoleProvider)
+  {
+    return ERC1155RoleProvider(
+      _deployCode(
+        'src/providers/ERC1155RoleProvider.sol:ERC1155RoleProvider',
+        abi.encode(tokenAddress, tokenId, skipInterfaceCheck)
+      )
+    );
   }
 
-  function _deployERC4626(
-    address vault,
-    uint256 minimum
-  ) internal returns (ERC4626AssetsRoleProvider) {
-    return
-      ERC4626AssetsRoleProvider(
-        _deployCode(
-          'src/providers/ERC4626AssetsRoleProvider.sol:ERC4626AssetsRoleProvider',
-          abi.encode(vault, minimum)
-        )
-      );
+  function _deployERC4626(address vault, uint256 minimum) internal returns (ERC4626AssetsRoleProvider) {
+    return ERC4626AssetsRoleProvider(
+      _deployCode('src/providers/ERC4626AssetsRoleProvider.sol:ERC4626AssetsRoleProvider', abi.encode(vault, minimum))
+    );
   }
 
   function _deployERC5192(
     address tokenAddress,
     bool requireLocked,
     bool skipInterfaceCheck
-  ) internal returns (ERC5192RoleProvider) {
-    return
-      ERC5192RoleProvider(
-        _deployCode(
-          'src/providers/ERC5192RoleProvider.sol:ERC5192RoleProvider',
-          abi.encode(tokenAddress, requireLocked, skipInterfaceCheck)
-        )
-      );
+  )
+    internal
+    returns (ERC5192RoleProvider)
+  {
+    return ERC5192RoleProvider(
+      _deployCode(
+        'src/providers/ERC5192RoleProvider.sol:ERC5192RoleProvider',
+        abi.encode(tokenAddress, requireLocked, skipInterfaceCheck)
+      )
+    );
   }
 
   function _deployERC5484(
     address tokenAddress,
     uint8 allowedBurnAuthMask,
     bool skipInterfaceCheck
-  ) internal returns (ERC5484RoleProvider) {
-    return
-      ERC5484RoleProvider(
-        _deployCode(
-          'src/providers/ERC5484RoleProvider.sol:ERC5484RoleProvider',
-          abi.encode(tokenAddress, allowedBurnAuthMask, skipInterfaceCheck)
-        )
-      );
+  )
+    internal
+    returns (ERC5484RoleProvider)
+  {
+    return ERC5484RoleProvider(
+      _deployCode(
+        'src/providers/ERC5484RoleProvider.sol:ERC5484RoleProvider',
+        abi.encode(tokenAddress, allowedBurnAuthMask, skipInterfaceCheck)
+      )
+    );
   }
 
   // ========================================================================== //
   //                         Pull-provider credentials                          //
   // ========================================================================== //
 
-  function testFuzz_erc20CredentialTracksCurrentBalance(
-    uint96 balanceSeed,
-    uint96 minimumSeed
-  ) external {
+  function testFuzz_erc20CredentialTracksCurrentBalance(uint96 balanceSeed, uint96 minimumSeed) external {
     uint256 balance = uint256(balanceSeed);
     uint256 minimum = bound(uint256(minimumSeed), 1, balance + 1);
     token.setBalance(Holder, balance);
@@ -154,11 +136,7 @@ contract TokenRoleProvidersTest is TestKernel {
     assertTrue(provider.isPullProvider(), 'pull provider');
     assertEq(provider.token(), address(token), 'token');
     assertEq(provider.getCredential(Holder), uint32(block.timestamp), 'credential');
-    assertEq(
-      provider.validateCredential(Holder, hex'deadbeef'),
-      uint32(block.timestamp),
-      'validated credential'
-    );
+    assertEq(provider.validateCredential(Holder, hex'deadbeef'), uint32(block.timestamp), 'validated credential');
 
     token.setBalance(Holder, 0);
     token.setBalance(Recipient, balance);
@@ -166,10 +144,7 @@ contract TokenRoleProvidersTest is TestKernel {
     assertEq(provider.getCredential(Recipient), uint32(block.timestamp), 'new credential');
   }
 
-  function testFuzz_erc1155CredentialMatchesConfiguredBalance(
-    uint256 tokenId,
-    uint96 balanceSeed
-  ) external {
+  function testFuzz_erc1155CredentialMatchesConfiguredBalance(uint256 tokenId, uint96 balanceSeed) external {
     token.setBalance(Holder, tokenId, balanceSeed);
     ERC1155RoleProvider provider = _deployERC1155(address(token), tokenId, false);
     uint32 expected = balanceSeed == 0 ? 0 : uint32(block.timestamp);
@@ -181,10 +156,7 @@ contract TokenRoleProvidersTest is TestKernel {
     assertEq(provider.validateCredential(Holder, hex'deadbeef'), expected, 'validated credential');
   }
 
-  function testFuzz_erc1155CredentialMovesAndIgnoresOtherIds(
-    uint256 tokenId,
-    uint96 balanceSeed
-  ) external {
+  function testFuzz_erc1155CredentialMovesAndIgnoresOtherIds(uint256 tokenId, uint96 balanceSeed) external {
     uint256 balance = bound(uint256(balanceSeed), 1, type(uint96).max);
     uint256 otherTokenId = tokenId ^ 1;
     token.setBalance(Holder, otherTokenId, balance);
@@ -205,7 +177,9 @@ contract TokenRoleProvidersTest is TestKernel {
     uint96 sharesSeed,
     uint96 assetsPerShareSeed,
     uint96 minimumSeed
-  ) external {
+  )
+    external
+  {
     uint256 shares = uint256(sharesSeed);
     uint256 assetsPerShare = bound(uint256(assetsPerShareSeed), 1, type(uint96).max);
     uint256 currentAssets = shares * assetsPerShare;
@@ -222,10 +196,7 @@ contract TokenRoleProvidersTest is TestKernel {
     assertEq(provider.validateCredential(Holder, hex'deadbeef'), expected, 'validated credential');
   }
 
-  function testFuzz_erc4626ExactBoundaryAndShareMove(
-    uint96 sharesSeed,
-    uint96 assetsPerShareSeed
-  ) external {
+  function testFuzz_erc4626ExactBoundaryAndShareMove(uint96 sharesSeed, uint96 assetsPerShareSeed) external {
     uint256 shares = bound(uint256(sharesSeed), 1, type(uint96).max);
     uint256 assetsPerShare = bound(uint256(assetsPerShareSeed), 1, type(uint96).max);
     uint256 currentAssets = shares * assetsPerShare;
@@ -254,10 +225,7 @@ contract TokenRoleProvidersTest is TestKernel {
   //                          Push-provider credentials                         //
   // ========================================================================== //
 
-  function testFuzz_erc5192CredentialFollowsOwnershipAndLock(
-    uint256 tokenId,
-    bool requireLocked
-  ) external {
+  function testFuzz_erc5192CredentialFollowsOwnershipAndLock(uint256 tokenId, bool requireLocked) external {
     token.setOwner(tokenId, Holder);
     token.setLocked(tokenId, true);
     ERC5192RoleProvider provider = _deployERC5192(address(token), requireLocked, false);
@@ -266,19 +234,11 @@ contract TokenRoleProvidersTest is TestKernel {
     assertEq(provider.token(), address(token), 'token');
     assertEq(provider.requireLocked(), requireLocked, 'locked setting');
     assertEq(provider.getCredential(Holder), 0, 'pull credential');
-    assertEq(
-      provider.validateCredential(Holder, abi.encode(tokenId)),
-      uint32(block.timestamp),
-      'owner credential'
-    );
+    assertEq(provider.validateCredential(Holder, abi.encode(tokenId)), uint32(block.timestamp), 'owner credential');
 
     token.setOwner(tokenId, Recipient);
     assertEq(provider.validateCredential(Holder, abi.encode(tokenId)), 0, 'stale owner');
-    assertEq(
-      provider.validateCredential(Recipient, abi.encode(tokenId)),
-      uint32(block.timestamp),
-      'new owner'
-    );
+    assertEq(provider.validateCredential(Recipient, abi.encode(tokenId)), uint32(block.timestamp), 'new owner');
   }
 
   function test_erc5192LockedRequirementIsOptional() external {
@@ -289,11 +249,7 @@ contract TokenRoleProvidersTest is TestKernel {
     ERC5192RoleProvider openProvider = _deployERC5192(address(token), false, false);
 
     assertEq(lockedProvider.validateCredential(Holder, abi.encode(tokenId)), 0, 'locked provider');
-    assertEq(
-      openProvider.validateCredential(Holder, abi.encode(tokenId)),
-      uint32(block.timestamp),
-      'open provider'
-    );
+    assertEq(openProvider.validateCredential(Holder, abi.encode(tokenId)), uint32(block.timestamp), 'open provider');
   }
 
   function test_erc5192MalformedDataAndTokenReadFailuresFailClosed() external {
@@ -316,7 +272,9 @@ contract TokenRoleProvidersTest is TestKernel {
     uint256 tokenId,
     uint8 maskSeed,
     uint8 authorizationSeed
-  ) external {
+  )
+    external
+  {
     uint8 mask = uint8(bound(uint256(maskSeed), 1, 0x0f));
     uint8 authorization = uint8(bound(uint256(authorizationSeed), 0, 3));
     token.setOwner(tokenId, Holder);
@@ -337,18 +295,10 @@ contract TokenRoleProvidersTest is TestKernel {
     token.setBurnAuth(tokenId, 0);
     ERC5484RoleProvider provider = _deployERC5484(address(token), 1, false);
 
-    assertEq(
-      provider.validateCredential(Holder, abi.encode(tokenId)),
-      uint32(block.timestamp),
-      'owner credential'
-    );
+    assertEq(provider.validateCredential(Holder, abi.encode(tokenId)), uint32(block.timestamp), 'owner credential');
     token.setOwner(tokenId, Recipient);
     assertEq(provider.validateCredential(Holder, abi.encode(tokenId)), 0, 'stale owner');
-    assertEq(
-      provider.validateCredential(Recipient, abi.encode(tokenId)),
-      uint32(block.timestamp),
-      'new owner'
-    );
+    assertEq(provider.validateCredential(Recipient, abi.encode(tokenId)), uint32(block.timestamp), 'new owner');
   }
 
   function test_erc5484MalformedUndefinedAndReadFailuresFailClosed() external {
@@ -437,16 +387,8 @@ contract TokenRoleProvidersTest is TestKernel {
 
     assertEq(erc721.getCredential(Holder), uint32(block.timestamp), 'ERC721 credential');
     assertEq(erc1155.getCredential(Holder), uint32(block.timestamp), 'ERC1155 credential');
-    assertEq(
-      erc5192.validateCredential(Holder, abi.encode(tokenId)),
-      uint32(block.timestamp),
-      'ERC5192 credential'
-    );
-    assertEq(
-      erc5484.validateCredential(Holder, abi.encode(tokenId)),
-      uint32(block.timestamp),
-      'ERC5484 credential'
-    );
+    assertEq(erc5192.validateCredential(Holder, abi.encode(tokenId)), uint32(block.timestamp), 'ERC5192 credential');
+    assertEq(erc5484.validateCredential(Holder, abi.encode(tokenId)), uint32(block.timestamp), 'ERC5484 credential');
   }
 
   function test_erc5484ConstructorRejectsInvalidBurnAuthMasks() external {

@@ -23,18 +23,13 @@ contract HooksAdministratorTransferTest is TestKernel {
   address internal constant NewAdministrator = address(0xA11CE);
   address internal constant SecondAdministrator = address(0xB0B);
 
-  function _storeInitCode(
-    string memory artifact
-  ) internal returns (address storageContract, uint256 initCodeHash) {
+  function _storeInitCode(string memory artifact) internal returns (address storageContract, uint256 initCodeHash) {
     bytes memory initCode = vm.getCode(artifact);
     storageContract = LibStoredInitCode.deployInitCode(initCode);
     initCodeHash = uint256(keccak256(initCode));
   }
 
-  function _deployFactory(
-    Fixture memory fixture,
-    bool revolving
-  ) internal returns (IHooksFactory factory) {
+  function _deployFactory(Fixture memory fixture, bool revolving) internal returns (IHooksFactory factory) {
     string memory marketArtifact = revolving
       ? 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
       : 'src/market/WildcatMarket.sol:WildcatMarket';
@@ -68,18 +63,14 @@ contract HooksAdministratorTransferTest is TestKernel {
   }
 
   function _newFixture() internal returns (Fixture memory fixture) {
-    fixture.archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    fixture.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
     fixture.registry = WildcatBorrowerIdentityRegistry(
       _deployCode(
         'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
         abi.encode(address(fixture.archController))
       )
     );
-    fixture.hooksTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
+    fixture.hooksTemplate = LibStoredInitCode.deployInitCode(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'));
     fixture.standardFactory = _deployFactory(fixture, false);
     fixture.revolvingFactory = _deployFactory(fixture, true);
     _configureFactory(fixture, fixture.standardFactory);
@@ -90,25 +81,16 @@ contract HooksAdministratorTransferTest is TestKernel {
     fixture.archController.registerBorrower(SecondAdministrator);
   }
 
-  function _factories(
-    Fixture memory fixture
-  ) internal pure returns (IHooksFactory[2] memory factories) {
+  function _factories(Fixture memory fixture) internal pure returns (IHooksFactory[2] memory factories) {
     factories[0] = fixture.standardFactory;
     factories[1] = fixture.revolvingFactory;
   }
 
-  function _deployHooks(
-    Fixture memory fixture,
-    IHooksFactory factory
-  ) internal returns (OpenTermHooks hooks) {
+  function _deployHooks(Fixture memory fixture, IHooksFactory factory) internal returns (OpenTermHooks hooks) {
     hooks = OpenTermHooks(factory.deployHooksInstance(fixture.hooksTemplate, ''));
   }
 
-  function _acceptTransfer(
-    IHooksFactory factory,
-    OpenTermHooks hooks,
-    address newAdministrator
-  ) internal {
+  function _acceptTransfer(IHooksFactory factory, OpenTermHooks hooks, address newAdministrator) internal {
     hooks.requestAdministratorTransfer(newAdministrator);
 
     vm.expectEmit(address(hooks));

@@ -26,7 +26,10 @@ contract WithdrawalRemainderStateTest is TestKernel {
     uint112 factor,
     uint128 remainder,
     uint16 ratio
-  ) external pure {
+  )
+    external
+    pure
+  {
     MarketState memory s;
     s.scaledTotalSupply = supply;
     s.scaledPendingWithdrawals = uint104(bound(pending, 0, supply));
@@ -49,7 +52,10 @@ contract WithdrawalRemainderStateTest is TestKernel {
     uint16 ratio,
     uint128 fees,
     uint128 unclaimed
-  ) external pure {
+  )
+    external
+    pure
+  {
     MarketState memory s;
     s.scaledTotalSupply = supply;
     s.scaledPendingWithdrawals = uint104(bound(pending, 0, supply));
@@ -59,10 +65,7 @@ contract WithdrawalRemainderStateTest is TestKernel {
     s.accruedProtocolFees = fees;
     s.normalizedUnclaimedWithdrawals = unclaimed;
     uint256 total = (uint256(supply) * s.scaleFactor + remainder + HALF_RAY) / RAY;
-    uint256 withdrawalValue = (uint256(s.scaledPendingWithdrawals) *
-      s.scaleFactor +
-      remainder +
-      HALF_RAY) / RAY;
+    uint256 withdrawalValue = (uint256(s.scaledPendingWithdrawals) * s.scaleFactor + remainder + HALF_RAY) / RAY;
     uint256 original;
     if (ratio == 0) original = withdrawalValue;
     else if (ratio == BIP) original = total;

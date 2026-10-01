@@ -7,12 +7,7 @@ import './WildcatMarketToken.sol';
 import './WildcatMarketWithdrawals.sol';
 
 /// @notice standard Wildcat credit market with interest on the full normalized supply.
-contract WildcatMarket is
-  WildcatMarketBase,
-  WildcatMarketConfig,
-  WildcatMarketToken,
-  WildcatMarketWithdrawals
-{
+contract WildcatMarket is WildcatMarketBase, WildcatMarketConfig, WildcatMarketToken, WildcatMarketWithdrawals {
   using MathUtils for uint256;
   using SafeCastLib for uint256;
   using LibERC20 for address;
@@ -47,9 +42,14 @@ contract WildcatMarket is
   ///      reverts if the market is closed, the result is below one scaled token, access fails,
   ///      or the hook rejects the deposit.
   /// @return underlying assets deposited.
-  function _depositUpTo(
-    uint256 amount
-  ) internal virtual nonReentrant returns (uint256 /* actualAmount */) {
+  function _depositUpTo(uint256 amount)
+    internal
+    virtual
+    nonReentrant
+    returns (
+      uint256 /* actualAmount */
+    )
+  {
     // Get current state
     MarketState memory state = _getUpdatedState();
 
@@ -90,9 +90,14 @@ contract WildcatMarket is
   /// @dev mints floor-scaled shares. reverts instead of succeeding with less than one share.
   /// @param amount maximum underlying assets to transfer from the caller.
   /// @return assets deposited, which may be lower than `amount`.
-  function depositUpTo(
-    uint256 amount
-  ) external virtual sphereXGuardExternal returns (uint256 /* actualAmount */) {
+  function depositUpTo(uint256 amount)
+    external
+    virtual
+    sphereXGuardExternal
+    returns (
+      uint256 /* actualAmount */
+    )
+  {
     return _depositUpTo(amount);
   }
 
@@ -149,11 +154,7 @@ contract WildcatMarket is
   }
 
   /// @dev pulls a nonzero repayment, runs the hook, and lets derived markets reconcile it.
-  function _repay(
-    MarketState memory state,
-    uint256 amount,
-    uint256 baseCalldataSize
-  ) internal virtual {
+  function _repay(MarketState memory state, uint256 amount, uint256 baseCalldataSize) internal virtual {
     if (amount == 0) revert_NullRepayAmount();
     if (state.isClosed) revert_RepayToClosedMarket();
 
@@ -218,9 +219,7 @@ contract WildcatMarket is
     state.timeDelinquent = 0;
 
     // Still track available liquidity in case of a rounding error
-    uint256 availableLiquidity = currentlyHeld.satSub(
-      state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees
-    );
+    uint256 availableLiquidity = currentlyHeld.satSub(state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees);
 
     // If there is a pending withdrawal batch which is not fully paid off, set aside
     // up to the available liquidity for that batch.
@@ -228,12 +227,7 @@ contract WildcatMarket is
       uint32 expiry = state.pendingWithdrawalExpiry;
       WithdrawalBatch memory batch = _withdrawalData.batches[expiry];
       if (batch.scaledAmountBurned < batch.scaledTotalAmount) {
-        (, uint128 normalizedAmountPaid) = _applyWithdrawalBatchPayment(
-          batch,
-          state,
-          expiry,
-          availableLiquidity
-        );
+        (, uint128 normalizedAmountPaid) = _applyWithdrawalBatchPayment(batch, state, expiry, availableLiquidity);
         availableLiquidity -= normalizedAmountPaid;
       }
       batch.releaseRemainder(state);
@@ -242,12 +236,7 @@ contract WildcatMarket is
       // Remove the pending batch to ensure new withdrawals are not
       // added to it after the market is closed.
       state.pendingWithdrawalExpiry = 0;
-      emit_WithdrawalBatchExpired(
-        expiry,
-        batch.scaledTotalAmount,
-        batch.scaledAmountBurned,
-        batch.normalizedAmountPaid
-      );
+      emit_WithdrawalBatchExpired(expiry, batch.scaledTotalAmount, batch.scaledAmountBurned, batch.normalizedAmountPaid);
       emit_WithdrawalBatchClosed(expiry);
 
       // If the batch expiry is at the time of the market's closure, create
@@ -275,11 +264,7 @@ contract WildcatMarket is
     _onCloseMarket();
     _writeState(state);
     emit_AnnualInterestAndReserveRatioBipsUpdated(
-      msg.sender,
-      previousAnnualInterestBips,
-      state.annualInterestBips,
-      previousReserveRatioBips,
-      state.reserveRatioBips
+      msg.sender, previousAnnualInterestBips, state.annualInterestBips, previousReserveRatioBips, state.reserveRatioBips
     );
     emit_MarketClosed(msg.sender, block.timestamp);
   }
@@ -299,21 +284,9 @@ contract WildcatMarket is
       // (fixed-term end times, periodic withdrawal windows), so `nukeFromOrbit`
       // intentionally uses the ordinary withdrawal path: quarantine can be
       // deferred until withdrawals open. Accepted behavior; see Known Issues.
-      uint32 expiry = _queueWithdrawal(
-        state,
-        account,
-        accountAddress,
-        scaledAmount,
-        normalizedAmount,
-        msg.data.length
-      );
+      uint32 expiry = _queueWithdrawal(state, account, accountAddress, scaledAmount, normalizedAmount, msg.data.length);
 
-      emit_SanctionedAccountAssetsQueuedForWithdrawal(
-        accountAddress,
-        expiry,
-        scaledAmount,
-        normalizedAmount
-      );
+      emit_SanctionedAccountAssetsQueuedForWithdrawal(accountAddress, expiry, scaledAmount, normalizedAmount);
     }
   }
 }

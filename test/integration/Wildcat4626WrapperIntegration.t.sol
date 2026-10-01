@@ -88,24 +88,14 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     if (kind == HooksKind.FixedTerm) {
       return abi.encode(uint32(vm.getBlockTimestamp() + 60 days), uint128(0), false, true, true);
     }
-    return
-      abi.encode(
-        uint32(vm.getBlockTimestamp() + 23 days),
-        uint32(30 days),
-        uint32(7 days),
-        uint96(0),
-        false
-      );
+    return abi.encode(uint32(vm.getBlockTimestamp() + 23 days), uint32(30 days), uint32(7 days), uint96(0), false);
   }
 
   function _requestedHooks(address hooks) private pure returns (HooksConfig config) {
     return _requestedHooks(hooks, true);
   }
 
-  function _requestedHooks(
-    address hooks,
-    bool transferRequiresAccess
-  ) private pure returns (HooksConfig config) {
+  function _requestedHooks(address hooks, bool transferRequiresAccess) private pure returns (HooksConfig config) {
     config = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
     if (transferRequiresAccess) {
       config = config.setFlag(Bit_Enabled_QueueWithdrawal).setFlag(Bit_Enabled_Transfer);
@@ -116,7 +106,11 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   function _marketParameters(
     Fixture memory fixture,
     HooksConfig hooksConfig
-  ) private pure returns (MarketParameters memory parameters) {
+  )
+    private
+    pure
+    returns (MarketParameters memory parameters)
+  {
     (parameters.packedNameWord0, parameters.packedNameWord1) = _packString('Wildcat Token');
     (parameters.packedSymbolWord0, parameters.packedSymbolWord1) = _packString('WCTKN');
     parameters.asset = address(fixture.asset);
@@ -141,7 +135,11 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   function _deploymentInputs(
     Fixture memory fixture,
     HooksConfig requestedHooks
-  ) private pure returns (DeployMarketInputs memory inputs) {
+  )
+    private
+    pure
+    returns (DeployMarketInputs memory inputs)
+  {
     inputs.asset = address(fixture.asset);
     inputs.namePrefix = 'Wildcat ';
     inputs.symbolPrefix = 'WC';
@@ -162,19 +160,18 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     HooksKind kind,
     bool revolving,
     bool transferRequiresAccess
-  ) private returns (Fixture memory fixture) {
-    fixture.archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+  )
+    private
+    returns (Fixture memory fixture)
+  {
+    fixture.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
     fixture.registry = WildcatBorrowerIdentityRegistry(
       _deployCode(
         'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
         abi.encode(address(fixture.archController))
       )
     );
-    fixture.sanctionsList = SanctionsListMock(
-      _deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock')
-    );
+    fixture.sanctionsList = SanctionsListMock(_deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock'));
     fixture.sentinel = WildcatSanctionsSentinel(
       _deployCode(
         'src/WildcatSanctionsSentinel.sol:WildcatSanctionsSentinel',
@@ -187,33 +184,23 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
         abi.encode(address(fixture.archController), address(0))
       )
     );
-    fixture.marketFactory = HookDispatchFactoryMock(
-      _deployCode('test/mocks/HookDispatchMocks.sol:HookDispatchFactoryMock')
-    );
+    fixture.marketFactory =
+      HookDispatchFactoryMock(_deployCode('test/mocks/HookDispatchMocks.sol:HookDispatchFactoryMock'));
     fixture.accountFactory = BorrowerIdentityAccountFactoryMock(
       _deployCode(
-        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock',
-        abi.encode(address(fixture.registry))
+        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock', abi.encode(address(fixture.registry))
       )
     );
-    fixture.roleProvider = MockRoleProvider(
-      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-    );
+    fixture.roleProvider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
     fixture.asset = MockERC20(
-      _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Token', 'TKN', uint8(18))
-      )
+      _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Token', 'TKN', uint8(18)))
     );
     fixture.hooks = _deployHooks(kind);
 
     fixture.archController.registerBorrower(Borrower);
     fixture.registry.addAccountFactory(address(fixture.accountFactory));
 
-    HooksConfig requestedHooks = _requestedHooks(
-      address(fixture.hooks),
-      transferRequiresAccess
-    );
+    HooksConfig requestedHooks = _requestedHooks(address(fixture.hooks), transferRequiresAccess);
     HooksConfig marketHooks = requestedHooks.mergeFlags(IHooks(address(fixture.hooks)).config());
     fixture.marketFactory.setMarketParameters(_marketParameters(fixture, marketHooks));
     bytes memory marketCreationCode = revolving
@@ -221,12 +208,8 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       : vm.getCode('src/market/WildcatMarket.sol:WildcatMarket');
     fixture.market = WildcatMarket(fixture.marketFactory.deployMarket(marketCreationCode));
 
-    HooksConfig configuredHooks = IHooks(address(fixture.hooks)).onCreateMarket(
-      Borrower,
-      address(fixture.market),
-      _deploymentInputs(fixture, requestedHooks),
-      _hooksData(kind)
-    );
+    HooksConfig configuredHooks = IHooks(address(fixture.hooks))
+      .onCreateMarket(Borrower, address(fixture.market), _deploymentInputs(fixture, requestedHooks), _hooksData(kind));
     assertEq(HooksConfig.unwrap(configuredHooks), HooksConfig.unwrap(marketHooks), 'hooks config');
 
     fixture.archController.registerControllerFactory(address(fixture.marketFactory));
@@ -253,10 +236,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.hooks.revokeRole(Lender);
   }
 
-  function _deployWrapper(
-    Fixture memory fixture,
-    bool authorize
-  ) private returns (Wildcat4626Wrapper wrapper) {
+  function _deployWrapper(Fixture memory fixture, bool authorize) private returns (Wildcat4626Wrapper wrapper) {
     wrapper = Wildcat4626Wrapper(fixture.wrapperFactory.createWrapper(address(fixture.market)));
     if (authorize) _authorize(fixture, address(wrapper));
   }
@@ -267,23 +247,16 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     fixture.asset.approve(address(fixture.market), type(uint256).max);
   }
 
-  function _deployAdditionalMarket(
-    Fixture memory fixture,
-    MockERC20 asset
-  ) private returns (WildcatMarket market) {
+  function _deployAdditionalMarket(Fixture memory fixture, MockERC20 asset) private returns (WildcatMarket market) {
     fixture.asset = asset;
     HooksConfig requestedHooks = _requestedHooks(address(fixture.hooks));
     HooksConfig marketHooks = requestedHooks.mergeFlags(IHooks(address(fixture.hooks)).config());
     fixture.marketFactory.setMarketParameters(_marketParameters(fixture, marketHooks));
-    market = WildcatMarket(
-      fixture.marketFactory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket'))
-    );
-    HooksConfig configuredHooks = IHooks(address(fixture.hooks)).onCreateMarket(
-      Borrower,
-      address(market),
-      _deploymentInputs(fixture, requestedHooks),
-      _hooksData(HooksKind.OpenTerm)
-    );
+    market = WildcatMarket(fixture.marketFactory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket')));
+    HooksConfig configuredHooks = IHooks(address(fixture.hooks))
+      .onCreateMarket(
+        Borrower, address(market), _deploymentInputs(fixture, requestedHooks), _hooksData(HooksKind.OpenTerm)
+      );
     assertEq(HooksConfig.unwrap(configuredHooks), HooksConfig.unwrap(marketHooks), 'target hooks');
     vm.prank(address(fixture.marketFactory));
     fixture.archController.registerMarket(address(market));
@@ -291,10 +264,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
 
   function _newAsset(string memory name, string memory symbol) private returns (MockERC20 asset) {
     asset = MockERC20(
-      _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode(name, symbol, uint8(18))
-      )
+      _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode(name, symbol, uint8(18)))
     );
   }
 
@@ -321,7 +291,10 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     Wildcat4626Wrapper wrapper,
     address account,
     uint256 amount
-  ) private returns (uint256 shares) {
+  )
+    private
+    returns (uint256 shares)
+  {
     _deposit(fixture, account, amount);
     vm.startPrank(account);
     fixture.market.approve(address(wrapper), type(uint256).max);
@@ -335,20 +308,13 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
-  function _deployAccount(
-    Fixture memory fixture,
-    address principal
-  ) private returns (address account) {
+  function _deployAccount(Fixture memory fixture, address principal) private returns (address account) {
     _registerPrincipal(fixture, principal);
     account = _deployCode('test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountMock');
     fixture.accountFactory.registerAccount(account, principal);
   }
 
-  function _transferBorrower(
-    Fixture memory fixture,
-    address currentBorrower,
-    address newBorrower
-  ) private {
+  function _transferBorrower(Fixture memory fixture, address currentBorrower, address newBorrower) private {
     vm.prank(currentBorrower);
     fixture.market.requestBorrowerTransfer(newBorrower);
     vm.prank(newBorrower);
@@ -365,15 +331,11 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       Wildcat4626Wrapper wrapper = _deployWrapper(fixture, false);
       assertEq(fixture.market.registeredWrapper(), address(wrapper), 'market registration');
       assertEq(
-        fixture.wrapperFactory.wrapperForMarket(address(fixture.market)),
-        address(wrapper),
-        'factory registration'
+        fixture.wrapperFactory.wrapperForMarket(address(fixture.market)), address(wrapper), 'factory registration'
       );
       assertTrue(
-        IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
-          address(fixture.market),
-          address(wrapper)
-        ),
+        IMarketTransferPolicy(address(fixture.hooks))
+          .isMarketTransferRecipientAllowed(address(fixture.market), address(wrapper)),
         'registered wrapper policy'
       );
       assertTrue(wrapper.maxDeposit(Lender) > 0, 'registered wrapper deposit limit');
@@ -399,10 +361,8 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       fixture.hooks.blockFromDeposits(address(wrapper));
 
       assertTrue(
-        IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
-          address(fixture.market),
-          address(wrapper)
-        ),
+        IMarketTransferPolicy(address(fixture.hooks))
+          .isMarketTransferRecipientAllowed(address(fixture.market), address(wrapper)),
         'blocked registered wrapper policy'
       );
       assertTrue(wrapper.maxDeposit(Lender) > 0, 'blocked wrapper deposit limit');
@@ -418,11 +378,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
 
       assertEq(mintAssets, DepositAmount, 'mint assets');
       assertEq(wrapper.balanceOf(Lender), depositShares + mintShares, 'lender shares');
-      assertEq(
-        fixture.market.scaledBalanceOf(address(wrapper)),
-        wrapper.totalSupply(),
-        'wrapper backing'
-      );
+      assertEq(fixture.market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'wrapper backing');
       assertFalse(
         fixture.hooks.isKnownLenderOnMarket(address(wrapper), address(fixture.market)),
         'wrapper should not become known'
@@ -439,10 +395,8 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       vm.prank(Borrower);
       fixture.hooks.blockFromDeposits(Outsider);
       assertFalse(
-        IMarketTransferPolicy(address(fixture.hooks)).isMarketTransferRecipientAllowed(
-          address(fixture.market),
-          Outsider
-        ),
+        IMarketTransferPolicy(address(fixture.hooks))
+          .isMarketTransferRecipientAllowed(address(fixture.market), Outsider),
         'blocked recipient policy'
       );
       vm.prank(Lender);
@@ -453,9 +407,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       _deposit(fixture, OtherLender, DepositAmount);
       fixture.sanctionsList.sanction(OtherLender);
       vm.prank(Lender);
-      vm.expectRevert(
-        abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, OtherLender)
-      );
+      vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, OtherLender));
       wrapper.redeem(shares, OtherLender, Lender);
       assertEq(wrapper.balanceOf(Lender), shares, 'sanctioned recipient rollback');
 
@@ -466,11 +418,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
       vm.prank(Lender);
       wrapper.redeem(shares, OtherLender, Lender);
       assertEq(wrapper.balanceOf(Lender), 0, 'known recipient redemption');
-      assertEq(
-        fixture.market.scaledBalanceOf(OtherLender),
-        recipientBalanceBefore + shares,
-        'known recipient balance'
-      );
+      assertEq(fixture.market.scaledBalanceOf(OtherLender), recipientBalanceBefore + shares, 'known recipient balance');
     }
   }
 
@@ -486,9 +434,8 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     uint256 wrappedShares = 25e18;
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, revolving);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
-    WrapperQueueAccountMock account = WrapperQueueAccountMock(
-      _deployCode('test/mocks/WrapperQueueAccountMock.sol:WrapperQueueAccountMock')
-    );
+    WrapperQueueAccountMock account =
+      WrapperQueueAccountMock(_deployCode('test/mocks/WrapperQueueAccountMock.sol:WrapperQueueAccountMock'));
     _authorize(fixture, address(account));
 
     fixture.asset.mint(address(account), directScaledBalance + wrappedShares);
@@ -504,47 +451,23 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     if (shouldFail) {
       bytes32 stateBefore = keccak256(abi.encode(fixture.market.currentState()));
       vm.expectRevert(abi.encodeWithSelector(bytes4(0x4e487b71), uint256(0x11)));
-      account.redeemAndQueue(
-        wrapper,
-        fixture.market,
-        wrappedShares,
-        directScaledBalance + wrappedShares + 1
-      );
+      account.redeemAndQueue(wrapper, fixture.market, wrappedShares, directScaledBalance + wrappedShares + 1);
       assertEq(wrapper.balanceOf(address(account)), wrappedShares, 'rollback shares');
       assertEq(wrapper.totalSupply(), wrappedShares, 'rollback supply');
       assertEq(fixture.market.scaledBalanceOf(address(wrapper)), wrappedShares, 'rollback backing');
-      assertEq(
-        fixture.market.scaledBalanceOf(address(account)),
-        directScaledBalance,
-        'rollback direct scale'
-      );
-      assertEq(
-        keccak256(abi.encode(fixture.market.currentState())),
-        stateBefore,
-        'rollback market state'
-      );
+      assertEq(fixture.market.scaledBalanceOf(address(account)), directScaledBalance, 'rollback direct scale');
+      assertEq(keccak256(abi.encode(fixture.market.currentState())), stateBefore, 'rollback market state');
       return;
     }
 
-    (uint256 assets, uint32 expiry) = account.redeemAndQueue(
-      wrapper,
-      fixture.market,
-      wrappedShares,
-      wrappedShares
-    );
+    (uint256 assets, uint32 expiry) = account.redeemAndQueue(wrapper, fixture.market, wrappedShares, wrappedShares);
     assertTrue(assets > wrappedShares, 'accrued redemption');
     assertEq(wrapper.balanceOf(address(account)), 0, 'remaining shares');
     assertEq(wrapper.totalSupply(), 0, 'remaining supply');
     assertEq(fixture.market.scaledBalanceOf(address(wrapper)), 0, 'remaining backing');
+    assertEq(fixture.market.scaledBalanceOf(address(account)), directScaledBalance, 'direct scale changed');
     assertEq(
-      fixture.market.scaledBalanceOf(address(account)),
-      directScaledBalance,
-      'direct scale changed'
-    );
-    assertEq(
-      fixture.market.getAccountWithdrawalStatus(address(account), expiry).scaledAmount,
-      wrappedShares,
-      'queued scale'
+      fixture.market.getAccountWithdrawalStatus(address(account), expiry).scaledAmount, wrappedShares, 'queued scale'
     );
   }
 
@@ -569,8 +492,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(wrapper.totalSupply(), supplyBefore, 'share supply');
     assertEq(fixture.market.scaledBalanceOf(address(wrapper)), backingBefore, 'wrapper backing');
 
-    (address escrowedAsset, uint256 escrowedShares) = IWildcatSanctionsEscrow(escrow)
-      .escrowedAsset();
+    (address escrowedAsset, uint256 escrowedShares) = IWildcatSanctionsEscrow(escrow).escrowedAsset();
     assertEq(escrowedAsset, address(wrapper), 'escrow asset');
     assertEq(escrowedShares, lenderShares, 'escrow balance');
 
@@ -578,17 +500,11 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     vm.prank(OtherLender);
     wrapper.redeem(otherShares, OtherLender, OtherLender);
     assertEq(
-      fixture.market.scaledBalanceOf(OtherLender),
-      otherMarketBalanceBefore + otherShares,
-      'other holder redemption'
+      fixture.market.scaledBalanceOf(OtherLender), otherMarketBalanceBefore + otherShares, 'other holder redemption'
     );
     assertEq(wrapper.balanceOf(escrow), lenderShares, 'escrow after redemption');
     assertEq(wrapper.totalSupply(), lenderShares, 'remaining supply');
-    assertEq(
-      fixture.market.scaledBalanceOf(address(wrapper)),
-      wrapper.totalSupply(),
-      'remaining backing'
-    );
+    assertEq(fixture.market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'remaining backing');
   }
 
   function test_marketAndWrapperNukesComposeWithoutPuttingBackingAtRisk() external {
@@ -695,11 +611,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertTrue(fixture.sentinel.isSanctioned(SecondPrincipal, Lender), 'new namespace');
 
     wrapper.nukeFromOrbit(Lender);
-    address newEscrow = fixture.sentinel.getEscrowAddress(
-      SecondPrincipal,
-      Lender,
-      address(wrapper)
-    );
+    address newEscrow = fixture.sentinel.getEscrowAddress(SecondPrincipal, Lender, address(wrapper));
     assertTrue(newEscrow != oldEscrow, 'escrow namespace');
     assertEq(wrapper.balanceOf(newEscrow), shares, 'new escrow funding');
     vm.prank(SecondPrincipal);
@@ -800,11 +712,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
 
     fixture.sanctionsList.sanction(Lender);
     wrapper.nukeFromOrbit(Lender);
-    address principalEscrow = fixture.sentinel.getEscrowAddress(
-      SecondPrincipal,
-      Lender,
-      address(wrapper)
-    );
+    address principalEscrow = fixture.sentinel.getEscrowAddress(SecondPrincipal, Lender, address(wrapper));
     address accountEscrow = fixture.sentinel.getEscrowAddress(account, Lender, address(wrapper));
     assertTrue(principalEscrow != accountEscrow, 'principal namespace');
     assertEq(wrapper.balanceOf(principalEscrow), shares, 'principal escrow');
@@ -812,10 +720,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(IWildcatSanctionsEscrow(principalEscrow).borrower(), SecondPrincipal, 'escrow owner');
 
     MockERC20 stray = MockERC20(
-      _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Stray', 'STRAY', uint8(18))
-      )
+      _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Stray', 'STRAY', uint8(18)))
     );
     stray.mint(address(wrapper), DepositAmount);
     assertEq(wrapper.marketOwner(), account, 'market owner');
@@ -855,11 +760,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     Fixture memory emptyFixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper emptyWrapper = _deployWrapper(emptyFixture, true);
     emptyFixture.sanctionsList.sanction(Lender);
-    address emptyEscrow = emptyFixture.sentinel.getEscrowAddress(
-      Borrower,
-      Lender,
-      address(emptyWrapper)
-    );
+    address emptyEscrow = emptyFixture.sentinel.getEscrowAddress(Borrower, Lender, address(emptyWrapper));
     emptyWrapper.nukeFromOrbit(Lender);
     emptyWrapper.nukeFromOrbit(Lender);
     assertEq(emptyEscrow.code.length, 0, 'empty escrow deployed');
@@ -870,11 +771,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     _deposit(revolvingFixture, Lender, DepositAmount);
     revolvingFixture.sanctionsList.sanction(Lender);
     revolvingWrapper.nukeFromOrbit(Lender);
-    address revolvingEscrow = revolvingFixture.sentinel.getEscrowAddress(
-      Borrower,
-      Lender,
-      address(revolvingWrapper)
-    );
+    address revolvingEscrow = revolvingFixture.sentinel.getEscrowAddress(Borrower, Lender, address(revolvingWrapper));
     assertEq(revolvingFixture.market.scaledBalanceOf(Lender), 0, 'revolving direct balance');
     assertEq(revolvingWrapper.balanceOf(Lender), 0, 'revolving shares');
     assertEq(revolvingWrapper.balanceOf(revolvingEscrow), shares, 'revolving escrow');
@@ -886,21 +783,14 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     _deposit(fixture, Lender, 1e18);
     ERC20RoleProvider provider = ERC20RoleProvider(
-      _deployCode(
-        'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider',
-        abi.encode(address(fixture.market), 1e18)
-      )
+      _deployCode('src/providers/ERC20RoleProvider.sol:ERC20RoleProvider', abi.encode(address(fixture.market), 1e18))
     );
     assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'outside credential');
 
     _replaceLenderAccessProvider(fixture, address(provider));
     fixture.asset.mint(Lender, 1e18);
     _expectTargetDepositDenied(fixture.market);
-    assertEq(
-      provider.getCredential(Lender),
-      uint32(vm.getBlockTimestamp()),
-      'credential after blocked deposit'
-    );
+    assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'credential after blocked deposit');
   }
 
   function test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket() external {
@@ -913,8 +803,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     uint256 minimumBalance = fixture.market.balanceOf(Lender) + 1e18;
     ERC20RoleProvider provider = ERC20RoleProvider(
       _deployCode(
-        'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider',
-        abi.encode(address(fixture.market), minimumBalance)
+        'src/providers/ERC20RoleProvider.sol:ERC20RoleProvider', abi.encode(address(fixture.market), minimumBalance)
       )
     );
     MockERC20 targetAsset = _newAsset('Target Token', 'TGT');

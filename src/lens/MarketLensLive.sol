@@ -20,9 +20,7 @@ contract MarketLensLive is IMarketLensLive {
     hooksFactory = IHooksFactory(_hooksFactory);
   }
 
-  function getMarketsLiveDataV2(
-    address[] calldata markets
-  ) external view returns (MarketLiveDataV2_5[] memory data) {
+  function getMarketsLiveDataV2(address[] calldata markets) external view returns (MarketLiveDataV2_5[] memory data) {
     data = new MarketLiveDataV2_5[](markets.length);
     for (uint256 i; i < markets.length; i++) {
       data[i].fill(WildcatMarket(markets[i]));
@@ -32,7 +30,11 @@ contract MarketLensLive is IMarketLensLive {
   function getMarketsLiveDataWithLenderStatusV2(
     address lender,
     address[] calldata markets
-  ) external view returns (MarketLiveDataWithLenderStatusV2_5[] memory data) {
+  )
+    external
+    view
+    returns (MarketLiveDataWithLenderStatusV2_5[] memory data)
+  {
     data = new MarketLiveDataWithLenderStatusV2_5[](markets.length);
     for (uint256 i; i < markets.length; i++) {
       data[i].fill(WildcatMarket(markets[i]), lender);

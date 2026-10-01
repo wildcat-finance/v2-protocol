@@ -17,11 +17,7 @@ contract MarketLensOptionalDataTest is TestKernel {
 
   function _constraints() internal pure returns (bytes memory) {
     return
-      abi.encode(
-        uint256[12](
-          [uint256(1), 90 days, 2, 10_000, 3, 10_000, 4, 365 days, 5, 10_000, 90 days, 730 days]
-        )
-      );
+      abi.encode(uint256[12]([uint256(1), 90 days, 2, 10_000, 3, 10_000, 4, 365 days, 5, 10_000, 90 days, 730 days]));
   }
 
   function _mockConstraints(bytes memory result) internal {
@@ -82,12 +78,7 @@ contract MarketLensOptionalDataTest is TestKernel {
     probe.constraints(Target);
   }
 
-  function _mockLifecycle(
-    uint256 date,
-    uint256 period,
-    uint256 deadline,
-    uint256 defaultedAt
-  ) internal {
+  function _mockLifecycle(uint256 date, uint256 period, uint256 deadline, uint256 defaultedAt) internal {
     vm.mockCall(Target, abi.encodeWithSignature('repaymentDate()'), abi.encode(date));
     vm.mockCall(Target, abi.encodeWithSignature('repaymentPeriod()'), abi.encode(period));
     vm.mockCall(Target, abi.encodeWithSignature('repaymentDeadline()'), abi.encode(deadline));
@@ -111,11 +102,7 @@ contract MarketLensOptionalDataTest is TestKernel {
   function test_lifecycle_ClosureEndsPhaseWithoutDiscardingTermsOrDefault() external {
     vm.warp(100);
     _mockLifecycle(100, 0, 100, 90);
-    vm.mockCall(
-      Target,
-      abi.encodeWithSignature('repaymentPeriod()'),
-      abi.encode(uint256(0), uint256(999))
-    );
+    vm.mockCall(Target, abi.encodeWithSignature('repaymentPeriod()'), abi.encode(uint256(0), uint256(999)));
     MarketLifecycleData memory data = probe.lifecycle(Target, false);
     assertTrue(data.isInRepayment, 'date inclusive');
     assertEq(data.defaultedAt, 90, 'recorded marker');
@@ -138,11 +125,7 @@ contract MarketLensOptionalDataTest is TestKernel {
     PeriodicPendingAprChangeData memory data = probe.pendingAprChange(Target, address(1));
     assertTrue(data.isPresent, 'no proposal still supported');
     assertEq(data.proposalTimestamp, 0, 'no proposal');
-    vm.mockCall(
-      Target,
-      input,
-      abi.encode(uint256(500), uint256(10), uint256(20), uint256(30), uint256(99))
-    );
+    vm.mockCall(Target, input, abi.encode(uint256(500), uint256(10), uint256(20), uint256(30), uint256(99)));
     data = probe.pendingAprChange(Target, address(1));
     assertTrue(data.isPresent, 'proposal getter supported');
     assertEq(data.annualInterestBips, 500, 'proposal apr');

@@ -37,29 +37,22 @@ contract BorrowerAccountOriginationTest is TestKernel {
   address internal constant SanctionsSentinel = address(0x51);
 
   function _deployArchController() internal returns (WildcatArchController archController) {
-    archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
   }
 
-  function _deployRegistry(
-    address archController
-  ) internal returns (WildcatBorrowerIdentityRegistry registry) {
+  function _deployRegistry(address archController) internal returns (WildcatBorrowerIdentityRegistry registry) {
     registry = WildcatBorrowerIdentityRegistry(
-      _deployCode(
-        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
-        abi.encode(archController)
-      )
+      _deployCode('src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry', abi.encode(archController))
     );
   }
 
-  function _deployAccountFactory(
-    WildcatBorrowerIdentityRegistry registry
-  ) internal returns (BorrowerIdentityAccountFactoryMock factory) {
+  function _deployAccountFactory(WildcatBorrowerIdentityRegistry registry)
+    internal
+    returns (BorrowerIdentityAccountFactoryMock factory)
+  {
     factory = BorrowerIdentityAccountFactoryMock(
       _deployCode(
-        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock',
-        abi.encode(address(registry))
+        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock', abi.encode(address(registry))
       )
     );
   }
@@ -68,26 +61,20 @@ contract BorrowerAccountOriginationTest is TestKernel {
     account = _deployCode('test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountMock');
   }
 
-  function _registerAccount(
-    Fixture memory fixture,
-    address principal
-  ) internal returns (address account) {
+  function _registerAccount(Fixture memory fixture, address principal) internal returns (address account) {
     account = _deployAccount();
     fixture.accountFactory.registerAccount(account, principal);
   }
 
-  function _storeInitCode(
-    string memory artifact
-  ) internal returns (address storageContract, uint256 initCodeHash) {
+  function _storeInitCode(string memory artifact) internal returns (address storageContract, uint256 initCodeHash) {
     bytes memory initCode = vm.getCode(artifact);
     storageContract = LibStoredInitCode.deployInitCode(initCode);
     initCodeHash = uint256(keccak256(initCode));
   }
 
   function _deployStandardFactory(Fixture memory fixture) internal returns (HooksFactory factory) {
-    (address marketInitCodeStorage, uint256 marketInitCodeHash) = _storeInitCode(
-      'src/market/WildcatMarket.sol:WildcatMarket'
-    );
+    (address marketInitCodeStorage, uint256 marketInitCodeHash) =
+      _storeInitCode('src/market/WildcatMarket.sol:WildcatMarket');
     factory = HooksFactory(
       _deployCode(
         'src/HooksFactory.sol:HooksFactory',
@@ -103,12 +90,9 @@ contract BorrowerAccountOriginationTest is TestKernel {
     );
   }
 
-  function _deployRevolvingFactory(
-    Fixture memory fixture
-  ) internal returns (HooksFactoryRevolving factory) {
-    (address marketInitCodeStorage, uint256 marketInitCodeHash) = _storeInitCode(
-      'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
-    );
+  function _deployRevolvingFactory(Fixture memory fixture) internal returns (HooksFactoryRevolving factory) {
+    (address marketInitCodeStorage, uint256 marketInitCodeHash) =
+      _storeInitCode('src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving');
     factory = HooksFactoryRevolving(
       _deployCode(
         'src/HooksFactoryRevolving.sol:HooksFactoryRevolving',
@@ -127,15 +111,16 @@ contract BorrowerAccountOriginationTest is TestKernel {
   function _configureFactory(Fixture memory fixture, address factory) internal {
     fixture.archController.registerControllerFactory(factory);
     IHooksFactory(factory).registerWithArchController();
-    IHooksFactory(factory).addHooksTemplate(
-      fixture.hooksTemplate,
-      'Open Term',
-      address(0),
-      address(0),
-      0,
-      0,
-      keccak256(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'))
-    );
+    IHooksFactory(factory)
+      .addHooksTemplate(
+        fixture.hooksTemplate,
+        'Open Term',
+        address(0),
+        address(0),
+        0,
+        0,
+        keccak256(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'))
+      );
   }
 
   function _newFixture() internal returns (Fixture memory fixture) {
@@ -144,17 +129,14 @@ contract BorrowerAccountOriginationTest is TestKernel {
     fixture.accountFactory = _deployAccountFactory(fixture.registry);
     fixture.asset = MockERC20(
       _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Underlying', 'UND', uint8(18))
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Underlying', 'UND', uint8(18))
       )
     );
 
     fixture.archController.registerBorrower(Principal);
     fixture.registry.addAccountFactory(address(fixture.accountFactory));
     fixture.borrowerAccount = _registerAccount(fixture, Principal);
-    fixture.hooksTemplate = LibStoredInitCode.deployInitCode(
-      vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks')
-    );
+    fixture.hooksTemplate = LibStoredInitCode.deployInitCode(vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks'));
 
     fixture.standardFactory = _deployStandardFactory(fixture);
     fixture.revolvingFactory = _deployRevolvingFactory(fixture);
@@ -163,45 +145,39 @@ contract BorrowerAccountOriginationTest is TestKernel {
   }
 
   function _factory(Fixture memory fixture, FactoryKind kind) internal pure returns (address) {
-    return
-      kind == FactoryKind.Standard
-        ? address(fixture.standardFactory)
-        : address(fixture.revolvingFactory);
+    return kind == FactoryKind.Standard ? address(fixture.standardFactory) : address(fixture.revolvingFactory);
   }
 
   function _marketInputs(
     Fixture memory fixture,
     address hooksInstance
-  ) internal pure returns (DeployMarketInputs memory) {
-    return
-      DeployMarketInputs({
-        asset: address(fixture.asset),
-        namePrefix: 'Wildcat ',
-        symbolPrefix: 'wc',
-        maxTotalSupply: 1_000_000e18,
-        annualInterestBips: 1_000,
-        delinquencyFeeBips: 100,
-        withdrawalBatchDuration: 1 days,
-        reserveRatioBips: 1_000,
-        delinquencyGracePeriod: 1 days,
-        hooks: EmptyHooksConfig.setHooksAddress(hooksInstance),
-        repaymentDate: 0,
-        repaymentPeriod: 0
-      });
+  )
+    internal
+    pure
+    returns (DeployMarketInputs memory)
+  {
+    return DeployMarketInputs({
+      asset: address(fixture.asset),
+      namePrefix: 'Wildcat ',
+      symbolPrefix: 'wc',
+      maxTotalSupply: 1_000_000e18,
+      annualInterestBips: 1_000,
+      delinquencyFeeBips: 100,
+      withdrawalBatchDuration: 1 days,
+      reserveRatioBips: 1_000,
+      delinquencyGracePeriod: 1 days,
+      hooks: EmptyHooksConfig.setHooksAddress(hooksInstance),
+      repaymentDate: 0,
+      repaymentPeriod: 0
+    });
   }
 
   function _marketSalt(address deployer, uint96 nonce) internal pure returns (bytes32) {
     return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
   }
 
-  function _deployHooks(
-    Fixture memory fixture,
-    FactoryKind kind
-  ) internal returns (address hooksInstance) {
-    hooksInstance = IHooksFactory(_factory(fixture, kind)).deployHooksInstance(
-      fixture.hooksTemplate,
-      ''
-    );
+  function _deployHooks(Fixture memory fixture, FactoryKind kind) internal returns (address hooksInstance) {
+    hooksInstance = IHooksFactory(_factory(fixture, kind)).deployHooksInstance(fixture.hooksTemplate, '');
   }
 
   function _deployMarket(
@@ -211,27 +187,16 @@ contract BorrowerAccountOriginationTest is TestKernel {
     bytes32 salt,
     address originationFeeAsset,
     uint256 originationFeeAmount
-  ) internal returns (address market) {
+  )
+    internal
+    returns (address market)
+  {
     DeployMarketInputs memory inputs = _marketInputs(fixture, hooksInstance);
     if (kind == FactoryKind.Standard) {
-      return
-        fixture.standardFactory.deployMarket(
-          inputs,
-          '',
-          salt,
-          originationFeeAsset,
-          originationFeeAmount
-        );
+      return fixture.standardFactory.deployMarket(inputs, '', salt, originationFeeAsset, originationFeeAmount);
     }
-    return
-      fixture.revolvingFactory.deployMarket(
-        inputs,
-        '',
-        abi.encode(uint8(1), uint16(100)),
-        salt,
-        originationFeeAsset,
-        originationFeeAmount
-      );
+    return fixture.revolvingFactory
+      .deployMarket(inputs, '', abi.encode(uint8(1), uint16(100)), salt, originationFeeAsset, originationFeeAmount);
   }
 
   function _deployMarketAndHooks(
@@ -240,22 +205,17 @@ contract BorrowerAccountOriginationTest is TestKernel {
     bytes32 salt,
     address originationFeeAsset,
     uint256 originationFeeAmount
-  ) internal returns (address market, address hooksInstance) {
+  )
+    internal
+    returns (address market, address hooksInstance)
+  {
     DeployMarketInputs memory inputs = _marketInputs(fixture, address(0));
     if (kind == FactoryKind.Standard) {
-      return
-        fixture.standardFactory.deployMarketAndHooks(
-          fixture.hooksTemplate,
-          '',
-          inputs,
-          '',
-          salt,
-          originationFeeAsset,
-          originationFeeAmount
-        );
+      return fixture.standardFactory
+        .deployMarketAndHooks(fixture.hooksTemplate, '', inputs, '', salt, originationFeeAsset, originationFeeAmount);
     }
-    return
-      fixture.revolvingFactory.deployMarketAndHooks(
+    return fixture.revolvingFactory
+      .deployMarketAndHooks(
         fixture.hooksTemplate,
         '',
         inputs,
@@ -272,7 +232,10 @@ contract BorrowerAccountOriginationTest is TestKernel {
     address hooksInstance,
     address expectedBorrower,
     address expectedPrincipal
-  ) internal view {
+  )
+    internal
+    view
+  {
     WildcatMarket market = WildcatMarket(marketAddress);
     assertEq(market.borrower(), expectedBorrower, 'operational borrower');
     assertEq(market.borrowerPrincipal(), expectedPrincipal, 'borrower principal');
@@ -321,14 +284,8 @@ contract BorrowerAccountOriginationTest is TestKernel {
       vm.prank(fixture.borrowerAccount);
       address hooksInstance = _deployHooks(fixture, kind);
       vm.prank(fixture.borrowerAccount);
-      address market = _deployMarket(
-        fixture,
-        kind,
-        hooksInstance,
-        _marketSalt(fixture.borrowerAccount, 1),
-        address(0),
-        0
-      );
+      address market =
+        _deployMarket(fixture, kind, hooksInstance, _marketSalt(fixture.borrowerAccount, 1), address(0), 0);
 
       _assertMarketIdentity(market, hooksInstance, fixture.borrowerAccount, Principal);
       IHooksFactory commonFactory = IHooksFactory(factory);
@@ -346,18 +303,10 @@ contract BorrowerAccountOriginationTest is TestKernel {
     for (uint8 i; i <= uint8(FactoryKind.Revolving); i++) {
       FactoryKind kind = FactoryKind(i);
       vm.prank(fixture.borrowerAccount);
-      (address market, address hooksInstance) = _deployMarketAndHooks(
-        fixture,
-        kind,
-        _marketSalt(fixture.borrowerAccount, 2),
-        address(0),
-        0
-      );
+      (address market, address hooksInstance) =
+        _deployMarketAndHooks(fixture, kind, _marketSalt(fixture.borrowerAccount, 2), address(0), 0);
       _assertMarketIdentity(market, hooksInstance, fixture.borrowerAccount, Principal);
-      assertEq(
-        IHooksFactory(_factory(fixture, kind)).getHooksAdministrator(hooksInstance),
-        Principal
-      );
+      assertEq(IHooksFactory(_factory(fixture, kind)).getHooksAdministrator(hooksInstance), Principal);
     }
   }
 
@@ -366,13 +315,8 @@ contract BorrowerAccountOriginationTest is TestKernel {
     address feeRecipient = address(0xFEE);
     uint80 originationFeeAmount = 1e18;
     for (uint8 i; i <= uint8(FactoryKind.Revolving); i++) {
-      IHooksFactory(_factory(fixture, FactoryKind(i))).updateHooksTemplateFees(
-        fixture.hooksTemplate,
-        feeRecipient,
-        address(fixture.asset),
-        originationFeeAmount,
-        0
-      );
+      IHooksFactory(_factory(fixture, FactoryKind(i)))
+        .updateHooksTemplateFees(fixture.hooksTemplate, feeRecipient, address(fixture.asset), originationFeeAmount, 0);
     }
     fixture.asset.mint(fixture.borrowerAccount, uint256(originationFeeAmount) * 2);
 
@@ -382,11 +326,7 @@ contract BorrowerAccountOriginationTest is TestKernel {
       vm.startPrank(fixture.borrowerAccount);
       fixture.asset.approve(factory, originationFeeAmount);
       _deployMarketAndHooks(
-        fixture,
-        kind,
-        _marketSalt(fixture.borrowerAccount, 20),
-        address(fixture.asset),
-        originationFeeAmount
+        fixture, kind, _marketSalt(fixture.borrowerAccount, 20), address(fixture.asset), originationFeeAmount
       );
       vm.stopPrank();
     }
@@ -403,13 +343,8 @@ contract BorrowerAccountOriginationTest is TestKernel {
     for (uint8 i; i <= uint8(FactoryKind.Revolving); i++) {
       FactoryKind kind = FactoryKind(i);
       vm.prank(fixture.borrowerAccount);
-      (address market, address hooksInstance) = _deployMarketAndHooks(
-        fixture,
-        kind,
-        _marketSalt(fixture.borrowerAccount, 3),
-        address(0),
-        0
-      );
+      (address market, address hooksInstance) =
+        _deployMarketAndHooks(fixture, kind, _marketSalt(fixture.borrowerAccount, 3), address(0), 0);
       _assertMarketIdentity(market, hooksInstance, fixture.borrowerAccount, SecondPrincipal);
     }
   }
@@ -424,30 +359,14 @@ contract BorrowerAccountOriginationTest is TestKernel {
       address hooksInstance = _deployHooks(fixture, kind);
 
       vm.prank(fixture.borrowerAccount);
-      address firstMarket = _deployMarket(
-        fixture,
-        kind,
-        hooksInstance,
-        _marketSalt(fixture.borrowerAccount, 10),
-        address(0),
-        0
-      );
+      address firstMarket =
+        _deployMarket(fixture, kind, hooksInstance, _marketSalt(fixture.borrowerAccount, 10), address(0), 0);
       vm.prank(secondAccount);
-      address secondMarket = _deployMarket(
-        fixture,
-        kind,
-        hooksInstance,
-        _marketSalt(secondAccount, 11),
-        address(0),
-        0
-      );
+      address secondMarket = _deployMarket(fixture, kind, hooksInstance, _marketSalt(secondAccount, 11), address(0), 0);
 
       _assertMarketIdentity(firstMarket, hooksInstance, fixture.borrowerAccount, Principal);
       _assertMarketIdentity(secondMarket, hooksInstance, secondAccount, Principal);
-      assertEq(
-        IHooksFactory(_factory(fixture, kind)).getMarketsForHooksInstanceCount(hooksInstance),
-        2
-      );
+      assertEq(IHooksFactory(_factory(fixture, kind)).getMarketsForHooksInstanceCount(hooksInstance), 2);
     }
   }
 
@@ -480,10 +399,7 @@ contract BorrowerAccountOriginationTest is TestKernel {
       vm.expectRevert(IHooksFactoryEventsAndErrors.NotApprovedBorrower.selector);
       vm.prank(fixture.borrowerAccount);
       _deployHooks(fixture, kind);
-      assertEq(
-        IHooksFactory(_factory(fixture, kind)).getHooksInstanceDeploymentNonce(Principal),
-        0
-      );
+      assertEq(IHooksFactory(_factory(fixture, kind)).getHooksInstanceDeploymentNonce(Principal), 0);
     }
   }
 
@@ -494,13 +410,8 @@ contract BorrowerAccountOriginationTest is TestKernel {
     for (uint8 i; i <= uint8(FactoryKind.Revolving); i++) {
       FactoryKind kind = FactoryKind(i);
       vm.prank(fixture.borrowerAccount);
-      (address market, address hooksInstance) = _deployMarketAndHooks(
-        fixture,
-        kind,
-        _marketSalt(fixture.borrowerAccount, 12),
-        address(0),
-        0
-      );
+      (address market, address hooksInstance) =
+        _deployMarketAndHooks(fixture, kind, _marketSalt(fixture.borrowerAccount, 12), address(0), 0);
       _assertMarketIdentity(market, hooksInstance, fixture.borrowerAccount, Principal);
     }
   }
@@ -516,14 +427,7 @@ contract BorrowerAccountOriginationTest is TestKernel {
 
       vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
       vm.prank(fixture.borrowerAccount);
-      _deployMarket(
-        fixture,
-        kind,
-        hooksInstance,
-        _marketSalt(fixture.borrowerAccount, 4),
-        address(0),
-        0
-      );
+      _deployMarket(fixture, kind, hooksInstance, _marketSalt(fixture.borrowerAccount, 4), address(0), 0);
     }
   }
 }

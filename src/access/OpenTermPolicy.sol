@@ -38,18 +38,15 @@ abstract contract OpenTermPolicy is BaseHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal virtual override returns (HooksConfig marketHooksConfig) {
-    (
-      AccessConfig memory access,
-      bool depositHookEnabled,
-      HooksConfig effective
-    ) = _configureMarketAccess(
-        administrator_,
-        marketAddress,
-        parameters.hooks,
-        _readUint128Cd(hooksData),
-        _readBoolCd(hooksData, 0x20)
-      );
+  )
+    internal
+    virtual
+    override
+    returns (HooksConfig marketHooksConfig)
+  {
+    (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective) = _configureMarketAccess(
+      administrator_, marketAddress, parameters.hooks, _readUint128Cd(hooksData), _readBoolCd(hooksData, 0x20)
+    );
     _depositHookEnabled[marketAddress] = depositHookEnabled;
     _hookedMarkets[marketAddress] = HookedMarket({
       isHooked: access.isHooked,
@@ -65,20 +62,17 @@ abstract contract OpenTermPolicy is BaseHooks {
   //                              Market Management                             //
   // ========================================================================== //
 
-  function _readAccessConfig(
-    address market
-  ) internal view virtual override returns (AccessConfig memory) {
+  function _readAccessConfig(address market) internal view virtual override returns (AccessConfig memory) {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
-    return
-      AccessConfig({
-        isHooked: hookedMarket.isHooked,
-        transferRequiresAccess: hookedMarket.transferRequiresAccess,
-        depositRequiresAccess: hookedMarket.depositRequiresAccess,
-        // open-term withdrawals always check access when the market calls this hook.
-        withdrawalRequiresAccess: true,
-        minimumDeposit: hookedMarket.minimumDeposit,
-        transfersDisabled: hookedMarket.transfersDisabled
-      });
+    return AccessConfig({
+      isHooked: hookedMarket.isHooked,
+      transferRequiresAccess: hookedMarket.transferRequiresAccess,
+      depositRequiresAccess: hookedMarket.depositRequiresAccess,
+      // open-term withdrawals always check access when the market calls this hook.
+      withdrawalRequiresAccess: true,
+      minimumDeposit: hookedMarket.minimumDeposit,
+      transfersDisabled: hookedMarket.transfersDisabled
+    });
   }
 
   function _isDepositHookEnabled(address market) internal view virtual override returns (bool) {

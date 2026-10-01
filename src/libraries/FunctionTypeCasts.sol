@@ -17,9 +17,11 @@ import { LifecycleTransition } from './MarketLifecycle.sol';
  */
 library FunctionTypeCasts {
   /// @dev use the allocator's arena; don't allocate a second empty transition.
-  function asTransitionAllocator(
-    function() internal pure returns (uint256) fnIn
-  ) internal pure returns (function() internal pure returns (LifecycleTransition memory) fnOut) {
+  function asTransitionAllocator(function() internal pure returns (uint256) fnIn)
+    internal
+    pure
+    returns (function() internal pure returns (LifecycleTransition memory) fnOut)
+  {
     assembly {
       fnOut := fnIn
     }
@@ -29,9 +31,11 @@ library FunctionTypeCasts {
    * @dev Function type cast to avoid duplicate declaration/allocation
    *      of MarketState return parameter.
    */
-  function asReturnsMarketState(
-    function() internal view returns (uint256) fnIn
-  ) internal pure returns (function() internal view returns (MarketState memory) fnOut) {
+  function asReturnsMarketState(function() internal view returns (uint256) fnIn)
+    internal
+    pure
+    returns (function() internal view returns (MarketState memory) fnOut)
+  {
     assembly {
       fnOut := fnIn
     }
@@ -41,9 +45,11 @@ library FunctionTypeCasts {
    * @dev Function type cast to avoid duplicate declaration/allocation
    *      of MarketState and WithdrawalBatch return parameters.
    */
-  function asReturnsPointers(
-    function() internal view returns (MarketState memory, uint32, WithdrawalBatch memory) fnIn
-  ) internal pure returns (function() internal view returns (uint256, uint32, uint256) fnOut) {
+  function asReturnsPointers(function() internal view returns (MarketState memory, uint32, WithdrawalBatch memory) fnIn)
+    internal
+    pure
+    returns (function() internal view returns (uint256, uint32, uint256) fnOut)
+  {
     assembly {
       fnOut := fnIn
     }
@@ -53,9 +59,11 @@ library FunctionTypeCasts {
    * @dev Function type cast to avoid duplicate declaration/allocation
    *      of manually allocated MarketParameters in market constructor.
    */
-  function asReturnsMarketParameters(
-    function() internal view returns (uint256) fnIn
-  ) internal pure returns (function() internal view returns (MarketParameters memory) fnOut) {
+  function asReturnsMarketParameters(function() internal view returns (uint256) fnIn)
+    internal
+    pure
+    returns (function() internal view returns (MarketParameters memory) fnOut)
+  {
     assembly {
       fnOut := fnIn
     }

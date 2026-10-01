@@ -129,10 +129,7 @@ contract DeployAndExercise4626 is Script {
 
   function _deployFactoryAndWrapper(Config memory cfg) internal returns (address wrapperAddr) {
     // Exercise flows target freshly deployed v2.5 markets; no legacy factory.
-    Wildcat4626WrapperFactory factory = new Wildcat4626WrapperFactory(
-      cfg.archController,
-      address(0)
-    );
+    Wildcat4626WrapperFactory factory = new Wildcat4626WrapperFactory(cfg.archController, address(0));
     console.log('Wrapper factory:', address(factory));
 
     wrapperAddr = factory.createWrapper(cfg.market);
@@ -145,7 +142,10 @@ contract DeployAndExercise4626 is Script {
     Config memory cfg,
     address wrapperAddr,
     uint256 marketBalance
-  ) internal returns (uint256 sharesMinted) {
+  )
+    internal
+    returns (uint256 sharesMinted)
+  {
     uint256 assetsToWrap = cfg.wrapAssets == 0 ? marketBalance : cfg.wrapAssets;
     require(assetsToWrap != 0, 'No market tokens to wrap');
     require(assetsToWrap <= marketBalance, 'Insufficient market tokens to wrap');
@@ -199,10 +199,7 @@ contract DeployAndExercise4626 is Script {
 
   function _logFinalBalances(Config memory cfg, address wrapperAddr) internal view {
     console.log('Final deployer market token balance:', IERC20(cfg.market).balanceOf(cfg.deployer));
-    console.log(
-      'Final deployer wrapper share balance:',
-      Wildcat4626Wrapper(wrapperAddr).balanceOf(cfg.deployer)
-    );
+    console.log('Final deployer wrapper share balance:', Wildcat4626Wrapper(wrapperAddr).balanceOf(cfg.deployer));
   }
 
   function _startBroadcast(uint256 deployerPrivateKey) internal {
@@ -217,7 +214,7 @@ contract DeployAndExercise4626 is Script {
     uint256 balance = IERC20(token).balanceOf(deployer);
     if (balance >= minBalance) return;
 
-    (bool ok, ) = token.call(abi.encodeWithSignature('faucet()'));
+    (bool ok,) = token.call(abi.encodeWithSignature('faucet()'));
     if (!ok) {
       balance = IERC20(token).balanceOf(deployer);
       require(balance >= minBalance, 'Insufficient underlying balance and faucet() failed');
@@ -226,7 +223,7 @@ contract DeployAndExercise4626 is Script {
 
   function _fundTestUser(address testUser, uint256 value) internal {
     if (value == 0) return;
-    (bool ok, ) = testUser.call{ value: value }('');
+    (bool ok,) = testUser.call{ value: value }('');
     require(ok, 'Failed to fund test user');
     console.log('Funded test user (wei):', value);
   }

@@ -19,10 +19,7 @@ contract MerkleRoleProvider is IMerkleRoleProvider, ManagedRoleProvider {
 
   /// @param administrator_ initial authority over the root and provider administration.
   /// @param root_ initial sorted-pair Merkle root.
-  constructor(
-    address administrator_,
-    bytes32 root_
-  ) ManagedRoleProvider(administrator_) {
+  constructor(address administrator_, bytes32 root_) ManagedRoleProvider(administrator_) {
     root = root_;
   }
 
@@ -34,10 +31,7 @@ contract MerkleRoleProvider is IMerkleRoleProvider, ManagedRoleProvider {
     emit RootUpdated(msg.sender, previousRoot, newRoot);
   }
 
-  function isMember(
-    address account,
-    bytes32[] calldata proof
-  ) external view override returns (bool) {
+  function isMember(address account, bytes32[] calldata proof) external view override returns (bool) {
     return MerkleProofLib.verifyCalldata(proof, root, keccak256(abi.encode(account)));
   }
 
@@ -50,10 +44,7 @@ contract MerkleRoleProvider is IMerkleRoleProvider, ManagedRoleProvider {
   /// @notice validates the standard ABI encoding of a `bytes32[]` proof for `account`.
   /// @return timestamp current timestamp for a valid proof, or zero for malformed data or
   ///         non-members.
-  function validateCredential(
-    address account,
-    bytes calldata data
-  ) external view override returns (uint32 timestamp) {
+  function validateCredential(address account, bytes calldata data) external view override returns (uint32 timestamp) {
     if (data.length < 0x40) return 0;
     uint256 offset;
     uint256 proofLength;

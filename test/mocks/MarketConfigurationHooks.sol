@@ -16,7 +16,7 @@ contract MarketConfigurationHooks is PeriodicTermHooks {
   uint128 public configuredMinimum;
   HooksConfig public configuredFlags;
 
-  constructor(address administrator) PeriodicTermHooks(administrator, '') {}
+  constructor(address administrator) PeriodicTermHooks(administrator, '') { }
 
   function setRejectConfiguration(bool reject) external {
     rejectConfiguration = reject;
@@ -28,7 +28,10 @@ contract MarketConfigurationHooks is PeriodicTermHooks {
     DeployMarketInputs calldata,
     bytes calldata,
     HooksConfig effective
-  ) internal override {
+  )
+    internal
+    override
+  {
     if (market.code.length != 0) revert MarketAlreadyDeployed();
     AccessConfig memory access = _requireHookedMarket(market);
     configuredMarket = market;

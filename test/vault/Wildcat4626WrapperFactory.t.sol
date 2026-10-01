@@ -25,17 +25,12 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     WrapperFactoryMarketMock market;
   }
 
-  function _deployFactory(
-    address archController,
-    address v1Factory
-  ) private returns (Wildcat4626WrapperFactory) {
-    return
-      Wildcat4626WrapperFactory(
-        _deployCode(
-          'src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory',
-          abi.encode(archController, v1Factory)
-        )
-      );
+  function _deployFactory(address archController, address v1Factory) private returns (Wildcat4626WrapperFactory) {
+    return Wildcat4626WrapperFactory(
+      _deployCode(
+        'src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory', abi.encode(archController, v1Factory)
+      )
+    );
   }
 
   function _deployMarket(
@@ -43,31 +38,23 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     Wildcat4626WrapperFactory factory,
     bool declaresRounding,
     bytes32 rounding
-  ) private returns (WrapperFactoryMarketMock market) {
+  )
+    private
+    returns (WrapperFactoryMarketMock market)
+  {
     market = WrapperFactoryMarketMock(
       _deployCode(
         'test/mocks/WrapperMocks.sol:WrapperFactoryMarketMock',
-        abi.encode(
-          Borrower,
-          address(fixture.sentinel),
-          address(factory),
-          declaresRounding,
-          rounding
-        )
+        abi.encode(Borrower, address(fixture.sentinel), address(factory), declaresRounding, rounding)
       )
     );
   }
 
   function _newFixture() private returns (Fixture memory fixture) {
-    fixture.archController = WrapperArchControllerMock(
-      _deployCode('test/mocks/WrapperMocks.sol:WrapperArchControllerMock')
-    );
-    fixture.v1Factory = WrapperV1FactoryMock(
-      _deployCode('test/mocks/WrapperMocks.sol:WrapperV1FactoryMock')
-    );
-    fixture.sentinel = WrapperSentinelMock(
-      _deployCode('test/mocks/WrapperMocks.sol:WrapperSentinelMock')
-    );
+    fixture.archController =
+      WrapperArchControllerMock(_deployCode('test/mocks/WrapperMocks.sol:WrapperArchControllerMock'));
+    fixture.v1Factory = WrapperV1FactoryMock(_deployCode('test/mocks/WrapperMocks.sol:WrapperV1FactoryMock'));
+    fixture.sentinel = WrapperSentinelMock(_deployCode('test/mocks/WrapperMocks.sol:WrapperSentinelMock'));
     fixture.factory = _deployFactory(address(fixture.archController), address(fixture.v1Factory));
     fixture.market = _deployMarket(fixture, fixture.factory, true, FloorRounding);
     fixture.archController.setRegisteredMarket(address(fixture.market), true);
@@ -75,23 +62,16 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
 
   function test_constructorAcceptsZeroOrValidV1AndRejectsMalformedFactory() external {
     Fixture memory fixture = _newFixture();
-    Wildcat4626WrapperFactory noLegacy = _deployFactory(
-      address(fixture.archController),
-      address(0)
-    );
+    Wildcat4626WrapperFactory noLegacy = _deployFactory(address(fixture.archController), address(0));
 
     assertEq(address(fixture.factory.v1Factory()), address(fixture.v1Factory), 'valid v1');
     assertEq(address(noLegacy.v1Factory()), address(0), 'zero v1');
 
-    vm.expectRevert(
-      abi.encodeWithSelector(Wildcat4626WrapperFactory.InvalidV1Factory.selector, address(0xDEAD))
-    );
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626WrapperFactory.InvalidV1Factory.selector, address(0xDEAD)));
     _deployFactory(address(fixture.archController), address(0xDEAD));
 
     address shortReturner = _deployCode('test/mocks/WrapperMocks.sol:WrapperShortReturnMock');
-    vm.expectRevert(
-      abi.encodeWithSelector(Wildcat4626WrapperFactory.InvalidV1Factory.selector, shortReturner)
-    );
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626WrapperFactory.InvalidV1Factory.selector, shortReturner));
     _deployFactory(address(fixture.archController), shortReturner);
   }
 
@@ -99,9 +79,7 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     Fixture memory fixture = _newFixture();
     WrapperFactoryMarketMock legacy = _deployMarket(fixture, fixture.factory, false, bytes32(0));
     address shortReturner = _deployCode('test/mocks/WrapperMocks.sol:WrapperShortReturnMock');
-    address wrongRounding = _deployCode(
-      'test/mocks/WrapperMocks.sol:WrapperWrongRoundingMock'
-    );
+    address wrongRounding = _deployCode('test/mocks/WrapperMocks.sol:WrapperWrongRoundingMock');
     address returnBomb = _deployCode('test/mocks/WrapperMocks.sol:WrapperReturnBombMock');
 
     assertTrue(fixture.factory.isFloorRoundingMarket(address(fixture.market)), 'floor market');
@@ -122,28 +100,20 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     assertEq(wrapper, fixture.v1Factory.wrapperForMarket(address(legacy)), 'v1 wrapper');
     assertEq(fixture.factory.wrapperForMarket(address(legacy)), wrapper, 'routed discovery');
 
-    vm.expectRevert(
-      abi.encodeWithSelector(WrapperV1FactoryMock.WrapperAlreadyExists.selector, address(legacy))
-    );
+    vm.expectRevert(abi.encodeWithSelector(WrapperV1FactoryMock.WrapperAlreadyExists.selector, address(legacy)));
     fixture.factory.createWrapper(address(legacy));
   }
 
   function test_factoryWithoutV1RejectsLegacyButStillCreatesFloorWrapper() external {
     Fixture memory fixture = _newFixture();
-    Wildcat4626WrapperFactory noLegacy = _deployFactory(
-      address(fixture.archController),
-      address(0)
-    );
+    Wildcat4626WrapperFactory noLegacy = _deployFactory(address(fixture.archController), address(0));
     WrapperFactoryMarketMock legacy = _deployMarket(fixture, noLegacy, false, bytes32(0));
     WrapperFactoryMarketMock floor = _deployMarket(fixture, noLegacy, true, FloorRounding);
     fixture.archController.setRegisteredMarket(address(legacy), true);
     fixture.archController.setRegisteredMarket(address(floor), true);
 
     vm.expectRevert(
-      abi.encodeWithSelector(
-        Wildcat4626WrapperFactory.LegacyMarketsNotSupported.selector,
-        address(legacy)
-      )
+      abi.encodeWithSelector(Wildcat4626WrapperFactory.LegacyMarketsNotSupported.selector, address(legacy))
     );
     noLegacy.createWrapper(address(legacy));
     assertEq(noLegacy.wrapperForMarket(address(legacy)), address(0), 'legacy discovery');
@@ -164,9 +134,7 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     fixture.archController.setRegisteredMarket(future, true);
     vm.expectRevert(
       abi.encodeWithSelector(
-        Wildcat4626WrapperFactory.UnsupportedMarketRounding.selector,
-        future,
-        keccak256('somethingElse')
+        Wildcat4626WrapperFactory.UnsupportedMarketRounding.selector, future, keccak256('somethingElse')
       )
     );
     fixture.factory.createWrapper(future);
@@ -195,18 +163,12 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     assertEq(wrapper.decimals(), 18, 'decimals');
 
     vm.expectRevert(
-      abi.encodeWithSelector(
-        Wildcat4626WrapperFactory.WrapperAlreadyExists.selector,
-        address(fixture.market)
-      )
+      abi.encodeWithSelector(Wildcat4626WrapperFactory.WrapperAlreadyExists.selector, address(fixture.market))
     );
     fixture.factory.createWrapper(address(fixture.market));
 
     vm.expectRevert(Wildcat4626Wrapper.NotWrapperFactory.selector);
-    _deployCode(
-      'src/vault/Wildcat4626Wrapper.sol:Wildcat4626Wrapper',
-      abi.encode(address(fixture.market))
-    );
+    _deployCode('src/vault/Wildcat4626Wrapper.sol:Wildcat4626Wrapper', abi.encode(address(fixture.market)));
   }
 
   function test_createRejectsZeroAndUnregisteredMarketsWithoutSideEffects() external {
@@ -217,10 +179,7 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
 
     fixture.archController.setRegisteredMarket(address(fixture.market), false);
     vm.expectRevert(
-      abi.encodeWithSelector(
-        Wildcat4626WrapperFactory.NotRegisteredMarket.selector,
-        address(fixture.market)
-      )
+      abi.encodeWithSelector(Wildcat4626WrapperFactory.NotRegisteredMarket.selector, address(fixture.market))
     );
     fixture.factory.createWrapper(address(fixture.market));
     assertEq(fixture.factory.wrapperForMarket(address(fixture.market)), address(0), 'record');
@@ -232,8 +191,7 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     disabledFixture.market.setTransferPolicy(true, true, false);
     vm.expectRevert(
       abi.encodeWithSelector(
-        Wildcat4626WrapperFactory.MarketTransfersDisabled.selector,
-        address(disabledFixture.market)
+        Wildcat4626WrapperFactory.MarketTransfersDisabled.selector, address(disabledFixture.market)
       )
     );
     disabledFixture.factory.createWrapper(address(disabledFixture.market));
@@ -250,9 +208,7 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
     missingFixture.factory.createWrapper(address(missingFixture.market));
 
     Fixture memory incompleteFixture = _newFixture();
-    address incompletePolicy = _deployCode(
-      'test/mocks/WrapperMocks.sol:IncompleteWrapperTransferPolicyMock'
-    );
+    address incompletePolicy = _deployCode('test/mocks/WrapperMocks.sol:IncompleteWrapperTransferPolicyMock');
     incompleteFixture.market.setHooksAddress(incompletePolicy);
     vm.expectRevert(
       abi.encodeWithSelector(
@@ -265,17 +221,12 @@ contract Wildcat4626WrapperFactoryTest is TestKernel {
 
     assertEq(disabledFixture.factory.wrapperForMarket(address(disabledFixture.market)), address(0));
     assertEq(missingFixture.factory.wrapperForMarket(address(missingFixture.market)), address(0));
-    assertEq(
-      incompleteFixture.factory.wrapperForMarket(address(incompleteFixture.market)),
-      address(0)
-    );
+    assertEq(incompleteFixture.factory.wrapperForMarket(address(incompleteFixture.market)), address(0));
   }
 
   function test_wrapperCapacityFailsClosedWhenRecipientPolicyBreaksOrDenies() external {
     Fixture memory fixture = _newFixture();
-    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(
-      fixture.factory.createWrapper(address(fixture.market))
-    );
+    Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(fixture.factory.createWrapper(address(fixture.market)));
     assertTrue(wrapper.maxDeposit(Borrower) > 0, 'initial deposit capacity');
     assertTrue(wrapper.maxMint(Borrower) > 0, 'initial mint capacity');
 

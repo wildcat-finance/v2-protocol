@@ -186,7 +186,9 @@ contract FIFOQueueTest is TestKernel {
     uint32[] calldata initialValues,
     uint32[] calldata extraValues,
     uint256 shiftSeed
-  ) external {
+  )
+    external
+  {
     uint256 initialLength = initialValues.length < 32 ? initialValues.length : 32;
     uint256 extraLength = extraValues.length < 16 ? extraValues.length : 16;
 

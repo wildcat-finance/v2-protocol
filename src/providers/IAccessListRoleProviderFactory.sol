@@ -30,14 +30,17 @@ interface IAccessListRoleProviderFactory is IRoleProviderFactory {
   );
 
   /// @notice deploys a provider for `msg.sender` with the supplied initial authority and members.
-  function createAccessListRoleProvider(
-    AccessListRoleProviderFactoryInputs calldata inputs
-  ) external returns (address provider);
+  function createAccessListRoleProvider(AccessListRoleProviderFactoryInputs calldata inputs)
+    external
+    returns (address provider);
 
   /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(
     address deployer,
     AccessListRoleProviderFactoryInputs calldata inputs
-  ) external view returns (address provider);
+  )
+    external
+    view
+    returns (address provider);
 }

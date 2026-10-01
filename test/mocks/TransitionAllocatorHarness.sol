@@ -8,9 +8,11 @@ import { FunctionTypeCasts } from 'src/libraries/FunctionTypeCasts.sol';
 contract TransitionAllocatorHarness is WildcatMarketBase {
   using FunctionTypeCasts for *;
 
-  function compareWithSolidity(
-    LifecycleTransition calldata input
-  ) external pure returns (bool zeroed, bool matches, bool guardsIntact, uint256 allocatedBytes) {
+  function compareWithSolidity(LifecycleTransition calldata input)
+    external
+    pure
+    returns (bool zeroed, bool matches, bool guardsIntact, uint256 allocatedBytes)
+  {
     uint256 start;
     // poison the free region, with a guard on each side of the arena. no zero-memory assumption.
     assembly {
@@ -67,10 +69,7 @@ contract TransitionAllocatorHarness is WildcatMarketBase {
     }
     matches = keccak256(abi.encode(actual)) == keccak256(abi.encode(expected));
     assembly {
-      guardsIntact := and(
-        eq(mload(sub(start, 0x20)), 0x12345678),
-        eq(mload(add(start, 0x540)), 0x87654321)
-      )
+      guardsIntact := and(eq(mload(sub(start, 0x20)), 0x12345678), eq(mload(add(start, 0x540)), 0x87654321))
     }
   }
 }

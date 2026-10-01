@@ -9,11 +9,7 @@ import '../access/IManagedRoleProvider.sol';
 ///      provider because credential checks need a caller-supplied proof.
 interface IMerkleRoleProvider is IRoleProvider, IManagedRoleProvider {
   /// @notice emitted when the administrator replaces the membership root.
-  event RootUpdated(
-    address indexed administrator,
-    bytes32 previousRoot,
-    bytes32 newRoot
-  );
+  event RootUpdated(address indexed administrator, bytes32 previousRoot, bytes32 newRoot);
 
   /// @notice current address-membership root.
   function root() external view returns (bytes32);

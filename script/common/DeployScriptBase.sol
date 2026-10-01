@@ -20,7 +20,7 @@ contract InitCodeStorage {
 
 /// @dev retained for the compression comparison and historical prepared-image plans.
 contract CompressedInitCodeStorage is PreparedInitCodeStorage {
-  constructor(bytes memory runtimeCode) PreparedInitCodeStorage(runtimeCode) {}
+  constructor(bytes memory runtimeCode) PreparedInitCodeStorage(runtimeCode) { }
 }
 
 abstract contract DeployScriptBase is Script {
@@ -66,12 +66,8 @@ abstract contract DeployScriptBase is Script {
 
   function _resolveOwnerMode() internal returns (string memory mode) {
     mode = vm.envOr('OWNER_MODE', string(''));
-    uint256 plasmaMainnetChainId = vm.envOr(
-      'PLASMA_MAINNET_CHAIN_ID',
-      DEFAULT_PLASMA_MAINNET_CHAIN_ID
-    );
-    bool isMainnet = block.chainid == ETHEREUM_MAINNET_CHAIN_ID ||
-      block.chainid == plasmaMainnetChainId;
+    uint256 plasmaMainnetChainId = vm.envOr('PLASMA_MAINNET_CHAIN_ID', DEFAULT_PLASMA_MAINNET_CHAIN_ID);
+    bool isMainnet = block.chainid == ETHEREUM_MAINNET_CHAIN_ID || block.chainid == plasmaMainnetChainId;
 
     if (bytes(mode).length == 0) {
       if (isMainnet) {
@@ -120,10 +116,7 @@ abstract contract DeployScriptBase is Script {
     console.log('EIP-1153 transient storage probe passed');
   }
 
-  function _resolveDeployments()
-    internal
-    returns (Deployments memory deployments, string memory networkName)
-  {
+  function _resolveDeployments() internal returns (Deployments memory deployments, string memory networkName) {
     networkName = vm.envOr('DEPLOYMENTS_NETWORK', string(''));
     if (bytes(networkName).length == 0) {
       networkName = getNetworkName();
@@ -144,20 +137,16 @@ abstract contract DeployScriptBase is Script {
     Deployments memory deployments,
     string memory name,
     string memory envVarName
-  ) internal returns (address value) {
+  )
+    internal
+    returns (address value)
+  {
     value = vm.envOr(envVarName, address(0));
     if (value != address(0)) return value;
     if (!deployments.has(name)) {
       revert(
         string.concat(
-          'Missing existing ',
-          name,
-          ': set ',
-          envVarName,
-          ' or add key ',
-          name,
-          ' to ',
-          deployments.filePath
+          'Missing existing ', name, ': set ', envVarName, ' or add key ', name, ' to ', deployments.filePath
         )
       );
     }
@@ -168,13 +157,14 @@ abstract contract DeployScriptBase is Script {
     Deployments memory deployments,
     string memory envVarName,
     string memory deploymentKey
-  ) internal returns (address value) {
+  )
+    internal
+    returns (address value)
+  {
     return _resolveExisting(deployments, deploymentKey, envVarName);
   }
 
-  function _resolveV1WrapperFactory(
-    Deployments memory deployments
-  ) internal returns (address v1Factory) {
+  function _resolveV1WrapperFactory(Deployments memory deployments) internal returns (address v1Factory) {
     string memory inventoryPath = pathJoin(deployments.dir, 'factory-inventory.json');
     if (!vm.exists(inventoryPath)) {
       revert(
@@ -189,15 +179,12 @@ abstract contract DeployScriptBase is Script {
     string[] memory args = new string[](4);
     args[0] = 'node';
     args[1] = '-e';
-    args[
-      2
-    ] = "(()=>{const fs=require('fs');let x;try{x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'))}catch(e){process.stdout.write('ERROR: '+e.message);return}const r=x.wrapperFactories;if(!Array.isArray(r)){process.stdout.write('ERROR: wrapperFactories must be an array');return}if(r.length===0){process.stdout.write('NONE');return}const v1=r.filter((e)=>e&&e.v1Factory===null);if(v1.length!==1){process.stdout.write('ERROR: expected exactly one wrapper factory record with v1Factory null');return}process.stdout.write('ADDRESS:'+String(v1[0].address||''));})()";
+    args[2] =
+      "(()=>{const fs=require('fs');let x;try{x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'))}catch(e){process.stdout.write('ERROR: '+e.message);return}const r=x.wrapperFactories;if(!Array.isArray(r)){process.stdout.write('ERROR: wrapperFactories must be an array');return}if(r.length===0){process.stdout.write('NONE');return}const v1=r.filter((e)=>e&&e.v1Factory===null);if(v1.length!==1){process.stdout.write('ERROR: expected exactly one wrapper factory record with v1Factory null');return}process.stdout.write('ADDRESS:'+String(v1[0].address||''));})()";
     args[3] = inventoryPath;
     string memory result = string(vm.ffi(args));
     if (_sameStrings(result, 'NONE')) {
-      console.log(
-        'WARNING: factory inventory explicitly has no wrapper records; deploying with v1Factory=0'
-      );
+      console.log('WARNING: factory inventory explicitly has no wrapper records; deploying with v1Factory=0');
       return address(0);
     }
     if (result.startsWith('ERROR:')) {
@@ -211,16 +198,17 @@ abstract contract DeployScriptBase is Script {
       if (parsed == address(0)) revert('V1 wrapper factory inventory address is zero');
       return parsed;
     } catch {
-      revert(
-        string.concat('Invalid v1 wrapper factory address in ', inventoryPath, ': ', addressString)
-      );
+      revert(string.concat('Invalid v1 wrapper factory address in ', inventoryPath, ': ', addressString));
     }
   }
 
   function _getCreationCode(
     Deployments memory deployments,
     string memory namePath
-  ) internal returns (bytes memory creationCode) {
+  )
+    internal
+    returns (bytes memory creationCode)
+  {
     ContractArtifact memory artifact = parseContractNamePath(namePath);
     string memory jsonPath = LibDeployment.findForgeArtifact(artifact, deployments.forgeOutDir);
     string memory forgeArtifactJson = vm.readFile(jsonPath);
@@ -233,10 +221,7 @@ abstract contract DeployScriptBase is Script {
     }
   }
 
-  function _requireInitCodeStoragePayloadFits(
-    bytes memory initCode,
-    string memory label
-  ) internal pure {
+  function _requireInitCodeStoragePayloadFits(bytes memory initCode, string memory label) internal pure {
     if (initCode.length > 49_152) {
       revert(string.concat(label, ' exceeds the EIP-3860 creation-code limit'));
     }
@@ -244,11 +229,7 @@ abstract contract DeployScriptBase is Script {
     LibDeployment.initCodeStorageRuntime(initCode);
   }
 
-  function _verifyStoredInitCode(
-    address deployment,
-    string memory label,
-    bytes memory initCode
-  ) internal view {
+  function _verifyStoredInitCode(address deployment, string memory label, bytes memory initCode) internal view {
     _requireCode(deployment, label);
     if (!LibDeployment.isValidInitCodeStorage(deployment, initCode)) {
       revert(string.concat('Verification failed for ', label, ': stored init code mismatch'));
@@ -261,7 +242,10 @@ abstract contract DeployScriptBase is Script {
     string memory field,
     bytes memory callData,
     address expected
-  ) internal view {
+  )
+    internal
+    view
+  {
     _requireCode(deployment, label);
     (bool success, bytes memory data) = deployment.staticcall(callData);
     if (!success || data.length < 32) {
@@ -279,7 +263,10 @@ abstract contract DeployScriptBase is Script {
     string memory field,
     bytes memory callData,
     uint256 expected
-  ) internal view {
+  )
+    internal
+    view
+  {
     _requireCode(deployment, label);
     (bool success, bytes memory data) = deployment.staticcall(callData);
     if (!success || data.length < 32) {
@@ -297,7 +284,10 @@ abstract contract DeployScriptBase is Script {
     string memory artifactName,
     bytes memory creationCode,
     bytes memory constructorArgs
-  ) internal returns (address deployment, bool didDeploy) {
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
     if (deployments.has(label)) {
       deployment = deployments.get(label);
       _requireCode(deployment, label);
@@ -317,7 +307,10 @@ abstract contract DeployScriptBase is Script {
     string memory label,
     string memory,
     bytes memory initCode
-  ) internal returns (address deployment, bool didDeploy) {
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
     _requireInitCodeStoragePayloadFits(initCode, label);
     return deployments.getOrDeployInitcodeStorageByLabel(label, initCode, false);
   }
@@ -357,62 +350,58 @@ abstract contract DeployScriptBase is Script {
   }
 
   function _initCodeStorageArtifact(bytes memory initCode) internal pure returns (string memory) {
-    return
-      initCode.length <= 24_575
-        ? LibDeployment.PreparedStorageArtifact
-        : LibDeployment.LinkedStorageArtifact;
+    return initCode.length <= 24_575 ? LibDeployment.PreparedStorageArtifact : LibDeployment.LinkedStorageArtifact;
   }
 
-  function _initCodeStorageConstructorInput(
-    bytes memory initCode
-  ) internal pure returns (bytes memory) {
+  function _initCodeStorageConstructorInput(bytes memory initCode) internal pure returns (bytes memory) {
     return LibDeployment.initCodeStorageRuntime(initCode);
   }
 
   function _planInitCodeStoragePredicate(
     string memory output,
     bytes memory initCode
-  ) internal pure returns (string memory) {
+  )
+    internal
+    pure
+    returns (string memory)
+  {
     bytes32 runtimeHash = keccak256(LibDeployment.initCodeStorageRuntime(initCode));
     if (initCode.length > 24_575) {
-      return
-        string.concat(
-          '{"type":"splitCodeHash","target":',
-          _ref(output),
-          ',"expect":',
-          _quoted(vm.toString(runtimeHash)),
-          ',"secondary":',
-          _ref(string.concat(output, '-secondary')),
-          ',"secondaryCodeHash":',
-          _quoted(vm.toString(keccak256(LibSplitInitCode.getSecondaryRuntime(initCode)))),
-          ',"initCodeHash":',
-          _quoted(vm.toString(keccak256(initCode))),
-          '}'
-        );
-    }
-    return
-      string.concat(
-        '{"type":"codeHash","target":',
+      return string.concat(
+        '{"type":"splitCodeHash","target":',
         _ref(output),
         ',"expect":',
         _quoted(vm.toString(runtimeHash)),
+        ',"secondary":',
+        _ref(string.concat(output, '-secondary')),
+        ',"secondaryCodeHash":',
+        _quoted(vm.toString(keccak256(LibSplitInitCode.getSecondaryRuntime(initCode)))),
         ',"initCodeHash":',
         _quoted(vm.toString(keccak256(initCode))),
         '}'
       );
+    }
+    return string.concat(
+      '{"type":"codeHash","target":',
+      _ref(output),
+      ',"expect":',
+      _quoted(vm.toString(runtimeHash)),
+      ',"initCodeHash":',
+      _quoted(vm.toString(keccak256(initCode))),
+      '}'
+    );
   }
 
   function _planInitCodeStorageEntry(
     Deployments memory deployments,
     DeployPlanEntry memory entry,
     bytes memory initCode
-  ) internal {
+  )
+    internal
+  {
     _requireInitCodeStoragePayloadFits(initCode, entry.output);
     entry.artifactName = _initCodeStorageArtifact(initCode);
-    entry.decodedConstructorArgs = string.concat(
-      '[',
-      _quoted(vm.toString(_initCodeStorageConstructorInput(initCode)))
-    );
+    entry.decodedConstructorArgs = string.concat('[', _quoted(vm.toString(_initCodeStorageConstructorInput(initCode))));
     entry.predicate = _planInitCodeStoragePredicate(entry.output, initCode);
     if (initCode.length > 24_575) {
       DeployPlanEntry memory secondary;
@@ -432,11 +421,7 @@ abstract contract DeployScriptBase is Script {
       );
       secondary.afterEntries = entry.afterEntries;
       _planEntry(deployments, secondary);
-      entry.decodedConstructorArgs = string.concat(
-        entry.decodedConstructorArgs,
-        ',',
-        _ref(secondary.output)
-      );
+      entry.decodedConstructorArgs = string.concat(entry.decodedConstructorArgs, ',', _ref(secondary.output));
       entry.afterEntries = new string[](1);
       entry.afterEntries[0] = secondary.id;
     }
@@ -453,14 +438,13 @@ abstract contract DeployScriptBase is Script {
     string memory secondaryJson,
     bytes32 initCodeHash,
     bytes32 secondaryCodeHash
-  ) private {
+  )
+    private
+  {
     string memory link = '';
     if (bytes(secondaryJson).length != 0) {
       link = string.concat(
-        ',"secondary":',
-        secondaryJson,
-        ',"secondaryCodeHash":',
-        _quoted(vm.toString(secondaryCodeHash))
+        ',"secondary":', secondaryJson, ',"secondaryCodeHash":', _quoted(vm.toString(secondaryCodeHash))
       );
       string memory secondaryLabel = string.concat(label, '_secondary');
       _inventoryRecord(
@@ -512,7 +496,9 @@ abstract contract DeployScriptBase is Script {
     string memory label,
     string memory output,
     bytes memory initCode
-  ) internal {
+  )
+    internal
+  {
     bool split = initCode.length > 24_575;
     _writeInitCodeStorageInventory(
       deployments,
@@ -533,7 +519,9 @@ abstract contract DeployScriptBase is Script {
     string memory label,
     address primary,
     uint256 initCodeHash
-  ) internal {
+  )
+    internal
+  {
     address secondary = LibDeployment.initCodeStorageSecondary(primary);
     _writeInitCodeStorageInventory(
       deployments,
@@ -552,7 +540,11 @@ abstract contract DeployScriptBase is Script {
     string memory signature,
     string memory argsJson,
     string memory expectedJson
-  ) internal pure returns (string memory) {
+  )
+    internal
+    pure
+    returns (string memory)
+  {
     return _planCallEqPredicateForTarget(_ref(output), signature, argsJson, expectedJson);
   }
 
@@ -561,25 +553,31 @@ abstract contract DeployScriptBase is Script {
     string memory signature,
     string memory argsJson,
     string memory expectedJson
-  ) internal pure returns (string memory) {
-    return
-      string.concat(
-        '{"type":"callEq","target":',
-        target,
-        ',"call":{"sig":',
-        _quoted(signature),
-        ',"args":',
-        argsJson,
-        '},"expect":',
-        expectedJson,
-        '}'
-      );
+  )
+    internal
+    pure
+    returns (string memory)
+  {
+    return string.concat(
+      '{"type":"callEq","target":',
+      target,
+      ',"call":{"sig":',
+      _quoted(signature),
+      ',"args":',
+      argsJson,
+      '},"expect":',
+      expectedJson,
+      '}'
+    );
   }
 
   function _planEntry(
     Deployments memory deployments,
     DeployPlanEntry memory entry
-  ) internal returns (string memory entryPath) {
+  )
+    internal
+    returns (string memory entryPath)
+  {
     address expectedExecutor = _expectedExecutor();
     string memory json = string.concat(
       '{"id":',
@@ -602,21 +600,11 @@ abstract contract DeployScriptBase is Script {
       ',"to":null,"value":"0","data":"initCode+constructorArgs",',
       '"gasLimitPolicy":"estimate*1.3","nonceCheck":"display-and-confirm"}'
     );
-    json = string.concat(
-      json,
-      ',"predicate":',
-      entry.predicate,
-      ',"after":',
-      _jsonStringArray(entry.afterEntries),
-      '}'
-    );
+    json = string.concat(json, ',"predicate":', entry.predicate, ',"after":', _jsonStringArray(entry.afterEntries), '}');
 
     string memory planEntriesDir = pathJoin(deployments.dir, 'plan-entries');
     mkdir(planEntriesDir);
-    entryPath = pathJoin(
-      planEntriesDir,
-      string.concat(_sequence(entry.sequence), '-', entry.id, '.json')
-    );
+    entryPath = pathJoin(planEntriesDir, string.concat(_sequence(entry.sequence), '-', entry.id, '.json'));
     vm.writeJson(vm.serializeJson(entry.id, json), entryPath);
     console.log(string.concat('Wrote plan entry ', entry.id, ' to ', entryPath));
   }
@@ -624,7 +612,10 @@ abstract contract DeployScriptBase is Script {
   function _callPlanEntry(
     Deployments memory deployments,
     CallPlanEntry memory entry
-  ) internal returns (string memory entryPath) {
+  )
+    internal
+    returns (string memory entryPath)
+  {
     address expectedExecutor = _expectedExecutor();
     string memory json = string.concat(
       '{"id":',
@@ -649,21 +640,11 @@ abstract contract DeployScriptBase is Script {
       ',"value":"0","data":"functionSignature+args",',
       '"gasLimitPolicy":"estimate*1.3","nonceCheck":"display-and-confirm"}'
     );
-    json = string.concat(
-      json,
-      ',"predicate":',
-      entry.predicate,
-      ',"after":',
-      _jsonStringArray(entry.afterEntries),
-      '}'
-    );
+    json = string.concat(json, ',"predicate":', entry.predicate, ',"after":', _jsonStringArray(entry.afterEntries), '}');
 
     string memory planEntriesDir = pathJoin(deployments.dir, 'plan-entries');
     mkdir(planEntriesDir);
-    entryPath = pathJoin(
-      planEntriesDir,
-      string.concat(_sequence(entry.sequence), '-', entry.id, '.json')
-    );
+    entryPath = pathJoin(planEntriesDir, string.concat(_sequence(entry.sequence), '-', entry.id, '.json'));
     vm.writeJson(vm.serializeJson(entry.id, json), entryPath);
     console.log(string.concat('Wrote plan entry ', entry.id, ' to ', entryPath));
   }
@@ -673,7 +654,10 @@ abstract contract DeployScriptBase is Script {
     uint256 sequence,
     string memory label,
     string memory recordJson
-  ) internal returns (string memory recordPath) {
+  )
+    internal
+    returns (string memory recordPath)
+  {
     if (_containsDot(label)) revert('Inventory record labels must not contain dots');
     string memory pendingDir = pathJoin(deployments.dir, 'inventory-pending');
     mkdir(pendingDir);

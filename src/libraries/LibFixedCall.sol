@@ -21,11 +21,7 @@ library LibFixedCall {
 
   /// @dev same ABI rules as a Solidity bool call: reject short/dirty returns, accept trailing
   ///      data, and bubble reverts. the success path only copies the one word we need.
-  function readBool(
-    address target,
-    bytes4 selector,
-    address argument
-  ) internal view returns (bool value) {
+  function readBool(address target, bytes4 selector, address argument) internal view returns (bool value) {
     uint256 selectorWord = uint32(selector);
     assembly ('memory-safe') {
       let pointer := mload(0x40)

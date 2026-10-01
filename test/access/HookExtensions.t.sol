@@ -30,10 +30,9 @@ contract HookExtensionsTest is HookTemplateFixture {
   MockRoleProvider[3] internal providers;
 
   function _artifact(HookKind kind) internal pure returns (string memory) {
-    return
-      kind == HookKind.Open
-        ? 'test/mocks/TransferFeatureHooks.sol:OpenTransferHooks'
-        : kind == HookKind.Fixed
+    return kind == HookKind.Open
+      ? 'test/mocks/TransferFeatureHooks.sol:OpenTransferHooks'
+      : kind == HookKind.Fixed
         ? 'test/mocks/TransferFeatureHooks.sol:FixedTransferHooks'
         : 'test/mocks/TransferFeatureHooks.sol:PeriodicTransferHooks';
   }
@@ -45,31 +44,28 @@ contract HookExtensionsTest is HookTemplateFixture {
     uint128 initialLimit,
     uint128 minimum,
     bool disabled
-  ) internal returns (HooksConfig) {
+  )
+    internal
+    returns (HooksConfig)
+  {
     BaseHooks target = hooks[uint256(kind)];
     DeployMarketInputs memory inputs;
     inputs.hooks = requested.setHooksAddress(address(target));
     inputs.maxTotalSupply = initialLimit;
-    return
-      target.onCreateMarket(address(this), market, inputs, _marketData(kind, minimum, disabled));
+    return target.onCreateMarket(address(this), market, inputs, _marketData(kind, minimum, disabled));
   }
 
   function setUp() external {
     vm.warp(StartTimestamp);
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
-      BaseHooks target = BaseHooks(
-        _deployCode(_artifact(kind), abi.encode(address(this), bytes('')))
-      );
+      BaseHooks target = BaseHooks(_deployCode(_artifact(kind), abi.encode(address(this), bytes(''))));
       hooks[i] = target;
-      MockRoleProvider provider = MockRoleProvider(
-        _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-      );
+      MockRoleProvider provider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
       providers[i] = provider;
       provider.setIsPullProvider(true);
       target.addRoleProvider(address(provider), type(uint32).max);
-      HooksConfig requested = EmptyHooksConfig
-        .setFlag(Bit_Enabled_Transfer)
+      HooksConfig requested = EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
         .setFlag(Bit_Enabled_Deposit)
         .setFlag(Bit_Enabled_QueueWithdrawal);
       _createCompositionMarket(kind, MarketA, requested, InitialLimit, 0, false);
@@ -88,11 +84,7 @@ contract HookExtensionsTest is HookTemplateFixture {
   }
 
   function onHooksAdministratorTransferred(address previous, address next) external view {
-    assertTrue(
-      msg.sender == address(hooks[0]) ||
-        msg.sender == address(hooks[1]) ||
-        msg.sender == address(hooks[2])
-    );
+    assertTrue(msg.sender == address(hooks[0]) || msg.sender == address(hooks[1]) || msg.sender == address(hooks[2]));
     assertEq(previous, address(this));
     assertEq(next, NewAdministrator);
   }
@@ -155,11 +147,7 @@ contract HookExtensionsTest is HookTemplateFixture {
       target.onTransfer(Allowed, Allowed, Restricted, InitialLimit + 1, state, '');
       vm.prank(MarketA);
       target.onTransfer(Allowed, Allowed, Restricted, 1, state, '');
-      assertEq(
-        features.scaledTransferVolume(MarketA),
-        1,
-        'known recipient still faces amount rule'
-      );
+      assertEq(features.scaledTransferVolume(MarketA), 1, 'known recipient still faces amount rule');
     }
   }
 
@@ -171,10 +159,7 @@ contract HookExtensionsTest is HookTemplateFixture {
       MarketState memory state;
       target.blockFromDeposits(Restricted);
       vm.mockCall(MarketA, abi.encodeWithSignature('registeredWrapper()'), abi.encode(Restricted));
-      assertFalse(
-        target.isMarketTransferRecipientAllowed(MarketA, Restricted),
-        'restricted wrapper'
-      );
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketA, Restricted), 'restricted wrapper');
       vm.prank(MarketA);
       vm.expectRevert(RecipientRestrictionPolicy.RecipientRestricted.selector);
       target.onTransfer(Allowed, Allowed, Restricted, 1, state, '');
@@ -187,16 +172,9 @@ contract HookExtensionsTest is HookTemplateFixture {
       target.onTransfer(Allowed, Allowed, Allowed, InitialLimit + 1, state, '');
       vm.prank(MarketA);
       target.onTransfer(Allowed, Allowed, Allowed, 1, state, '');
-      assertEq(
-        features.scaledTransferVolume(MarketA),
-        1,
-        'only accepted wrapper transfer recorded'
-      );
+      assertEq(features.scaledTransferVolume(MarketA), 1, 'only accepted wrapper transfer recorded');
       assertFalse(target.isKnownLenderOnMarket(Allowed, MarketA), 'wrapper stays unknown');
-      assertFalse(
-        target.getPreviousLenderStatus(Allowed).hasCredential(),
-        'wrapper stays uncredentialed'
-      );
+      assertFalse(target.getPreviousLenderStatus(Allowed).hasCredential(), 'wrapper stays uncredentialed');
       assertFalse(target.isMarketTransferDisabled(MarketA), 'recipient rule keeps global promise');
     }
   }
@@ -207,18 +185,12 @@ contract HookExtensionsTest is HookTemplateFixture {
       MockRoleProvider provider = providers[i];
       MarketState memory state;
       provider.setCredential(Restricted, uint32(block.timestamp));
-      assertFalse(
-        target.isMarketTransferRecipientAllowed(MarketA, Restricted),
-        'restricted market'
-      );
+      assertFalse(target.isMarketTransferRecipientAllowed(MarketA, Restricted), 'restricted market');
       assertTrue(target.isMarketTransferRecipientAllowed(MarketB, Restricted), 'other market');
       vm.prank(MarketB);
       target.onTransfer(Allowed, Allowed, Restricted, 1, state, '');
       assertTrue(target.isKnownLenderOnMarket(Restricted, MarketB), 'other market entry');
-      assertFalse(
-        target.isKnownLenderOnMarket(Restricted, MarketA),
-        'restricted market still unknown'
-      );
+      assertFalse(target.isKnownLenderOnMarket(Restricted, MarketA), 'restricted market still unknown');
       vm.prank(MarketA);
       vm.expectRevert(RecipientRestrictionPolicy.RecipientRestricted.selector);
       target.onTransfer(Allowed, Allowed, Restricted, 1, state, '');
@@ -231,17 +203,9 @@ contract HookExtensionsTest is HookTemplateFixture {
       HookKind kind = HookKind(i);
       BaseHooks target = hooks[i];
       BaseHooks original = _newHooks(kind, '');
-      HooksConfig effective = _createCompositionMarket(
-        kind,
-        MarketC,
-        EmptyHooksConfig,
-        InitialLimit,
-        5,
-        false
-      );
+      HooksConfig effective = _createCompositionMarket(kind, MarketC, EmptyHooksConfig, InitialLimit, 5, false);
       assertEq(
-        HooksConfig.unwrap(target.config().optionalFlags()),
-        HooksConfig.unwrap(original.config().optionalFlags())
+        HooksConfig.unwrap(target.config().optionalFlags()), HooksConfig.unwrap(original.config().optionalFlags())
       );
       assertEq(
         HooksConfig.unwrap(target.config().requiredFlags()),
@@ -250,14 +214,8 @@ contract HookExtensionsTest is HookTemplateFixture {
       assertTrue(effective.useOnTransfer(), 'required dispatch');
       assertTrue(effective.useOnDeposit(), 'minimum forces deposit dispatch');
       assertFalse(effective.useOnBorrow(), 'fourth feature not installed yet');
-      assertFalse(
-        _access(kind, target, MarketC).transferRequiresAccess,
-        'dispatch is not transfer access'
-      );
-      assertFalse(
-        _access(kind, target, MarketC).depositRequiresAccess,
-        'dispatch is not deposit access'
-      );
+      assertFalse(_access(kind, target, MarketC).transferRequiresAccess, 'dispatch is not transfer access');
+      assertFalse(_access(kind, target, MarketC).depositRequiresAccess, 'dispatch is not deposit access');
       assertEq(MarketC.code.length, 0, 'configuration precedes market deployment');
 
       MarketState memory state;
@@ -266,14 +224,8 @@ contract HookExtensionsTest is HookTemplateFixture {
       target.onDeposit(Allowed, 5, state, '');
       vm.prank(MarketC);
       target.onTransfer(Allowed, Allowed, Allowed, 1, state, '');
-      assertFalse(
-        target.isKnownLenderOnMarket(Allowed, MarketC),
-        'optional entry without credentials stays unknown'
-      );
-      assertTrue(
-        target.isMarketTransferRecipientAllowed(MarketC, Allowed),
-        'ungated recipient view'
-      );
+      assertFalse(target.isKnownLenderOnMarket(Allowed, MarketC), 'optional entry without credentials stays unknown');
+      assertTrue(target.isMarketTransferRecipientAllowed(MarketC, Allowed), 'ungated recipient view');
       assertEq(TransferFeatures(address(target)).scaledTransferVolume(MarketC), 1);
     }
   }
@@ -286,21 +238,14 @@ contract HookExtensionsTest is HookTemplateFixture {
       vm.expectRevert(TransferAmountPolicy.ZeroTransferAmountLimit.selector);
       _createCompositionMarket(kind, MarketC, EmptyHooksConfig, 0, 5, false);
       assertFalse(_access(kind, target, MarketC).isHooked, 'registration rolled back');
-      assertEq(
-        _access(kind, target, MarketC).minimumDeposit,
-        0,
-        'packed configuration rolled back'
-      );
+      assertEq(_access(kind, target, MarketC).minimumDeposit, 0, 'packed configuration rolled back');
       assertEq(features.maximumScaledTransfer(MarketC), 0, 'no feature setup');
       assertEq(features.scaledTransferVolume(MarketC), 0, 'no feature activity');
       vm.expectRevert(BaseHooks.NotHookedMarket.selector);
       target.isMarketTransferRecipientAllowed(MarketC, Allowed);
 
       _createCompositionMarket(kind, MarketC, EmptyHooksConfig, 7, 5, false);
-      assertTrue(
-        _access(kind, target, MarketC).isHooked,
-        'same market can be configured after rejection'
-      );
+      assertTrue(_access(kind, target, MarketC).isHooked, 'same market can be configured after rejection');
       assertEq(_access(kind, target, MarketC).minimumDeposit, 5);
       assertEq(features.maximumScaledTransfer(MarketC), 7);
       assertEq(features.maximumScaledTransfer(MarketA), InitialLimit, 'other market unchanged');
@@ -331,22 +276,12 @@ contract HookExtensionsTest is HookTemplateFixture {
       target.onTransfer(Allowed, Allowed, Allowed, maximum, state, '');
       assertEq(features.scaledTransferVolume(MarketA), maximum * 3 - 1, 'volume is not a quota');
       assertEq(features.scaledTransferVolume(MarketB), 0, 'other market isolated');
-      assertTrue(
-        target.isMarketTransferRecipientAllowed(MarketA, Allowed),
-        'view does not validate amount'
-      );
+      assertTrue(target.isMarketTransferRecipientAllowed(MarketA, Allowed), 'view does not validate amount');
       vm.prank(MarketA);
       vm.expectRevert(TransferAmountPolicy.TransferAmountLimitExceeded.selector);
       target.onTransfer(Allowed, Allowed, Allowed, maximum + 1, state, '');
-      assertEq(
-        features.scaledTransferVolume(MarketA),
-        maximum * 3 - 1,
-        'rejected amount not recorded'
-      );
-      assertFalse(
-        target.isMarketTransferDisabled(MarketA),
-        'positive limit keeps transfer promise'
-      );
+      assertEq(features.scaledTransferVolume(MarketA), maximum * 3 - 1, 'rejected amount not recorded');
+      assertFalse(target.isMarketTransferDisabled(MarketA), 'positive limit keeps transfer promise');
     }
   }
 
@@ -361,18 +296,12 @@ contract HookExtensionsTest is HookTemplateFixture {
       target.onTransfer(Allowed, Allowed, Allowed, type(uint256).max, state, '');
       vm.prank(MarketA);
       target.onTransfer(Allowed, Allowed, Allowed, 1, state, '');
-      assertEq(
-        features.scaledTransferVolume(MarketA),
-        type(uint256).max,
-        'observational total saturates'
-      );
+      assertEq(features.scaledTransferVolume(MarketA), type(uint256).max, 'observational total saturates');
       assertFalse(target.isMarketTransferDisabled(MarketA));
     }
   }
 
-  function test_transferRules_AmountFailurePrecedesRecipientFailureAndRollsBackCredentials()
-    external
-  {
+  function test_transferRules_AmountFailurePrecedesRecipientFailureAndRollsBackCredentials() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
       TransferFeatures features = TransferFeatures(address(target));
@@ -393,9 +322,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
-  function test_featureManagement_RequiresAdministratorAndRegistrationAndIsolatesMarkets()
-    external
-  {
+  function test_featureManagement_RequiresAdministratorAndRegistrationAndIsolatesMarkets() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
       TransferFeatures features = TransferFeatures(address(target));
@@ -421,20 +348,12 @@ contract HookExtensionsTest is HookTemplateFixture {
       assertEq(features.maximumScaledTransfer(MarketA), InitialLimit);
       assertEq(features.maximumScaledTransfer(MarketB), 7);
       features.setRestrictedRecipient(MarketB, address(0));
-      assertEq(
-        features.restrictedRecipient(MarketB),
-        address(0),
-        'restriction cleared only on this market'
-      );
+      assertEq(features.restrictedRecipient(MarketB), address(0), 'restriction cleared only on this market');
       MarketState memory state;
       vm.prank(MarketC);
       vm.expectRevert(BaseHooks.NotHookedMarket.selector);
       target.onTransfer(Allowed, Allowed, Allowed, 0, state, '');
-      assertEq(
-        features.scaledTransferVolume(MarketC),
-        0,
-        'unregistered caller cannot write feature state'
-      );
+      assertEq(features.scaledTransferVolume(MarketC), 0, 'unregistered caller cannot write feature state');
     }
   }
 
@@ -539,28 +458,18 @@ contract HookExtensionsTest is HookTemplateFixture {
     for (uint256 i; i < hooks.length; i++) {
       bytes memory initCode = vm.getCode(_artifact(HookKind(i)));
       assertTrue(address(hooks[i]).code.length <= 24_576, 'runtime limit');
-      assertTrue(
-        initCode.length + abi.encode(address(this), bytes('')).length <= 49_152,
-        'creation payload limit'
-      );
+      assertTrue(initCode.length + abi.encode(address(this), bytes('')).length <= 49_152, 'creation payload limit');
       uint64 nonce = vm.getNonce(address(this));
       address stored;
       if (initCode.length <= 24_575) stored = LibStoredInitCode.deployInitCode(initCode);
-      else (stored, ) = LibSplitInitCode.deployInitCode(initCode);
-      assertEq(
-        vm.getNonce(address(this)),
-        nonce + (initCode.length <= 24_575 ? 1 : 2),
-        'selected storage count'
-      );
+      else (stored,) = LibSplitInitCode.deployInitCode(initCode);
+      assertEq(vm.getNonce(address(this)), nonce + (initCode.length <= 24_575 ? 1 : 2), 'selected storage count');
       assertTrue(stored.code.length <= 24_576, 'stored initcode limit');
       assertEq(
         stored.code,
         initCode.length + 1 <= 24_576
           ? abi.encodePacked(bytes1(0), initCode)
-          : LibSplitInitCode.getPrimaryRuntime(
-            initCode,
-            LibSplitInitCode.getSecondaryAddress(stored)
-          ),
+          : LibSplitInitCode.getPrimaryRuntime(initCode, LibSplitInitCode.getSecondaryAddress(stored)),
         'actual stored image'
       );
       assertEq(LibStoredInitCode.getInitCode(stored), initCode, 'decoded creation code');

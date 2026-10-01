@@ -99,7 +99,12 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   function _onRepayAndGetTotalAssets(
     MarketState memory state,
     uint256 amount
-  ) internal virtual override returns (uint256 currentTotalAssets) {
+  )
+    internal
+    virtual
+    override
+    returns (uint256 currentTotalAssets)
+  {
     currentTotalAssets = totalAssets();
     // Only the explicit repayment can reduce drawn principal. Existing assets
     // may include raw donations, which add liquidity without repaying principal.
@@ -136,7 +141,12 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   function _calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
-  ) internal view override returns (uint256 baseInterestRay) {
+  )
+    internal
+    view
+    override
+    returns (uint256 baseInterestRay)
+  {
     uint256 timeDelta;
     unchecked {
       // Accrual timestamps only move forward.
@@ -157,10 +167,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
       // market debt, so this product is only used as a compact nonzero check.
       if (annualInterestBips * drawn == 0) return baseInterestRay;
 
-      uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(
-        annualInterestBips,
-        timeDelta
-      );
+      uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(annualInterestBips, timeDelta);
       uint256 totalSupply = state.totalSupply();
       uint256 drawnClamped = MathUtils.min(drawn, totalSupply);
       // Both rates are bounded uint16 values, so their linear interest cannot

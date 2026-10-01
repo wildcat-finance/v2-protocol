@@ -56,21 +56,15 @@ contract BaseAccessControlsTest is TestKernel {
     // expired-credential cases need two valid timestamps before the current block
     if (block.timestamp < 3) vm.warp(3);
 
-    mockProvider1 = MockRoleProvider(
-      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-    );
-    mockProvider2 = MockRoleProvider(
-      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-    );
-    providerFactory = MockRoleProviderFactory(
-      _deployCode('test/mocks/MockRoleProviderFactory.sol:MockRoleProviderFactory')
-    );
+    mockProvider1 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
+    mockProvider2 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
+    providerFactory =
+      MockRoleProviderFactory(_deployCode('test/mocks/MockRoleProviderFactory.sol:MockRoleProviderFactory'));
     registeredBorrowers[address(this)] = true;
     NameAndProviderInputs memory inputs;
     baseHooks = BaseAccessControlsHarness(
       _deployCode(
-        'test/access/BaseAccessControlsHarness.sol:BaseAccessControlsHarness',
-        abi.encode(address(this), inputs)
+        'test/access/BaseAccessControlsHarness.sol:BaseAccessControlsHarness', abi.encode(address(this), inputs)
       )
     );
   }
@@ -83,10 +77,7 @@ contract BaseAccessControlsTest is TestKernel {
     return registeredBorrowers[account];
   }
 
-  function onHooksAdministratorTransferred(
-    address previousAdministrator,
-    address newAdministrator
-  ) external {
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
     if (failAdministratorTransferCallback) revert AdministratorTransferCallbackFailed();
     assertEq(msg.sender, address(baseHooks), 'callback caller');
     callbackPreviousAdministrator = previousAdministrator;
@@ -112,7 +103,10 @@ contract BaseAccessControlsTest is TestKernel {
     MockRoleProvider mockProvider,
     uint32 timeToLive,
     bool isPullProvider
-  ) internal returns (StandardRoleProvider storage) {
+  )
+    internal
+    returns (StandardRoleProvider storage)
+  {
     if (address(mockProvider) != address(this) && address(mockProvider).code.length > 0) {
       mockProvider.setIsPullProvider(isPullProvider);
     }
@@ -157,7 +151,9 @@ contract BaseAccessControlsTest is TestKernel {
     uint32 timeToLive,
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
-  ) internal {
+  )
+    internal
+  {
     vm.expectEmit();
     emit BaseAccessControls.RoleProviderAdded(
       baseHooks.administrator(),
@@ -173,7 +169,9 @@ contract BaseAccessControlsTest is TestKernel {
     uint32 timeToLive,
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
-  ) internal {
+  )
+    internal
+  {
     RoleProvider previousProvider = baseHooks.getRoleProvider(providerAddress);
     vm.expectEmit();
     emit BaseAccessControls.RoleProviderUpdated(
@@ -192,7 +190,9 @@ contract BaseAccessControlsTest is TestKernel {
     address providerAddress,
     uint24 pullProviderIndex,
     uint24 pushProviderIndex
-  ) internal {
+  )
+    internal
+  {
     RoleProvider provider = baseHooks.getRoleProvider(providerAddress);
     vm.expectEmit();
     emit BaseAccessControls.RoleProviderRemoved(
@@ -208,14 +208,11 @@ contract BaseAccessControlsTest is TestKernel {
     address providerAddress,
     address accountAddress,
     uint32 credentialTimestamp
-  ) internal {
+  )
+    internal
+  {
     vm.expectEmit();
-    emit BaseAccessControls.AccountAccessGranted(
-      providerAddress,
-      accountAddress,
-      providerAddress,
-      credentialTimestamp
-    );
+    emit BaseAccessControls.AccountAccessGranted(providerAddress, accountAddress, providerAddress, credentialTimestamp);
   }
 
   function _validTimestamp(uint32 timestamp, uint256 timeToLive) internal view returns (uint32) {
@@ -224,22 +221,14 @@ contract BaseAccessControlsTest is TestKernel {
     return uint32(bound(timestamp, minTimestamp, block.timestamp));
   }
 
-  function assertEq(
-    RoleProvider actual,
-    StandardRoleProvider memory expected,
-    string memory message
-  ) internal pure {
+  function assertEq(RoleProvider actual, StandardRoleProvider memory expected, string memory message) internal pure {
     assertEq(actual.providerAddress(), expected.providerAddress, message);
     assertEq(actual.timeToLive(), expected.timeToLive, message);
     assertEq(actual.pullProviderIndex(), expected.pullProviderIndex, message);
     assertEq(actual.pushProviderIndex(), expected.pushProviderIndex, message);
   }
 
-  function assertEq(
-    LenderStatus memory actual,
-    LenderStatus memory expected,
-    string memory message
-  ) internal pure {
+  function assertEq(LenderStatus memory actual, LenderStatus memory expected, string memory message) internal pure {
     assertEq(keccak256(abi.encode(actual)), keccak256(abi.encode(expected)), message);
   }
 
@@ -261,11 +250,7 @@ contract BaseAccessControlsTest is TestKernel {
     _registerAdministrator(newAdministrator);
 
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AdministratorTransferRequested(
-      address(this),
-      address(0),
-      newAdministrator
-    );
+    emit BaseAccessControls.AdministratorTransferRequested(address(this), address(0), newAdministrator);
     baseHooks.requestAdministratorTransfer(newAdministrator);
 
     assertEq(baseHooks.administrator(), address(this), 'administrator');
@@ -280,11 +265,7 @@ contract BaseAccessControlsTest is TestKernel {
     baseHooks.requestAdministratorTransfer(firstAdministrator);
 
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AdministratorTransferRequested(
-      address(this),
-      firstAdministrator,
-      secondAdministrator
-    );
+    emit BaseAccessControls.AdministratorTransferRequested(address(this), firstAdministrator, secondAdministrator);
     baseHooks.requestAdministratorTransfer(secondAdministrator);
 
     assertEq(baseHooks.pendingAdministrator(), secondAdministrator, 'pending administrator');
@@ -427,22 +408,10 @@ contract BaseAccessControlsTest is TestKernel {
       RoleProvider.unwrap(pushProviderBefore),
       'push provider'
     );
-    assertEq(
-      keccak256(abi.encode(baseHooks.getPullProviders())),
-      pullProvidersBefore,
-      'pull providers'
-    );
-    assertEq(
-      keccak256(abi.encode(baseHooks.getPushProviders())),
-      pushProvidersBefore,
-      'push providers'
-    );
+    assertEq(keccak256(abi.encode(baseHooks.getPullProviders())), pullProvidersBefore, 'pull providers');
+    assertEq(keccak256(abi.encode(baseHooks.getPushProviders())), pushProvidersBefore, 'push providers');
     assertEq(baseHooks.getPreviousLenderStatus(lender), statusBefore, 'lender status');
-    assertEq(
-      baseHooks.getPreviousLenderStatus(blockedLender),
-      blockedStatusBefore,
-      'blocked lender status'
-    );
+    assertEq(baseHooks.getPreviousLenderStatus(blockedLender), blockedStatusBefore, 'blocked lender status');
     assertTrue(baseHooks.isKnownLenderOnMarket(lender, market), 'known lender');
 
     vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
@@ -529,10 +498,7 @@ contract BaseAccessControlsTest is TestKernel {
     baseHooks.createRoleProvider(address(providerFactory), timeToLive, factoryInput);
   }
 
-  function test_createRoleProvider_CreateRoleProviderFailed(
-    bool isPullProvider,
-    uint32 timeToLive
-  ) external {
+  function test_createRoleProvider_CreateRoleProviderFailed(bool isPullProvider, uint32 timeToLive) external {
     bytes32 salt = bytes32(uint256(1));
     bytes memory factoryInput = abi.encode(salt, isPullProvider);
     providerFactory.setNextProviderAddress(address(0));
@@ -554,12 +520,7 @@ contract BaseAccessControlsTest is TestKernel {
       })
     );
 
-    _expectRoleProviderAdded(
-      address(mockProvider1),
-      timeToLive,
-      pullProviderIndex,
-      pushProviderIndex
-    );
+    _expectRoleProviderAdded(address(mockProvider1), timeToLive, pullProviderIndex, pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
 
     _validateRoleProviders();
@@ -574,17 +535,8 @@ contract BaseAccessControlsTest is TestKernel {
     address pushProvider = address(2);
     address account = address(3);
     uint32 timestamp = uint32(block.timestamp);
-    StandardRoleProvider storage provider = _addExpectedProvider(
-      MockRoleProvider(pushProvider),
-      timeToLive,
-      false
-    );
-    _expectRoleProviderAdded(
-      pushProvider,
-      timeToLive,
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+    StandardRoleProvider storage provider = _addExpectedProvider(MockRoleProvider(pushProvider), timeToLive, false);
+    _expectRoleProviderAdded(pushProvider, timeToLive, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(pushProvider, timeToLive);
     _validateRoleProviders();
 
@@ -608,22 +560,13 @@ contract BaseAccessControlsTest is TestKernel {
       address providerAddress = address(providers[i]);
       baseHooks.addRoleProvider(providerAddress, 1);
       RoleProvider provider = baseHooks.getRoleProvider(providerAddress);
-      assertEq(
-        provider.pullProviderIndex() != NullProviderIndex,
-        expectedPull[i],
-        'pull provider classification'
-      );
+      assertEq(provider.pullProviderIndex() != NullProviderIndex, expectedPull[i], 'pull provider classification');
     }
   }
 
   function test_addRoleProvider_updateTimeToLive(uint32 ttl1, uint32 ttl2) external {
     StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, ttl1, true);
-    _expectRoleProviderAdded(
-      address(mockProvider1),
-      ttl1,
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+    _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl1);
 
     // Validate the initial state
@@ -631,12 +574,7 @@ contract BaseAccessControlsTest is TestKernel {
 
     // Update the TTL using `addRoleProvider`
     provider.timeToLive = ttl2;
-    _expectRoleProviderUpdated(
-      address(mockProvider1),
-      ttl2,
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+    _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl2);
 
     // Validate the updated state
@@ -645,12 +583,7 @@ contract BaseAccessControlsTest is TestKernel {
 
   function test_addRoleProvider_updateTimeToLive2(uint32 ttl1, uint32 ttl2) external {
     StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, ttl1, false);
-    _expectRoleProviderAdded(
-      address(mockProvider1),
-      ttl1,
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+    _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl1);
 
     // Validate the initial state
@@ -658,34 +591,16 @@ contract BaseAccessControlsTest is TestKernel {
 
     // Update the TTL using `addRoleProvider`
     provider.timeToLive = ttl2;
-    _expectRoleProviderUpdated(
-      address(mockProvider1),
-      ttl2,
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+    _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl2);
 
     // Validate the updated state
     _validateRoleProviders();
   }
 
-  function test_addRoleProvider_updateTimeToLive(
-    bool isPullProvider,
-    uint32 ttl1,
-    uint32 ttl2
-  ) external {
-    StandardRoleProvider storage provider = _addExpectedProvider(
-      mockProvider1,
-      ttl1,
-      isPullProvider
-    );
-    _expectRoleProviderAdded(
-      address(mockProvider1),
-      ttl1,
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+  function test_addRoleProvider_updateTimeToLive(bool isPullProvider, uint32 ttl1, uint32 ttl2) external {
+    StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, ttl1, isPullProvider);
+    _expectRoleProviderAdded(address(mockProvider1), ttl1, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl1);
 
     // Validate the initial state
@@ -693,12 +608,7 @@ contract BaseAccessControlsTest is TestKernel {
 
     // Update the TTL using `addRoleProvider`
     provider.timeToLive = ttl2;
-    _expectRoleProviderUpdated(
-      address(mockProvider1),
-      ttl2,
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+    _expectRoleProviderUpdated(address(mockProvider1), ttl2, provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.addRoleProvider(address(mockProvider1), ttl2);
 
     // Validate the updated state
@@ -706,19 +616,11 @@ contract BaseAccessControlsTest is TestKernel {
   }
 
   function test_removeRoleProvider(bool isPullProvider, uint32 timeToLive) external {
-    StandardRoleProvider storage provider = _addExpectedProvider(
-      mockProvider1,
-      timeToLive,
-      isPullProvider
-    );
+    StandardRoleProvider storage provider = _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
 
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
 
-    _expectRoleProviderRemoved(
-      address(mockProvider1),
-      provider.pullProviderIndex,
-      provider.pushProviderIndex
-    );
+    _expectRoleProviderRemoved(address(mockProvider1), provider.pullProviderIndex, provider.pushProviderIndex);
     baseHooks.removeRoleProvider(address(mockProvider1));
     expectedRoleProviders.pop();
 
@@ -831,7 +733,9 @@ contract BaseAccessControlsTest is TestKernel {
     bool isPullProvider,
     uint32 timeToLive,
     uint32 timestamp
-  ) external {
+  )
+    external
+  {
     uint256 maxExpiry = block.timestamp - 1;
     timeToLive = uint32(bound(timeToLive, 0, maxExpiry - 1));
     timestamp = uint32(bound(timestamp, 1, maxExpiry - timeToLive));
@@ -847,7 +751,9 @@ contract BaseAccessControlsTest is TestKernel {
     address account,
     bool isPullProvider,
     uint32 timeToLive
-  ) external {
+  )
+    external
+  {
     _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
 
@@ -860,7 +766,9 @@ contract BaseAccessControlsTest is TestKernel {
     address account,
     bool isPullProvider,
     uint32 timeToLive
-  ) external {
+  )
+    external
+  {
     _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
 
@@ -869,12 +777,7 @@ contract BaseAccessControlsTest is TestKernel {
     baseHooks.grantRole(account, uint32(block.timestamp + 1));
   }
 
-  function test_grantRole(
-    address account,
-    bool isPullProvider,
-    uint32 timeToLive,
-    uint32 timestamp
-  ) external {
+  function test_grantRole(address account, bool isPullProvider, uint32 timeToLive, uint32 timestamp) external {
     timestamp = _validTimestamp(timestamp, timeToLive);
     _addExpectedProvider(mockProvider1, timeToLive, isPullProvider);
     baseHooks.addRoleProvider(address(mockProvider1), timeToLive);
@@ -889,7 +792,9 @@ contract BaseAccessControlsTest is TestKernel {
     uint32 timeToLive1,
     uint32 timeToLive2,
     uint32 timestamp
-  ) external {
+  )
+    external
+  {
     timeToLive1 = uint32(bound(timeToLive1, 0, type(uint32).max - 2));
     timeToLive2 = uint32(bound(timeToLive2, timeToLive1 + 1, type(uint32).max));
     // Keep provider 1's expiry below max uint32 so provider 2 can extend it.
@@ -916,7 +821,9 @@ contract BaseAccessControlsTest is TestKernel {
     uint32 timeToLive1,
     uint32 timeToLive2,
     uint32 timestamp
-  ) external {
+  )
+    external
+  {
     // Keep the second TTL shorter so removing provider 1 is the reason replacement works.
     timeToLive2 = uint32(bound(timeToLive2, 0, type(uint32).max - 2));
     timeToLive1 = uint32(bound(timeToLive1, timeToLive2 + 1, type(uint32).max));
@@ -949,7 +856,9 @@ contract BaseAccessControlsTest is TestKernel {
     uint32 timeToLive1,
     uint32 timeToLive2,
     uint32 timestamp
-  ) external {
+  )
+    external
+  {
     timeToLive1 = uint32(bound(timeToLive1, 0, type(uint32).max - 1));
     timeToLive2 = uint32(bound(timeToLive2, timeToLive1 + 1, type(uint32).max));
     uint256 minTimestamp = block.timestamp.satSub(timeToLive1);
@@ -1170,12 +1079,7 @@ contract BaseAccessControlsTest is TestKernel {
     if (expectedUpdated) {
       vm.expectEmit(address(baseHooks));
       if (expectedValid) {
-        emit BaseAccessControls.AccountAccessGranted(
-          expectedProvider,
-          account,
-          address(this),
-          expectedTimestamp
-        );
+        emit BaseAccessControls.AccountAccessGranted(expectedProvider, account, address(this), expectedTimestamp);
       } else {
         emit BaseAccessControls.AccountAccessRevoked(revokedProvider, account, address(this));
       }
@@ -1213,11 +1117,7 @@ contract BaseAccessControlsTest is TestKernel {
 
     bytes memory hooksData = abi.encodePacked(address(mockProvider1));
 
-    vm.expectCall(
-      address(mockProvider1),
-      abi.encodeWithSelector(IRoleProvider.getCredential.selector, account),
-      1
-    );
+    vm.expectCall(address(mockProvider1), abi.encodeWithSelector(IRoleProvider.getCredential.selector, account), 1);
 
     (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
 
@@ -1241,11 +1141,7 @@ contract BaseAccessControlsTest is TestKernel {
     );
 
     vm.expectCall(address(mockProvider1), validateCredentialCalldata, 1);
-    vm.expectCall(
-      address(mockProvider1),
-      abi.encodeWithSelector(IRoleProvider.getCredential.selector, account),
-      0
-    );
+    vm.expectCall(address(mockProvider1), abi.encodeWithSelector(IRoleProvider.getCredential.selector, account), 0);
 
     (bool hasValidCredential, bool wasUpdated) = baseHooks.tryValidateAccess(account, hooksData);
 
@@ -1337,40 +1233,17 @@ contract BaseAccessControlsTest is TestKernel {
     mockProvider1.setCredential(credentialedLender, uint32(block.timestamp));
     baseHooks.addRoleProvider(address(mockProvider1), type(uint32).max);
 
-    assertTrue(
-      baseHooks.isMarketTransferRecipientAllowed(market, unrestricted, false),
-      'open transfer'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(market, blockedLender, false),
-      'blocked open transfer'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(market, unrestricted, true),
-      'unknown lender'
-    );
-    assertTrue(
-      baseHooks.isMarketTransferRecipientAllowed(market, knownLender, true),
-      'known lender'
-    );
+    assertTrue(baseHooks.isMarketTransferRecipientAllowed(market, unrestricted, false), 'open transfer');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(market, blockedLender, false), 'blocked open transfer');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(market, unrestricted, true), 'unknown lender');
+    assertTrue(baseHooks.isMarketTransferRecipientAllowed(market, knownLender, true), 'known lender');
     baseHooks.blockFromDeposits(knownLender);
-    assertTrue(
-      baseHooks.isMarketTransferRecipientAllowed(market, knownLender, true),
-      'blocked known lender'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(market, blockedLender, true),
-      'blocked lender'
-    );
-    assertTrue(
-      baseHooks.isMarketTransferRecipientAllowed(market, credentialedLender, true),
-      'credentialed lender'
-    );
+    assertTrue(baseHooks.isMarketTransferRecipientAllowed(market, knownLender, true), 'blocked known lender');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(market, blockedLender, true), 'blocked lender');
+    assertTrue(baseHooks.isMarketTransferRecipientAllowed(market, credentialedLender, true), 'credentialed lender');
   }
 
-  function test_isMarketTransferRecipientAllowed_OnlyExemptsExactNonzeroRegisteredWrapper()
-    external
-  {
+  function test_isMarketTransferRecipientAllowed_OnlyExemptsExactNonzeroRegisteredWrapper() external {
     address market = address(0xCAFE);
     address otherMarket = address(0xBEEF);
     address zeroWrapperMarket = address(0xCAFF);
@@ -1385,37 +1258,15 @@ contract BaseAccessControlsTest is TestKernel {
     baseHooks.blockFromDeposits(address(0));
     vm.mockCall(market, getterCall, abi.encode(wrapper));
     vm.mockCall(zeroWrapperMarket, getterCall, abi.encode(address(0)));
-    vm.mockCall(
-      dirtyWrapperMarket,
-      getterCall,
-      abi.encode(bytes32(uint256(uint160(wrapper)) | (uint256(1) << 160)))
-    );
+    vm.mockCall(dirtyWrapperMarket, getterCall, abi.encode(bytes32(uint256(uint160(wrapper)) | (uint256(1) << 160))));
     vm.mockCall(shortReturnMarket, getterCall, hex'0001');
 
-    assertTrue(
-      baseHooks.isMarketTransferRecipientAllowed(market, wrapper, true),
-      'registered wrapper'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(market, arbitraryWrapper, true),
-      'arbitrary wrapper'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(otherMarket, wrapper, true),
-      'cross-market wrapper'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(zeroWrapperMarket, address(0), true),
-      'zero wrapper'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(dirtyWrapperMarket, wrapper, true),
-      'dirty wrapper response'
-    );
-    assertFalse(
-      baseHooks.isMarketTransferRecipientAllowed(shortReturnMarket, wrapper, true),
-      'short wrapper response'
-    );
+    assertTrue(baseHooks.isMarketTransferRecipientAllowed(market, wrapper, true), 'registered wrapper');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(market, arbitraryWrapper, true), 'arbitrary wrapper');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(otherMarket, wrapper, true), 'cross-market wrapper');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(zeroWrapperMarket, address(0), true), 'zero wrapper');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(dirtyWrapperMarket, wrapper, true), 'dirty wrapper response');
+    assertFalse(baseHooks.isMarketTransferRecipientAllowed(shortReturnMarket, wrapper, true), 'short wrapper response');
   }
 
   // ========================================================================== //
@@ -1481,11 +1332,7 @@ contract BaseAccessControlsTest is TestKernel {
     vm.startPrank(address(mockProvider1));
     baseHooks.grantRole(address(1), uint32(block.timestamp));
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountAccessRevoked(
-      address(mockProvider1),
-      address(1),
-      address(mockProvider1)
-    );
+    emit BaseAccessControls.AccountAccessRevoked(address(mockProvider1), address(1), address(mockProvider1));
     baseHooks.revokeRole(address(1));
   }
 
@@ -1509,11 +1356,7 @@ contract BaseAccessControlsTest is TestKernel {
     vm.startPrank(address(mockProvider1));
     baseHooks.grantRole(address(1), uint32(block.timestamp));
     vm.expectEmit(address(baseHooks));
-    emit BaseAccessControls.AccountAccessRevoked(
-      address(mockProvider1),
-      address(1),
-      address(mockProvider1)
-    );
+    emit BaseAccessControls.AccountAccessRevoked(address(mockProvider1), address(1), address(mockProvider1));
     baseHooks.revokeRoles(lenders);
   }
 

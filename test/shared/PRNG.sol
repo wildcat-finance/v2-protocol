@@ -19,11 +19,7 @@ library LibPRNG {
       mstore(data, length)
       let pointer := add(data, 0x20)
       let i := 0
-      for {
-
-      } lt(i, length) {
-
-      } {
+      for { } lt(i, length) { } {
         let result := keccak256(self, 0x20)
         mstore(self, result)
         mstore(add(pointer, i), result)

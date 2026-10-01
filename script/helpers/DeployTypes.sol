@@ -24,7 +24,9 @@ struct MarketConfig {
   string marketSymbol;
 }
 
-/** Level of access required for accounts to receive a transfer */
+/**
+ *  Level of access required for accounts to receive a transfer
+ */
 enum TransferAccess {
   /**
    * No transfers allowed
@@ -43,7 +45,9 @@ enum TransferAccess {
   Open
 }
 
-/** Level of access required for a lender to make a deposit */
+/**
+ *  Level of access required for a lender to make a deposit
+ */
 enum DepositAccess {
   /**
    * Depositors must have a credential
@@ -57,7 +61,9 @@ enum DepositAccess {
   Open
 }
 
-/** Level of access required for a lender to make a withdrawal request */
+/**
+ *  Level of access required for a lender to make a withdrawal request
+ */
 enum WithdrawalAccess {
   /**
    * Withdrawing account must have a credential or be a known lender
@@ -88,39 +94,34 @@ using { encodeHooksData, toHooksConfig } for MarketHooksOptions global;
 
 function encodeHooksData(MarketHooksOptions memory options) pure returns (bytes memory) {
   if (options.isOpenTerm) {
-    return
-      abi.encode(
-        options.minimumDeposit,
-        options.transferAccess == TransferAccess.Disabled
-      );
+    return abi.encode(options.minimumDeposit, options.transferAccess == TransferAccess.Disabled);
   }
-  return
-    abi.encode(
-      options.fixedTermEndTime,
-      options.minimumDeposit,
-      options.transferAccess == TransferAccess.Disabled,
-      options.allowClosureBeforeTerm,
-      options.allowTermReduction
-    );
+  return abi.encode(
+    options.fixedTermEndTime,
+    options.minimumDeposit,
+    options.transferAccess == TransferAccess.Disabled,
+    options.allowClosureBeforeTerm,
+    options.allowTermReduction
+  );
 }
 
 function toHooksConfig(MarketHooksOptions memory options) pure returns (HooksConfig) {
-  return
-    encodeHooksConfig({
-      hooksAddress: address(0),
-      useOnTransfer: options.transferAccess == TransferAccess.RequiresCredential,
-      useOnDeposit: options.depositAccess == DepositAccess.RequiresCredential,
-      useOnQueueWithdrawal: options.withdrawalAccess == WithdrawalAccess.RequiresCredential,
-      useOnExecuteWithdrawal: false,
-      useOnBorrow: false,
-      useOnRepay: false,
-      useOnCloseMarket: false,
-      useOnNukeFromOrbit: false,
-      useOnSetMaxTotalSupply: false,
-      useOnSetAnnualInterestAndReserveRatioBips: false,
-      useOnSetProtocolFeeBips: false
-    });
+  return encodeHooksConfig({
+    hooksAddress: address(0),
+    useOnTransfer: options.transferAccess == TransferAccess.RequiresCredential,
+    useOnDeposit: options.depositAccess == DepositAccess.RequiresCredential,
+    useOnQueueWithdrawal: options.withdrawalAccess == WithdrawalAccess.RequiresCredential,
+    useOnExecuteWithdrawal: false,
+    useOnBorrow: false,
+    useOnRepay: false,
+    useOnCloseMarket: false,
+    useOnNukeFromOrbit: false,
+    useOnSetMaxTotalSupply: false,
+    useOnSetAnnualInterestAndReserveRatioBips: false,
+    useOnSetProtocolFeeBips: false
+  });
 }
+
 interface IMockERC20Factory {
   function deployMockERC20(string memory name, string memory symbol) external returns (address);
 }

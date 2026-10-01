@@ -28,10 +28,13 @@ abstract contract LifecycleFixture is MarketMatrixFixture {
     lifecycle.drawAvailable();
   }
 
-  function _matrixOptions(
-    uint8 kind,
-    bool isRevolving
-  ) internal view virtual override returns (Options memory options) {
+  function _matrixOptions(uint8 kind, bool isRevolving)
+    internal
+    view
+    virtual
+    override
+    returns (Options memory options)
+  {
     options = super._matrixOptions(kind, isRevolving);
     options.delinquencyFeeBips = kind == FixedTerm ? 0 : 1_000;
     options.repaymentDate = uint32(vm.getBlockTimestamp() + 60 days);
@@ -119,10 +122,7 @@ abstract contract PenaltyLifecycleFixture is LifecycleFixture {
     lifecycle.updateState();
   }
 
-  function _matrixOptions(
-    uint8 kind,
-    bool isRevolving
-  ) internal view override returns (Options memory options) {
+  function _matrixOptions(uint8 kind, bool isRevolving) internal view override returns (Options memory options) {
     options = super._matrixOptions(kind, isRevolving);
     options.repaymentDate = kind == OpenTerm ? 0 : uint32(vm.getBlockTimestamp() + 365 days);
     options.repaymentPeriod = kind == OpenTerm ? 0 : 90 days;

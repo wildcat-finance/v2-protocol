@@ -9,7 +9,7 @@ contract RecipientRejectingERC20 is MockERC20 {
   address public rejectedRecipient;
   bool public returnsFalse;
 
-  constructor() MockERC20('Token', 'TKN', 18) {}
+  constructor() MockERC20('Token', 'TKN', 18) { }
 
   function rejectRecipient(address recipient, bool returnFalse) external {
     rejectedRecipient = recipient;

@@ -27,10 +27,7 @@ library MathUtils {
    * @param timeDelta The time elapsed since the last interest accrual
    * @return result The interest rate linearly accumulated during the timeDelta, in ray
    */
-  function calculateLinearInterestFromBips(
-    uint256 rateBip,
-    uint256 timeDelta
-  ) internal pure returns (uint256 result) {
+  function calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) internal pure returns (uint256 result) {
     uint256 rate = rateBip.bipToRay();
     uint256 accumulatedInterestRay = rate * timeDelta;
     unchecked {
@@ -79,11 +76,7 @@ library MathUtils {
    * @dev Return `valueIfTrue` if `condition` is true and `valueIfFalse` if it is false.
    *      Equivalent to `condition ? valueIfTrue : valueIfFalse`
    */
-  function ternary(
-    bool condition,
-    uint256 valueIfTrue,
-    uint256 valueIfFalse
-  ) internal pure returns (uint256 c) {
+  function ternary(bool condition, uint256 valueIfTrue, uint256 valueIfFalse) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       c := add(valueIfFalse, mul(condition, sub(valueIfTrue, valueIfFalse)))
     }

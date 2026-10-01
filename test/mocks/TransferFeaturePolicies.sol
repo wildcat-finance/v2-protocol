@@ -68,11 +68,7 @@ abstract contract TransferAmountPolicy is FeatureAuthority {
 
 /// @dev explicit integration of two independent rules. term behavior stays with the term policy.
 abstract contract TransferFeatures is RecipientRestrictionPolicy, TransferAmountPolicy {
-  function _applyTransferFeatures(
-    address market,
-    address recipient,
-    uint256 scaledAmount
-  ) internal {
+  function _applyTransferFeatures(address market, address recipient, uint256 scaledAmount) internal {
     // default credentials have already run. a recipient rejection must undo this volume write too.
     _recordTransferAmount(market, scaledAmount);
     _checkTransferRecipient(market, recipient);

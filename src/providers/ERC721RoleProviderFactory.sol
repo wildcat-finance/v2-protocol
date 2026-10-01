@@ -10,71 +10,62 @@ import './IERC721RoleProviderFactory.sol';
 contract ERC721RoleProviderFactory is IERC721RoleProviderFactory {
   /// @notice decodes `ERC721RoleProviderFactoryInputs` and deploys for `msg.sender`.
   /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
-  function createRoleProvider(
-    bytes calldata data
-  ) external override returns (address provider) {
-    ERC721RoleProviderFactoryInputs memory inputs = abi.decode(
-      data,
-      (ERC721RoleProviderFactoryInputs)
-    );
+  function createRoleProvider(bytes calldata data) external override returns (address provider) {
+    ERC721RoleProviderFactoryInputs memory inputs = abi.decode(data, (ERC721RoleProviderFactoryInputs));
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
   /// @notice deploys an ERC721 provider in `msg.sender`'s CREATE2 namespace.
-  function createERC721RoleProvider(
-    ERC721RoleProviderFactoryInputs calldata inputs
-  ) external override returns (address provider) {
+  function createERC721RoleProvider(ERC721RoleProviderFactoryInputs calldata inputs)
+    external
+    override
+    returns (address provider)
+  {
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
   function _createRoleProvider(
     address deployer,
     ERC721RoleProviderFactoryInputs memory inputs
-  ) internal returns (address provider) {
+  )
+    internal
+    returns (address provider)
+  {
     address expectedProvider = _computeRoleProviderAddress(deployer, inputs);
     if (expectedProvider.code.length != 0) revert RoleProviderAlreadyExists();
     bytes32 salt = _deriveSalt(deployer, inputs.salt);
-    provider = address(
-      new ERC721RoleProvider{ salt: salt }(inputs.token, inputs.skipInterfaceCheck)
-    );
-    emit ERC721RoleProviderDeployed(
-      provider,
-      inputs.token,
-      deployer,
-      inputs.salt,
-      inputs.skipInterfaceCheck
-    );
+    provider = address(new ERC721RoleProvider{ salt: salt }(inputs.token, inputs.skipInterfaceCheck));
+    emit ERC721RoleProviderDeployed(provider, inputs.token, deployer, inputs.salt, inputs.skipInterfaceCheck);
   }
 
   /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
     ERC721RoleProviderFactoryInputs calldata inputs
-  ) external view override returns (address provider) {
+  )
+    external
+    view
+    override
+    returns (address provider)
+  {
     provider = _computeRoleProviderAddress(deployer, inputs);
   }
 
   function _computeRoleProviderAddress(
     address deployer,
     ERC721RoleProviderFactoryInputs memory inputs
-  ) internal view returns (address provider) {
+  )
+    internal
+    view
+    returns (address provider)
+  {
     bytes32 initCodeHash = keccak256(
-      abi.encodePacked(
-        type(ERC721RoleProvider).creationCode,
-        abi.encode(inputs.token, inputs.skipInterfaceCheck)
-      )
+      abi.encodePacked(type(ERC721RoleProvider).creationCode, abi.encode(inputs.token, inputs.skipInterfaceCheck))
     );
     provider = address(
       uint160(
         uint256(
-          keccak256(
-            abi.encodePacked(
-              bytes1(0xff),
-              address(this),
-              _deriveSalt(deployer, inputs.salt),
-              initCodeHash
-            )
-          )
+          keccak256(abi.encodePacked(bytes1(0xff), address(this), _deriveSalt(deployer, inputs.salt), initCodeHash))
         )
       )
     );

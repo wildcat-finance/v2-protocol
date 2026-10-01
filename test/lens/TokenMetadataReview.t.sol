@@ -58,7 +58,10 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     ProductionStack memory selectedStack,
     MatrixMarketKind kind,
     uint96 nonce
-  ) internal returns (MatrixCell memory) {
+  )
+    internal
+    returns (MatrixCell memory)
+  {
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, kind);
     options.annualInterestBips = 0;
     options.commitmentFeeBips = 0;
@@ -76,7 +79,9 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
 
   function _repeat(uint256 length) internal pure returns (string memory) {
     bytes memory value = new bytes(length);
-    for (uint256 i; i < length; i++) value[i] = 'x';
+    for (uint256 i; i < length; i++) {
+      value[i] = 'x';
+    }
     return string(value);
   }
 
@@ -219,32 +224,19 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     _deployCell(stack, MatrixMarketKind.Standard, 1);
     _deployCell(stack, MatrixMarketKind.Revolving, 2);
     bytes memory args = abi.encode(address(stack.archController), address(stack.standardFactory));
-    MarketLensAggregator aggregator = MarketLensAggregator(
-      _deployCode('src/lens/MarketLensAggregator.sol:MarketLensAggregator', args)
-    );
+    MarketLensAggregator aggregator =
+      MarketLensAggregator(_deployCode('src/lens/MarketLensAggregator.sol:MarketLensAggregator', args));
     address live = _deployCode('src/lens/MarketLensLive.sol:MarketLensLive', args);
     MarketLens facade = MarketLens(
       _deployCode(
         'src/lens/MarketLens.sol:MarketLens',
         abi.encode(
-          address(stack.archController),
-          address(stack.standardFactory),
-          address(core),
-          address(aggregator),
-          live
+          address(stack.archController), address(stack.standardFactory), address(core), address(aggregator), live
         )
       )
     );
-    vm.mockCallRevert(
-      address(stack.asset),
-      abi.encodeWithSignature('name()'),
-      bytes('unavailable')
-    );
-    vm.mockCallRevert(
-      address(stack.asset),
-      abi.encodeWithSignature('symbol()'),
-      bytes('unavailable')
-    );
+    vm.mockCallRevert(address(stack.asset), abi.encodeWithSignature('name()'), bytes('unavailable'));
+    vm.mockCallRevert(address(stack.asset), abi.encodeWithSignature('symbol()'), bytes('unavailable'));
     address template = stack.hooksTemplates[uint256(MatrixHooksKind.OpenTerm)];
     MarketData[] memory direct = aggregator.getAggregatedAllMarketsDataForHooksTemplate(template);
     MarketData[] memory forwarded = facade.getAggregatedAllMarketsDataForHooksTemplate(template);
@@ -254,11 +246,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
       assertEq(direct[i].underlyingToken.name, '', 'name fallback through aggregation');
       assertEq(direct[i].underlyingToken.symbol, '', 'symbol fallback through aggregation');
       assertEq(direct[i].underlyingToken.decimals, 18, 'denomination preserved');
-      assertEq(
-        facade.getMarketData(direct[i].marketToken.token).underlyingToken.name,
-        '',
-        'core facade fallback'
-      );
+      assertEq(facade.getMarketData(direct[i].marketToken.token).underlyingToken.name, '', 'core facade fallback');
     }
   }
 
@@ -280,8 +268,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     ProductionStack memory healthyStack = stack;
     healthyStack.asset = MockERC20(
       _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Healthy Token', 'HLTH', uint8(18))
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Healthy Token', 'HLTH', uint8(18))
       )
     );
     MatrixCell memory healthy = _deployCell(healthyStack, MatrixMarketKind.Standard, 2);
@@ -290,11 +277,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     markets[1] = address(affected.market);
     assertEq(core.getMarketsData(markets).length, 2, 'both read before metadata failure');
 
-    vm.mockCallRevert(
-      address(stack.asset),
-      abi.encodeWithSignature('name()'),
-      bytes('metadata unavailable')
-    );
+    vm.mockCallRevert(address(stack.asset), abi.encodeWithSignature('name()'), bytes('metadata unavailable'));
     assertEq(
       core.getMarketData(address(healthy.market)).underlyingToken.name,
       'Healthy Token',
@@ -314,11 +297,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     vm.prank(MatrixAlice);
     uint32 expiry = affected.market.queueFullWithdrawal();
     vm.warp(uint256(expiry) + 1);
-    assertEq(
-      affected.market.executeWithdrawal(MatrixAlice, expiry),
-      1e18,
-      'withdrawal does not read metadata'
-    );
+    assertEq(affected.market.executeWithdrawal(MatrixAlice, expiry), 1e18, 'withdrawal does not read metadata');
     assertEq(stack.asset.balanceOf(MatrixAlice), 1e18, 'lender receives underlying');
 
     vm.clearMockedCalls();

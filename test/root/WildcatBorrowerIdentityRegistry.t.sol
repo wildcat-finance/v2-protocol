@@ -22,29 +22,22 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
   address internal constant NewOwner = address(0xB055);
 
   function _deployArchController() internal returns (WildcatArchController archController) {
-    archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
   }
 
-  function _deployRegistry(
-    address archController
-  ) internal returns (WildcatBorrowerIdentityRegistry registry) {
+  function _deployRegistry(address archController) internal returns (WildcatBorrowerIdentityRegistry registry) {
     registry = WildcatBorrowerIdentityRegistry(
-      _deployCode(
-        'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
-        abi.encode(archController)
-      )
+      _deployCode('src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry', abi.encode(archController))
     );
   }
 
-  function _deployFactory(
-    WildcatBorrowerIdentityRegistry registry
-  ) internal returns (BorrowerIdentityAccountFactoryMock factory) {
+  function _deployFactory(WildcatBorrowerIdentityRegistry registry)
+    internal
+    returns (BorrowerIdentityAccountFactoryMock factory)
+  {
     factory = BorrowerIdentityAccountFactoryMock(
       _deployCode(
-        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock',
-        abi.encode(address(registry))
+        'test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountFactoryMock', abi.encode(address(registry))
       )
     );
   }
@@ -61,10 +54,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.addAccountFactory(address(fixture.accountFactory));
   }
 
-  function _registerAccount(
-    Fixture memory fixture,
-    address principal
-  ) internal returns (address account) {
+  function _registerAccount(Fixture memory fixture, address principal) internal returns (address account) {
     account = _deployAccount();
     fixture.accountFactory.registerAccount(account, principal);
   }
@@ -74,7 +64,9 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     address account,
     address currentPrincipal,
     address newPrincipal
-  ) internal {
+  )
+    internal
+  {
     vm.prank(currentPrincipal);
     fixture.registry.requestBorrowerAccountPrincipalTransfer(account, newPrincipal);
   }
@@ -131,10 +123,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
 
   function test_registeredBorrowerRead_ValidatesAndBubblesResponse() external {
     Fixture memory fixture = _newFixture();
-    bytes memory callData = abi.encodeCall(
-      IWildcatArchController.isRegisteredBorrower,
-      (Principal)
-    );
+    bytes memory callData = abi.encodeCall(IWildcatArchController.isRegisteredBorrower, (Principal));
     address controller = address(fixture.archController);
 
     vm.mockCall(controller, callData, hex'01');
@@ -215,20 +204,14 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     address account = _registerAccount(fixture, Principal);
 
     vm.expectEmit(address(fixture.registry));
-    emit IBorrowerIdentityRegistry.AccountFactoryRemoved(
-      address(this),
-      address(fixture.accountFactory)
-    );
+    emit IBorrowerIdentityRegistry.AccountFactoryRemoved(address(this), address(fixture.accountFactory));
     fixture.registry.removeAccountFactory(address(fixture.accountFactory));
 
     assertFalse(fixture.registry.isAccountFactory(address(fixture.accountFactory)));
     assertEq(fixture.registry.getAccountFactoriesCount(), 0);
     assertEq(fixture.registry.resolveBorrower(account), Principal);
     assertEq(fixture.registry.accountFactoryOf(account), address(fixture.accountFactory));
-    assertEq(
-      fixture.registry.getBorrowerAccountsForFactoryCount(address(fixture.accountFactory)),
-      1
-    );
+    assertEq(fixture.registry.getBorrowerAccountsForFactoryCount(address(fixture.accountFactory)), 1);
 
     address secondAccount = _deployAccount();
     vm.expectRevert(IBorrowerIdentityRegistry.CallerNotAccountFactory.selector);
@@ -271,11 +254,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     address account = _deployAccount();
 
     vm.expectEmit(address(fixture.registry));
-    emit IBorrowerIdentityRegistry.BorrowerAccountRegistered(
-      account,
-      Principal,
-      address(fixture.accountFactory)
-    );
+    emit IBorrowerIdentityRegistry.BorrowerAccountRegistered(account, Principal, address(fixture.accountFactory));
     fixture.accountFactory.registerAccount(account, Principal);
 
     assertEq(fixture.registry.principalOf(account), Principal);
@@ -283,15 +262,9 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.accountFactoryOf(account), address(fixture.accountFactory));
     assertEq(fixture.registry.resolveBorrower(account), Principal);
     assertEq(fixture.registry.getBorrowerAccountsCount(Principal), 1);
-    assertEq(
-      fixture.registry.getBorrowerAccountsForFactoryCount(address(fixture.accountFactory)),
-      1
-    );
+    assertEq(fixture.registry.getBorrowerAccountsForFactoryCount(address(fixture.accountFactory)), 1);
     assertEq(fixture.registry.getBorrowerAccounts(Principal)[0], account);
-    assertEq(
-      fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory))[0],
-      account
-    );
+    assertEq(fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory))[0], account);
   }
 
   function test_registerAccount_AllowsMultipleAccountsForOnePrincipal() external {
@@ -356,9 +329,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     principalFixture.accountFactory.registerAccount(account, principalAccount);
   }
 
-  function testFuzz_registerAccount_RejectsDuplicateWithoutMutation(
-    address replacementPrincipal
-  ) external {
+  function testFuzz_registerAccount_RejectsDuplicateWithoutMutation(address replacementPrincipal) external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
     vm.assume(replacementPrincipal != address(0));
@@ -436,9 +407,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
 
     address[3] memory invalidTargets = [address(0), Principal, account];
     for (uint256 i; i < invalidTargets.length; i++) {
-      vm.expectRevert(
-        IBorrowerIdentityRegistry.InvalidBorrowerAccountPrincipalTransferTarget.selector
-      );
+      vm.expectRevert(IBorrowerIdentityRegistry.InvalidBorrowerAccountPrincipalTransferTarget.selector);
       _requestTransfer(fixture, account, Principal, invalidTargets[i]);
     }
 
@@ -469,11 +438,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     _requestTransfer(fixture, account, Principal, SecondPrincipal);
 
     vm.expectEmit(address(fixture.registry));
-    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferCancelled(
-      account,
-      Principal,
-      SecondPrincipal
-    );
+    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferCancelled(account, Principal, SecondPrincipal);
     vm.prank(Principal);
     fixture.registry.cancelBorrowerAccountPrincipalTransfer(account);
 
@@ -506,11 +471,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     _requestTransfer(fixture, firstAccount, Principal, SecondPrincipal);
 
     vm.expectEmit(address(fixture.registry));
-    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferred(
-      firstAccount,
-      Principal,
-      SecondPrincipal
-    );
+    emit IBorrowerIdentityRegistry.BorrowerAccountPrincipalTransferred(firstAccount, Principal, SecondPrincipal);
     _acceptTransfer(fixture, firstAccount, SecondPrincipal);
 
     assertEq(fixture.registry.principalOf(firstAccount), SecondPrincipal);
@@ -520,16 +481,12 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.getBorrowerAccountsCount(SecondPrincipal), 1);
 
     address[] memory principalAccounts = fixture.registry.getBorrowerAccounts(Principal);
-    address[] memory secondPrincipalAccounts = fixture.registry.getBorrowerAccounts(
-      SecondPrincipal
-    );
+    address[] memory secondPrincipalAccounts = fixture.registry.getBorrowerAccounts(SecondPrincipal);
     assertEq(principalAccounts[0], secondAccount);
     assertEq(secondPrincipalAccounts[0], firstAccount);
     assertEq(fixture.registry.accountFactoryOf(firstAccount), address(fixture.accountFactory));
 
-    address[] memory factoryAccounts = fixture.registry.getBorrowerAccountsForFactory(
-      address(fixture.accountFactory)
-    );
+    address[] memory factoryAccounts = fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory));
     assertEq(factoryAccounts.length, 2);
     assertEq(factoryAccounts[0], firstAccount);
     assertEq(factoryAccounts[1], secondAccount);
@@ -641,36 +598,16 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.getBorrowerAccounts(Principal, 2, 2).length, 0);
     assertEq(fixture.registry.getBorrowerAccounts(Principal, 10, 20).length, 0);
 
-    accounts = fixture.registry.getBorrowerAccountsForFactory(
-      address(fixture.accountFactory),
-      0,
-      1
-    );
+    accounts = fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory), 0, 1);
     assertEq(accounts.length, 1);
     assertEq(accounts[0], firstAccount);
 
-    accounts = fixture.registry.getBorrowerAccountsForFactory(
-      address(fixture.accountFactory),
-      1,
-      10
-    );
+    accounts = fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory), 1, 10);
     assertEq(accounts.length, 1);
     assertEq(accounts[0], secondAccount);
-    assertEq(
-      fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory), 2, 2).length,
-      0
-    );
-    assertEq(
-      fixture
-        .registry
-        .getBorrowerAccountsForFactory(address(fixture.accountFactory), 10, 20)
-        .length,
-      0
-    );
-    assertEq(
-      fixture.registry.getBorrowerAccountsForFactoryCount(address(fixture.accountFactory)),
-      2
-    );
+    assertEq(fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory), 2, 2).length, 0);
+    assertEq(fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory), 10, 20).length, 0);
+    assertEq(fixture.registry.getBorrowerAccountsForFactoryCount(address(fixture.accountFactory)), 2);
 
     vm.expectRevert(IBorrowerIdentityRegistry.InvalidPaginationRange.selector);
     fixture.registry.getBorrowerAccounts(Principal, 2, 1);

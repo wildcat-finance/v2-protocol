@@ -11,17 +11,12 @@ contract MarketTransitionLayoutTest is MarketFixture {
   function setUp() external {
     Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
     harness = TransitionAllocatorHarness(
-      fixture.factory.deployMarket(
-        vm.getCode('test/mocks/TransitionAllocatorHarness.sol:TransitionAllocatorHarness')
-      )
+      fixture.factory.deployMarket(vm.getCode('test/mocks/TransitionAllocatorHarness.sol:TransitionAllocatorHarness'))
     );
   }
 
-  function testFuzz_allocatorMatchesSolidityStructs(
-    LifecycleTransition memory input
-  ) external view {
-    (bool zeroed, bool matches, bool guardsIntact, uint256 allocatedBytes) = harness
-      .compareWithSolidity(input);
+  function testFuzz_allocatorMatchesSolidityStructs(LifecycleTransition memory input) external view {
+    (bool zeroed, bool matches, bool guardsIntact, uint256 allocatedBytes) = harness.compareWithSolidity(input);
     assertEq(allocatedBytes, 0x540, 'arena reservation');
     assertTrue(zeroed, 'dirty memory cleared');
     assertTrue(matches, 'all fields match independent Solidity allocation');

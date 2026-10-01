@@ -5,7 +5,13 @@ import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
-import { HooksConfig, Bit_Enabled_Deposit, Bit_Enabled_Transfer, Bit_Enabled_ExecuteWithdrawal, Bit_Enabled_QueueWithdrawal } from 'src/types/HooksConfig.sol';
+import {
+  HooksConfig,
+  Bit_Enabled_Deposit,
+  Bit_Enabled_Transfer,
+  Bit_Enabled_ExecuteWithdrawal,
+  Bit_Enabled_QueueWithdrawal
+} from 'src/types/HooksConfig.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
@@ -18,19 +24,10 @@ contract LifecycleAuthorityTest is ProductionMatrixFixture {
     address nextBorrower = address(0xB02202);
     stack.archController.registerBorrower(nextBorrower);
     for (uint256 i; i < 6; ++i) {
-      MatrixOptions memory options = _defaultMatrixOptions(
-        MatrixHooksKind(i % 3),
-        MatrixMarketKind(i / 3)
-      );
+      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(i % 3), MatrixMarketKind(i / 3));
       options.repaymentDate = uint32(vm.getBlockTimestamp() + 90 days);
       options.repaymentPeriod = 0;
-      MatrixCell memory cell = _deployMatrixCell(
-        stack,
-        options,
-        MatrixBorrower,
-        MatrixBorrower,
-        uint96(800 + i)
-      );
+      MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(800 + i));
       _authorize(stack, cell, MatrixAlice);
       _deposit(stack, cell, MatrixAlice, 1_000e18);
       _borrow(cell, 800e18);
@@ -74,36 +71,22 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
         Options memory options = _defaultOptions(HooksKind.OpenTerm);
         options.revolving = model == 1;
         options.requestedHooks = HooksConfig.wrap(
-          (1 << Bit_Enabled_Deposit) |
-            (1 << Bit_Enabled_Transfer) |
-            (1 << Bit_Enabled_QueueWithdrawal)
+          (1 << Bit_Enabled_Deposit) | (1 << Bit_Enabled_Transfer) | (1 << Bit_Enabled_QueueWithdrawal)
         );
         options.repaymentDate = dated == 0 ? 0 : uint32(vm.getBlockTimestamp() + 1 days);
         Fixture memory fixture = _newMarket(options);
         address lender = address(0xA11CE);
-        MockRoleProvider provider = MockRoleProvider(
-          _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-        );
+        MockRoleProvider provider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
         vm.prank(Borrower);
-        BaseAccessControls(address(fixture.hooks)).addRoleProvider(
-          address(provider),
-          type(uint32).max
-        );
+        BaseAccessControls(address(fixture.hooks)).addRoleProvider(address(provider), type(uint32).max);
         vm.prank(address(provider));
-        BaseAccessControls(address(fixture.hooks)).grantRole(
-          lender,
-          uint32(vm.getBlockTimestamp())
-        );
+        BaseAccessControls(address(fixture.hooks)).grantRole(lender, uint32(vm.getBlockTimestamp()));
         _deposit(fixture, lender, 1_000e18);
         vm.prank(Borrower);
         fixture.market.borrow(800e18);
         bytes memory veto = abi.encodeWithSelector(PolicyVeto.selector);
         if (dated != 0) {
-          vm.mockCallRevert(
-            address(fixture.hooks),
-            abi.encodePacked(IHooks.onQueueWithdrawal.selector),
-            veto
-          );
+          vm.mockCallRevert(address(fixture.hooks), abi.encodePacked(IHooks.onQueueWithdrawal.selector), veto);
           vm.prank(lender);
           vm.expectRevert(veto);
           fixture.market.queueFullWithdrawal();
@@ -111,20 +94,12 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
         }
         vm.prank(lender);
         uint32 expiry = fixture.market.queueFullWithdrawal();
-        vm.mockCallRevert(
-          address(fixture.hooks),
-          abi.encodePacked(IHooks.onExecuteWithdrawal.selector),
-          veto
-        );
+        vm.mockCallRevert(address(fixture.hooks), abi.encodePacked(IHooks.onExecuteWithdrawal.selector), veto);
         fixture.sentinel.setSanctioned(lender, true);
         vm.warp(uint256(expiry) + 1);
         uint256 amount = fixture.market.executeWithdrawal(lender, expiry);
         assertTrue(amount != 0, 'payable claim executes despite policy veto');
-        assertEq(
-          fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()),
-          amount,
-          'sanctions still route collection'
-        );
+        assertEq(fixture.asset.balanceOf(fixture.sentinel.EscrowAddress()), amount, 'sanctions still route collection');
         assertEq(fixture.asset.balanceOf(lender), 0, 'sanctioned lender does not receive cash');
         vm.clearMockedCalls();
       }
@@ -138,10 +113,7 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
       options.revolving = model == 1;
       options.repaymentDate = uint32(vm.getBlockTimestamp() + 1 days);
       IHooks hooks = IHooks(
-        _deployCode(
-          'test/mocks/AprReplacementHooks.sol:OpenAprReplacementHooks',
-          abi.encode(Borrower, bytes(''))
-        )
+        _deployCode('test/mocks/AprReplacementHooks.sol:OpenAprReplacementHooks', abi.encode(Borrower, bytes('')))
       );
       Fixture memory fixture = _newMarket(options, hooks);
       _deposit(fixture, address(0xA11CE), 1_000e18);
@@ -162,9 +134,8 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
       Options memory options = _defaultOptions(HooksKind.OpenTerm);
       options.revolving = model == 1;
       Fixture memory fixture = _newMarket(options);
-      HooksConfig config = HooksConfig.wrap(
-        HooksConfig.unwrap(fixture.market.hooks()) | (1 << Bit_Enabled_ExecuteWithdrawal)
-      );
+      HooksConfig config =
+        HooksConfig.wrap(HooksConfig.unwrap(fixture.market.hooks()) | (1 << Bit_Enabled_ExecuteWithdrawal));
       string memory artifact = model == 0
         ? 'src/market/WildcatMarket.sol:WildcatMarket'
         : 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving';

@@ -26,18 +26,14 @@ import '../../common/DeployScriptBase.sol';
 interface IProtocolAuthorityHelper {
   function archController() external view returns (address);
 
-  function executeProtocolAction(
-    address target,
-    bytes calldata data
-  ) external returns (bytes memory result);
+  function executeProtocolAction(address target, bytes calldata data) external returns (bytes memory result);
 }
 
 contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant FEE_PARAMETERS_PATH = 'deployments/template-fee-parameters.json';
   string internal constant OPEN_TERM_ARTIFACT = 'src/access/OpenTermHooks.sol:OpenTermHooks';
   string internal constant FIXED_TERM_ARTIFACT = 'src/access/FixedTermHooks.sol:FixedTermHooks';
-  string internal constant PERIODIC_TERM_ARTIFACT =
-    'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
+  string internal constant PERIODIC_TERM_ARTIFACT = 'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
 
   string internal constant STANDARD_FACTORY_OUTPUT = 'hooks-factory-standard';
   string internal constant REVOLVING_FACTORY_OUTPUT = 'hooks-factory-revolving';
@@ -47,14 +43,11 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant OPEN_STORAGE_OUTPUT = 'open-term-hooks-init-code-storage';
   string internal constant FIXED_STORAGE_ENTRY_ID = 'deploy-fixed-term-hooks-init-code-storage';
   string internal constant FIXED_STORAGE_OUTPUT = 'fixed-term-hooks-init-code-storage';
-  string internal constant PERIODIC_STORAGE_ENTRY_ID =
-    'deploy-periodic-term-hooks-init-code-storage';
+  string internal constant PERIODIC_STORAGE_ENTRY_ID = 'deploy-periodic-term-hooks-init-code-storage';
   string internal constant PERIODIC_STORAGE_OUTPUT = 'periodic-term-hooks-init-code-storage';
 
-  string internal constant REGISTER_STANDARD_FACTORY_ENTRY_ID =
-    'register-controller-factory-standard';
-  string internal constant REGISTER_REVOLVING_FACTORY_ENTRY_ID =
-    'register-controller-factory-revolving';
+  string internal constant REGISTER_STANDARD_FACTORY_ENTRY_ID = 'register-controller-factory-standard';
+  string internal constant REGISTER_REVOLVING_FACTORY_ENTRY_ID = 'register-controller-factory-revolving';
   string internal constant ADD_STANDARD_OPEN_ENTRY_ID = 'add-standard-open-term-template';
   string internal constant ADD_STANDARD_FIXED_ENTRY_ID = 'add-standard-fixed-term-template';
   string internal constant ADD_STANDARD_PERIODIC_ENTRY_ID = 'add-standard-periodic-term-template';
@@ -80,20 +73,14 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   function _readTemplateFees(
     string memory parametersJson,
     string memory templateName
-  ) internal returns (TemplateFeeParameters memory fees) {
+  )
+    internal
+    returns (TemplateFeeParameters memory fees)
+  {
     string memory prefix = string.concat('.templates.', templateName);
-    fees.originationFeeAsset = vm.parseJsonAddress(
-      parametersJson,
-      string.concat(prefix, '.originationFeeAsset')
-    );
-    uint256 originationFeeAmount = vm.parseJsonUint(
-      parametersJson,
-      string.concat(prefix, '.originationFeeAmount')
-    );
-    uint256 protocolFeeBips = vm.parseJsonUint(
-      parametersJson,
-      string.concat(prefix, '.protocolFeeBips')
-    );
+    fees.originationFeeAsset = vm.parseJsonAddress(parametersJson, string.concat(prefix, '.originationFeeAsset'));
+    uint256 originationFeeAmount = vm.parseJsonUint(parametersJson, string.concat(prefix, '.originationFeeAmount'));
+    uint256 protocolFeeBips = vm.parseJsonUint(parametersJson, string.concat(prefix, '.protocolFeeBips'));
     if (originationFeeAmount > type(uint80).max) revert('Template origination fee exceeds uint80');
     if (protocolFeeBips > type(uint16).max) revert('Template protocol fee exceeds uint16');
     fees.originationFeeAmount = uint80(originationFeeAmount);
@@ -105,7 +92,10 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     string memory parametersJson,
     string memory name,
     string memory artifactName
-  ) internal returns (TemplateDeployment memory template) {
+  )
+    internal
+    returns (TemplateDeployment memory template)
+  {
     template.name = name;
     template.artifactName = artifactName;
     template.deploymentLabel = _label(string.concat(name, '_initCodeStorage'));
@@ -116,7 +106,10 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   function _resolveFeeRecipient(
     Deployments memory deployments,
     string memory templateName
-  ) internal returns (address recipient) {
+  )
+    internal
+    returns (address recipient)
+  {
     recipient = vm.envOr('TEMPLATE_FEE_RECIPIENT', address(0));
     if (recipient != address(0)) return recipient;
 
@@ -147,7 +140,9 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     string memory entryId,
     string memory output,
     string memory afterEntry
-  ) internal {
+  )
+    internal
+  {
     string[] memory afterEntries = new string[](1);
     afterEntries[0] = afterEntry;
     DeployPlanEntry memory entry;
@@ -159,12 +154,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     _planInitCodeStorageEntry(deployments, entry, template.creationCode);
 
     _writePlanInitCodeStorageInventory(
-      deployments,
-      sequence,
-      networkName,
-      template.deploymentLabel,
-      output,
-      template.creationCode
+      deployments, sequence, networkName, template.deploymentLabel, output, template.creationCode
     );
   }
 
@@ -176,7 +166,9 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     string memory factoryOutput,
     string memory afterEntry,
     string memory description
-  ) internal {
+  )
+    internal
+  {
     string[] memory afterEntries = new string[](1);
     afterEntries[0] = afterEntry;
     CallPlanEntry memory entry;
@@ -200,25 +192,28 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     TemplateDeployment memory template,
     address feeRecipient,
     string memory storageOutput
-  ) internal pure returns (string memory) {
-    return
-      string.concat(
-        '[',
-        _ref(storageOutput),
-        ',',
-        _quoted(template.name),
-        ',',
-        _quoted(vm.toString(feeRecipient)),
-        ',',
-        _quoted(vm.toString(template.fees.originationFeeAsset)),
-        ',',
-        vm.toString(template.fees.originationFeeAmount),
-        ',',
-        vm.toString(template.fees.protocolFeeBips),
-        ',',
-        _quoted(vm.toString(keccak256(template.creationCode))),
-        ']'
-      );
+  )
+    internal
+    pure
+    returns (string memory)
+  {
+    return string.concat(
+      '[',
+      _ref(storageOutput),
+      ',',
+      _quoted(template.name),
+      ',',
+      _quoted(vm.toString(feeRecipient)),
+      ',',
+      _quoted(vm.toString(template.fees.originationFeeAsset)),
+      ',',
+      vm.toString(template.fees.originationFeeAmount),
+      ',',
+      vm.toString(template.fees.protocolFeeBips),
+      ',',
+      _quoted(vm.toString(keccak256(template.creationCode))),
+      ']'
+    );
   }
 
   function _writeAddTemplatePlanEntry(
@@ -231,7 +226,9 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     string memory storageOutput,
     string memory afterEntry,
     string memory description
-  ) internal {
+  )
+    internal
+  {
     string[] memory afterEntries = new string[](1);
     afterEntries[0] = afterEntry;
     string memory templateArgs = _templateRegistrationArgs(template, feeRecipient, storageOutput);
@@ -239,8 +236,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     entry.sequence = sequence;
     entry.id = entryId;
     entry.to = _ref(factoryOutput);
-    entry
-      .functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)';
+    entry.functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)';
     entry.decodedArgs = templateArgs;
     entry.description = description;
     entry.predicate = _planCallEqPredicate(
@@ -260,24 +256,14 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     TemplateDeployment memory openTerm,
     TemplateDeployment memory fixedTerm,
     TemplateDeployment memory periodicTerm
-  ) internal {
+  )
+    internal
+  {
     _writeTemplateStoragePlanEntry(
-      deployments,
-      networkName,
-      openTerm,
-      12,
-      OPEN_STORAGE_ENTRY_ID,
-      OPEN_STORAGE_OUTPUT,
-      DEPLOYMENTS_COMPLETE_ENTRY_ID
+      deployments, networkName, openTerm, 12, OPEN_STORAGE_ENTRY_ID, OPEN_STORAGE_OUTPUT, DEPLOYMENTS_COMPLETE_ENTRY_ID
     );
     _writeTemplateStoragePlanEntry(
-      deployments,
-      networkName,
-      fixedTerm,
-      13,
-      FIXED_STORAGE_ENTRY_ID,
-      FIXED_STORAGE_OUTPUT,
-      OPEN_STORAGE_ENTRY_ID
+      deployments, networkName, fixedTerm, 13, FIXED_STORAGE_ENTRY_ID, FIXED_STORAGE_OUTPUT, OPEN_STORAGE_ENTRY_ID
     );
     _writeTemplateStoragePlanEntry(
       deployments,
@@ -384,13 +370,13 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     string memory networkName,
     TemplateDeployment memory template,
     uint256 sequence
-  ) internal returns (TemplateDeployment memory) {
+  )
+    internal
+    returns (TemplateDeployment memory)
+  {
     bool didDeploy;
     (template.deployment, didDeploy) = _getOrDeployInitCodeStorageByLabel(
-      deployments,
-      template.deploymentLabel,
-      template.artifactName,
-      template.creationCode
+      deployments, template.deploymentLabel, template.artifactName, template.creationCode
     );
     _writeLiveInitCodeStorageInventory(
       deployments,
@@ -409,16 +395,18 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     IWildcatArchController archController,
     address authorityHelper,
     address factory
-  ) internal {
+  )
+    internal
+  {
     if (!archController.isRegisteredControllerFactory(factory)) {
       deployments.broadcast();
       if (authorityHelper == address(0)) {
         archController.registerControllerFactory(factory);
       } else {
-        IProtocolAuthorityHelper(authorityHelper).executeProtocolAction(
-          address(archController),
-          abi.encodeCall(IWildcatArchController.registerControllerFactory, (factory))
-        );
+        IProtocolAuthorityHelper(authorityHelper)
+          .executeProtocolAction(
+            address(archController), abi.encodeCall(IWildcatArchController.registerControllerFactory, (factory))
+          );
       }
     }
     if (!archController.isRegisteredControllerFactory(factory)) {
@@ -431,7 +419,9 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     address authorityHelper,
     address factoryAddress,
     TemplateDeployment memory template
-  ) internal {
+  )
+    internal
+  {
     IHooksFactory factory = IHooksFactory(factoryAddress);
     address feeRecipient = _resolveFeeRecipient(deployments, template.name);
     if (!factory.isHooksTemplate(template.deployment)) {
@@ -447,43 +437,44 @@ contract OwnerActionsV25 is V25DeployScriptBase {
           keccak256(template.creationCode)
         );
       } else {
-        IProtocolAuthorityHelper(authorityHelper).executeProtocolAction(
-          factoryAddress,
-          abi.encodeCall(
-            IHooksFactory.addHooksTemplate,
-            (
-              template.deployment,
-              template.name,
-              feeRecipient,
-              template.fees.originationFeeAsset,
-              template.fees.originationFeeAmount,
-              template.fees.protocolFeeBips,
-              keccak256(template.creationCode)
+        IProtocolAuthorityHelper(authorityHelper)
+          .executeProtocolAction(
+            factoryAddress,
+            abi.encodeCall(
+              IHooksFactory.addHooksTemplate,
+              (
+                template.deployment,
+                template.name,
+                feeRecipient,
+                template.fees.originationFeeAsset,
+                template.fees.originationFeeAmount,
+                template.fees.protocolFeeBips,
+                keccak256(template.creationCode)
+              )
             )
-          )
-        );
+          );
       }
     }
     HooksTemplate memory details = factory.getHooksTemplateDetails(template.deployment);
-    if (
-      factory.getHooksTemplateInitCodeHash(template.deployment) != keccak256(template.creationCode)
-    ) {
+    if (factory.getHooksTemplateInitCodeHash(template.deployment) != keccak256(template.creationCode)) {
       revert('Template init code hash mismatch');
     }
     if (!details.exists || !details.enabled) revert('Template registration failed');
     if (!_sameStrings(details.name, template.name)) revert('Template name mismatch');
     if (
-      details.feeRecipient != feeRecipient ||
-      details.originationFeeAsset != template.fees.originationFeeAsset ||
-      details.originationFeeAmount != template.fees.originationFeeAmount ||
-      details.protocolFeeBips != template.fees.protocolFeeBips
+      details.feeRecipient != feeRecipient || details.originationFeeAsset != template.fees.originationFeeAsset
+        || details.originationFeeAmount != template.fees.originationFeeAmount
+        || details.protocolFeeBips != template.fees.protocolFeeBips
     ) revert('Template fee configuration mismatch');
   }
 
   function _resolveAuthorityHelper(
     Deployments memory deployments,
     address archControllerAddress
-  ) internal returns (address helper) {
+  )
+    internal
+    returns (address helper)
+  {
     helper = vm.envOr('PROTOCOL_AUTHORITY_HELPER', address(0));
     if (helper == address(0) && deployments.has('MockArchControllerOwner')) {
       helper = deployments.get('MockArchControllerOwner');
@@ -510,40 +501,16 @@ contract OwnerActionsV25 is V25DeployScriptBase {
   function run() external {
     string memory ownerMode = _ownerMode();
     (Deployments memory deployments, string memory networkName) = _resolveDeployments();
-    address archControllerAddress = _resolveExisting(
-      deployments,
-      'WildcatArchController',
-      'ARCH_CONTROLLER'
-    );
+    address archControllerAddress = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
     string memory parametersJson = vm.readFile(FEE_PARAMETERS_PATH);
-    TemplateDeployment memory openTerm = _loadTemplate(
-      deployments,
-      parametersJson,
-      'OpenTermHooks',
-      OPEN_TERM_ARTIFACT
-    );
-    TemplateDeployment memory fixedTerm = _loadTemplate(
-      deployments,
-      parametersJson,
-      'FixedTermHooks',
-      FIXED_TERM_ARTIFACT
-    );
-    TemplateDeployment memory periodicTerm = _loadTemplate(
-      deployments,
-      parametersJson,
-      'PeriodicTermHooks',
-      PERIODIC_TERM_ARTIFACT
-    );
+    TemplateDeployment memory openTerm = _loadTemplate(deployments, parametersJson, 'OpenTermHooks', OPEN_TERM_ARTIFACT);
+    TemplateDeployment memory fixedTerm =
+      _loadTemplate(deployments, parametersJson, 'FixedTermHooks', FIXED_TERM_ARTIFACT);
+    TemplateDeployment memory periodicTerm =
+      _loadTemplate(deployments, parametersJson, 'PeriodicTermHooks', PERIODIC_TERM_ARTIFACT);
 
     if (_isPlanMode(ownerMode)) {
-      _writePlanEntries(
-        deployments,
-        networkName,
-        archControllerAddress,
-        openTerm,
-        fixedTerm,
-        periodicTerm
-      );
+      _writePlanEntries(deployments, networkName, archControllerAddress, openTerm, fixedTerm, periodicTerm);
       return;
     }
 

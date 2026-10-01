@@ -29,28 +29,20 @@ contract OpenAprReplacementHooks is OpenTransferPolicy, AprReplacementPolicy {
       administrator,
       args,
       encodeHooksDeploymentConfig(
-        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer).setFlag(
-          Bit_Enabled_QueueWithdrawal
-        ),
-        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(
-          Bit_Enabled_SetAnnualInterestAndReserveRatioBips
-        )
+        EmptyHooksConfig.setFlag(Bit_Enabled_Deposit)
+          .setFlag(Bit_Enabled_Transfer)
+          .setFlag(Bit_Enabled_QueueWithdrawal),
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer).setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
       )
     )
-  {}
+  { }
 
-  function setValidationBounds(
-    uint16 aprFloor,
-    uint16 reserveCeiling
-  ) public override onlyAdministrator {
+  function setValidationBounds(uint16 aprFloor, uint16 reserveCeiling) public override onlyAdministrator {
     AprValidationPolicy.setValidationBounds(aprFloor, reserveCeiling);
   }
 
   /// @dev harness-only setup for proving the skipped default leaves nonzero state alone.
-  function seedTemporaryReserve(
-    address market,
-    TemporaryReserveRatio calldata value
-  ) external onlyAdministrator {
+  function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external onlyAdministrator {
     _requireHookedMarket(market);
     temporaryExcessReserveRatio[market] = value;
   }
@@ -58,24 +50,21 @@ contract OpenAprReplacementHooks is OpenTransferPolicy, AprReplacementPolicy {
   function _applyDefaultAprUpdate(
     uint16 annualInterestBips,
     MarketState calldata
-  ) internal override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+  )
+    internal
+    override
+    returns (uint16 effectiveApr, uint16 effectiveReserve)
+  {
     // open APR callbacks have no caller guard. authenticate before _selectAprUpdate writes state.
     _requireHookedMarket(msg.sender);
     // replacing this helper also replaces its bounds check. keep the existing APR range explicit.
     assertValueInRange(
-      annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
-      AnnualInterestBipsOutOfBounds.selector
+      annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips, AnnualInterestBipsOutOfBounds.selector
     );
     return _selectAprUpdate(annualInterestBips);
   }
 
-  function _checkAprChange(
-    AprChange memory change,
-    MarketState calldata,
-    bytes calldata
-  ) internal view override {
+  function _checkAprChange(AprChange memory change, MarketState calldata, bytes calldata) internal view override {
     _validateAprChange(change);
   }
 
@@ -95,27 +84,20 @@ contract FixedAprReplacementHooks is FixedTransferPolicy, AprReplacementPolicy {
       args,
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
-        EmptyHooksConfig
-          .setFlag(Bit_Enabled_Transfer)
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
           .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
           .setFlag(Bit_Enabled_CloseMarket)
           .setFlag(Bit_Enabled_QueueWithdrawal)
       )
     )
-  {}
+  { }
 
-  function setValidationBounds(
-    uint16 aprFloor,
-    uint16 reserveCeiling
-  ) public override onlyAdministrator {
+  function setValidationBounds(uint16 aprFloor, uint16 reserveCeiling) public override onlyAdministrator {
     AprValidationPolicy.setValidationBounds(aprFloor, reserveCeiling);
   }
 
   /// @dev harness-only setup for proving the skipped default leaves nonzero state alone.
-  function seedTemporaryReserve(
-    address market,
-    TemporaryReserveRatio calldata value
-  ) external onlyAdministrator {
+  function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external onlyAdministrator {
     _requireHookedMarket(market);
     temporaryExcessReserveRatio[market] = value;
   }
@@ -123,24 +105,21 @@ contract FixedAprReplacementHooks is FixedTransferPolicy, AprReplacementPolicy {
   function _applyDefaultAprUpdate(
     uint16 annualInterestBips,
     MarketState calldata
-  ) internal override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+  )
+    internal
+    override
+    returns (uint16 effectiveApr, uint16 effectiveReserve)
+  {
     // fixed APR callbacks have no caller guard either. this replacement writes feature state.
     _requireHookedMarket(msg.sender);
     // replacing this helper also replaces its bounds check. keep the existing APR range explicit.
     assertValueInRange(
-      annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
-      AnnualInterestBipsOutOfBounds.selector
+      annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips, AnnualInterestBipsOutOfBounds.selector
     );
     return _selectAprUpdate(annualInterestBips);
   }
 
-  function _checkAprChange(
-    AprChange memory change,
-    MarketState calldata,
-    bytes calldata
-  ) internal view override {
+  function _checkAprChange(AprChange memory change, MarketState calldata, bytes calldata) internal view override {
     _validateAprChange(change);
   }
 
@@ -160,28 +139,21 @@ contract PeriodicAprReplacementHooks is PeriodicTransferPolicy, AprReplacementPo
       args,
       encodeHooksDeploymentConfig(
         EmptyHooksConfig.setFlag(Bit_Enabled_Deposit).setFlag(Bit_Enabled_Transfer),
-        EmptyHooksConfig
-          .setFlag(Bit_Enabled_Transfer)
+        EmptyHooksConfig.setFlag(Bit_Enabled_Transfer)
           .setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips)
           .setFlag(Bit_Enabled_CloseMarket)
           .setFlag(Bit_Enabled_QueueWithdrawal)
           .setFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction)
       )
     )
-  {}
+  { }
 
-  function setValidationBounds(
-    uint16 aprFloor,
-    uint16 reserveCeiling
-  ) public override onlyAdministrator {
+  function setValidationBounds(uint16 aprFloor, uint16 reserveCeiling) public override onlyAdministrator {
     AprValidationPolicy.setValidationBounds(aprFloor, reserveCeiling);
   }
 
   /// @dev harness-only setup for proving the skipped default leaves nonzero state alone.
-  function seedTemporaryReserve(
-    address market,
-    TemporaryReserveRatio calldata value
-  ) external onlyAdministrator {
+  function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external onlyAdministrator {
     _requireHookedMarket(market);
     temporaryExcessReserveRatio[market] = value;
   }
@@ -189,22 +161,19 @@ contract PeriodicAprReplacementHooks is PeriodicTransferPolicy, AprReplacementPo
   function _applyDefaultAprUpdate(
     uint16 annualInterestBips,
     MarketState calldata
-  ) internal override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+  )
+    internal
+    override
+    returns (uint16 effectiveApr, uint16 effectiveReserve)
+  {
     // replacing this helper also replaces its bounds check. keep the existing APR range explicit.
     assertValueInRange(
-      annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
-      AnnualInterestBipsOutOfBounds.selector
+      annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips, AnnualInterestBipsOutOfBounds.selector
     );
     return _selectAprUpdate(annualInterestBips);
   }
 
-  function _checkAprChange(
-    AprChange memory change,
-    MarketState calldata,
-    bytes calldata
-  ) internal view override {
+  function _checkAprChange(AprChange memory change, MarketState calldata, bytes calldata) internal view override {
     _validateAprChange(change);
   }
 

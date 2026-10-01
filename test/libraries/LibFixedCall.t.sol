@@ -29,8 +29,7 @@ contract FixedCallReader {
     assembly {
       argument := rawArgument
     }
-    return
-      LibFixedCall.readBool(target, IWildcatArchController.isRegisteredBorrower.selector, argument);
+    return LibFixedCall.readBool(target, IWildcatArchController.isRegisteredBorrower.selector, argument);
   }
 }
 
@@ -71,47 +70,35 @@ contract LibFixedCallTest is TestKernel {
     target.configure(
       response,
       shouldRevert,
-      keccak256(
-        abi.encodeCall(IWildcatArchController.isRegisteredBorrower, (address(uint160(rawArgument))))
-      )
+      keccak256(abi.encodeCall(IWildcatArchController.isRegisteredBorrower, (address(uint160(rawArgument)))))
     );
-    (bool referenceSuccess, bytes memory referenceData) = address(reader).staticcall(
-      abi.encodeCall(FixedCallReader.referenceBool, (address(target), rawArgument))
-    );
-    (bool candidateSuccess, bytes memory candidateData) = address(reader).staticcall(
-      abi.encodeCall(FixedCallReader.candidateBool, (address(target), rawArgument))
-    );
+    (bool referenceSuccess, bytes memory referenceData) =
+      address(reader).staticcall(abi.encodeCall(FixedCallReader.referenceBool, (address(target), rawArgument)));
+    (bool candidateSuccess, bytes memory candidateData) =
+      address(reader).staticcall(abi.encodeCall(FixedCallReader.candidateBool, (address(target), rawArgument)));
     assertEq(candidateSuccess, referenceSuccess);
     assertEq(candidateData, referenceData);
   }
 
-  function testFuzz_boolMatchesSolidity(
-    bytes memory response,
-    bool shouldRevert,
-    uint256 argument
-  ) external {
+  function testFuzz_boolMatchesSolidity(bytes memory response, bool shouldRevert, uint256 argument) external {
     _compare(response, shouldRevert, argument);
   }
 
-  function testFuzz_boolValidWithTrailingData(
-    bool value,
-    bytes memory trailing,
-    uint256 argument
-  ) external {
+  function testFuzz_boolValidWithTrailingData(bool value, bytes memory trailing, uint256 argument) external {
     _compare(bytes.concat(abi.encode(value), trailing), false, argument);
     assertEq(reader.candidateBool(address(target), argument), value);
   }
 
   function test_boolRejectsEveryShortLength() external {
-    for (uint256 length; length < 32; ++length) _compare(new bytes(length), false, 123);
+    for (uint256 length; length < 32; ++length) {
+      _compare(new bytes(length), false, 123);
+    }
   }
 
   function testFuzz_boolRejectsDirtyWord(uint256 word) external {
     word = bound(word, 2, type(uint256).max);
     _compare(abi.encode(word), false, 123);
-    (bool success, ) = address(reader).staticcall(
-      abi.encodeCall(FixedCallReader.candidateBool, (address(target), 123))
-    );
+    (bool success,) = address(reader).staticcall(abi.encodeCall(FixedCallReader.candidateBool, (address(target), 123)));
     assertFalse(success);
   }
 
@@ -123,17 +110,11 @@ contract LibFixedCallTest is TestKernel {
   }
 
   function _compareWord(bytes memory response, bool shouldRevert) internal {
-    target.configure(
-      response,
-      shouldRevert,
-      keccak256(abi.encodeCall(IMarketApr.annualInterestBips, ()))
-    );
-    (bool referenceSuccess, bytes memory referenceData) = address(reader).staticcall(
-      abi.encodeCall(FixedCallReader.referenceWord, (address(target)))
-    );
-    (bool candidateSuccess, bytes memory candidateData) = address(reader).staticcall(
-      abi.encodeCall(FixedCallReader.candidateWord, (address(target)))
-    );
+    target.configure(response, shouldRevert, keccak256(abi.encodeCall(IMarketApr.annualInterestBips, ())));
+    (bool referenceSuccess, bytes memory referenceData) =
+      address(reader).staticcall(abi.encodeCall(FixedCallReader.referenceWord, (address(target))));
+    (bool candidateSuccess, bytes memory candidateData) =
+      address(reader).staticcall(abi.encodeCall(FixedCallReader.candidateWord, (address(target))));
     assertEq(candidateSuccess, referenceSuccess);
     assertEq(candidateData, referenceData);
   }
@@ -148,7 +129,9 @@ contract LibFixedCallTest is TestKernel {
   }
 
   function test_wordRejectsEveryShortLength() external {
-    for (uint256 length; length < 32; ++length) _compareWord(new bytes(length), false);
+    for (uint256 length; length < 32; ++length) {
+      _compareWord(new bytes(length), false);
+    }
   }
 
   function testFuzz_wordPreservesFullWidth(uint256 word) external {

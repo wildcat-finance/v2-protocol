@@ -100,18 +100,17 @@ contract WildcatArchController is SphereXConfig, Ownable {
     address[] calldata controllerFactories,
     address[] calldata controllers,
     address[] calldata markets
-  ) external spherexOnlyOperatorOrAdmin {
+  )
+    external
+    spherexOnlyOperatorOrAdmin
+  {
     address engineAddress = sphereXEngine();
-    bytes memory changeSphereXEngineCalldata = abi.encodeWithSelector(
-      ISphereXProtectedRegisteredBase.changeSphereXEngine.selector,
-      engineAddress
-    );
+    bytes memory changeSphereXEngineCalldata =
+      abi.encodeWithSelector(ISphereXProtectedRegisteredBase.changeSphereXEngine.selector, engineAddress);
     bytes memory addAllowedSenderOnChainCalldata;
     if (engineAddress != address(0)) {
-      addAllowedSenderOnChainCalldata = abi.encodeWithSelector(
-        ISphereXEngine.addAllowedSenderOnChain.selector,
-        address(0)
-      );
+      addAllowedSenderOnChainCalldata =
+        abi.encodeWithSelector(ISphereXEngine.addAllowedSenderOnChain.selector, address(0));
     }
     _updateSphereXEngineOnRegisteredContractsInSet(
       _controllerFactories,
@@ -146,7 +145,9 @@ contract WildcatArchController is SphereXConfig, Ownable {
     bytes memory changeSphereXEngineCalldata,
     bytes memory addAllowedSenderOnChainCalldata,
     bytes4 notInSetErrorSelectorBytes
-  ) internal {
+  )
+    internal
+  {
     for (uint256 i = 0; i < contracts.length; i++) {
       address account = contracts[i];
       if (!set.contains(account)) {
@@ -207,10 +208,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   /// @notice returns borrowers in `[start, min(end, count))` in unstable enumeration order.
-  function getRegisteredBorrowers(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory arr) {
+  function getRegisteredBorrowers(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13 known issue: malformed ranges can panic after `end` is clamped.
     // The singleton keeps deployed behavior; new registries should reject
     // `start >= end` explicitly before subtracting.
@@ -259,10 +257,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   /// @notice returns assets in `[start, min(end, count))` in unstable enumeration order.
-  function getBlacklistedAssets(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory arr) {
+  function getBlacklistedAssets(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _assetBlacklist.length();
     end = MathUtils.min(end, len);
@@ -313,10 +308,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   /// @notice returns factories in `[start, min(end, count))` in unstable enumeration order.
-  function getRegisteredControllerFactories(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory arr) {
+  function getRegisteredControllerFactories(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _controllerFactories.length();
     end = MathUtils.min(end, len);
@@ -373,10 +365,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   /// @notice returns controllers in `[start, min(end, count))` in unstable enumeration order.
-  function getRegisteredControllers(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory arr) {
+  function getRegisteredControllers(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _controllers.length();
     end = MathUtils.min(end, len);
@@ -433,10 +422,7 @@ contract WildcatArchController is SphereXConfig, Ownable {
   }
 
   /// @notice returns markets in `[start, min(end, count))` in unstable enumeration order.
-  function getRegisteredMarkets(
-    uint256 start,
-    uint256 end
-  ) external view returns (address[] memory arr) {
+  function getRegisteredMarkets(uint256 start, uint256 end) external view returns (address[] memory arr) {
     // CAF-13: keep singleton pagination behavior; see Known Issues.
     uint256 len = _markets.length();
     end = MathUtils.min(end, len);

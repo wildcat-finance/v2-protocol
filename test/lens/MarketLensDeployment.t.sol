@@ -11,21 +11,12 @@ contract MarketLensDeploymentTest is ProductionMatrixFixture {
     ProductionStack memory stack = _deployProductionStack();
     bytes memory args = abi.encode(address(stack.archController), address(stack.standardFactory));
     address core = _deployCode('src/lens/MarketLensCore.sol:MarketLensCore', args);
-    address aggregator = _deployCode(
-      'src/lens/MarketLensAggregator.sol:MarketLensAggregator',
-      args
-    );
+    address aggregator = _deployCode('src/lens/MarketLensAggregator.sol:MarketLensAggregator', args);
     address live = _deployCode('src/lens/MarketLensLive.sol:MarketLensLive', args);
     MarketLens lens = MarketLens(
       _deployCode(
         'src/lens/MarketLens.sol:MarketLens',
-        abi.encode(
-          address(stack.archController),
-          address(stack.standardFactory),
-          core,
-          aggregator,
-          live
-        )
+        abi.encode(address(stack.archController), address(stack.standardFactory), core, aggregator, live)
       )
     );
     assertTrue(core.code.length <= 24_576, 'core runtime fits');
@@ -37,33 +28,16 @@ contract MarketLensDeploymentTest is ProductionMatrixFixture {
     assertEq(address(lens.liveHelper()), live, 'live binding');
 
     for (uint256 i; i < 2; i++) {
-      MatrixOptions memory options = _defaultMatrixOptions(
-        MatrixHooksKind.OpenTerm,
-        MatrixMarketKind(i)
-      );
+      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind(i));
       options.repaymentDate = uint32(vm.getBlockTimestamp() + 1 days);
       options.repaymentPeriod = 1 days;
-      MatrixCell memory cell = _deployMatrixCell(
-        stack,
-        options,
-        MatrixBorrower,
-        MatrixBorrower,
-        uint96(i)
-      );
+      MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(i));
       address[] memory markets = new address[](1);
       markets[0] = address(cell.market);
       vm.warp(options.repaymentDate);
       assertTrue(cell.market.isClosed(), 'empty market previews closure');
-      _assertForwarded(
-        core,
-        address(lens),
-        abi.encodeWithSignature('getMarketDataV2(address)', markets[0])
-      );
-      _assertForwarded(
-        live,
-        address(lens),
-        abi.encodeWithSignature('getMarketsLiveDataV2(address[])', markets)
-      );
+      _assertForwarded(core, address(lens), abi.encodeWithSignature('getMarketDataV2(address)', markets[0]));
+      _assertForwarded(live, address(lens), abi.encodeWithSignature('getMarketsLiveDataV2(address[])', markets));
       _assertForwarded(
         aggregator,
         address(lens),

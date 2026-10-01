@@ -30,10 +30,7 @@ contract ProtocolFeeRoundingReviewTest is MarketFixture {
     f = _newMarket(o);
   }
 
-  function _runDaily(
-    uint256 kind,
-    uint104 amount
-  ) private returns (Fixture memory f, uint256 exactNumerator) {
+  function _runDaily(uint256 kind, uint104 amount) private returns (Fixture memory f, uint256 exactNumerator) {
     f = _fixture(kind, 1000);
     Fixture memory control = _fixture(kind, 0);
     _deposit(f, Lender, amount);

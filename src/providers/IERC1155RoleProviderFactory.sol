@@ -33,14 +33,17 @@ interface IERC1155RoleProviderFactory is IRoleProviderFactory {
   );
 
   /// @notice deploys a provider for `msg.sender`.
-  function createERC1155RoleProvider(
-    ERC1155RoleProviderFactoryInputs calldata inputs
-  ) external returns (address provider);
+  function createERC1155RoleProvider(ERC1155RoleProviderFactoryInputs calldata inputs)
+    external
+    returns (address provider);
 
   /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(
     address deployer,
     ERC1155RoleProviderFactoryInputs calldata inputs
-  ) external view returns (address provider);
+  )
+    external
+    view
+    returns (address provider);
 }

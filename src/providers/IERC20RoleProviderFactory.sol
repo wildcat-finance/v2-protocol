@@ -30,14 +30,15 @@ interface IERC20RoleProviderFactory is IRoleProviderFactory {
   );
 
   /// @notice deploys a provider for `msg.sender`.
-  function createERC20RoleProvider(
-    ERC20RoleProviderFactoryInputs calldata inputs
-  ) external returns (address provider);
+  function createERC20RoleProvider(ERC20RoleProviderFactoryInputs calldata inputs) external returns (address provider);
 
   /// @notice predicts the address for the exact `deployer`, inputs, and this factory.
   /// @dev pass the address that will actually call the create function as `deployer`.
   function computeRoleProviderAddress(
     address deployer,
     ERC20RoleProviderFactoryInputs calldata inputs
-  ) external view returns (address provider);
+  )
+    external
+    view
+    returns (address provider);
 }

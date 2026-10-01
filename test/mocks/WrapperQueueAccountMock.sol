@@ -10,7 +10,10 @@ contract WrapperQueueAccountMock {
     WildcatMarket market,
     uint256 shares,
     uint256 scaledAmount
-  ) external returns (uint256 assets, uint32 expiry) {
+  )
+    external
+    returns (uint256 assets, uint32 expiry)
+  {
     assets = wrapper.redeem(shares, address(this), address(this));
     expiry = market.queueWithdrawalScaled(scaledAmount);
   }

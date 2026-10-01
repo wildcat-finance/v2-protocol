@@ -20,7 +20,11 @@ contract LibStoredInitCodeExternal {
     uint256 create2Prefix,
     bytes32 salt,
     uint256 initCodeHash
-  ) external pure returns (address create2Address) {
+  )
+    external
+    pure
+    returns (address create2Address)
+  {
     return LibStoredInitCode.calculateCreate2Address(create2Prefix, salt, initCodeHash);
   }
 
@@ -28,17 +32,11 @@ contract LibStoredInitCodeExternal {
     return LibStoredInitCode.createWithStoredInitCode(initCodeStorage);
   }
 
-  function createWithStoredInitCode(
-    address initCodeStorage,
-    uint256 value
-  ) external returns (address deployment) {
+  function createWithStoredInitCode(address initCodeStorage, uint256 value) external returns (address deployment) {
     return LibStoredInitCode.createWithStoredInitCode(initCodeStorage, value);
   }
 
-  function create2WithStoredInitCode(
-    address initCodeStorage,
-    bytes32 salt
-  ) external returns (address deployment) {
+  function create2WithStoredInitCode(address initCodeStorage, bytes32 salt) external returns (address deployment) {
     return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt);
   }
 
@@ -46,7 +44,10 @@ contract LibStoredInitCodeExternal {
     address initCodeStorage,
     bytes32 salt,
     uint256 value
-  ) external returns (address deployment) {
+  )
+    external
+    returns (address deployment)
+  {
     return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt, value);
   }
 
@@ -54,7 +55,10 @@ contract LibStoredInitCodeExternal {
     address initCodeStorage,
     bytes32 salt,
     bytes memory constructorArgs
-  ) external returns (address deployment) {
+  )
+    external
+    returns (address deployment)
+  {
     return LibStoredInitCode.create2WithStoredInitCode(initCodeStorage, salt, constructorArgs);
   }
 
@@ -62,7 +66,10 @@ contract LibStoredInitCodeExternal {
     address initCodeStorage,
     bytes32 salt,
     bytes calldata constructorArgs
-  ) external returns (address deployment) {
+  )
+    external
+    returns (address deployment)
+  {
     return LibStoredInitCode.create2WithStoredInitCodeCD(initCodeStorage, salt, constructorArgs);
   }
 }

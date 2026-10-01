@@ -13,21 +13,11 @@ function emit_Transfer(address from, address to, uint256 value) {
 function emit_Approval(address owner, address spender, uint256 value) {
   assembly {
     mstore(0, value)
-    log3(
-      0,
-      0x20,
-      0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925,
-      owner,
-      spender
-    )
+    log3(0, 0x20, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, owner, spender)
   }
 }
 
-function emit_MaxTotalSupplyUpdated(
-  address eventCaller,
-  uint256 previousMaxTotalSupply,
-  uint256 newMaxTotalSupply
-) {
+function emit_MaxTotalSupplyUpdated(address eventCaller, uint256 previousMaxTotalSupply, uint256 newMaxTotalSupply) {
   assembly {
     mstore(0, previousMaxTotalSupply)
     mstore(0x20, newMaxTotalSupply)
@@ -35,11 +25,7 @@ function emit_MaxTotalSupplyUpdated(
   }
 }
 
-function emit_ProtocolFeeBipsUpdated(
-  address eventCaller,
-  uint256 previousProtocolFeeBips,
-  uint256 newProtocolFeeBips
-) {
+function emit_ProtocolFeeBipsUpdated(address eventCaller, uint256 previousProtocolFeeBips, uint256 newProtocolFeeBips) {
   assembly {
     mstore(0, previousProtocolFeeBips)
     mstore(0x20, newProtocolFeeBips)
@@ -120,13 +106,7 @@ function emit_MarketClosed(address borrower, uint256 _timestamp) {
 function emit_FeesCollected(address collector, address feeRecipient, uint256 assets) {
   assembly {
     mstore(0, assets)
-    log3(
-      0,
-      0x20,
-      0x9bcb6d1f38f6800906185471a11ede9a8e16200853225aa62558db6076490f2d,
-      collector,
-      feeRecipient
-    )
+    log3(0, 0x20, 0x9bcb6d1f38f6800906185471a11ede9a8e16200853225aa62558db6076490f2d, collector, feeRecipient)
   }
 }
 
@@ -269,11 +249,7 @@ function emit_WithdrawalBatchClosed(uint256 expiry) {
   }
 }
 
-function emit_WithdrawalBatchPayment(
-  uint256 expiry,
-  uint256 scaledAmountBurned,
-  uint256 normalizedAmountPaid
-) {
+function emit_WithdrawalBatchPayment(uint256 expiry, uint256 scaledAmountBurned, uint256 normalizedAmountPaid) {
   assembly {
     mstore(0, scaledAmountBurned)
     mstore(0x20, normalizedAmountPaid)
@@ -281,44 +257,22 @@ function emit_WithdrawalBatchPayment(
   }
 }
 
-function emit_WithdrawalQueued(
-  uint256 expiry,
-  address account,
-  uint256 scaledAmount,
-  uint256 normalizedAmount
-) {
+function emit_WithdrawalQueued(uint256 expiry, address account, uint256 scaledAmount, uint256 normalizedAmount) {
   assembly {
     mstore(0, scaledAmount)
     mstore(0x20, normalizedAmount)
-    log3(
-      0,
-      0x40,
-      0xecc966b282a372469fa4d3e497c2ac17983c3eaed03f3f17c9acf4b15591663e,
-      expiry,
-      account
-    )
+    log3(0, 0x40, 0xecc966b282a372469fa4d3e497c2ac17983c3eaed03f3f17c9acf4b15591663e, expiry, account)
   }
 }
 
 function emit_WithdrawalExecuted(uint256 expiry, address account, uint256 normalizedAmount) {
   assembly {
     mstore(0, normalizedAmount)
-    log3(
-      0,
-      0x20,
-      0xd6cddb3d69146e96ebc2c87b1b3dd0b20ee2d3b0eadf134e011afb434a3e56e6,
-      expiry,
-      account
-    )
+    log3(0, 0x20, 0xd6cddb3d69146e96ebc2c87b1b3dd0b20ee2d3b0eadf134e011afb434a3e56e6, expiry, account)
   }
 }
 
-function emit_SanctionedAccountWithdrawalSentToEscrow(
-  address account,
-  address escrow,
-  uint32 expiry,
-  uint256 amount
-) {
+function emit_SanctionedAccountWithdrawalSentToEscrow(address account, address escrow, uint32 expiry, uint256 amount) {
   assembly {
     let freePointer := mload(0x40)
     mstore(0, escrow)

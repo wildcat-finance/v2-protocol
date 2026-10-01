@@ -90,33 +90,32 @@ abstract contract ProductionMatrixFixture is TestKernel {
   address internal constant MatrixCaller = address(0xCA11E2);
   uint256 internal constant MatrixDust = 1e4;
 
-  function _storeInitCode(
-    string memory artifact
-  ) internal virtual returns (address storageContract, uint256 initCodeHash) {
+  function _storeInitCode(string memory artifact)
+    internal
+    virtual
+    returns (address storageContract, uint256 initCodeHash)
+  {
     bytes memory initCode = vm.getCode(artifact);
     // match deployment tooling: keep fitting artifacts raw, split oversized initcode.
     if (initCode.length <= 24_575) {
       storageContract = LibStoredInitCode.deployInitCode(initCode);
     } else {
-      (storageContract, ) = LibSplitInitCode.deployInitCode(initCode);
+      (storageContract,) = LibSplitInitCode.deployInitCode(initCode);
     }
     initCodeHash = uint256(keccak256(initCode));
   }
 
   function _deployProductionStack() internal returns (ProductionStack memory stack) {
-    return
-      _deployProductionStack(
-        [
-          'src/access/OpenTermHooks.sol:OpenTermHooks',
-          'src/access/FixedTermHooks.sol:FixedTermHooks',
-          'src/access/PeriodicTermHooks.sol:PeriodicTermHooks'
-        ]
-      );
+    return _deployProductionStack(
+      [
+        'src/access/OpenTermHooks.sol:OpenTermHooks',
+        'src/access/FixedTermHooks.sol:FixedTermHooks',
+        'src/access/PeriodicTermHooks.sol:PeriodicTermHooks'
+      ]
+    );
   }
 
-  function _deployProductionStack(
-    string[3] memory hooksArtifacts
-  ) internal returns (ProductionStack memory stack) {
+  function _deployProductionStack(string[3] memory hooksArtifacts) internal returns (ProductionStack memory stack) {
     stack = _deployProductionDependencies();
     stack.archController.registerBorrower(MatrixBorrower);
     stack.standardFactory = _deployStandardFactory(stack);
@@ -127,18 +126,14 @@ abstract contract ProductionMatrixFixture is TestKernel {
   // keep dependency-deployment locals out of the factory/template setup; the full matrix hits
   // the Yul stack limit when all of these deployment encodings share one function.
   function _deployProductionDependencies() private returns (ProductionStack memory stack) {
-    stack.archController = WildcatArchController(
-      _deployCode('src/WildcatArchController.sol:WildcatArchController')
-    );
+    stack.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
     stack.registry = WildcatBorrowerIdentityRegistry(
       _deployCode(
         'src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry',
         abi.encode(address(stack.archController))
       )
     );
-    stack.sanctionsList = SanctionsListMock(
-      _deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock')
-    );
+    stack.sanctionsList = SanctionsListMock(_deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock'));
     stack.sentinel = WildcatSanctionsSentinel(
       _deployCode(
         'src/WildcatSanctionsSentinel.sol:WildcatSanctionsSentinel',
@@ -153,21 +148,14 @@ abstract contract ProductionMatrixFixture is TestKernel {
     );
     stack.asset = MockERC20(
       _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20',
-        abi.encode('Matrix Token', 'MTRX', uint8(18))
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Matrix Token', 'MTRX', uint8(18))
       )
     );
-    stack.roleProvider = MockRoleProvider(
-      _deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider')
-    );
+    stack.roleProvider = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
   }
 
-  function _deployStandardFactory(
-    ProductionStack memory stack
-  ) private returns (HooksFactory factory) {
-    (address marketStorage, uint256 marketHash) = _storeInitCode(
-      'src/market/WildcatMarket.sol:WildcatMarket'
-    );
+  function _deployStandardFactory(ProductionStack memory stack) private returns (HooksFactory factory) {
+    (address marketStorage, uint256 marketHash) = _storeInitCode('src/market/WildcatMarket.sol:WildcatMarket');
     factory = HooksFactory(
       _deployCode(
         'src/HooksFactory.sol:HooksFactory',
@@ -185,12 +173,9 @@ abstract contract ProductionMatrixFixture is TestKernel {
     factory.registerWithArchController();
   }
 
-  function _deployRevolvingFactory(
-    ProductionStack memory stack
-  ) private returns (HooksFactoryRevolving factory) {
-    (address marketStorage, uint256 marketHash) = _storeInitCode(
-      'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
-    );
+  function _deployRevolvingFactory(ProductionStack memory stack) private returns (HooksFactoryRevolving factory) {
+    (address marketStorage, uint256 marketHash) =
+      _storeInitCode('src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving');
     factory = HooksFactoryRevolving(
       _deployCode(
         'src/HooksFactoryRevolving.sol:HooksFactoryRevolving',
@@ -208,43 +193,28 @@ abstract contract ProductionMatrixFixture is TestKernel {
     factory.registerWithArchController();
   }
 
-  function _deployAndRegisterTemplates(
-    ProductionStack memory stack,
-    string[3] memory hooksArtifacts
-  ) private {
+  function _deployAndRegisterTemplates(ProductionStack memory stack, string[3] memory hooksArtifacts) private {
     for (uint256 i; i < stack.hooksTemplates.length; i++) {
       uint256 initCodeHash;
       (stack.hooksTemplates[i], initCodeHash) = _storeInitCode(hooksArtifacts[i]);
       string memory name = i == uint256(MatrixHooksKind.OpenTerm)
         ? 'Open Term'
-        : i == uint256(MatrixHooksKind.FixedTerm)
-        ? 'Fixed Term'
-        : 'Periodic Term';
-      stack.standardFactory.addHooksTemplate(
-        stack.hooksTemplates[i],
-        name,
-        address(0),
-        address(0),
-        0,
-        0,
-        bytes32(initCodeHash)
-      );
-      stack.revolvingFactory.addHooksTemplate(
-        stack.hooksTemplates[i],
-        name,
-        address(0),
-        address(0),
-        0,
-        0,
-        bytes32(initCodeHash)
-      );
+        : i == uint256(MatrixHooksKind.FixedTerm) ? 'Fixed Term' : 'Periodic Term';
+      stack.standardFactory
+        .addHooksTemplate(stack.hooksTemplates[i], name, address(0), address(0), 0, 0, bytes32(initCodeHash));
+      stack.revolvingFactory
+        .addHooksTemplate(stack.hooksTemplates[i], name, address(0), address(0), 0, 0, bytes32(initCodeHash));
     }
   }
 
   function _defaultMatrixOptions(
     MatrixHooksKind hooksKind,
     MatrixMarketKind marketKind
-  ) internal pure returns (MatrixOptions memory options) {
+  )
+    internal
+    pure
+    returns (MatrixOptions memory options)
+  {
     options.hooksKind = hooksKind;
     options.marketKind = marketKind;
     options.maxTotalSupply = 1_000_000e18;
@@ -263,11 +233,13 @@ abstract contract ProductionMatrixFixture is TestKernel {
   function _factoryFor(
     ProductionStack memory stack,
     MatrixMarketKind kind
-  ) internal pure returns (IHooksFactory factory) {
+  )
+    internal
+    pure
+    returns (IHooksFactory factory)
+  {
     factory = IHooksFactory(
-      kind == MatrixMarketKind.Standard
-        ? address(stack.standardFactory)
-        : address(stack.revolvingFactory)
+      kind == MatrixMarketKind.Standard ? address(stack.standardFactory) : address(stack.revolvingFactory)
     );
   }
 
@@ -275,38 +247,33 @@ abstract contract ProductionMatrixFixture is TestKernel {
     return bytes32((uint256(uint160(deployer)) << 96) | uint256(nonce));
   }
 
-  function _hooksData(
-    MatrixOptions memory options,
-    uint256 deployedAt
-  ) internal pure returns (bytes memory) {
+  function _hooksData(MatrixOptions memory options, uint256 deployedAt) internal pure returns (bytes memory) {
     if (options.hooksKind == MatrixHooksKind.OpenTerm) {
       return abi.encode(options.minimumDeposit, options.transfersDisabled);
     }
     if (options.hooksKind == MatrixHooksKind.FixedTerm) {
-      return
-        abi.encode(
-          uint32(deployedAt + options.fixedTermDuration),
-          options.minimumDeposit,
-          options.transfersDisabled,
-          true,
-          true
-        );
-    }
-    return
-      abi.encode(
-        uint32(deployedAt + options.firstWindowDelay),
-        options.periodDuration,
-        options.withdrawalWindowDuration,
-        options.minimumDeposit,
-        options.transfersDisabled
+      return abi.encode(
+        uint32(deployedAt + options.fixedTermDuration), options.minimumDeposit, options.transfersDisabled, true, true
       );
+    }
+    return abi.encode(
+      uint32(deployedAt + options.firstWindowDelay),
+      options.periodDuration,
+      options.withdrawalWindowDuration,
+      options.minimumDeposit,
+      options.transfersDisabled
+    );
   }
 
   function _marketInputs(
     ProductionStack memory stack,
     MatrixOptions memory options,
     HooksConfig hooks
-  ) internal pure returns (DeployMarketInputs memory inputs) {
+  )
+    internal
+    pure
+    returns (DeployMarketInputs memory inputs)
+  {
     inputs.asset = address(stack.asset);
     inputs.namePrefix = 'Wildcat ';
     inputs.symbolPrefix = 'wc';
@@ -327,27 +294,18 @@ abstract contract ProductionMatrixFixture is TestKernel {
     address operationalBorrower,
     address borrowerPrincipal,
     uint96 nonce
-  ) internal returns (MatrixCell memory cell) {
+  )
+    internal
+    returns (MatrixCell memory cell)
+  {
     IHooksFactory factory = _factoryFor(stack, options.marketKind);
     vm.prank(operationalBorrower);
-    address hooks = factory.deployHooksInstance(
-      stack.hooksTemplates[uint256(options.hooksKind)],
-      ''
-    );
+    address hooks = factory.deployHooksInstance(stack.hooksTemplates[uint256(options.hooksKind)], '');
 
     HooksDeploymentConfig deploymentConfig = IHooks(hooks).config();
-    HooksConfig requestedHooks = deploymentConfig
-      .optionalFlags()
-      .setHooksAddress(hooks)
-      .mergeAllFlags(deploymentConfig.requiredFlags());
-    cell = _deployMatrixCell(
-      stack,
-      options,
-      operationalBorrower,
-      borrowerPrincipal,
-      nonce,
-      requestedHooks
-    );
+    HooksConfig requestedHooks =
+      deploymentConfig.optionalFlags().setHooksAddress(hooks).mergeAllFlags(deploymentConfig.requiredFlags());
+    cell = _deployMatrixCell(stack, options, operationalBorrower, borrowerPrincipal, nonce, requestedHooks);
 
     vm.prank(borrowerPrincipal);
     cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
@@ -361,17 +319,19 @@ abstract contract ProductionMatrixFixture is TestKernel {
     address borrowerPrincipal,
     uint96 nonce,
     HooksConfig requestedHooks
-  ) internal returns (MatrixCell memory cell) {
-    return
-      _deployMatrixCell(
-        stack,
-        options,
-        operationalBorrower,
-        borrowerPrincipal,
-        nonce,
-        requestedHooks,
-        _hooksData(options, vm.getBlockTimestamp())
-      );
+  )
+    internal
+    returns (MatrixCell memory cell)
+  {
+    return _deployMatrixCell(
+      stack,
+      options,
+      operationalBorrower,
+      borrowerPrincipal,
+      nonce,
+      requestedHooks,
+      _hooksData(options, vm.getBlockTimestamp())
+    );
   }
 
   /// @dev explicit creation data lets lifecycle tests select term permissions independently.
@@ -383,7 +343,10 @@ abstract contract ProductionMatrixFixture is TestKernel {
     uint96 nonce,
     HooksConfig requestedHooks,
     bytes memory hooksData
-  ) internal returns (MatrixCell memory cell) {
+  )
+    internal
+    returns (MatrixCell memory cell)
+  {
     cell.options = options;
     cell.operationalBorrower = operationalBorrower;
     cell.borrowerPrincipal = borrowerPrincipal;
@@ -395,28 +358,16 @@ abstract contract ProductionMatrixFixture is TestKernel {
 
     vm.prank(operationalBorrower);
     if (options.marketKind == MatrixMarketKind.Standard) {
-      cell.market = WildcatMarket(
-        stack.standardFactory.deployMarket(inputs, hooksData, salt, address(0), 0)
-      );
+      cell.market = WildcatMarket(stack.standardFactory.deployMarket(inputs, hooksData, salt, address(0), 0));
     } else {
       cell.market = WildcatMarket(
-        stack.revolvingFactory.deployMarket(
-          inputs,
-          hooksData,
-          abi.encode(uint8(1), options.commitmentFeeBips),
-          salt,
-          address(0),
-          0
-        )
+        stack.revolvingFactory
+          .deployMarket(inputs, hooksData, abi.encode(uint8(1), options.commitmentFeeBips), salt, address(0), 0)
       );
     }
   }
 
-  function _authorize(
-    ProductionStack memory stack,
-    MatrixCell memory cell,
-    address account
-  ) internal {
+  function _authorize(ProductionStack memory stack, MatrixCell memory cell, address account) internal {
     vm.prank(address(stack.roleProvider));
     cell.hooks.grantRole(account, uint32(vm.getBlockTimestamp()));
   }
@@ -426,28 +377,21 @@ abstract contract ProductionMatrixFixture is TestKernel {
     MatrixCell memory cell,
     address account,
     uint256 amount
-  ) internal {
+  )
+    internal
+  {
     stack.asset.mint(account, amount);
     vm.prank(account);
     stack.asset.approve(address(cell.market), type(uint256).max);
   }
 
-  function _deposit(
-    ProductionStack memory stack,
-    MatrixCell memory cell,
-    address account,
-    uint256 amount
-  ) internal {
+  function _deposit(ProductionStack memory stack, MatrixCell memory cell, address account, uint256 amount) internal {
     _fundAndApprove(stack, cell, account, amount);
     vm.prank(account);
     cell.market.depositUpTo(amount);
   }
 
-  function _approveBorrower(
-    ProductionStack memory stack,
-    MatrixCell memory cell,
-    uint256 amount
-  ) internal {
+  function _approveBorrower(ProductionStack memory stack, MatrixCell memory cell, uint256 amount) internal {
     stack.asset.mint(cell.operationalBorrower, amount);
     vm.prank(cell.operationalBorrower);
     stack.asset.approve(address(cell.market), type(uint256).max);
@@ -471,59 +415,48 @@ abstract contract ProductionMatrixFixture is TestKernel {
   function _expectedScaleFactorAt(
     MatrixCell memory cell,
     uint256 timestamp
-  ) internal view returns (uint256 expectedScaleFactor) {
+  )
+    internal
+    view
+    returns (uint256 expectedScaleFactor)
+  {
     MarketState memory state = cell.market.previousState();
     require(
-      state.pendingWithdrawalExpiry == 0 || state.pendingWithdrawalExpiry >= timestamp,
-      'oracle crosses batch expiry'
+      state.pendingWithdrawalExpiry == 0 || state.pendingWithdrawalExpiry >= timestamp, 'oracle crosses batch expiry'
     );
     uint256 elapsed = timestamp - state.lastInterestAccruedTimestamp;
     uint256 baseInterestRay;
     if (cell.options.marketKind == MatrixMarketKind.Standard) {
-      baseInterestRay = MathUtils.calculateLinearInterestFromBips(
-        state.annualInterestBips,
-        elapsed
-      );
+      baseInterestRay = MathUtils.calculateLinearInterestFromBips(state.annualInterestBips, elapsed);
     } else if (elapsed > 0 && state.scaledTotalSupply > 0 && !state.isClosed) {
-      baseInterestRay = MathUtils.calculateLinearInterestFromBips(
-        cell.options.commitmentFeeBips,
-        elapsed
-      );
+      baseInterestRay = MathUtils.calculateLinearInterestFromBips(cell.options.commitmentFeeBips, elapsed);
       uint256 drawn = IWildcatMarketRevolving(address(cell.market)).drawnAmount();
       if (state.annualInterestBips > 0 && drawn > 0) {
-        uint256 utilizationInterestRay = MathUtils.calculateLinearInterestFromBips(
-          state.annualInterestBips,
-          elapsed
-        );
+        uint256 utilizationInterestRay = MathUtils.calculateLinearInterestFromBips(state.annualInterestBips, elapsed);
         baseInterestRay += MathUtils.mulDiv(
-          utilizationInterestRay,
-          MathUtils.min(drawn, state.totalSupply()),
-          state.totalSupply()
+          utilizationInterestRay, MathUtils.min(drawn, state.totalSupply()), state.totalSupply()
         );
       }
     }
     uint256 delinquencyFeeRay = MathUtils.calculateLinearInterestFromBips(
-      cell.options.delinquencyFeeBips,
-      _expectedPenaltyTime(cell.options, state, elapsed)
+      cell.options.delinquencyFeeBips, _expectedPenaltyTime(cell.options, state, elapsed)
     );
-    expectedScaleFactor = uint256(state.scaleFactor).rayMul(
-      RAY + baseInterestRay + delinquencyFeeRay
-    );
+    expectedScaleFactor = uint256(state.scaleFactor).rayMul(RAY + baseInterestRay + delinquencyFeeRay);
   }
 
   function _expectedPenaltyTime(
     MatrixOptions memory options,
     MarketState memory state,
     uint256 elapsed
-  ) private pure returns (uint256) {
+  )
+    private
+    pure
+    returns (uint256)
+  {
     if (state.isDelinquent) {
-      return
-        elapsed.satSub(
-          uint256(options.delinquencyGracePeriod).satSub(uint256(state.timeDelinquent))
-        );
+      return elapsed.satSub(uint256(options.delinquencyGracePeriod).satSub(uint256(state.timeDelinquent)));
     }
-    return
-      MathUtils.min(uint256(state.timeDelinquent).satSub(options.delinquencyGracePeriod), elapsed);
+    return MathUtils.min(uint256(state.timeDelinquent).satSub(options.delinquencyGracePeriod), elapsed);
   }
 
   function _accrueAndCheck(MatrixCell memory cell, uint256 elapsed) internal {
@@ -543,8 +476,7 @@ abstract contract ProductionMatrixFixture is TestKernel {
       if (hooks.isWithdrawalWindowOpen(address(cell.market))) return;
       uint256 windowStart = cell.deployedAt + cell.options.firstWindowDelay;
       if (vm.getBlockTimestamp() >= windowStart) {
-        uint256 periodsElapsed = (vm.getBlockTimestamp() - windowStart) /
-          cell.options.periodDuration;
+        uint256 periodsElapsed = (vm.getBlockTimestamp() - windowStart) / cell.options.periodDuration;
         windowStart += (periodsElapsed + 1) * cell.options.periodDuration;
       }
       vm.warp(windowStart);

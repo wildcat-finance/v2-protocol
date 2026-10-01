@@ -127,7 +127,7 @@ contract Wildcat4626WrapperFactory {
   function wrapperForMarket(address market) public view returns (address wrapper) {
     wrapper = _wrapperForMarket[market];
     if (wrapper != address(0)) return wrapper;
-    (bool declared, ) = _probeRounding(market);
+    (bool declared,) = _probeRounding(market);
     if (declared) return address(0);
     if (address(v1Factory) == address(0)) return address(0);
     return v1Factory.wrapperForMarket(market);

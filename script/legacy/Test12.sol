@@ -14,7 +14,7 @@ key[]
 key => { index, mPointer }
 removeKey (key) {
   index = keysMap[key].index
-  
+
 }
 
 
@@ -108,7 +108,7 @@ To remove an element at index `i`:
   a. Get `tPointerLast = tPointerData + length - 1`
   b. Get `tPointerElement = tPointerData + i`
   c. Copy `tPointerLast` to `tPointerElement`
-  d. 
+  d.
 
 For arrays, the next 16 bits are used to store the length of the array,
 and the remainder
@@ -138,6 +138,7 @@ enum JsonType {
   Object,
   Array
 }
+
 struct JsonValue {
   JsonType t;
   uint index;
@@ -214,8 +215,7 @@ function jsonValueToString(Json value) view returns (string memory str) {
 }
 
 library JsonLib {
-  uint internal constant TSLOT_NEXT_INDEX =
-    uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1;
+  uint internal constant TSLOT_NEXT_INDEX = uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1;
 
   function next() internal returns (Json nextObj) {
     uint t = TSLOT_NEXT_INDEX;
@@ -336,11 +336,7 @@ contract Test12 is Script {
   }
 }
 
-function join(
-  string memory a,
-  string memory b,
-  string memory separator
-) pure returns (string memory) {
+function join(string memory a, string memory b, string memory separator) pure returns (string memory) {
   if (bytes(a).length == 0) return b;
   if (bytes(b).length == 0) return a;
   return string.concat(a, separator, b);
@@ -355,8 +351,8 @@ string constant bashFilePath = 'deployments/write-standard-json.sh';
 library StandardInputJson {
   function checkForBashFile() internal {
     if (!forgeVm.exists(bashFilePath)) {
-      string
-        memory bashFile = 'forge verify-contract --show-standard-json-input 0x0000000000000000000000000000000000000000 $1 > $2 && echo ok';
+      string memory bashFile =
+        'forge verify-contract --show-standard-json-input 0x0000000000000000000000000000000000000000 $1 > $2 && echo ok';
       forgeVm.writeFile(bashFilePath, bashFile);
       console.log(string.concat('Wrote bash file to ', bashFilePath));
     }
@@ -399,8 +395,12 @@ library LibJson {
 
   function serializeArray(
     uint256[] memory arr,
-    function(uint256 /* element */) pure returns (string memory) serializeElement
-  ) internal pure returns (string memory output) {
+    function(uint256) pure returns /* element */ (string memory) serializeElement
+  )
+    internal
+    pure
+    returns (string memory output)
+  {
     output = '[';
     uint256 lastIndex = arr.length - 1;
     for (uint256 i = 0; i < lastIndex; i++) {
@@ -409,10 +409,7 @@ library LibJson {
     output = string.concat(output, serializeElement(arr[lastIndex]), ']');
   }
 
-  function serializeObject(
-    string[] memory keys,
-    string[] memory values
-  ) internal pure returns (string memory output) {
+  function serializeObject(string[] memory keys, string[] memory values) internal pure returns (string memory output) {
     output = '{';
     uint256 lastIndex = keys.length - 1;
     for (uint256 i = 0; i < lastIndex; i++) {
@@ -476,14 +473,9 @@ library LibJson {
   }
 
   function serializeBoolArray(bool[] memory arr) internal pure returns (string memory) {
-    function(uint256[] memory, function(uint256) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) _fn = serializeArray;
-    function(bool[] memory, function(bool) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) fn;
+    function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
+      _fn = serializeArray;
+    function(bool[] memory, function(bool) pure returns (string memory)) internal pure returns (string memory) fn;
     assembly {
       fn := _fn
     }
@@ -495,14 +487,9 @@ library LibJson {
   }
 
   function serializeInt256Array(int256[] memory arr) internal pure returns (string memory) {
-    function(uint256[] memory, function(uint256) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) _fn = serializeArray;
-    function(int256[] memory, function(int256) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) fn;
+    function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
+      _fn = serializeArray;
+    function(int256[] memory, function(int256) pure returns (string memory)) internal pure returns (string memory) fn;
     assembly {
       fn := _fn
     }
@@ -510,14 +497,9 @@ library LibJson {
   }
 
   function serializeAddressArray(address[] memory arr) internal pure returns (string memory) {
-    function(uint256[] memory, function(uint256) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) _fn = serializeArray;
-    function(address[] memory, function(address) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) fn;
+    function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
+      _fn = serializeArray;
+    function(address[] memory, function(address) pure returns (string memory)) internal pure returns (string memory) fn;
     assembly {
       fn := _fn
     }
@@ -525,14 +507,9 @@ library LibJson {
   }
 
   function serializeBytes32Array(bytes32[] memory arr) internal pure returns (string memory) {
-    function(uint256[] memory, function(uint256) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) _fn = serializeArray;
-    function(bytes32[] memory, function(bytes32) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) fn;
+    function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
+      _fn = serializeArray;
+    function(bytes32[] memory, function(bytes32) pure returns (string memory)) internal pure returns (string memory) fn;
     assembly {
       fn := _fn
     }
@@ -540,14 +517,11 @@ library LibJson {
   }
 
   function serializeStringArray(string[] memory arr) internal pure returns (string memory) {
-    function(uint256[] memory, function(uint256) pure returns (string memory))
-      internal
-      pure
-      returns (string memory) _fn = serializeArray;
+    function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
+      _fn = serializeArray;
     function(string[] memory, function(string memory) pure returns (string memory))
       internal
-      pure
-      returns (string memory) fn;
+      pure returns (string memory) fn;
     assembly {
       fn := _fn
     }
@@ -578,9 +552,7 @@ library LibStringStub {
       // The following is essentially a do-while loop that also handles the zero case.
       for {
         let temp := value
-      } 1 {
-
-      } {
+      } 1 { } {
         str := add(str, w) // `sub(str, 1)`.
         // Write the character to the pointer.
         // The ASCII index of the '0' character is 48.
@@ -660,9 +632,7 @@ library LibStringStub {
       // The following is essentially a do-while loop that also handles the zero case.
       for {
         let temp := value
-      } 1 {
-
-      } {
+      } 1 { } {
         str := add(str, w) // `sub(str, 2)`.
         mstore8(add(str, 1), mload(and(temp, 15)))
         mstore8(str, mload(and(shr(4, temp), 15)))
@@ -721,9 +691,7 @@ library LibStringStub {
       // The following is essentially a do-while loop that also handles the zero case.
       for {
         let i := 0
-      } 1 {
-
-      } {
+      } 1 { } {
         let p := add(o, add(i, i))
         let temp := byte(i, value)
         mstore8(add(p, 1), mload(and(temp, 15)))
@@ -764,11 +732,7 @@ library LibStringStub {
       let o := add(str, 0x20)
       let end := add(raw, length)
 
-      for {
-
-      } iszero(eq(raw, end)) {
-
-      } {
+      for { } iszero(eq(raw, end)) { } {
         raw := add(raw, 1)
         mstore8(add(o, 1), mload(and(mload(raw), 15)))
         mstore8(o, mload(and(shr(4, mload(raw)), 15)))

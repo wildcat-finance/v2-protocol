@@ -21,8 +21,7 @@ import { console } from 'forge-std/console.sol';
 import '../../common/DeployScriptBase.sol';
 
 contract DeployWrapperFactoryV25 is V25DeployScriptBase {
-  string internal constant FACTORY_ARTIFACT =
-    'src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory';
+  string internal constant FACTORY_ARTIFACT = 'src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory';
   string internal constant FACTORY_ENTRY_ID = 'deploy-wildcat-4626-wrapper-factory';
   string internal constant FACTORY_OUTPUT = 'wildcat-4626-wrapper-factory';
 
@@ -31,46 +30,25 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
     string memory label,
     address archController,
     address v1Factory
-  ) internal view {
-    _verifyAddressCall(
-      factory,
-      label,
-      'archController',
-      abi.encodeWithSignature('archController()'),
-      archController
-    );
-    _verifyAddressCall(
-      factory,
-      label,
-      'v1Factory',
-      abi.encodeWithSignature('v1Factory()'),
-      v1Factory
-    );
+  )
+    internal
+    view
+  {
+    _verifyAddressCall(factory, label, 'archController', abi.encodeWithSignature('archController()'), archController);
+    _verifyAddressCall(factory, label, 'v1Factory', abi.encodeWithSignature('v1Factory()'), v1Factory);
   }
 
-  function _writePlanEntry(
-    Deployments memory deployments,
-    address archController,
-    address v1Factory
-  ) internal {
+  function _writePlanEntry(Deployments memory deployments, address archController, address v1Factory) internal {
     DeployPlanEntry memory entry;
     entry.sequence = 1;
     entry.id = FACTORY_ENTRY_ID;
     entry.artifactName = FACTORY_ARTIFACT;
-    entry.decodedConstructorArgs = string.concat(
-      '[',
-      _quoted(vm.toString(archController)),
-      ',',
-      _quoted(vm.toString(v1Factory)),
-      ']'
-    );
+    entry.decodedConstructorArgs =
+      string.concat('[', _quoted(vm.toString(archController)), ',', _quoted(vm.toString(v1Factory)), ']');
     entry.output = FACTORY_OUTPUT;
     entry.description = 'Deploy the v2.5 ERC-4626 wrapper factory facade.';
     entry.predicate = _planCallEqPredicate(
-      FACTORY_OUTPUT,
-      'v1Factory() view returns (address)',
-      '[]',
-      _quoted(vm.toString(v1Factory))
+      FACTORY_OUTPUT, 'v1Factory() view returns (address)', '[]', _quoted(vm.toString(v1Factory))
     );
     entry.afterEntries = new string[](0);
     _planEntry(deployments, entry);
@@ -82,10 +60,10 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
     string memory label,
     address factory,
     address v1Factory
-  ) internal {
-    string memory v1FactoryJson = v1Factory == address(0)
-      ? 'null'
-      : _quoted(vm.toString(v1Factory));
+  )
+    internal
+  {
+    string memory v1FactoryJson = v1Factory == address(0) ? 'null' : _quoted(vm.toString(v1Factory));
     string memory recordJson = string.concat(
       '{"recordType":"wrapperFactory","network":',
       _quoted(networkName),
@@ -106,11 +84,11 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
     Deployments memory deployments,
     string memory networkName,
     address v1Factory
-  ) internal {
+  )
+    internal
+  {
     string memory label = _label('Wildcat4626WrapperFactory');
-    string memory v1FactoryJson = v1Factory == address(0)
-      ? 'null'
-      : _quoted(vm.toString(v1Factory));
+    string memory v1FactoryJson = v1Factory == address(0) ? 'null' : _quoted(vm.toString(v1Factory));
     string memory recordJson = string.concat(
       '{"recordType":"wrapperFactory","network":',
       _quoted(networkName),
@@ -130,11 +108,7 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
   function run() external {
     string memory ownerMode = _ownerMode();
     (Deployments memory deployments, string memory networkName) = _resolveDeployments();
-    address archController = _resolveExisting(
-      deployments,
-      'WildcatArchController',
-      'ARCH_CONTROLLER'
-    );
+    address archController = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
     address v1Factory = _resolveV1WrapperFactory(deployments);
 
     if (_isPlanMode(ownerMode)) {
@@ -147,11 +121,7 @@ contract DeployWrapperFactoryV25 is V25DeployScriptBase {
     string memory label = _label('Wildcat4626WrapperFactory');
     bytes memory constructorArgs = abi.encode(archController, v1Factory);
     (address factory, bool didDeploy) = _getOrDeployByLabel(
-      deployments,
-      label,
-      FACTORY_ARTIFACT,
-      _getCreationCode(deployments, FACTORY_ARTIFACT),
-      constructorArgs
+      deployments, label, FACTORY_ARTIFACT, _getCreationCode(deployments, FACTORY_ARTIFACT), constructorArgs
     );
     _verifyFactory(factory, label, archController, v1Factory);
     console.log(string.concat('Found and fully verified ', label, ' at'), factory);

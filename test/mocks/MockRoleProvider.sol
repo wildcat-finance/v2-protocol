@@ -43,10 +43,7 @@ contract MockRoleProvider is IRoleProvider {
     return credentialsByAccount[account];
   }
 
-  function validateCredential(
-    address,
-    bytes calldata data
-  ) external view override returns (uint32 timestamp) {
+  function validateCredential(address, bytes calldata data) external view override returns (uint32 timestamp) {
     if (callShouldRevert) revert BadCredential();
     if (callShouldReturnCorruptedData) {
       assembly {

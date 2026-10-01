@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegistry.sol';
 
-contract BorrowerIdentityAccountMock {}
+contract BorrowerIdentityAccountMock { }
 
 contract BorrowerIdentityAccountFactoryMock {
   IBorrowerIdentityRegistry public immutable registry;

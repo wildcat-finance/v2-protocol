@@ -35,7 +35,9 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
     string memory factoryOutput,
     string memory afterEntry,
     string memory description
-  ) internal {
+  )
+    internal
+  {
     string[] memory afterEntries = new string[](1);
     afterEntries[0] = afterEntry;
     CallPlanEntry memory entry;
@@ -67,12 +69,8 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
 
   function run() external {
     string memory ownerMode = _ownerMode();
-    (Deployments memory deployments, ) = _resolveDeployments();
-    address archControllerAddress = _resolveExisting(
-      deployments,
-      'WildcatArchController',
-      'ARCH_CONTROLLER'
-    );
+    (Deployments memory deployments,) = _resolveDeployments();
+    address archControllerAddress = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
 
     if (_isPlanMode(ownerMode)) {
       _writePlanEntry(
@@ -111,8 +109,8 @@ contract RegisterFactoriesV25 is V25DeployScriptBase {
       _registerRevolving(deployments, revolvingFactory);
     }
     if (
-      !archController.isRegisteredController(standardFactory) ||
-      !archController.isRegisteredController(revolvingFactory)
+      !archController.isRegisteredController(standardFactory)
+        || !archController.isRegisteredController(revolvingFactory)
     ) revert('Factory controller registration failed');
   }
 }

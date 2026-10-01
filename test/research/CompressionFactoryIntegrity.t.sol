@@ -33,15 +33,12 @@ contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
     ProductionStack memory stack,
     MatrixOptions memory options,
     uint96 nonce
-  ) internal returns (DeploymentObservation memory result) {
+  )
+    internal
+    returns (DeploymentObservation memory result)
+  {
     vm.recordLogs();
-    MatrixCell memory cell = _deployMatrixCell(
-      stack,
-      options,
-      MatrixBorrower,
-      MatrixBorrower,
-      nonce
-    );
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
     result.market = address(cell.market);
     result.hooks = address(cell.hooks);
     result.marketRuntime = result.market.codehash;
@@ -54,18 +51,11 @@ contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
     ProductionStack memory stack = _deployProductionStack();
     for (uint256 model; model < 2; ++model) {
       for (uint256 policy; policy < 3; ++policy) {
-        MatrixOptions memory options = _defaultMatrixOptions(
-          MatrixHooksKind(policy),
-          MatrixMarketKind(model)
-        );
+        MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(policy), MatrixMarketKind(model));
         options.repaymentDate = uint32(vm.getBlockTimestamp() + 90 days);
         options.repaymentPeriod = 7 days;
         uint256 snapshot = vm.snapshot();
-        DeploymentObservation memory compressed = _observe(
-          stack,
-          options,
-          uint96(100 + model * 3 + policy)
-        );
+        DeploymentObservation memory compressed = _observe(stack, options, uint96(100 + model * 3 + policy));
         assertTrue(vm.revertToAndDelete(snapshot));
         // keep addresses and immutables identical. the raw oracle is deliberately etched:
         // market initcode exceeds the raw storage cap. the separate real-limit tests never etch.
@@ -75,16 +65,8 @@ contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
         bytes memory savedTemplate = template.code;
         vm.etch(marketStore, bytes.concat(hex'00', LibStoredInitCode.getInitCode(marketStore)));
         vm.etch(template, bytes.concat(hex'00', LibStoredInitCode.getInitCode(template)));
-        DeploymentObservation memory raw = _observe(
-          stack,
-          options,
-          uint96(100 + model * 3 + policy)
-        );
-        assertEq(
-          abi.encode(raw),
-          abi.encode(compressed),
-          'same addresses, runtimes, initial state and events'
-        );
+        DeploymentObservation memory raw = _observe(stack, options, uint96(100 + model * 3 + policy));
+        assertEq(abi.encode(raw), abi.encode(compressed), 'same addresses, runtimes, initial state and events');
         vm.etch(marketStore, savedMarketStore);
         vm.etch(template, savedTemplate);
       }
@@ -109,42 +91,19 @@ contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
     vm.prank(MatrixBorrower);
     attempt.hooks = attempt.factory.deployHooksInstance(stack.hooksTemplates[0], '');
     HooksDeploymentConfig config = IHooks(attempt.hooks).config();
-    attempt.flags = config.optionalFlags().setHooksAddress(attempt.hooks).mergeAllFlags(
-      config.requiredFlags()
-    );
+    attempt.flags = config.optionalFlags().setHooksAddress(attempt.hooks).mergeAllFlags(config.requiredFlags());
     attempt.salt = _marketSalt(MatrixBorrower, uint96(500 + uint256(model)));
     attempt.expected = attempt.factory.computeMarketAddress(attempt.salt);
     attempt.nonce = vm.getNonce(address(attempt.factory));
     vm.expectRevert(IHooksFactoryEventsAndErrors.MarketDeploymentAddressMismatch.selector);
-    _deployMatrixCell(
-      stack,
-      options,
-      MatrixBorrower,
-      MatrixBorrower,
-      uint96(500 + uint256(model)),
-      attempt.flags
-    );
+    _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(500 + uint256(model)), attempt.flags);
     assertEq(attempt.expected.code.length, 0);
-    assertEq(
-      vm.getNonce(address(attempt.factory)),
-      attempt.nonce,
-      'failed deployment rolls back nonce'
-    );
-    assertEq(
-      attempt.factory.getMarketsForHooksInstance(attempt.hooks).length,
-      0,
-      'registration rolls back'
-    );
+    assertEq(vm.getNonce(address(attempt.factory)), attempt.nonce, 'failed deployment rolls back nonce');
+    assertEq(attempt.factory.getMarketsForHooksInstance(attempt.hooks).length, 0, 'registration rolls back');
     vm.etch(attempt.store, attempt.original);
     // the reverted onCreateMarket callback must not poison the next valid deployment.
-    MatrixCell memory recovered = _deployMatrixCell(
-      stack,
-      options,
-      MatrixBorrower,
-      MatrixBorrower,
-      uint96(500 + uint256(model)),
-      attempt.flags
-    );
+    MatrixCell memory recovered =
+      _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(500 + uint256(model)), attempt.flags);
     assertEq(address(recovered.market), attempt.expected);
   }
 }
@@ -170,28 +129,12 @@ contract CompressionHookArgsTest is SingleStorageDeploymentFixture {
 
   function setUp() external {
     _stack = _deployProductionStack();
-    _probeCode = vm.getCode(
-      'test/research/CompressionFactoryIntegrity.t.sol:CompressionHookConstructorProbe'
-    );
+    _probeCode = vm.getCode('test/research/CompressionFactoryIntegrity.t.sol:CompressionHookConstructorProbe');
     _probeStore = LibCompressedInitCode.deployInitCode(_probeCode);
-    _stack.standardFactory.addHooksTemplate(
-      _probeStore,
-      'constructor probe',
-      address(0),
-      address(0),
-      0,
-      0,
-      keccak256(_probeCode)
-    );
-    _stack.revolvingFactory.addHooksTemplate(
-      _probeStore,
-      'constructor probe',
-      address(0),
-      address(0),
-      0,
-      0,
-      keccak256(_probeCode)
-    );
+    _stack.standardFactory
+      .addHooksTemplate(_probeStore, 'constructor probe', address(0), address(0), 0, 0, keccak256(_probeCode));
+    _stack.revolvingFactory
+      .addHooksTemplate(_probeStore, 'constructor probe', address(0), address(0), 0, 0, keccak256(_probeCode));
   }
 
   function testFuzz_factoryConstructorArgumentsAndAddress(bytes memory data) external {
@@ -205,12 +148,8 @@ contract CompressionHookArgsTest is SingleStorageDeploymentFixture {
     bytes32 salt = bytes32((uint256(uint160(MatrixBorrower)) << 96) | nonce);
     // the factory appends the administrator, offset, byte length and exact bytes without
     // padding the final word. keep that existing CREATE2 identity at every data length.
-    bytes32 initHash = keccak256(
-      bytes.concat(_probeCode, abi.encode(MatrixBorrower, uint256(64), data.length), data)
-    );
-    address expected = address(
-      uint160(uint256(keccak256(abi.encodePacked(hex'ff', address(factory), salt, initHash))))
-    );
+    bytes32 initHash = keccak256(bytes.concat(_probeCode, abi.encode(MatrixBorrower, uint256(64), data.length), data));
+    address expected = address(uint160(uint256(keccak256(abi.encodePacked(hex'ff', address(factory), salt, initHash)))));
     uint256 snapshot = vm.snapshot();
     vm.prank(MatrixBorrower);
     address compressed = factory.deployHooksInstance(_probeStore, data);

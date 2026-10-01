@@ -102,29 +102,25 @@ abstract contract FixedTermPolicy is BaseHooks {
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal virtual override returns (HooksConfig marketHooksConfig) {
+  )
+    internal
+    virtual
+    override
+    returns (HooksConfig marketHooksConfig)
+  {
     if (hooksData.length < 32) revert FixedTermNotProvided();
     uint32 fixedTermEndTime = _readUint32Cd(hooksData);
-    if (
-      fixedTermEndTime < block.timestamp || (fixedTermEndTime - block.timestamp) > MaximumLoanTerm
-    ) {
+    if (fixedTermEndTime < block.timestamp || (fixedTermEndTime - block.timestamp) > MaximumLoanTerm) {
       revert InvalidFixedTerm();
     }
-    if (parameters.repaymentDate != 0 && parameters.repaymentDate < fixedTermEndTime)
+    if (parameters.repaymentDate != 0 && parameters.repaymentDate < fixedTermEndTime) {
       revert RepaymentBeforeMaturity();
+    }
     emit FixedTermUpdated(marketAddress, administrator_, 0, fixedTermEndTime);
 
-    (
-      AccessConfig memory access,
-      bool depositHookEnabled,
-      HooksConfig effective
-    ) = _configureMarketAccess(
-        administrator_,
-        marketAddress,
-        parameters.hooks,
-        _readUint128Cd(hooksData, 0x20),
-        _readBoolCd(hooksData, 0x40)
-      );
+    (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective) = _configureMarketAccess(
+      administrator_, marketAddress, parameters.hooks, _readUint128Cd(hooksData, 0x20), _readBoolCd(hooksData, 0x40)
+    );
     _depositHookEnabled[marketAddress] = depositHookEnabled;
     _hookedMarkets[marketAddress] = HookedMarket({
       isHooked: access.isHooked,
@@ -144,19 +140,16 @@ abstract contract FixedTermPolicy is BaseHooks {
   //                              Market Management                             //
   // ========================================================================== //
 
-  function _readAccessConfig(
-    address market
-  ) internal view virtual override returns (AccessConfig memory) {
+  function _readAccessConfig(address market) internal view virtual override returns (AccessConfig memory) {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
-    return
-      AccessConfig({
-        isHooked: hookedMarket.isHooked,
-        transferRequiresAccess: hookedMarket.transferRequiresAccess,
-        depositRequiresAccess: hookedMarket.depositRequiresAccess,
-        withdrawalRequiresAccess: hookedMarket.withdrawalRequiresAccess,
-        minimumDeposit: hookedMarket.minimumDeposit,
-        transfersDisabled: hookedMarket.transfersDisabled
-      });
+    return AccessConfig({
+      isHooked: hookedMarket.isHooked,
+      transferRequiresAccess: hookedMarket.transferRequiresAccess,
+      depositRequiresAccess: hookedMarket.depositRequiresAccess,
+      withdrawalRequiresAccess: hookedMarket.withdrawalRequiresAccess,
+      minimumDeposit: hookedMarket.minimumDeposit,
+      transfersDisabled: hookedMarket.transfersDisabled
+    });
   }
 
   function _isDepositHookEnabled(address market) internal view virtual override returns (bool) {
@@ -169,14 +162,12 @@ abstract contract FixedTermPolicy is BaseHooks {
 
   /// @notice moves a hooked market's maturity earlier when term reduction was enabled at creation.
   /// @dev the new time may be now or in the past. maturity can never be extended.
-  function setFixedTermEndTime(
-    address market,
-    uint32 newFixedTermEndTime
-  ) external onlyAdministrator {
+  function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     if (!hookedMarket.isHooked) revert NotHookedMarket();
-    if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime)
+    if (!hookedMarket.allowTermReduction && newFixedTermEndTime <= hookedMarket.fixedTermEndTime) {
       revert TermReductionDisabled();
+    }
     if (newFixedTermEndTime > hookedMarket.fixedTermEndTime) revert IncreaseFixedTerm();
     uint32 previousFixedTermEndTime = hookedMarket.fixedTermEndTime;
     _validateFixedTermChange(market, previousFixedTermEndTime, newFixedTermEndTime);
@@ -188,20 +179,12 @@ abstract contract FixedTermPolicy is BaseHooks {
   /// @dev `setFixedTermEndTime` has passed its native checks; stored maturity is still
   ///      `previousTime`. add restrictions here before writing `newTime`.
   ///      creation and early closure use `_onMarketConfigured` and the closure helpers instead.
-  function _validateFixedTermChange(
-    address market,
-    uint32 previousTime,
-    uint32 newTime
-  ) internal view virtual {}
+  function _validateFixedTermChange(address market, uint32 previousTime, uint32 newTime) internal view virtual { }
 
   /// @dev stored maturity is now `newTime` and `FixedTermUpdated` has been emitted.
   ///      reverting rolls back the maturity, event, and any feature state written here.
   ///      this runs only from `setFixedTermEndTime`, not creation or early closure.
-  function _afterFixedTermChange(
-    address market,
-    uint32 previousTime,
-    uint32 newTime
-  ) internal virtual {}
+  function _afterFixedTermChange(address market, uint32 previousTime, uint32 newTime) internal virtual { }
 
   // ========================================================================== //
   //                                    Hooks                                   //
@@ -214,15 +197,18 @@ abstract contract FixedTermPolicy is BaseHooks {
     uint256,
     MarketState calldata,
     bytes calldata
-  ) internal view virtual override {
-    if (_hookedMarkets[msg.sender].fixedTermEndTime > block.timestamp)
+  )
+    internal
+    view
+    virtual
+    override
+  {
+    if (_hookedMarkets[msg.sender].fixedTermEndTime > block.timestamp) {
       revert WithdrawBeforeTermEnd();
+    }
   }
 
-  function _validateCloseMarket(
-    MarketState calldata,
-    bytes calldata
-  ) internal view virtual override {
+  function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
     _validateFixedCloseMarket();
   }
 
@@ -247,12 +233,7 @@ abstract contract FixedTermPolicy is BaseHooks {
     if (block.timestamp < market.fixedTermEndTime) {
       uint32 previousFixedTermEndTime = market.fixedTermEndTime;
       market.fixedTermEndTime = uint32(block.timestamp);
-      emit FixedTermUpdated(
-        msg.sender,
-        msg.sender,
-        previousFixedTermEndTime,
-        market.fixedTermEndTime
-      );
+      emit FixedTermUpdated(msg.sender, msg.sender, previousFixedTermEndTime, market.fixedTermEndTime);
     }
   }
 
@@ -265,22 +246,23 @@ abstract contract FixedTermPolicy is BaseHooks {
     uint16,
     MarketState calldata intermediateState,
     bytes calldata
-  ) internal virtual override returns (uint16 effectiveApr, uint16 effectiveReserve) {
+  )
+    internal
+    virtual
+    override
+    returns (uint16 effectiveApr, uint16 effectiveReserve)
+  {
     _validateFixedAprUpdate(annualInterestBips, intermediateState);
     return _applyDefaultAprUpdate(annualInterestBips, intermediateState);
   }
 
   /// @dev no registration check here: the existing APR callback accepts unknown callers.
-  function _validateFixedAprUpdate(
-    uint16 annualInterestBips,
-    MarketState calldata intermediateState
-  ) internal view {
+  function _validateFixedAprUpdate(uint16 annualInterestBips, MarketState calldata intermediateState) internal view {
     HookedMarket storage hookedMarket = _hookedMarkets[msg.sender];
 
     /* Revert if market is still in fixed term and new APR is lower than it was */
     if (
-      (hookedMarket.fixedTermEndTime > block.timestamp) &&
-      (annualInterestBips < intermediateState.annualInterestBips)
+      (hookedMarket.fixedTermEndTime > block.timestamp) && (annualInterestBips < intermediateState.annualInterestBips)
     ) {
       revert NoReducingAprBeforeTermEnd();
     }

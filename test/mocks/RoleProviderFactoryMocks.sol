@@ -4,10 +4,7 @@ pragma solidity 0.8.25;
 import { IRoleProviderFactory } from 'src/access/IRoleProviderFactory.sol';
 
 contract RoleProviderFactoryCaller {
-  function createRoleProvider(
-    address factory,
-    bytes calldata data
-  ) external returns (address provider) {
+  function createRoleProvider(address factory, bytes calldata data) external returns (address provider) {
     return IRoleProviderFactory(factory).createRoleProvider(data);
   }
 }

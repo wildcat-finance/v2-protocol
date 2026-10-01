@@ -34,11 +34,7 @@ library LibSplitInitCode {
     return initCode.length < capacity ? initCode.length : capacity;
   }
 
-  function _slice(
-    bytes memory original,
-    uint256 offset,
-    uint256 length
-  ) private pure returns (bytes memory result) {
+  function _slice(bytes memory original, uint256 offset, uint256 length) private pure returns (bytes memory result) {
     result = new bytes(length);
     assembly ('memory-safe') {
       mcopy(add(result, 0x20), add(add(original, 0x20), offset), length)
@@ -50,24 +46,18 @@ library LibSplitInitCode {
     return bytes.concat(hex'00', _slice(initCode, firstLength, initCode.length - firstLength));
   }
 
-  function getPrimaryRuntime(
-    bytes memory initCode,
-    address secondary
-  ) internal pure returns (bytes memory) {
+  function getPrimaryRuntime(bytes memory initCode, address secondary) internal pure returns (bytes memory) {
     uint256 firstLength = _firstLength(initCode);
-    return
-      abi.encodePacked(
-        type(SplitInitCodeReader).runtimeCode,
-        _slice(initCode, 0, firstLength),
-        bytes20(secondary),
-        bytes2(uint16(firstLength)),
-        bytes2(uint16(initCode.length - firstLength))
-      );
+    return abi.encodePacked(
+      type(SplitInitCodeReader).runtimeCode,
+      _slice(initCode, 0, firstLength),
+      bytes20(secondary),
+      bytes2(uint16(firstLength)),
+      bytes2(uint16(initCode.length - firstLength))
+    );
   }
 
-  function deployInitCode(
-    bytes memory initCode
-  ) internal returns (address primary, address secondary) {
+  function deployInitCode(bytes memory initCode) internal returns (address primary, address secondary) {
     secondary = _deployRuntime(getSecondaryRuntime(initCode));
     primary = _deployRuntime(getPrimaryRuntime(initCode, secondary));
   }

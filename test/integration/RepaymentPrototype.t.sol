@@ -23,23 +23,13 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     stack = _deployProductionStack();
   }
 
-  function _cell(
-    MatrixMarketKind model,
-    uint32 date,
-    uint32 period
-  ) private returns (MatrixCell memory cell) {
+  function _cell(MatrixMarketKind model, uint32 date, uint32 period) private returns (MatrixCell memory cell) {
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, model);
     options.annualInterestBips = 0;
     options.commitmentFeeBips = 0;
     options.repaymentDate = date;
     options.repaymentPeriod = period;
-    cell = _deployMatrixCell(
-      stack,
-      options,
-      MatrixBorrower,
-      MatrixBorrower,
-      uint96(1 + uint256(model))
-    );
+    cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(1 + uint256(model)));
     _authorize(stack, cell, MatrixAlice);
     _authorize(stack, cell, MatrixBob);
     _approveBorrower(stack, cell, 1_000_000e18);
@@ -53,22 +43,13 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
   function test_AllFourAccrualIntervalsPreserveViewsAndEventChronology() public {
     for (uint256 model; model < 2; ++model) {
       uint256 start = vm.getBlockTimestamp();
-      MatrixOptions memory options = _defaultMatrixOptions(
-        MatrixHooksKind.OpenTerm,
-        MatrixMarketKind(model)
-      );
+      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind(model));
       options.annualInterestBips = 0;
       options.commitmentFeeBips = 0;
       options.withdrawalBatchDuration = 2 days;
       options.repaymentDate = uint32(start + 1 days);
       options.repaymentPeriod = 2 days;
-      MatrixCell memory cell = _deployMatrixCell(
-        stack,
-        options,
-        MatrixBorrower,
-        MatrixBorrower,
-        uint96(100 + model)
-      );
+      MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(100 + model));
       _authorize(stack, cell, MatrixAlice);
       _fundAndDraw(cell);
       vm.prank(MatrixAlice);
@@ -81,43 +62,29 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
       cell.market.updateState();
       Vm.Log[] memory logs = vm.getRecordedLogs();
       uint256 intervals;
-      bytes32 topic = keccak256(
-        'InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)'
-      );
+      bytes32 topic = keccak256('InterestAndFeesAccrued(uint256,uint256,uint256,uint256,uint256,uint256)');
       for (uint256 i; i < logs.length; ++i) {
         if (logs[i].emitter == address(cell.market) && logs[i].topics[0] == topic) {
-          (uint256 from, uint256 to, , , , ) = abi.decode(
-            logs[i].data,
-            (uint256, uint256, uint256, uint256, uint256, uint256)
-          );
+          (uint256 from, uint256 to,,,,) =
+            abi.decode(logs[i].data, (uint256, uint256, uint256, uint256, uint256, uint256));
           assertEq(from, start + intervals * 1 days, 'interval start');
           assertEq(to, start + (++intervals) * 1 days, 'interval end');
         }
       }
       assertEq(intervals, 4, 'repayment, expiry, deadline, now');
-      assertEq(
-        keccak256(abi.encode(cell.market.previousState())),
-        expectedState,
-        'view/write parity'
-      );
+      assertEq(keccak256(abi.encode(cell.market.previousState())), expectedState, 'view/write parity');
       assertEq(cell.market.defaultedAt(), start + 3 days, 'historical deadline');
     }
   }
 
   function test_ProductionArtifactsFitActualCodeStorageAndRuntimeLimits() public {
-    string[2] memory artifacts = [
-      'src/market/WildcatMarket.sol:WildcatMarket',
-      'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
-    ];
+    string[2] memory artifacts =
+      ['src/market/WildcatMarket.sol:WildcatMarket', 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'];
     for (uint256 i; i < artifacts.length; i++) {
       bytes memory creation = vm.getCode(artifacts[i]);
       uint64 nonce = vm.getNonce(address(this));
       (address stored, uint256 initCodeHash) = _storeInitCode(artifacts[i]);
-      assertEq(
-        vm.getNonce(address(this)),
-        nonce + (creation.length <= 24_575 ? 1 : 2),
-        'selected storage count'
-      );
+      assertEq(vm.getNonce(address(this)), nonce + (creation.length <= 24_575 ? 1 : 2), 'selected storage count');
       assertEq(initCodeHash, uint256(keccak256(creation)), 'original creation hash');
       assertTrue(creation.length <= 49_152, 'creation payload limit');
       assertTrue(stored.code.length <= 24_576, 'stored image must fit EIP-170');
@@ -125,10 +92,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
         stored.code,
         creation.length + 1 <= 24_576
           ? abi.encodePacked(hex'00', creation)
-          : LibSplitInitCode.getPrimaryRuntime(
-            creation,
-            LibSplitInitCode.getSecondaryAddress(stored)
-          ),
+          : LibSplitInitCode.getPrimaryRuntime(creation, LibSplitInitCode.getSecondaryAddress(stored)),
         'actual stored image'
       );
       assertEq(LibStoredInitCode.getInitCode(stored), creation, 'decoded creation code');
@@ -140,17 +104,10 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     for (uint256 model; model < 2; model++) {
       for (uint256 policy; policy < 3; policy++) {
         for (uint256 enabled; enabled < 2; enabled++) {
-          MatrixOptions memory options = _defaultMatrixOptions(
-            MatrixHooksKind(policy),
-            MatrixMarketKind(model)
-          );
+          MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(policy), MatrixMarketKind(model));
           options.repaymentDate = enabled == 0 ? 0 : uint32(vm.getBlockTimestamp() + 90 days);
           MatrixCell memory cell = _deployMatrixCell(
-            stack,
-            options,
-            MatrixBorrower,
-            MatrixBorrower,
-            uint96(1 + model * 6 + policy * 2 + enabled)
+            stack, options, MatrixBorrower, MatrixBorrower, uint96(1 + model * 6 + policy * 2 + enabled)
           );
           assertEq(cell.market.repaymentDate(), options.repaymentDate, 'date');
           assertEq(cell.market.repaymentPeriod(), 0, 'zero period');
@@ -175,11 +132,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     revolving.market.updateState();
     assertEq(standard.market.defaultedAt(), 0, 'standard cured at cutoff');
     assertEq(revolving.market.defaultedAt(), 0, 'revolving cured at cutoff');
-    assertEq(
-      IWildcatMarketRevolving(address(revolving.market)).drawnAmount(),
-      0,
-      'closed principal'
-    );
+    assertEq(IWildcatMarketRevolving(address(revolving.market)).drawnAmount(), 0, 'closed principal');
   }
 
   function _sameBlockCure(MatrixCell memory cell) private {
@@ -216,10 +169,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
   }
 
   function test_RepaymentOpensPeriodicQueueButKeepsBatchExpiry() public {
-    MatrixOptions memory options = _defaultMatrixOptions(
-      MatrixHooksKind.PeriodicTerm,
-      MatrixMarketKind.Standard
-    );
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind.Standard);
     options.annualInterestBips = 0;
     options.delinquencyFeeBips = 0;
     options.repaymentDate = uint32(vm.getBlockTimestamp() + 1 days);
@@ -241,19 +191,11 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     cell.market.depositUpTo(1);
     vm.prank(MatrixAlice);
     uint32 expiry = cell.market.queueFullWithdrawal();
-    assertEq(
-      expiry,
-      uint256(options.repaymentDate) + options.withdrawalBatchDuration,
-      'normal batch duration'
-    );
+    assertEq(expiry, uint256(options.repaymentDate) + options.withdrawalBatchDuration, 'normal batch duration');
     vm.expectRevert(IMarketEventsAndErrors.WithdrawalBatchNotExpired.selector);
     cell.market.executeWithdrawal(MatrixAlice, expiry);
     vm.warp(uint256(expiry) + 1);
-    assertEq(
-      cell.market.executeWithdrawal(MatrixAlice, expiry),
-      200e18,
-      'allocated claim collectible'
-    );
+    assertEq(cell.market.executeWithdrawal(MatrixAlice, expiry), 200e18, 'allocated claim collectible');
     assertFalse(cell.market.isClosed(), 'unpaid debt remains open');
   }
 
@@ -329,10 +271,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
   }
 
   function test_PeriodicViewsObserveAutomaticClosureAndRetireProposal() public {
-    MatrixOptions memory options = _defaultMatrixOptions(
-      MatrixHooksKind.PeriodicTerm,
-      MatrixMarketKind.Standard
-    );
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind.Standard);
     options.repaymentDate = uint32(vm.getBlockTimestamp() + 70 days);
     options.repaymentPeriod = 7 days;
     MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 9);
@@ -347,7 +286,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     assertTrue(cell.market.isClosed(), 'live closure before write');
     assertTrue(hooks.getHookedMarket(address(cell.market)).isClosed, 'effective hook closure');
     assertTrue(hooks.isWithdrawalWindowOpen(address(cell.market)), 'closure opens schedule');
-    (PendingAprChange memory proposal, , ) = hooks.getPendingAprChange(address(cell.market));
+    (PendingAprChange memory proposal,,) = hooks.getPendingAprChange(address(cell.market));
     assertEq(proposal.proposalTimestamp, 0, 'closed proposal hidden');
     vm.prank(MatrixBorrower);
     vm.expectRevert(PeriodicTermPolicy.AprReductionProposalOnClosedMarket.selector);
@@ -361,11 +300,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     uint32 period = uint32(bound(rawPeriod, 0, 90 days));
     uint32 date = uint32(vm.getBlockTimestamp() + 1 days);
     uint256 cutoff = uint256(date) + period;
-    MatrixCell memory cell = _cell(
-      revolving ? MatrixMarketKind.Revolving : MatrixMarketKind.Standard,
-      date,
-      period
-    );
+    MatrixCell memory cell = _cell(revolving ? MatrixMarketKind.Revolving : MatrixMarketKind.Standard, date, period);
     _fundAndDraw(cell);
     vm.warp(cutoff);
     cell.market.updateState();
@@ -395,10 +330,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     vm.warp(cureAt + 1);
     cell.market.updateState();
     assertEq(cell.market.previousState().timeDelinquent, timer - 1, 'normal healthy decay');
-    assertTrue(
-      cell.market.previousState().isDelinquent,
-      'healthy-tail fees create a new shortfall'
-    );
+    assertTrue(cell.market.previousState().isDelinquent, 'healthy-tail fees create a new shortfall');
     vm.warp(start + cell.options.delinquencyGracePeriod + 90 days + 1);
     cell.market.updateState();
     assertEq(cell.market.defaultedAt(), 0, 'old run was cured');
@@ -414,11 +346,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     _fundAndDraw(cell);
     stack.asset.mint(address(cell.market), 100e18);
     cell.market.updateState();
-    assertEq(
-      IWildcatMarketRevolving(address(cell.market)).drawnAmount(),
-      800e18,
-      'donation is not principal repayment'
-    );
+    assertEq(IWildcatMarketRevolving(address(cell.market)).drawnAmount(), 800e18, 'donation is not principal repayment');
     vm.warp(uint256(date) + 1);
     stack.asset.mint(address(cell.market), 1_000e18);
     uint256 borrowerBefore = stack.asset.balanceOf(MatrixBorrower);
@@ -427,33 +355,19 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     cell.market.updateState();
     Vm.Log[] memory logs = vm.getRecordedLogs();
     for (uint256 i; i < logs.length; i++) {
-      assertTrue(
-        logs[i].topics[0] != keccak256('DebtRepaid(address,uint256)'),
-        'no fabricated repayment'
-      );
+      assertTrue(logs[i].topics[0] != keccak256('DebtRepaid(address,uint256)'), 'no fabricated repayment');
     }
     assertEq(cell.market.defaultedAt(), date, 'donation observed too late');
     assertTrue(cell.market.isClosed(), 'donation can back funded closure');
-    assertEq(
-      stack.asset.balanceOf(MatrixBorrower),
-      borrowerBefore,
-      'automatic closure retains surplus'
-    );
+    assertEq(stack.asset.balanceOf(MatrixBorrower), borrowerBefore, 'automatic closure retains surplus');
     vm.prank(MatrixBorrower);
     cell.market.rescueTokens(address(stack.asset));
     assertEq(stack.asset.balanceOf(MatrixBorrower) - borrowerBefore, excess, 'surplus recovered');
-    assertEq(
-      IWildcatMarketRevolving(address(cell.market)).drawnAmount(),
-      0,
-      'closure clears drawn principal'
-    );
+    assertEq(IWildcatMarketRevolving(address(cell.market)).drawnAmount(), 0, 'closure clears drawn principal');
   }
 
   function test_AutomaticClosureWithdrawalViewMatchesExecutionBeforeOriginalExpiry() public {
-    MatrixOptions memory options = _defaultMatrixOptions(
-      MatrixHooksKind.OpenTerm,
-      MatrixMarketKind.Standard
-    );
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind.Standard);
     options.annualInterestBips = 0;
     options.repaymentDate = uint32(vm.getBlockTimestamp() + 1 days);
     options.repaymentPeriod = 0;
@@ -466,11 +380,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     vm.warp(options.repaymentDate);
     assertTrue(expiry > vm.getBlockTimestamp(), 'original expiry still in future');
     assertTrue(cell.market.isClosed(), 'fully funded closure visible before write');
-    assertEq(
-      cell.market.getAvailableWithdrawalAmount(MatrixAlice, expiry),
-      500e18,
-      'live closed claim'
-    );
+    assertEq(cell.market.getAvailableWithdrawalAmount(MatrixAlice, expiry), 500e18, 'live closed claim');
     assertEq(cell.market.executeWithdrawal(MatrixAlice, expiry), 500e18, 'same claim executes');
     assertEq(cell.market.defaultedAt(), 0, 'timely completion');
     vm.prank(MatrixAlice);
@@ -480,15 +390,7 @@ contract RepaymentPrototypeTest is ProductionMatrixFixture {
     vm.expectRevert(IMarketEventsAndErrors.WithdrawalBatchNotExpired.selector);
     cell.market.executeWithdrawal(MatrixAlice, freshExpiry);
     vm.warp(uint256(freshExpiry) + 1);
-    assertEq(
-      cell.market.getAvailableWithdrawalAmount(MatrixAlice, freshExpiry),
-      500e18,
-      'fresh batch expired'
-    );
-    assertEq(
-      cell.market.executeWithdrawal(MatrixAlice, freshExpiry),
-      500e18,
-      'fresh batch collectible'
-    );
+    assertEq(cell.market.getAvailableWithdrawalAmount(MatrixAlice, freshExpiry), 500e18, 'fresh batch expired');
+    assertEq(cell.market.executeWithdrawal(MatrixAlice, freshExpiry), 500e18, 'fresh batch collectible');
   }
 }

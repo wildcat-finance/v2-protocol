@@ -14,7 +14,10 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     uint16 rate,
     bool revolving,
     HooksKind kind
-  ) private returns (Fixture memory fixture, uint32 expiry) {
+  )
+    private
+    returns (Fixture memory fixture, uint32 expiry)
+  {
     Options memory options = _defaultOptions(kind);
     options.revolving = revolving;
     options.annualInterestBips = rate;
@@ -75,20 +78,11 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
   function _setFactor(Fixture memory f, uint112 factor) private {
     bytes32 word = vm.load(address(f.market), bytes32(uint256(3)));
     uint256 mask = uint256(type(uint112).max) << 80;
-    vm.store(
-      address(f.market),
-      bytes32(uint256(3)),
-      bytes32((uint256(word) & ~mask) | (uint256(factor) << 80))
-    );
+    vm.store(address(f.market), bytes32(uint256(3)), bytes32((uint256(word) & ~mask) | (uint256(factor) << 80)));
     assertEq(f.market.scaleFactor(), factor);
   }
 
-  function _frozen(
-    uint128 amount,
-    uint32 date,
-    bool revolving,
-    HooksKind kind
-  ) private returns (Fixture memory f) {
+  function _frozen(uint128 amount, uint32 date, bool revolving, HooksKind kind) private returns (Fixture memory f) {
     Options memory options = _defaultOptions(kind);
     options.revolving = revolving;
     options.annualInterestBips = 0;
@@ -120,11 +114,7 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     f.market.repay(4);
     assertEq(f.market.getWithdrawalBatch(first).paymentRemainder, (3 * RAY) / 4);
     assertEq(f.market.getWithdrawalBatch(second).paymentRemainder, RAY / 2);
-    assertEq(
-      f.market.currentState().withdrawalRemainder,
-      (5 * RAY) / 4,
-      'sum crosses one whole unit'
-    );
+    assertEq(f.market.currentState().withdrawalRemainder, (5 * RAY) / 4, 'sum crosses one whole unit');
     assertEq(f.market.totalDebts(), 10);
     assertEq(f.market.coverageLiquidity(), 10);
     assertEq(f.market.borrowableAssets(), 0);

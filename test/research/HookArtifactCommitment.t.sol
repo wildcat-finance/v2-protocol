@@ -40,10 +40,8 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
   }
 
   function test_registrationCommitsArtifactForRawAndCompressedStores() external {
-    address[2] memory stores = [
-      LibStoredInitCode.deployInitCode(_original),
-      LibCompressedInitCode.deployInitCode(_original)
-    ];
+    address[2] memory stores =
+      [LibStoredInitCode.deployInitCode(_original), LibCompressedInitCode.deployInitCode(_original)];
     for (uint256 model; model < 2; ++model) {
       IHooksFactory factory = _factoryFor(_stack, MatrixMarketKind(model));
       for (uint256 format; format < stores.length; ++format) {
@@ -61,11 +59,7 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
 
         factory.updateHooksTemplateFees(store, MatrixAlice, address(0), 0, 100);
         factory.disableHooksTemplate(store);
-        assertEq(
-          factory.getHooksTemplateInitCodeHash(store),
-          _artifactHash,
-          'fees and disable preserve the commitment'
-        );
+        assertEq(factory.getHooksTemplateInitCodeHash(store), _artifactHash, 'fees and disable preserve the commitment');
         vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateAlreadyExists.selector);
         _register(factory, store, bytes32(uint256(_artifactHash) ^ 1));
       }
@@ -76,15 +70,13 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     bytes32 wrongHash,
     bool compressed,
     bool revolving
-  ) external {
+  )
+    external
+  {
     if (wrongHash == _artifactHash) wrongHash = bytes32(uint256(wrongHash) ^ 1);
-    IHooksFactory factory = _factoryFor(
-      _stack,
-      revolving ? MatrixMarketKind.Revolving : MatrixMarketKind.Standard
-    );
-    address store = compressed
-      ? LibCompressedInitCode.deployInitCode(_original)
-      : LibStoredInitCode.deployInitCode(_original);
+    IHooksFactory factory = _factoryFor(_stack, revolving ? MatrixMarketKind.Revolving : MatrixMarketKind.Standard);
+    address store =
+      compressed ? LibCompressedInitCode.deployInitCode(_original) : LibStoredInitCode.deployInitCode(_original);
     uint256 count = factory.getHooksTemplatesCount();
     vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateInitCodeHashMismatch.selector);
     _register(factory, store, wrongHash);
@@ -100,17 +92,18 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     address store = LibCompressedInitCode.deployInitCode(_original);
     for (uint256 model; model < 2; ++model) {
       IHooksFactory factory = _factoryFor(_stack, MatrixMarketKind(model));
-      (bool success, ) = address(factory).call(
-        abi.encodeWithSignature(
-          'addHooksTemplate(address,string,address,address,uint80,uint16)',
-          store,
-          'unchecked',
-          address(0),
-          address(0),
-          uint80(0),
-          uint16(0)
-        )
-      );
+      (bool success,) = address(factory)
+        .call(
+          abi.encodeWithSignature(
+            'addHooksTemplate(address,string,address,address,uint80,uint16)',
+            store,
+            'unchecked',
+            address(0),
+            address(0),
+            uint80(0),
+            uint16(0)
+          )
+        );
       assertFalse(success, 'no unchecked registration overload');
       assertFalse(factory.isHooksTemplate(store));
       vm.expectRevert(IHooksFactoryEventsAndErrors.HooksTemplateInitCodeHashMismatch.selector);
@@ -134,9 +127,8 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
   }
 
   function test_readerChangingAfterRegistrationCannotDeployDifferentCode() external {
-    MutableHookCodeReader reader = MutableHookCodeReader(
-      _deployCode('test/research/HookArtifactCommitment.t.sol:MutableHookCodeReader')
-    );
+    MutableHookCodeReader reader =
+      MutableHookCodeReader(_deployCode('test/research/HookArtifactCommitment.t.sol:MutableHookCodeReader'));
     for (uint256 model; model < 2; ++model) {
       IHooksFactory factory = _factoryFor(_stack, MatrixMarketKind(model));
       reader.setCode(_original);
@@ -168,7 +160,10 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     MatrixMarketKind model,
     address store,
     bytes32 salt
-  ) internal returns (address market, address instance) {
+  )
+    internal
+    returns (address market, address instance)
+  {
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, model);
     DeployMarketInputs memory inputs = _marketInputs(_stack, options, EmptyHooksConfig);
     bytes memory data = _hooksData(options, vm.getBlockTimestamp());
@@ -176,17 +171,8 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     if (model == MatrixMarketKind.Standard) {
       return factory.deployMarketAndHooks(store, '', inputs, data, salt, address(0), 0);
     }
-    return
-      IHooksFactoryRevolving(address(factory)).deployMarketAndHooks(
-        store,
-        '',
-        inputs,
-        data,
-        abi.encode(uint8(1), uint16(200)),
-        salt,
-        address(0),
-        0
-      );
+    return IHooksFactoryRevolving(address(factory))
+      .deployMarketAndHooks(store, '', inputs, data, abi.encode(uint8(1), uint16(200)), salt, address(0), 0);
   }
 
   function test_combinedDeploymentRejectsBeforeHookOrMarketAndCanRetry() external {

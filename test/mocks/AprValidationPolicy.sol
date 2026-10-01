@@ -18,7 +18,8 @@ abstract contract AprValidationPolicy {
 
   function _validateAprChange(AprChange memory change) internal view {
     if (change.effectiveApr < minimumApr) revert AprBelowFloor(change.effectiveApr);
-    if (change.effectiveReserve > maximumReserve)
+    if (change.effectiveReserve > maximumReserve) {
       revert ReserveAboveCeiling(change.effectiveReserve);
+    }
   }
 }

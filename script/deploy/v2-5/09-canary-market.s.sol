@@ -58,7 +58,11 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     address asset,
     string memory namePrefix,
     string memory symbolPrefix
-  ) internal pure returns (DeployMarketInputs memory inputs) {
+  )
+    internal
+    pure
+    returns (DeployMarketInputs memory inputs)
+  {
     inputs = DeployMarketInputs({
       asset: asset,
       namePrefix: namePrefix,
@@ -75,14 +79,10 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     });
   }
 
-  function _ensureCanaryBalance(
-    Deployments memory deployments,
-    IERC20 asset,
-    address borrower
-  ) internal {
+  function _ensureCanaryBalance(Deployments memory deployments, IERC20 asset, address borrower) internal {
     if (asset.balanceOf(borrower) >= DUST_DEPOSIT * 2) return;
     _broadcastAsBorrower(deployments, borrower);
-    (bool success, ) = address(asset).call(abi.encodeWithSignature('faucet()'));
+    (bool success,) = address(asset).call(abi.encodeWithSignature('faucet()'));
     if (!success || asset.balanceOf(borrower) < DUST_DEPOSIT * 2) {
       revert('Canary asset balance is insufficient and faucet() failed');
     }
@@ -95,9 +95,8 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     string[] memory args = new string[](5);
     args[0] = 'node';
     args[1] = '-e';
-    args[
-      2
-    ] = "const fs=require('fs');const value=JSON.parse(fs.readFileSync(process.argv[1],'utf8'))[process.argv[2]];if(typeof value!=='string')process.exit(1);process.stdout.write('ADDRESS:'+value)";
+    args[2] =
+      "const fs=require('fs');const value=JSON.parse(fs.readFileSync(process.argv[1],'utf8'))[process.argv[2]];if(typeof value!=='string')process.exit(1);process.stdout.write('ADDRESS:'+value)";
     args[3] = deployments.filePath;
     args[4] = 'MockERC20:Token';
     string memory value = string(vm.ffi(args));
@@ -118,7 +117,9 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     address borrower,
     address marketAddress,
     string memory label
-  ) internal {
+  )
+    internal
+  {
     WildcatMarket market = WildcatMarket(marketAddress);
     _broadcastAsBorrower(deployments, borrower);
     if (!asset.approve(marketAddress, type(uint256).max)) revert('Canary asset approval failed');
@@ -140,25 +141,15 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     console.log(string.concat(label, ' canary queued and closed:'), true);
   }
 
-  function _findQueuedExpiry(
-    address market,
-    address borrower
-  ) internal view returns (uint32 expiry) {
+  function _findQueuedExpiry(address market, address borrower) internal view returns (uint32 expiry) {
     uint256 upperBound = block.timestamp + 2;
     uint256 lowerBound = upperBound > 600 ? upperBound - 600 : 1;
     for (uint256 candidate = upperBound; candidate >= lowerBound; candidate--) {
       (bool success, bytes memory data) = market.staticcall(
-        abi.encodeWithSignature(
-          'getAccountWithdrawalStatus(address,uint32)',
-          borrower,
-          uint32(candidate)
-        )
+        abi.encodeWithSignature('getAccountWithdrawalStatus(address,uint32)', borrower, uint32(candidate))
       );
       if (success && data.length >= 64) {
-        (uint104 scaledAmount, uint128 normalizedAmountWithdrawn) = abi.decode(
-          data,
-          (uint104, uint128)
-        );
+        (uint104 scaledAmount, uint128 normalizedAmountWithdrawn) = abi.decode(data, (uint104, uint128));
         if (scaledAmount > 0 && normalizedAmountWithdrawn == 0) return uint32(candidate);
       }
       if (candidate == lowerBound) break;
@@ -171,7 +162,9 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     address borrower,
     address marketAddress,
     string memory label
-  ) internal {
+  )
+    internal
+  {
     WildcatMarket market = WildcatMarket(marketAddress);
     if (!market.isClosed()) revert('Canary market must be closed before finalization');
     uint32 expiry = _findQueuedExpiry(marketAddress, borrower);
@@ -188,17 +181,21 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     address factory,
     address template,
     address asset
-  ) internal returns (address market) {
+  )
+    internal
+    returns (address market)
+  {
     _broadcastAsBorrower(deployments, borrower);
-    (market, ) = IHooksFactory(factory).deployMarketAndHooks(
-      template,
-      '',
-      _marketInputs(asset, 'V2.5 Standard Canary ', 'v25sc'),
-      abi.encode(uint128(0), false),
-      _marketSalt(borrower, 0),
-      address(0),
-      0
-    );
+    (market,) = IHooksFactory(factory)
+      .deployMarketAndHooks(
+        template,
+        '',
+        _marketInputs(asset, 'V2.5 Standard Canary ', 'v25sc'),
+        abi.encode(uint128(0), false),
+        _marketSalt(borrower, 0),
+        address(0),
+        0
+      );
   }
 
   function _deployRevolvingMarket(
@@ -207,24 +204,25 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     address factory,
     address template,
     address asset
-  ) internal returns (address market) {
+  )
+    internal
+    returns (address market)
+  {
     _broadcastAsBorrower(deployments, borrower);
-    (market, ) = IHooksFactoryRevolving(factory).deployMarketAndHooks(
-      template,
-      '',
-      _marketInputs(asset, 'V2.5 Revolving Canary ', 'v25rc'),
-      abi.encode(uint128(0), false),
-      abi.encode(uint8(1), uint16(0)),
-      _marketSalt(borrower, 0),
-      address(0),
-      0
-    );
+    (market,) = IHooksFactoryRevolving(factory)
+      .deployMarketAndHooks(
+        template,
+        '',
+        _marketInputs(asset, 'V2.5 Revolving Canary ', 'v25rc'),
+        abi.encode(uint128(0), false),
+        abi.encode(uint8(1), uint16(0)),
+        _marketSalt(borrower, 0),
+        address(0),
+        0
+      );
   }
 
-  function _latestTemplateMarket(
-    address factory,
-    address template
-  ) internal view returns (address market) {
+  function _latestTemplateMarket(address factory, address template) internal view returns (address market) {
     address[] memory markets = IHooksFactory(factory).getMarketsForHooksTemplate(template);
     if (markets.length == 0) revert('No canary market found for template');
     return markets[markets.length - 1];
@@ -237,22 +235,15 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     if (!_sameStrings(phase, 'prepare') && !_sameStrings(phase, 'finalize')) {
       revert("CANARY_PHASE must be 'prepare' or 'finalize'");
     }
-    uint256 plasmaMainnetChainId = vm.envOr(
-      'PLASMA_MAINNET_CHAIN_ID',
-      DEFAULT_PLASMA_MAINNET_CHAIN_ID
-    );
+    uint256 plasmaMainnetChainId = vm.envOr('PLASMA_MAINNET_CHAIN_ID', DEFAULT_PLASMA_MAINNET_CHAIN_ID);
     if (block.chainid == ETHEREUM_MAINNET_CHAIN_ID || block.chainid == plasmaMainnetChainId) {
       revert('Canary script refuses mainnet chain ids');
     }
 
-    (Deployments memory deployments, ) = _resolveDeployments();
+    (Deployments memory deployments,) = _resolveDeployments();
     address borrower = vm.envOr('BORROWER', address(0));
     if (borrower == address(0)) revert('BORROWER is required');
-    address archController = _resolveExisting(
-      deployments,
-      'WildcatArchController',
-      'ARCH_CONTROLLER'
-    );
+    address archController = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
     if (!IWildcatArchController(archController).isRegisteredBorrower(borrower)) {
       revert('BORROWER is not registered on the ArchController');
     }
@@ -261,53 +252,31 @@ contract CanaryMarketsV25 is V25DeployScriptBase {
     string memory revolvingFactoryLabel = _label('HooksFactoryRevolving');
     string memory openTemplateLabel = _label('OpenTermHooks_initCodeStorage');
     if (
-      !deployments.has(standardFactoryLabel) ||
-      !deployments.has(revolvingFactoryLabel) ||
-      !deployments.has(openTemplateLabel)
+      !deployments.has(standardFactoryLabel) || !deployments.has(revolvingFactoryLabel)
+        || !deployments.has(openTemplateLabel)
     ) revert('Missing finalized v2.5 deployment labels');
     address standardFactory = deployments.get(standardFactoryLabel);
     address revolvingFactory = deployments.get(revolvingFactoryLabel);
     address openTemplate = deployments.get(openTemplateLabel);
     if (
-      !IHooksFactory(standardFactory).isHooksTemplate(openTemplate) ||
-      !IHooksFactoryRevolving(revolvingFactory).isHooksTemplate(openTemplate)
+      !IHooksFactory(standardFactory).isHooksTemplate(openTemplate)
+        || !IHooksFactoryRevolving(revolvingFactory).isHooksTemplate(openTemplate)
     ) revert('OpenTermHooks is not registered on both v2.5 factories');
 
     if (_sameStrings(phase, 'finalize')) {
-      _finalizeMarket(
-        deployments,
-        borrower,
-        _latestTemplateMarket(standardFactory, openTemplate),
-        'Standard'
-      );
-      _finalizeMarket(
-        deployments,
-        borrower,
-        _latestTemplateMarket(revolvingFactory, openTemplate),
-        'Revolving'
-      );
+      _finalizeMarket(deployments, borrower, _latestTemplateMarket(standardFactory, openTemplate), 'Standard');
+      _finalizeMarket(deployments, borrower, _latestTemplateMarket(revolvingFactory, openTemplate), 'Revolving');
       return;
     }
 
     address assetAddress = _resolveCanaryAsset(deployments);
     IERC20 asset = IERC20(assetAddress);
     _ensureCanaryBalance(deployments, asset, borrower);
-    address standardMarket = _deployStandardMarket(
-      deployments,
-      borrower,
-      standardFactory,
-      openTemplate,
-      assetAddress
-    );
+    address standardMarket = _deployStandardMarket(deployments, borrower, standardFactory, openTemplate, assetAddress);
     _prepareMarket(deployments, asset, borrower, standardMarket, 'Standard');
 
-    address revolvingMarket = _deployRevolvingMarket(
-      deployments,
-      borrower,
-      revolvingFactory,
-      openTemplate,
-      assetAddress
-    );
+    address revolvingMarket =
+      _deployRevolvingMarket(deployments, borrower, revolvingFactory, openTemplate, assetAddress);
     _prepareMarket(deployments, asset, borrower, revolvingMarket, 'Revolving');
   }
 }

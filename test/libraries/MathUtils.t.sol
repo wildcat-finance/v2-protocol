@@ -16,9 +16,7 @@ contract MathUtilsExternalTest is TestKernel {
   function test_calculateLinearInterestFromBips(uint256 bips, uint256 delta) external pure {
     bips = bound(bips, 0, 10000);
     delta = bound(delta, 0, type(uint32).max);
-    uint256 interest = delta == 0
-      ? 0
-      : (MathUtilsExternal.bipToRay(bips) * delta) / SECONDS_IN_365_DAYS;
+    uint256 interest = delta == 0 ? 0 : (MathUtilsExternal.bipToRay(bips) * delta) / SECONDS_IN_365_DAYS;
     assertEq(MathUtilsExternal.calculateLinearInterestFromBips(bips, delta), interest);
   }
 

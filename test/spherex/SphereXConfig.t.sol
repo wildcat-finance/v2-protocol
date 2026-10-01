@@ -28,17 +28,15 @@ contract SphereXConfigTest is TestKernel {
   address internal constant Sender = address(0x51);
 
   function _newEngine(bool supported) internal returns (SphereXEngineMock engine) {
-    engine = SphereXEngineMock(
-      _deployCode('test/mocks/SphereXConfigMocks.sol:SphereXEngineMock', abi.encode(supported))
-    );
+    engine =
+      SphereXEngineMock(_deployCode('test/mocks/SphereXConfigMocks.sol:SphereXEngineMock', abi.encode(supported)));
   }
 
   function _newFixture() internal returns (Fixture memory fixture) {
     fixture.engine = _newEngine(true);
     fixture.config = SphereXConfigHarness(
       _deployCode(
-        'test/mocks/SphereXConfigMocks.sol:SphereXConfigHarness',
-        abi.encode(Admin, Operator, address(fixture.engine))
+        'test/mocks/SphereXConfigMocks.sol:SphereXConfigHarness', abi.encode(Admin, Operator, address(fixture.engine))
       )
     );
   }
@@ -49,7 +47,10 @@ contract SphereXConfigTest is TestKernel {
     address admin,
     address operator,
     address engine
-  ) internal view {
+  )
+    internal
+    view
+  {
     assertEq(config.pendingSphereXAdmin(), pendingAdmin);
     assertEq(config.sphereXAdmin(), admin);
     assertEq(config.sphereXOperator(), operator);
@@ -189,10 +190,7 @@ contract SphereXConfigTest is TestKernel {
 
   function test_registeredConfig_UsesControllerAsOperator() external {
     SphereXRegisteredHarness registered = SphereXRegisteredHarness(
-      _deployCode(
-        'test/mocks/SphereXConfigMocks.sol:SphereXRegisteredHarness',
-        abi.encode(Admin, address(0))
-      )
+      _deployCode('test/mocks/SphereXConfigMocks.sol:SphereXRegisteredHarness', abi.encode(Admin, address(0)))
     );
     assertEq(registered.sphereXOperator(), Admin);
     assertEq(registered.sphereXEngine(), address(0));
@@ -210,10 +208,7 @@ contract SphereXConfigTest is TestKernel {
 
   function test_registeredGuard_AllowsCallWhenEngineDisabled() external {
     SphereXRegisteredHarness registered = SphereXRegisteredHarness(
-      _deployCode(
-        'test/mocks/SphereXConfigMocks.sol:SphereXRegisteredHarness',
-        abi.encode(Admin, address(0))
-      )
+      _deployCode('test/mocks/SphereXConfigMocks.sol:SphereXRegisteredHarness', abi.encode(Admin, address(0)))
     );
 
     registered.setValue(123);

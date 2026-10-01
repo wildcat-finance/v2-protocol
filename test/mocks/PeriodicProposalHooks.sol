@@ -14,7 +14,7 @@ contract PeriodicProposalHooks is AprValidationHooks {
 
   mapping(address => ProposalWindow) public proposalWindows;
 
-  constructor(address administrator) AprValidationHooks(administrator) {}
+  constructor(address administrator) AprValidationHooks(administrator) { }
 
   function setProposalWindow(address market, uint32 earliestStart, uint32 latestEnd) external {
     proposalWindows[market] = ProposalWindow(earliestStart, latestEnd);
@@ -25,7 +25,11 @@ contract PeriodicProposalHooks is AprValidationHooks {
     uint16 proposedApr,
     uint32 responseStart,
     uint32 responseEnd
-  ) internal view override {
+  )
+    internal
+    view
+    override
+  {
     if (proposedApr < minimumApr) revert AprBelowFloor(proposedApr);
     ProposalWindow memory window = proposalWindows[market];
     if (responseStart < window.earliestStart || responseEnd > window.latestEnd) {

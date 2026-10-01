@@ -144,9 +144,11 @@ abstract contract SphereXProtectedRegisteredBase {
    *
    * @param num function identifier
    */
-  function _getStorageSlotsAndPreparePostCalldata(
-    int256 num
-  ) internal returnsIfNotActivatedPre(locals) returns (ModifierLocals memory locals) {
+  function _getStorageSlotsAndPreparePostCalldata(int256 num)
+    internal
+    returnsIfNotActivatedPre(locals)
+    returns (ModifierLocals memory locals)
+  {
     assembly {
       // Read engine from `locals.engine` - this is filled by `returnsIfNotActivatedPre`
       let engineAddress := mload(add(locals, 0x60))
@@ -165,9 +167,7 @@ abstract contract SphereXProtectedRegisteredBase {
       calldatacopy(add(pointer, 0xa0), 0, calldatasize())
       let size := add(0xc4, calldatasize())
 
-      if iszero(
-        and(eq(mload(0), 0x20), call(gas(), engineAddress, 0, add(pointer, 28), size, 0, 0x40))
-      ) {
+      if iszero(and(eq(mload(0), 0x20), call(gas(), engineAddress, 0, add(pointer, 28), size, 0, 0x40))) {
         returndatacopy(0, 0, returndatasize())
         revert(0, returndatasize())
       }
@@ -236,9 +236,7 @@ abstract contract SphereXProtectedRegisteredBase {
     _castFunctionToPointerInput(_callSphereXValidatePost)(locals);
   }
 
-  function _callSphereXValidatePost(
-    ModifierLocals memory locals
-  ) internal returnsIfNotActivatedPost(locals) {
+  function _callSphereXValidatePost(ModifierLocals memory locals) internal returnsIfNotActivatedPost(locals) {
     uint256 length;
     bytes32[] memory storageSlots;
     bytes32[] memory valuesAfter;
@@ -314,11 +312,7 @@ abstract contract SphereXProtectedRegisteredBase {
       let nextSlotPointer := add(storageSlots, 0x20)
       let nextElementPointer := add(values, 0x20)
       let endPointer := add(nextElementPointer, shl(5, length))
-      for {
-
-      } lt(nextElementPointer, endPointer) {
-
-      } {
+      for { } lt(nextElementPointer, endPointer) { } {
         mstore(nextElementPointer, sload(mload(nextSlotPointer)))
         nextElementPointer := add(nextElementPointer, 0x20)
         nextSlotPointer := add(nextSlotPointer, 0x20)
@@ -330,17 +324,21 @@ abstract contract SphereXProtectedRegisteredBase {
   //                             Function Type Casts                            //
   // ========================================================================== //
 
-  function _castFunctionToPointerInput(
-    function(ModifierLocals memory) internal fnIn
-  ) internal pure returns (function(uint256) internal fnOut) {
+  function _castFunctionToPointerInput(function(ModifierLocals memory) internal fnIn)
+    internal
+    pure
+    returns (function(uint256) internal fnOut)
+  {
     assembly {
       fnOut := fnIn
     }
   }
 
-  function _castFunctionToPointerOutput(
-    function(int256) internal returns (ModifierLocals memory) fnIn
-  ) internal pure returns (function(int256) internal returns (uint256) fnOut) {
+  function _castFunctionToPointerOutput(function(int256) internal returns (ModifierLocals memory) fnIn)
+    internal
+    pure
+    returns (function(int256) internal returns (uint256) fnOut)
+  {
     assembly {
       fnOut := fnIn
     }

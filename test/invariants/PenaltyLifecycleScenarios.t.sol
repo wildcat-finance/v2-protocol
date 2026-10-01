@@ -34,26 +34,14 @@ contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
     for (uint256 i; i < MatrixSize; ++i) {
       (MarketState memory expected, MarketState memory actual) = lifecycle.viewStates(i);
       assertEq(expected.scaledTotalSupply, actual.scaledTotalSupply, 'scaled supply preview');
-      assertEq(
-        expected.scaledPendingWithdrawals,
-        actual.scaledPendingWithdrawals,
-        'pending preview'
-      );
-      assertEq(
-        expected.normalizedUnclaimedWithdrawals,
-        actual.normalizedUnclaimedWithdrawals,
-        'allocated preview'
-      );
+      assertEq(expected.scaledPendingWithdrawals, actual.scaledPendingWithdrawals, 'pending preview');
+      assertEq(expected.normalizedUnclaimedWithdrawals, actual.normalizedUnclaimedWithdrawals, 'allocated preview');
       assertEq(abi.encode(expected), abi.encode(actual), 'full preview');
     }
     _assertLifecycle();
   }
 
-  function testFuzz_penaltyCureAtCutoffAndOneSecondLate(
-    uint8 cell,
-    bool late,
-    bool process
-  ) external {
+  function testFuzz_penaltyCureAtCutoffAndOneSecondLate(uint8 cell, bool late, bool process) external {
     uint256 i = uint256(cell) % MatrixSize;
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
     uint256 cutoff = lifecycle.penaltyCutoff(i);

@@ -64,15 +64,10 @@ contract NukeBatchAveragingTest is MarketFixture {
     fixture.market.updateState();
     outcome.earlyPayout = fixture.market.executeWithdrawal(EarlyLender, expiry);
     outcome.latePayout = fixture.market.executeWithdrawal(LateLender, expiry);
-    outcome.lateDestinationBalance = fixture.asset.balanceOf(
-      forceWithNuke ? fixture.sentinel.EscrowAddress() : LateLender
-    );
+    outcome.lateDestinationBalance =
+      fixture.asset.balanceOf(forceWithNuke ? fixture.sentinel.EscrowAddress() : LateLender);
 
-    assertEq(
-      fixture.market.previousState().normalizedUnclaimedWithdrawals,
-      0,
-      'unclaimed withdrawals'
-    );
+    assertEq(fixture.market.previousState().normalizedUnclaimedWithdrawals, 0, 'unclaimed withdrawals');
   }
 
   function test_nukeFromOrbitMatchesVoluntaryLateBatchEntry() external {
@@ -82,11 +77,7 @@ contract NukeBatchAveragingTest is MarketFixture {
     vm.warp(initialBlockTimestamp);
     Outcome memory forced = _runScenario(true);
 
-    assertEq(
-      keccak256(abi.encode(forced)),
-      keccak256(abi.encode(voluntary)),
-      'forced and voluntary accounting'
-    );
+    assertEq(keccak256(abi.encode(forced)), keccak256(abi.encode(voluntary)), 'forced and voluntary accounting');
     assertEq(voluntary.scaledTotalAmount, 1_000e18, 'final scaled total');
     assertEq(voluntary.scaledAmountBurned, 1_000e18, 'final scaled burn');
     assertEq(voluntary.normalizedAmountPaid, 1_100e18, 'conserved batch payment');

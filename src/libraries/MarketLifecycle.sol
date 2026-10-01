@@ -49,7 +49,10 @@ library MarketLifecycleLib {
     MarketState memory state,
     uint256 timestamp,
     uint256 gracePeriod
-  ) internal pure {
+  )
+    internal
+    pure
+  {
     if (lifecycle.defaultedAt != 0) return;
     if ((!state.isDelinquent).or(state.isClosed)) {
       lifecycle.penaltyCutoff = 0;
@@ -57,9 +60,7 @@ library MarketLifecycleLib {
     }
     if (lifecycle.penaltyCutoff == 0) {
       uint256 graceRemaining = gracePeriod.satSub(state.timeDelinquent);
-      lifecycle.penaltyCutoff = uint40(
-        uint256(state.lastInterestAccruedTimestamp) + graceRemaining + DefaultDelay
-      );
+      lifecycle.penaltyCutoff = uint40(uint256(state.lastInterestAccruedTimestamp) + graceRemaining + DefaultDelay);
     }
     if (timestamp > lifecycle.penaltyCutoff) {
       lifecycle.defaultedAt = uint256(lifecycle.penaltyCutoff).toUint32();
@@ -72,7 +73,10 @@ library MarketLifecycleLib {
     MarketState memory state,
     uint256 assets,
     uint256 date
-  ) internal pure {
+  )
+    internal
+    pure
+  {
     state.reserveRatioBips = 10_000;
     state.isDelinquent = state.liquidityRequired() > assets;
     if (state.isDelinquent) {

@@ -168,21 +168,13 @@ interface IMarketEventsAndErrors {
   /// @param caller account that executed the change.
   /// @param previousMaxTotalSupply old normalized cap.
   /// @param newMaxTotalSupply new normalized cap.
-  event MaxTotalSupplyUpdated(
-    address indexed caller,
-    uint256 previousMaxTotalSupply,
-    uint256 newMaxTotalSupply
-  );
+  event MaxTotalSupplyUpdated(address indexed caller, uint256 previousMaxTotalSupply, uint256 newMaxTotalSupply);
 
   /// @notice emitted when the factory updates the market's protocol fee.
   /// @param caller factory that executed the change.
   /// @param previousProtocolFeeBips old protocol share of base interest, in bips.
   /// @param newProtocolFeeBips new protocol share of base interest, in bips.
-  event ProtocolFeeBipsUpdated(
-    address indexed caller,
-    uint256 previousProtocolFeeBips,
-    uint256 newProtocolFeeBips
-  );
+  event ProtocolFeeBipsUpdated(address indexed caller, uint256 previousProtocolFeeBips, uint256 newProtocolFeeBips);
 
   /// @notice emitted when lender APR or the reserve ratio changes.
   /// @param caller account that executed the change.
@@ -235,11 +227,7 @@ interface IMarketEventsAndErrors {
   /// @param collector account that triggered collection.
   /// @param feeRecipient immutable recipient that received the assets.
   /// @param assets underlying assets transferred.
-  event FeesCollected(
-    address indexed collector,
-    address indexed feeRecipient,
-    uint256 assets
-  );
+  event FeesCollected(address indexed collector, address indexed feeRecipient, uint256 assets);
 
   /// @notice emitted on each stored state write after delinquency is recalculated.
   /// @param scaleFactor stored ray-scaled ratio from scaled shares to normalized tokens.
@@ -335,11 +323,7 @@ interface IMarketEventsAndErrors {
   /// @param expiry batch receiving the payment.
   /// @param scaledAmountBurned scaled supply paid and burned by this payment.
   /// @param normalizedAmountPaid underlying assets reserved by this payment.
-  event WithdrawalBatchPayment(
-    uint256 indexed expiry,
-    uint256 scaledAmountBurned,
-    uint256 normalizedAmountPaid
-  );
+  event WithdrawalBatchPayment(uint256 indexed expiry, uint256 scaledAmountBurned, uint256 normalizedAmountPaid);
 
   /// @notice emitted when scaled tokens move from an account into a withdrawal batch.
   /// @param expiry batch receiving the request.
@@ -357,21 +341,12 @@ interface IMarketEventsAndErrors {
   /// @param expiry batch whose claim was executed.
   /// @param account lender owning the claim.
   /// @param normalizedAmount underlying assets transferred for this execution.
-  event WithdrawalExecuted(
-    uint256 indexed expiry,
-    address indexed account,
-    uint256 normalizedAmount
-  );
+  event WithdrawalExecuted(uint256 indexed expiry, address indexed account, uint256 normalizedAmount);
 
   /// @notice emitted when a sanctioned lender's withdrawal is sent to its escrow.
   /// @param account sanctioned lender owning the claim.
   /// @param escrow sanctions escrow that received the assets.
   /// @param expiry batch whose claim was executed.
   /// @param amount underlying assets sent to escrow.
-  event SanctionedAccountWithdrawalSentToEscrow(
-    address indexed account,
-    address escrow,
-    uint32 expiry,
-    uint256 amount
-  );
+  event SanctionedAccountWithdrawalSentToEscrow(address indexed account, address escrow, uint32 expiry, uint256 amount);
 }

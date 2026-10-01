@@ -39,10 +39,7 @@ contract OpenTermHooksTest is TestKernel {
     return registeredBorrowers[account];
   }
 
-  function onHooksAdministratorTransferred(
-    address previousAdministrator,
-    address newAdministrator
-  ) external {
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
     assertEq(msg.sender, address(hooks), 'callback caller');
     callbackPreviousAdministrator = previousAdministrator;
     callbackNewAdministrator = newAdministrator;
@@ -51,12 +48,12 @@ contract OpenTermHooksTest is TestKernel {
   function _newHooks(
     address administrator,
     NameAndProviderInputs memory inputs
-  ) internal returns (OpenTermHooks deployed) {
+  )
+    internal
+    returns (OpenTermHooks deployed)
+  {
     deployed = OpenTermHooks(
-      _deployCode(
-        'src/access/OpenTermHooks.sol:OpenTermHooks',
-        abi.encode(administrator, abi.encode(inputs))
-      )
+      _deployCode('src/access/OpenTermHooks.sol:OpenTermHooks', abi.encode(administrator, abi.encode(inputs)))
     );
   }
 
@@ -65,7 +62,11 @@ contract OpenTermHooksTest is TestKernel {
     bool deposit,
     bool queueWithdrawal,
     bool transfer
-  ) internal pure returns (HooksConfig config) {
+  )
+    internal
+    pure
+    returns (HooksConfig config)
+  {
     config = EmptyHooksConfig.setHooksAddress(address(target));
     if (deposit) config = config.setFlag(Bit_Enabled_Deposit);
     if (queueWithdrawal) config = config.setFlag(Bit_Enabled_QueueWithdrawal);
@@ -77,7 +78,10 @@ contract OpenTermHooksTest is TestKernel {
     address market,
     HooksConfig requestedConfig,
     bytes memory hooksData
-  ) internal returns (HooksConfig effectiveConfig) {
+  )
+    internal
+    returns (HooksConfig effectiveConfig)
+  {
     DeployMarketInputs memory inputs;
     inputs.hooks = requestedConfig;
     effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
@@ -88,18 +92,8 @@ contract OpenTermHooksTest is TestKernel {
   }
 
   function test_getHookedMarkets_PreservesOrderAndUnknownValues() external {
-    _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(uint128(100))
-    );
-    _createMarket(
-      hooks,
-      MarketB,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(uint128(200), true)
-    );
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(uint128(100)));
+    _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(uint128(200), true));
     address[] memory markets = new address[](3);
     markets[0] = MarketB;
     markets[1] = MarketC;
@@ -111,20 +105,11 @@ contract OpenTermHooksTest is TestKernel {
     assertEq(configs[2].minimumDeposit, 100, 'last minimum');
     HookedMarket memory empty;
     assertEq(abi.encode(configs[1]), abi.encode(empty), 'unknown batch configuration');
-    assertEq(
-      abi.encode(hooks.getHookedMarket(MarketC)),
-      abi.encode(empty),
-      'unknown single configuration'
-    );
+    assertEq(abi.encode(hooks.getHookedMarket(MarketC)), abi.encode(empty), 'unknown single configuration');
   }
 
   function test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority() external {
-    _createMarket(
-      hooks,
-      MarketA,
-      _requestedConfig(hooks, false, false, false),
-      abi.encode(uint128(100), true)
-    );
+    _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(uint128(100), true));
     bytes32 configBefore = keccak256(abi.encode(hooks.getHookedMarket(MarketA)));
     registeredBorrowers[NewAdministrator] = true;
     hooks.requestAdministratorTransfer(NewAdministrator);

@@ -64,7 +64,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     address _administrator,
     bytes memory args,
     HooksDeploymentConfig deploymentConfig
-  ) BaseAccessControls(_administrator) IHooks() {
+  )
+    BaseAccessControls(_administrator)
+    IHooks()
+  {
     config = deploymentConfig;
     if (args.length > 0) {
       NameAndProviderInputs memory inputs = abi.decode(args, (NameAndProviderInputs));
@@ -90,7 +93,11 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal override returns (HooksConfig marketHooksConfig) {
+  )
+    internal
+    override
+    returns (HooksConfig marketHooksConfig)
+  {
     super._onCreateMarket(administrator_, marketAddress, parameters, hooksData);
     if (administrator_ != administrator) revert CallerNotAdministrator();
     marketHooksConfig = _initializeMarket(administrator_, marketAddress, parameters, hooksData);
@@ -104,7 +111,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData
-  ) internal virtual returns (HooksConfig);
+  )
+    internal
+    virtual
+    returns (HooksConfig);
 
   /// @dev capture access requirements before forcing or merging callback flags. an enabled
   ///      callback doesn't necessarily require credentials.
@@ -114,7 +124,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     HooksConfig requested,
     uint128 minimumDeposit,
     bool transfersDisabled
-  ) internal returns (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective) {
+  )
+    internal
+    returns (AccessConfig memory access, bool depositHookEnabled, HooksConfig effective)
+  {
     access = AccessConfig({
       isHooked: true,
       transferRequiresAccess: requested.useOnTransfer(),
@@ -149,7 +162,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     DeployMarketInputs calldata parameters,
     bytes calldata hooksData,
     HooksConfig effective
-  ) internal virtual {}
+  )
+    internal
+    virtual { }
 
   /// @notice updates a hooked market's minimum deposit.
   /// @dev callback flags can't change. a positive minimum needs `onDeposit` already enabled.
@@ -175,28 +190,32 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
   function isMarketTransferRecipientAllowed(
     address marketAddress,
     address recipient
-  ) external view override returns (bool) {
+  )
+    external
+    view
+    override
+    returns (bool)
+  {
     AccessConfig memory access = _requireHookedMarket(marketAddress);
-    return
-      _defaultTransferRecipientAllowed(marketAddress, recipient, access) &&
-      _featureTransferRecipientAllowed(marketAddress, recipient);
+    return _defaultTransferRecipientAllowed(marketAddress, recipient, access)
+      && _featureTransferRecipientAllowed(marketAddress, recipient);
   }
 
   function _defaultTransferRecipientAllowed(
     address market,
     address recipient,
     AccessConfig memory access
-  ) internal view returns (bool) {
+  )
+    internal
+    view
+    returns (bool)
+  {
     return
-      !access.transfersDisabled &&
-      _isMarketTransferRecipientAllowed(market, recipient, access.transferRequiresAccess);
+      !access.transfersDisabled && _isMarketTransferRecipientAllowed(market, recipient, access.transferRequiresAccess);
   }
 
   /// @dev keep this in sync with any recipient restriction added by `_checkTransfer`.
-  function _featureTransferRecipientAllowed(
-    address market,
-    address recipient
-  ) internal view virtual returns (bool) {
+  function _featureTransferRecipientAllowed(address market, address recipient) internal view virtual returns (bool) {
     return true;
   }
 
@@ -208,7 +227,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint scaledAmount,
     MarketState calldata state,
     bytes calldata hooksData
-  ) external override {
+  )
+    external
+    override
+  {
     AccessConfig memory access = _requireHookedMarket(msg.sender);
     _processDeposit(access, lender, scaledAmount, state, hooksData);
     _checkDeposit(lender, scaledAmount, state, hooksData);
@@ -222,7 +244,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint256 scaledAmount,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal virtual {
+  )
+    internal
+    virtual
+  {
     LenderStatus memory status = _lenderStatus[lender];
     if (status.isBlockedFromDeposits) revert NotApprovedLender();
 
@@ -235,11 +260,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     }
 
     // resolve credentials even when they're optional, so a valid one still makes the lender known.
-    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(
-      status,
-      lender,
-      extraData
-    );
+    (bool hasValidCredential, bool roleUpdated) = _tryValidateAccessInner(status, lender, extraData);
     if (access.depositRequiresAccess.and(!hasValidCredential)) revert NotApprovedLender();
     _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
   }
@@ -249,7 +270,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint256 scaledAmount,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal virtual {}
+  )
+    internal
+    virtual { }
 
   /// @notice enforces the recipient's transfer policy and additional transfer rules.
   /// @dev known recipients and the registered wrapper skip default credential/block checks.
@@ -261,7 +284,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint scaledAmount,
     MarketState calldata state,
     bytes calldata extraData
-  ) external override {
+  )
+    external
+    override
+  {
     AccessConfig memory access = _requireHookedMarket(msg.sender);
     _processTransfer(access, caller, from, to, scaledAmount, state, extraData);
     _checkTransfer(caller, from, to, scaledAmount, state, extraData);
@@ -277,7 +303,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint256 scaledAmount,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal virtual {
+  )
+    internal
+    virtual
+  {
     if (access.transfersDisabled) revert TransfersDisabled();
     if (isKnownLenderOnMarket[to][msg.sender]) return;
     if (_isRegisteredWrapper(msg.sender, to)) return;
@@ -298,7 +327,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint256 scaledAmount,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal virtual {}
+  )
+    internal
+    virtual { }
 
   /// @notice checks the withdrawal schedule, lender access, and additional queue rules.
   /// @dev the market still chooses the batch and expiry. queueing doesn't make a lender known.
@@ -308,7 +339,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint scaledAmount,
     MarketState calldata state,
     bytes calldata hooksData
-  ) external override {
+  )
+    external
+    override
+  {
     AccessConfig memory access = _requireHookedMarket(msg.sender);
     _checkWithdrawalSchedule(lender, expiry, scaledAmount, state, hooksData);
     _processWithdrawalAccess(access, lender, hooksData);
@@ -321,7 +355,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint256 scaledAmount,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal view virtual {}
+  )
+    internal
+    view
+    virtual { }
 
   /// @dev known status survives credential loss and deposit blocks. keep exemptions here so
   ///      they don't skip the coordinator's additional queue check.
@@ -329,12 +366,13 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     AccessConfig memory access,
     address lender,
     bytes calldata extraData
-  ) internal virtual {
+  )
+    internal
+    virtual
+  {
     if (!access.withdrawalRequiresAccess) return;
     LenderStatus memory status = _lenderStatus[lender];
-    if (
-      !isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, extraData)
-    ) {
+    if (!isKnownLenderOnMarket[lender][msg.sender] && !_tryValidateAccess(status, lender, extraData)) {
       revert NotApprovedLender();
     }
   }
@@ -345,7 +383,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint256 scaledAmount,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal virtual {}
+  )
+    internal
+    virtual { }
 
   /// @notice validates closure before applying the hook's closure effects.
   /// @dev the term policy owns caller checks. open-term closure stays an unguarded no-op.
@@ -355,15 +395,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _applyCloseMarket(state, hooksData);
   }
 
-  function _validateCloseMarket(
-    MarketState calldata state,
-    bytes calldata extraData
-  ) internal view virtual {}
+  function _validateCloseMarket(MarketState calldata state, bytes calldata extraData) internal view virtual { }
 
-  function _applyCloseMarket(
-    MarketState calldata state,
-    bytes calldata extraData
-  ) internal virtual {}
+  function _applyCloseMarket(MarketState calldata state, bytes calldata extraData) internal virtual { }
 
   // these empty defaults accept unknown callers too. a stateful feature must enable its callback
   // and authenticate the market before trusting it. don't change that for every existing template.
@@ -375,7 +409,10 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint128 normalizedAmountWithdrawn,
     MarketState calldata state,
     bytes calldata hooksData
-  ) external override {
+  )
+    external
+    override
+  {
     _checkExecuteWithdrawal(lender, expiry, normalizedAmountWithdrawn, state, hooksData);
   }
 
@@ -385,64 +422,45 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint128 amount,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal virtual {}
+  )
+    internal
+    virtual { }
 
-  function onBorrow(
-    uint normalizedAmount,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) external override {
+  function onBorrow(uint normalizedAmount, MarketState calldata state, bytes calldata extraData) external override {
     _checkBorrow(normalizedAmount, state, extraData);
   }
 
-  function _checkBorrow(
-    uint256 amount,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) internal virtual {}
+  function _checkBorrow(uint256 amount, MarketState calldata state, bytes calldata extraData) internal virtual { }
 
-  function onRepay(
-    uint normalizedAmount,
-    MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {
+  function onRepay(uint normalizedAmount, MarketState calldata state, bytes calldata hooksData) external override {
     _checkRepay(normalizedAmount, state, hooksData);
   }
 
-  function _checkRepay(
-    uint256 amount,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) internal virtual {}
+  function _checkRepay(uint256 amount, MarketState calldata state, bytes calldata extraData) internal virtual { }
 
   /// @dev quarantine reaches the ordinary queue callback next, including its schedule checks.
-  function onNukeFromOrbit(
-    address lender,
-    MarketState calldata state,
-    bytes calldata hooksData
-  ) external override {
+  function onNukeFromOrbit(address lender, MarketState calldata state, bytes calldata hooksData) external override {
     _checkNukeFromOrbit(lender, state, hooksData);
   }
 
-  function _checkNukeFromOrbit(
-    address lender,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) internal virtual {}
+  function _checkNukeFromOrbit(address lender, MarketState calldata state, bytes calldata extraData)
+    internal
+    virtual { }
 
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata state,
     bytes calldata hooksData
-  ) external override {
+  )
+    external
+    override
+  {
     _checkMaxTotalSupply(maxTotalSupply, state, hooksData);
   }
 
-  function _checkMaxTotalSupply(
-    uint256 amount,
-    MarketState calldata state,
-    bytes calldata extraData
-  ) internal virtual {}
+  function _checkMaxTotalSupply(uint256 amount, MarketState calldata state, bytes calldata extraData)
+    internal
+    virtual { }
 
   /// @notice calculates the APR/reserve update, then validates the values the market will apply.
   /// @dev `_applyAprUpdate` may change hook state and emit events. if `_checkAprChange` reverts,
@@ -452,13 +470,13 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint16 reserveRatioBips,
     MarketState calldata intermediateState,
     bytes calldata hooksData
-  ) external override returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips) {
-    (updatedAnnualInterestBips, updatedReserveRatioBips) = _applyAprUpdate(
-      annualInterestBips,
-      reserveRatioBips,
-      intermediateState,
-      hooksData
-    );
+  )
+    external
+    override
+    returns (uint16 updatedAnnualInterestBips, uint16 updatedReserveRatioBips)
+  {
+    (updatedAnnualInterestBips, updatedReserveRatioBips) =
+      _applyAprUpdate(annualInterestBips, reserveRatioBips, intermediateState, hooksData);
     _checkAprChange(
       AprChange({
         market: msg.sender,
@@ -483,7 +501,11 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint16,
     MarketState calldata state,
     bytes calldata
-  ) internal virtual returns (uint16 effectiveApr, uint16 effectiveReserve) {
+  )
+    internal
+    virtual
+    returns (uint16 effectiveApr, uint16 effectiveReserve)
+  {
     return _applyDefaultAprUpdate(annualInterestBips, state);
   }
 
@@ -494,19 +516,20 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     AprChange memory change,
     MarketState calldata state,
     bytes calldata extraData
-  ) internal virtual {}
+  )
+    internal
+    virtual { }
 
   function onSetProtocolFeeBips(
     uint16 protocolFeeBips,
     MarketState memory intermediateState,
     bytes calldata extraData
-  ) external override {
+  )
+    external
+    override
+  {
     _checkProtocolFeeBips(protocolFeeBips, intermediateState, extraData);
   }
 
-  function _checkProtocolFeeBips(
-    uint16 bips,
-    MarketState memory state,
-    bytes calldata extraData
-  ) internal virtual {}
+  function _checkProtocolFeeBips(uint16 bips, MarketState memory state, bytes calldata extraData) internal virtual { }
 }

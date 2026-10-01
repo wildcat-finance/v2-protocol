@@ -83,22 +83,26 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   //                         All hooks data for borrower                        //
   // ========================================================================== //
 
-  function getHooksDataForBorrower(
-    address borrower
-  ) external view returns (HooksDataForBorrower memory data) {
+  function getHooksDataForBorrower(address borrower) external view returns (HooksDataForBorrower memory data) {
     _delegateAggregationHelper();
   }
 
   function getHooksDataForBorrower(
     address hooksFactoryAddress,
     address borrower
-  ) external view returns (HooksDataForBorrower memory data) {
+  )
+    external
+    view
+    returns (HooksDataForBorrower memory data)
+  {
     _delegateAggregationHelper();
   }
 
-  function getAggregatedHooksDataForBorrower(
-    address borrower
-  ) external view returns (HooksDataForBorrower memory data) {
+  function getAggregatedHooksDataForBorrower(address borrower)
+    external
+    view
+    returns (HooksDataForBorrower memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -106,23 +110,27 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   //                        Hooks instances for borrower                        //
   // ========================================================================== //
 
-  function getHooksInstancesForBorrower(
-    address borrower
-  ) external view returns (HooksInstanceData[] memory arr) {
+  function getHooksInstancesForBorrower(address borrower) external view returns (HooksInstanceData[] memory arr) {
     _delegateAggregationHelper();
   }
 
   function getHooksInstancesForBorrower(
     address hooksFactoryAddress,
     address borrower
-  ) external view returns (HooksInstanceData[] memory arr) {
+  )
+    external
+    view
+    returns (HooksInstanceData[] memory arr)
+  {
     _delegateAggregationHelper();
   }
 
   /// @inheritdoc IMarketLensAggregator
-  function getAggregatedHooksInstancesForBorrower(
-    address borrower
-  ) external view returns (HooksInstanceData[] memory arr) {
+  function getAggregatedHooksInstancesForBorrower(address borrower)
+    external
+    view
+    returns (HooksInstanceData[] memory arr)
+  {
     _delegateAggregationHelper();
   }
 
@@ -133,7 +141,11 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   function getHooksTemplateForBorrower(
     address borrower,
     address hooksTemplate
-  ) external view returns (HooksTemplateData memory data) {
+  )
+    external
+    view
+    returns (HooksTemplateData memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -141,14 +153,22 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address hooksFactoryAddress,
     address borrower,
     address hooksTemplate
-  ) external view returns (HooksTemplateData memory data) {
+  )
+    external
+    view
+    returns (HooksTemplateData memory data)
+  {
     _delegateAggregationHelper();
   }
 
   function getHooksTemplatesForBorrower(
     address borrower,
     address[] memory hooksTemplates
-  ) external view returns (HooksTemplateData[] memory data) {
+  )
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -156,34 +176,44 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address hooksFactoryAddress,
     address borrower,
     address[] memory hooksTemplates
-  ) external view returns (HooksTemplateData[] memory data) {
+  )
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
-  function getAllHooksTemplatesForBorrower(
-    address borrower
-  ) external view returns (HooksTemplateData[] memory data) {
+  function getAllHooksTemplatesForBorrower(address borrower) external view returns (HooksTemplateData[] memory data) {
     _delegateAggregationHelper();
   }
 
   function getAllHooksTemplatesForBorrower(
     address hooksFactoryAddress,
     address borrower
-  ) external view returns (HooksTemplateData[] memory data) {
+  )
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
   /// @inheritdoc IMarketLensAggregator
-  function getAggregatedAllHooksTemplatesForBorrower(
-    address borrower
-  ) external view returns (HooksTemplateData[] memory data) {
+  function getAggregatedAllHooksTemplatesForBorrower(address borrower)
+    external
+    view
+    returns (HooksTemplateData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
   /// @inheritdoc IMarketLensAggregator
-  function getAggregatedHooksTemplatesForBorrowerWithFactory(
-    address borrower
-  ) external view returns (FactoryScopedHooksTemplateData[] memory data) {
+  function getAggregatedHooksTemplatesForBorrowerWithFactory(address borrower)
+    external
+    view
+    returns (FactoryScopedHooksTemplateData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -195,9 +225,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     _delegateCoreHelper();
   }
 
-  function getTokensInfo(
-    address[] calldata tokens
-  ) external view returns (TokenMetadata[] memory info) {
+  function getTokensInfo(address[] calldata tokens) external view returns (TokenMetadata[] memory info) {
     _delegateCoreHelper();
   }
 
@@ -212,13 +240,15 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   function getMarketsForHooksTemplateCount(
     address hooksFactoryAddress,
     address hooksTemplate
-  ) external view returns (uint256) {
+  )
+    external
+    view
+    returns (uint256)
+  {
     _delegateAggregationHelper();
   }
 
-  function getAggregatedMarketsForHooksTemplateCount(
-    address hooksTemplate
-  ) external view returns (uint256 count) {
+  function getAggregatedMarketsForHooksTemplateCount(address hooksTemplate) external view returns (uint256 count) {
     _delegateAggregationHelper();
   }
 
@@ -226,9 +256,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     _delegateCoreHelper();
   }
 
-  function getMarketsData(
-    address[] calldata markets
-  ) external view returns (MarketData[] memory data) {
+  function getMarketsData(address[] calldata markets) external view returns (MarketData[] memory data) {
     _delegateCoreHelper();
   }
 
@@ -236,9 +264,7 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     _delegateCoreHelper();
   }
 
-  function getMarketsDataV2(
-    address[] calldata markets
-  ) external view returns (MarketDataV2_5[] memory data) {
+  function getMarketsDataV2(address[] calldata markets) external view returns (MarketDataV2_5[] memory data) {
     _delegateCoreHelper();
   }
 
@@ -246,7 +272,11 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address hooksTemplate,
     uint256 start,
     uint256 end
-  ) external view returns (MarketData[] memory data) {
+  )
+    external
+    view
+    returns (MarketData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -255,7 +285,11 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address hooksTemplate,
     uint256 start,
     uint256 end
-  ) external view returns (MarketData[] memory data) {
+  )
+    external
+    view
+    returns (MarketData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -263,7 +297,11 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address hooksTemplate,
     uint256 start,
     uint256 end
-  ) external view returns (MarketDataV2_5[] memory data) {
+  )
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -272,45 +310,61 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address hooksTemplate,
     uint256 start,
     uint256 end
-  ) external view returns (MarketDataV2_5[] memory data) {
+  )
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
-  function getAllMarketsDataForHooksTemplate(
-    address hooksTemplate
-  ) external view returns (MarketData[] memory data) {
+  function getAllMarketsDataForHooksTemplate(address hooksTemplate) external view returns (MarketData[] memory data) {
     _delegateAggregationHelper();
   }
 
   function getAllMarketsDataForHooksTemplate(
     address hooksFactoryAddress,
     address hooksTemplate
-  ) external view returns (MarketData[] memory data) {
+  )
+    external
+    view
+    returns (MarketData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
-  function getAllMarketsDataV2ForHooksTemplate(
-    address hooksTemplate
-  ) external view returns (MarketDataV2_5[] memory data) {
+  function getAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
   function getAllMarketsDataV2ForHooksTemplate(
     address hooksFactoryAddress,
     address hooksTemplate
-  ) external view returns (MarketDataV2_5[] memory data) {
+  )
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
-  function getAggregatedAllMarketsDataForHooksTemplate(
-    address hooksTemplate
-  ) external view returns (MarketData[] memory data) {
+  function getAggregatedAllMarketsDataForHooksTemplate(address hooksTemplate)
+    external
+    view
+    returns (MarketData[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
-  function getAggregatedAllMarketsDataV2ForHooksTemplate(
-    address hooksTemplate
-  ) external view returns (MarketDataV2_5[] memory data) {
+  function getAggregatedAllMarketsDataV2ForHooksTemplate(address hooksTemplate)
+    external
+    view
+    returns (MarketDataV2_5[] memory data)
+  {
     _delegateAggregationHelper();
   }
 
@@ -318,16 +372,18 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   //                              Live market reads                             //
   // ========================================================================== //
 
-  function getMarketsLiveDataV2(
-    address[] calldata markets
-  ) external view returns (MarketLiveDataV2_5[] memory data) {
+  function getMarketsLiveDataV2(address[] calldata markets) external view returns (MarketLiveDataV2_5[] memory data) {
     _delegateLiveHelper();
   }
 
   function getMarketsLiveDataWithLenderStatusV2(
     address lender,
     address[] calldata markets
-  ) external view returns (MarketLiveDataWithLenderStatusV2_5[] memory data) {
+  )
+    external
+    view
+    returns (MarketLiveDataWithLenderStatusV2_5[] memory data)
+  {
     _delegateLiveHelper();
   }
 
@@ -338,14 +394,22 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   function getMarketDataWithLenderStatus(
     address lender,
     address market
-  ) external view returns (MarketDataWithLenderStatus memory data) {
+  )
+    external
+    view
+    returns (MarketDataWithLenderStatus memory data)
+  {
     _delegateCoreHelper();
   }
 
   function getMarketsDataWithLenderStatus(
     address lender,
     address[] calldata markets
-  ) external view returns (MarketDataWithLenderStatus[] memory data) {
+  )
+    external
+    view
+    returns (MarketDataWithLenderStatus[] memory data)
+  {
     _delegateCoreHelper();
   }
 
@@ -353,36 +417,45 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   //                        Lender status in market only                        //
   // ========================================================================== //
 
-  function getLenderAccountData(
-    address lender,
-    address market
-  ) external view returns (LenderAccountData memory data) {
+  function getLenderAccountData(address lender, address market) external view returns (LenderAccountData memory data) {
     _delegateCoreHelper();
   }
 
   function getLenderAccountData(
     address lender,
     address[] calldata markets
-  ) external view returns (LenderAccountData[] memory arr) {
+  )
+    external
+    view
+    returns (LenderAccountData[] memory arr)
+  {
     _delegateCoreHelper();
   }
 
   function getLenderAccountsData(
     address marketAddress,
     address[] calldata lenders
-  ) external view returns (LenderAccountData[] memory data) {
+  )
+    external
+    view
+    returns (LenderAccountData[] memory data)
+  {
     _delegateCoreHelper();
   }
 
-  function queryLenderAccount(
-    LenderAccountQuery calldata query
-  ) external view returns (LenderAccountQueryResult memory result) {
+  function queryLenderAccount(LenderAccountQuery calldata query)
+    external
+    view
+    returns (LenderAccountQueryResult memory result)
+  {
     _delegateCoreHelper();
   }
 
-  function queryLenderAccounts(
-    LenderAccountQuery[] calldata queries
-  ) external view returns (LenderAccountQueryResult[] memory result) {
+  function queryLenderAccounts(LenderAccountQuery[] calldata queries)
+    external
+    view
+    returns (LenderAccountQueryResult[] memory result)
+  {
     _delegateCoreHelper();
   }
 
@@ -393,14 +466,22 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
   function getWithdrawalBatchData(
     address market,
     uint32 expiry
-  ) external view returns (WithdrawalBatchData memory data) {
+  )
+    external
+    view
+    returns (WithdrawalBatchData memory data)
+  {
     _delegateCoreHelper();
   }
 
   function getWithdrawalBatchesData(
     address market,
     uint32[] calldata expiries
-  ) external view returns (WithdrawalBatchData[] memory data) {
+  )
+    external
+    view
+    returns (WithdrawalBatchData[] memory data)
+  {
     _delegateCoreHelper();
   }
 
@@ -412,7 +493,11 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address market,
     uint32[] calldata expiries,
     address lender
-  ) external view returns (WithdrawalBatchDataWithLenderStatus[] memory statuses) {
+  )
+    external
+    view
+    returns (WithdrawalBatchDataWithLenderStatus[] memory statuses)
+  {
     _delegateCoreHelper();
   }
 
@@ -420,7 +505,11 @@ contract MarketLens is IMarketLensAggregator, IMarketLensCore, IMarketLensLive {
     address market,
     uint32 expiry,
     address lender
-  ) external view returns (WithdrawalBatchDataWithLenderStatus memory status) {
+  )
+    external
+    view
+    returns (WithdrawalBatchDataWithLenderStatus memory status)
+  {
     _delegateCoreHelper();
   }
 

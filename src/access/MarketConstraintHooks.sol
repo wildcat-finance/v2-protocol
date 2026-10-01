@@ -87,12 +87,7 @@ abstract contract MarketConstraintHooks is IHooks {
   mapping(address => TemporaryReserveRatio) public temporaryExcessReserveRatio;
 
   /// @dev reverts with `errorSelector` when `value` falls outside the inclusive range.
-  function assertValueInRange(
-    uint256 value,
-    uint256 min,
-    uint256 max,
-    bytes4 errorSelector
-  ) internal pure {
+  function assertValueInRange(uint256 value, uint256 min, uint256 max, bytes4 errorSelector) internal pure {
     assembly {
       if or(lt(value, min), gt(value, max)) {
         mstore(0, errorSelector)
@@ -108,7 +103,11 @@ abstract contract MarketConstraintHooks is IHooks {
     uint32 withdrawalBatchDuration,
     uint16 reserveRatioBips,
     uint32 delinquencyGracePeriod
-  ) internal view virtual {
+  )
+    internal
+    view
+    virtual
+  {
     MarketParameterConstraints memory limits = _getParameterConstraints();
     assertValueInRange(
       annualInterestBips,
@@ -143,21 +142,12 @@ abstract contract MarketConstraintHooks is IHooks {
   }
 
   /// @notice returns the parameter bounds enforced by this template during market creation.
-  function getParameterConstraints()
-    external
-    view
-    returns (MarketParameterConstraints memory constraints)
-  {
+  function getParameterConstraints() external view returns (MarketParameterConstraints memory constraints) {
     return _getParameterConstraints();
   }
 
   /// @dev override this once to change both discovery and enforcement for a registered template.
-  function _getParameterConstraints()
-    internal
-    view
-    virtual
-    returns (MarketParameterConstraints memory constraints)
-  {
+  function _getParameterConstraints() internal view virtual returns (MarketParameterConstraints memory constraints) {
     constraints.minimumDelinquencyGracePeriod = MinimumDelinquencyGracePeriod;
     constraints.maximumDelinquencyGracePeriod = MaximumDelinquencyGracePeriod;
     constraints.minimumReserveRatioBips = MinimumReserveRatioBips;
@@ -173,11 +163,17 @@ abstract contract MarketConstraintHooks is IHooks {
   }
 
   function _onCreateMarket(
-    address /* administrator */,
+    address,
+    /* administrator */
     address marketAddress,
     DeployMarketInputs calldata parameters,
     bytes calldata /* extraData */
-  ) internal virtual override returns (HooksConfig) {
+  )
+    internal
+    virtual
+    override
+    returns (HooksConfig)
+  {
     enforceParameterConstraints(
       parameters.annualInterestBips,
       parameters.delinquencyFeeBips,
@@ -186,11 +182,13 @@ abstract contract MarketConstraintHooks is IHooks {
       parameters.delinquencyGracePeriod
     );
     MarketParameterConstraints memory limits = _getParameterConstraints();
-    if (parameters.repaymentPeriod > limits.maximumRepaymentPeriod)
+    if (parameters.repaymentPeriod > limits.maximumRepaymentPeriod) {
       revert RepaymentPeriodOutOfBounds();
+    }
     if (parameters.repaymentDate != 0) {
-      if (parameters.repaymentDate > block.timestamp + limits.maximumRepaymentDateDelay)
+      if (parameters.repaymentDate > block.timestamp + limits.maximumRepaymentDateDelay) {
         revert RepaymentDateOutOfBounds();
+      }
       _marketRepaymentDates[marketAddress] = parameters.repaymentDate;
     }
   }
@@ -201,7 +199,11 @@ abstract contract MarketConstraintHooks is IHooks {
     uint256 annualInterestBips,
     uint256 originalAnnualInterestBips,
     uint256 originalReserveRatioBips
-  ) internal pure returns (uint16 temporaryReserveRatioBips) {
+  )
+    internal
+    pure
+    returns (uint16 temporaryReserveRatioBips)
+  {
     uint256 reduction = originalAnnualInterestBips - annualInterestBips;
 
     // compare before converting to bips. if we floor first, a reduction just over
@@ -211,10 +213,7 @@ abstract contract MarketConstraintHooks is IHooks {
     }
 
     // multiply before dividing so the temporary reserve ratio only rounds once.
-    uint256 boundRelativeDiff = MathUtils.min(
-      BIP,
-      MathUtils.mulDiv(2 * BIP, reduction, originalAnnualInterestBips)
-    );
+    uint256 boundRelativeDiff = MathUtils.min(BIP, MathUtils.mulDiv(2 * BIP, reduction, originalAnnualInterestBips));
 
     // don't let this calculation lower the reserve ratio that's already set.
     temporaryReserveRatioBips = uint16(MathUtils.max(boundRelativeDiff, originalReserveRatioBips));
@@ -234,18 +233,16 @@ abstract contract MarketConstraintHooks is IHooks {
   function _applyDefaultAprUpdate(
     uint16 annualInterestBips,
     MarketState calldata intermediateState
-  ) internal virtual returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips) {
-    (newAnnualInterestBips, newReserveRatioBips) = (
-      annualInterestBips,
-      intermediateState.reserveRatioBips
-    );
+  )
+    internal
+    virtual
+    returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips)
+  {
+    (newAnnualInterestBips, newReserveRatioBips) = (annualInterestBips, intermediateState.reserveRatioBips);
     address market = msg.sender;
 
     assertValueInRange(
-      annualInterestBips,
-      MinimumAnnualInterestBips,
-      MaximumAnnualInterestBips,
-      AnnualInterestBipsOutOfBounds.selector
+      annualInterestBips, MinimumAnnualInterestBips, MaximumAnnualInterestBips, AnnualInterestBipsOutOfBounds.selector
     );
 
     // get the existing temporary reserve ratio from storage, if any. `tmp` retains the original
@@ -261,9 +258,7 @@ abstract contract MarketConstraintHooks is IHooks {
     }
 
     if (tmp.expiry > 0) {
-      bool canExpire = (annualInterestBips >= intermediateState.annualInterestBips).and(
-        block.timestamp >= tmp.expiry
-      );
+      bool canExpire = (annualInterestBips >= intermediateState.annualInterestBips).and(block.timestamp >= tmp.expiry);
       bool canCancel = annualInterestBips >= tmp.originalAnnualInterestBips;
       if (canExpire.or(canCancel)) {
         // `canExpire` requires `tmp.expiry` to have passed and no further APR reduction.
@@ -291,21 +286,13 @@ abstract contract MarketConstraintHooks is IHooks {
       // increased reserve ratio from that original APR:
       // relativeReduction <= 0.25 ? originalReserveRatio :
       // max(originalReserveRatio, min(2 * relativeReduction, 100%))
-      uint16 temporaryReserveRatioBips = _calculateTemporaryReserveRatioBips(
-        annualInterestBips,
-        originalAnnualInterestBips,
-        originalReserveRatioBips
-      );
+      uint16 temporaryReserveRatioBips =
+        _calculateTemporaryReserveRatioBips(annualInterestBips, originalAnnualInterestBips, originalReserveRatioBips);
       uint32 expiry = uint32(block.timestamp + 2 weeks);
       if (tmp.expiry == 0) {
         // no existing temporary reserve period. store `originalAnnualInterestBips` and
         // `originalReserveRatioBips` so later updates use the same starting values.
-        emit TemporaryExcessReserveRatioActivated(
-          market,
-          originalReserveRatioBips,
-          temporaryReserveRatioBips,
-          expiry
-        );
+        emit TemporaryExcessReserveRatioActivated(market, originalReserveRatioBips, temporaryReserveRatioBips, expiry);
         tmp.originalAnnualInterestBips = originalAnnualInterestBips;
         tmp.originalReserveRatioBips = originalReserveRatioBips;
       } else {
@@ -314,12 +301,7 @@ abstract contract MarketConstraintHooks is IHooks {
         if (annualInterestBips >= intermediateState.annualInterestBips) {
           expiry = tmp.expiry;
         }
-        emit TemporaryExcessReserveRatioUpdated(
-          market,
-          originalReserveRatioBips,
-          temporaryReserveRatioBips,
-          expiry
-        );
+        emit TemporaryExcessReserveRatioUpdated(market, originalReserveRatioBips, temporaryReserveRatioBips, expiry);
       }
       tmp.expiry = expiry;
       temporaryExcessReserveRatio[market] = tmp;

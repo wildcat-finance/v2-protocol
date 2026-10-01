@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
-import { Panic_ErrorSelector, Panic_ErrorCodePointer, Panic_InvalidStorageByteArray, Error_SelectorPointer, Panic_ErrorLength } from '../libraries/Errors.sol';
+import {
+  Panic_ErrorSelector,
+  Panic_ErrorCodePointer,
+  Panic_InvalidStorageByteArray,
+  Error_SelectorPointer,
+  Panic_ErrorLength
+} from '../libraries/Errors.sol';
 
 /// @notice transient-storage slot holding bytes in Solidity's storage encoding.
 /// @dev contents only survive the current transaction.
@@ -18,7 +24,11 @@ library LibTransientBytesArray {
   function readToPointer(
     TransientBytesArray transientSlot,
     uint256 memoryPointer
-  ) internal view returns (uint256 endPointer) {
+  )
+    internal
+    view
+    returns (uint256 endPointer)
+  {
     assembly {
       function extractByteArrayLength(data) -> length {
         length := div(data, 2)
@@ -53,9 +63,7 @@ library LibTransientBytesArray {
         // Calculate the slot of the data portion of the array
         let dataTSlot := keccak256(0, 0x20)
         let i := 0
-        for {
-
-        } lt(i, length) {
+        for { } lt(i, length) {
           i := add(i, 0x20)
         } {
           mstore(add(memoryPointer, i), tload(dataTSlot))
@@ -97,9 +105,7 @@ library LibTransientBytesArray {
         mstore(0, transientSlot)
         let dataTSlot := keccak256(0, 0x20)
         let i := 0
-        for {
-
-        } lt(i, length) {
+        for { } lt(i, length) {
           i := add(i, 0x20)
         } {
           tstore(dataTSlot, mload(add(memoryPointer, i)))

@@ -13,7 +13,8 @@ interface ILegacyWildcatMarketControllerFactory is IArchControllerBound {
     address originationFeeAsset,
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
-  ) external;
+  )
+    external;
 }
 
 /**
@@ -32,11 +33,7 @@ contract MockArchControllerOwner {
 
   event AccountAuthorized(address indexed authorizer, address indexed account);
   event AccountDeauthorized(address indexed authorizer, address indexed account);
-  event ProtocolActionExecuted(
-    address indexed executor,
-    address indexed target,
-    bytes4 indexed selector
-  );
+  event ProtocolActionExecuted(address indexed executor, address indexed target, bytes4 indexed selector);
 
   string public constant version = '2';
 
@@ -138,7 +135,10 @@ contract MockArchControllerOwner {
     address originationFeeAsset,
     uint80 originationFeeAmount,
     uint16 protocolFeeBips
-  ) external onlyAuthorized {
+  )
+    external
+    onlyAuthorized
+  {
     _executeProtocolAction(
       address(factory),
       abi.encodeCall(
@@ -156,7 +156,11 @@ contract MockArchControllerOwner {
   function executeProtocolAction(
     address target,
     bytes calldata data
-  ) external onlyAuthorized returns (bytes memory result) {
+  )
+    external
+    onlyAuthorized
+    returns (bytes memory result)
+  {
     result = _executeProtocolAction(target, data, msg.sender);
   }
 
@@ -164,7 +168,10 @@ contract MockArchControllerOwner {
     address target,
     bytes memory data,
     address executor
-  ) internal returns (bytes memory result) {
+  )
+    internal
+    returns (bytes memory result)
+  {
     if (data.length < 4) revert InvalidProtocolAction();
     _requireProtocolTarget(target);
 
@@ -190,9 +197,7 @@ contract MockArchControllerOwner {
     address engine = archController.sphereXEngine();
     if (engine != address(0) && target == engine) return;
 
-    (bool success, bytes memory data) = target.staticcall(
-      abi.encodeCall(IArchControllerBound.archController, ())
-    );
+    (bool success, bytes memory data) = target.staticcall(abi.encodeCall(IArchControllerBound.archController, ()));
     if (!success || data.length != 0x20) revert InvalidProtocolTarget();
 
     uint256 encodedArchController;

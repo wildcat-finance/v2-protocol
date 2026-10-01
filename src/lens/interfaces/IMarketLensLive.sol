@@ -8,13 +8,14 @@ import '../MarketLiveData.sol';
 interface IMarketLensLive {
   /// @notice returns accrued accounting, lifecycle, and liquidity for each market in input order.
   /// @dev lifecycle.defaultedAt is committed storage; accrued views do not record default.
-  function getMarketsLiveDataV2(
-    address[] calldata markets
-  ) external view returns (MarketLiveDataV2_5[] memory data);
+  function getMarketsLiveDataV2(address[] calldata markets) external view returns (MarketLiveDataV2_5[] memory data);
 
   /// @notice returns compact accrued state plus `lender` status for each market.
   function getMarketsLiveDataWithLenderStatusV2(
     address lender,
     address[] calldata markets
-  ) external view returns (MarketLiveDataWithLenderStatusV2_5[] memory data);
+  )
+    external
+    view
+    returns (MarketLiveDataWithLenderStatusV2_5[] memory data);
 }

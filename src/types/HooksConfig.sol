@@ -23,7 +23,10 @@ type HooksDeploymentConfig is uint256;
 function encodeHooksDeploymentConfig(
   HooksConfig optionalFlags,
   HooksConfig requiredFlags
-) pure returns (HooksDeploymentConfig flags) {
+)
+  pure
+  returns (HooksDeploymentConfig flags)
+{
   assembly {
     let cleanedOptionalFlags := and(0xffff, shr(0x50, optionalFlags))
     let cleanedRequiredFlags := and(0xffff0000, shr(0x40, requiredFlags))
@@ -66,7 +69,10 @@ function encodeHooksConfig(
   bool useOnSetMaxTotalSupply,
   bool useOnSetAnnualInterestAndReserveRatioBips,
   bool useOnSetProtocolFeeBips
-) pure returns (HooksConfig hooks) {
+)
+  pure
+  returns (HooksConfig hooks)
+{
   assembly {
     hooks := shl(96, hooksAddress)
     hooks := or(hooks, shl(Bit_Enabled_Deposit, useOnDeposit))
@@ -78,13 +84,7 @@ function encodeHooksConfig(
     hooks := or(hooks, shl(Bit_Enabled_CloseMarket, useOnCloseMarket))
     hooks := or(hooks, shl(Bit_Enabled_NukeFromOrbit, useOnNukeFromOrbit))
     hooks := or(hooks, shl(Bit_Enabled_SetMaxTotalSupply, useOnSetMaxTotalSupply))
-    hooks := or(
-      hooks,
-      shl(
-        Bit_Enabled_SetAnnualInterestAndReserveRatioBips,
-        useOnSetAnnualInterestAndReserveRatioBips
-      )
-    )
+    hooks := or(hooks, shl(Bit_Enabled_SetAnnualInterestAndReserveRatioBips, useOnSetAnnualInterestAndReserveRatioBips))
     hooks := or(hooks, shl(Bit_Enabled_SetProtocolFeeBips, useOnSetProtocolFeeBips))
   }
 }
@@ -114,10 +114,7 @@ library LibHooksConfig {
   }
 
   /// @dev returns `hooks` with its address replaced and every flag left alone.
-  function setHooksAddress(
-    HooksConfig hooks,
-    address _hooksAddress
-  ) internal pure returns (HooksConfig updatedHooks) {
+  function setHooksAddress(HooksConfig hooks, address _hooksAddress) internal pure returns (HooksConfig updatedHooks) {
     assembly {
       // Shift twice to clear the address
       updatedHooks := shr(160, shl(160, hooks))
@@ -130,10 +127,7 @@ library LibHooksConfig {
    * @dev Create a merged HooksConfig with the shared flags of `a` and `b`
    *      and the address of `a`.
    */
-  function mergeSharedFlags(
-    HooksConfig a,
-    HooksConfig b
-  ) internal pure returns (HooksConfig merged) {
+  function mergeSharedFlags(HooksConfig a, HooksConfig b) internal pure returns (HooksConfig merged) {
     assembly {
       let addressA := shl(0x60, shr(0x60, a))
       let flagsA := shl(0xa0, a)
@@ -159,10 +153,7 @@ library LibHooksConfig {
 
   /// @dev keeps requested flags that are optional, enables every required flag, and preserves the
   ///      address from `config`.
-  function mergeFlags(
-    HooksConfig config,
-    HooksDeploymentConfig flags
-  ) internal pure returns (HooksConfig merged) {
+  function mergeFlags(HooksConfig config, HooksDeploymentConfig flags) internal pure returns (HooksConfig merged) {
     assembly {
       let _hooksAddress := shl(96, shr(96, config))
       // Position flags at the end of the word
@@ -204,20 +195,14 @@ library LibHooksConfig {
   }
 
   /// @dev returns `hooks` with the flag at `bitsAfter` enabled.
-  function setFlag(
-    HooksConfig hooks,
-    uint256 bitsAfter
-  ) internal pure returns (HooksConfig updatedHooks) {
+  function setFlag(HooksConfig hooks, uint256 bitsAfter) internal pure returns (HooksConfig updatedHooks) {
     assembly {
       updatedHooks := or(hooks, shl(bitsAfter, 1))
     }
   }
 
   /// @dev returns `hooks` with the flag at `bitsAfter` disabled.
-  function clearFlag(
-    HooksConfig hooks,
-    uint256 bitsAfter
-  ) internal pure returns (HooksConfig updatedHooks) {
+  function clearFlag(HooksConfig hooks, uint256 bitsAfter) internal pure returns (HooksConfig updatedHooks) {
     assembly {
       updatedHooks := and(hooks, not(shl(bitsAfter, 1)))
     }
@@ -276,9 +261,7 @@ library LibHooksConfig {
   }
 
   /// @dev Whether to call hook contract for setAnnualInterestAndReserveRatioBips
-  function useOnSetAnnualInterestAndReserveRatioBips(
-    HooksConfig hooks
-  ) internal pure returns (bool) {
+  function useOnSetAnnualInterestAndReserveRatioBips(HooksConfig hooks) internal pure returns (bool) {
     return hooks.readFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips);
   }
 
@@ -288,9 +271,7 @@ library LibHooksConfig {
   }
 
   /// @dev Whether to call hook contract for executePendingAnnualInterestBipsReduction
-  function useOnExecutePendingAnnualInterestBipsReduction(
-    HooksConfig hooks
-  ) internal pure returns (bool) {
+  function useOnExecutePendingAnnualInterestBipsReduction(HooksConfig hooks) internal pure returns (bool) {
     return hooks.readFlag(Bit_Enabled_ExecutePendingAnnualInterestBipsReduction);
   }
 
@@ -308,12 +289,7 @@ library LibHooksConfig {
   uint256 internal constant DepositHook_ExtraData_TailOffset = 0x0260;
 
   /// @dev calls `onDeposit` when enabled and forwards bytes appended after the deposit arguments.
-  function onDeposit(
-    HooksConfig self,
-    address lender,
-    uint256 scaledAmount,
-    MarketState memory state
-  ) internal {
+  function onDeposit(HooksConfig self, address lender, uint256 scaledAmount, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onDepositSelector = uint32(IHooks.onDeposit.selector);
     if (self.useOnDeposit()) {
@@ -332,18 +308,11 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(add(headPointer, DepositHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(
-          add(headPointer, DepositHook_ExtraData_Head_Offset),
-          DepositHook_ExtraData_Length_Offset
-        )
+        mstore(add(headPointer, DepositHook_ExtraData_Head_Offset), DepositHook_ExtraData_Length_Offset)
         // Write length for `extraData`
         mstore(add(headPointer, DepositHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
-        calldatacopy(
-          add(headPointer, DepositHook_ExtraData_TailOffset),
-          DepositCalldataSize,
-          extraCalldataBytes
-        )
+        calldatacopy(add(headPointer, DepositHook_ExtraData_TailOffset), DepositCalldataSize, extraCalldataBytes)
 
         calldataPointer := add(cdPointer, 0x1c)
         calldataSize := add(DepositHook_Base_Size, extraCalldataBytes)
@@ -373,7 +342,9 @@ library LibHooksConfig {
     uint256 scaledAmount,
     MarketState memory state,
     uint256 baseCalldataSize
-  ) internal {
+  )
+    internal
+  {
     address target = self.hooksAddress();
     uint32 onQueueWithdrawalSelector = uint32(IHooks.onQueueWithdrawal.selector);
     if (self.useOnQueueWithdrawal()) {
@@ -394,18 +365,11 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(add(headPointer, QueueWithdrawalHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(
-          add(headPointer, QueueWithdrawalHook_ExtraData_Head_Offset),
-          QueueWithdrawalHook_ExtraData_Length_Offset
-        )
+        mstore(add(headPointer, QueueWithdrawalHook_ExtraData_Head_Offset), QueueWithdrawalHook_ExtraData_Length_Offset)
         // Write length for `extraData`
         mstore(add(headPointer, QueueWithdrawalHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
-        calldatacopy(
-          add(headPointer, QueueWithdrawalHook_ExtraData_TailOffset),
-          baseCalldataSize,
-          extraCalldataBytes
-        )
+        calldatacopy(add(headPointer, QueueWithdrawalHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
 
         calldataPointer := add(cdPointer, 0x1c)
         calldataSize := add(QueueWithdrawalHook_Base_Size, extraCalldataBytes)
@@ -435,7 +399,9 @@ library LibHooksConfig {
     uint256 normalizedAmountWithdrawn,
     MarketState memory state,
     uint256 baseCalldataSize
-  ) internal {
+  )
+    internal
+  {
     address target = self.hooksAddress();
     uint32 onExecuteWithdrawalSelector = uint32(IHooks.onExecuteWithdrawal.selector);
     if (self.useOnExecuteWithdrawal()) {
@@ -452,10 +418,7 @@ library LibHooksConfig {
         // Write the exact withdrawal-batch `expiry` to hook calldata
         mstore(add(headPointer, ExecuteWithdrawalHook_Expiry_Offset), expiry)
         // Write `normalizedAmountWithdrawn` to hook calldata
-        mstore(
-          add(headPointer, ExecuteWithdrawalHook_NormalizedAmount_Offset),
-          normalizedAmountWithdrawn
-        )
+        mstore(add(headPointer, ExecuteWithdrawalHook_NormalizedAmount_Offset), normalizedAmountWithdrawn)
         // Copy market state to hook calldata
         mcopy(add(headPointer, ExecuteWithdrawalHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
@@ -466,11 +429,7 @@ library LibHooksConfig {
         // Write length for `extraData`
         mstore(add(headPointer, ExecuteWithdrawalHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
-        calldatacopy(
-          add(headPointer, ExecuteWithdrawalHook_ExtraData_TailOffset),
-          baseCalldataSize,
-          extraCalldataBytes
-        )
+        calldatacopy(add(headPointer, ExecuteWithdrawalHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
 
         calldataPointer := add(cdPointer, 0x1c)
         calldataSize := add(ExecuteWithdrawalHook_Base_Size, extraCalldataBytes)
@@ -501,7 +460,9 @@ library LibHooksConfig {
     uint256 scaledAmount,
     MarketState memory state,
     uint256 baseCalldataSize
-  ) internal {
+  )
+    internal
+  {
     address target = self.hooksAddress();
     uint32 onTransferSelector = uint32(IHooks.onTransfer.selector);
     if (self.useOnTransfer()) {
@@ -524,18 +485,11 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(add(headPointer, TransferHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(
-          add(headPointer, TransferHook_ExtraData_Head_Offset),
-          TransferHook_ExtraData_Length_Offset
-        )
+        mstore(add(headPointer, TransferHook_ExtraData_Head_Offset), TransferHook_ExtraData_Length_Offset)
         // Write length for `extraData`
         mstore(add(headPointer, TransferHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
-        calldatacopy(
-          add(headPointer, TransferHook_ExtraData_TailOffset),
-          baseCalldataSize,
-          extraCalldataBytes
-        )
+        calldatacopy(add(headPointer, TransferHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
 
         calldataPointer := add(cdPointer, 0x1c)
         calldataSize := add(TransferHook_Base_Size, extraCalldataBytes)
@@ -574,18 +528,11 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(add(headPointer, BorrowHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(
-          add(headPointer, BorrowHook_ExtraData_Head_Offset),
-          BorrowHook_ExtraData_Length_Offset
-        )
+        mstore(add(headPointer, BorrowHook_ExtraData_Head_Offset), BorrowHook_ExtraData_Length_Offset)
         // Write length for `extraData`
         mstore(add(headPointer, BorrowHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
-        calldatacopy(
-          add(headPointer, BorrowHook_ExtraData_TailOffset),
-          BorrowCalldataSize,
-          extraCalldataBytes
-        )
+        calldatacopy(add(headPointer, BorrowHook_ExtraData_TailOffset), BorrowCalldataSize, extraCalldataBytes)
 
         calldataPointer := add(ptr, 0x1c)
         calldataSize := add(BorrowHook_Base_Size, extraCalldataBytes)
@@ -611,7 +558,9 @@ library LibHooksConfig {
     uint256 normalizedAmount,
     MarketState memory state,
     uint256 baseCalldataSize
-  ) internal {
+  )
+    internal
+  {
     address target = self.hooksAddress();
     uint32 onRepaySelector = uint32(IHooks.onRepay.selector);
     if (self.useOnRepay()) {
@@ -632,11 +581,7 @@ library LibHooksConfig {
         // Write length for `extraData`
         mstore(add(headPointer, RepayHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
-        calldatacopy(
-          add(headPointer, RepayHook_ExtraData_TailOffset),
-          baseCalldataSize,
-          extraCalldataBytes
-        )
+        calldatacopy(add(headPointer, RepayHook_ExtraData_TailOffset), baseCalldataSize, extraCalldataBytes)
 
         calldataPointer := add(ptr, 0x1c)
         calldataSize := add(RepayHook_Base_Size, extraCalldataBytes)
@@ -674,10 +619,7 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(headPointer, state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(
-          add(headPointer, CloseMarketHook_ExtraData_Head_Offset),
-          CloseMarketHook_ExtraData_Length_Offset
-        )
+        mstore(add(headPointer, CloseMarketHook_ExtraData_Head_Offset), CloseMarketHook_ExtraData_Length_Offset)
         // Write length for `extraData`
         mstore(add(headPointer, CloseMarketHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
@@ -707,11 +649,7 @@ library LibHooksConfig {
   uint256 internal constant SetMaxTotalSupplyHook_ExtraData_TailOffset = 0x0240;
 
   /// @dev calls `onSetMaxTotalSupply` when enabled; the hook may accept or revert, not rewrite it.
-  function onSetMaxTotalSupply(
-    HooksConfig self,
-    uint256 maxTotalSupply,
-    MarketState memory state
-  ) internal {
+  function onSetMaxTotalSupply(HooksConfig self, uint256 maxTotalSupply, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onSetMaxTotalSupplySelector = uint32(IHooks.onSetMaxTotalSupply.selector);
     if (self.useOnSetMaxTotalSupply()) {
@@ -758,8 +696,7 @@ library LibHooksConfig {
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset = 0x20;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_State_Offset = 0x40;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset = 0x0220;
-  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset =
-    0x0240;
+  uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset = 0x0240;
   uint256 internal constant SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset = 0x0260;
 
   /// @dev calls the term-change hook when enabled and returns its final APR and reserve ratio.
@@ -769,17 +706,15 @@ library LibHooksConfig {
     uint16 annualInterestBips,
     uint16 reserveRatioBips,
     MarketState memory state
-  ) internal returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips) {
+  )
+    internal
+    returns (uint16 newAnnualInterestBips, uint16 newReserveRatioBips)
+  {
     address target = self.hooksAddress();
-    uint32 onSetAnnualInterestBipsSelector = uint32(
-      IHooks.onSetAnnualInterestAndReserveRatioBips.selector
-    );
+    uint32 onSetAnnualInterestBipsSelector = uint32(IHooks.onSetAnnualInterestAndReserveRatioBips.selector);
     if (self.useOnSetAnnualInterestAndReserveRatioBips()) {
       assembly {
-        let extraCalldataBytes := sub(
-          calldatasize(),
-          SetAnnualInterestAndReserveRatioBipsCalldataSize
-        )
+        let extraCalldataBytes := sub(calldatasize(), SetAnnualInterestAndReserveRatioBipsCalldataSize)
         let cdPointer := mload(0x40)
         let headPointer := add(cdPointer, 0x20)
         // Write selector for `onSetAnnualInterestAndReserveRatioBips`
@@ -787,26 +722,16 @@ library LibHooksConfig {
         // Write `annualInterestBips` to hook calldata
         mstore(headPointer, annualInterestBips)
         // Write `reserveRatioBips` to hook calldata
-        mstore(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset),
-          reserveRatioBips
-        )
+        mstore(add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ReserveRatioBips_Offset), reserveRatioBips)
         // Copy market state to hook calldata
-        mcopy(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_State_Offset),
-          state,
-          MarketStateSize
-        )
+        mcopy(add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
         mstore(
           add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Head_Offset),
           SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset
         )
         // Write length for `extraData`
-        mstore(
-          add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset),
-          extraCalldataBytes
-        )
+        mstore(add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
         calldatacopy(
           add(headPointer, SetAnnualInterestAndReserveRatioBipsHook_ExtraData_TailOffset),
@@ -817,10 +742,7 @@ library LibHooksConfig {
         let size := add(SetAnnualInterestAndReserveRatioBipsHook_Base_Size, extraCalldataBytes)
 
         // Returndata is expected to have the new values for `annualInterestBips` and `reserveRatioBips`
-        if or(
-          lt(returndatasize(), 0x40),
-          iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0x40))
-        ) {
+        if or(lt(returndatasize(), 0x40), iszero(call(gas(), target, 0, add(cdPointer, 0x1c), size, 0, 0x40))) {
           returndatacopy(0, 0, returndatasize())
           revert(0, returndatasize())
         }
@@ -846,11 +768,7 @@ library LibHooksConfig {
   uint256 internal constant SetProtocolFeeBips_ExtraData_TailOffset = 0x0240;
 
   /// @dev calls `onSetProtocolFeeBips` when enabled and bubbles any hook revert.
-  function onSetProtocolFeeBips(
-    HooksConfig self,
-    uint256 protocolFeeBips,
-    MarketState memory state
-  ) internal {
+  function onSetProtocolFeeBips(HooksConfig self, uint256 protocolFeeBips, MarketState memory state) internal {
     address target = self.hooksAddress();
     uint32 onSetProtocolFeeBipsSelector = uint32(IHooks.onSetProtocolFeeBips.selector);
     if (self.useOnSetProtocolFeeBips()) {
@@ -867,10 +785,7 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(add(headPointer, SetProtocolFeeBips_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(
-          add(headPointer, SetProtocolFeeBips_ExtraData_Head_Offset),
-          SetProtocolFeeBips_ExtraData_Length_Offset
-        )
+        mstore(add(headPointer, SetProtocolFeeBips_ExtraData_Head_Offset), SetProtocolFeeBips_ExtraData_Length_Offset)
         // Write length for `extraData`
         mstore(add(headPointer, SetProtocolFeeBips_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata
@@ -917,10 +832,7 @@ library LibHooksConfig {
         // Copy market state to hook calldata
         mcopy(add(headPointer, NukeFromOrbit_State_Offset), state, MarketStateSize)
         // Write bytes offset for `extraData`
-        mstore(
-          add(headPointer, NukeFromOrbit_ExtraData_Head_Offset),
-          NukeFromOrbit_ExtraData_Length_Offset
-        )
+        mstore(add(headPointer, NukeFromOrbit_ExtraData_Head_Offset), NukeFromOrbit_ExtraData_Length_Offset)
         // Write length for `extraData`
         mstore(add(headPointer, NukeFromOrbit_ExtraData_Length_Offset), extraCalldataBytes)
         // Copy `extraData` from end of calldata to hook calldata

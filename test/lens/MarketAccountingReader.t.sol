@@ -41,28 +41,16 @@ contract MarketAccountingReaderTest is TestKernel {
     expected.lastInterestAccruedTimestamp = 42;
     expected.withdrawalRemainder = 999;
     mock.set(abi.encode(expected), false);
-    assertEq(
-      keccak256(abi.encode(this.readState(address(mock), false))),
-      keccak256(abi.encode(expected))
-    );
-    assertEq(
-      keccak256(abi.encode(this.readState(address(mock), true))),
-      keccak256(abi.encode(expected))
-    );
+    assertEq(keccak256(abi.encode(this.readState(address(mock), false))), keccak256(abi.encode(expected)));
+    assertEq(keccak256(abi.encode(this.readState(address(mock), true))), keccak256(abi.encode(expected)));
     bytes memory legacy = abi.encode(expected);
     assembly {
       mstore(legacy, 0x1c0)
     }
     mock.set(legacy, false);
     expected.withdrawalRemainder = 0;
-    assertEq(
-      keccak256(abi.encode(this.readState(address(mock), false))),
-      keccak256(abi.encode(expected))
-    );
-    assertEq(
-      keccak256(abi.encode(this.readState(address(mock), true))),
-      keccak256(abi.encode(expected))
-    );
+    assertEq(keccak256(abi.encode(this.readState(address(mock), false))), keccak256(abi.encode(expected)));
+    assertEq(keccak256(abi.encode(this.readState(address(mock), true))), keccak256(abi.encode(expected)));
   }
 
   function test_legacyAndExtendedBatchPreserveWideCounters() external {
