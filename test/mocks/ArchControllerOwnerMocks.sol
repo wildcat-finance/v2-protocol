@@ -1,10 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // ArchControllerOwnerMocks
+// ║  ██▀▀     ▀▀██   Protocol authority, legacy factory, and engine owner mocks.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  PROTOCOL TARGET
+// ║  constructor(...)
+// ║  setValue(...)
+// ║  fail(...)
+// ║
+// ║  LEGACY FACTORY
+// ║  constructor(...)
+// ║  setProtocolFeeConfiguration(...)
+// ║
+// ║  ENGINE AUTHORITY
+// ║  constructor(...)
+// ║  addAllowedSenderOnChain(...)
+// ║  supportsInterface(...)
+// ║
+// ║  ENGINE VALIDATION
+// ║  sphereXValidatePre(...)
+// ║  sphereXValidatePost(...)
+// ║  sphereXValidateInternalPre(...)
+// ║  sphereXValidateInternalPost(...)
+// ╚═════
+
 import 'openzeppelin/contracts/access/AccessControlDefaultAdminRules.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { ISphereXEngine } from 'src/spherex/ISphereXEngine.sol';
 
+// ┌─ ArchControllerOwnerProtocolTargetMock ────────────────────────────────────
 contract ArchControllerOwnerProtocolTargetMock {
   error ExpectedFailure(uint256 value);
 
@@ -12,21 +41,27 @@ contract ArchControllerOwnerProtocolTargetMock {
   address public lastCaller;
   uint256 public value;
 
+  // ░░▒▒▓▓██ [ PROTOCOL TARGET ] ──────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(address archController_) {
     archController = archController_;
   }
 
+  // ┌─ setValue ─────
   function setValue(uint256 value_) external returns (uint256 result) {
     lastCaller = msg.sender;
     value = value_;
     result = value_ + 1;
   }
 
+  // ┌─ fail ─────
   function fail(uint256 value_) external pure {
     revert ExpectedFailure(value_);
   }
 }
 
+// ┌─ ArchControllerOwnerLegacyFactoryMock ─────────────────────────────────────
 contract ArchControllerOwnerLegacyFactoryMock {
   error CallerNotArchControllerOwner();
 
@@ -36,10 +71,14 @@ contract ArchControllerOwnerLegacyFactoryMock {
   uint80 public originationFeeAmount;
   uint16 public protocolFeeBips;
 
+  // ░░▒▒▓▓██ [ LEGACY FACTORY ] ───────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(address archController_) {
     archController = archController_;
   }
 
+  // ┌─ setProtocolFeeConfiguration ─────
   function setProtocolFeeConfiguration(
     address feeRecipient_,
     address originationFeeAsset_,
@@ -58,10 +97,14 @@ contract ArchControllerOwnerLegacyFactoryMock {
   }
 }
 
+// ┌─ ArchControllerOwnerSphereXEngineMock ─────────────────────────────────────
 contract ArchControllerOwnerSphereXEngineMock is AccessControlDefaultAdminRules, ISphereXEngine {
   bytes32 public constant OPERATOR_ROLE = keccak256('OPERATOR_ROLE');
   bytes32 public constant SENDER_ADDER_ROLE = keccak256('SENDER_ADDER_ROLE');
 
+  // ░░▒▒▓▓██ [ ENGINE AUTHORITY ] ─────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     uint48 initialDelay,
     address initialDefaultAdmin
@@ -71,20 +114,10 @@ contract ArchControllerOwnerSphereXEngineMock is AccessControlDefaultAdminRules,
     _grantRole(OPERATOR_ROLE, initialDefaultAdmin);
   }
 
-  function sphereXValidatePre(int256, address, bytes calldata) external pure returns (bytes32[] memory values) {
-    values = new bytes32[](0);
-  }
-
-  function sphereXValidatePost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
-
-  function sphereXValidateInternalPre(int256) external pure returns (bytes32[] memory values) {
-    values = new bytes32[](0);
-  }
-
-  function sphereXValidateInternalPost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
-
+  // ┌─ addAllowedSenderOnChain ─────
   function addAllowedSenderOnChain(address) external onlyRole(SENDER_ADDER_ROLE) { }
 
+  // ┌─ supportsInterface ─────
   function supportsInterface(bytes4 interfaceId)
     public
     view
@@ -93,4 +126,22 @@ contract ArchControllerOwnerSphereXEngineMock is AccessControlDefaultAdminRules,
   {
     return interfaceId == type(ISphereXEngine).interfaceId || super.supportsInterface(interfaceId);
   }
+
+  // ░░▒▒▓▓██ [ ENGINE VALIDATION ] ────────────────────────────────────────────
+
+  // ┌─ sphereXValidatePre ─────
+  function sphereXValidatePre(int256, address, bytes calldata) external pure returns (bytes32[] memory values) {
+    values = new bytes32[](0);
+  }
+
+  // ┌─ sphereXValidatePost ─────
+  function sphereXValidatePost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
+
+  // ┌─ sphereXValidateInternalPre ─────
+  function sphereXValidateInternalPre(int256) external pure returns (bytes32[] memory values) {
+    values = new bytes32[](0);
+  }
+
+  // ┌─ sphereXValidateInternalPost ─────
+  function sphereXValidateInternalPost(int256, uint256, bytes32[] calldata, bytes32[] calldata) external pure { }
 }

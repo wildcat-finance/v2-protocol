@@ -1,37 +1,60 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketAccountingReader.t
+// ║  ██▀▀     ▀▀██   Legacy and extended market accounting response validation.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  ACCOUNTING RESPONSES
+// ║  set(...)
+// ║  fallback(...)
+// ║
+// ║  STATE READS
+// ║  test_legacyAndExtendedStatePreserveAllFields()
+// ║  readState(...)
+// ║
+// ║  BATCH READS
+// ║  test_legacyAndExtendedBatchPreserveWideCounters()
+// ║  readBatch(...)
+// ║
+// ║  MALFORMED RESPONSES
+// ║  test_rejectsTruncatedAndDirtyResponsesAndBubblesReverts()
+// ╚═════
+
 import { MarketAccountingReader } from 'src/lens/MarketAccountingReader.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ AccountingResponseMock ───────────────────────────────────────────────────
 contract AccountingResponseMock {
   bytes private response;
   bool private shouldRevert;
 
+  // ░░▒▒▓▓██ [ ACCOUNTING RESPONSES ] ─────────────────────────────────────────
+
+  // ┌─ set ─────
   function set(bytes memory data, bool revertCall) external {
     response = data;
     shouldRevert = revertCall;
   }
 
+  // ┌─ fallback ─────
   fallback(bytes calldata) external returns (bytes memory) {
     if (shouldRevert) revert('market revert');
     return response;
   }
 }
 
+// ┌─ MarketAccountingReaderTest ───────────────────────────────────────────────
 contract MarketAccountingReaderTest is TestKernel {
-  function readState(address market, bool previous) external view returns (MarketState memory) {
-    if (previous) return MarketAccountingReader.previousState(WildcatMarket(market));
-    return MarketAccountingReader.currentState(WildcatMarket(market));
-  }
+  // ░░▒▒▓▓██ [ STATE READS ] ──────────────────────────────────────────────────
 
-  function readBatch(address market) external view returns (WithdrawalBatch memory) {
-    return MarketAccountingReader.withdrawalBatch(WildcatMarket(market), 123);
-  }
-
+  // ┌─ test_legacyAndExtendedStatePreserveAllFields ─────
   function test_legacyAndExtendedStatePreserveAllFields() external {
     AccountingResponseMock mock = new AccountingResponseMock();
     MarketState memory expected;
@@ -53,6 +76,15 @@ contract MarketAccountingReaderTest is TestKernel {
     assertEq(keccak256(abi.encode(this.readState(address(mock), true))), keccak256(abi.encode(expected)));
   }
 
+  // ┌─ readState ─────
+  function readState(address market, bool previous) external view returns (MarketState memory) {
+    if (previous) return MarketAccountingReader.previousState(WildcatMarket(market));
+    return MarketAccountingReader.currentState(WildcatMarket(market));
+  }
+
+  // ░░▒▒▓▓██ [ BATCH READS ] ──────────────────────────────────────────────────
+
+  // ┌─ test_legacyAndExtendedBatchPreserveWideCounters ─────
   function test_legacyAndExtendedBatchPreserveWideCounters() external {
     AccountingResponseMock mock = new AccountingResponseMock();
     WithdrawalBatch memory expected;
@@ -71,6 +103,14 @@ contract MarketAccountingReaderTest is TestKernel {
     assertEq(keccak256(abi.encode(this.readBatch(address(mock)))), keccak256(abi.encode(expected)));
   }
 
+  // ┌─ readBatch ─────
+  function readBatch(address market) external view returns (WithdrawalBatch memory) {
+    return MarketAccountingReader.withdrawalBatch(WildcatMarket(market), 123);
+  }
+
+  // ░░▒▒▓▓██ [ MALFORMED RESPONSES ] ──────────────────────────────────────────
+
+  // ┌─ test_rejectsTruncatedAndDirtyResponsesAndBubblesReverts ─────
   function test_rejectsTruncatedAndDirtyResponsesAndBubblesReverts() external {
     AccountingResponseMock mock = new AccountingResponseMock();
     mock.set(new bytes(0x1df), false);

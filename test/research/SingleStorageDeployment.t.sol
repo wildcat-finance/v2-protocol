@@ -1,6 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // SingleStorageDeployment.t
+// ║  ██▀▀     ▀▀██   Single-storage deployments under actual contract size limits.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  SINGLE STORAGE FIXTURE
+// ║  _storeInitCode(...)
+// ║
+// ║  REAL LIMIT DEPLOYMENTS
+// ║  test_realLimits_AllSixFactoryMarketCombinations()
+// ║  test_realLimits_PeriodicFeatureCompositions()
+// ║  _exerciseCell(...)
+// ╚═════
+
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
@@ -8,11 +24,15 @@ import { PeriodicTransferHooks } from '../mocks/TransferFeatureHooks.sol';
 import { PeriodicBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
 import { PeriodicAprReplacementHooks } from '../mocks/AprReplacementHooks.sol';
 
+// ┌─ SingleStorageDeploymentFixture ───────────────────────────────────────────
 abstract contract SingleStorageDeploymentFixture is ProductionMatrixFixture {
   event log_named_uint(string key, uint256 value);
 
   uint256 internal _storageContracts;
 
+  // ░░▒▒▓▓██ [ SINGLE STORAGE FIXTURE ] ───────────────────────────────────────
+
+  // ┌─ _storeInitCode ─────
   function _storeInitCode(string memory artifact) internal override returns (address store, uint256 codeHash) {
     bytes memory initCode = vm.getCode(artifact);
     uint64 nonce = vm.getNonce(address(this));
@@ -26,9 +46,13 @@ abstract contract SingleStorageDeploymentFixture is ProductionMatrixFixture {
   }
 }
 
+// ┌─ SingleStorageDeploymentTest ──────────────────────────────────────────────
 /// @dev run this suite with --code-size-limit 24576. no etching, oversized-code allowance,
 ///      substituted market runtime, or second storage contract is needed for these deployments.
 contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
+  // ░░▒▒▓▓██ [ REAL LIMIT DEPLOYMENTS ] ───────────────────────────────────────
+
+  // ┌─ test_realLimits_AllSixFactoryMarketCombinations ─────
   function test_realLimits_AllSixFactoryMarketCombinations() external {
     ProductionStack memory stack = _deployProductionStack();
     assertEq(_storageContracts, 5, 'two markets and three templates');
@@ -40,6 +64,7 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
     assertEq(_storageContracts, 5, 'all deployments reuse the five single stores');
   }
 
+  // ┌─ test_realLimits_PeriodicFeatureCompositions ─────
   function test_realLimits_PeriodicFeatureCompositions() external {
     ProductionStack memory stack = _deployProductionStack();
     string[3] memory artifacts = [
@@ -61,6 +86,7 @@ contract SingleStorageDeploymentTest is SingleStorageDeploymentFixture {
     assertEq(_storageContracts, 8, 'five production stores plus one per composition');
   }
 
+  // ┌─ _exerciseCell ─────
   function _exerciseCell(
     ProductionStack memory stack,
     MatrixMarketKind model,

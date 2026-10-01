@@ -1,6 +1,57 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // BaseHooks.t
+// ║  ██▀▀     ▀▀██   Shared hook construction, market configuration, and callbacks.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _requiredFlags(...)
+// ║  _addPullProvider(...)
+// ║
+// ║  HOOK CONSTRUCTION
+// ║  test_constructor_PreservesFactoryAdministratorFlagsAndEmptyArgs()
+// ║  test_constructor_InitializesExistingProviders(...)
+// ║  test_constructor_CreatesNewProviders(...)
+// ║  test_constructor_CombinesExistingAndNewProviders(...)
+// ║  test_constructor_RejectsMalformedArgsAndInvalidProviderFactoryResults()
+// ║
+// ║  MARKET CONFIGURATION
+// ║  test_onCreateMarket_OrdersFactoryBoundsAdministratorAndTemplateValidation()
+// ║  test_onCreateMarket_ConfigMatrix(...)
+// ║  test_onCreateMarket_PreservesMissingPartialAndLowBitOptionalWords()
+// ║  test_onCreateMarket_ChecksMinimumWidthBeforeAccessConfiguration()
+// ║  test_onCreateMarket_EmitsScheduleBeforeMinimum()
+// ║  test_onMarketConfigured_SeesBoundStateBeforeDeploymentAndRevertsAtomically()
+// ║  test_setMinimumDeposit_PreservesAuthorityDispatchWidthAndOtherFields()
+// ║  _assertUnchangedTermFields(...)
+// ║
+// ║  LENDER CALLBACKS
+// ║  test_lenderActionsAndTransferViews_RejectUnregisteredMarkets()
+// ║  test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst()
+// ║  test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(...)
+// ║  test_onTransfer_DisabledWinsOverKnownAndWrapperExemptions()
+// ║  test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(...)
+// ║  test_transferRecipientView_UsesPullCredentialsWithoutCachingThem()
+// ║  test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown()
+// ║  test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(...)
+// ║  _createQueueMarkets(...)
+// ║
+// ║  PASSIVE AND BORROWER CALLBACKS
+// ║  test_emptyCallbacks_StayUnguardedAndHaveNoEffects(...)
+// ║  test_onCloseMarket_DoesNotClearTemporaryReserves()
+// ║  test_onSetApr_OpenAndFixedDoNotRequireRegistration()
+// ║
+// ║  CREDENTIAL ASSERTIONS
+// ║  _expectCredentialEntry(...)
+// ║  _assertCachedCredential(...)
+// ║  _assertProvider(...)
+// ╚═════
+
 import { BaseHooks, AccessConfig } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { IHooks } from 'src/access/IHooks.sol';
@@ -33,6 +84,7 @@ import { MockRoleProviderFactory } from '../mocks/MockRoleProviderFactory.sol';
 import { MarketConfigurationHooks } from '../mocks/MarketConfigurationHooks.sol';
 import { HookTemplateFixture, HookKind } from '../shared/HookTemplateFixture.sol';
 
+// ┌─ BaseHooksTest ────────────────────────────────────────────────────────────
 contract BaseHooksTest is HookTemplateFixture {
   address internal constant Lender = address(0xA11CE);
   address internal constant SecondLender = address(0xB0B);
@@ -42,6 +94,9 @@ contract BaseHooksTest is HookTemplateFixture {
   MockRoleProvider internal provider2;
   MockRoleProviderFactory internal providerFactory;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     _setUpHooks();
     provider1 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
@@ -50,6 +105,7 @@ contract BaseHooksTest is HookTemplateFixture {
       MockRoleProviderFactory(_deployCode('test/mocks/MockRoleProviderFactory.sol:MockRoleProviderFactory'));
   }
 
+  // ┌─ _requiredFlags ─────
   function _requiredFlags(HookKind kind) internal pure returns (HooksConfig flags) {
     flags = EmptyHooksConfig.setFlag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips);
     if (kind != HookKind.Open) {
@@ -60,36 +116,15 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ _addPullProvider ─────
   function _addPullProvider(BaseHooks target) internal {
     provider1.setIsPullProvider(true);
     target.addRoleProvider(address(provider1), type(uint32).max);
   }
 
-  function _expectCredentialEntry(BaseHooks target, address market, address lender) internal {
-    vm.expectEmit(address(target));
-    emit BaseAccessControls.AccountAccessGranted(address(provider1), lender, market, uint32(block.timestamp));
-    vm.expectEmit(address(target));
-    emit BaseAccessControls.AccountMadeFirstDeposit(market, lender);
-  }
+  // ░░▒▒▓▓██ [ HOOK CONSTRUCTION ] ────────────────────────────────────────────
 
-  function _assertCachedCredential(BaseHooks target, address lender) internal view {
-    LenderStatus memory status = target.getPreviousLenderStatus(lender);
-    assertEq(status.lastProvider, address(provider1), 'cached provider');
-    assertEq(status.lastApprovalTimestamp, block.timestamp, 'cached timestamp');
-    assertTrue(status.canRefresh, 'refreshable');
-    assertFalse(status.isBlockedFromDeposits, 'not blocked');
-  }
-
-  function _assertProvider(BaseHooks target, address account, uint32 ttl, bool pull, uint24 index) internal view {
-    RoleProvider provider = target.getRoleProvider(account);
-    assertEq(provider.providerAddress(), account, 'provider address');
-    assertEq(provider.timeToLive(), ttl, 'provider ttl');
-    assertEq(provider.pullProviderIndex(), pull ? index : NullProviderIndex, 'pull index');
-    assertEq(provider.pushProviderIndex(), pull ? NullProviderIndex : index, 'push index');
-    RoleProvider[] memory providers = pull ? target.getPullProviders() : target.getPushProviders();
-    assertEq(providers[index].providerAddress(), account, 'provider list');
-  }
-
+  // ┌─ test_constructor_PreservesFactoryAdministratorFlagsAndEmptyArgs ─────
   function test_constructor_PreservesFactoryAdministratorFlagsAndEmptyArgs() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
@@ -113,6 +148,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_constructor_InitializesExistingProviders ─────
   function test_constructor_InitializesExistingProviders(
     bool firstPull,
     bool secondPull,
@@ -136,6 +172,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_constructor_CreatesNewProviders ─────
   function test_constructor_CreatesNewProviders(
     bool firstPull,
     bool secondPull,
@@ -162,6 +199,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_constructor_CombinesExistingAndNewProviders ─────
   function test_constructor_CombinesExistingAndNewProviders(
     bool firstPull,
     bool secondPull,
@@ -188,6 +226,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_constructor_RejectsMalformedArgsAndInvalidProviderFactoryResults ─────
   function test_constructor_RejectsMalformedArgsAndInvalidProviderFactoryResults() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
@@ -204,6 +243,9 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ MARKET CONFIGURATION ] ─────────────────────────────────────────
+
+  // ┌─ test_onCreateMarket_OrdersFactoryBoundsAdministratorAndTemplateValidation ─────
   function test_onCreateMarket_OrdersFactoryBoundsAdministratorAndTemplateValidation() external {
     for (uint256 i; i < hooks.length; i++) {
       DeployMarketInputs memory inputs;
@@ -220,6 +262,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onCreateMarket_ConfigMatrix ─────
   function test_onCreateMarket_ConfigMatrix(
     bool deposit,
     bool queue,
@@ -268,6 +311,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onCreateMarket_PreservesMissingPartialAndLowBitOptionalWords ─────
   function test_onCreateMarket_PreservesMissingPartialAndLowBitOptionalWords() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
@@ -287,6 +331,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onCreateMarket_ChecksMinimumWidthBeforeAccessConfiguration ─────
   function test_onCreateMarket_ChecksMinimumWidthBeforeAccessConfiguration() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
@@ -299,6 +344,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onCreateMarket_EmitsScheduleBeforeMinimum ─────
   function test_onCreateMarket_EmitsScheduleBeforeMinimum() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
@@ -321,6 +367,26 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onMarketConfigured_SeesBoundStateBeforeDeploymentAndRevertsAtomically ─────
+  function test_onMarketConfigured_SeesBoundStateBeforeDeploymentAndRevertsAtomically() external {
+    MarketConfigurationHooks target = MarketConfigurationHooks(
+      _deployCode('test/mocks/MarketConfigurationHooks.sol:MarketConfigurationHooks', abi.encode(address(this)))
+    );
+    HooksConfig effective = _createMarket(target, MarketA, EmptyHooksConfig, _marketData(HookKind.Periodic, 100, false));
+    assertEq(target.configuredMarket(), MarketA, 'configured market');
+    assertEq(target.configuredMinimum(), 100, 'configured minimum');
+    assertEq(HooksConfig.unwrap(target.configuredFlags()), HooksConfig.unwrap(effective), 'configured flags');
+    assertEq(MarketA.code.length, 0, 'market has no code');
+    target.setRejectConfiguration(true);
+    vm.expectRevert(MarketConfigurationHooks.ConfigurationRejected.selector);
+    _createMarket(target, MarketB, EmptyHooksConfig, _marketData(HookKind.Periodic, 200, true));
+    assertFalse(target.getHookedMarket(MarketB).isHooked, 'registration rolled back');
+    assertEq(target.configuredMarket(), MarketA, 'feature state rolled back');
+    assertEq(target.configuredMinimum(), 100, 'feature minimum rolled back');
+    assertEq(HooksConfig.unwrap(target.configuredFlags()), HooksConfig.unwrap(effective), 'feature flags rolled back');
+  }
+
+  // ┌─ test_setMinimumDeposit_PreservesAuthorityDispatchWidthAndOtherFields ─────
   function test_setMinimumDeposit_PreservesAuthorityDispatchWidthAndOtherFields() external {
     for (uint256 i; i < hooks.length; i++) {
       HookKind kind = HookKind(i);
@@ -353,6 +419,7 @@ contract BaseHooksTest is HookTemplateFixture {
     assertEq(_access(HookKind.Periodic, hooks[2], MarketA).minimumDeposit, 1, 'overflow rolls back');
   }
 
+  // ┌─ _assertUnchangedTermFields ─────
   function _assertUnchangedTermFields(HookKind kind, BaseHooks target) internal view {
     AccessConfig memory access = _access(kind, target, MarketA);
     assertTrue(access.isHooked, 'still registered');
@@ -375,24 +442,9 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
-  function test_onMarketConfigured_SeesBoundStateBeforeDeploymentAndRevertsAtomically() external {
-    MarketConfigurationHooks target = MarketConfigurationHooks(
-      _deployCode('test/mocks/MarketConfigurationHooks.sol:MarketConfigurationHooks', abi.encode(address(this)))
-    );
-    HooksConfig effective = _createMarket(target, MarketA, EmptyHooksConfig, _marketData(HookKind.Periodic, 100, false));
-    assertEq(target.configuredMarket(), MarketA, 'configured market');
-    assertEq(target.configuredMinimum(), 100, 'configured minimum');
-    assertEq(HooksConfig.unwrap(target.configuredFlags()), HooksConfig.unwrap(effective), 'configured flags');
-    assertEq(MarketA.code.length, 0, 'market has no code');
-    target.setRejectConfiguration(true);
-    vm.expectRevert(MarketConfigurationHooks.ConfigurationRejected.selector);
-    _createMarket(target, MarketB, EmptyHooksConfig, _marketData(HookKind.Periodic, 200, true));
-    assertFalse(target.getHookedMarket(MarketB).isHooked, 'registration rolled back');
-    assertEq(target.configuredMarket(), MarketA, 'feature state rolled back');
-    assertEq(target.configuredMinimum(), 100, 'feature minimum rolled back');
-    assertEq(HooksConfig.unwrap(target.configuredFlags()), HooksConfig.unwrap(effective), 'feature flags rolled back');
-  }
+  // ░░▒▒▓▓██ [ LENDER CALLBACKS ] ─────────────────────────────────────────────
 
+  // ┌─ test_lenderActionsAndTransferViews_RejectUnregisteredMarkets ─────
   function test_lenderActionsAndTransferViews_RejectUnregisteredMarkets() external {
     MarketState memory state;
     for (uint256 i; i < hooks.length; i++) {
@@ -410,6 +462,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst ─────
   function test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst() external {
     MarketState memory state;
     state.scaleFactor = uint112((RAY * 3) / 2);
@@ -436,6 +489,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry ─────
   function test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(bool requiresAccess) external {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
@@ -481,6 +535,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onTransfer_DisabledWinsOverKnownAndWrapperExemptions ─────
   function test_onTransfer_DisabledWinsOverKnownAndWrapperExemptions() external {
     MarketState memory state;
     for (uint256 i; i < hooks.length; i++) {
@@ -506,6 +561,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption ─────
   function test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(bool requiresAccess) external {
     MarketState memory state;
     bytes memory credential = abi.encode('transfer');
@@ -550,6 +606,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_transferRecipientView_UsesPullCredentialsWithoutCachingThem ─────
   function test_transferRecipientView_UsesPullCredentialsWithoutCachingThem() external {
     MarketState memory state;
     for (uint256 i; i < hooks.length; i++) {
@@ -568,15 +625,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
-  function _createQueueMarkets(uint256 i, HooksConfig requested) internal returns (BaseHooks target) {
-    vm.warp(StartTimestamp);
-    target = hooks[i];
-    _createMarket(target, MarketA, requested, _termData(HookKind(i)));
-    _createMarket(target, MarketB, requested, _termData(HookKind(i)));
-    if (HookKind(i) == HookKind.Fixed) vm.warp(FixedTermEnd);
-    if (HookKind(i) == HookKind.Periodic) vm.warp(FirstWindowStart);
-  }
-
+  // ┌─ test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown ─────
   function test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown() external {
     MarketState memory state;
     HooksConfig requested =
@@ -610,6 +659,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating ─────
   function test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(bool gated) external {
     MarketState memory state;
     HooksConfig requested = gated
@@ -637,6 +687,19 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ _createQueueMarkets ─────
+  function _createQueueMarkets(uint256 i, HooksConfig requested) internal returns (BaseHooks target) {
+    vm.warp(StartTimestamp);
+    target = hooks[i];
+    _createMarket(target, MarketA, requested, _termData(HookKind(i)));
+    _createMarket(target, MarketB, requested, _termData(HookKind(i)));
+    if (HookKind(i) == HookKind.Fixed) vm.warp(FixedTermEnd);
+    if (HookKind(i) == HookKind.Periodic) vm.warp(FirstWindowStart);
+  }
+
+  // ░░▒▒▓▓██ [ PASSIVE AND BORROWER CALLBACKS ] ───────────────────────────────
+
+  // ┌─ test_emptyCallbacks_StayUnguardedAndHaveNoEffects ─────
   function test_emptyCallbacks_StayUnguardedAndHaveNoEffects(bool registeredCaller, bytes calldata extraData) external {
     MarketState memory state;
     state.annualInterestBips = 1_000;
@@ -669,6 +732,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onCloseMarket_DoesNotClearTemporaryReserves ─────
   function test_onCloseMarket_DoesNotClearTemporaryReserves() external {
     MarketState memory state;
     state.annualInterestBips = 1_000;
@@ -688,6 +752,7 @@ contract BaseHooksTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_onSetApr_OpenAndFixedDoNotRequireRegistration ─────
   function test_onSetApr_OpenAndFixedDoNotRequireRegistration() external {
     MarketState memory state;
     state.annualInterestBips = 1_000;
@@ -699,5 +764,35 @@ contract BaseHooksTest is HookTemplateFixture {
       assertEq(apr, 1_000, 'APR');
       assertEq(reserve, 500, 'requested reserves ignored');
     }
+  }
+
+  // ░░▒▒▓▓██ [ CREDENTIAL ASSERTIONS ] ────────────────────────────────────────
+
+  // ┌─ _expectCredentialEntry ─────
+  function _expectCredentialEntry(BaseHooks target, address market, address lender) internal {
+    vm.expectEmit(address(target));
+    emit BaseAccessControls.AccountAccessGranted(address(provider1), lender, market, uint32(block.timestamp));
+    vm.expectEmit(address(target));
+    emit BaseAccessControls.AccountMadeFirstDeposit(market, lender);
+  }
+
+  // ┌─ _assertCachedCredential ─────
+  function _assertCachedCredential(BaseHooks target, address lender) internal view {
+    LenderStatus memory status = target.getPreviousLenderStatus(lender);
+    assertEq(status.lastProvider, address(provider1), 'cached provider');
+    assertEq(status.lastApprovalTimestamp, block.timestamp, 'cached timestamp');
+    assertTrue(status.canRefresh, 'refreshable');
+    assertFalse(status.isBlockedFromDeposits, 'not blocked');
+  }
+
+  // ┌─ _assertProvider ─────
+  function _assertProvider(BaseHooks target, address account, uint32 ttl, bool pull, uint24 index) internal view {
+    RoleProvider provider = target.getRoleProvider(account);
+    assertEq(provider.providerAddress(), account, 'provider address');
+    assertEq(provider.timeToLive(), ttl, 'provider ttl');
+    assertEq(provider.pullProviderIndex(), pull ? index : NullProviderIndex, 'pull index');
+    assertEq(provider.pushProviderIndex(), pull ? NullProviderIndex : index, 'push index');
+    RoleProvider[] memory providers = pull ? target.getPullProviders() : target.getPushProviders();
+    assertEq(providers[index].providerAddress(), account, 'provider list');
   }
 }

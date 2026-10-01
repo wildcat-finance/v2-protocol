@@ -1,17 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatSanctionsSentinel
+// ║  ██▀▀     ▀▀██   Sanctions overrides, status queries, and escrow deployment.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  SETUP
+// ║  constructor(...)
+// ║
+// ║  SANCTION OVERRIDES
+// ║  overrideSanction(...)
+// ║  removeSanctionOverride(...)
+// ║
+// ║  SANCTION QUERIES
+// ║  isSanctioned(...)
+// ║  isFlaggedByChainalysis(...)
+// ║
+// ║  ESCROW DEPLOYMENT
+// ║  createEscrow(...)
+// ║  getEscrowAddress(...)
+// ║  _deriveSalt(...)
+// ║  _resetTmpEscrowParams()
+// ╚═════
+
 import { IChainalysisSanctionsList } from './interfaces/IChainalysisSanctionsList.sol';
 import { IWildcatSanctionsSentinel } from './interfaces/IWildcatSanctionsSentinel.sol';
 import { WildcatSanctionsEscrow } from './WildcatSanctionsEscrow.sol';
 
+// ┌─ WildcatSanctionsSentinel ─────────────────────────────────────────────────
 /// @title Wildcat sanctions sentinel
+///
 /// @notice combines the external sanctions list with borrower-scoped overrides and escrows.
+///
 /// @dev overrides allow a flagged account; they do not change the external list.
 contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
-  // ========================================================================== //
-  //                                  Constants                                 //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ CONSTANTS ] ────────────────────────────────────────────────────
 
   bytes32 public constant override WildcatSanctionsEscrowInitcodeHash =
     keccak256(type(WildcatSanctionsEscrow).creationCode);
@@ -20,51 +46,46 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
 
   address public immutable override archController;
 
-  // ========================================================================== //
-  //                                   Storage                                  //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ STORAGE ] ──────────────────────────────────────────────────────
 
   TmpEscrowParams public override tmpEscrowParams;
 
   mapping(address borrower => mapping(address account => bool sanctionOverride)) public override sanctionOverrides;
 
-  // ========================================================================== //
-  //                                 Constructor                                //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
 
+  // ┌─ constructor ─────
   constructor(address _archController, address _chainalysisSanctionsList) {
     archController = _archController;
     chainalysisSanctionsList = _chainalysisSanctionsList;
     _resetTmpEscrowParams();
   }
 
-  // ========================================================================== //
-  //                              Internal Helpers                              //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ SANCTION OVERRIDES ] ───────────────────────────────────────────
 
-  function _resetTmpEscrowParams() internal {
-    tmpEscrowParams = TmpEscrowParams(address(1), address(1), address(1));
+  // ┌─ overrideSanction ─────
+  /// @inheritdoc IWildcatSanctionsSentinel
+  function overrideSanction(address account) public override {
+    sanctionOverrides[msg.sender][account] = true;
+    emit SanctionOverride(msg.sender, account);
   }
 
-  /// @dev derives the CREATE2 salt for one borrower, account, and asset tuple.
-  function _deriveSalt(address borrower, address account, address asset) internal pure returns (bytes32 salt) {
-    assembly {
-      // Cache free memory pointer
-      let freeMemoryPointer := mload(0x40)
-      // `keccak256(abi.encode(borrower, account, asset))`
-      mstore(0x00, borrower)
-      mstore(0x20, account)
-      mstore(0x40, asset)
-      salt := keccak256(0, 0x60)
-      // Restore free memory pointer
-      mstore(0x40, freeMemoryPointer)
-    }
+  // ┌─ removeSanctionOverride ─────
+  /// @inheritdoc IWildcatSanctionsSentinel
+  function removeSanctionOverride(address account) public override {
+    sanctionOverrides[msg.sender][account] = false;
+    emit SanctionOverrideRemoved(msg.sender, account);
   }
 
-  // ========================================================================== //
-  //                              Sanction Queries                              //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ SANCTION QUERIES ] ─────────────────────────────────────────────
 
+  // ┌─ isSanctioned ─────
+  /// @inheritdoc IWildcatSanctionsSentinel
+  function isSanctioned(address borrower, address account) public view override returns (bool) {
+    return !sanctionOverrides[borrower][account] && isFlaggedByChainalysis(account);
+  }
+
+  // ┌─ isFlaggedByChainalysis ─────
   /// @inheritdoc IWildcatSanctionsSentinel
   function isFlaggedByChainalysis(address account) public view override returns (bool) {
     bool isFlagged;
@@ -98,31 +119,9 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     return isFlagged;
   }
 
-  /// @inheritdoc IWildcatSanctionsSentinel
-  function isSanctioned(address borrower, address account) public view override returns (bool) {
-    return !sanctionOverrides[borrower][account] && isFlaggedByChainalysis(account);
-  }
+  // ░░▒▒▓▓██ [ ESCROW DEPLOYMENT ] ────────────────────────────────────────────
 
-  // ========================================================================== //
-  //                             Sanction Overrides                             //
-  // ========================================================================== //
-
-  /// @inheritdoc IWildcatSanctionsSentinel
-  function overrideSanction(address account) public override {
-    sanctionOverrides[msg.sender][account] = true;
-    emit SanctionOverride(msg.sender, account);
-  }
-
-  /// @inheritdoc IWildcatSanctionsSentinel
-  function removeSanctionOverride(address account) public override {
-    sanctionOverrides[msg.sender][account] = false;
-    emit SanctionOverrideRemoved(msg.sender, account);
-  }
-
-  // ========================================================================== //
-  //                              Escrow Deployment                             //
-  // ========================================================================== //
-
+  // ┌─ createEscrow ─────
   /// @inheritdoc IWildcatSanctionsSentinel
   function createEscrow(
     address borrower,
@@ -151,6 +150,7 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
     _resetTmpEscrowParams();
   }
 
+  // ┌─ getEscrowAddress ─────
   /// @inheritdoc IWildcatSanctionsSentinel
   function getEscrowAddress(
     address borrower,
@@ -183,5 +183,26 @@ contract WildcatSanctionsSentinel is IWildcatSanctionsSentinel {
       // Restore the free memory pointer
       mstore(0x40, freeMemoryPointer)
     }
+  }
+
+  // ┌─ _deriveSalt ─────
+  /// @dev derives the CREATE2 salt for one borrower, account, and asset tuple.
+  function _deriveSalt(address borrower, address account, address asset) internal pure returns (bytes32 salt) {
+    assembly {
+      // Cache free memory pointer
+      let freeMemoryPointer := mload(0x40)
+      // `keccak256(abi.encode(borrower, account, asset))`
+      mstore(0x00, borrower)
+      mstore(0x20, account)
+      mstore(0x40, asset)
+      salt := keccak256(0, 0x60)
+      // Restore free memory pointer
+      mstore(0x40, freeMemoryPointer)
+    }
+  }
+
+  // ┌─ _resetTmpEscrowParams ─────
+  function _resetTmpEscrowParams() internal {
+    tmpEscrowParams = TmpEscrowParams(address(1), address(1), address(1));
   }
 }

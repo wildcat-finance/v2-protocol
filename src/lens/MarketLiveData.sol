@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLiveData
+// ║  ██▀▀     ▀▀██   Compact accrued accounting and optional lender status.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  LIVE MARKET DATA
+// ║  fill(...)
+// ║  fill(...)
+// ╚═════
+
 import './MarketAccountingReader.sol';
 
 import '../market/WildcatMarket.sol';
@@ -11,6 +23,7 @@ using MarketLiveDataLib for MarketLiveDataV2_5 global;
 using MarketLiveDataLib for MarketLiveDataWithLenderStatusV2_5 global;
 
 /// @notice compact current accounting state for a V2.5 market.
+///
 /// @dev omits expensive static configuration, hook metadata, and unpaid-batch enumeration.
 struct MarketLiveDataV2_5 {
   address market;
@@ -23,10 +36,12 @@ struct MarketLiveDataV2_5 {
   uint256 maxTotalSupply;
   uint256 scaledTotalSupply;
   uint256 totalAssets;
+
   /// @dev uncollected accrued protocol fees. the field name is retained for ABI stability.
   uint256 lastAccruedProtocolFees;
   uint256 normalizedUnclaimedWithdrawals;
   uint256 scaledPendingWithdrawals;
+
   /// @dev current batch key, or a stored batch fully released by the accrued view before a write.
   uint256 pendingWithdrawalExpiry;
   bool isDelinquent;
@@ -45,8 +60,12 @@ struct MarketLiveDataWithLenderStatusV2_5 {
   LenderAccountData lenderStatus;
 }
 
+// ┌─ MarketLiveDataLib ────────────────────────────────────────────────────────
 /// @notice fillers for compact live market reads.
 library MarketLiveDataLib {
+  // ░░▒▒▓▓██ [ LIVE MARKET DATA ] ─────────────────────────────────────────────
+
+  // ┌─ fill ─────
   /// @notice fills accounting state using the market's accrued `currentState()` view.
   function fill(MarketLiveDataV2_5 memory data, WildcatMarket market) internal view {
     data.market = address(market);
@@ -88,6 +107,7 @@ library MarketLiveDataLib {
     data.liquidity.fill(market, data.isClosed, data.totalAssets);
   }
 
+  // ┌─ fill ─────
   function fill(MarketLiveDataWithLenderStatusV2_5 memory data, WildcatMarket market, address lender) internal view {
     data.market.fill(market);
     data.lenderStatus.fill(market, lender);

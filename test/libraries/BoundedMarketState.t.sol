@@ -1,46 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // BoundedMarketState.t
+// ║  ██▀▀     ▀▀██   Market-liability bounds against independent formulas.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  LIABILITY BOUNDS
+// ║  testFuzz_liabilitiesMatchCheckedFormulas(...)
+// ║  test_liabilitiesAtEveryFieldMaximumAndReserveEdges()
+// ║  test_invalidPendingSupplyKeepsArithmeticPanic()
+// ║
+// ║  REFERENCE COMPARISON
+// ║  _compare(...)
+// ║  referenceValues(...)
+// ║  candidateValues(...)
+// ╚═════
+
 import 'src/libraries/MarketState.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ BoundedMarketStateTest ───────────────────────────────────────────────────
 contract BoundedMarketStateTest is TestKernel {
   using MathUtils for uint256;
 
-  /// @dev independent checked formulas. The unified partition now checks normalized
-  ///      pending <= supply at every reserve ratio, including 0% and 100%.
-  function referenceValues(MarketState memory state)
-    external
-    pure
-    returns (uint256 supply, uint256 liquidity, uint256 debts)
-  {
-    supply = uint256(state.scaledTotalSupply).rayMul(state.scaleFactor);
-    uint256 pending = uint256(state.scaledPendingWithdrawals).rayMul(state.scaleFactor);
-    uint256 outstanding = supply - pending;
-    if (state.reserveRatioBips == 0) {
-      liquidity = pending;
-    } else if (state.reserveRatioBips == BIP) {
-      liquidity = supply;
-    } else {
-      liquidity = pending + outstanding.bipMul(state.reserveRatioBips);
-    }
-    liquidity += state.accruedProtocolFees + uint256(state.normalizedUnclaimedWithdrawals);
-    debts = supply + state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees;
-  }
+  // ░░▒▒▓▓██ [ LIABILITY BOUNDS ] ─────────────────────────────────────────────
 
-  function candidateValues(MarketState memory state) external pure returns (uint256, uint256, uint256) {
-    return (state.totalSupply(), state.liquidityRequired(), state.totalDebts());
-  }
-
-  function _compare(MarketState memory state) internal view {
-    (bool expectedSuccess, bytes memory expectedData) =
-      address(this).staticcall(abi.encodeCall(this.referenceValues, (state)));
-    (bool actualSuccess, bytes memory actualData) =
-      address(this).staticcall(abi.encodeCall(this.candidateValues, (state)));
-    assertEq(actualSuccess, expectedSuccess);
-    assertEq(actualData, expectedData);
-  }
-
+  // ┌─ testFuzz_liabilitiesMatchCheckedFormulas ─────
   function testFuzz_liabilitiesMatchCheckedFormulas(
     uint104 supply,
     uint104 pending,
@@ -62,6 +50,7 @@ contract BoundedMarketStateTest is TestKernel {
     _compare(state);
   }
 
+  // ┌─ test_liabilitiesAtEveryFieldMaximumAndReserveEdges ─────
   function test_liabilitiesAtEveryFieldMaximumAndReserveEdges() external view {
     MarketState memory state;
     state.scaledTotalSupply = type(uint104).max;
@@ -80,6 +69,7 @@ contract BoundedMarketStateTest is TestKernel {
     _compare(state);
   }
 
+  // ┌─ test_invalidPendingSupplyKeepsArithmeticPanic ─────
   function test_invalidPendingSupplyKeepsArithmeticPanic() external {
     MarketState memory state;
     state.scaledTotalSupply = 1;
@@ -92,5 +82,44 @@ contract BoundedMarketStateTest is TestKernel {
       vm.expectRevert(abi.encodeWithSignature('Panic(uint256)', 0x11));
       this.candidateValues(state);
     }
+  }
+
+  // ░░▒▒▓▓██ [ REFERENCE COMPARISON ] ─────────────────────────────────────────
+
+  // ┌─ _compare ─────
+  function _compare(MarketState memory state) internal view {
+    (bool expectedSuccess, bytes memory expectedData) =
+      address(this).staticcall(abi.encodeCall(this.referenceValues, (state)));
+    (bool actualSuccess, bytes memory actualData) =
+      address(this).staticcall(abi.encodeCall(this.candidateValues, (state)));
+    assertEq(actualSuccess, expectedSuccess);
+    assertEq(actualData, expectedData);
+  }
+
+  // ┌─ referenceValues ─────
+  /// @dev independent checked formulas. The unified partition now checks normalized
+  ///      pending <= supply at every reserve ratio, including 0% and 100%.
+  function referenceValues(MarketState memory state)
+    external
+    pure
+    returns (uint256 supply, uint256 liquidity, uint256 debts)
+  {
+    supply = uint256(state.scaledTotalSupply).rayMul(state.scaleFactor);
+    uint256 pending = uint256(state.scaledPendingWithdrawals).rayMul(state.scaleFactor);
+    uint256 outstanding = supply - pending;
+    if (state.reserveRatioBips == 0) {
+      liquidity = pending;
+    } else if (state.reserveRatioBips == BIP) {
+      liquidity = supply;
+    } else {
+      liquidity = pending + outstanding.bipMul(state.reserveRatioBips);
+    }
+    liquidity += state.accruedProtocolFees + uint256(state.normalizedUnclaimedWithdrawals);
+    debts = supply + state.normalizedUnclaimedWithdrawals + state.accruedProtocolFees;
+  }
+
+  // ┌─ candidateValues ─────
+  function candidateValues(MarketState memory state) external pure returns (uint256, uint256, uint256) {
+    return (state.totalSupply(), state.liquidityRequired(), state.totalDebts());
   }
 }

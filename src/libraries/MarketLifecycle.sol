@@ -1,6 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLifecycle
+// ║  ██▀▀     ▀▀██   Repayment activation, default timing, and funded closure.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  REPAYMENT
+// ║  activateRepayment(...)
+// ║
+// ║  DEFAULT TIMING
+// ║  accrueDefaultRun(...)
+// ║
+// ║  CLOSURE
+// ║  closeFundedState(...)
+// ╚═════
+
 import './Withdrawal.sol';
 import './BoolUtils.sol';
 
@@ -36,12 +53,41 @@ struct LifecycleTransition {
   bool repaymentActivated;
 }
 
+// ┌─ MarketLifecycleLib ───────────────────────────────────────────────────────
 library MarketLifecycleLib {
   using BoolUtils for bool;
   using MathUtils for uint256;
   using SafeCastLib for uint256;
   uint256 internal constant DefaultDelay = 90 days;
 
+  // ░░▒▒▓▓██ [ REPAYMENT ] ────────────────────────────────────────────────────
+
+  // ┌─ activateRepayment ─────
+  /// @dev reaching repayment can end unused grace, but never restarts an existing penalty run.
+  function activateRepayment(
+    MarketLifecycle memory lifecycle,
+    MarketState memory state,
+    uint256 assets,
+    uint256 date
+  )
+    internal
+    pure
+  {
+    state.reserveRatioBips = 10_000;
+    state.isDelinquent = state.liquidityRequired() > assets;
+    if (state.isDelinquent) {
+      uint40 cutoff = uint40(date + DefaultDelay);
+      if ((lifecycle.penaltyCutoff == 0).or(lifecycle.penaltyCutoff > cutoff)) {
+        lifecycle.penaltyCutoff = cutoff;
+      }
+    } else {
+      lifecycle.penaltyCutoff = 0;
+    }
+  }
+
+  // ░░▒▒▓▓██ [ DEFAULT TIMING ] ───────────────────────────────────────────────
+
+  // ┌─ accrueDefaultRun ─────
   /// @dev a cure at `penaltyCutoff` still counts. don't record default until a later timestamp.
   ///      timeDelinquent keeps its existing decay; this clock resets on an observed healthy state.
   function accrueDefaultRun(
@@ -67,28 +113,9 @@ library MarketLifecycleLib {
     }
   }
 
-  /// @dev reaching repayment can end unused grace, but never restarts an existing penalty run.
-  function activateRepayment(
-    MarketLifecycle memory lifecycle,
-    MarketState memory state,
-    uint256 assets,
-    uint256 date
-  )
-    internal
-    pure
-  {
-    state.reserveRatioBips = 10_000;
-    state.isDelinquent = state.liquidityRequired() > assets;
-    if (state.isDelinquent) {
-      uint40 cutoff = uint40(date + DefaultDelay);
-      if ((lifecycle.penaltyCutoff == 0).or(lifecycle.penaltyCutoff > cutoff)) {
-        lifecycle.penaltyCutoff = cutoff;
-      }
-    } else {
-      lifecycle.penaltyCutoff = 0;
-    }
-  }
+  // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
 
+  // ┌─ closeFundedState ─────
   /// @dev full backing stays in the market while batch allocation finishes. no future accrual.
   function closeFundedState(MarketState memory state) internal pure {
     state.isClosed = true;

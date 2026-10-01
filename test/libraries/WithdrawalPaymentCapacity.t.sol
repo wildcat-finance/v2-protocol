@@ -1,15 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalPaymentCapacity.t
+// ║  ██▀▀     ▀▀██   Payment capacity, carry conservation, and overflow boundaries.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  PAYMENT CAPACITY
+// ║  testFuzz_capacityIsMaximalAndDebtIsConserved(...)
+// ║  test_maximumFactorAndDonationDoNotOverflow()
+// ║  testFuzz_paymentPreservesReservesWithFreeSupplyAndOtherCarry(...)
+// ║  test_zeroAndOneUnitLiquidityPreserveCarry()
+// ║  _checkPayment(...)
+// ║
+// ║  HEADROOM AND ACCOUNTING BOUNDS
+// ║  test_globalUnclaimedHeadroomCapsPayment()
+// ║  test_zeroGlobalUnclaimedHeadroomLeavesPositivePaymentUnprocessed()
+// ║  test_cumulativePaidOverflowStillReverts()
+// ║  test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference()
+// ║  test_missingAggregateContributionStillReverts()
+// ╚═════
+
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { WithdrawalPaymentHarness } from '../mocks/WithdrawalPaymentHarness.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
 
+// ┌─ WithdrawalPaymentCapacityTest ────────────────────────────────────────────
 contract WithdrawalPaymentCapacityTest is MarketFixture {
   WithdrawalPaymentHarness internal harness;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     Fixture memory fixture = _newMarket(HooksKind.OpenTerm);
     harness = WithdrawalPaymentHarness(
@@ -17,36 +46,9 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     );
   }
 
-  function _checkPayment(uint104 owed, uint112 factor, uint128 remainder, uint256 available) private view {
-    MarketState memory state;
-    state.scaleFactor = factor;
-    state.scaledTotalSupply = owed;
-    state.scaledPendingWithdrawals = owed;
-    state.withdrawalRemainder = remainder;
-    state.normalizedUnclaimedWithdrawals = 1;
-    WithdrawalBatch memory batch;
-    batch.scaledTotalAmount = uint128(owed) + 1;
-    batch.scaledAmountBurned = 1;
-    batch.normalizedAmountPaid = 1;
-    batch.paymentRemainder = remainder;
-    (WithdrawalBatch memory afterBatch, MarketState memory afterState, uint104 burned, uint128 paid) =
-      harness.applyPayment(batch, state, available);
-    uint256 numerator = uint256(burned) * factor + remainder;
-    assertTrue(burned <= owed, 'cannot burn more than owed');
-    assertTrue(paid <= available, 'cannot reserve more than available');
-    assertEq(paid, numerator / RAY, 'exact carry-aware price');
-    if (burned < owed) {
-      assertTrue(((uint256(burned) + 1) * factor + remainder) / RAY > available, 'burn is maximal');
-    }
-    assertEq(afterBatch.scaledAmountBurned, uint256(burned) + 1);
-    assertEq(afterBatch.normalizedAmountPaid, uint256(paid) + 1);
-    assertEq(afterBatch.paymentRemainder, numerator % RAY);
-    assertEq(afterState.withdrawalRemainder, numerator % RAY);
-    assertEq(afterState.scaledTotalSupply, uint256(owed) - burned);
-    assertEq(afterState.scaledPendingWithdrawals, uint256(owed) - burned);
-    assertEq(afterState.totalDebts(), state.totalDebts(), 'payment conserves debt');
-  }
+  // ░░▒▒▓▓██ [ PAYMENT CAPACITY ] ─────────────────────────────────────────────
 
+  // ┌─ testFuzz_capacityIsMaximalAndDebtIsConserved ─────
   function testFuzz_capacityIsMaximalAndDebtIsConserved(
     uint104 owed,
     uint112 factor,
@@ -61,12 +63,14 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     _checkPayment(owed, factor, remainder, available);
   }
 
+  // ┌─ test_maximumFactorAndDonationDoNotOverflow ─────
   function test_maximumFactorAndDonationDoNotOverflow() external view {
     _checkPayment(type(uint104).max, type(uint112).max, uint128(RAY - 1), type(uint256).max);
     _checkPayment(type(uint104).max, type(uint112).max, uint128(RAY - 1), type(uint256).max / RAY);
     _checkPayment(type(uint104).max, type(uint112).max, uint128(RAY - 1), 1);
   }
 
+  // ┌─ testFuzz_paymentPreservesReservesWithFreeSupplyAndOtherCarry ─────
   function testFuzz_paymentPreservesReservesWithFreeSupplyAndOtherCarry(
     uint104 owed,
     uint104 extraSupply,
@@ -101,6 +105,7 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     assertEq(afterState.liquidityRequired(), state.liquidityRequired(), 'all reserves conserved');
   }
 
+  // ┌─ test_zeroAndOneUnitLiquidityPreserveCarry ─────
   function test_zeroAndOneUnitLiquidityPreserveCarry() external view {
     _checkPayment(4, uint112((5 * RAY) / 4), uint128((3 * RAY) / 4), 0);
     _checkPayment(4, uint112((5 * RAY) / 4), uint128((3 * RAY) / 4), 1);
@@ -108,6 +113,40 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     _checkPayment(0, uint112(RAY), uint128(RAY - 1), 0);
   }
 
+  // ┌─ _checkPayment ─────
+  function _checkPayment(uint104 owed, uint112 factor, uint128 remainder, uint256 available) private view {
+    MarketState memory state;
+    state.scaleFactor = factor;
+    state.scaledTotalSupply = owed;
+    state.scaledPendingWithdrawals = owed;
+    state.withdrawalRemainder = remainder;
+    state.normalizedUnclaimedWithdrawals = 1;
+    WithdrawalBatch memory batch;
+    batch.scaledTotalAmount = uint128(owed) + 1;
+    batch.scaledAmountBurned = 1;
+    batch.normalizedAmountPaid = 1;
+    batch.paymentRemainder = remainder;
+    (WithdrawalBatch memory afterBatch, MarketState memory afterState, uint104 burned, uint128 paid) =
+      harness.applyPayment(batch, state, available);
+    uint256 numerator = uint256(burned) * factor + remainder;
+    assertTrue(burned <= owed, 'cannot burn more than owed');
+    assertTrue(paid <= available, 'cannot reserve more than available');
+    assertEq(paid, numerator / RAY, 'exact carry-aware price');
+    if (burned < owed) {
+      assertTrue(((uint256(burned) + 1) * factor + remainder) / RAY > available, 'burn is maximal');
+    }
+    assertEq(afterBatch.scaledAmountBurned, uint256(burned) + 1);
+    assertEq(afterBatch.normalizedAmountPaid, uint256(paid) + 1);
+    assertEq(afterBatch.paymentRemainder, numerator % RAY);
+    assertEq(afterState.withdrawalRemainder, numerator % RAY);
+    assertEq(afterState.scaledTotalSupply, uint256(owed) - burned);
+    assertEq(afterState.scaledPendingWithdrawals, uint256(owed) - burned);
+    assertEq(afterState.totalDebts(), state.totalDebts(), 'payment conserves debt');
+  }
+
+  // ░░▒▒▓▓██ [ HEADROOM AND ACCOUNTING BOUNDS ] ───────────────────────────────
+
+  // ┌─ test_globalUnclaimedHeadroomCapsPayment ─────
   function test_globalUnclaimedHeadroomCapsPayment() external view {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
@@ -129,6 +168,7 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     assertEq(afterState.totalDebts(), state.totalDebts(), 'payment conserves debt');
   }
 
+  // ┌─ test_zeroGlobalUnclaimedHeadroomLeavesPositivePaymentUnprocessed ─────
   function test_zeroGlobalUnclaimedHeadroomLeavesPositivePaymentUnprocessed() external view {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
@@ -150,6 +190,7 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     assertEq(afterState.totalDebts(), state.totalDebts());
   }
 
+  // ┌─ test_cumulativePaidOverflowStillReverts ─────
   function test_cumulativePaidOverflowStillReverts() external {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
@@ -163,6 +204,7 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
   }
 
   // Defensive helper behavior for synthetic state outside the queue-admission invariant.
+  // ┌─ test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference ─────
   function test_syntheticWideCumulativeStateKeepsItsSmallLiveDifference() external view {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);
@@ -182,6 +224,7 @@ contract WithdrawalPaymentCapacityTest is MarketFixture {
     assertEq(afterState.totalDebts(), state.totalDebts());
   }
 
+  // ┌─ test_missingAggregateContributionStillReverts ─────
   function test_missingAggregateContributionStillReverts() external {
     MarketState memory state;
     state.scaleFactor = uint112(RAY);

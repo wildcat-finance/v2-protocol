@@ -1,9 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // NukeBatchAveraging.t
+// ║  ██▀▀     ▀▀██   Sanctions queueing compared with voluntary late-batch entry.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  BATCH ENTRY EQUIVALENCE
+// ║  test_nukeFromOrbitMatchesVoluntaryLateBatchEntry()
+// ║  _runScenario(...)
+// ║  _options()
+// ╚═════
+
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
+// ┌─ NukeBatchAveragingTest ───────────────────────────────────────────────────
 contract NukeBatchAveragingTest is MarketFixture {
   address internal constant EarlyLender = address(0xA11CE);
   address internal constant LateLender = address(0xB0B);
@@ -20,15 +34,26 @@ contract NukeBatchAveragingTest is MarketFixture {
     uint256 lateDestinationBalance;
   }
 
-  function _options() private pure returns (Options memory options) {
-    options = _defaultOptions(HooksKind.OpenTerm);
-    options.protocolFeeBips = 0;
-    options.annualInterestBips = 10_000;
-    options.delinquencyFeeBips = 0;
-    options.withdrawalBatchDuration = 365 days;
-    options.reserveRatioBips = 0;
+  // ░░▒▒▓▓██ [ BATCH ENTRY EQUIVALENCE ] ──────────────────────────────────────
+
+  // ┌─ test_nukeFromOrbitMatchesVoluntaryLateBatchEntry ─────
+  function test_nukeFromOrbitMatchesVoluntaryLateBatchEntry() external {
+    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
+    Outcome memory voluntary = _runScenario(false);
+
+    vm.warp(initialBlockTimestamp);
+    Outcome memory forced = _runScenario(true);
+
+    assertEq(keccak256(abi.encode(forced)), keccak256(abi.encode(voluntary)), 'forced and voluntary accounting');
+    assertEq(voluntary.scaledTotalAmount, 1_000e18, 'final scaled total');
+    assertEq(voluntary.scaledAmountBurned, 1_000e18, 'final scaled burn');
+    assertEq(voluntary.normalizedAmountPaid, 1_100e18, 'conserved batch payment');
+    assertEq(voluntary.earlyPayout, 990e18, 'early averaged payout');
+    assertEq(voluntary.latePayout, 110e18, 'late averaged payout');
+    assertEq(voluntary.lateDestinationBalance, 110e18, 'late destination balance');
   }
 
+  // ┌─ _runScenario ─────
   function _runScenario(bool forceWithNuke) private returns (Outcome memory outcome) {
     Fixture memory fixture = _newMarket(_options());
     _deposit(fixture, EarlyLender, EarlyAmount);
@@ -70,19 +95,13 @@ contract NukeBatchAveragingTest is MarketFixture {
     assertEq(fixture.market.previousState().normalizedUnclaimedWithdrawals, 0, 'unclaimed withdrawals');
   }
 
-  function test_nukeFromOrbitMatchesVoluntaryLateBatchEntry() external {
-    uint256 initialBlockTimestamp = vm.getBlockTimestamp();
-    Outcome memory voluntary = _runScenario(false);
-
-    vm.warp(initialBlockTimestamp);
-    Outcome memory forced = _runScenario(true);
-
-    assertEq(keccak256(abi.encode(forced)), keccak256(abi.encode(voluntary)), 'forced and voluntary accounting');
-    assertEq(voluntary.scaledTotalAmount, 1_000e18, 'final scaled total');
-    assertEq(voluntary.scaledAmountBurned, 1_000e18, 'final scaled burn');
-    assertEq(voluntary.normalizedAmountPaid, 1_100e18, 'conserved batch payment');
-    assertEq(voluntary.earlyPayout, 990e18, 'early averaged payout');
-    assertEq(voluntary.latePayout, 110e18, 'late averaged payout');
-    assertEq(voluntary.lateDestinationBalance, 110e18, 'late destination balance');
+  // ┌─ _options ─────
+  function _options() private pure returns (Options memory options) {
+    options = _defaultOptions(HooksKind.OpenTerm);
+    options.protocolFeeBips = 0;
+    options.annualInterestBips = 10_000;
+    options.delinquencyFeeBips = 0;
+    options.withdrawalBatchDuration = 365 days;
+    options.reserveRatioBips = 0;
   }
 }

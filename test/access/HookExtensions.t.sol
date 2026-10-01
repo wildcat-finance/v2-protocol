@@ -1,6 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HookExtensions.t
+// ║  ██▀▀     ▀▀██   Composed transfer features, authority, and rollback checks.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _artifact(...)
+// ║  _createCompositionMarket(...)
+// ║
+// ║  COMPOSITION SETUP
+// ║  test_composition_DeclaresTransferWithoutRequiringCredentials()
+// ║  test_composition_RejectsCreationAfterTermSetupWithoutPartialState()
+// ║
+// ║  RECIPIENT RULES
+// ║  test_transferRule_AcceptsAndRejectsAfterCredentialProcessingWithRollback()
+// ║  test_transferRule_StillChecksKnownRecipientsWithoutCredentials()
+// ║  test_transferRule_StillChecksTheRegisteredWrapper()
+// ║  test_transferRule_IsScopedToItsMarket()
+// ║
+// ║  TRANSFER AMOUNTS
+// ║  test_transferAmount_BoundariesAndVolumeAreIndependent(...)
+// ║  test_transferAmount_ObservationalVolumeCannotOverflowIntoTransferLock()
+// ║  test_transferRules_AmountFailurePrecedesRecipientFailureAndRollsBackCredentials()
+// ║
+// ║  FEATURE AUTHORITY
+// ║  test_featureManagement_RequiresAdministratorAndRegistrationAndIsolatesMarkets()
+// ║  test_featureManagement_FollowsAdministratorTransferWithoutResettingState()
+// ║  archController()
+// ║  isRegisteredBorrower(...)
+// ║  onHooksAdministratorTransferred(...)
+// ║
+// ║  PRESERVED TERM BEHAVIOR
+// ║  test_composition_RetainsDepositQueueAprAndClosureRules()
+// ║  test_composition_DisabledTransfersKeepPriorityOverBothFeatures()
+// ║
+// ║  ARTIFACT LIMITS
+// ║  test_composition_FitsRuntimeAndStoredInitcodeLimits()
+// ╚═════
+
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
@@ -22,6 +64,7 @@ import { TransferFeatures } from '../mocks/TransferFeaturePolicies.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { HookTemplateFixture, HookKind } from '../shared/HookTemplateFixture.sol';
 
+// ┌─ HookExtensionsTest ───────────────────────────────────────────────────────
 contract HookExtensionsTest is HookTemplateFixture {
   address internal constant Allowed = address(0xA11CE);
   address internal constant Restricted = address(0xB0B);
@@ -29,32 +72,9 @@ contract HookExtensionsTest is HookTemplateFixture {
   uint128 internal constant InitialLimit = 100;
   MockRoleProvider[3] internal providers;
 
-  function _artifact(HookKind kind) internal pure returns (string memory) {
-    return kind == HookKind.Open
-      ? 'test/mocks/TransferFeatureHooks.sol:OpenTransferHooks'
-      : kind == HookKind.Fixed
-        ? 'test/mocks/TransferFeatureHooks.sol:FixedTransferHooks'
-        : 'test/mocks/TransferFeatureHooks.sol:PeriodicTransferHooks';
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
-  function _createCompositionMarket(
-    HookKind kind,
-    address market,
-    HooksConfig requested,
-    uint128 initialLimit,
-    uint128 minimum,
-    bool disabled
-  )
-    internal
-    returns (HooksConfig)
-  {
-    BaseHooks target = hooks[uint256(kind)];
-    DeployMarketInputs memory inputs;
-    inputs.hooks = requested.setHooksAddress(address(target));
-    inputs.maxTotalSupply = initialLimit;
-    return target.onCreateMarket(address(this), market, inputs, _marketData(kind, minimum, disabled));
-  }
-
+  // ┌─ setUp ─────
   function setUp() external {
     vm.warp(StartTimestamp);
     for (uint256 i; i < hooks.length; i++) {
@@ -74,21 +94,95 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
-  // only the authority handoff is under test here; the real factory index has its own suite.
-  function archController() external view returns (address) {
-    return address(this);
+  // ┌─ _artifact ─────
+  function _artifact(HookKind kind) internal pure returns (string memory) {
+    return kind == HookKind.Open
+      ? 'test/mocks/TransferFeatureHooks.sol:OpenTransferHooks'
+      : kind == HookKind.Fixed
+        ? 'test/mocks/TransferFeatureHooks.sol:FixedTransferHooks'
+        : 'test/mocks/TransferFeatureHooks.sol:PeriodicTransferHooks';
   }
 
-  function isRegisteredBorrower(address account) external pure returns (bool) {
-    return account == NewAdministrator;
+  // ┌─ _createCompositionMarket ─────
+  function _createCompositionMarket(
+    HookKind kind,
+    address market,
+    HooksConfig requested,
+    uint128 initialLimit,
+    uint128 minimum,
+    bool disabled
+  )
+    internal
+    returns (HooksConfig)
+  {
+    BaseHooks target = hooks[uint256(kind)];
+    DeployMarketInputs memory inputs;
+    inputs.hooks = requested.setHooksAddress(address(target));
+    inputs.maxTotalSupply = initialLimit;
+    return target.onCreateMarket(address(this), market, inputs, _marketData(kind, minimum, disabled));
   }
 
-  function onHooksAdministratorTransferred(address previous, address next) external view {
-    assertTrue(msg.sender == address(hooks[0]) || msg.sender == address(hooks[1]) || msg.sender == address(hooks[2]));
-    assertEq(previous, address(this));
-    assertEq(next, NewAdministrator);
+  // ░░▒▒▓▓██ [ COMPOSITION SETUP ] ────────────────────────────────────────────
+
+  // ┌─ test_composition_DeclaresTransferWithoutRequiringCredentials ─────
+  function test_composition_DeclaresTransferWithoutRequiringCredentials() external {
+    for (uint256 i; i < hooks.length; i++) {
+      HookKind kind = HookKind(i);
+      BaseHooks target = hooks[i];
+      BaseHooks original = _newHooks(kind, '');
+      HooksConfig effective = _createCompositionMarket(kind, MarketC, EmptyHooksConfig, InitialLimit, 5, false);
+      assertEq(
+        HooksConfig.unwrap(target.config().optionalFlags()), HooksConfig.unwrap(original.config().optionalFlags())
+      );
+      assertEq(
+        HooksConfig.unwrap(target.config().requiredFlags()),
+        HooksConfig.unwrap(original.config().requiredFlags().setFlag(Bit_Enabled_Transfer))
+      );
+      assertTrue(effective.useOnTransfer(), 'required dispatch');
+      assertTrue(effective.useOnDeposit(), 'minimum forces deposit dispatch');
+      assertFalse(effective.useOnBorrow(), 'fourth feature not installed yet');
+      assertFalse(_access(kind, target, MarketC).transferRequiresAccess, 'dispatch is not transfer access');
+      assertFalse(_access(kind, target, MarketC).depositRequiresAccess, 'dispatch is not deposit access');
+      assertEq(MarketC.code.length, 0, 'configuration precedes market deployment');
+
+      MarketState memory state;
+      state.scaleFactor = uint112(RAY);
+      vm.prank(MarketC);
+      target.onDeposit(Allowed, 5, state, '');
+      vm.prank(MarketC);
+      target.onTransfer(Allowed, Allowed, Allowed, 1, state, '');
+      assertFalse(target.isKnownLenderOnMarket(Allowed, MarketC), 'optional entry without credentials stays unknown');
+      assertTrue(target.isMarketTransferRecipientAllowed(MarketC, Allowed), 'ungated recipient view');
+      assertEq(TransferFeatures(address(target)).scaledTransferVolume(MarketC), 1);
+    }
   }
 
+  // ┌─ test_composition_RejectsCreationAfterTermSetupWithoutPartialState ─────
+  function test_composition_RejectsCreationAfterTermSetupWithoutPartialState() external {
+    for (uint256 i; i < hooks.length; i++) {
+      HookKind kind = HookKind(i);
+      BaseHooks target = hooks[i];
+      TransferFeatures features = TransferFeatures(address(target));
+      vm.expectRevert(TransferAmountPolicy.ZeroTransferAmountLimit.selector);
+      _createCompositionMarket(kind, MarketC, EmptyHooksConfig, 0, 5, false);
+      assertFalse(_access(kind, target, MarketC).isHooked, 'registration rolled back');
+      assertEq(_access(kind, target, MarketC).minimumDeposit, 0, 'packed configuration rolled back');
+      assertEq(features.maximumScaledTransfer(MarketC), 0, 'no feature setup');
+      assertEq(features.scaledTransferVolume(MarketC), 0, 'no feature activity');
+      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+      target.isMarketTransferRecipientAllowed(MarketC, Allowed);
+
+      _createCompositionMarket(kind, MarketC, EmptyHooksConfig, 7, 5, false);
+      assertTrue(_access(kind, target, MarketC).isHooked, 'same market can be configured after rejection');
+      assertEq(_access(kind, target, MarketC).minimumDeposit, 5);
+      assertEq(features.maximumScaledTransfer(MarketC), 7);
+      assertEq(features.maximumScaledTransfer(MarketA), InitialLimit, 'other market unchanged');
+    }
+  }
+
+  // ░░▒▒▓▓██ [ RECIPIENT RULES ] ──────────────────────────────────────────────
+
+  // ┌─ test_transferRule_AcceptsAndRejectsAfterCredentialProcessingWithRollback ─────
   function test_transferRule_AcceptsAndRejectsAfterCredentialProcessingWithRollback() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -123,6 +217,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_transferRule_StillChecksKnownRecipientsWithoutCredentials ─────
   function test_transferRule_StillChecksKnownRecipientsWithoutCredentials() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -151,6 +246,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_transferRule_StillChecksTheRegisteredWrapper ─────
   function test_transferRule_StillChecksTheRegisteredWrapper() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -179,6 +275,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_transferRule_IsScopedToItsMarket ─────
   function test_transferRule_IsScopedToItsMarket() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -198,60 +295,9 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
-  function test_composition_DeclaresTransferWithoutRequiringCredentials() external {
-    for (uint256 i; i < hooks.length; i++) {
-      HookKind kind = HookKind(i);
-      BaseHooks target = hooks[i];
-      BaseHooks original = _newHooks(kind, '');
-      HooksConfig effective = _createCompositionMarket(kind, MarketC, EmptyHooksConfig, InitialLimit, 5, false);
-      assertEq(
-        HooksConfig.unwrap(target.config().optionalFlags()), HooksConfig.unwrap(original.config().optionalFlags())
-      );
-      assertEq(
-        HooksConfig.unwrap(target.config().requiredFlags()),
-        HooksConfig.unwrap(original.config().requiredFlags().setFlag(Bit_Enabled_Transfer))
-      );
-      assertTrue(effective.useOnTransfer(), 'required dispatch');
-      assertTrue(effective.useOnDeposit(), 'minimum forces deposit dispatch');
-      assertFalse(effective.useOnBorrow(), 'fourth feature not installed yet');
-      assertFalse(_access(kind, target, MarketC).transferRequiresAccess, 'dispatch is not transfer access');
-      assertFalse(_access(kind, target, MarketC).depositRequiresAccess, 'dispatch is not deposit access');
-      assertEq(MarketC.code.length, 0, 'configuration precedes market deployment');
+  // ░░▒▒▓▓██ [ TRANSFER AMOUNTS ] ─────────────────────────────────────────────
 
-      MarketState memory state;
-      state.scaleFactor = uint112(RAY);
-      vm.prank(MarketC);
-      target.onDeposit(Allowed, 5, state, '');
-      vm.prank(MarketC);
-      target.onTransfer(Allowed, Allowed, Allowed, 1, state, '');
-      assertFalse(target.isKnownLenderOnMarket(Allowed, MarketC), 'optional entry without credentials stays unknown');
-      assertTrue(target.isMarketTransferRecipientAllowed(MarketC, Allowed), 'ungated recipient view');
-      assertEq(TransferFeatures(address(target)).scaledTransferVolume(MarketC), 1);
-    }
-  }
-
-  function test_composition_RejectsCreationAfterTermSetupWithoutPartialState() external {
-    for (uint256 i; i < hooks.length; i++) {
-      HookKind kind = HookKind(i);
-      BaseHooks target = hooks[i];
-      TransferFeatures features = TransferFeatures(address(target));
-      vm.expectRevert(TransferAmountPolicy.ZeroTransferAmountLimit.selector);
-      _createCompositionMarket(kind, MarketC, EmptyHooksConfig, 0, 5, false);
-      assertFalse(_access(kind, target, MarketC).isHooked, 'registration rolled back');
-      assertEq(_access(kind, target, MarketC).minimumDeposit, 0, 'packed configuration rolled back');
-      assertEq(features.maximumScaledTransfer(MarketC), 0, 'no feature setup');
-      assertEq(features.scaledTransferVolume(MarketC), 0, 'no feature activity');
-      vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-      target.isMarketTransferRecipientAllowed(MarketC, Allowed);
-
-      _createCompositionMarket(kind, MarketC, EmptyHooksConfig, 7, 5, false);
-      assertTrue(_access(kind, target, MarketC).isHooked, 'same market can be configured after rejection');
-      assertEq(_access(kind, target, MarketC).minimumDeposit, 5);
-      assertEq(features.maximumScaledTransfer(MarketC), 7);
-      assertEq(features.maximumScaledTransfer(MarketA), InitialLimit, 'other market unchanged');
-    }
-  }
-
+  // ┌─ test_transferAmount_BoundariesAndVolumeAreIndependent ─────
   function test_transferAmount_BoundariesAndVolumeAreIndependent(uint128 rawLimit) external {
     uint256 maximum = rawLimit == 0 ? 1 : uint256(rawLimit);
     for (uint256 i; i < hooks.length; i++) {
@@ -285,6 +331,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_transferAmount_ObservationalVolumeCannotOverflowIntoTransferLock ─────
   function test_transferAmount_ObservationalVolumeCannotOverflowIntoTransferLock() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -301,6 +348,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_transferRules_AmountFailurePrecedesRecipientFailureAndRollsBackCredentials ─────
   function test_transferRules_AmountFailurePrecedesRecipientFailureAndRollsBackCredentials() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -322,6 +370,9 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ FEATURE AUTHORITY ] ────────────────────────────────────────────
+
+  // ┌─ test_featureManagement_RequiresAdministratorAndRegistrationAndIsolatesMarkets ─────
   function test_featureManagement_RequiresAdministratorAndRegistrationAndIsolatesMarkets() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -357,6 +408,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_featureManagement_FollowsAdministratorTransferWithoutResettingState ─────
   function test_featureManagement_FollowsAdministratorTransferWithoutResettingState() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -392,6 +444,27 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // only the authority handoff is under test here; the real factory index has its own suite.
+  // ┌─ archController ─────
+  function archController() external view returns (address) {
+    return address(this);
+  }
+
+  // ┌─ isRegisteredBorrower ─────
+  function isRegisteredBorrower(address account) external pure returns (bool) {
+    return account == NewAdministrator;
+  }
+
+  // ┌─ onHooksAdministratorTransferred ─────
+  function onHooksAdministratorTransferred(address previous, address next) external view {
+    assertTrue(msg.sender == address(hooks[0]) || msg.sender == address(hooks[1]) || msg.sender == address(hooks[2]));
+    assertEq(previous, address(this));
+    assertEq(next, NewAdministrator);
+  }
+
+  // ░░▒▒▓▓██ [ PRESERVED TERM BEHAVIOR ] ──────────────────────────────────────
+
+  // ┌─ test_composition_RetainsDepositQueueAprAndClosureRules ─────
   function test_composition_RetainsDepositQueueAprAndClosureRules() external {
     for (uint256 i; i < hooks.length; i++) {
       vm.warp(StartTimestamp);
@@ -438,6 +511,7 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_composition_DisabledTransfersKeepPriorityOverBothFeatures ─────
   function test_composition_DisabledTransfersKeepPriorityOverBothFeatures() external {
     for (uint256 i; i < hooks.length; i++) {
       BaseHooks target = hooks[i];
@@ -454,6 +528,9 @@ contract HookExtensionsTest is HookTemplateFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ ARTIFACT LIMITS ] ──────────────────────────────────────────────
+
+  // ┌─ test_composition_FitsRuntimeAndStoredInitcodeLimits ─────
   function test_composition_FitsRuntimeAndStoredInitcodeLimits() external {
     for (uint256 i; i < hooks.length; i++) {
       bytes memory initCode = vm.getCode(_artifact(HookKind(i)));

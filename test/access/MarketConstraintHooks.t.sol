@@ -1,6 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketConstraintHooks.t
+// ║  ██▀▀     ▀▀██   Market parameter bounds and temporary reserve-ratio tests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _createMarket(...)
+// ║
+// ║  MARKET CONSTRAINTS
+// ║  test_onCreateMarket_EnforcesAndAdvertisesEveryParameterConstraint()
+// ║
+// ║  APR AND RESERVE UPDATES
+// ║  test_onSetApr_CalculatesTemporaryReserveRatio(...)
+// ║  test_onSetApr_PreservesQuarterBoundaryAndRoundsOnlyAfterComparison()
+// ║  test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry()
+// ║  test_onSetApr_CancelsOrExpiresAndRestoresOriginalReserveRatio()
+// ║  test_onSetApr_FurtherReductionAfterExpiryStartsANewWindow()
+// ║  test_onSetApr_IncreaseOrEqualityDoesNotCreateTemporaryState(...)
+// ║  _setApr(...)
+// ║  _activateReduction(...)
+// ║
+// ║  RESERVE ASSERTIONS
+// ║  _assertTemporaryReserveRatio(...)
+// ║  _expectedTemporaryReserveRatio(...)
+// ╚═════
+
 import { MarketConstraintHooks } from 'src/access/MarketConstraintHooks.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
@@ -10,6 +39,7 @@ import { MathUtils } from 'src/libraries/MathUtils.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ MarketConstraintHooksTest ────────────────────────────────────────────────
 contract MarketConstraintHooksTest is TestKernel {
   address internal constant MarketA = address(0x4001);
   address internal constant MarketB = address(0x4002);
@@ -18,83 +48,24 @@ contract MarketConstraintHooksTest is TestKernel {
 
   OpenTermHooks internal hooks;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     vm.warp(StartTimestamp);
     hooks =
       OpenTermHooks(_deployCode('src/access/OpenTermHooks.sol:OpenTermHooks', abi.encode(address(this), bytes(''))));
   }
 
+  // ┌─ _createMarket ─────
   function _createMarket(address market, DeployMarketInputs memory inputs) internal {
     inputs.hooks = EmptyHooksConfig.setHooksAddress(address(hooks));
     hooks.onCreateMarket(address(this), market, inputs, '');
   }
 
-  function _setApr(
-    address market,
-    uint16 requestedApr,
-    uint16 requestedReserveRatio,
-    uint16 currentApr,
-    uint16 currentReserveRatio
-  )
-    internal
-    returns (uint16 updatedApr, uint16 updatedReserveRatio)
-  {
-    MarketState memory state;
-    state.annualInterestBips = currentApr;
-    state.reserveRatioBips = currentReserveRatio;
-    vm.prank(market);
-    return hooks.onSetAnnualInterestAndReserveRatioBips(requestedApr, requestedReserveRatio, state, '');
-  }
+  // ░░▒▒▓▓██ [ MARKET CONSTRAINTS ] ───────────────────────────────────────────
 
-  function _expectedTemporaryReserveRatio(
-    uint16 newApr,
-    uint16 originalApr,
-    uint16 originalReserveRatio
-  )
-    internal
-    pure
-    returns (uint16)
-  {
-    uint256 reduction = originalApr - newApr;
-    if (reduction * 10_000 <= uint256(originalApr) * 2_500) return originalReserveRatio;
-    return uint16(
-      MathUtils.max(originalReserveRatio, MathUtils.min(10_000, MathUtils.mulDiv(20_000, reduction, originalApr)))
-    );
-  }
-
-  function _assertTemporaryReserveRatio(
-    address market,
-    uint16 originalApr,
-    uint16 originalReserveRatio,
-    uint32 expiry
-  )
-    internal
-    view
-  {
-    (uint16 storedApr, uint16 storedReserveRatio, uint32 storedExpiry) = hooks.temporaryExcessReserveRatio(market);
-    assertEq(storedApr, originalApr, 'original APR');
-    assertEq(storedReserveRatio, originalReserveRatio, 'original reserve ratio');
-    assertEq(storedExpiry, expiry, 'temporary expiry');
-  }
-
-  function _activateReduction(
-    address market,
-    uint16 newApr
-  )
-    internal
-    returns (uint32 expiry, uint16 temporaryReserveRatio)
-  {
-    temporaryReserveRatio = _expectedTemporaryReserveRatio(newApr, 1_000, 2_000);
-    // vm.warp can change time inside one test call; block.timestamp can be cached by solc.
-    expiry = uint32(vm.getBlockTimestamp() + 2 weeks);
-    vm.expectEmit(address(hooks));
-    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(market, 2_000, temporaryReserveRatio, expiry);
-    (uint16 updatedApr, uint16 updatedReserveRatio) = _setApr(market, newApr, 0, 1_000, 2_000);
-    assertEq(updatedApr, newApr, 'activated APR');
-    assertEq(updatedReserveRatio, temporaryReserveRatio, 'activated reserve ratio');
-    _assertTemporaryReserveRatio(market, 1_000, 2_000, expiry);
-  }
-
+  // ┌─ test_onCreateMarket_EnforcesAndAdvertisesEveryParameterConstraint ─────
   function test_onCreateMarket_EnforcesAndAdvertisesEveryParameterConstraint() external {
     MarketParameterConstraints memory constraints = hooks.getParameterConstraints();
     assertEq(constraints.minimumAnnualInterestBips, 0, 'minimum APR');
@@ -161,6 +132,9 @@ contract MarketConstraintHooksTest is TestKernel {
     hooks.onSetAnnualInterestAndReserveRatioBips(10_001, 0, state, '');
   }
 
+  // ░░▒▒▓▓██ [ APR AND RESERVE UPDATES ] ──────────────────────────────────────
+
+  // ┌─ test_onSetApr_CalculatesTemporaryReserveRatio ─────
   function test_onSetApr_CalculatesTemporaryReserveRatio(
     uint16 originalApr,
     uint16 newApr,
@@ -197,6 +171,7 @@ contract MarketConstraintHooksTest is TestKernel {
     }
   }
 
+  // ┌─ test_onSetApr_PreservesQuarterBoundaryAndRoundsOnlyAfterComparison ─────
   function test_onSetApr_PreservesQuarterBoundaryAndRoundsOnlyAfterComparison() external {
     vm.expectEmit(address(hooks));
     emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(MarketA, 2_000, 2_000, StartTimestamp + 2 weeks);
@@ -209,6 +184,7 @@ contract MarketConstraintHooksTest is TestKernel {
     assertEq(reserveRatioBips, 5_001, 'slightly over quarter');
   }
 
+  // ┌─ test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry ─────
   function test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry() external {
     (uint32 firstExpiry,) = _activateReduction(MarketA, 700);
     vm.warp(StartTimestamp + 1 weeks);
@@ -229,6 +205,7 @@ contract MarketConstraintHooksTest is TestKernel {
     _assertTemporaryReserveRatio(MarketB, 1_000, 2_000, firstExpiry);
   }
 
+  // ┌─ test_onSetApr_CancelsOrExpiresAndRestoresOriginalReserveRatio ─────
   function test_onSetApr_CancelsOrExpiresAndRestoresOriginalReserveRatio() external {
     _activateReduction(MarketA, 700);
     vm.warp(StartTimestamp + 1 weeks);
@@ -250,6 +227,7 @@ contract MarketConstraintHooksTest is TestKernel {
     _assertTemporaryReserveRatio(MarketB, 0, 0, 0);
   }
 
+  // ┌─ test_onSetApr_FurtherReductionAfterExpiryStartsANewWindow ─────
   function test_onSetApr_FurtherReductionAfterExpiryStartsANewWindow() external {
     (uint32 expiry,) = _activateReduction(MarketA, 700);
     vm.warp(expiry);
@@ -262,6 +240,7 @@ contract MarketConstraintHooksTest is TestKernel {
     _assertTemporaryReserveRatio(MarketA, 1_000, 2_000, newExpiry);
   }
 
+  // ┌─ test_onSetApr_IncreaseOrEqualityDoesNotCreateTemporaryState ─────
   function test_onSetApr_IncreaseOrEqualityDoesNotCreateTemporaryState(
     uint16 currentApr,
     uint16 requestedApr,
@@ -278,5 +257,77 @@ contract MarketConstraintHooksTest is TestKernel {
     assertEq(updatedApr, requestedApr, 'increased APR');
     assertEq(updatedReserveRatio, currentReserveRatio, 'preserved reserve ratio');
     _assertTemporaryReserveRatio(MarketA, 0, 0, 0);
+  }
+
+  // ┌─ _setApr ─────
+  function _setApr(
+    address market,
+    uint16 requestedApr,
+    uint16 requestedReserveRatio,
+    uint16 currentApr,
+    uint16 currentReserveRatio
+  )
+    internal
+    returns (uint16 updatedApr, uint16 updatedReserveRatio)
+  {
+    MarketState memory state;
+    state.annualInterestBips = currentApr;
+    state.reserveRatioBips = currentReserveRatio;
+    vm.prank(market);
+    return hooks.onSetAnnualInterestAndReserveRatioBips(requestedApr, requestedReserveRatio, state, '');
+  }
+
+  // ┌─ _activateReduction ─────
+  function _activateReduction(
+    address market,
+    uint16 newApr
+  )
+    internal
+    returns (uint32 expiry, uint16 temporaryReserveRatio)
+  {
+    temporaryReserveRatio = _expectedTemporaryReserveRatio(newApr, 1_000, 2_000);
+    // vm.warp can change time inside one test call; block.timestamp can be cached by solc.
+    expiry = uint32(vm.getBlockTimestamp() + 2 weeks);
+    vm.expectEmit(address(hooks));
+    emit MarketConstraintHooks.TemporaryExcessReserveRatioActivated(market, 2_000, temporaryReserveRatio, expiry);
+    (uint16 updatedApr, uint16 updatedReserveRatio) = _setApr(market, newApr, 0, 1_000, 2_000);
+    assertEq(updatedApr, newApr, 'activated APR');
+    assertEq(updatedReserveRatio, temporaryReserveRatio, 'activated reserve ratio');
+    _assertTemporaryReserveRatio(market, 1_000, 2_000, expiry);
+  }
+
+  // ░░▒▒▓▓██ [ RESERVE ASSERTIONS ] ───────────────────────────────────────────
+
+  // ┌─ _assertTemporaryReserveRatio ─────
+  function _assertTemporaryReserveRatio(
+    address market,
+    uint16 originalApr,
+    uint16 originalReserveRatio,
+    uint32 expiry
+  )
+    internal
+    view
+  {
+    (uint16 storedApr, uint16 storedReserveRatio, uint32 storedExpiry) = hooks.temporaryExcessReserveRatio(market);
+    assertEq(storedApr, originalApr, 'original APR');
+    assertEq(storedReserveRatio, originalReserveRatio, 'original reserve ratio');
+    assertEq(storedExpiry, expiry, 'temporary expiry');
+  }
+
+  // ┌─ _expectedTemporaryReserveRatio ─────
+  function _expectedTemporaryReserveRatio(
+    uint16 newApr,
+    uint16 originalApr,
+    uint16 originalReserveRatio
+  )
+    internal
+    pure
+    returns (uint16)
+  {
+    uint256 reduction = originalApr - newApr;
+    if (reduction * 10_000 <= uint256(originalApr) * 2_500) return originalReserveRatio;
+    return uint16(
+      MathUtils.max(originalReserveRatio, MathUtils.min(10_000, MathUtils.mulDiv(20_000, reduction, originalApr)))
+    );
   }
 }

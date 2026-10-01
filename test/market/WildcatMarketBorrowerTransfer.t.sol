@@ -1,6 +1,51 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketBorrowerTransfer.t
+// ║  ██▀▀     ▀▀██   Borrower identity handoff, sanctions, and accounting preservation.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture()
+// ║  _marketParameters(...)
+// ║  _deploymentInputs(...)
+// ║  _packString(...)
+// ║  _registerPrincipal(...)
+// ║  _deployAccount(...)
+// ║  _transferAccountPrincipal(...)
+// ║  _fundAndApprove(...)
+// ║  _deposit(...)
+// ║
+// ║  TRANSFER REQUESTS
+// ║  test_requestReplacementCancellationAndAuthorization()
+// ║  test_requestRejectsInvalidIdentityTargets()
+// ║  test_requestRejectsMalformedRegistryResponses()
+// ║  testFuzz_replacementAcceptsOnlyLatestTarget(...)
+// ║  _request(...)
+// ║  _assertPending(...)
+// ║
+// ║  TRANSFER ACCEPTANCE
+// ║  test_acceptSupportsEveryIdentityTransitionAndRemovedFactory()
+// ║  test_sameAccountPrincipalMigrationBindsPendingPrincipal()
+// ║  _accept(...)
+// ║  _transfer(...)
+// ║
+// ║  IDENTITY AND SANCTIONS
+// ║  test_requestUsesRawSanctionsAndCancellationRemainsAvailable()
+// ║  test_acceptRevalidatesIdentityAndEverySanctionsIdentity()
+// ║  test_borrowChecksOperationalBorrowerAndPrincipalRawSanctions()
+// ║  test_lenderSanctionsNamespaceFollowsBorrowerPrincipal()
+// ║  test_withdrawalEscrowUsesAndRetainsBorrowerPrincipalNamespace()
+// ║  _escrowSanctionedPosition(...)
+// ║
+// ║  ACCOUNTING PRESERVATION
+// ║  test_acceptPreservesActiveDelinquentAndClosedAccounting()
+// ║  _marketStateHash(...)
+// ╚═════
+
 import { IHooks } from 'src/access/IHooks.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
@@ -20,6 +65,7 @@ import { HookDispatchFactoryMock } from '../mocks/HookDispatchMocks.sol';
 import { SanctionsListMock } from '../mocks/SanctionsMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ WildcatMarketBorrowerTransferTest ────────────────────────────────────────
 contract WildcatMarketBorrowerTransferTest is TestKernel {
   struct Fixture {
     WildcatMarket market;
@@ -63,63 +109,9 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
   address internal constant Outsider = address(0xBAD);
   address internal constant FeeRecipient = address(0xFEE);
 
-  function _packString(string memory value) private pure returns (bytes32 word0, bytes32 word1) {
-    require(bytes(value).length <= 63, 'fixture string too long');
-    assembly {
-      word0 := mload(add(value, 0x1f))
-      word1 := mul(mload(add(value, 0x3f)), gt(mload(value), 0x1f))
-    }
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
-  function _marketParameters(
-    Fixture memory fixture,
-    HooksConfig hooksConfig
-  )
-    private
-    pure
-    returns (MarketParameters memory parameters)
-  {
-    (parameters.packedNameWord0, parameters.packedNameWord1) = _packString('Wildcat Token');
-    (parameters.packedSymbolWord0, parameters.packedSymbolWord1) = _packString('WCTKN');
-    parameters.asset = address(fixture.asset);
-    parameters.decimals = 18;
-    parameters.borrower = Borrower;
-    parameters.feeRecipient = FeeRecipient;
-    parameters.sentinel = address(fixture.sentinel);
-    parameters.wrapperFactory = address(0x4626);
-    parameters.maxTotalSupply = type(uint104).max;
-    parameters.protocolFeeBips = 1_000;
-    parameters.annualInterestBips = 1_000;
-    parameters.delinquencyFeeBips = 1_000;
-    parameters.withdrawalBatchDuration = 1 days;
-    parameters.reserveRatioBips = 2_000;
-    parameters.delinquencyGracePeriod = 2_000;
-    parameters.archController = address(fixture.archController);
-    parameters.hooks = hooksConfig;
-    parameters.borrowerPrincipal = Borrower;
-    parameters.borrowerIdentityRegistry = address(fixture.registry);
-  }
-
-  function _deploymentInputs(
-    Fixture memory fixture,
-    HooksConfig hooksConfig
-  )
-    private
-    pure
-    returns (DeployMarketInputs memory inputs)
-  {
-    inputs.asset = address(fixture.asset);
-    inputs.namePrefix = 'Wildcat ';
-    inputs.symbolPrefix = 'WC';
-    inputs.maxTotalSupply = type(uint104).max;
-    inputs.annualInterestBips = 1_000;
-    inputs.delinquencyFeeBips = 1_000;
-    inputs.withdrawalBatchDuration = 1 days;
-    inputs.reserveRatioBips = 2_000;
-    inputs.delinquencyGracePeriod = 2_000;
-    inputs.hooks = hooksConfig;
-  }
-
+  // ┌─ _newFixture ─────
   function _newFixture() private returns (Fixture memory fixture) {
     fixture.archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
     fixture.registry = WildcatBorrowerIdentityRegistry(
@@ -170,18 +162,81 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     fixture.archController.registerMarket(address(fixture.market));
   }
 
+  // ┌─ _marketParameters ─────
+  function _marketParameters(
+    Fixture memory fixture,
+    HooksConfig hooksConfig
+  )
+    private
+    pure
+    returns (MarketParameters memory parameters)
+  {
+    (parameters.packedNameWord0, parameters.packedNameWord1) = _packString('Wildcat Token');
+    (parameters.packedSymbolWord0, parameters.packedSymbolWord1) = _packString('WCTKN');
+    parameters.asset = address(fixture.asset);
+    parameters.decimals = 18;
+    parameters.borrower = Borrower;
+    parameters.feeRecipient = FeeRecipient;
+    parameters.sentinel = address(fixture.sentinel);
+    parameters.wrapperFactory = address(0x4626);
+    parameters.maxTotalSupply = type(uint104).max;
+    parameters.protocolFeeBips = 1_000;
+    parameters.annualInterestBips = 1_000;
+    parameters.delinquencyFeeBips = 1_000;
+    parameters.withdrawalBatchDuration = 1 days;
+    parameters.reserveRatioBips = 2_000;
+    parameters.delinquencyGracePeriod = 2_000;
+    parameters.archController = address(fixture.archController);
+    parameters.hooks = hooksConfig;
+    parameters.borrowerPrincipal = Borrower;
+    parameters.borrowerIdentityRegistry = address(fixture.registry);
+  }
+
+  // ┌─ _deploymentInputs ─────
+  function _deploymentInputs(
+    Fixture memory fixture,
+    HooksConfig hooksConfig
+  )
+    private
+    pure
+    returns (DeployMarketInputs memory inputs)
+  {
+    inputs.asset = address(fixture.asset);
+    inputs.namePrefix = 'Wildcat ';
+    inputs.symbolPrefix = 'WC';
+    inputs.maxTotalSupply = type(uint104).max;
+    inputs.annualInterestBips = 1_000;
+    inputs.delinquencyFeeBips = 1_000;
+    inputs.withdrawalBatchDuration = 1 days;
+    inputs.reserveRatioBips = 2_000;
+    inputs.delinquencyGracePeriod = 2_000;
+    inputs.hooks = hooksConfig;
+  }
+
+  // ┌─ _packString ─────
+  function _packString(string memory value) private pure returns (bytes32 word0, bytes32 word1) {
+    require(bytes(value).length <= 63, 'fixture string too long');
+    assembly {
+      word0 := mload(add(value, 0x1f))
+      word1 := mul(mload(add(value, 0x3f)), gt(mload(value), 0x1f))
+    }
+  }
+
+  // ┌─ _registerPrincipal ─────
   function _registerPrincipal(Fixture memory fixture, address principal) private {
     if (!fixture.archController.isRegisteredBorrower(principal)) {
       fixture.archController.registerBorrower(principal);
     }
   }
 
+  // ┌─ _deployAccount ─────
   function _deployAccount(Fixture memory fixture, address principal) private returns (address account) {
     _registerPrincipal(fixture, principal);
     account = _deployCode('test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountMock');
     fixture.accountFactory.registerAccount(account, principal);
   }
 
+  // ┌─ _transferAccountPrincipal ─────
   function _transferAccountPrincipal(
     Fixture memory fixture,
     address account,
@@ -197,66 +252,23 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     fixture.registry.acceptBorrowerAccountPrincipalTransfer(account);
   }
 
-  function _request(Fixture memory fixture, address currentBorrower, address newBorrower) private {
-    vm.prank(currentBorrower);
-    fixture.market.requestBorrowerTransfer(newBorrower);
-  }
-
-  function _accept(Fixture memory fixture, address newBorrower) private {
-    vm.prank(newBorrower);
-    fixture.market.acceptBorrowerTransfer();
-  }
-
-  function _transfer(Fixture memory fixture, address currentBorrower, address newBorrower) private {
-    _request(fixture, currentBorrower, newBorrower);
-    _accept(fixture, newBorrower);
-  }
-
-  function _marketStateHash(Fixture memory fixture) private view returns (bytes32 result) {
-    // include the new lifecycle slot and the shifted allowance/principal slots.
-    bytes32[12] memory slots;
-    for (uint256 i; i < slots.length; i++) {
-      slots[i] = vm.load(address(fixture.market), bytes32(i));
-    }
-    return keccak256(abi.encode(slots));
-  }
-
+  // ┌─ _fundAndApprove ─────
   function _fundAndApprove(Fixture memory fixture, address account, uint256 amount) private {
     fixture.asset.mint(account, amount);
     vm.prank(account);
     fixture.asset.approve(address(fixture.market), amount);
   }
 
+  // ┌─ _deposit ─────
   function _deposit(Fixture memory fixture, address account, uint256 amount) private {
     _fundAndApprove(fixture, account, amount);
     vm.prank(account);
     fixture.market.deposit(amount);
   }
 
-  function _assertPending(Fixture memory fixture, address borrower, address principal) private view {
-    assertEq(fixture.market.pendingBorrower(), borrower, 'pending borrower');
-    assertEq(fixture.market.pendingBorrowerPrincipal(), principal, 'pending principal');
-  }
+  // ░░▒▒▓▓██ [ TRANSFER REQUESTS ] ────────────────────────────────────────────
 
-  function _escrowSanctionedPosition(
-    Fixture memory fixture,
-    address lender
-  )
-    private
-    returns (address escrow, uint256 escrowedAmount)
-  {
-    _deposit(fixture, lender, 10e18);
-    fixture.sanctionsList.sanction(lender);
-    fixture.market.nukeFromOrbit(lender);
-    uint32 expiry = fixture.market.previousState().pendingWithdrawalExpiry;
-    vm.warp(uint256(expiry) + 1);
-    fixture.market.updateState();
-    fixture.market.executeWithdrawal(lender, expiry);
-    escrow = fixture.sentinel.getEscrowAddress(fixture.market.borrowerPrincipal(), lender, address(fixture.asset));
-    escrowedAmount = fixture.asset.balanceOf(escrow);
-    assertTrue(escrowedAmount > 0, 'escrowed amount');
-  }
-
+  // ┌─ test_requestReplacementCancellationAndAuthorization ─────
   function test_requestReplacementCancellationAndAuthorization() external {
     Fixture memory fixture = _newFixture();
     _registerPrincipal(fixture, SecondPrincipal);
@@ -305,6 +317,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     fixture.market.cancelBorrowerTransfer();
   }
 
+  // ┌─ test_requestRejectsInvalidIdentityTargets ─────
   function test_requestRejectsInvalidIdentityTargets() external {
     Fixture memory fixture = _newFixture();
 
@@ -318,6 +331,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     vm.stopPrank();
   }
 
+  // ┌─ test_requestRejectsMalformedRegistryResponses ─────
   function test_requestRejectsMalformedRegistryResponses() external {
     Fixture memory fixture = _newFixture();
     _registerPrincipal(fixture, SecondPrincipal);
@@ -336,6 +350,44 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ testFuzz_replacementAcceptsOnlyLatestTarget ─────
+  function testFuzz_replacementAcceptsOnlyLatestTarget(uint160 firstSeed, uint160 secondSeed) external {
+    Fixture memory fixture = _newFixture();
+    address firstTarget = address(uint160(bound(firstSeed, 1, type(uint160).max)));
+    address secondTarget = address(uint160(bound(secondSeed, 1, type(uint160).max)));
+    vm.assume(firstTarget != Borrower);
+    vm.assume(secondTarget != Borrower && secondTarget != firstTarget);
+    _registerPrincipal(fixture, firstTarget);
+    _registerPrincipal(fixture, secondTarget);
+
+    _request(fixture, Borrower, firstTarget);
+    _request(fixture, Borrower, secondTarget);
+
+    vm.prank(firstTarget);
+    vm.expectRevert(IMarketEventsAndErrors.NotPendingBorrower.selector);
+    fixture.market.acceptBorrowerTransfer();
+    _accept(fixture, secondTarget);
+
+    assertEq(fixture.market.borrower(), secondTarget, 'latest target');
+    assertEq(fixture.market.borrowerPrincipal(), secondTarget, 'latest principal');
+    _assertPending(fixture, address(0), address(0));
+  }
+
+  // ┌─ _request ─────
+  function _request(Fixture memory fixture, address currentBorrower, address newBorrower) private {
+    vm.prank(currentBorrower);
+    fixture.market.requestBorrowerTransfer(newBorrower);
+  }
+
+  // ┌─ _assertPending ─────
+  function _assertPending(Fixture memory fixture, address borrower, address principal) private view {
+    assertEq(fixture.market.pendingBorrower(), borrower, 'pending borrower');
+    assertEq(fixture.market.pendingBorrowerPrincipal(), principal, 'pending principal');
+  }
+
+  // ░░▒▒▓▓██ [ TRANSFER ACCEPTANCE ] ──────────────────────────────────────────
+
+  // ┌─ test_acceptSupportsEveryIdentityTransitionAndRemovedFactory ─────
   function test_acceptSupportsEveryIdentityTransitionAndRemovedFactory() external {
     Fixture memory fixture = _newFixture();
     _registerPrincipal(fixture, SecondPrincipal);
@@ -378,6 +430,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     fixture.market.setMaxTotalSupply(type(uint104).max - 1);
   }
 
+  // ┌─ test_sameAccountPrincipalMigrationBindsPendingPrincipal ─────
   function test_sameAccountPrincipalMigrationBindsPendingPrincipal() external {
     Fixture memory fixture = _newFixture();
     address expectedPrincipal = address(0x1000);
@@ -415,6 +468,21 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     assertEq(_marketStateHash(fixture), stateHash, 'principal migration changed accounting');
   }
 
+  // ┌─ _accept ─────
+  function _accept(Fixture memory fixture, address newBorrower) private {
+    vm.prank(newBorrower);
+    fixture.market.acceptBorrowerTransfer();
+  }
+
+  // ┌─ _transfer ─────
+  function _transfer(Fixture memory fixture, address currentBorrower, address newBorrower) private {
+    _request(fixture, currentBorrower, newBorrower);
+    _accept(fixture, newBorrower);
+  }
+
+  // ░░▒▒▓▓██ [ IDENTITY AND SANCTIONS ] ───────────────────────────────────────
+
+  // ┌─ test_requestUsesRawSanctionsAndCancellationRemainsAvailable ─────
   function test_requestUsesRawSanctionsAndCancellationRemainsAvailable() external {
     Fixture memory cancelFixture = _newFixture();
     _registerPrincipal(cancelFixture, SecondPrincipal);
@@ -452,6 +520,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     migrationFixture.market.requestBorrowerTransfer(account);
   }
 
+  // ┌─ test_acceptRevalidatesIdentityAndEverySanctionsIdentity ─────
   function test_acceptRevalidatesIdentityAndEverySanctionsIdentity() external {
     Fixture memory directFixture = _newFixture();
     _registerPrincipal(directFixture, SecondPrincipal);
@@ -509,6 +578,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     targetSanctionFixture.market.acceptBorrowerTransfer();
   }
 
+  // ┌─ test_borrowChecksOperationalBorrowerAndPrincipalRawSanctions ─────
   function test_borrowChecksOperationalBorrowerAndPrincipalRawSanctions() external {
     Fixture memory fixture = _newFixture();
     _deposit(fixture, Lender, 10e18);
@@ -531,6 +601,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     fixture.market.borrow(1e18);
   }
 
+  // ┌─ test_lenderSanctionsNamespaceFollowsBorrowerPrincipal ─────
   function test_lenderSanctionsNamespaceFollowsBorrowerPrincipal() external {
     Fixture memory rotationFixture = _newFixture();
     address firstAccount = _deployAccount(rotationFixture, Borrower);
@@ -562,6 +633,7 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     migrationFixture.market.deposit(1e18);
   }
 
+  // ┌─ test_withdrawalEscrowUsesAndRetainsBorrowerPrincipalNamespace ─────
   function test_withdrawalEscrowUsesAndRetainsBorrowerPrincipalNamespace() external {
     Fixture memory namespaceFixture = _newFixture();
     address account = _deployAccount(namespaceFixture, SecondPrincipal);
@@ -586,6 +658,29 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     assertTrue(migrationFixture.sentinel.isSanctioned(SecondPrincipal, Lender), 'new namespace sanction');
   }
 
+  // ┌─ _escrowSanctionedPosition ─────
+  function _escrowSanctionedPosition(
+    Fixture memory fixture,
+    address lender
+  )
+    private
+    returns (address escrow, uint256 escrowedAmount)
+  {
+    _deposit(fixture, lender, 10e18);
+    fixture.sanctionsList.sanction(lender);
+    fixture.market.nukeFromOrbit(lender);
+    uint32 expiry = fixture.market.previousState().pendingWithdrawalExpiry;
+    vm.warp(uint256(expiry) + 1);
+    fixture.market.updateState();
+    fixture.market.executeWithdrawal(lender, expiry);
+    escrow = fixture.sentinel.getEscrowAddress(fixture.market.borrowerPrincipal(), lender, address(fixture.asset));
+    escrowedAmount = fixture.asset.balanceOf(escrow);
+    assertTrue(escrowedAmount > 0, 'escrowed amount');
+  }
+
+  // ░░▒▒▓▓██ [ ACCOUNTING PRESERVATION ] ──────────────────────────────────────
+
+  // ┌─ test_acceptPreservesActiveDelinquentAndClosedAccounting ─────
   function test_acceptPreservesActiveDelinquentAndClosedAccounting() external {
     Fixture memory activeFixture = _newFixture();
     _deposit(activeFixture, Lender, 10e18);
@@ -622,25 +717,13 @@ contract WildcatMarketBorrowerTransferTest is TestKernel {
     assertEq(_marketStateHash(closedFixture), closedHash, 'closed accounting');
   }
 
-  function testFuzz_replacementAcceptsOnlyLatestTarget(uint160 firstSeed, uint160 secondSeed) external {
-    Fixture memory fixture = _newFixture();
-    address firstTarget = address(uint160(bound(firstSeed, 1, type(uint160).max)));
-    address secondTarget = address(uint160(bound(secondSeed, 1, type(uint160).max)));
-    vm.assume(firstTarget != Borrower);
-    vm.assume(secondTarget != Borrower && secondTarget != firstTarget);
-    _registerPrincipal(fixture, firstTarget);
-    _registerPrincipal(fixture, secondTarget);
-
-    _request(fixture, Borrower, firstTarget);
-    _request(fixture, Borrower, secondTarget);
-
-    vm.prank(firstTarget);
-    vm.expectRevert(IMarketEventsAndErrors.NotPendingBorrower.selector);
-    fixture.market.acceptBorrowerTransfer();
-    _accept(fixture, secondTarget);
-
-    assertEq(fixture.market.borrower(), secondTarget, 'latest target');
-    assertEq(fixture.market.borrowerPrincipal(), secondTarget, 'latest principal');
-    _assertPending(fixture, address(0), address(0));
+  // ┌─ _marketStateHash ─────
+  function _marketStateHash(Fixture memory fixture) private view returns (bytes32 result) {
+    // include the new lifecycle slot and the shifted allowance/principal slots.
+    bytes32[12] memory slots;
+    for (uint256 i; i < slots.length; i++) {
+      slots[i] = vm.load(address(fixture.market), bytes32(i));
+    }
+    return keccak256(abi.encode(slots));
   }
 }

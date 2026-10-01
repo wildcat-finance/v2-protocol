@@ -1,6 +1,82 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // BaseHooks
+// ║  ██▀▀     ▀▀██   Market setup, lender policy, and callback extension points.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MARKET SETUP
+// ║  constructor(...)
+// ║  _onCreateMarket(...)
+// ║  _initializeMarket(...)
+// ║  _configureMarketAccess(...)
+// ║  _onMarketConfigured(...)
+// ║  _requireHookedMarket(...)
+// ║  _readAccessConfig(...)
+// ║
+// ║  MINIMUM DEPOSITS
+// ║  setMinimumDeposit(...)
+// ║  _isDepositHookEnabled(...)
+// ║  _writeMinimumDeposit(...)
+// ║
+// ║  DEPOSITS
+// ║  onDeposit(...)
+// ║  _processDeposit(...)
+// ║  _checkDeposit(...)
+// ║
+// ║  TRANSFERS
+// ║  onTransfer(...)
+// ║  _processTransfer(...)
+// ║  _checkTransfer(...)
+// ║  isMarketTransferDisabled(...)
+// ║  isMarketTransferRecipientAllowed(...)
+// ║  _defaultTransferRecipientAllowed(...)
+// ║  _featureTransferRecipientAllowed(...)
+// ║
+// ║  BORROWING
+// ║  onBorrow(...)
+// ║  _checkBorrow(...)
+// ║
+// ║  REPAYMENT
+// ║  onRepay(...)
+// ║  _checkRepay(...)
+// ║
+// ║  WITHDRAWAL QUEUEING
+// ║  onQueueWithdrawal(...)
+// ║  _checkWithdrawalSchedule(...)
+// ║  _processWithdrawalAccess(...)
+// ║  _checkQueueWithdrawal(...)
+// ║
+// ║  CLAIM COLLECTION
+// ║  onExecuteWithdrawal(...)
+// ║  _checkExecuteWithdrawal(...)
+// ║
+// ║  CLOSURE
+// ║  onCloseMarket(...)
+// ║  _validateCloseMarket(...)
+// ║  _applyCloseMarket(...)
+// ║
+// ║  SANCTIONS
+// ║  onNukeFromOrbit(...)
+// ║  _checkNukeFromOrbit(...)
+// ║
+// ║  SUPPLY CAPACITY
+// ║  onSetMaxTotalSupply(...)
+// ║  _checkMaxTotalSupply(...)
+// ║
+// ║  INTEREST AND RESERVES
+// ║  onSetAnnualInterestAndReserveRatioBips(...)
+// ║  _applyAprUpdate(...)
+// ║  _checkAprChange(...)
+// ║
+// ║  PROTOCOL FEES
+// ║  onSetProtocolFeeBips(...)
+// ║  _checkProtocolFeeBips(...)
+// ╚═════
+
 import './BaseAccessControls.sol';
 import './MarketConstraintHooks.sol';
 import './IMarketTransferPolicy.sol';
@@ -35,10 +111,18 @@ struct AprChange {
   uint16 effectiveReserve;
 }
 
+// ┌─ BaseHooks ────────────────────────────────────────────────────────────────
 /// @title BaseHooks
+///
 /// @notice shared initialization, lender actions, and access configuration for hook templates.
+///
 /// @dev each template still owns its packed storage and public getters. the adapters read/write it.
 abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarketTransferPolicy {
+  // these empty defaults accept unknown callers too. a stateful feature must enable its callback
+  // and authenticate the market before trusting it. don't change that for every existing template.
+
+  // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
+
   /// @notice emitted when a hooked market's minimum deposit changes.
   event MinimumDepositUpdated(
     address indexed market,
@@ -47,19 +131,30 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     uint128 newMinimumDeposit
   );
 
+  // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
+
   /// @dev this hooks instance hasn't registered the supplied market.
   error NotHookedMarket();
+
   /// @dev the scaled deposit is below the market's configured minimum.
   error DepositBelowMinimum();
+
   /// @dev the deposit callback is disabled, so a positive minimum can't be enforced.
   error DepositHookNotEnabled();
+
   /// @dev these flags can let a lender enter without the credentials needed to withdraw.
   error InvalidAccessConfiguration();
+
   /// @dev transfers are disabled for this market.
   error TransfersDisabled();
 
+  // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
+
   HooksDeploymentConfig public immutable override config;
 
+  // ░░▒▒▓▓██ [ MARKET SETUP ] ─────────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address _administrator,
     bytes memory args,
@@ -75,18 +170,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     }
   }
 
-  function _readAccessConfig(address market) internal view virtual returns (AccessConfig memory);
-
-  function _isDepositHookEnabled(address market) internal view virtual returns (bool);
-
-  function _writeMinimumDeposit(address market, uint128 value) internal virtual;
-
-  /// @dev markets can register before they're deployed. don't query market code or state here.
-  function _requireHookedMarket(address market) internal view returns (AccessConfig memory access) {
-    access = _readAccessConfig(market);
-    if (!access.isHooked) revert NotHookedMarket();
-  }
-
+  // ┌─ _onCreateMarket ─────
   /// @dev keep bounds and administrator checks ahead of template decoding.
   function _onCreateMarket(
     address administrator_,
@@ -104,6 +188,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _onMarketConfigured(administrator_, marketAddress, parameters, hooksData, marketHooksConfig);
   }
 
+  // ┌─ _initializeMarket ─────
   /// @dev keep the template's decode order; it decides which failure the caller sees first.
   ///      write the packed config once, after decoding.
   function _initializeMarket(
@@ -116,6 +201,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     virtual
     returns (HooksConfig);
 
+  // ┌─ _configureMarketAccess ─────
   /// @dev capture access requirements before forcing or merging callback flags. an enabled
   ///      callback doesn't necessarily require credentials.
   function _configureMarketAccess(
@@ -154,6 +240,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     depositHookEnabled = effective.useOnDeposit();
   }
 
+  // ┌─ _onMarketConfigured ─────
   /// @dev the packed config is written, but the market isn't deployed yet. add feature setup
   ///      and checks here. reverting rolls back config and every event from this creation callback.
   function _onMarketConfigured(
@@ -166,9 +253,24 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual { }
 
+  // ┌─ _requireHookedMarket ─────
+  /// @dev markets can register before they're deployed. don't query market code or state here.
+  function _requireHookedMarket(address market) internal view returns (AccessConfig memory access) {
+    access = _readAccessConfig(market);
+    if (!access.isHooked) revert NotHookedMarket();
+  }
+
+  // ┌─ _readAccessConfig ─────
+  function _readAccessConfig(address market) internal view virtual returns (AccessConfig memory);
+
+  // ░░▒▒▓▓██ [ MINIMUM DEPOSITS ] ─────────────────────────────────────────────
+
+  // ┌─ setMinimumDeposit ─────
   /// @notice updates a hooked market's minimum deposit.
+  ///
   /// @dev callback flags can't change. a positive minimum needs `onDeposit` already enabled.
   ///      leave the width check to the adapter, after the caller, market and dispatch checks.
+  ///
   /// @param newMinimumDeposit normalized underlying-asset units required per deposit.
   function setMinimumDeposit(address market, uint128 newMinimumDeposit) external onlyAdministrator {
     AccessConfig memory access = _requireHookedMarket(market);
@@ -178,48 +280,17 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     emit MinimumDepositUpdated(market, msg.sender, previousMinimumDeposit, newMinimumDeposit);
   }
 
-  /// @notice says whether every market-token transfer is disabled for this market.
-  /// @dev reverts for an unregistered market. false is permanent; features must preserve that
-  ///      promise when adding transfer rules.
-  function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
-    return _requireHookedMarket(marketAddress).transfersDisabled;
-  }
+  // ┌─ _isDepositHookEnabled ─────
+  function _isDepositHookEnabled(address market) internal view virtual returns (bool);
 
-  /// @notice says whether `recipient` can receive tokens now without hook data.
-  /// @dev reverts for an unregistered market. credential exemptions still need feature approval.
-  function isMarketTransferRecipientAllowed(
-    address marketAddress,
-    address recipient
-  )
-    external
-    view
-    override
-    returns (bool)
-  {
-    AccessConfig memory access = _requireHookedMarket(marketAddress);
-    return _defaultTransferRecipientAllowed(marketAddress, recipient, access)
-      && _featureTransferRecipientAllowed(marketAddress, recipient);
-  }
+  // ┌─ _writeMinimumDeposit ─────
+  function _writeMinimumDeposit(address market, uint128 value) internal virtual;
 
-  function _defaultTransferRecipientAllowed(
-    address market,
-    address recipient,
-    AccessConfig memory access
-  )
-    internal
-    view
-    returns (bool)
-  {
-    return
-      !access.transfersDisabled && _isMarketTransferRecipientAllowed(market, recipient, access.transferRequiresAccess);
-  }
+  // ░░▒▒▓▓██ [ DEPOSITS ] ─────────────────────────────────────────────────────
 
-  /// @dev keep this in sync with any recipient restriction added by `_checkTransfer`.
-  function _featureTransferRecipientAllowed(address market, address recipient) internal view virtual returns (bool) {
-    return true;
-  }
-
+  // ┌─ onDeposit ─────
   /// @notice enforces the minimum deposit, lender entry policy, and additional deposit rules.
+  ///
   /// @dev default processing can update credentials and known-lender state. a later check reverting
   ///      rolls those changes back, before the market does its deposit accounting.
   function onDeposit(
@@ -236,6 +307,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _checkDeposit(lender, scaledAmount, state, hooksData);
   }
 
+  // ┌─ _processDeposit ─────
   /// @dev replacing this default means owning any skipped block, minimum, or credential checks
   ///      and their bookkeeping. additional restrictions belong in `_checkDeposit`.
   function _processDeposit(
@@ -265,6 +337,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _writeLenderStatus(status, lender, hasValidCredential, roleUpdated, true);
   }
 
+  // ┌─ _checkDeposit ─────
   function _checkDeposit(
     address lender,
     uint256 scaledAmount,
@@ -274,7 +347,11 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual { }
 
+  // ░░▒▒▓▓██ [ TRANSFERS ] ────────────────────────────────────────────────────
+
+  // ┌─ onTransfer ─────
   /// @notice enforces the recipient's transfer policy and additional transfer rules.
+  ///
   /// @dev known recipients and the registered wrapper skip default credential/block checks.
   ///      they still reach `_checkTransfer`; an exemption isn't permission to skip feature rules.
   function onTransfer(
@@ -293,6 +370,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _checkTransfer(caller, from, to, scaledAmount, state, extraData);
   }
 
+  // ┌─ _processTransfer ─────
   /// @dev replacement owns the disabled-transfer check, credential exemptions, and bookkeeping.
   ///      keep exemption returns in this helper so the coordinator still runs feature checks.
   function _processTransfer(
@@ -320,6 +398,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _writeLenderStatus(status, to, hasValidCredential, wasUpdated, true);
   }
 
+  // ┌─ _checkTransfer ─────
   function _checkTransfer(
     address caller,
     address from,
@@ -331,7 +410,78 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual { }
 
+  // ┌─ isMarketTransferDisabled ─────
+  /// @notice says whether every market-token transfer is disabled for this market.
+  ///
+  /// @dev reverts for an unregistered market. false is permanent; features must preserve that
+  ///      promise when adding transfer rules.
+  function isMarketTransferDisabled(address marketAddress) external view override returns (bool) {
+    return _requireHookedMarket(marketAddress).transfersDisabled;
+  }
+
+  // ┌─ isMarketTransferRecipientAllowed ─────
+  /// @notice says whether `recipient` can receive tokens now without hook data.
+  ///
+  /// @dev reverts for an unregistered market. credential exemptions still need feature approval.
+  function isMarketTransferRecipientAllowed(
+    address marketAddress,
+    address recipient
+  )
+    external
+    view
+    override
+    returns (bool)
+  {
+    AccessConfig memory access = _requireHookedMarket(marketAddress);
+    return _defaultTransferRecipientAllowed(marketAddress, recipient, access)
+      && _featureTransferRecipientAllowed(marketAddress, recipient);
+  }
+
+  // ┌─ _defaultTransferRecipientAllowed ─────
+  function _defaultTransferRecipientAllowed(
+    address market,
+    address recipient,
+    AccessConfig memory access
+  )
+    internal
+    view
+    returns (bool)
+  {
+    return
+      !access.transfersDisabled && _isMarketTransferRecipientAllowed(market, recipient, access.transferRequiresAccess);
+  }
+
+  // ┌─ _featureTransferRecipientAllowed ─────
+  /// @dev keep this in sync with any recipient restriction added by `_checkTransfer`.
+  function _featureTransferRecipientAllowed(address market, address recipient) internal view virtual returns (bool) {
+    return true;
+  }
+
+  // ░░▒▒▓▓██ [ BORROWING ] ────────────────────────────────────────────────────
+
+  // ┌─ onBorrow ─────
+  function onBorrow(uint normalizedAmount, MarketState calldata state, bytes calldata extraData) external override {
+    _checkBorrow(normalizedAmount, state, extraData);
+  }
+
+  // ┌─ _checkBorrow ─────
+  function _checkBorrow(uint256 amount, MarketState calldata state, bytes calldata extraData) internal virtual { }
+
+  // ░░▒▒▓▓██ [ REPAYMENT ] ────────────────────────────────────────────────────
+
+  // ┌─ onRepay ─────
+  function onRepay(uint normalizedAmount, MarketState calldata state, bytes calldata hooksData) external override {
+    _checkRepay(normalizedAmount, state, hooksData);
+  }
+
+  // ┌─ _checkRepay ─────
+  function _checkRepay(uint256 amount, MarketState calldata state, bytes calldata extraData) internal virtual { }
+
+  // ░░▒▒▓▓██ [ WITHDRAWAL QUEUEING ] ──────────────────────────────────────────
+
+  // ┌─ onQueueWithdrawal ─────
   /// @notice checks the withdrawal schedule, lender access, and additional queue rules.
+  ///
   /// @dev the market still chooses the batch and expiry. queueing doesn't make a lender known.
   function onQueueWithdrawal(
     address lender,
@@ -349,6 +499,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _checkQueueWithdrawal(lender, expiry, scaledAmount, state, hooksData);
   }
 
+  // ┌─ _checkWithdrawalSchedule ─────
   function _checkWithdrawalSchedule(
     address lender,
     uint32 expiry,
@@ -360,6 +511,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     view
     virtual { }
 
+  // ┌─ _processWithdrawalAccess ─────
   /// @dev known status survives credential loss and deposit blocks. keep exemptions here so
   ///      they don't skip the coordinator's additional queue check.
   function _processWithdrawalAccess(
@@ -377,6 +529,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     }
   }
 
+  // ┌─ _checkQueueWithdrawal ─────
   function _checkQueueWithdrawal(
     address lender,
     uint32 expiry,
@@ -387,21 +540,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual { }
 
-  /// @notice validates closure before applying the hook's closure effects.
-  /// @dev the term policy owns caller checks. open-term closure stays an unguarded no-op.
-  ///      the market resets APR/reserves after this; don't invent an APR callback here.
-  function onCloseMarket(MarketState calldata state, bytes calldata hooksData) external override {
-    _validateCloseMarket(state, hooksData);
-    _applyCloseMarket(state, hooksData);
-  }
+  // ░░▒▒▓▓██ [ CLAIM COLLECTION ] ─────────────────────────────────────────────
 
-  function _validateCloseMarket(MarketState calldata state, bytes calldata extraData) internal view virtual { }
-
-  function _applyCloseMarket(MarketState calldata state, bytes calldata extraData) internal virtual { }
-
-  // these empty defaults accept unknown callers too. a stateful feature must enable its callback
-  // and authenticate the market before trusting it. don't change that for every existing template.
-
+  // ┌─ onExecuteWithdrawal ─────
   /// @dev queued claims stay ungated by default. don't reuse the queue's credential/window checks.
   function onExecuteWithdrawal(
     address lender,
@@ -416,6 +557,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _checkExecuteWithdrawal(lender, expiry, normalizedAmountWithdrawn, state, hooksData);
   }
 
+  // ┌─ _checkExecuteWithdrawal ─────
   function _checkExecuteWithdrawal(
     address lender,
     uint32 expiry,
@@ -426,27 +568,40 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual { }
 
-  function onBorrow(uint normalizedAmount, MarketState calldata state, bytes calldata extraData) external override {
-    _checkBorrow(normalizedAmount, state, extraData);
+  // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ onCloseMarket ─────
+  /// @notice validates closure before applying the hook's closure effects.
+  ///
+  /// @dev the term policy owns caller checks. open-term closure stays an unguarded no-op.
+  ///      the market resets APR/reserves after this; don't invent an APR callback here.
+  function onCloseMarket(MarketState calldata state, bytes calldata hooksData) external override {
+    _validateCloseMarket(state, hooksData);
+    _applyCloseMarket(state, hooksData);
   }
 
-  function _checkBorrow(uint256 amount, MarketState calldata state, bytes calldata extraData) internal virtual { }
+  // ┌─ _validateCloseMarket ─────
+  function _validateCloseMarket(MarketState calldata state, bytes calldata extraData) internal view virtual { }
 
-  function onRepay(uint normalizedAmount, MarketState calldata state, bytes calldata hooksData) external override {
-    _checkRepay(normalizedAmount, state, hooksData);
-  }
+  // ┌─ _applyCloseMarket ─────
+  function _applyCloseMarket(MarketState calldata state, bytes calldata extraData) internal virtual { }
 
-  function _checkRepay(uint256 amount, MarketState calldata state, bytes calldata extraData) internal virtual { }
+  // ░░▒▒▓▓██ [ SANCTIONS ] ────────────────────────────────────────────────────
 
+  // ┌─ onNukeFromOrbit ─────
   /// @dev quarantine reaches the ordinary queue callback next, including its schedule checks.
   function onNukeFromOrbit(address lender, MarketState calldata state, bytes calldata hooksData) external override {
     _checkNukeFromOrbit(lender, state, hooksData);
   }
 
+  // ┌─ _checkNukeFromOrbit ─────
   function _checkNukeFromOrbit(address lender, MarketState calldata state, bytes calldata extraData)
     internal
     virtual { }
 
+  // ░░▒▒▓▓██ [ SUPPLY CAPACITY ] ──────────────────────────────────────────────
+
+  // ┌─ onSetMaxTotalSupply ─────
   function onSetMaxTotalSupply(
     uint256 maxTotalSupply,
     MarketState calldata state,
@@ -458,11 +613,16 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _checkMaxTotalSupply(maxTotalSupply, state, hooksData);
   }
 
+  // ┌─ _checkMaxTotalSupply ─────
   function _checkMaxTotalSupply(uint256 amount, MarketState calldata state, bytes calldata extraData)
     internal
     virtual { }
 
+  // ░░▒▒▓▓██ [ INTEREST AND RESERVES ] ────────────────────────────────────────
+
+  // ┌─ onSetAnnualInterestAndReserveRatioBips ─────
   /// @notice calculates the APR/reserve update, then validates the values the market will apply.
+  ///
   /// @dev `_applyAprUpdate` may change hook state and emit events. if `_checkAprChange` reverts,
   ///      those effects revert too, including temporary reserves and pending APR proposal changes.
   function onSetAnnualInterestAndReserveRatioBips(
@@ -491,6 +651,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     );
   }
 
+  // ┌─ _applyAprUpdate ─────
   /// @dev delegates to `_applyDefaultAprUpdate`, which ignores the requested `reserveRatioBips`
   ///      and derives reserves from `state` and `temporaryExcessReserveRatio[msg.sender]`.
   ///      override `_applyAprUpdate` if the calculation needs the requested ratio or callback data.
@@ -509,6 +670,7 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     return _applyDefaultAprUpdate(annualInterestBips, state);
   }
 
+  // ┌─ _checkAprChange ─────
   /// @dev validate `change.effectiveApr` and `change.effectiveReserve`; revert to reject.
   ///      runs after APR effects on both `AprRoute.Ordinary` and `AprRoute.PendingReduction`.
   ///      overrides can add constraints or feature state, but don't return replacement values.
@@ -520,6 +682,9 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     internal
     virtual { }
 
+  // ░░▒▒▓▓██ [ PROTOCOL FEES ] ────────────────────────────────────────────────
+
+  // ┌─ onSetProtocolFeeBips ─────
   function onSetProtocolFeeBips(
     uint16 protocolFeeBips,
     MarketState memory intermediateState,
@@ -531,5 +696,6 @@ abstract contract BaseHooks is BaseAccessControls, MarketConstraintHooks, IMarke
     _checkProtocolFeeBips(protocolFeeBips, intermediateState, extraData);
   }
 
+  // ┌─ _checkProtocolFeeBips ─────
   function _checkProtocolFeeBips(uint16 bips, MarketState memory state, bytes calldata extraData) internal virtual { }
 }

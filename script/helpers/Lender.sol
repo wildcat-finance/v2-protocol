@@ -1,6 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Lender
+// ║  ██▀▀     ▀▀██   Development lender setup, deposits, and withdrawal requests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  LENDER SETUP
+// ║  buildLender(...)
+// ║
+// ║  LENDER ACTIONS
+// ║  deposit(...)
+// ║  withdraw(...)
+// ║  broadcast(...)
+// ╚═════
+
 import { Vm as ForgeVM } from 'forge-std/Vm.sol';
 import { console } from 'forge-std/console.sol';
 import 'solady/utils/LibString.sol';
@@ -22,6 +38,9 @@ struct Lender {
 }
 using LibLender for Lender global;
 
+// ░░▒▒▓▓██ [ LENDER SETUP ] ───────────────────────────────────────────────────
+
+// ┌─ buildLender ─────
 function buildLender(string memory label, address market) returns (Lender memory lender) {
   lender.label = label;
   address account = forgeVm.envOr(label, address(0));
@@ -34,15 +53,11 @@ function buildLender(string memory label, address market) returns (Lender memory
   lender.underlying = MockERC20(lender.market.asset());
 }
 
+// ┌─ LibLender ────────────────────────────────────────────────────────────────
 library LibLender {
-  function broadcast(Lender memory self) internal {
-    uint256 key = forgeVm.envOr(self.pvtKeyVarName, uint256(0));
-    if (key == 0) {
-      revert(string.concat('Private key not found in environment variable ', self.pvtKeyVarName));
-    }
-    forgeVm.broadcast(key);
-  }
+  // ░░▒▒▓▓██ [ LENDER ACTIONS ] ───────────────────────────────────────────────
 
+  // ┌─ deposit ─────
   function deposit(Lender memory self, uint256 amount) internal {
     self.broadcast();
     self.underlying.mint(self.account, amount);
@@ -55,8 +70,18 @@ library LibLender {
     console.log(string.concat('Lender ', self.account.toHexString(), ' deposited ', amount.toString(), ' into market'));
   }
 
+  // ┌─ withdraw ─────
   function withdraw(Lender memory self, uint256 amount) internal {
     self.broadcast();
     self.market.queueWithdrawal(amount);
+  }
+
+  // ┌─ broadcast ─────
+  function broadcast(Lender memory self) internal {
+    uint256 key = forgeVm.envOr(self.pvtKeyVarName, uint256(0));
+    if (key == 0) {
+      revert(string.concat('Private key not found in environment variable ', self.pvtKeyVarName));
+    }
+    forgeVm.broadcast(key);
   }
 }

@@ -1,40 +1,76 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // InitCodeStorageTools.t
+// ║  ██▀▀     ▀▀██   Stored-initcode verification, reuse, deployment, and plan parity.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  STORAGE VERIFICATION ADAPTERS
+// ║  read(...)
+// ║  verify(...)
+// ║  fits(...)
+// ║
+// ║  DEPLOYMENT AND PLAN ADAPTERS
+// ║  reuse(...)
+// ║  planDeployment(...)
+// ║  predicate(...)
+// ║  exportPlan(...)
+// ║
+// ║  CONTEXT DEPENDENT TARGET
+// ║  constructor(...)
+// ║  fallback()
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  STORAGE VERIFICATION
+// ║  testFuzz_verifiesRawSplitAndReusedStores(...)
+// ║  testFuzz_rejectsEveryMutatedPrimaryRegion(...)
+// ║  test_rejectsSecondaryMutationTruncationAndTrailingBytes()
+// ║  test_rejectsContextDependentReaderEvenWhenReadbackMatches()
+// ║  test_rejectsCompressedStoresEvenWhenReadbackMatches()
+// ║  _expectMismatch(...)
+// ║
+// ║  REUSE AND DIRECT DEPLOYMENT
+// ║  test_partialReuseAuthenticatesSecondaryAndRecoversInventoryLink()
+// ║  test_directDeploymentTracksBothPreparedArtifacts()
+// ║  test_linkedInstallerRejectsMissingOrAlreadyBoundAddress()
+// ║
+// ║  PLAN PARITY AND EXPORT
+// ║  test_planAndDirectFormatsMatchAtStorageThreshold()
+// ║  test_generatedPlanTracksAndBindsSecondary()
+// ║  test_exportHistoricalCompressionControl()
+// ╚═════
+
 import 'script/common/DeployScriptBase.sol';
 import '../libraries/CompressedInitCode.t.sol';
 import '../libraries/SplitInitCode.t.sol';
 
+// ┌─ InitCodeStorageToolHarness ───────────────────────────────────────────────
 contract InitCodeStorageToolHarness is DeployScriptBase {
+  // ░░▒▒▓▓██ [ STORAGE VERIFICATION ADAPTERS ] ────────────────────────────────
+
+  // ┌─ read ─────
   function read(address store) external view returns (bytes memory) {
     return LibStoredInitCode.getInitCode(store);
   }
 
+  // ┌─ verify ─────
   function verify(address store, bytes memory original) external view {
     _verifyStoredInitCode(store, 'test artifact', original);
   }
 
+  // ┌─ fits ─────
   function fits(bytes memory original) external pure {
     _requireInitCodeStoragePayloadFits(original, 'test artifact');
   }
 
-  function predicate(bytes memory original) external pure returns (string memory) {
-    return _planInitCodeStoragePredicate('store', original);
-  }
+  // ░░▒▒▓▓██ [ DEPLOYMENT AND PLAN ADAPTERS ] ─────────────────────────────────
 
-  function planDeployment(
-    bytes memory original,
-    address secondary
-  )
-    external
-    pure
-    returns (string memory artifact, bytes memory args)
-  {
-    artifact = _initCodeStorageArtifact(original);
-    bytes memory input = _initCodeStorageConstructorInput(original);
-    args = original.length <= 24_575 ? abi.encode(input) : abi.encode(input, secondary);
-  }
-
+  // ┌─ reuse ─────
   function reuse(
     address store,
     address secondary,
@@ -56,6 +92,26 @@ contract InitCodeStorageToolHarness is DeployScriptBase {
     artifacts = deployments.artifacts.length;
   }
 
+  // ┌─ planDeployment ─────
+  function planDeployment(
+    bytes memory original,
+    address secondary
+  )
+    external
+    pure
+    returns (string memory artifact, bytes memory args)
+  {
+    artifact = _initCodeStorageArtifact(original);
+    bytes memory input = _initCodeStorageConstructorInput(original);
+    args = original.length <= 24_575 ? abi.encode(input) : abi.encode(input, secondary);
+  }
+
+  // ┌─ predicate ─────
+  function predicate(bytes memory original) external pure returns (string memory) {
+    return _planInitCodeStoragePredicate('store', original);
+  }
+
+  // ┌─ exportPlan ─────
   function exportPlan(bytes memory original) external {
     Deployments memory deployments;
     deployments.dir = 'deploy-out/split-storage-plan-test';
@@ -69,15 +125,20 @@ contract InitCodeStorageToolHarness is DeployScriptBase {
   }
 }
 
+// ┌─ ContextDependentCodeReader ───────────────────────────────────────────────
 contract ContextDependentCodeReader {
   address internal immutable acceptedCaller;
   bytes internal original;
 
+  // ░░▒▒▓▓██ [ CONTEXT DEPENDENT TARGET ] ─────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(address caller_, bytes memory original_) {
     acceptedCaller = caller_;
     original = original_;
   }
 
+  // ┌─ fallback ─────
   fallback() external {
     bytes memory result = original;
     if (msg.sender != acceptedCaller) result = hex'fe';
@@ -87,21 +148,23 @@ contract ContextDependentCodeReader {
   }
 }
 
+// ┌─ InitCodeStorageToolsTest ─────────────────────────────────────────────────
 contract InitCodeStorageToolsTest is TestKernel {
   SplitCodeHarness internal storageHarness;
   InitCodeStorageToolHarness internal toolsHarness;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     storageHarness = SplitCodeHarness(_deployCode('test/libraries/SplitInitCode.t.sol:SplitCodeHarness'));
     toolsHarness =
       InitCodeStorageToolHarness(_deployCode('test/research/InitCodeStorageTools.t.sol:InitCodeStorageToolHarness'));
   }
 
-  function _expectMismatch(address store, bytes memory original) internal {
-    vm.expectRevert(bytes('Verification failed for test artifact: stored init code mismatch'));
-    toolsHarness.verify(store, original);
-  }
+  // ░░▒▒▓▓██ [ STORAGE VERIFICATION ] ─────────────────────────────────────────
 
+  // ┌─ testFuzz_verifiesRawSplitAndReusedStores ─────
   function testFuzz_verifiesRawSplitAndReusedStores(bytes memory original) external {
     address raw = storageHarness.deployInitCode(original);
     (address primary, address secondary) = storageHarness.split(original);
@@ -115,6 +178,7 @@ contract InitCodeStorageToolsTest is TestKernel {
     assertFalse(deployed);
   }
 
+  // ┌─ testFuzz_rejectsEveryMutatedPrimaryRegion ─────
   function testFuzz_rejectsEveryMutatedPrimaryRegion(
     bytes memory original,
     uint256 indexSeed,
@@ -142,6 +206,7 @@ contract InitCodeStorageToolsTest is TestKernel {
     toolsHarness.verify(primary, original);
   }
 
+  // ┌─ test_rejectsSecondaryMutationTruncationAndTrailingBytes ─────
   function test_rejectsSecondaryMutationTruncationAndTrailingBytes() external {
     bytes memory original = new bytes(25_000);
     (address primary, address secondary) = storageHarness.split(original);
@@ -161,6 +226,7 @@ contract InitCodeStorageToolsTest is TestKernel {
     _expectMismatch(primary, bytes.concat(original, hex'01'));
   }
 
+  // ┌─ test_rejectsContextDependentReaderEvenWhenReadbackMatches ─────
   function test_rejectsContextDependentReaderEvenWhenReadbackMatches() external {
     bytes memory original = hex'600160005260206000f3';
     address store = _deployCode(
@@ -171,6 +237,7 @@ contract InitCodeStorageToolsTest is TestKernel {
     _expectMismatch(store, original);
   }
 
+  // ┌─ test_rejectsCompressedStoresEvenWhenReadbackMatches ─────
   function test_rejectsCompressedStoresEvenWhenReadbackMatches() external {
     bytes memory original = hex'600160005260206000f3';
     address store = LibCompressedInitCode.deployInitCode(original);
@@ -178,6 +245,15 @@ contract InitCodeStorageToolsTest is TestKernel {
     _expectMismatch(store, original);
   }
 
+  // ┌─ _expectMismatch ─────
+  function _expectMismatch(address store, bytes memory original) internal {
+    vm.expectRevert(bytes('Verification failed for test artifact: stored init code mismatch'));
+    toolsHarness.verify(store, original);
+  }
+
+  // ░░▒▒▓▓██ [ REUSE AND DIRECT DEPLOYMENT ] ──────────────────────────────────
+
+  // ┌─ test_partialReuseAuthenticatesSecondaryAndRecoversInventoryLink ─────
   function test_partialReuseAuthenticatesSecondaryAndRecoversInventoryLink() external {
     bytes memory original = new bytes(25_000);
     (address primary, address secondary) = storageHarness.split(original);
@@ -198,6 +274,7 @@ contract InitCodeStorageToolsTest is TestKernel {
     toolsHarness.verify(reused, original);
   }
 
+  // ┌─ test_directDeploymentTracksBothPreparedArtifacts ─────
   function test_directDeploymentTracksBothPreparedArtifacts() external {
     bytes memory original = new bytes(25_000);
     (address primary, address secondary, uint256 artifacts, bool deployed) =
@@ -208,6 +285,20 @@ contract InitCodeStorageToolsTest is TestKernel {
     toolsHarness.verify(primary, original);
   }
 
+  // ┌─ test_linkedInstallerRejectsMissingOrAlreadyBoundAddress ─────
+  function test_linkedInstallerRejectsMissingOrAlreadyBoundAddress() external {
+    bytes memory original = new bytes(25_000);
+    (string memory artifact, bytes memory args) = toolsHarness.planDeployment(original, address(0));
+    vm.expectRevert(bytes('Invalid split storage link'));
+    _deployCode(artifact, args);
+    bytes memory boundRuntime = LibSplitInitCode.getPrimaryRuntime(original, address(1));
+    vm.expectRevert();
+    _deployCode(artifact, abi.encode(boundRuntime, address(2)));
+  }
+
+  // ░░▒▒▓▓██ [ PLAN PARITY AND EXPORT ] ───────────────────────────────────────
+
+  // ┌─ test_planAndDirectFormatsMatchAtStorageThreshold ─────
   function test_planAndDirectFormatsMatchAtStorageThreshold() external {
     for (uint256 length = 24_574; length <= 24_576; ++length) {
       bytes memory original = new bytes(length);
@@ -236,16 +327,7 @@ contract InitCodeStorageToolsTest is TestKernel {
     toolsHarness.fits(new bytes(LibSplitInitCode.maximumInitCodeSize() + 1));
   }
 
-  function test_linkedInstallerRejectsMissingOrAlreadyBoundAddress() external {
-    bytes memory original = new bytes(25_000);
-    (string memory artifact, bytes memory args) = toolsHarness.planDeployment(original, address(0));
-    vm.expectRevert(bytes('Invalid split storage link'));
-    _deployCode(artifact, args);
-    bytes memory boundRuntime = LibSplitInitCode.getPrimaryRuntime(original, address(1));
-    vm.expectRevert();
-    _deployCode(artifact, abi.encode(boundRuntime, address(2)));
-  }
-
+  // ┌─ test_generatedPlanTracksAndBindsSecondary ─────
   function test_generatedPlanTracksAndBindsSecondary() external {
     vm.setEnv('EXPECTED_EXECUTOR', vm.toString(address(0x1234)));
     bytes memory original = vm.getCode('src/market/WildcatMarket.sol:WildcatMarket');
@@ -266,6 +348,7 @@ contract InitCodeStorageToolsTest is TestKernel {
     assertTrue(vm.exists('deploy-out/split-storage-plan-test/inventory-pending/01-Test_initCodeStorage_secondary.json'));
   }
 
+  // ┌─ test_exportHistoricalCompressionControl ─────
   function test_exportHistoricalCompressionControl() external {
     string[2] memory paths =
       ['src/market/WildcatMarket.sol:WildcatMarket', 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'];

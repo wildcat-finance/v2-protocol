@@ -1,10 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleOracle
+// ║  ██▀▀     ▀▀██   Independent observed-cash lifecycle and withdrawal accounting model.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  LIFECYCLE PREVIEW
+// ║  preview(...)
+// ║  _accrue(...)
+// ║
+// ║  BATCH FUNDING
+// ║  _payBatch(...)
+// ║  _releaseFraction(...)
+// ║
+// ║  MODEL CLOSURE
+// ║  _close(...)
+// ║
+// ║  REFERENCE CALL BOUNDARY
+// ║  preview(...)
+// ╚═════
+
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MathUtils, RAY, HALF_RAY } from 'src/libraries/MathUtils.sol';
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 
+// ┌─ LifecycleOracle ──────────────────────────────────────────────────────────
 /// @dev test model, not a call into MarketLifecycleLib. sort the observed boundaries, then
 ///      accrue and judge each one against the last written cash balance. live cash is only
 ///      available at the current timestamp. donations don't get to travel backwards in time.
@@ -39,6 +62,9 @@ library LifecycleOracle {
     bool dateReached;
   }
 
+  // ░░▒▒▓▓██ [ LIFECYCLE PREVIEW ] ────────────────────────────────────────────
+
+  // ┌─ preview ─────
   function preview(
     Observation memory old,
     Terms memory terms,
@@ -106,6 +132,7 @@ library LifecycleOracle {
     }
   }
 
+  // ┌─ _accrue ─────
   function _accrue(Preview memory p, Terms memory t, uint256 drawn, uint256 at) private pure {
     MarketState memory s = p.state;
     uint256 from = s.lastInterestAccruedTimestamp;
@@ -151,6 +178,9 @@ library LifecycleOracle {
     s.lastInterestAccruedTimestamp = uint32(at);
   }
 
+  // ░░▒▒▓▓██ [ BATCH FUNDING ] ────────────────────────────────────────────────
+
+  // ┌─ _payBatch ─────
   function _payBatch(Preview memory p, uint256 cash) private pure {
     MarketState memory s = p.state;
     WithdrawalBatch memory b = p.batch;
@@ -175,6 +205,7 @@ library LifecycleOracle {
     s.normalizedUnclaimedWithdrawals += uint128(paid);
   }
 
+  // ┌─ _releaseFraction ─────
   function _releaseFraction(Preview memory p) private pure {
     if (p.batch.scaledAmountBurned == p.batch.scaledTotalAmount) {
       p.state.withdrawalRemainder -= p.batch.paymentRemainder;
@@ -182,6 +213,9 @@ library LifecycleOracle {
     }
   }
 
+  // ░░▒▒▓▓██ [ MODEL CLOSURE ] ────────────────────────────────────────────────
+
+  // ┌─ _close ─────
   function _close(Preview memory p, uint256 cash, uint256 at) private pure {
     if (p.state.pendingWithdrawalExpiry != 0) {
       _payBatch(p, cash);
@@ -198,9 +232,13 @@ library LifecycleOracle {
   }
 }
 
+// ┌─ LifecycleReference ───────────────────────────────────────────────────────
 /// @dev keep this oracle behind a staticcall so solc doesn't inline the whole model into
 ///      every inherited action. this is a test-only boundary, with no protocol dependency.
 contract LifecycleReference {
+  // ░░▒▒▓▓██ [ REFERENCE CALL BOUNDARY ] ──────────────────────────────────────
+
+  // ┌─ preview ─────
   function preview(
     LifecycleOracle.Observation memory old,
     LifecycleOracle.Terms memory terms,

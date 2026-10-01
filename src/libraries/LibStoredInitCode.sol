@@ -1,6 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // LibStoredInitCode
+// ║  ██▀▀     ▀▀██   Creation-code storage, deployment, and address prediction.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  INITCODE STORAGE
+// ║  deployInitCode(...)
+// ║  getInitCode(...)
+// ║
+// ║  CREATE DEPLOYMENT
+// ║  createWithStoredInitCode(...)
+// ║  createWithStoredInitCode(...)
+// ║
+// ║  CREATE2 ADDRESSES
+// ║  calculateCreate2Address(...)
+// ║  getCreate2Prefix(...)
+// ║
+// ║  CREATE2 DEPLOYMENT
+// ║  create2WithStoredInitCode(...)
+// ║  create2WithStoredInitCode(...)
+// ║  create2WithStoredInitCode(...)
+// ║  create2WithStoredInitCode(...)
+// ║  create2WithInitCode(...)
+// ║  create2WithStoredInitCodeCD(...)
+// ║  create2WithStoredInitCodeCD(...)
+// ╚═════
+
+// ┌─ LibStoredInitCode ────────────────────────────────────────────────────────
 /// @notice deploys raw code storage and reads either raw or executable init-code stores.
 library LibStoredInitCode {
   /// @notice deploying the inert init-code storage contract failed.
@@ -9,7 +39,11 @@ library LibStoredInitCode {
   /// @notice CREATE or CREATE2 using stored init code failed.
   error DeploymentFailed();
 
+  // ░░▒▒▓▓██ [ INITCODE STORAGE ] ─────────────────────────────────────────────
+
+  // ┌─ deployInitCode ─────
   /// @notice deploys `data` as inert runtime code and returns its storage contract.
+  ///
   /// @dev runtime code is `STOP || data`; deployment helpers skip the leading byte.
   function deployInitCode(bytes memory data) internal returns (address initCodeStorage) {
     assembly ('memory-safe') {
@@ -54,6 +88,7 @@ library LibStoredInitCode {
     }
   }
 
+  // ┌─ getInitCode ─────
   /// @dev raw stores start with STOP. executable stores return the original creation bytes
   ///      on STATICCALL, so compression stays inside that one storage contract. CREATE2 still
   ///      hashes the original init code, and old raw stores keep their existing format.
@@ -92,16 +127,32 @@ library LibStoredInitCode {
     }
   }
 
-  /**
-   * @dev Returns the create2 prefix for a given deployer address.
-   *      Equivalent to `uint256(uint160(deployer)) | (0xff << 160)`
-   */
-  function getCreate2Prefix(address deployer) internal pure returns (uint256 create2Prefix) {
+  // ░░▒▒▓▓██ [ CREATE DEPLOYMENT ] ────────────────────────────────────────────
+
+  // ┌─ createWithStoredInitCode ─────
+  /// @dev deploys stored init code with CREATE and no ETH.
+  function createWithStoredInitCode(address initCodeStorage) internal returns (address deployment) {
+    deployment = createWithStoredInitCode(initCodeStorage, 0);
+  }
+
+  // ┌─ createWithStoredInitCode ─────
+  /// @dev deploys stored init code with CREATE and forwards `value` wei.
+  function createWithStoredInitCode(address initCodeStorage, uint256 value) internal returns (address deployment) {
+    bytes memory initCode = getInitCode(initCodeStorage);
     assembly ('memory-safe') {
-      create2Prefix := or(deployer, 0xff0000000000000000000000000000000000000000)
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
+      deployment := create(value, initCodePointer, initCodeSize)
+      if iszero(deployment) {
+        mstore(0x00, 0x30116425) // DeploymentFailed()
+        revert(0x1c, 0x04)
+      }
     }
   }
 
+  // ░░▒▒▓▓██ [ CREATE2 ADDRESSES ] ────────────────────────────────────────────
+
+  // ┌─ calculateCreate2Address ─────
   /// @dev calculates the CREATE2 address from a prefix returned by `getCreate2Prefix`, `salt`,
   ///      and the full init-code hash.
   function calculateCreate2Address(
@@ -123,30 +174,24 @@ library LibStoredInitCode {
     }
   }
 
-  /// @dev deploys stored init code with CREATE and no ETH.
-  function createWithStoredInitCode(address initCodeStorage) internal returns (address deployment) {
-    deployment = createWithStoredInitCode(initCodeStorage, 0);
-  }
-
-  /// @dev deploys stored init code with CREATE and forwards `value` wei.
-  function createWithStoredInitCode(address initCodeStorage, uint256 value) internal returns (address deployment) {
-    bytes memory initCode = getInitCode(initCodeStorage);
+  // ┌─ getCreate2Prefix ─────
+  /// @dev Returns the create2 prefix for a given deployer address.
+  ///      Equivalent to `uint256(uint160(deployer)) | (0xff << 160)`
+  function getCreate2Prefix(address deployer) internal pure returns (uint256 create2Prefix) {
     assembly ('memory-safe') {
-      let initCodePointer := add(initCode, 0x20)
-      let initCodeSize := mload(initCode)
-      deployment := create(value, initCodePointer, initCodeSize)
-      if iszero(deployment) {
-        mstore(0x00, 0x30116425) // DeploymentFailed()
-        revert(0x1c, 0x04)
-      }
+      create2Prefix := or(deployer, 0xff0000000000000000000000000000000000000000)
     }
   }
 
+  // ░░▒▒▓▓██ [ CREATE2 DEPLOYMENT ] ───────────────────────────────────────────
+
+  // ┌─ create2WithStoredInitCode ─────
   /// @dev deploys stored init code with CREATE2, `salt`, and no ETH.
   function create2WithStoredInitCode(address initCodeStorage, bytes32 salt) internal returns (address deployment) {
     deployment = create2WithStoredInitCode(initCodeStorage, salt, 0);
   }
 
+  // ┌─ create2WithStoredInitCode ─────
   /// @dev deploys stored init code with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCode(
     address initCodeStorage,
@@ -160,26 +205,7 @@ library LibStoredInitCode {
     return create2WithInitCode(initCode, salt, value);
   }
 
-  /// @dev accepts already-read creation bytes so callers can verify their hash before CREATE2.
-  function create2WithInitCode(
-    bytes memory initCode,
-    bytes32 salt,
-    uint256 value
-  )
-    internal
-    returns (address deployment)
-  {
-    assembly ('memory-safe') {
-      let initCodePointer := add(initCode, 0x20)
-      let initCodeSize := mload(initCode)
-      deployment := create2(value, initCodePointer, initCodeSize, salt)
-      if iszero(deployment) {
-        mstore(0x00, 0x30116425) // DeploymentFailed()
-        revert(0x1c, 0x04)
-      }
-    }
-  }
-
+  // ┌─ create2WithStoredInitCode ─────
   /// @dev appends memory `constructorArgs`, then deploys with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCode(
     address initCodeStorage,
@@ -206,6 +232,7 @@ library LibStoredInitCode {
     }
   }
 
+  // ┌─ create2WithStoredInitCode ─────
   /// @dev appends memory `constructorArgs`, then deploys with CREATE2 and no ETH.
   function create2WithStoredInitCode(
     address initCodeStorage,
@@ -218,6 +245,28 @@ library LibStoredInitCode {
     return create2WithStoredInitCode(initCodeStorage, salt, 0, constructorArgs);
   }
 
+  // ┌─ create2WithInitCode ─────
+  /// @dev accepts already-read creation bytes so callers can verify their hash before CREATE2.
+  function create2WithInitCode(
+    bytes memory initCode,
+    bytes32 salt,
+    uint256 value
+  )
+    internal
+    returns (address deployment)
+  {
+    assembly ('memory-safe') {
+      let initCodePointer := add(initCode, 0x20)
+      let initCodeSize := mload(initCode)
+      deployment := create2(value, initCodePointer, initCodeSize, salt)
+      if iszero(deployment) {
+        mstore(0x00, 0x30116425) // DeploymentFailed()
+        revert(0x1c, 0x04)
+      }
+    }
+  }
+
+  // ┌─ create2WithStoredInitCodeCD ─────
   /// @dev appends calldata `constructorArgs`, then deploys with CREATE2 and forwards `value` wei.
   function create2WithStoredInitCodeCD(
     address initCodeStorage,
@@ -244,6 +293,7 @@ library LibStoredInitCode {
     }
   }
 
+  // ┌─ create2WithStoredInitCodeCD ─────
   /// @dev appends calldata `constructorArgs`, then deploys with CREATE2 and no ETH.
   function create2WithStoredInitCodeCD(
     address initCodeStorage,

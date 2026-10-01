@@ -1,9 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // CompressionIntegrity.t
+// ║  ██▀▀     ▀▀██   Reference-codec, memory-safety, and deployment integrity checks.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  GUARDED STORAGE OPERATIONS
+// ║  guardedRead(...)
+// ║  guardedCreate2(...)
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  REFERENCE CODEC
+// ║  testFuzz_referenceCodec(...)
+// ║  test_referenceArtifactCorpus()
+// ║  test_referenceBoundaryCorpus()
+// ║  _reference(...)
+// ║  _pattern(...)
+// ║
+// ║  READER INTEGRITY
+// ║  testFuzz_largePayloadAndMemory(...)
+// ║  test_readerLiteralAndOverlappingMatchBoundaries()
+// ║  test_decoderDoesNotValidateUntrustedStreams()
+// ║  testFuzz_readerIgnoresCallerAndCalldata(...)
+// ║  _readStream(...)
+// ║
+// ║  DEPLOYMENT INTEGRITY
+// ║  testFuzz_create2MemoryGuards(...)
+// ║  test_creationFailureRollsBackNonceAndValue()
+// ║  test_create2TotalInitCodeLimitIncludesArguments()
+// ╚═════
+
 import './CompressedInitCode.t.sol';
 
+// ┌─ CompressionIntegrityHarness ──────────────────────────────────────────────
 contract CompressionIntegrityHarness is CompressedCodeHarness {
+  // ░░▒▒▓▓██ [ GUARDED STORAGE OPERATIONS ] ───────────────────────────────────
+
+  // ┌─ guardedRead ─────
   function guardedRead(
     address store,
     bytes memory guard,
@@ -28,6 +66,7 @@ contract CompressionIntegrityHarness is CompressedCodeHarness {
     require(zeroSlot == 0, 'dirty zero slot');
   }
 
+  // ┌─ guardedCreate2 ─────
   function guardedCreate2(
     address store,
     bytes32 salt,
@@ -44,49 +83,22 @@ contract CompressionIntegrityHarness is CompressedCodeHarness {
   }
 }
 
+// ┌─ CompressionIntegrityTest ─────────────────────────────────────────────────
 contract CompressionIntegrityTest is TestKernel {
   CompressionIntegrityHarness internal harness;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     harness = CompressionIntegrityHarness(
       _deployCode('test/libraries/CompressionIntegrity.t.sol:CompressionIntegrityHarness')
     );
   }
 
-  function _pattern(uint256 length, bytes32 seed, uint8 mode) internal pure returns (bytes memory data) {
-    data = new bytes(length);
-    for (uint256 i; i < length; i += 32) {
-      bytes32 word = mode % 4 == 0
-        ? bytes32(0)
-        : mode % 4 == 1
-          ? seed
-          : mode % 4 == 2 ? bytes32(i % 257 == 0 ? uint256(seed) : 0) : keccak256(abi.encode(seed, i));
-      assembly ('memory-safe') {
-        mstore(add(add(data, 0x20), i), word)
-      }
-    }
-  }
+  // ░░▒▒▓▓██ [ REFERENCE CODEC ] ──────────────────────────────────────────────
 
-  function _reference(bytes memory original, bytes memory compressed) internal returns (bytes memory) {
-    string[] memory command = new string[](4);
-    command[0] = 'python3';
-    command[1] = 'scripts/research/fastlz-reference.py';
-    command[2] = vm.toString(original);
-    command[3] = vm.toString(compressed);
-    (bytes memory referenceCompressed, bytes memory referenceDecoded) = abi.decode(vm.ffi(command), (bytes, bytes));
-    assertEq(referenceDecoded, original, 'upstream decodes Solady stream');
-    return referenceCompressed;
-  }
-
-  function _readStream(bytes memory compressed) internal returns (bytes memory result) {
-    // malformed streams use this too. etching creates a test input, not deployment-size evidence.
-    address store = address(0xC0DEC);
-    vm.etch(
-      store, bytes.concat(type(CompressedInitCodeReader).runtimeCode, compressed, bytes2(uint16(compressed.length)))
-    );
-    return harness.read(store);
-  }
-
+  // ┌─ testFuzz_referenceCodec ─────
   function testFuzz_referenceCodec(bytes32 seed, uint16 lengthSeed, uint8 mode) external {
     bytes memory original = _pattern(bound(lengthSeed, 0, 8192), seed, mode);
     bytes memory compressed = LibZip.flzCompress(original);
@@ -94,6 +106,7 @@ contract CompressionIntegrityTest is TestKernel {
     assertEq(_readStream(referenceCompressed), original, 'reader decodes upstream stream');
   }
 
+  // ┌─ test_referenceArtifactCorpus ─────
   function test_referenceArtifactCorpus() external {
     string[10] memory artifacts = [
       'src/market/WildcatMarket.sol:WildcatMarket',
@@ -114,6 +127,7 @@ contract CompressionIntegrityTest is TestKernel {
     }
   }
 
+  // ┌─ test_referenceBoundaryCorpus ─────
   function test_referenceBoundaryCorpus() external {
     uint256[17] memory lengths =
       [uint256(0), 1, 2, 15, 16, 31, 32, 33, 255, 256, 257, 263, 264, 8191, 8192, 8193, 49_152];
@@ -127,6 +141,36 @@ contract CompressionIntegrityTest is TestKernel {
     }
   }
 
+  // ┌─ _reference ─────
+  function _reference(bytes memory original, bytes memory compressed) internal returns (bytes memory) {
+    string[] memory command = new string[](4);
+    command[0] = 'python3';
+    command[1] = 'scripts/research/fastlz-reference.py';
+    command[2] = vm.toString(original);
+    command[3] = vm.toString(compressed);
+    (bytes memory referenceCompressed, bytes memory referenceDecoded) = abi.decode(vm.ffi(command), (bytes, bytes));
+    assertEq(referenceDecoded, original, 'upstream decodes Solady stream');
+    return referenceCompressed;
+  }
+
+  // ┌─ _pattern ─────
+  function _pattern(uint256 length, bytes32 seed, uint8 mode) internal pure returns (bytes memory data) {
+    data = new bytes(length);
+    for (uint256 i; i < length; i += 32) {
+      bytes32 word = mode % 4 == 0
+        ? bytes32(0)
+        : mode % 4 == 1
+          ? seed
+          : mode % 4 == 2 ? bytes32(i % 257 == 0 ? uint256(seed) : 0) : keccak256(abi.encode(seed, i));
+      assembly ('memory-safe') {
+        mstore(add(add(data, 0x20), i), word)
+      }
+    }
+  }
+
+  // ░░▒▒▓▓██ [ READER INTEGRITY ] ─────────────────────────────────────────────
+
+  // ┌─ testFuzz_largePayloadAndMemory ─────
   function testFuzz_largePayloadAndMemory(bytes32 seed, uint16 lengthSeed, uint8 mode, uint8 alignment) external {
     bytes memory original = _pattern(bound(lengthSeed, 0, 49_152), seed, mode);
     bytes32 originalHash = keccak256(original);
@@ -145,6 +189,7 @@ contract CompressionIntegrityTest is TestKernel {
     assertEq(keccak256(original), originalHash);
   }
 
+  // ┌─ test_readerLiteralAndOverlappingMatchBoundaries ─────
   function test_readerLiteralAndOverlappingMatchBoundaries() external {
     assertEq(_readStream(hex'00412000'), bytes('AAAA'));
     assertEq(_readStream(hex'014142e00001'), bytes('ABABABABABA'));
@@ -155,20 +200,14 @@ contract CompressionIntegrityTest is TestKernel {
     assertEq(_readStream(hex'0041e0ff00'), maxMatch);
   }
 
+  // ┌─ test_decoderDoesNotValidateUntrustedStreams ─────
   function test_decoderDoesNotValidateUntrustedStreams() external {
     // LibZip pads a truncated literal with memory bytes. artifact verification must reject
     // this store; a successful STATICCALL alone is not an integrity check.
     assertEq(_readStream(hex'02ab'), hex'ab0000');
   }
 
-  function testFuzz_create2MemoryGuards(bytes memory data, bytes32 salt) external {
-    bytes memory code = vm.getCode('test/libraries/CompressedInitCode.t.sol:CompressedConstructorProbe');
-    address store = harness.compress(code);
-    address deployed = harness.guardedCreate2(store, salt, abi.encode(data), data);
-    assertEq(CompressedConstructorProbe(deployed).dataHash(), keccak256(data));
-    assertEq(CompressedConstructorProbe(deployed).deployer(), address(harness));
-  }
-
+  // ┌─ testFuzz_readerIgnoresCallerAndCalldata ─────
   function testFuzz_readerIgnoresCallerAndCalldata(bytes memory data, bytes memory callData, address caller) external {
     address store = harness.compress(data);
     vm.prank(caller);
@@ -177,6 +216,28 @@ contract CompressionIntegrityTest is TestKernel {
     assertEq(decoded, data);
   }
 
+  // ┌─ _readStream ─────
+  function _readStream(bytes memory compressed) internal returns (bytes memory result) {
+    // malformed streams use this too. etching creates a test input, not deployment-size evidence.
+    address store = address(0xC0DEC);
+    vm.etch(
+      store, bytes.concat(type(CompressedInitCodeReader).runtimeCode, compressed, bytes2(uint16(compressed.length)))
+    );
+    return harness.read(store);
+  }
+
+  // ░░▒▒▓▓██ [ DEPLOYMENT INTEGRITY ] ─────────────────────────────────────────
+
+  // ┌─ testFuzz_create2MemoryGuards ─────
+  function testFuzz_create2MemoryGuards(bytes memory data, bytes32 salt) external {
+    bytes memory code = vm.getCode('test/libraries/CompressedInitCode.t.sol:CompressedConstructorProbe');
+    address store = harness.compress(code);
+    address deployed = harness.guardedCreate2(store, salt, abi.encode(data), data);
+    assertEq(CompressedConstructorProbe(deployed).dataHash(), keccak256(data));
+    assertEq(CompressedConstructorProbe(deployed).deployer(), address(harness));
+  }
+
+  // ┌─ test_creationFailureRollsBackNonceAndValue ─────
   function test_creationFailureRollsBackNonceAndValue() external {
     address store = harness.compress(hex'5f5ffd');
     vm.deal(address(harness), 1 ether);
@@ -191,6 +252,7 @@ contract CompressionIntegrityTest is TestKernel {
     assertEq(address(harness).balance, 1 ether);
   }
 
+  // ┌─ test_create2TotalInitCodeLimitIncludesArguments ─────
   function test_create2TotalInitCodeLimitIncludesArguments() external {
     bytes memory code = new bytes(49_120);
     // return one STOP byte. the rest is unreachable creation-code padding.

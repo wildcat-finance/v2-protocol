@@ -1,6 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // DeployAndExercise4626
+// ║  ██▀▀     ▀▀██   Deploy and exercise wrapping, transfers, and redemption.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  TOKEN OPERATIONS
+// ║  approve(...)
+// ║  transfer(...)
+// ║  balanceOf(...)
+// ║
+// ║  MARKET OPERATIONS
+// ║  deposit(...)
+// ║  asset()
+// ║  borrower()
+// ║  hooks()
+// ║
+// ║  EXECUTION FLOW
+// ║  run()
+// ║  _loadConfig()
+// ║  _preflight(...)
+// ║  _execute(...)
+// ║
+// ║  DEPOSITS AND WRAPPING
+// ║  _mintMarketTokens(...)
+// ║  _ensureUnderlyingBalance(...)
+// ║  _deployFactoryAndWrapper(...)
+// ║  _wrapInto4626(...)
+// ║
+// ║  TRANSFERS AND REDEMPTION
+// ║  _transferShares(...)
+// ║  _exerciseAsTestUser(...)
+// ║  _fundTestUser(...)
+// ║  _redeemAllAsDeployer(...)
+// ║
+// ║  BROADCAST AND REPORTING
+// ║  _startBroadcast(...)
+// ║  _logFinalBalances(...)
+// ╚═════
+
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';
 
@@ -9,24 +50,38 @@ import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 
+// ┌─ IERC20 ───────────────────────────────────────────────────────────────────
 interface IERC20 {
-  function balanceOf(address account) external view returns (uint256);
+  // ░░▒▒▓▓██ [ TOKEN OPERATIONS ] ─────────────────────────────────────────────
 
+  // ┌─ approve ─────
   function approve(address spender, uint256 amount) external returns (bool);
 
+  // ┌─ transfer ─────
   function transfer(address to, uint256 amount) external returns (bool);
+
+  // ┌─ balanceOf ─────
+  function balanceOf(address account) external view returns (uint256);
 }
 
+// ┌─ IWildcatMarket ───────────────────────────────────────────────────────────
 interface IWildcatMarket is IERC20 {
+  // ░░▒▒▓▓██ [ MARKET OPERATIONS ] ────────────────────────────────────────────
+
+  // ┌─ deposit ─────
+  function deposit(uint256 amount) external;
+
+  // ┌─ asset ─────
   function asset() external view returns (address);
 
+  // ┌─ borrower ─────
   function borrower() external view returns (address);
 
+  // ┌─ hooks ─────
   function hooks() external view returns (HooksConfig);
-
-  function deposit(uint256 amount) external;
 }
 
+// ┌─ DeployAndExercise4626 ────────────────────────────────────────────────────
 contract DeployAndExercise4626 is Script {
   error MissingTestUser();
 
@@ -46,12 +101,16 @@ contract DeployAndExercise4626 is Script {
     uint256 testUserEth;
   }
 
+  // ░░▒▒▓▓██ [ EXECUTION FLOW ] ───────────────────────────────────────────────
+
+  // ┌─ run ─────
   function run() external {
     Config memory cfg = _loadConfig();
     _preflight(cfg);
     _execute(cfg);
   }
 
+  // ┌─ _loadConfig ─────
   function _loadConfig() internal returns (Config memory cfg) {
     cfg.archController = vm.envAddress('ARCH_CONTROLLER');
     cfg.market = vm.envAddress('MARKET');
@@ -75,6 +134,7 @@ contract DeployAndExercise4626 is Script {
     cfg.testUserEth = vm.envOr('TEST_USER_ETH', uint256(0.01 ether));
   }
 
+  // ┌─ _preflight ─────
   function _preflight(Config memory cfg) internal view {
     if (cfg.deployerPrivateKey != 0) {
       address derivedDeployer = vm.addr(cfg.deployerPrivateKey);
@@ -101,6 +161,7 @@ contract DeployAndExercise4626 is Script {
     console.log('Market borrower:', IWildcatMarket(cfg.market).borrower());
   }
 
+  // ┌─ _execute ─────
   function _execute(Config memory cfg) internal {
     _startBroadcast(cfg.deployerPrivateKey);
 
@@ -117,6 +178,9 @@ contract DeployAndExercise4626 is Script {
     _logFinalBalances(cfg, wrapperAddr);
   }
 
+  // ░░▒▒▓▓██ [ DEPOSITS AND WRAPPING ] ────────────────────────────────────────
+
+  // ┌─ _mintMarketTokens ─────
   function _mintMarketTokens(Config memory cfg) internal returns (uint256 marketBalance) {
     _ensureUnderlyingBalance(cfg.underlying, cfg.deployer, cfg.underlyingAmount);
 
@@ -127,6 +191,19 @@ contract DeployAndExercise4626 is Script {
     console.log('Market token balance after deposit:', marketBalance);
   }
 
+  // ┌─ _ensureUnderlyingBalance ─────
+  function _ensureUnderlyingBalance(address token, address deployer, uint256 minBalance) internal {
+    uint256 balance = IERC20(token).balanceOf(deployer);
+    if (balance >= minBalance) return;
+
+    (bool ok,) = token.call(abi.encodeWithSignature('faucet()'));
+    if (!ok) {
+      balance = IERC20(token).balanceOf(deployer);
+      require(balance >= minBalance, 'Insufficient underlying balance and faucet() failed');
+    }
+  }
+
+  // ┌─ _deployFactoryAndWrapper ─────
   function _deployFactoryAndWrapper(Config memory cfg) internal returns (address wrapperAddr) {
     // Exercise flows target freshly deployed v2.5 markets; no legacy factory.
     Wildcat4626WrapperFactory factory = new Wildcat4626WrapperFactory(cfg.archController, address(0));
@@ -138,6 +215,7 @@ contract DeployAndExercise4626 is Script {
     require(Wildcat4626Wrapper(wrapperAddr).asset() == cfg.market, 'Wrapper asset mismatch');
   }
 
+  // ┌─ _wrapInto4626 ─────
   function _wrapInto4626(
     Config memory cfg,
     address wrapperAddr,
@@ -155,6 +233,9 @@ contract DeployAndExercise4626 is Script {
     console.log('Shares minted:', sharesMinted);
   }
 
+  // ░░▒▒▓▓██ [ TRANSFERS AND REDEMPTION ] ─────────────────────────────────────
+
+  // ┌─ _transferShares ─────
   function _transferShares(Config memory cfg, address wrapperAddr, uint256 sharesMinted) internal {
     uint256 sharesToTransfer = cfg.transferShares == 0 ? sharesMinted / 2 : cfg.transferShares;
     require(sharesToTransfer <= sharesMinted, 'TRANSFER_SHARES too high');
@@ -163,6 +244,7 @@ contract DeployAndExercise4626 is Script {
     console.log('Transferred shares:', sharesToTransfer);
   }
 
+  // ┌─ _exerciseAsTestUser ─────
   function _exerciseAsTestUser(Config memory cfg, address wrapperAddr) internal {
     if (cfg.testUserPrivateKey == 0) return;
 
@@ -188,6 +270,15 @@ contract DeployAndExercise4626 is Script {
     _startBroadcast(cfg.deployerPrivateKey);
   }
 
+  // ┌─ _fundTestUser ─────
+  function _fundTestUser(address testUser, uint256 value) internal {
+    if (value == 0) return;
+    (bool ok,) = testUser.call{ value: value }('');
+    require(ok, 'Failed to fund test user');
+    console.log('Funded test user (wei):', value);
+  }
+
+  // ┌─ _redeemAllAsDeployer ─────
   function _redeemAllAsDeployer(Config memory cfg, address wrapperAddr) internal {
     Wildcat4626Wrapper wrapper = Wildcat4626Wrapper(wrapperAddr);
     uint256 remainingDeployerShares = wrapper.balanceOf(cfg.deployer);
@@ -197,11 +288,9 @@ contract DeployAndExercise4626 is Script {
     console.log('Deployer redeemed assets:', assetsReceived);
   }
 
-  function _logFinalBalances(Config memory cfg, address wrapperAddr) internal view {
-    console.log('Final deployer market token balance:', IERC20(cfg.market).balanceOf(cfg.deployer));
-    console.log('Final deployer wrapper share balance:', Wildcat4626Wrapper(wrapperAddr).balanceOf(cfg.deployer));
-  }
+  // ░░▒▒▓▓██ [ BROADCAST AND REPORTING ] ──────────────────────────────────────
 
+  // ┌─ _startBroadcast ─────
   function _startBroadcast(uint256 deployerPrivateKey) internal {
     if (deployerPrivateKey != 0) {
       vm.startBroadcast(deployerPrivateKey);
@@ -210,21 +299,9 @@ contract DeployAndExercise4626 is Script {
     }
   }
 
-  function _ensureUnderlyingBalance(address token, address deployer, uint256 minBalance) internal {
-    uint256 balance = IERC20(token).balanceOf(deployer);
-    if (balance >= minBalance) return;
-
-    (bool ok,) = token.call(abi.encodeWithSignature('faucet()'));
-    if (!ok) {
-      balance = IERC20(token).balanceOf(deployer);
-      require(balance >= minBalance, 'Insufficient underlying balance and faucet() failed');
-    }
-  }
-
-  function _fundTestUser(address testUser, uint256 value) internal {
-    if (value == 0) return;
-    (bool ok,) = testUser.call{ value: value }('');
-    require(ok, 'Failed to fund test user');
-    console.log('Funded test user (wei):', value);
+  // ┌─ _logFinalBalances ─────
+  function _logFinalBalances(Config memory cfg, address wrapperAddr) internal view {
+    console.log('Final deployer market token balance:', IERC20(cfg.market).balanceOf(cfg.deployer));
+    console.log('Final deployer wrapper share balance:', Wildcat4626Wrapper(wrapperAddr).balanceOf(cfg.deployer));
   }
 }

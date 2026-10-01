@@ -1,6 +1,55 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // AprValidation.t
+// ║  ██▀▀     ▀▀██   APR replacement and effective-value validation across terms.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  SHARED FIXTURE
+// ║  setUp()
+// ║  _state()
+// ║
+// ║  REPLACEMENT FIXTURES
+// ║  _newReplacement(...)
+// ║  _replacementArtifact(...)
+// ║  _temporaryHashFor(...)
+// ║  _seedFor(...)
+// ║  _proposeFor(...)
+// ║  _proposalHashFor(...)
+// ║
+// ║  REPLACEMENT VALIDATION
+// ║  test_replacementAprCallbackAuthenticatesBeforeFeatureState()
+// ║  test_replacementDefaultSkipsTemporaryReserveEffectsAcrossTerms()
+// ║  test_replacementDefaultRetainsInclusiveAprBounds()
+// ║  test_replacementValidationRejectsEffectiveValuesAndRollsBackSelection()
+// ║  test_replacementFixedMaturityPrecedesEffectiveValueValidation()
+// ║  _assertSelectionLogs(...)
+// ║
+// ║  REPLACEMENT TERM BEHAVIOR
+// ║  test_replacementPeriodicReductionBypassesDefaultOnBothRoutes(...)
+// ║  _replacementReduction(...)
+// ║  test_replacementRetainsAccessTransferScheduleAndManagementChecks()
+// ║
+// ║  PERIODIC EFFECTIVE VALUES
+// ║  test_periodicReduction_ValidatesBothRoutesWithoutDefaultEffects(...)
+// ║  test_periodicReduction_RejectionRestoresProposalOnBothRoutes(...)
+// ║  test_periodicIncrease_ValidatesEffectiveReservesAndRollsBackCancellation()
+// ║  test_periodicEquality_ValidatesRestoredReserveAndRollsBackDefaultEffects()
+// ║  test_dedicatedReduction_PassesEmptyDataEvenWithTrailingCalldata(...)
+// ║  _ready()
+// ║  _reduce(...)
+// ║  _assertChange(...)
+// ║  _proposalHash()
+// ║  _temporaryHash()
+// ║  _seedTemporaryReserve(...)
+// ║
+// ║  ARTIFACT LIMITS
+// ║  test_replacementArtifactsFitRuntimeAndStoredInitcodeLimits()
+// ╚═════
+
 import { AprChange, AprRoute } from 'src/access/BaseHooks.sol';
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
@@ -25,17 +74,32 @@ import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { LibStoredInitCodeExternal } from '../libraries/wrappers/LibStoredInitCodeExternal.sol';
 import { HookKind, HookTemplateFixture } from '../shared/HookTemplateFixture.sol';
 
+// ┌─ AprValidationTest ────────────────────────────────────────────────────────
 contract AprValidationTest is HookTemplateFixture {
   AprValidationHooks internal target;
 
-  function _replacementArtifact(HookKind kind) private pure returns (string memory) {
-    return kind == HookKind.Open
-      ? 'test/mocks/AprReplacementHooks.sol:OpenAprReplacementHooks'
-      : kind == HookKind.Fixed
-        ? 'test/mocks/AprReplacementHooks.sol:FixedAprReplacementHooks'
-        : 'test/mocks/AprReplacementHooks.sol:PeriodicAprReplacementHooks';
+  // ░░▒▒▓▓██ [ SHARED FIXTURE ] ───────────────────────────────────────────────
+
+  // ┌─ setUp ─────
+  function setUp() external {
+    vm.warp(StartTimestamp);
+    target = AprValidationHooks(
+      _deployCode('test/mocks/AprValidationHooks.sol:AprValidationHooks', abi.encode(address(this)))
+    );
+    _createMarket(target, MarketA, EmptyHooksConfig, _termData(HookKind.Periodic));
+    vm.mockCall(MarketA, abi.encodeWithSignature('annualInterestBips()'), abi.encode(uint256(1_000)));
+    target.proposeAnnualInterestBips(MarketA, 700);
   }
 
+  // ┌─ _state ─────
+  function _state() internal pure returns (MarketState memory state) {
+    state.annualInterestBips = 1_000;
+    state.reserveRatioBips = 2_000;
+  }
+
+  // ░░▒▒▓▓██ [ REPLACEMENT FIXTURES ] ─────────────────────────────────────────
+
+  // ┌─ _newReplacement ─────
   function _newReplacement(HookKind kind) private returns (BaseHooks replacement) {
     vm.warp(StartTimestamp);
     replacement = BaseHooks(_deployCode(_replacementArtifact(kind), abi.encode(address(this), bytes(''))));
@@ -49,21 +113,34 @@ contract AprValidationTest is HookTemplateFixture {
     replacement.onCreateMarket(address(this), MarketB, inputs, _marketData(kind, 10, false));
   }
 
+  // ┌─ _replacementArtifact ─────
+  function _replacementArtifact(HookKind kind) private pure returns (string memory) {
+    return kind == HookKind.Open
+      ? 'test/mocks/AprReplacementHooks.sol:OpenAprReplacementHooks'
+      : kind == HookKind.Fixed
+        ? 'test/mocks/AprReplacementHooks.sol:FixedAprReplacementHooks'
+        : 'test/mocks/AprReplacementHooks.sol:PeriodicAprReplacementHooks';
+  }
+
+  // ┌─ _temporaryHashFor ─────
   function _temporaryHashFor(BaseHooks replacement) private view returns (bytes32) {
     (uint16 apr, uint16 reserve, uint32 expiry) = replacement.temporaryExcessReserveRatio(MarketA);
     return keccak256(abi.encode(apr, reserve, expiry));
   }
 
+  // ┌─ _seedFor ─────
   function _seedFor(BaseHooks replacement, TemporaryReserveRatio memory value) private {
     // all three replacement assemblies expose the same harness-only seeding API.
     OpenAprReplacementHooks(address(replacement)).seedTemporaryReserve(MarketA, value);
   }
 
+  // ┌─ _proposeFor ─────
   function _proposeFor(BaseHooks replacement, uint16 currentApr) private {
     vm.mockCall(MarketA, abi.encodeWithSignature('annualInterestBips()'), abi.encode(uint256(currentApr)));
     PeriodicTermPolicy(address(replacement)).proposeAnnualInterestBips(MarketA, 700);
   }
 
+  // ┌─ _proposalHashFor ─────
   function _proposalHashFor(BaseHooks replacement) private view returns (bytes32) {
     PeriodicTermPolicy periodic = PeriodicTermPolicy(address(replacement));
     (uint16 apr, uint32 timestamp) = periodic.pendingAprChanges(MarketA);
@@ -71,31 +148,9 @@ contract AprValidationTest is HookTemplateFixture {
     return keccak256(abi.encode(apr, timestamp, start, end));
   }
 
-  function _assertSelectionLogs(
-    address replacement,
-    Vm.Log[] memory logs,
-    uint16 apr,
-    bool cancelledProposal
-  )
-    private
-    pure
-  {
-    uint256 selectionIndex = cancelledProposal ? 1 : 0;
-    assertEq(logs.length, selectionIndex + 1, 'no skipped-default events');
-    if (cancelledProposal) {
-      assertEq(logs[0].emitter, replacement, 'cancellation owner');
-      assertEq(
-        logs[0].topics[0], keccak256('AnnualInterestBipsReductionProposalCancelled(address)'), 'proposal cancellation'
-      );
-    }
-    assertEq(logs[selectionIndex].emitter, replacement, 'selected-default event owner');
-    assertEq(
-      logs[selectionIndex].topics[0], keccak256('AprDefaultSelected(address,uint16,uint16)'), 'selected-default event'
-    );
-    assertEq(logs[selectionIndex].topics[1], bytes32(uint256(uint160(MarketA))), 'selected market');
-    assertEq(logs[selectionIndex].data, abi.encode(apr, uint16(3_333)), 'selected values');
-  }
+  // ░░▒▒▓▓██ [ REPLACEMENT VALIDATION ] ───────────────────────────────────────
 
+  // ┌─ test_replacementAprCallbackAuthenticatesBeforeFeatureState ─────
   function test_replacementAprCallbackAuthenticatesBeforeFeatureState() external {
     for (uint256 i; i < 3; i++) {
       HookKind kind = HookKind(i);
@@ -132,6 +187,7 @@ contract AprValidationTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_replacementDefaultSkipsTemporaryReserveEffectsAcrossTerms ─────
   function test_replacementDefaultSkipsTemporaryReserveEffectsAcrossTerms() external {
     for (uint256 i; i < 3; i++) {
       HookKind kind = HookKind(i);
@@ -182,6 +238,7 @@ contract AprValidationTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_replacementDefaultRetainsInclusiveAprBounds ─────
   function test_replacementDefaultRetainsInclusiveAprBounds() external {
     uint16[4] memory values = [uint16(0), 10_000, 10_001, type(uint16).max];
     for (uint256 i; i < 3; i++) {
@@ -210,6 +267,7 @@ contract AprValidationTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_replacementValidationRejectsEffectiveValuesAndRollsBackSelection ─────
   function test_replacementValidationRejectsEffectiveValuesAndRollsBackSelection() external {
     for (uint256 i; i < 3; i++) {
       BaseHooks replacement = _newReplacement(HookKind(i));
@@ -254,6 +312,7 @@ contract AprValidationTest is HookTemplateFixture {
     }
   }
 
+  // ┌─ test_replacementFixedMaturityPrecedesEffectiveValueValidation ─────
   function test_replacementFixedMaturityPrecedesEffectiveValueValidation() external {
     BaseHooks replacement = _newReplacement(HookKind.Fixed);
     AprReplacementPolicy feature = AprReplacementPolicy(address(replacement));
@@ -279,24 +338,35 @@ contract AprValidationTest is HookTemplateFixture {
     assertEq(reserve, 3_333, 'selected calculation after maturity');
   }
 
-  function _replacementReduction(
-    BaseHooks replacement,
-    bool dedicated,
-    MarketState memory state
+  // ┌─ _assertSelectionLogs ─────
+  function _assertSelectionLogs(
+    address replacement,
+    Vm.Log[] memory logs,
+    uint16 apr,
+    bool cancelledProposal
   )
     private
-    returns (uint16 apr, uint16 reserve)
+    pure
   {
-    vm.prank(MarketA);
-    if (dedicated) {
-      return (
-        PeriodicTermPolicy(address(replacement)).executePendingAnnualInterestBipsReduction(state),
-        state.reserveRatioBips
+    uint256 selectionIndex = cancelledProposal ? 1 : 0;
+    assertEq(logs.length, selectionIndex + 1, 'no skipped-default events');
+    if (cancelledProposal) {
+      assertEq(logs[0].emitter, replacement, 'cancellation owner');
+      assertEq(
+        logs[0].topics[0], keccak256('AnnualInterestBipsReductionProposalCancelled(address)'), 'proposal cancellation'
       );
     }
-    return replacement.onSetAnnualInterestAndReserveRatioBips(700, 0, state, 'replacement route');
+    assertEq(logs[selectionIndex].emitter, replacement, 'selected-default event owner');
+    assertEq(
+      logs[selectionIndex].topics[0], keccak256('AprDefaultSelected(address,uint16,uint16)'), 'selected-default event'
+    );
+    assertEq(logs[selectionIndex].topics[1], bytes32(uint256(uint160(MarketA))), 'selected market');
+    assertEq(logs[selectionIndex].data, abi.encode(apr, uint16(3_333)), 'selected values');
   }
 
+  // ░░▒▒▓▓██ [ REPLACEMENT TERM BEHAVIOR ] ────────────────────────────────────
+
+  // ┌─ test_replacementPeriodicReductionBypassesDefaultOnBothRoutes ─────
   function test_replacementPeriodicReductionBypassesDefaultOnBothRoutes(bool dedicated, bool rejectApr) external {
     BaseHooks replacement = _newReplacement(HookKind.Periodic);
     AprReplacementPolicy feature = AprReplacementPolicy(address(replacement));
@@ -336,6 +406,26 @@ contract AprValidationTest is HookTemplateFixture {
     assertEq(logs[0].data, abi.encode(uint16(700)), 'executed APR');
   }
 
+  // ┌─ _replacementReduction ─────
+  function _replacementReduction(
+    BaseHooks replacement,
+    bool dedicated,
+    MarketState memory state
+  )
+    private
+    returns (uint16 apr, uint16 reserve)
+  {
+    vm.prank(MarketA);
+    if (dedicated) {
+      return (
+        PeriodicTermPolicy(address(replacement)).executePendingAnnualInterestBipsReduction(state),
+        state.reserveRatioBips
+      );
+    }
+    return replacement.onSetAnnualInterestAndReserveRatioBips(700, 0, state, 'replacement route');
+  }
+
+  // ┌─ test_replacementRetainsAccessTransferScheduleAndManagementChecks ─────
   function test_replacementRetainsAccessTransferScheduleAndManagementChecks() external {
     address lender = address(0xA11CE);
     address restricted = address(0xB0B);
@@ -409,93 +499,9 @@ contract AprValidationTest is HookTemplateFixture {
     }
   }
 
-  function test_replacementArtifactsFitRuntimeAndStoredInitcodeLimits() external {
-    LibStoredInitCodeExternal storageDeployer = LibStoredInitCodeExternal(
-      _deployCode('test/libraries/wrappers/LibStoredInitCodeExternal.sol:LibStoredInitCodeExternal')
-    );
-    for (uint256 i; i < 3; i++) {
-      HookKind kind = HookKind(i);
-      BaseHooks replacement = _newReplacement(kind);
-      bytes memory creation = vm.getCode(_replacementArtifact(kind));
-      address stored = storageDeployer.deployInitCode(creation);
-      assertEq(stored.code, abi.encodePacked(hex'00', creation), 'actual stored initcode');
-      assertTrue(stored.code.length <= 24_576, 'stored initcode limit');
-      assertTrue(address(replacement).code.length <= 24_576, 'runtime limit');
-      assertTrue(
-        abi.encodePacked(creation, abi.encode(address(this), bytes(''))).length <= 49_152, 'constructor payload limit'
-      );
-    }
-  }
+  // ░░▒▒▓▓██ [ PERIODIC EFFECTIVE VALUES ] ────────────────────────────────────
 
-  function setUp() external {
-    vm.warp(StartTimestamp);
-    target = AprValidationHooks(
-      _deployCode('test/mocks/AprValidationHooks.sol:AprValidationHooks', abi.encode(address(this)))
-    );
-    _createMarket(target, MarketA, EmptyHooksConfig, _termData(HookKind.Periodic));
-    vm.mockCall(MarketA, abi.encodeWithSignature('annualInterestBips()'), abi.encode(uint256(1_000)));
-    target.proposeAnnualInterestBips(MarketA, 700);
-  }
-
-  function _state() internal pure returns (MarketState memory state) {
-    state.annualInterestBips = 1_000;
-    state.reserveRatioBips = 2_000;
-  }
-
-  function _ready() internal {
-    vm.warp(FirstWindowStart + WindowDuration);
-  }
-
-  function _proposalHash() internal view returns (bytes32) {
-    (uint16 apr, uint32 timestamp) = target.pendingAprChanges(MarketA);
-    (, uint32 start, uint32 end) = target.getPendingAprChange(MarketA);
-    return keccak256(abi.encode(apr, timestamp, start, end));
-  }
-
-  function _temporaryHash() internal view returns (bytes32) {
-    (uint16 apr, uint16 reserve, uint32 expiry) = target.temporaryExcessReserveRatio(MarketA);
-    return keccak256(abi.encode(apr, reserve, expiry));
-  }
-
-  function _seedTemporaryReserve(uint32 expiry) internal {
-    target.seedTemporaryReserve(MarketA, TemporaryReserveRatio(1_000, 2_000, expiry));
-  }
-
-  function _reduce(
-    bool dedicated,
-    uint16 requestedReserve,
-    MarketState memory state,
-    bytes memory data
-  )
-    internal
-    returns (uint16 apr, uint16 reserve)
-  {
-    vm.prank(MarketA);
-    if (dedicated) {
-      return (target.executePendingAnnualInterestBipsReduction(state), state.reserveRatioBips);
-    }
-    return target.onSetAnnualInterestAndReserveRatioBips(700, requestedReserve, state, data);
-  }
-
-  function _assertChange(
-    AprRoute route,
-    uint16 requestedApr,
-    uint16 requestedReserve,
-    uint16 effectiveApr,
-    uint16 effectiveReserve,
-    MarketState memory state,
-    bytes memory data
-  )
-    internal
-    view
-  {
-    AprChange memory expected =
-      AprChange(MarketA, route, requestedApr, requestedReserve, effectiveApr, effectiveReserve);
-    assertEq(abi.encode(target.lastChange()), abi.encode(expected), 'applied change context');
-    assertEq(target.lastStateHash(), keccak256(abi.encode(state)), 'original market state');
-    assertEq(target.lastData(), data, 'callback data');
-  }
-
+  // ┌─ test_periodicReduction_ValidatesBothRoutesWithoutDefaultEffects ─────
   function test_periodicReduction_ValidatesBothRoutesWithoutDefaultEffects(
     bool dedicated,
     bool seeded,
@@ -529,6 +535,7 @@ contract AprValidationTest is HookTemplateFixture {
     assertEq(logs[0].topics[0], keccak256('AnnualInterestBipsReductionExecuted(address,uint16)'), 'execution event');
   }
 
+  // ┌─ test_periodicReduction_RejectionRestoresProposalOnBothRoutes ─────
   function test_periodicReduction_RejectionRestoresProposalOnBothRoutes(bool dedicated, bool rejectApr) external {
     _ready();
     _seedTemporaryReserve(uint32(block.timestamp + 1 days));
@@ -553,6 +560,7 @@ contract AprValidationTest is HookTemplateFixture {
     assertEq(timestamp, 0, 'timestamp cleared');
   }
 
+  // ┌─ test_periodicIncrease_ValidatesEffectiveReservesAndRollsBackCancellation ─────
   function test_periodicIncrease_ValidatesEffectiveReservesAndRollsBackCancellation() external {
     MarketState memory state = _state();
     bytes32 proposalBefore = _proposalHash();
@@ -574,6 +582,7 @@ contract AprValidationTest is HookTemplateFixture {
     _assertChange(AprRoute.Ordinary, 1_100, type(uint16).max, apr, reserve, state, data);
   }
 
+  // ┌─ test_periodicEquality_ValidatesRestoredReserveAndRollsBackDefaultEffects ─────
   function test_periodicEquality_ValidatesRestoredReserveAndRollsBackDefaultEffects() external {
     _seedTemporaryReserve(StartTimestamp);
     MarketState memory state = _state();
@@ -600,6 +609,7 @@ contract AprValidationTest is HookTemplateFixture {
     _assertChange(AprRoute.Ordinary, 800, type(uint16).max, apr, reserve, state, '');
   }
 
+  // ┌─ test_dedicatedReduction_PassesEmptyDataEvenWithTrailingCalldata ─────
   function test_dedicatedReduction_PassesEmptyDataEvenWithTrailingCalldata(bytes calldata data) external {
     _ready();
     MarketState memory state = _state();
@@ -609,5 +619,86 @@ contract AprValidationTest is HookTemplateFixture {
     assertTrue(success, 'dedicated execution');
     assertEq(abi.decode(result, (uint16)), 700, 'dedicated APR');
     _assertChange(AprRoute.PendingReduction, 700, 2_000, 700, 2_000, state, '');
+  }
+
+  // ┌─ _ready ─────
+  function _ready() internal {
+    vm.warp(FirstWindowStart + WindowDuration);
+  }
+
+  // ┌─ _reduce ─────
+  function _reduce(
+    bool dedicated,
+    uint16 requestedReserve,
+    MarketState memory state,
+    bytes memory data
+  )
+    internal
+    returns (uint16 apr, uint16 reserve)
+  {
+    vm.prank(MarketA);
+    if (dedicated) {
+      return (target.executePendingAnnualInterestBipsReduction(state), state.reserveRatioBips);
+    }
+    return target.onSetAnnualInterestAndReserveRatioBips(700, requestedReserve, state, data);
+  }
+
+  // ┌─ _assertChange ─────
+  function _assertChange(
+    AprRoute route,
+    uint16 requestedApr,
+    uint16 requestedReserve,
+    uint16 effectiveApr,
+    uint16 effectiveReserve,
+    MarketState memory state,
+    bytes memory data
+  )
+    internal
+    view
+  {
+    AprChange memory expected =
+      AprChange(MarketA, route, requestedApr, requestedReserve, effectiveApr, effectiveReserve);
+    assertEq(abi.encode(target.lastChange()), abi.encode(expected), 'applied change context');
+    assertEq(target.lastStateHash(), keccak256(abi.encode(state)), 'original market state');
+    assertEq(target.lastData(), data, 'callback data');
+  }
+
+  // ┌─ _proposalHash ─────
+  function _proposalHash() internal view returns (bytes32) {
+    (uint16 apr, uint32 timestamp) = target.pendingAprChanges(MarketA);
+    (, uint32 start, uint32 end) = target.getPendingAprChange(MarketA);
+    return keccak256(abi.encode(apr, timestamp, start, end));
+  }
+
+  // ┌─ _temporaryHash ─────
+  function _temporaryHash() internal view returns (bytes32) {
+    (uint16 apr, uint16 reserve, uint32 expiry) = target.temporaryExcessReserveRatio(MarketA);
+    return keccak256(abi.encode(apr, reserve, expiry));
+  }
+
+  // ┌─ _seedTemporaryReserve ─────
+  function _seedTemporaryReserve(uint32 expiry) internal {
+    target.seedTemporaryReserve(MarketA, TemporaryReserveRatio(1_000, 2_000, expiry));
+  }
+
+  // ░░▒▒▓▓██ [ ARTIFACT LIMITS ] ──────────────────────────────────────────────
+
+  // ┌─ test_replacementArtifactsFitRuntimeAndStoredInitcodeLimits ─────
+  function test_replacementArtifactsFitRuntimeAndStoredInitcodeLimits() external {
+    LibStoredInitCodeExternal storageDeployer = LibStoredInitCodeExternal(
+      _deployCode('test/libraries/wrappers/LibStoredInitCodeExternal.sol:LibStoredInitCodeExternal')
+    );
+    for (uint256 i; i < 3; i++) {
+      HookKind kind = HookKind(i);
+      BaseHooks replacement = _newReplacement(kind);
+      bytes memory creation = vm.getCode(_replacementArtifact(kind));
+      address stored = storageDeployer.deployInitCode(creation);
+      assertEq(stored.code, abi.encodePacked(hex'00', creation), 'actual stored initcode');
+      assertTrue(stored.code.length <= 24_576, 'stored initcode limit');
+      assertTrue(address(replacement).code.length <= 24_576, 'runtime limit');
+      assertTrue(
+        abi.encodePacked(creation, abi.encode(address(this), bytes(''))).length <= 49_152, 'constructor payload limit'
+      );
+    }
   }
 }

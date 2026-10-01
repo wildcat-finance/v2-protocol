@@ -1,6 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // SplitStorageDeployment.t
+// ║  ██▀▀     ▀▀██   Split-storage deployment integrity, limits, and source parity.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  STORAGE READ PROBE
+// ║  readHash(...)
+// ║
+// ║  SPLIT STORAGE FIXTURE
+// ║  _storeInitCode(...)
+// ║
+// ║  FACTORY INTEGRITY
+// ║  test_factoryRejectsCorruptedMarketTailBeforeCreate2()
+// ║  test_factoryRejectsChangedApprovedHookArtifact()
+// ║
+// ║  REAL LIMIT DEPLOYMENTS
+// ║  test_realLimits_SixProductionAndSixComposedMarkets()
+// ║  _exercise(...)
+// ║
+// ║  DEPLOYMENT PARITY
+// ║  test_sameInitializedRuntimeStateEventsAndAddresses()
+// ║  _observe(...)
+// ║  _storeInitCode(...)
+// ║
+// ║  COMPARISON EXPORT
+// ║  test_exportPreparedComparisonArtifacts()
+// ╚═════
+
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { LibSplitInitCode } from 'src/libraries/LibSplitInitCode.sol';
 import { SplitInitCodeReader } from 'src/libraries/LibSplitInitCode.sol';
@@ -13,16 +43,24 @@ import { PeriodicTransferHooks } from '../mocks/TransferFeatureHooks.sol';
 import { PeriodicBorrowHooks } from '../mocks/BorrowFeatureHooks.sol';
 import { PeriodicAprReplacementHooks } from '../mocks/AprReplacementHooks.sol';
 
+// ┌─ StoredInitCodeReadProbe ──────────────────────────────────────────────────
 contract StoredInitCodeReadProbe {
+  // ░░▒▒▓▓██ [ STORAGE READ PROBE ] ───────────────────────────────────────────
+
+  // ┌─ readHash ─────
   function readHash(address store) external view returns (bytes32) {
     return keccak256(LibStoredInitCode.getInitCode(store));
   }
 }
 
+// ┌─ SplitStorageFixture ──────────────────────────────────────────────────────
 abstract contract SplitStorageFixture is ProductionMatrixFixture {
   uint256 internal storageContracts;
   mapping(address => address) internal secondaries;
 
+  // ░░▒▒▓▓██ [ SPLIT STORAGE FIXTURE ] ────────────────────────────────────────
+
+  // ┌─ _storeInitCode ─────
   function _storeInitCode(string memory artifact) internal override returns (address store, uint256 codeHash) {
     bytes memory initCode = vm.getCode(artifact);
     uint64 nonce = vm.getNonce(address(this));
@@ -38,7 +76,11 @@ abstract contract SplitStorageFixture is ProductionMatrixFixture {
   }
 }
 
+// ┌─ SplitStorageIntegrityTest ────────────────────────────────────────────────
 contract SplitStorageIntegrityTest is SplitStorageFixture {
+  // ░░▒▒▓▓██ [ FACTORY INTEGRITY ] ────────────────────────────────────────────
+
+  // ┌─ test_factoryRejectsCorruptedMarketTailBeforeCreate2 ─────
   function test_factoryRejectsCorruptedMarketTailBeforeCreate2() external {
     ProductionStack memory stack = _deployProductionStack();
     for (uint256 model; model < 2; ++model) {
@@ -64,6 +106,7 @@ contract SplitStorageIntegrityTest is SplitStorageFixture {
     }
   }
 
+  // ┌─ test_factoryRejectsChangedApprovedHookArtifact ─────
   function test_factoryRejectsChangedApprovedHookArtifact() external {
     ProductionStack memory stack = _deployProductionStack();
     address template = stack.hooksTemplates[0];
@@ -80,8 +123,12 @@ contract SplitStorageIntegrityTest is SplitStorageFixture {
   }
 }
 
+// ┌─ SplitStorageDeploymentTest ───────────────────────────────────────────────
 /// @dev real-limit deployments only. no etched or substituted market/store runtime.
 contract SplitStorageDeploymentTest is SplitStorageFixture {
+  // ░░▒▒▓▓██ [ REAL LIMIT DEPLOYMENTS ] ───────────────────────────────────────
+
+  // ┌─ test_realLimits_SixProductionAndSixComposedMarkets ─────
   function test_realLimits_SixProductionAndSixComposedMarkets() external {
     ProductionStack memory stack = _deployProductionStack();
     assertEq(storageContracts, 10, 'two markets and three templates, two stores each');
@@ -107,6 +154,7 @@ contract SplitStorageDeploymentTest is SplitStorageFixture {
     assertEq(storageContracts, 16, 'exactly eight pairs');
   }
 
+  // ┌─ _exercise ─────
   function _exercise(
     ProductionStack memory stack,
     MatrixMarketKind model,
@@ -140,16 +188,8 @@ contract SplitStorageDeploymentTest is SplitStorageFixture {
   }
 }
 
+// ┌─ SplitStorageParityTest ───────────────────────────────────────────────────
 contract SplitStorageParityTest is ProductionMatrixFixture {
-  // keep the E23 compression control explicit now that the shared fixture uses split storage.
-  function _storeInitCode(string memory artifact) internal override returns (address store, uint256 hash) {
-    bytes memory original = vm.getCode(artifact);
-    store = original.length <= 24_575
-      ? LibStoredInitCode.deployInitCode(original)
-      : LibCompressedInitCode.deployInitCode(original);
-    return (store, uint256(keccak256(original)));
-  }
-
   struct Observation {
     address market;
     address hooks;
@@ -159,26 +199,9 @@ contract SplitStorageParityTest is ProductionMatrixFixture {
     bytes32 logs;
   }
 
-  function _observe(
-    ProductionStack memory stack,
-    MatrixOptions memory options,
-    uint96 nonce
-  )
-    private
-    returns (Observation memory result)
-  {
-    vm.recordLogs();
-    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
-    result = Observation(
-      address(cell.market),
-      address(cell.hooks),
-      address(cell.market).codehash,
-      address(cell.hooks).codehash,
-      keccak256(abi.encode(cell.market.previousState())),
-      keccak256(abi.encode(vm.getRecordedLogs()))
-    );
-  }
+  // ░░▒▒▓▓██ [ DEPLOYMENT PARITY ] ────────────────────────────────────────────
 
+  // ┌─ test_sameInitializedRuntimeStateEventsAndAddresses ─────
   function test_sameInitializedRuntimeStateEventsAndAddresses() external {
     ProductionStack memory stack = _deployProductionStack();
     for (uint256 model; model < 2; ++model) {
@@ -207,6 +230,40 @@ contract SplitStorageParityTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ _observe ─────
+  function _observe(
+    ProductionStack memory stack,
+    MatrixOptions memory options,
+    uint96 nonce
+  )
+    private
+    returns (Observation memory result)
+  {
+    vm.recordLogs();
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
+    result = Observation(
+      address(cell.market),
+      address(cell.hooks),
+      address(cell.market).codehash,
+      address(cell.hooks).codehash,
+      keccak256(abi.encode(cell.market.previousState())),
+      keccak256(abi.encode(vm.getRecordedLogs()))
+    );
+  }
+
+  // keep the E23 compression control explicit now that the shared fixture uses split storage.
+  // ┌─ _storeInitCode ─────
+  function _storeInitCode(string memory artifact) internal override returns (address store, uint256 hash) {
+    bytes memory original = vm.getCode(artifact);
+    store = original.length <= 24_575
+      ? LibStoredInitCode.deployInitCode(original)
+      : LibCompressedInitCode.deployInitCode(original);
+    return (store, uint256(keccak256(original)));
+  }
+
+  // ░░▒▒▓▓██ [ COMPARISON EXPORT ] ────────────────────────────────────────────
+
+  // ┌─ test_exportPreparedComparisonArtifacts ─────
   function test_exportPreparedComparisonArtifacts() external {
     string[5] memory names = [
       'WildcatMarket',

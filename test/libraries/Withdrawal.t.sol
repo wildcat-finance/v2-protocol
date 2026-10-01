@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Withdrawal.t
+// ║  ██▀▀     ▀▀██   Available liquidity for the pending withdrawal batch.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  BATCH FUNDING
+// ║  test_availableLiquidityForPendingBatch(...)
+// ╚═════
+
 import 'src/libraries/Withdrawal.sol';
 import './wrappers/WithdrawalLibExternal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
@@ -9,9 +20,13 @@ import { TestKernel } from '../shared/TestKernel.sol';
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
+// ┌─ WithdrawalTest ───────────────────────────────────────────────────────────
 contract WithdrawalTest is TestKernel {
   using WithdrawalLibExternal for WithdrawalBatch;
 
+  // ░░▒▒▓▓██ [ BATCH FUNDING ] ────────────────────────────────────────────────
+
+  // ┌─ test_availableLiquidityForPendingBatch ─────
   function test_availableLiquidityForPendingBatch(
     uint128 totalAssets,
     uint104 scaledTotalPendingWithdrawals,

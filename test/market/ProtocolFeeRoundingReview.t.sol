@@ -1,12 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // ProtocolFeeRoundingReview.t
+// ║  ██▀▀     ▀▀██   Characterization of checkpoint and protocol-fee rounding.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _fixture(...)
+// ║
+// ║  FEE ROUNDING
+// ║  test_dailyCheckpoints_SubUnitFeesDisappear_AcrossMarketAndHookKinds()
+// ║  test_dailyCheckpoints_NearestRoundingCanOvercharge_AcrossMarketAndHookKinds()
+// ║  test_intermediateFeeRateRounding_CanExceedHalfAnAtomicUnit()
+// ║  _runDaily(...)
+// ╚═════
+
 import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { RAY, BIP } from 'src/libraries/MathUtils.sol';
 import { FeeMathExternal } from '../libraries/wrappers/FeeMathExternal.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
+// ┌─ ProtocolFeeRoundingReviewTest ────────────────────────────────────────────
 /// Characterization of the existing fee model, not a proposed production fix.
 contract ProtocolFeeRoundingReviewTest is MarketFixture {
   using FeeMathExternal for MarketState;
@@ -17,6 +35,9 @@ contract ProtocolFeeRoundingReviewTest is MarketFixture {
 
   event MeasuredFees(uint256 supply, uint256 observed, uint256 samePathRoundedReference);
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _fixture ─────
   function _fixture(uint256 kind, uint16 feeBips) private returns (Fixture memory f) {
     Options memory o = _defaultOptions(HooksKind(kind % 2));
     o.revolving = kind >= 2;
@@ -30,6 +51,55 @@ contract ProtocolFeeRoundingReviewTest is MarketFixture {
     f = _newMarket(o);
   }
 
+  // ░░▒▒▓▓██ [ FEE ROUNDING ] ─────────────────────────────────────────────────
+
+  // ┌─ test_dailyCheckpoints_SubUnitFeesDisappear_AcrossMarketAndHookKinds ─────
+  function test_dailyCheckpoints_SubUnitFeesDisappear_AcrossMarketAndHookKinds() external {
+    for (uint256 kind; kind < 4; ++kind) {
+      (Fixture memory f, uint256 sum) = _runDaily(kind, 1000);
+      uint256 expected = (sum + ExactDenominator / 2) / ExactDenominator;
+      emit MeasuredFees(1000, f.market.previousState().accruedProtocolFees, expected);
+      assertEq(expected, 11, 'round the same-path accumulated fraction once');
+      assertEq(f.market.previousState().accruedProtocolFees, 0, 'daily fee rounded away');
+      vm.expectRevert(bytes4(keccak256('NullFeeAmount()')));
+      f.market.collectFees();
+    }
+  }
+
+  // ┌─ test_dailyCheckpoints_NearestRoundingCanOvercharge_AcrossMarketAndHookKinds ─────
+  function test_dailyCheckpoints_NearestRoundingCanOvercharge_AcrossMarketAndHookKinds() external {
+    for (uint256 kind; kind < 4; ++kind) {
+      (Fixture memory f, uint256 sum) = _runDaily(kind, 20_000);
+      uint256 expected = (sum + ExactDenominator / 2) / ExactDenominator;
+      emit MeasuredFees(20_000, f.market.previousState().accruedProtocolFees, expected);
+      assertEq(expected, 210, 'same daily compounding path, round once');
+      assertEq(f.market.previousState().accruedProtocolFees, 365, 'one unit charged per day');
+      uint256 factor = f.market.previousState().scaleFactor;
+      vm.prank(Checkpointer);
+      f.market.updateState();
+      assertEq(f.market.previousState().accruedProtocolFees, 365, 'same timestamp accrues nothing');
+      f.market.collectFees();
+      assertEq(f.asset.balanceOf(FeeRecipient), 365, 'whole rounded fees are actually collectible');
+      assertEq(f.market.previousState().accruedProtocolFees, 0);
+      assertEq(f.market.previousState().scaleFactor, factor, 'collection preserves factor');
+    }
+  }
+
+  // ┌─ test_intermediateFeeRateRounding_CanExceedHalfAnAtomicUnit ─────
+  function test_intermediateFeeRateRounding_CanExceedHalfAnAtomicUnit() external pure {
+    MarketState memory state;
+    state.scaleFactor = uint112(RAY);
+    state.scaledTotalSupply = type(uint104).max;
+    state.protocolFeeBips = 1000;
+    uint256 baseRay = FeeMath.calculateLinearInterestFromBips(1, 12);
+    uint256 expectedNumerator = uint256(state.scaledTotalSupply) * baseRay * 1000;
+    uint256 denominator = RAY * BIP;
+    uint256 expected = (expectedNumerator + denominator / 2) / denominator;
+    (, uint256 observed) = state.$applyProtocolFee(baseRay);
+    assertTrue(expected > observed + 6000, 'rounding fee rate in ray amplifies with supply');
+  }
+
+  // ┌─ _runDaily ─────
   function _runDaily(uint256 kind, uint104 amount) private returns (Fixture memory f, uint256 exactNumerator) {
     f = _fixture(kind, 1000);
     Fixture memory control = _fixture(kind, 0);
@@ -53,48 +123,5 @@ contract ProtocolFeeRoundingReviewTest is MarketFixture {
       );
       assertEq(f.market.previousState().scaledTotalSupply, amount);
     }
-  }
-
-  function test_dailyCheckpoints_SubUnitFeesDisappear_AcrossMarketAndHookKinds() external {
-    for (uint256 kind; kind < 4; ++kind) {
-      (Fixture memory f, uint256 sum) = _runDaily(kind, 1000);
-      uint256 expected = (sum + ExactDenominator / 2) / ExactDenominator;
-      emit MeasuredFees(1000, f.market.previousState().accruedProtocolFees, expected);
-      assertEq(expected, 11, 'round the same-path accumulated fraction once');
-      assertEq(f.market.previousState().accruedProtocolFees, 0, 'daily fee rounded away');
-      vm.expectRevert(bytes4(keccak256('NullFeeAmount()')));
-      f.market.collectFees();
-    }
-  }
-
-  function test_dailyCheckpoints_NearestRoundingCanOvercharge_AcrossMarketAndHookKinds() external {
-    for (uint256 kind; kind < 4; ++kind) {
-      (Fixture memory f, uint256 sum) = _runDaily(kind, 20_000);
-      uint256 expected = (sum + ExactDenominator / 2) / ExactDenominator;
-      emit MeasuredFees(20_000, f.market.previousState().accruedProtocolFees, expected);
-      assertEq(expected, 210, 'same daily compounding path, round once');
-      assertEq(f.market.previousState().accruedProtocolFees, 365, 'one unit charged per day');
-      uint256 factor = f.market.previousState().scaleFactor;
-      vm.prank(Checkpointer);
-      f.market.updateState();
-      assertEq(f.market.previousState().accruedProtocolFees, 365, 'same timestamp accrues nothing');
-      f.market.collectFees();
-      assertEq(f.asset.balanceOf(FeeRecipient), 365, 'whole rounded fees are actually collectible');
-      assertEq(f.market.previousState().accruedProtocolFees, 0);
-      assertEq(f.market.previousState().scaleFactor, factor, 'collection preserves factor');
-    }
-  }
-
-  function test_intermediateFeeRateRounding_CanExceedHalfAnAtomicUnit() external pure {
-    MarketState memory state;
-    state.scaleFactor = uint112(RAY);
-    state.scaledTotalSupply = type(uint104).max;
-    state.protocolFeeBips = 1000;
-    uint256 baseRay = FeeMath.calculateLinearInterestFromBips(1, 12);
-    uint256 expectedNumerator = uint256(state.scaledTotalSupply) * baseRay * 1000;
-    uint256 denominator = RAY * BIP;
-    uint256 expected = (expectedNumerator + denominator / 2) / denominator;
-    (, uint256 observed) = state.$applyProtocolFee(baseRay);
-    assertTrue(expected > observed + 6000, 'rounding fee rate in ray amplifies with supply');
   }
 }

@@ -1,11 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // FIFOQueue
+// ║  ██▀▀     ▀▀██   Packed FIFO storage, queue updates, and ordered queries.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  QUEUE UPDATES
+// ║  push(...)
+// ║  shift(...)
+// ║  shiftN(...)
+// ║
+// ║  QUEUE QUERIES
+// ║  empty(...)
+// ║  length(...)
+// ║  first(...)
+// ║  at(...)
+// ║  values(...)
+// ║  _valueAt(...)
+// ╚═════
+
 /// @notice storage queue of packed `uint32` values.
+///
 /// @dev eight values share each storage word. indexes only move forward.
+///
 /// @param startIndex absolute index of the first live value.
-/// @param nextIndex absolute index where the next value will be appended.
-/// @param data packed queue words keyed by absolute word index.
+/// @param nextIndex  absolute index where the next value will be appended.
+/// @param data       packed queue words keyed by absolute word index.
 struct FIFOQueue {
   uint128 startIndex;
   uint128 nextIndex;
@@ -17,6 +40,7 @@ struct FIFOQueue {
 
 using FIFOQueueLib for FIFOQueue global;
 
+// ┌─ FIFOQueueLib ─────────────────────────────────────────────────────────────
 library FIFOQueueLib {
   /// @notice the requested position doesn't contain a live queue value.
   error FIFOQueueOutOfBounds();
@@ -25,53 +49,9 @@ library FIFOQueueLib {
   uint256 internal constant ValueOffsetMask = ValuesPerWord - 1;
   uint256 internal constant BitsPerValue = 32;
 
-  function _valueAt(FIFOQueue storage arr, uint256 index) private view returns (uint32) {
-    uint256 word = arr.data[index / ValuesPerWord];
-    uint256 offset = (index & ValueOffsetMask) * BitsPerValue;
-    return uint32(word >> offset);
-  }
+  // ░░▒▒▓▓██ [ QUEUE UPDATES ] ────────────────────────────────────────────────
 
-  /// @dev returns true when the queue has no live values.
-  function empty(FIFOQueue storage arr) internal view returns (bool) {
-    return arr.nextIndex == arr.startIndex;
-  }
-
-  /// @dev returns the oldest live value, reverting when the queue is empty.
-  function first(FIFOQueue storage arr) internal view returns (uint32) {
-    if (arr.startIndex == arr.nextIndex) {
-      revert FIFOQueueOutOfBounds();
-    }
-    return _valueAt(arr, arr.startIndex);
-  }
-
-  /// @dev returns the value at a zero-based live-queue index.
-  function at(FIFOQueue storage arr, uint256 index) internal view returns (uint32) {
-    index += arr.startIndex;
-    if (index >= arr.nextIndex) {
-      revert FIFOQueueOutOfBounds();
-    }
-    return _valueAt(arr, index);
-  }
-
-  /// @dev returns the number of live values.
-  function length(FIFOQueue storage arr) internal view returns (uint128) {
-    return arr.nextIndex - arr.startIndex;
-  }
-
-  /// @dev copies every live value to memory in FIFO order.
-  function values(FIFOQueue storage arr) internal view returns (uint32[] memory _values) {
-    uint256 startIndex = arr.startIndex;
-    uint256 nextIndex = arr.nextIndex;
-    uint256 len = nextIndex - startIndex;
-    _values = new uint32[](len);
-
-    for (uint256 i = 0; i < len; i++) {
-      _values[i] = _valueAt(arr, startIndex + i);
-    }
-
-    return _values;
-  }
-
+  // ┌─ push ─────
   /// @dev appends `value` without reusing consumed indexes.
   function push(FIFOQueue storage arr, uint32 value) internal {
     uint128 nextIndex = arr.nextIndex;
@@ -81,6 +61,7 @@ library FIFOQueueLib {
     arr.nextIndex = nextIndex + 1;
   }
 
+  // ┌─ shift ─────
   /// @dev removes the oldest value, deleting fully consumed packed words.
   function shift(FIFOQueue storage arr) internal {
     uint128 startIndex = arr.startIndex;
@@ -96,6 +77,7 @@ library FIFOQueueLib {
     arr.startIndex = newStartIndex;
   }
 
+  // ┌─ shiftN ─────
   /// @dev removes the oldest `n` values and reverts if fewer are live.
   function shiftN(FIFOQueue storage arr, uint128 n) internal {
     uint128 startIndex = arr.startIndex;
@@ -115,5 +97,60 @@ library FIFOQueueLib {
       }
     }
     arr.startIndex = newStartIndex;
+  }
+
+  // ░░▒▒▓▓██ [ QUEUE QUERIES ] ────────────────────────────────────────────────
+
+  // ┌─ empty ─────
+  /// @dev returns true when the queue has no live values.
+  function empty(FIFOQueue storage arr) internal view returns (bool) {
+    return arr.nextIndex == arr.startIndex;
+  }
+
+  // ┌─ length ─────
+  /// @dev returns the number of live values.
+  function length(FIFOQueue storage arr) internal view returns (uint128) {
+    return arr.nextIndex - arr.startIndex;
+  }
+
+  // ┌─ first ─────
+  /// @dev returns the oldest live value, reverting when the queue is empty.
+  function first(FIFOQueue storage arr) internal view returns (uint32) {
+    if (arr.startIndex == arr.nextIndex) {
+      revert FIFOQueueOutOfBounds();
+    }
+    return _valueAt(arr, arr.startIndex);
+  }
+
+  // ┌─ at ─────
+  /// @dev returns the value at a zero-based live-queue index.
+  function at(FIFOQueue storage arr, uint256 index) internal view returns (uint32) {
+    index += arr.startIndex;
+    if (index >= arr.nextIndex) {
+      revert FIFOQueueOutOfBounds();
+    }
+    return _valueAt(arr, index);
+  }
+
+  // ┌─ values ─────
+  /// @dev copies every live value to memory in FIFO order.
+  function values(FIFOQueue storage arr) internal view returns (uint32[] memory _values) {
+    uint256 startIndex = arr.startIndex;
+    uint256 nextIndex = arr.nextIndex;
+    uint256 len = nextIndex - startIndex;
+    _values = new uint32[](len);
+
+    for (uint256 i = 0; i < len; i++) {
+      _values[i] = _valueAt(arr, startIndex + i);
+    }
+
+    return _values;
+  }
+
+  // ┌─ _valueAt ─────
+  function _valueAt(FIFOQueue storage arr, uint256 index) private view returns (uint32) {
+    uint256 word = arr.data[index / ValuesPerWord];
+    uint256 offset = (index & ValueOffsetMask) * BitsPerValue;
+    return uint32(word >> offset);
   }
 }

@@ -1,6 +1,73 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Test12
+// ║  ██▀▀     ▀▀██   Legacy JSON, transient-storage, and script experiments.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  TRANSIENT JSON VALUES
+// ║  reserveTSlot()
+// ║  jsonValueToString(...)
+// ║
+// ║  TRANSIENT ALLOCATION
+// ║  next()
+// ║
+// ║  SCRIPT EXPERIMENTS
+// ║  run()
+// ║  internalFunction()
+// ║
+// ║  ENVIRONMENT CHECKS
+// ║  checkFfiEnabled()
+// ║  isFfiEnabled()
+// ║  checkDirectoryExistsAndAccessible(...)
+// ║  checkDirectoryAccess(...)
+// ║
+// ║  PATHS
+// ║  pathJoin(...)
+// ║  join(...)
+// ║
+// ║  COMPILER INPUT
+// ║  writeStandardJson(...)
+// ║  checkForBashFile()
+// ║
+// ║  COMPOSITE VALUES
+// ║  serializeObject(...)
+// ║  serializeArray(...)
+// ║
+// ║  SCALAR VALUES
+// ║  serializeBool(...)
+// ║  serializeUint256(...)
+// ║  serializeInt256(...)
+// ║  toHexString(...)
+// ║  serializeAddress(...)
+// ║  serializeBytes32(...)
+// ║  serializeBytes(...)
+// ║  serializeString(...)
+// ║
+// ║  TYPED ARRAYS
+// ║  serializeBoolArray(...)
+// ║  serializeUint256Array(...)
+// ║  serializeInt256Array(...)
+// ║  serializeAddressArray(...)
+// ║  serializeBytes32Array(...)
+// ║  serializeStringArray(...)
+// ║
+// ║  DECIMAL STRINGS
+// ║  toString(...)
+// ║  toString(...)
+// ║
+// ║  HEXADECIMAL STRINGS
+// ║  toHexString(...)
+// ║  toHexString(...)
+// ║  toHexString(...)
+// ║  toHexStringNoPrefix(...)
+// ║  toHexStringNoPrefix(...)
+// ║  toHexStringNoPrefix(...)
+// ╚═════
+
 import 'src/WildcatSanctionsSentinel.sol';
 import 'src/WildcatArchController.sol';
 import 'forge-std/Script.sol';
@@ -16,7 +83,6 @@ removeKey (key) {
   index = keysMap[key].index
 
 }
-
 
 Types:
 - Hex String (address, bytes<n>, bytes)
@@ -56,7 +122,6 @@ JsonType always stored in memory.
 For an array, the memory value tracks the length and a transient pointer to the data section.
 Then the data section is a packed array of 32 bit memory pointer of elements.
 
-
 function get(JsonArray array, uint index) view returns (uint mPointerElement) {
   assembly {
     let tPointerArray := shr(144, shl(20, array))
@@ -89,7 +154,6 @@ function push(JsonArray array, uint mPointerElement) {
 [36:148]  | tPointerData  | Position of data section of array (first element)
 [148:164] | Array length  |
 
-
 For an array at transient storage location tPointerArray:
 `tPointerData` is initialized to the first 112 bits of the hash of `tPointerArray`; however,
 it does not necessarily always keep this value, especially if the array itself is moved to
@@ -116,15 +180,6 @@ and the remainder
 
 uint256 constant FreeTransientSlot = 0x40;
 
-function reserveTSlot() returns (uint256 slot) {
-  assembly {
-    slot := tload(FreeTransientSlot)
-    tstore(FreeTransientSlot, add(slot, 1))
-    mstore(0, slot)
-    slot := keccak256(0, 32)
-  }
-}
-
 enum JsonType {
   Null,
   Bool,
@@ -145,6 +200,19 @@ struct JsonValue {
   uint mPointer;
 }
 
+// ░░▒▒▓▓██ [ TRANSIENT JSON VALUES ] ──────────────────────────────────────────
+
+// ┌─ reserveTSlot ─────
+function reserveTSlot() returns (uint256 slot) {
+  assembly {
+    slot := tload(FreeTransientSlot)
+    tstore(FreeTransientSlot, add(slot, 1))
+    mstore(0, slot)
+    slot := keccak256(0, 32)
+  }
+}
+
+// ┌─ jsonValueToString ─────
 function jsonValueToString(Json value) view returns (string memory str) {
   JsonType _type;
   assembly {
@@ -214,9 +282,13 @@ function jsonValueToString(Json value) view returns (string memory str) {
   }
 }
 
+// ┌─ JsonLib ──────────────────────────────────────────────────────────────────
 library JsonLib {
   uint internal constant TSLOT_NEXT_INDEX = uint256(keccak256('Transient:TmpMarketParametersStorage')) - 1;
 
+  // ░░▒▒▓▓██ [ TRANSIENT ALLOCATION ] ─────────────────────────────────────────
+
+  // ┌─ next ─────
   function next() internal returns (Json nextObj) {
     uint t = TSLOT_NEXT_INDEX;
     assembly {
@@ -228,7 +300,58 @@ library JsonLib {
 
 Vm constant forgeVm = Vm(address(uint160(uint256(keccak256('hevm cheat code')))));
 
+// ┌─ Test12 ───────────────────────────────────────────────────────────────────
 contract Test12 is Script {
+  // ░░▒▒▓▓██ [ SCRIPT EXPERIMENTS ] ───────────────────────────────────────────
+
+  // ┌─ run ─────
+  function run() external {
+    // checkFfiEnabled();
+    checkDirectoryExistsAndAccessible('deployments');
+    // checkDirectoryAccess('deployments');
+    // uint32 _selector = uint32(Test12.internalFunction.selector);
+    // bool result;
+    // assembly {
+    //   mstore(0, _selector)
+    //   result := call(gas(), address(), 0, 0x1c, 0x04, 0, 0)
+    // }
+    // console2.log('result: ', result);
+    // console2.logBytes32(bytes32(bytes4(_selector)));
+    // console2.log('ffi enabled: ', isFfiEnabled());
+  }
+
+  // ┌─ internalFunction ─────
+  function internalFunction() external {
+    string[] memory args = new string[](4);
+    args[0] = 'forge';
+    args[1] = 'config';
+    args[2] = '--basic';
+    args[3] = '--json';
+    string memory contractPath = 'src/HooksFactory.sol:HooksFactory';
+
+    string memory result = string(vm.ffi(args));
+    // console2.log("Result: ", result);
+    // string memory result;
+    // assembly
+    string memory out = vm.parseJsonString(result, '.out');
+    console2.log('OUT DIR: ', out);
+    StandardInputJson.writeStandardJson(contractPath);
+    // string memory _default = "default";
+    // string memory foundryProfile = vm.envOr("FOUNDRY_PROFILE", _default);
+    // console2.log("FOUNDRY_PROFILE: ", foundryProfile);
+    // console2.log('Exit code: ', result.exitCode);
+  }
+
+  // ░░▒▒▓▓██ [ ENVIRONMENT CHECKS ] ───────────────────────────────────────────
+
+  // ┌─ checkFfiEnabled ─────
+  function checkFfiEnabled() internal {
+    if (!isFfiEnabled()) {
+      revert('Please enable FFI in foundry.toml with "ffi=true" to use the Deployments library.');
+    }
+  }
+
+  // ┌─ isFfiEnabled ─────
   function isFfiEnabled() internal returns (bool result) {
     string[] memory args = new string[](2);
     args[0] = 'echo';
@@ -244,12 +367,7 @@ contract Test12 is Script {
     }
   }
 
-  function checkFfiEnabled() internal {
-    if (!isFfiEnabled()) {
-      revert('Please enable FFI in foundry.toml with "ffi=true" to use the Deployments library.');
-    }
-  }
-
+  // ┌─ checkDirectoryExistsAndAccessible ─────
   function checkDirectoryExistsAndAccessible(string memory dir) internal {
     string memory readErrorMessage = string.concat(
       'The Deployments library requires access to the `',
@@ -288,6 +406,7 @@ contract Test12 is Script {
     }
   }
 
+  // ┌─ checkDirectoryAccess ─────
   function checkDirectoryAccess(string memory filePath) internal {
     bytes memory cd = abi.encodeWithSelector(VmSafe.fsMetadata.selector, filePath);
     (bool success, bytes memory result) = address(forgeVm).staticcall(cd);
@@ -298,66 +417,28 @@ contract Test12 is Script {
     console.log('readOnly:', metadata.readOnly);
     // FsMetadata memory
   }
+}
+string constant bashFilePath = 'deployments/write-standard-json.sh';
 
-  function run() external {
-    // checkFfiEnabled();
-    checkDirectoryExistsAndAccessible('deployments');
-    // checkDirectoryAccess('deployments');
-    // uint32 _selector = uint32(Test12.internalFunction.selector);
-    // bool result;
-    // assembly {
-    //   mstore(0, _selector)
-    //   result := call(gas(), address(), 0, 0x1c, 0x04, 0, 0)
-    // }
-    // console2.log('result: ', result);
-    // console2.logBytes32(bytes32(bytes4(_selector)));
-    // console2.log('ffi enabled: ', isFfiEnabled());
-  }
+// ░░▒▒▓▓██ [ PATHS ] ──────────────────────────────────────────────────────────
 
-  function internalFunction() external {
-    string[] memory args = new string[](4);
-    args[0] = 'forge';
-    args[1] = 'config';
-    args[2] = '--basic';
-    args[3] = '--json';
-    string memory contractPath = 'src/HooksFactory.sol:HooksFactory';
-
-    string memory result = string(vm.ffi(args));
-    // console2.log("Result: ", result);
-    // string memory result;
-    // assembly
-    string memory out = vm.parseJsonString(result, '.out');
-    console2.log('OUT DIR: ', out);
-    StandardInputJson.writeStandardJson(contractPath);
-    // string memory _default = "default";
-    // string memory foundryProfile = vm.envOr("FOUNDRY_PROFILE", _default);
-    // console2.log("FOUNDRY_PROFILE: ", foundryProfile);
-    // console2.log('Exit code: ', result.exitCode);
-  }
+// ┌─ pathJoin ─────
+function pathJoin(string memory a, string memory b) pure returns (string memory) {
+  return join(a, b, '/');
 }
 
+// ┌─ join ─────
 function join(string memory a, string memory b, string memory separator) pure returns (string memory) {
   if (bytes(a).length == 0) return b;
   if (bytes(b).length == 0) return a;
   return string.concat(a, separator, b);
 }
 
-function pathJoin(string memory a, string memory b) pure returns (string memory) {
-  return join(a, b, '/');
-}
-
-string constant bashFilePath = 'deployments/write-standard-json.sh';
-
+// ┌─ StandardInputJson ────────────────────────────────────────────────────────
 library StandardInputJson {
-  function checkForBashFile() internal {
-    if (!forgeVm.exists(bashFilePath)) {
-      string memory bashFile =
-        'forge verify-contract --show-standard-json-input 0x0000000000000000000000000000000000000000 $1 > $2 && echo ok';
-      forgeVm.writeFile(bashFilePath, bashFile);
-      console.log(string.concat('Wrote bash file to ', bashFilePath));
-    }
-  }
+  // ░░▒▒▓▓██ [ COMPILER INPUT ] ───────────────────────────────────────────────
 
+  // ┌─ writeStandardJson ─────
   function writeStandardJson(string memory namePath) internal {
     checkForBashFile();
     string[] memory args = new string[](4);
@@ -379,8 +460,19 @@ library StandardInputJson {
     }
     console.logBytes(result);
   }
+
+  // ┌─ checkForBashFile ─────
+  function checkForBashFile() internal {
+    if (!forgeVm.exists(bashFilePath)) {
+      string memory bashFile =
+        'forge verify-contract --show-standard-json-input 0x0000000000000000000000000000000000000000 $1 > $2 && echo ok';
+      forgeVm.writeFile(bashFilePath, bashFile);
+      console.log(string.concat('Wrote bash file to ', bashFilePath));
+    }
+  }
 }
 
+// ┌─ LibJson ──────────────────────────────────────────────────────────────────
 library LibJson {
   using LibJson for *;
   using LibStringStub for *;
@@ -389,10 +481,22 @@ library LibJson {
   using LibJson for uint256;
   using LibJson for uint256[];
 
+  // ░░▒▒▓▓██ [ COMPOSITE VALUES ] ─────────────────────────────────────────────
+
+  // ┌─ serializeObject ─────
+  function serializeObject(string[] memory keys, string[] memory values) internal pure returns (string memory output) {
+    output = '{';
+    uint256 lastIndex = keys.length - 1;
+    for (uint256 i = 0; i < lastIndex; i++) {
+      output = string.concat(output, '"', keys[i], '": ', values[i], ',');
+    }
+    output = string.concat(output, '"', keys[lastIndex], '":', values[lastIndex], '}');
+  }
+
   // StringLiteral internal constant Comma = StringLiteral.wrap(0x012c000000000000000000000000000000000000000000000000000000000000);
   // StringLiteral internal constant Colon = StringLiteral.wrap(0x013a000000000000000000000000000000000000000000000000000000000000);
   // StringLiteral internal constant Quote = StringLiteral.wrap(0x0122000000000000000000000000000000000000000000000000000000000000);
-
+  // ┌─ serializeArray ─────
   function serializeArray(
     uint256[] memory arr,
     function(uint256) pure returns /* element */ (string memory) serializeElement
@@ -409,15 +513,14 @@ library LibJson {
     output = string.concat(output, serializeElement(arr[lastIndex]), ']');
   }
 
-  function serializeObject(string[] memory keys, string[] memory values) internal pure returns (string memory output) {
-    output = '{';
-    uint256 lastIndex = keys.length - 1;
-    for (uint256 i = 0; i < lastIndex; i++) {
-      output = string.concat(output, '"', keys[i], '": ', values[i], ',');
-    }
-    output = string.concat(output, '"', keys[lastIndex], '":', values[lastIndex], '}');
+  // ░░▒▒▓▓██ [ SCALAR VALUES ] ────────────────────────────────────────────────
+
+  // ┌─ serializeBool ─────
+  function serializeBool(bool value) internal pure returns (string memory) {
+    return value ? 'true' : 'false';
   }
 
+  // ┌─ serializeUint256 ─────
   function serializeUint256(uint256 value) internal pure returns (string memory) {
     // Max safe number in JS
     if (value > 9007199254740991) {
@@ -426,6 +529,7 @@ library LibJson {
     return value.toString();
   }
 
+  // ┌─ serializeInt256 ─────
   function serializeInt256(int256 value) internal pure returns (string memory) {
     // Min/max safe numbers in JS
     if (value > 9007199254740991 || value < -9007199254740991) {
@@ -434,26 +538,7 @@ library LibJson {
     return value.toString();
   }
 
-  function serializeBytes32(bytes32 value) internal pure returns (string memory) {
-    return uint256(value).toHexString().serializeString();
-  }
-
-  function serializeBytes(bytes memory value) internal pure returns (string memory) {
-    return value.toHexString().serializeString();
-  }
-
-  function serializeString(string memory value) internal pure returns (string memory) {
-    return string.concat('"', value, '"');
-  }
-
-  function serializeBool(bool value) internal pure returns (string memory) {
-    return value ? 'true' : 'false';
-  }
-
-  function serializeAddress(address value) internal pure returns (string memory) {
-    return value.toHexString().serializeString();
-  }
-
+  // ┌─ toHexString ─────
   function toHexString(int256 value) internal pure returns (string memory str) {
     if (value >= 0) {
       return uint256(value).toHexString();
@@ -472,6 +557,29 @@ library LibJson {
     }
   }
 
+  // ┌─ serializeAddress ─────
+  function serializeAddress(address value) internal pure returns (string memory) {
+    return value.toHexString().serializeString();
+  }
+
+  // ┌─ serializeBytes32 ─────
+  function serializeBytes32(bytes32 value) internal pure returns (string memory) {
+    return uint256(value).toHexString().serializeString();
+  }
+
+  // ┌─ serializeBytes ─────
+  function serializeBytes(bytes memory value) internal pure returns (string memory) {
+    return value.toHexString().serializeString();
+  }
+
+  // ┌─ serializeString ─────
+  function serializeString(string memory value) internal pure returns (string memory) {
+    return string.concat('"', value, '"');
+  }
+
+  // ░░▒▒▓▓██ [ TYPED ARRAYS ] ─────────────────────────────────────────────────
+
+  // ┌─ serializeBoolArray ─────
   function serializeBoolArray(bool[] memory arr) internal pure returns (string memory) {
     function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
       _fn = serializeArray;
@@ -482,10 +590,12 @@ library LibJson {
     return fn(arr, serializeBool);
   }
 
+  // ┌─ serializeUint256Array ─────
   function serializeUint256Array(uint256[] memory arr) internal pure returns (string memory) {
     return serializeArray(arr, serializeUint256);
   }
 
+  // ┌─ serializeInt256Array ─────
   function serializeInt256Array(int256[] memory arr) internal pure returns (string memory) {
     function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
       _fn = serializeArray;
@@ -496,6 +606,7 @@ library LibJson {
     return fn(arr, serializeInt256);
   }
 
+  // ┌─ serializeAddressArray ─────
   function serializeAddressArray(address[] memory arr) internal pure returns (string memory) {
     function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
       _fn = serializeArray;
@@ -506,6 +617,7 @@ library LibJson {
     return fn(arr, serializeAddress);
   }
 
+  // ┌─ serializeBytes32Array ─────
   function serializeBytes32Array(bytes32[] memory arr) internal pure returns (string memory) {
     function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
       _fn = serializeArray;
@@ -516,6 +628,7 @@ library LibJson {
     return fn(arr, serializeBytes32);
   }
 
+  // ┌─ serializeStringArray ─────
   function serializeStringArray(string[] memory arr) internal pure returns (string memory) {
     function(uint256[] memory, function(uint256) pure returns (string memory)) internal pure returns (string memory)
       _fn = serializeArray;
@@ -529,7 +642,11 @@ library LibJson {
   }
 }
 
+// ┌─ LibStringStub ────────────────────────────────────────────────────────────
 library LibStringStub {
+  // ░░▒▒▓▓██ [ DECIMAL STRINGS ] ──────────────────────────────────────────────
+
+  // ┌─ toString ─────
   /// @dev Returns the base 10 decimal representation of `value`.
   function toString(uint256 value) internal pure returns (string memory str) {
     /// @solidity memory-safe-assembly
@@ -572,6 +689,7 @@ library LibStringStub {
     }
   }
 
+  // ┌─ toString ─────
   /// @dev Returns the base 10 decimal representation of `value`.
   function toString(int256 value) internal pure returns (string memory str) {
     if (value >= 0) {
@@ -591,12 +709,16 @@ library LibStringStub {
     }
   }
 
+  // ░░▒▒▓▓██ [ HEXADECIMAL STRINGS ] ──────────────────────────────────────────
+
+  // ┌─ toHexString ─────
   /// @dev Returns the hexadecimal representation of `value`.
   /// The output is prefixed with "0x" and encoded using 2 hexadecimal digits per byte.
   /// As address are 20 bytes long, the output will left-padded to have
   /// a length of `20 * 2 + 2` bytes.
   function toHexString(uint256 value) internal pure returns (string memory str) {
     str = toHexStringNoPrefix(value);
+
     /// @solidity memory-safe-assembly
     assembly {
       let strLength := add(mload(str), 2) // Compute the length.
@@ -606,6 +728,37 @@ library LibStringStub {
     }
   }
 
+  // ┌─ toHexString ─────
+  /// @dev Returns the hexadecimal representation of `value`.
+  /// The output is prefixed with "0x" and encoded using 2 hexadecimal digits per byte.
+  function toHexString(address value) internal pure returns (string memory str) {
+    str = toHexStringNoPrefix(value);
+
+    /// @solidity memory-safe-assembly
+    assembly {
+      let strLength := add(mload(str), 2) // Compute the length.
+      mstore(str, 0x3078) // Write the "0x" prefix.
+      str := sub(str, 2) // Move the pointer.
+      mstore(str, strLength) // Write the length.
+    }
+  }
+
+  // ┌─ toHexString ─────
+  /// @dev Returns the hex encoded string from the raw bytes.
+  /// The output is encoded using 2 hexadecimal digits per byte.
+  function toHexString(bytes memory raw) internal pure returns (string memory str) {
+    str = toHexStringNoPrefix(raw);
+
+    /// @solidity memory-safe-assembly
+    assembly {
+      let strLength := add(mload(str), 2) // Compute the length.
+      mstore(str, 0x3078) // Write the "0x" prefix.
+      str := sub(str, 2) // Move the pointer.
+      mstore(str, strLength) // Write the length.
+    }
+  }
+
+  // ┌─ toHexStringNoPrefix ─────
   /// @dev Returns the hexadecimal representation of `value`.
   /// The output is encoded using 2 hexadecimal digits per byte.
   /// As address are 20 bytes long, the output will left-padded to have
@@ -650,19 +803,7 @@ library LibStringStub {
     }
   }
 
-  /// @dev Returns the hexadecimal representation of `value`.
-  /// The output is prefixed with "0x" and encoded using 2 hexadecimal digits per byte.
-  function toHexString(address value) internal pure returns (string memory str) {
-    str = toHexStringNoPrefix(value);
-    /// @solidity memory-safe-assembly
-    assembly {
-      let strLength := add(mload(str), 2) // Compute the length.
-      mstore(str, 0x3078) // Write the "0x" prefix.
-      str := sub(str, 2) // Move the pointer.
-      mstore(str, strLength) // Write the length.
-    }
-  }
-
+  // ┌─ toHexStringNoPrefix ─────
   /// @dev Returns the hexadecimal representation of `value`.
   /// The output is encoded using 2 hexadecimal digits per byte.
   function toHexStringNoPrefix(address value) internal pure returns (string memory str) {
@@ -704,19 +845,7 @@ library LibStringStub {
     }
   }
 
-  /// @dev Returns the hex encoded string from the raw bytes.
-  /// The output is encoded using 2 hexadecimal digits per byte.
-  function toHexString(bytes memory raw) internal pure returns (string memory str) {
-    str = toHexStringNoPrefix(raw);
-    /// @solidity memory-safe-assembly
-    assembly {
-      let strLength := add(mload(str), 2) // Compute the length.
-      mstore(str, 0x3078) // Write the "0x" prefix.
-      str := sub(str, 2) // Move the pointer.
-      mstore(str, strLength) // Write the length.
-    }
-  }
-
+  // ┌─ toHexStringNoPrefix ─────
   /// @dev Returns the hex encoded string from the raw bytes.
   /// The output is encoded using 2 hexadecimal digits per byte.
   function toHexStringNoPrefix(bytes memory raw) internal pure returns (string memory str) {

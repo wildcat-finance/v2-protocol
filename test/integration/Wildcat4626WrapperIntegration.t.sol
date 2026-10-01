@@ -1,6 +1,65 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Wildcat4626WrapperIntegration.t
+// ║  ██▀▀     ▀▀██   Production wrapper backing, access, sanctions, and identity flows.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture(...)
+// ║  _newFixture(...)
+// ║  _deployHooks(...)
+// ║  _hooksData(...)
+// ║  _requestedHooks(...)
+// ║  _requestedHooks(...)
+// ║  _marketParameters(...)
+// ║  _deploymentInputs(...)
+// ║  _packString(...)
+// ║  _deployWrapper(...)
+// ║  _deposit(...)
+// ║  _fundAndApprove(...)
+// ║  _wrap(...)
+// ║  _authorize(...)
+// ║
+// ║  WRAPPER READINESS AND REDEMPTION
+// ║  test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook()
+// ║  test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks()
+// ║  test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook()
+// ║  test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes()
+// ║  _assertRedeemAndScaledQueue(...)
+// ║
+// ║  SANCTIONS AND ESCROW AUTHORIZATION
+// ║  test_wrapperCoordinatesDirectAndShareQuarantineWithoutFreezingOtherHolders()
+// ║  test_marketAndWrapperNukesComposeWithoutPuttingBackingAtRisk()
+// ║  test_foreignPrincipalEscrowCannotReleaseSharesToSanctionedHolder()
+// ║  test_precreatedCurrentPrincipalEscrowIsAuthorizedWhenWrapperNukesHolder()
+// ║  test_wrapperEscrowsRemainReleasableInTheirOriginalPrincipalNamespace()
+// ║  test_oldEscrowAuthorizationIsConsumedAfterPrincipalMigration()
+// ║  test_unsanctionedReleaseAlsoConsumesOldEscrowAuthorization()
+// ║  test_laterNukeReauthorizesConsumedEscrow()
+// ║  test_zeroBalanceRepeatAndRevolvingNukesShareTheSameQuarantineRules()
+// ║
+// ║  BORROWER IDENTITY
+// ║  test_wrapperNamespaceAndSweepAuthorityFollowTheLiveBorrowerIdentity()
+// ║  test_lenderOverridesStayWithThePrincipalAndWrapperReadinessTracksMigration()
+// ║  _registerPrincipal(...)
+// ║  _deployAccount(...)
+// ║  _transferBorrower(...)
+// ║
+// ║  TOKEN BACKED ACCESS
+// ║  test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket()
+// ║  test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket()
+// ║  test_wildcatWrapperInterestCanAuthorizeADifferentMarket()
+// ║  _replaceLenderAccessProvider(...)
+// ║  _deployAdditionalMarket(...)
+// ║  _newAsset(...)
+// ║  _fundTargetDeposit(...)
+// ║  _expectTargetDepositDenied(...)
+// ╚═════
+
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
@@ -34,6 +93,7 @@ import { TestKernel } from '../shared/TestKernel.sol';
 
 // Keep the concrete hooks and revolving market imports even though deployment uses vm.getCode.
 // The isolated coverage profile only instruments contracts reachable from this source graph.
+// ┌─ Wildcat4626WrapperIntegrationTest ────────────────────────────────────────
 contract Wildcat4626WrapperIntegrationTest is TestKernel {
   enum HooksKind {
     OpenTerm,
@@ -63,99 +123,14 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
   address internal constant FeeRecipient = address(0xFEE);
   uint256 internal constant DepositAmount = 100e18;
 
-  function _packString(string memory value) private pure returns (bytes32 word0, bytes32 word1) {
-    require(bytes(value).length <= 63, 'fixture string too long');
-    assembly ('memory-safe') {
-      word0 := mload(add(value, 0x1f))
-      word1 := mul(mload(add(value, 0x3f)), gt(mload(value), 0x1f))
-    }
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
-  function _deployHooks(HooksKind kind) private returns (BaseAccessControls hooks) {
-    string memory artifact;
-    if (kind == HooksKind.OpenTerm) {
-      artifact = 'src/access/OpenTermHooks.sol:OpenTermHooks';
-    } else if (kind == HooksKind.FixedTerm) {
-      artifact = 'src/access/FixedTermHooks.sol:FixedTermHooks';
-    } else {
-      artifact = 'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
-    }
-    hooks = BaseAccessControls(_deployCode(artifact, abi.encode(Borrower, bytes(''))));
-  }
-
-  function _hooksData(HooksKind kind) private view returns (bytes memory) {
-    if (kind == HooksKind.OpenTerm) return abi.encode(uint128(0), false);
-    if (kind == HooksKind.FixedTerm) {
-      return abi.encode(uint32(vm.getBlockTimestamp() + 60 days), uint128(0), false, true, true);
-    }
-    return abi.encode(uint32(vm.getBlockTimestamp() + 23 days), uint32(30 days), uint32(7 days), uint96(0), false);
-  }
-
-  function _requestedHooks(address hooks) private pure returns (HooksConfig config) {
-    return _requestedHooks(hooks, true);
-  }
-
-  function _requestedHooks(address hooks, bool transferRequiresAccess) private pure returns (HooksConfig config) {
-    config = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
-    if (transferRequiresAccess) {
-      config = config.setFlag(Bit_Enabled_QueueWithdrawal).setFlag(Bit_Enabled_Transfer);
-    }
-    return config;
-  }
-
-  function _marketParameters(
-    Fixture memory fixture,
-    HooksConfig hooksConfig
-  )
-    private
-    pure
-    returns (MarketParameters memory parameters)
-  {
-    (parameters.packedNameWord0, parameters.packedNameWord1) = _packString('Wildcat Token');
-    (parameters.packedSymbolWord0, parameters.packedSymbolWord1) = _packString('WCTKN');
-    parameters.asset = address(fixture.asset);
-    parameters.decimals = 18;
-    parameters.borrower = Borrower;
-    parameters.feeRecipient = FeeRecipient;
-    parameters.sentinel = address(fixture.sentinel);
-    parameters.wrapperFactory = address(fixture.wrapperFactory);
-    parameters.maxTotalSupply = type(uint104).max;
-    parameters.protocolFeeBips = 1_000;
-    parameters.annualInterestBips = 1_000;
-    parameters.delinquencyFeeBips = 1_000;
-    parameters.withdrawalBatchDuration = 1 days;
-    parameters.reserveRatioBips = 2_000;
-    parameters.delinquencyGracePeriod = 2_000;
-    parameters.archController = address(fixture.archController);
-    parameters.hooks = hooksConfig;
-    parameters.borrowerPrincipal = Borrower;
-    parameters.borrowerIdentityRegistry = address(fixture.registry);
-  }
-
-  function _deploymentInputs(
-    Fixture memory fixture,
-    HooksConfig requestedHooks
-  )
-    private
-    pure
-    returns (DeployMarketInputs memory inputs)
-  {
-    inputs.asset = address(fixture.asset);
-    inputs.namePrefix = 'Wildcat ';
-    inputs.symbolPrefix = 'WC';
-    inputs.maxTotalSupply = type(uint104).max;
-    inputs.annualInterestBips = 1_000;
-    inputs.delinquencyFeeBips = 1_000;
-    inputs.withdrawalBatchDuration = 1 days;
-    inputs.reserveRatioBips = 2_000;
-    inputs.delinquencyGracePeriod = 2_000;
-    inputs.hooks = requestedHooks;
-  }
-
+  // ┌─ _newFixture ─────
   function _newFixture(HooksKind kind, bool revolving) private returns (Fixture memory fixture) {
     return _newFixture(kind, revolving, true);
   }
 
+  // ┌─ _newFixture ─────
   function _newFixture(
     HooksKind kind,
     bool revolving,
@@ -224,68 +199,123 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     _authorize(fixture, OtherLender);
   }
 
-  function _authorize(Fixture memory fixture, address account) private {
-    vm.prank(address(fixture.roleProvider));
-    fixture.hooks.grantRole(account, uint32(vm.getBlockTimestamp()));
+  // ┌─ _deployHooks ─────
+  function _deployHooks(HooksKind kind) private returns (BaseAccessControls hooks) {
+    string memory artifact;
+    if (kind == HooksKind.OpenTerm) {
+      artifact = 'src/access/OpenTermHooks.sol:OpenTermHooks';
+    } else if (kind == HooksKind.FixedTerm) {
+      artifact = 'src/access/FixedTermHooks.sol:FixedTermHooks';
+    } else {
+      artifact = 'src/access/PeriodicTermHooks.sol:PeriodicTermHooks';
+    }
+    hooks = BaseAccessControls(_deployCode(artifact, abi.encode(Borrower, bytes(''))));
   }
 
-  function _replaceLenderAccessProvider(Fixture memory fixture, address provider) private {
-    vm.prank(Borrower);
-    fixture.hooks.addRoleProvider(provider, 0);
-    vm.prank(address(fixture.roleProvider));
-    fixture.hooks.revokeRole(Lender);
+  // ┌─ _hooksData ─────
+  function _hooksData(HooksKind kind) private view returns (bytes memory) {
+    if (kind == HooksKind.OpenTerm) return abi.encode(uint128(0), false);
+    if (kind == HooksKind.FixedTerm) {
+      return abi.encode(uint32(vm.getBlockTimestamp() + 60 days), uint128(0), false, true, true);
+    }
+    return abi.encode(uint32(vm.getBlockTimestamp() + 23 days), uint32(30 days), uint32(7 days), uint96(0), false);
   }
 
+  // ┌─ _requestedHooks ─────
+  function _requestedHooks(address hooks) private pure returns (HooksConfig config) {
+    return _requestedHooks(hooks, true);
+  }
+
+  // ┌─ _requestedHooks ─────
+  function _requestedHooks(address hooks, bool transferRequiresAccess) private pure returns (HooksConfig config) {
+    config = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
+    if (transferRequiresAccess) {
+      config = config.setFlag(Bit_Enabled_QueueWithdrawal).setFlag(Bit_Enabled_Transfer);
+    }
+    return config;
+  }
+
+  // ┌─ _marketParameters ─────
+  function _marketParameters(
+    Fixture memory fixture,
+    HooksConfig hooksConfig
+  )
+    private
+    pure
+    returns (MarketParameters memory parameters)
+  {
+    (parameters.packedNameWord0, parameters.packedNameWord1) = _packString('Wildcat Token');
+    (parameters.packedSymbolWord0, parameters.packedSymbolWord1) = _packString('WCTKN');
+    parameters.asset = address(fixture.asset);
+    parameters.decimals = 18;
+    parameters.borrower = Borrower;
+    parameters.feeRecipient = FeeRecipient;
+    parameters.sentinel = address(fixture.sentinel);
+    parameters.wrapperFactory = address(fixture.wrapperFactory);
+    parameters.maxTotalSupply = type(uint104).max;
+    parameters.protocolFeeBips = 1_000;
+    parameters.annualInterestBips = 1_000;
+    parameters.delinquencyFeeBips = 1_000;
+    parameters.withdrawalBatchDuration = 1 days;
+    parameters.reserveRatioBips = 2_000;
+    parameters.delinquencyGracePeriod = 2_000;
+    parameters.archController = address(fixture.archController);
+    parameters.hooks = hooksConfig;
+    parameters.borrowerPrincipal = Borrower;
+    parameters.borrowerIdentityRegistry = address(fixture.registry);
+  }
+
+  // ┌─ _deploymentInputs ─────
+  function _deploymentInputs(
+    Fixture memory fixture,
+    HooksConfig requestedHooks
+  )
+    private
+    pure
+    returns (DeployMarketInputs memory inputs)
+  {
+    inputs.asset = address(fixture.asset);
+    inputs.namePrefix = 'Wildcat ';
+    inputs.symbolPrefix = 'WC';
+    inputs.maxTotalSupply = type(uint104).max;
+    inputs.annualInterestBips = 1_000;
+    inputs.delinquencyFeeBips = 1_000;
+    inputs.withdrawalBatchDuration = 1 days;
+    inputs.reserveRatioBips = 2_000;
+    inputs.delinquencyGracePeriod = 2_000;
+    inputs.hooks = requestedHooks;
+  }
+
+  // ┌─ _packString ─────
+  function _packString(string memory value) private pure returns (bytes32 word0, bytes32 word1) {
+    require(bytes(value).length <= 63, 'fixture string too long');
+    assembly ('memory-safe') {
+      word0 := mload(add(value, 0x1f))
+      word1 := mul(mload(add(value, 0x3f)), gt(mload(value), 0x1f))
+    }
+  }
+
+  // ┌─ _deployWrapper ─────
   function _deployWrapper(Fixture memory fixture, bool authorize) private returns (Wildcat4626Wrapper wrapper) {
     wrapper = Wildcat4626Wrapper(fixture.wrapperFactory.createWrapper(address(fixture.market)));
     if (authorize) _authorize(fixture, address(wrapper));
   }
 
-  function _fundAndApprove(Fixture memory fixture, address account, uint256 amount) private {
-    fixture.asset.mint(account, amount);
-    vm.prank(account);
-    fixture.asset.approve(address(fixture.market), type(uint256).max);
-  }
-
-  function _deployAdditionalMarket(Fixture memory fixture, MockERC20 asset) private returns (WildcatMarket market) {
-    fixture.asset = asset;
-    HooksConfig requestedHooks = _requestedHooks(address(fixture.hooks));
-    HooksConfig marketHooks = requestedHooks.mergeFlags(IHooks(address(fixture.hooks)).config());
-    fixture.marketFactory.setMarketParameters(_marketParameters(fixture, marketHooks));
-    market = WildcatMarket(fixture.marketFactory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket')));
-    HooksConfig configuredHooks = IHooks(address(fixture.hooks))
-      .onCreateMarket(
-        Borrower, address(market), _deploymentInputs(fixture, requestedHooks), _hooksData(HooksKind.OpenTerm)
-      );
-    assertEq(HooksConfig.unwrap(configuredHooks), HooksConfig.unwrap(marketHooks), 'target hooks');
-    vm.prank(address(fixture.marketFactory));
-    fixture.archController.registerMarket(address(market));
-  }
-
-  function _newAsset(string memory name, string memory symbol) private returns (MockERC20 asset) {
-    asset = MockERC20(
-      _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode(name, symbol, uint8(18)))
-    );
-  }
-
-  function _fundTargetDeposit(MockERC20 asset, WildcatMarket market) private {
-    asset.mint(Lender, 1e18);
-    vm.prank(Lender);
-    asset.approve(address(market), type(uint256).max);
-  }
-
-  function _expectTargetDepositDenied(WildcatMarket market) private {
-    vm.prank(Lender);
-    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
-    market.depositUpTo(1e18);
-  }
-
+  // ┌─ _deposit ─────
   function _deposit(Fixture memory fixture, address account, uint256 amount) private {
     _fundAndApprove(fixture, account, amount);
     vm.prank(account);
     fixture.market.deposit(amount);
   }
 
+  // ┌─ _fundAndApprove ─────
+  function _fundAndApprove(Fixture memory fixture, address account, uint256 amount) private {
+    fixture.asset.mint(account, amount);
+    vm.prank(account);
+    fixture.asset.approve(address(fixture.market), type(uint256).max);
+  }
+
+  // ┌─ _wrap ─────
   function _wrap(
     Fixture memory fixture,
     Wildcat4626Wrapper wrapper,
@@ -302,25 +332,15 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     vm.stopPrank();
   }
 
-  function _registerPrincipal(Fixture memory fixture, address principal) private {
-    if (!fixture.archController.isRegisteredBorrower(principal)) {
-      fixture.archController.registerBorrower(principal);
-    }
+  // ┌─ _authorize ─────
+  function _authorize(Fixture memory fixture, address account) private {
+    vm.prank(address(fixture.roleProvider));
+    fixture.hooks.grantRole(account, uint32(vm.getBlockTimestamp()));
   }
 
-  function _deployAccount(Fixture memory fixture, address principal) private returns (address account) {
-    _registerPrincipal(fixture, principal);
-    account = _deployCode('test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountMock');
-    fixture.accountFactory.registerAccount(account, principal);
-  }
+  // ░░▒▒▓▓██ [ WRAPPER READINESS AND REDEMPTION ] ─────────────────────────────
 
-  function _transferBorrower(Fixture memory fixture, address currentBorrower, address newBorrower) private {
-    vm.prank(currentBorrower);
-    fixture.market.requestBorrowerTransfer(newBorrower);
-    vm.prank(newBorrower);
-    fixture.market.acceptBorrowerTransfer();
-  }
-
+  // ┌─ test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook ─────
   function test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook() external {
     for (uint256 i; i < 3; i++) {
       Fixture memory fixture = _newFixture(HooksKind(i), false);
@@ -352,6 +372,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
+  // ┌─ test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks ─────
   function test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks() external {
     for (uint256 i; i < 3; i++) {
       Fixture memory fixture = _newFixture(HooksKind(i), false);
@@ -386,6 +407,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
+  // ┌─ test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook ─────
   function test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook() external {
     for (uint256 i; i < 3; i++) {
       Fixture memory fixture = _newFixture(HooksKind(i), false);
@@ -422,6 +444,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
+  // ┌─ test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes ─────
   function test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes() external {
     for (uint256 revolving; revolving < 2; revolving++) {
       _assertRedeemAndScaledQueue(false, revolving == 1);
@@ -429,6 +452,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     }
   }
 
+  // ┌─ _assertRedeemAndScaledQueue ─────
   function _assertRedeemAndScaledQueue(bool shouldFail, bool revolving) private {
     uint256 directScaledBalance = 10e18;
     uint256 wrappedShares = 25e18;
@@ -471,6 +495,9 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     );
   }
 
+  // ░░▒▒▓▓██ [ SANCTIONS AND ESCROW AUTHORIZATION ] ───────────────────────────
+
+  // ┌─ test_wrapperCoordinatesDirectAndShareQuarantineWithoutFreezingOtherHolders ─────
   function test_wrapperCoordinatesDirectAndShareQuarantineWithoutFreezingOtherHolders() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -507,6 +534,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(fixture.market.scaledBalanceOf(address(wrapper)), wrapper.totalSupply(), 'remaining backing');
   }
 
+  // ┌─ test_marketAndWrapperNukesComposeWithoutPuttingBackingAtRisk ─────
   function test_marketAndWrapperNukesComposeWithoutPuttingBackingAtRisk() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -543,6 +571,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(fixture.market.scaledBalanceOf(address(wrapper)), lenderShares, 'recovered backing');
   }
 
+  // ┌─ test_foreignPrincipalEscrowCannotReleaseSharesToSanctionedHolder ─────
   function test_foreignPrincipalEscrowCannotReleaseSharesToSanctionedHolder() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -567,6 +596,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(wrapper.balanceOf(Lender), 0, 'sanctioned holder balance');
   }
 
+  // ┌─ test_precreatedCurrentPrincipalEscrowIsAuthorizedWhenWrapperNukesHolder ─────
   function test_precreatedCurrentPrincipalEscrowIsAuthorizedWhenWrapperNukesHolder() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -585,6 +615,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(wrapper.balanceOf(Lender), shares, 'current principal release');
   }
 
+  // ┌─ test_wrapperEscrowsRemainReleasableInTheirOriginalPrincipalNamespace ─────
   function test_wrapperEscrowsRemainReleasableInTheirOriginalPrincipalNamespace() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -621,6 +652,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(wrapper.balanceOf(newEscrow), 0, 'new escrow remainder');
   }
 
+  // ┌─ test_oldEscrowAuthorizationIsConsumedAfterPrincipalMigration ─────
   function test_oldEscrowAuthorizationIsConsumedAfterPrincipalMigration() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -649,6 +681,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(wrapper.balanceOf(Lender), lenderShares, 'sanctioned holder balance');
   }
 
+  // ┌─ test_unsanctionedReleaseAlsoConsumesOldEscrowAuthorization ─────
   function test_unsanctionedReleaseAlsoConsumesOldEscrowAuthorization() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -677,6 +710,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(wrapper.balanceOf(Lender), lenderShares, 'sanctioned holder balance');
   }
 
+  // ┌─ test_laterNukeReauthorizesConsumedEscrow ─────
   function test_laterNukeReauthorizesConsumedEscrow() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -703,6 +737,33 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(wrapper.balanceOf(escrow), 0, 'escrow remainder');
   }
 
+  // ┌─ test_zeroBalanceRepeatAndRevolvingNukesShareTheSameQuarantineRules ─────
+  function test_zeroBalanceRepeatAndRevolvingNukesShareTheSameQuarantineRules() external {
+    Fixture memory emptyFixture = _newFixture(HooksKind.OpenTerm, false);
+    Wildcat4626Wrapper emptyWrapper = _deployWrapper(emptyFixture, true);
+    emptyFixture.sanctionsList.sanction(Lender);
+    address emptyEscrow = emptyFixture.sentinel.getEscrowAddress(Borrower, Lender, address(emptyWrapper));
+    emptyWrapper.nukeFromOrbit(Lender);
+    emptyWrapper.nukeFromOrbit(Lender);
+    assertEq(emptyEscrow.code.length, 0, 'empty escrow deployed');
+
+    Fixture memory revolvingFixture = _newFixture(HooksKind.OpenTerm, true);
+    Wildcat4626Wrapper revolvingWrapper = _deployWrapper(revolvingFixture, true);
+    uint256 shares = _wrap(revolvingFixture, revolvingWrapper, Lender, DepositAmount);
+    _deposit(revolvingFixture, Lender, DepositAmount);
+    revolvingFixture.sanctionsList.sanction(Lender);
+    revolvingWrapper.nukeFromOrbit(Lender);
+    address revolvingEscrow = revolvingFixture.sentinel.getEscrowAddress(Borrower, Lender, address(revolvingWrapper));
+    assertEq(revolvingFixture.market.scaledBalanceOf(Lender), 0, 'revolving direct balance');
+    assertEq(revolvingWrapper.balanceOf(Lender), 0, 'revolving shares');
+    assertEq(revolvingWrapper.balanceOf(revolvingEscrow), shares, 'revolving escrow');
+    revolvingWrapper.nukeFromOrbit(Lender);
+    assertEq(revolvingWrapper.balanceOf(revolvingEscrow), shares, 'repeat revolving nuke');
+  }
+
+  // ░░▒▒▓▓██ [ BORROWER IDENTITY ] ────────────────────────────────────────────
+
+  // ┌─ test_wrapperNamespaceAndSweepAuthorityFollowTheLiveBorrowerIdentity ─────
   function test_wrapperNamespaceAndSweepAuthorityFollowTheLiveBorrowerIdentity() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -735,6 +796,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(stray.balanceOf(account), DepositAmount, 'swept balance');
   }
 
+  // ┌─ test_lenderOverridesStayWithThePrincipalAndWrapperReadinessTracksMigration ─────
   function test_lenderOverridesStayWithThePrincipalAndWrapperReadinessTracksMigration() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     Wildcat4626Wrapper wrapper = _deployWrapper(fixture, true);
@@ -756,29 +818,31 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertTrue(wrapper.maxDeposit(Lender) > 0, 'new-principal readiness');
   }
 
-  function test_zeroBalanceRepeatAndRevolvingNukesShareTheSameQuarantineRules() external {
-    Fixture memory emptyFixture = _newFixture(HooksKind.OpenTerm, false);
-    Wildcat4626Wrapper emptyWrapper = _deployWrapper(emptyFixture, true);
-    emptyFixture.sanctionsList.sanction(Lender);
-    address emptyEscrow = emptyFixture.sentinel.getEscrowAddress(Borrower, Lender, address(emptyWrapper));
-    emptyWrapper.nukeFromOrbit(Lender);
-    emptyWrapper.nukeFromOrbit(Lender);
-    assertEq(emptyEscrow.code.length, 0, 'empty escrow deployed');
-
-    Fixture memory revolvingFixture = _newFixture(HooksKind.OpenTerm, true);
-    Wildcat4626Wrapper revolvingWrapper = _deployWrapper(revolvingFixture, true);
-    uint256 shares = _wrap(revolvingFixture, revolvingWrapper, Lender, DepositAmount);
-    _deposit(revolvingFixture, Lender, DepositAmount);
-    revolvingFixture.sanctionsList.sanction(Lender);
-    revolvingWrapper.nukeFromOrbit(Lender);
-    address revolvingEscrow = revolvingFixture.sentinel.getEscrowAddress(Borrower, Lender, address(revolvingWrapper));
-    assertEq(revolvingFixture.market.scaledBalanceOf(Lender), 0, 'revolving direct balance');
-    assertEq(revolvingWrapper.balanceOf(Lender), 0, 'revolving shares');
-    assertEq(revolvingWrapper.balanceOf(revolvingEscrow), shares, 'revolving escrow');
-    revolvingWrapper.nukeFromOrbit(Lender);
-    assertEq(revolvingWrapper.balanceOf(revolvingEscrow), shares, 'repeat revolving nuke');
+  // ┌─ _registerPrincipal ─────
+  function _registerPrincipal(Fixture memory fixture, address principal) private {
+    if (!fixture.archController.isRegisteredBorrower(principal)) {
+      fixture.archController.registerBorrower(principal);
+    }
   }
 
+  // ┌─ _deployAccount ─────
+  function _deployAccount(Fixture memory fixture, address principal) private returns (address account) {
+    _registerPrincipal(fixture, principal);
+    account = _deployCode('test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountMock');
+    fixture.accountFactory.registerAccount(account, principal);
+  }
+
+  // ┌─ _transferBorrower ─────
+  function _transferBorrower(Fixture memory fixture, address currentBorrower, address newBorrower) private {
+    vm.prank(currentBorrower);
+    fixture.market.requestBorrowerTransfer(newBorrower);
+    vm.prank(newBorrower);
+    fixture.market.acceptBorrowerTransfer();
+  }
+
+  // ░░▒▒▓▓██ [ TOKEN BACKED ACCESS ] ──────────────────────────────────────────
+
+  // ┌─ test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket ─────
   function test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     _deposit(fixture, Lender, 1e18);
@@ -793,6 +857,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'credential after blocked deposit');
   }
 
+  // ┌─ test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket ─────
   function test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     _deposit(fixture, Lender, DepositAmount);
@@ -822,6 +887,7 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     targetMarket.depositUpTo(1e18);
   }
 
+  // ┌─ test_wildcatWrapperInterestCanAuthorizeADifferentMarket ─────
   function test_wildcatWrapperInterestCanAuthorizeADifferentMarket() external {
     Fixture memory fixture = _newFixture(HooksKind.OpenTerm, false);
     _deposit(fixture, Lender, DepositAmount);
@@ -855,5 +921,50 @@ contract Wildcat4626WrapperIntegrationTest is TestKernel {
     assertEq(provider.getCredential(Lender), uint32(vm.getBlockTimestamp()), 'credential');
     vm.prank(Lender);
     targetMarket.depositUpTo(1e18);
+  }
+
+  // ┌─ _replaceLenderAccessProvider ─────
+  function _replaceLenderAccessProvider(Fixture memory fixture, address provider) private {
+    vm.prank(Borrower);
+    fixture.hooks.addRoleProvider(provider, 0);
+    vm.prank(address(fixture.roleProvider));
+    fixture.hooks.revokeRole(Lender);
+  }
+
+  // ┌─ _deployAdditionalMarket ─────
+  function _deployAdditionalMarket(Fixture memory fixture, MockERC20 asset) private returns (WildcatMarket market) {
+    fixture.asset = asset;
+    HooksConfig requestedHooks = _requestedHooks(address(fixture.hooks));
+    HooksConfig marketHooks = requestedHooks.mergeFlags(IHooks(address(fixture.hooks)).config());
+    fixture.marketFactory.setMarketParameters(_marketParameters(fixture, marketHooks));
+    market = WildcatMarket(fixture.marketFactory.deployMarket(vm.getCode('src/market/WildcatMarket.sol:WildcatMarket')));
+    HooksConfig configuredHooks = IHooks(address(fixture.hooks))
+      .onCreateMarket(
+        Borrower, address(market), _deploymentInputs(fixture, requestedHooks), _hooksData(HooksKind.OpenTerm)
+      );
+    assertEq(HooksConfig.unwrap(configuredHooks), HooksConfig.unwrap(marketHooks), 'target hooks');
+    vm.prank(address(fixture.marketFactory));
+    fixture.archController.registerMarket(address(market));
+  }
+
+  // ┌─ _newAsset ─────
+  function _newAsset(string memory name, string memory symbol) private returns (MockERC20 asset) {
+    asset = MockERC20(
+      _deployCode('lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode(name, symbol, uint8(18)))
+    );
+  }
+
+  // ┌─ _fundTargetDeposit ─────
+  function _fundTargetDeposit(MockERC20 asset, WildcatMarket market) private {
+    asset.mint(Lender, 1e18);
+    vm.prank(Lender);
+    asset.approve(address(market), type(uint256).max);
+  }
+
+  // ┌─ _expectTargetDepositDenied ─────
+  function _expectTargetDepositDenied(WildcatMarket market) private {
+    vm.prank(Lender);
+    vm.expectRevert(BaseAccessControls.NotApprovedLender.selector);
+    market.depositUpTo(1e18);
   }
 }

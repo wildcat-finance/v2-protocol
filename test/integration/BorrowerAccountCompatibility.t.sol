@@ -1,6 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // BorrowerAccountCompatibility.t
+// ║  ██▀▀     ▀▀██   Operational borrower accounts through full production lifecycles.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  ACCOUNT MARKET ACTIONS
+// ║  setMaxTotalSupply(...)
+// ║  borrow(...)
+// ║  repay(...)
+// ║  closeMarket()
+// ║  requestBorrowerTransfer(...)
+// ║  acceptBorrowerTransfer()
+// ║
+// ║  ACCOUNT TOKEN ACTIONS
+// ║  approve(...)
+// ║  transfer(...)
+// ║
+// ║  ACCOUNT LIFECYCLES
+// ║  test_accountExecutionComposesAcrossTheProductionSixCellMatrix()
+// ║  test_accountExecutesCompleteLifecycleAcrossBothMarketTypes()
+// ║
+// ║  ACCOUNT ORIGINATION
+// ║  test_marketSaltIsBoundToTheOperationalAccountAcrossFactories()
+// ║  _deployAccount(...)
+// ║  _deployCellThroughAccount(...)
+// ║  _deployHooksThroughAccount(...)
+// ║  _requestedHooks(...)
+// ║  _marketDeploymentCall(...)
+// ║
+// ║  CREDENTIALED BORROWER MIGRATION
+// ║  test_credentialedBorrowTracksAccountAndPrincipalMigrationAcrossFactories()
+// ║  _runCredentialedBorrowMigration(...)
+// ║  _deployCredentialedBorrowCell(...)
+// ║  _assertCredentialedBorrow(...)
+// ║
+// ║  ACCOUNT EXECUTION
+// ║  _execute(...)
+// ║  _expectAccountRevert(...)
+// ╚═════
+
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
 import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
@@ -19,26 +61,41 @@ import {
 } from '../mocks/BorrowerAccountMocks.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ IAccountMarketActions ────────────────────────────────────────────────────
 interface IAccountMarketActions {
+  // ░░▒▒▓▓██ [ ACCOUNT MARKET ACTIONS ] ───────────────────────────────────────
+
+  // ┌─ setMaxTotalSupply ─────
   function setMaxTotalSupply(uint256 maxTotalSupply) external;
 
+  // ┌─ borrow ─────
   function borrow(uint256 amount) external;
 
+  // ┌─ repay ─────
   function repay(uint256 amount) external;
 
+  // ┌─ closeMarket ─────
   function closeMarket() external;
 
+  // ┌─ requestBorrowerTransfer ─────
   function requestBorrowerTransfer(address newBorrower) external;
 
+  // ┌─ acceptBorrowerTransfer ─────
   function acceptBorrowerTransfer() external;
 }
 
+// ┌─ IAccountTokenActions ─────────────────────────────────────────────────────
 interface IAccountTokenActions {
-  function transfer(address recipient, uint256 amount) external returns (bool);
+  // ░░▒▒▓▓██ [ ACCOUNT TOKEN ACTIONS ] ────────────────────────────────────────
 
+  // ┌─ approve ─────
   function approve(address spender, uint256 amount) external returns (bool);
+
+  // ┌─ transfer ─────
+  function transfer(address recipient, uint256 amount) external returns (bool);
 }
 
+// ┌─ BorrowerAccountCompatibilityTest ─────────────────────────────────────────
 contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
   address internal constant SecondPrincipal = address(0x5EC0AD);
 
@@ -47,6 +104,9 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     ExecutingBorrowerAccountMock account;
   }
 
+  // ░░▒▒▓▓██ [ ACCOUNT LIFECYCLES ] ───────────────────────────────────────────
+
+  // ┌─ test_accountExecutionComposesAcrossTheProductionSixCellMatrix ─────
   function test_accountExecutionComposesAcrossTheProductionSixCellMatrix() external {
     ProductionStack memory stack = _deployProductionStack();
     AccountContext memory accountContext = _deployAccount(stack, MatrixBorrower);
@@ -97,6 +157,7 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     accountContext.account.execute(address(stack.asset), 0, '');
   }
 
+  // ┌─ test_accountExecutesCompleteLifecycleAcrossBothMarketTypes ─────
   function test_accountExecutesCompleteLifecycleAcrossBothMarketTypes() external {
     ProductionStack memory stack = _deployProductionStack();
     AccountContext memory accountContext = _deployAccount(stack, MatrixBorrower);
@@ -138,12 +199,9 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     }
   }
 
-  function test_credentialedBorrowTracksAccountAndPrincipalMigrationAcrossFactories() external {
-    for (uint256 marketKind; marketKind < 2; marketKind++) {
-      _runCredentialedBorrowMigration(MatrixMarketKind(marketKind), uint96(320 + marketKind));
-    }
-  }
+  // ░░▒▒▓▓██ [ ACCOUNT ORIGINATION ] ──────────────────────────────────────────
 
+  // ┌─ test_marketSaltIsBoundToTheOperationalAccountAcrossFactories ─────
   function test_marketSaltIsBoundToTheOperationalAccountAcrossFactories() external {
     ProductionStack memory stack = _deployProductionStack();
     AccountContext memory accountContext = _deployAccount(stack, MatrixBorrower);
@@ -170,6 +228,107 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ _deployAccount ─────
+  function _deployAccount(
+    ProductionStack memory stack,
+    address principal
+  )
+    private
+    returns (AccountContext memory accountContext)
+  {
+    accountContext.factory = ExecutingBorrowerAccountFactoryMock(
+      _deployCode(
+        'test/mocks/BorrowerAccountMocks.sol:ExecutingBorrowerAccountFactoryMock', abi.encode(address(stack.registry))
+      )
+    );
+    stack.registry.addAccountFactory(address(accountContext.factory));
+    accountContext.account = ExecutingBorrowerAccountMock(payable(accountContext.factory.deployAccount(principal)));
+  }
+
+  // ┌─ _deployCellThroughAccount ─────
+  function _deployCellThroughAccount(
+    ProductionStack memory stack,
+    ExecutingBorrowerAccountMock account,
+    MatrixOptions memory options,
+    uint96 nonce
+  )
+    private
+    returns (MatrixCell memory cell)
+  {
+    cell.options = options;
+    cell.operationalBorrower = address(account);
+    cell.borrowerPrincipal = account.principal();
+    cell.deployedAt = vm.getBlockTimestamp();
+    cell.hooksTemplate = stack.hooksTemplates[uint256(options.hooksKind)];
+    cell.hooks = _deployHooksThroughAccount(stack, account, options.marketKind, cell.hooksTemplate, '');
+    vm.prank(cell.borrowerPrincipal);
+    cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
+
+    DeployMarketInputs memory inputs = _marketInputs(stack, options, _requestedHooks(cell.hooks));
+    bytes memory result = _execute(
+      account,
+      address(_factoryFor(stack, options.marketKind)),
+      _marketDeploymentCall(options, inputs, _hooksData(options, cell.deployedAt), _marketSalt(address(account), nonce))
+    );
+    cell.market = WildcatMarket(abi.decode(result, (address)));
+  }
+
+  // ┌─ _deployHooksThroughAccount ─────
+  function _deployHooksThroughAccount(
+    ProductionStack memory stack,
+    ExecutingBorrowerAccountMock account,
+    MatrixMarketKind marketKind,
+    address template,
+    bytes memory constructorArgs
+  )
+    private
+    returns (BaseAccessControls hooks)
+  {
+    bytes memory result = _execute(
+      account,
+      address(_factoryFor(stack, marketKind)),
+      abi.encodeCall(IHooksFactory.deployHooksInstance, (template, constructorArgs))
+    );
+    hooks = BaseAccessControls(abi.decode(result, (address)));
+  }
+
+  // ┌─ _requestedHooks ─────
+  function _requestedHooks(BaseAccessControls hooks) private view returns (HooksConfig requestedHooks) {
+    HooksDeploymentConfig deploymentConfig = IHooks(address(hooks)).config();
+    requestedHooks =
+      deploymentConfig.optionalFlags().setHooksAddress(address(hooks)).mergeAllFlags(deploymentConfig.requiredFlags());
+  }
+
+  // ┌─ _marketDeploymentCall ─────
+  function _marketDeploymentCall(
+    MatrixOptions memory options,
+    DeployMarketInputs memory inputs,
+    bytes memory hooksData,
+    bytes32 salt
+  )
+    private
+    pure
+    returns (bytes memory callData)
+  {
+    if (options.marketKind == MatrixMarketKind.Standard) {
+      return abi.encodeCall(IHooksFactory.deployMarket, (inputs, hooksData, salt, address(0), 0));
+    }
+    return abi.encodeCall(
+      IHooksFactoryRevolving.deployMarket,
+      (inputs, hooksData, abi.encode(uint8(1), options.commitmentFeeBips), salt, address(0), 0)
+    );
+  }
+
+  // ░░▒▒▓▓██ [ CREDENTIALED BORROWER MIGRATION ] ──────────────────────────────
+
+  // ┌─ test_credentialedBorrowTracksAccountAndPrincipalMigrationAcrossFactories ─────
+  function test_credentialedBorrowTracksAccountAndPrincipalMigrationAcrossFactories() external {
+    for (uint256 marketKind; marketKind < 2; marketKind++) {
+      _runCredentialedBorrowMigration(MatrixMarketKind(marketKind), uint96(320 + marketKind));
+    }
+  }
+
+  // ┌─ _runCredentialedBorrowMigration ─────
   function _runCredentialedBorrowMigration(MatrixMarketKind marketKind, uint96 nonce) private {
     ProductionStack memory stack = _deployProductionStack();
     AccountContext memory accountContext = _deployAccount(stack, MatrixBorrower);
@@ -222,49 +381,7 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     _assertCredentialedBorrow(cell, address(nextAccount), SecondPrincipal);
   }
 
-  function _deployAccount(
-    ProductionStack memory stack,
-    address principal
-  )
-    private
-    returns (AccountContext memory accountContext)
-  {
-    accountContext.factory = ExecutingBorrowerAccountFactoryMock(
-      _deployCode(
-        'test/mocks/BorrowerAccountMocks.sol:ExecutingBorrowerAccountFactoryMock', abi.encode(address(stack.registry))
-      )
-    );
-    stack.registry.addAccountFactory(address(accountContext.factory));
-    accountContext.account = ExecutingBorrowerAccountMock(payable(accountContext.factory.deployAccount(principal)));
-  }
-
-  function _deployCellThroughAccount(
-    ProductionStack memory stack,
-    ExecutingBorrowerAccountMock account,
-    MatrixOptions memory options,
-    uint96 nonce
-  )
-    private
-    returns (MatrixCell memory cell)
-  {
-    cell.options = options;
-    cell.operationalBorrower = address(account);
-    cell.borrowerPrincipal = account.principal();
-    cell.deployedAt = vm.getBlockTimestamp();
-    cell.hooksTemplate = stack.hooksTemplates[uint256(options.hooksKind)];
-    cell.hooks = _deployHooksThroughAccount(stack, account, options.marketKind, cell.hooksTemplate, '');
-    vm.prank(cell.borrowerPrincipal);
-    cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
-
-    DeployMarketInputs memory inputs = _marketInputs(stack, options, _requestedHooks(cell.hooks));
-    bytes memory result = _execute(
-      account,
-      address(_factoryFor(stack, options.marketKind)),
-      _marketDeploymentCall(options, inputs, _hooksData(options, cell.deployedAt), _marketSalt(address(account), nonce))
-    );
-    cell.market = WildcatMarket(abi.decode(result, (address)));
-  }
-
+  // ┌─ _deployCredentialedBorrowCell ─────
   function _deployCredentialedBorrowCell(
     ProductionStack memory stack,
     ExecutingBorrowerAccountMock account,
@@ -299,49 +416,23 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     cell.market = WildcatMarket(abi.decode(result, (address)));
   }
 
-  function _deployHooksThroughAccount(
-    ProductionStack memory stack,
-    ExecutingBorrowerAccountMock account,
-    MatrixMarketKind marketKind,
-    address template,
-    bytes memory constructorArgs
+  // ┌─ _assertCredentialedBorrow ─────
+  function _assertCredentialedBorrow(
+    MatrixCell memory cell,
+    address expectedBorrower,
+    address expectedPrincipal
   )
     private
-    returns (BaseAccessControls hooks)
+    view
   {
-    bytes memory result = _execute(
-      account,
-      address(_factoryFor(stack, marketKind)),
-      abi.encodeCall(IHooksFactory.deployHooksInstance, (template, constructorArgs))
-    );
-    hooks = BaseAccessControls(abi.decode(result, (address)));
+    CredentialedBorrowHooksMock hooks = CredentialedBorrowHooksMock(address(cell.hooks));
+    assertEq(hooks.lastBorrower(address(cell.market)), expectedBorrower, 'hook borrower');
+    assertEq(hooks.lastBorrowerPrincipal(address(cell.market)), expectedPrincipal, 'hook principal');
   }
 
-  function _requestedHooks(BaseAccessControls hooks) private view returns (HooksConfig requestedHooks) {
-    HooksDeploymentConfig deploymentConfig = IHooks(address(hooks)).config();
-    requestedHooks =
-      deploymentConfig.optionalFlags().setHooksAddress(address(hooks)).mergeAllFlags(deploymentConfig.requiredFlags());
-  }
+  // ░░▒▒▓▓██ [ ACCOUNT EXECUTION ] ────────────────────────────────────────────
 
-  function _marketDeploymentCall(
-    MatrixOptions memory options,
-    DeployMarketInputs memory inputs,
-    bytes memory hooksData,
-    bytes32 salt
-  )
-    private
-    pure
-    returns (bytes memory callData)
-  {
-    if (options.marketKind == MatrixMarketKind.Standard) {
-      return abi.encodeCall(IHooksFactory.deployMarket, (inputs, hooksData, salt, address(0), 0));
-    }
-    return abi.encodeCall(
-      IHooksFactoryRevolving.deployMarket,
-      (inputs, hooksData, abi.encode(uint8(1), options.commitmentFeeBips), salt, address(0), 0)
-    );
-  }
-
+  // ┌─ _execute ─────
   function _execute(
     ExecutingBorrowerAccountMock account,
     address target,
@@ -354,6 +445,7 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     result = account.execute(target, 0, data);
   }
 
+  // ┌─ _expectAccountRevert ─────
   function _expectAccountRevert(
     ExecutingBorrowerAccountMock account,
     address target,
@@ -365,18 +457,5 @@ contract BorrowerAccountCompatibilityTest is ProductionMatrixFixture {
     vm.prank(account.principal());
     vm.expectRevert(selector);
     account.execute(target, 0, data);
-  }
-
-  function _assertCredentialedBorrow(
-    MatrixCell memory cell,
-    address expectedBorrower,
-    address expectedPrincipal
-  )
-    private
-    view
-  {
-    CredentialedBorrowHooksMock hooks = CredentialedBorrowHooksMock(address(cell.hooks));
-    assertEq(hooks.lastBorrower(address(cell.market)), expectedBorrower, 'hook borrower');
-    assertEq(hooks.lastBorrowerPrincipal(address(cell.market)), expectedPrincipal, 'hook principal');
   }
 }

@@ -1,16 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // ReentrancyGuard
+// ║  ██▀▀     ▀▀██   Transaction-scoped guards for state-changing and view calls.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  STATE-CHANGING GUARD
+// ║  nonReentrant()
+// ║  _setReentrancyGuard()
+// ║  _clearReentrancyGuard()
+// ║
+// ║  VIEW GUARD
+// ║  nonReentrantView()
+// ║  _assertNonReentrant()
+// ╚═════
+
 /// @dev Selector for `error NoReentrantCalls()`
 uint256 constant NoReentrantCalls_ErrorSelector = 0x7fa8a987;
 
 uint256 constant _REENTRANCY_GUARD_SLOT = 0x929eee14;
 
+// ┌─ ReentrancyGuard ──────────────────────────────────────────────────────────
 /// @title transient reentrancy guard
+///
 /// @author d1ll0n
 /// @author modified from Seaport by 0age
+///
 /// @custom:source https://github.com/ProjectOpenSea/seaport-1.6
+///
 /// @notice blocks nested calls with one transaction-scoped storage slot.
+///
 /// @dev assumes EIP-1153 support. the original runtime support probe was removed.
 contract ReentrancyGuard {
   /// @dev declared for the ABI; the assembly paths use its selector directly.
@@ -19,6 +41,9 @@ contract ReentrancyGuard {
   uint256 private constant _NOT_ENTERED = 0;
   uint256 private constant _ENTERED = 1;
 
+  // ░░▒▒▓▓██ [ STATE-CHANGING GUARD ] ─────────────────────────────────────────
+
+  // ┌─ nonReentrant ─────
   /// @dev sets the guard for a state-changing function and clears it afterward.
   modifier nonReentrant() {
     _setReentrancyGuard();
@@ -26,12 +51,7 @@ contract ReentrancyGuard {
     _clearReentrancyGuard();
   }
 
-  /// @dev rejects a view call made while a guarded state-changing call is active.
-  modifier nonReentrantView() {
-    _assertNonReentrant();
-    _;
-  }
-
+  // ┌─ _setReentrancyGuard ─────
   /// @dev reverts if entered, then marks the transaction as entered.
   function _setReentrancyGuard() internal {
     assembly {
@@ -51,6 +71,7 @@ contract ReentrancyGuard {
     }
   }
 
+  // ┌─ _clearReentrancyGuard ─────
   /// @dev clears the transaction-scoped guard.
   function _clearReentrancyGuard() internal {
     assembly {
@@ -59,6 +80,16 @@ contract ReentrancyGuard {
     }
   }
 
+  // ░░▒▒▓▓██ [ VIEW GUARD ] ───────────────────────────────────────────────────
+
+  // ┌─ nonReentrantView ─────
+  /// @dev rejects a view call made while a guarded state-changing call is active.
+  modifier nonReentrantView() {
+    _assertNonReentrant();
+    _;
+  }
+
+  // ┌─ _assertNonReentrant ─────
   /// @dev reverts if a guarded call is active in this transaction.
   function _assertNonReentrant() internal view {
     assembly {

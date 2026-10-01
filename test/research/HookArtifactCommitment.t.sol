@@ -1,21 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HookArtifactCommitment.t
+// ║  ██▀▀     ▀▀██   Hook artifact commitments at registration and deployment.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MUTABLE CODE TARGET
+// ║  setCode(...)
+// ║  fallback()
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _register(...)
+// ║
+// ║  ARTIFACT REGISTRATION
+// ║  test_registrationCommitsArtifactForRawAndCompressedStores()
+// ║  testFuzz_registrationRejectsWrongHashWithoutWritingState(...)
+// ║  test_registrationRequiresTheNewHashArgument()
+// ║
+// ║  STANDALONE DEPLOYMENT INTEGRITY
+// ║  test_changedDecodedBytesRejectedBeforeStandaloneConstructor()
+// ║  test_readerChangingAfterRegistrationCannotDeployDifferentCode()
+// ║  _expectStandaloneMismatch(...)
+// ║
+// ║  COMBINED DEPLOYMENT INTEGRITY
+// ║  test_combinedDeploymentRejectsBeforeHookOrMarketAndCanRetry()
+// ║  _combined(...)
+// ╚═════
+
 import './SingleStorageDeployment.t.sol';
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
 import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 
+// ┌─ MutableHookCodeReader ────────────────────────────────────────────────────
 /// @dev registration can see correct bytes while later deployments get something else.
 ///      the supplied tooling rejects this reader; exercise the on-chain check without it.
 contract MutableHookCodeReader {
   bytes internal _code;
 
+  // ░░▒▒▓▓██ [ MUTABLE CODE TARGET ] ──────────────────────────────────────────
+
+  // ┌─ setCode ─────
   function setCode(bytes memory code) external {
     _code = code;
   }
 
+  // ┌─ fallback ─────
   fallback() external {
     bytes memory code = _code;
     assembly ('memory-safe') {
@@ -24,21 +59,29 @@ contract MutableHookCodeReader {
   }
 }
 
+// ┌─ HookArtifactCommitmentTest ───────────────────────────────────────────────
 contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
   ProductionStack internal _stack;
   bytes internal _original;
   bytes32 internal _artifactHash;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     _stack = _deployProductionStack();
     _original = vm.getCode('src/access/OpenTermHooks.sol:OpenTermHooks');
     _artifactHash = keccak256(_original);
   }
 
+  // ┌─ _register ─────
   function _register(IHooksFactory factory, address store, bytes32 expectedHash) internal {
     factory.addHooksTemplate(store, 'committed hook', address(0), address(0), 0, 0, expectedHash);
   }
 
+  // ░░▒▒▓▓██ [ ARTIFACT REGISTRATION ] ────────────────────────────────────────
+
+  // ┌─ test_registrationCommitsArtifactForRawAndCompressedStores ─────
   function test_registrationCommitsArtifactForRawAndCompressedStores() external {
     address[2] memory stores =
       [LibStoredInitCode.deployInitCode(_original), LibCompressedInitCode.deployInitCode(_original)];
@@ -66,6 +109,7 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     }
   }
 
+  // ┌─ testFuzz_registrationRejectsWrongHashWithoutWritingState ─────
   function testFuzz_registrationRejectsWrongHashWithoutWritingState(
     bytes32 wrongHash,
     bool compressed,
@@ -88,6 +132,7 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     assertEq(factory.getHooksTemplatesCount(), count + 1);
   }
 
+  // ┌─ test_registrationRequiresTheNewHashArgument ─────
   function test_registrationRequiresTheNewHashArgument() external {
     address store = LibCompressedInitCode.deployInitCode(_original);
     for (uint256 model; model < 2; ++model) {
@@ -111,6 +156,9 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ STANDALONE DEPLOYMENT INTEGRITY ] ──────────────────────────────
+
+  // ┌─ test_changedDecodedBytesRejectedBeforeStandaloneConstructor ─────
   function test_changedDecodedBytesRejectedBeforeStandaloneConstructor() external {
     for (uint256 model; model < 2; ++model) {
       IHooksFactory factory = _factoryFor(_stack, MatrixMarketKind(model));
@@ -126,6 +174,7 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     }
   }
 
+  // ┌─ test_readerChangingAfterRegistrationCannotDeployDifferentCode ─────
   function test_readerChangingAfterRegistrationCannotDeployDifferentCode() external {
     MutableHookCodeReader reader =
       MutableHookCodeReader(_deployCode('test/research/HookArtifactCommitment.t.sol:MutableHookCodeReader'));
@@ -142,6 +191,7 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     }
   }
 
+  // ┌─ _expectStandaloneMismatch ─────
   function _expectStandaloneMismatch(IHooksFactory factory, address store) internal {
     uint64 creationNonce = vm.getNonce(address(factory));
     uint256 hookNonce = factory.getHooksInstanceDeploymentNonce(MatrixBorrower);
@@ -155,26 +205,9 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
     assertEq(factory.getHooksTemplateInitCodeHash(store), _artifactHash);
   }
 
-  function _combined(
-    IHooksFactory factory,
-    MatrixMarketKind model,
-    address store,
-    bytes32 salt
-  )
-    internal
-    returns (address market, address instance)
-  {
-    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, model);
-    DeployMarketInputs memory inputs = _marketInputs(_stack, options, EmptyHooksConfig);
-    bytes memory data = _hooksData(options, vm.getBlockTimestamp());
-    vm.prank(MatrixBorrower);
-    if (model == MatrixMarketKind.Standard) {
-      return factory.deployMarketAndHooks(store, '', inputs, data, salt, address(0), 0);
-    }
-    return IHooksFactoryRevolving(address(factory))
-      .deployMarketAndHooks(store, '', inputs, data, abi.encode(uint8(1), uint16(200)), salt, address(0), 0);
-  }
+  // ░░▒▒▓▓██ [ COMBINED DEPLOYMENT INTEGRITY ] ────────────────────────────────
 
+  // ┌─ test_combinedDeploymentRejectsBeforeHookOrMarketAndCanRetry ─────
   function test_combinedDeploymentRejectsBeforeHookOrMarketAndCanRetry() external {
     for (uint256 kind; kind < 2; ++kind) {
       MatrixMarketKind model = MatrixMarketKind(kind);
@@ -201,5 +234,26 @@ contract HookArtifactCommitmentTest is SingleStorageDeploymentFixture {
       assertEq(factory.getHooksTemplateForInstance(instance), store);
       assertEq(factory.getMarketsForHooksTemplateCount(store), marketCount + 1);
     }
+  }
+
+  // ┌─ _combined ─────
+  function _combined(
+    IHooksFactory factory,
+    MatrixMarketKind model,
+    address store,
+    bytes32 salt
+  )
+    internal
+    returns (address market, address instance)
+  {
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, model);
+    DeployMarketInputs memory inputs = _marketInputs(_stack, options, EmptyHooksConfig);
+    bytes memory data = _hooksData(options, vm.getBlockTimestamp());
+    vm.prank(MatrixBorrower);
+    if (model == MatrixMarketKind.Standard) {
+      return factory.deployMarketAndHooks(store, '', inputs, data, salt, address(0), 0);
+    }
+    return IHooksFactoryRevolving(address(factory))
+      .deployMarketAndHooks(store, '', inputs, data, abi.encode(uint8(1), uint16(200)), salt, address(0), 0);
   }
 }

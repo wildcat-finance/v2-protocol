@@ -1,6 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // AprReplacementHooks
+// ║  ██▀▀     ▀▀██   APR replacement hooks across all three term families.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  OPEN APR REPLACEMENT
+// ║  constructor(...)
+// ║  setValidationBounds(...)
+// ║  seedTemporaryReserve(...)
+// ║  _applyDefaultAprUpdate(...)
+// ║  _checkAprChange(...)
+// ║  version()
+// ║
+// ║  FIXED APR REPLACEMENT
+// ║  constructor(...)
+// ║  setValidationBounds(...)
+// ║  seedTemporaryReserve(...)
+// ║  _applyDefaultAprUpdate(...)
+// ║  _checkAprChange(...)
+// ║  version()
+// ║
+// ║  PERIODIC APR REPLACEMENT
+// ║  constructor(...)
+// ║  setValidationBounds(...)
+// ║  seedTemporaryReserve(...)
+// ║  _applyDefaultAprUpdate(...)
+// ║  _checkAprChange(...)
+// ║  version()
+// ╚═════
+
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
@@ -19,8 +51,12 @@ import { OpenTransferPolicy } from './TransferFeatureHooks.sol';
 import { FixedTransferPolicy } from './TransferFeatureHooks.sol';
 import { PeriodicTransferPolicy } from './TransferFeatureHooks.sol';
 
+// ┌─ OpenAprReplacementHooks ──────────────────────────────────────────────────
 /// @dev replace only the default calculation; shared routing stays intact.
 contract OpenAprReplacementHooks is OpenTransferPolicy, AprReplacementPolicy {
+  // ░░▒▒▓▓██ [ OPEN APR REPLACEMENT ] ─────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address administrator,
     bytes memory args
@@ -37,16 +73,19 @@ contract OpenAprReplacementHooks is OpenTransferPolicy, AprReplacementPolicy {
     )
   { }
 
+  // ┌─ setValidationBounds ─────
   function setValidationBounds(uint16 aprFloor, uint16 reserveCeiling) public override onlyAdministrator {
     AprValidationPolicy.setValidationBounds(aprFloor, reserveCeiling);
   }
 
+  // ┌─ seedTemporaryReserve ─────
   /// @dev harness-only setup for proving the skipped default leaves nonzero state alone.
   function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external onlyAdministrator {
     _requireHookedMarket(market);
     temporaryExcessReserveRatio[market] = value;
   }
 
+  // ┌─ _applyDefaultAprUpdate ─────
   function _applyDefaultAprUpdate(
     uint16 annualInterestBips,
     MarketState calldata
@@ -64,17 +103,23 @@ contract OpenAprReplacementHooks is OpenTransferPolicy, AprReplacementPolicy {
     return _selectAprUpdate(annualInterestBips);
   }
 
+  // ┌─ _checkAprChange ─────
   function _checkAprChange(AprChange memory change, MarketState calldata, bytes calldata) internal view override {
     _validateAprChange(change);
   }
 
+  // ┌─ version ─────
   function version() external pure override returns (string memory) {
     return 'OpenAprReplacementHooks';
   }
 }
 
+// ┌─ FixedAprReplacementHooks ─────────────────────────────────────────────────
 /// @dev replace only the default calculation; fixed maturity still runs first.
 contract FixedAprReplacementHooks is FixedTransferPolicy, AprReplacementPolicy {
+  // ░░▒▒▓▓██ [ FIXED APR REPLACEMENT ] ────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address administrator,
     bytes memory args
@@ -92,16 +137,19 @@ contract FixedAprReplacementHooks is FixedTransferPolicy, AprReplacementPolicy {
     )
   { }
 
+  // ┌─ setValidationBounds ─────
   function setValidationBounds(uint16 aprFloor, uint16 reserveCeiling) public override onlyAdministrator {
     AprValidationPolicy.setValidationBounds(aprFloor, reserveCeiling);
   }
 
+  // ┌─ seedTemporaryReserve ─────
   /// @dev harness-only setup for proving the skipped default leaves nonzero state alone.
   function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external onlyAdministrator {
     _requireHookedMarket(market);
     temporaryExcessReserveRatio[market] = value;
   }
 
+  // ┌─ _applyDefaultAprUpdate ─────
   function _applyDefaultAprUpdate(
     uint16 annualInterestBips,
     MarketState calldata
@@ -119,17 +167,23 @@ contract FixedAprReplacementHooks is FixedTransferPolicy, AprReplacementPolicy {
     return _selectAprUpdate(annualInterestBips);
   }
 
+  // ┌─ _checkAprChange ─────
   function _checkAprChange(AprChange memory change, MarketState calldata, bytes calldata) internal view override {
     _validateAprChange(change);
   }
 
+  // ┌─ version ─────
   function version() external pure override returns (string memory) {
     return 'FixedAprReplacementHooks';
   }
 }
 
+// ┌─ PeriodicAprReplacementHooks ──────────────────────────────────────────────
 /// @dev replace only the default calculation; proposal reductions still bypass it.
 contract PeriodicAprReplacementHooks is PeriodicTransferPolicy, AprReplacementPolicy {
+  // ░░▒▒▓▓██ [ PERIODIC APR REPLACEMENT ] ─────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address administrator,
     bytes memory args
@@ -148,16 +202,19 @@ contract PeriodicAprReplacementHooks is PeriodicTransferPolicy, AprReplacementPo
     )
   { }
 
+  // ┌─ setValidationBounds ─────
   function setValidationBounds(uint16 aprFloor, uint16 reserveCeiling) public override onlyAdministrator {
     AprValidationPolicy.setValidationBounds(aprFloor, reserveCeiling);
   }
 
+  // ┌─ seedTemporaryReserve ─────
   /// @dev harness-only setup for proving the skipped default leaves nonzero state alone.
   function seedTemporaryReserve(address market, TemporaryReserveRatio calldata value) external onlyAdministrator {
     _requireHookedMarket(market);
     temporaryExcessReserveRatio[market] = value;
   }
 
+  // ┌─ _applyDefaultAprUpdate ─────
   function _applyDefaultAprUpdate(
     uint16 annualInterestBips,
     MarketState calldata
@@ -173,10 +230,12 @@ contract PeriodicAprReplacementHooks is PeriodicTransferPolicy, AprReplacementPo
     return _selectAprUpdate(annualInterestBips);
   }
 
+  // ┌─ _checkAprChange ─────
   function _checkAprChange(AprChange memory change, MarketState calldata, bytes calldata) internal view override {
     _validateAprChange(change);
   }
 
+  // ┌─ version ─────
   function version() external pure override returns (string memory) {
     return 'PeriodicAprReplacementHooks';
   }

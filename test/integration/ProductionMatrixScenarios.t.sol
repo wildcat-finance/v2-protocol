@@ -1,6 +1,71 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // ProductionMatrixScenarios.t
+// ║  ██▀▀     ▀▀██   Production factory matrices, composed policies, and lifecycles.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  BUILT IN PRODUCTION MATRIX
+// ║  test_productionFactoriesDeployCompleteBuiltInMatrix()
+// ║  test_deterministicLifecycleRunsAcrossProductionMatrix()
+// ║  _runLifecycle(...)
+// ║
+// ║  DEPOSITS AND WITHDRAWAL BOUNDARIES
+// ║  test_minimumDepositOrderingAndLiveUpdatesUseProductionComposition()
+// ║  test_exactMinimumBoundarySurvivesAccruedScaleAcrossProductionHooks()
+// ║  test_withdrawalGatesHoldAtExactProductionMatrixBoundaries()
+// ║  _assertFixedTermGate(...)
+// ║  _assertPeriodicTermGate(...)
+// ║  test_roundingStrandingWindowsCloseAndDrainThroughProductionFactory()
+// ║  _deployRoundingCell(...)
+// ║
+// ║  PERIODIC APR LIFECYCLE
+// ║  test_periodicAprReductionExecutesAcrossProductionMarkets()
+// ║  test_periodicAprExpiryAndCancellationUseProductionMarketState()
+// ║
+// ║  REPLACEMENT APR POLICIES
+// ║  test_replacementFactoriesApplyEffectiveAprAcrossProductionMatrix()
+// ║  test_replacementPeriodicExecutionRechecksBothMarketRoutes()
+// ║  test_replacementPeriodicEqualityAndIncreaseUseMarketState()
+// ║  _aprReplacementArtifacts()
+// ║  _replacementConfig(...)
+// ║  _setAprBounds(...)
+// ║  _callReplacementReduction(...)
+// ║  _assertReductionRejection(...)
+// ║  _assertDedicatedCallData(...)
+// ║  _pendingAprHash(...)
+// ║  _temporaryReserveHash(...)
+// ║
+// ║  REPLACEMENT CLOSURE
+// ║  test_replacementClosureRetainsBatchingAndAccessAcrossProductionMatrix()
+// ║  test_replacementFixedClosurePermissionsRemainIndependentAcrossMarkets()
+// ║  _queueClosingBatch(...)
+// ║  _claimSharedBatch(...)
+// ║
+// ║  COMPOSED BORROW POLICIES
+// ║  test_fourPolicyFactoriesForceCallbacksAcrossProductionMatrix()
+// ║  test_fourPolicyBorrowLimitsRetainTransferRulesAcrossProductionMatrix()
+// ║  test_fourPolicyBorrowAuthorityAndMarketsStayIsolated()
+// ║  test_fourPolicyBorrowRollbackAndCoreGuardsAcrossProductionMatrix()
+// ║  _borrowArtifacts()
+// ║  _deployBorrowCell(...)
+// ║  _assertRecordedBorrow(...)
+// ║  _assertComposedTransfers(...)
+// ║  _assertBorrowTransferRollback(...)
+// ║
+// ║  LENS AND WRAPPER INTEGRATION
+// ║  test_lensDecodesFactoryMarketConfigurationAcrossProductionMatrix()
+// ║  _assertDiscoveredHooks(...)
+// ║  test_lensTracksFactoryInstancesThroughAdministratorTransfer()
+// ║  test_wrappersKeepAccessAndBackingAcrossProductionMatrix()
+// ║
+// ║  SANCTIONS INTEGRATION
+// ║  test_directSanctionsFlowsComposeAcrossProductionMatrix()
+// ╚═════
+
 import { VmSafe } from 'forge-std/Vm.sol';
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { TemporaryReserveRatio } from 'src/access/MarketConstraintHooks.sol';
@@ -47,45 +112,430 @@ import { RecipientRestrictionPolicy } from '../mocks/TransferFeaturePolicies.sol
 import { TransferAmountPolicy } from '../mocks/TransferFeaturePolicies.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ ProductionMatrixScenariosTest ────────────────────────────────────────────
 contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
   uint256 internal constant AliceDeposit = 100_000e18;
   uint256 internal constant BobDeposit = 50_000e18;
   uint128 internal constant MinimumDeposit = 10_000e18;
 
-  function _aprReplacementArtifacts() private pure returns (string[3] memory) {
-    return [
-      string.concat('test/mocks/AprReplacementHooks.sol:', type(OpenAprReplacementHooks).name),
-      string.concat('test/mocks/AprReplacementHooks.sol:', type(FixedAprReplacementHooks).name),
-      string.concat('test/mocks/AprReplacementHooks.sol:', type(PeriodicAprReplacementHooks).name)
-    ];
+  // ░░▒▒▓▓██ [ BUILT IN PRODUCTION MATRIX ] ───────────────────────────────────
+
+  // ┌─ test_productionFactoriesDeployCompleteBuiltInMatrix ─────
+  function test_productionFactoriesDeployCompleteBuiltInMatrix() external {
+    ProductionStack memory stack = _deployProductionStack();
+
+    for (uint256 marketKind; marketKind < 2; marketKind++) {
+      for (uint256 hooksKind; hooksKind < 3; hooksKind++) {
+        MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(hooksKind), MatrixMarketKind(marketKind));
+        MatrixCell memory cell =
+          _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(hooksKind + 1));
+        IHooksFactory factory = _factoryFor(stack, options.marketKind);
+        IHooks hooks = IHooks(address(cell.hooks));
+
+        assertEq(cell.market.factory(), address(factory), 'market factory');
+        assertEq(cell.market.borrower(), MatrixBorrower, 'operational borrower');
+        assertEq(cell.market.borrowerPrincipal(), MatrixBorrower, 'borrower principal');
+        assertEq(hooks.factory(), address(factory), 'hooks factory');
+        assertEq(cell.hooks.administrator(), MatrixBorrower, 'hooks administrator');
+        assertEq(hooks.version(), _templateVersion(options.hooksKind), 'hooks version');
+        assertEq(factory.getHooksTemplateForInstance(address(cell.hooks)), cell.hooksTemplate, 'instance template');
+        assertEq(factory.getMarketsForHooksInstanceCount(address(cell.hooks)), 1, 'market count');
+        assertEq(factory.getMarketsForHooksInstance(address(cell.hooks))[0], address(cell.market), 'instance market');
+        assertTrue(stack.archController.isRegisteredMarket(address(cell.market)), 'registered');
+        assertEq(
+          HooksConfig.unwrap(cell.market.hooks()),
+          HooksConfig.unwrap(
+            hooks.config()
+              .optionalFlags()
+              .setHooksAddress(address(cell.hooks))
+              .mergeAllFlags(hooks.config().requiredFlags())
+          ),
+          'market hooks'
+        );
+
+        if (options.marketKind == MatrixMarketKind.Revolving) {
+          assertEq(
+            IWildcatMarketRevolving(address(cell.market)).commitmentFeeBips(),
+            options.commitmentFeeBips,
+            'commitment fee'
+          );
+        }
+
+        _authorize(stack, cell, MatrixAlice);
+        _deposit(stack, cell, MatrixAlice, 1e18);
+        assertEq(cell.market.balanceOf(MatrixAlice), 1e18, 'matrix deposit');
+      }
+    }
   }
 
-  function _replacementConfig(address hooks) private view returns (HooksConfig) {
-    return
-      IHooks(hooks)
-        .config()
-        .optionalFlags()
-        .setHooksAddress(hooks)
-        .mergeAllFlags(IHooks(hooks).config().requiredFlags());
+  // ┌─ test_deterministicLifecycleRunsAcrossProductionMatrix ─────
+  function test_deterministicLifecycleRunsAcrossProductionMatrix() external {
+    ProductionStack memory stack = _deployProductionStack();
+
+    for (uint256 marketKind; marketKind < 2; marketKind++) {
+      for (uint256 hooksKind; hooksKind < 3; hooksKind++) {
+        _runLifecycle(
+          stack, _defaultMatrixOptions(MatrixHooksKind(hooksKind), MatrixMarketKind(marketKind)), uint96(10 + hooksKind)
+        );
+      }
+    }
   }
 
-  function _setAprBounds(MatrixCell memory cell, uint16 floor, uint16 ceiling) private {
+  // ┌─ _runLifecycle ─────
+  function _runLifecycle(ProductionStack memory stack, MatrixOptions memory options, uint96 nonce) private {
+    uint256 aliceStartingAssets = stack.asset.balanceOf(MatrixAlice);
+    uint256 bobStartingAssets = stack.asset.balanceOf(MatrixBob);
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
+    _authorize(stack, cell, MatrixAlice);
+    _authorize(stack, cell, MatrixBob);
+    _deposit(stack, cell, MatrixAlice, AliceDeposit);
+    _deposit(stack, cell, MatrixBob, BobDeposit);
+    _approveBorrower(stack, cell, options.maxTotalSupply);
+
+    assertEq(cell.market.balanceOf(MatrixAlice), AliceDeposit, 'alice deposit');
+    assertEq(cell.market.balanceOf(MatrixBob), BobDeposit, 'bob deposit');
+    assertEq(cell.market.totalSupply(), AliceDeposit + BobDeposit, 'matrix supply');
+
+    uint256 draw = cell.market.borrowableAssets() / 2;
+    uint256 borrowerBalanceBefore = stack.asset.balanceOf(MatrixBorrower);
+    _borrow(cell, draw);
+    assertEq(stack.asset.balanceOf(MatrixBorrower) - borrowerBalanceBefore, draw, 'borrow transfer');
+
+    _accrueAndCheck(cell, 10 days);
+    _accrueAndCheck(cell, 11 days);
+    _repay(cell, draw / 2);
+    _accrueAndCheck(cell, 9 days);
+
+    _warpToWithdrawalAccess(cell);
+    _repay(cell, draw - draw / 2);
+    uint256 aliceWithdrawal = cell.market.balanceOf(MatrixAlice) / 2;
+    vm.prank(MatrixAlice);
+    uint32 expiry = cell.market.queueWithdrawal(aliceWithdrawal);
+    vm.warp(uint256(expiry) + 1);
+    cell.market.updateState();
+    uint256 aliceBalanceBefore = stack.asset.balanceOf(MatrixAlice);
+    uint256 withdrawn = cell.market.executeWithdrawal(MatrixAlice, expiry);
+    assertEq(stack.asset.balanceOf(MatrixAlice) - aliceBalanceBefore, withdrawn, 'first withdrawal');
+    assertTrue(withdrawn + MatrixDust >= aliceWithdrawal, 'first withdrawal underpaid');
+
+    _accrueAndCheck(cell, 5 days);
+    _close(cell);
+    assertTrue(cell.market.isClosed(), 'market close');
+
+    address[2] memory lenders = [MatrixAlice, MatrixBob];
+    uint32[2] memory finalExpiries;
+    for (uint256 i; i < lenders.length; i++) {
+      if (cell.market.balanceOf(lenders[i]) > 0) {
+        vm.prank(lenders[i]);
+        finalExpiries[i] = cell.market.queueFullWithdrawal();
+      }
+    }
+    vm.warp(vm.getBlockTimestamp() + 1);
+    cell.market.updateState();
+    for (uint256 i; i < lenders.length; i++) {
+      if (finalExpiries[i] != 0) {
+        cell.market.executeWithdrawal(lenders[i], finalExpiries[i]);
+      }
+    }
+
+    MarketState memory state = cell.market.previousState();
+    assertEq(state.scaledTotalSupply, 0, 'final scaled supply');
+    assertEq(state.scaledPendingWithdrawals, 0, 'final pending withdrawals');
+    assertEq(cell.market.getUnpaidBatchExpiries().length, 0, 'final unpaid batches');
+    assertTrue(stack.asset.balanceOf(MatrixAlice) - aliceStartingAssets > AliceDeposit, 'alice yield');
+    assertTrue(stack.asset.balanceOf(MatrixBob) - bobStartingAssets > BobDeposit, 'bob yield');
+    assertTrue(stack.asset.balanceOf(address(cell.market)) <= MatrixDust, 'assets stranded in market');
+  }
+
+  // ░░▒▒▓▓██ [ DEPOSITS AND WITHDRAWAL BOUNDARIES ] ───────────────────────────
+
+  // ┌─ test_minimumDepositOrderingAndLiveUpdatesUseProductionComposition ─────
+  function test_minimumDepositOrderingAndLiveUpdatesUseProductionComposition() external {
+    ProductionStack memory stack = _deployProductionStack();
+    MatrixOptions memory capacityOptions = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind.Standard);
+    capacityOptions.minimumDeposit = MinimumDeposit;
+    capacityOptions.maxTotalSupply = 3 * MinimumDeposit - 1;
+    MatrixCell memory capacity = _deployMatrixCell(stack, capacityOptions, MatrixBorrower, MatrixBorrower, 70);
+    _authorize(stack, capacity, MatrixAlice);
+    _authorize(stack, capacity, MatrixBob);
+    _deposit(stack, capacity, MatrixAlice, MinimumDeposit);
+    _deposit(stack, capacity, MatrixBob, MinimumDeposit);
+    stack.asset.mint(MatrixAlice, MinimumDeposit);
+
+    vm.prank(MatrixAlice);
+    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
+    capacity.market.depositUpTo(MinimumDeposit);
+    vm.prank(MatrixAlice);
+    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
+    capacity.market.deposit(MinimumDeposit);
+
+    MatrixOptions memory liveOptions = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind.Standard);
+    liveOptions.minimumDeposit = MinimumDeposit;
+    MatrixCell memory live = _deployMatrixCell(stack, liveOptions, MatrixBorrower, MatrixBorrower, 71);
+    _authorize(stack, live, MatrixAlice);
+    _authorize(stack, live, MatrixBob);
+    _deposit(stack, live, MatrixAlice, MinimumDeposit);
+    PeriodicTermHooks liveHooks = PeriodicTermHooks(address(live.hooks));
+
     vm.prank(MatrixBorrower);
-    AprValidationPolicy(address(cell.hooks)).setValidationBounds(floor, ceiling);
+    liveHooks.setMinimumDeposit(address(live.market), MinimumDeposit * 2);
+    _fundAndApprove(stack, live, MatrixBob, MinimumDeposit * 2);
+    vm.prank(MatrixBob);
+    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
+    live.market.depositUpTo(MinimumDeposit);
+    vm.prank(MatrixBob);
+    live.market.depositUpTo(MinimumDeposit * 2);
+
+    vm.prank(MatrixBorrower);
+    liveHooks.setMinimumDeposit(address(live.market), 0);
+    _deposit(stack, live, MatrixAlice, 1e18);
+    assertEq(live.market.balanceOf(MatrixAlice), MinimumDeposit + 1e18, 'cleared minimum');
+
+    vm.prank(MatrixAlice);
+    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
+    liveHooks.setMinimumDeposit(address(live.market), 1);
   }
 
-  function _pendingAprHash(MatrixCell memory cell) private view returns (bytes32) {
-    (PendingAprChange memory pending, uint32 start, uint32 end) =
-      PeriodicTermPolicy(address(cell.hooks)).getPendingAprChange(address(cell.market));
-    return keccak256(abi.encode(pending, start, end));
+  // ┌─ test_exactMinimumBoundarySurvivesAccruedScaleAcrossProductionHooks ─────
+  function test_exactMinimumBoundarySurvivesAccruedScaleAcrossProductionHooks() external {
+    ProductionStack memory stack = _deployProductionStack();
+    uint128 exactMinimum = 100_000e18;
+
+    for (uint256 hooksKind; hooksKind < 3; hooksKind++) {
+      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(hooksKind), MatrixMarketKind.Standard);
+      options.minimumDeposit = exactMinimum;
+      MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(80 + hooksKind));
+      _authorize(stack, cell, MatrixAlice);
+      _authorize(stack, cell, MatrixBob);
+      _deposit(stack, cell, MatrixBob, 500_000e18);
+      _approveBorrower(stack, cell, options.maxTotalSupply);
+      _borrow(cell, 300_000e18);
+      vm.warp(cell.deployedAt + 120 days);
+      cell.market.updateState();
+      uint256 scaleFactor = cell.market.scaleFactor();
+      assertTrue(scaleFactor > 1e27, 'accrued scale factor');
+
+      _deposit(stack, cell, MatrixAlice, exactMinimum);
+      assertTrue(cell.market.balanceOf(MatrixAlice) > 0, 'exact minimum');
+
+      uint256 minimumScaled = (uint256(exactMinimum) * 1e27) / scaleFactor;
+      uint256 boundary = (minimumScaled * scaleFactor + 1e27 - 1) / 1e27;
+      stack.asset.mint(MatrixBob, boundary * 2);
+      vm.prank(MatrixBob);
+      cell.market.depositUpTo(boundary);
+      vm.prank(MatrixBob);
+      vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
+      cell.market.depositUpTo(boundary - 1);
+    }
   }
 
-  function _temporaryReserveHash(MatrixCell memory cell) private view returns (bytes32) {
-    (uint16 apr, uint16 reserve, uint32 expiry) =
-      BaseHooks(address(cell.hooks)).temporaryExcessReserveRatio(address(cell.market));
-    return keccak256(abi.encode(expiry, apr, reserve));
+  // ┌─ test_withdrawalGatesHoldAtExactProductionMatrixBoundaries ─────
+  function test_withdrawalGatesHoldAtExactProductionMatrixBoundaries() external {
+    ProductionStack memory stack = _deployProductionStack();
+
+    for (uint256 marketKind; marketKind < 2; marketKind++) {
+      _assertFixedTermGate(stack, MatrixMarketKind(marketKind), uint96(30 + marketKind));
+      _assertPeriodicTermGate(stack, MatrixMarketKind(marketKind), uint96(40 + marketKind));
+    }
   }
 
+  // ┌─ _assertFixedTermGate ─────
+  function _assertFixedTermGate(ProductionStack memory stack, MatrixMarketKind marketKind, uint96 nonce) private {
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.FixedTerm, marketKind);
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
+    _authorize(stack, cell, MatrixAlice);
+    _deposit(stack, cell, MatrixAlice, 10e18);
+
+    vm.prank(MatrixAlice);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
+    cell.market.queueFullWithdrawal();
+
+    uint256 termEnd = cell.deployedAt + options.fixedTermDuration;
+    vm.warp(termEnd - 1);
+    vm.prank(MatrixAlice);
+    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
+    cell.market.queueFullWithdrawal();
+
+    vm.warp(termEnd);
+    vm.prank(MatrixAlice);
+    uint32 expiry = cell.market.queueWithdrawal(1e18);
+    assertTrue(expiry > termEnd, 'fixed-term boundary');
+  }
+
+  // ┌─ _assertPeriodicTermGate ─────
+  function _assertPeriodicTermGate(ProductionStack memory stack, MatrixMarketKind marketKind, uint96 nonce) private {
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, marketKind);
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
+    _authorize(stack, cell, MatrixAlice);
+    _deposit(stack, cell, MatrixAlice, 10e18);
+    PeriodicTermHooks hooks = PeriodicTermHooks(address(cell.hooks));
+
+    assertFalse(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic pre-window');
+    vm.prank(MatrixAlice);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
+    cell.market.queueWithdrawal(1e18);
+
+    uint256 windowStart = cell.deployedAt + options.firstWindowDelay;
+    vm.warp(windowStart);
+    assertTrue(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic window start');
+    vm.prank(MatrixAlice);
+    cell.market.queueWithdrawal(1e18);
+
+    vm.warp(windowStart + options.withdrawalWindowDuration);
+    assertFalse(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic window end');
+    vm.prank(MatrixAlice);
+    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
+    cell.market.queueWithdrawal(1e18);
+
+    vm.warp(windowStart + options.periodDuration);
+    assertTrue(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic next window');
+    vm.prank(MatrixAlice);
+    cell.market.queueWithdrawal(1e18);
+  }
+
+  // ┌─ test_roundingStrandingWindowsCloseAndDrainThroughProductionFactory ─────
+  function test_roundingStrandingWindowsCloseAndDrainThroughProductionFactory() external {
+    ProductionStack memory stack = _deployProductionStack();
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind.Standard);
+    options.reserveRatioBips = 0;
+
+    MatrixCell memory pending = _deployRoundingCell(stack, options, 90);
+    uint256 pendingFraction = (pending.market.scaledTotalSupply() * pending.market.scaleFactor()) % 1e27;
+    assertTrue(pendingFraction > 0, 'pending stranding fraction zero');
+    assertTrue(pendingFraction < 0.5e27, 'pending stranding fraction high');
+    vm.prank(MatrixAlice);
+    pending.market.queueFullWithdrawal();
+    _close(pending);
+    MarketState memory state = pending.market.previousState();
+    assertEq(state.scaledPendingWithdrawals, 0, 'pending close stranding');
+    assertEq(pending.market.getUnpaidBatchExpiries().length, 0, 'pending close unpaid');
+
+    MatrixCell memory closed = _deployRoundingCell(stack, options, 91);
+    _close(closed);
+    uint256 closedFraction = (closed.market.scaledTotalSupply() * closed.market.scaleFactor()) % 1e27;
+    assertTrue(closedFraction > 0, 'closed stranding fraction zero');
+    assertTrue(closedFraction < 0.5e27, 'closed stranding fraction high');
+    vm.prank(MatrixAlice);
+    uint32 expiry = closed.market.queueFullWithdrawal();
+    vm.warp(vm.getBlockTimestamp() + 2);
+    closed.market.updateState();
+    assertEq(closed.market.getUnpaidBatchExpiries().length, 0, 'closed batch unpaid');
+    uint256 assetsBefore = stack.asset.balanceOf(MatrixAlice);
+    uint256 withdrawn = closed.market.executeWithdrawal(MatrixAlice, expiry);
+    assertTrue(withdrawn > 0, 'closed withdrawal');
+    assertEq(stack.asset.balanceOf(MatrixAlice) - assetsBefore, withdrawn, 'closed payout');
+    assertEq(closed.market.balanceOf(MatrixAlice), 0, 'closed lender balance');
+  }
+
+  // ┌─ _deployRoundingCell ─────
+  function _deployRoundingCell(
+    ProductionStack memory stack,
+    MatrixOptions memory options,
+    uint96 nonce
+  )
+    private
+    returns (MatrixCell memory cell)
+  {
+    cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
+    _authorize(stack, cell, MatrixAlice);
+    _deposit(stack, cell, MatrixAlice, 123_457e18);
+    _approveBorrower(stack, cell, options.maxTotalSupply);
+    _borrow(cell, 100_000e18);
+    vm.warp(cell.deployedAt + 37 days);
+    cell.market.updateState();
+    uint256 debts = cell.market.totalDebts();
+    uint256 held = stack.asset.balanceOf(address(cell.market));
+    if (debts > held) _repay(cell, debts - held);
+  }
+
+  // ░░▒▒▓▓██ [ PERIODIC APR LIFECYCLE ] ───────────────────────────────────────
+
+  // ┌─ test_periodicAprReductionExecutesAcrossProductionMarkets ─────
+  function test_periodicAprReductionExecutesAcrossProductionMarkets() external {
+    ProductionStack memory stack = _deployProductionStack();
+
+    for (uint256 marketKind; marketKind < 2; marketKind++) {
+      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind(marketKind));
+      MatrixCell memory cell =
+        _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(50 + marketKind));
+      PeriodicTermHooks hooks = PeriodicTermHooks(address(cell.hooks));
+      _authorize(stack, cell, MatrixAlice);
+      _authorize(stack, cell, MatrixBob);
+      _deposit(stack, cell, MatrixAlice, AliceDeposit);
+      _deposit(stack, cell, MatrixBob, BobDeposit);
+
+      vm.warp(cell.deployedAt + 10 days);
+      vm.prank(MatrixBorrower);
+      hooks.proposeAnnualInterestBips(address(cell.market), 800);
+      (PendingAprChange memory pending, uint32 responseStart, uint32 responseEnd) =
+        hooks.getPendingAprChange(address(cell.market));
+      assertEq(pending.annualInterestBips, 800, 'pending APR');
+      assertEq(responseStart, cell.deployedAt + options.firstWindowDelay, 'response start');
+      assertEq(
+        responseEnd, cell.deployedAt + options.firstWindowDelay + options.withdrawalWindowDuration, 'response end'
+      );
+
+      vm.prank(MatrixCaller);
+      vm.expectRevert(PeriodicTermPolicy.AprChangeNotReady.selector);
+      cell.market.executePendingAnnualInterestBipsReduction();
+
+      vm.warp(responseStart);
+      vm.prank(MatrixAlice);
+      uint32 expiry = cell.market.queueWithdrawal(AliceDeposit / 4);
+      vm.warp(uint256(expiry) + 1);
+      cell.market.updateState();
+      cell.market.executeWithdrawal(MatrixAlice, expiry);
+
+      vm.warp(responseEnd);
+      vm.prank(MatrixCaller);
+      cell.market.executePendingAnnualInterestBipsReduction();
+      assertEq(cell.market.annualInterestBips(), 800, 'executed APR');
+      (pending,,) = hooks.getPendingAprChange(address(cell.market));
+      assertEq(pending.proposalTimestamp, 0, 'proposal cleared');
+    }
+  }
+
+  // ┌─ test_periodicAprExpiryAndCancellationUseProductionMarketState ─────
+  function test_periodicAprExpiryAndCancellationUseProductionMarketState() external {
+    ProductionStack memory stack = _deployProductionStack();
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind.Standard);
+
+    MatrixCell memory expired = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 60);
+    PeriodicTermHooks expiredHooks = PeriodicTermHooks(address(expired.hooks));
+    vm.warp(expired.deployedAt + 10 days);
+    vm.prank(MatrixBorrower);
+    expiredHooks.proposeAnnualInterestBips(address(expired.market), 800);
+    (, uint32 responseStart,) = expiredHooks.getPendingAprChange(address(expired.market));
+    vm.warp(uint256(responseStart) + options.periodDuration * expiredHooks.AprReductionProposalValidityPeriods());
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalExpired.selector);
+    expired.market.executePendingAnnualInterestBipsReduction();
+    assertEq(expired.market.annualInterestBips(), options.annualInterestBips, 'expired APR');
+
+    MatrixCell memory increased = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 61);
+    PeriodicTermHooks increasedHooks = PeriodicTermHooks(address(increased.hooks));
+    vm.warp(increased.deployedAt + 10 days);
+    vm.prank(MatrixBorrower);
+    increasedHooks.proposeAnnualInterestBips(address(increased.market), 800);
+    vm.prank(MatrixBorrower);
+    increased.market.setAnnualInterestAndReserveRatioBips(options.annualInterestBips + 100, options.reserveRatioBips);
+    (PendingAprChange memory pending,,) = increasedHooks.getPendingAprChange(address(increased.market));
+    assertEq(pending.proposalTimestamp, 0, 'increase cancellation');
+    vm.expectRevert(PeriodicTermPolicy.NoPendingAprChange.selector);
+    increased.market.executePendingAnnualInterestBipsReduction();
+
+    MatrixCell memory closed = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 62);
+    PeriodicTermHooks closedHooks = PeriodicTermHooks(address(closed.hooks));
+    vm.warp(closed.deployedAt + 10 days);
+    vm.prank(MatrixBorrower);
+    closedHooks.proposeAnnualInterestBips(address(closed.market), 800);
+    _close(closed);
+    (pending,,) = closedHooks.getPendingAprChange(address(closed.market));
+    assertEq(pending.proposalTimestamp, 0, 'close cancellation');
+  }
+
+  // ░░▒▒▓▓██ [ REPLACEMENT APR POLICIES ] ─────────────────────────────────────
+
+  // ┌─ test_replacementFactoriesApplyEffectiveAprAcrossProductionMatrix ─────
   function test_replacementFactoriesApplyEffectiveAprAcrossProductionMatrix() external {
     ProductionStack memory stack = _deployProductionStack(_aprReplacementArtifacts());
     for (uint256 i; i < 6; i++) {
@@ -142,53 +592,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
-  function _callReplacementReduction(
-    MatrixCell memory cell,
-    bool dedicated
-  )
-    private
-    returns (bool success, bytes memory result)
-  {
-    bytes memory data = dedicated
-      ? abi.encodeWithSelector(cell.market.executePendingAnnualInterestBipsReduction.selector)
-      : abi.encodeWithSelector(cell.market.setAnnualInterestAndReserveRatioBips.selector, uint16(800), uint16(7_777));
-    vm.prank(dedicated ? MatrixCaller : MatrixBorrower);
-    return address(cell.market).call(bytes.concat(data, hex'deadbeef'));
-  }
-
-  function _assertReductionRejection(MatrixCell memory cell, bool dedicated, bytes memory reason) private {
-    bytes32 proposal = _pendingAprHash(cell);
-    bytes32 state = keccak256(abi.encode(cell.market.previousState()));
-    bytes32 temporaryReserve = _temporaryReserveHash(cell);
-    (bool success, bytes memory result) = _callReplacementReduction(cell, dedicated);
-    assertFalse(success, 'reduction rejected');
-    assertEq(result, reason, 'reduction rejection reason');
-    assertEq(_pendingAprHash(cell), proposal, 'proposal restored');
-    assertEq(keccak256(abi.encode(cell.market.previousState())), state, 'market state restored');
-    assertEq(_temporaryReserveHash(cell), temporaryReserve, 'temporary reserve preserved');
-    assertEq(
-      AprReplacementPolicy(address(cell.hooks)).lastSelectedApr(address(cell.market)), 0, 'replacement default skipped'
-    );
-  }
-
-  function _assertDedicatedCallData(MatrixCell memory cell, MarketState memory state) private {
-    VmSafe.AccountAccess[] memory calls = vm.stopAndReturnStateDiff();
-    uint256 hookCalls;
-    for (uint256 i; i < calls.length; i++) {
-      if (calls[i].kind == VmSafe.AccountAccessKind.Call && calls[i].account == address(cell.hooks)) {
-        assertEq(calls[i].accessor, address(cell.market), 'market calls hook');
-        assertEq(
-          calls[i].data,
-          abi.encodeCall(PeriodicTermPolicy.executePendingAnnualInterestBipsReduction, (state)),
-          'dedicated callback excludes trailing bytes'
-        );
-        assertFalse(calls[i].reverted, 'dedicated callback accepted');
-        hookCalls++;
-      }
-    }
-    assertEq(hookCalls, 1, 'one dedicated callback');
-  }
-
+  // ┌─ test_replacementPeriodicExecutionRechecksBothMarketRoutes ─────
   function test_replacementPeriodicExecutionRechecksBothMarketRoutes() external {
     ProductionStack memory stack = _deployProductionStack(_aprReplacementArtifacts());
     for (uint256 i; i < 4; i++) {
@@ -272,6 +676,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_replacementPeriodicEqualityAndIncreaseUseMarketState ─────
   function test_replacementPeriodicEqualityAndIncreaseUseMarketState() external {
     ProductionStack memory stack = _deployProductionStack(_aprReplacementArtifacts());
     for (uint256 i; i < 2; i++) {
@@ -316,35 +721,98 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
-  function _queueClosingBatch(MatrixCell memory cell) private returns (uint32 expiry) {
-    vm.warp(cell.deployedAt + 1 days);
-    if (cell.options.hooksKind == MatrixHooksKind.FixedTerm) {
-      vm.prank(MatrixAlice);
-      vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
-      cell.market.queueWithdrawal(AliceDeposit / 2);
-      return 0;
-    }
-    vm.prank(MatrixAlice);
-    expiry = cell.market.queueWithdrawal(AliceDeposit / 2);
-    vm.prank(MatrixBob);
-    assertEq(cell.market.queueWithdrawal(BobDeposit / 2), expiry, 'lenders share pre-close batch');
-    assertEq(expiry, vm.getBlockTimestamp() + cell.options.withdrawalBatchDuration, 'market chooses batch duration');
+  // ┌─ _aprReplacementArtifacts ─────
+  function _aprReplacementArtifacts() private pure returns (string[3] memory) {
+    return [
+      string.concat('test/mocks/AprReplacementHooks.sol:', type(OpenAprReplacementHooks).name),
+      string.concat('test/mocks/AprReplacementHooks.sol:', type(FixedAprReplacementHooks).name),
+      string.concat('test/mocks/AprReplacementHooks.sol:', type(PeriodicAprReplacementHooks).name)
+    ];
   }
 
-  function _claimSharedBatch(ProductionStack memory stack, MatrixCell memory cell, uint32 expiry) private {
-    WithdrawalBatch memory batch = cell.market.getWithdrawalBatch(expiry);
-    assertEq(batch.scaledAmountBurned, batch.scaledTotalAmount, 'batch fully funded');
-    address[2] memory lenders = [MatrixBob, MatrixAlice];
-    for (uint256 i; i < 2; i++) {
-      uint256 claim =
-        (uint256(batch.normalizedAmountPaid) * cell.market.getAccountWithdrawalStatus(lenders[i], expiry).scaledAmount)
-          / batch.scaledTotalAmount;
-      uint256 assets = stack.asset.balanceOf(lenders[i]);
-      assertEq(cell.market.executeWithdrawal(lenders[i], expiry), claim, 'pro-rata batch claim');
-      assertEq(stack.asset.balanceOf(lenders[i]) - assets, claim, 'batch assets received');
-    }
+  // ┌─ _replacementConfig ─────
+  function _replacementConfig(address hooks) private view returns (HooksConfig) {
+    return
+      IHooks(hooks)
+        .config()
+        .optionalFlags()
+        .setHooksAddress(hooks)
+        .mergeAllFlags(IHooks(hooks).config().requiredFlags());
   }
 
+  // ┌─ _setAprBounds ─────
+  function _setAprBounds(MatrixCell memory cell, uint16 floor, uint16 ceiling) private {
+    vm.prank(MatrixBorrower);
+    AprValidationPolicy(address(cell.hooks)).setValidationBounds(floor, ceiling);
+  }
+
+  // ┌─ _callReplacementReduction ─────
+  function _callReplacementReduction(
+    MatrixCell memory cell,
+    bool dedicated
+  )
+    private
+    returns (bool success, bytes memory result)
+  {
+    bytes memory data = dedicated
+      ? abi.encodeWithSelector(cell.market.executePendingAnnualInterestBipsReduction.selector)
+      : abi.encodeWithSelector(cell.market.setAnnualInterestAndReserveRatioBips.selector, uint16(800), uint16(7_777));
+    vm.prank(dedicated ? MatrixCaller : MatrixBorrower);
+    return address(cell.market).call(bytes.concat(data, hex'deadbeef'));
+  }
+
+  // ┌─ _assertReductionRejection ─────
+  function _assertReductionRejection(MatrixCell memory cell, bool dedicated, bytes memory reason) private {
+    bytes32 proposal = _pendingAprHash(cell);
+    bytes32 state = keccak256(abi.encode(cell.market.previousState()));
+    bytes32 temporaryReserve = _temporaryReserveHash(cell);
+    (bool success, bytes memory result) = _callReplacementReduction(cell, dedicated);
+    assertFalse(success, 'reduction rejected');
+    assertEq(result, reason, 'reduction rejection reason');
+    assertEq(_pendingAprHash(cell), proposal, 'proposal restored');
+    assertEq(keccak256(abi.encode(cell.market.previousState())), state, 'market state restored');
+    assertEq(_temporaryReserveHash(cell), temporaryReserve, 'temporary reserve preserved');
+    assertEq(
+      AprReplacementPolicy(address(cell.hooks)).lastSelectedApr(address(cell.market)), 0, 'replacement default skipped'
+    );
+  }
+
+  // ┌─ _assertDedicatedCallData ─────
+  function _assertDedicatedCallData(MatrixCell memory cell, MarketState memory state) private {
+    VmSafe.AccountAccess[] memory calls = vm.stopAndReturnStateDiff();
+    uint256 hookCalls;
+    for (uint256 i; i < calls.length; i++) {
+      if (calls[i].kind == VmSafe.AccountAccessKind.Call && calls[i].account == address(cell.hooks)) {
+        assertEq(calls[i].accessor, address(cell.market), 'market calls hook');
+        assertEq(
+          calls[i].data,
+          abi.encodeCall(PeriodicTermPolicy.executePendingAnnualInterestBipsReduction, (state)),
+          'dedicated callback excludes trailing bytes'
+        );
+        assertFalse(calls[i].reverted, 'dedicated callback accepted');
+        hookCalls++;
+      }
+    }
+    assertEq(hookCalls, 1, 'one dedicated callback');
+  }
+
+  // ┌─ _pendingAprHash ─────
+  function _pendingAprHash(MatrixCell memory cell) private view returns (bytes32) {
+    (PendingAprChange memory pending, uint32 start, uint32 end) =
+      PeriodicTermPolicy(address(cell.hooks)).getPendingAprChange(address(cell.market));
+    return keccak256(abi.encode(pending, start, end));
+  }
+
+  // ┌─ _temporaryReserveHash ─────
+  function _temporaryReserveHash(MatrixCell memory cell) private view returns (bytes32) {
+    (uint16 apr, uint16 reserve, uint32 expiry) =
+      BaseHooks(address(cell.hooks)).temporaryExcessReserveRatio(address(cell.market));
+    return keccak256(abi.encode(expiry, apr, reserve));
+  }
+
+  // ░░▒▒▓▓██ [ REPLACEMENT CLOSURE ] ──────────────────────────────────────────
+
+  // ┌─ test_replacementClosureRetainsBatchingAndAccessAcrossProductionMatrix ─────
   function test_replacementClosureRetainsBatchingAndAccessAcrossProductionMatrix() external {
     ProductionStack memory stack = _deployProductionStack(_aprReplacementArtifacts());
     for (uint256 i; i < 6; i++) {
@@ -438,6 +906,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_replacementFixedClosurePermissionsRemainIndependentAcrossMarkets ─────
   function test_replacementFixedClosurePermissionsRemainIndependentAcrossMarkets() external {
     ProductionStack memory stack = _deployProductionStack(_aprReplacementArtifacts());
     for (uint256 i; i < 8; i++) {
@@ -493,26 +962,40 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
-  function _borrowArtifacts() private pure returns (string[3] memory) {
-    return [
-      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(OpenBorrowHooks).name),
-      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(FixedBorrowHooks).name),
-      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(PeriodicBorrowHooks).name)
-    ];
+  // ┌─ _queueClosingBatch ─────
+  function _queueClosingBatch(MatrixCell memory cell) private returns (uint32 expiry) {
+    vm.warp(cell.deployedAt + 1 days);
+    if (cell.options.hooksKind == MatrixHooksKind.FixedTerm) {
+      vm.prank(MatrixAlice);
+      vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
+      cell.market.queueWithdrawal(AliceDeposit / 2);
+      return 0;
+    }
+    vm.prank(MatrixAlice);
+    expiry = cell.market.queueWithdrawal(AliceDeposit / 2);
+    vm.prank(MatrixBob);
+    assertEq(cell.market.queueWithdrawal(BobDeposit / 2), expiry, 'lenders share pre-close batch');
+    assertEq(expiry, vm.getBlockTimestamp() + cell.options.withdrawalBatchDuration, 'market chooses batch duration');
   }
 
-  function _deployBorrowCell(ProductionStack memory stack, uint256 index) private returns (MatrixCell memory cell) {
-    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(index % 3), MatrixMarketKind(index / 3));
-    IHooksFactory factory = _factoryFor(stack, options.marketKind);
-    vm.prank(MatrixBorrower);
-    address hooks = factory.deployHooksInstance(stack.hooksTemplates[index % 3], '');
-    // request deposit credentials only. the composition must force borrow/transfer dispatch itself.
-    HooksConfig requested = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
-    cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(200 + index), requested);
-    vm.prank(MatrixBorrower);
-    cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
+  // ┌─ _claimSharedBatch ─────
+  function _claimSharedBatch(ProductionStack memory stack, MatrixCell memory cell, uint32 expiry) private {
+    WithdrawalBatch memory batch = cell.market.getWithdrawalBatch(expiry);
+    assertEq(batch.scaledAmountBurned, batch.scaledTotalAmount, 'batch fully funded');
+    address[2] memory lenders = [MatrixBob, MatrixAlice];
+    for (uint256 i; i < 2; i++) {
+      uint256 claim =
+        (uint256(batch.normalizedAmountPaid) * cell.market.getAccountWithdrawalStatus(lenders[i], expiry).scaledAmount)
+          / batch.scaledTotalAmount;
+      uint256 assets = stack.asset.balanceOf(lenders[i]);
+      assertEq(cell.market.executeWithdrawal(lenders[i], expiry), claim, 'pro-rata batch claim');
+      assertEq(stack.asset.balanceOf(lenders[i]) - assets, claim, 'batch assets received');
+    }
   }
 
+  // ░░▒▒▓▓██ [ COMPOSED BORROW POLICIES ] ─────────────────────────────────────
+
+  // ┌─ test_fourPolicyFactoriesForceCallbacksAcrossProductionMatrix ─────
   function test_fourPolicyFactoriesForceCallbacksAcrossProductionMatrix() external {
     string[3] memory artifacts = _borrowArtifacts();
     ProductionStack memory stack = _deployProductionStack(artifacts);
@@ -564,6 +1047,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_fourPolicyBorrowLimitsRetainTransferRulesAcrossProductionMatrix ─────
   function test_fourPolicyBorrowLimitsRetainTransferRulesAcrossProductionMatrix() external {
     ProductionStack memory stack = _deployProductionStack(_borrowArtifacts());
     for (uint256 i; i < 6; i++) {
@@ -594,56 +1078,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
-  function _assertRecordedBorrow(ProductionStack memory stack, MatrixCell memory cell, uint256 amount) private {
-    uint256 marketAssets = stack.asset.balanceOf(address(cell.market));
-    uint256 borrowerAssets = stack.asset.balanceOf(MatrixBorrower);
-    uint256 drawn;
-    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
-      drawn = IWildcatMarketRevolving(address(cell.market)).drawnAmount();
-    }
-    vm.expectEmit(true, false, false, true, address(cell.hooks));
-    emit BorrowAmountPolicy.BorrowAmountRecorded(address(cell.market), amount);
-    _borrow(cell, amount);
-    assertEq(
-      BorrowAmountPolicy(address(cell.hooks)).lastNormalizedBorrow(address(cell.market)),
-      amount,
-      'accepted normalized amount'
-    );
-    assertEq(stack.asset.balanceOf(address(cell.market)), marketAssets - amount, 'borrowed market assets');
-    assertEq(stack.asset.balanceOf(MatrixBorrower), borrowerAssets + amount, 'borrower received assets');
-    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
-      assertEq(IWildcatMarketRevolving(address(cell.market)).drawnAmount(), drawn + amount, 'drawn principal');
-    }
-  }
-
-  function _assertComposedTransfers(MatrixCell memory cell) private {
-    TransferAmountPolicy amountFeature = TransferAmountPolicy(address(cell.hooks));
-    RecipientRestrictionPolicy recipientFeature = RecipientRestrictionPolicy(address(cell.hooks));
-    vm.startPrank(MatrixBorrower);
-    amountFeature.setTransferAmountLimit(address(cell.market), 1e18);
-    recipientFeature.setRestrictedRecipient(address(cell.market), MatrixBob);
-    vm.stopPrank();
-
-    vm.prank(MatrixAlice);
-    vm.expectRevert(RecipientRestrictionPolicy.RecipientRestricted.selector);
-    cell.market.transfer(MatrixBob, 1e18);
-    assertEq(amountFeature.scaledTransferVolume(address(cell.market)), 0, 'recipient failure rolls back volume');
-    vm.prank(MatrixAlice);
-    vm.expectRevert(TransferAmountPolicy.TransferAmountLimitExceeded.selector);
-    cell.market.transfer(MatrixCaller, 2e18);
-    assertEq(cell.market.scaledBalanceOf(MatrixCaller), 0, 'amount failure rolls back transfer');
-
-    // MatrixCaller has no credentials. forced dispatch must not require transfer credentials.
-    vm.prank(MatrixAlice);
-    cell.market.transfer(MatrixCaller, 1e18);
-    assertTrue(cell.market.scaledBalanceOf(MatrixCaller) > 0, 'accepted transfer');
-    assertEq(
-      amountFeature.scaledTransferVolume(address(cell.market)),
-      cell.market.scaledBalanceOf(MatrixCaller),
-      'accepted scaled volume'
-    );
-  }
-
+  // ┌─ test_fourPolicyBorrowAuthorityAndMarketsStayIsolated ─────
   function test_fourPolicyBorrowAuthorityAndMarketsStayIsolated() external {
     ProductionStack memory stack = _deployProductionStack(_borrowArtifacts());
     stack.archController.registerBorrower(MatrixCaller);
@@ -725,6 +1160,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_fourPolicyBorrowRollbackAndCoreGuardsAcrossProductionMatrix ─────
   function test_fourPolicyBorrowRollbackAndCoreGuardsAcrossProductionMatrix() external {
     ProductionStack memory stack = _deployProductionStack(_borrowArtifacts());
     for (uint256 i; i < 6; i++) {
@@ -751,6 +1187,81 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ _borrowArtifacts ─────
+  function _borrowArtifacts() private pure returns (string[3] memory) {
+    return [
+      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(OpenBorrowHooks).name),
+      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(FixedBorrowHooks).name),
+      string.concat('test/mocks/BorrowFeatureHooks.sol:', type(PeriodicBorrowHooks).name)
+    ];
+  }
+
+  // ┌─ _deployBorrowCell ─────
+  function _deployBorrowCell(ProductionStack memory stack, uint256 index) private returns (MatrixCell memory cell) {
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(index % 3), MatrixMarketKind(index / 3));
+    IHooksFactory factory = _factoryFor(stack, options.marketKind);
+    vm.prank(MatrixBorrower);
+    address hooks = factory.deployHooksInstance(stack.hooksTemplates[index % 3], '');
+    // request deposit credentials only. the composition must force borrow/transfer dispatch itself.
+    HooksConfig requested = EmptyHooksConfig.setHooksAddress(hooks).setFlag(Bit_Enabled_Deposit);
+    cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(200 + index), requested);
+    vm.prank(MatrixBorrower);
+    cell.hooks.addRoleProvider(address(stack.roleProvider), type(uint32).max);
+  }
+
+  // ┌─ _assertRecordedBorrow ─────
+  function _assertRecordedBorrow(ProductionStack memory stack, MatrixCell memory cell, uint256 amount) private {
+    uint256 marketAssets = stack.asset.balanceOf(address(cell.market));
+    uint256 borrowerAssets = stack.asset.balanceOf(MatrixBorrower);
+    uint256 drawn;
+    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
+      drawn = IWildcatMarketRevolving(address(cell.market)).drawnAmount();
+    }
+    vm.expectEmit(true, false, false, true, address(cell.hooks));
+    emit BorrowAmountPolicy.BorrowAmountRecorded(address(cell.market), amount);
+    _borrow(cell, amount);
+    assertEq(
+      BorrowAmountPolicy(address(cell.hooks)).lastNormalizedBorrow(address(cell.market)),
+      amount,
+      'accepted normalized amount'
+    );
+    assertEq(stack.asset.balanceOf(address(cell.market)), marketAssets - amount, 'borrowed market assets');
+    assertEq(stack.asset.balanceOf(MatrixBorrower), borrowerAssets + amount, 'borrower received assets');
+    if (cell.options.marketKind == MatrixMarketKind.Revolving) {
+      assertEq(IWildcatMarketRevolving(address(cell.market)).drawnAmount(), drawn + amount, 'drawn principal');
+    }
+  }
+
+  // ┌─ _assertComposedTransfers ─────
+  function _assertComposedTransfers(MatrixCell memory cell) private {
+    TransferAmountPolicy amountFeature = TransferAmountPolicy(address(cell.hooks));
+    RecipientRestrictionPolicy recipientFeature = RecipientRestrictionPolicy(address(cell.hooks));
+    vm.startPrank(MatrixBorrower);
+    amountFeature.setTransferAmountLimit(address(cell.market), 1e18);
+    recipientFeature.setRestrictedRecipient(address(cell.market), MatrixBob);
+    vm.stopPrank();
+
+    vm.prank(MatrixAlice);
+    vm.expectRevert(RecipientRestrictionPolicy.RecipientRestricted.selector);
+    cell.market.transfer(MatrixBob, 1e18);
+    assertEq(amountFeature.scaledTransferVolume(address(cell.market)), 0, 'recipient failure rolls back volume');
+    vm.prank(MatrixAlice);
+    vm.expectRevert(TransferAmountPolicy.TransferAmountLimitExceeded.selector);
+    cell.market.transfer(MatrixCaller, 2e18);
+    assertEq(cell.market.scaledBalanceOf(MatrixCaller), 0, 'amount failure rolls back transfer');
+
+    // MatrixCaller has no credentials. forced dispatch must not require transfer credentials.
+    vm.prank(MatrixAlice);
+    cell.market.transfer(MatrixCaller, 1e18);
+    assertTrue(cell.market.scaledBalanceOf(MatrixCaller) > 0, 'accepted transfer');
+    assertEq(
+      amountFeature.scaledTransferVolume(address(cell.market)),
+      cell.market.scaledBalanceOf(MatrixCaller),
+      'accepted scaled volume'
+    );
+  }
+
+  // ┌─ _assertBorrowTransferRollback ─────
   function _assertBorrowTransferRollback(ProductionStack memory stack, MatrixCell memory cell) private {
     uint256 amount = 100e18;
     bytes32 previousState = keccak256(abi.encode(cell.market.previousState()));
@@ -788,6 +1299,9 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     _assertRecordedBorrow(stack, cell, amount);
   }
 
+  // ░░▒▒▓▓██ [ LENS AND WRAPPER INTEGRATION ] ─────────────────────────────────
+
+  // ┌─ test_lensDecodesFactoryMarketConfigurationAcrossProductionMatrix ─────
   function test_lensDecodesFactoryMarketConfigurationAcrossProductionMatrix() external {
     ProductionStack memory stack = _deployProductionStack();
     MarketLensCore lens = MarketLensCore(
@@ -887,6 +1401,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ _assertDiscoveredHooks ─────
   function _assertDiscoveredHooks(
     HooksInstanceData memory actual,
     ProductionStack memory stack,
@@ -947,6 +1462,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     assertEq(abi.encode(actual), abi.encode(expected), 'complete discovered instance');
   }
 
+  // ┌─ test_lensTracksFactoryInstancesThroughAdministratorTransfer ─────
   function test_lensTracksFactoryInstancesThroughAdministratorTransfer() external {
     ProductionStack memory stack = _deployProductionStack();
     stack.archController.registerBorrower(MatrixAlice);
@@ -1012,6 +1528,7 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     assertEq(lens.getAggregatedHooksInstancesForBorrower(MatrixBorrower).length, 0, 'former administrator absent');
   }
 
+  // ┌─ test_wrappersKeepAccessAndBackingAcrossProductionMatrix ─────
   function test_wrappersKeepAccessAndBackingAcrossProductionMatrix() external {
     ProductionStack memory stack = _deployProductionStack();
     for (uint256 i; i < 6; i++) {
@@ -1081,351 +1598,9 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     }
   }
 
-  function test_productionFactoriesDeployCompleteBuiltInMatrix() external {
-    ProductionStack memory stack = _deployProductionStack();
+  // ░░▒▒▓▓██ [ SANCTIONS INTEGRATION ] ────────────────────────────────────────
 
-    for (uint256 marketKind; marketKind < 2; marketKind++) {
-      for (uint256 hooksKind; hooksKind < 3; hooksKind++) {
-        MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(hooksKind), MatrixMarketKind(marketKind));
-        MatrixCell memory cell =
-          _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(hooksKind + 1));
-        IHooksFactory factory = _factoryFor(stack, options.marketKind);
-        IHooks hooks = IHooks(address(cell.hooks));
-
-        assertEq(cell.market.factory(), address(factory), 'market factory');
-        assertEq(cell.market.borrower(), MatrixBorrower, 'operational borrower');
-        assertEq(cell.market.borrowerPrincipal(), MatrixBorrower, 'borrower principal');
-        assertEq(hooks.factory(), address(factory), 'hooks factory');
-        assertEq(cell.hooks.administrator(), MatrixBorrower, 'hooks administrator');
-        assertEq(hooks.version(), _templateVersion(options.hooksKind), 'hooks version');
-        assertEq(factory.getHooksTemplateForInstance(address(cell.hooks)), cell.hooksTemplate, 'instance template');
-        assertEq(factory.getMarketsForHooksInstanceCount(address(cell.hooks)), 1, 'market count');
-        assertEq(factory.getMarketsForHooksInstance(address(cell.hooks))[0], address(cell.market), 'instance market');
-        assertTrue(stack.archController.isRegisteredMarket(address(cell.market)), 'registered');
-        assertEq(
-          HooksConfig.unwrap(cell.market.hooks()),
-          HooksConfig.unwrap(
-            hooks.config()
-              .optionalFlags()
-              .setHooksAddress(address(cell.hooks))
-              .mergeAllFlags(hooks.config().requiredFlags())
-          ),
-          'market hooks'
-        );
-
-        if (options.marketKind == MatrixMarketKind.Revolving) {
-          assertEq(
-            IWildcatMarketRevolving(address(cell.market)).commitmentFeeBips(),
-            options.commitmentFeeBips,
-            'commitment fee'
-          );
-        }
-
-        _authorize(stack, cell, MatrixAlice);
-        _deposit(stack, cell, MatrixAlice, 1e18);
-        assertEq(cell.market.balanceOf(MatrixAlice), 1e18, 'matrix deposit');
-      }
-    }
-  }
-
-  function test_deterministicLifecycleRunsAcrossProductionMatrix() external {
-    ProductionStack memory stack = _deployProductionStack();
-
-    for (uint256 marketKind; marketKind < 2; marketKind++) {
-      for (uint256 hooksKind; hooksKind < 3; hooksKind++) {
-        _runLifecycle(
-          stack, _defaultMatrixOptions(MatrixHooksKind(hooksKind), MatrixMarketKind(marketKind)), uint96(10 + hooksKind)
-        );
-      }
-    }
-  }
-
-  function _runLifecycle(ProductionStack memory stack, MatrixOptions memory options, uint96 nonce) private {
-    uint256 aliceStartingAssets = stack.asset.balanceOf(MatrixAlice);
-    uint256 bobStartingAssets = stack.asset.balanceOf(MatrixBob);
-    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
-    _authorize(stack, cell, MatrixAlice);
-    _authorize(stack, cell, MatrixBob);
-    _deposit(stack, cell, MatrixAlice, AliceDeposit);
-    _deposit(stack, cell, MatrixBob, BobDeposit);
-    _approveBorrower(stack, cell, options.maxTotalSupply);
-
-    assertEq(cell.market.balanceOf(MatrixAlice), AliceDeposit, 'alice deposit');
-    assertEq(cell.market.balanceOf(MatrixBob), BobDeposit, 'bob deposit');
-    assertEq(cell.market.totalSupply(), AliceDeposit + BobDeposit, 'matrix supply');
-
-    uint256 draw = cell.market.borrowableAssets() / 2;
-    uint256 borrowerBalanceBefore = stack.asset.balanceOf(MatrixBorrower);
-    _borrow(cell, draw);
-    assertEq(stack.asset.balanceOf(MatrixBorrower) - borrowerBalanceBefore, draw, 'borrow transfer');
-
-    _accrueAndCheck(cell, 10 days);
-    _accrueAndCheck(cell, 11 days);
-    _repay(cell, draw / 2);
-    _accrueAndCheck(cell, 9 days);
-
-    _warpToWithdrawalAccess(cell);
-    _repay(cell, draw - draw / 2);
-    uint256 aliceWithdrawal = cell.market.balanceOf(MatrixAlice) / 2;
-    vm.prank(MatrixAlice);
-    uint32 expiry = cell.market.queueWithdrawal(aliceWithdrawal);
-    vm.warp(uint256(expiry) + 1);
-    cell.market.updateState();
-    uint256 aliceBalanceBefore = stack.asset.balanceOf(MatrixAlice);
-    uint256 withdrawn = cell.market.executeWithdrawal(MatrixAlice, expiry);
-    assertEq(stack.asset.balanceOf(MatrixAlice) - aliceBalanceBefore, withdrawn, 'first withdrawal');
-    assertTrue(withdrawn + MatrixDust >= aliceWithdrawal, 'first withdrawal underpaid');
-
-    _accrueAndCheck(cell, 5 days);
-    _close(cell);
-    assertTrue(cell.market.isClosed(), 'market close');
-
-    address[2] memory lenders = [MatrixAlice, MatrixBob];
-    uint32[2] memory finalExpiries;
-    for (uint256 i; i < lenders.length; i++) {
-      if (cell.market.balanceOf(lenders[i]) > 0) {
-        vm.prank(lenders[i]);
-        finalExpiries[i] = cell.market.queueFullWithdrawal();
-      }
-    }
-    vm.warp(vm.getBlockTimestamp() + 1);
-    cell.market.updateState();
-    for (uint256 i; i < lenders.length; i++) {
-      if (finalExpiries[i] != 0) {
-        cell.market.executeWithdrawal(lenders[i], finalExpiries[i]);
-      }
-    }
-
-    MarketState memory state = cell.market.previousState();
-    assertEq(state.scaledTotalSupply, 0, 'final scaled supply');
-    assertEq(state.scaledPendingWithdrawals, 0, 'final pending withdrawals');
-    assertEq(cell.market.getUnpaidBatchExpiries().length, 0, 'final unpaid batches');
-    assertTrue(stack.asset.balanceOf(MatrixAlice) - aliceStartingAssets > AliceDeposit, 'alice yield');
-    assertTrue(stack.asset.balanceOf(MatrixBob) - bobStartingAssets > BobDeposit, 'bob yield');
-    assertTrue(stack.asset.balanceOf(address(cell.market)) <= MatrixDust, 'assets stranded in market');
-  }
-
-  function test_withdrawalGatesHoldAtExactProductionMatrixBoundaries() external {
-    ProductionStack memory stack = _deployProductionStack();
-
-    for (uint256 marketKind; marketKind < 2; marketKind++) {
-      _assertFixedTermGate(stack, MatrixMarketKind(marketKind), uint96(30 + marketKind));
-      _assertPeriodicTermGate(stack, MatrixMarketKind(marketKind), uint96(40 + marketKind));
-    }
-  }
-
-  function test_periodicAprReductionExecutesAcrossProductionMarkets() external {
-    ProductionStack memory stack = _deployProductionStack();
-
-    for (uint256 marketKind; marketKind < 2; marketKind++) {
-      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind(marketKind));
-      MatrixCell memory cell =
-        _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(50 + marketKind));
-      PeriodicTermHooks hooks = PeriodicTermHooks(address(cell.hooks));
-      _authorize(stack, cell, MatrixAlice);
-      _authorize(stack, cell, MatrixBob);
-      _deposit(stack, cell, MatrixAlice, AliceDeposit);
-      _deposit(stack, cell, MatrixBob, BobDeposit);
-
-      vm.warp(cell.deployedAt + 10 days);
-      vm.prank(MatrixBorrower);
-      hooks.proposeAnnualInterestBips(address(cell.market), 800);
-      (PendingAprChange memory pending, uint32 responseStart, uint32 responseEnd) =
-        hooks.getPendingAprChange(address(cell.market));
-      assertEq(pending.annualInterestBips, 800, 'pending APR');
-      assertEq(responseStart, cell.deployedAt + options.firstWindowDelay, 'response start');
-      assertEq(
-        responseEnd, cell.deployedAt + options.firstWindowDelay + options.withdrawalWindowDuration, 'response end'
-      );
-
-      vm.prank(MatrixCaller);
-      vm.expectRevert(PeriodicTermPolicy.AprChangeNotReady.selector);
-      cell.market.executePendingAnnualInterestBipsReduction();
-
-      vm.warp(responseStart);
-      vm.prank(MatrixAlice);
-      uint32 expiry = cell.market.queueWithdrawal(AliceDeposit / 4);
-      vm.warp(uint256(expiry) + 1);
-      cell.market.updateState();
-      cell.market.executeWithdrawal(MatrixAlice, expiry);
-
-      vm.warp(responseEnd);
-      vm.prank(MatrixCaller);
-      cell.market.executePendingAnnualInterestBipsReduction();
-      assertEq(cell.market.annualInterestBips(), 800, 'executed APR');
-      (pending,,) = hooks.getPendingAprChange(address(cell.market));
-      assertEq(pending.proposalTimestamp, 0, 'proposal cleared');
-    }
-  }
-
-  function test_periodicAprExpiryAndCancellationUseProductionMarketState() external {
-    ProductionStack memory stack = _deployProductionStack();
-    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind.Standard);
-
-    MatrixCell memory expired = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 60);
-    PeriodicTermHooks expiredHooks = PeriodicTermHooks(address(expired.hooks));
-    vm.warp(expired.deployedAt + 10 days);
-    vm.prank(MatrixBorrower);
-    expiredHooks.proposeAnnualInterestBips(address(expired.market), 800);
-    (, uint32 responseStart,) = expiredHooks.getPendingAprChange(address(expired.market));
-    vm.warp(uint256(responseStart) + options.periodDuration * expiredHooks.AprReductionProposalValidityPeriods());
-    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalExpired.selector);
-    expired.market.executePendingAnnualInterestBipsReduction();
-    assertEq(expired.market.annualInterestBips(), options.annualInterestBips, 'expired APR');
-
-    MatrixCell memory increased = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 61);
-    PeriodicTermHooks increasedHooks = PeriodicTermHooks(address(increased.hooks));
-    vm.warp(increased.deployedAt + 10 days);
-    vm.prank(MatrixBorrower);
-    increasedHooks.proposeAnnualInterestBips(address(increased.market), 800);
-    vm.prank(MatrixBorrower);
-    increased.market.setAnnualInterestAndReserveRatioBips(options.annualInterestBips + 100, options.reserveRatioBips);
-    (PendingAprChange memory pending,,) = increasedHooks.getPendingAprChange(address(increased.market));
-    assertEq(pending.proposalTimestamp, 0, 'increase cancellation');
-    vm.expectRevert(PeriodicTermPolicy.NoPendingAprChange.selector);
-    increased.market.executePendingAnnualInterestBipsReduction();
-
-    MatrixCell memory closed = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 62);
-    PeriodicTermHooks closedHooks = PeriodicTermHooks(address(closed.hooks));
-    vm.warp(closed.deployedAt + 10 days);
-    vm.prank(MatrixBorrower);
-    closedHooks.proposeAnnualInterestBips(address(closed.market), 800);
-    _close(closed);
-    (pending,,) = closedHooks.getPendingAprChange(address(closed.market));
-    assertEq(pending.proposalTimestamp, 0, 'close cancellation');
-  }
-
-  function test_minimumDepositOrderingAndLiveUpdatesUseProductionComposition() external {
-    ProductionStack memory stack = _deployProductionStack();
-    MatrixOptions memory capacityOptions = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind.Standard);
-    capacityOptions.minimumDeposit = MinimumDeposit;
-    capacityOptions.maxTotalSupply = 3 * MinimumDeposit - 1;
-    MatrixCell memory capacity = _deployMatrixCell(stack, capacityOptions, MatrixBorrower, MatrixBorrower, 70);
-    _authorize(stack, capacity, MatrixAlice);
-    _authorize(stack, capacity, MatrixBob);
-    _deposit(stack, capacity, MatrixAlice, MinimumDeposit);
-    _deposit(stack, capacity, MatrixBob, MinimumDeposit);
-    stack.asset.mint(MatrixAlice, MinimumDeposit);
-
-    vm.prank(MatrixAlice);
-    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
-    capacity.market.depositUpTo(MinimumDeposit);
-    vm.prank(MatrixAlice);
-    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
-    capacity.market.deposit(MinimumDeposit);
-
-    MatrixOptions memory liveOptions = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, MatrixMarketKind.Standard);
-    liveOptions.minimumDeposit = MinimumDeposit;
-    MatrixCell memory live = _deployMatrixCell(stack, liveOptions, MatrixBorrower, MatrixBorrower, 71);
-    _authorize(stack, live, MatrixAlice);
-    _authorize(stack, live, MatrixBob);
-    _deposit(stack, live, MatrixAlice, MinimumDeposit);
-    PeriodicTermHooks liveHooks = PeriodicTermHooks(address(live.hooks));
-
-    vm.prank(MatrixBorrower);
-    liveHooks.setMinimumDeposit(address(live.market), MinimumDeposit * 2);
-    _fundAndApprove(stack, live, MatrixBob, MinimumDeposit * 2);
-    vm.prank(MatrixBob);
-    vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
-    live.market.depositUpTo(MinimumDeposit);
-    vm.prank(MatrixBob);
-    live.market.depositUpTo(MinimumDeposit * 2);
-
-    vm.prank(MatrixBorrower);
-    liveHooks.setMinimumDeposit(address(live.market), 0);
-    _deposit(stack, live, MatrixAlice, 1e18);
-    assertEq(live.market.balanceOf(MatrixAlice), MinimumDeposit + 1e18, 'cleared minimum');
-
-    vm.prank(MatrixAlice);
-    vm.expectRevert(BaseAccessControls.CallerNotAdministrator.selector);
-    liveHooks.setMinimumDeposit(address(live.market), 1);
-  }
-
-  function test_exactMinimumBoundarySurvivesAccruedScaleAcrossProductionHooks() external {
-    ProductionStack memory stack = _deployProductionStack();
-    uint128 exactMinimum = 100_000e18;
-
-    for (uint256 hooksKind; hooksKind < 3; hooksKind++) {
-      MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind(hooksKind), MatrixMarketKind.Standard);
-      options.minimumDeposit = exactMinimum;
-      MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, uint96(80 + hooksKind));
-      _authorize(stack, cell, MatrixAlice);
-      _authorize(stack, cell, MatrixBob);
-      _deposit(stack, cell, MatrixBob, 500_000e18);
-      _approveBorrower(stack, cell, options.maxTotalSupply);
-      _borrow(cell, 300_000e18);
-      vm.warp(cell.deployedAt + 120 days);
-      cell.market.updateState();
-      uint256 scaleFactor = cell.market.scaleFactor();
-      assertTrue(scaleFactor > 1e27, 'accrued scale factor');
-
-      _deposit(stack, cell, MatrixAlice, exactMinimum);
-      assertTrue(cell.market.balanceOf(MatrixAlice) > 0, 'exact minimum');
-
-      uint256 minimumScaled = (uint256(exactMinimum) * 1e27) / scaleFactor;
-      uint256 boundary = (minimumScaled * scaleFactor + 1e27 - 1) / 1e27;
-      stack.asset.mint(MatrixBob, boundary * 2);
-      vm.prank(MatrixBob);
-      cell.market.depositUpTo(boundary);
-      vm.prank(MatrixBob);
-      vm.expectRevert(BaseHooks.DepositBelowMinimum.selector);
-      cell.market.depositUpTo(boundary - 1);
-    }
-  }
-
-  function test_roundingStrandingWindowsCloseAndDrainThroughProductionFactory() external {
-    ProductionStack memory stack = _deployProductionStack();
-    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, MatrixMarketKind.Standard);
-    options.reserveRatioBips = 0;
-
-    MatrixCell memory pending = _deployRoundingCell(stack, options, 90);
-    uint256 pendingFraction = (pending.market.scaledTotalSupply() * pending.market.scaleFactor()) % 1e27;
-    assertTrue(pendingFraction > 0, 'pending stranding fraction zero');
-    assertTrue(pendingFraction < 0.5e27, 'pending stranding fraction high');
-    vm.prank(MatrixAlice);
-    pending.market.queueFullWithdrawal();
-    _close(pending);
-    MarketState memory state = pending.market.previousState();
-    assertEq(state.scaledPendingWithdrawals, 0, 'pending close stranding');
-    assertEq(pending.market.getUnpaidBatchExpiries().length, 0, 'pending close unpaid');
-
-    MatrixCell memory closed = _deployRoundingCell(stack, options, 91);
-    _close(closed);
-    uint256 closedFraction = (closed.market.scaledTotalSupply() * closed.market.scaleFactor()) % 1e27;
-    assertTrue(closedFraction > 0, 'closed stranding fraction zero');
-    assertTrue(closedFraction < 0.5e27, 'closed stranding fraction high');
-    vm.prank(MatrixAlice);
-    uint32 expiry = closed.market.queueFullWithdrawal();
-    vm.warp(vm.getBlockTimestamp() + 2);
-    closed.market.updateState();
-    assertEq(closed.market.getUnpaidBatchExpiries().length, 0, 'closed batch unpaid');
-    uint256 assetsBefore = stack.asset.balanceOf(MatrixAlice);
-    uint256 withdrawn = closed.market.executeWithdrawal(MatrixAlice, expiry);
-    assertTrue(withdrawn > 0, 'closed withdrawal');
-    assertEq(stack.asset.balanceOf(MatrixAlice) - assetsBefore, withdrawn, 'closed payout');
-    assertEq(closed.market.balanceOf(MatrixAlice), 0, 'closed lender balance');
-  }
-
-  function _deployRoundingCell(
-    ProductionStack memory stack,
-    MatrixOptions memory options,
-    uint96 nonce
-  )
-    private
-    returns (MatrixCell memory cell)
-  {
-    cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
-    _authorize(stack, cell, MatrixAlice);
-    _deposit(stack, cell, MatrixAlice, 123_457e18);
-    _approveBorrower(stack, cell, options.maxTotalSupply);
-    _borrow(cell, 100_000e18);
-    vm.warp(cell.deployedAt + 37 days);
-    cell.market.updateState();
-    uint256 debts = cell.market.totalDebts();
-    uint256 held = stack.asset.balanceOf(address(cell.market));
-    if (debts > held) _repay(cell, debts - held);
-  }
-
+  // ┌─ test_directSanctionsFlowsComposeAcrossProductionMatrix ─────
   function test_directSanctionsFlowsComposeAcrossProductionMatrix() external {
     ProductionStack memory stack = _deployProductionStack();
 
@@ -1502,57 +1677,5 @@ contract ProductionMatrixScenariosTest is ProductionMatrixFixture {
     assertEq(
       IWildcatMarketRevolving(address(revolving.market)).drawnAmount(), drawnBefore, 'sanction changed drawn principal'
     );
-  }
-
-  function _assertFixedTermGate(ProductionStack memory stack, MatrixMarketKind marketKind, uint96 nonce) private {
-    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.FixedTerm, marketKind);
-    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
-    _authorize(stack, cell, MatrixAlice);
-    _deposit(stack, cell, MatrixAlice, 10e18);
-
-    vm.prank(MatrixAlice);
-    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
-    cell.market.queueFullWithdrawal();
-
-    uint256 termEnd = cell.deployedAt + options.fixedTermDuration;
-    vm.warp(termEnd - 1);
-    vm.prank(MatrixAlice);
-    vm.expectRevert(FixedTermPolicy.WithdrawBeforeTermEnd.selector);
-    cell.market.queueFullWithdrawal();
-
-    vm.warp(termEnd);
-    vm.prank(MatrixAlice);
-    uint32 expiry = cell.market.queueWithdrawal(1e18);
-    assertTrue(expiry > termEnd, 'fixed-term boundary');
-  }
-
-  function _assertPeriodicTermGate(ProductionStack memory stack, MatrixMarketKind marketKind, uint96 nonce) private {
-    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.PeriodicTerm, marketKind);
-    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
-    _authorize(stack, cell, MatrixAlice);
-    _deposit(stack, cell, MatrixAlice, 10e18);
-    PeriodicTermHooks hooks = PeriodicTermHooks(address(cell.hooks));
-
-    assertFalse(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic pre-window');
-    vm.prank(MatrixAlice);
-    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
-    cell.market.queueWithdrawal(1e18);
-
-    uint256 windowStart = cell.deployedAt + options.firstWindowDelay;
-    vm.warp(windowStart);
-    assertTrue(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic window start');
-    vm.prank(MatrixAlice);
-    cell.market.queueWithdrawal(1e18);
-
-    vm.warp(windowStart + options.withdrawalWindowDuration);
-    assertFalse(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic window end');
-    vm.prank(MatrixAlice);
-    vm.expectRevert(PeriodicTermPolicy.WithdrawOutsideWindow.selector);
-    cell.market.queueWithdrawal(1e18);
-
-    vm.warp(windowStart + options.periodDuration);
-    assertTrue(hooks.isWithdrawalWindowOpen(address(cell.market)), 'periodic next window');
-    vm.prank(MatrixAlice);
-    cell.market.queueWithdrawal(1e18);
   }
 }

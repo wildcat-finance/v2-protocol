@@ -1,35 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // StringQuery
+// ║  ██▀▀     ▀▀██   Strict and best-effort reads of string or bytes32 metadata.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  STRING QUERIES
+// ║  queryStringOrBytes32AsString(...)
+// ║  queryStringOrBytes32AsStringOrEmpty(...)
+// ║
+// ║  LEGACY DECODING
+// ║  bytes32ToString(...)
+// ╚═════
+
 import { LibBit } from 'solady/utils/LibBit.sol';
 
 using LibBit for uint256;
 
-/// @notice converts a left-aligned, null-padded `bytes32` string to dynamic form.
-/// @dev embedded nulls are preserved; only trailing zero bytes are removed.
-function bytes32ToString(bytes32 value) pure returns (string memory str) {
-  uint256 size;
-  unchecked {
-    // `bytes32` strings are left-aligned, so the trailing zero bits tell us where the
-    // text ends. `ffs` returns 256 for an empty word, which leaves the length at zero.
-    uint256 sizeInBits = 256 - uint256(value).ffs();
-    size = (sizeInBits + 7) / 8;
-  }
-  assembly {
-    // a memory string is a length word followed by its data. reserve both words,
-    // then write the length we just found and the original bytes32 value as-is.
-    str := mload(0x40)
-    mstore(0x40, add(str, 0x40))
-    mstore(str, size)
-    mstore(add(str, 0x20), value)
-  }
-}
+// ░░▒▒▓▓██ [ STRING QUERIES ] ─────────────────────────────────────────────────
 
+// ┌─ queryStringOrBytes32AsString ─────
 /// @notice reads token metadata that may return either `string` or legacy `bytes32`.
+///
 /// @dev bubbles target revert data when present. malformed successful returndata reverts with
 ///      `InvalidReturnDataString`; an empty target revert uses `leftPaddedGenericErrorSelector`.
-/// @param target contract queried with a no-argument static call.
-/// @param leftPaddedFunctionSelector selector stored in the low four bytes of a word.
+///
+/// @param target                         contract queried with a no-argument static call.
+/// @param leftPaddedFunctionSelector     selector stored in the low four bytes of a word.
 /// @param leftPaddedGenericErrorSelector fallback custom-error selector in the low four bytes.
 function queryStringOrBytes32AsString(
   address target,
@@ -97,7 +97,9 @@ function queryStringOrBytes32AsString(
   }
 }
 
+// ┌─ queryStringOrBytes32AsStringOrEmpty ─────
 /// @notice best-effort cosmetic metadata read; unavailable metadata yields an empty string.
+///
 /// @dev bounds each call to 50,000 gas, returndata to 320 bytes and dynamic text to
 ///      256 bytes. accepts canonical dynamic strings and legacy bytes32, including
 ///      empty values. does not validate UTF-8 or make labels an identity guarantee.
@@ -144,4 +146,28 @@ function queryStringOrBytes32AsStringOrEmpty(
   }
   if (!valid) return '';
   if (isBytes32) return bytes32ToString(legacyValue);
+}
+
+// ░░▒▒▓▓██ [ LEGACY DECODING ] ────────────────────────────────────────────────
+
+// ┌─ bytes32ToString ─────
+/// @notice converts a left-aligned, null-padded `bytes32` string to dynamic form.
+///
+/// @dev embedded nulls are preserved; only trailing zero bytes are removed.
+function bytes32ToString(bytes32 value) pure returns (string memory str) {
+  uint256 size;
+  unchecked {
+    // `bytes32` strings are left-aligned, so the trailing zero bits tell us where the
+    // text ends. `ffs` returns 256 for an empty word, which leaves the length at zero.
+    uint256 sizeInBits = 256 - uint256(value).ffs();
+    size = (sizeInBits + 7) / 8;
+  }
+  assembly {
+    // a memory string is a length word followed by its data. reserve both words,
+    // then write the length we just found and the original bytes32 value as-is.
+    str := mload(0x40)
+    mstore(0x40, add(str, 0x40))
+    mstore(str, size)
+    mstore(add(str, 0x20), value)
+  }
 }

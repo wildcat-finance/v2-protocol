@@ -1,12 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketRevolving
+// ║  ██▀▀     ▀▀██   Drawn-principal accounting and revolving interest accrual.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  SETUP
+// ║  constructor()
+// ║
+// ║  PRINCIPAL ACCOUNTING
+// ║  _onBorrow(...)
+// ║  _onRepay(...)
+// ║  _onRepayAndGetTotalAssets(...)
+// ║  _onCloseMarket()
+// ║  _setDrawnAmount(...)
+// ║  drawnAmount()
+// ║
+// ║  INTEREST
+// ║  _calculateBaseInterest(...)
+// ║  commitmentFeeBips()
+// ╚═════
+
 import '../interfaces/IWildcatMarketRevolving.sol';
 import './WildcatMarket.sol';
 
+// ┌─ WildcatMarketRevolving ───────────────────────────────────────────────────
 /// @title WildcatMarketRevolving
+///
 /// @notice revolving credit market with commitment interest on full supply and base APR only on
 ///         the drawn portion.
+///
 /// @dev explicit repayments reconcile drawn principal. raw token transfers only add liquidity.
 contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
   using BoolUtils for bool;
@@ -17,6 +43,9 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
 
   uint256 internal _drawnAmount;
 
+  // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor() {
     uint16 commitmentFeeBips_;
     assembly {
@@ -51,35 +80,14 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _commitmentFeeBips = commitmentFeeBips_;
   }
 
-  /// @inheritdoc IWildcatMarketRevolving
-  function commitmentFeeBips() external view override returns (uint256 value) {
-    value = _commitmentFeeBips;
-    assembly {
-      // A single uint256 return is just one ABI word. Put the Solidity value in
-      // scratch memory and return those 32 bytes directly.
-      mstore(0, value)
-      return(0, 0x20)
-    }
-  }
+  // ░░▒▒▓▓██ [ PRINCIPAL ACCOUNTING ] ─────────────────────────────────────────
 
-  /// @inheritdoc IWildcatMarketRevolving
-  function drawnAmount() external view override returns (uint256) {
-    assembly {
-      // `.slot` is Yul's handle for the storage slot Solidity assigned to the
-      // variable. `_drawnAmount` already fills one complete uint256 slot, so no
-      // masking or shifting is needed before returning it as one ABI word.
-      mstore(0, sload(_drawnAmount.slot))
-      return(0, 0x20)
-    }
-  }
-
-  /**
-   * @dev Increase drawn principal only when post-borrow outstanding debt
-   *      exceeds the principal already drawn. This lets the borrower recover
-   *      previously supplied liquidity without double-counting it as a new
-   *      draw or reducing existing drawn principal.
-   *      `totalAssets()` has not yet been reduced by the borrowed amount.
-   */
+  // ┌─ _onBorrow ─────
+  /// @dev Increase drawn principal only when post-borrow outstanding debt
+  ///      exceeds the principal already drawn. This lets the borrower recover
+  ///      previously supplied liquidity without double-counting it as a new
+  ///      draw or reducing existing drawn principal.
+  ///      `totalAssets()` has not yet been reduced by the borrowed amount.
   function _onBorrow(MarketState memory state, uint256 amount) internal virtual override {
     uint256 assetsAfterBorrow = totalAssets().satSub(amount);
     uint256 outstandingDebt = state.totalDebts().satSub(assetsAfterBorrow);
@@ -91,11 +99,13 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _setDrawnAmount(newDrawnAmount);
   }
 
+  // ┌─ _onRepay ─────
   /// @dev reconciles drawn principal after the repayment has reached the market.
   function _onRepay(MarketState memory state, uint256 amount) internal virtual override {
     _onRepayAndGetTotalAssets(state, amount);
   }
 
+  // ┌─ _onRepayAndGetTotalAssets ─────
   function _onRepayAndGetTotalAssets(
     MarketState memory state,
     uint256 amount
@@ -106,6 +116,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     returns (uint256 currentTotalAssets)
   {
     currentTotalAssets = totalAssets();
+
     // Only the explicit repayment can reduce drawn principal. Existing assets
     // may include raw donations, which add liquidity without repaying principal.
     uint256 assetsBeforeRepayment = currentTotalAssets.satSub(amount);
@@ -115,11 +126,13 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     _setDrawnAmount(_drawnAmount.satSub(principalRepayment));
   }
 
+  // ┌─ _onCloseMarket ─────
   /// @dev closure settles the facility, so no drawn principal remains.
   function _onCloseMarket() internal virtual override {
     _setDrawnAmount(_runtimeConstant(uint256(0)));
   }
 
+  // ┌─ _setDrawnAmount ─────
   /// @dev stores and emits only when the drawn amount actually changes.
   function _setDrawnAmount(uint256 newDrawnAmount) internal {
     uint256 previousDrawnAmount = _drawnAmount;
@@ -129,15 +142,28 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     }
   }
 
-  /**
-   * @dev Base interest rate for a revolving market:
-   *
-   *      commitmentFee + annualInterest * min(drawnAmount, totalSupply) / totalSupply
-   *
-   *      Unlike the standard market, no interest accrues while the market is
-   *      closed or has no supply, as the commitment fee would otherwise
-   *      accrue with no lenders to owe it to.
-   */
+  // ┌─ drawnAmount ─────
+  /// @inheritdoc IWildcatMarketRevolving
+  function drawnAmount() external view override returns (uint256) {
+    assembly {
+      // `.slot` is Yul's handle for the storage slot Solidity assigned to the
+      // variable. `_drawnAmount` already fills one complete uint256 slot, so no
+      // masking or shifting is needed before returning it as one ABI word.
+      mstore(0, sload(_drawnAmount.slot))
+      return(0, 0x20)
+    }
+  }
+
+  // ░░▒▒▓▓██ [ INTEREST ] ─────────────────────────────────────────────────────
+
+  // ┌─ _calculateBaseInterest ─────
+  /// @dev Base interest rate for a revolving market:
+  ///
+  ///      commitmentFee + annualInterest * min(drawnAmount, totalSupply) / totalSupply
+  ///
+  ///      Unlike the standard market, no interest accrues while the market is
+  ///      closed or has no supply, as the commitment fee would otherwise
+  ///      accrue with no lenders to owe it to.
   function _calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
@@ -151,6 +177,7 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
     unchecked {
       // Accrual timestamps only move forward.
       timeDelta = timestamp - state.lastInterestAccruedTimestamp;
+
       // `scaledTotalSupply` is uint104, so the product cannot overflow within
       // the market's finite timestamp horizon. It is only a compact zero check.
       if ((timeDelta * uint256(state.scaledTotalSupply) == 0).or(state.isClosed)) {
@@ -170,9 +197,22 @@ contract WildcatMarketRevolving is WildcatMarket, IWildcatMarketRevolving {
       uint256 annualInterestRay = MathUtils.calculateLinearInterestFromBips(annualInterestBips, timeDelta);
       uint256 totalSupply = state.totalSupply();
       uint256 drawnClamped = MathUtils.min(drawn, totalSupply);
+
       // Both rates are bounded uint16 values, so their linear interest cannot
       // approach uint256 over the market's finite timestamp horizon.
       baseInterestRay += MathUtils.mulDiv(annualInterestRay, drawnClamped, totalSupply);
+    }
+  }
+
+  // ┌─ commitmentFeeBips ─────
+  /// @inheritdoc IWildcatMarketRevolving
+  function commitmentFeeBips() external view override returns (uint256 value) {
+    value = _commitmentFeeBips;
+    assembly {
+      // A single uint256 return is just one ABI word. Put the Solidity value in
+      // scratch memory and return those 32 bytes directly.
+      mstore(0, value)
+      return(0, 0x20)
     }
   }
 }

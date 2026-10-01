@@ -1,6 +1,50 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HookDispatch.t
+// ║  ██▀▀     ▀▀██   Production-market callback calldata and collection boundaries.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture(...)
+// ║  _newFixture(...)
+// ║  _marketArtifact(...)
+// ║  _flag(...)
+// ║  _deposit(...)
+// ║  _fundAndApprove(...)
+// ║
+// ║  LENDER DISPATCH
+// ║  test_depositEntrypoints_DispatchExactCalldata(...)
+// ║  test_transferEntrypoints_DispatchExactCallerAndCalldata(...)
+// ║  test_queueWithdrawalEntrypoints_DispatchExactCalldata(...)
+// ║
+// ║  NONVETOABLE COLLECTION
+// ║  test_marketCreationRejectsReservedExecutionHookAcrossModels()
+// ║  test_executeWithdrawal_CollectsWithoutHookVeto(...)
+// ║  test_executeWithdrawals_CollectsEveryEntryWithoutHookVeto(...)
+// ║  _blockExecutionHook(...)
+// ║
+// ║  BORROWER DISPATCH
+// ║  test_borrow_DispatchesExactCalldata(...)
+// ║  test_repayEntrypoints_DispatchExactCalldata(...)
+// ║  test_closeMarket_DispatchesExactCalldata(...)
+// ║  test_nonzeroCarrySurvivesRepayAndCloseCalldata(...)
+// ║
+// ║  CONFIGURATION AND SANCTIONS DISPATCH
+// ║  test_setMaxTotalSupply_DispatchesExactCalldata(...)
+// ║  test_setProtocolFeeBips_DispatchesExactCalldata(...)
+// ║  test_setAnnualInterestAndReserveRatioBips_UsesHookReturnValues(...)
+// ║  test_nukeFromOrbit_DispatchesEnabledCallbacksAndIsolatesQueueExtraData(...)
+// ║
+// ║  CALLDATA ASSERTIONS
+// ║  _callMarket(...)
+// ║  _append(...)
+// ║  _assertCall(...)
+// ╚═════
+
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
@@ -33,6 +77,7 @@ import { HookDispatchMock } from '../mocks/HookDispatchMocks.sol';
 import { HookDispatchSentinelMock } from '../mocks/HookDispatchMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ HookDispatchTest ─────────────────────────────────────────────────────────
 contract HookDispatchTest is TestKernel {
   error ExecutionHookVeto();
 
@@ -53,20 +98,14 @@ contract HookDispatchTest is TestKernel {
   address internal constant Launcher = address(0x1A0C4);
   uint32 internal constant WithdrawalBatchDuration = 1 days;
 
-  function _flag(uint256 bit) internal pure returns (HooksConfig) {
-    return EmptyHooksConfig.setFlag(bit);
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
+  // ┌─ _newFixture ─────
   function _newFixture(HooksConfig enabledFlags) internal returns (Fixture memory fixture) {
     return _newFixture(enabledFlags, false);
   }
 
-  function _marketArtifact(bool revolving) internal pure returns (string memory) {
-    return revolving
-      ? 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
-      : 'src/market/WildcatMarket.sol:WildcatMarket';
-  }
-
+  // ┌─ _newFixture ─────
   function _newFixture(HooksConfig enabledFlags, bool revolving) internal returns (Fixture memory fixture) {
     HookDispatchArchControllerMock archController =
       HookDispatchArchControllerMock(_deployCode('test/mocks/HookDispatchMocks.sol:HookDispatchArchControllerMock'));
@@ -116,36 +155,34 @@ contract HookDispatchTest is TestKernel {
     fixture.market = WildcatMarket(fixture.factory.deployMarket(vm.getCode(_marketArtifact(revolving))));
   }
 
-  function _callMarket(WildcatMarket market, address caller, bytes memory data) internal returns (bytes memory result) {
-    vm.prank(caller);
-    bool success;
-    (success, result) = address(market).call(data);
-    if (!success) {
-      assembly {
-        revert(add(result, 0x20), mload(result))
-      }
-    }
+  // ┌─ _marketArtifact ─────
+  function _marketArtifact(bool revolving) internal pure returns (string memory) {
+    return revolving
+      ? 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
+      : 'src/market/WildcatMarket.sol:WildcatMarket';
   }
 
-  function _assertCall(HookDispatchMock hooks, uint256 index, bytes memory expected) internal view {
-    assertEq(hooks.callAt(index), expected);
+  // ┌─ _flag ─────
+  function _flag(uint256 bit) internal pure returns (HooksConfig) {
+    return EmptyHooksConfig.setFlag(bit);
   }
 
+  // ┌─ _deposit ─────
+  function _deposit(Fixture memory fixture, address account, uint256 amount) internal {
+    _fundAndApprove(fixture, account, amount);
+    _callMarket(fixture.market, account, abi.encodeWithSelector(WildcatMarket.deposit.selector, amount));
+  }
+
+  // ┌─ _fundAndApprove ─────
   function _fundAndApprove(Fixture memory fixture, address account, uint256 amount) internal {
     fixture.asset.mint(account, amount);
     vm.prank(account);
     fixture.asset.approve(address(fixture.market), amount);
   }
 
-  function _deposit(Fixture memory fixture, address account, uint256 amount) internal {
-    _fundAndApprove(fixture, account, amount);
-    _callMarket(fixture.market, account, abi.encodeWithSelector(WildcatMarket.deposit.selector, amount));
-  }
+  // ░░▒▒▓▓██ [ LENDER DISPATCH ] ──────────────────────────────────────────────
 
-  function _append(bytes memory data, bytes memory extraData) internal pure returns (bytes memory) {
-    return abi.encodePacked(data, extraData);
-  }
-
+  // ┌─ test_depositEntrypoints_DispatchExactCalldata ─────
   function test_depositEntrypoints_DispatchExactCalldata(bytes memory extraData) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_Deposit));
     _fundAndApprove(fixture, Lender, 200);
@@ -179,6 +216,57 @@ contract HookDispatchTest is TestKernel {
     assertEq(disabled.hooks.callCount(), 0);
   }
 
+  // ┌─ test_transferEntrypoints_DispatchExactCallerAndCalldata ─────
+  function test_transferEntrypoints_DispatchExactCallerAndCalldata(bytes memory extraData) external {
+    Fixture memory fixture = _newFixture(_flag(Bit_Enabled_Transfer));
+    _deposit(fixture, Lender, 200);
+
+    MarketState memory expectedState = fixture.market.currentState();
+    bytes memory result = _callMarket(
+      fixture.market,
+      Lender,
+      _append(abi.encodeWithSelector(WildcatMarketToken.transfer.selector, Recipient, 50), extraData)
+    );
+    assertEq(result, abi.encode(true));
+    _assertCall(
+      fixture.hooks,
+      0,
+      abi.encodeWithSelector(IHooks.onTransfer.selector, Lender, Lender, Recipient, 50, expectedState, extraData)
+    );
+
+    vm.prank(Lender);
+    fixture.market.approve(Delegate, 50);
+    expectedState = fixture.market.currentState();
+    result = _callMarket(
+      fixture.market,
+      Delegate,
+      _append(abi.encodeWithSelector(WildcatMarketToken.transferFrom.selector, Lender, Recipient, 50), extraData)
+    );
+    assertEq(result, abi.encode(true));
+    _assertCall(
+      fixture.hooks,
+      1,
+      abi.encodeWithSelector(IHooks.onTransfer.selector, Delegate, Lender, Recipient, 50, expectedState, extraData)
+    );
+
+    Fixture memory disabled = _newFixture(EmptyHooksConfig);
+    _deposit(disabled, Lender, 100);
+    _callMarket(
+      disabled.market,
+      Lender,
+      _append(abi.encodeWithSelector(WildcatMarketToken.transfer.selector, Recipient, 25), extraData)
+    );
+    vm.prank(Lender);
+    disabled.market.approve(Delegate, 25);
+    _callMarket(
+      disabled.market,
+      Delegate,
+      _append(abi.encodeWithSelector(WildcatMarketToken.transferFrom.selector, Lender, Recipient, 25), extraData)
+    );
+    assertEq(disabled.hooks.callCount(), 0);
+  }
+
+  // ┌─ test_queueWithdrawalEntrypoints_DispatchExactCalldata ─────
   function test_queueWithdrawalEntrypoints_DispatchExactCalldata(bytes memory extraData) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_QueueWithdrawal));
     _deposit(fixture, Lender, 100);
@@ -246,42 +334,9 @@ contract HookDispatchTest is TestKernel {
     assertEq(disabled.hooks.callCount(), 0);
   }
 
-  function test_nukeFromOrbit_DispatchesEnabledCallbacksAndIsolatesQueueExtraData(bytes memory extraData) external {
-    for (uint256 mask; mask < 4; mask++) {
-      HooksConfig flags = EmptyHooksConfig;
-      if (mask & 1 != 0) flags = flags.setFlag(Bit_Enabled_NukeFromOrbit);
-      if (mask & 2 != 0) flags = flags.setFlag(Bit_Enabled_QueueWithdrawal);
-      Fixture memory fixture = _newFixture(flags);
-      _deposit(fixture, Lender, 100);
-      fixture.sentinel.setSanctioned(Lender, true);
+  // ░░▒▒▓▓██ [ NONVETOABLE COLLECTION ] ───────────────────────────────────────
 
-      MarketState memory initialState = fixture.market.currentState();
-      bytes memory expectedNukeCall =
-        abi.encodeWithSelector(IHooks.onNukeFromOrbit.selector, Lender, initialState, extraData);
-      MarketState memory queueState = fixture.market.currentState();
-      uint32 expiry = uint32(block.timestamp + WithdrawalBatchDuration);
-      queueState.pendingWithdrawalExpiry = expiry;
-      _callMarket(
-        fixture.market,
-        Launcher,
-        _append(abi.encodeWithSelector(WildcatMarketConfig.nukeFromOrbit.selector, Lender), extraData)
-      );
-
-      uint256 nextCall;
-      if (mask & 1 != 0) {
-        _assertCall(fixture.hooks, nextCall++, expectedNukeCall);
-      }
-      if (mask & 2 != 0) {
-        _assertCall(
-          fixture.hooks,
-          nextCall++,
-          abi.encodeWithSelector(IHooks.onQueueWithdrawal.selector, Lender, expiry, 100, queueState, bytes(''))
-        );
-      }
-      assertEq(fixture.hooks.callCount(), nextCall);
-    }
-  }
-
+  // ┌─ test_marketCreationRejectsReservedExecutionHookAcrossModels ─────
   function test_marketCreationRejectsReservedExecutionHookAcrossModels() external {
     for (uint256 model; model < 2; ++model) {
       Fixture memory fixture = _newFixture(EmptyHooksConfig, model != 0);
@@ -297,15 +352,7 @@ contract HookDispatchTest is TestKernel {
     }
   }
 
-  function _blockExecutionHook(Fixture memory fixture) internal {
-    bytes memory veto = abi.encodeWithSelector(ExecutionHookVeto.selector);
-    vm.mockCallRevert(address(fixture.hooks), abi.encodePacked(IHooks.onExecuteWithdrawal.selector), veto);
-    // prove the veto is live before checking that collection never reaches it.
-    MarketState memory state = fixture.market.currentState();
-    vm.expectRevert(veto);
-    fixture.hooks.onExecuteWithdrawal(Lender, 0, 0, state, '');
-  }
-
+  // ┌─ test_executeWithdrawal_CollectsWithoutHookVeto ─────
   function test_executeWithdrawal_CollectsWithoutHookVeto(
     bytes memory extraData,
     bool revolving,
@@ -347,6 +394,7 @@ contract HookDispatchTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ test_executeWithdrawals_CollectsEveryEntryWithoutHookVeto ─────
   function test_executeWithdrawals_CollectsEveryEntryWithoutHookVeto(
     bytes memory extraData,
     bool revolving,
@@ -423,55 +471,19 @@ contract HookDispatchTest is TestKernel {
     vm.clearMockedCalls();
   }
 
-  function test_transferEntrypoints_DispatchExactCallerAndCalldata(bytes memory extraData) external {
-    Fixture memory fixture = _newFixture(_flag(Bit_Enabled_Transfer));
-    _deposit(fixture, Lender, 200);
-
-    MarketState memory expectedState = fixture.market.currentState();
-    bytes memory result = _callMarket(
-      fixture.market,
-      Lender,
-      _append(abi.encodeWithSelector(WildcatMarketToken.transfer.selector, Recipient, 50), extraData)
-    );
-    assertEq(result, abi.encode(true));
-    _assertCall(
-      fixture.hooks,
-      0,
-      abi.encodeWithSelector(IHooks.onTransfer.selector, Lender, Lender, Recipient, 50, expectedState, extraData)
-    );
-
-    vm.prank(Lender);
-    fixture.market.approve(Delegate, 50);
-    expectedState = fixture.market.currentState();
-    result = _callMarket(
-      fixture.market,
-      Delegate,
-      _append(abi.encodeWithSelector(WildcatMarketToken.transferFrom.selector, Lender, Recipient, 50), extraData)
-    );
-    assertEq(result, abi.encode(true));
-    _assertCall(
-      fixture.hooks,
-      1,
-      abi.encodeWithSelector(IHooks.onTransfer.selector, Delegate, Lender, Recipient, 50, expectedState, extraData)
-    );
-
-    Fixture memory disabled = _newFixture(EmptyHooksConfig);
-    _deposit(disabled, Lender, 100);
-    _callMarket(
-      disabled.market,
-      Lender,
-      _append(abi.encodeWithSelector(WildcatMarketToken.transfer.selector, Recipient, 25), extraData)
-    );
-    vm.prank(Lender);
-    disabled.market.approve(Delegate, 25);
-    _callMarket(
-      disabled.market,
-      Delegate,
-      _append(abi.encodeWithSelector(WildcatMarketToken.transferFrom.selector, Lender, Recipient, 25), extraData)
-    );
-    assertEq(disabled.hooks.callCount(), 0);
+  // ┌─ _blockExecutionHook ─────
+  function _blockExecutionHook(Fixture memory fixture) internal {
+    bytes memory veto = abi.encodeWithSelector(ExecutionHookVeto.selector);
+    vm.mockCallRevert(address(fixture.hooks), abi.encodePacked(IHooks.onExecuteWithdrawal.selector), veto);
+    // prove the veto is live before checking that collection never reaches it.
+    MarketState memory state = fixture.market.currentState();
+    vm.expectRevert(veto);
+    fixture.hooks.onExecuteWithdrawal(Lender, 0, 0, state, '');
   }
 
+  // ░░▒▒▓▓██ [ BORROWER DISPATCH ] ────────────────────────────────────────────
+
+  // ┌─ test_borrow_DispatchesExactCalldata ─────
   function test_borrow_DispatchesExactCalldata(bytes memory extraData) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_Borrow));
     _deposit(fixture, Lender, 100);
@@ -487,6 +499,7 @@ contract HookDispatchTest is TestKernel {
     assertEq(disabled.hooks.callCount(), 0);
   }
 
+  // ┌─ test_repayEntrypoints_DispatchExactCalldata ─────
   function test_repayEntrypoints_DispatchExactCalldata(bytes memory extraData) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_Repay));
     _deposit(fixture, Lender, 100);
@@ -522,6 +535,23 @@ contract HookDispatchTest is TestKernel {
     assertEq(disabled.hooks.callCount(), 0);
   }
 
+  // ┌─ test_closeMarket_DispatchesExactCalldata ─────
+  function test_closeMarket_DispatchesExactCalldata(bytes memory extraData) external {
+    Fixture memory fixture = _newFixture(_flag(Bit_Enabled_CloseMarket));
+    MarketState memory expectedState = fixture.market.currentState();
+    _callMarket(
+      fixture.market, Borrower, _append(abi.encodeWithSelector(WildcatMarket.closeMarket.selector), extraData)
+    );
+    _assertCall(fixture.hooks, 0, abi.encodeWithSelector(IHooks.onCloseMarket.selector, expectedState, extraData));
+
+    Fixture memory disabled = _newFixture(EmptyHooksConfig);
+    _callMarket(
+      disabled.market, Borrower, _append(abi.encodeWithSelector(WildcatMarket.closeMarket.selector), extraData)
+    );
+    assertEq(disabled.hooks.callCount(), 0);
+  }
+
+  // ┌─ test_nonzeroCarrySurvivesRepayAndCloseCalldata ─────
   function test_nonzeroCarrySurvivesRepayAndCloseCalldata(bytes memory extraData, bool revolving) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_Repay).setFlag(Bit_Enabled_CloseMarket), revolving);
     _deposit(fixture, Lender, 4);
@@ -570,21 +600,9 @@ contract HookDispatchTest is TestKernel {
     assertEq(fixture.market.previousState().withdrawalRemainder, 0);
   }
 
-  function test_closeMarket_DispatchesExactCalldata(bytes memory extraData) external {
-    Fixture memory fixture = _newFixture(_flag(Bit_Enabled_CloseMarket));
-    MarketState memory expectedState = fixture.market.currentState();
-    _callMarket(
-      fixture.market, Borrower, _append(abi.encodeWithSelector(WildcatMarket.closeMarket.selector), extraData)
-    );
-    _assertCall(fixture.hooks, 0, abi.encodeWithSelector(IHooks.onCloseMarket.selector, expectedState, extraData));
+  // ░░▒▒▓▓██ [ CONFIGURATION AND SANCTIONS DISPATCH ] ─────────────────────────
 
-    Fixture memory disabled = _newFixture(EmptyHooksConfig);
-    _callMarket(
-      disabled.market, Borrower, _append(abi.encodeWithSelector(WildcatMarket.closeMarket.selector), extraData)
-    );
-    assertEq(disabled.hooks.callCount(), 0);
-  }
-
+  // ┌─ test_setMaxTotalSupply_DispatchesExactCalldata ─────
   function test_setMaxTotalSupply_DispatchesExactCalldata(bytes memory extraData) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_SetMaxTotalSupply));
     MarketState memory expectedState = fixture.market.currentState();
@@ -606,6 +624,7 @@ contract HookDispatchTest is TestKernel {
     assertEq(disabled.hooks.callCount(), 0);
   }
 
+  // ┌─ test_setProtocolFeeBips_DispatchesExactCalldata ─────
   function test_setProtocolFeeBips_DispatchesExactCalldata(bytes memory extraData) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_SetProtocolFeeBips));
     MarketState memory expectedState = fixture.market.currentState();
@@ -630,6 +649,7 @@ contract HookDispatchTest is TestKernel {
     assertEq(disabled.hooks.callCount(), 0);
   }
 
+  // ┌─ test_setAnnualInterestAndReserveRatioBips_UsesHookReturnValues ─────
   function test_setAnnualInterestAndReserveRatioBips_UsesHookReturnValues(bytes memory extraData) external {
     Fixture memory fixture = _newFixture(_flag(Bit_Enabled_SetAnnualInterestAndReserveRatioBips));
     fixture.hooks.setAnnualInterestAndReserveRatioBips(800, 300);
@@ -662,5 +682,66 @@ contract HookDispatchTest is TestKernel {
     assertEq(disabled.hooks.callCount(), 0);
     assertEq(disabled.market.annualInterestBips(), 700);
     assertEq(disabled.market.reserveRatioBips(), 200);
+  }
+
+  // ┌─ test_nukeFromOrbit_DispatchesEnabledCallbacksAndIsolatesQueueExtraData ─────
+  function test_nukeFromOrbit_DispatchesEnabledCallbacksAndIsolatesQueueExtraData(bytes memory extraData) external {
+    for (uint256 mask; mask < 4; mask++) {
+      HooksConfig flags = EmptyHooksConfig;
+      if (mask & 1 != 0) flags = flags.setFlag(Bit_Enabled_NukeFromOrbit);
+      if (mask & 2 != 0) flags = flags.setFlag(Bit_Enabled_QueueWithdrawal);
+      Fixture memory fixture = _newFixture(flags);
+      _deposit(fixture, Lender, 100);
+      fixture.sentinel.setSanctioned(Lender, true);
+
+      MarketState memory initialState = fixture.market.currentState();
+      bytes memory expectedNukeCall =
+        abi.encodeWithSelector(IHooks.onNukeFromOrbit.selector, Lender, initialState, extraData);
+      MarketState memory queueState = fixture.market.currentState();
+      uint32 expiry = uint32(block.timestamp + WithdrawalBatchDuration);
+      queueState.pendingWithdrawalExpiry = expiry;
+      _callMarket(
+        fixture.market,
+        Launcher,
+        _append(abi.encodeWithSelector(WildcatMarketConfig.nukeFromOrbit.selector, Lender), extraData)
+      );
+
+      uint256 nextCall;
+      if (mask & 1 != 0) {
+        _assertCall(fixture.hooks, nextCall++, expectedNukeCall);
+      }
+      if (mask & 2 != 0) {
+        _assertCall(
+          fixture.hooks,
+          nextCall++,
+          abi.encodeWithSelector(IHooks.onQueueWithdrawal.selector, Lender, expiry, 100, queueState, bytes(''))
+        );
+      }
+      assertEq(fixture.hooks.callCount(), nextCall);
+    }
+  }
+
+  // ░░▒▒▓▓██ [ CALLDATA ASSERTIONS ] ──────────────────────────────────────────
+
+  // ┌─ _callMarket ─────
+  function _callMarket(WildcatMarket market, address caller, bytes memory data) internal returns (bytes memory result) {
+    vm.prank(caller);
+    bool success;
+    (success, result) = address(market).call(data);
+    if (!success) {
+      assembly {
+        revert(add(result, 0x20), mload(result))
+      }
+    }
+  }
+
+  // ┌─ _append ─────
+  function _append(bytes memory data, bytes memory extraData) internal pure returns (bytes memory) {
+    return abi.encodePacked(data, extraData);
+  }
+
+  // ┌─ _assertCall ─────
+  function _assertCall(HookDispatchMock hooks, uint256 index, bytes memory expected) internal view {
+    assertEq(hooks.callAt(index), expected);
   }
 }

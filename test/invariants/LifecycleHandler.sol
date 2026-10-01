@@ -1,6 +1,76 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleHandler
+// ║  ██▀▀     ▀▀██   Boundary-aware lifecycle actions, timeline oracle checks, and drain.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  CAMPAIGN SETUP
+// ║  constructor(...)
+// ║  beginExploration()
+// ║  drawAvailable()
+// ║
+// ║  TIME AND STATE CHECKPOINTS
+// ║  advance(...)
+// ║  checkpoint(...)
+// ║
+// ║  FUNDING AND DONATIONS
+// ║  fund(...)
+// ║  donate(...)
+// ║  transferDonation(...)
+// ║  storedAccountingHash(...)
+// ║
+// ║  REPAYMENT RESTRICTIONS
+// ║  probeAdmission(...)
+// ║  changeApr(...)
+// ║  _inRepayment(...)
+// ║  _withdrawalsOpen(...)
+// ║
+// ║  CLAIM COLLECTION
+// ║  collectClaim(...)
+// ║  collectClaims(...)
+// ║  _claimable(...)
+// ║  _claimSnapshot(...)
+// ║
+// ║  CLOSURE AND RECOVERY
+// ║  recoverSurplus(...)
+// ║  _closeCell(...)
+// ║  _recoverSurplusAfterDrain(...)
+// ║
+// ║  ORACLE QUERIES
+// ║  viewsMatchOracle()
+// ║  viewStates(...)
+// ║  expectedDefault(...)
+// ║  penaltyCutoff(...)
+// ║  _preview(...)
+// ║
+// ║  TRANSITION RECORDING
+// ║  _recordCallResult(...)
+// ║  checkRecordedCall(...)
+// ║  _recordBatches(...)
+// ║  _recordLifecycle(...)
+// ║  _checkTransitionEvents(...)
+// ║  _hasStateWrite(...)
+// ║  _arguments(...)
+// ║  _firstWord(...)
+// ║
+// ║  REVOLVING MODEL
+// ║  _checkDrawnUnchanged(...)
+// ║  _expectedUpdatedRevolvingState(...)
+// ║  _expectedDrawnAfterRepay(...)
+// ║  _finalRepaymentDrawn(...)
+// ║  _getRawPendingBatch(...)
+// ║
+// ║  COVERAGE AND FAILURES
+// ║  coverageSnapshot(...)
+// ║  trackedExpiryCount(...)
+// ║  _coverage(...)
+// ║  _check(...)
+// ╚═════
+
 import { Vm } from 'forge-std/Vm.sol';
 import { MarketMatrixHandler } from './MarketMatrixHandler.sol';
 import { LifecycleOracle, LifecycleReference } from './LifecycleOracle.sol';
@@ -12,6 +82,7 @@ import { WildcatMarketWithdrawals } from 'src/market/WildcatMarketWithdrawals.so
 import { WildcatMarketConfig } from 'src/market/WildcatMarketConfig.sol';
 import { AccountWithdrawalStatus } from 'src/libraries/Withdrawal.sol';
 
+// ┌─ LifecycleHandler ─────────────────────────────────────────────────────────
 /// @dev reuse the matrix's actions and conservation checks. only the timeline oracle and
 ///      scheduled exit differ; don't fork a second copy of the general-purpose handler.
 contract LifecycleHandler is MarketMatrixHandler {
@@ -46,6 +117,17 @@ contract LifecycleHandler is MarketMatrixHandler {
   uint256 public firstFailure;
   uint256 public firstFailureCell;
 
+  struct ClaimCheck {
+    address actor;
+    address recipient;
+    uint32 expiry;
+    uint256 amount;
+    uint256 balance;
+  }
+
+  // ░░▒▒▓▓██ [ CAMPAIGN SETUP ] ───────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address[] memory markets_,
     address[] memory assets_,
@@ -87,10 +169,12 @@ contract LifecycleHandler is MarketMatrixHandler {
     }
   }
 
+  // ┌─ beginExploration ─────
   function beginExploration() external {
     exploring = true;
   }
 
+  // ┌─ drawAvailable ─────
   function drawAvailable() external {
     for (uint256 i; i < markets.length; ++i) {
       uint256 amount = markets[i].borrowableAssets();
@@ -101,32 +185,9 @@ contract LifecycleHandler is MarketMatrixHandler {
     }
   }
 
-  function coverageSnapshot(uint256 i, bool seed) external view returns (Coverage memory) {
-    return seed ? seeded[i] : explored[i];
-  }
+  // ░░▒▒▓▓██ [ TIME AND STATE CHECKPOINTS ] ───────────────────────────────────
 
-  function trackedExpiryCount(uint256 i) external view returns (uint256) {
-    return trackedExpiries[i].length;
-  }
-
-  /// @dev recovery must leave the entire liability ledger backed, including old unpaid batches.
-  function recoverSurplus(uint256 cellSeed) public {
-    uint256 i = cellSeed % markets.length;
-    WildcatMarket m = markets[i];
-    if (!m.isClosed()) return;
-    uint256 debts = m.totalDebts();
-    uint256 surplus = m.totalAssets().satSub(debts);
-    uint256 borrowerBefore = assets[i].balanceOf(_borrower());
-    (bool success,) =
-      _callAs(i, _borrower(), address(m), abi.encodeCall(WildcatMarket.rescueTokens, (address(assets[i]))));
-    _check(i, success && m.totalAssets() == debts && m.totalDebts() == debts, 47);
-    _check(i, assets[i].balanceOf(_borrower()) == borrowerBefore + surplus, 48);
-    if (success && surplus != 0) {
-      Coverage storage c = exploring ? explored[i] : seeded[i];
-      ++c.surplusRecoveries;
-    }
-  }
-
+  // ┌─ advance ─────
   /// @dev leave storage alone when time moves. the next action must resolve every crossed
   ///      boundary itself, including when that action transfers repayment before accrual.
   function advance(uint256 cellSeed, uint256 boundarySeed, uint256 offsetSeed) external {
@@ -153,6 +214,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     vm.warp(MathUtils.min(boundary, 2_000_000_000));
   }
 
+  // ┌─ checkpoint ─────
   function checkpoint(uint256 cellSeed) public {
     uint256 i = cellSeed % markets.length;
     WildcatMarket m = markets[i];
@@ -168,6 +230,9 @@ contract LifecycleHandler is MarketMatrixHandler {
     _check(i, keccak256(abi.encode(m.previousState())) == keccak256(abi.encode(expected)), 24);
   }
 
+  // ░░▒▒▓▓██ [ FUNDING AND DONATIONS ] ────────────────────────────────────────
+
+  // ┌─ fund ─────
   /// @dev partial, exact, one wei short, excess, or just enough to cure current reserves.
   ///      use both repayment entrypoints, including bounded maintenance after closure.
   function fund(uint256 cellSeed, uint256 mode, uint256 amountSeed, bool process) public {
@@ -194,6 +259,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     _check(i, !revolving[i] || _drawnAmount(i) == _finalRepaymentDrawn(i, expectedDrawn), 26);
   }
 
+  // ┌─ donate ─────
   function donate(uint256 cellSeed, uint256 mode, uint256 amountSeed) external {
     uint256 i = cellSeed % markets.length;
     WildcatMarket m = markets[i];
@@ -205,10 +271,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     if (amount != 0) ++_coverage(i).donations;
   }
 
-  function storedAccountingHash(uint256 i) external view returns (bytes32) {
-    return keccak256(abi.encode(markets[i].previousState(), markets[i].defaultedAt(), _drawnAmountIfRevolving(i)));
-  }
-
+  // ┌─ transferDonation ─────
   function transferDonation(uint256 i, uint256 amount) external {
     require(msg.sender == address(this), 'handler only');
     assets[i].mint(address(this), amount);
@@ -220,6 +283,14 @@ contract LifecycleHandler is MarketMatrixHandler {
     }
   }
 
+  // ┌─ storedAccountingHash ─────
+  function storedAccountingHash(uint256 i) external view returns (bytes32) {
+    return keccak256(abi.encode(markets[i].previousState(), markets[i].defaultedAt(), _drawnAmountIfRevolving(i)));
+  }
+
+  // ░░▒▒▓▓██ [ REPAYMENT RESTRICTIONS ] ───────────────────────────────────────
+
+  // ┌─ probeAdmission ─────
   function probeAdmission(uint256 cellSeed) external {
     uint256 i = cellSeed % markets.length;
     if (!_inRepayment(i)) return;
@@ -233,6 +304,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     if (!deposited && !borrowed) ++_coverage(i).rejectedAdmission;
   }
 
+  // ┌─ changeApr ─────
   function changeApr(uint256 cellSeed, uint256 bipsSeed, uint256 ratioSeed) external {
     uint256 i = cellSeed % markets.length;
     WildcatMarket m = markets[i];
@@ -249,14 +321,19 @@ contract LifecycleHandler is MarketMatrixHandler {
     if (forbidden) _check(i, !success, 31);
   }
 
-  struct ClaimCheck {
-    address actor;
-    address recipient;
-    uint32 expiry;
-    uint256 amount;
-    uint256 balance;
+  // ┌─ _inRepayment ─────
+  function _inRepayment(uint256 i) internal view returns (bool) {
+    return terms[i].date != 0 && vm.getBlockTimestamp() >= terms[i].date;
   }
 
+  // ┌─ _withdrawalsOpen ─────
+  function _withdrawalsOpen(uint256 i) internal view override returns (bool) {
+    return _inRepayment(i) || super._withdrawalsOpen(i);
+  }
+
+  // ░░▒▒▓▓██ [ CLAIM COLLECTION ] ─────────────────────────────────────────────
+
+  // ┌─ collectClaim ─────
   function collectClaim(uint256 cellSeed, uint256 actorSeed, uint256 expirySeed) public {
     uint256 i = cellSeed % markets.length;
     if (trackedExpiries[i].length == 0) return;
@@ -291,11 +368,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     }
   }
 
-  function _claimable(uint256 i, uint32 expiry) internal view returns (bool) {
-    MarketState memory s = _preview(i, markets[i].totalAssets()).state;
-    return expiry != s.pendingWithdrawalExpiry && (expiry < vm.getBlockTimestamp() || s.isClosed);
-  }
-
+  // ┌─ collectClaims ─────
   function collectClaims(uint256 cellSeed, uint256 actorSeed, uint256 expirySeed) external {
     uint256 i = cellSeed % markets.length;
     if (trackedExpiries[i].length == 0) return;
@@ -327,6 +400,13 @@ contract LifecycleHandler is MarketMatrixHandler {
     }
   }
 
+  // ┌─ _claimable ─────
+  function _claimable(uint256 i, uint32 expiry) internal view returns (bool) {
+    MarketState memory s = _preview(i, markets[i].totalAssets()).state;
+    return expiry != s.pendingWithdrawalExpiry && (expiry < vm.getBlockTimestamp() || s.isClosed);
+  }
+
+  // ┌─ _claimSnapshot ─────
   function _claimSnapshot(uint256 i, address actor, uint32 expiry) internal view returns (ClaimCheck memory c) {
     c.actor = actor;
     c.expiry = expiry;
@@ -340,35 +420,75 @@ contract LifecycleHandler is MarketMatrixHandler {
     }
   }
 
-  function _coverage(uint256 i) internal view returns (Coverage storage c) {
-    return exploring ? explored[i] : seeded[i];
-  }
+  // ░░▒▒▓▓██ [ CLOSURE AND RECOVERY ] ─────────────────────────────────────────
 
-  function _check(uint256 i, bool condition, uint256 code) internal {
-    if (condition) return;
-    if (lifecycleFailures++ == 0) {
-      firstFailure = code;
-      firstFailureCell = i;
+  // ┌─ recoverSurplus ─────
+  /// @dev recovery must leave the entire liability ledger backed, including old unpaid batches.
+  function recoverSurplus(uint256 cellSeed) public {
+    uint256 i = cellSeed % markets.length;
+    WildcatMarket m = markets[i];
+    if (!m.isClosed()) return;
+    uint256 debts = m.totalDebts();
+    uint256 surplus = m.totalAssets().satSub(debts);
+    uint256 borrowerBefore = assets[i].balanceOf(_borrower());
+    (bool success,) =
+      _callAs(i, _borrower(), address(m), abi.encodeCall(WildcatMarket.rescueTokens, (address(assets[i]))));
+    _check(i, success && m.totalAssets() == debts && m.totalDebts() == debts, 47);
+    _check(i, assets[i].balanceOf(_borrower()) == borrowerBefore + surplus, 48);
+    if (success && surplus != 0) {
+      Coverage storage c = exploring ? explored[i] : seeded[i];
+      ++c.surplusRecoveries;
     }
   }
 
-  function _preview(uint256 i, uint256 cash) internal view returns (LifecycleOracle.Preview memory) {
-    return referenceModel.preview(observations[i], terms[i], vm.getBlockTimestamp(), cash);
+  // ┌─ _closeCell ─────
+  /// @dev no manual close to rescue this campaign. reach the date, fully back the debt, and
+  ///      process exactly one old batch per call before the shared drain collects every claim.
+  function _closeCell(uint256 i) internal override returns (bool) {
+    if (terms[i].date == 0) return super._closeCell(i);
+    if (vm.getBlockTimestamp() < terms[i].date) vm.warp(terms[i].date);
+    WildcatMarket m = markets[i];
+    uint256 amount = m.totalDebts().satSub(m.totalAssets());
+    if (amount != 0) _fundBorrower(i, amount);
+    (bool success,) = _callAs(
+      i,
+      _borrower(),
+      address(m),
+      amount == 0 ? abi.encodeCall(WildcatMarket.updateState, ()) : abi.encodeCall(WildcatMarket.repay, (amount))
+    );
+    if (!success) return false;
+    if (!m.previousState().isClosed) {
+      // totalDebts() includes a simulated pending payment. repayment can allocate in one
+      // payment instead of two, leaving a one-unit rounding shortfall against that quote.
+      // allow exactly that bound, then require closure; don't paper over a larger deficit.
+      if (m.previousState().totalDebts() != m.totalAssets() + 1) return false;
+      _fundBorrower(i, 1);
+      (success,) = _callAs(i, _borrower(), address(m), abi.encodeCall(WildcatMarket.repay, (1)));
+      if (!success || !m.previousState().isClosed) return false;
+    }
+    uint256 length = m.getUnpaidBatchExpiries().length;
+    for (uint256 j; j < length; ++j) {
+      (success,) = _callAs(
+        i,
+        _borrower(),
+        address(m),
+        abi.encodeCall(WildcatMarketWithdrawals.repayAndProcessUnpaidWithdrawalBatches, (0, 1))
+      );
+      if (!success || m.getUnpaidBatchExpiries().length != length - j - 1) return false;
+    }
+    return true;
   }
 
-  function expectedDefault(uint256 i) external view returns (uint256) {
-    return _preview(i, markets[i].totalAssets()).defaultedAt;
+  // ┌─ _recoverSurplusAfterDrain ─────
+  function _recoverSurplusAfterDrain(uint256 i) internal override returns (bool) {
+    uint256 failuresBefore = lifecycleFailures;
+    recoverSurplus(i);
+    return lifecycleFailures == failuresBefore;
   }
 
-  function viewStates(uint256 i) external view returns (MarketState memory expected, MarketState memory actual) {
-    expected = _preview(i, markets[i].totalAssets()).state;
-    actual = markets[i].currentState();
-  }
+  // ░░▒▒▓▓██ [ ORACLE QUERIES ] ───────────────────────────────────────────────
 
-  function penaltyCutoff(uint256 i) external view returns (uint256) {
-    return _preview(i, markets[i].totalAssets()).cutoff;
-  }
-
+  // ┌─ viewsMatchOracle ─────
   function viewsMatchOracle() external view returns (bool) {
     for (uint256 i; i < markets.length; ++i) {
       WildcatMarket m = markets[i];
@@ -390,11 +510,36 @@ contract LifecycleHandler is MarketMatrixHandler {
     return true;
   }
 
+  // ┌─ viewStates ─────
+  function viewStates(uint256 i) external view returns (MarketState memory expected, MarketState memory actual) {
+    expected = _preview(i, markets[i].totalAssets()).state;
+    actual = markets[i].currentState();
+  }
+
+  // ┌─ expectedDefault ─────
+  function expectedDefault(uint256 i) external view returns (uint256) {
+    return _preview(i, markets[i].totalAssets()).defaultedAt;
+  }
+
+  // ┌─ penaltyCutoff ─────
+  function penaltyCutoff(uint256 i) external view returns (uint256) {
+    return _preview(i, markets[i].totalAssets()).cutoff;
+  }
+
+  // ┌─ _preview ─────
+  function _preview(uint256 i, uint256 cash) internal view returns (LifecycleOracle.Preview memory) {
+    return referenceModel.preview(observations[i], terms[i], vm.getBlockTimestamp(), cash);
+  }
+
+  // ░░▒▒▓▓██ [ TRANSITION RECORDING ] ─────────────────────────────────────────
+
+  // ┌─ _recordCallResult ─────
   function _recordCallResult(CallRecord memory record, Vm.Log[] memory logs) internal override {
     this.checkRecordedCall(record, logs);
   }
 
   // keep nested struct copies out of inherited action bodies. no protocol calls happen here.
+  // ┌─ checkRecordedCall ─────
   function checkRecordedCall(CallRecord memory record, Vm.Log[] memory logs) external {
     require(msg.sender == address(this), 'handler only');
     uint256 i = record.cellIndex;
@@ -419,6 +564,7 @@ contract LifecycleHandler is MarketMatrixHandler {
   // getWithdrawalBatch includes a simulated payment, even just after a write: floor-rounded
   // payments can leave one more scaled unit payable. reconstruct stored batches from events
   // instead of accidentally treating that preview as already committed accounting.
+  // ┌─ _recordBatches ─────
   function _recordBatches(CallRecord memory record, Vm.Log[] memory logs) internal {
     uint256 i = record.cellIndex;
     for (uint256 j; j < logs.length; ++j) {
@@ -479,13 +625,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     observedUnpaid[i] = afterQueue;
   }
 
-  function _arguments(bytes memory data) internal pure returns (bytes memory args) {
-    args = new bytes(data.length - 4);
-    for (uint256 i; i < args.length; ++i) {
-      args[i] = data[i + 4];
-    }
-  }
-
+  // ┌─ _recordLifecycle ─────
   function _recordLifecycle(
     uint256 i,
     LifecycleOracle.Observation memory old,
@@ -540,6 +680,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     }
   }
 
+  // ┌─ _checkTransitionEvents ─────
   function _checkTransitionEvents(
     uint256 i,
     LifecycleOracle.Observation memory old,
@@ -579,6 +720,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     _check(i, previousTo == (p.closedAt == 0 ? vm.getBlockTimestamp() : p.closedAt), 44);
   }
 
+  // ┌─ _hasStateWrite ─────
   function _hasStateWrite(Vm.Log[] memory logs, address market) internal pure returns (bool) {
     for (uint256 j; j < logs.length; ++j) {
       if (
@@ -589,26 +731,31 @@ contract LifecycleHandler is MarketMatrixHandler {
     return false;
   }
 
+  // ┌─ _arguments ─────
+  function _arguments(bytes memory data) internal pure returns (bytes memory args) {
+    args = new bytes(data.length - 4);
+    for (uint256 i; i < args.length; ++i) {
+      args[i] = data[i + 4];
+    }
+  }
+
+  // ┌─ _firstWord ─────
   function _firstWord(bytes memory data) internal pure returns (uint256 word) {
     assembly ('memory-safe') {
       word := mload(add(data, 0x24))
     }
   }
 
-  function _inRepayment(uint256 i) internal view returns (bool) {
-    return terms[i].date != 0 && vm.getBlockTimestamp() >= terms[i].date;
-  }
+  // ░░▒▒▓▓██ [ REVOLVING MODEL ] ──────────────────────────────────────────────
 
-  function _withdrawalsOpen(uint256 i) internal view override returns (bool) {
-    return _inRepayment(i) || super._withdrawalsOpen(i);
-  }
-
+  // ┌─ _checkDrawnUnchanged ─────
   function _checkDrawnUnchanged(uint256 i, uint256 beforeDrawn) internal override {
     if (revolving[i] && _drawnAmount(i) != (markets[i].previousState().isClosed ? 0 : beforeDrawn)) {
       drawnAmountFailures++;
     }
   }
 
+  // ┌─ _expectedUpdatedRevolvingState ─────
   function _expectedUpdatedRevolvingState(
     uint256 i,
     MarketState memory,
@@ -622,6 +769,7 @@ contract LifecycleHandler is MarketMatrixHandler {
     return _preview(i, cash).state;
   }
 
+  // ┌─ _expectedDrawnAfterRepay ─────
   function _expectedDrawnAfterRepay(
     uint256 i,
     MarketState memory s,
@@ -640,10 +788,12 @@ contract LifecycleHandler is MarketMatrixHandler {
   // paying old batches can lower totalDebts by a rounding unit after _onRepay runs. if that
   // finishes funding, automatic closure settles the remaining principal too. closure/backing
   // and every batch liability are checked separately; don't leave phantom principal here.
+  // ┌─ _finalRepaymentDrawn ─────
   function _finalRepaymentDrawn(uint256 i, uint256 expected) internal view override returns (uint256) {
     return markets[i].previousState().isClosed ? 0 : expected;
   }
 
+  // ┌─ _getRawPendingBatch ─────
   function _getRawPendingBatch(
     uint256 i,
     MarketState memory,
@@ -657,46 +807,29 @@ contract LifecycleHandler is MarketMatrixHandler {
     return observations[i].batch;
   }
 
-  function _recoverSurplusAfterDrain(uint256 i) internal override returns (bool) {
-    uint256 failuresBefore = lifecycleFailures;
-    recoverSurplus(i);
-    return lifecycleFailures == failuresBefore;
+  // ░░▒▒▓▓██ [ COVERAGE AND FAILURES ] ────────────────────────────────────────
+
+  // ┌─ coverageSnapshot ─────
+  function coverageSnapshot(uint256 i, bool seed) external view returns (Coverage memory) {
+    return seed ? seeded[i] : explored[i];
   }
 
-  /// @dev no manual close to rescue this campaign. reach the date, fully back the debt, and
-  ///      process exactly one old batch per call before the shared drain collects every claim.
-  function _closeCell(uint256 i) internal override returns (bool) {
-    if (terms[i].date == 0) return super._closeCell(i);
-    if (vm.getBlockTimestamp() < terms[i].date) vm.warp(terms[i].date);
-    WildcatMarket m = markets[i];
-    uint256 amount = m.totalDebts().satSub(m.totalAssets());
-    if (amount != 0) _fundBorrower(i, amount);
-    (bool success,) = _callAs(
-      i,
-      _borrower(),
-      address(m),
-      amount == 0 ? abi.encodeCall(WildcatMarket.updateState, ()) : abi.encodeCall(WildcatMarket.repay, (amount))
-    );
-    if (!success) return false;
-    if (!m.previousState().isClosed) {
-      // totalDebts() includes a simulated pending payment. repayment can allocate in one
-      // payment instead of two, leaving a one-unit rounding shortfall against that quote.
-      // allow exactly that bound, then require closure; don't paper over a larger deficit.
-      if (m.previousState().totalDebts() != m.totalAssets() + 1) return false;
-      _fundBorrower(i, 1);
-      (success,) = _callAs(i, _borrower(), address(m), abi.encodeCall(WildcatMarket.repay, (1)));
-      if (!success || !m.previousState().isClosed) return false;
+  // ┌─ trackedExpiryCount ─────
+  function trackedExpiryCount(uint256 i) external view returns (uint256) {
+    return trackedExpiries[i].length;
+  }
+
+  // ┌─ _coverage ─────
+  function _coverage(uint256 i) internal view returns (Coverage storage c) {
+    return exploring ? explored[i] : seeded[i];
+  }
+
+  // ┌─ _check ─────
+  function _check(uint256 i, bool condition, uint256 code) internal {
+    if (condition) return;
+    if (lifecycleFailures++ == 0) {
+      firstFailure = code;
+      firstFailureCell = i;
     }
-    uint256 length = m.getUnpaidBatchExpiries().length;
-    for (uint256 j; j < length; ++j) {
-      (success,) = _callAs(
-        i,
-        _borrower(),
-        address(m),
-        abi.encodeCall(WildcatMarketWithdrawals.repayAndProcessUnpaidWithdrawalBatches, (0, 1))
-      );
-      if (!success || m.getUnpaidBatchExpiries().length != length - j - 1) return false;
-    }
-    return true;
   }
 }

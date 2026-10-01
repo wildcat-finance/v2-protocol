@@ -1,11 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalRemainderState.t
+// ║  ██▀▀     ▀▀██   Withdrawal carry, reserve monotonicity, and debt partitions.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  RESERVE PARTITION
+// ║  test_carryPartitionCannotExceedFullyReservedDebt()
+// ║  testFuzz_reservesRemainMonotonicAndBounded(...)
+// ║  testFuzz_unifiedPartitionMatchesOriginalEndpointsAndIntermediateRatios(...)
+// ╚═════
+
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { RAY, HALF_RAY, BIP, HALF_BIP } from 'src/libraries/MathUtils.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ WithdrawalRemainderStateTest ─────────────────────────────────────────────
 contract WithdrawalRemainderStateTest is TestKernel {
+  // ░░▒▒▓▓██ [ RESERVE PARTITION ] ────────────────────────────────────────────
+
+  // ┌─ test_carryPartitionCannotExceedFullyReservedDebt ─────
   function test_carryPartitionCannotExceedFullyReservedDebt() external pure {
     MarketState memory s;
     s.scaledTotalSupply = 2;
@@ -20,6 +37,7 @@ contract WithdrawalRemainderStateTest is TestKernel {
     assertEq(s.totalDebts(), 4);
   }
 
+  // ┌─ testFuzz_reservesRemainMonotonicAndBounded ─────
   function testFuzz_reservesRemainMonotonicAndBounded(
     uint104 supply,
     uint104 pending,
@@ -44,6 +62,7 @@ contract WithdrawalRemainderStateTest is TestKernel {
     assertEq(s.liquidityRequired(), s.totalDebts());
   }
 
+  // ┌─ testFuzz_unifiedPartitionMatchesOriginalEndpointsAndIntermediateRatios ─────
   function testFuzz_unifiedPartitionMatchesOriginalEndpointsAndIntermediateRatios(
     uint104 supply,
     uint104 pending,

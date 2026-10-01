@@ -1,6 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensLifecycle.t
+// ║  ██▀▀     ▀▀██   Lifecycle lens parity through repayment, default, and closure.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _cell(...)
+// ║  _options(...)
+// ║  _fundAndBorrow(...)
+// ║
+// ║  REPAYMENT AND DEFAULT DATA
+// ║  test_repaymentMatrix_AccruedPhaseAndRecordedDefaultStayDistinct()
+// ║  test_zeroPeriod_ExactDateCureAndLateDefault()
+// ║  test_noRepaymentTerms_StillReportsOrdinaryPenaltyDefault()
+// ║
+// ║  CLOSURE AND PROPOSAL DATA
+// ║  test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery()
+// ║  test_manualClosureBeforeDate_DoesNotReenterRepayment()
+// ║  test_periodicProposal_ExposesRecordedWindowAndAccruedClosure()
+// ║
+// ║  ROUTE PARITY
+// ║  test_routes_FullLiveLenderAggregatedAndFacadeCarryNewData()
+// ║  _assertReads(...)
+// ╚═════
+
 import { MarketLens } from 'src/lens/MarketLens.sol';
 import { MarketLensCore } from 'src/lens/MarketLensCore.sol';
 import { MarketLensLive } from 'src/lens/MarketLensLive.sol';
@@ -11,6 +39,7 @@ import { BatchStatus, WithdrawalBatchDataWithLenderStatus } from 'src/lens/Withd
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ MarketLensLifecycleTest ──────────────────────────────────────────────────
 contract MarketLensLifecycleTest is ProductionMatrixFixture {
   ProductionStack internal stack;
   MarketLensCore internal core;
@@ -18,6 +47,9 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
   MarketLensAggregator internal aggregator;
   MarketLens internal lens;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     stack = _deployProductionStack();
     bytes memory args = abi.encode(address(stack.archController), address(stack.standardFactory));
@@ -38,6 +70,13 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     );
   }
 
+  // ┌─ _cell ─────
+  function _cell(MatrixOptions memory options, uint96 nonce) internal returns (MatrixCell memory cell) {
+    cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
+    _authorize(stack, cell, MatrixAlice);
+  }
+
+  // ┌─ _options ─────
   function _options(
     MatrixMarketKind kind,
     MatrixHooksKind hooksKind,
@@ -56,47 +95,16 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     options.repaymentPeriod = period;
   }
 
-  function _cell(MatrixOptions memory options, uint96 nonce) internal returns (MatrixCell memory cell) {
-    cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
-    _authorize(stack, cell, MatrixAlice);
-  }
-
+  // ┌─ _fundAndBorrow ─────
   function _fundAndBorrow(MatrixCell memory cell) internal {
     _deposit(stack, cell, MatrixAlice, 100e18);
     _borrow(cell, 80e18);
     _approveBorrower(stack, cell, 100e18);
   }
 
-  function _assertReads(MatrixCell memory cell, bool inRepayment) internal view returns (MarketDataV2_5 memory data) {
-    data = core.getMarketDataV2(address(cell.market));
-    assertTrue(data.lifecycle.isPresent, 'lifecycle supported');
-    assertEq(data.lifecycle.repaymentDate, cell.market.repaymentDate(), 'repayment date');
-    assertEq(data.lifecycle.repaymentPeriod, cell.market.repaymentPeriod(), 'repayment period');
-    assertEq(data.lifecycle.repaymentDeadline, cell.market.repaymentDeadline(), 'inclusive deadline');
-    assertEq(data.lifecycle.defaultedAt, cell.market.defaultedAt(), 'committed marker');
-    assertEq(data.lifecycle.isInRepayment, inRepayment, 'repayment phase');
-    assertEq(data.market.isClosed, cell.market.isClosed(), 'accrued closure');
-    assertEq(data.liquidity.maximumDeposit, cell.market.maximumDeposit(), 'deposit capacity');
-    assertEq(data.liquidity.borrowableAssets, cell.market.borrowableAssets(), 'borrow capacity');
-    assertEq(data.liquidity.totalDebts, cell.market.totalDebts(), 'all liabilities');
-    assertEq(data.registeredWrapper, cell.market.registeredWrapper(), 'registered wrapper');
-    assertTrue(data.market.hooks.repaymentConstraintsAvailable, 'repayment constraints supported');
-    assertTrue(data.market.hooks.hooksTemplate.initCodeHash.isPresent, 'code hash supported');
-    assertEq(
-      data.market.hooks.hooksTemplate.initCodeHash.value,
-      _factoryFor(stack, cell.options.marketKind).getHooksTemplateInitCodeHash(cell.hooksTemplate),
-      'factory commitment'
-    );
-    address[] memory markets = new address[](1);
-    markets[0] = address(cell.market);
-    MarketLiveDataV2_5 memory current = live.getMarketsLiveDataV2(markets)[0];
-    assertEq(abi.encode(current.lifecycle), abi.encode(data.lifecycle), 'live lifecycle parity');
-    assertEq(abi.encode(current.liquidity), abi.encode(data.liquidity), 'live liquidity parity');
-    assertEq(current.isClosed, data.market.isClosed, 'live closure parity');
-    assertEq(abi.encode(current.commitmentFeeBips), abi.encode(data.commitmentFeeBips), 'commitment fee parity');
-    assertEq(abi.encode(current.drawnAmount), abi.encode(data.drawnAmount), 'drawn principal parity');
-  }
+  // ░░▒▒▓▓██ [ REPAYMENT AND DEFAULT DATA ] ───────────────────────────────────
 
+  // ┌─ test_repaymentMatrix_AccruedPhaseAndRecordedDefaultStayDistinct ─────
   function test_repaymentMatrix_AccruedPhaseAndRecordedDefaultStayDistinct() external {
     for (uint256 i; i < 6; i++) {
       MatrixCell memory cell = _cell(_options(MatrixMarketKind(i / 3), MatrixHooksKind(i % 3), 1 days), uint96(i));
@@ -128,6 +136,7 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_zeroPeriod_ExactDateCureAndLateDefault ─────
   function test_zeroPeriod_ExactDateCureAndLateDefault() external {
     for (uint256 i; i < 2; i++) {
       MatrixCell memory cell = _cell(_options(MatrixMarketKind(i), MatrixHooksKind.OpenTerm, 0), uint96(i));
@@ -143,6 +152,7 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_noRepaymentTerms_StillReportsOrdinaryPenaltyDefault ─────
   function test_noRepaymentTerms_StillReportsOrdinaryPenaltyDefault() external {
     MatrixOptions memory options = _options(MatrixMarketKind.Standard, MatrixHooksKind.OpenTerm, 0);
     options.repaymentDate = 0;
@@ -163,6 +173,9 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     assertFalse(data.market.isClosed, 'default is only a marker');
   }
 
+  // ░░▒▒▓▓██ [ CLOSURE AND PROPOSAL DATA ] ────────────────────────────────────
+
+  // ┌─ test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery ─────
   function test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery() external {
     for (uint256 i; i < 2; i++) {
       MatrixOptions memory options = _options(MatrixMarketKind(i), MatrixHooksKind.OpenTerm, 1 days);
@@ -215,6 +228,7 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_manualClosureBeforeDate_DoesNotReenterRepayment ─────
   function test_manualClosureBeforeDate_DoesNotReenterRepayment() external {
     MatrixCell memory cell = _cell(_options(MatrixMarketKind.Standard, MatrixHooksKind.OpenTerm, 1 days), 0);
     _close(cell);
@@ -224,6 +238,7 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     assertEq(data.lifecycle.defaultedAt, 0, 'no debt to default');
   }
 
+  // ┌─ test_periodicProposal_ExposesRecordedWindowAndAccruedClosure ─────
   function test_periodicProposal_ExposesRecordedWindowAndAccruedClosure() external {
     MatrixOptions memory options = _options(MatrixMarketKind.Standard, MatrixHooksKind.PeriodicTerm, 1 days);
     options.annualInterestBips = 1_000;
@@ -257,6 +272,9 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
     assertEq(data.market.hooksConfig.pendingAprChange.proposalTimestamp, 0, 'accrued closure clears proposal view');
   }
 
+  // ░░▒▒▓▓██ [ ROUTE PARITY ] ─────────────────────────────────────────────────
+
+  // ┌─ test_routes_FullLiveLenderAggregatedAndFacadeCarryNewData ─────
   function test_routes_FullLiveLenderAggregatedAndFacadeCarryNewData() external {
     address[] memory markets = new address[](6);
     for (uint256 i; i < 6; i++) {
@@ -301,5 +319,36 @@ contract MarketLensLifecycleTest is ProductionMatrixFixture {
       assertEq(abi.encode(all[0]), abi.encode(core.getMarketDataV2(markets[i])), 'standard aggregate');
       assertEq(abi.encode(all[1]), abi.encode(core.getMarketDataV2(markets[i + 3])), 'revolving aggregate');
     }
+  }
+
+  // ┌─ _assertReads ─────
+  function _assertReads(MatrixCell memory cell, bool inRepayment) internal view returns (MarketDataV2_5 memory data) {
+    data = core.getMarketDataV2(address(cell.market));
+    assertTrue(data.lifecycle.isPresent, 'lifecycle supported');
+    assertEq(data.lifecycle.repaymentDate, cell.market.repaymentDate(), 'repayment date');
+    assertEq(data.lifecycle.repaymentPeriod, cell.market.repaymentPeriod(), 'repayment period');
+    assertEq(data.lifecycle.repaymentDeadline, cell.market.repaymentDeadline(), 'inclusive deadline');
+    assertEq(data.lifecycle.defaultedAt, cell.market.defaultedAt(), 'committed marker');
+    assertEq(data.lifecycle.isInRepayment, inRepayment, 'repayment phase');
+    assertEq(data.market.isClosed, cell.market.isClosed(), 'accrued closure');
+    assertEq(data.liquidity.maximumDeposit, cell.market.maximumDeposit(), 'deposit capacity');
+    assertEq(data.liquidity.borrowableAssets, cell.market.borrowableAssets(), 'borrow capacity');
+    assertEq(data.liquidity.totalDebts, cell.market.totalDebts(), 'all liabilities');
+    assertEq(data.registeredWrapper, cell.market.registeredWrapper(), 'registered wrapper');
+    assertTrue(data.market.hooks.repaymentConstraintsAvailable, 'repayment constraints supported');
+    assertTrue(data.market.hooks.hooksTemplate.initCodeHash.isPresent, 'code hash supported');
+    assertEq(
+      data.market.hooks.hooksTemplate.initCodeHash.value,
+      _factoryFor(stack, cell.options.marketKind).getHooksTemplateInitCodeHash(cell.hooksTemplate),
+      'factory commitment'
+    );
+    address[] memory markets = new address[](1);
+    markets[0] = address(cell.market);
+    MarketLiveDataV2_5 memory current = live.getMarketsLiveDataV2(markets)[0];
+    assertEq(abi.encode(current.lifecycle), abi.encode(data.lifecycle), 'live lifecycle parity');
+    assertEq(abi.encode(current.liquidity), abi.encode(data.liquidity), 'live liquidity parity');
+    assertEq(current.isClosed, data.market.isClosed, 'live closure parity');
+    assertEq(abi.encode(current.commitmentFeeBips), abi.encode(data.commitmentFeeBips), 'commitment fee parity');
+    assertEq(abi.encode(current.drawnAmount), abi.encode(data.drawnAmount), 'drawn principal parity');
   }
 }

@@ -1,6 +1,45 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // DeployHooksFactoryRevolving
+// ║  ██▀▀     ▀▀██   Deploy revolving artifacts, register authority, and record inventory.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  EXECUTION FLOW
+// ║  run()
+// ║
+// ║  CONFIGURATION
+// ║  _deploymentLabelSuffix()
+// ║  _ownerMode()
+// ║  _broadcasterAddress(...)
+// ║  _deploymentLabel(...)
+// ║  _equalStrings(...)
+// ║
+// ║  DEPLOYMENT
+// ║  _deployRevolvingSet(...)
+// ║  _deployRevolvingMarketInitCodeStorage(...)
+// ║  _getOrDeployInitcodeStorageByLabel(...)
+// ║  _deployHooksFactoryRevolving(...)
+// ║  _getOrDeployByLabel(...)
+// ║
+// ║  REGISTRATION
+// ║  _ensureArchControllerRegistration(...)
+// ║  _emitPendingRegisterControllerFactoryAction(...)
+// ║
+// ║  CANONICAL ALIASES
+// ║  _updateCanonicalAliases(...)
+// ║  _setCanonicalAlias(...)
+// ║
+// ║  FACTORY INVENTORY
+// ║  _updateFactoryInventory(...)
+// ║  _factoryInventoryLabel(...)
+// ║  _factoryInventoryStartBlock()
+// ║  _boolString(...)
+// ╚═════
+
 import { console } from 'forge-std/console.sol';
 
 import { IWildcatArchController } from 'src/interfaces/IWildcatArchController.sol';
@@ -8,6 +47,7 @@ import { IHooksFactoryRevolving } from 'src/IHooksFactoryRevolving.sol';
 
 import '../common/DeployScriptBase.sol';
 
+// ┌─ DeployHooksFactoryRevolving ──────────────────────────────────────────────
 contract DeployHooksFactoryRevolving is DeployScriptBase {
   struct RegistrationResult {
     address archControllerOwner;
@@ -34,180 +74,9 @@ contract DeployHooksFactoryRevolving is DeployScriptBase {
     bool didUpdateCanonicalHooksFactory;
   }
 
-  function _deploymentLabel(
-    string memory baseLabel,
-    string memory deploymentLabelSuffix
-  )
-    internal
-    pure
-    returns (string memory)
-  {
-    return string.concat(baseLabel, '_', deploymentLabelSuffix);
-  }
+  // ░░▒▒▓▓██ [ EXECUTION FLOW ] ───────────────────────────────────────────────
 
-  function _boolString(bool value) internal pure returns (string memory) {
-    return value ? 'true' : 'false';
-  }
-
-  function _deploymentLabelSuffix() internal returns (string memory deploymentLabelSuffix) {
-    deploymentLabelSuffix = vm.envOr('HOOKS_FACTORY_REVOLVING_DEPLOYMENT_LABEL', string(''));
-    if (bytes(deploymentLabelSuffix).length == 0) {
-      deploymentLabelSuffix = vm.envOr('HOOKS_FACTORY_REVOLVING_DEPLOYMENT_TAG', string(''));
-    }
-    if (bytes(deploymentLabelSuffix).length == 0) {
-      revert('Missing HOOKS_FACTORY_REVOLVING_DEPLOYMENT_LABEL');
-    }
-  }
-
-  function _getOrDeployByLabel(
-    Deployments memory deployments,
-    string memory deploymentLabel,
-    string memory contractName,
-    bytes memory creationCode,
-    bytes memory constructorArgs,
-    bool overrideExisting
-  )
-    internal
-    returns (address deployment, bool didDeploy)
-  {
-    if (overrideExisting || !deployments.has(deploymentLabel)) {
-      deployment = deployments.broadcastCreate(creationCode, constructorArgs);
-      didDeploy = true;
-      deployments.addArtifactWithoutDeploying(deploymentLabel, contractName, deployment, constructorArgs);
-      console.log(string.concat('Deployed ', deploymentLabel, ' to'), deployment);
-    } else {
-      deployment = deployments.get(deploymentLabel);
-      console.log(string.concat('Found ', deploymentLabel, ' at'), deployment);
-    }
-  }
-
-  function _getOrDeployInitcodeStorageByLabel(
-    Deployments memory deployments,
-    string memory deploymentLabel,
-    string memory contractName,
-    bytes memory creationCode,
-    bool overrideExisting
-  )
-    internal
-    returns (address deployment, bool didDeploy)
-  {
-    if (overrideExisting || !deployments.has(deploymentLabel)) {
-      deployment = deployments.broadcastDeployInitcode(creationCode);
-      didDeploy = true;
-
-      ContractArtifact memory artifact = parseContractNamePath(contractName);
-      artifact.customLabel = deploymentLabel;
-      artifact.deployment = deployment;
-
-      deployments.set(deploymentLabel, deployment);
-      deployments.pushArtifact(artifact);
-      console.log(string.concat('Deployed ', deploymentLabel, ' to'), deployment);
-    } else {
-      deployment = deployments.get(deploymentLabel);
-      console.log(string.concat('Found ', deploymentLabel, ' at'), deployment);
-    }
-  }
-
-  function _factoryInventoryLabel(string memory deploymentLabelSuffix) internal returns (string memory inventoryLabel) {
-    inventoryLabel = vm.envOr('HOOKS_FACTORY_REVOLVING_INVENTORY_LABEL', string(''));
-    if (bytes(inventoryLabel).length == 0) {
-      inventoryLabel = string.concat('revolving-', deploymentLabelSuffix);
-    }
-  }
-
-  function _factoryInventoryStartBlock() internal returns (uint256 startBlock) {
-    startBlock = vm.envOr('HOOKS_FACTORY_REVOLVING_START_BLOCK', uint256(0));
-    if (startBlock == 0) {
-      startBlock = block.number;
-    }
-  }
-
-  function _setCanonicalAlias(
-    Deployments memory deployments,
-    string memory aliasName,
-    address target
-  )
-    internal
-    returns (bool didUpdateAlias)
-  {
-    didUpdateAlias = !deployments.has(aliasName) || deployments.get(aliasName) != target;
-    deployments.set(aliasName, target);
-  }
-
-  function _updateCanonicalAliases(
-    Deployments memory deployments,
-    bool updateCanonicalAliases,
-    address revolvingMarketInitCodeStorage,
-    address hooksFactoryRevolving
-  )
-    internal
-    returns (CanonicalAliasResult memory result)
-  {
-    result.updateCanonicalAliases = updateCanonicalAliases;
-    if (updateCanonicalAliases) {
-      result.didUpdateCanonicalInitCodeStorage =
-        _setCanonicalAlias(deployments, 'WildcatMarketRevolving_initCodeStorage', revolvingMarketInitCodeStorage);
-      result.didUpdateCanonicalHooksFactory =
-        _setCanonicalAlias(deployments, 'HooksFactoryRevolving', hooksFactoryRevolving);
-    }
-  }
-
-  function _equalStrings(string memory a, string memory b) internal pure returns (bool) {
-    return keccak256(bytes(a)) == keccak256(bytes(b));
-  }
-
-  function _ownerMode() internal returns (string memory mode) {
-    mode = vm.envOr('ARCH_CONTROLLER_OWNER_MODE', string('direct'));
-    if (!_equalStrings(mode, 'direct') && !_equalStrings(mode, 'emit') && !_equalStrings(mode, 'require-direct')) {
-      revert('Invalid ARCH_CONTROLLER_OWNER_MODE');
-    }
-  }
-
-  function _broadcasterAddress(Deployments memory deployments) internal returns (address broadcaster) {
-    uint256 key = vm.envOr(deployments.privateKeyVarName, uint256(0));
-    if (key == 0) {
-      return address(0);
-    }
-    return vm.addr(key);
-  }
-
-  function _emitPendingRegisterControllerFactoryAction(
-    Deployments memory deployments,
-    string memory networkName,
-    address archController,
-    address archControllerOwner,
-    address hooksFactoryRevolving
-  )
-    internal
-    returns (string memory artifactPath)
-  {
-    string memory objectKey = string.concat('pending-admin-action-', vm.toString(hooksFactoryRevolving));
-    string memory pendingAdminDir = pathJoin(deployments.dir, 'pending-admin-actions');
-    mkdir(pendingAdminDir);
-
-    bytes memory calldata_ =
-      abi.encodeWithSelector(IWildcatArchController.registerControllerFactory.selector, hooksFactoryRevolving);
-
-    string memory json = vm.serializeUint(objectKey, 'chainId', block.chainid);
-    json = vm.serializeString(objectKey, 'network', networkName);
-    json = vm.serializeString(
-      objectKey, 'description', 'Register HooksFactoryRevolving as a controller factory in WildcatArchController'
-    );
-    json = vm.serializeAddress(objectKey, 'target', archController);
-    json = vm.serializeString(objectKey, 'value', '0');
-    json = vm.serializeBytes(objectKey, 'data', calldata_);
-    json = vm.serializeString(objectKey, 'functionSignature', 'registerControllerFactory(address)');
-    json = vm.serializeAddress(objectKey, 'archControllerOwner', archControllerOwner);
-    json = vm.serializeAddress(objectKey, 'factory', hooksFactoryRevolving);
-    json = vm.serializeString(objectKey, 'ownerMode', 'emit');
-
-    artifactPath = pathJoin(
-      pendingAdminDir,
-      string.concat('HooksFactoryRevolving-', vm.toString(hooksFactoryRevolving), '-register-controller-factory.json')
-    );
-    vm.writeJson(json, artifactPath);
-  }
-
+  // ┌─ run ─────
   function run() external {
     _assertEip1153Supported();
 
@@ -280,6 +149,322 @@ contract DeployHooksFactoryRevolving is DeployScriptBase {
     console.log(registrationResult.isControllerRegistered);
   }
 
+  // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
+
+  // ┌─ _deploymentLabelSuffix ─────
+  function _deploymentLabelSuffix() internal returns (string memory deploymentLabelSuffix) {
+    deploymentLabelSuffix = vm.envOr('HOOKS_FACTORY_REVOLVING_DEPLOYMENT_LABEL', string(''));
+    if (bytes(deploymentLabelSuffix).length == 0) {
+      deploymentLabelSuffix = vm.envOr('HOOKS_FACTORY_REVOLVING_DEPLOYMENT_TAG', string(''));
+    }
+    if (bytes(deploymentLabelSuffix).length == 0) {
+      revert('Missing HOOKS_FACTORY_REVOLVING_DEPLOYMENT_LABEL');
+    }
+  }
+
+  // ┌─ _ownerMode ─────
+  function _ownerMode() internal returns (string memory mode) {
+    mode = vm.envOr('ARCH_CONTROLLER_OWNER_MODE', string('direct'));
+    if (!_equalStrings(mode, 'direct') && !_equalStrings(mode, 'emit') && !_equalStrings(mode, 'require-direct')) {
+      revert('Invalid ARCH_CONTROLLER_OWNER_MODE');
+    }
+  }
+
+  // ┌─ _broadcasterAddress ─────
+  function _broadcasterAddress(Deployments memory deployments) internal returns (address broadcaster) {
+    uint256 key = vm.envOr(deployments.privateKeyVarName, uint256(0));
+    if (key == 0) {
+      return address(0);
+    }
+    return vm.addr(key);
+  }
+
+  // ┌─ _deploymentLabel ─────
+  function _deploymentLabel(
+    string memory baseLabel,
+    string memory deploymentLabelSuffix
+  )
+    internal
+    pure
+    returns (string memory)
+  {
+    return string.concat(baseLabel, '_', deploymentLabelSuffix);
+  }
+
+  // ┌─ _equalStrings ─────
+  function _equalStrings(string memory a, string memory b) internal pure returns (bool) {
+    return keccak256(bytes(a)) == keccak256(bytes(b));
+  }
+
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ _deployRevolvingSet ─────
+  function _deployRevolvingSet(
+    Deployments memory deployments,
+    string memory deploymentLabelSuffix,
+    bool overrideExisting,
+    address archController,
+    address sanctionsSentinel
+  )
+    internal
+    returns (RevolvingDeploymentResult memory result)
+  {
+    (
+      result.revolvingMarketInitCodeStorage,
+      result.revolvingMarketInitCodeHash,
+      result.didDeployRevolvingMarketInitCodeStorage
+    ) = _deployRevolvingMarketInitCodeStorage(deployments, deploymentLabelSuffix, overrideExisting);
+
+    (result.hooksFactoryRevolving, result.didDeployHooksFactoryRevolving) = _deployHooksFactoryRevolving(
+      deployments,
+      deploymentLabelSuffix,
+      overrideExisting,
+      archController,
+      sanctionsSentinel,
+      result.revolvingMarketInitCodeStorage,
+      result.revolvingMarketInitCodeHash
+    );
+  }
+
+  // ┌─ _deployRevolvingMarketInitCodeStorage ─────
+  function _deployRevolvingMarketInitCodeStorage(
+    Deployments memory deployments,
+    string memory deploymentLabelSuffix,
+    bool overrideExisting
+  )
+    internal
+    returns (
+      address revolvingMarketInitCodeStorage,
+      uint256 revolvingMarketInitCodeHash,
+      bool didDeployRevolvingMarketInitCodeStorage
+    )
+  {
+    bytes memory revolvingMarketCreationCode = _getCreationCode(
+      deployments, 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
+    );
+    revolvingMarketInitCodeHash = uint256(keccak256(revolvingMarketCreationCode));
+    string memory deploymentLabel = _deploymentLabel('WildcatMarketRevolving_initCodeStorage', deploymentLabelSuffix);
+    (revolvingMarketInitCodeStorage, didDeployRevolvingMarketInitCodeStorage) = _getOrDeployInitcodeStorageByLabel(
+      deployments,
+      deploymentLabel,
+      'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving',
+      revolvingMarketCreationCode,
+      overrideExisting
+    );
+  }
+
+  // ┌─ _getOrDeployInitcodeStorageByLabel ─────
+  function _getOrDeployInitcodeStorageByLabel(
+    Deployments memory deployments,
+    string memory deploymentLabel,
+    string memory contractName,
+    bytes memory creationCode,
+    bool overrideExisting
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
+    if (overrideExisting || !deployments.has(deploymentLabel)) {
+      deployment = deployments.broadcastDeployInitcode(creationCode);
+      didDeploy = true;
+
+      ContractArtifact memory artifact = parseContractNamePath(contractName);
+      artifact.customLabel = deploymentLabel;
+      artifact.deployment = deployment;
+
+      deployments.set(deploymentLabel, deployment);
+      deployments.pushArtifact(artifact);
+      console.log(string.concat('Deployed ', deploymentLabel, ' to'), deployment);
+    } else {
+      deployment = deployments.get(deploymentLabel);
+      console.log(string.concat('Found ', deploymentLabel, ' at'), deployment);
+    }
+  }
+
+  // ┌─ _deployHooksFactoryRevolving ─────
+  function _deployHooksFactoryRevolving(
+    Deployments memory deployments,
+    string memory deploymentLabelSuffix,
+    bool overrideExisting,
+    address archController,
+    address sanctionsSentinel,
+    address revolvingMarketInitCodeStorage,
+    uint256 revolvingMarketInitCodeHash
+  )
+    internal
+    returns (address hooksFactoryRevolving, bool didDeployHooksFactoryRevolving)
+  {
+    bytes memory hooksFactoryRevolvingCreationCode =
+      _getCreationCode(deployments, 'src/HooksFactoryRevolving.sol:HooksFactoryRevolving');
+    bytes memory hooksFactoryRevolvingConstructorArgs =
+      abi.encode(archController, sanctionsSentinel, revolvingMarketInitCodeStorage, revolvingMarketInitCodeHash);
+    string memory deploymentLabel = _deploymentLabel('HooksFactoryRevolving', deploymentLabelSuffix);
+
+    (hooksFactoryRevolving, didDeployHooksFactoryRevolving) = _getOrDeployByLabel(
+      deployments,
+      deploymentLabel,
+      'src/HooksFactoryRevolving.sol:HooksFactoryRevolving',
+      hooksFactoryRevolvingCreationCode,
+      hooksFactoryRevolvingConstructorArgs,
+      overrideExisting
+    );
+  }
+
+  // ┌─ _getOrDeployByLabel ─────
+  function _getOrDeployByLabel(
+    Deployments memory deployments,
+    string memory deploymentLabel,
+    string memory contractName,
+    bytes memory creationCode,
+    bytes memory constructorArgs,
+    bool overrideExisting
+  )
+    internal
+    returns (address deployment, bool didDeploy)
+  {
+    if (overrideExisting || !deployments.has(deploymentLabel)) {
+      deployment = deployments.broadcastCreate(creationCode, constructorArgs);
+      didDeploy = true;
+      deployments.addArtifactWithoutDeploying(deploymentLabel, contractName, deployment, constructorArgs);
+      console.log(string.concat('Deployed ', deploymentLabel, ' to'), deployment);
+    } else {
+      deployment = deployments.get(deploymentLabel);
+      console.log(string.concat('Found ', deploymentLabel, ' at'), deployment);
+    }
+  }
+
+  // ░░▒▒▓▓██ [ REGISTRATION ] ─────────────────────────────────────────────────
+
+  // ┌─ _ensureArchControllerRegistration ─────
+  function _ensureArchControllerRegistration(
+    Deployments memory deployments,
+    string memory networkName,
+    string memory ownerMode,
+    address archController,
+    address hooksFactoryRevolving
+  )
+    internal
+    returns (RegistrationResult memory result)
+  {
+    IWildcatArchController arch = IWildcatArchController(archController);
+    result.archControllerOwner = arch.owner();
+    result.broadcaster = _broadcasterAddress(deployments);
+    result.hasDirectOwnerAuthority =
+      result.broadcaster != address(0) && result.broadcaster == result.archControllerOwner;
+
+    result.isControllerFactoryRegistered = arch.isRegisteredControllerFactory(hooksFactoryRevolving);
+    if (!result.isControllerFactoryRegistered) {
+      if (_equalStrings(ownerMode, 'emit')) {
+        string memory artifactPath = _emitPendingRegisterControllerFactoryAction(
+          deployments, networkName, archController, result.archControllerOwner, hooksFactoryRevolving
+        );
+        result.didEmitPendingAdminAction = true;
+        console.log('Owner-gated registration is pending. Wrote admin action artifact:');
+        console.log(artifactPath);
+        return result;
+      }
+
+      if (_equalStrings(ownerMode, 'require-direct') && !result.hasDirectOwnerAuthority) {
+        revert('Direct owner authority required for registerControllerFactory');
+      }
+
+      deployments.broadcast();
+      arch.registerControllerFactory(hooksFactoryRevolving);
+      result.didRegisterControllerFactory = true;
+      result.isControllerFactoryRegistered = arch.isRegisteredControllerFactory(hooksFactoryRevolving);
+    }
+
+    result.isControllerRegistered = arch.isRegisteredController(hooksFactoryRevolving);
+    if (!result.isControllerRegistered) {
+      deployments.broadcast();
+      IHooksFactoryRevolving(hooksFactoryRevolving).registerWithArchController();
+      result.didRegisterController = true;
+      result.isControllerRegistered = arch.isRegisteredController(hooksFactoryRevolving);
+    }
+
+    if (!result.isControllerFactoryRegistered) {
+      revert('Controller factory registration missing');
+    }
+    if (!result.isControllerRegistered) {
+      revert('Controller registration missing');
+    }
+  }
+
+  // ┌─ _emitPendingRegisterControllerFactoryAction ─────
+  function _emitPendingRegisterControllerFactoryAction(
+    Deployments memory deployments,
+    string memory networkName,
+    address archController,
+    address archControllerOwner,
+    address hooksFactoryRevolving
+  )
+    internal
+    returns (string memory artifactPath)
+  {
+    string memory objectKey = string.concat('pending-admin-action-', vm.toString(hooksFactoryRevolving));
+    string memory pendingAdminDir = pathJoin(deployments.dir, 'pending-admin-actions');
+    mkdir(pendingAdminDir);
+
+    bytes memory calldata_ =
+      abi.encodeWithSelector(IWildcatArchController.registerControllerFactory.selector, hooksFactoryRevolving);
+
+    string memory json = vm.serializeUint(objectKey, 'chainId', block.chainid);
+    json = vm.serializeString(objectKey, 'network', networkName);
+    json = vm.serializeString(
+      objectKey, 'description', 'Register HooksFactoryRevolving as a controller factory in WildcatArchController'
+    );
+    json = vm.serializeAddress(objectKey, 'target', archController);
+    json = vm.serializeString(objectKey, 'value', '0');
+    json = vm.serializeBytes(objectKey, 'data', calldata_);
+    json = vm.serializeString(objectKey, 'functionSignature', 'registerControllerFactory(address)');
+    json = vm.serializeAddress(objectKey, 'archControllerOwner', archControllerOwner);
+    json = vm.serializeAddress(objectKey, 'factory', hooksFactoryRevolving);
+    json = vm.serializeString(objectKey, 'ownerMode', 'emit');
+
+    artifactPath = pathJoin(
+      pendingAdminDir,
+      string.concat('HooksFactoryRevolving-', vm.toString(hooksFactoryRevolving), '-register-controller-factory.json')
+    );
+    vm.writeJson(json, artifactPath);
+  }
+
+  // ░░▒▒▓▓██ [ CANONICAL ALIASES ] ────────────────────────────────────────────
+
+  // ┌─ _updateCanonicalAliases ─────
+  function _updateCanonicalAliases(
+    Deployments memory deployments,
+    bool updateCanonicalAliases,
+    address revolvingMarketInitCodeStorage,
+    address hooksFactoryRevolving
+  )
+    internal
+    returns (CanonicalAliasResult memory result)
+  {
+    result.updateCanonicalAliases = updateCanonicalAliases;
+    if (updateCanonicalAliases) {
+      result.didUpdateCanonicalInitCodeStorage =
+        _setCanonicalAlias(deployments, 'WildcatMarketRevolving_initCodeStorage', revolvingMarketInitCodeStorage);
+      result.didUpdateCanonicalHooksFactory =
+        _setCanonicalAlias(deployments, 'HooksFactoryRevolving', hooksFactoryRevolving);
+    }
+  }
+
+  // ┌─ _setCanonicalAlias ─────
+  function _setCanonicalAlias(
+    Deployments memory deployments,
+    string memory aliasName,
+    address target
+  )
+    internal
+    returns (bool didUpdateAlias)
+  {
+    didUpdateAlias = !deployments.has(aliasName) || deployments.get(aliasName) != target;
+    deployments.set(aliasName, target);
+  }
+
+  // ░░▒▒▓▓██ [ FACTORY INVENTORY ] ────────────────────────────────────────────
+
+  // ┌─ _updateFactoryInventory ─────
   function _updateFactoryInventory(
     string memory networkName,
     string memory deploymentLabelSuffix,
@@ -337,138 +522,24 @@ contract DeployHooksFactoryRevolving is DeployScriptBase {
     return true;
   }
 
-  function _deployRevolvingSet(
-    Deployments memory deployments,
-    string memory deploymentLabelSuffix,
-    bool overrideExisting,
-    address archController,
-    address sanctionsSentinel
-  )
-    internal
-    returns (RevolvingDeploymentResult memory result)
-  {
-    (
-      result.revolvingMarketInitCodeStorage,
-      result.revolvingMarketInitCodeHash,
-      result.didDeployRevolvingMarketInitCodeStorage
-    ) = _deployRevolvingMarketInitCodeStorage(deployments, deploymentLabelSuffix, overrideExisting);
-
-    (result.hooksFactoryRevolving, result.didDeployHooksFactoryRevolving) = _deployHooksFactoryRevolving(
-      deployments,
-      deploymentLabelSuffix,
-      overrideExisting,
-      archController,
-      sanctionsSentinel,
-      result.revolvingMarketInitCodeStorage,
-      result.revolvingMarketInitCodeHash
-    );
+  // ┌─ _factoryInventoryLabel ─────
+  function _factoryInventoryLabel(string memory deploymentLabelSuffix) internal returns (string memory inventoryLabel) {
+    inventoryLabel = vm.envOr('HOOKS_FACTORY_REVOLVING_INVENTORY_LABEL', string(''));
+    if (bytes(inventoryLabel).length == 0) {
+      inventoryLabel = string.concat('revolving-', deploymentLabelSuffix);
+    }
   }
 
-  function _deployRevolvingMarketInitCodeStorage(
-    Deployments memory deployments,
-    string memory deploymentLabelSuffix,
-    bool overrideExisting
-  )
-    internal
-    returns (
-      address revolvingMarketInitCodeStorage,
-      uint256 revolvingMarketInitCodeHash,
-      bool didDeployRevolvingMarketInitCodeStorage
-    )
-  {
-    bytes memory revolvingMarketCreationCode = _getCreationCode(
-      deployments, 'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving'
-    );
-    revolvingMarketInitCodeHash = uint256(keccak256(revolvingMarketCreationCode));
-    string memory deploymentLabel = _deploymentLabel('WildcatMarketRevolving_initCodeStorage', deploymentLabelSuffix);
-    (revolvingMarketInitCodeStorage, didDeployRevolvingMarketInitCodeStorage) = _getOrDeployInitcodeStorageByLabel(
-      deployments,
-      deploymentLabel,
-      'src/market/WildcatMarketRevolving.sol:WildcatMarketRevolving',
-      revolvingMarketCreationCode,
-      overrideExisting
-    );
+  // ┌─ _factoryInventoryStartBlock ─────
+  function _factoryInventoryStartBlock() internal returns (uint256 startBlock) {
+    startBlock = vm.envOr('HOOKS_FACTORY_REVOLVING_START_BLOCK', uint256(0));
+    if (startBlock == 0) {
+      startBlock = block.number;
+    }
   }
 
-  function _deployHooksFactoryRevolving(
-    Deployments memory deployments,
-    string memory deploymentLabelSuffix,
-    bool overrideExisting,
-    address archController,
-    address sanctionsSentinel,
-    address revolvingMarketInitCodeStorage,
-    uint256 revolvingMarketInitCodeHash
-  )
-    internal
-    returns (address hooksFactoryRevolving, bool didDeployHooksFactoryRevolving)
-  {
-    bytes memory hooksFactoryRevolvingCreationCode =
-      _getCreationCode(deployments, 'src/HooksFactoryRevolving.sol:HooksFactoryRevolving');
-    bytes memory hooksFactoryRevolvingConstructorArgs =
-      abi.encode(archController, sanctionsSentinel, revolvingMarketInitCodeStorage, revolvingMarketInitCodeHash);
-    string memory deploymentLabel = _deploymentLabel('HooksFactoryRevolving', deploymentLabelSuffix);
-
-    (hooksFactoryRevolving, didDeployHooksFactoryRevolving) = _getOrDeployByLabel(
-      deployments,
-      deploymentLabel,
-      'src/HooksFactoryRevolving.sol:HooksFactoryRevolving',
-      hooksFactoryRevolvingCreationCode,
-      hooksFactoryRevolvingConstructorArgs,
-      overrideExisting
-    );
-  }
-
-  function _ensureArchControllerRegistration(
-    Deployments memory deployments,
-    string memory networkName,
-    string memory ownerMode,
-    address archController,
-    address hooksFactoryRevolving
-  )
-    internal
-    returns (RegistrationResult memory result)
-  {
-    IWildcatArchController arch = IWildcatArchController(archController);
-    result.archControllerOwner = arch.owner();
-    result.broadcaster = _broadcasterAddress(deployments);
-    result.hasDirectOwnerAuthority =
-      result.broadcaster != address(0) && result.broadcaster == result.archControllerOwner;
-
-    result.isControllerFactoryRegistered = arch.isRegisteredControllerFactory(hooksFactoryRevolving);
-    if (!result.isControllerFactoryRegistered) {
-      if (_equalStrings(ownerMode, 'emit')) {
-        string memory artifactPath = _emitPendingRegisterControllerFactoryAction(
-          deployments, networkName, archController, result.archControllerOwner, hooksFactoryRevolving
-        );
-        result.didEmitPendingAdminAction = true;
-        console.log('Owner-gated registration is pending. Wrote admin action artifact:');
-        console.log(artifactPath);
-        return result;
-      }
-
-      if (_equalStrings(ownerMode, 'require-direct') && !result.hasDirectOwnerAuthority) {
-        revert('Direct owner authority required for registerControllerFactory');
-      }
-
-      deployments.broadcast();
-      arch.registerControllerFactory(hooksFactoryRevolving);
-      result.didRegisterControllerFactory = true;
-      result.isControllerFactoryRegistered = arch.isRegisteredControllerFactory(hooksFactoryRevolving);
-    }
-
-    result.isControllerRegistered = arch.isRegisteredController(hooksFactoryRevolving);
-    if (!result.isControllerRegistered) {
-      deployments.broadcast();
-      IHooksFactoryRevolving(hooksFactoryRevolving).registerWithArchController();
-      result.didRegisterController = true;
-      result.isControllerRegistered = arch.isRegisteredController(hooksFactoryRevolving);
-    }
-
-    if (!result.isControllerFactoryRegistered) {
-      revert('Controller factory registration missing');
-    }
-    if (!result.isControllerRegistered) {
-      revert('Controller registration missing');
-    }
+  // ┌─ _boolString ─────
+  function _boolString(bool value) internal pure returns (string memory) {
+    return value ? 'true' : 'false';
   }
 }

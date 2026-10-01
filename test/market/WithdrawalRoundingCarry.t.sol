@@ -1,14 +1,59 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalRoundingCarry.t
+// ║  ██▀▀     ▀▀██   Withdrawal carry collection, closure, and numerator conservation.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  CARRY COLLECTION
+// ║  test_carryCollectsElevenInsteadOfTen_AcrossMarketKinds()
+// ║  _accrued(...)
+// ║
+// ║  CARRY SETTLEMENT
+// ║  test_carryDebtClosesExactly_AcrossMarketKinds()
+// ║  test_multipleBatchRemaindersCloseAndPayExactly_AcrossMarketKinds()
+// ║  test_automaticClosureProtectsCarryFromRescue_AcrossMarketKinds()
+// ║  test_finalFractionReleasedOnlyWhenBatchCannotGrow_AcrossMarketKinds()
+// ║  test_closeReturnsOnlyTrueSurplusThroughRescue_AcrossMarketKinds()
+// ║  prepareTwoBatches(...)
+// ║  _frozen(...)
+// ║  _setFactor(...)
+// ║
+// ║  NUMERATOR CONSERVATION
+// ║  testFuzz_paymentNumeratorsAccumulateAcrossChangingFactors(...)
+// ╚═════
+
 import { RAY } from 'src/libraries/MathUtils.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
 
+// ┌─ WithdrawalRoundingCarryTest ──────────────────────────────────────────────
 contract WithdrawalRoundingCarryTest is MarketFixture {
   address internal constant Holder = address(0xA11CE);
 
+  // ░░▒▒▓▓██ [ CARRY COLLECTION ] ─────────────────────────────────────────────
+
+  // ┌─ test_carryCollectsElevenInsteadOfTen_AcrossMarketKinds ─────
+  function test_carryCollectsElevenInsteadOfTen_AcrossMarketKinds() external {
+    for (uint256 i; i < 4; ++i) {
+      (Fixture memory f, uint32 expiry) = _accrued(10, 1000, i >= 2, HooksKind(i % 2));
+      assertEq(f.market.scaleFactor(), (11 * RAY) / 10);
+      for (uint256 j; j < 11; ++j) {
+        vm.prank(Borrower);
+        f.market.repay(1);
+      }
+      WithdrawalBatch memory batch = f.market.getWithdrawalBatch(expiry);
+      assertEq(batch.scaledAmountBurned, 10);
+      assertEq(batch.normalizedAmountPaid, 11);
+      assertEq(batch.paymentRemainder, 0);
+    }
+  }
+
+  // ┌─ _accrued ─────
   function _accrued(
     uint128 amount,
     uint16 rate,
@@ -35,21 +80,9 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     _fundAndApprove(fixture, Borrower, uint256(amount) * 4);
   }
 
-  function test_carryCollectsElevenInsteadOfTen_AcrossMarketKinds() external {
-    for (uint256 i; i < 4; ++i) {
-      (Fixture memory f, uint32 expiry) = _accrued(10, 1000, i >= 2, HooksKind(i % 2));
-      assertEq(f.market.scaleFactor(), (11 * RAY) / 10);
-      for (uint256 j; j < 11; ++j) {
-        vm.prank(Borrower);
-        f.market.repay(1);
-      }
-      WithdrawalBatch memory batch = f.market.getWithdrawalBatch(expiry);
-      assertEq(batch.scaledAmountBurned, 10);
-      assertEq(batch.normalizedAmountPaid, 11);
-      assertEq(batch.paymentRemainder, 0);
-    }
-  }
+  // ░░▒▒▓▓██ [ CARRY SETTLEMENT ] ─────────────────────────────────────────────
 
+  // ┌─ test_carryDebtClosesExactly_AcrossMarketKinds ─────
   function test_carryDebtClosesExactly_AcrossMarketKinds() external {
     for (uint256 i; i < 4; ++i) {
       (Fixture memory f, uint32 expiry) = _accrued(4, 2500, i >= 2, HooksKind(i % 2));
@@ -73,53 +106,7 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     }
   }
 
-  // Establish a valid fixed scale without accruing again during the scenario. This avoids
-  // making the expected rounding depend on timing or the revolving utilization formula.
-  function _setFactor(Fixture memory f, uint112 factor) private {
-    bytes32 word = vm.load(address(f.market), bytes32(uint256(3)));
-    uint256 mask = uint256(type(uint112).max) << 80;
-    vm.store(address(f.market), bytes32(uint256(3)), bytes32((uint256(word) & ~mask) | (uint256(factor) << 80)));
-    assertEq(f.market.scaleFactor(), factor);
-  }
-
-  function _frozen(uint128 amount, uint32 date, bool revolving, HooksKind kind) private returns (Fixture memory f) {
-    Options memory options = _defaultOptions(kind);
-    options.revolving = revolving;
-    options.annualInterestBips = 0;
-    options.protocolFeeBips = 0;
-    options.delinquencyFeeBips = 0;
-    options.commitmentFeeBips = 0;
-    options.reserveRatioBips = 0;
-    options.withdrawalBatchDuration = 10;
-    options.repaymentDate = date;
-    options.repaymentPeriod = date == 0 ? 0 : 3600;
-    f = _newMarket(options);
-    _deposit(f, Holder, amount);
-    vm.prank(Borrower);
-    f.market.borrow(amount);
-    _fundAndApprove(f, Borrower, uint256(amount) * 10 + 10);
-    _setFactor(f, uint112((5 * RAY) / 4));
-  }
-
-  function prepareTwoBatches(Fixture memory f) external returns (uint32 first, uint32 second) {
-    vm.prank(Holder);
-    first = f.market.queueWithdrawalScaled(4);
-    vm.prank(Borrower);
-    f.market.repay(3);
-    vm.warp(uint256(first) + 1);
-    f.market.updateState();
-    vm.prank(Holder);
-    second = f.market.queueFullWithdrawal();
-    vm.prank(Borrower);
-    f.market.repay(4);
-    assertEq(f.market.getWithdrawalBatch(first).paymentRemainder, (3 * RAY) / 4);
-    assertEq(f.market.getWithdrawalBatch(second).paymentRemainder, RAY / 2);
-    assertEq(f.market.currentState().withdrawalRemainder, (5 * RAY) / 4, 'sum crosses one whole unit');
-    assertEq(f.market.totalDebts(), 10);
-    assertEq(f.market.coverageLiquidity(), 10);
-    assertEq(f.market.borrowableAssets(), 0);
-  }
-
+  // ┌─ test_multipleBatchRemaindersCloseAndPayExactly_AcrossMarketKinds ─────
   function test_multipleBatchRemaindersCloseAndPayExactly_AcrossMarketKinds() external {
     for (uint256 i; i < 4; ++i) {
       Fixture memory f = _frozen(8, 0, i >= 2, HooksKind(i % 2));
@@ -134,6 +121,7 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     }
   }
 
+  // ┌─ test_automaticClosureProtectsCarryFromRescue_AcrossMarketKinds ─────
   function test_automaticClosureProtectsCarryFromRescue_AcrossMarketKinds() external {
     for (uint256 i; i < 4; ++i) {
       uint32 date = uint32(vm.getBlockTimestamp() + 100);
@@ -160,6 +148,7 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     }
   }
 
+  // ┌─ test_finalFractionReleasedOnlyWhenBatchCannotGrow_AcrossMarketKinds ─────
   function test_finalFractionReleasedOnlyWhenBatchCannotGrow_AcrossMarketKinds() external {
     for (uint256 i; i < 4; ++i) {
       Fixture memory f = _frozen(3, 0, i >= 2, HooksKind(i % 2));
@@ -178,6 +167,7 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     }
   }
 
+  // ┌─ test_closeReturnsOnlyTrueSurplusThroughRescue_AcrossMarketKinds ─────
   function test_closeReturnsOnlyTrueSurplusThroughRescue_AcrossMarketKinds() external {
     for (uint256 i; i < 4; ++i) {
       Fixture memory f = _frozen(3, 0, i >= 2, HooksKind(i % 2));
@@ -199,6 +189,59 @@ contract WithdrawalRoundingCarryTest is MarketFixture {
     }
   }
 
+  // ┌─ prepareTwoBatches ─────
+  function prepareTwoBatches(Fixture memory f) external returns (uint32 first, uint32 second) {
+    vm.prank(Holder);
+    first = f.market.queueWithdrawalScaled(4);
+    vm.prank(Borrower);
+    f.market.repay(3);
+    vm.warp(uint256(first) + 1);
+    f.market.updateState();
+    vm.prank(Holder);
+    second = f.market.queueFullWithdrawal();
+    vm.prank(Borrower);
+    f.market.repay(4);
+    assertEq(f.market.getWithdrawalBatch(first).paymentRemainder, (3 * RAY) / 4);
+    assertEq(f.market.getWithdrawalBatch(second).paymentRemainder, RAY / 2);
+    assertEq(f.market.currentState().withdrawalRemainder, (5 * RAY) / 4, 'sum crosses one whole unit');
+    assertEq(f.market.totalDebts(), 10);
+    assertEq(f.market.coverageLiquidity(), 10);
+    assertEq(f.market.borrowableAssets(), 0);
+  }
+
+  // ┌─ _frozen ─────
+  function _frozen(uint128 amount, uint32 date, bool revolving, HooksKind kind) private returns (Fixture memory f) {
+    Options memory options = _defaultOptions(kind);
+    options.revolving = revolving;
+    options.annualInterestBips = 0;
+    options.protocolFeeBips = 0;
+    options.delinquencyFeeBips = 0;
+    options.commitmentFeeBips = 0;
+    options.reserveRatioBips = 0;
+    options.withdrawalBatchDuration = 10;
+    options.repaymentDate = date;
+    options.repaymentPeriod = date == 0 ? 0 : 3600;
+    f = _newMarket(options);
+    _deposit(f, Holder, amount);
+    vm.prank(Borrower);
+    f.market.borrow(amount);
+    _fundAndApprove(f, Borrower, uint256(amount) * 10 + 10);
+    _setFactor(f, uint112((5 * RAY) / 4));
+  }
+
+  // Establish a valid fixed scale without accruing again during the scenario. This avoids
+  // making the expected rounding depend on timing or the revolving utilization formula.
+  // ┌─ _setFactor ─────
+  function _setFactor(Fixture memory f, uint112 factor) private {
+    bytes32 word = vm.load(address(f.market), bytes32(uint256(3)));
+    uint256 mask = uint256(type(uint112).max) << 80;
+    vm.store(address(f.market), bytes32(uint256(3)), bytes32((uint256(word) & ~mask) | (uint256(factor) << 80)));
+    assertEq(f.market.scaleFactor(), factor);
+  }
+
+  // ░░▒▒▓▓██ [ NUMERATOR CONSERVATION ] ───────────────────────────────────────
+
+  // ┌─ testFuzz_paymentNumeratorsAccumulateAcrossChangingFactors ─────
   function testFuzz_paymentNumeratorsAccumulateAcrossChangingFactors(uint256 seed) external {
     Fixture memory f = _frozen(1000, 0, seed & 1 != 0, HooksKind((seed >> 1) & 1));
     vm.prank(Holder);

@@ -1,6 +1,68 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatBorrowerIdentityRegistry.t
+// ║  ██▀▀     ▀▀██   Account factories, borrower identities, and principal transfers.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture()
+// ║  _deployArchController()
+// ║  _deployRegistry(...)
+// ║  _deployFactory(...)
+// ║  _deployAccount()
+// ║
+// ║  CONSTRUCTION AND DEPENDENCIES
+// ║  test_constructor_StoresArchController()
+// ║  test_constructor_RejectsInvalidArchController()
+// ║  test_archControllerOwnerRead_ValidatesAndBubblesResponse()
+// ║  test_registeredBorrowerRead_ValidatesAndBubblesResponse()
+// ║
+// ║  ACCOUNT FACTORIES
+// ║  test_addAccountFactory_EmitsAndEnumerates()
+// ║  test_addAccountFactory_FollowsCurrentArchControllerOwner()
+// ║  test_addAccountFactory_RejectsInvalidAddress()
+// ║  test_addAccountFactory_RejectsDuplicate()
+// ║  test_removeAccountFactory_PreservesRegisteredAccountProvenance()
+// ║  test_removeAccountFactory_RequiresOwnerAndExistingFactory()
+// ║  test_getAccountFactories_PaginatesAndValidatesRange()
+// ║
+// ║  ACCOUNT REGISTRATION
+// ║  test_registerAccount_EmitsAndIndexesIdentity()
+// ║  test_registerAccount_AllowsMultipleAccountsForOnePrincipal()
+// ║  test_registerAccount_RequiresApprovedFactory()
+// ║  test_registerAccount_RejectsInvalidAccount()
+// ║  test_registerAccount_RequiresNonzeroRegisteredPrincipal()
+// ║  test_registerAccount_RejectsAmbiguousAccountOrPrincipal()
+// ║  testFuzz_registerAccount_RejectsDuplicateWithoutMutation(...)
+// ║  _registerAccount(...)
+// ║
+// ║  TRANSFER REQUESTS
+// ║  test_requestTransfer_EmitsAndLeavesCurrentPrincipalActive()
+// ║  test_requestTransfer_ReplacesPendingPrincipal()
+// ║  test_requestTransfer_RequiresRegisteredAccountPrincipal()
+// ║  test_requestTransfer_RejectsInvalidOrUnregisteredTarget()
+// ║  test_requestTransfer_RejectsAmbiguousIdentity()
+// ║  _requestTransfer(...)
+// ║  test_cancelTransfer_EmitsAndClearsPendingPrincipal()
+// ║  test_cancelTransfer_RequiresPrincipalAndPendingTransfer()
+// ║
+// ║  TRANSFER ACCEPTANCE
+// ║  test_acceptTransfer_EmitsMovesCurrentEnumerationAndKeepsFactoryHistory()
+// ║  test_acceptTransfer_UpdatesAuthorityAndSupportsRoundTrip()
+// ║  test_acceptTransfer_SurvivesFactoryOrCurrentPrincipalRemoval()
+// ║  test_acceptTransfer_RevalidatesTargetAndAccountIdentity()
+// ║  _acceptTransfer(...)
+// ║
+// ║  IDENTITY QUERIES
+// ║  test_resolveBorrower_HandlesDirectPrincipalAndUnknownAddress()
+// ║  test_resolveBorrower_RejectsStaleOrAmbiguousIdentity()
+// ║  test_getBorrowerAccounts_PaginatesPrincipalAndFactoryIndexes()
+// ╚═════
+
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { WildcatBorrowerIdentityRegistry } from 'src/WildcatBorrowerIdentityRegistry.sol';
 import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegistry.sol';
@@ -8,6 +70,7 @@ import { IWildcatArchController } from 'src/interfaces/IWildcatArchController.so
 import { BorrowerIdentityAccountFactoryMock } from '../mocks/BorrowerIdentityMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ WildcatBorrowerIdentityRegistryTest ──────────────────────────────────────
 contract WildcatBorrowerIdentityRegistryTest is TestKernel {
   struct Fixture {
     WildcatArchController archController;
@@ -21,16 +84,30 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
   address internal constant BadCaller = address(0xBAD);
   address internal constant NewOwner = address(0xB055);
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _newFixture ─────
+  function _newFixture() internal returns (Fixture memory fixture) {
+    fixture.archController = _deployArchController();
+    fixture.registry = _deployRegistry(address(fixture.archController));
+    fixture.accountFactory = _deployFactory(fixture.registry);
+    fixture.archController.registerBorrower(Principal);
+    fixture.registry.addAccountFactory(address(fixture.accountFactory));
+  }
+
+  // ┌─ _deployArchController ─────
   function _deployArchController() internal returns (WildcatArchController archController) {
     archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
   }
 
+  // ┌─ _deployRegistry ─────
   function _deployRegistry(address archController) internal returns (WildcatBorrowerIdentityRegistry registry) {
     registry = WildcatBorrowerIdentityRegistry(
       _deployCode('src/WildcatBorrowerIdentityRegistry.sol:WildcatBorrowerIdentityRegistry', abi.encode(archController))
     );
   }
 
+  // ┌─ _deployFactory ─────
   function _deployFactory(WildcatBorrowerIdentityRegistry registry)
     internal
     returns (BorrowerIdentityAccountFactoryMock factory)
@@ -42,49 +119,20 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     );
   }
 
+  // ┌─ _deployAccount ─────
   function _deployAccount() internal returns (address account) {
     account = _deployCode('test/mocks/BorrowerIdentityMocks.sol:BorrowerIdentityAccountMock');
   }
 
-  function _newFixture() internal returns (Fixture memory fixture) {
-    fixture.archController = _deployArchController();
-    fixture.registry = _deployRegistry(address(fixture.archController));
-    fixture.accountFactory = _deployFactory(fixture.registry);
-    fixture.archController.registerBorrower(Principal);
-    fixture.registry.addAccountFactory(address(fixture.accountFactory));
-  }
+  // ░░▒▒▓▓██ [ CONSTRUCTION AND DEPENDENCIES ] ────────────────────────────────
 
-  function _registerAccount(Fixture memory fixture, address principal) internal returns (address account) {
-    account = _deployAccount();
-    fixture.accountFactory.registerAccount(account, principal);
-  }
-
-  function _requestTransfer(
-    Fixture memory fixture,
-    address account,
-    address currentPrincipal,
-    address newPrincipal
-  )
-    internal
-  {
-    vm.prank(currentPrincipal);
-    fixture.registry.requestBorrowerAccountPrincipalTransfer(account, newPrincipal);
-  }
-
-  function _acceptTransfer(Fixture memory fixture, address account, address newPrincipal) internal {
-    vm.prank(newPrincipal);
-    fixture.registry.acceptBorrowerAccountPrincipalTransfer(account);
-  }
-
-  // ========================================================================== //
-  //                         Construction and ABI reads                         //
-  // ========================================================================== //
-
+  // ┌─ test_constructor_StoresArchController ─────
   function test_constructor_StoresArchController() external {
     Fixture memory fixture = _newFixture();
     assertEq(fixture.registry.archController(), address(fixture.archController));
   }
 
+  // ┌─ test_constructor_RejectsInvalidArchController ─────
   function test_constructor_RejectsInvalidArchController() external {
     vm.expectRevert(IBorrowerIdentityRegistry.InvalidArchController.selector);
     _deployRegistry(address(0));
@@ -93,6 +141,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     _deployRegistry(address(0xBEEF));
   }
 
+  // ┌─ test_archControllerOwnerRead_ValidatesAndBubblesResponse ─────
   function test_archControllerOwnerRead_ValidatesAndBubblesResponse() external {
     Fixture memory fixture = _newFixture();
     BorrowerIdentityAccountFactoryMock secondFactory = _deployFactory(fixture.registry);
@@ -121,6 +170,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ test_registeredBorrowerRead_ValidatesAndBubblesResponse ─────
   function test_registeredBorrowerRead_ValidatesAndBubblesResponse() external {
     Fixture memory fixture = _newFixture();
     bytes memory callData = abi.encodeCall(IWildcatArchController.isRegisteredBorrower, (Principal));
@@ -147,10 +197,9 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     vm.clearMockedCalls();
   }
 
-  // ========================================================================== //
-  //                             Account factories                              //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ ACCOUNT FACTORIES ] ────────────────────────────────────────────
 
+  // ┌─ test_addAccountFactory_EmitsAndEnumerates ─────
   function test_addAccountFactory_EmitsAndEnumerates() external {
     Fixture memory fixture = _newFixture();
     BorrowerIdentityAccountFactoryMock secondFactory = _deployFactory(fixture.registry);
@@ -167,6 +216,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(factories[1], address(secondFactory));
   }
 
+  // ┌─ test_addAccountFactory_FollowsCurrentArchControllerOwner ─────
   function test_addAccountFactory_FollowsCurrentArchControllerOwner() external {
     Fixture memory fixture = _newFixture();
     BorrowerIdentityAccountFactoryMock secondFactory = _deployFactory(fixture.registry);
@@ -184,6 +234,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertTrue(fixture.registry.isAccountFactory(address(secondFactory)));
   }
 
+  // ┌─ test_addAccountFactory_RejectsInvalidAddress ─────
   function test_addAccountFactory_RejectsInvalidAddress() external {
     Fixture memory fixture = _newFixture();
 
@@ -193,12 +244,14 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.addAccountFactory(address(0xBEEF));
   }
 
+  // ┌─ test_addAccountFactory_RejectsDuplicate ─────
   function test_addAccountFactory_RejectsDuplicate() external {
     Fixture memory fixture = _newFixture();
     vm.expectRevert(IBorrowerIdentityRegistry.AccountFactoryAlreadyExists.selector);
     fixture.registry.addAccountFactory(address(fixture.accountFactory));
   }
 
+  // ┌─ test_removeAccountFactory_PreservesRegisteredAccountProvenance ─────
   function test_removeAccountFactory_PreservesRegisteredAccountProvenance() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -218,6 +271,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.accountFactory.registerAccount(secondAccount, Principal);
   }
 
+  // ┌─ test_removeAccountFactory_RequiresOwnerAndExistingFactory ─────
   function test_removeAccountFactory_RequiresOwnerAndExistingFactory() external {
     Fixture memory fixture = _newFixture();
 
@@ -230,6 +284,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.removeAccountFactory(address(missingFactory));
   }
 
+  // ┌─ test_getAccountFactories_PaginatesAndValidatesRange ─────
   function test_getAccountFactories_PaginatesAndValidatesRange() external {
     Fixture memory fixture = _newFixture();
     BorrowerIdentityAccountFactoryMock secondFactory = _deployFactory(fixture.registry);
@@ -245,10 +300,9 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.getAccountFactories(2, 1);
   }
 
-  // ========================================================================== //
-  //                         Borrower account registry                          //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ ACCOUNT REGISTRATION ] ─────────────────────────────────────────
 
+  // ┌─ test_registerAccount_EmitsAndIndexesIdentity ─────
   function test_registerAccount_EmitsAndIndexesIdentity() external {
     Fixture memory fixture = _newFixture();
     address account = _deployAccount();
@@ -267,6 +321,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.getBorrowerAccountsForFactory(address(fixture.accountFactory))[0], account);
   }
 
+  // ┌─ test_registerAccount_AllowsMultipleAccountsForOnePrincipal ─────
   function test_registerAccount_AllowsMultipleAccountsForOnePrincipal() external {
     Fixture memory fixture = _newFixture();
     address firstAccount = _registerAccount(fixture, Principal);
@@ -280,6 +335,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.resolveBorrower(secondAccount), Principal);
   }
 
+  // ┌─ test_registerAccount_RequiresApprovedFactory ─────
   function test_registerAccount_RequiresApprovedFactory() external {
     Fixture memory fixture = _newFixture();
     address account = _deployAccount();
@@ -287,6 +343,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.registerBorrowerAccount(account, Principal);
   }
 
+  // ┌─ test_registerAccount_RejectsInvalidAccount ─────
   function test_registerAccount_RejectsInvalidAccount() external {
     Fixture memory fixture = _newFixture();
 
@@ -301,6 +358,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.accountFactory.registerAccount(account, account);
   }
 
+  // ┌─ test_registerAccount_RequiresNonzeroRegisteredPrincipal ─────
   function test_registerAccount_RequiresNonzeroRegisteredPrincipal() external {
     Fixture memory fixture = _newFixture();
     address account = _deployAccount();
@@ -314,6 +372,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.principalOf(account), address(0));
   }
 
+  // ┌─ test_registerAccount_RejectsAmbiguousAccountOrPrincipal ─────
   function test_registerAccount_RejectsAmbiguousAccountOrPrincipal() external {
     Fixture memory accountFixture = _newFixture();
     address ambiguousAccount = _deployAccount();
@@ -329,6 +388,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     principalFixture.accountFactory.registerAccount(account, principalAccount);
   }
 
+  // ┌─ testFuzz_registerAccount_RejectsDuplicateWithoutMutation ─────
   function testFuzz_registerAccount_RejectsDuplicateWithoutMutation(address replacementPrincipal) external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -343,10 +403,15 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.accountFactoryOf(account), address(fixture.accountFactory));
   }
 
-  // ========================================================================== //
-  //                            Principal transfers                             //
-  // ========================================================================== //
+  // ┌─ _registerAccount ─────
+  function _registerAccount(Fixture memory fixture, address principal) internal returns (address account) {
+    account = _deployAccount();
+    fixture.accountFactory.registerAccount(account, principal);
+  }
 
+  // ░░▒▒▓▓██ [ TRANSFER REQUESTS ] ────────────────────────────────────────────
+
+  // ┌─ test_requestTransfer_EmitsAndLeavesCurrentPrincipalActive ─────
   function test_requestTransfer_EmitsAndLeavesCurrentPrincipalActive() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -366,6 +431,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.resolveBorrower(account), Principal);
   }
 
+  // ┌─ test_requestTransfer_ReplacesPendingPrincipal ─────
   function test_requestTransfer_ReplacesPendingPrincipal() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -388,6 +454,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.acceptBorrowerAccountPrincipalTransfer(account);
   }
 
+  // ┌─ test_requestTransfer_RequiresRegisteredAccountPrincipal ─────
   function test_requestTransfer_RequiresRegisteredAccountPrincipal() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -401,6 +468,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.requestBorrowerAccountPrincipalTransfer(BadCaller, SecondPrincipal);
   }
 
+  // ┌─ test_requestTransfer_RejectsInvalidOrUnregisteredTarget ─────
   function test_requestTransfer_RejectsInvalidOrUnregisteredTarget() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -415,6 +483,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     _requestTransfer(fixture, account, Principal, SecondPrincipal);
   }
 
+  // ┌─ test_requestTransfer_RejectsAmbiguousIdentity ─────
   function test_requestTransfer_RejectsAmbiguousIdentity() external {
     Fixture memory targetFixture = _newFixture();
     address account = _registerAccount(targetFixture, Principal);
@@ -431,6 +500,20 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     _requestTransfer(accountFixture, account, Principal, SecondPrincipal);
   }
 
+  // ┌─ _requestTransfer ─────
+  function _requestTransfer(
+    Fixture memory fixture,
+    address account,
+    address currentPrincipal,
+    address newPrincipal
+  )
+    internal
+  {
+    vm.prank(currentPrincipal);
+    fixture.registry.requestBorrowerAccountPrincipalTransfer(account, newPrincipal);
+  }
+
+  // ┌─ test_cancelTransfer_EmitsAndClearsPendingPrincipal ─────
   function test_cancelTransfer_EmitsAndClearsPendingPrincipal() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -446,6 +529,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.pendingPrincipalOf(account), address(0));
   }
 
+  // ┌─ test_cancelTransfer_RequiresPrincipalAndPendingTransfer ─────
   function test_cancelTransfer_RequiresPrincipalAndPendingTransfer() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -463,6 +547,9 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.cancelBorrowerAccountPrincipalTransfer(account);
   }
 
+  // ░░▒▒▓▓██ [ TRANSFER ACCEPTANCE ] ──────────────────────────────────────────
+
+  // ┌─ test_acceptTransfer_EmitsMovesCurrentEnumerationAndKeepsFactoryHistory ─────
   function test_acceptTransfer_EmitsMovesCurrentEnumerationAndKeepsFactoryHistory() external {
     Fixture memory fixture = _newFixture();
     address firstAccount = _registerAccount(fixture, Principal);
@@ -492,6 +579,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(factoryAccounts[1], secondAccount);
   }
 
+  // ┌─ test_acceptTransfer_UpdatesAuthorityAndSupportsRoundTrip ─────
   function test_acceptTransfer_UpdatesAuthorityAndSupportsRoundTrip() external {
     Fixture memory fixture = _newFixture();
     address account = _registerAccount(fixture, Principal);
@@ -507,6 +595,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(fixture.registry.principalOf(account), Principal);
   }
 
+  // ┌─ test_acceptTransfer_SurvivesFactoryOrCurrentPrincipalRemoval ─────
   function test_acceptTransfer_SurvivesFactoryOrCurrentPrincipalRemoval() external {
     Fixture memory factoryFixture = _newFixture();
     address factoryAccount = _registerAccount(factoryFixture, Principal);
@@ -525,6 +614,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(principalFixture.registry.resolveBorrower(principalAccount), SecondPrincipal);
   }
 
+  // ┌─ test_acceptTransfer_RevalidatesTargetAndAccountIdentity ─────
   function test_acceptTransfer_RevalidatesTargetAndAccountIdentity() external {
     Fixture memory targetFixture = _newFixture();
     address targetAccount = _registerAccount(targetFixture, Principal);
@@ -549,10 +639,15 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     assertEq(accountFixture.registry.pendingPrincipalOf(ambiguousAccount), SecondPrincipal);
   }
 
-  // ========================================================================== //
-  //                          Resolution and pagination                         //
-  // ========================================================================== //
+  // ┌─ _acceptTransfer ─────
+  function _acceptTransfer(Fixture memory fixture, address account, address newPrincipal) internal {
+    vm.prank(newPrincipal);
+    fixture.registry.acceptBorrowerAccountPrincipalTransfer(account);
+  }
 
+  // ░░▒▒▓▓██ [ IDENTITY QUERIES ] ─────────────────────────────────────────────
+
+  // ┌─ test_resolveBorrower_HandlesDirectPrincipalAndUnknownAddress ─────
   function test_resolveBorrower_HandlesDirectPrincipalAndUnknownAddress() external {
     Fixture memory fixture = _newFixture();
     assertEq(fixture.registry.resolveBorrower(Principal), Principal);
@@ -563,6 +658,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     fixture.registry.resolveBorrower(address(0xBEEF));
   }
 
+  // ┌─ test_resolveBorrower_RejectsStaleOrAmbiguousIdentity ─────
   function test_resolveBorrower_RejectsStaleOrAmbiguousIdentity() external {
     Fixture memory staleFixture = _newFixture();
     address staleAccount = _registerAccount(staleFixture, Principal);
@@ -587,6 +683,7 @@ contract WildcatBorrowerIdentityRegistryTest is TestKernel {
     nestedFixture.registry.resolveBorrower(nestedAccount);
   }
 
+  // ┌─ test_getBorrowerAccounts_PaginatesPrincipalAndFactoryIndexes ─────
   function test_getBorrowerAccounts_PaginatesPrincipalAndFactoryIndexes() external {
     Fixture memory fixture = _newFixture();
     address firstAccount = _registerAccount(fixture, Principal);

@@ -1,6 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // OpenTermHooks.t
+// ║  ██▀▀     ▀▀██   Open-term metadata, market queries, and administrator handoff.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _newHooks(...)
+// ║  _createMarket(...)
+// ║  _requestedConfig(...)
+// ║
+// ║  METADATA AND MARKET QUERIES
+// ║  test_metadata_IsCanonical()
+// ║  test_getHookedMarkets_PreservesOrderAndUnknownValues()
+// ║
+// ║  ADMINISTRATOR HANDOFF
+// ║  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
+// ║  archController()
+// ║  isRegisteredBorrower(...)
+// ║  onHooksAdministratorTransferred(...)
+// ╚═════
+
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { HookedMarket, OpenTermHooks } from 'src/access/OpenTermHooks.sol';
@@ -13,6 +37,7 @@ import { EmptyHooksConfig } from 'src/types/HooksConfig.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ OpenTermHooksTest ────────────────────────────────────────────────────────
 contract OpenTermHooksTest is TestKernel {
   address internal constant MarketA = address(0x1001);
   address internal constant MarketB = address(0x1002);
@@ -25,26 +50,16 @@ contract OpenTermHooksTest is TestKernel {
   address internal callbackPreviousAdministrator;
   address internal callbackNewAdministrator;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     registeredBorrowers[address(this)] = true;
     NameAndProviderInputs memory inputs;
     hooks = _newHooks(address(this), inputs);
   }
 
-  function archController() external view returns (address) {
-    return address(this);
-  }
-
-  function isRegisteredBorrower(address account) external view returns (bool) {
-    return registeredBorrowers[account];
-  }
-
-  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
-    assertEq(msg.sender, address(hooks), 'callback caller');
-    callbackPreviousAdministrator = previousAdministrator;
-    callbackNewAdministrator = newAdministrator;
-  }
-
+  // ┌─ _newHooks ─────
   function _newHooks(
     address administrator,
     NameAndProviderInputs memory inputs
@@ -57,6 +72,22 @@ contract OpenTermHooksTest is TestKernel {
     );
   }
 
+  // ┌─ _createMarket ─────
+  function _createMarket(
+    OpenTermHooks target,
+    address market,
+    HooksConfig requestedConfig,
+    bytes memory hooksData
+  )
+    internal
+    returns (HooksConfig effectiveConfig)
+  {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = requestedConfig;
+    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
+  }
+
+  // ┌─ _requestedConfig ─────
   function _requestedConfig(
     OpenTermHooks target,
     bool deposit,
@@ -73,24 +104,14 @@ contract OpenTermHooksTest is TestKernel {
     if (transfer) config = config.setFlag(Bit_Enabled_Transfer);
   }
 
-  function _createMarket(
-    OpenTermHooks target,
-    address market,
-    HooksConfig requestedConfig,
-    bytes memory hooksData
-  )
-    internal
-    returns (HooksConfig effectiveConfig)
-  {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = requestedConfig;
-    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
-  }
+  // ░░▒▒▓▓██ [ METADATA AND MARKET QUERIES ] ──────────────────────────────────
 
+  // ┌─ test_metadata_IsCanonical ─────
   function test_metadata_IsCanonical() external view {
     assertEq(hooks.version(), 'OpenTermHooks', 'version');
   }
 
+  // ┌─ test_getHookedMarkets_PreservesOrderAndUnknownValues ─────
   function test_getHookedMarkets_PreservesOrderAndUnknownValues() external {
     _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(uint128(100)));
     _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), abi.encode(uint128(200), true));
@@ -108,6 +129,9 @@ contract OpenTermHooksTest is TestKernel {
     assertEq(abi.encode(hooks.getHookedMarket(MarketC)), abi.encode(empty), 'unknown single configuration');
   }
 
+  // ░░▒▒▓▓██ [ ADMINISTRATOR HANDOFF ] ────────────────────────────────────────
+
+  // ┌─ test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority ─────
   function test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority() external {
     _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(uint128(100), true));
     bytes32 configBefore = keccak256(abi.encode(hooks.getHookedMarket(MarketA)));
@@ -126,5 +150,22 @@ contract OpenTermHooksTest is TestKernel {
     vm.prank(NewAdministrator);
     hooks.setMinimumDeposit(MarketA, 200);
     assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
+  }
+
+  // ┌─ archController ─────
+  function archController() external view returns (address) {
+    return address(this);
+  }
+
+  // ┌─ isRegisteredBorrower ─────
+  function isRegisteredBorrower(address account) external view returns (bool) {
+    return registeredBorrowers[account];
+  }
+
+  // ┌─ onHooksAdministratorTransferred ─────
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
+    assertEq(msg.sender, address(hooks), 'callback caller');
+    callbackPreviousAdministrator = previousAdministrator;
+    callbackNewAdministrator = newAdministrator;
   }
 }

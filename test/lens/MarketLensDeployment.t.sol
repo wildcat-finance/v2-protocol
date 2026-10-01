@@ -1,12 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensDeployment.t
+// ║  ██▀▀     ▀▀██   Real lens deployment limits and exact facade forwarding.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  DEPLOYMENT AND FORWARDING
+// ║  test_realLimits_LensHelpersAndFacade()
+// ║  _assertForwarded(...)
+// ╚═════
+
 import { MarketLens } from 'src/lens/MarketLens.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ MarketLensDeploymentTest ─────────────────────────────────────────────────
 /// @dev keep the deployment harness below EIP-170 too. run with --code-size-limit 24576;
 ///      the larger lifecycle suite owns the decoded-field and boundary assertions.
 contract MarketLensDeploymentTest is ProductionMatrixFixture {
+  // ░░▒▒▓▓██ [ DEPLOYMENT AND FORWARDING ] ────────────────────────────────────
+
+  // ┌─ test_realLimits_LensHelpersAndFacade ─────
   function test_realLimits_LensHelpersAndFacade() external {
     ProductionStack memory stack = _deployProductionStack();
     bytes memory args = abi.encode(address(stack.archController), address(stack.standardFactory));
@@ -50,6 +66,7 @@ contract MarketLensDeploymentTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ _assertForwarded ─────
   function _assertForwarded(address helper, address facade, bytes memory input) private view {
     (bool directSuccess, bytes memory direct) = helper.staticcall(input);
     (bool facadeSuccess, bytes memory forwarded) = facade.staticcall(input);

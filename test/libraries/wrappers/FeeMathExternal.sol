@@ -1,14 +1,54 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // FeeMathExternal
+// ║  ██▀▀     ▀▀██   External adapters for accrual, protocol fees, and delinquency.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  ACCRUAL
+// ║  $updateScaleFactorAndFees(...)
+// ║
+// ║  BASE INTEREST
+// ║  $calculateBaseInterest(...)
+// ║  $calculateLinearInterestFromBips(...)
+// ║
+// ║  PROTOCOL FEES
+// ║  $applyProtocolFee(...)
+// ║
+// ║  DELINQUENCY
+// ║  $updateDelinquency(...)
+// ║  $updateTimeDelinquentAndGetPenaltyTime(...)
+// ╚═════
+
 import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 
+// ┌─ FeeMathExternal ──────────────────────────────────────────────────────────
 library FeeMathExternal {
-  function $calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) external pure returns (uint256 result) {
-    return FeeMath.calculateLinearInterestFromBips(rateBip, timeDelta);
+  // ░░▒▒▓▓██ [ ACCRUAL ] ──────────────────────────────────────────────────────
+
+  // ┌─ $updateScaleFactorAndFees ─────
+  function $updateScaleFactorAndFees(
+    MarketState memory state,
+    uint256 delinquencyFeeBips,
+    uint256 delinquencyGracePeriod,
+    uint256 timestamp
+  )
+    external
+    pure
+    returns (MarketState memory newState, uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
+  {
+    newState = state;
+    (baseInterestRay, delinquencyFeeRay, protocolFee) =
+      FeeMath.updateScaleFactorAndFees(state, delinquencyFeeBips, delinquencyGracePeriod, timestamp);
   }
 
+  // ░░▒▒▓▓██ [ BASE INTEREST ] ────────────────────────────────────────────────
+
+  // ┌─ $calculateBaseInterest ─────
   function $calculateBaseInterest(
     MarketState memory state,
     uint256 timestamp
@@ -20,6 +60,14 @@ library FeeMathExternal {
     return FeeMath.calculateBaseInterest(state, timestamp);
   }
 
+  // ┌─ $calculateLinearInterestFromBips ─────
+  function $calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) external pure returns (uint256 result) {
+    return FeeMath.calculateLinearInterestFromBips(rateBip, timeDelta);
+  }
+
+  // ░░▒▒▓▓██ [ PROTOCOL FEES ] ────────────────────────────────────────────────
+
+  // ┌─ $applyProtocolFee ─────
   function $applyProtocolFee(
     MarketState memory state,
     uint256 baseInterestRay
@@ -32,6 +80,9 @@ library FeeMathExternal {
     newState = state;
   }
 
+  // ░░▒▒▓▓██ [ DELINQUENCY ] ──────────────────────────────────────────────────
+
+  // ┌─ $updateDelinquency ─────
   function $updateDelinquency(
     MarketState memory state,
     uint256 timestamp,
@@ -46,6 +97,7 @@ library FeeMathExternal {
     delinquencyFeeRay = FeeMath.updateDelinquency(state, timestamp, delinquencyFeeBips, delinquencyGracePeriod);
   }
 
+  // ┌─ $updateTimeDelinquentAndGetPenaltyTime ─────
   function $updateTimeDelinquentAndGetPenaltyTime(
     MarketState memory state,
     uint256 delinquencyGracePeriod,
@@ -57,20 +109,5 @@ library FeeMathExternal {
   {
     newState = state;
     timeWithPenalty = FeeMath.updateTimeDelinquentAndGetPenaltyTime(state, delinquencyGracePeriod, timeDelta);
-  }
-
-  function $updateScaleFactorAndFees(
-    MarketState memory state,
-    uint256 delinquencyFeeBips,
-    uint256 delinquencyGracePeriod,
-    uint256 timestamp
-  )
-    external
-    pure
-    returns (MarketState memory newState, uint256 baseInterestRay, uint256 delinquencyFeeRay, uint256 protocolFee)
-  {
-    newState = state;
-    (baseInterestRay, delinquencyFeeRay, protocolFee) =
-      FeeMath.updateScaleFactorAndFees(state, delinquencyFeeBips, delinquencyGracePeriod, timestamp);
   }
 }

@@ -1,6 +1,79 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HooksFactoryRevolving
+// ║  ██▀▀     ▀▀██   Hooks lifecycle and deterministic revolving-market deployment.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  SETUP
+// ║  constructor(...)
+// ║  registerWithArchController()
+// ║  archController()
+// ║  name()
+// ║
+// ║  HOOKS TEMPLATES
+// ║  onlyArchControllerOwner()
+// ║  addHooksTemplate(...)
+// ║  disableHooksTemplate(...)
+// ║
+// ║  TEMPLATE FEES
+// ║  updateHooksTemplateFees(...)
+// ║  _validateFees(...)
+// ║  pushProtocolFeeBipsUpdates(...)
+// ║  pushProtocolFeeBipsUpdates(...)
+// ║
+// ║  TEMPLATE QUERIES
+// ║  getHooksTemplateDetails(...)
+// ║  isHooksTemplate(...)
+// ║  getHooksTemplates()
+// ║  getHooksTemplates(...)
+// ║  getHooksTemplatesCount()
+// ║
+// ║  HOOKS DEPLOYMENT
+// ║  deployHooksInstance(...)
+// ║  _deployHooksInstance(...)
+// ║  _resolveBorrowerPrincipal(...)
+// ║  isHooksInstance(...)
+// ║
+// ║  HOOKS ADMINISTRATION
+// ║  onHooksAdministratorTransferred(...)
+// ║  getHooksInstancesForAdministrator(...)
+// ║  getHooksInstancesForAdministrator(...)
+// ║  getHooksInstancesCountForAdministrator(...)
+// ║  getHooksInstancesForBorrower(...)
+// ║  getHooksInstancesCountForBorrower(...)
+// ║
+// ║  MARKET DEPLOYMENT
+// ║  deployMarket(...)
+// ║  deployMarketAndHooks(...)
+// ║  _deployMarket(...)
+// ║  _decodeMarketData(...)
+// ║  _packString(...)
+// ║  _emitMarketDeployment(...)
+// ║  computeMarketAddress(...)
+// ║
+// ║  CONSTRUCTOR PARAMETERS
+// ║  getMarketParameters()
+// ║  _setTmpMarketParameters(...)
+// ║  _getTmpMarketParameters()
+// ║  _setTmpBorrowerPrincipal(...)
+// ║  _getTmpBorrowerPrincipal()
+// ║  getRevolvingMarketCommitmentFeeBips()
+// ║  _setTmpCommitmentFeeBips(...)
+// ║  _getTmpCommitmentFeeBips()
+// ║
+// ║  MARKET QUERIES
+// ║  getMarketsForHooksTemplate(...)
+// ║  getMarketsForHooksTemplate(...)
+// ║  getMarketsForHooksTemplateCount(...)
+// ║  getMarketsForHooksInstance(...)
+// ║  getMarketsForHooksInstance(...)
+// ║  getMarketsForHooksInstanceCount(...)
+// ╚═════
+
 import './libraries/LibERC20.sol';
 import './interfaces/IWildcatArchController.sol';
 import './libraries/LibStoredInitCode.sol';
@@ -48,12 +121,17 @@ struct DeployRevolvingMarketRuntimeParameters {
   uint16 commitmentFeeBips;
 }
 
+// ┌─ HooksFactoryRevolving ────────────────────────────────────────────────────
 /// @title Wildcat revolving hooks factory
+///
 /// @notice mirrors `HooksFactory`, with an extra fixed commitment fee passed to revolving markets.
+///
 /// @dev factory-owned `marketData` is versioned separately from hook-owned `hooksData`.
 ///      constructors read both ordinary and revolving parameters from transient storage.
 contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuard, IHooksFactoryRevolving {
   using LibERC20 for address;
+
+  // ░░▒▒▓▓██ [ DEPLOYMENT CONSTANTS ] ─────────────────────────────────────────
 
   TransientBytesArray internal constant _tmpMarketParameters =
     TransientBytesArray.wrap(uint256(keccak256('Transient:TmpRevolvingMarketParameterStorage')) - 1);
@@ -82,10 +160,7 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
 
   address public immutable override borrowerIdentityRegistry;
 
-  /// @notice returns the stable factory name `WildcatHooksFactoryRevolving`.
-  function name() external pure override returns (string memory) {
-    return 'WildcatHooksFactoryRevolving';
-  }
+  // ░░▒▒▓▓██ [ REGISTRIES ] ───────────────────────────────────────────────────
 
   address[] internal _hooksTemplates;
 
@@ -101,21 +176,15 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
   /// @notice next CREATE2 deployment nonce for each hooks administrator.
   mapping(address administrator => uint256 nonce) public override getHooksInstanceDeploymentNonce;
 
-  /**
-   * @dev Mapping from hooks template to markets created with it.
-   *      Used for pushing protocol fee changes to affected markets.
-   */
+  /// @dev Mapping from hooks template to markets created with it.
+  ///      Used for pushing protocol fee changes to affected markets.
   mapping(address hooksTemplate => address[] markets) internal _marketsByHooksTemplate;
 
-  /**
-   * @dev Mapping from hooks instance to markets deployed using it.
-   *      Intended primarily for off-chain queries.
-   */
+  /// @dev Mapping from hooks instance to markets deployed using it.
+  ///      Intended primarily for off-chain queries.
   mapping(address hooksInstance => address[] markets) internal _marketsByHooksInstance;
 
-  /**
-   * @dev Mapping from hooks template to its fee configuration and name.
-   */
+  /// @dev Mapping from hooks template to its fee configuration and name.
   mapping(address hooksTemplate => HooksTemplate details) internal _templateDetails;
 
   mapping(address hooksInstance => address hooksTemplate) public override getHooksTemplateForInstance;
@@ -123,6 +192,9 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
   /// @notice immutable artifact commitment for each registered template.
   mapping(address hooksTemplate => bytes32 initCodeHash) public override getHooksTemplateInitCodeHash;
 
+  // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address archController_,
     address _sanctionsSentinel,
@@ -140,71 +212,30 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     __SphereXProtectedRegisteredBase_init(IWildcatArchController(archController_).sphereXEngine());
   }
 
-  /**
-   * @dev Registers the factory as a controller with the arch-controller, allowing
-   *      it to register new markets.
-   *      Needs to be executed once at deployment.
-   *      Does not need checks for whether it has already been registered as the
-   *      arch-controller will revert if it is already registered.
-   */
+  // ┌─ registerWithArchController ─────
+  /// @dev Registers the factory as a controller with the arch-controller, allowing
+  ///      it to register new markets.
+  ///      Needs to be executed once at deployment.
+  ///      Does not need checks for whether it has already been registered as the
+  ///      arch-controller will revert if it is already registered.
   function registerWithArchController() external override {
     IWildcatArchController(_archController).registerController(address(this));
   }
 
+  // ┌─ archController ─────
   function archController() external view override returns (address) {
     return _archController;
   }
 
-  // ========================================================================== //
-  //                          Internal Storage Helpers                          //
-  // ========================================================================== //
-
-  /**
-   * @dev Get the temporary market parameters from transient storage.
-   */
-  function _getTmpMarketParameters() internal view returns (TmpRevolvingMarketParameterStorage memory parameters) {
-    return abi.decode(_tmpMarketParameters.read(), (TmpRevolvingMarketParameterStorage));
+  // ┌─ name ─────
+  /// @notice returns the stable factory name `WildcatHooksFactoryRevolving`.
+  function name() external pure override returns (string memory) {
+    return 'WildcatHooksFactoryRevolving';
   }
 
-  /**
-   * @dev Set the temporary market parameters in transient storage.
-   */
-  function _setTmpMarketParameters(TmpRevolvingMarketParameterStorage memory parameters) internal {
-    _tmpMarketParameters.write(abi.encode(parameters));
-  }
+  // ░░▒▒▓▓██ [ HOOKS TEMPLATES ] ──────────────────────────────────────────────
 
-  function _getTmpBorrowerPrincipal() internal view returns (address principal) {
-    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
-    assembly {
-      principal := tload(slot)
-    }
-  }
-
-  function _setTmpBorrowerPrincipal(address principal) internal {
-    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
-    assembly {
-      tstore(slot, principal)
-    }
-  }
-
-  /**
-   * @dev Set the temporary commitment fee in transient storage.
-   */
-  function _setTmpCommitmentFeeBips(uint16 commitmentFeeBips) internal {
-    _tmpRevolvingMarketData.write(abi.encode(commitmentFeeBips));
-  }
-
-  /**
-   * @dev Get the temporary commitment fee from transient storage.
-   */
-  function _getTmpCommitmentFeeBips() internal view returns (uint16 commitmentFeeBips) {
-    return abi.decode(_tmpRevolvingMarketData.read(), (uint16));
-  }
-
-  // ========================================================================== //
-  //                                  Modifiers                                 //
-  // ========================================================================== //
-
+  // ┌─ onlyArchControllerOwner ─────
   modifier onlyArchControllerOwner() {
     if (msg.sender != IWildcatArchController(_archController).owner()) {
       revert CallerNotArchControllerOwner();
@@ -212,18 +243,7 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     _;
   }
 
-  function _resolveBorrowerPrincipal(address borrower) internal view returns (address principal) {
-    (bool success, bytes memory returnData) =
-      borrowerIdentityRegistry.staticcall(abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower)));
-    if (!success || returnData.length != 0x20) revert NotApprovedBorrower();
-    principal = abi.decode(returnData, (address));
-    if (principal == address(0)) revert NotApprovedBorrower();
-  }
-
-  // ========================================================================== //
-  //                               Hooks Templates                              //
-  // ========================================================================== //
-
+  // ┌─ addHooksTemplate ─────
   /// @inheritdoc IHooksFactoryRevolving
   function addHooksTemplate(
     address hooksTemplate,
@@ -269,26 +289,20 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     emit HooksTemplateInitCodeHashRecorded(hooksTemplate, initCodeHash);
   }
 
-  function _validateFees(
-    address feeRecipient,
-    address originationFeeAsset,
-    uint80 originationFeeAmount,
-    uint16 protocolFeeBips
-  )
-    internal
-    pure
-  {
-    bool hasOriginationFee = originationFeeAmount > 0;
-    bool nullFeeRecipient = feeRecipient == address(0);
-    bool nullOriginationFeeAsset = originationFeeAsset == address(0);
-    if (
-      (protocolFeeBips > 0 && nullFeeRecipient) || (hasOriginationFee && nullFeeRecipient)
-        || (hasOriginationFee && nullOriginationFeeAsset) || protocolFeeBips > 1_000
-    ) {
-      revert InvalidFeeConfiguration();
+  // ┌─ disableHooksTemplate ─────
+  function disableHooksTemplate(address hooksTemplate) external override onlyArchControllerOwner {
+    if (!_templateDetails[hooksTemplate].exists) {
+      revert HooksTemplateNotFound();
     }
+    // The template is only disabled, not removed: `exists` stays true, so it
+    // can not be re-added and there is no re-enable path.
+    _templateDetails[hooksTemplate].enabled = false;
+    emit HooksTemplateDisabled(hooksTemplate, msg.sender);
   }
 
+  // ░░▒▒▓▓██ [ TEMPLATE FEES ] ────────────────────────────────────────────────
+
+  // ┌─ updateHooksTemplateFees ─────
   /// @dev Update the fees for a hooks template
   /// Note: The new fee structure will apply to all NEW markets created with existing
   ///       or future instances of the hooks template, and the protocol fee can be pushed
@@ -331,28 +345,109 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     );
   }
 
-  function disableHooksTemplate(address hooksTemplate) external override onlyArchControllerOwner {
-    if (!_templateDetails[hooksTemplate].exists) {
-      revert HooksTemplateNotFound();
+  // ┌─ _validateFees ─────
+  function _validateFees(
+    address feeRecipient,
+    address originationFeeAsset,
+    uint80 originationFeeAmount,
+    uint16 protocolFeeBips
+  )
+    internal
+    pure
+  {
+    bool hasOriginationFee = originationFeeAmount > 0;
+    bool nullFeeRecipient = feeRecipient == address(0);
+    bool nullOriginationFeeAsset = originationFeeAsset == address(0);
+    if (
+      (protocolFeeBips > 0 && nullFeeRecipient) || (hasOriginationFee && nullFeeRecipient)
+        || (hasOriginationFee && nullOriginationFeeAsset) || protocolFeeBips > 1_000
+    ) {
+      revert InvalidFeeConfiguration();
     }
-    // The template is only disabled, not removed: `exists` stays true, so it
-    // can not be re-added and there is no re-enable path.
-    _templateDetails[hooksTemplate].enabled = false;
-    emit HooksTemplateDisabled(hooksTemplate, msg.sender);
   }
 
+  // ┌─ pushProtocolFeeBipsUpdates ─────
+  /// @inheritdoc IHooksFactoryRevolving
+  function pushProtocolFeeBipsUpdates(
+    address hooksTemplate,
+    uint marketStartIndex,
+    uint marketEndIndex
+  )
+    public
+    override
+    nonReentrant
+  {
+    HooksTemplate memory details = _templateDetails[hooksTemplate];
+    if (!details.exists) revert HooksTemplateNotFound();
+
+    address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
+    uint256 marketCount = markets.length;
+    marketEndIndex = MathUtils.min(marketEndIndex, marketCount);
+    // CAF-13 fix: reject ranges that would underflow after clamping, but allow
+    // boundary-empty pages to no-op for fixed-size operational pagination.
+    if (marketStartIndex > marketEndIndex) revert InvalidPaginationRange();
+    if (marketStartIndex == marketEndIndex) return;
+    uint256 count = marketEndIndex - marketStartIndex;
+    uint256 setProtocolFeeBipsCalldataPointer;
+    uint16 protocolFeeBips = details.protocolFeeBips;
+    assembly {
+      // Write the calldata for `market.setProtocolFeeBips(protocolFeeBips)`
+      // this will be reused for every market
+      setProtocolFeeBipsCalldataPointer := mload(0x40)
+      mstore(0x40, add(setProtocolFeeBipsCalldataPointer, 0x40))
+      // Write selector for `setProtocolFeeBips(uint16)`
+      mstore(setProtocolFeeBipsCalldataPointer, 0xae6ea191)
+      mstore(add(setProtocolFeeBipsCalldataPointer, 0x20), protocolFeeBips)
+      // Add 28 bytes to get the exact pointer to the first byte of the selector
+      setProtocolFeeBipsCalldataPointer := add(setProtocolFeeBipsCalldataPointer, 0x1c)
+    }
+    for (uint256 i = 0; i < count; i++) {
+      address market = markets[marketStartIndex + i];
+      assembly {
+        // isClosed() includes funded repayment closure that hasn't been written yet.
+        mstore(0, 0xc2b6b58c)
+        let success := staticcall(gas(), market, 0x1c, 0x04, 0, 0x20)
+        // require a complete, canonical bool. failed reads must not silently skip a market.
+        if or(lt(returndatasize(), 0x20), gt(mload(0), 1)) {
+          success := 0
+        }
+        if and(success, iszero(mload(0))) {
+          success := call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)
+        }
+        if iszero(success) {
+          // Equivalent to `revert SetProtocolFeeBipsFailed()`
+          mstore(0, 0x4484a4a9)
+          revert(0x1c, 0x04)
+        }
+      }
+    }
+  }
+
+  // ┌─ pushProtocolFeeBipsUpdates ─────
+  /// @dev Push any changes to the fee configuration of `hooksTemplate` to all markets
+  ///      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
+  function pushProtocolFeeBipsUpdates(address hooksTemplate) external override {
+    pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
+  }
+
+  // ░░▒▒▓▓██ [ TEMPLATE QUERIES ] ─────────────────────────────────────────────
+
+  // ┌─ getHooksTemplateDetails ─────
   function getHooksTemplateDetails(address hooksTemplate) external view override returns (HooksTemplate memory) {
     return _templateDetails[hooksTemplate];
   }
 
+  // ┌─ isHooksTemplate ─────
   function isHooksTemplate(address hooksTemplate) external view override returns (bool) {
     return _templateDetails[hooksTemplate].exists;
   }
 
+  // ┌─ getHooksTemplates ─────
   function getHooksTemplates() external view override returns (address[] memory) {
     return _hooksTemplates;
   }
 
+  // ┌─ getHooksTemplates ─────
   function getHooksTemplates(uint256 start, uint256 end) external view override returns (address[] memory arr) {
     uint256 len = _hooksTemplates.length;
     end = MathUtils.min(end, len);
@@ -364,43 +459,14 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     }
   }
 
+  // ┌─ getHooksTemplatesCount ─────
   function getHooksTemplatesCount() external view override returns (uint256) {
     return _hooksTemplates.length;
   }
 
-  function getMarketsForHooksTemplate(address hooksTemplate) external view override returns (address[] memory) {
-    return _marketsByHooksTemplate[hooksTemplate];
-  }
+  // ░░▒▒▓▓██ [ HOOKS DEPLOYMENT ] ─────────────────────────────────────────────
 
-  function getMarketsForHooksTemplate(
-    address hooksTemplate,
-    uint256 start,
-    uint256 end
-  )
-    external
-    view
-    override
-    returns (address[] memory arr)
-  {
-    address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
-    uint256 len = markets.length;
-    end = MathUtils.min(end, len);
-    if (start >= end) return new address[](0);
-    uint256 count = end - start;
-    arr = new address[](count);
-    for (uint256 i = 0; i < count; i++) {
-      arr[i] = markets[start + i];
-    }
-  }
-
-  function getMarketsForHooksTemplateCount(address hooksTemplate) external view override returns (uint256) {
-    return _marketsByHooksTemplate[hooksTemplate].length;
-  }
-
-  // ========================================================================== //
-  //                               Hooks Instances                              //
-  // ========================================================================== //
-
+  // ┌─ deployHooksInstance ─────
   /// @dev Deploy a hooks instance for an approved template with constructor args.
   ///      Hooks are deployed and indexed under the caller's resolved principal.
   ///      Origination fees are not charged here; they are paid when a market
@@ -418,94 +484,7 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     hooksInstance = _deployHooksInstance(administrator, hooksTemplate, constructorArgs);
   }
 
-  function getHooksInstancesForAdministrator(address administrator) external view override returns (address[] memory) {
-    return _hooksInstancesByAdministrator[administrator];
-  }
-
-  function getHooksInstancesForAdministrator(
-    address administrator,
-    uint256 start,
-    uint256 end
-  )
-    external
-    view
-    override
-    returns (address[] memory arr)
-  {
-    address[] storage hooksInstances = _hooksInstancesByAdministrator[administrator];
-    end = MathUtils.min(end, hooksInstances.length);
-    if (start >= end) return new address[](0);
-    uint256 count = end - start;
-    arr = new address[](count);
-    for (uint256 i = 0; i < count; i++) {
-      arr[i] = hooksInstances[start + i];
-    }
-  }
-
-  function getHooksInstancesCountForAdministrator(address administrator) external view override returns (uint256) {
-    return _hooksInstancesByAdministrator[administrator].length;
-  }
-
-  function getHooksInstancesForBorrower(address borrower) external view override returns (address[] memory) {
-    return _hooksInstancesByAdministrator[borrower];
-  }
-
-  function getHooksInstancesCountForBorrower(address borrower) external view override returns (uint256) {
-    return _hooksInstancesByAdministrator[borrower].length;
-  }
-
-  /**
-   * @dev Moves a hooks instance to its new administrator's array. Removal uses
-   *      swap-and-pop, so an administrator's enumeration is not ordered.
-   */
-  function onHooksAdministratorTransferred(
-    address previousAdministrator,
-    address newAdministrator
-  )
-    external
-    override
-    nonReentrant
-  {
-    address hooksInstance = msg.sender;
-    if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
-      revert HooksInstanceNotFound();
-    }
-    if (
-      previousAdministrator == newAdministrator || newAdministrator == address(0)
-        || getHooksAdministrator[hooksInstance] != previousAdministrator
-        || IHooksAdministrator(hooksInstance).administrator() != newAdministrator
-        || IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0)
-        || !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
-    ) {
-      revert InvalidHooksAdministrator();
-    }
-
-    address[] storage previousHooksInstances = _hooksInstancesByAdministrator[previousAdministrator];
-    uint256 indexToRemove = _hooksInstanceIndex[hooksInstance];
-    uint256 previousCount = previousHooksInstances.length;
-    if (indexToRemove >= previousCount || previousHooksInstances[indexToRemove] != hooksInstance) {
-      revert InvalidHooksInstanceAssociation();
-    }
-    uint256 lastIndex = previousCount - 1;
-    if (indexToRemove != lastIndex) {
-      address movedHooksInstance = previousHooksInstances[lastIndex];
-      previousHooksInstances[indexToRemove] = movedHooksInstance;
-      _hooksInstanceIndex[movedHooksInstance] = indexToRemove;
-    }
-    previousHooksInstances.pop();
-
-    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[newAdministrator].length;
-    _hooksInstancesByAdministrator[newAdministrator].push(hooksInstance);
-    getHooksAdministrator[hooksInstance] = newAdministrator;
-
-    emit HooksInstanceAdministratorTransferred(hooksInstance, previousAdministrator, newAdministrator);
-  }
-
-  /// @inheritdoc IHooksFactoryRevolving
-  function isHooksInstance(address hooksInstance) external view override returns (bool) {
-    return getHooksTemplateForInstance[hooksInstance] != address(0);
-  }
-
+  // ┌─ _deployHooksInstance ─────
   function _deployHooksInstance(
     address administrator,
     address hooksTemplate,
@@ -571,16 +550,77 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     getHooksTemplateForInstance[hooksInstance] = hooksTemplate;
   }
 
-  // ========================================================================== //
-  //                                   Markets                                  //
-  // ========================================================================== //
-
-  function getMarketsForHooksInstance(address hooksInstance) external view override returns (address[] memory) {
-    return _marketsByHooksInstance[hooksInstance];
+  // ┌─ _resolveBorrowerPrincipal ─────
+  function _resolveBorrowerPrincipal(address borrower) internal view returns (address principal) {
+    (bool success, bytes memory returnData) =
+      borrowerIdentityRegistry.staticcall(abi.encodeCall(IBorrowerIdentityRegistry.resolveBorrower, (borrower)));
+    if (!success || returnData.length != 0x20) revert NotApprovedBorrower();
+    principal = abi.decode(returnData, (address));
+    if (principal == address(0)) revert NotApprovedBorrower();
   }
 
-  function getMarketsForHooksInstance(
-    address hooksInstance,
+  // ┌─ isHooksInstance ─────
+  /// @inheritdoc IHooksFactoryRevolving
+  function isHooksInstance(address hooksInstance) external view override returns (bool) {
+    return getHooksTemplateForInstance[hooksInstance] != address(0);
+  }
+
+  // ░░▒▒▓▓██ [ HOOKS ADMINISTRATION ] ─────────────────────────────────────────
+
+  // ┌─ onHooksAdministratorTransferred ─────
+  /// @dev Moves a hooks instance to its new administrator's array. Removal uses
+  ///      swap-and-pop, so an administrator's enumeration is not ordered.
+  function onHooksAdministratorTransferred(
+    address previousAdministrator,
+    address newAdministrator
+  )
+    external
+    override
+    nonReentrant
+  {
+    address hooksInstance = msg.sender;
+    if (getHooksTemplateForInstance[hooksInstance] == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+    if (
+      previousAdministrator == newAdministrator || newAdministrator == address(0)
+        || getHooksAdministrator[hooksInstance] != previousAdministrator
+        || IHooksAdministrator(hooksInstance).administrator() != newAdministrator
+        || IHooksAdministrator(hooksInstance).pendingAdministrator() != address(0)
+        || !IWildcatArchController(_archController).isRegisteredBorrower(newAdministrator)
+    ) {
+      revert InvalidHooksAdministrator();
+    }
+
+    address[] storage previousHooksInstances = _hooksInstancesByAdministrator[previousAdministrator];
+    uint256 indexToRemove = _hooksInstanceIndex[hooksInstance];
+    uint256 previousCount = previousHooksInstances.length;
+    if (indexToRemove >= previousCount || previousHooksInstances[indexToRemove] != hooksInstance) {
+      revert InvalidHooksInstanceAssociation();
+    }
+    uint256 lastIndex = previousCount - 1;
+    if (indexToRemove != lastIndex) {
+      address movedHooksInstance = previousHooksInstances[lastIndex];
+      previousHooksInstances[indexToRemove] = movedHooksInstance;
+      _hooksInstanceIndex[movedHooksInstance] = indexToRemove;
+    }
+    previousHooksInstances.pop();
+
+    _hooksInstanceIndex[hooksInstance] = _hooksInstancesByAdministrator[newAdministrator].length;
+    _hooksInstancesByAdministrator[newAdministrator].push(hooksInstance);
+    getHooksAdministrator[hooksInstance] = newAdministrator;
+
+    emit HooksInstanceAdministratorTransferred(hooksInstance, previousAdministrator, newAdministrator);
+  }
+
+  // ┌─ getHooksInstancesForAdministrator ─────
+  function getHooksInstancesForAdministrator(address administrator) external view override returns (address[] memory) {
+    return _hooksInstancesByAdministrator[administrator];
+  }
+
+  // ┌─ getHooksInstancesForAdministrator ─────
+  function getHooksInstancesForAdministrator(
+    address administrator,
     uint256 start,
     uint256 end
   )
@@ -589,140 +629,102 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     override
     returns (address[] memory arr)
   {
-    address[] storage markets = _marketsByHooksInstance[hooksInstance];
-    end = MathUtils.min(end, markets.length);
+    address[] storage hooksInstances = _hooksInstancesByAdministrator[administrator];
+    end = MathUtils.min(end, hooksInstances.length);
     if (start >= end) return new address[](0);
     uint256 count = end - start;
     arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
-      arr[i] = markets[start + i];
+      arr[i] = hooksInstances[start + i];
     }
   }
 
-  function getMarketsForHooksInstanceCount(address hooksInstance) external view override returns (uint256) {
-    return _marketsByHooksInstance[hooksInstance].length;
+  // ┌─ getHooksInstancesCountForAdministrator ─────
+  function getHooksInstancesCountForAdministrator(address administrator) external view override returns (uint256) {
+    return _hooksInstancesByAdministrator[administrator].length;
   }
 
-  /**
-   * @dev Get the temporarily stored market parameters for a market that is
-   *      currently being deployed.
-   */
-  function getMarketParameters() external view override returns (MarketParameters memory parameters) {
-    TmpRevolvingMarketParameterStorage memory tmp = _getTmpMarketParameters();
-
-    parameters.asset = tmp.asset;
-    parameters.packedNameWord0 = tmp.packedNameWord0;
-    parameters.packedNameWord1 = tmp.packedNameWord1;
-    parameters.packedSymbolWord0 = tmp.packedSymbolWord0;
-    parameters.packedSymbolWord1 = tmp.packedSymbolWord1;
-    parameters.decimals = tmp.decimals;
-    parameters.borrower = tmp.borrower;
-    parameters.feeRecipient = tmp.feeRecipient;
-    parameters.sentinel = sanctionsSentinel;
-    parameters.wrapperFactory = wrapperFactory;
-    parameters.maxTotalSupply = tmp.maxTotalSupply;
-    parameters.protocolFeeBips = tmp.protocolFeeBips;
-    parameters.annualInterestBips = tmp.annualInterestBips;
-    parameters.delinquencyFeeBips = tmp.delinquencyFeeBips;
-    parameters.withdrawalBatchDuration = tmp.withdrawalBatchDuration;
-    parameters.reserveRatioBips = tmp.reserveRatioBips;
-    parameters.delinquencyGracePeriod = tmp.delinquencyGracePeriod;
-    parameters.archController = _archController;
-    parameters.sphereXEngine = IWildcatArchController(_archController).sphereXEngine();
-    parameters.hooks = tmp.hooks;
-    parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
-    parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
-    parameters.repaymentDate = tmp.repaymentDate;
-    parameters.repaymentPeriod = tmp.repaymentPeriod;
+  // ┌─ getHooksInstancesForBorrower ─────
+  function getHooksInstancesForBorrower(address borrower) external view override returns (address[] memory) {
+    return _hooksInstancesByAdministrator[borrower];
   }
 
-  function computeMarketAddress(bytes32 salt) external view override returns (address) {
-    if (bytes20(salt) == bytes20(0)) revert SaltDoesNotContainSender();
-    return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+  // ┌─ getHooksInstancesCountForBorrower ─────
+  function getHooksInstancesCountForBorrower(address borrower) external view override returns (uint256) {
+    return _hooksInstancesByAdministrator[borrower].length;
   }
 
-  /**
-   * @dev Given a string of at most 63 bytes, produces a packed version with two words,
-   *      where the first word contains the length byte and the first 31 bytes of the string,
-   *      and the second word contains the second 32 bytes of the string.
-   */
-  function _packString(string memory str) internal pure returns (bytes32 word0, bytes32 word1) {
-    assembly {
-      let length := mload(str)
-      // Equivalent to:
-      // if (str.length > 63) revert NameOrSymbolTooLong();
-      if gt(length, 0x3f) {
-        mstore(0, 0x19a65cb6)
-        revert(0x1c, 0x04)
-      }
-      // Load the length and first 31 bytes of the string into the first word
-      // by reading from 31 bytes after the length pointer.
-      word0 := mload(add(str, 0x1f))
-      // If the string is less than 32 bytes, the second word will be zeroed out.
-      word1 := mul(mload(add(str, 0x3f)), gt(mload(str), 0x1f))
-    }
-  }
+  // ░░▒▒▓▓██ [ MARKET DEPLOYMENT ] ────────────────────────────────────────────
 
-  /**
-   * @dev Decode the factory-owned `marketData` provided to the deployment
-   *      functions, currently `abi.encode(uint8 version, uint16 commitmentFeeBips)`.
-   */
-  function _decodeMarketData(bytes calldata marketData) internal pure returns (uint16 commitmentFeeBips) {
-    if (marketData.length != _MARKET_DATA_LENGTH) {
-      revert InvalidMarketData();
-    }
-
-    (uint8 version, uint16 decodedCommitmentFeeBips) = abi.decode(marketData, (uint8, uint16));
-    if (version != _MARKET_DATA_VERSION) {
-      revert UnsupportedMarketDataVersion();
-    }
-    if (decodedCommitmentFeeBips > _MAX_COMMITMENT_FEE_BIPS) {
-      revert InvalidCommitmentFeeBips();
-    }
-    commitmentFeeBips = decodedCommitmentFeeBips;
-  }
-
-  function _emitMarketDeployment(
-    address market,
-    string memory name,
-    string memory symbol,
-    TmpRevolvingMarketParameterStorage memory tmp,
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams,
-    bytes calldata hooksData
+  // ┌─ deployMarket ─────
+  /// @inheritdoc IHooksFactoryRevolving
+  function deployMarket(
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes calldata marketData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
   )
-    internal
+    external
+    override
+    nonReentrant
+    returns (address market)
   {
-    emit MarketDeployed(
-      runtimeParams.hooksTemplate,
-      runtimeParams.requestedHooks.hooksAddress(),
-      market,
-      tmp.borrower,
-      runtimeParams.borrowerPrincipal,
-      borrowerIdentityRegistry,
-      name,
-      symbol,
-      tmp.asset,
-      runtimeParams.requestedHooks,
-      tmp.hooks
-    );
-    emit MarketDeploymentConfig(
-      market,
-      tmp.maxTotalSupply,
-      tmp.annualInterestBips,
-      tmp.delinquencyFeeBips,
-      tmp.withdrawalBatchDuration,
-      tmp.reserveRatioBips,
-      tmp.delinquencyGracePeriod,
-      tmp.feeRecipient,
-      tmp.protocolFeeBips,
-      runtimeParams.originationFeeAsset,
-      runtimeParams.originationFeeAmount
-    );
-    emit MarketHooksData(market, hooksData);
-    emit RevolvingMarketDeployed(market, runtimeParams.commitmentFeeBips);
-    emit MarketRepaymentTerms(market, tmp.repaymentDate, tmp.repaymentPeriod);
+    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
+    uint16 commitmentFeeBips = _decodeMarketData(marketData);
+    address hooksTemplate = getHooksTemplateForInstance[parameters.hooks.hooksAddress()];
+    if (hooksTemplate == address(0)) {
+      revert HooksInstanceNotFound();
+    }
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
+      hooksTemplate: hooksTemplate,
+      borrowerPrincipal: borrowerPrincipal,
+      requestedHooks: parameters.hooks,
+      salt: salt,
+      originationFeeAsset: originationFeeAsset,
+      originationFeeAmount: originationFeeAmount,
+      commitmentFeeBips: commitmentFeeBips
+    });
+    market = _deployMarket(parameters, hooksData, runtimeParams);
   }
 
+  // ┌─ deployMarketAndHooks ─────
+  /// @inheritdoc IHooksFactoryRevolving
+  function deployMarketAndHooks(
+    address hooksTemplate,
+    bytes calldata hooksConstructorArgs,
+    DeployMarketInputs calldata parameters,
+    bytes calldata hooksData,
+    bytes calldata marketData,
+    bytes32 salt,
+    address originationFeeAsset,
+    uint256 originationFeeAmount
+  )
+    external
+    override
+    nonReentrant
+    returns (address market, address hooksInstance)
+  {
+    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
+      hooksTemplate: hooksTemplate,
+      borrowerPrincipal: borrowerPrincipal,
+      requestedHooks: parameters.hooks,
+      salt: salt,
+      originationFeeAsset: originationFeeAsset,
+      originationFeeAmount: originationFeeAmount,
+      commitmentFeeBips: _decodeMarketData(marketData)
+    });
+    // `_deployHooksInstance` reverts if the template does not exist or is disabled.
+    hooksInstance = _deployHooksInstance(borrowerPrincipal, hooksTemplate, hooksConstructorArgs);
+    DeployMarketInputs memory marketInputs = parameters;
+    marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
+    runtimeParams.requestedHooks = marketInputs.hooks;
+    market = _deployMarket(marketInputs, hooksData, runtimeParams);
+  }
+
+  // ┌─ _deployMarket ─────
   function _deployMarket(
     DeployMarketInputs memory parameters,
     bytes calldata hooksData,
@@ -818,138 +820,235 @@ contract HooksFactoryRevolving is SphereXProtectedRegisteredBase, ReentrancyGuar
     _emitMarketDeployment(market, name, symbol, tmp, runtimeParams, hooksData);
   }
 
+  // ┌─ _decodeMarketData ─────
+  /// @dev Decode the factory-owned `marketData` provided to the deployment
+  ///      functions, currently `abi.encode(uint8 version, uint16 commitmentFeeBips)`.
+  function _decodeMarketData(bytes calldata marketData) internal pure returns (uint16 commitmentFeeBips) {
+    if (marketData.length != _MARKET_DATA_LENGTH) {
+      revert InvalidMarketData();
+    }
+
+    (uint8 version, uint16 decodedCommitmentFeeBips) = abi.decode(marketData, (uint8, uint16));
+    if (version != _MARKET_DATA_VERSION) {
+      revert UnsupportedMarketDataVersion();
+    }
+    if (decodedCommitmentFeeBips > _MAX_COMMITMENT_FEE_BIPS) {
+      revert InvalidCommitmentFeeBips();
+    }
+    commitmentFeeBips = decodedCommitmentFeeBips;
+  }
+
+  // ┌─ _packString ─────
+  /// @dev Given a string of at most 63 bytes, produces a packed version with two words,
+  ///      where the first word contains the length byte and the first 31 bytes of the string,
+  ///      and the second word contains the second 32 bytes of the string.
+  function _packString(string memory str) internal pure returns (bytes32 word0, bytes32 word1) {
+    assembly {
+      let length := mload(str)
+      // Equivalent to:
+      // if (str.length > 63) revert NameOrSymbolTooLong();
+      if gt(length, 0x3f) {
+        mstore(0, 0x19a65cb6)
+        revert(0x1c, 0x04)
+      }
+      // Load the length and first 31 bytes of the string into the first word
+      // by reading from 31 bytes after the length pointer.
+      word0 := mload(add(str, 0x1f))
+      // If the string is less than 32 bytes, the second word will be zeroed out.
+      word1 := mul(mload(add(str, 0x3f)), gt(mload(str), 0x1f))
+    }
+  }
+
+  // ┌─ _emitMarketDeployment ─────
+  function _emitMarketDeployment(
+    address market,
+    string memory name,
+    string memory symbol,
+    TmpRevolvingMarketParameterStorage memory tmp,
+    DeployRevolvingMarketRuntimeParameters memory runtimeParams,
+    bytes calldata hooksData
+  )
+    internal
+  {
+    emit MarketDeployed(
+      runtimeParams.hooksTemplate,
+      runtimeParams.requestedHooks.hooksAddress(),
+      market,
+      tmp.borrower,
+      runtimeParams.borrowerPrincipal,
+      borrowerIdentityRegistry,
+      name,
+      symbol,
+      tmp.asset,
+      runtimeParams.requestedHooks,
+      tmp.hooks
+    );
+    emit MarketDeploymentConfig(
+      market,
+      tmp.maxTotalSupply,
+      tmp.annualInterestBips,
+      tmp.delinquencyFeeBips,
+      tmp.withdrawalBatchDuration,
+      tmp.reserveRatioBips,
+      tmp.delinquencyGracePeriod,
+      tmp.feeRecipient,
+      tmp.protocolFeeBips,
+      runtimeParams.originationFeeAsset,
+      runtimeParams.originationFeeAmount
+    );
+    emit MarketHooksData(market, hooksData);
+    emit RevolvingMarketDeployed(market, runtimeParams.commitmentFeeBips);
+    emit MarketRepaymentTerms(market, tmp.repaymentDate, tmp.repaymentPeriod);
+  }
+
+  // ┌─ computeMarketAddress ─────
+  function computeMarketAddress(bytes32 salt) external view override returns (address) {
+    if (bytes20(salt) == bytes20(0)) revert SaltDoesNotContainSender();
+    return LibStoredInitCode.calculateCreate2Address(ownCreate2Prefix, salt, marketInitCodeHash);
+  }
+
+  // ░░▒▒▓▓██ [ CONSTRUCTOR PARAMETERS ] ───────────────────────────────────────
+
+  // ┌─ getMarketParameters ─────
+  /// @dev Get the temporarily stored market parameters for a market that is
+  ///      currently being deployed.
+  function getMarketParameters() external view override returns (MarketParameters memory parameters) {
+    TmpRevolvingMarketParameterStorage memory tmp = _getTmpMarketParameters();
+
+    parameters.asset = tmp.asset;
+    parameters.packedNameWord0 = tmp.packedNameWord0;
+    parameters.packedNameWord1 = tmp.packedNameWord1;
+    parameters.packedSymbolWord0 = tmp.packedSymbolWord0;
+    parameters.packedSymbolWord1 = tmp.packedSymbolWord1;
+    parameters.decimals = tmp.decimals;
+    parameters.borrower = tmp.borrower;
+    parameters.feeRecipient = tmp.feeRecipient;
+    parameters.sentinel = sanctionsSentinel;
+    parameters.wrapperFactory = wrapperFactory;
+    parameters.maxTotalSupply = tmp.maxTotalSupply;
+    parameters.protocolFeeBips = tmp.protocolFeeBips;
+    parameters.annualInterestBips = tmp.annualInterestBips;
+    parameters.delinquencyFeeBips = tmp.delinquencyFeeBips;
+    parameters.withdrawalBatchDuration = tmp.withdrawalBatchDuration;
+    parameters.reserveRatioBips = tmp.reserveRatioBips;
+    parameters.delinquencyGracePeriod = tmp.delinquencyGracePeriod;
+    parameters.archController = _archController;
+    parameters.sphereXEngine = IWildcatArchController(_archController).sphereXEngine();
+    parameters.hooks = tmp.hooks;
+    parameters.borrowerPrincipal = _getTmpBorrowerPrincipal();
+    parameters.borrowerIdentityRegistry = borrowerIdentityRegistry;
+    parameters.repaymentDate = tmp.repaymentDate;
+    parameters.repaymentPeriod = tmp.repaymentPeriod;
+  }
+
+  // ┌─ _setTmpMarketParameters ─────
+  /// @dev Set the temporary market parameters in transient storage.
+  function _setTmpMarketParameters(TmpRevolvingMarketParameterStorage memory parameters) internal {
+    _tmpMarketParameters.write(abi.encode(parameters));
+  }
+
+  // ┌─ _getTmpMarketParameters ─────
+  /// @dev Get the temporary market parameters from transient storage.
+  function _getTmpMarketParameters() internal view returns (TmpRevolvingMarketParameterStorage memory parameters) {
+    return abi.decode(_tmpMarketParameters.read(), (TmpRevolvingMarketParameterStorage));
+  }
+
+  // ┌─ _setTmpBorrowerPrincipal ─────
+  function _setTmpBorrowerPrincipal(address principal) internal {
+    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
+    assembly {
+      tstore(slot, principal)
+    }
+  }
+
+  // ┌─ _getTmpBorrowerPrincipal ─────
+  function _getTmpBorrowerPrincipal() internal view returns (address principal) {
+    uint256 slot = _TMP_BORROWER_PRINCIPAL_SLOT;
+    assembly {
+      principal := tload(slot)
+    }
+  }
+
+  // ┌─ getRevolvingMarketCommitmentFeeBips ─────
   /// @inheritdoc IHooksFactoryRevolving
   function getRevolvingMarketCommitmentFeeBips() external view override returns (uint16) {
     return _getTmpCommitmentFeeBips();
   }
 
-  /// @inheritdoc IHooksFactoryRevolving
-  function deployMarket(
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes calldata marketData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  )
-    external
-    override
-    nonReentrant
-    returns (address market)
-  {
-    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
-    uint16 commitmentFeeBips = _decodeMarketData(marketData);
-    address hooksTemplate = getHooksTemplateForInstance[parameters.hooks.hooksAddress()];
-    if (hooksTemplate == address(0)) {
-      revert HooksInstanceNotFound();
-    }
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
-      hooksTemplate: hooksTemplate,
-      borrowerPrincipal: borrowerPrincipal,
-      requestedHooks: parameters.hooks,
-      salt: salt,
-      originationFeeAsset: originationFeeAsset,
-      originationFeeAmount: originationFeeAmount,
-      commitmentFeeBips: commitmentFeeBips
-    });
-    market = _deployMarket(parameters, hooksData, runtimeParams);
+  // ┌─ _setTmpCommitmentFeeBips ─────
+  /// @dev Set the temporary commitment fee in transient storage.
+  function _setTmpCommitmentFeeBips(uint16 commitmentFeeBips) internal {
+    _tmpRevolvingMarketData.write(abi.encode(commitmentFeeBips));
   }
 
-  /// @inheritdoc IHooksFactoryRevolving
-  function deployMarketAndHooks(
-    address hooksTemplate,
-    bytes calldata hooksConstructorArgs,
-    DeployMarketInputs calldata parameters,
-    bytes calldata hooksData,
-    bytes calldata marketData,
-    bytes32 salt,
-    address originationFeeAsset,
-    uint256 originationFeeAmount
-  )
-    external
-    override
-    nonReentrant
-    returns (address market, address hooksInstance)
-  {
-    address borrowerPrincipal = _resolveBorrowerPrincipal(msg.sender);
-    DeployRevolvingMarketRuntimeParameters memory runtimeParams = DeployRevolvingMarketRuntimeParameters({
-      hooksTemplate: hooksTemplate,
-      borrowerPrincipal: borrowerPrincipal,
-      requestedHooks: parameters.hooks,
-      salt: salt,
-      originationFeeAsset: originationFeeAsset,
-      originationFeeAmount: originationFeeAmount,
-      commitmentFeeBips: _decodeMarketData(marketData)
-    });
-    // `_deployHooksInstance` reverts if the template does not exist or is disabled.
-    hooksInstance = _deployHooksInstance(borrowerPrincipal, hooksTemplate, hooksConstructorArgs);
-    DeployMarketInputs memory marketInputs = parameters;
-    marketInputs.hooks = marketInputs.hooks.setHooksAddress(hooksInstance);
-    runtimeParams.requestedHooks = marketInputs.hooks;
-    market = _deployMarket(marketInputs, hooksData, runtimeParams);
+  // ┌─ _getTmpCommitmentFeeBips ─────
+  /// @dev Get the temporary commitment fee from transient storage.
+  function _getTmpCommitmentFeeBips() internal view returns (uint16 commitmentFeeBips) {
+    return abi.decode(_tmpRevolvingMarketData.read(), (uint16));
   }
 
-  /// @inheritdoc IHooksFactoryRevolving
-  function pushProtocolFeeBipsUpdates(
-    address hooksTemplate,
-    uint marketStartIndex,
-    uint marketEndIndex
-  )
-    public
-    override
-    nonReentrant
-  {
-    HooksTemplate memory details = _templateDetails[hooksTemplate];
-    if (!details.exists) revert HooksTemplateNotFound();
+  // ░░▒▒▓▓██ [ MARKET QUERIES ] ───────────────────────────────────────────────
 
+  // ┌─ getMarketsForHooksTemplate ─────
+  function getMarketsForHooksTemplate(address hooksTemplate) external view override returns (address[] memory) {
+    return _marketsByHooksTemplate[hooksTemplate];
+  }
+
+  // ┌─ getMarketsForHooksTemplate ─────
+  function getMarketsForHooksTemplate(
+    address hooksTemplate,
+    uint256 start,
+    uint256 end
+  )
+    external
+    view
+    override
+    returns (address[] memory arr)
+  {
     address[] storage markets = _marketsByHooksTemplate[hooksTemplate];
-    uint256 marketCount = markets.length;
-    marketEndIndex = MathUtils.min(marketEndIndex, marketCount);
-    // CAF-13 fix: reject ranges that would underflow after clamping, but allow
-    // boundary-empty pages to no-op for fixed-size operational pagination.
-    if (marketStartIndex > marketEndIndex) revert InvalidPaginationRange();
-    if (marketStartIndex == marketEndIndex) return;
-    uint256 count = marketEndIndex - marketStartIndex;
-    uint256 setProtocolFeeBipsCalldataPointer;
-    uint16 protocolFeeBips = details.protocolFeeBips;
-    assembly {
-      // Write the calldata for `market.setProtocolFeeBips(protocolFeeBips)`
-      // this will be reused for every market
-      setProtocolFeeBipsCalldataPointer := mload(0x40)
-      mstore(0x40, add(setProtocolFeeBipsCalldataPointer, 0x40))
-      // Write selector for `setProtocolFeeBips(uint16)`
-      mstore(setProtocolFeeBipsCalldataPointer, 0xae6ea191)
-      mstore(add(setProtocolFeeBipsCalldataPointer, 0x20), protocolFeeBips)
-      // Add 28 bytes to get the exact pointer to the first byte of the selector
-      setProtocolFeeBipsCalldataPointer := add(setProtocolFeeBipsCalldataPointer, 0x1c)
-    }
+    uint256 len = markets.length;
+    end = MathUtils.min(end, len);
+    if (start >= end) return new address[](0);
+    uint256 count = end - start;
+    arr = new address[](count);
     for (uint256 i = 0; i < count; i++) {
-      address market = markets[marketStartIndex + i];
-      assembly {
-        // isClosed() includes funded repayment closure that hasn't been written yet.
-        mstore(0, 0xc2b6b58c)
-        let success := staticcall(gas(), market, 0x1c, 0x04, 0, 0x20)
-        // require a complete, canonical bool. failed reads must not silently skip a market.
-        if or(lt(returndatasize(), 0x20), gt(mload(0), 1)) {
-          success := 0
-        }
-        if and(success, iszero(mload(0))) {
-          success := call(gas(), market, 0, setProtocolFeeBipsCalldataPointer, 0x24, 0, 0)
-        }
-        if iszero(success) {
-          // Equivalent to `revert SetProtocolFeeBipsFailed()`
-          mstore(0, 0x4484a4a9)
-          revert(0x1c, 0x04)
-        }
-      }
+      arr[i] = markets[start + i];
     }
   }
 
-  /**
-   * @dev Push any changes to the fee configuration of `hooksTemplate` to all markets
-   *      using any instances of that template at `_marketsByHooksTemplate[hooksTemplate]`.
-   */
-  function pushProtocolFeeBipsUpdates(address hooksTemplate) external override {
-    pushProtocolFeeBipsUpdates(hooksTemplate, 0, type(uint256).max);
+  // ┌─ getMarketsForHooksTemplateCount ─────
+  function getMarketsForHooksTemplateCount(address hooksTemplate) external view override returns (uint256) {
+    return _marketsByHooksTemplate[hooksTemplate].length;
+  }
+
+  // ┌─ getMarketsForHooksInstance ─────
+  function getMarketsForHooksInstance(address hooksInstance) external view override returns (address[] memory) {
+    return _marketsByHooksInstance[hooksInstance];
+  }
+
+  // ┌─ getMarketsForHooksInstance ─────
+  function getMarketsForHooksInstance(
+    address hooksInstance,
+    uint256 start,
+    uint256 end
+  )
+    external
+    view
+    override
+    returns (address[] memory arr)
+  {
+    address[] storage markets = _marketsByHooksInstance[hooksInstance];
+    end = MathUtils.min(end, markets.length);
+    if (start >= end) return new address[](0);
+    uint256 count = end - start;
+    arr = new address[](count);
+    for (uint256 i = 0; i < count; i++) {
+      arr[i] = markets[start + i];
+    }
+  }
+
+  // ┌─ getMarketsForHooksInstanceCount ─────
+  function getMarketsForHooksInstanceCount(address hooksInstance) external view override returns (uint256) {
+    return _marketsByHooksInstance[hooksInstance].length;
   }
 }

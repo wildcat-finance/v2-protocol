@@ -1,6 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // TokenMetadataReview.t
+// ║  ██▀▀     ▀▀██   Metadata compatibility, strict creation, and resilient lens reads.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  GAS EXHAUSTION TARGET
+// ║  name()
+// ║  symbol()
+// ║  decimals()
+// ║  isMock()
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  deployMarket(...)
+// ║  _deployCell(...)
+// ║  _mockName(...)
+// ║  _mockSymbol(...)
+// ║  _repeat(...)
+// ║
+// ║  CREATION AND IDENTITY
+// ║  test_canonicalAndLegacyEmptyStringsDeploy()
+// ║  test_factoryNameLimitCountsCombinedUtf8Bytes()
+// ║  test_factorySymbolLimitCountsCombinedBytes()
+// ║  test_unicodeMetadataPreservedAndMarketIdentityCached()
+// ║  test_missingDecimalsRejectsCreationAndTokenRead()
+// ║
+// ║  OPTIONAL METADATA
+// ║  test_lensMalformedLabelsAreEmptyButFactoryRemainsStrict()
+// ║  test_optionalCallGasExhaustionDoesNotAbortTokenBatch()
+// ║  test_isMockRequiresCompleteCanonicalWord()
+// ║
+// ║  PROPAGATION AND UNIT BOUNDARIES
+// ║  test_failedDecimalsStillAbortsFullMarketRead()
+// ║  test_failedLabelsPropagateThroughAggregationAndFacade()
+// ║  test_mutableDecimalsProducesConflictingLensUnits()
+// ║  test_failedMetadataPreservesMixedMarketReadAndWithdrawal()
+// ╚═════
+
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { MarketData } from 'src/lens/MarketData.sol';
 import { MarketLensCore } from 'src/lens/MarketLensCore.sol';
@@ -11,22 +51,29 @@ import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ GasLimitedMetadataMock ───────────────────────────────────────────────────
 /// @dev consumes the complete supplied call budget on optional name/mock reads.
 contract GasLimitedMetadataMock {
+  // ░░▒▒▓▓██ [ GAS EXHAUSTION TARGET ] ────────────────────────────────────────
+
+  // ┌─ name ─────
   function name() external pure returns (string memory) {
     assembly {
       invalid()
     }
   }
 
+  // ┌─ symbol ─────
   function symbol() external pure returns (string memory) {
     return 'LIVE';
   }
 
+  // ┌─ decimals ─────
   function decimals() external pure returns (uint8) {
     return 6;
   }
 
+  // ┌─ isMock ─────
   function isMock() external pure returns (bool) {
     assembly {
       invalid()
@@ -34,12 +81,16 @@ contract GasLimitedMetadataMock {
   }
 }
 
+// ┌─ TokenMetadataReviewTest ──────────────────────────────────────────────────
 /// @dev Regression tests for the metadata candidate and the compatibility
 /// boundaries intentionally retained from the original review.
 contract TokenMetadataReviewTest is ProductionMatrixFixture {
   ProductionStack internal stack;
   MarketLensCore internal core;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     stack = _deployProductionStack();
     core = MarketLensCore(
@@ -50,10 +101,12 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     );
   }
 
+  // ┌─ deployMarket ─────
   function deployMarket(MatrixMarketKind kind, uint96 nonce) external returns (address) {
     return address(_deployCell(stack, kind, nonce).market);
   }
 
+  // ┌─ _deployCell ─────
   function _deployCell(
     ProductionStack memory selectedStack,
     MatrixMarketKind kind,
@@ -69,14 +122,17 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     return _deployMatrixCell(selectedStack, options, MatrixBorrower, MatrixBorrower, nonce);
   }
 
+  // ┌─ _mockName ─────
   function _mockName(bytes memory response) internal {
     vm.mockCall(address(stack.asset), abi.encodeWithSignature('name()'), response);
   }
 
+  // ┌─ _mockSymbol ─────
   function _mockSymbol(bytes memory response) internal {
     vm.mockCall(address(stack.asset), abi.encodeWithSignature('symbol()'), response);
   }
 
+  // ┌─ _repeat ─────
   function _repeat(uint256 length) internal pure returns (string memory) {
     bytes memory value = new bytes(length);
     for (uint256 i; i < length; i++) {
@@ -85,6 +141,9 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     return string(value);
   }
 
+  // ░░▒▒▓▓██ [ CREATION AND IDENTITY ] ────────────────────────────────────────
+
+  // ┌─ test_canonicalAndLegacyEmptyStringsDeploy ─────
   function test_canonicalAndLegacyEmptyStringsDeploy() external {
     bytes memory emptyString = abi.encode('');
     assertEq(emptyString.length, 64, 'canonical empty ABI size');
@@ -116,6 +175,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_factoryNameLimitCountsCombinedUtf8Bytes ─────
   function test_factoryNameLimitCountsCombinedUtf8Bytes() external {
     _mockName(abi.encode(_repeat(55)));
     for (uint256 k; k < 2; k++) {
@@ -132,6 +192,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_factorySymbolLimitCountsCombinedBytes ─────
   function test_factorySymbolLimitCountsCombinedBytes() external {
     _mockSymbol(abi.encode(_repeat(61)));
     for (uint256 k; k < 2; k++) {
@@ -145,6 +206,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_unicodeMetadataPreservedAndMarketIdentityCached ─────
   function test_unicodeMetadataPreservedAndMarketIdentityCached() external {
     string memory name = unicode'Token 猫';
     string memory symbol = unicode'猫';
@@ -161,6 +223,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     assertEq(data.marketToken.symbol, string.concat('wc', symbol), 'market symbol remains cached');
   }
 
+  // ┌─ test_missingDecimalsRejectsCreationAndTokenRead ─────
   function test_missingDecimalsRejectsCreationAndTokenRead() external {
     vm.mockCall(address(stack.asset), abi.encodeWithSignature('decimals()'), bytes(''));
     vm.expectRevert(LibERC20.DecimalsFailed.selector);
@@ -175,6 +238,9 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     assertEq(market.decimals(), 6, 'valid six-decimal metadata is cached');
   }
 
+  // ░░▒▒▓▓██ [ OPTIONAL METADATA ] ────────────────────────────────────────────
+
+  // ┌─ test_lensMalformedLabelsAreEmptyButFactoryRemainsStrict ─────
   function test_lensMalformedLabelsAreEmptyButFactoryRemainsStrict() external {
     _mockName(abi.encode(uint256(32), uint256(1)));
     _mockSymbol(abi.encode(uint256(64), uint256(0)));
@@ -188,6 +254,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_optionalCallGasExhaustionDoesNotAbortTokenBatch ─────
   function test_optionalCallGasExhaustionDoesNotAbortTokenBatch() external {
     address unavailable = _deployCode('test/lens/TokenMetadataReview.t.sol:GasLimitedMetadataMock');
     address[] memory tokens = new address[](2);
@@ -204,6 +271,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     assertEq(data[1].name, 'Matrix Token', 'later token still read');
   }
 
+  // ┌─ test_isMockRequiresCompleteCanonicalWord ─────
   function test_isMockRequiresCompleteCanonicalWord() external {
     vm.mockCall(address(stack.asset), abi.encodeWithSignature('isMock()'), abi.encode(true));
     assertTrue(core.getTokenInfo(address(stack.asset)).isMock, 'complete true marker');
@@ -213,6 +281,9 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     assertFalse(core.getTokenInfo(address(stack.asset)).isMock, 'noncanonical marker is false');
   }
 
+  // ░░▒▒▓▓██ [ PROPAGATION AND UNIT BOUNDARIES ] ──────────────────────────────
+
+  // ┌─ test_failedDecimalsStillAbortsFullMarketRead ─────
   function test_failedDecimalsStillAbortsFullMarketRead() external {
     MatrixCell memory cell = _deployCell(stack, MatrixMarketKind.Standard, 1);
     vm.mockCall(address(stack.asset), abi.encodeWithSignature('decimals()'), bytes(''));
@@ -220,6 +291,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     core.getMarketData(address(cell.market));
   }
 
+  // ┌─ test_failedLabelsPropagateThroughAggregationAndFacade ─────
   function test_failedLabelsPropagateThroughAggregationAndFacade() external {
     _deployCell(stack, MatrixMarketKind.Standard, 1);
     _deployCell(stack, MatrixMarketKind.Revolving, 2);
@@ -250,6 +322,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_mutableDecimalsProducesConflictingLensUnits ─────
   function test_mutableDecimalsProducesConflictingLensUnits() external {
     MatrixCell memory cell = _deployCell(stack, MatrixMarketKind.Standard, 1);
     assertEq(cell.market.decimals(), 18, 'creation units');
@@ -263,6 +336,7 @@ contract TokenMetadataReviewTest is ProductionMatrixFixture {
     assertEq(stack.asset.balanceOf(address(cell.market)), 1e18, 'raw underlying balance');
   }
 
+  // ┌─ test_failedMetadataPreservesMixedMarketReadAndWithdrawal ─────
   function test_failedMetadataPreservesMixedMarketReadAndWithdrawal() external {
     MatrixCell memory affected = _deployCell(stack, MatrixMarketKind.Standard, 1);
     ProductionStack memory healthyStack = stack;

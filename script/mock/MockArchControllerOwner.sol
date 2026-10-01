@@ -1,13 +1,57 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MockArchControllerOwner
+// ║  ██▀▀     ▀▀██   Testnet authority delegation and reviewed protocol actions.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  CONTROLLER QUERY
+// ║  archController()
+// ║
+// ║  LEGACY FEES
+// ║  setProtocolFeeConfiguration(...)
+// ║
+// ║  SETUP
+// ║  constructor(...)
+// ║
+// ║  EXECUTOR AUTHORITY
+// ║  onlyAuthorized()
+// ║  authorizeAccount(...)
+// ║  _authorizeAccount(...)
+// ║  deauthorizeAccount(...)
+// ║  getAuthorizedAccounts()
+// ║  getAuthorizedAccountsCount()
+// ║  returnOwnership()
+// ║
+// ║  BORROWER REGISTRATION
+// ║  registerBorrower(...)
+// ║  registerBorrowers(...)
+// ║
+// ║  PROTOCOL ACTIONS
+// ║  executeProtocolAction(...)
+// ║  setProtocolFeeConfiguration(...)
+// ║  _executeProtocolAction(...)
+// ║  _requireProtocolTarget(...)
+// ╚═════
+
 import 'src/WildcatArchController.sol';
 
+// ┌─ IArchControllerBound ─────────────────────────────────────────────────────
 interface IArchControllerBound {
+  // ░░▒▒▓▓██ [ CONTROLLER QUERY ] ─────────────────────────────────────────────
+
+  // ┌─ archController ─────
   function archController() external view returns (address);
 }
 
+// ┌─ ILegacyWildcatMarketControllerFactory ────────────────────────────────────
 interface ILegacyWildcatMarketControllerFactory is IArchControllerBound {
+  // ░░▒▒▓▓██ [ LEGACY FEES ] ──────────────────────────────────────────────────
+
+  // ┌─ setProtocolFeeConfiguration ─────
   function setProtocolFeeConfiguration(
     address feeRecipient,
     address originationFeeAsset,
@@ -17,10 +61,9 @@ interface ILegacyWildcatMarketControllerFactory is IArchControllerBound {
     external;
 }
 
-/**
- * @dev testnet helper for the one ArchController and the protocol contracts
- *      that use `ArchController.owner()` for admin calls.
- */
+// ┌─ MockArchControllerOwner ──────────────────────────────────────────────────
+/// @dev testnet helper for the one ArchController and the protocol contracts
+///      that use `ArchController.owner()` for admin calls.
 contract MockArchControllerOwner {
   error AccountAlreadyAuthorized();
   error AccountNotAuthorized();
@@ -43,6 +86,9 @@ contract MockArchControllerOwner {
   mapping(address account => uint256 indexPlusOne) internal _authorizedAccountIndexPlusOne;
   address[] internal _authorizedAccountList;
 
+  // ░░▒▒▓▓██ [ SETUP ] ────────────────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(address archController_, address[] memory initialExecutors) {
     if (archController_ == address(0) || archController_.code.length == 0) {
       revert ZeroAddress();
@@ -58,25 +104,22 @@ contract MockArchControllerOwner {
     }
   }
 
+  // ░░▒▒▓▓██ [ EXECUTOR AUTHORITY ] ───────────────────────────────────────────
+
+  // ┌─ onlyAuthorized ─────
   modifier onlyAuthorized() {
     if (!authorizedAccounts[msg.sender]) revert NotAuthorized();
     _;
   }
 
-  function getAuthorizedAccounts() external view returns (address[] memory) {
-    return _authorizedAccountList;
-  }
-
-  function getAuthorizedAccountsCount() external view returns (uint256) {
-    return _authorizedAccountList.length;
-  }
-
+  // ┌─ authorizeAccount ─────
   function authorizeAccount(address account) external onlyAuthorized {
     if (account == address(0)) revert ZeroAddress();
     if (authorizedAccounts[account]) revert AccountAlreadyAuthorized();
     _authorizeAccount(msg.sender, account);
   }
 
+  // ┌─ _authorizeAccount ─────
   function _authorizeAccount(address authorizer, address account) internal {
     authorizedAccounts[account] = true;
     _authorizedAccountIndexPlusOne[account] = _authorizedAccountList.length + 1;
@@ -84,6 +127,7 @@ contract MockArchControllerOwner {
     emit AccountAuthorized(authorizer, account);
   }
 
+  // ┌─ deauthorizeAccount ─────
   function deauthorizeAccount(address account) external onlyAuthorized {
     if (!authorizedAccounts[account]) revert AccountNotAuthorized();
     uint256 length = _authorizedAccountList.length;
@@ -102,33 +146,59 @@ contract MockArchControllerOwner {
     emit AccountDeauthorized(msg.sender, account);
   }
 
-  /**
-   * @dev lets an authorized executor take ownership back directly. mostly a
-   *      recovery path, but the old scripts still use it too.
-   */
+  // ┌─ getAuthorizedAccounts ─────
+  function getAuthorizedAccounts() external view returns (address[] memory) {
+    return _authorizedAccountList;
+  }
+
+  // ┌─ getAuthorizedAccountsCount ─────
+  function getAuthorizedAccountsCount() external view returns (uint256) {
+    return _authorizedAccountList.length;
+  }
+
+  // ┌─ returnOwnership ─────
+  /// @dev lets an authorized executor take ownership back directly. mostly a
+  ///      recovery path, but the old scripts still use it too.
   function returnOwnership() external onlyAuthorized {
     archController.transferOwnership(msg.sender);
   }
 
-  /**
-   * @dev borrower registration is intentionally permissionless on testnet; the
-   *      SDK/frontend onboarding path still uses it. the helper needs to own
-   *      the ArchController for this to work.
-   */
+  // ░░▒▒▓▓██ [ BORROWER REGISTRATION ] ────────────────────────────────────────
+
+  // ┌─ registerBorrower ─────
+  /// @dev borrower registration is intentionally permissionless on testnet; the
+  ///      SDK/frontend onboarding path still uses it. the helper needs to own
+  ///      the ArchController for this to work.
   function registerBorrower(address borrower) external {
     archController.registerBorrower(borrower);
   }
 
+  // ┌─ registerBorrowers ─────
   function registerBorrowers(address[] calldata borrowers) external {
     for (uint256 i; i < borrowers.length; i++) {
       archController.registerBorrower(borrowers[i]);
     }
   }
 
-  /**
-   * @dev keep the old V2 fee call working; the legacy controller factory still
-   *      needs it.
-   */
+  // ░░▒▒▓▓██ [ PROTOCOL ACTIONS ] ─────────────────────────────────────────────
+
+  // ┌─ executeProtocolAction ─────
+  /// @dev runs one reviewed owner action through the helper so we don't have to
+  ///      hand the ArchController to an EOA.
+  function executeProtocolAction(
+    address target,
+    bytes calldata data
+  )
+    external
+    onlyAuthorized
+    returns (bytes memory result)
+  {
+    result = _executeProtocolAction(target, data, msg.sender);
+  }
+
+  // ┌─ setProtocolFeeConfiguration ─────
+  /// @dev keep the old V2 fee call working; the legacy controller factory still
+  ///      needs it.
   function setProtocolFeeConfiguration(
     ILegacyWildcatMarketControllerFactory factory,
     address feeRecipient,
@@ -149,21 +219,7 @@ contract MockArchControllerOwner {
     );
   }
 
-  /**
-   * @dev runs one reviewed owner action through the helper so we don't have to
-   *      hand the ArchController to an EOA.
-   */
-  function executeProtocolAction(
-    address target,
-    bytes calldata data
-  )
-    external
-    onlyAuthorized
-    returns (bytes memory result)
-  {
-    result = _executeProtocolAction(target, data, msg.sender);
-  }
-
+  // ┌─ _executeProtocolAction ─────
   function _executeProtocolAction(
     address target,
     bytes memory data,
@@ -190,6 +246,7 @@ contract MockArchControllerOwner {
     emit ProtocolActionExecuted(executor, target, selector);
   }
 
+  // ┌─ _requireProtocolTarget ─────
   function _requireProtocolTarget(address target) internal view {
     if (target == address(this) || target.code.length == 0) revert InvalidProtocolTarget();
     if (target == address(archController)) return;

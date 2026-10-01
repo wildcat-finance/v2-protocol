@@ -1,6 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketSurplus.t
+// ║  ██▀▀     ▀▀██   Closure funding, surplus recovery, and transfer rejection tests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _fixture(...)
+// ║  _deployFixtureDependencies()
+// ║  _reject(...)
+// ║
+// ║  MARKET CLOSURE
+// ║  test_lenderActionsCanCommitClosureWithRejectedBorrower()
+// ║  _lenderAction(...)
+// ║  test_exactFundingClosesEvenWhenBorrowerRejectsTransfers()
+// ║  test_automaticClosureDoesNotPushSurplus()
+// ║  test_repaymentCanCloseWithSurplusAndRejectedBorrower()
+// ║  _assertClosed(...)
+// ║
+// ║  SURPLUS RECOVERY
+// ║  test_surplusRecoveryPreservesEveryLiabilityAndBatchExit()
+// ║  test_surplusRecoveryRequiresBorrowerAndClosedMarket()
+// ║  test_surplusRecoveryCanCommitEffectiveClosure()
+// ║  test_surplusRecoveryFollowsTransferredBorrowerAuthority()
+// ║  test_failedRecoveryRollsBackEffectiveClosureAndStillAllowsCollection()
+// ║  test_manualClosureWithoutTermsAllowsLaterDonationRecovery()
+// ╚═════
+
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { RecipientRejectingERC20 } from '../mocks/RecipientRejectingERC20.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -9,20 +39,19 @@ import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { Vm } from 'forge-std/Vm.sol';
 
+// ┌─ MarketSurplusTest ────────────────────────────────────────────────────────
 contract MarketSurplusTest is MarketFixture {
   address internal constant Holder = address(0xA11CE);
   address internal constant Recipient = address(0xB0B);
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() public {
     vm.warp(1_800_000_000);
   }
 
-  function _deployFixtureDependencies() internal override returns (Fixture memory fixture) {
-    fixture = super._deployFixtureDependencies();
-    fixture.asset =
-      RecipientRejectingERC20(_deployCode('test/mocks/RecipientRejectingERC20.sol:RecipientRejectingERC20'));
-  }
-
+  // ┌─ _fixture ─────
   function _fixture(bool revolving, bool interest) private returns (Fixture memory fixture) {
     Options memory options = _defaultOptions(HooksKind.OpenTerm);
     options.revolving = revolving;
@@ -36,18 +65,50 @@ contract MarketSurplusTest is MarketFixture {
     _fundAndApprove(fixture, Borrower, 10_000e18);
   }
 
+  // ┌─ _deployFixtureDependencies ─────
+  function _deployFixtureDependencies() internal override returns (Fixture memory fixture) {
+    fixture = super._deployFixtureDependencies();
+    fixture.asset =
+      RecipientRejectingERC20(_deployCode('test/mocks/RecipientRejectingERC20.sol:RecipientRejectingERC20'));
+  }
+
+  // ┌─ _reject ─────
   function _reject(Fixture memory fixture, bool returnsFalse) private {
     RecipientRejectingERC20(address(fixture.asset)).rejectRecipient(Borrower, returnsFalse);
   }
 
-  function _assertClosed(Fixture memory fixture, bool revolving) private view {
-    assertTrue(fixture.market.previousState().isClosed, 'closure committed');
-    assertTrue(fixture.market.totalAssets() >= fixture.market.totalDebts(), 'claims fully backed');
-    if (revolving) {
-      assertEq(IWildcatMarketRevolving(address(fixture.market)).drawnAmount(), 0, 'principal cleared');
+  // ░░▒▒▓▓██ [ MARKET CLOSURE ] ───────────────────────────────────────────────
+
+  // ┌─ test_lenderActionsCanCommitClosureWithRejectedBorrower ─────
+  function test_lenderActionsCanCommitClosureWithRejectedBorrower() external {
+    for (uint256 model; model < 2; ++model) {
+      for (uint256 action; action < 10; ++action) {
+        Fixture memory fixture = _fixture(model != 0, true);
+        fixture.asset.mint(address(fixture.market), 50e18);
+        vm.prank(Holder);
+        uint32 expiry = fixture.market.queueWithdrawal(500e18);
+        _reject(fixture, action % 2 != 0);
+        vm.warp(uint256(fixture.market.repaymentDate()) + 1);
+        uint256 borrowerBefore = fixture.asset.balanceOf(Borrower);
+        vm.recordLogs();
+        _lenderAction(fixture, expiry, action);
+        _assertClosed(fixture, model != 0);
+        uint256 scale = fixture.market.scaleFactor();
+        vm.warp(vm.getBlockTimestamp() + 1);
+        fixture.market.updateState();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 closures;
+        for (uint256 i; i < logs.length; ++i) {
+          if (logs[i].topics[0] == keccak256('MarketClosed(address,uint256)')) ++closures;
+        }
+        assertEq(closures, 1, 'closure emitted once');
+        assertEq(fixture.market.scaleFactor(), scale, 'closed accrual frozen');
+        assertEq(fixture.asset.balanceOf(Borrower), borrowerBefore, 'no borrower payout');
+      }
     }
   }
 
+  // ┌─ _lenderAction ─────
   function _lenderAction(Fixture memory fixture, uint32 expiry, uint256 action) private {
     if (action == 0) {
       vm.prank(Holder);
@@ -86,34 +147,66 @@ contract MarketSurplusTest is MarketFixture {
     }
   }
 
-  function test_lenderActionsCanCommitClosureWithRejectedBorrower() external {
+  // ┌─ test_exactFundingClosesEvenWhenBorrowerRejectsTransfers ─────
+  function test_exactFundingClosesEvenWhenBorrowerRejectsTransfers() external {
     for (uint256 model; model < 2; ++model) {
-      for (uint256 action; action < 10; ++action) {
-        Fixture memory fixture = _fixture(model != 0, true);
+      Fixture memory fixture = _fixture(model != 0, false);
+      _reject(fixture, false);
+      vm.warp(fixture.market.repaymentDate());
+      fixture.market.updateState();
+      _assertClosed(fixture, model != 0);
+    }
+  }
+
+  // ┌─ test_automaticClosureDoesNotPushSurplus ─────
+  function test_automaticClosureDoesNotPushSurplus() external {
+    for (uint256 model; model < 2; ++model) {
+      for (uint256 mode; mode < 2; ++mode) {
+        Fixture memory fixture = _fixture(model != 0, mode != 0);
         fixture.asset.mint(address(fixture.market), 50e18);
-        vm.prank(Holder);
-        uint32 expiry = fixture.market.queueWithdrawal(500e18);
-        _reject(fixture, action % 2 != 0);
-        vm.warp(uint256(fixture.market.repaymentDate()) + 1);
-        uint256 borrowerBefore = fixture.asset.balanceOf(Borrower);
-        vm.recordLogs();
-        _lenderAction(fixture, expiry, action);
-        _assertClosed(fixture, model != 0);
-        uint256 scale = fixture.market.scaleFactor();
-        vm.warp(vm.getBlockTimestamp() + 1);
         fixture.market.updateState();
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        uint256 closures;
-        for (uint256 i; i < logs.length; ++i) {
-          if (logs[i].topics[0] == keccak256('MarketClosed(address,uint256)')) ++closures;
-        }
-        assertEq(closures, 1, 'closure emitted once');
-        assertEq(fixture.market.scaleFactor(), scale, 'closed accrual frozen');
-        assertEq(fixture.asset.balanceOf(Borrower), borrowerBefore, 'no borrower payout');
+        uint256 borrowerBefore = fixture.asset.balanceOf(Borrower);
+        _reject(fixture, mode != 0);
+        vm.warp(uint256(fixture.market.repaymentDate()) + 30 days);
+        fixture.market.updateState();
+        _assertClosed(fixture, model != 0);
+        assertEq(fixture.asset.balanceOf(Borrower), borrowerBefore, 'surplus retained');
+        assertEq(fixture.market.totalAssets(), 1_050e18, 'all cash retained');
       }
     }
   }
 
+  // ┌─ test_repaymentCanCloseWithSurplusAndRejectedBorrower ─────
+  function test_repaymentCanCloseWithSurplusAndRejectedBorrower() external {
+    for (uint256 model; model < 2; ++model) {
+      for (uint256 mode; mode < 2; ++mode) {
+        Fixture memory fixture = _fixture(model != 0, mode != 0);
+        vm.prank(Borrower);
+        fixture.market.borrow(800e18);
+        vm.warp(fixture.market.repaymentDate());
+        fixture.market.updateState();
+        uint256 amount = fixture.market.totalDebts() - fixture.market.totalAssets() + 50e18;
+        _reject(fixture, mode != 0);
+        vm.prank(Borrower);
+        fixture.market.repay(amount);
+        _assertClosed(fixture, model != 0);
+        assertEq(fixture.market.totalAssets() - fixture.market.totalDebts(), 50e18, 'excess retained');
+      }
+    }
+  }
+
+  // ┌─ _assertClosed ─────
+  function _assertClosed(Fixture memory fixture, bool revolving) private view {
+    assertTrue(fixture.market.previousState().isClosed, 'closure committed');
+    assertTrue(fixture.market.totalAssets() >= fixture.market.totalDebts(), 'claims fully backed');
+    if (revolving) {
+      assertEq(IWildcatMarketRevolving(address(fixture.market)).drawnAmount(), 0, 'principal cleared');
+    }
+  }
+
+  // ░░▒▒▓▓██ [ SURPLUS RECOVERY ] ─────────────────────────────────────────────
+
+  // ┌─ test_surplusRecoveryPreservesEveryLiabilityAndBatchExit ─────
   function test_surplusRecoveryPreservesEveryLiabilityAndBatchExit() external {
     for (uint256 model; model < 2; ++model) {
       Fixture memory fixture = _fixture(model != 0, true);
@@ -174,6 +267,7 @@ contract MarketSurplusTest is MarketFixture {
     }
   }
 
+  // ┌─ test_surplusRecoveryRequiresBorrowerAndClosedMarket ─────
   function test_surplusRecoveryRequiresBorrowerAndClosedMarket() external {
     for (uint256 model; model < 2; ++model) {
       Fixture memory fixture = _fixture(model != 0, false);
@@ -200,6 +294,7 @@ contract MarketSurplusTest is MarketFixture {
     }
   }
 
+  // ┌─ test_surplusRecoveryCanCommitEffectiveClosure ─────
   function test_surplusRecoveryCanCommitEffectiveClosure() external {
     for (uint256 model; model < 2; ++model) {
       Fixture memory fixture = _fixture(model != 0, true);
@@ -216,6 +311,30 @@ contract MarketSurplusTest is MarketFixture {
     }
   }
 
+  // ┌─ test_surplusRecoveryFollowsTransferredBorrowerAuthority ─────
+  function test_surplusRecoveryFollowsTransferredBorrowerAuthority() external {
+    for (uint256 model; model < 2; ++model) {
+      Fixture memory fixture = _fixture(model != 0, false);
+      fixture.asset.mint(address(fixture.market), 50e18);
+      fixture.market.updateState();
+      vm.warp(fixture.market.repaymentDate());
+      fixture.market.updateState();
+      fixture.archController.registerBorrower(Recipient);
+      vm.prank(Borrower);
+      fixture.market.requestBorrowerTransfer(Recipient);
+      vm.prank(Recipient);
+      fixture.market.acceptBorrowerTransfer();
+      vm.prank(Borrower);
+      vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
+      fixture.market.rescueTokens(address(fixture.asset));
+      vm.prank(Recipient);
+      fixture.market.rescueTokens(address(fixture.asset));
+      assertEq(fixture.asset.balanceOf(Recipient), 50e18, 'current operational borrower');
+      assertEq(fixture.market.totalAssets(), 1_000e18, 'lender backing retained');
+    }
+  }
+
+  // ┌─ test_failedRecoveryRollsBackEffectiveClosureAndStillAllowsCollection ─────
   function test_failedRecoveryRollsBackEffectiveClosureAndStillAllowsCollection() external {
     for (uint256 model; model < 2; ++model) {
       Fixture memory fixture = _fixture(model != 0, true);
@@ -241,16 +360,7 @@ contract MarketSurplusTest is MarketFixture {
     }
   }
 
-  function test_exactFundingClosesEvenWhenBorrowerRejectsTransfers() external {
-    for (uint256 model; model < 2; ++model) {
-      Fixture memory fixture = _fixture(model != 0, false);
-      _reject(fixture, false);
-      vm.warp(fixture.market.repaymentDate());
-      fixture.market.updateState();
-      _assertClosed(fixture, model != 0);
-    }
-  }
-
+  // ┌─ test_manualClosureWithoutTermsAllowsLaterDonationRecovery ─────
   function test_manualClosureWithoutTermsAllowsLaterDonationRecovery() external {
     for (uint256 model; model < 2; ++model) {
       Options memory options = _defaultOptions(HooksKind.OpenTerm);
@@ -264,63 +374,6 @@ contract MarketSurplusTest is MarketFixture {
       fixture.market.rescueTokens(address(fixture.asset));
       assertEq(fixture.asset.balanceOf(Borrower), 7e18, 'post-close donation recovered');
       assertEq(fixture.market.totalAssets(), 1_000e18, 'all lender backing retained');
-    }
-  }
-
-  function test_surplusRecoveryFollowsTransferredBorrowerAuthority() external {
-    for (uint256 model; model < 2; ++model) {
-      Fixture memory fixture = _fixture(model != 0, false);
-      fixture.asset.mint(address(fixture.market), 50e18);
-      fixture.market.updateState();
-      vm.warp(fixture.market.repaymentDate());
-      fixture.market.updateState();
-      fixture.archController.registerBorrower(Recipient);
-      vm.prank(Borrower);
-      fixture.market.requestBorrowerTransfer(Recipient);
-      vm.prank(Recipient);
-      fixture.market.acceptBorrowerTransfer();
-      vm.prank(Borrower);
-      vm.expectRevert(IMarketEventsAndErrors.NotApprovedBorrower.selector);
-      fixture.market.rescueTokens(address(fixture.asset));
-      vm.prank(Recipient);
-      fixture.market.rescueTokens(address(fixture.asset));
-      assertEq(fixture.asset.balanceOf(Recipient), 50e18, 'current operational borrower');
-      assertEq(fixture.market.totalAssets(), 1_000e18, 'lender backing retained');
-    }
-  }
-
-  function test_automaticClosureDoesNotPushSurplus() external {
-    for (uint256 model; model < 2; ++model) {
-      for (uint256 mode; mode < 2; ++mode) {
-        Fixture memory fixture = _fixture(model != 0, mode != 0);
-        fixture.asset.mint(address(fixture.market), 50e18);
-        fixture.market.updateState();
-        uint256 borrowerBefore = fixture.asset.balanceOf(Borrower);
-        _reject(fixture, mode != 0);
-        vm.warp(uint256(fixture.market.repaymentDate()) + 30 days);
-        fixture.market.updateState();
-        _assertClosed(fixture, model != 0);
-        assertEq(fixture.asset.balanceOf(Borrower), borrowerBefore, 'surplus retained');
-        assertEq(fixture.market.totalAssets(), 1_050e18, 'all cash retained');
-      }
-    }
-  }
-
-  function test_repaymentCanCloseWithSurplusAndRejectedBorrower() external {
-    for (uint256 model; model < 2; ++model) {
-      for (uint256 mode; mode < 2; ++mode) {
-        Fixture memory fixture = _fixture(model != 0, mode != 0);
-        vm.prank(Borrower);
-        fixture.market.borrow(800e18);
-        vm.warp(fixture.market.repaymentDate());
-        fixture.market.updateState();
-        uint256 amount = fixture.market.totalDebts() - fixture.market.totalAssets() + 50e18;
-        _reject(fixture, mode != 0);
-        vm.prank(Borrower);
-        fixture.market.repay(amount);
-        _assertClosed(fixture, model != 0);
-        assertEq(fixture.market.totalAssets() - fixture.market.totalDebts(), 50e18, 'excess retained');
-      }
     }
   }
 }

@@ -1,6 +1,51 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicTermPolicy
+// ║  ██▀▀     ▀▀██   Withdrawal windows, APR proposals, execution, and closure.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MARKET SETUP
+// ║  _initializeMarket(...)
+// ║  _validatePeriodicTerm(...)
+// ║  _readUint32Cd(...)
+// ║  _readUint96Cd(...)
+// ║  _readBoolCd(...)
+// ║
+// ║  ACCESS CONFIGURATION
+// ║  _readAccessConfig(...)
+// ║  _isDepositHookEnabled(...)
+// ║  _writeMinimumDeposit(...)
+// ║
+// ║  WITHDRAWAL WINDOWS
+// ║  _checkWithdrawalSchedule(...)
+// ║  isWithdrawalWindowOpen(...)
+// ║  _isWithdrawalWindowOpen(...)
+// ║  _getNextWithdrawalWindowStart(...)
+// ║
+// ║  APR PROPOSALS
+// ║  proposeAnnualInterestBips(...)
+// ║  _checkPeriodicProposal(...)
+// ║  getPendingAprChange(...)
+// ║  pendingAprChanges(...)
+// ║
+// ║  APR EXECUTION
+// ║  executePendingAnnualInterestBipsReduction(...)
+// ║  _applyAprUpdate(...)
+// ║  _executePeriodicReduction(...)
+// ║
+// ║  CLOSURE
+// ║  _validateCloseMarket(...)
+// ║  _validatePeriodicCloseMarket()
+// ║  _applyCloseMarket(...)
+// ║  _applyPeriodicCloseMarket()
+// ║  _scheduledMarketClosed(...)
+// ║  _effectiveHookedMarket(...)
+// ╚═════
+
 import './BaseHooks.sol';
 import './types/PeriodicTermHookTypes.sol';
 import '../libraries/SafeCastLib.sol';
@@ -10,14 +55,15 @@ using BoolUtils for bool;
 using MathUtils for uint256;
 using SafeCastLib for uint256;
 
+// ┌─ PeriodicTermPolicy ───────────────────────────────────────────────────────
 /// @title PeriodicTermPolicy
+///
 /// @notice reusable periodic withdrawal windows and APR proposal rules over BaseHooks.
+///
 /// @dev `_hookedMarkets` owns the schedule; `_pendingAprChanges` owns the full proposal lifecycle.
 ///      the concrete hook supplies BaseHooks constructor arguments and configuration getters.
 abstract contract PeriodicTermPolicy is BaseHooks {
-  // ========================================================================== //
-  //                                   Events                                   //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
 
   /// @notice emitted when a market's recurring withdrawal schedule is fixed at deployment.
   event PeriodicTermUpdated(
@@ -27,8 +73,10 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     uint32 periodDuration,
     uint32 withdrawalWindowDuration
   );
+
   /// @notice emitted when market closure permanently opens withdrawal queueing.
   event PeriodicTermClosed(address indexed market);
+
   /// @notice emitted when an APR reduction fixes its lender response window.
   event AnnualInterestBipsReductionProposed(
     address indexed market,
@@ -37,45 +85,55 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     uint32 responseWindowStart,
     uint32 responseWindowEnd
   );
+
   /// @notice emitted when a pending APR reduction is replaced or cancelled.
   event AnnualInterestBipsReductionProposalCancelled(address indexed market);
+
   /// @notice emitted when the market applies a matured APR reduction.
   event AnnualInterestBipsReductionExecuted(address indexed market, uint16 annualInterestBips);
 
-  // ========================================================================== //
-  //                                   Errors                                   //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
   /// @dev market-creation hook data omitted the required periodic schedule.
   error PeriodicWindowNotProvided();
+
   /// @dev the first future withdrawal window is beyond the configured maximum delay.
   error InitialWithdrawalWindowTooFarInFuture();
+
   /// @dev the period duration is outside this template's inclusive bounds.
   error PeriodDurationOutOfBounds();
+
   /// @dev the withdrawal window is too short or not shorter than its period.
   error WithdrawalWindowDurationOutOfBounds();
+
   /// @dev an open market tried to queue a withdrawal outside its current window.
   error WithdrawOutsideWindow();
+
   /// @dev an APR reduction was proposed while its market's withdrawal window was open.
   error AprReductionProposalDuringWithdrawalWindow();
+
   /// @dev the proposed APR is not below the market's current APR.
   error AprReductionProposalNotReduction();
+
   /// @dev no APR reduction is pending for this market.
   error NoPendingAprChange();
+
   /// @dev the APR being executed does not exactly match the pending proposal.
   error AprChangeDoesNotMatchProposal();
+
   /// @dev the pending reduction's lender response window has not ended.
   error AprChangeNotReady();
+
   /// @dev the pending reduction reached its next withdrawal window before execution.
   error AprReductionProposalExpired();
+
   /// @dev APR reductions cannot be proposed after market closure.
   error AprReductionProposalOnClosedMarket();
+
   /// @dev scaled pending withdrawals remain unpaid.
   error UnpaidWithdrawalsExist();
 
-  // ========================================================================== //
-  //                                    State                                   //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ STATE ] ────────────────────────────────────────────────────────
 
   // TODO FOR MAINNET: Finalize the minimum period duration with the team.
   /// @notice shortest supported time between withdrawal-window starts.
@@ -91,6 +149,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   uint32 public constant MaximumInitialWithdrawalWindowDelay = MaximumPeriodDuration;
 
   /// @notice number of periods from response-window start until an APR proposal expires.
+  ///
   /// @dev number of periods from response-window start before a proposal expires. one makes the
   ///      execution interval `[responseWindowEnd, nextWindowStart)`.
   uint32 public constant AprReductionProposalValidityPeriods = 1;
@@ -98,50 +157,9 @@ abstract contract PeriodicTermPolicy is BaseHooks {
   mapping(address => HookedMarket) internal _hookedMarkets;
   mapping(address => PendingAprChangeStorage) internal _pendingAprChanges;
 
-  /// @notice returns the proposed APR and proposal time in the first template version's ABI.
-  /// @dev use `getPendingAprChange` when the fixed response-window bounds are also needed.
-  function pendingAprChanges(address market)
-    external
-    view
-    returns (uint16 annualInterestBips, uint32 proposalTimestamp)
-  {
-    if (_scheduledMarketClosed(market)) return (0, 0);
-    PendingAprChangeStorage storage pendingAprChange = _pendingAprChanges[market];
-    return (pendingAprChange.annualInterestBips, pendingAprChange.proposalTimestamp);
-  }
+  // ░░▒▒▓▓██ [ MARKET SETUP ] ─────────────────────────────────────────────────
 
-  /// @dev scheduled closure bypasses onCloseMarket, so its authority is the core market.
-  function _scheduledMarketClosed(address market) internal view returns (bool) {
-    return _isMarketInRepayment(market) && IMarketLifecycleView(market).isClosed();
-  }
-
-  function _effectiveHookedMarket(address market) internal view returns (HookedMarket memory result) {
-    result = _hookedMarkets[market];
-    if (result.isHooked && !result.isClosed) result.isClosed = _scheduledMarketClosed(market);
-  }
-
-  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
-    assembly {
-      value := and(calldataload(add(data.offset, offset)), 1)
-    }
-  }
-
-  function _readUint32Cd(bytes calldata data, uint offset) internal pure returns (uint32 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(add(data.offset, offset))
-    }
-    return _value.toUint32();
-  }
-
-  function _readUint96Cd(bytes calldata data, uint offset) internal pure returns (uint96 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(add(data.offset, offset))
-    }
-    return _value.toUint96();
-  }
-
+  // ┌─ _initializeMarket ─────
   /// @dev binds the market after BaseHooks checks `administrator_` against the current
   ///      administrator. `hooksData` is `(uint32 firstWithdrawalWindowStart, uint32 periodDuration,
   ///      uint32 withdrawalWindowDuration, uint96 minimumDeposit?, bool transfersDisabled?)`.
@@ -192,10 +210,61 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     return effective;
   }
 
-  // ========================================================================== //
-  //                              Market Management                             //
-  // ========================================================================== //
+  // ┌─ _validatePeriodicTerm ─────
+  /// @dev the schedule anchor may be in the past. a future anchor can't exceed the configured
+  ///      maximum delay, and each withdrawal window must be nonzero and shorter than its period.
+  function _validatePeriodicTerm(
+    uint32 firstWithdrawalWindowStart,
+    uint32 periodDuration,
+    uint32 withdrawalWindowDuration,
+    uint256 currentTimestamp
+  )
+    internal
+    pure
+  {
+    if (periodDuration < MinimumPeriodDuration || periodDuration > MaximumPeriodDuration) {
+      revert PeriodDurationOutOfBounds();
+    }
+    if (withdrawalWindowDuration < MinimumWithdrawalWindowDuration || withdrawalWindowDuration >= periodDuration) {
+      revert WithdrawalWindowDurationOutOfBounds();
+    }
 
+    // Once the schedule has started a window always begins within one period,
+    // and periods are capped at the maximum delay, so only a future
+    // `firstWithdrawalWindowStart` can push the first window too far out.
+    if (firstWithdrawalWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
+      revert InitialWithdrawalWindowTooFarInFuture();
+    }
+  }
+
+  // ┌─ _readUint32Cd ─────
+  function _readUint32Cd(bytes calldata data, uint offset) internal pure returns (uint32 value) {
+    uint _value;
+    assembly {
+      _value := calldataload(add(data.offset, offset))
+    }
+    return _value.toUint32();
+  }
+
+  // ┌─ _readUint96Cd ─────
+  function _readUint96Cd(bytes calldata data, uint offset) internal pure returns (uint96 value) {
+    uint _value;
+    assembly {
+      _value := calldataload(add(data.offset, offset))
+    }
+    return _value.toUint96();
+  }
+
+  // ┌─ _readBoolCd ─────
+  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
+    assembly {
+      value := and(calldataload(add(data.offset, offset)), 1)
+    }
+  }
+
+  // ░░▒▒▓▓██ [ ACCESS CONFIGURATION ] ─────────────────────────────────────────
+
+  // ┌─ _readAccessConfig ─────
   function _readAccessConfig(address market) internal view virtual override returns (AccessConfig memory) {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     return AccessConfig({
@@ -208,19 +277,85 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     });
   }
 
+  // ┌─ _isDepositHookEnabled ─────
   function _isDepositHookEnabled(address market) internal view virtual override returns (bool) {
     return _hookedMarkets[market].depositHookEnabled;
   }
 
+  // ┌─ _writeMinimumDeposit ─────
   function _writeMinimumDeposit(address market, uint128 value) internal virtual override {
     // the public setter takes uint128 for ABI compatibility. storage still needs to fit uint96.
     _hookedMarkets[market].minimumDeposit = uint256(value).toUint96();
   }
 
+  // ░░▒▒▓▓██ [ WITHDRAWAL WINDOWS ] ───────────────────────────────────────────
+
+  // ┌─ _checkWithdrawalSchedule ─────
+  /// @dev either closed flag opens the schedule. access checks still run afterward.
+  function _checkWithdrawalSchedule(
+    address,
+    uint32,
+    uint256,
+    MarketState calldata state,
+    bytes calldata
+  )
+    internal
+    view
+    virtual
+    override
+  {
+    HookedMarket memory market = _hookedMarkets[msg.sender];
+    if (!state.isClosed && !_isWithdrawalWindowOpen(market, block.timestamp)) {
+      revert WithdrawOutsideWindow();
+    }
+  }
+
+  // ┌─ isWithdrawalWindowOpen ─────
+  /// @notice says whether withdrawals may be queued at the current timestamp.
+  ///
+  /// @dev closed markets always return true. for open markets, window start is inclusive and end is
+  ///      exclusive. reverts for a market not bound to this hooks instance.
+  function isWithdrawalWindowOpen(address marketAddress) external view returns (bool) {
+    HookedMarket memory market = _hookedMarkets[marketAddress];
+    if (!market.isHooked) revert NotHookedMarket();
+    return _isMarketInRepayment(marketAddress) || _isWithdrawalWindowOpen(market, block.timestamp);
+  }
+
+  // ┌─ _isWithdrawalWindowOpen ─────
+  function _isWithdrawalWindowOpen(HookedMarket memory market, uint256 timestamp) internal pure returns (bool) {
+    if (market.isClosed) return true;
+    if (timestamp < market.firstWithdrawalWindowStart) return false;
+
+    uint256 timeInPeriod = (timestamp - market.firstWithdrawalWindowStart) % market.periodDuration;
+    return timeInPeriod < market.withdrawalWindowDuration;
+  }
+
+  // ┌─ _getNextWithdrawalWindowStart ─────
+  function _getNextWithdrawalWindowStart(
+    HookedMarket memory market,
+    uint256 timestamp
+  )
+    internal
+    pure
+    returns (uint256 windowStart)
+  {
+    if (timestamp < market.firstWithdrawalWindowStart) {
+      return market.firstWithdrawalWindowStart;
+    }
+
+    uint256 periodsElapsed = (timestamp - market.firstWithdrawalWindowStart) / market.periodDuration;
+    return market.firstWithdrawalWindowStart + ((periodsElapsed + 1) * market.periodDuration);
+  }
+
+  // ░░▒▒▓▓██ [ APR PROPOSALS ] ────────────────────────────────────────────────
+
+  // ┌─ proposeAnnualInterestBips ─────
   /// @notice proposes a strict APR reduction and fixes the next window as the lender response
   ///         window.
+  ///
   /// @dev only the hooks administrator may propose. the market must be hooked, open, and outside a
   ///      withdrawal window. a new valid proposal replaces the old one and emits its cancellation.
+  ///
   /// @param annualInterestBips proposed APR in basis points, below the market's current APR.
   function proposeAnnualInterestBips(address market, uint16 annualInterestBips) external onlyAdministrator {
     HookedMarket memory hookedMarket = _effectiveHookedMarket(market);
@@ -263,6 +398,7 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     );
   }
 
+  // ┌─ _checkPeriodicProposal ─────
   /// @dev add proposal restrictions after native checks and response-window calculations.
   ///      `_pendingAprChanges[market]` holds the old proposal; no cancellation event has fired.
   ///      execution still runs `_checkAprChange`, even if this check accepted the proposal.
@@ -276,20 +412,9 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     view
     virtual { }
 
-  // ========================================================================== //
-  //                               Market Queries                               //
-  // ========================================================================== //
-
-  /// @notice says whether withdrawals may be queued at the current timestamp.
-  /// @dev closed markets always return true. for open markets, window start is inclusive and end is
-  ///      exclusive. reverts for a market not bound to this hooks instance.
-  function isWithdrawalWindowOpen(address marketAddress) external view returns (bool) {
-    HookedMarket memory market = _hookedMarkets[marketAddress];
-    if (!market.isHooked) revert NotHookedMarket();
-    return _isMarketInRepayment(marketAddress) || _isWithdrawalWindowOpen(market, block.timestamp);
-  }
-
+  // ┌─ getPendingAprChange ─────
   /// @notice returns a proposal and the response-window bounds fixed when it was created.
+  ///
   /// @dev an expired proposal remains readable until it is replaced, cancelled by an APR increase
   ///      or closure, or executed.
   function getPendingAprChange(address marketAddress)
@@ -310,102 +435,92 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     }
   }
 
-  function _isWithdrawalWindowOpen(HookedMarket memory market, uint256 timestamp) internal pure returns (bool) {
-    if (market.isClosed) return true;
-    if (timestamp < market.firstWithdrawalWindowStart) return false;
-
-    uint256 timeInPeriod = (timestamp - market.firstWithdrawalWindowStart) % market.periodDuration;
-    return timeInPeriod < market.withdrawalWindowDuration;
-  }
-
-  function _getNextWithdrawalWindowStart(
-    HookedMarket memory market,
-    uint256 timestamp
-  )
-    internal
-    pure
-    returns (uint256 windowStart)
+  // ┌─ pendingAprChanges ─────
+  /// @notice returns the proposed APR and proposal time in the first template version's ABI.
+  ///
+  /// @dev use `getPendingAprChange` when the fixed response-window bounds are also needed.
+  function pendingAprChanges(address market)
+    external
+    view
+    returns (uint16 annualInterestBips, uint32 proposalTimestamp)
   {
-    if (timestamp < market.firstWithdrawalWindowStart) {
-      return market.firstWithdrawalWindowStart;
-    }
-
-    uint256 periodsElapsed = (timestamp - market.firstWithdrawalWindowStart) / market.periodDuration;
-    return market.firstWithdrawalWindowStart + ((periodsElapsed + 1) * market.periodDuration);
+    if (_scheduledMarketClosed(market)) return (0, 0);
+    PendingAprChangeStorage storage pendingAprChange = _pendingAprChanges[market];
+    return (pendingAprChange.annualInterestBips, pendingAprChange.proposalTimestamp);
   }
 
-  /// @dev the schedule anchor may be in the past. a future anchor can't exceed the configured
-  ///      maximum delay, and each withdrawal window must be nonzero and shorter than its period.
-  function _validatePeriodicTerm(
-    uint32 firstWithdrawalWindowStart,
-    uint32 periodDuration,
-    uint32 withdrawalWindowDuration,
-    uint256 currentTimestamp
-  )
-    internal
-    pure
+  // ░░▒▒▓▓██ [ APR EXECUTION ] ────────────────────────────────────────────────
+
+  // ┌─ executePendingAnnualInterestBipsReduction ─────
+  /// @notice lets a hooked market apply its matured APR reduction through the permissionless path.
+  ///
+  /// @dev users call the market; the market calls this hook and keeps its current reserve ratio.
+  ///
+  /// @return annualInterestBips exact proposed APR for the market to apply.
+  function executePendingAnnualInterestBipsReduction(MarketState calldata intermediateState)
+    external
+    returns (uint16 annualInterestBips)
   {
-    if (periodDuration < MinimumPeriodDuration || periodDuration > MaximumPeriodDuration) {
-      revert PeriodDurationOutOfBounds();
-    }
-    if (withdrawalWindowDuration < MinimumWithdrawalWindowDuration || withdrawalWindowDuration >= periodDuration) {
-      revert WithdrawalWindowDurationOutOfBounds();
-    }
-
-    // Once the schedule has started a window always begins within one period,
-    // and periods are capped at the maximum delay, so only a future
-    // `firstWithdrawalWindowStart` can push the first window too far out.
-    if (firstWithdrawalWindowStart > currentTimestamp + MaximumInitialWithdrawalWindowDelay) {
-      revert InitialWithdrawalWindowTooFarInFuture();
-    }
+    HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+    PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
+    annualInterestBips = _executePeriodicReduction(
+      hookedMarket, intermediateState, pendingAprChange.annualInterestBips, pendingAprChange
+    );
+    // `executePendingAnnualInterestBipsReduction` only returns an APR. the market keeps
+    // `intermediateState.reserveRatioBips`, so validate that ratio and pass empty callback data.
+    _checkAprChange(
+      AprChange({
+        market: msg.sender,
+        route: AprRoute.PendingReduction,
+        requestedApr: pendingAprChange.annualInterestBips,
+        requestedReserve: intermediateState.reserveRatioBips,
+        effectiveApr: annualInterestBips,
+        effectiveReserve: intermediateState.reserveRatioBips
+      }),
+      intermediateState,
+      msg.data[msg.data.length:]
+    );
   }
 
-  // ========================================================================== //
-  //                                    Hooks                                   //
-  // ========================================================================== //
-
-  /// @dev either closed flag opens the schedule. access checks still run afterward.
-  function _checkWithdrawalSchedule(
-    address,
-    uint32,
-    uint256,
-    MarketState calldata state,
+  // ┌─ _applyAprUpdate ─────
+  /// @dev an APR increase cancels `_pendingAprChanges[msg.sender]` before `_applyDefaultAprUpdate`.
+  ///      equal APRs keep the proposal and also use `_applyDefaultAprUpdate`.
+  ///      reductions must execute the exact matured proposal through `_executePeriodicReduction`,
+  ///      return `intermediateState.reserveRatioBips`, and leave `temporaryExcessReserveRatio`
+  ///      untouched. don't call `_applyDefaultAprUpdate` on that reduction path.
+  function _applyAprUpdate(
+    uint16 annualInterestBips,
+    uint16,
+    MarketState calldata intermediateState,
     bytes calldata
   )
     internal
-    view
     virtual
     override
+    returns (uint16 effectiveApr, uint16 effectiveReserve)
   {
-    HookedMarket memory market = _hookedMarkets[msg.sender];
-    if (!state.isClosed && !_isWithdrawalWindowOpen(market, block.timestamp)) {
-      revert WithdrawOutsideWindow();
+    HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
+    if (!hookedMarket.isHooked) revert NotHookedMarket();
+
+    // `_applyDefaultAprUpdate` checks APR bounds for increases/equality.
+    // `_executePeriodicReduction` checks them for proposal-backed reductions.
+    if (annualInterestBips > intermediateState.annualInterestBips) {
+      if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
+        delete _pendingAprChanges[msg.sender];
+        emit AnnualInterestBipsReductionProposalCancelled(msg.sender);
+      }
+    } else if (annualInterestBips < intermediateState.annualInterestBips) {
+      PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
+      annualInterestBips =
+        _executePeriodicReduction(hookedMarket, intermediateState, annualInterestBips, pendingAprChange);
+      return (annualInterestBips, intermediateState.reserveRatioBips);
     }
+
+    return _applyDefaultAprUpdate(annualInterestBips, intermediateState);
   }
 
-  function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
-    _validatePeriodicCloseMarket();
-  }
-
-  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
-    _applyPeriodicCloseMarket();
-  }
-
-  function _validatePeriodicCloseMarket() internal view {
-    if (!_hookedMarkets[msg.sender].isHooked) revert NotHookedMarket();
-  }
-
-  /// @dev validation must run first. close the schedule, cancel any proposal, then emit closure.
-  function _applyPeriodicCloseMarket() internal {
-    _hookedMarkets[msg.sender].isClosed = true;
-    // a closed market can't execute the proposal. don't leave it sitting there forever.
-    if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
-      delete _pendingAprChanges[msg.sender];
-      emit AnnualInterestBipsReductionProposalCancelled(msg.sender);
-    }
-    emit PeriodicTermClosed(msg.sender);
-  }
-
+  // ┌─ _executePeriodicReduction ─────
   /// @dev applies an exact pending reduction after its response window and before expiry. the APR
   ///      must still be a strict reduction, and all scaled pending withdrawals must be paid first.
   ///      success deletes the proposal.
@@ -445,68 +560,44 @@ abstract contract PeriodicTermPolicy is BaseHooks {
     updatedAnnualInterestBips = annualInterestBips;
   }
 
-  /// @notice lets a hooked market apply its matured APR reduction through the permissionless path.
-  /// @dev users call the market; the market calls this hook and keeps its current reserve ratio.
-  /// @return annualInterestBips exact proposed APR for the market to apply.
-  function executePendingAnnualInterestBipsReduction(MarketState calldata intermediateState)
-    external
-    returns (uint16 annualInterestBips)
-  {
-    HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
-    if (!hookedMarket.isHooked) revert NotHookedMarket();
-    PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
-    annualInterestBips = _executePeriodicReduction(
-      hookedMarket, intermediateState, pendingAprChange.annualInterestBips, pendingAprChange
-    );
-    // `executePendingAnnualInterestBipsReduction` only returns an APR. the market keeps
-    // `intermediateState.reserveRatioBips`, so validate that ratio and pass empty callback data.
-    _checkAprChange(
-      AprChange({
-        market: msg.sender,
-        route: AprRoute.PendingReduction,
-        requestedApr: pendingAprChange.annualInterestBips,
-        requestedReserve: intermediateState.reserveRatioBips,
-        effectiveApr: annualInterestBips,
-        effectiveReserve: intermediateState.reserveRatioBips
-      }),
-      intermediateState,
-      msg.data[msg.data.length:]
-    );
+  // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _validateCloseMarket ─────
+  function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
+    _validatePeriodicCloseMarket();
   }
 
-  /// @dev an APR increase cancels `_pendingAprChanges[msg.sender]` before `_applyDefaultAprUpdate`.
-  ///      equal APRs keep the proposal and also use `_applyDefaultAprUpdate`.
-  ///      reductions must execute the exact matured proposal through `_executePeriodicReduction`,
-  ///      return `intermediateState.reserveRatioBips`, and leave `temporaryExcessReserveRatio`
-  ///      untouched. don't call `_applyDefaultAprUpdate` on that reduction path.
-  function _applyAprUpdate(
-    uint16 annualInterestBips,
-    uint16,
-    MarketState calldata intermediateState,
-    bytes calldata
-  )
-    internal
-    virtual
-    override
-    returns (uint16 effectiveApr, uint16 effectiveReserve)
-  {
-    HookedMarket memory hookedMarket = _hookedMarkets[msg.sender];
-    if (!hookedMarket.isHooked) revert NotHookedMarket();
+  // ┌─ _validatePeriodicCloseMarket ─────
+  function _validatePeriodicCloseMarket() internal view {
+    if (!_hookedMarkets[msg.sender].isHooked) revert NotHookedMarket();
+  }
 
-    // `_applyDefaultAprUpdate` checks APR bounds for increases/equality.
-    // `_executePeriodicReduction` checks them for proposal-backed reductions.
-    if (annualInterestBips > intermediateState.annualInterestBips) {
-      if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
-        delete _pendingAprChanges[msg.sender];
-        emit AnnualInterestBipsReductionProposalCancelled(msg.sender);
-      }
-    } else if (annualInterestBips < intermediateState.annualInterestBips) {
-      PendingAprChangeStorage memory pendingAprChange = _pendingAprChanges[msg.sender];
-      annualInterestBips =
-        _executePeriodicReduction(hookedMarket, intermediateState, annualInterestBips, pendingAprChange);
-      return (annualInterestBips, intermediateState.reserveRatioBips);
+  // ┌─ _applyCloseMarket ─────
+  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
+    _applyPeriodicCloseMarket();
+  }
+
+  // ┌─ _applyPeriodicCloseMarket ─────
+  /// @dev validation must run first. close the schedule, cancel any proposal, then emit closure.
+  function _applyPeriodicCloseMarket() internal {
+    _hookedMarkets[msg.sender].isClosed = true;
+    // a closed market can't execute the proposal. don't leave it sitting there forever.
+    if (_pendingAprChanges[msg.sender].proposalTimestamp != 0) {
+      delete _pendingAprChanges[msg.sender];
+      emit AnnualInterestBipsReductionProposalCancelled(msg.sender);
     }
+    emit PeriodicTermClosed(msg.sender);
+  }
 
-    return _applyDefaultAprUpdate(annualInterestBips, intermediateState);
+  // ┌─ _scheduledMarketClosed ─────
+  /// @dev scheduled closure bypasses onCloseMarket, so its authority is the core market.
+  function _scheduledMarketClosed(address market) internal view returns (bool) {
+    return _isMarketInRepayment(market) && IMarketLifecycleView(market).isClosed();
+  }
+
+  // ┌─ _effectiveHookedMarket ─────
+  function _effectiveHookedMarket(address market) internal view returns (HookedMarket memory result) {
+    result = _hookedMarkets[market];
+    if (result.isHooked && !result.isClosed) result.isClosed = _scheduledMarketClosed(market);
   }
 }

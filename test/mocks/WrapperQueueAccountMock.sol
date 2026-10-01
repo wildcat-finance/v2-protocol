@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WrapperQueueAccountMock
+// ║  ██▀▀     ▀▀██   Combined wrapper redemption and withdrawal queueing.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  REDEEM AND QUEUE
+// ║  redeemAndQueue(...)
+// ╚═════
+
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 
+// ┌─ WrapperQueueAccountMock ──────────────────────────────────────────────────
 contract WrapperQueueAccountMock {
+  // ░░▒▒▓▓██ [ REDEEM AND QUEUE ] ─────────────────────────────────────────────
+
+  // ┌─ redeemAndQueue ─────
   function redeemAndQueue(
     Wildcat4626Wrapper wrapper,
     WildcatMarket market,

@@ -1,6 +1,76 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicTermHooks.t
+// ║  ██▀▀     ▀▀██   Periodic withdrawal windows and APR proposal lifecycle tests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _newHooks(...)
+// ║  _newHooks(...)
+// ║  _newAprMarket(...)
+// ║  _newProposalHooks()
+// ║  _createMarket(...)
+// ║  _createMarket(...)
+// ║  _hooksData()
+// ║  _hooksData(...)
+// ║  _requestedConfig(...)
+// ║  _addPullProvider(...)
+// ║
+// ║  MARKET CREATION
+// ║  test_metadata_IsCanonical()
+// ║  test_onCreateMarket_RequiresPeriodicData()
+// ║  test_onCreateMarket_ValidatesScheduleBounds()
+// ║  test_onCreateMarket_PreservesScheduleDecodeAndMinimumFailureOrder()
+// ║  test_onCreateMarket_PreservesScheduleAndBatchReads()
+// ║  test_onCreateMarket_PreservesPastAndCurrentSchedules()
+// ║
+// ║  ADMINISTRATOR HANDOFF
+// ║  test_administratorTransfer_PreservesConfigurationAndMovesAuthority()
+// ║  archController()
+// ║  isRegisteredBorrower(...)
+// ║  onHooksAdministratorTransferred(...)
+// ║
+// ║  WITHDRAWAL WINDOWS
+// ║  test_withdrawalWindow_TracksEveryBoundaryAndRecurringPeriod(...)
+// ║  _expectedWindowOpen(...)
+// ║  _expectedNextWindowStart(...)
+// ║  test_onQueueWithdrawal_EnforcesWindowClosedStateAndRequestedAccess(...)
+// ║  test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure()
+// ║
+// ║  APR PROPOSALS
+// ║  test_proposeAnnualInterestBips_AuthenticatesAndRejectsInvalidReductions()
+// ║  test_proposeAnnualInterestBips_EnforcesStrictReduction(...)
+// ║  test_proposalTiming_UsesNextScheduledWindowAndOverwriteEvents(...)
+// ║  test_proposalExtension_AcceptsCreationAndReplacement()
+// ║  test_proposalExtension_RejectsCreationBelowAprFloor()
+// ║  test_proposalExtension_RejectsReplacementAndKeepsPriorWindow()
+// ║  test_proposalExtension_ChecksExactResponseWindow(...)
+// ║  test_proposalExtension_PreservesNativeGuardPriority()
+// ║  test_proposalExtension_PreservesResponseWindowWidthChecks()
+// ║  _assertPendingAprChange(...)
+// ║  _assertNoPendingAprChange(...)
+// ║
+// ║  APR REDUCTION EXECUTION
+// ║  test_aprReduction_EnforcesExecutionStateMachine()
+// ║  test_executePendingAnnualInterestBipsReduction_UsesTheSameGates()
+// ║  _assertReductionWithoutProposalReverts()
+// ║  _assertMismatchedReductionReverts()
+// ║  _assertEarlyReductionReverts()
+// ║  _assertUnpaidWithdrawalReductionReverts()
+// ║  _assertExpiredReductionReverts()
+// ║  _assertReductionAtLastValidSecondExecutes()
+// ║
+// ║  APR CANCELLATION AND CLOSURE
+// ║  test_onSetAnnualInterestBips_IncreasesAndEqualityDelegateAndCancelPrecisely()
+// ║  _assertNoCancelledEventRecorded()
+// ║  test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle()
+// ╚═════
+
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { Vm } from 'forge-std/Vm.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
@@ -23,6 +93,7 @@ import { PeriodicAprMarketMock } from '../mocks/PeriodicAprMarketMock.sol';
 import { PeriodicProposalHooks } from '../mocks/PeriodicProposalHooks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ PeriodicTermHooksTest ────────────────────────────────────────────────────
 contract PeriodicTermHooksTest is TestKernel {
   address internal constant MarketA = address(0x3001);
   address internal constant MarketB = address(0x3002);
@@ -48,6 +119,9 @@ contract PeriodicTermHooksTest is TestKernel {
   address internal callbackPreviousAdministrator;
   address internal callbackNewAdministrator;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     vm.warp(PeriodStart);
     registeredBorrowers[address(this)] = true;
@@ -56,26 +130,14 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks = _newHooks(address(this));
   }
 
-  function archController() external view returns (address) {
-    return address(this);
-  }
-
-  function isRegisteredBorrower(address account) external view returns (bool) {
-    return registeredBorrowers[account];
-  }
-
-  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
-    assertEq(msg.sender, address(hooks), 'callback caller');
-    callbackPreviousAdministrator = previousAdministrator;
-    callbackNewAdministrator = newAdministrator;
-  }
-
+  // ┌─ _newHooks ─────
   function _newHooks(address administrator) internal returns (PeriodicTermHooks deployed) {
     deployed = PeriodicTermHooks(
       _deployCode('src/access/PeriodicTermHooks.sol:PeriodicTermHooks', abi.encode(administrator, bytes('')))
     );
   }
 
+  // ┌─ _newHooks ─────
   function _newHooks(
     address administrator,
     NameAndProviderInputs memory inputs
@@ -88,12 +150,14 @@ contract PeriodicTermHooksTest is TestKernel {
     );
   }
 
+  // ┌─ _newAprMarket ─────
   function _newAprMarket(uint16 annualInterestBips) internal returns (address market) {
     market = _deployCode(
       'test/mocks/PeriodicAprMarketMock.sol:PeriodicAprMarketMock', abi.encode(uint256(annualInterestBips))
     );
   }
 
+  // ┌─ _newProposalHooks ─────
   function _newProposalHooks() internal returns (PeriodicProposalHooks target) {
     target = PeriodicProposalHooks(
       _deployCode('test/mocks/PeriodicProposalHooks.sol:PeriodicProposalHooks', abi.encode(address(this)))
@@ -101,16 +165,39 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks = target;
   }
 
+  // ┌─ _createMarket ─────
+  function _createMarket(
+    PeriodicTermHooks target,
+    address market,
+    HooksConfig requestedConfig,
+    bytes memory hooksData
+  )
+    internal
+    returns (HooksConfig effectiveConfig)
+  {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = requestedConfig;
+    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
+  }
+
+  // ┌─ _createMarket ─────
+  function _createMarket(address market) internal returns (HooksConfig effectiveConfig) {
+    return _createMarket(hooks, market, _requestedConfig(hooks, false, false, false), _hooksData());
+  }
+
+  // ┌─ _hooksData ─────
   function _hooksData() internal pure returns (bytes memory) {
     return abi.encode(FirstWithdrawalWindowStart, PeriodDuration, WithdrawalWindowDuration);
   }
 
+  // ┌─ _hooksData ─────
   function _hooksData(uint96 minimumDeposit, bool transfersDisabled) internal pure returns (bytes memory) {
     return abi.encode(
       FirstWithdrawalWindowStart, PeriodDuration, WithdrawalWindowDuration, minimumDeposit, transfersDisabled
     );
   }
 
+  // ┌─ _requestedConfig ─────
   function _requestedConfig(
     PeriodicTermHooks target,
     bool deposit,
@@ -127,72 +214,15 @@ contract PeriodicTermHooksTest is TestKernel {
     if (transfer) config = config.setFlag(Bit_Enabled_Transfer);
   }
 
-  function _createMarket(
-    PeriodicTermHooks target,
-    address market,
-    HooksConfig requestedConfig,
-    bytes memory hooksData
-  )
-    internal
-    returns (HooksConfig effectiveConfig)
-  {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = requestedConfig;
-    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
-  }
-
-  function _createMarket(address market) internal returns (HooksConfig effectiveConfig) {
-    return _createMarket(hooks, market, _requestedConfig(hooks, false, false, false), _hooksData());
-  }
-
-  function _assertPendingAprChange(
-    address market,
-    uint16 annualInterestBips,
-    uint32 proposalTimestamp,
-    uint32 responseWindowStart,
-    uint32 responseWindowEnd
-  )
-    internal
-    view
-  {
-    (PendingAprChange memory pending, uint32 actualResponseWindowStart, uint32 actualResponseWindowEnd) =
-      hooks.getPendingAprChange(market);
-    assertEq(pending.annualInterestBips, annualInterestBips, 'pending APR');
-    assertEq(pending.proposalTimestamp, proposalTimestamp, 'proposal timestamp');
-    assertEq(actualResponseWindowStart, responseWindowStart, 'response window start');
-    assertEq(actualResponseWindowEnd, responseWindowEnd, 'response window end');
-  }
-
-  function _assertNoPendingAprChange(address market) internal view {
-    _assertPendingAprChange(market, 0, 0, 0, 0);
-    (uint16 annualInterestBips, uint32 proposalTimestamp) = hooks.pendingAprChanges(market);
-    assertEq(annualInterestBips, 0, 'getter APR');
-    assertEq(proposalTimestamp, 0, 'getter timestamp');
-  }
-
-  function _assertNoCancelledEventRecorded() internal {
-    Vm.Log[] memory logs = vm.getRecordedLogs();
-    for (uint256 i; i < logs.length; i++) {
-      assertTrue(logs[i].topics[0] != ProposalCancelledTopic, 'unexpected cancellation event');
-    }
-  }
-
+  // ┌─ _addPullProvider ─────
   function _addPullProvider(PeriodicTermHooks target) internal {
     provider1.setIsPullProvider(true);
     target.addRoleProvider(address(provider1), type(uint32).max);
   }
 
-  function _expectedWindowOpen(uint256 timestamp) internal pure returns (bool) {
-    if (timestamp < FirstWithdrawalWindowStart) return false;
-    return (timestamp - FirstWithdrawalWindowStart) % PeriodDuration < WithdrawalWindowDuration;
-  }
+  // ░░▒▒▓▓██ [ MARKET CREATION ] ──────────────────────────────────────────────
 
-  function _expectedNextWindowStart(uint256 timestamp) internal pure returns (uint256) {
-    if (timestamp < FirstWithdrawalWindowStart) return FirstWithdrawalWindowStart;
-    uint256 periodsElapsed = (timestamp - FirstWithdrawalWindowStart) / PeriodDuration;
-    return FirstWithdrawalWindowStart + ((periodsElapsed + 1) * PeriodDuration);
-  }
-
+  // ┌─ test_metadata_IsCanonical ─────
   function test_metadata_IsCanonical() external view {
     assertEq(hooks.version(), 'PeriodicTermHooks', 'version');
     assertEq(hooks.templateVersion(), 2, 'template version');
@@ -206,12 +236,14 @@ contract PeriodicTermHooksTest is TestKernel {
     assertEq(pendingTimestamp, 0, 'initial pending timestamp');
   }
 
+  // ┌─ test_onCreateMarket_RequiresPeriodicData ─────
   function test_onCreateMarket_RequiresPeriodicData() external {
     DeployMarketInputs memory inputs;
     vm.expectRevert(PeriodicTermPolicy.PeriodicWindowNotProvided.selector);
     hooks.onCreateMarket(address(this), MarketA, inputs, abi.encode(FirstWithdrawalWindowStart, PeriodDuration));
   }
 
+  // ┌─ test_onCreateMarket_ValidatesScheduleBounds ─────
   function test_onCreateMarket_ValidatesScheduleBounds() external {
     DeployMarketInputs memory inputs;
     uint32 minimumPeriod = hooks.MinimumPeriodDuration();
@@ -251,6 +283,7 @@ contract PeriodicTermHooksTest is TestKernel {
     );
   }
 
+  // ┌─ test_onCreateMarket_PreservesScheduleDecodeAndMinimumFailureOrder ─────
   function test_onCreateMarket_PreservesScheduleDecodeAndMinimumFailureOrder() external {
     DeployMarketInputs memory inputs;
     vm.expectRevert(PeriodicTermPolicy.PeriodicWindowNotProvided.selector);
@@ -276,6 +309,7 @@ contract PeriodicTermHooksTest is TestKernel {
     );
   }
 
+  // ┌─ test_onCreateMarket_PreservesScheduleAndBatchReads ─────
   function test_onCreateMarket_PreservesScheduleAndBatchReads() external {
     _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), _hooksData(100, false));
     _createMarket(hooks, MarketB, _requestedConfig(hooks, false, false, false), _hooksData(200, true));
@@ -300,6 +334,22 @@ contract PeriodicTermHooksTest is TestKernel {
     assertEq(abi.encode(hooks.getHookedMarket(MarketC)), abi.encode(empty), 'unknown single configuration');
   }
 
+  // ┌─ test_onCreateMarket_PreservesPastAndCurrentSchedules ─────
+  function test_onCreateMarket_PreservesPastAndCurrentSchedules() external {
+    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 3 - 1);
+    _createMarket(MarketA);
+    assertFalse(hooks.isWithdrawalWindowOpen(MarketA), 'before recurring window');
+    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 3);
+    assertTrue(hooks.isWithdrawalWindowOpen(MarketA), 'recurring window');
+
+    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 4 + 1);
+    _createMarket(MarketB);
+    assertTrue(hooks.isWithdrawalWindowOpen(MarketB), 'deployed during recurring window');
+  }
+
+  // ░░▒▒▓▓██ [ ADMINISTRATOR HANDOFF ] ────────────────────────────────────────
+
+  // ┌─ test_administratorTransfer_PreservesConfigurationAndMovesAuthority ─────
   function test_administratorTransfer_PreservesConfigurationAndMovesAuthority() external {
     _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), _hooksData(100, true));
     bytes32 configBefore = keccak256(abi.encode(hooks.getHookedMarket(MarketA)));
@@ -319,6 +369,26 @@ contract PeriodicTermHooksTest is TestKernel {
     assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
   }
 
+  // ┌─ archController ─────
+  function archController() external view returns (address) {
+    return address(this);
+  }
+
+  // ┌─ isRegisteredBorrower ─────
+  function isRegisteredBorrower(address account) external view returns (bool) {
+    return registeredBorrowers[account];
+  }
+
+  // ┌─ onHooksAdministratorTransferred ─────
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
+    assertEq(msg.sender, address(hooks), 'callback caller');
+    callbackPreviousAdministrator = previousAdministrator;
+    callbackNewAdministrator = newAdministrator;
+  }
+
+  // ░░▒▒▓▓██ [ WITHDRAWAL WINDOWS ] ───────────────────────────────────────────
+
+  // ┌─ test_withdrawalWindow_TracksEveryBoundaryAndRecurringPeriod ─────
   function test_withdrawalWindow_TracksEveryBoundaryAndRecurringPeriod(
     uint256 periodIndex,
     uint256 offsetInPeriod
@@ -346,18 +416,20 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.isWithdrawalWindowOpen(MarketB);
   }
 
-  function test_onCreateMarket_PreservesPastAndCurrentSchedules() external {
-    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 3 - 1);
-    _createMarket(MarketA);
-    assertFalse(hooks.isWithdrawalWindowOpen(MarketA), 'before recurring window');
-    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 3);
-    assertTrue(hooks.isWithdrawalWindowOpen(MarketA), 'recurring window');
-
-    vm.warp(FirstWithdrawalWindowStart + PeriodDuration * 4 + 1);
-    _createMarket(MarketB);
-    assertTrue(hooks.isWithdrawalWindowOpen(MarketB), 'deployed during recurring window');
+  // ┌─ _expectedWindowOpen ─────
+  function _expectedWindowOpen(uint256 timestamp) internal pure returns (bool) {
+    if (timestamp < FirstWithdrawalWindowStart) return false;
+    return (timestamp - FirstWithdrawalWindowStart) % PeriodDuration < WithdrawalWindowDuration;
   }
 
+  // ┌─ _expectedNextWindowStart ─────
+  function _expectedNextWindowStart(uint256 timestamp) internal pure returns (uint256) {
+    if (timestamp < FirstWithdrawalWindowStart) return FirstWithdrawalWindowStart;
+    uint256 periodsElapsed = (timestamp - FirstWithdrawalWindowStart) / PeriodDuration;
+    return FirstWithdrawalWindowStart + ((periodsElapsed + 1) * PeriodDuration);
+  }
+
+  // ┌─ test_onQueueWithdrawal_EnforcesWindowClosedStateAndRequestedAccess ─────
   function test_onQueueWithdrawal_EnforcesWindowClosedStateAndRequestedAccess(
     uint256 periodIndex,
     uint256 offsetInPeriod,
@@ -379,6 +451,7 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
   }
 
+  // ┌─ test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure ─────
   function test_onQueueWithdrawal_ChecksWindowBeforeAccessAndRetainsAccessAfterClosure() external {
     _createMarket(hooks, MarketA, _requestedConfig(hooks, true, true, true), _hooksData());
     _addPullProvider(hooks);
@@ -419,38 +492,9 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.onQueueWithdrawal(SecondLender, 0, 1, state, '');
   }
 
-  function test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle() external {
-    address market = _newAprMarket(1_000);
-    _createMarket(market);
-    hooks.proposeAnnualInterestBips(market, 900);
-    assertFalse(hooks.isWithdrawalWindowOpen(market), 'window before close');
+  // ░░▒▒▓▓██ [ APR PROPOSALS ] ────────────────────────────────────────────────
 
-    MarketState memory state;
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(market);
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermPolicy.PeriodicTermClosed(market);
-    vm.prank(market);
-    hooks.onCloseMarket(state, '');
-    assertTrue(hooks.getHookedMarket(market).isClosed, 'hook state closed');
-    assertTrue(hooks.isWithdrawalWindowOpen(market), 'withdrawals open');
-    _assertNoPendingAprChange(market);
-
-    vm.prank(market);
-    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
-    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalOnClosedMarket.selector);
-    hooks.proposeAnnualInterestBips(market, 800);
-
-    _createMarket(MarketA);
-    vm.recordLogs();
-    vm.prank(MarketA);
-    hooks.onCloseMarket(state, '');
-    _assertNoCancelledEventRecorded();
-
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.onCloseMarket(state, '');
-  }
-
+  // ┌─ test_proposeAnnualInterestBips_AuthenticatesAndRejectsInvalidReductions ─────
   function test_proposeAnnualInterestBips_AuthenticatesAndRejectsInvalidReductions() external {
     address market = _newAprMarket(1_000);
     _createMarket(market);
@@ -484,6 +528,7 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.getPendingAprChange(MarketA);
   }
 
+  // ┌─ test_proposeAnnualInterestBips_EnforcesStrictReduction ─────
   function test_proposeAnnualInterestBips_EnforcesStrictReduction(
     uint16 currentAnnualInterestBips,
     uint16 proposedAnnualInterestBips
@@ -510,6 +555,7 @@ contract PeriodicTermHooksTest is TestKernel {
     }
   }
 
+  // ┌─ test_proposalTiming_UsesNextScheduledWindowAndOverwriteEvents ─────
   function test_proposalTiming_UsesNextScheduledWindowAndOverwriteEvents(
     uint256 periodIndex,
     uint256 offsetAfterWindow
@@ -551,6 +597,7 @@ contract PeriodicTermHooksTest is TestKernel {
     );
   }
 
+  // ┌─ test_proposalExtension_AcceptsCreationAndReplacement ─────
   function test_proposalExtension_AcceptsCreationAndReplacement() external {
     PeriodicProposalHooks target = _newProposalHooks();
     address market = _newAprMarket(1_000);
@@ -593,6 +640,7 @@ contract PeriodicTermHooksTest is TestKernel {
     _assertPendingAprChange(market, 800, replacementTime, responseStart, responseEnd);
   }
 
+  // ┌─ test_proposalExtension_RejectsCreationBelowAprFloor ─────
   function test_proposalExtension_RejectsCreationBelowAprFloor() external {
     PeriodicProposalHooks target = _newProposalHooks();
     address market = _newAprMarket(1_000);
@@ -607,6 +655,7 @@ contract PeriodicTermHooksTest is TestKernel {
     _assertNoPendingAprChange(market);
   }
 
+  // ┌─ test_proposalExtension_RejectsReplacementAndKeepsPriorWindow ─────
   function test_proposalExtension_RejectsReplacementAndKeepsPriorWindow() external {
     PeriodicProposalHooks target = _newProposalHooks();
     address market = _newAprMarket(1_000);
@@ -632,6 +681,7 @@ contract PeriodicTermHooksTest is TestKernel {
     assertEq(getterTimestamp, PeriodStart, 'legacy getter retains timestamp');
   }
 
+  // ┌─ test_proposalExtension_ChecksExactResponseWindow ─────
   function test_proposalExtension_ChecksExactResponseWindow(uint256 periodIndex, uint256 offsetAfterWindow) external {
     periodIndex = bound(periodIndex, 0, 900);
     offsetAfterWindow = bound(offsetAfterWindow, WithdrawalWindowDuration, PeriodDuration - 1);
@@ -662,6 +712,7 @@ contract PeriodicTermHooksTest is TestKernel {
     _assertPendingAprChange(market, 900, uint32(proposalTimestamp), responseStart, responseEnd);
   }
 
+  // ┌─ test_proposalExtension_PreservesNativeGuardPriority ─────
   function test_proposalExtension_PreservesNativeGuardPriority() external {
     PeriodicProposalHooks target = _newProposalHooks();
     address market = _newAprMarket(1_000);
@@ -693,6 +744,7 @@ contract PeriodicTermHooksTest is TestKernel {
     _assertNoPendingAprChange(market);
   }
 
+  // ┌─ test_proposalExtension_PreservesResponseWindowWidthChecks ─────
   function test_proposalExtension_PreservesResponseWindowWidthChecks() external {
     PeriodicProposalHooks target = _newProposalHooks();
     target.setValidationBounds(900, 10_000);
@@ -731,6 +783,36 @@ contract PeriodicTermHooksTest is TestKernel {
     _assertNoPendingAprChange(startOverflowMarket);
   }
 
+  // ┌─ _assertPendingAprChange ─────
+  function _assertPendingAprChange(
+    address market,
+    uint16 annualInterestBips,
+    uint32 proposalTimestamp,
+    uint32 responseWindowStart,
+    uint32 responseWindowEnd
+  )
+    internal
+    view
+  {
+    (PendingAprChange memory pending, uint32 actualResponseWindowStart, uint32 actualResponseWindowEnd) =
+      hooks.getPendingAprChange(market);
+    assertEq(pending.annualInterestBips, annualInterestBips, 'pending APR');
+    assertEq(pending.proposalTimestamp, proposalTimestamp, 'proposal timestamp');
+    assertEq(actualResponseWindowStart, responseWindowStart, 'response window start');
+    assertEq(actualResponseWindowEnd, responseWindowEnd, 'response window end');
+  }
+
+  // ┌─ _assertNoPendingAprChange ─────
+  function _assertNoPendingAprChange(address market) internal view {
+    _assertPendingAprChange(market, 0, 0, 0, 0);
+    (uint16 annualInterestBips, uint32 proposalTimestamp) = hooks.pendingAprChanges(market);
+    assertEq(annualInterestBips, 0, 'getter APR');
+    assertEq(proposalTimestamp, 0, 'getter timestamp');
+  }
+
+  // ░░▒▒▓▓██ [ APR REDUCTION EXECUTION ] ──────────────────────────────────────
+
+  // ┌─ test_aprReduction_EnforcesExecutionStateMachine ─────
   function test_aprReduction_EnforcesExecutionStateMachine() external {
     _assertReductionWithoutProposalReverts();
     _assertMismatchedReductionReverts();
@@ -740,106 +822,7 @@ contract PeriodicTermHooksTest is TestKernel {
     _assertReductionAtLastValidSecondExecutes();
   }
 
-  function _assertReductionWithoutProposalReverts() internal {
-    vm.warp(PeriodStart);
-    _createMarket(MarketA);
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    vm.prank(MarketA);
-    vm.expectRevert(PeriodicTermPolicy.NoPendingAprChange.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-  }
-
-  function _assertMismatchedReductionReverts() internal {
-    vm.warp(PeriodStart);
-    address market = _newAprMarket(1_000);
-    _createMarket(market);
-    hooks.proposeAnnualInterestBips(market, 900);
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(market);
-    vm.expectRevert(PeriodicTermPolicy.AprChangeDoesNotMatchProposal.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(899, 0, state, '');
-    _assertPendingAprChange(
-      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-  }
-
-  function _assertEarlyReductionReverts() internal {
-    vm.warp(PeriodStart);
-    address market = _newAprMarket(1_000);
-    _createMarket(market);
-    hooks.proposeAnnualInterestBips(market, 900);
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
-    vm.prank(market);
-    vm.expectRevert(PeriodicTermPolicy.AprChangeNotReady.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-    _assertPendingAprChange(
-      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-  }
-
-  function _assertUnpaidWithdrawalReductionReverts() internal {
-    vm.warp(PeriodStart);
-    address market = _newAprMarket(1_000);
-    _createMarket(market);
-    hooks.proposeAnnualInterestBips(market, 900);
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    state.scaledPendingWithdrawals = 1;
-    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
-    vm.prank(market);
-    vm.expectRevert(PeriodicTermPolicy.UnpaidWithdrawalsExist.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-    _assertPendingAprChange(
-      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-  }
-
-  function _assertExpiredReductionReverts() internal {
-    vm.warp(PeriodStart);
-    address market = _newAprMarket(1_000);
-    _createMarket(market);
-    hooks.proposeAnnualInterestBips(market, 900);
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    uint256 expiry = FirstWithdrawalWindowStart + uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
-    vm.warp(expiry);
-    vm.prank(market);
-    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalExpired.selector);
-    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-    _assertPendingAprChange(
-      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
-    );
-  }
-
-  function _assertReductionAtLastValidSecondExecutes() internal {
-    vm.warp(PeriodStart);
-    address market = _newAprMarket(1_000);
-    _createMarket(market);
-    hooks.proposeAnnualInterestBips(market, 900);
-    MarketState memory state;
-    state.annualInterestBips = 1_000;
-    state.reserveRatioBips = 1_000;
-    uint256 expiry = FirstWithdrawalWindowStart + uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
-    vm.warp(expiry - 1);
-    vm.expectEmit(address(hooks));
-    emit PeriodicTermPolicy.AnnualInterestBipsReductionExecuted(market, 900);
-    vm.prank(market);
-    (uint16 annualInterestBips, uint16 reserveRatioBips) =
-      hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
-    assertEq(annualInterestBips, 900, 'executed APR');
-    assertEq(reserveRatioBips, 1_000, 'preserved reserve ratio');
-    _assertNoPendingAprChange(market);
-    (uint16 originalApr, uint16 originalReserve, uint32 temporaryExpiry) = hooks.temporaryExcessReserveRatio(market);
-    assertEq(originalApr, 0, 'temporary original APR');
-    assertEq(originalReserve, 0, 'temporary original reserve');
-    assertEq(temporaryExpiry, 0, 'temporary expiry');
-  }
-
+  // ┌─ test_executePendingAnnualInterestBipsReduction_UsesTheSameGates ─────
   function test_executePendingAnnualInterestBipsReduction_UsesTheSameGates() external {
     vm.warp(PeriodStart);
     address market = _newAprMarket(1_000);
@@ -874,6 +857,115 @@ contract PeriodicTermHooksTest is TestKernel {
     hooks.executePendingAnnualInterestBipsReduction(state);
   }
 
+  // ┌─ _assertReductionWithoutProposalReverts ─────
+  function _assertReductionWithoutProposalReverts() internal {
+    vm.warp(PeriodStart);
+    _createMarket(MarketA);
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    vm.prank(MarketA);
+    vm.expectRevert(PeriodicTermPolicy.NoPendingAprChange.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+  }
+
+  // ┌─ _assertMismatchedReductionReverts ─────
+  function _assertMismatchedReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+    vm.prank(market);
+    vm.expectRevert(PeriodicTermPolicy.AprChangeDoesNotMatchProposal.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(899, 0, state, '');
+    _assertPendingAprChange(
+      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+  }
+
+  // ┌─ _assertEarlyReductionReverts ─────
+  function _assertEarlyReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration - 1);
+    vm.prank(market);
+    vm.expectRevert(PeriodicTermPolicy.AprChangeNotReady.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+    _assertPendingAprChange(
+      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+  }
+
+  // ┌─ _assertUnpaidWithdrawalReductionReverts ─────
+  function _assertUnpaidWithdrawalReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    state.scaledPendingWithdrawals = 1;
+    vm.warp(FirstWithdrawalWindowStart + WithdrawalWindowDuration);
+    vm.prank(market);
+    vm.expectRevert(PeriodicTermPolicy.UnpaidWithdrawalsExist.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+    _assertPendingAprChange(
+      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+  }
+
+  // ┌─ _assertExpiredReductionReverts ─────
+  function _assertExpiredReductionReverts() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    uint256 expiry = FirstWithdrawalWindowStart + uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
+    vm.warp(expiry);
+    vm.prank(market);
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalExpired.selector);
+    hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+    _assertPendingAprChange(
+      market, 900, PeriodStart, FirstWithdrawalWindowStart, FirstWithdrawalWindowStart + WithdrawalWindowDuration
+    );
+  }
+
+  // ┌─ _assertReductionAtLastValidSecondExecutes ─────
+  function _assertReductionAtLastValidSecondExecutes() internal {
+    vm.warp(PeriodStart);
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
+    MarketState memory state;
+    state.annualInterestBips = 1_000;
+    state.reserveRatioBips = 1_000;
+    uint256 expiry = FirstWithdrawalWindowStart + uint256(PeriodDuration) * hooks.AprReductionProposalValidityPeriods();
+    vm.warp(expiry - 1);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionExecuted(market, 900);
+    vm.prank(market);
+    (uint16 annualInterestBips, uint16 reserveRatioBips) =
+      hooks.onSetAnnualInterestAndReserveRatioBips(900, 0, state, '');
+    assertEq(annualInterestBips, 900, 'executed APR');
+    assertEq(reserveRatioBips, 1_000, 'preserved reserve ratio');
+    _assertNoPendingAprChange(market);
+    (uint16 originalApr, uint16 originalReserve, uint32 temporaryExpiry) = hooks.temporaryExcessReserveRatio(market);
+    assertEq(originalApr, 0, 'temporary original APR');
+    assertEq(originalReserve, 0, 'temporary original reserve');
+    assertEq(temporaryExpiry, 0, 'temporary expiry');
+  }
+
+  // ░░▒▒▓▓██ [ APR CANCELLATION AND CLOSURE ] ─────────────────────────────────
+
+  // ┌─ test_onSetAnnualInterestBips_IncreasesAndEqualityDelegateAndCancelPrecisely ─────
   function test_onSetAnnualInterestBips_IncreasesAndEqualityDelegateAndCancelPrecisely() external {
     address market = _newAprMarket(1_000);
     _createMarket(market);
@@ -909,5 +1001,46 @@ contract PeriodicTermHooksTest is TestKernel {
 
     vm.expectRevert(BaseHooks.NotHookedMarket.selector);
     hooks.onSetAnnualInterestAndReserveRatioBips(999, 0, state, '');
+  }
+
+  // ┌─ _assertNoCancelledEventRecorded ─────
+  function _assertNoCancelledEventRecorded() internal {
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    for (uint256 i; i < logs.length; i++) {
+      assertTrue(logs[i].topics[0] != ProposalCancelledTopic, 'unexpected cancellation event');
+    }
+  }
+
+  // ┌─ test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle ─────
+  function test_onCloseMarket_OpensWithdrawalsAndHandlesProposalLifecycle() external {
+    address market = _newAprMarket(1_000);
+    _createMarket(market);
+    hooks.proposeAnnualInterestBips(market, 900);
+    assertFalse(hooks.isWithdrawalWindowOpen(market), 'window before close');
+
+    MarketState memory state;
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermPolicy.AnnualInterestBipsReductionProposalCancelled(market);
+    vm.expectEmit(address(hooks));
+    emit PeriodicTermPolicy.PeriodicTermClosed(market);
+    vm.prank(market);
+    hooks.onCloseMarket(state, '');
+    assertTrue(hooks.getHookedMarket(market).isClosed, 'hook state closed');
+    assertTrue(hooks.isWithdrawalWindowOpen(market), 'withdrawals open');
+    _assertNoPendingAprChange(market);
+
+    vm.prank(market);
+    hooks.onQueueWithdrawal(Lender, 0, 1, state, '');
+    vm.expectRevert(PeriodicTermPolicy.AprReductionProposalOnClosedMarket.selector);
+    hooks.proposeAnnualInterestBips(market, 800);
+
+    _createMarket(MarketA);
+    vm.recordLogs();
+    vm.prank(MarketA);
+    hooks.onCloseMarket(state, '');
+    _assertNoCancelledEventRecorded();
+
+    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+    hooks.onCloseMarket(state, '');
   }
 }

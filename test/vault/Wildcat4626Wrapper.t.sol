@@ -1,6 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Wildcat4626Wrapper.t
+// ║  ██▀▀     ▀▀██   Wrapper entry, redemption, accounting, sanctions, and recovery.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture()
+// ║  _deployMarket(...)
+// ║  _deployWrapper(...)
+// ║  _deposit(...)
+// ║  _fundAndApprove(...)
+// ║
+// ║  CONSTRUCTION AND CONVERSION
+// ║  test_constructorAndMetadataValidateMarketDependencies()
+// ║  testFuzz_conversionPreviewsAndRatesFollowScaleFactor(...)
+// ║
+// ║  ENTRY AND REDEMPTION
+// ║  testFuzz_depositAndMintCreateExactScaledBacking(...)
+// ║  testFuzz_withdrawAndRedeemBurnExactScaledBacking(...)
+// ║  test_spenderAllowancesCoverExactInfiniteAndInsufficientPaths()
+// ║  test_zeroInputsAndCapacityBoundariesUseExactErrors()
+// ║  testFuzz_allEntryPointRoundTripsPreserveScaledOwnership(...)
+// ║
+// ║  SCALED ACCOUNTING
+// ║  test_multipleDepositorsAccrueWithoutSocializingDirectTransfers()
+// ║  test_donationsCannotInflateLaterDepositorShares()
+// ║  test_transferAccountingMismatchGuardsRollBackEveryPath()
+// ║  test_tinyScaleRegressionsKeepMaxWithdrawAndRoundTripsExecutable()
+// ║  _absoluteDifference(...)
+// ║
+// ║  DEPENDENCY AND SANCTIONS GUARDS
+// ║  test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures()
+// ║  test_maxLimitsFailClosedOnMarketAccountingDependencyFailures()
+// ║  test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows()
+// ║  test_sanctionsGateLimitsEntryPointsAndShareTransfers()
+// ║  test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered()
+// ║  _expectSanctioned(...)
+// ║  _assertAllLimitsZero(...)
+// ║  _assertEntryLimitsZero(...)
+// ║
+// ║  ESCROW AND RECOVERY
+// ║  test_nukeCoordinatesMarketAndEscrowsSharesAtomically()
+// ║  test_spoofedEscrowCannotReleaseSharesToSanctionedAccount()
+// ║  testFuzz_sweepAuthorityTracksCurrentBorrowerAndValidatesRecipients(...)
+// ║  testFuzz_marketSweepRemovesOnlySurplusAndPreservesEveryShareholder(...)
+// ║  test_marketSweepMismatchAndEmptyBackingRollBack()
+// ╚═════
+
 import { MathUtils, RAY } from 'src/libraries/MathUtils.sol';
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { ERC20 } from 'solady/tokens/ERC20.sol';
@@ -8,6 +58,7 @@ import { WrapperMarketMock, WrapperPlainERC20Mock } from '../mocks/WrapperMocks.
 import { WrapperSentinelMock, WrapperSpoofEscrowMock } from '../mocks/WrapperMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ Wildcat4626WrapperTest ───────────────────────────────────────────────────
 contract Wildcat4626WrapperTest is TestKernel {
   event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
   event Withdraw(
@@ -32,6 +83,16 @@ contract Wildcat4626WrapperTest is TestKernel {
     Wildcat4626Wrapper wrapper;
   }
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _newFixture ─────
+  function _newFixture() private returns (Fixture memory fixture) {
+    fixture.sentinel = WrapperSentinelMock(_deployCode('test/mocks/WrapperMocks.sol:WrapperSentinelMock'));
+    fixture.market = _deployMarket(6, Borrower, Borrower, address(fixture.sentinel), address(this));
+    fixture.wrapper = _deployWrapper(address(fixture.market));
+  }
+
+  // ┌─ _deployMarket ─────
   function _deployMarket(
     uint8 decimals,
     address borrower,
@@ -50,48 +111,28 @@ contract Wildcat4626WrapperTest is TestKernel {
     );
   }
 
+  // ┌─ _deployWrapper ─────
   function _deployWrapper(address market) private returns (Wildcat4626Wrapper) {
     return Wildcat4626Wrapper(_deployCode('src/vault/Wildcat4626Wrapper.sol:Wildcat4626Wrapper', abi.encode(market)));
   }
 
-  function _newFixture() private returns (Fixture memory fixture) {
-    fixture.sentinel = WrapperSentinelMock(_deployCode('test/mocks/WrapperMocks.sol:WrapperSentinelMock'));
-    fixture.market = _deployMarket(6, Borrower, Borrower, address(fixture.sentinel), address(this));
-    fixture.wrapper = _deployWrapper(address(fixture.market));
-  }
-
-  function _fundAndApprove(Fixture memory fixture, address account, uint256 assets) private {
-    fixture.market.mint(account, assets);
-    vm.prank(account);
-    fixture.market.approve(address(fixture.wrapper), type(uint256).max);
-  }
-
+  // ┌─ _deposit ─────
   function _deposit(Fixture memory fixture, address account, uint256 assets) private returns (uint256 shares) {
     _fundAndApprove(fixture, account, assets);
     vm.prank(account);
     shares = fixture.wrapper.deposit(assets, account);
   }
 
-  function _absoluteDifference(uint256 left, uint256 right) private pure returns (uint256) {
-    return left > right ? left - right : right - left;
+  // ┌─ _fundAndApprove ─────
+  function _fundAndApprove(Fixture memory fixture, address account, uint256 assets) private {
+    fixture.market.mint(account, assets);
+    vm.prank(account);
+    fixture.market.approve(address(fixture.wrapper), type(uint256).max);
   }
 
-  function _expectSanctioned(address account) private {
-    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, account));
-  }
+  // ░░▒▒▓▓██ [ CONSTRUCTION AND CONVERSION ] ──────────────────────────────────
 
-  function _assertAllLimitsZero(Fixture memory fixture) private view {
-    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
-    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
-    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'max withdraw');
-    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'max redeem');
-  }
-
-  function _assertEntryLimitsZero(Fixture memory fixture) private view {
-    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
-    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
-  }
-
+  // ┌─ test_constructorAndMetadataValidateMarketDependencies ─────
   function test_constructorAndMetadataValidateMarketDependencies() external {
     Fixture memory fixture = _newFixture();
 
@@ -134,6 +175,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ testFuzz_conversionPreviewsAndRatesFollowScaleFactor ─────
   function testFuzz_conversionPreviewsAndRatesFollowScaleFactor(
     uint256 assetsSeed,
     uint256 sharesSeed,
@@ -172,6 +214,9 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(fixture.wrapper.maxMint(Holder), MathUtils.mulDiv(type(uint128).max, RAY, scaleFactor), 'max mint');
   }
 
+  // ░░▒▒▓▓██ [ ENTRY AND REDEMPTION ] ─────────────────────────────────────────
+
+  // ┌─ testFuzz_depositAndMintCreateExactScaledBacking ─────
   function testFuzz_depositAndMintCreateExactScaledBacking(
     uint96 assetsSeed,
     uint96 sharesSeed,
@@ -219,6 +264,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(mintFixture.market.scaledBalanceOf(address(mintFixture.wrapper)), requestedShares, 'mint backing');
   }
 
+  // ┌─ testFuzz_withdrawAndRedeemBurnExactScaledBacking ─────
   function testFuzz_withdrawAndRedeemBurnExactScaledBacking(
     uint96 withdrawSeed,
     uint96 redeemSeed,
@@ -268,6 +314,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     );
   }
 
+  // ┌─ test_spenderAllowancesCoverExactInfiniteAndInsufficientPaths ─────
   function test_spenderAllowancesCoverExactInfiniteAndInsufficientPaths() external {
     Fixture memory fixture = _newFixture();
     _deposit(fixture, Holder, 40 * Unit);
@@ -309,6 +356,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     fixture.wrapper.redeem(4 * Unit, Receiver, Holder);
   }
 
+  // ┌─ test_zeroInputsAndCapacityBoundariesUseExactErrors ─────
   function test_zeroInputsAndCapacityBoundariesUseExactErrors() external {
     Fixture memory zeroFixture = _newFixture();
     vm.prank(Holder);
@@ -370,6 +418,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     withdrawDustFixture.wrapper.withdraw(1, Holder, Holder);
   }
 
+  // ┌─ testFuzz_allEntryPointRoundTripsPreserveScaledOwnership ─────
   function testFuzz_allEntryPointRoundTripsPreserveScaledOwnership(uint96 amountSeed, uint96 scaleOffsetSeed) external {
     uint256 amount = bound(amountSeed, 1e12, 100e18);
     uint256 scaleFactor = RAY + bound(scaleOffsetSeed, 0, RAY);
@@ -422,6 +471,9 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(mintWithdraw.wrapper.totalSupply(), 0, 'mint withdraw supply');
   }
 
+  // ░░▒▒▓▓██ [ SCALED ACCOUNTING ] ────────────────────────────────────────────
+
+  // ┌─ test_multipleDepositorsAccrueWithoutSocializingDirectTransfers ─────
   function test_multipleDepositorsAccrueWithoutSocializingDirectTransfers() external {
     Fixture memory fixture = _newFixture();
     uint256 holderShares = _deposit(fixture, Holder, 20 * Unit);
@@ -452,6 +504,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     );
   }
 
+  // ┌─ test_donationsCannotInflateLaterDepositorShares ─────
   function test_donationsCannotInflateLaterDepositorShares() external {
     Fixture memory fixture = _newFixture();
     address attacker = address(0xA77AC8E5);
@@ -480,6 +533,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     );
   }
 
+  // ┌─ test_transferAccountingMismatchGuardsRollBackEveryPath ─────
   function test_transferAccountingMismatchGuardsRollBackEveryPath() external {
     Fixture memory depositFixture = _newFixture();
     _fundAndApprove(depositFixture, Holder, 10 * Unit + 1);
@@ -514,6 +568,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(redeemFixture.wrapper.balanceOf(Holder), 10 * Unit, 'redeem rollback');
   }
 
+  // ┌─ test_tinyScaleRegressionsKeepMaxWithdrawAndRoundTripsExecutable ─────
   function test_tinyScaleRegressionsKeepMaxWithdrawAndRoundTripsExecutable() external {
     Fixture memory fixture = _newFixture();
     fixture.market.setScaleFactor(RAY + 13_652);
@@ -542,6 +597,14 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertTrue(_absoluteDifference(sharesBurned, 1e12) <= 1, 'tiny offset variance');
   }
 
+  // ┌─ _absoluteDifference ─────
+  function _absoluteDifference(uint256 left, uint256 right) private pure returns (uint256) {
+    return left > right ? left - right : right - left;
+  }
+
+  // ░░▒▒▓▓██ [ DEPENDENCY AND SANCTIONS GUARDS ] ──────────────────────────────
+
+  // ┌─ test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures ─────
   function test_maxLimitsFailClosedOnPrincipalAndSanctionsDependencyFailures() external {
     Fixture memory fixture = _newFixture();
     _deposit(fixture, Holder, 10 * Unit);
@@ -591,6 +654,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ test_maxLimitsFailClosedOnMarketAccountingDependencyFailures ─────
   function test_maxLimitsFailClosedOnMarketAccountingDependencyFailures() external {
     Fixture memory fixture = _newFixture();
     _deposit(fixture, Holder, 10 * Unit);
@@ -660,6 +724,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows ─────
   function test_lowLevelReadersValidateWordsAddressesPoliciesAndEscrows() external {
     Fixture memory fixture = _newFixture();
     _deposit(fixture, Holder, 10 * Unit);
@@ -770,6 +835,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ test_sanctionsGateLimitsEntryPointsAndShareTransfers ─────
   function test_sanctionsGateLimitsEntryPointsAndShareTransfers() external {
     Fixture memory fixture = _newFixture();
     _fundAndApprove(fixture, Holder, 40 * Unit);
@@ -857,6 +923,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(fixture.wrapper.balanceOf(Receiver), 0, 'zero transfer balance');
   }
 
+  // ┌─ test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered ─────
   function test_wrapperSanctionsAndInsolvencyFailClosedUntilRecovered() external {
     Fixture memory sanctionedFixture = _newFixture();
     _deposit(sanctionedFixture, Holder, 10 * Unit);
@@ -888,6 +955,28 @@ contract Wildcat4626WrapperTest is TestKernel {
     insolventFixture.wrapper.redeem(Unit, Holder, Holder);
   }
 
+  // ┌─ _expectSanctioned ─────
+  function _expectSanctioned(address account) private {
+    vm.expectRevert(abi.encodeWithSelector(Wildcat4626Wrapper.SanctionedAccount.selector, account));
+  }
+
+  // ┌─ _assertAllLimitsZero ─────
+  function _assertAllLimitsZero(Fixture memory fixture) private view {
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
+    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
+    assertEq(fixture.wrapper.maxWithdraw(Holder), 0, 'max withdraw');
+    assertEq(fixture.wrapper.maxRedeem(Holder), 0, 'max redeem');
+  }
+
+  // ┌─ _assertEntryLimitsZero ─────
+  function _assertEntryLimitsZero(Fixture memory fixture) private view {
+    assertEq(fixture.wrapper.maxDeposit(Holder), 0, 'max deposit');
+    assertEq(fixture.wrapper.maxMint(Holder), 0, 'max mint');
+  }
+
+  // ░░▒▒▓▓██ [ ESCROW AND RECOVERY ] ──────────────────────────────────────────
+
+  // ┌─ test_nukeCoordinatesMarketAndEscrowsSharesAtomically ─────
   function test_nukeCoordinatesMarketAndEscrowsSharesAtomically() external {
     Fixture memory fixture = _newFixture();
 
@@ -931,6 +1020,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(revertingFixture.sentinel.createEscrowCalls(), 0, 'market revert escrow');
   }
 
+  // ┌─ test_spoofedEscrowCannotReleaseSharesToSanctionedAccount ─────
   function test_spoofedEscrowCannotReleaseSharesToSanctionedAccount() external {
     Fixture memory fixture = _newFixture();
     _deposit(fixture, Holder, 5 * Unit);
@@ -945,6 +1035,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(fixture.wrapper.balanceOf(address(spoof)), Unit, 'spoof rollback');
   }
 
+  // ┌─ testFuzz_sweepAuthorityTracksCurrentBorrowerAndValidatesRecipients ─────
   function testFuzz_sweepAuthorityTracksCurrentBorrowerAndValidatesRecipients(
     uint160 borrowerSeed,
     uint96 amountSeed
@@ -995,6 +1086,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     fixture.wrapper.sweep(address(token), Receiver);
   }
 
+  // ┌─ testFuzz_marketSweepRemovesOnlySurplusAndPreservesEveryShareholder ─────
   function testFuzz_marketSweepRemovesOnlySurplusAndPreservesEveryShareholder(
     uint96 donationSeed,
     uint96 scaleOffsetSeed
@@ -1037,6 +1129,7 @@ contract Wildcat4626WrapperTest is TestKernel {
     assertEq(fixture.market.scaledBalanceOf(address(fixture.wrapper)), 0, 'market sweep final backing');
   }
 
+  // ┌─ test_marketSweepMismatchAndEmptyBackingRollBack ─────
   function test_marketSweepMismatchAndEmptyBackingRollBack() external {
     Fixture memory emptyFixture = _newFixture();
     vm.prank(Borrower);

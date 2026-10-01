@@ -1,20 +1,51 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-/**
- * deploy the v2.5 hooks template init-code storages, then do the owner work
- * that makes the new factories and templates usable.
- *
- * env:
- * - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
- *   ARCH_CONTROLLER, PROTOCOL_AUTHORITY_HELPER, TEMPLATE_FEE_SOURCE_FACTORY,
- *   and TEMPLATE_FEE_RECIPIENT.
- *   run scripts 01-04 first.
- * - direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
- *   PVT_KEY_<NETWORK>. the broadcaster must own the ArchController or be an
- *   authorized executor on its configured authority helper.
- * - plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR. no private key needed.
- */
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // 05-owner-actions.s
+// ║  ██▀▀     ▀▀██   Template storage deployment and protocol owner actions.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  AUTHORITY
+// ║  archController()
+// ║  executeProtocolAction(...)
+// ║
+// ║  OWNER ACTIONS
+// ║  run()
+// ║
+// ║  TEMPLATES AND AUTHORITY
+// ║  _loadTemplate(...)
+// ║  _readTemplateFees(...)
+// ║  _resolveFeeRecipient(...)
+// ║  _resolveAuthorityHelper(...)
+// ║
+// ║  OWNER ACTION PLAN
+// ║  _writePlanEntries(...)
+// ║  _writeTemplateStoragePlanEntry(...)
+// ║  _writeRegisterControllerFactoryPlanEntry(...)
+// ║  _writeAddTemplatePlanEntry(...)
+// ║  _templateRegistrationArgs(...)
+// ║
+// ║  DIRECT OWNER ACTIONS
+// ║  _deployTemplateStorage(...)
+// ║  _registerControllerFactory(...)
+// ║  _addTemplate(...)
+// ╚═════
+
+// deploy the v2.5 hooks template init-code storages, then do the owner work
+// that makes the new factories and templates usable.
+//
+// env:
+// - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
+//   ARCH_CONTROLLER, PROTOCOL_AUTHORITY_HELPER, TEMPLATE_FEE_SOURCE_FACTORY,
+//   and TEMPLATE_FEE_RECIPIENT.
+//   run scripts 01-04 first.
+// - direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
+//   PVT_KEY_<NETWORK>. the broadcaster must own the ArchController or be an
+//   authorized executor on its configured authority helper.
+// - plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR. no private key needed.
 
 import { console } from 'forge-std/console.sol';
 
@@ -23,12 +54,18 @@ import { IWildcatArchController } from 'src/interfaces/IWildcatArchController.so
 
 import '../../common/DeployScriptBase.sol';
 
+// ┌─ IProtocolAuthorityHelper ─────────────────────────────────────────────────
 interface IProtocolAuthorityHelper {
+  // ░░▒▒▓▓██ [ AUTHORITY ] ────────────────────────────────────────────────────
+
+  // ┌─ archController ─────
   function archController() external view returns (address);
 
+  // ┌─ executeProtocolAction ─────
   function executeProtocolAction(address target, bytes calldata data) external returns (bytes memory result);
 }
 
+// ┌─ OwnerActionsV25 ──────────────────────────────────────────────────────────
 contract OwnerActionsV25 is V25DeployScriptBase {
   string internal constant FEE_PARAMETERS_PATH = 'deployments/template-fee-parameters.json';
   string internal constant OPEN_TERM_ARTIFACT = 'src/access/OpenTermHooks.sol:OpenTermHooks';
@@ -70,6 +107,69 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     TemplateFeeParameters fees;
   }
 
+  // ░░▒▒▓▓██ [ OWNER ACTIONS ] ────────────────────────────────────────────────
+
+  // ┌─ run ─────
+  function run() external {
+    string memory ownerMode = _ownerMode();
+    (Deployments memory deployments, string memory networkName) = _resolveDeployments();
+    address archControllerAddress = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
+    string memory parametersJson = vm.readFile(FEE_PARAMETERS_PATH);
+    TemplateDeployment memory openTerm = _loadTemplate(deployments, parametersJson, 'OpenTermHooks', OPEN_TERM_ARTIFACT);
+    TemplateDeployment memory fixedTerm =
+      _loadTemplate(deployments, parametersJson, 'FixedTermHooks', FIXED_TERM_ARTIFACT);
+    TemplateDeployment memory periodicTerm =
+      _loadTemplate(deployments, parametersJson, 'PeriodicTermHooks', PERIODIC_TERM_ARTIFACT);
+
+    if (_isPlanMode(ownerMode)) {
+      _writePlanEntries(deployments, networkName, archControllerAddress, openTerm, fixedTerm, periodicTerm);
+      return;
+    }
+
+    openTerm = _deployTemplateStorage(deployments, networkName, openTerm, 13);
+    fixedTerm = _deployTemplateStorage(deployments, networkName, fixedTerm, 14);
+    periodicTerm = _deployTemplateStorage(deployments, networkName, periodicTerm, 15);
+    deployments.write();
+
+    string memory standardFactoryLabel = _label('HooksFactory');
+    string memory revolvingFactoryLabel = _label('HooksFactoryRevolving');
+    if (!deployments.has(standardFactoryLabel) || !deployments.has(revolvingFactoryLabel)) {
+      revert('Missing v2.5 factories; run scripts 02 and 03 first');
+    }
+    address standardFactory = deployments.get(standardFactoryLabel);
+    address revolvingFactory = deployments.get(revolvingFactoryLabel);
+    IWildcatArchController archController = IWildcatArchController(archControllerAddress);
+    address authorityHelper = _resolveAuthorityHelper(deployments, archControllerAddress);
+    _registerControllerFactory(deployments, archController, authorityHelper, standardFactory);
+    _registerControllerFactory(deployments, archController, authorityHelper, revolvingFactory);
+    _addTemplate(deployments, authorityHelper, standardFactory, openTerm);
+    _addTemplate(deployments, authorityHelper, standardFactory, fixedTerm);
+    _addTemplate(deployments, authorityHelper, standardFactory, periodicTerm);
+    _addTemplate(deployments, authorityHelper, revolvingFactory, openTerm);
+    _addTemplate(deployments, authorityHelper, revolvingFactory, fixedTerm);
+    _addTemplate(deployments, authorityHelper, revolvingFactory, periodicTerm);
+  }
+
+  // ░░▒▒▓▓██ [ TEMPLATES AND AUTHORITY ] ──────────────────────────────────────
+
+  // ┌─ _loadTemplate ─────
+  function _loadTemplate(
+    Deployments memory deployments,
+    string memory parametersJson,
+    string memory name,
+    string memory artifactName
+  )
+    internal
+    returns (TemplateDeployment memory template)
+  {
+    template.name = name;
+    template.artifactName = artifactName;
+    template.deploymentLabel = _label(string.concat(name, '_initCodeStorage'));
+    template.creationCode = _getCreationCode(deployments, artifactName);
+    template.fees = _readTemplateFees(parametersJson, name);
+  }
+
+  // ┌─ _readTemplateFees ─────
   function _readTemplateFees(
     string memory parametersJson,
     string memory templateName
@@ -87,22 +187,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     fees.protocolFeeBips = uint16(protocolFeeBips);
   }
 
-  function _loadTemplate(
-    Deployments memory deployments,
-    string memory parametersJson,
-    string memory name,
-    string memory artifactName
-  )
-    internal
-    returns (TemplateDeployment memory template)
-  {
-    template.name = name;
-    template.artifactName = artifactName;
-    template.deploymentLabel = _label(string.concat(name, '_initCodeStorage'));
-    template.creationCode = _getCreationCode(deployments, artifactName);
-    template.fees = _readTemplateFees(parametersJson, name);
-  }
-
+  // ┌─ _resolveFeeRecipient ─────
   function _resolveFeeRecipient(
     Deployments memory deployments,
     string memory templateName
@@ -132,123 +217,40 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     }
   }
 
-  function _writeTemplateStoragePlanEntry(
+  // ┌─ _resolveAuthorityHelper ─────
+  function _resolveAuthorityHelper(
     Deployments memory deployments,
-    string memory networkName,
-    TemplateDeployment memory template,
-    uint256 sequence,
-    string memory entryId,
-    string memory output,
-    string memory afterEntry
+    address archControllerAddress
   )
     internal
+    returns (address helper)
   {
-    string[] memory afterEntries = new string[](1);
-    afterEntries[0] = afterEntry;
-    DeployPlanEntry memory entry;
-    entry.sequence = sequence;
-    entry.id = entryId;
-    entry.output = output;
-    entry.description = string.concat('Deploy the v2.5 ', template.name, ' init-code storage.');
-    entry.afterEntries = afterEntries;
-    _planInitCodeStorageEntry(deployments, entry, template.creationCode);
+    helper = vm.envOr('PROTOCOL_AUTHORITY_HELPER', address(0));
+    if (helper == address(0) && deployments.has('MockArchControllerOwner')) {
+      helper = deployments.get('MockArchControllerOwner');
+    }
+    if (helper == address(0)) return address(0);
 
-    _writePlanInitCodeStorageInventory(
-      deployments, sequence, networkName, template.deploymentLabel, output, template.creationCode
-    );
+    address owner = IWildcatArchController(archControllerAddress).owner();
+    if (owner != helper) {
+      if (vm.envOr('PROTOCOL_AUTHORITY_HELPER', address(0)) != address(0)) {
+        revert('Configured protocol authority helper does not own ArchController');
+      }
+      return address(0);
+    }
+    if (helper.code.length == 0) revert('Protocol authority helper has no code');
+    try IProtocolAuthorityHelper(helper).archController() returns (address helperArchController) {
+      if (helperArchController != archControllerAddress) {
+        revert('Protocol authority helper uses a different ArchController');
+      }
+    } catch {
+      revert('Protocol authority helper does not expose the v2 interface');
+    }
   }
 
-  function _writeRegisterControllerFactoryPlanEntry(
-    Deployments memory deployments,
-    address archController,
-    uint256 sequence,
-    string memory entryId,
-    string memory factoryOutput,
-    string memory afterEntry,
-    string memory description
-  )
-    internal
-  {
-    string[] memory afterEntries = new string[](1);
-    afterEntries[0] = afterEntry;
-    CallPlanEntry memory entry;
-    entry.sequence = sequence;
-    entry.id = entryId;
-    entry.to = _quoted(vm.toString(archController));
-    entry.functionSignature = 'registerControllerFactory(address)';
-    entry.decodedArgs = string.concat('[', _ref(factoryOutput), ']');
-    entry.description = description;
-    entry.predicate = _planCallEqPredicateForTarget(
-      _quoted(vm.toString(archController)),
-      'isRegisteredControllerFactory(address) view returns (bool)',
-      string.concat('[', _ref(factoryOutput), ']'),
-      'true'
-    );
-    entry.afterEntries = afterEntries;
-    _callPlanEntry(deployments, entry);
-  }
+  // ░░▒▒▓▓██ [ OWNER ACTION PLAN ] ────────────────────────────────────────────
 
-  function _templateRegistrationArgs(
-    TemplateDeployment memory template,
-    address feeRecipient,
-    string memory storageOutput
-  )
-    internal
-    pure
-    returns (string memory)
-  {
-    return string.concat(
-      '[',
-      _ref(storageOutput),
-      ',',
-      _quoted(template.name),
-      ',',
-      _quoted(vm.toString(feeRecipient)),
-      ',',
-      _quoted(vm.toString(template.fees.originationFeeAsset)),
-      ',',
-      vm.toString(template.fees.originationFeeAmount),
-      ',',
-      vm.toString(template.fees.protocolFeeBips),
-      ',',
-      _quoted(vm.toString(keccak256(template.creationCode))),
-      ']'
-    );
-  }
-
-  function _writeAddTemplatePlanEntry(
-    Deployments memory deployments,
-    TemplateDeployment memory template,
-    address feeRecipient,
-    uint256 sequence,
-    string memory entryId,
-    string memory factoryOutput,
-    string memory storageOutput,
-    string memory afterEntry,
-    string memory description
-  )
-    internal
-  {
-    string[] memory afterEntries = new string[](1);
-    afterEntries[0] = afterEntry;
-    string memory templateArgs = _templateRegistrationArgs(template, feeRecipient, storageOutput);
-    CallPlanEntry memory entry;
-    entry.sequence = sequence;
-    entry.id = entryId;
-    entry.to = _ref(factoryOutput);
-    entry.functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)';
-    entry.decodedArgs = templateArgs;
-    entry.description = description;
-    entry.predicate = _planCallEqPredicate(
-      factoryOutput,
-      'getHooksTemplateInitCodeHash(address) view returns (bytes32)',
-      string.concat('[', _ref(storageOutput), ']'),
-      _quoted(vm.toString(keccak256(template.creationCode)))
-    );
-    entry.afterEntries = afterEntries;
-    _callPlanEntry(deployments, entry);
-  }
-
+  // ┌─ _writePlanEntries ─────
   function _writePlanEntries(
     Deployments memory deployments,
     string memory networkName,
@@ -365,6 +367,130 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     );
   }
 
+  // ┌─ _writeTemplateStoragePlanEntry ─────
+  function _writeTemplateStoragePlanEntry(
+    Deployments memory deployments,
+    string memory networkName,
+    TemplateDeployment memory template,
+    uint256 sequence,
+    string memory entryId,
+    string memory output,
+    string memory afterEntry
+  )
+    internal
+  {
+    string[] memory afterEntries = new string[](1);
+    afterEntries[0] = afterEntry;
+    DeployPlanEntry memory entry;
+    entry.sequence = sequence;
+    entry.id = entryId;
+    entry.output = output;
+    entry.description = string.concat('Deploy the v2.5 ', template.name, ' init-code storage.');
+    entry.afterEntries = afterEntries;
+    _planInitCodeStorageEntry(deployments, entry, template.creationCode);
+
+    _writePlanInitCodeStorageInventory(
+      deployments, sequence, networkName, template.deploymentLabel, output, template.creationCode
+    );
+  }
+
+  // ┌─ _writeRegisterControllerFactoryPlanEntry ─────
+  function _writeRegisterControllerFactoryPlanEntry(
+    Deployments memory deployments,
+    address archController,
+    uint256 sequence,
+    string memory entryId,
+    string memory factoryOutput,
+    string memory afterEntry,
+    string memory description
+  )
+    internal
+  {
+    string[] memory afterEntries = new string[](1);
+    afterEntries[0] = afterEntry;
+    CallPlanEntry memory entry;
+    entry.sequence = sequence;
+    entry.id = entryId;
+    entry.to = _quoted(vm.toString(archController));
+    entry.functionSignature = 'registerControllerFactory(address)';
+    entry.decodedArgs = string.concat('[', _ref(factoryOutput), ']');
+    entry.description = description;
+    entry.predicate = _planCallEqPredicateForTarget(
+      _quoted(vm.toString(archController)),
+      'isRegisteredControllerFactory(address) view returns (bool)',
+      string.concat('[', _ref(factoryOutput), ']'),
+      'true'
+    );
+    entry.afterEntries = afterEntries;
+    _callPlanEntry(deployments, entry);
+  }
+
+  // ┌─ _writeAddTemplatePlanEntry ─────
+  function _writeAddTemplatePlanEntry(
+    Deployments memory deployments,
+    TemplateDeployment memory template,
+    address feeRecipient,
+    uint256 sequence,
+    string memory entryId,
+    string memory factoryOutput,
+    string memory storageOutput,
+    string memory afterEntry,
+    string memory description
+  )
+    internal
+  {
+    string[] memory afterEntries = new string[](1);
+    afterEntries[0] = afterEntry;
+    string memory templateArgs = _templateRegistrationArgs(template, feeRecipient, storageOutput);
+    CallPlanEntry memory entry;
+    entry.sequence = sequence;
+    entry.id = entryId;
+    entry.to = _ref(factoryOutput);
+    entry.functionSignature = 'addHooksTemplate(address,string,address,address,uint80,uint16,bytes32)';
+    entry.decodedArgs = templateArgs;
+    entry.description = description;
+    entry.predicate = _planCallEqPredicate(
+      factoryOutput,
+      'getHooksTemplateInitCodeHash(address) view returns (bytes32)',
+      string.concat('[', _ref(storageOutput), ']'),
+      _quoted(vm.toString(keccak256(template.creationCode)))
+    );
+    entry.afterEntries = afterEntries;
+    _callPlanEntry(deployments, entry);
+  }
+
+  // ┌─ _templateRegistrationArgs ─────
+  function _templateRegistrationArgs(
+    TemplateDeployment memory template,
+    address feeRecipient,
+    string memory storageOutput
+  )
+    internal
+    pure
+    returns (string memory)
+  {
+    return string.concat(
+      '[',
+      _ref(storageOutput),
+      ',',
+      _quoted(template.name),
+      ',',
+      _quoted(vm.toString(feeRecipient)),
+      ',',
+      _quoted(vm.toString(template.fees.originationFeeAsset)),
+      ',',
+      vm.toString(template.fees.originationFeeAmount),
+      ',',
+      vm.toString(template.fees.protocolFeeBips),
+      ',',
+      _quoted(vm.toString(keccak256(template.creationCode))),
+      ']'
+    );
+  }
+
+  // ░░▒▒▓▓██ [ DIRECT OWNER ACTIONS ] ─────────────────────────────────────────
+
+  // ┌─ _deployTemplateStorage ─────
   function _deployTemplateStorage(
     Deployments memory deployments,
     string memory networkName,
@@ -390,6 +516,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     return template;
   }
 
+  // ┌─ _registerControllerFactory ─────
   function _registerControllerFactory(
     Deployments memory deployments,
     IWildcatArchController archController,
@@ -414,6 +541,7 @@ contract OwnerActionsV25 is V25DeployScriptBase {
     }
   }
 
+  // ┌─ _addTemplate ─────
   function _addTemplate(
     Deployments memory deployments,
     address authorityHelper,
@@ -466,75 +594,5 @@ contract OwnerActionsV25 is V25DeployScriptBase {
         || details.originationFeeAmount != template.fees.originationFeeAmount
         || details.protocolFeeBips != template.fees.protocolFeeBips
     ) revert('Template fee configuration mismatch');
-  }
-
-  function _resolveAuthorityHelper(
-    Deployments memory deployments,
-    address archControllerAddress
-  )
-    internal
-    returns (address helper)
-  {
-    helper = vm.envOr('PROTOCOL_AUTHORITY_HELPER', address(0));
-    if (helper == address(0) && deployments.has('MockArchControllerOwner')) {
-      helper = deployments.get('MockArchControllerOwner');
-    }
-    if (helper == address(0)) return address(0);
-
-    address owner = IWildcatArchController(archControllerAddress).owner();
-    if (owner != helper) {
-      if (vm.envOr('PROTOCOL_AUTHORITY_HELPER', address(0)) != address(0)) {
-        revert('Configured protocol authority helper does not own ArchController');
-      }
-      return address(0);
-    }
-    if (helper.code.length == 0) revert('Protocol authority helper has no code');
-    try IProtocolAuthorityHelper(helper).archController() returns (address helperArchController) {
-      if (helperArchController != archControllerAddress) {
-        revert('Protocol authority helper uses a different ArchController');
-      }
-    } catch {
-      revert('Protocol authority helper does not expose the v2 interface');
-    }
-  }
-
-  function run() external {
-    string memory ownerMode = _ownerMode();
-    (Deployments memory deployments, string memory networkName) = _resolveDeployments();
-    address archControllerAddress = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
-    string memory parametersJson = vm.readFile(FEE_PARAMETERS_PATH);
-    TemplateDeployment memory openTerm = _loadTemplate(deployments, parametersJson, 'OpenTermHooks', OPEN_TERM_ARTIFACT);
-    TemplateDeployment memory fixedTerm =
-      _loadTemplate(deployments, parametersJson, 'FixedTermHooks', FIXED_TERM_ARTIFACT);
-    TemplateDeployment memory periodicTerm =
-      _loadTemplate(deployments, parametersJson, 'PeriodicTermHooks', PERIODIC_TERM_ARTIFACT);
-
-    if (_isPlanMode(ownerMode)) {
-      _writePlanEntries(deployments, networkName, archControllerAddress, openTerm, fixedTerm, periodicTerm);
-      return;
-    }
-
-    openTerm = _deployTemplateStorage(deployments, networkName, openTerm, 13);
-    fixedTerm = _deployTemplateStorage(deployments, networkName, fixedTerm, 14);
-    periodicTerm = _deployTemplateStorage(deployments, networkName, periodicTerm, 15);
-    deployments.write();
-
-    string memory standardFactoryLabel = _label('HooksFactory');
-    string memory revolvingFactoryLabel = _label('HooksFactoryRevolving');
-    if (!deployments.has(standardFactoryLabel) || !deployments.has(revolvingFactoryLabel)) {
-      revert('Missing v2.5 factories; run scripts 02 and 03 first');
-    }
-    address standardFactory = deployments.get(standardFactoryLabel);
-    address revolvingFactory = deployments.get(revolvingFactoryLabel);
-    IWildcatArchController archController = IWildcatArchController(archControllerAddress);
-    address authorityHelper = _resolveAuthorityHelper(deployments, archControllerAddress);
-    _registerControllerFactory(deployments, archController, authorityHelper, standardFactory);
-    _registerControllerFactory(deployments, archController, authorityHelper, revolvingFactory);
-    _addTemplate(deployments, authorityHelper, standardFactory, openTerm);
-    _addTemplate(deployments, authorityHelper, standardFactory, fixedTerm);
-    _addTemplate(deployments, authorityHelper, standardFactory, periodicTerm);
-    _addTemplate(deployments, authorityHelper, revolvingFactory, openTerm);
-    _addTemplate(deployments, authorityHelper, revolvingFactory, fixedTerm);
-    _addTemplate(deployments, authorityHelper, revolvingFactory, periodicTerm);
   }
 }

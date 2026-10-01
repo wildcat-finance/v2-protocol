@@ -1,8 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // PreparedInitCodeStorage
+// ║  ██▀▀     ▀▀██   Install reviewed raw and linked split-storage runtime images.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  PREPARED STORAGE
+// ║  constructor(...)
+// ║
+// ║  LINKED STORAGE
+// ║  constructor(...)
+// ╚═════
+
+// ┌─ PreparedInitCodeStorage ──────────────────────────────────────────────────
 /// @dev installs the reviewed runtime image. all splitting happens during preparation.
 contract PreparedInitCodeStorage {
+  // ░░▒▒▓▓██ [ PREPARED STORAGE ] ─────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(bytes memory runtimeCode) {
     assembly ('memory-safe') {
       return(add(runtimeCode, 0x20), mload(runtimeCode))
@@ -10,9 +28,13 @@ contract PreparedInitCodeStorage {
   }
 }
 
+// ┌─ LinkedInitCodeStorage ────────────────────────────────────────────────────
 /// @dev binds the already-deployed secondary into the prepared primary's footer.
 ///      the reader, payload and lengths are copied unchanged.
 contract LinkedInitCodeStorage {
+  // ░░▒▒▓▓██ [ LINKED STORAGE ] ───────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(bytes memory runtimeCode, address secondary) {
     require(runtimeCode.length >= 32 && secondary != address(0), 'Invalid split storage link');
     assembly ('memory-safe') {

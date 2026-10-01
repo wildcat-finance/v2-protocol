@@ -1,5 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
+
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // TransientBytesArray
+// ║  ██▀▀     ▀▀██   Transaction-scoped byte storage, clearing, and decoding.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  WRITES
+// ║  write(...)
+// ║  setEmpty(...)
+// ║
+// ║  READS
+// ║  read(...)
+// ║  readToPointer(...)
+// ╚═════
+
 import {
   Panic_ErrorSelector,
   Panic_ErrorCodePointer,
@@ -14,13 +31,75 @@ type TransientBytesArray is uint256;
 
 using LibTransientBytesArray for TransientBytesArray global;
 
+// ┌─ LibTransientBytesArray ───────────────────────────────────────────────────
 library LibTransientBytesArray {
-  /**
-   * @dev Decode a dynamic bytes array from transient storage.
-   * @param transientSlot Slot for the dynamic bytes array in transient storage
-   * @param memoryPointer Pointer to the memory location to write the decoded array to
-   * @return endPointer Pointer to the end of the decoded array
-   */
+  // ░░▒▒▓▓██ [ WRITES ] ───────────────────────────────────────────────────────
+
+  // ┌─ write ─────
+  /// @dev Write a dynamic bytes array to transient storage.
+  ///
+  /// @param transientSlot Slot for the dynamic bytes array in transient storage
+  /// @param memoryPointer Pointer to the memory location of the array to write
+  function write(TransientBytesArray transientSlot, bytes memory memoryPointer) internal {
+    assembly {
+      let length := mload(memoryPointer)
+      memoryPointer := add(memoryPointer, 0x20)
+      switch lt(length, 32)
+      case 0 {
+        // For long byte arrays, the length slot holds (length * 2 + 1)
+        tstore(transientSlot, add(1, mul(2, length)))
+        // Calculate the slot of the data portion of the array
+        mstore(0, transientSlot)
+        let dataTSlot := keccak256(0, 0x20)
+        let i := 0
+        for { } lt(i, length) {
+          i := add(i, 0x20)
+        } {
+          tstore(dataTSlot, mload(add(memoryPointer, i)))
+          dataTSlot := add(dataTSlot, 1)
+        }
+      }
+      case 1 {
+        // For short byte arrays, the first 31 bytes are the data and the last byte is (length * 2).
+        let lengthByte := mul(2, length)
+        let data := mload(memoryPointer)
+        tstore(transientSlot, or(data, lengthByte))
+      }
+    }
+  }
+
+  // ┌─ setEmpty ─────
+  /// @dev writes the empty-array encoding; a later call can overwrite it in the same transaction.
+  function setEmpty(TransientBytesArray transientSlot) internal {
+    assembly {
+      tstore(transientSlot, 0)
+    }
+  }
+
+  // ░░▒▒▓▓██ [ READS ] ────────────────────────────────────────────────────────
+
+  // ┌─ read ─────
+  /// @dev decodes the transient byte array into newly allocated memory.
+  function read(TransientBytesArray transientSlot) internal view returns (bytes memory data) {
+    uint256 dataPointer;
+    assembly {
+      dataPointer := mload(0x40)
+      data := dataPointer
+      mstore(data, 0)
+    }
+    uint256 endPointer = readToPointer(transientSlot, dataPointer);
+    assembly {
+      mstore(0x40, endPointer)
+    }
+  }
+
+  // ┌─ readToPointer ─────
+  /// @dev Decode a dynamic bytes array from transient storage.
+  ///
+  /// @param transientSlot Slot for the dynamic bytes array in transient storage
+  /// @param memoryPointer Pointer to the memory location to write the decoded array to
+  ///
+  /// @return endPointer Pointer to the end of the decoded array
   function readToPointer(
     TransientBytesArray transientSlot,
     uint256 memoryPointer
@@ -71,60 +150,6 @@ library LibTransientBytesArray {
         }
         endPointer := add(memoryPointer, i)
       }
-    }
-  }
-
-  /// @dev decodes the transient byte array into newly allocated memory.
-  function read(TransientBytesArray transientSlot) internal view returns (bytes memory data) {
-    uint256 dataPointer;
-    assembly {
-      dataPointer := mload(0x40)
-      data := dataPointer
-      mstore(data, 0)
-    }
-    uint256 endPointer = readToPointer(transientSlot, dataPointer);
-    assembly {
-      mstore(0x40, endPointer)
-    }
-  }
-
-  /**
-   * @dev Write a dynamic bytes array to transient storage.
-   * @param transientSlot Slot for the dynamic bytes array in transient storage
-   * @param memoryPointer Pointer to the memory location of the array to write
-   */
-  function write(TransientBytesArray transientSlot, bytes memory memoryPointer) internal {
-    assembly {
-      let length := mload(memoryPointer)
-      memoryPointer := add(memoryPointer, 0x20)
-      switch lt(length, 32)
-      case 0 {
-        // For long byte arrays, the length slot holds (length * 2 + 1)
-        tstore(transientSlot, add(1, mul(2, length)))
-        // Calculate the slot of the data portion of the array
-        mstore(0, transientSlot)
-        let dataTSlot := keccak256(0, 0x20)
-        let i := 0
-        for { } lt(i, length) {
-          i := add(i, 0x20)
-        } {
-          tstore(dataTSlot, mload(add(memoryPointer, i)))
-          dataTSlot := add(dataTSlot, 1)
-        }
-      }
-      case 1 {
-        // For short byte arrays, the first 31 bytes are the data and the last byte is (length * 2).
-        let lengthByte := mul(2, length)
-        let data := mload(memoryPointer)
-        tstore(transientSlot, or(data, lengthByte))
-      }
-    }
-  }
-
-  /// @dev writes the empty-array encoding; a later call can overwrite it in the same transaction.
-  function setEmpty(TransientBytesArray transientSlot) internal {
-    assembly {
-      tstore(transientSlot, 0)
     }
   }
 }

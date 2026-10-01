@@ -1,12 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // RevolvingInterestDustReview.t
+// ║  ██▀▀     ▀▀██   Characterization of revolving-interest representation boundaries.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _reviewMarket(...)
+// ║
+// ║  INTEREST REPRESENTATION
+// ║  test_sixDecimalSmallestDrawHasNonzeroRateAtObservedSizedSupplies()
+// ║  test_eighteenDecimalRepeatedCheckpointsLoseElevenAtomsAcrossHooks()
+// ║  test_eighteenDecimalExactThresholdRetainsOneRayAcrossHooks()
+// ║  test_representationBoundaryIsNotAUniversalEconomicBound()
+// ╚═════
+
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { MathUtils, RAY, SECONDS_IN_365_DAYS } from 'src/libraries/MathUtils.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ RevolvingInterestDustReviewTest ──────────────────────────────────────────
 /// @dev Characterizes unchanged revolving interest; no remediation is asserted.
 contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _reviewMarket ─────
   function _reviewMarket(
     uint8 decimals,
     uint128 supply,
@@ -36,6 +57,9 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
     assertEq(cell.market.decimals(), decimals);
   }
 
+  // ░░▒▒▓▓██ [ INTEREST REPRESENTATION ] ──────────────────────────────────────
+
+  // ┌─ test_sixDecimalSmallestDrawHasNonzeroRateAtObservedSizedSupplies ─────
   function test_sixDecimalSmallestDrawHasNonzeroRateAtObservedSizedSupplies() external {
     uint256 start = vm.getBlockTimestamp();
     uint128[2] memory supplies = [uint128(1_000e6), uint128(110_000_000e6)];
@@ -52,6 +76,7 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_eighteenDecimalRepeatedCheckpointsLoseElevenAtomsAcrossHooks ─────
   function test_eighteenDecimalRepeatedCheckpointsLoseElevenAtomsAcrossHooks() external {
     uint256 start = vm.getBlockTimestamp();
     uint128 supply = 110_000_000e18;
@@ -77,6 +102,7 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_eighteenDecimalExactThresholdRetainsOneRayAcrossHooks ─────
   function test_eighteenDecimalExactThresholdRetainsOneRayAcrossHooks() external {
     uint256 start = vm.getBlockTimestamp();
     uint128 supply = 110_000_000e18;
@@ -91,6 +117,7 @@ contract RevolvingInterestDustReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_representationBoundaryIsNotAUniversalEconomicBound ─────
   function test_representationBoundaryIsNotAUniversalEconomicBound() external pure {
     // Synthetic arithmetic boundary at the initial factor, not a deployed or
     // economically representative market. The production utilization division

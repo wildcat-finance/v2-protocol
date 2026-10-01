@@ -1,6 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensCore.t
+// ║  ██▀▀     ▀▀██   Core market, live accounting, lender, and withdrawal lens reads.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  MARKET AND LIVE DATA
+// ║  test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints()
+// ║  test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches()
+// ║  test_legacyHookConstraints_FullReadsPreserveOriginalBounds()
+// ║  test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity()
+// ║  _assertLiveParity(...)
+// ║  test_periodicMarketRead_MapsTermConfigurationAndClosure()
+// ║  _newPeriodicMarketForLens()
+// ║
+// ║  LENDER ACCOUNTS
+// ║  test_lenderAccountReads_MapBalancesApprovalAndDepositBlock()
+// ║  _assertLenderAccount(...)
+// ║
+// ║  WITHDRAWAL DATA
+// ║  test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown()
+// ║  test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount()
+// ╚═════
+
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
@@ -19,6 +47,7 @@ import { WithdrawalBatchDataWithLenderStatus } from 'src/lens/WithdrawalBatchDat
 import { WithdrawalBatchLenderStatus } from 'src/lens/WithdrawalBatchData.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
+// ┌─ MarketLensCoreTest ───────────────────────────────────────────────────────
 contract MarketLensCoreTest is MarketFixture {
   using MarketDataLib for MarketData;
 
@@ -30,6 +59,9 @@ contract MarketLensCoreTest is MarketFixture {
   MarketLensCore internal core;
   MarketLensLive internal live;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     fixture = _newMarket(HooksKind.OpenTerm);
     core = MarketLensCore(
@@ -46,6 +78,9 @@ contract MarketLensCoreTest is MarketFixture {
     );
   }
 
+  // ░░▒▒▓▓██ [ MARKET AND LIVE DATA ] ─────────────────────────────────────────
+
+  // ┌─ test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints ─────
   function test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints() external {
     _deposit(fixture, Lender, 100e18);
     vm.prank(Borrower);
@@ -102,6 +137,7 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(abi.encode(core.queryLenderAccounts(queries)[0]), abi.encode(result), 'query list parity');
   }
 
+  // ┌─ test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches ─────
   function test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches() external {
     vm.mockCall(address(fixture.asset), abi.encodeWithSignature('name()'), abi.encode(bytes32('Legacy Token')));
     vm.mockCall(address(fixture.asset), abi.encodeWithSignature('symbol()'), abi.encode(bytes32('LEGACY')));
@@ -126,6 +162,7 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(marketData[0].underlyingToken.symbol, 'LEGACY', 'market underlying symbol');
   }
 
+  // ┌─ test_legacyHookConstraints_FullReadsPreserveOriginalBounds ─────
   function test_legacyHookConstraints_FullReadsPreserveOriginalBounds() external {
     MarketData memory current = core.getMarketData(address(fixture.market));
     assertTrue(current.hooks.repaymentConstraintsAvailable, 'current bounds supported');
@@ -140,6 +177,7 @@ contract MarketLensCoreTest is MarketFixture {
     assertTrue(data.lifecycle.isPresent, 'market lifecycle independent of hook generation');
   }
 
+  // ┌─ test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity ─────
   function test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity() external {
     Fixture memory revolving = _newRevolvingMarket(HooksKind.OpenTerm);
     _deposit(revolving, Lender, 100e18);
@@ -181,6 +219,23 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(accepted.market.hooks.administrator, Borrower, 'hooks remain administered');
   }
 
+  // ┌─ _assertLiveParity ─────
+  function _assertLiveParity(MarketData memory full, MarketLiveDataV2_5 memory current) internal pure {
+    assertEq(current.market, full.marketToken.token, 'live market');
+    assertEq(current.isClosed, full.isClosed, 'live closed');
+    assertEq(current.protocolFeeBips, full.protocolFeeBips, 'live protocol fee');
+    assertEq(current.reserveRatioBips, full.reserveRatioBips, 'live reserve ratio');
+    assertEq(current.annualInterestBips, full.annualInterestBips, 'live apr');
+    assertEq(current.scaleFactor, full.scaleFactor, 'live scale factor');
+    assertEq(current.totalSupply, full.totalSupply, 'live supply');
+    assertEq(current.totalAssets, full.totalAssets, 'live assets');
+    assertEq(current.scaledPendingWithdrawals, full.scaledPendingWithdrawals, 'live pending');
+    assertEq(current.pendingWithdrawalExpiry, full.pendingWithdrawalExpiry, 'live expiry');
+    assertEq(current.timeDelinquent, full.timeDelinquent, 'live delinquency');
+    assertEq(current.coverageLiquidity, full.coverageLiquidity, 'live coverage');
+  }
+
+  // ┌─ test_periodicMarketRead_MapsTermConfigurationAndClosure ─────
   function test_periodicMarketRead_MapsTermConfigurationAndClosure() external {
     Fixture memory periodic = _newPeriodicMarketForLens();
     MarketData memory data = core.getMarketData(address(periodic.market));
@@ -197,6 +252,7 @@ contract MarketLensCoreTest is MarketFixture {
     assertTrue(data.hooksConfig.periodicTermClosed, 'term closed');
   }
 
+  // ┌─ _newPeriodicMarketForLens ─────
   function _newPeriodicMarketForLens() internal returns (Fixture memory periodic) {
     IHooks hooks =
       IHooks(_deployCode('src/access/PeriodicTermHooks.sol:PeriodicTermHooks', abi.encode(Borrower, bytes(''))));
@@ -210,6 +266,9 @@ contract MarketLensCoreTest is MarketFixture {
     );
   }
 
+  // ░░▒▒▓▓██ [ LENDER ACCOUNTS ] ──────────────────────────────────────────────
+
+  // ┌─ test_lenderAccountReads_MapBalancesApprovalAndDepositBlock ─────
   function test_lenderAccountReads_MapBalancesApprovalAndDepositBlock() external {
     _fundAndApprove(fixture, Lender, 10e18);
     vm.prank(Lender);
@@ -252,6 +311,20 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(abi.encode(liveAccounts[0].lenderStatus), abi.encode(account), 'live account');
   }
 
+  // ┌─ _assertLenderAccount ─────
+  function _assertLenderAccount(LenderAccountData memory account, address lender) internal view {
+    assertEq(account.lender, lender, 'lender address');
+    assertEq(account.scaledBalance, fixture.market.scaledBalanceOf(lender), 'scaled balance');
+    assertEq(account.normalizedBalance, fixture.market.balanceOf(lender), 'normalized balance');
+    assertEq(account.underlyingBalance, fixture.asset.balanceOf(lender), 'underlying balance');
+    assertEq(
+      account.underlyingApproval, fixture.asset.allowance(lender, address(fixture.market)), 'underlying approval'
+    );
+  }
+
+  // ░░▒▒▓▓██ [ WITHDRAWAL DATA ] ──────────────────────────────────────────────
+
+  // ┌─ test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown ─────
   function test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown() external {
     _deposit(fixture, Lender, 100e18);
     vm.prank(Borrower);
@@ -319,6 +392,7 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(outstanding.length, 0, 'no outstanding batches');
   }
 
+  // ┌─ test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount ─────
   function test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount() external {
     // A batch can accumulate paid volume near uint128 while its remaining live
     // share accrues interest. The quoted total can exceed uint128 even after
@@ -343,30 +417,5 @@ contract MarketLensCoreTest is MarketFixture {
     assertEq(data.batch.normalizedTotalAmount, total + 3, 'paid and accrued unpaid total');
     assertEq(data.lenderStatus.normalizedAmountOwed, 4, 'remaining accrued claim');
     assertEq(data.lenderStatus.availableWithdrawalAmount, 0, 'paid claim already collected');
-  }
-
-  function _assertLenderAccount(LenderAccountData memory account, address lender) internal view {
-    assertEq(account.lender, lender, 'lender address');
-    assertEq(account.scaledBalance, fixture.market.scaledBalanceOf(lender), 'scaled balance');
-    assertEq(account.normalizedBalance, fixture.market.balanceOf(lender), 'normalized balance');
-    assertEq(account.underlyingBalance, fixture.asset.balanceOf(lender), 'underlying balance');
-    assertEq(
-      account.underlyingApproval, fixture.asset.allowance(lender, address(fixture.market)), 'underlying approval'
-    );
-  }
-
-  function _assertLiveParity(MarketData memory full, MarketLiveDataV2_5 memory current) internal pure {
-    assertEq(current.market, full.marketToken.token, 'live market');
-    assertEq(current.isClosed, full.isClosed, 'live closed');
-    assertEq(current.protocolFeeBips, full.protocolFeeBips, 'live protocol fee');
-    assertEq(current.reserveRatioBips, full.reserveRatioBips, 'live reserve ratio');
-    assertEq(current.annualInterestBips, full.annualInterestBips, 'live apr');
-    assertEq(current.scaleFactor, full.scaleFactor, 'live scale factor');
-    assertEq(current.totalSupply, full.totalSupply, 'live supply');
-    assertEq(current.totalAssets, full.totalAssets, 'live assets');
-    assertEq(current.scaledPendingWithdrawals, full.scaledPendingWithdrawals, 'live pending');
-    assertEq(current.pendingWithdrawalExpiry, full.pendingWithdrawalExpiry, 'live expiry');
-    assertEq(current.timeDelinquent, full.timeDelinquent, 'live delinquency');
-    assertEq(current.coverageLiquidity, full.coverageLiquidity, 'live coverage');
   }
 }

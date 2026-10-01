@@ -1,28 +1,46 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProvider.t
+// ║  ██▀▀     ▀▀██   Packed role-provider encoding, updates, and query tests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  PROVIDER ENCODING
+// ║  test_encodeRoleProvider(...)
+// ║  test_decodeRoleProvider(...)
+// ║
+// ║  PROVIDER CONFIGURATION
+// ║  test_setTimeToLive(...)
+// ║  test_setProviderAddress(...)
+// ║  test_setPullProviderIndex(...)
+// ║  test_setPushProviderIndex(...)
+// ║  test_setPushProviderIndex()
+// ║  test_setNotPullProvider(...)
+// ║  setNullIndex(...)
+// ║
+// ║  PROVIDER QUERIES
+// ║  test_calculateExpiry(...)
+// ║  test_eq(...)
+// ║  test_isNull(...)
+// ║  test_isPullProvider(...)
+// ║
+// ║  PROVIDER ASSERTIONS
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ╚═════
+
 import 'src/types/RoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 import { StandardRoleProvider } from '../shared/TestStructs.sol';
 
+// ┌─ RoleProviderTest ─────────────────────────────────────────────────────────
 contract RoleProviderTest is TestKernel {
-  modifier setNullIndex(StandardRoleProvider memory input, bool isPullProvider) {
-    if (!isPullProvider) input.pullProviderIndex = NullProviderIndex;
-    else input.pushProviderIndex = NullProviderIndex;
-    _;
-  }
+  // ░░▒▒▓▓██ [ PROVIDER ENCODING ] ────────────────────────────────────────────
 
-  function assertEq(RoleProvider actual, StandardRoleProvider memory expected, string memory message) internal pure {
-    assertEq(actual.providerAddress(), expected.providerAddress, message);
-    assertEq(actual.timeToLive(), expected.timeToLive, message);
-    assertEq(actual.pullProviderIndex(), expected.pullProviderIndex, message);
-    assertEq(actual.pushProviderIndex(), expected.pushProviderIndex, message);
-  }
-
-  function assertEq(RoleProvider actual, StandardRoleProvider memory expected) internal pure {
-    assertEq(actual, expected, 'RoleProvider');
-  }
-
+  // ┌─ test_encodeRoleProvider ─────
   function test_encodeRoleProvider(
     StandardRoleProvider memory input,
     bool isPullProvider
@@ -35,6 +53,7 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider, input);
   }
 
+  // ┌─ test_decodeRoleProvider ─────
   function test_decodeRoleProvider(
     StandardRoleProvider memory input,
     bool isPullProvider
@@ -50,21 +69,9 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider, input);
   }
 
-  function test_calculateExpiry(
-    StandardRoleProvider memory input,
-    bool isPullProvider,
-    uint32 timestamp
-  )
-    external
-    pure
-    setNullIndex(input, isPullProvider)
-  {
-    RoleProvider provider = input.toRoleProvider();
-    uint256 expiryTimestamp = uint(timestamp) + uint(input.timeToLive);
-    if (expiryTimestamp > type(uint32).max) expiryTimestamp = type(uint32).max;
-    assertEq(provider.calculateExpiry(timestamp), expiryTimestamp);
-  }
+  // ░░▒▒▓▓██ [ PROVIDER CONFIGURATION ] ───────────────────────────────────────
 
+  // ┌─ test_setTimeToLive ─────
   function test_setTimeToLive(
     StandardRoleProvider memory input,
     bool isPullProvider,
@@ -81,6 +88,7 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider, input, 'with new ttl');
   }
 
+  // ┌─ test_setProviderAddress ─────
   function test_setProviderAddress(
     StandardRoleProvider memory input,
     bool isPullProvider,
@@ -97,6 +105,7 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider, input, 'with new providerAddress');
   }
 
+  // ┌─ test_setPullProviderIndex ─────
   function test_setPullProviderIndex(
     StandardRoleProvider memory input,
     bool isPullProvider,
@@ -116,6 +125,7 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider, input, 'with new pullProviderIndex');
   }
 
+  // ┌─ test_setPushProviderIndex ─────
   function test_setPushProviderIndex(
     StandardRoleProvider memory input,
     bool isPullProvider,
@@ -135,6 +145,7 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider, input, 'with new pullProviderIndex');
   }
 
+  // ┌─ test_setPushProviderIndex ─────
   function test_setPushProviderIndex() external pure {
     RoleProvider provider = encodeRoleProvider({
       providerAddress: address(type(uint160).max),
@@ -153,6 +164,47 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider.timeToLive(), type(uint32).max);
   }
 
+  // ┌─ test_setNotPullProvider ─────
+  function test_setNotPullProvider(
+    StandardRoleProvider memory input,
+    bool isPullProvider
+  )
+    external
+    pure
+    setNullIndex(input, isPullProvider)
+  {
+    RoleProvider provider = input.toRoleProvider();
+    provider = provider.setNotPullProvider();
+    input.pullProviderIndex = NullProviderIndex;
+    assertEq(provider, input);
+  }
+
+  // ┌─ setNullIndex ─────
+  modifier setNullIndex(StandardRoleProvider memory input, bool isPullProvider) {
+    if (!isPullProvider) input.pullProviderIndex = NullProviderIndex;
+    else input.pushProviderIndex = NullProviderIndex;
+    _;
+  }
+
+  // ░░▒▒▓▓██ [ PROVIDER QUERIES ] ─────────────────────────────────────────────
+
+  // ┌─ test_calculateExpiry ─────
+  function test_calculateExpiry(
+    StandardRoleProvider memory input,
+    bool isPullProvider,
+    uint32 timestamp
+  )
+    external
+    pure
+    setNullIndex(input, isPullProvider)
+  {
+    RoleProvider provider = input.toRoleProvider();
+    uint256 expiryTimestamp = uint(timestamp) + uint(input.timeToLive);
+    if (expiryTimestamp > type(uint32).max) expiryTimestamp = type(uint32).max;
+    assertEq(provider.calculateExpiry(timestamp), expiryTimestamp);
+  }
+
+  // ┌─ test_eq ─────
   function test_eq(
     StandardRoleProvider memory input1,
     bool isPullProvider1,
@@ -173,6 +225,7 @@ contract RoleProviderTest is TestKernel {
     );
   }
 
+  // ┌─ test_isNull ─────
   function test_isNull(
     StandardRoleProvider memory input,
     bool isPullProvider
@@ -187,6 +240,7 @@ contract RoleProviderTest is TestKernel {
     );
   }
 
+  // ┌─ test_isPullProvider ─────
   function test_isPullProvider(
     StandardRoleProvider memory input,
     bool isPullProvider
@@ -199,17 +253,18 @@ contract RoleProviderTest is TestKernel {
     assertEq(provider.isPullProvider(), input.pullProviderIndex != NullProviderIndex);
   }
 
-  function test_setNotPullProvider(
-    StandardRoleProvider memory input,
-    bool isPullProvider
-  )
-    external
-    pure
-    setNullIndex(input, isPullProvider)
-  {
-    RoleProvider provider = input.toRoleProvider();
-    provider = provider.setNotPullProvider();
-    input.pullProviderIndex = NullProviderIndex;
-    assertEq(provider, input);
+  // ░░▒▒▓▓██ [ PROVIDER ASSERTIONS ] ──────────────────────────────────────────
+
+  // ┌─ assertEq ─────
+  function assertEq(RoleProvider actual, StandardRoleProvider memory expected, string memory message) internal pure {
+    assertEq(actual.providerAddress(), expected.providerAddress, message);
+    assertEq(actual.timeToLive(), expected.timeToLive, message);
+    assertEq(actual.pullProviderIndex(), expected.pullProviderIndex, message);
+    assertEq(actual.pushProviderIndex(), expected.pushProviderIndex, message);
+  }
+
+  // ┌─ assertEq ─────
+  function assertEq(RoleProvider actual, StandardRoleProvider memory expected) internal pure {
+    assertEq(actual, expected, 'RoleProvider');
   }
 }

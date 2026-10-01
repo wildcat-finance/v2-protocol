@@ -1,13 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // TransitionAllocatorHarness
+// ║  ██▀▀     ▀▀██   Transition arena layout, initialization, and guard checks.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  TRANSITION ALLOCATION
+// ║  compareWithSolidity(...)
+// ╚═════
+
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { LifecycleTransition, LifecycleAccrual } from 'src/libraries/MarketLifecycle.sol';
 import { FunctionTypeCasts } from 'src/libraries/FunctionTypeCasts.sol';
 
+// ┌─ TransitionAllocatorHarness ───────────────────────────────────────────────
 contract TransitionAllocatorHarness is WildcatMarketBase {
   using FunctionTypeCasts for *;
 
+  // ░░▒▒▓▓██ [ TRANSITION ALLOCATION ] ────────────────────────────────────────
+
+  // ┌─ compareWithSolidity ─────
   function compareWithSolidity(LifecycleTransition calldata input)
     external
     pure

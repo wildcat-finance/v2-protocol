@@ -1,6 +1,49 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderFactories.t
+// ║  ██▀▀     ▀▀██   Provider deployment matrices, validation, and hook attachment.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _case(...)
+// ║  _factory(...)
+// ║
+// ║  PROVIDER DEPLOYMENT
+// ║  testFuzz_typedAccessListFactoryCreatesExpectedProvider(...)
+// ║  testFuzz_typedERC20FactoryCreatesExpectedProvider(...)
+// ║  testFuzz_typedERC721FactoryCreatesExpectedProvider(...)
+// ║  testFuzz_typedERC1155FactoryCreatesExpectedProvider(...)
+// ║  testFuzz_typedERC4626FactoryCreatesExpectedProvider(...)
+// ║  testFuzz_typedMerkleFactoryCreatesExpectedProvider(...)
+// ║  test_genericInterfaceCreatesExpectedProviders()
+// ║  test_deploymentEvents()
+// ║  _createTyped(...)
+// ║  _assertProvider(...)
+// ║  _expectDeploymentEvent(...)
+// ║
+// ║  DETERMINISTIC ADDRESSES
+// ║  test_saltsAreNamespacedByCaller()
+// ║  test_duplicateDeploymentsRevert()
+// ║  _computeProviderAddress(...)
+// ║
+// ║  INPUT VALIDATION
+// ║  test_malformedGenericInputsRevert()
+// ║  test_invalidPrimaryAddressesRevert()
+// ║  test_zeroMinimumsRevert()
+// ║  test_invalidTokenInterfacesRevert()
+// ║  test_skippingTokenInterfaceChecksCreatesUsableProviders()
+// ║  test_merkleZeroRootIsAllowed()
+// ║
+// ║  PROVIDER AUTHORITY AND ATTACHMENT
+// ║  test_merkleFactoryHasNoProviderAuthority()
+// ║  test_hookConstructorsCreateAndAttachProviders()
+// ╚═════
+
 import { IManagedRoleProvider } from 'src/access/IManagedRoleProvider.sol';
 import { IRoleProvider } from 'src/access/IRoleProvider.sol';
 import { IRoleProviderFactory } from 'src/access/IRoleProviderFactory.sol';
@@ -66,6 +109,7 @@ struct FactoryCase {
   bytes inputs;
 }
 
+// ┌─ RoleProviderFactoriesTest ────────────────────────────────────────────────
 contract RoleProviderFactoriesTest is TestKernel {
   address internal constant Alice = address(0xA11CE);
   address internal constant Administrator = address(0xAD111);
@@ -80,6 +124,9 @@ contract RoleProviderFactoriesTest is TestKernel {
   FactoryERC165TokenMock internal erc1155Token;
   RoleProviderFactoryCaller internal alternateCaller;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     vm.warp(1_714_737_030);
     factories[uint256(FactoryKind.AccessList)] =
@@ -109,14 +156,7 @@ contract RoleProviderFactoriesTest is TestKernel {
       RoleProviderFactoryCaller(_deployCode('test/mocks/RoleProviderFactoryMocks.sol:RoleProviderFactoryCaller'));
   }
 
-  // ========================================================================== //
-  //                                Case matrix                                 //
-  // ========================================================================== //
-
-  function _factory(FactoryKind kind) internal view returns (address) {
-    return factories[uint256(kind)];
-  }
-
+  // ┌─ _case ─────
   function _case(FactoryKind kind, bytes32 salt) internal view returns (FactoryCase memory testCase) {
     testCase.kind = kind;
     testCase.factory = _factory(kind);
@@ -159,38 +199,127 @@ contract RoleProviderFactoriesTest is TestKernel {
     }
   }
 
-  function _computeProviderAddress(
-    FactoryCase memory testCase,
-    address deployer
-  )
-    internal
-    view
-    returns (address provider)
-  {
-    if (testCase.kind == FactoryKind.AccessList) {
-      return AccessListRoleProviderFactory(testCase.factory)
-        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (AccessListRoleProviderFactoryInputs)));
-    }
-    if (testCase.kind == FactoryKind.ERC20) {
-      return ERC20RoleProviderFactory(testCase.factory)
-        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC20RoleProviderFactoryInputs)));
-    }
-    if (testCase.kind == FactoryKind.ERC721) {
-      return ERC721RoleProviderFactory(testCase.factory)
-        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC721RoleProviderFactoryInputs)));
-    }
-    if (testCase.kind == FactoryKind.ERC1155) {
-      return ERC1155RoleProviderFactory(testCase.factory)
-        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC1155RoleProviderFactoryInputs)));
-    }
-    if (testCase.kind == FactoryKind.ERC4626) {
-      return ERC4626AssetsRoleProviderFactory(testCase.factory)
-        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC4626AssetsRoleProviderFactoryInputs)));
-    }
-    return MerkleRoleProviderFactory(testCase.factory)
-      .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (MerkleRoleProviderFactoryInputs)));
+  // ┌─ _factory ─────
+  function _factory(FactoryKind kind) internal view returns (address) {
+    return factories[uint256(kind)];
   }
 
+  // ░░▒▒▓▓██ [ PROVIDER DEPLOYMENT ] ──────────────────────────────────────────
+
+  // ┌─ testFuzz_typedAccessListFactoryCreatesExpectedProvider ─────
+  function testFuzz_typedAccessListFactoryCreatesExpectedProvider(bytes32 salt) external {
+    FactoryCase memory testCase = _case(FactoryKind.AccessList, salt);
+    address expected = _computeProviderAddress(testCase, address(this));
+    address actual = _createTyped(testCase);
+
+    assertEq(actual, expected, 'provider');
+    _assertProvider(testCase, actual);
+  }
+
+  // ┌─ testFuzz_typedERC20FactoryCreatesExpectedProvider ─────
+  function testFuzz_typedERC20FactoryCreatesExpectedProvider(uint128 minimumSeed, bytes32 salt) external {
+    FactoryCase memory testCase = _case(FactoryKind.ERC20, salt);
+    ERC20RoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (ERC20RoleProviderFactoryInputs));
+    inputs.minBalance = bound(uint256(minimumSeed), 1, type(uint128).max);
+    testCase.inputs = abi.encode(inputs);
+
+    address expected = _computeProviderAddress(testCase, address(this));
+    address actual = _createTyped(testCase);
+    assertEq(actual, expected, 'provider');
+    _assertProvider(testCase, actual);
+  }
+
+  // ┌─ testFuzz_typedERC721FactoryCreatesExpectedProvider ─────
+  function testFuzz_typedERC721FactoryCreatesExpectedProvider(bool skipInterfaceCheck, bytes32 salt) external {
+    FactoryCase memory testCase = _case(FactoryKind.ERC721, salt);
+    ERC721RoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (ERC721RoleProviderFactoryInputs));
+    inputs.skipInterfaceCheck = skipInterfaceCheck;
+    testCase.inputs = abi.encode(inputs);
+
+    address expected = _computeProviderAddress(testCase, address(this));
+    address actual = _createTyped(testCase);
+    assertEq(actual, expected, 'provider');
+    _assertProvider(testCase, actual);
+  }
+
+  // ┌─ testFuzz_typedERC1155FactoryCreatesExpectedProvider ─────
+  function testFuzz_typedERC1155FactoryCreatesExpectedProvider(
+    uint256 tokenId,
+    bool skipInterfaceCheck,
+    bytes32 salt
+  )
+    external
+  {
+    FactoryCase memory testCase = _case(FactoryKind.ERC1155, salt);
+    ERC1155RoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (ERC1155RoleProviderFactoryInputs));
+    inputs.tokenId = tokenId;
+    inputs.skipInterfaceCheck = skipInterfaceCheck;
+    testCase.inputs = abi.encode(inputs);
+
+    address expected = _computeProviderAddress(testCase, address(this));
+    address actual = _createTyped(testCase);
+    assertEq(actual, expected, 'provider');
+    _assertProvider(testCase, actual);
+  }
+
+  // ┌─ testFuzz_typedERC4626FactoryCreatesExpectedProvider ─────
+  function testFuzz_typedERC4626FactoryCreatesExpectedProvider(uint128 minimumSeed, bytes32 salt) external {
+    FactoryCase memory testCase = _case(FactoryKind.ERC4626, salt);
+    ERC4626AssetsRoleProviderFactoryInputs memory inputs =
+      abi.decode(testCase.inputs, (ERC4626AssetsRoleProviderFactoryInputs));
+    inputs.minAssets = bound(uint256(minimumSeed), 1, type(uint128).max);
+    testCase.inputs = abi.encode(inputs);
+
+    address expected = _computeProviderAddress(testCase, address(this));
+    address actual = _createTyped(testCase);
+    assertEq(actual, expected, 'provider');
+    _assertProvider(testCase, actual);
+  }
+
+  // ┌─ testFuzz_typedMerkleFactoryCreatesExpectedProvider ─────
+  function testFuzz_typedMerkleFactoryCreatesExpectedProvider(
+    address administrator,
+    bytes32 root,
+    bytes32 salt
+  )
+    external
+  {
+    if (administrator == address(0)) administrator = Administrator;
+    FactoryCase memory testCase = _case(FactoryKind.Merkle, salt);
+    MerkleRoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (MerkleRoleProviderFactoryInputs));
+    inputs.administrator = administrator;
+    inputs.root = root;
+    testCase.inputs = abi.encode(inputs);
+
+    address expected = _computeProviderAddress(testCase, address(this));
+    address actual = _createTyped(testCase);
+    assertEq(actual, expected, 'provider');
+    _assertProvider(testCase, actual);
+  }
+
+  // ┌─ test_genericInterfaceCreatesExpectedProviders ─────
+  function test_genericInterfaceCreatesExpectedProviders() external {
+    for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
+      FactoryCase memory testCase = _case(FactoryKind(rawKind), keccak256(abi.encode('generic', rawKind)));
+      address expected = _computeProviderAddress(testCase, address(this));
+      address actual = IRoleProviderFactory(testCase.factory).createRoleProvider(testCase.inputs);
+
+      assertEq(actual, expected, 'provider');
+      _assertProvider(testCase, actual);
+    }
+  }
+
+  // ┌─ test_deploymentEvents ─────
+  function test_deploymentEvents() external {
+    for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
+      FactoryCase memory testCase = _case(FactoryKind(rawKind), keccak256(abi.encode('event', rawKind)));
+      address expected = _computeProviderAddress(testCase, address(this));
+      _expectDeploymentEvent(testCase, expected, address(this));
+      _createTyped(testCase);
+    }
+  }
+
+  // ┌─ _createTyped ─────
   function _createTyped(FactoryCase memory testCase) internal returns (address provider) {
     if (testCase.kind == FactoryKind.AccessList) {
       return AccessListRoleProviderFactory(testCase.factory)
@@ -216,6 +345,7 @@ contract RoleProviderFactoriesTest is TestKernel {
       .createMerkleRoleProvider(abi.decode(testCase.inputs, (MerkleRoleProviderFactoryInputs)));
   }
 
+  // ┌─ _assertProvider ─────
   function _assertProvider(FactoryCase memory testCase, address provider) internal view {
     assertTrue(provider.code.length > 0, 'provider code');
     assertEq(IRoleProvider(provider).isPullProvider(), testCase.kind != FactoryKind.Merkle, 'provider kind');
@@ -248,6 +378,7 @@ contract RoleProviderFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ _expectDeploymentEvent ─────
   function _expectDeploymentEvent(FactoryCase memory testCase, address provider, address deployer) internal {
     vm.expectEmit(testCase.factory);
     if (testCase.kind == FactoryKind.AccessList) {
@@ -310,119 +441,9 @@ contract RoleProviderFactoriesTest is TestKernel {
     }
   }
 
-  // ========================================================================== //
-  //                             Typed entry points                             //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ DETERMINISTIC ADDRESSES ] ──────────────────────────────────────
 
-  function testFuzz_typedAccessListFactoryCreatesExpectedProvider(bytes32 salt) external {
-    FactoryCase memory testCase = _case(FactoryKind.AccessList, salt);
-    address expected = _computeProviderAddress(testCase, address(this));
-    address actual = _createTyped(testCase);
-
-    assertEq(actual, expected, 'provider');
-    _assertProvider(testCase, actual);
-  }
-
-  function testFuzz_typedERC20FactoryCreatesExpectedProvider(uint128 minimumSeed, bytes32 salt) external {
-    FactoryCase memory testCase = _case(FactoryKind.ERC20, salt);
-    ERC20RoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (ERC20RoleProviderFactoryInputs));
-    inputs.minBalance = bound(uint256(minimumSeed), 1, type(uint128).max);
-    testCase.inputs = abi.encode(inputs);
-
-    address expected = _computeProviderAddress(testCase, address(this));
-    address actual = _createTyped(testCase);
-    assertEq(actual, expected, 'provider');
-    _assertProvider(testCase, actual);
-  }
-
-  function testFuzz_typedERC721FactoryCreatesExpectedProvider(bool skipInterfaceCheck, bytes32 salt) external {
-    FactoryCase memory testCase = _case(FactoryKind.ERC721, salt);
-    ERC721RoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (ERC721RoleProviderFactoryInputs));
-    inputs.skipInterfaceCheck = skipInterfaceCheck;
-    testCase.inputs = abi.encode(inputs);
-
-    address expected = _computeProviderAddress(testCase, address(this));
-    address actual = _createTyped(testCase);
-    assertEq(actual, expected, 'provider');
-    _assertProvider(testCase, actual);
-  }
-
-  function testFuzz_typedERC1155FactoryCreatesExpectedProvider(
-    uint256 tokenId,
-    bool skipInterfaceCheck,
-    bytes32 salt
-  )
-    external
-  {
-    FactoryCase memory testCase = _case(FactoryKind.ERC1155, salt);
-    ERC1155RoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (ERC1155RoleProviderFactoryInputs));
-    inputs.tokenId = tokenId;
-    inputs.skipInterfaceCheck = skipInterfaceCheck;
-    testCase.inputs = abi.encode(inputs);
-
-    address expected = _computeProviderAddress(testCase, address(this));
-    address actual = _createTyped(testCase);
-    assertEq(actual, expected, 'provider');
-    _assertProvider(testCase, actual);
-  }
-
-  function testFuzz_typedERC4626FactoryCreatesExpectedProvider(uint128 minimumSeed, bytes32 salt) external {
-    FactoryCase memory testCase = _case(FactoryKind.ERC4626, salt);
-    ERC4626AssetsRoleProviderFactoryInputs memory inputs =
-      abi.decode(testCase.inputs, (ERC4626AssetsRoleProviderFactoryInputs));
-    inputs.minAssets = bound(uint256(minimumSeed), 1, type(uint128).max);
-    testCase.inputs = abi.encode(inputs);
-
-    address expected = _computeProviderAddress(testCase, address(this));
-    address actual = _createTyped(testCase);
-    assertEq(actual, expected, 'provider');
-    _assertProvider(testCase, actual);
-  }
-
-  function testFuzz_typedMerkleFactoryCreatesExpectedProvider(
-    address administrator,
-    bytes32 root,
-    bytes32 salt
-  )
-    external
-  {
-    if (administrator == address(0)) administrator = Administrator;
-    FactoryCase memory testCase = _case(FactoryKind.Merkle, salt);
-    MerkleRoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (MerkleRoleProviderFactoryInputs));
-    inputs.administrator = administrator;
-    inputs.root = root;
-    testCase.inputs = abi.encode(inputs);
-
-    address expected = _computeProviderAddress(testCase, address(this));
-    address actual = _createTyped(testCase);
-    assertEq(actual, expected, 'provider');
-    _assertProvider(testCase, actual);
-  }
-
-  // ========================================================================== //
-  //                         Shared factory behavior                            //
-  // ========================================================================== //
-
-  function test_genericInterfaceCreatesExpectedProviders() external {
-    for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
-      FactoryCase memory testCase = _case(FactoryKind(rawKind), keccak256(abi.encode('generic', rawKind)));
-      address expected = _computeProviderAddress(testCase, address(this));
-      address actual = IRoleProviderFactory(testCase.factory).createRoleProvider(testCase.inputs);
-
-      assertEq(actual, expected, 'provider');
-      _assertProvider(testCase, actual);
-    }
-  }
-
-  function test_deploymentEvents() external {
-    for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
-      FactoryCase memory testCase = _case(FactoryKind(rawKind), keccak256(abi.encode('event', rawKind)));
-      address expected = _computeProviderAddress(testCase, address(this));
-      _expectDeploymentEvent(testCase, expected, address(this));
-      _createTyped(testCase);
-    }
-  }
-
+  // ┌─ test_saltsAreNamespacedByCaller ─────
   function test_saltsAreNamespacedByCaller() external {
     for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
       FactoryCase memory testCase = _case(FactoryKind(rawKind), keccak256(abi.encode('shared', rawKind)));
@@ -434,6 +455,7 @@ contract RoleProviderFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_duplicateDeploymentsRevert ─────
   function test_duplicateDeploymentsRevert() external {
     for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
       FactoryCase memory testCase = _case(FactoryKind(rawKind), keccak256(abi.encode('duplicate', rawKind)));
@@ -444,6 +466,42 @@ contract RoleProviderFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ _computeProviderAddress ─────
+  function _computeProviderAddress(
+    FactoryCase memory testCase,
+    address deployer
+  )
+    internal
+    view
+    returns (address provider)
+  {
+    if (testCase.kind == FactoryKind.AccessList) {
+      return AccessListRoleProviderFactory(testCase.factory)
+        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (AccessListRoleProviderFactoryInputs)));
+    }
+    if (testCase.kind == FactoryKind.ERC20) {
+      return ERC20RoleProviderFactory(testCase.factory)
+        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC20RoleProviderFactoryInputs)));
+    }
+    if (testCase.kind == FactoryKind.ERC721) {
+      return ERC721RoleProviderFactory(testCase.factory)
+        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC721RoleProviderFactoryInputs)));
+    }
+    if (testCase.kind == FactoryKind.ERC1155) {
+      return ERC1155RoleProviderFactory(testCase.factory)
+        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC1155RoleProviderFactoryInputs)));
+    }
+    if (testCase.kind == FactoryKind.ERC4626) {
+      return ERC4626AssetsRoleProviderFactory(testCase.factory)
+        .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (ERC4626AssetsRoleProviderFactoryInputs)));
+    }
+    return MerkleRoleProviderFactory(testCase.factory)
+      .computeRoleProviderAddress(deployer, abi.decode(testCase.inputs, (MerkleRoleProviderFactoryInputs)));
+  }
+
+  // ░░▒▒▓▓██ [ INPUT VALIDATION ] ─────────────────────────────────────────────
+
+  // ┌─ test_malformedGenericInputsRevert ─────
   function test_malformedGenericInputsRevert() external {
     for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
       vm.expectRevert();
@@ -451,6 +509,7 @@ contract RoleProviderFactoriesTest is TestKernel {
     }
   }
 
+  // ┌─ test_invalidPrimaryAddressesRevert ─────
   function test_invalidPrimaryAddressesRevert() external {
     address[] memory noMembers = new address[](0);
 
@@ -504,10 +563,7 @@ contract RoleProviderFactoriesTest is TestKernel {
       );
   }
 
-  // ========================================================================== //
-  //                        Variant-specific behavior                           //
-  // ========================================================================== //
-
+  // ┌─ test_zeroMinimumsRevert ─────
   function test_zeroMinimumsRevert() external {
     vm.expectRevert(IERC20RoleProvider.InvalidMinimumBalance.selector);
     ERC20RoleProviderFactory(_factory(FactoryKind.ERC20))
@@ -526,6 +582,7 @@ contract RoleProviderFactoriesTest is TestKernel {
       );
   }
 
+  // ┌─ test_invalidTokenInterfacesRevert ─────
   function test_invalidTokenInterfacesRevert() external {
     vm.expectRevert(IERC721RoleProvider.InvalidERC721.selector);
     ERC721RoleProviderFactory(_factory(FactoryKind.ERC721))
@@ -549,6 +606,7 @@ contract RoleProviderFactoriesTest is TestKernel {
       );
   }
 
+  // ┌─ test_skippingTokenInterfaceChecksCreatesUsableProviders ─────
   function test_skippingTokenInterfaceChecksCreatesUsableProviders() external {
     nonERC165Token.setBalance(address(this), 1);
     nonERC165Token.setBalance(address(this), DefaultTokenId, 1);
@@ -579,6 +637,7 @@ contract RoleProviderFactoriesTest is TestKernel {
     );
   }
 
+  // ┌─ test_merkleZeroRootIsAllowed ─────
   function test_merkleZeroRootIsAllowed() external {
     FactoryCase memory testCase = _case(FactoryKind.Merkle, bytes32('empty'));
     MerkleRoleProviderFactoryInputs memory inputs = abi.decode(testCase.inputs, (MerkleRoleProviderFactoryInputs));
@@ -591,6 +650,9 @@ contract RoleProviderFactoriesTest is TestKernel {
     assertFalse(provider.isMember(Administrator, proof), 'member');
   }
 
+  // ░░▒▒▓▓██ [ PROVIDER AUTHORITY AND ATTACHMENT ] ────────────────────────────
+
+  // ┌─ test_merkleFactoryHasNoProviderAuthority ─────
   function test_merkleFactoryHasNoProviderAuthority() external {
     FactoryCase memory testCase = _case(FactoryKind.Merkle, bytes32('authority'));
     MerkleRoleProvider provider = MerkleRoleProvider(_createTyped(testCase));
@@ -600,6 +662,7 @@ contract RoleProviderFactoriesTest is TestKernel {
     provider.updateRoot(keccak256('next root'));
   }
 
+  // ┌─ test_hookConstructorsCreateAndAttachProviders ─────
   function test_hookConstructorsCreateAndAttachProviders() external {
     for (uint256 rawKind; rawKind < FactoryCount; rawKind++) {
       FactoryCase memory testCase = _case(FactoryKind(rawKind), keccak256(abi.encode('hook constructor', rawKind)));

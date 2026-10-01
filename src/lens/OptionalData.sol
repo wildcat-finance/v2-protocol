@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // OptionalData
+// ║  ██▀▀     ▀▀██   Presence-aware values and bounded optional getter reads.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  OPTIONAL READS
+// ║  readWord(...)
+// ╚═════
+
 /// @notice distinguishes an unavailable getter from a real zero value.
 struct OptionalUintDataV2_5 {
   bool isPresent;
@@ -13,8 +24,12 @@ struct OptionalBytes32Data {
   bytes32 value;
 }
 
+// ┌─ OptionalDataLib ──────────────────────────────────────────────────────────
 /// @notice bounded return-data reads for optional lens fields.
 library OptionalDataLib {
+  // ░░▒▒▓▓██ [ OPTIONAL READS ] ───────────────────────────────────────────────
+
+  // ┌─ readWord ─────
   function readWord(address target, bytes memory callData) internal view returns (bool success, uint256 value) {
     assembly ('memory-safe') {
       // copy one word. a missing, reverting, or short getter is unavailable; extra words

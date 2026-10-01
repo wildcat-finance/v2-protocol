@@ -1,6 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensFacade.t
+// ║  ██▀▀     ▀▀██   Facade routing, capability probes, and response boundaries.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  FACADE ROUTING
+// ║  test_constructorAndAggregationRoutes_AreComplete()
+// ║  test_aggregationMarketRoutes_AreComplete()
+// ║  test_coreAndLiveRoutes_AreComplete()
+// ║  _aggregationRoute(...)
+// ║  _coreRoute(...)
+// ║  _assertRoute(...)
+// ║
+// ║  FORWARDED ERRORS
+// ║  test_delegate_BubblesExactHelperRevert()
+// ║  test_getMarketData_BubblesCanonicalNotV2MarketError()
+// ║
+// ║  CAPABILITY PROBES
+// ║  test_versionAndHooksKindProbes_HandleValidBoundaries()
+// ║  test_versionAndHooksKindProbes_RejectMalformedDataAndBubbleReverts()
+// ║  _version(...)
+// ║
+// ║  OPTIONAL DATA AND FLAGS
+// ║  test_optionalUintProbe_DistinguishesPresenceFromFallback()
+// ║  _optionalTarget(...)
+// ║  _optionalResult(...)
+// ║  test_hooksConfigData_MapsEveryFlag()
+// ╚═════
+
 import { MarketLens } from 'src/lens/MarketLens.sol';
 import { MarketLensCore } from 'src/lens/MarketLensCore.sol';
 import { HooksConfigData, HooksInstanceKind } from 'src/lens/HooksConfigData.sol';
@@ -23,6 +57,7 @@ import { MalformedVersionMock, OptionalUintTargetMock } from '../mocks/LensMocks
 import { RevertingVersionMock, VersionStringMock } from '../mocks/LensMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ MarketLensFacadeTest ─────────────────────────────────────────────────────
 contract MarketLensFacadeTest is TestKernel {
   uint256 internal constant CoreResponse = 0xC0;
   uint256 internal constant AggregationResponse = 0xA0;
@@ -31,6 +66,9 @@ contract MarketLensFacadeTest is TestKernel {
   MarketLens internal lens;
   LensProbeHarness internal probes;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     address core = _deployCode('test/mocks/LensMocks.sol:LensDelegateTargetMock', abi.encode(CoreResponse, false));
     address aggregation =
@@ -44,20 +82,9 @@ contract MarketLensFacadeTest is TestKernel {
     probes = LensProbeHarness(_deployCode('test/mocks/LensMocks.sol:LensProbeHarness'));
   }
 
-  function _assertRoute(bytes memory payload, uint256 expectedResponse) internal view {
-    (bool success, bytes memory result) = address(lens).staticcall(payload);
-    assertTrue(success, 'facade call');
-    assertEq(result, abi.encode(expectedResponse), 'helper route');
-  }
+  // ░░▒▒▓▓██ [ FACADE ROUTING ] ───────────────────────────────────────────────
 
-  function _aggregationRoute(bytes memory payload) internal view {
-    _assertRoute(payload, AggregationResponse);
-  }
-
-  function _coreRoute(bytes memory payload) internal view {
-    _assertRoute(payload, CoreResponse);
-  }
-
+  // ┌─ test_constructorAndAggregationRoutes_AreComplete ─────
   function test_constructorAndAggregationRoutes_AreComplete() external view {
     address borrower = address(0xB0B);
     address factory = address(0xFAC7);
@@ -88,6 +115,7 @@ contract MarketLensFacadeTest is TestKernel {
     _aggregationRoute(abi.encodeWithSignature('getAggregatedHooksTemplatesForBorrowerWithFactory(address)', borrower));
   }
 
+  // ┌─ test_aggregationMarketRoutes_AreComplete ─────
   function test_aggregationMarketRoutes_AreComplete() external view {
     address factory = address(0xFAC7);
     address template = address(0x7E4);
@@ -121,6 +149,7 @@ contract MarketLensFacadeTest is TestKernel {
     _aggregationRoute(abi.encodeWithSignature('getAggregatedAllMarketsDataV2ForHooksTemplate(address)', template));
   }
 
+  // ┌─ test_coreAndLiveRoutes_AreComplete ─────
   function test_coreAndLiveRoutes_AreComplete() external view {
     address lender = address(0x1EAD);
     address market = address(0xAA4);
@@ -171,6 +200,26 @@ contract MarketLensFacadeTest is TestKernel {
     );
   }
 
+  // ┌─ _aggregationRoute ─────
+  function _aggregationRoute(bytes memory payload) internal view {
+    _assertRoute(payload, AggregationResponse);
+  }
+
+  // ┌─ _coreRoute ─────
+  function _coreRoute(bytes memory payload) internal view {
+    _assertRoute(payload, CoreResponse);
+  }
+
+  // ┌─ _assertRoute ─────
+  function _assertRoute(bytes memory payload, uint256 expectedResponse) internal view {
+    (bool success, bytes memory result) = address(lens).staticcall(payload);
+    assertTrue(success, 'facade call');
+    assertEq(result, abi.encode(expectedResponse), 'helper route');
+  }
+
+  // ░░▒▒▓▓██ [ FORWARDED ERRORS ] ─────────────────────────────────────────────
+
+  // ┌─ test_delegate_BubblesExactHelperRevert ─────
   function test_delegate_BubblesExactHelperRevert() external {
     address revertingCore = _deployCode('test/mocks/LensMocks.sol:LensDelegateTargetMock', abi.encode(uint256(0), true));
     MarketLens revertingLens = MarketLens(
@@ -183,6 +232,7 @@ contract MarketLensFacadeTest is TestKernel {
     revertingLens.getTokenInfo(address(0));
   }
 
+  // ┌─ test_getMarketData_BubblesCanonicalNotV2MarketError ─────
   function test_getMarketData_BubblesCanonicalNotV2MarketError() external {
     MarketLensCore core =
       MarketLensCore(_deployCode('src/lens/MarketLensCore.sol:MarketLensCore', abi.encode(address(0), address(0))));
@@ -198,6 +248,9 @@ contract MarketLensFacadeTest is TestKernel {
     productionCoreLens.getMarketData(address(v1Market));
   }
 
+  // ░░▒▒▓▓██ [ CAPABILITY PROBES ] ────────────────────────────────────────────
+
+  // ┌─ test_versionAndHooksKindProbes_HandleValidBoundaries ─────
   function test_versionAndHooksKindProbes_HandleValidBoundaries() external {
     VersionStringMock v2 = _version('2.5.0');
     VersionStringMock v1 = _version('1.0.0');
@@ -217,6 +270,7 @@ contract MarketLensFacadeTest is TestKernel {
     assertEq(uint256(probes.hooksKind(address(unknown))), uint256(HooksInstanceKind.Unknown));
   }
 
+  // ┌─ test_versionAndHooksKindProbes_RejectMalformedDataAndBubbleReverts ─────
   function test_versionAndHooksKindProbes_RejectMalformedDataAndBubbleReverts() external {
     for (uint256 i; i < 3; i++) {
       address malformed =
@@ -235,6 +289,14 @@ contract MarketLensFacadeTest is TestKernel {
     probes.hooksKind(address(revertingTarget));
   }
 
+  // ┌─ _version ─────
+  function _version(string memory version) internal returns (VersionStringMock target) {
+    target = VersionStringMock(_deployCode('test/mocks/LensMocks.sol:VersionStringMock', abi.encode(version)));
+  }
+
+  // ░░▒▒▓▓██ [ OPTIONAL DATA AND FLAGS ] ──────────────────────────────────────
+
+  // ┌─ test_optionalUintProbe_DistinguishesPresenceFromFallback ─────
   function test_optionalUintProbe_DistinguishesPresenceFromFallback() external {
     bytes4 selector = bytes4(keccak256('optionalValue()'));
     OptionalUintTargetMock zero = _optionalTarget(0, OptionalUintTargetMock.Shape.Word);
@@ -256,6 +318,26 @@ contract MarketLensFacadeTest is TestKernel {
     assertEq(result, 0, 'revert value');
   }
 
+  // ┌─ _optionalTarget ─────
+  function _optionalTarget(
+    uint256 value,
+    OptionalUintTargetMock.Shape shape
+  )
+    internal
+    returns (OptionalUintTargetMock target)
+  {
+    target = OptionalUintTargetMock(
+      _deployCode('test/mocks/LensMocks.sol:OptionalUintTargetMock', abi.encode(value, shape))
+    );
+  }
+
+  // ┌─ _optionalResult ─────
+  function _optionalResult(address target, bytes4 selector) internal view returns (bool present, uint256 value) {
+    OptionalUintDataV2_5 memory data = probes.optionalUint(target, selector);
+    return (data.isPresent, data.value);
+  }
+
+  // ┌─ test_hooksConfigData_MapsEveryFlag ─────
   function test_hooksConfigData_MapsEveryFlag() external view {
     HooksConfig config = EmptyHooksConfig;
     config = config.setFlag(Bit_Enabled_Deposit);
@@ -284,26 +366,5 @@ contract MarketLensFacadeTest is TestKernel {
     assertTrue(data.useOnSetAnnualInterestAndReserveRatioBips, 'apr');
     assertTrue(data.useOnSetProtocolFeeBips, 'protocol fee');
     assertTrue(data.useOnExecutePendingAnnualInterestBipsReduction, 'pending apr');
-  }
-
-  function _version(string memory version) internal returns (VersionStringMock target) {
-    target = VersionStringMock(_deployCode('test/mocks/LensMocks.sol:VersionStringMock', abi.encode(version)));
-  }
-
-  function _optionalTarget(
-    uint256 value,
-    OptionalUintTargetMock.Shape shape
-  )
-    internal
-    returns (OptionalUintTargetMock target)
-  {
-    target = OptionalUintTargetMock(
-      _deployCode('test/mocks/LensMocks.sol:OptionalUintTargetMock', abi.encode(value, shape))
-    );
-  }
-
-  function _optionalResult(address target, bytes4 selector) internal view returns (bool present, uint256 value) {
-    OptionalUintDataV2_5 memory data = probes.optionalUint(target, selector);
-    return (data.isPresent, data.value);
   }
 }

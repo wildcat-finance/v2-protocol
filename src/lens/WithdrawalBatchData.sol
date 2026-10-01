@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalBatchData
+// ║  ██▀▀     ▀▀██   Withdrawal batch accounting and lender claim previews.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  BATCH AND CLAIM DATA
+// ║  fill(...)
+// ║  fill(...)
+// ║  fill(...)
+// ╚═════
+
 import './MarketAccountingReader.sol';
 
 import '../WildcatArchController.sol';
@@ -53,9 +66,28 @@ struct WithdrawalBatchDataWithLenderStatus {
   WithdrawalBatchLenderStatus lenderStatus;
 }
 
+// ┌─ WithdrawalBatchDataLib ───────────────────────────────────────────────────
 /// @notice fillers for withdrawal batches and lender claims.
 library WithdrawalBatchDataLib {
+  // ░░▒▒▓▓██ [ BATCH AND CLAIM DATA ] ─────────────────────────────────────────
+
+  // ┌─ fill ─────
+  function fill(
+    WithdrawalBatchDataWithLenderStatus memory data,
+    WildcatMarket market,
+    uint32 expiry,
+    address lender
+  )
+    internal
+    view
+  {
+    data.batch.fill(market, expiry);
+    data.lenderStatus.fill(market, data.batch, lender);
+  }
+
+  // ┌─ fill ─────
   /// @notice fills aggregate batch state for `expiry`.
+  ///
   /// @dev an unknown expiry is represented by the market's empty batch and classifies as complete.
   function fill(WithdrawalBatchData memory data, WildcatMarket market, uint32 expiry) internal view {
     WithdrawalBatch memory batch = MarketAccountingReader.withdrawalBatch(market, expiry);
@@ -80,6 +112,7 @@ library WithdrawalBatchDataLib {
     }
   }
 
+  // ┌─ fill ─────
   /// @notice fills the lender's pro-rata paid and unpaid amounts for `batch`.
   function fill(
     WithdrawalBatchLenderStatus memory data,
@@ -109,18 +142,5 @@ library WithdrawalBatchDataLib {
         batch.normalizedAmountPaid, data.scaledAmount, batch.scaledTotalAmount
       ) - data.normalizedAmountWithdrawn;
     }
-  }
-
-  function fill(
-    WithdrawalBatchDataWithLenderStatus memory data,
-    WildcatMarket market,
-    uint32 expiry,
-    address lender
-  )
-    internal
-    view
-  {
-    data.batch.fill(market, expiry);
-    data.lenderStatus.fill(market, data.batch, lender);
   }
 }

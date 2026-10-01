@@ -1,6 +1,50 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // TransferFeatureHooks
+// ║  ██▀▀     ▀▀██   Transfer-feature integrations across term-policy families.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  OPEN TRANSFER POLICY
+// ║  _authorizeFeatureManagement(...)
+// ║  _onMarketConfigured(...)
+// ║  _checkTransfer(...)
+// ║  _featureTransferRecipientAllowed(...)
+// ║  getHookedMarket(...)
+// ║  getHookedMarkets(...)
+// ║
+// ║  OPEN TRANSFER HOOKS
+// ║  constructor(...)
+// ║  version()
+// ║
+// ║  FIXED TRANSFER POLICY
+// ║  _authorizeFeatureManagement(...)
+// ║  _onMarketConfigured(...)
+// ║  _checkTransfer(...)
+// ║  _featureTransferRecipientAllowed(...)
+// ║  getHookedMarket(...)
+// ║  getHookedMarkets(...)
+// ║
+// ║  FIXED TRANSFER HOOKS
+// ║  constructor(...)
+// ║  version()
+// ║
+// ║  PERIODIC TRANSFER POLICY
+// ║  _authorizeFeatureManagement(...)
+// ║  _onMarketConfigured(...)
+// ║  _checkTransfer(...)
+// ║  _featureTransferRecipientAllowed(...)
+// ║  getHookedMarket(...)
+// ║  getHookedMarkets(...)
+// ║
+// ║  PERIODIC TRANSFER HOOKS
+// ║  constructor(...)
+// ║  version()
+// ╚═════
+
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { OpenTermPolicy } from 'src/access/OpenTermPolicy.sol';
 import { FixedTermPolicy } from 'src/access/FixedTermPolicy.sol';
@@ -21,12 +65,17 @@ import { Bit_Enabled_SetAnnualInterestAndReserveRatioBips } from 'src/types/Hook
 import { Bit_Enabled_ExecutePendingAnnualInterestBipsReduction } from 'src/types/HooksConfig.sol';
 import { TransferFeatures } from './TransferFeaturePolicies.sol';
 
+// ┌─ OpenTransferPolicy ───────────────────────────────────────────────────────
 /// @dev test-only open assembly. each callback selects its feature helpers explicitly.
 abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
+  // ░░▒▒▓▓██ [ OPEN TRANSFER POLICY ] ─────────────────────────────────────────
+
+  // ┌─ _authorizeFeatureManagement ─────
   function _authorizeFeatureManagement(address market) internal view override onlyAdministrator {
     _requireHookedMarket(market);
   }
 
+  // ┌─ _onMarketConfigured ─────
   function _onMarketConfigured(
     address,
     address market,
@@ -43,6 +92,7 @@ abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
     _setTransferAmountLimit(market, parameters.maxTotalSupply);
   }
 
+  // ┌─ _checkTransfer ─────
   function _checkTransfer(
     address,
     address,
@@ -58,6 +108,7 @@ abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
     _applyTransferFeatures(msg.sender, to, scaledAmount);
   }
 
+  // ┌─ _featureTransferRecipientAllowed ─────
   function _featureTransferRecipientAllowed(
     address market,
     address recipient
@@ -71,10 +122,12 @@ abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
     return _recipientAllowed(market, recipient);
   }
 
+  // ┌─ getHookedMarket ─────
   function getHookedMarket(address market) external view returns (OpenMarket memory) {
     return _hookedMarkets[market];
   }
 
+  // ┌─ getHookedMarkets ─────
   function getHookedMarkets(address[] calldata markets) external view returns (OpenMarket[] memory result) {
     result = new OpenMarket[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -83,7 +136,11 @@ abstract contract OpenTransferPolicy is OpenTermPolicy, TransferFeatures {
   }
 }
 
+// ┌─ OpenTransferHooks ────────────────────────────────────────────────────────
 contract OpenTransferHooks is OpenTransferPolicy {
+  // ░░▒▒▓▓██ [ OPEN TRANSFER HOOKS ] ──────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address administrator,
     bytes memory args
@@ -100,17 +157,23 @@ contract OpenTransferHooks is OpenTransferPolicy {
     )
   { }
 
+  // ┌─ version ─────
   function version() external pure override returns (string memory) {
     return 'OpenTransferHooks';
   }
 }
 
+// ┌─ FixedTransferPolicy ──────────────────────────────────────────────────────
 /// @dev test-only fixed assembly. each callback selects its feature helpers explicitly.
 abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
+  // ░░▒▒▓▓██ [ FIXED TRANSFER POLICY ] ────────────────────────────────────────
+
+  // ┌─ _authorizeFeatureManagement ─────
   function _authorizeFeatureManagement(address market) internal view override onlyAdministrator {
     _requireHookedMarket(market);
   }
 
+  // ┌─ _onMarketConfigured ─────
   function _onMarketConfigured(
     address,
     address market,
@@ -127,6 +190,7 @@ abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
     _setTransferAmountLimit(market, parameters.maxTotalSupply);
   }
 
+  // ┌─ _checkTransfer ─────
   function _checkTransfer(
     address,
     address,
@@ -142,6 +206,7 @@ abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
     _applyTransferFeatures(msg.sender, to, scaledAmount);
   }
 
+  // ┌─ _featureTransferRecipientAllowed ─────
   function _featureTransferRecipientAllowed(
     address market,
     address recipient
@@ -155,10 +220,12 @@ abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
     return _recipientAllowed(market, recipient);
   }
 
+  // ┌─ getHookedMarket ─────
   function getHookedMarket(address market) external view returns (FixedMarket memory) {
     return _hookedMarkets[market];
   }
 
+  // ┌─ getHookedMarkets ─────
   function getHookedMarkets(address[] calldata markets) external view returns (FixedMarket[] memory result) {
     result = new FixedMarket[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -167,7 +234,11 @@ abstract contract FixedTransferPolicy is FixedTermPolicy, TransferFeatures {
   }
 }
 
+// ┌─ FixedTransferHooks ───────────────────────────────────────────────────────
 contract FixedTransferHooks is FixedTransferPolicy {
+  // ░░▒▒▓▓██ [ FIXED TRANSFER HOOKS ] ─────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address administrator,
     bytes memory args
@@ -185,17 +256,23 @@ contract FixedTransferHooks is FixedTransferPolicy {
     )
   { }
 
+  // ┌─ version ─────
   function version() external pure override returns (string memory) {
     return 'FixedTransferHooks';
   }
 }
 
+// ┌─ PeriodicTransferPolicy ───────────────────────────────────────────────────
 /// @dev test-only periodic assembly. each callback selects its feature helpers explicitly.
 abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures {
+  // ░░▒▒▓▓██ [ PERIODIC TRANSFER POLICY ] ─────────────────────────────────────
+
+  // ┌─ _authorizeFeatureManagement ─────
   function _authorizeFeatureManagement(address market) internal view override onlyAdministrator {
     _requireHookedMarket(market);
   }
 
+  // ┌─ _onMarketConfigured ─────
   function _onMarketConfigured(
     address,
     address market,
@@ -212,6 +289,7 @@ abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures
     _setTransferAmountLimit(market, parameters.maxTotalSupply);
   }
 
+  // ┌─ _checkTransfer ─────
   function _checkTransfer(
     address,
     address,
@@ -227,6 +305,7 @@ abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures
     _applyTransferFeatures(msg.sender, to, scaledAmount);
   }
 
+  // ┌─ _featureTransferRecipientAllowed ─────
   function _featureTransferRecipientAllowed(
     address market,
     address recipient
@@ -240,10 +319,12 @@ abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures
     return _recipientAllowed(market, recipient);
   }
 
+  // ┌─ getHookedMarket ─────
   function getHookedMarket(address market) external view returns (PeriodicMarket memory) {
     return _hookedMarkets[market];
   }
 
+  // ┌─ getHookedMarkets ─────
   function getHookedMarkets(address[] calldata markets) external view returns (PeriodicMarket[] memory result) {
     result = new PeriodicMarket[](markets.length);
     for (uint256 i; i < markets.length; i++) {
@@ -252,7 +333,11 @@ abstract contract PeriodicTransferPolicy is PeriodicTermPolicy, TransferFeatures
   }
 }
 
+// ┌─ PeriodicTransferHooks ────────────────────────────────────────────────────
 contract PeriodicTransferHooks is PeriodicTransferPolicy {
+  // ░░▒▒▓▓██ [ PERIODIC TRANSFER HOOKS ] ──────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(
     address administrator,
     bytes memory args
@@ -271,6 +356,7 @@ contract PeriodicTransferHooks is PeriodicTransferPolicy {
     )
   { }
 
+  // ┌─ version ─────
   function version() external pure override returns (string memory) {
     return 'PeriodicTransferHooks';
   }

@@ -1,6 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // FeeMath.t
+// ║  ██▀▀     ▀▀██   Accrual, protocol fee, and delinquency boundary tests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  ACCRUAL
+// ║  test_updateScaleFactorAndFees_WithFees()
+// ║  test_updateScaleFactorAndFees_WithoutFeesWithPenalties()
+// ║  test_updateScaleFactorAndFees_WithFeesAndPenalties()
+// ║  test_updateScaleFactorAndFees_WithoutFeesOrPenalties()
+// ║  test_updateScaleFactorAndFees_ZeroDelinquencyFeeAccumulatesTime()
+// ║  test_updateScaleFactorAndFees_ZeroDelinquencyFeeDecaysTime()
+// ║  test_updateScaleFactorAndFees_AcceptedUint112LimitReverts()
+// ║  test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate()
+// ║  test_updateScaleFactorAndFees_NoTimeDelta(...)
+// ║
+// ║  DELINQUENCY
+// ║  test_updateTimeDelinquentAndGetPenaltyTime(...)
+// ║  testUpdateTimeDelinquentAndGetPenaltyTime()
+// ╚═════
+
 import { FeeMath, MathUtils, MarketState } from 'src/libraries/FeeMath.sol';
 import { RAY } from 'src/libraries/MathUtils.sol';
 import './wrappers/FeeMathExternal.sol';
@@ -10,10 +33,14 @@ import { TestKernel } from '../shared/TestKernel.sol';
 // Forge is currently incapable of mapping MemberAccess function calls with
 // expressions other than library identifiers (e.g. value.x() vs XLib.x(value))
 // to the correct FunctionDefinition nodes.
+// ┌─ FeeMathTest ──────────────────────────────────────────────────────────────
 contract FeeMathTest is TestKernel {
   using MathUtils for uint256;
   using FeeMathExternal for MarketState;
 
+  // ░░▒▒▓▓██ [ ACCRUAL ] ──────────────────────────────────────────────────────
+
+  // ┌─ test_updateScaleFactorAndFees_WithFees ─────
   function test_updateScaleFactorAndFees_WithFees() external {
     MarketState memory state;
     state.protocolFeeBips = 1000;
@@ -37,6 +64,7 @@ contract FeeMathTest is TestKernel {
     assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
   }
 
+  // ┌─ test_updateScaleFactorAndFees_WithoutFeesWithPenalties ─────
   function test_updateScaleFactorAndFees_WithoutFeesWithPenalties() external {
     MarketState memory state;
     state.timeDelinquent = 1000;
@@ -59,6 +87,7 @@ contract FeeMathTest is TestKernel {
     assertEq(delinquencyFeeRay, 1e26, 'incorrect delinquencyFeeRay');
   }
 
+  // ┌─ test_updateScaleFactorAndFees_WithFeesAndPenalties ─────
   function test_updateScaleFactorAndFees_WithFeesAndPenalties() external {
     MarketState memory state;
     state.protocolFeeBips = 1000;
@@ -82,6 +111,7 @@ contract FeeMathTest is TestKernel {
     assertEq(delinquencyFeeRay, 1e26, 'incorrect delinquencyFeeRay');
   }
 
+  // ┌─ test_updateScaleFactorAndFees_WithoutFeesOrPenalties ─────
   function test_updateScaleFactorAndFees_WithoutFeesOrPenalties() external {
     MarketState memory state;
     state.timeDelinquent = 1000;
@@ -104,6 +134,7 @@ contract FeeMathTest is TestKernel {
     assertEq(delinquencyFeeRay, 0, 'incorrect delinquencyFeeRay');
   }
 
+  // ┌─ test_updateScaleFactorAndFees_ZeroDelinquencyFeeAccumulatesTime ─────
   function test_updateScaleFactorAndFees_ZeroDelinquencyFeeAccumulatesTime() external pure {
     MarketState memory state;
     state.isDelinquent = true;
@@ -125,6 +156,7 @@ contract FeeMathTest is TestKernel {
     assertEq(protocolFee, 0, 'unexpected protocol fee');
   }
 
+  // ┌─ test_updateScaleFactorAndFees_ZeroDelinquencyFeeDecaysTime ─────
   function test_updateScaleFactorAndFees_ZeroDelinquencyFeeDecaysTime() external pure {
     MarketState memory state;
     state.timeDelinquent = 2 days;
@@ -145,6 +177,7 @@ contract FeeMathTest is TestKernel {
     assertEq(protocolFee, 0, 'unexpected protocol fee');
   }
 
+  // ┌─ test_updateScaleFactorAndFees_AcceptedUint112LimitReverts ─────
   function test_updateScaleFactorAndFees_AcceptedUint112LimitReverts() external {
     MarketState memory state;
     // Exact last-safe value after 2,829 daily updates at 100% APR plus a
@@ -159,6 +192,7 @@ contract FeeMathTest is TestKernel {
     state.$updateScaleFactorAndFees(10_000, 0, 1 days + 1);
   }
 
+  // ┌─ test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate ─────
   function test_updateScaleFactorAndFees_Uint112MaxStableAtZeroRate() external pure {
     MarketState memory state;
     state.scaleFactor = type(uint112).max;
@@ -176,6 +210,7 @@ contract FeeMathTest is TestKernel {
     assertEq(protocolFee, 0, 'incorrect protocolFee');
   }
 
+  // ┌─ test_updateScaleFactorAndFees_NoTimeDelta ─────
   function test_updateScaleFactorAndFees_NoTimeDelta(
     MarketState calldata stateInput,
     uint16 delinquencyFeeBips,
@@ -197,6 +232,9 @@ contract FeeMathTest is TestKernel {
     assertEq(keccak256(abi.encode(state)), stateHash, 'state should not change');
   }
 
+  // ░░▒▒▓▓██ [ DELINQUENCY ] ──────────────────────────────────────────────────
+
+  // ┌─ test_updateTimeDelinquentAndGetPenaltyTime ─────
   function test_updateTimeDelinquentAndGetPenaltyTime(
     bool isCurrentlyDelinquent,
     uint32 previousTimeDelinquent,
@@ -258,6 +296,7 @@ contract FeeMathTest is TestKernel {
     }
   }
 
+  // ┌─ testUpdateTimeDelinquentAndGetPenaltyTime ─────
   function testUpdateTimeDelinquentAndGetPenaltyTime() external pure {
     MarketState memory state;
     uint256 timeWithPenalty;

@@ -1,46 +1,41 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // PenaltyLifecycleScenarios.t
+// ║  ██▀▀     ▀▀██   Penalty cutoff, observed cure, allocation, and closure scenarios.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  PENALTY TIMELINE
+// ║  testFuzz_penaltyCureAtCutoffAndOneSecondLate(...)
+// ║  testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer(...)
+// ║
+// ║  QUEUE ALLOCATION AND DRAIN
+// ║  test_idleQueueAllocationMatchesOracle()
+// ║  test_donationAndPendingPaymentCanDrainAfterScheduledClosure()
+// ╚═════
+
 import { PenaltyLifecycleFixture } from './LifecycleFixture.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 
+// ┌─ PenaltyLifecycleScenariosTest ────────────────────────────────────────────
 contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
-  function test_donationAndPendingPaymentCanDrainAfterScheduledClosure() external {
-    lifecycle.advance(5, 0, 1);
-    lifecycle.advance(3, 3, 14 days);
-    lifecycle.sanctionLender(0);
-    lifecycle.nukeFromOrbit(0);
-    lifecycle.donate(2, 2, 86);
-    _assertLifecycle();
-    uint256 snapshot = vm.snapshot();
-    lifecycle.fund(2, 1, 0, false);
-    WildcatMarket market = WildcatMarket(lifecycle.marketAt(2));
-    MarketState memory state = market.previousState();
-    assertTrue(state.isClosed, 'carry makes the debt quote sufficient for closure');
-    assertTrue(market.totalAssets() >= state.totalDebts(), 'every remaining liability is backed');
-    _assertLifecycle();
-    assertTrue(vm.revertTo(snapshot), 'restore the liveness regression');
-    _finishLifecycle('donation-rounding-regression');
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
+  // ┌─ setUp ─────
   function setUp() external {
     _setupPenaltyLifecycle();
   }
 
-  function test_idleQueueAllocationMatchesOracle() external {
-    lifecycle.advance(13367, 13832, 31);
-    lifecycle.queueFullWithdrawal(10360);
-    for (uint256 i; i < MatrixSize; ++i) {
-      (MarketState memory expected, MarketState memory actual) = lifecycle.viewStates(i);
-      assertEq(expected.scaledTotalSupply, actual.scaledTotalSupply, 'scaled supply preview');
-      assertEq(expected.scaledPendingWithdrawals, actual.scaledPendingWithdrawals, 'pending preview');
-      assertEq(expected.normalizedUnclaimedWithdrawals, actual.normalizedUnclaimedWithdrawals, 'allocated preview');
-      assertEq(abi.encode(expected), abi.encode(actual), 'full preview');
-    }
-    _assertLifecycle();
-  }
+  // ░░▒▒▓▓██ [ PENALTY TIMELINE ] ─────────────────────────────────────────────
 
+  // ┌─ testFuzz_penaltyCureAtCutoffAndOneSecondLate ─────
   function testFuzz_penaltyCureAtCutoffAndOneSecondLate(uint8 cell, bool late, bool process) external {
     uint256 i = uint256(cell) % MatrixSize;
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
@@ -57,6 +52,7 @@ contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
     _assertLifecycle();
   }
 
+  // ┌─ testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer ─────
   function testFuzz_observedCureResetsRunWithoutForgivingEconomicTimer(uint8 cell) external {
     uint256 i = uint256(cell) % MatrixSize;
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
@@ -80,5 +76,40 @@ contract PenaltyLifecycleScenariosTest is PenaltyLifecycleFixture {
     assertEq(market.defaultedAt(), newCutoff, 'cure cannot clear default');
     assertFalse(market.isClosed(), 'fully funded before date or without terms');
     _assertLifecycle();
+  }
+
+  // ░░▒▒▓▓██ [ QUEUE ALLOCATION AND DRAIN ] ───────────────────────────────────
+
+  // ┌─ test_idleQueueAllocationMatchesOracle ─────
+  function test_idleQueueAllocationMatchesOracle() external {
+    lifecycle.advance(13367, 13832, 31);
+    lifecycle.queueFullWithdrawal(10360);
+    for (uint256 i; i < MatrixSize; ++i) {
+      (MarketState memory expected, MarketState memory actual) = lifecycle.viewStates(i);
+      assertEq(expected.scaledTotalSupply, actual.scaledTotalSupply, 'scaled supply preview');
+      assertEq(expected.scaledPendingWithdrawals, actual.scaledPendingWithdrawals, 'pending preview');
+      assertEq(expected.normalizedUnclaimedWithdrawals, actual.normalizedUnclaimedWithdrawals, 'allocated preview');
+      assertEq(abi.encode(expected), abi.encode(actual), 'full preview');
+    }
+    _assertLifecycle();
+  }
+
+  // ┌─ test_donationAndPendingPaymentCanDrainAfterScheduledClosure ─────
+  function test_donationAndPendingPaymentCanDrainAfterScheduledClosure() external {
+    lifecycle.advance(5, 0, 1);
+    lifecycle.advance(3, 3, 14 days);
+    lifecycle.sanctionLender(0);
+    lifecycle.nukeFromOrbit(0);
+    lifecycle.donate(2, 2, 86);
+    _assertLifecycle();
+    uint256 snapshot = vm.snapshot();
+    lifecycle.fund(2, 1, 0, false);
+    WildcatMarket market = WildcatMarket(lifecycle.marketAt(2));
+    MarketState memory state = market.previousState();
+    assertTrue(state.isClosed, 'carry makes the debt quote sufficient for closure');
+    assertTrue(market.totalAssets() >= state.totalDebts(), 'every remaining liability is backed');
+    _assertLifecycle();
+    assertTrue(vm.revertTo(snapshot), 'restore the liveness regression');
+    _finishLifecycle('donation-rounding-regression');
   }
 }

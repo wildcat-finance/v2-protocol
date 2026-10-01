@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // DeployTypes
+// ║  ██▀▀     ▀▀██   Development market configuration and hook encoding.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  HOOK ENCODING
+// ║  encodeHooksData(...)
+// ║  toHooksConfig(...)
+// ║
+// ║  TOKEN DEPLOYMENT
+// ║  deployMockERC20(...)
+// ╚═════
+
 import 'src/types/HooksConfig.sol';
 
 struct MarketConfig {
@@ -24,56 +39,36 @@ struct MarketConfig {
   string marketSymbol;
 }
 
-/**
- *  Level of access required for accounts to receive a transfer
- */
+///  Level of access required for accounts to receive a transfer
 enum TransferAccess {
-  /**
-   * No transfers allowed
-   * `transfersDisabled` = true
-   */
+  /// No transfers allowed
+  /// `transfersDisabled` = true
   Disabled,
-  /**
-   * Transfer recipient must have a credential or be a known lender
-   * `transfersDisabled` = false, `useOnTransfer` = true (in deployment hooks config)
-   */
+  /// Transfer recipient must have a credential or be a known lender
+  /// `transfersDisabled` = false, `useOnTransfer` = true (in deployment hooks config)
   RequiresCredential,
-  /**
-   * Anyone can receive a transfer
-   * `transfersDisabled` = false, `useOnTransfer` = false (in deployment hooks config)
-   */
+  /// Anyone can receive a transfer
+  /// `transfersDisabled` = false, `useOnTransfer` = false (in deployment hooks config)
   Open
 }
 
-/**
- *  Level of access required for a lender to make a deposit
- */
+///  Level of access required for a lender to make a deposit
 enum DepositAccess {
-  /**
-   * Depositors must have a credential
-   * `useOnDeposit` = true (in deployment hooks config)
-   */
+  /// Depositors must have a credential
+  /// `useOnDeposit` = true (in deployment hooks config)
   RequiresCredential,
-  /**
-   * Anyone can make a deposit
-   * `useOnDeposit` = false (in deployment hooks config)
-   */
+  /// Anyone can make a deposit
+  /// `useOnDeposit` = false (in deployment hooks config)
   Open
 }
 
-/**
- *  Level of access required for a lender to make a withdrawal request
- */
+///  Level of access required for a lender to make a withdrawal request
 enum WithdrawalAccess {
-  /**
-   * Withdrawing account must have a credential or be a known lender
-   * `useOnQueueWithdrawal` = true (in deployment hooks config)
-   */
+  /// Withdrawing account must have a credential or be a known lender
+  /// `useOnQueueWithdrawal` = true (in deployment hooks config)
   RequiresCredential,
-  /**
-   * Anyone can make a withdrawal request
-   * `useOnQueueWithdrawal` = false (in deployment hooks config)
-   */
+  /// Anyone can make a withdrawal request
+  /// `useOnQueueWithdrawal` = false (in deployment hooks config)
   Open
 }
 
@@ -92,6 +87,9 @@ struct MarketHooksOptions {
 
 using { encodeHooksData, toHooksConfig } for MarketHooksOptions global;
 
+// ░░▒▒▓▓██ [ HOOK ENCODING ] ──────────────────────────────────────────────────
+
+// ┌─ encodeHooksData ─────
 function encodeHooksData(MarketHooksOptions memory options) pure returns (bytes memory) {
   if (options.isOpenTerm) {
     return abi.encode(options.minimumDeposit, options.transferAccess == TransferAccess.Disabled);
@@ -105,6 +103,7 @@ function encodeHooksData(MarketHooksOptions memory options) pure returns (bytes 
   );
 }
 
+// ┌─ toHooksConfig ─────
 function toHooksConfig(MarketHooksOptions memory options) pure returns (HooksConfig) {
   return encodeHooksConfig({
     hooksAddress: address(0),
@@ -122,6 +121,10 @@ function toHooksConfig(MarketHooksOptions memory options) pure returns (HooksCon
   });
 }
 
+// ┌─ IMockERC20Factory ────────────────────────────────────────────────────────
 interface IMockERC20Factory {
+  // ░░▒▒▓▓██ [ TOKEN DEPLOYMENT ] ─────────────────────────────────────────────
+
+  // ┌─ deployMockERC20 ─────
   function deployMockERC20(string memory name, string memory symbol) external returns (address);
 }

@@ -1,20 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-/**
- * Environment:
- * - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
- *   ARCH_CONTROLLER, SANCTIONS_SENTINEL, WRAPPER_FACTORY, and
- *   SKIP_EIP1153_CHECK. Script 01 must precede this script.
- * - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
- *   PVT_KEY_<NETWORK> (unless Foundry already has a configured sender).
- * - Plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
- *
- * Direct example:
- *   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 --rpc-url $RPC_URL --broadcast
- * Plan example:
- *   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 --rpc-url $RPC_URL
- */
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // 02-deploy-hooks-factory-standard.s
+// ║  ██▀▀     ▀▀██   Standard hooks-factory deployment and release inventory.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  DEPLOYMENT
+// ║  run()
+// ║
+// ║  DEPLOYMENT PLAN
+// ║  _writePlanEntries(...)
+// ║
+// ║  DIRECT DEPLOYMENT
+// ║  _runDirect(...)
+// ║  _verifyFactory(...)
+// ║
+// ║  INVENTORY RECORDS
+// ║  _writePlanInventoryRecords(...)
+// ║  _writeInventoryRecords(...)
+// ╚═════
+
+// Environment:
+// - Both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),
+//   ARCH_CONTROLLER, SANCTIONS_SENTINEL, WRAPPER_FACTORY, and
+//   SKIP_EIP1153_CHECK. Script 01 must precede this script.
+// - Direct: OWNER_MODE=direct (default off mainnet), RPC_URL, and
+//   PVT_KEY_<NETWORK> (unless Foundry already has a configured sender).
+// - Plan: OWNER_MODE=plan, RPC_URL, and EXPECTED_EXECUTOR; no private key is required.
+//
+// Direct example:
+//   OWNER_MODE=direct DEPLOYMENTS_NETWORK=anvil RPC_URL=$RPC_URL PVT_KEY_ANVIL=$KEY forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 --rpc-url $RPC_URL --broadcast
+// Plan example:
+//   OWNER_MODE=plan DEPLOYMENTS_NETWORK=anvil EXPECTED_EXECUTOR=0x1234567890123456789012345678901234567890 forge script script/deploy/v2-5/02-deploy-hooks-factory-standard.s.sol:DeployHooksFactoryStandardV25 --rpc-url $RPC_URL
 
 import { console } from 'forge-std/console.sol';
 
@@ -23,6 +43,7 @@ import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegis
 
 import '../../common/DeployScriptBase.sol';
 
+// ┌─ DeployHooksFactoryStandardV25 ────────────────────────────────────────────
 contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
   string internal constant MARKET_ARTIFACT = 'src/market/WildcatMarket.sol:WildcatMarket';
   string internal constant FACTORY_ARTIFACT = 'src/HooksFactory.sol:HooksFactory';
@@ -50,55 +71,32 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     uint256 initCodeHash;
   }
 
-  function _verifyFactory(
-    address factory,
-    string memory label,
-    address archController,
-    address sanctionsSentinel,
-    address wrapperFactory,
-    address borrowerIdentityRegistry,
-    address initCodeStorage,
-    uint256 initCodeHash
-  )
-    internal
-    view
-  {
-    _verifyAddressCall(
-      factory, label, 'archController', abi.encodeWithSelector(IHooksFactory.archController.selector), archController
-    );
-    _verifyAddressCall(
-      factory,
-      label,
-      'sanctionsSentinel',
-      abi.encodeWithSelector(IHooksFactory.sanctionsSentinel.selector),
-      sanctionsSentinel
-    );
-    _verifyAddressCall(
-      factory, label, 'wrapperFactory', abi.encodeWithSelector(IHooksFactory.wrapperFactory.selector), wrapperFactory
-    );
-    _verifyAddressCall(
-      factory,
-      label,
-      'borrowerIdentityRegistry',
-      abi.encodeWithSelector(IHooksFactory.borrowerIdentityRegistry.selector),
-      borrowerIdentityRegistry
-    );
-    _verifyAddressCall(
-      factory,
-      label,
-      'marketInitCodeStorage',
-      abi.encodeWithSelector(IHooksFactory.marketInitCodeStorage.selector),
-      initCodeStorage
-    );
-    _verifyUintCall(
-      factory,
-      label,
-      'marketInitCodeHash',
-      abi.encodeWithSelector(IHooksFactory.marketInitCodeHash.selector),
-      initCodeHash
-    );
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ run ─────
+  function run() external {
+    string memory ownerMode = _ownerMode();
+    (Deployments memory deployments, string memory networkName) = _resolveDeployments();
+    DeploymentInputs memory inputs;
+    inputs.archController = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
+    inputs.sanctionsSentinel = _resolveExisting(deployments, 'WildcatSanctionsSentinel', 'SANCTIONS_SENTINEL');
+    inputs.marketCreationCode = _getCreationCode(deployments, MARKET_ARTIFACT);
+    _requireInitCodeStoragePayloadFits(inputs.marketCreationCode, MARKET_ARTIFACT);
+    inputs.initCodeHash = uint256(keccak256(inputs.marketCreationCode));
+
+    if (_isPlanMode(ownerMode)) {
+      _writePlanEntries(deployments, inputs);
+      _writePlanInventoryRecords(deployments, networkName, inputs.initCodeHash, inputs.marketCreationCode);
+      return;
+    }
+
+    inputs.wrapperFactory = _resolveExisting(deployments, _label('Wildcat4626WrapperFactory'), 'WRAPPER_FACTORY');
+    _runDirect(deployments, networkName, inputs);
   }
 
+  // ░░▒▒▓▓██ [ DEPLOYMENT PLAN ] ──────────────────────────────────────────────
+
+  // ┌─ _writePlanEntries ─────
   function _writePlanEntries(Deployments memory deployments, DeploymentInputs memory inputs) internal {
     string[] memory registryAfter = new string[](1);
     registryAfter[0] = WRAPPER_ENTRY_ID;
@@ -171,134 +169,9 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     _planEntry(deployments, factoryEntry);
   }
 
-  function _writeInventoryRecords(
-    Deployments memory deployments,
-    string memory networkName,
-    string memory storageLabel,
-    address initCodeStorage,
-    string memory identityRegistryLabel,
-    address borrowerIdentityRegistry,
-    string memory accessListFactoryLabel,
-    address accessListRoleProviderFactory,
-    string memory factoryLabel,
-    address factory,
-    address wrapperFactory,
-    uint256 initCodeHash
-  )
-    internal
-  {
-    string memory identityRegistryRecord = string.concat(
-      '{"recordType":"deployment","role":"identityRegistry","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(identityRegistryLabel),
-      ',"address":',
-      _quoted(vm.toString(borrowerIdentityRegistry)),
-      '}'
-    );
-    _inventoryRecord(deployments, 2, identityRegistryLabel, identityRegistryRecord);
+  // ░░▒▒▓▓██ [ DIRECT DEPLOYMENT ] ────────────────────────────────────────────
 
-    string memory accessListFactoryRecord = string.concat(
-      '{"recordType":"deployment","role":"roleProviderFactory","providerKind":"ACCESS_LIST","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(accessListFactoryLabel),
-      ',"address":',
-      _quoted(vm.toString(accessListRoleProviderFactory)),
-      '}'
-    );
-    _inventoryRecord(deployments, 3, accessListFactoryLabel, accessListFactoryRecord);
-
-    _writeLiveInitCodeStorageInventory(deployments, 4, networkName, storageLabel, initCodeStorage, initCodeHash);
-
-    string memory factoryRecord = string.concat(
-      '{"recordType":"hooksFactory","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"marketType":"legacy","deploymentKey":',
-      _quoted(factoryLabel),
-      ',"address":',
-      _quoted(vm.toString(factory)),
-      ',"wrapperFactory":',
-      _quoted(vm.toString(wrapperFactory)),
-      ',"borrowerIdentityRegistry":',
-      _quoted(vm.toString(borrowerIdentityRegistry)),
-      ',"initCodeStorage":',
-      _quoted(vm.toString(initCodeStorage)),
-      ',"initCodeHash":',
-      _quoted(vm.toString(bytes32(initCodeHash))),
-      ',"canonicalIntent":true}'
-    );
-    _inventoryRecord(deployments, 5, factoryLabel, factoryRecord);
-  }
-
-  function _writePlanInventoryRecords(
-    Deployments memory deployments,
-    string memory networkName,
-    uint256 initCodeHash,
-    bytes memory creationCode
-  )
-    internal
-  {
-    string memory identityRegistryLabel = _label('WildcatBorrowerIdentityRegistry');
-    string memory identityRegistryRecord = string.concat(
-      '{"recordType":"deployment","role":"identityRegistry","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(identityRegistryLabel),
-      ',"address":',
-      _ref(IDENTITY_REGISTRY_OUTPUT),
-      '}'
-    );
-    _inventoryRecord(deployments, 2, identityRegistryLabel, identityRegistryRecord);
-
-    string memory accessListFactoryLabel = _label('AccessListRoleProviderFactory');
-    string memory accessListFactoryRecord = string.concat(
-      '{"recordType":"deployment","role":"roleProviderFactory","providerKind":"ACCESS_LIST","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"deploymentKey":',
-      _quoted(accessListFactoryLabel),
-      ',"address":',
-      _ref(ACCESS_LIST_FACTORY_OUTPUT),
-      '}'
-    );
-    _inventoryRecord(deployments, 3, accessListFactoryLabel, accessListFactoryRecord);
-
-    string memory storageLabel = _label('WildcatMarket_initCodeStorage');
-    _writePlanInitCodeStorageInventory(deployments, 4, networkName, storageLabel, STORAGE_OUTPUT, creationCode);
-
-    string memory factoryLabel = _label('HooksFactory');
-    string memory factoryRecord = string.concat(
-      '{"recordType":"hooksFactory","network":',
-      _quoted(networkName),
-      ',"chainId":',
-      vm.toString(block.chainid),
-      ',"marketType":"legacy","deploymentKey":',
-      _quoted(factoryLabel),
-      ',"address":',
-      _ref(FACTORY_OUTPUT),
-      ',"wrapperFactory":',
-      _ref(WRAPPER_OUTPUT),
-      ',"borrowerIdentityRegistry":',
-      _ref(IDENTITY_REGISTRY_OUTPUT),
-      ',"initCodeStorage":',
-      _ref(STORAGE_OUTPUT),
-      ',"initCodeHash":',
-      _quoted(vm.toString(bytes32(initCodeHash))),
-      ',"registerEntryId":"register-hooks-factory-standard","canonicalIntent":true}'
-    );
-    _inventoryRecord(deployments, 5, factoryLabel, factoryRecord);
-  }
-
+  // ┌─ _runDirect ─────
   function _runDirect(
     Deployments memory deployments,
     string memory networkName,
@@ -380,23 +253,185 @@ contract DeployHooksFactoryStandardV25 is V25DeployScriptBase {
     console.log('Did deploy HooksFactory:', didDeployFactory);
   }
 
-  function run() external {
-    string memory ownerMode = _ownerMode();
-    (Deployments memory deployments, string memory networkName) = _resolveDeployments();
-    DeploymentInputs memory inputs;
-    inputs.archController = _resolveExisting(deployments, 'WildcatArchController', 'ARCH_CONTROLLER');
-    inputs.sanctionsSentinel = _resolveExisting(deployments, 'WildcatSanctionsSentinel', 'SANCTIONS_SENTINEL');
-    inputs.marketCreationCode = _getCreationCode(deployments, MARKET_ARTIFACT);
-    _requireInitCodeStoragePayloadFits(inputs.marketCreationCode, MARKET_ARTIFACT);
-    inputs.initCodeHash = uint256(keccak256(inputs.marketCreationCode));
+  // ┌─ _verifyFactory ─────
+  function _verifyFactory(
+    address factory,
+    string memory label,
+    address archController,
+    address sanctionsSentinel,
+    address wrapperFactory,
+    address borrowerIdentityRegistry,
+    address initCodeStorage,
+    uint256 initCodeHash
+  )
+    internal
+    view
+  {
+    _verifyAddressCall(
+      factory, label, 'archController', abi.encodeWithSelector(IHooksFactory.archController.selector), archController
+    );
+    _verifyAddressCall(
+      factory,
+      label,
+      'sanctionsSentinel',
+      abi.encodeWithSelector(IHooksFactory.sanctionsSentinel.selector),
+      sanctionsSentinel
+    );
+    _verifyAddressCall(
+      factory, label, 'wrapperFactory', abi.encodeWithSelector(IHooksFactory.wrapperFactory.selector), wrapperFactory
+    );
+    _verifyAddressCall(
+      factory,
+      label,
+      'borrowerIdentityRegistry',
+      abi.encodeWithSelector(IHooksFactory.borrowerIdentityRegistry.selector),
+      borrowerIdentityRegistry
+    );
+    _verifyAddressCall(
+      factory,
+      label,
+      'marketInitCodeStorage',
+      abi.encodeWithSelector(IHooksFactory.marketInitCodeStorage.selector),
+      initCodeStorage
+    );
+    _verifyUintCall(
+      factory,
+      label,
+      'marketInitCodeHash',
+      abi.encodeWithSelector(IHooksFactory.marketInitCodeHash.selector),
+      initCodeHash
+    );
+  }
 
-    if (_isPlanMode(ownerMode)) {
-      _writePlanEntries(deployments, inputs);
-      _writePlanInventoryRecords(deployments, networkName, inputs.initCodeHash, inputs.marketCreationCode);
-      return;
-    }
+  // ░░▒▒▓▓██ [ INVENTORY RECORDS ] ────────────────────────────────────────────
 
-    inputs.wrapperFactory = _resolveExisting(deployments, _label('Wildcat4626WrapperFactory'), 'WRAPPER_FACTORY');
-    _runDirect(deployments, networkName, inputs);
+  // ┌─ _writePlanInventoryRecords ─────
+  function _writePlanInventoryRecords(
+    Deployments memory deployments,
+    string memory networkName,
+    uint256 initCodeHash,
+    bytes memory creationCode
+  )
+    internal
+  {
+    string memory identityRegistryLabel = _label('WildcatBorrowerIdentityRegistry');
+    string memory identityRegistryRecord = string.concat(
+      '{"recordType":"deployment","role":"identityRegistry","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(identityRegistryLabel),
+      ',"address":',
+      _ref(IDENTITY_REGISTRY_OUTPUT),
+      '}'
+    );
+    _inventoryRecord(deployments, 2, identityRegistryLabel, identityRegistryRecord);
+
+    string memory accessListFactoryLabel = _label('AccessListRoleProviderFactory');
+    string memory accessListFactoryRecord = string.concat(
+      '{"recordType":"deployment","role":"roleProviderFactory","providerKind":"ACCESS_LIST","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(accessListFactoryLabel),
+      ',"address":',
+      _ref(ACCESS_LIST_FACTORY_OUTPUT),
+      '}'
+    );
+    _inventoryRecord(deployments, 3, accessListFactoryLabel, accessListFactoryRecord);
+
+    string memory storageLabel = _label('WildcatMarket_initCodeStorage');
+    _writePlanInitCodeStorageInventory(deployments, 4, networkName, storageLabel, STORAGE_OUTPUT, creationCode);
+
+    string memory factoryLabel = _label('HooksFactory');
+    string memory factoryRecord = string.concat(
+      '{"recordType":"hooksFactory","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"marketType":"legacy","deploymentKey":',
+      _quoted(factoryLabel),
+      ',"address":',
+      _ref(FACTORY_OUTPUT),
+      ',"wrapperFactory":',
+      _ref(WRAPPER_OUTPUT),
+      ',"borrowerIdentityRegistry":',
+      _ref(IDENTITY_REGISTRY_OUTPUT),
+      ',"initCodeStorage":',
+      _ref(STORAGE_OUTPUT),
+      ',"initCodeHash":',
+      _quoted(vm.toString(bytes32(initCodeHash))),
+      ',"registerEntryId":"register-hooks-factory-standard","canonicalIntent":true}'
+    );
+    _inventoryRecord(deployments, 5, factoryLabel, factoryRecord);
+  }
+
+  // ┌─ _writeInventoryRecords ─────
+  function _writeInventoryRecords(
+    Deployments memory deployments,
+    string memory networkName,
+    string memory storageLabel,
+    address initCodeStorage,
+    string memory identityRegistryLabel,
+    address borrowerIdentityRegistry,
+    string memory accessListFactoryLabel,
+    address accessListRoleProviderFactory,
+    string memory factoryLabel,
+    address factory,
+    address wrapperFactory,
+    uint256 initCodeHash
+  )
+    internal
+  {
+    string memory identityRegistryRecord = string.concat(
+      '{"recordType":"deployment","role":"identityRegistry","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(identityRegistryLabel),
+      ',"address":',
+      _quoted(vm.toString(borrowerIdentityRegistry)),
+      '}'
+    );
+    _inventoryRecord(deployments, 2, identityRegistryLabel, identityRegistryRecord);
+
+    string memory accessListFactoryRecord = string.concat(
+      '{"recordType":"deployment","role":"roleProviderFactory","providerKind":"ACCESS_LIST","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"deploymentKey":',
+      _quoted(accessListFactoryLabel),
+      ',"address":',
+      _quoted(vm.toString(accessListRoleProviderFactory)),
+      '}'
+    );
+    _inventoryRecord(deployments, 3, accessListFactoryLabel, accessListFactoryRecord);
+
+    _writeLiveInitCodeStorageInventory(deployments, 4, networkName, storageLabel, initCodeStorage, initCodeHash);
+
+    string memory factoryRecord = string.concat(
+      '{"recordType":"hooksFactory","network":',
+      _quoted(networkName),
+      ',"chainId":',
+      vm.toString(block.chainid),
+      ',"marketType":"legacy","deploymentKey":',
+      _quoted(factoryLabel),
+      ',"address":',
+      _quoted(vm.toString(factory)),
+      ',"wrapperFactory":',
+      _quoted(vm.toString(wrapperFactory)),
+      ',"borrowerIdentityRegistry":',
+      _quoted(vm.toString(borrowerIdentityRegistry)),
+      ',"initCodeStorage":',
+      _quoted(vm.toString(initCodeStorage)),
+      ',"initCodeHash":',
+      _quoted(vm.toString(bytes32(initCodeHash))),
+      ',"canonicalIntent":true}'
+    );
+    _inventoryRecord(deployments, 5, factoryLabel, factoryRecord);
   }
 }

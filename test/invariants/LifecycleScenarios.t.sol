@@ -1,64 +1,57 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleScenarios.t
+// ║  ██▀▀     ▀▀██   Deterministic and fuzzed lifecycle boundary and drain scenarios.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  TIMELINE AND CURE
+// ║  test_seededMatrixMatchesIndependentOracle()
+// ║  test_idleDateAndDeadlineCrossingMatchesOracle()
+// ║  testFuzz_deadlineCureIsInclusive(...)
+// ║  test_oneWeiShortDoesNotCloseAndSameTimestampCureCounts()
+// ║  testFuzz_lateDonationCannotRewriteFunding(...)
+// ║
+// ║  REPAYMENT ADMISSION
+// ║  test_repaymentRejectsAdmissionAndBothAprRoutes()
+// ║
+// ║  BATCH FUNDING AND DRAIN
+// ║  test_forcedQueueRetainsFractionalDebtAndItsBatchClaim()
+// ║  test_boundedPaymentPreservesDebtUntilFullyFunded()
+// ║  test_partialBatchesSanctionedCollectionAndScheduledDrain()
+// ║  testFuzz_batchExpiryAtInclusiveDeadline(...)
+// ║  test_surplusRecoveryPreservesScheduledDrain()
+// ╚═════
+
 import { LifecycleFixture } from './LifecycleFixture.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { IMarketEventsAndErrors } from 'src/interfaces/IMarketEventsAndErrors.sol';
 import { IWildcatMarketRevolving } from 'src/interfaces/IWildcatMarketRevolving.sol';
 
+// ┌─ LifecycleScenariosTest ───────────────────────────────────────────────────
 contract LifecycleScenariosTest is LifecycleFixture {
-  function test_surplusRecoveryPreservesScheduledDrain() external {
-    for (uint256 i; i < MatrixSize; ++i) {
-      WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
-      uint256 deadline = market.repaymentDeadline();
-      if (vm.getBlockTimestamp() < deadline) vm.warp(deadline);
-      lifecycle.fund(i, 3, 50e18, true);
-      lifecycle.recoverSurplus(i);
-      assertEq(market.totalAssets(), market.totalDebts(), 'every liability retained');
-      _assertLifecycle();
-    }
-    _finishLifecycle('surplus-recovery');
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
-  function test_forcedQueueRetainsFractionalDebtAndItsBatchClaim() external {
-    lifecycle.sanctionLender(0);
-    lifecycle.advance(1, 2, 34_689_600_001);
-    lifecycle.fund(2, 2, 95, true);
-    lifecycle.nukeFromOrbit(0);
-    WildcatMarket market = WildcatMarket(lifecycle.marketAt(2));
-    assertFalse(market.previousState().isClosed, 'forced queue preserves the unpaid fraction');
-    assertEq(market.totalDebts(), market.totalAssets() + 1);
-    lifecycle.fund(2, 1, 0, false);
-    assertTrue(market.previousState().isClosed, 'full funding closes');
-    assertEq(market.previousState().pendingWithdrawalExpiry, 0, 'closure releases the batch');
-    assertEq(lifecycle.trackedExpiryCount(2), 1, 'released batch remains tracked');
-    _assertLifecycle();
-    _finishLifecycle('forced-queue-regression');
-  }
-
-  function test_boundedPaymentPreservesDebtUntilFullyFunded() external {
-    lifecycle.queueFullWithdrawal(0);
-    lifecycle.advance(1, 1, 0);
-    WildcatMarket market = WildcatMarket(lifecycle.marketAt(3));
-    lifecycle.fund(3, 2, 2, true);
-    assertFalse(market.previousState().isClosed, 'allocation does not discard carried debt');
-    assertEq(market.totalDebts(), market.totalAssets() + 1);
-    lifecycle.fund(3, 1, 0, false);
-    assertTrue(market.previousState().isClosed, 'full funding closes');
-    assertEq(market.totalAssets(), market.totalDebts(), 'all remaining liabilities backed');
-    assertEq(IWildcatMarketRevolving(address(market)).drawnAmount(), 0, 'closure clears principal');
-    _assertLifecycle();
-  }
-
+  // ┌─ setUp ─────
   function setUp() external {
     _setupLifecycle();
   }
 
+  // ░░▒▒▓▓██ [ TIMELINE AND CURE ] ────────────────────────────────────────────
+
+  // ┌─ test_seededMatrixMatchesIndependentOracle ─────
   function test_seededMatrixMatchesIndependentOracle() external view {
     _assertLifecycle();
   }
 
+  // ┌─ test_idleDateAndDeadlineCrossingMatchesOracle ─────
   function test_idleDateAndDeadlineCrossingMatchesOracle() external {
     vm.warp(vm.getBlockTimestamp() + 160 days);
     _assertLifecycle();
@@ -66,6 +59,7 @@ contract LifecycleScenariosTest is LifecycleFixture {
     _assertLifecycle();
   }
 
+  // ┌─ testFuzz_deadlineCureIsInclusive ─────
   function testFuzz_deadlineCureIsInclusive(uint8 cell, bool late, bool process, uint8 updates) external {
     uint256 i = uint256(cell) % MatrixSize;
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
@@ -85,6 +79,7 @@ contract LifecycleScenariosTest is LifecycleFixture {
     _assertLifecycle();
   }
 
+  // ┌─ test_oneWeiShortDoesNotCloseAndSameTimestampCureCounts ─────
   function test_oneWeiShortDoesNotCloseAndSameTimestampCureCounts() external {
     uint256 snapshot = vm.snapshot();
     for (uint256 i; i < MatrixSize; ++i) {
@@ -104,6 +99,7 @@ contract LifecycleScenariosTest is LifecycleFixture {
     }
   }
 
+  // ┌─ testFuzz_lateDonationCannotRewriteFunding ─────
   function testFuzz_lateDonationCannotRewriteFunding(uint8 cell, bool beforeDeadline) external {
     uint256 i = uint256(cell) % MatrixSize;
     WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
@@ -120,6 +116,9 @@ contract LifecycleScenariosTest is LifecycleFixture {
     _assertLifecycle();
   }
 
+  // ░░▒▒▓▓██ [ REPAYMENT ADMISSION ] ──────────────────────────────────────────
+
+  // ┌─ test_repaymentRejectsAdmissionAndBothAprRoutes ─────
   function test_repaymentRejectsAdmissionAndBothAprRoutes() external {
     uint256 date = WildcatMarket(lifecycle.marketAt(2)).repaymentDate();
     // propose after the first window so execution is ready during repayment, not expired.
@@ -146,6 +145,41 @@ contract LifecycleScenariosTest is LifecycleFixture {
     _assertLifecycle();
   }
 
+  // ░░▒▒▓▓██ [ BATCH FUNDING AND DRAIN ] ──────────────────────────────────────
+
+  // ┌─ test_forcedQueueRetainsFractionalDebtAndItsBatchClaim ─────
+  function test_forcedQueueRetainsFractionalDebtAndItsBatchClaim() external {
+    lifecycle.sanctionLender(0);
+    lifecycle.advance(1, 2, 34_689_600_001);
+    lifecycle.fund(2, 2, 95, true);
+    lifecycle.nukeFromOrbit(0);
+    WildcatMarket market = WildcatMarket(lifecycle.marketAt(2));
+    assertFalse(market.previousState().isClosed, 'forced queue preserves the unpaid fraction');
+    assertEq(market.totalDebts(), market.totalAssets() + 1);
+    lifecycle.fund(2, 1, 0, false);
+    assertTrue(market.previousState().isClosed, 'full funding closes');
+    assertEq(market.previousState().pendingWithdrawalExpiry, 0, 'closure releases the batch');
+    assertEq(lifecycle.trackedExpiryCount(2), 1, 'released batch remains tracked');
+    _assertLifecycle();
+    _finishLifecycle('forced-queue-regression');
+  }
+
+  // ┌─ test_boundedPaymentPreservesDebtUntilFullyFunded ─────
+  function test_boundedPaymentPreservesDebtUntilFullyFunded() external {
+    lifecycle.queueFullWithdrawal(0);
+    lifecycle.advance(1, 1, 0);
+    WildcatMarket market = WildcatMarket(lifecycle.marketAt(3));
+    lifecycle.fund(3, 2, 2, true);
+    assertFalse(market.previousState().isClosed, 'allocation does not discard carried debt');
+    assertEq(market.totalDebts(), market.totalAssets() + 1);
+    lifecycle.fund(3, 1, 0, false);
+    assertTrue(market.previousState().isClosed, 'full funding closes');
+    assertEq(market.totalAssets(), market.totalDebts(), 'all remaining liabilities backed');
+    assertEq(IWildcatMarketRevolving(address(market)).drawnAmount(), 0, 'closure clears principal');
+    _assertLifecycle();
+  }
+
+  // ┌─ test_partialBatchesSanctionedCollectionAndScheduledDrain ─────
   function test_partialBatchesSanctionedCollectionAndScheduledDrain() external {
     lifecycle.deposit(1, 1_000e18);
     lifecycle.transfer(1, 2, 500e18);
@@ -178,6 +212,7 @@ contract LifecycleScenariosTest is LifecycleFixture {
     _assertLifecycle();
   }
 
+  // ┌─ testFuzz_batchExpiryAtInclusiveDeadline ─────
   function testFuzz_batchExpiryAtInclusiveDeadline(bool late, bool process) external {
     lifecycle.deposit(1, 1_000e18);
     lifecycle.drawAvailable();
@@ -195,5 +230,19 @@ contract LifecycleScenariosTest is LifecycleFixture {
       _assertLifecycle();
       assertTrue(vm.revertTo(snapshot), 'restore tied boundary');
     }
+  }
+
+  // ┌─ test_surplusRecoveryPreservesScheduledDrain ─────
+  function test_surplusRecoveryPreservesScheduledDrain() external {
+    for (uint256 i; i < MatrixSize; ++i) {
+      WildcatMarket market = WildcatMarket(lifecycle.marketAt(i));
+      uint256 deadline = market.repaymentDeadline();
+      if (vm.getBlockTimestamp() < deadline) vm.warp(deadline);
+      lifecycle.fund(i, 3, 50e18, true);
+      lifecycle.recoverSurplus(i);
+      assertEq(market.totalAssets(), market.totalDebts(), 'every liability retained');
+      _assertLifecycle();
+    }
+    _finishLifecycle('surplus-recovery');
   }
 }

@@ -1,9 +1,41 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLifecycleGas.t
+// ║  ██▀▀     ▀▀██   Repayment and penalty lifecycle gas-measurement fixtures.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  REPAYMENT LIFECYCLE
+// ║  test_gas_lifecycleStandard()
+// ║  test_gas_lifecycleRevolving()
+// ║  _lifecycle(...)
+// ║
+// ║  PENALTY LIFECYCLE
+// ║  test_gas_penaltyStandard()
+// ║  test_gas_penaltyRevolving()
+// ║  _penalty(...)
+// ╚═════
+
 import { MarketGasBase } from './MarketGas.t.sol';
 
+// ┌─ MarketLifecycleGasTest ───────────────────────────────────────────────────
 contract MarketLifecycleGasTest is MarketGasBase {
+  // ░░▒▒▓▓██ [ REPAYMENT LIFECYCLE ] ──────────────────────────────────────────
+
+  // ┌─ test_gas_lifecycleStandard ─────
+  function test_gas_lifecycleStandard() external {
+    _lifecycle(MatrixMarketKind.Standard);
+  }
+
+  // ┌─ test_gas_lifecycleRevolving ─────
+  function test_gas_lifecycleRevolving() external {
+    _lifecycle(MatrixMarketKind.Revolving);
+  }
+
+  // ┌─ _lifecycle ─────
   function _lifecycle(MatrixMarketKind marketKind) internal {
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, marketKind);
     options.repaymentDate = uint32(vm.getBlockTimestamp() + 7 days);
@@ -60,6 +92,19 @@ contract MarketLifecycleGasTest is MarketGasBase {
     _recordState(group, cell);
   }
 
+  // ░░▒▒▓▓██ [ PENALTY LIFECYCLE ] ────────────────────────────────────────────
+
+  // ┌─ test_gas_penaltyStandard ─────
+  function test_gas_penaltyStandard() external {
+    _penalty(MatrixMarketKind.Standard);
+  }
+
+  // ┌─ test_gas_penaltyRevolving ─────
+  function test_gas_penaltyRevolving() external {
+    _penalty(MatrixMarketKind.Revolving);
+  }
+
+  // ┌─ _penalty ─────
   function _penalty(MatrixMarketKind marketKind) internal {
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, marketKind);
     MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, 0);
@@ -82,21 +127,5 @@ contract MarketLifecycleGasTest is MarketGasBase {
     _record(group, 'cure-penalty');
     assertEq(cell.market.defaultedAt(), 0, 'cure before default');
     _recordState(group, cell);
-  }
-
-  function test_gas_lifecycleStandard() external {
-    _lifecycle(MatrixMarketKind.Standard);
-  }
-
-  function test_gas_lifecycleRevolving() external {
-    _lifecycle(MatrixMarketKind.Revolving);
-  }
-
-  function test_gas_penaltyStandard() external {
-    _penalty(MatrixMarketKind.Standard);
-  }
-
-  function test_gas_penaltyRevolving() external {
-    _penalty(MatrixMarketKind.Revolving);
   }
 }

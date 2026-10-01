@@ -1,15 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // LibERC20
+// ║  ██▀▀     ▀▀██   Safe token transfers, balances, and metadata queries.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  TRANSFERS
+// ║  safeTransfer(...)
+// ║  safeTransferFrom(...)
+// ║  safeTransferAll(...)
+// ║
+// ║  BALANCES
+// ║  balanceOf(...)
+// ║
+// ║  METADATA
+// ║  name(...)
+// ║  symbol(...)
+// ║  decimals(...)
+// ╚═════
+
 import './StringQuery.sol';
 
+// ┌─ LibERC20 ─────────────────────────────────────────────────────────────────
 /// @notice Safe ERC20 library
+///
 /// @author d1ll0n
+///
 /// @notice Changes from solady:
 ///   - Removed Permit2 and ETH functions
 ///   - `balanceOf(address)` reverts if the call fails or does not return >=32 bytes
 ///   - Added queries for `name`, `symbol`, `decimals`
 ///   - Set name to LibERC20 as it has queries unrelated to transfers and ETH functions were removed
+///
 /// @author Modified from Solady (https://github.com/vectorized/solady/blob/main/src/utils/LibERC20.sol)
 /// @author Previously modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/utils/LibERC20.sol)
 ///
@@ -17,9 +42,7 @@ import './StringQuery.sol';
 /// - For ERC20s, this implementation won't check that a token has code,
 ///   responsibility is delegated to the caller.
 library LibERC20 {
-  /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-  /*                       CUSTOM ERRORS                        */
-  /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+  // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
   /// @dev The ERC20 `transferFrom` has failed.
   error TransferFromFailed();
@@ -39,10 +62,33 @@ library LibERC20 {
   /// @dev The ERC20 `decimals` call has failed.
   error DecimalsFailed();
 
-  /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-  /*                      ERC20 OPERATIONS                      */
-  /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+  // ░░▒▒▓▓██ [ TRANSFERS ] ────────────────────────────────────────────────────
 
+  // ┌─ safeTransfer ─────
+  /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
+  /// Reverts upon failure.
+  function safeTransfer(address token, address to, uint256 amount) internal {
+    /// @solidity memory-safe-assembly
+    assembly {
+      mstore(0x14, to) // Store the `to` argument.
+      mstore(0x34, amount) // Store the `amount` argument.
+      mstore(0x00, 0xa9059cbb000000000000000000000000) // `transfer(address,uint256)`.
+      // Perform the transfer, reverting upon failure.
+      if iszero(
+        and(
+          // The arguments of `and` are evaluated from right to left.
+          or(eq(mload(0x00), 1), iszero(returndatasize())), // Returned 1 or nothing.
+          call(gas(), token, 0, 0x10, 0x44, 0x00, 0x20)
+        )
+      ) {
+        mstore(0x00, 0x90b8ec18) // `TransferFailed()`.
+        revert(0x1c, 0x04)
+      }
+      mstore(0x34, 0) // Restore the part of the free memory pointer that was overwritten.
+    }
+  }
+
+  // ┌─ safeTransferFrom ─────
   /// @dev Sends `amount` of ERC20 `token` from `from` to `to`.
   /// Reverts upon failure.
   ///
@@ -72,29 +118,7 @@ library LibERC20 {
     }
   }
 
-  /// @dev Sends `amount` of ERC20 `token` from the current contract to `to`.
-  /// Reverts upon failure.
-  function safeTransfer(address token, address to, uint256 amount) internal {
-    /// @solidity memory-safe-assembly
-    assembly {
-      mstore(0x14, to) // Store the `to` argument.
-      mstore(0x34, amount) // Store the `amount` argument.
-      mstore(0x00, 0xa9059cbb000000000000000000000000) // `transfer(address,uint256)`.
-      // Perform the transfer, reverting upon failure.
-      if iszero(
-        and(
-          // The arguments of `and` are evaluated from right to left.
-          or(eq(mload(0x00), 1), iszero(returndatasize())), // Returned 1 or nothing.
-          call(gas(), token, 0, 0x10, 0x44, 0x00, 0x20)
-        )
-      ) {
-        mstore(0x00, 0x90b8ec18) // `TransferFailed()`.
-        revert(0x1c, 0x04)
-      }
-      mstore(0x34, 0) // Restore the part of the free memory pointer that was overwritten.
-    }
-  }
-
+  // ┌─ safeTransferAll ─────
   /// @dev Sends all of ERC20 `token` from the current contract to `to`.
   /// Reverts upon failure.
   function safeTransferAll(address token, address to) internal returns (uint256 amount) {
@@ -131,6 +155,9 @@ library LibERC20 {
     }
   }
 
+  // ░░▒▒▓▓██ [ BALANCES ] ─────────────────────────────────────────────────────
+
+  // ┌─ balanceOf ─────
   /// @dev Returns the amount of ERC20 `token` owned by `account`.
   /// Reverts if the call to `balanceOf` reverts or returns less than 32 bytes.
   function balanceOf(address token, address account) internal view returns (uint256 amount) {
@@ -153,6 +180,29 @@ library LibERC20 {
     }
   }
 
+  // ░░▒▒▓▓██ [ METADATA ] ─────────────────────────────────────────────────────
+
+  // ┌─ name ─────
+  /// @dev Returns the `name` of ERC20 `token`.
+  /// Reverts if the call to `name` reverts or returns a value which is neither
+  /// a bytes32 string nor a valid ABI-encoded string.
+  function name(address token) internal view returns (string memory) {
+    // The `name` function selector is 0x06fdde03.
+    // The `NameFailed` error selector is 0x2ed09f54.
+    return queryStringOrBytes32AsString(token, 0x06fdde03, 0x2ed09f54);
+  }
+
+  // ┌─ symbol ─────
+  /// @dev Returns the `symbol` of ERC20 `token`.
+  /// Reverts if the call to `symbol` reverts or returns a value which is neither
+  /// a bytes32 string nor a valid ABI-encoded string.
+  function symbol(address token) internal view returns (string memory) {
+    // The `symbol` function selector is 0x95d89b41.
+    // The `SymbolFailed` error selector is 0x3ddcc60a.
+    return queryStringOrBytes32AsString(token, 0x95d89b41, 0x3ddcc60a);
+  }
+
+  // ┌─ decimals ─────
   /// @dev Returns the `decimals` of ERC20 `token`.
   /// Reverts if the call to `decimals` reverts or returns less than 32 bytes.
   function decimals(address token) internal view returns (uint8 _decimals) {
@@ -173,23 +223,5 @@ library LibERC20 {
       // Read the return value from scratch space
       _decimals := mload(0)
     }
-  }
-
-  /// @dev Returns the `name` of ERC20 `token`.
-  /// Reverts if the call to `name` reverts or returns a value which is neither
-  /// a bytes32 string nor a valid ABI-encoded string.
-  function name(address token) internal view returns (string memory) {
-    // The `name` function selector is 0x06fdde03.
-    // The `NameFailed` error selector is 0x2ed09f54.
-    return queryStringOrBytes32AsString(token, 0x06fdde03, 0x2ed09f54);
-  }
-
-  /// @dev Returns the `symbol` of ERC20 `token`.
-  /// Reverts if the call to `symbol` reverts or returns a value which is neither
-  /// a bytes32 string nor a valid ABI-encoded string.
-  function symbol(address token) internal view returns (string memory) {
-    // The `symbol` function selector is 0x95d89b41.
-    // The `SymbolFailed` error selector is 0x3ddcc60a.
-    return queryStringOrBytes32AsString(token, 0x95d89b41, 0x3ddcc60a);
   }
 }

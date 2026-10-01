@@ -1,12 +1,61 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatArchController.t
+// ║  ██▀▀     ▀▀██   Registry lifecycle matrices and engine propagation tests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newRegistryFixture(...)
+// ║  _deployArchController()
+// ║
+// ║  REGISTRY ADDITION
+// ║  test_registryMatrix_AddEmitsAndRegisters()
+// ║  test_registryMatrix_AddRejectsUnauthorizedCaller()
+// ║  test_registryMatrix_AddRejectsDuplicateEntry()
+// ║  _add(...)
+// ║  _duplicateError(...)
+// ║  _unauthorizedAddError(...)
+// ║  _expectAddedEvent(...)
+// ║
+// ║  REGISTRY REMOVAL
+// ║  test_registryMatrix_RemoveEmitsAndUnregisters()
+// ║  test_registryMatrix_RemoveRejectsMissingEntry()
+// ║  test_registryMatrix_RemoveRequiresOwner()
+// ║  _remove(...)
+// ║  _missingError(...)
+// ║  _expectRemovedEvent(...)
+// ║
+// ║  REGISTRY QUERIES
+// ║  test_registryMatrix_EnumerationPaginationAndSwapPop()
+// ║  _isRegistered(...)
+// ║  _getAll(...)
+// ║  _getPage(...)
+// ║  _getCount(...)
+// ║
+// ║  ENGINE PROPAGATION
+// ║  test_updateSphereXEngine_UpdatesEveryRegistryAndEngineAllowlist()
+// ║  test_updateSphereXEngine_NullEngineStillUpdatesRegisteredContracts()
+// ║  test_updateSphereXEngine_RejectsMissingRegistryEntries()
+// ║  testFuzz_updateSphereXEngine_RequiresOperatorOrAdmin(...)
+// ║  test_updateSphereXEngine_BubblesRegisteredContractRevert()
+// ║  _registerSphereXTargets(...)
+// ║  _deployRegisteredTarget(...)
+// ║  _deployEngine()
+// ║  _setArchControllerEngine(...)
+// ║  _singleton(...)
+// ╚═════
+
 import { Ownable } from 'solady/auth/Ownable.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';
 import { ArchControllerEngineMock } from '../mocks/ArchControllerMocks.sol';
 import { ArchControllerRegisteredTargetMock } from '../mocks/ArchControllerMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ WildcatArchControllerTest ────────────────────────────────────────────────
 contract WildcatArchControllerTest is TestKernel {
   enum RegistryKind {
     ControllerFactory,
@@ -44,10 +93,9 @@ contract WildcatArchControllerTest is TestKernel {
   address internal constant SecondEntry = address(0x1002);
   address internal constant SphereXOperator = address(0x5EED);
 
-  function _deployArchController() internal returns (WildcatArchController archController) {
-    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
+  // ┌─ _newRegistryFixture ─────
   function _newRegistryFixture(RegistryKind kind) internal returns (RegistryFixture memory fixture) {
     fixture.archController = _deployArchController();
     fixture.first = FirstEntry;
@@ -66,6 +114,49 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
+  // ┌─ _deployArchController ─────
+  function _deployArchController() internal returns (WildcatArchController archController) {
+    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
+  }
+
+  // ░░▒▒▓▓██ [ REGISTRY ADDITION ] ────────────────────────────────────────────
+
+  // ┌─ test_registryMatrix_AddEmitsAndRegisters ─────
+  function test_registryMatrix_AddEmitsAndRegisters() external {
+    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
+      RegistryKind kind = RegistryKind(i);
+      RegistryFixture memory fixture = _newRegistryFixture(kind);
+      _expectAddedEvent(kind, fixture, fixture.first);
+      _add(kind, fixture, fixture.first, fixture.registrar);
+
+      assertTrue(_isRegistered(kind, fixture.archController, fixture.first), 'registered');
+      assertEq(_getCount(kind, fixture.archController), 1, 'count');
+    }
+  }
+
+  // ┌─ test_registryMatrix_AddRejectsUnauthorizedCaller ─────
+  function test_registryMatrix_AddRejectsUnauthorizedCaller() external {
+    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
+      RegistryKind kind = RegistryKind(i);
+      RegistryFixture memory fixture = _newRegistryFixture(kind);
+      vm.expectRevert(_unauthorizedAddError(kind));
+      _add(kind, fixture, fixture.first, BadCaller);
+    }
+  }
+
+  // ┌─ test_registryMatrix_AddRejectsDuplicateEntry ─────
+  function test_registryMatrix_AddRejectsDuplicateEntry() external {
+    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
+      RegistryKind kind = RegistryKind(i);
+      RegistryFixture memory fixture = _newRegistryFixture(kind);
+      _add(kind, fixture, fixture.first, fixture.registrar);
+
+      vm.expectRevert(_duplicateError(kind));
+      _add(kind, fixture, fixture.first, fixture.registrar);
+    }
+  }
+
+  // ┌─ _add ─────
   function _add(RegistryKind kind, RegistryFixture memory fixture, address entry, address caller) internal {
     vm.prank(caller);
     if (kind == RegistryKind.ControllerFactory) {
@@ -81,87 +172,7 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
-  function _remove(RegistryKind kind, RegistryFixture memory fixture, address entry, address caller) internal {
-    vm.prank(caller);
-    if (kind == RegistryKind.ControllerFactory) {
-      fixture.archController.removeControllerFactory(entry);
-    } else if (kind == RegistryKind.Controller) {
-      fixture.archController.removeController(entry);
-    } else if (kind == RegistryKind.Market) {
-      fixture.archController.removeMarket(entry);
-    } else if (kind == RegistryKind.Borrower) {
-      fixture.archController.removeBorrower(entry);
-    } else {
-      fixture.archController.removeBlacklist(entry);
-    }
-  }
-
-  function _isRegistered(
-    RegistryKind kind,
-    WildcatArchController archController,
-    address entry
-  )
-    internal
-    view
-    returns (bool)
-  {
-    if (kind == RegistryKind.ControllerFactory) {
-      return archController.isRegisteredControllerFactory(entry);
-    }
-    if (kind == RegistryKind.Controller) return archController.isRegisteredController(entry);
-    if (kind == RegistryKind.Market) return archController.isRegisteredMarket(entry);
-    if (kind == RegistryKind.Borrower) return archController.isRegisteredBorrower(entry);
-    return archController.isBlacklistedAsset(entry);
-  }
-
-  function _getAll(
-    RegistryKind kind,
-    WildcatArchController archController
-  )
-    internal
-    view
-    returns (address[] memory entries)
-  {
-    if (kind == RegistryKind.ControllerFactory) {
-      return archController.getRegisteredControllerFactories();
-    }
-    if (kind == RegistryKind.Controller) return archController.getRegisteredControllers();
-    if (kind == RegistryKind.Market) return archController.getRegisteredMarkets();
-    if (kind == RegistryKind.Borrower) return archController.getRegisteredBorrowers();
-    return archController.getBlacklistedAssets();
-  }
-
-  function _getPage(
-    RegistryKind kind,
-    WildcatArchController archController,
-    uint256 start,
-    uint256 end
-  )
-    internal
-    view
-    returns (address[] memory entries)
-  {
-    if (kind == RegistryKind.ControllerFactory) {
-      return archController.getRegisteredControllerFactories(start, end);
-    }
-    if (kind == RegistryKind.Controller) {
-      return archController.getRegisteredControllers(start, end);
-    }
-    if (kind == RegistryKind.Market) return archController.getRegisteredMarkets(start, end);
-    if (kind == RegistryKind.Borrower) return archController.getRegisteredBorrowers(start, end);
-    return archController.getBlacklistedAssets(start, end);
-  }
-
-  function _getCount(RegistryKind kind, WildcatArchController archController) internal view returns (uint256) {
-    if (kind == RegistryKind.ControllerFactory) {
-      return archController.getRegisteredControllerFactoriesCount();
-    }
-    if (kind == RegistryKind.Controller) return archController.getRegisteredControllersCount();
-    if (kind == RegistryKind.Market) return archController.getRegisteredMarketsCount();
-    if (kind == RegistryKind.Borrower) return archController.getRegisteredBorrowersCount();
-    return archController.getBlacklistedAssetsCount();
-  }
-
+  // ┌─ _duplicateError ─────
   function _duplicateError(RegistryKind kind) internal pure returns (bytes4) {
     if (kind == RegistryKind.ControllerFactory) {
       return WildcatArchController.ControllerFactoryAlreadyExists.selector;
@@ -176,24 +187,14 @@ contract WildcatArchControllerTest is TestKernel {
     return WildcatArchController.AssetAlreadyBlacklisted.selector;
   }
 
-  function _missingError(RegistryKind kind) internal pure returns (bytes4) {
-    if (kind == RegistryKind.ControllerFactory) {
-      return WildcatArchController.ControllerFactoryDoesNotExist.selector;
-    }
-    if (kind == RegistryKind.Controller) {
-      return WildcatArchController.ControllerDoesNotExist.selector;
-    }
-    if (kind == RegistryKind.Market) return WildcatArchController.MarketDoesNotExist.selector;
-    if (kind == RegistryKind.Borrower) return WildcatArchController.BorrowerDoesNotExist.selector;
-    return WildcatArchController.AssetNotBlacklisted.selector;
-  }
-
+  // ┌─ _unauthorizedAddError ─────
   function _unauthorizedAddError(RegistryKind kind) internal pure returns (bytes4) {
     if (kind == RegistryKind.Controller) return WildcatArchController.NotControllerFactory.selector;
     if (kind == RegistryKind.Market) return WildcatArchController.NotController.selector;
     return Ownable.Unauthorized.selector;
   }
 
+  // ┌─ _expectAddedEvent ─────
   function _expectAddedEvent(RegistryKind kind, RegistryFixture memory fixture, address entry) internal {
     vm.expectEmit(address(fixture.archController));
     if (kind == RegistryKind.ControllerFactory) {
@@ -209,6 +210,75 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
+  // ░░▒▒▓▓██ [ REGISTRY REMOVAL ] ─────────────────────────────────────────────
+
+  // ┌─ test_registryMatrix_RemoveEmitsAndUnregisters ─────
+  function test_registryMatrix_RemoveEmitsAndUnregisters() external {
+    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
+      RegistryKind kind = RegistryKind(i);
+      RegistryFixture memory fixture = _newRegistryFixture(kind);
+      _add(kind, fixture, fixture.first, fixture.registrar);
+
+      _expectRemovedEvent(kind, fixture, fixture.first);
+      _remove(kind, fixture, fixture.first, address(this));
+      assertFalse(_isRegistered(kind, fixture.archController, fixture.first), 'unregistered');
+      assertEq(_getCount(kind, fixture.archController), 0, 'count');
+    }
+  }
+
+  // ┌─ test_registryMatrix_RemoveRejectsMissingEntry ─────
+  function test_registryMatrix_RemoveRejectsMissingEntry() external {
+    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
+      RegistryKind kind = RegistryKind(i);
+      RegistryFixture memory fixture = _newRegistryFixture(kind);
+
+      vm.expectRevert(_missingError(kind));
+      _remove(kind, fixture, fixture.first, address(this));
+    }
+  }
+
+  // ┌─ test_registryMatrix_RemoveRequiresOwner ─────
+  function test_registryMatrix_RemoveRequiresOwner() external {
+    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
+      RegistryKind kind = RegistryKind(i);
+      RegistryFixture memory fixture = _newRegistryFixture(kind);
+      _add(kind, fixture, fixture.first, fixture.registrar);
+
+      vm.expectRevert(Ownable.Unauthorized.selector);
+      _remove(kind, fixture, fixture.first, BadCaller);
+    }
+  }
+
+  // ┌─ _remove ─────
+  function _remove(RegistryKind kind, RegistryFixture memory fixture, address entry, address caller) internal {
+    vm.prank(caller);
+    if (kind == RegistryKind.ControllerFactory) {
+      fixture.archController.removeControllerFactory(entry);
+    } else if (kind == RegistryKind.Controller) {
+      fixture.archController.removeController(entry);
+    } else if (kind == RegistryKind.Market) {
+      fixture.archController.removeMarket(entry);
+    } else if (kind == RegistryKind.Borrower) {
+      fixture.archController.removeBorrower(entry);
+    } else {
+      fixture.archController.removeBlacklist(entry);
+    }
+  }
+
+  // ┌─ _missingError ─────
+  function _missingError(RegistryKind kind) internal pure returns (bytes4) {
+    if (kind == RegistryKind.ControllerFactory) {
+      return WildcatArchController.ControllerFactoryDoesNotExist.selector;
+    }
+    if (kind == RegistryKind.Controller) {
+      return WildcatArchController.ControllerDoesNotExist.selector;
+    }
+    if (kind == RegistryKind.Market) return WildcatArchController.MarketDoesNotExist.selector;
+    if (kind == RegistryKind.Borrower) return WildcatArchController.BorrowerDoesNotExist.selector;
+    return WildcatArchController.AssetNotBlacklisted.selector;
+  }
+
+  // ┌─ _expectRemovedEvent ─────
   function _expectRemovedEvent(RegistryKind kind, RegistryFixture memory fixture, address entry) internal {
     vm.expectEmit(address(fixture.archController));
     if (kind == RegistryKind.ControllerFactory) {
@@ -224,76 +294,9 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
-  // ========================================================================== //
-  //                              Registry matrix                               //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ REGISTRY QUERIES ] ─────────────────────────────────────────────
 
-  function test_registryMatrix_AddEmitsAndRegisters() external {
-    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
-      RegistryKind kind = RegistryKind(i);
-      RegistryFixture memory fixture = _newRegistryFixture(kind);
-      _expectAddedEvent(kind, fixture, fixture.first);
-      _add(kind, fixture, fixture.first, fixture.registrar);
-
-      assertTrue(_isRegistered(kind, fixture.archController, fixture.first), 'registered');
-      assertEq(_getCount(kind, fixture.archController), 1, 'count');
-    }
-  }
-
-  function test_registryMatrix_AddRejectsUnauthorizedCaller() external {
-    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
-      RegistryKind kind = RegistryKind(i);
-      RegistryFixture memory fixture = _newRegistryFixture(kind);
-      vm.expectRevert(_unauthorizedAddError(kind));
-      _add(kind, fixture, fixture.first, BadCaller);
-    }
-  }
-
-  function test_registryMatrix_AddRejectsDuplicateEntry() external {
-    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
-      RegistryKind kind = RegistryKind(i);
-      RegistryFixture memory fixture = _newRegistryFixture(kind);
-      _add(kind, fixture, fixture.first, fixture.registrar);
-
-      vm.expectRevert(_duplicateError(kind));
-      _add(kind, fixture, fixture.first, fixture.registrar);
-    }
-  }
-
-  function test_registryMatrix_RemoveEmitsAndUnregisters() external {
-    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
-      RegistryKind kind = RegistryKind(i);
-      RegistryFixture memory fixture = _newRegistryFixture(kind);
-      _add(kind, fixture, fixture.first, fixture.registrar);
-
-      _expectRemovedEvent(kind, fixture, fixture.first);
-      _remove(kind, fixture, fixture.first, address(this));
-      assertFalse(_isRegistered(kind, fixture.archController, fixture.first), 'unregistered');
-      assertEq(_getCount(kind, fixture.archController), 0, 'count');
-    }
-  }
-
-  function test_registryMatrix_RemoveRejectsMissingEntry() external {
-    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
-      RegistryKind kind = RegistryKind(i);
-      RegistryFixture memory fixture = _newRegistryFixture(kind);
-
-      vm.expectRevert(_missingError(kind));
-      _remove(kind, fixture, fixture.first, address(this));
-    }
-  }
-
-  function test_registryMatrix_RemoveRequiresOwner() external {
-    for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
-      RegistryKind kind = RegistryKind(i);
-      RegistryFixture memory fixture = _newRegistryFixture(kind);
-      _add(kind, fixture, fixture.first, fixture.registrar);
-
-      vm.expectRevert(Ownable.Unauthorized.selector);
-      _remove(kind, fixture, fixture.first, BadCaller);
-    }
-  }
-
+  // ┌─ test_registryMatrix_EnumerationPaginationAndSwapPop ─────
   function test_registryMatrix_EnumerationPaginationAndSwapPop() external {
     for (uint8 i; i <= uint8(RegistryKind.Blacklist); i++) {
       RegistryKind kind = RegistryKind(i);
@@ -324,57 +327,79 @@ contract WildcatArchControllerTest is TestKernel {
     }
   }
 
-  // ========================================================================== //
-  //                       Registered SphereX propagation                       //
-  // ========================================================================== //
-
-  function _deployRegisteredTarget(bool blockEngineUpdates)
-    internal
-    returns (ArchControllerRegisteredTargetMock target)
-  {
-    target = ArchControllerRegisteredTargetMock(
-      _deployCode(
-        'test/mocks/ArchControllerMocks.sol:ArchControllerRegisteredTargetMock', abi.encode(blockEngineUpdates)
-      )
-    );
-  }
-
-  function _deployEngine() internal returns (ArchControllerEngineMock engine) {
-    engine = ArchControllerEngineMock(_deployCode('test/mocks/ArchControllerMocks.sol:ArchControllerEngineMock'));
-  }
-
-  function _registerSphereXTargets(
+  // ┌─ _isRegistered ─────
+  function _isRegistered(
+    RegistryKind kind,
     WildcatArchController archController,
-    bool blockControllerUpdates
+    address entry
   )
     internal
-    returns (
-      ArchControllerRegisteredTargetMock factory,
-      ArchControllerRegisteredTargetMock controller,
-      ArchControllerRegisteredTargetMock market
-    )
+    view
+    returns (bool)
   {
-    factory = _deployRegisteredTarget(false);
-    controller = _deployRegisteredTarget(blockControllerUpdates);
-    market = _deployRegisteredTarget(false);
-    archController.registerControllerFactory(address(factory));
-    vm.prank(address(factory));
-    archController.registerController(address(controller));
-    vm.prank(address(controller));
-    archController.registerMarket(address(market));
+    if (kind == RegistryKind.ControllerFactory) {
+      return archController.isRegisteredControllerFactory(entry);
+    }
+    if (kind == RegistryKind.Controller) return archController.isRegisteredController(entry);
+    if (kind == RegistryKind.Market) return archController.isRegisteredMarket(entry);
+    if (kind == RegistryKind.Borrower) return archController.isRegisteredBorrower(entry);
+    return archController.isBlacklistedAsset(entry);
   }
 
-  function _setArchControllerEngine(WildcatArchController archController, address engine) internal {
-    archController.changeSphereXOperator(SphereXOperator);
-    vm.prank(SphereXOperator);
-    archController.changeSphereXEngine(engine);
+  // ┌─ _getAll ─────
+  function _getAll(
+    RegistryKind kind,
+    WildcatArchController archController
+  )
+    internal
+    view
+    returns (address[] memory entries)
+  {
+    if (kind == RegistryKind.ControllerFactory) {
+      return archController.getRegisteredControllerFactories();
+    }
+    if (kind == RegistryKind.Controller) return archController.getRegisteredControllers();
+    if (kind == RegistryKind.Market) return archController.getRegisteredMarkets();
+    if (kind == RegistryKind.Borrower) return archController.getRegisteredBorrowers();
+    return archController.getBlacklistedAssets();
   }
 
-  function _singleton(address account) internal pure returns (address[] memory accounts) {
-    accounts = new address[](1);
-    accounts[0] = account;
+  // ┌─ _getPage ─────
+  function _getPage(
+    RegistryKind kind,
+    WildcatArchController archController,
+    uint256 start,
+    uint256 end
+  )
+    internal
+    view
+    returns (address[] memory entries)
+  {
+    if (kind == RegistryKind.ControllerFactory) {
+      return archController.getRegisteredControllerFactories(start, end);
+    }
+    if (kind == RegistryKind.Controller) {
+      return archController.getRegisteredControllers(start, end);
+    }
+    if (kind == RegistryKind.Market) return archController.getRegisteredMarkets(start, end);
+    if (kind == RegistryKind.Borrower) return archController.getRegisteredBorrowers(start, end);
+    return archController.getBlacklistedAssets(start, end);
   }
 
+  // ┌─ _getCount ─────
+  function _getCount(RegistryKind kind, WildcatArchController archController) internal view returns (uint256) {
+    if (kind == RegistryKind.ControllerFactory) {
+      return archController.getRegisteredControllerFactoriesCount();
+    }
+    if (kind == RegistryKind.Controller) return archController.getRegisteredControllersCount();
+    if (kind == RegistryKind.Market) return archController.getRegisteredMarketsCount();
+    if (kind == RegistryKind.Borrower) return archController.getRegisteredBorrowersCount();
+    return archController.getBlacklistedAssetsCount();
+  }
+
+  // ░░▒▒▓▓██ [ ENGINE PROPAGATION ] ───────────────────────────────────────────
+
+  // ┌─ test_updateSphereXEngine_UpdatesEveryRegistryAndEngineAllowlist ─────
   function test_updateSphereXEngine_UpdatesEveryRegistryAndEngineAllowlist() external {
     WildcatArchController archController = _deployArchController();
     (
@@ -421,6 +446,7 @@ contract WildcatArchControllerTest is TestKernel {
     assertEq(engine.allowedSenderCalls(address(market)), 1, 'market allowlist calls');
   }
 
+  // ┌─ test_updateSphereXEngine_NullEngineStillUpdatesRegisteredContracts ─────
   function test_updateSphereXEngine_NullEngineStillUpdatesRegisteredContracts() external {
     WildcatArchController archController = _deployArchController();
     (
@@ -453,6 +479,7 @@ contract WildcatArchControllerTest is TestKernel {
     assertEq(engine.allowedSenderCalls(address(market)), 1, 'market allowlist calls');
   }
 
+  // ┌─ test_updateSphereXEngine_RejectsMissingRegistryEntries ─────
   function test_updateSphereXEngine_RejectsMissingRegistryEntries() external {
     WildcatArchController archController = _deployArchController();
     address[] memory empty = new address[](0);
@@ -466,6 +493,7 @@ contract WildcatArchControllerTest is TestKernel {
     archController.updateSphereXEngineOnRegisteredContracts(empty, empty, missing);
   }
 
+  // ┌─ testFuzz_updateSphereXEngine_RequiresOperatorOrAdmin ─────
   function testFuzz_updateSphereXEngine_RequiresOperatorOrAdmin(address account) external {
     WildcatArchController archController = _deployArchController();
     archController.changeSphereXOperator(SphereXOperator);
@@ -477,6 +505,7 @@ contract WildcatArchControllerTest is TestKernel {
     archController.updateSphereXEngineOnRegisteredContracts(empty, empty, empty);
   }
 
+  // ┌─ test_updateSphereXEngine_BubblesRegisteredContractRevert ─────
   function test_updateSphereXEngine_BubblesRegisteredContractRevert() external {
     WildcatArchController archController = _deployArchController();
     (, ArchControllerRegisteredTargetMock controller,) = _registerSphereXTargets(archController, true);
@@ -485,5 +514,57 @@ contract WildcatArchControllerTest is TestKernel {
 
     vm.expectRevert(ArchControllerRegisteredTargetMock.ChangeSphereXEngineBlocked.selector);
     archController.updateSphereXEngineOnRegisteredContracts(empty, controllers, empty);
+  }
+
+  // ┌─ _registerSphereXTargets ─────
+  function _registerSphereXTargets(
+    WildcatArchController archController,
+    bool blockControllerUpdates
+  )
+    internal
+    returns (
+      ArchControllerRegisteredTargetMock factory,
+      ArchControllerRegisteredTargetMock controller,
+      ArchControllerRegisteredTargetMock market
+    )
+  {
+    factory = _deployRegisteredTarget(false);
+    controller = _deployRegisteredTarget(blockControllerUpdates);
+    market = _deployRegisteredTarget(false);
+    archController.registerControllerFactory(address(factory));
+    vm.prank(address(factory));
+    archController.registerController(address(controller));
+    vm.prank(address(controller));
+    archController.registerMarket(address(market));
+  }
+
+  // ┌─ _deployRegisteredTarget ─────
+  function _deployRegisteredTarget(bool blockEngineUpdates)
+    internal
+    returns (ArchControllerRegisteredTargetMock target)
+  {
+    target = ArchControllerRegisteredTargetMock(
+      _deployCode(
+        'test/mocks/ArchControllerMocks.sol:ArchControllerRegisteredTargetMock', abi.encode(blockEngineUpdates)
+      )
+    );
+  }
+
+  // ┌─ _deployEngine ─────
+  function _deployEngine() internal returns (ArchControllerEngineMock engine) {
+    engine = ArchControllerEngineMock(_deployCode('test/mocks/ArchControllerMocks.sol:ArchControllerEngineMock'));
+  }
+
+  // ┌─ _setArchControllerEngine ─────
+  function _setArchControllerEngine(WildcatArchController archController, address engine) internal {
+    archController.changeSphereXOperator(SphereXOperator);
+    vm.prank(SphereXOperator);
+    archController.changeSphereXEngine(engine);
+  }
+
+  // ┌─ _singleton ─────
+  function _singleton(address account) internal pure returns (address[] memory accounts) {
+    accounts = new address[](1);
+    accounts[0] = account;
   }
 }

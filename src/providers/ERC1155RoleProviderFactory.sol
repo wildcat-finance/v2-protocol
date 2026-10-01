@@ -1,20 +1,45 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // ERC1155RoleProviderFactory
+// ║  ██▀▀     ▀▀██   Deterministic ERC1155 provider deployment and address prediction.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  DEPLOYMENT
+// ║  createRoleProvider(...)
+// ║  createERC1155RoleProvider(...)
+// ║  _createRoleProvider(...)
+// ║
+// ║  ADDRESS PREDICTION
+// ║  computeRoleProviderAddress(...)
+// ║  _computeRoleProviderAddress(...)
+// ║  _deriveSalt(...)
+// ╚═════
+
 import './ERC1155RoleProvider.sol';
 import './IERC1155RoleProviderFactory.sol';
 
+// ┌─ ERC1155RoleProviderFactory ───────────────────────────────────────────────
 /// @notice deterministic deployer for immutable ERC1155 balance providers.
+///
 /// @dev the user salt is namespaced by `msg.sender`, so another caller can't consume the predicted
 ///      address first. the provider has no administrator and this factory retains no authority.
 contract ERC1155RoleProviderFactory is IERC1155RoleProviderFactory {
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ createRoleProvider ─────
   /// @notice decodes `ERC1155RoleProviderFactoryInputs` and deploys for `msg.sender`.
+  ///
   /// @dev when a hooks instance calls this entrypoint, that instance is the CREATE2 namespace.
   function createRoleProvider(bytes calldata data) external override returns (address provider) {
     ERC1155RoleProviderFactoryInputs memory inputs = abi.decode(data, (ERC1155RoleProviderFactoryInputs));
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
+  // ┌─ createERC1155RoleProvider ─────
   /// @notice deploys an ERC1155 provider in `msg.sender`'s CREATE2 namespace.
   function createERC1155RoleProvider(ERC1155RoleProviderFactoryInputs calldata inputs)
     external
@@ -24,6 +49,7 @@ contract ERC1155RoleProviderFactory is IERC1155RoleProviderFactory {
     provider = _createRoleProvider(msg.sender, inputs);
   }
 
+  // ┌─ _createRoleProvider ─────
   function _createRoleProvider(
     address deployer,
     ERC1155RoleProviderFactoryInputs memory inputs
@@ -45,6 +71,9 @@ contract ERC1155RoleProviderFactory is IERC1155RoleProviderFactory {
     );
   }
 
+  // ░░▒▒▓▓██ [ ADDRESS PREDICTION ] ───────────────────────────────────────────
+
+  // ┌─ computeRoleProviderAddress ─────
   /// @notice predicts the provider for the exact deployer, constructor inputs, and user salt.
   function computeRoleProviderAddress(
     address deployer,
@@ -58,6 +87,7 @@ contract ERC1155RoleProviderFactory is IERC1155RoleProviderFactory {
     provider = _computeRoleProviderAddress(deployer, inputs);
   }
 
+  // ┌─ _computeRoleProviderAddress ─────
   function _computeRoleProviderAddress(
     address deployer,
     ERC1155RoleProviderFactoryInputs memory inputs
@@ -80,6 +110,7 @@ contract ERC1155RoleProviderFactory is IERC1155RoleProviderFactory {
     );
   }
 
+  // ┌─ _deriveSalt ─────
   function _deriveSalt(address deployer, bytes32 salt) internal pure returns (bytes32) {
     return keccak256(abi.encode(deployer, salt));
   }

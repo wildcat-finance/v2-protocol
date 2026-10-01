@@ -1,6 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // FixedTermPolicy
+// ║  ██▀▀     ▀▀██   Fixed maturity, term reductions, withdrawal and APR rules.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MARKET SETUP
+// ║  _getParameterConstraints()
+// ║  _initializeMarket(...)
+// ║  _readUint32Cd(...)
+// ║  _readUint128Cd(...)
+// ║  _readBoolCd(...)
+// ║
+// ║  ACCESS CONFIGURATION
+// ║  _readAccessConfig(...)
+// ║  _isDepositHookEnabled(...)
+// ║  _writeMinimumDeposit(...)
+// ║
+// ║  TERM CHANGES
+// ║  setFixedTermEndTime(...)
+// ║  _validateFixedTermChange(...)
+// ║  _afterFixedTermChange(...)
+// ║
+// ║  WITHDRAWAL QUEUEING
+// ║  _checkWithdrawalSchedule(...)
+// ║
+// ║  CLOSURE
+// ║  _validateCloseMarket(...)
+// ║  _validateFixedCloseMarket()
+// ║  _applyCloseMarket(...)
+// ║  _applyFixedCloseMarket()
+// ║
+// ║  INTEREST
+// ║  _applyAprUpdate(...)
+// ║  _validateFixedAprUpdate(...)
+// ╚═════
+
 import './BaseHooks.sol';
 import './types/FixedTermHookTypes.sol';
 import '../libraries/SafeCastLib.sol';
@@ -9,15 +47,16 @@ using BoolUtils for bool;
 using MathUtils for uint256;
 using SafeCastLib for uint256;
 
+// ┌─ FixedTermPolicy ──────────────────────────────────────────────────────────
 /// @title FixedTermPolicy
+///
 /// @notice reusable fixed-term configuration and rules over BaseHooks.
+///
 /// @dev `_hookedMarkets` owns the maturity used by queueing, APR updates, closure and term changes.
 ///      the concrete hook supplies BaseHooks constructor arguments and public
 ///      configuration getters.
 abstract contract FixedTermPolicy is BaseHooks {
-  // ========================================================================== //
-  //                                   Events                                   //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ EVENTS ] ───────────────────────────────────────────────────────
 
   /// @notice emitted when an allowed term reduction moves a market's maturity earlier.
   event FixedTermUpdated(
@@ -27,29 +66,31 @@ abstract contract FixedTermPolicy is BaseHooks {
     uint32 newFixedTermEndTime
   );
 
-  // ========================================================================== //
-  //                                   Errors                                   //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ ERRORS ] ───────────────────────────────────────────────────────
 
   /// @dev market-creation hook data omitted the fixed-term timestamp.
   error FixedTermNotProvided();
+
   /// @dev maturity is earlier than now or more than 365 days away.
   error InvalidFixedTerm();
+
   /// @dev a term update tried to move maturity later.
   error IncreaseFixedTerm();
+
   /// @dev the lender tried to queue a withdrawal before maturity.
   error WithdrawBeforeTermEnd();
+
   /// @dev the borrower tried to reduce APR before maturity.
   error NoReducingAprBeforeTermEnd();
+
   /// @dev the borrower tried to close before maturity without permission.
   error ClosureDisabledBeforeTerm();
+
   /// @dev this market was not configured to allow term reductions.
   error TermReductionDisabled();
   error RepaymentBeforeMaturity();
 
-  // ========================================================================== //
-  //                                    State                                   //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ STATE ] ────────────────────────────────────────────────────────
 
   /// @notice longest fixed term accepted when a market is attached.
   uint32 public constant MaximumLoanTerm = 365 days;
@@ -58,6 +99,9 @@ abstract contract FixedTermPolicy is BaseHooks {
   // keep immutable dispatch separate; adding it to HookedMarket would change the public tuple.
   mapping(address => bool) internal _depositHookEnabled;
 
+  // ░░▒▒▓▓██ [ MARKET SETUP ] ─────────────────────────────────────────────────
+
+  // ┌─ _getParameterConstraints ─────
   function _getParameterConstraints()
     internal
     view
@@ -69,28 +113,7 @@ abstract contract FixedTermPolicy is BaseHooks {
     constraints.maximumRepaymentDateDelay = type(uint32).max;
   }
 
-  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
-    assembly {
-      value := and(calldataload(add(data.offset, offset)), 1)
-    }
-  }
-
-  function _readUint32Cd(bytes calldata data) internal pure returns (uint32 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(data.offset)
-    }
-    return _value.toUint32();
-  }
-
-  function _readUint128Cd(bytes calldata data, uint offset) internal pure returns (uint128 value) {
-    uint _value;
-    assembly {
-      _value := calldataload(add(data.offset, offset))
-    }
-    return _value.toUint128();
-  }
-
+  // ┌─ _initializeMarket ─────
   /// @dev binds the market after BaseHooks checks `administrator_` against the current
   ///      administrator. `hooksData` is `(uint32 fixedTermEndTime, uint128 minimumDeposit?,
   ///      bool transfersDisabled?, bool allowClosureBeforeTerm?, bool allowTermReduction?)`.
@@ -136,10 +159,34 @@ abstract contract FixedTermPolicy is BaseHooks {
     return effective;
   }
 
-  // ========================================================================== //
-  //                              Market Management                             //
-  // ========================================================================== //
+  // ┌─ _readUint32Cd ─────
+  function _readUint32Cd(bytes calldata data) internal pure returns (uint32 value) {
+    uint _value;
+    assembly {
+      _value := calldataload(data.offset)
+    }
+    return _value.toUint32();
+  }
 
+  // ┌─ _readUint128Cd ─────
+  function _readUint128Cd(bytes calldata data, uint offset) internal pure returns (uint128 value) {
+    uint _value;
+    assembly {
+      _value := calldataload(add(data.offset, offset))
+    }
+    return _value.toUint128();
+  }
+
+  // ┌─ _readBoolCd ─────
+  function _readBoolCd(bytes calldata data, uint offset) internal pure returns (bool value) {
+    assembly {
+      value := and(calldataload(add(data.offset, offset)), 1)
+    }
+  }
+
+  // ░░▒▒▓▓██ [ ACCESS CONFIGURATION ] ─────────────────────────────────────────
+
+  // ┌─ _readAccessConfig ─────
   function _readAccessConfig(address market) internal view virtual override returns (AccessConfig memory) {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
     return AccessConfig({
@@ -152,15 +199,21 @@ abstract contract FixedTermPolicy is BaseHooks {
     });
   }
 
+  // ┌─ _isDepositHookEnabled ─────
   function _isDepositHookEnabled(address market) internal view virtual override returns (bool) {
     return _depositHookEnabled[market];
   }
 
+  // ┌─ _writeMinimumDeposit ─────
   function _writeMinimumDeposit(address market, uint128 value) internal virtual override {
     _hookedMarkets[market].minimumDeposit = value;
   }
 
+  // ░░▒▒▓▓██ [ TERM CHANGES ] ─────────────────────────────────────────────────
+
+  // ┌─ setFixedTermEndTime ─────
   /// @notice moves a hooked market's maturity earlier when term reduction was enabled at creation.
+  ///
   /// @dev the new time may be now or in the past. maturity can never be extended.
   function setFixedTermEndTime(address market, uint32 newFixedTermEndTime) external onlyAdministrator {
     HookedMarket storage hookedMarket = _hookedMarkets[market];
@@ -176,20 +229,21 @@ abstract contract FixedTermPolicy is BaseHooks {
     _afterFixedTermChange(market, previousFixedTermEndTime, newFixedTermEndTime);
   }
 
+  // ┌─ _validateFixedTermChange ─────
   /// @dev `setFixedTermEndTime` has passed its native checks; stored maturity is still
   ///      `previousTime`. add restrictions here before writing `newTime`.
   ///      creation and early closure use `_onMarketConfigured` and the closure helpers instead.
   function _validateFixedTermChange(address market, uint32 previousTime, uint32 newTime) internal view virtual { }
 
+  // ┌─ _afterFixedTermChange ─────
   /// @dev stored maturity is now `newTime` and `FixedTermUpdated` has been emitted.
   ///      reverting rolls back the maturity, event, and any feature state written here.
   ///      this runs only from `setFixedTermEndTime`, not creation or early closure.
   function _afterFixedTermChange(address market, uint32 previousTime, uint32 newTime) internal virtual { }
 
-  // ========================================================================== //
-  //                                    Hooks                                   //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ WITHDRAWAL QUEUEING ] ──────────────────────────────────────────
 
+  // ┌─ _checkWithdrawalSchedule ─────
   /// @dev registration runs first in BaseHooks. maturity still wins over an access failure.
   function _checkWithdrawalSchedule(
     address,
@@ -208,14 +262,14 @@ abstract contract FixedTermPolicy is BaseHooks {
     }
   }
 
+  // ░░▒▒▓▓██ [ CLOSURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _validateCloseMarket ─────
   function _validateCloseMarket(MarketState calldata, bytes calldata) internal view virtual override {
     _validateFixedCloseMarket();
   }
 
-  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
-    _applyFixedCloseMarket();
-  }
-
+  // ┌─ _validateFixedCloseMarket ─────
   /// @dev either early-close permission is enough. keep the existing OR rule.
   function _validateFixedCloseMarket() internal view {
     HookedMarket storage market = _hookedMarkets[msg.sender];
@@ -227,6 +281,12 @@ abstract contract FixedTermPolicy is BaseHooks {
     }
   }
 
+  // ┌─ _applyCloseMarket ─────
+  function _applyCloseMarket(MarketState calldata, bytes calldata) internal virtual override {
+    _applyFixedCloseMarket();
+  }
+
+  // ┌─ _applyFixedCloseMarket ─────
   /// @dev validation must run first. an allowed early close brings maturity forward to now.
   function _applyFixedCloseMarket() internal {
     HookedMarket storage market = _hookedMarkets[msg.sender];
@@ -237,6 +297,9 @@ abstract contract FixedTermPolicy is BaseHooks {
     }
   }
 
+  // ░░▒▒▓▓██ [ INTEREST ] ─────────────────────────────────────────────────────
+
+  // ┌─ _applyAprUpdate ─────
   /// @dev `_validateFixedAprUpdate` blocks APR reductions before `fixedTermEndTime`.
   ///      equal or higher APRs proceed to the bounds/reserve logic in `_applyDefaultAprUpdate`.
   ///      overriding `_applyDefaultAprUpdate` keeps that term check; overriding `_applyAprUpdate`
@@ -256,6 +319,7 @@ abstract contract FixedTermPolicy is BaseHooks {
     return _applyDefaultAprUpdate(annualInterestBips, intermediateState);
   }
 
+  // ┌─ _validateFixedAprUpdate ─────
   /// @dev no registration check here: the existing APR callback accepts unknown callers.
   function _validateFixedAprUpdate(uint16 annualInterestBips, MarketState calldata intermediateState) internal view {
     HookedMarket storage hookedMarket = _hookedMarkets[msg.sender];

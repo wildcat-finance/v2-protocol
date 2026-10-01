@@ -1,6 +1,50 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // FixedTermHooks.t
+// ║  ██▀▀     ▀▀██   Fixed maturity, withdrawal access, and term-management tests.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _newHooks(...)
+// ║  _newManagementHooks()
+// ║  _createMarket(...)
+// ║  _requestedConfig(...)
+// ║  _term()
+// ║  _addPullProvider(...)
+// ║
+// ║  MARKET CREATION
+// ║  test_metadata_IsCanonical()
+// ║  test_onCreateMarket_ValidatesTermData()
+// ║  test_onCreateMarket_PreservesTermPermissionsAndBatchReads(...)
+// ║  test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder()
+// ║
+// ║  ADMINISTRATOR HANDOFF
+// ║  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
+// ║  archController()
+// ║  isRegisteredBorrower(...)
+// ║  onHooksAdministratorTransferred(...)
+// ║
+// ║  TERM MANAGEMENT
+// ║  test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority()
+// ║  test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior()
+// ║  test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(...)
+// ║  test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite()
+// ║  test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection()
+// ║  test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget()
+// ║  test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure()
+// ║
+// ║  TERM OPERATIONS
+// ║  test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess()
+// ║  test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges()
+// ║  test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm()
+// ║  test_unhookedCloseMarket_Rejects()
+// ╚═════
+
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
@@ -18,6 +62,7 @@ import { FixedTermManagementHooks } from '../mocks/FixedTermManagementHooks.sol'
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ FixedTermHooksTest ───────────────────────────────────────────────────────
 contract FixedTermHooksTest is TestKernel {
   address internal constant MarketA = address(0x2001);
   address internal constant MarketB = address(0x2002);
@@ -38,6 +83,9 @@ contract FixedTermHooksTest is TestKernel {
   address internal callbackPreviousAdministrator;
   address internal callbackNewAdministrator;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     registeredBorrowers[address(this)] = true;
     provider1 = MockRoleProvider(_deployCode('test/mocks/MockRoleProvider.sol:MockRoleProvider'));
@@ -46,20 +94,7 @@ contract FixedTermHooksTest is TestKernel {
     hooks = _newHooks(address(this), inputs);
   }
 
-  function archController() external view returns (address) {
-    return address(this);
-  }
-
-  function isRegisteredBorrower(address account) external view returns (bool) {
-    return registeredBorrowers[account];
-  }
-
-  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
-    assertEq(msg.sender, address(hooks), 'callback caller');
-    callbackPreviousAdministrator = previousAdministrator;
-    callbackNewAdministrator = newAdministrator;
-  }
-
+  // ┌─ _newHooks ─────
   function _newHooks(
     address administrator,
     NameAndProviderInputs memory inputs
@@ -72,16 +107,29 @@ contract FixedTermHooksTest is TestKernel {
     );
   }
 
-  function _term() internal view returns (uint32) {
-    return uint32(block.timestamp + 365 days);
-  }
-
+  // ┌─ _newManagementHooks ─────
   function _newManagementHooks() internal returns (FixedTermManagementHooks target) {
     target = FixedTermManagementHooks(
       _deployCode('test/mocks/FixedTermManagementHooks.sol:FixedTermManagementHooks', abi.encode(address(this)))
     );
   }
 
+  // ┌─ _createMarket ─────
+  function _createMarket(
+    FixedTermHooks target,
+    address market,
+    HooksConfig requestedConfig,
+    bytes memory hooksData
+  )
+    internal
+    returns (HooksConfig effectiveConfig)
+  {
+    DeployMarketInputs memory inputs;
+    inputs.hooks = requestedConfig;
+    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
+  }
+
+  // ┌─ _requestedConfig ─────
   function _requestedConfig(
     FixedTermHooks target,
     bool deposit,
@@ -98,30 +146,26 @@ contract FixedTermHooksTest is TestKernel {
     if (transfer) config = config.setFlag(Bit_Enabled_Transfer);
   }
 
-  function _createMarket(
-    FixedTermHooks target,
-    address market,
-    HooksConfig requestedConfig,
-    bytes memory hooksData
-  )
-    internal
-    returns (HooksConfig effectiveConfig)
-  {
-    DeployMarketInputs memory inputs;
-    inputs.hooks = requestedConfig;
-    effectiveConfig = target.onCreateMarket(address(this), market, inputs, hooksData);
+  // ┌─ _term ─────
+  function _term() internal view returns (uint32) {
+    return uint32(block.timestamp + 365 days);
   }
 
+  // ┌─ _addPullProvider ─────
   function _addPullProvider(FixedTermHooks target) internal {
     provider1.setIsPullProvider(true);
     target.addRoleProvider(address(provider1), type(uint32).max);
   }
 
+  // ░░▒▒▓▓██ [ MARKET CREATION ] ──────────────────────────────────────────────
+
+  // ┌─ test_metadata_IsCanonical ─────
   function test_metadata_IsCanonical() external view {
     assertEq(hooks.version(), 'FixedTermHooks', 'version');
     assertEq(hooks.MaximumLoanTerm(), 365 days, 'maximum loan term');
   }
 
+  // ┌─ test_onCreateMarket_ValidatesTermData ─────
   function test_onCreateMarket_ValidatesTermData() external {
     DeployMarketInputs memory inputs;
     vm.expectRevert(FixedTermPolicy.FixedTermNotProvided.selector);
@@ -137,6 +181,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(hooks.getHookedMarket(MarketD).fixedTermEndTime, block.timestamp, 'zero term');
   }
 
+  // ┌─ test_onCreateMarket_PreservesTermPermissionsAndBatchReads ─────
   function test_onCreateMarket_PreservesTermPermissionsAndBatchReads(
     bool allowClosureBeforeTerm,
     bool allowTermReduction
@@ -164,6 +209,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(abi.encode(hooks.getHookedMarket(MarketB)), abi.encode(empty), 'unknown single configuration');
   }
 
+  // ┌─ test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder ─────
   function test_onCreateMarket_PreservesTermDecodeAndMinimumFailureOrder() external {
     DeployMarketInputs memory inputs;
     vm.expectRevert(FixedTermPolicy.FixedTermNotProvided.selector);
@@ -188,6 +234,9 @@ contract FixedTermHooksTest is TestKernel {
     assertFalse(config.allowTermReduction, 'even term flag');
   }
 
+  // ░░▒▒▓▓██ [ ADMINISTRATOR HANDOFF ] ────────────────────────────────────────
+
+  // ┌─ test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority ─────
   function test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority() external {
     uint32 term = _term();
     _createMarket(
@@ -210,6 +259,26 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(hooks.getHookedMarket(MarketA).minimumDeposit, 200, 'updated minimum');
   }
 
+  // ┌─ archController ─────
+  function archController() external view returns (address) {
+    return address(this);
+  }
+
+  // ┌─ isRegisteredBorrower ─────
+  function isRegisteredBorrower(address account) external view returns (bool) {
+    return registeredBorrowers[account];
+  }
+
+  // ┌─ onHooksAdministratorTransferred ─────
+  function onHooksAdministratorTransferred(address previousAdministrator, address newAdministrator) external {
+    assertEq(msg.sender, address(hooks), 'callback caller');
+    callbackPreviousAdministrator = previousAdministrator;
+    callbackNewAdministrator = newAdministrator;
+  }
+
+  // ░░▒▒▓▓██ [ TERM MANAGEMENT ] ──────────────────────────────────────────────
+
+  // ┌─ test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority ─────
   function test_setFixedTermEndTime_EnforcesReductionPolicyAndAuthority() external {
     uint32 term = _term();
     _createMarket(
@@ -234,6 +303,7 @@ contract FixedTermHooksTest is TestKernel {
     hooks.setFixedTermEndTime(MarketA, 0);
   }
 
+  // ┌─ test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior ─────
   function test_setFixedTermEndTime_PreservesEqualAndPastTimeBehavior() external {
     uint32 term = _term();
     _createMarket(
@@ -272,6 +342,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(reserve, 1_000, 'current reserves');
   }
 
+  // ┌─ test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm ─────
   function test_setFixedTermEndTime_ExtensionAcceptsAndObservesUpdatedTerm(uint32 reductionSeed) external {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
@@ -295,6 +366,7 @@ contract FixedTermHooksTest is TestKernel {
     }
   }
 
+  // ┌─ test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite ─────
   function test_setFixedTermEndTime_ExtensionRejectsBeforeMaturityWrite() external {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
@@ -315,6 +387,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(target.totalTermReduction(MarketA), 10 days, 'accepted retry');
   }
 
+  // ┌─ test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection ─────
   function test_setFixedTermEndTime_NativeChecksPrecedeExtensionRejection() external {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
@@ -351,6 +424,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(target.totalTermReduction(MarketC), 0, 'no unknown-market feature effects');
   }
 
+  // ┌─ test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget ─────
   function test_setFixedTermEndTime_AfterExtensionRejectionRollsBackTermAndBudget() external {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
@@ -371,6 +445,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(target.totalTermReduction(MarketA), 10 days, 'budget charged only once');
   }
 
+  // ┌─ test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure ─────
   function test_termChangeExtensions_DoNotRunOnCreationOrEarlyClosure() external {
     FixedTermManagementHooks target = _newManagementHooks();
     uint32 term = _term();
@@ -389,12 +464,9 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(target.totalTermReduction(MarketA), 0, 'closure does not consume setter budget');
   }
 
-  function test_unhookedCloseMarket_Rejects() external {
-    MarketState memory state;
-    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
-    hooks.onCloseMarket(state, '');
-  }
+  // ░░▒▒▓▓██ [ TERM OPERATIONS ] ──────────────────────────────────────────────
 
+  // ┌─ test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess ─────
   function test_onQueueWithdrawal_ChecksMaturityBeforeKnownOrCredentialAccess() external {
     uint32 term = _term();
     _createMarket(hooks, MarketA, _requestedConfig(hooks, true, true, true), abi.encode(term));
@@ -427,6 +499,7 @@ contract FixedTermHooksTest is TestKernel {
     hooks.onQueueWithdrawal(ThirdLender, 0, 1, state, '');
   }
 
+  // ┌─ test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges ─────
   function test_onSetApr_BlocksReductionDuringTermAndDelegatesAllowedChanges() external {
     uint32 term = _term();
     _createMarket(hooks, MarketA, _requestedConfig(hooks, false, false, false), abi.encode(term));
@@ -451,6 +524,7 @@ contract FixedTermHooksTest is TestKernel {
     assertEq(reserveRatioBips, 1_000, 'post-term reserve ratio');
   }
 
+  // ┌─ test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm ─────
   function test_onCloseMarket_EnforcesEarlyClosurePolicyAndUpdatesTerm() external {
     uint32 term = _term();
     MarketState memory state;
@@ -479,5 +553,12 @@ contract FixedTermHooksTest is TestKernel {
     vm.prank(MarketC);
     hooks.onCloseMarket(state, '');
     assertEq(hooks.getHookedMarket(MarketC).fixedTermEndTime, term, 'elapsed term');
+  }
+
+  // ┌─ test_unhookedCloseMarket_Rejects ─────
+  function test_unhookedCloseMarket_Rejects() external {
+    MarketState memory state;
+    vm.expectRevert(BaseHooks.NotHookedMarket.selector);
+    hooks.onCloseMarket(state, '');
   }
 }

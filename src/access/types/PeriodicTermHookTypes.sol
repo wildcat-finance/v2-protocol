@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicTermHookTypes
+// ║  ██▀▀     ▀▀██   Periodic market settings and APR proposal records.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  CURRENT APR
+// ║  annualInterestBips()
+// ╚═════
+
 /// @dev per-market schedule and access settings, packed into 31 bytes so the hot callbacks need one
 ///      storage slot. `minimumDeposit` is `uint96`; the external setter keeps its older `uint128`
 ///      ABI and checks the downcast.
@@ -33,8 +44,12 @@ struct PendingAprChangeStorage {
   uint32 responseWindowEnd;
 }
 
+// ┌─ IMarketApr ───────────────────────────────────────────────────────────────
 /// @dev narrow market query used to prove a proposal is a strict reduction when it is created.
 interface IMarketApr {
+  // ░░▒▒▓▓██ [ CURRENT APR ] ──────────────────────────────────────────────────
+
+  // ┌─ annualInterestBips ─────
   /// @notice returns the market's current base annual interest rate, in bips.
   function annualInterestBips() external view returns (uint256);
 }

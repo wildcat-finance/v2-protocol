@@ -1,6 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MockArchControllerOwner.t
+// ║  ██▀▀     ▀▀██   Executor authority, protocol actions, and ownership recovery.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture()
+// ║  _deployArchController()
+// ║  _deployHelper(...)
+// ║  _initialExecutors()
+// ║  _deployProtocolTarget(...)
+// ║  _deployLegacyFactory(...)
+// ║  _deploySphereXEngine()
+// ║
+// ║  EXECUTOR AUTHORITY
+// ║  test_constructor_RecordsExplicitExecutors()
+// ║  test_constructor_RejectsInvalidInputs()
+// ║  test_authorizeAndDeauthorizeAccounts_EmitsAndUsesSwapPop()
+// ║  test_authorizationMutation_ValidatesCallerAndAccount()
+// ║  test_deauthorizeAccount_RejectsFinalExecutor()
+// ║  test_oldAndNewExecutors_OperateConcurrently()
+// ║
+// ║  REGISTRATION AND RECOVERY
+// ║  test_registerBorrowerAndBatch_ArePermissionless()
+// ║  test_returnOwnership_GivesArchControllerToAuthorizedCaller()
+// ║
+// ║  PROTOCOL ACTIONS
+// ║  test_executeProtocolAction_CallsArchController()
+// ║  test_executeProtocolAction_EmitsForBoundTargetAndReturnsData()
+// ║  test_executeProtocolAction_BubblesTargetRevert()
+// ║  test_executeProtocolAction_RejectsInvalidTargetOrData()
+// ║  test_executeProtocolAction_RequiresAuthorization()
+// ║  test_setProtocolFeeConfiguration_PreservesLegacyCallAndRequiresAuthorization()
+// ║
+// ║  ENGINE AUTHORITY
+// ║  test_archControllerSphereXRoles_CanMoveToHelper()
+// ║  test_sphereXEngineRoles_CanMoveToHelper()
+// ╚═════
+
 import 'openzeppelin/contracts/access/IAccessControl.sol';
 import 'openzeppelin/contracts/access/IAccessControlDefaultAdminRules.sol';
 import { ILegacyWildcatMarketControllerFactory } from 'script/mock/MockArchControllerOwner.sol';
@@ -12,6 +53,7 @@ import { ArchControllerOwnerProtocolTargetMock } from '../mocks/ArchControllerOw
 import { ArchControllerOwnerSphereXEngineMock } from '../mocks/ArchControllerOwnerMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ MockArchControllerOwnerTest ──────────────────────────────────────────────
 contract MockArchControllerOwnerTest is TestKernel {
   struct Fixture {
     WildcatArchController archController;
@@ -30,62 +72,9 @@ contract MockArchControllerOwnerTest is TestKernel {
   address internal constant ThirdExecutor = address(0xA11CE);
   address internal constant BadCaller = address(0xBAD);
 
-  function _deployArchController() internal returns (WildcatArchController archController) {
-    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
-  }
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
 
-  function _deployHelper(
-    WildcatArchController archController,
-    address[] memory initialExecutors
-  )
-    internal
-    returns (MockArchControllerOwner helper)
-  {
-    helper = MockArchControllerOwner(
-      _deployCode(
-        'script/mock/MockArchControllerOwner.sol:MockArchControllerOwner',
-        abi.encode(address(archController), initialExecutors)
-      )
-    );
-  }
-
-  function _deployProtocolTarget(address archController)
-    internal
-    returns (ArchControllerOwnerProtocolTargetMock target)
-  {
-    target = ArchControllerOwnerProtocolTargetMock(
-      _deployCode(
-        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerProtocolTargetMock', abi.encode(archController)
-      )
-    );
-  }
-
-  function _deployLegacyFactory(address archController)
-    internal
-    returns (ArchControllerOwnerLegacyFactoryMock factory)
-  {
-    factory = ArchControllerOwnerLegacyFactoryMock(
-      _deployCode(
-        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerLegacyFactoryMock', abi.encode(archController)
-      )
-    );
-  }
-
-  function _deploySphereXEngine() internal returns (ArchControllerOwnerSphereXEngineMock engine) {
-    engine = ArchControllerOwnerSphereXEngineMock(
-      _deployCode(
-        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerSphereXEngineMock',
-        abi.encode(uint48(1 hours), OldExecutor)
-      )
-    );
-  }
-
-  function _initialExecutors() internal pure returns (address[] memory accounts) {
-    accounts = new address[](2);
-    accounts[0] = OldExecutor;
-    accounts[1] = NewExecutor;
-  }
-
+  // ┌─ _newFixture ─────
   function _newFixture() internal returns (Fixture memory fixture) {
     fixture.archController = _deployArchController();
     fixture.archController.transferSphereXAdminRole(OldExecutor);
@@ -111,10 +100,71 @@ contract MockArchControllerOwnerTest is TestKernel {
     fixture.legacyFactory = _deployLegacyFactory(address(fixture.archController));
   }
 
-  // ========================================================================== //
-  //                              Executor set                                  //
-  // ========================================================================== //
+  // ┌─ _deployArchController ─────
+  function _deployArchController() internal returns (WildcatArchController archController) {
+    archController = WildcatArchController(_deployCode('src/WildcatArchController.sol:WildcatArchController'));
+  }
 
+  // ┌─ _deployHelper ─────
+  function _deployHelper(
+    WildcatArchController archController,
+    address[] memory initialExecutors
+  )
+    internal
+    returns (MockArchControllerOwner helper)
+  {
+    helper = MockArchControllerOwner(
+      _deployCode(
+        'script/mock/MockArchControllerOwner.sol:MockArchControllerOwner',
+        abi.encode(address(archController), initialExecutors)
+      )
+    );
+  }
+
+  // ┌─ _initialExecutors ─────
+  function _initialExecutors() internal pure returns (address[] memory accounts) {
+    accounts = new address[](2);
+    accounts[0] = OldExecutor;
+    accounts[1] = NewExecutor;
+  }
+
+  // ┌─ _deployProtocolTarget ─────
+  function _deployProtocolTarget(address archController)
+    internal
+    returns (ArchControllerOwnerProtocolTargetMock target)
+  {
+    target = ArchControllerOwnerProtocolTargetMock(
+      _deployCode(
+        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerProtocolTargetMock', abi.encode(archController)
+      )
+    );
+  }
+
+  // ┌─ _deployLegacyFactory ─────
+  function _deployLegacyFactory(address archController)
+    internal
+    returns (ArchControllerOwnerLegacyFactoryMock factory)
+  {
+    factory = ArchControllerOwnerLegacyFactoryMock(
+      _deployCode(
+        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerLegacyFactoryMock', abi.encode(archController)
+      )
+    );
+  }
+
+  // ┌─ _deploySphereXEngine ─────
+  function _deploySphereXEngine() internal returns (ArchControllerOwnerSphereXEngineMock engine) {
+    engine = ArchControllerOwnerSphereXEngineMock(
+      _deployCode(
+        'test/mocks/ArchControllerOwnerMocks.sol:ArchControllerOwnerSphereXEngineMock',
+        abi.encode(uint48(1 hours), OldExecutor)
+      )
+    );
+  }
+
+  // ░░▒▒▓▓██ [ EXECUTOR AUTHORITY ] ───────────────────────────────────────────
+
+  // ┌─ test_constructor_RecordsExplicitExecutors ─────
   function test_constructor_RecordsExplicitExecutors() external {
     Fixture memory fixture = _newFixture();
     assertEq(address(fixture.helper.archController()), address(fixture.archController));
@@ -129,6 +179,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertEq(accounts[1], NewExecutor);
   }
 
+  // ┌─ test_constructor_RejectsInvalidInputs ─────
   function test_constructor_RejectsInvalidInputs() external {
     WildcatArchController archController = _deployArchController();
     address[] memory emptyExecutors = new address[](0);
@@ -153,6 +204,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     _deployHelper(archController, duplicateExecutors);
   }
 
+  // ┌─ test_authorizeAndDeauthorizeAccounts_EmitsAndUsesSwapPop ─────
   function test_authorizeAndDeauthorizeAccounts_EmitsAndUsesSwapPop() external {
     Fixture memory fixture = _newFixture();
 
@@ -182,6 +234,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertFalse(fixture.helper.authorizedAccounts(NewExecutor));
   }
 
+  // ┌─ test_authorizationMutation_ValidatesCallerAndAccount ─────
   function test_authorizationMutation_ValidatesCallerAndAccount() external {
     Fixture memory fixture = _newFixture();
 
@@ -202,6 +255,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     fixture.helper.deauthorizeAccount(ThirdExecutor);
   }
 
+  // ┌─ test_deauthorizeAccount_RejectsFinalExecutor ─────
   function test_deauthorizeAccount_RejectsFinalExecutor() external {
     WildcatArchController archController = _deployArchController();
     address[] memory accounts = new address[](1);
@@ -213,10 +267,27 @@ contract MockArchControllerOwnerTest is TestKernel {
     helper.deauthorizeAccount(OldExecutor);
   }
 
-  // ========================================================================== //
-  //                          ArchController operations                         //
-  // ========================================================================== //
+  // ┌─ test_oldAndNewExecutors_OperateConcurrently ─────
+  function test_oldAndNewExecutors_OperateConcurrently() external {
+    Fixture memory fixture = _newFixture();
+    vm.prank(OldExecutor);
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.protocolTarget), abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (1))
+      );
+    assertEq(fixture.protocolTarget.value(), 1);
 
+    vm.prank(NewExecutor);
+    fixture.helper
+      .executeProtocolAction(
+        address(fixture.protocolTarget), abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (2))
+      );
+    assertEq(fixture.protocolTarget.value(), 2);
+  }
+
+  // ░░▒▒▓▓██ [ REGISTRATION AND RECOVERY ] ────────────────────────────────────
+
+  // ┌─ test_registerBorrowerAndBatch_ArePermissionless ─────
   function test_registerBorrowerAndBatch_ArePermissionless() external {
     Fixture memory fixture = _newFixture();
     address borrower = address(0xB0B);
@@ -233,6 +304,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertTrue(fixture.archController.isRegisteredBorrower(borrowers[1]));
   }
 
+  // ┌─ test_returnOwnership_GivesArchControllerToAuthorizedCaller ─────
   function test_returnOwnership_GivesArchControllerToAuthorizedCaller() external {
     Fixture memory fixture = _newFixture();
     vm.prank(NewExecutor);
@@ -240,6 +312,9 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertEq(fixture.archController.owner(), NewExecutor);
   }
 
+  // ░░▒▒▓▓██ [ PROTOCOL ACTIONS ] ─────────────────────────────────────────────
+
+  // ┌─ test_executeProtocolAction_CallsArchController ─────
   function test_executeProtocolAction_CallsArchController() external {
     Fixture memory fixture = _newFixture();
     bytes memory data =
@@ -249,6 +324,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertTrue(fixture.archController.isRegisteredControllerFactory(address(fixture.protocolTarget)));
   }
 
+  // ┌─ test_executeProtocolAction_EmitsForBoundTargetAndReturnsData ─────
   function test_executeProtocolAction_EmitsForBoundTargetAndReturnsData() external {
     Fixture memory fixture = _newFixture();
     bytes memory data = abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (42));
@@ -267,6 +343,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertEq(fixture.protocolTarget.lastCaller(), address(fixture.helper));
   }
 
+  // ┌─ test_executeProtocolAction_BubblesTargetRevert ─────
   function test_executeProtocolAction_BubblesTargetRevert() external {
     Fixture memory fixture = _newFixture();
     bytes memory data = abi.encodeCall(ArchControllerOwnerProtocolTargetMock.fail, (17));
@@ -276,6 +353,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     fixture.helper.executeProtocolAction(address(fixture.protocolTarget), data);
   }
 
+  // ┌─ test_executeProtocolAction_RejectsInvalidTargetOrData ─────
   function test_executeProtocolAction_RejectsInvalidTargetOrData() external {
     Fixture memory fixture = _newFixture();
     bytes memory data = abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (42));
@@ -313,6 +391,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     fixture.helper.executeProtocolAction(address(fixture.protocolTarget), hex'1234');
   }
 
+  // ┌─ test_executeProtocolAction_RequiresAuthorization ─────
   function test_executeProtocolAction_RequiresAuthorization() external {
     Fixture memory fixture = _newFixture();
     bytes memory data = abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (42));
@@ -321,6 +400,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     fixture.helper.executeProtocolAction(address(fixture.protocolTarget), data);
   }
 
+  // ┌─ test_setProtocolFeeConfiguration_PreservesLegacyCallAndRequiresAuthorization ─────
   function test_setProtocolFeeConfiguration_PreservesLegacyCallAndRequiresAuthorization() external {
     Fixture memory fixture = _newFixture();
     address feeRecipient = address(0xFEE);
@@ -343,10 +423,9 @@ contract MockArchControllerOwnerTest is TestKernel {
       );
   }
 
-  // ========================================================================== //
-  //                            SphereX handoff                                 //
-  // ========================================================================== //
+  // ░░▒▒▓▓██ [ ENGINE AUTHORITY ] ─────────────────────────────────────────────
 
+  // ┌─ test_archControllerSphereXRoles_CanMoveToHelper ─────
   function test_archControllerSphereXRoles_CanMoveToHelper() external {
     Fixture memory fixture = _newFixture();
     vm.prank(OldExecutor);
@@ -371,6 +450,7 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertEq(fixture.archController.sphereXEngine(), address(fixture.sphereXEngine));
   }
 
+  // ┌─ test_sphereXEngineRoles_CanMoveToHelper ─────
   function test_sphereXEngineRoles_CanMoveToHelper() external {
     Fixture memory fixture = _newFixture();
     vm.prank(OldExecutor);
@@ -404,22 +484,5 @@ contract MockArchControllerOwnerTest is TestKernel {
     assertTrue(
       fixture.sphereXEngine.hasRole(fixture.sphereXEngine.SENDER_ADDER_ROLE(), address(fixture.archController))
     );
-  }
-
-  function test_oldAndNewExecutors_OperateConcurrently() external {
-    Fixture memory fixture = _newFixture();
-    vm.prank(OldExecutor);
-    fixture.helper
-      .executeProtocolAction(
-        address(fixture.protocolTarget), abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (1))
-      );
-    assertEq(fixture.protocolTarget.value(), 1);
-
-    vm.prank(NewExecutor);
-    fixture.helper
-      .executeProtocolAction(
-        address(fixture.protocolTarget), abi.encodeCall(ArchControllerOwnerProtocolTargetMock.setValue, (2))
-      );
-    assertEq(fixture.protocolTarget.value(), 2);
   }
 }

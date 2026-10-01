@@ -1,6 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // ZeroValueTransferReview.t
+// ║  ██▀▀     ▀▀██   Origination-fee transfer behavior across factories and routes.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  TRANSFER REJECTION TARGET
+// ║  constructor(...)
+// ║  transferFrom(...)
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║  _feeToken(...)
+// ║  _configureFee(...)
+// ║  deployCell(...)
+// ║
+// ║  ZERO FEE TRANSFERS
+// ║  test_zeroFeeSkipsRejectingTokenAcrossFactoriesAndRoutes()
+// ║  test_zeroFeeNullRecipientNeedsNoTransferAcrossFactoriesAndRoutes()
+// ║  test_zeroFeeMakesNoCallEvenWhenTokenWouldAcceptTransfer()
+// ║  test_noFeeTokenNeedsNoTransferAcrossFactoriesAndRoutes()
+// ║
+// ║  POSITIVE FEE TRANSFERS
+// ║  test_positiveFeeTransfersExactlyOnceAcrossFactoriesAndRoutes()
+// ║  test_feeMismatchPrecedesTransferAcrossFactoriesAndRoutes()
+// ║  test_positiveFeeCannotBeBypassedWithZeroAmount()
+// ║  test_positiveFeeStillRequiresSuccessfulTransfer()
+// ║
+// ║  DEPLOYMENT ASSERTIONS
+// ║  _expectDeploymentConfig(...)
+// ║  _assertDeployed(...)
+// ╚═════
+
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
 import { IHooks } from 'src/access/IHooks.sol';
@@ -10,15 +44,20 @@ import { WildcatMarket } from 'src/market/WildcatMarket.sol';
 import { HooksConfig, HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 
+// ┌─ ZeroTransferReviewToken ──────────────────────────────────────────────────
 /// @dev Conventional balance accounting, with configurable transfer rejection.
 contract ZeroTransferReviewToken is MockERC20 {
   bool internal immutable rejectZeroAmount;
   uint256 public transferFromCalls;
 
+  // ░░▒▒▓▓██ [ TRANSFER REJECTION TARGET ] ────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(bool rejectZeroAmount_) MockERC20('Review Fee Token', 'RFT', 18) {
     rejectZeroAmount = rejectZeroAmount_;
   }
 
+  // ┌─ transferFrom ─────
   function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
     transferFromCalls++;
     require(to != address(0), 'ZERO_RECIPIENT');
@@ -27,53 +66,32 @@ contract ZeroTransferReviewToken is MockERC20 {
   }
 }
 
+// ┌─ ZeroValueTransferReviewTest ──────────────────────────────────────────────
 /// @dev Regression coverage for amount-based origination-fee transfers.
 contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
   ProductionStack internal stack;
   address internal constant FeeRecipient = address(0xFEE);
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     stack = _deployProductionStack();
   }
 
+  // ┌─ _feeToken ─────
   function _feeToken(bool rejectZeroAmount) internal returns (ZeroTransferReviewToken) {
     return ZeroTransferReviewToken(
       _deployCode('test/factories/ZeroValueTransferReview.t.sol:ZeroTransferReviewToken', abi.encode(rejectZeroAmount))
     );
   }
 
+  // ┌─ _configureFee ─────
   function _configureFee(MatrixMarketKind kind, address recipient, address token, uint80 amount) internal {
     _factoryFor(stack, kind).updateHooksTemplateFees(stack.hooksTemplates[0], recipient, token, amount, 0);
   }
 
-  function _expectDeploymentConfig(MatrixMarketKind kind, address feeAsset, address recipient, uint96 nonce) internal {
-    IHooksFactory factory = _factoryFor(stack, kind);
-    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, kind);
-    address expectedMarket = factory.computeMarketAddress(_marketSalt(MatrixBorrower, nonce));
-    vm.expectEmit(address(factory));
-    emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
-      expectedMarket,
-      options.maxTotalSupply,
-      options.annualInterestBips,
-      options.delinquencyFeeBips,
-      options.withdrawalBatchDuration,
-      options.reserveRatioBips,
-      options.delinquencyGracePeriod,
-      recipient,
-      0,
-      feeAsset,
-      0
-    );
-  }
-
-  function _assertDeployed(address market) internal view {
-    assertEq(WildcatMarket(market).asset(), address(stack.asset));
-    assertEq(WildcatMarket(market).borrower(), MatrixBorrower);
-    address hooks = WildcatMarket(market).hooks().hooksAddress();
-    assertTrue(hooks != address(0));
-    assertTrue(stack.archController.isRegisteredMarket(market));
-  }
-
+  // ┌─ deployCell ─────
   /// @dev An external boundary keeps expectRevert focused on the complete deployment,
   /// rather than consuming it on intermediate hooks construction.
   function deployCell(
@@ -118,6 +136,9 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     vm.stopPrank();
   }
 
+  // ░░▒▒▓▓██ [ ZERO FEE TRANSFERS ] ───────────────────────────────────────────
+
+  // ┌─ test_zeroFeeSkipsRejectingTokenAcrossFactoriesAndRoutes ─────
   function test_zeroFeeSkipsRejectingTokenAcrossFactoriesAndRoutes() external {
     ZeroTransferReviewToken token = _feeToken(true);
     for (uint256 i; i < 2; i++) {
@@ -130,6 +151,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_zeroFeeNullRecipientNeedsNoTransferAcrossFactoriesAndRoutes ─────
   function test_zeroFeeNullRecipientNeedsNoTransferAcrossFactoriesAndRoutes() external {
     ZeroTransferReviewToken token = _feeToken(false);
     for (uint256 i; i < 2; i++) {
@@ -143,6 +165,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_zeroFeeMakesNoCallEvenWhenTokenWouldAcceptTransfer ─────
   function test_zeroFeeMakesNoCallEvenWhenTokenWouldAcceptTransfer() external {
     ZeroTransferReviewToken token = _feeToken(false);
     for (uint256 i; i < 2; i++) {
@@ -158,6 +181,20 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     assertEq(token.balanceOf(MatrixBorrower), 0);
   }
 
+  // ┌─ test_noFeeTokenNeedsNoTransferAcrossFactoriesAndRoutes ─────
+  function test_noFeeTokenNeedsNoTransferAcrossFactoriesAndRoutes() external {
+    for (uint256 i; i < 2; i++) {
+      MatrixMarketKind kind = MatrixMarketKind(i);
+      for (uint256 route; route < 2; route++) {
+        address market = this.deployCell(kind, route == 1, address(0), 0, uint96(route + 1));
+        assertEq(WildcatMarket(market).asset(), address(stack.asset));
+      }
+    }
+  }
+
+  // ░░▒▒▓▓██ [ POSITIVE FEE TRANSFERS ] ───────────────────────────────────────
+
+  // ┌─ test_positiveFeeTransfersExactlyOnceAcrossFactoriesAndRoutes ─────
   function test_positiveFeeTransfersExactlyOnceAcrossFactoriesAndRoutes() external {
     ZeroTransferReviewToken token = _feeToken(true);
     token.mint(MatrixBorrower, 492);
@@ -177,16 +214,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     assertEq(token.transferFromCalls(), 4);
   }
 
-  function test_noFeeTokenNeedsNoTransferAcrossFactoriesAndRoutes() external {
-    for (uint256 i; i < 2; i++) {
-      MatrixMarketKind kind = MatrixMarketKind(i);
-      for (uint256 route; route < 2; route++) {
-        address market = this.deployCell(kind, route == 1, address(0), 0, uint96(route + 1));
-        assertEq(WildcatMarket(market).asset(), address(stack.asset));
-      }
-    }
-  }
-
+  // ┌─ test_feeMismatchPrecedesTransferAcrossFactoriesAndRoutes ─────
   function test_feeMismatchPrecedesTransferAcrossFactoriesAndRoutes() external {
     ZeroTransferReviewToken token = _feeToken(true);
     for (uint256 i; i < 2; i++) {
@@ -201,6 +229,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_positiveFeeCannotBeBypassedWithZeroAmount ─────
   function test_positiveFeeCannotBeBypassedWithZeroAmount() external {
     ZeroTransferReviewToken token = _feeToken(true);
     for (uint256 i; i < 2; i++) {
@@ -213,6 +242,7 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
     }
   }
 
+  // ┌─ test_positiveFeeStillRequiresSuccessfulTransfer ─────
   function test_positiveFeeStillRequiresSuccessfulTransfer() external {
     ZeroTransferReviewToken token = _feeToken(true);
     token.mint(MatrixBorrower, 492);
@@ -225,5 +255,37 @@ contract ZeroValueTransferReviewTest is ProductionMatrixFixture {
         this.deployCell(kind, route == 1, address(token), 123, uint96(route + 1));
       }
     }
+  }
+
+  // ░░▒▒▓▓██ [ DEPLOYMENT ASSERTIONS ] ────────────────────────────────────────
+
+  // ┌─ _expectDeploymentConfig ─────
+  function _expectDeploymentConfig(MatrixMarketKind kind, address feeAsset, address recipient, uint96 nonce) internal {
+    IHooksFactory factory = _factoryFor(stack, kind);
+    MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, kind);
+    address expectedMarket = factory.computeMarketAddress(_marketSalt(MatrixBorrower, nonce));
+    vm.expectEmit(address(factory));
+    emit IHooksFactoryEventsAndErrors.MarketDeploymentConfig(
+      expectedMarket,
+      options.maxTotalSupply,
+      options.annualInterestBips,
+      options.delinquencyFeeBips,
+      options.withdrawalBatchDuration,
+      options.reserveRatioBips,
+      options.delinquencyGracePeriod,
+      recipient,
+      0,
+      feeAsset,
+      0
+    );
+  }
+
+  // ┌─ _assertDeployed ─────
+  function _assertDeployed(address market) internal view {
+    assertEq(WildcatMarket(market).asset(), address(stack.asset));
+    assertEq(WildcatMarket(market).borrower(), MatrixBorrower);
+    address hooks = WildcatMarket(market).hooks().hooksAddress();
+    assertTrue(hooks != address(0));
+    assertTrue(stack.archController.isRegisteredMarket(market));
   }
 }

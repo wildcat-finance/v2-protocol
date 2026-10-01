@@ -1,12 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderData
+// ║  ██▀▀     ▀▀██   Decoded credentials and optional provider administration.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  PROVIDER DATA
+// ║  toRoleProviderDatas(...)
+// ║  fill(...)
+// ║  _tryReadAddress(...)
+// ╚═════
+
 import '../access/IManagedRoleProvider.sol';
 import '../types/RoleProvider.sol';
 
 using RoleProviderDataLib for RoleProviderData global;
 
 /// @notice decoded role-provider configuration with optional administration metadata.
+///
 /// @dev `isManaged` is true only when both administrator probes return canonical addresses.
 struct RoleProviderData {
   uint32 timeToLive;
@@ -18,25 +32,21 @@ struct RoleProviderData {
   address pendingAdministrator;
 }
 
+// ┌─ RoleProviderDataLib ──────────────────────────────────────────────────────
 /// @notice decoders and bounded metadata probes for packed role providers.
 library RoleProviderDataLib {
-  function _tryReadAddress(address target, bytes4 selector) private view returns (bool success, address value) {
-    uint256 word;
-    uint32 selectorWord = uint32(selector);
-    assembly ('memory-safe') {
-      mstore(0, shl(224, selectorWord))
-      success := staticcall(30000, target, 0, 0x04, 0, 0x20)
-      if iszero(eq(returndatasize(), 0x20)) {
-        success := 0
-      }
-      word := mload(0)
+  // ░░▒▒▓▓██ [ PROVIDER DATA ] ────────────────────────────────────────────────
+
+  // ┌─ toRoleProviderDatas ─────
+  /// @notice decodes each packed provider while preserving input order.
+  function toRoleProviderDatas(RoleProvider[] memory providers) internal view returns (RoleProviderData[] memory data) {
+    data = new RoleProviderData[](providers.length);
+    for (uint256 i; i < providers.length; i++) {
+      data[i].fill(providers[i]);
     }
-    if (!success || word > type(uint160).max) {
-      return (false, address(0));
-    }
-    value = address(uint160(word));
   }
 
+  // ┌─ fill ─────
   /// @notice decodes a packed provider and probes the optional managed-provider interface.
   function fill(RoleProviderData memory data, RoleProvider provider) internal view {
     (data.timeToLive, data.providerAddress, data.pullProviderIndex, data.pushProviderIndex) =
@@ -55,11 +65,21 @@ library RoleProviderDataLib {
     }
   }
 
-  /// @notice decodes each packed provider while preserving input order.
-  function toRoleProviderDatas(RoleProvider[] memory providers) internal view returns (RoleProviderData[] memory data) {
-    data = new RoleProviderData[](providers.length);
-    for (uint256 i; i < providers.length; i++) {
-      data[i].fill(providers[i]);
+  // ┌─ _tryReadAddress ─────
+  function _tryReadAddress(address target, bytes4 selector) private view returns (bool success, address value) {
+    uint256 word;
+    uint32 selectorWord = uint32(selector);
+    assembly ('memory-safe') {
+      mstore(0, shl(224, selectorWord))
+      success := staticcall(30000, target, 0, 0x04, 0, 0x20)
+      if iszero(eq(returndatasize(), 0x20)) {
+        success := 0
+      }
+      word := mload(0)
     }
+    if (!success || word > type(uint160).max) {
+      return (false, address(0));
+    }
+    value = address(uint160(word));
   }
 }

@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLifecycleData
+// ║  ██▀▀     ▀▀██   Repayment lifecycle and current underlying-asset capacity.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  LIFECYCLE AND LIQUIDITY
+// ║  fill(...)
+// ║  fill(...)
+// ╚═════
+
 import '../market/WildcatMarket.sol';
 import './OptionalData.sol';
 
@@ -14,25 +26,33 @@ struct MarketLifecycleData {
   uint256 repaymentDate;
   uint256 repaymentPeriod;
   uint256 repaymentDeadline;
+
   /// @dev committed storage only. zero does not prove an unwritten deadline was met.
   uint256 defaultedAt;
+
   /// @dev the date has arrived and accrued state has not closed the market.
   bool isInRepayment;
 }
 
 /// @notice current underlying-asset amounts used by deposit, borrow, repayment, and recovery flows.
+///
 /// @dev these are accounting amounts. hooks, authority checks, sanctions, and token transfers
 ///      can still prevent an action.
 struct MarketLiquidityData {
   uint256 maximumDeposit;
   uint256 borrowableAssets;
   uint256 totalDebts;
+
   /// @dev assets above every lender/fee liability when accrued state is closed; zero otherwise.
   uint256 recoverableUnderlying;
 }
 
+// ┌─ MarketLifecycleDataLib ───────────────────────────────────────────────────
 /// @notice shared full/live lens reads for lifecycle and available liquidity.
 library MarketLifecycleDataLib {
+  // ░░▒▒▓▓██ [ LIFECYCLE AND LIQUIDITY ] ──────────────────────────────────────
+
+  // ┌─ fill ─────
   function fill(MarketLifecycleData memory data, WildcatMarket market, bool isClosed) internal view {
     bytes4[4] memory selectors = [
       WildcatMarketBase.repaymentDate.selector,
@@ -55,6 +75,7 @@ library MarketLifecycleDataLib {
     data.isInRepayment = !isClosed && values[0] != 0 && block.timestamp >= values[0];
   }
 
+  // ┌─ fill ─────
   function fill(
     MarketLiquidityData memory data,
     WildcatMarket market,

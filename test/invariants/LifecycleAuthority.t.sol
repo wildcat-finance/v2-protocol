@@ -1,6 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleAuthority.t
+// ║  ██▀▀     ▀▀██   Lifecycle accounting through authority and collection-policy changes.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  AUTHORITY HANDOFF
+// ║  test_termsAndDefaultSurviveBorrowerPrincipalAndHookAdminTransfers()
+// ║
+// ║  COLLECTION CONFIGURATION
+// ║  test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed()
+// ║  test_replacementAprPolicyCannotLowerRepaymentReserve()
+// ║  test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms()
+// ╚═════
+
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { MarketParameters } from 'src/interfaces/WildcatStructsAndEnums.sol';
@@ -16,8 +32,12 @@ import { IHooks } from 'src/access/IHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 
+// ┌─ LifecycleAuthorityTest ───────────────────────────────────────────────────
 /// @dev authority changes need the real factory callback and registry, not the small matrix stub.
 contract LifecycleAuthorityTest is ProductionMatrixFixture {
+  // ░░▒▒▓▓██ [ AUTHORITY HANDOFF ] ────────────────────────────────────────────
+
+  // ┌─ test_termsAndDefaultSurviveBorrowerPrincipalAndHookAdminTransfers ─────
   function test_termsAndDefaultSurviveBorrowerPrincipalAndHookAdminTransfers() external {
     vm.warp(1_800_000_000);
     ProductionStack memory stack = _deployProductionStack();
@@ -61,9 +81,13 @@ contract LifecycleAuthorityTest is ProductionMatrixFixture {
   }
 }
 
+// ┌─ LifecycleCollectionConfigurationTest ─────────────────────────────────────
 contract LifecycleCollectionConfigurationTest is MarketFixture {
   error PolicyVeto();
 
+  // ░░▒▒▓▓██ [ COLLECTION CONFIGURATION ] ─────────────────────────────────────
+
+  // ┌─ test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed ─────
   function test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed() external {
     vm.warp(1_800_000_000);
     for (uint256 model; model < 2; ++model) {
@@ -106,6 +130,7 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
     }
   }
 
+  // ┌─ test_replacementAprPolicyCannotLowerRepaymentReserve ─────
   function test_replacementAprPolicyCannotLowerRepaymentReserve() external {
     vm.warp(1_800_000_000);
     for (uint256 model; model < 2; ++model) {
@@ -128,6 +153,7 @@ contract LifecycleCollectionConfigurationTest is MarketFixture {
     }
   }
 
+  // ┌─ test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms ─────
   function test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms() external {
     vm.warp(1_800_000_000);
     for (uint256 model; model < 2; ++model) {

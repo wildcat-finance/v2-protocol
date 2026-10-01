@@ -36,6 +36,7 @@ artifact verification, and release ceremonies.
 - [External security reviews](./audits/README.md)
 - [Security reporting](./SECURITY.md)
 - [Contribution policy](./CONTRIBUTING.md)
+- [Solidity source style](./STYLE_GUIDE.md)
 - [License](./LICENSE.md)
 
 Previous releases live in Git tags. Documentation on a release branch describes

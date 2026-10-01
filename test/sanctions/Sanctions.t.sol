@@ -1,6 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Sanctions.t
+// ║  ██▀▀     ▀▀██   Sanctions overrides, escrow creation, and release behavior.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  FIXTURE
+// ║  _newFixture()
+// ║  _deploySentinel(...)
+// ║
+// ║  SANCTIONS AND OVERRIDES
+// ║  test_constructor_StoresDependenciesHashAndResetParameters()
+// ║  test_chainalysisRead_ValidatesAndBubblesResponse()
+// ║  testFuzz_isSanctioned_CombinesListAndBorrowerOverride(...)
+// ║  test_overrideLifecycle_EmitsAndRestoresSanction()
+// ║
+// ║  ESCROW CREATION
+// ║  testFuzz_getEscrowAddress_MatchesCreate2Formula(...)
+// ║  test_createEscrow_EmitsInitializesOverridesAndIsIdempotent()
+// ║  _createEscrow(...)
+// ║  _expectedEscrowAddress(...)
+// ║  testFuzz_escrowTracksAssetAndBalance(...)
+// ║
+// ║  ESCROW RELEASE
+// ║  test_canReleaseEscrow_TracksSanctionAndOverride()
+// ║  testFuzz_releaseEscrow_IsPermissionlessAndTransfersFullBalance(...)
+// ║  test_releaseEscrow_UsesBorrowerOverride()
+// ║  test_releaseEscrow_RejectsActiveSanction()
+// ╚═════
+
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { WildcatSanctionsEscrow } from 'src/WildcatSanctionsEscrow.sol';
 import { WildcatSanctionsSentinel } from 'src/WildcatSanctionsSentinel.sol';
@@ -9,6 +40,7 @@ import { IWildcatSanctionsEscrow } from 'src/interfaces/IWildcatSanctionsEscrow.
 import { SanctionsListMock } from '../mocks/SanctionsMocks.sol';
 import { TestKernel } from '../shared/TestKernel.sol';
 
+// ┌─ SanctionsTest ────────────────────────────────────────────────────────────
 contract SanctionsTest is TestKernel {
   struct Fixture {
     SanctionsListMock sanctionsList;
@@ -26,6 +58,20 @@ contract SanctionsTest is TestKernel {
   address internal constant Account = address(0xA11CE);
   address internal constant Caller = address(0xCA11);
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ _newFixture ─────
+  function _newFixture() internal returns (Fixture memory fixture) {
+    fixture.sanctionsList = SanctionsListMock(_deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock'));
+    fixture.sentinel = _deploySentinel(ArchController, address(fixture.sanctionsList));
+    fixture.asset = MockERC20(
+      _deployCode(
+        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Mock ERC20', 'MOCK', uint8(18))
+      )
+    );
+  }
+
+  // ┌─ _deploySentinel ─────
   function _deploySentinel(
     address archController,
     address sanctionsList
@@ -40,53 +86,9 @@ contract SanctionsTest is TestKernel {
     );
   }
 
-  function _newFixture() internal returns (Fixture memory fixture) {
-    fixture.sanctionsList = SanctionsListMock(_deployCode('test/mocks/SanctionsMocks.sol:SanctionsListMock'));
-    fixture.sentinel = _deploySentinel(ArchController, address(fixture.sanctionsList));
-    fixture.asset = MockERC20(
-      _deployCode(
-        'lib/solmate/src/test/utils/mocks/MockERC20.sol:MockERC20', abi.encode('Mock ERC20', 'MOCK', uint8(18))
-      )
-    );
-  }
+  // ░░▒▒▓▓██ [ SANCTIONS AND OVERRIDES ] ──────────────────────────────────────
 
-  function _createEscrow(
-    Fixture memory fixture,
-    address borrower,
-    address account
-  )
-    internal
-    returns (WildcatSanctionsEscrow escrow)
-  {
-    escrow = WildcatSanctionsEscrow(fixture.sentinel.createEscrow(borrower, account, address(fixture.asset)));
-  }
-
-  function _expectedEscrowAddress(
-    WildcatSanctionsSentinel sentinel,
-    address borrower,
-    address account,
-    address asset
-  )
-    internal
-    view
-    returns (address)
-  {
-    return address(
-      uint160(
-        uint256(
-          keccak256(
-            abi.encodePacked(
-              bytes1(0xff),
-              address(sentinel),
-              keccak256(abi.encode(borrower, account, asset)),
-              sentinel.WildcatSanctionsEscrowInitcodeHash()
-            )
-          )
-        )
-      )
-    );
-  }
-
+  // ┌─ test_constructor_StoresDependenciesHashAndResetParameters ─────
   function test_constructor_StoresDependenciesHashAndResetParameters() external {
     Fixture memory fixture = _newFixture();
     assertEq(fixture.sentinel.archController(), ArchController);
@@ -101,6 +103,7 @@ contract SanctionsTest is TestKernel {
     assertEq(asset, address(1));
   }
 
+  // ┌─ test_chainalysisRead_ValidatesAndBubblesResponse ─────
   function test_chainalysisRead_ValidatesAndBubblesResponse() external {
     address sanctionsList = address(0xC4A1);
     WildcatSanctionsSentinel sentinel = _deploySentinel(ArchController, sanctionsList);
@@ -127,6 +130,7 @@ contract SanctionsTest is TestKernel {
     vm.clearMockedCalls();
   }
 
+  // ┌─ testFuzz_isSanctioned_CombinesListAndBorrowerOverride ─────
   function testFuzz_isSanctioned_CombinesListAndBorrowerOverride(
     address borrower,
     address account,
@@ -144,6 +148,7 @@ contract SanctionsTest is TestKernel {
     assertEq(fixture.sentinel.isSanctioned(borrower, account), sanctioned && !overridden);
   }
 
+  // ┌─ test_overrideLifecycle_EmitsAndRestoresSanction ─────
   function test_overrideLifecycle_EmitsAndRestoresSanction() external {
     Fixture memory fixture = _newFixture();
     fixture.sanctionsList.sanction(Account);
@@ -164,6 +169,9 @@ contract SanctionsTest is TestKernel {
     assertTrue(fixture.sentinel.isSanctioned(Borrower, Account));
   }
 
+  // ░░▒▒▓▓██ [ ESCROW CREATION ] ──────────────────────────────────────────────
+
+  // ┌─ testFuzz_getEscrowAddress_MatchesCreate2Formula ─────
   function testFuzz_getEscrowAddress_MatchesCreate2Formula(address borrower, address account, address asset) external {
     Fixture memory fixture = _newFixture();
     assertEq(
@@ -172,6 +180,7 @@ contract SanctionsTest is TestKernel {
     );
   }
 
+  // ┌─ test_createEscrow_EmitsInitializesOverridesAndIsIdempotent ─────
   function test_createEscrow_EmitsInitializesOverridesAndIsIdempotent() external {
     Fixture memory fixture = _newFixture();
     address expected = fixture.sentinel.getEscrowAddress(Borrower, Account, address(fixture.asset));
@@ -195,6 +204,46 @@ contract SanctionsTest is TestKernel {
     assertEq(asset, address(1));
   }
 
+  // ┌─ _createEscrow ─────
+  function _createEscrow(
+    Fixture memory fixture,
+    address borrower,
+    address account
+  )
+    internal
+    returns (WildcatSanctionsEscrow escrow)
+  {
+    escrow = WildcatSanctionsEscrow(fixture.sentinel.createEscrow(borrower, account, address(fixture.asset)));
+  }
+
+  // ┌─ _expectedEscrowAddress ─────
+  function _expectedEscrowAddress(
+    WildcatSanctionsSentinel sentinel,
+    address borrower,
+    address account,
+    address asset
+  )
+    internal
+    view
+    returns (address)
+  {
+    return address(
+      uint160(
+        uint256(
+          keccak256(
+            abi.encodePacked(
+              bytes1(0xff),
+              address(sentinel),
+              keccak256(abi.encode(borrower, account, asset)),
+              sentinel.WildcatSanctionsEscrowInitcodeHash()
+            )
+          )
+        )
+      )
+    );
+  }
+
+  // ┌─ testFuzz_escrowTracksAssetAndBalance ─────
   function testFuzz_escrowTracksAssetAndBalance(address borrower, address account, uint256 amount) external {
     Fixture memory fixture = _newFixture();
     WildcatSanctionsEscrow escrow = _createEscrow(fixture, borrower, account);
@@ -214,6 +263,9 @@ contract SanctionsTest is TestKernel {
     assertEq(escrowedAmount, amount);
   }
 
+  // ░░▒▒▓▓██ [ ESCROW RELEASE ] ───────────────────────────────────────────────
+
+  // ┌─ test_canReleaseEscrow_TracksSanctionAndOverride ─────
   function test_canReleaseEscrow_TracksSanctionAndOverride() external {
     Fixture memory fixture = _newFixture();
     WildcatSanctionsEscrow escrow = _createEscrow(fixture, Borrower, Account);
@@ -227,6 +279,7 @@ contract SanctionsTest is TestKernel {
     assertTrue(escrow.canReleaseEscrow());
   }
 
+  // ┌─ testFuzz_releaseEscrow_IsPermissionlessAndTransfersFullBalance ─────
   function testFuzz_releaseEscrow_IsPermissionlessAndTransfersFullBalance(
     address caller,
     address borrower,
@@ -251,6 +304,7 @@ contract SanctionsTest is TestKernel {
     assertEq(fixture.asset.balanceOf(account), amount);
   }
 
+  // ┌─ test_releaseEscrow_UsesBorrowerOverride ─────
   function test_releaseEscrow_UsesBorrowerOverride() external {
     Fixture memory fixture = _newFixture();
     WildcatSanctionsEscrow escrow = _createEscrow(fixture, Borrower, Account);
@@ -264,6 +318,7 @@ contract SanctionsTest is TestKernel {
     assertEq(fixture.asset.balanceOf(Account), 1);
   }
 
+  // ┌─ test_releaseEscrow_RejectsActiveSanction ─────
   function test_releaseEscrow_RejectsActiveSanction() external {
     Fixture memory fixture = _newFixture();
     WildcatSanctionsEscrow escrow = _createEscrow(fixture, Borrower, Account);

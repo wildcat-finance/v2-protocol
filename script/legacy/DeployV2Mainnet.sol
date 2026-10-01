@@ -1,6 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // DeployV2Mainnet
+// ║  ██▀▀     ▀▀██   Legacy mainnet deployment and factory preparation.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  ENGINE RULES
+// ║  deactivateAllRules()
+// ║  configureRules(...)
+// ║  addAllowedPatterns(...)
+// ║  grantRole(...)
+// ║
+// ║  DEPLOYMENT
+// ║  run()
+// ║  deployAll()
+// ║
+// ║  FACTORY PREPARATION
+// ║  _setUpHooksFactory(...)
+// ║  _storeMarketInitCode(...)
+// ║  _getCreationCode(...)
+// ║
+// ║  ENGINE CONFIGURATION
+// ║  addSphereXPatterns(...)
+// ║
+// ║  ASSERTIONS
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ║  assertEq(...)
+// ╚═════
+
 import 'src/WildcatSanctionsSentinel.sol';
 import 'src/WildcatArchController.sol';
 import 'forge-std/Script.sol';
@@ -18,17 +52,28 @@ using LibString for uint;
 string constant DeploymentsJsonFilePath = 'deployments.json';
 bool constant RedoAllDeployments = false;
 
+// ┌─ IEngine ──────────────────────────────────────────────────────────────────
 interface IEngine {
+  // ░░▒▒▓▓██ [ ENGINE RULES ] ─────────────────────────────────────────────────
+
+  // ┌─ deactivateAllRules ─────
   function deactivateAllRules() external;
 
+  // ┌─ configureRules ─────
   function configureRules(bytes8 rules) external;
 
+  // ┌─ addAllowedPatterns ─────
   function addAllowedPatterns(uint216[] calldata patterns) external;
 
+  // ┌─ grantRole ─────
   function grantRole(bytes32 role, address account) external;
 }
 
+// ┌─ DeployV2 ─────────────────────────────────────────────────────────────────
 contract DeployV2 is Script {
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ run ─────
   function run() public virtual {
     // seedLender('LENDER_2', true, 12e18, 5e18, 2e18);
     // seedLender('LENDER_2', false, 13e18, 6e18, 2e18);
@@ -36,25 +81,7 @@ contract DeployV2 is Script {
     deployAll();
   }
 
-  function addSphereXPatterns(Deployments memory deployments) internal {
-    address archController = deployments.get('WildcatArchController');
-    address sphereXEngine = WildcatArchController(archController).sphereXEngine();
-
-    IEngine engine = IEngine(sphereXEngine);
-    engine.grantRole(
-      0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929, 0x0C2914FD10086443A8800e2bB5258D4c463A88a0
-    );
-    uint216[] memory patterns = new uint216[](5);
-    patterns[0] = 94418217012137984803774416703850667173250690997694159855897612912;
-    patterns[1] = 92083039521021907843879083621254831642817523105040888014352789085;
-    patterns[2] = 46697456462908571842451701755225422725380819403284149584678459579;
-    patterns[3] = 55812322464611803823919095340941798065809022442869364620170712203;
-    patterns[4] = 14451904267781507293472597357567865620281743582632039118805013802;
-    deployments.broadcast();
-    engine.addAllowedPatterns(patterns);
-    console.log('Added close market pattern');
-  }
-
+  // ┌─ deployAll ─────
   function deployAll() internal virtual {
     Deployments memory deployments = getDeploymentsForNetwork('mainnet');
     // .withPrivateKeyVarName(
@@ -63,21 +90,15 @@ contract DeployV2 is Script {
 
     // addSphereXPatterns(deployments);
 
-    // ========================================================================== //
-    //                       Deployments for whole protocol                       //
-    // ========================================================================== //
+    // Deployments for whole protocol
     address archController = deployments.get('WildcatArchController');
 
-    // ========================================================================== //
-    //                                Hooks Factory                               //
-    // ========================================================================== //
+    // Hooks Factory
 
     (address hooksFactory, bool didDeployHooksFactory) =
       _setUpHooksFactory(deployments, WildcatArchController(archController));
 
-    // ========================================================================== //
-    //                                    Lens                                    //
-    // ========================================================================== //
+    // Lens
     deployments.getOrDeploy(
       'MarketLens',
       _getCreationCode(deployments, 'MarketLens'),
@@ -85,9 +106,7 @@ contract DeployV2 is Script {
       didDeployHooksFactory
     );
 
-    /* -------------------------------------------------------------------------- */
-    /*                            Validate Deployments                            */
-    /* -------------------------------------------------------------------------- */
+    // Validate Deployments
 
     HooksFactory factory = HooksFactory(hooksFactory);
     assertEq(factory.getHooksTemplatesCount(), 2, 'Wrong # of templates');
@@ -99,42 +118,23 @@ contract DeployV2 is Script {
     deployments.write();
   }
 
-  function _getCreationCode(Deployments memory deployments, string memory namePath) internal returns (bytes memory) {
-    ContractArtifact memory artifact = parseContractNamePath(namePath);
+  // ░░▒▒▓▓██ [ FACTORY PREPARATION ] ──────────────────────────────────────────
 
-    string memory jsonPath = LibDeployment.findForgeArtifact(artifact, deployments.forgeOutDir);
-    Json memory forgeArtifact = JsonUtil.create(vm.readFile(jsonPath));
-    bytes memory creationCode = forgeArtifact.getBytes('bytecode.object');
-    return creationCode;
-  }
-
-  function _storeMarketInitCode(Deployments memory deployments)
-    internal
-    virtual
-    returns (address initCodeStorage, bool didDeployInitcodeStorage, uint256 initCodeHash)
-  {
-    bytes memory initCode = _getCreationCode(deployments, 'WildcatMarket');
-    (initCodeStorage, didDeployInitcodeStorage) =
-      deployments.getOrDeployInitcodeStorage('WildcatMarket', initCode, RedoAllDeployments);
-    initCodeHash = uint(keccak256(initCode));
-  }
-
-  /**
-   * @dev Initializes the hooks factory, and registers the initial two templates.
-   *      Intended to gracefully resume a deployment if it was interrupted, or if one of
-   *      the transactions failed for some reason.
-   *
-   *      Steps:
-   *      - Registers the hooks factory as a controller factory and initializes
-   *        it with the arch controller, if either has not been done.
-   *      - Deploys the OpenTermHooks template if it does not exist.
-   *      - Deploys the FixedTermHooks template if it does not exist.
-   *      - Registers the templates with the hooks factory if they're not already registered.
-   *
-   *      Requirements:
-   *      - The arch controller must be deployed.
-   *      - The caller must be the owner of the arch controller.
-   */
+  // ┌─ _setUpHooksFactory ─────
+  /// @dev Initializes the hooks factory, and registers the initial two templates.
+  ///      Intended to gracefully resume a deployment if it was interrupted, or if one of
+  ///      the transactions failed for some reason.
+  ///
+  ///      Steps:
+  ///      - Registers the hooks factory as a controller factory and initializes
+  ///        it with the arch controller, if either has not been done.
+  ///      - Deploys the OpenTermHooks template if it does not exist.
+  ///      - Deploys the FixedTermHooks template if it does not exist.
+  ///      - Registers the templates with the hooks factory if they're not already registered.
+  ///
+  ///      Requirements:
+  ///      - The arch controller must be deployed.
+  ///      - The caller must be the owner of the arch controller.
   function _setUpHooksFactory(
     Deployments memory deployments,
     WildcatArchController archController
@@ -198,6 +198,53 @@ contract DeployV2 is Script {
     }
   }
 
+  // ┌─ _storeMarketInitCode ─────
+  function _storeMarketInitCode(Deployments memory deployments)
+    internal
+    virtual
+    returns (address initCodeStorage, bool didDeployInitcodeStorage, uint256 initCodeHash)
+  {
+    bytes memory initCode = _getCreationCode(deployments, 'WildcatMarket');
+    (initCodeStorage, didDeployInitcodeStorage) =
+      deployments.getOrDeployInitcodeStorage('WildcatMarket', initCode, RedoAllDeployments);
+    initCodeHash = uint(keccak256(initCode));
+  }
+
+  // ┌─ _getCreationCode ─────
+  function _getCreationCode(Deployments memory deployments, string memory namePath) internal returns (bytes memory) {
+    ContractArtifact memory artifact = parseContractNamePath(namePath);
+
+    string memory jsonPath = LibDeployment.findForgeArtifact(artifact, deployments.forgeOutDir);
+    Json memory forgeArtifact = JsonUtil.create(vm.readFile(jsonPath));
+    bytes memory creationCode = forgeArtifact.getBytes('bytecode.object');
+    return creationCode;
+  }
+
+  // ░░▒▒▓▓██ [ ENGINE CONFIGURATION ] ─────────────────────────────────────────
+
+  // ┌─ addSphereXPatterns ─────
+  function addSphereXPatterns(Deployments memory deployments) internal {
+    address archController = deployments.get('WildcatArchController');
+    address sphereXEngine = WildcatArchController(archController).sphereXEngine();
+
+    IEngine engine = IEngine(sphereXEngine);
+    engine.grantRole(
+      0x97667070c54ef182b0f5858b034beac1b6f3089aa2d3188bb1e8929f4fa9b929, 0x0C2914FD10086443A8800e2bB5258D4c463A88a0
+    );
+    uint216[] memory patterns = new uint216[](5);
+    patterns[0] = 94418217012137984803774416703850667173250690997694159855897612912;
+    patterns[1] = 92083039521021907843879083621254831642817523105040888014352789085;
+    patterns[2] = 46697456462908571842451701755225422725380819403284149584678459579;
+    patterns[3] = 55812322464611803823919095340941798065809022442869364620170712203;
+    patterns[4] = 14451904267781507293472597357567865620281743582632039118805013802;
+    deployments.broadcast();
+    engine.addAllowedPatterns(patterns);
+    console.log('Added close market pattern');
+  }
+
+  // ░░▒▒▓▓██ [ ASSERTIONS ] ───────────────────────────────────────────────────
+
+  // ┌─ assertEq ─────
   function assertEq(uint a, uint b, string memory errorMessage) internal {
     if (a != b) {
       console.log(string.concat('Error: ', errorMessage));
@@ -207,18 +254,22 @@ contract DeployV2 is Script {
     }
   }
 
+  // ┌─ assertEq ─────
   function assertEq(uint a, uint b) internal {
     assertEq(a, b, 'Numbers do not match');
   }
 
+  // ┌─ assertEq ─────
   function assertEq(address a, address b, string memory errorMessage) internal {
     assertEq(a.toHexString(), b.toHexString(), errorMessage);
   }
 
+  // ┌─ assertEq ─────
   function assertEq(address a, address b) internal {
     assertEq(a, b, 'Addresses do not match');
   }
 
+  // ┌─ assertEq ─────
   function assertEq(string memory a, string memory b, string memory errorMessage) internal {
     if (keccak256(bytes(a)) != keccak256(bytes(b))) {
       console.log(string.concat('Error: ', errorMessage));
@@ -228,6 +279,7 @@ contract DeployV2 is Script {
     }
   }
 
+  // ┌─ assertEq ─────
   function assertEq(string memory a, string memory b) internal {
     assertEq(a, b, 'Strings do not match');
   }

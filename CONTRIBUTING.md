@@ -14,6 +14,12 @@ existing design and security constraints.
 Report suspected vulnerabilities privately as described in
 [`SECURITY.md`](./SECURITY.md), not through a public issue or pull request.
 
+## Source style
+
+Follow [`STYLE_GUIDE.md`](./STYLE_GUIDE.md) for Solidity formatting, function
+ordering, file headers, and comment layout. It includes the reference file and
+the checks needed to apply the style without changing behavior.
+
 ## Things to check before changing contracts
 
 - Some type definitions are accessed directly from assembly. If you change a

@@ -1,6 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // CompressionFactoryIntegrity.t
+// ║  ██▀▀     ▀▀██   Raw and compressed factory deployment integrity comparisons.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  DEPLOYMENT PARITY
+// ║  test_rawAndCompressedFactoryDeploymentsAreByteExact()
+// ║  _observe(...)
+// ║
+// ║  WRONG CODE REJECTION
+// ║  test_wrongCodeRejectedBeforeConstructorForBothFactories()
+// ║  _rejectWrongCode(...)
+// ║
+// ║  CONSTRUCTOR PROBE
+// ║  constructor(...)
+// ║
+// ║  FIXTURE
+// ║  setUp()
+// ║
+// ║  CONSTRUCTOR ARGUMENTS
+// ║  testFuzz_factoryConstructorArgumentsAndAddress(...)
+// ║  _checkArguments(...)
+// ╚═════
+
 import { SingleStorageDeploymentFixture } from './SingleStorageDeployment.t.sol';
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';
 import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';
@@ -8,6 +34,7 @@ import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';
 import { IHooks } from 'src/access/IHooks.sol';
 import { HooksConfig, HooksDeploymentConfig } from 'src/types/HooksConfig.sol';
 
+// ┌─ CompressionFactoryIntegrityTest ──────────────────────────────────────────
 contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
   struct DeploymentObservation {
     address market;
@@ -29,24 +56,9 @@ contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
     uint64 nonce;
   }
 
-  function _observe(
-    ProductionStack memory stack,
-    MatrixOptions memory options,
-    uint96 nonce
-  )
-    internal
-    returns (DeploymentObservation memory result)
-  {
-    vm.recordLogs();
-    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
-    result.market = address(cell.market);
-    result.hooks = address(cell.hooks);
-    result.marketRuntime = result.market.codehash;
-    result.hookRuntime = result.hooks.codehash;
-    result.marketState = keccak256(abi.encode(cell.market.previousState()));
-    result.logs = keccak256(abi.encode(vm.getRecordedLogs()));
-  }
+  // ░░▒▒▓▓██ [ DEPLOYMENT PARITY ] ────────────────────────────────────────────
 
+  // ┌─ test_rawAndCompressedFactoryDeploymentsAreByteExact ─────
   function test_rawAndCompressedFactoryDeploymentsAreByteExact() external {
     ProductionStack memory stack = _deployProductionStack();
     for (uint256 model; model < 2; ++model) {
@@ -73,12 +85,35 @@ contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
     }
   }
 
+  // ┌─ _observe ─────
+  function _observe(
+    ProductionStack memory stack,
+    MatrixOptions memory options,
+    uint96 nonce
+  )
+    internal
+    returns (DeploymentObservation memory result)
+  {
+    vm.recordLogs();
+    MatrixCell memory cell = _deployMatrixCell(stack, options, MatrixBorrower, MatrixBorrower, nonce);
+    result.market = address(cell.market);
+    result.hooks = address(cell.hooks);
+    result.marketRuntime = result.market.codehash;
+    result.hookRuntime = result.hooks.codehash;
+    result.marketState = keccak256(abi.encode(cell.market.previousState()));
+    result.logs = keccak256(abi.encode(vm.getRecordedLogs()));
+  }
+
+  // ░░▒▒▓▓██ [ WRONG CODE REJECTION ] ─────────────────────────────────────────
+
+  // ┌─ test_wrongCodeRejectedBeforeConstructorForBothFactories ─────
   function test_wrongCodeRejectedBeforeConstructorForBothFactories() external {
     ProductionStack memory stack = _deployProductionStack();
     _rejectWrongCode(stack, MatrixMarketKind.Standard);
     _rejectWrongCode(stack, MatrixMarketKind.Revolving);
   }
 
+  // ┌─ _rejectWrongCode ─────
   function _rejectWrongCode(ProductionStack memory stack, MatrixMarketKind model) internal {
     MatrixOptions memory options = _defaultMatrixOptions(MatrixHooksKind.OpenTerm, model);
     RejectedDeployment memory attempt;
@@ -108,12 +143,16 @@ contract CompressionFactoryIntegrityTest is SingleStorageDeploymentFixture {
   }
 }
 
+// ┌─ CompressionHookConstructorProbe ──────────────────────────────────────────
 contract CompressionHookConstructorProbe {
   address public immutable factory;
   address public immutable administrator;
   bytes32 public immutable dataHash;
   uint256 public immutable dataLength;
 
+  // ░░▒▒▓▓██ [ CONSTRUCTOR PROBE ] ────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(address administrator_, bytes memory data) {
     factory = msg.sender;
     administrator = administrator_;
@@ -122,11 +161,15 @@ contract CompressionHookConstructorProbe {
   }
 }
 
+// ┌─ CompressionHookArgsTest ──────────────────────────────────────────────────
 contract CompressionHookArgsTest is SingleStorageDeploymentFixture {
   ProductionStack internal _stack;
   address internal _probeStore;
   bytes internal _probeCode;
 
+  // ░░▒▒▓▓██ [ FIXTURE ] ──────────────────────────────────────────────────────
+
+  // ┌─ setUp ─────
   function setUp() external {
     _stack = _deployProductionStack();
     _probeCode = vm.getCode('test/research/CompressionFactoryIntegrity.t.sol:CompressionHookConstructorProbe');
@@ -137,12 +180,16 @@ contract CompressionHookArgsTest is SingleStorageDeploymentFixture {
       .addHooksTemplate(_probeStore, 'constructor probe', address(0), address(0), 0, 0, keccak256(_probeCode));
   }
 
+  // ░░▒▒▓▓██ [ CONSTRUCTOR ARGUMENTS ] ────────────────────────────────────────
+
+  // ┌─ testFuzz_factoryConstructorArgumentsAndAddress ─────
   function testFuzz_factoryConstructorArgumentsAndAddress(bytes memory data) external {
     ProductionStack memory stack = _stack;
     _checkArguments(_factoryFor(stack, MatrixMarketKind.Standard), data);
     _checkArguments(_factoryFor(stack, MatrixMarketKind.Revolving), data);
   }
 
+  // ┌─ _checkArguments ─────
   function _checkArguments(IHooksFactory factory, bytes memory data) internal {
     uint256 nonce = factory.getHooksInstanceDeploymentNonce(MatrixBorrower);
     bytes32 salt = bytes32((uint256(uint160(MatrixBorrower)) << 96) | nonce);

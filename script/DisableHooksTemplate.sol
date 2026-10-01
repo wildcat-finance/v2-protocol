@@ -1,6 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // DisableHooksTemplate
+// ║  ██▀▀     ▀▀██   Resolve a template, disable it, and record the owner action.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  EXECUTION FLOW
+// ║  run()
+// ║
+// ║  CONFIGURATION
+// ║  _resolveDeployments()
+// ║  _resolveAddress(...)
+// ║  _resolveTemplate(...)
+// ║  _broadcaster(...)
+// ║  _shouldDisableDirectly(...)
+// ║
+// ║  ACTION RECORDS
+// ║  _writeDisableAction(...)
+// ║  _disableCalldata(...)
+// ║  _printDisableAction(...)
+// ╚═════
+
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';
 import 'solady/utils/LibString.sol';
@@ -14,6 +37,7 @@ using LibDeployment for Deployments;
 using LibString for address;
 using LibString for string;
 
+// ┌─ DisableHooksTemplate ─────────────────────────────────────────────────────
 contract DisableHooksTemplate is Script {
   string internal constant PeriodicTermHooksKey = 'PeriodicTermHooks_initCodeStorage';
   string internal constant DefaultDisableMode = 'auto';
@@ -34,6 +58,9 @@ contract DisableHooksTemplate is Script {
     string disableActionPath;
   }
 
+  // ░░▒▒▓▓██ [ EXECUTION FLOW ] ───────────────────────────────────────────────
+
+  // ┌─ run ─────
   function run() external {
     DisableAction memory action;
     Deployments memory deployments;
@@ -68,6 +95,9 @@ contract DisableHooksTemplate is Script {
     _printDisableAction(action);
   }
 
+  // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
+
+  // ┌─ _resolveDeployments ─────
   function _resolveDeployments() internal returns (Deployments memory deployments, string memory networkName) {
     networkName = vm.envOr('DEPLOYMENTS_NETWORK', string(''));
     if (bytes(networkName).length == 0) {
@@ -78,6 +108,7 @@ contract DisableHooksTemplate is Script {
       .withPrivateKeyVarName(vm.envOr('DEPLOYER_PRIVATE_KEY_VAR', string('PVT_KEY')));
   }
 
+  // ┌─ _resolveAddress ─────
   function _resolveAddress(
     Deployments memory deployments,
     string memory primaryEnvVarName,
@@ -100,6 +131,7 @@ contract DisableHooksTemplate is Script {
     return deployments.get(deploymentKey);
   }
 
+  // ┌─ _resolveTemplate ─────
   function _resolveTemplate(Deployments memory deployments) internal view returns (address value) {
     value = vm.envOr('DISABLE_HOOKS_TEMPLATE', address(0));
     if (value != address(0)) {
@@ -113,6 +145,7 @@ contract DisableHooksTemplate is Script {
     return deployments.get(PeriodicTermHooksKey);
   }
 
+  // ┌─ _broadcaster ─────
   function _broadcaster(Deployments memory deployments) internal view returns (address) {
     uint256 privateKey = vm.envOr(deployments.privateKeyVarName, uint256(0));
     if (privateKey != 0) {
@@ -121,6 +154,7 @@ contract DisableHooksTemplate is Script {
     return vm.envOr('DEPLOYER_ADDRESS', address(0));
   }
 
+  // ┌─ _shouldDisableDirectly ─────
   function _shouldDisableDirectly(DisableAction memory action) internal pure returns (bool) {
     bytes32 mode = keccak256(bytes(action.disableMode));
     if (mode == keccak256('skip') || mode == keccak256('emit')) {
@@ -133,10 +167,9 @@ contract DisableHooksTemplate is Script {
     return action.broadcaster != address(0) && action.broadcaster == action.archControllerOwner;
   }
 
-  function _disableCalldata(DisableAction memory action) internal pure returns (bytes memory) {
-    return abi.encodeWithSelector(IHooksFactory.disableHooksTemplate.selector, action.hooksTemplate);
-  }
+  // ░░▒▒▓▓██ [ ACTION RECORDS ] ───────────────────────────────────────────────
 
+  // ┌─ _writeDisableAction ─────
   function _writeDisableAction(
     Deployments memory deployments,
     DisableAction memory action
@@ -179,6 +212,12 @@ contract DisableHooksTemplate is Script {
     vm.writeJson(json, artifactPath);
   }
 
+  // ┌─ _disableCalldata ─────
+  function _disableCalldata(DisableAction memory action) internal pure returns (bytes memory) {
+    return abi.encodeWithSelector(IHooksFactory.disableHooksTemplate.selector, action.hooksTemplate);
+  }
+
+  // ┌─ _printDisableAction ─────
   function _printDisableAction(DisableAction memory action) internal view {
     console.log('Disable hooks template action complete');
     console.log('Network:', action.networkName);

@@ -1,15 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // BaseAccessControlsHarness
+// ║  ██▀▀     ▀▀██   Test adapters for credential and recipient-access checks.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  HARNESS SETUP
+// ║  constructor(...)
+// ║  setIsKnownLender(...)
+// ║
+// ║  ACCESS VALIDATION
+// ║  tryValidateAccess(...)
+// ║  isMarketTransferRecipientAllowed(...)
+// ╚═════
+
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { LenderStatus } from 'src/types/LenderStatus.sol';
 import { NameAndProviderInputs } from 'src/access/ProviderStructs.sol';
 
+// ┌─ BaseAccessControlsHarness ────────────────────────────────────────────────
 contract BaseAccessControlsHarness is BaseAccessControls {
+  // ░░▒▒▓▓██ [ HARNESS SETUP ] ────────────────────────────────────────────────
+
+  // ┌─ constructor ─────
   constructor(address administrator, NameAndProviderInputs memory inputs) BaseAccessControls(administrator) {
     _initialize(inputs);
   }
 
+  // ┌─ setIsKnownLender ─────
+  function setIsKnownLender(address account, address market, bool isKnownLender) external {
+    isKnownLenderOnMarket[account][market] = isKnownLender;
+  }
+
+  // ░░▒▒▓▓██ [ ACCESS VALIDATION ] ────────────────────────────────────────────
+
+  // ┌─ tryValidateAccess ─────
   function tryValidateAccess(
     address accountAddress,
     bytes calldata hooksData
@@ -22,10 +50,7 @@ contract BaseAccessControlsHarness is BaseAccessControls {
     wasUpdated = beforeHash != keccak256(abi.encode(_lenderStatus[accountAddress]));
   }
 
-  function setIsKnownLender(address account, address market, bool isKnownLender) external {
-    isKnownLenderOnMarket[account][market] = isKnownLender;
-  }
-
+  // ┌─ isMarketTransferRecipientAllowed ─────
   function isMarketTransferRecipientAllowed(
     address market,
     address recipient,

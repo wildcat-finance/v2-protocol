@@ -1,25 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // LibCompressedInitCode
+// ║  ██▀▀     ▀▀██   Compressed creation-code storage and runtime decoding.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  STORAGE DEPLOYMENT
+// ║  deployInitCode(...)
+// ║  getStorageRuntime(...)
+// ║
+// ║  COMPRESSED READER
+// ║  fallback()
+// ╚═════
+
 import { LibZip } from 'solady/utils/LibZip.sol';
 
+// ┌─ LibCompressedInitCode ────────────────────────────────────────────────────
 /// @notice optional single-contract storage for compressed creation code.
+///
 /// @dev the stored runtime decompresses and returns the original bytes on STATICCALL.
 ///      CompressedInitCodeReader is a runtime blueprint, not a second deployed contract.
 library LibCompressedInitCode {
   error InitCodeDeploymentFailed();
 
-  /// @dev keep the encoder shared by deployment and artifact verification.
-  function getStorageRuntime(bytes memory initCode) internal pure returns (bytes memory runtime) {
-    // creation itself is capped at 49,152 bytes, even if its compressed storage fits.
-    if (initCode.length > 49_152) revert InitCodeDeploymentFailed();
-    bytes memory compressed = LibZip.flzCompress(initCode);
-    runtime =
-      abi.encodePacked(type(CompressedInitCodeReader).runtimeCode, compressed, bytes2(uint16(compressed.length)));
-    // the cap also keeps the length footer well inside uint16.
-    if (runtime.length > 24_576) revert InitCodeDeploymentFailed();
-  }
+  // ░░▒▒▓▓██ [ STORAGE DEPLOYMENT ] ───────────────────────────────────────────
 
+  // ┌─ deployInitCode ─────
   function deployInitCode(bytes memory initCode) internal returns (address storageContract) {
     bytes memory runtime = getStorageRuntime(initCode);
     assembly ('memory-safe') {
@@ -35,11 +44,27 @@ library LibCompressedInitCode {
       }
     }
   }
+
+  // ┌─ getStorageRuntime ─────
+  /// @dev keep the encoder shared by deployment and artifact verification.
+  function getStorageRuntime(bytes memory initCode) internal pure returns (bytes memory runtime) {
+    // creation itself is capped at 49,152 bytes, even if its compressed storage fits.
+    if (initCode.length > 49_152) revert InitCodeDeploymentFailed();
+    bytes memory compressed = LibZip.flzCompress(initCode);
+    runtime =
+      abi.encodePacked(type(CompressedInitCodeReader).runtimeCode, compressed, bytes2(uint16(compressed.length)));
+    // the cap also keeps the length footer well inside uint16.
+    if (runtime.length > 24_576) revert InitCodeDeploymentFailed();
+  }
 }
 
+// ┌─ CompressedInitCodeReader ─────────────────────────────────────────────────
 /// @dev deployed only as the prefix of a single compressed storage contract. the encoder
 ///      appends a valid FastLZ stream and its two-byte length; there is no mutable storage.
 contract CompressedInitCodeReader {
+  // ░░▒▒▓▓██ [ COMPRESSED READER ] ────────────────────────────────────────────
+
+  // ┌─ fallback ─────
   fallback() external {
     bytes memory compressed;
     assembly ('memory-safe') {

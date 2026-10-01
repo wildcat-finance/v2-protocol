@@ -1,6 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HookTemplateFixture
+// ║  ██▀▀     ▀▀██   Production hook deployment and direct-callback fixtures.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  HOOK SETUP
+// ║  _setUpHooks()
+// ║  _newHooks(...)
+// ║
+// ║  MARKET CREATION
+// ║  _createMarket(...)
+// ║  _marketData(...)
+// ║  _termData(...)
+// ║
+// ║  ACCESS QUERIES
+// ║  _access(...)
+// ╚═════
+
 import { BaseHooks, AccessConfig } from 'src/access/BaseHooks.sol';
 import { OpenTermHooks, HookedMarket as OpenMarket } from 'src/access/OpenTermHooks.sol';
 import { FixedTermHooks, HookedMarket as FixedMarket } from 'src/access/FixedTermHooks.sol';
@@ -16,6 +36,7 @@ enum HookKind {
   Periodic
 }
 
+// ┌─ HookTemplateFixture ──────────────────────────────────────────────────────
 /// @dev deploy the production artifacts and call their hooks directly. keep test cases out of
 ///      this fixture or every derived suite will run them again.
 abstract contract HookTemplateFixture is TestKernel {
@@ -30,6 +51,9 @@ abstract contract HookTemplateFixture is TestKernel {
 
   BaseHooks[3] internal hooks;
 
+  // ░░▒▒▓▓██ [ HOOK SETUP ] ───────────────────────────────────────────────────
+
+  // ┌─ _setUpHooks ─────
   function _setUpHooks() internal {
     vm.warp(StartTimestamp);
     for (uint256 i; i < hooks.length; i++) {
@@ -37,6 +61,7 @@ abstract contract HookTemplateFixture is TestKernel {
     }
   }
 
+  // ┌─ _newHooks ─────
   function _newHooks(HookKind kind, bytes memory args) internal returns (BaseHooks) {
     string memory artifact = kind == HookKind.Open
       ? 'src/access/OpenTermHooks.sol:OpenTermHooks'
@@ -46,16 +71,9 @@ abstract contract HookTemplateFixture is TestKernel {
     return BaseHooks(_deployCode(artifact, abi.encode(address(this), args)));
   }
 
-  function _termData(HookKind kind) internal pure returns (bytes memory) {
-    if (kind == HookKind.Open) return '';
-    if (kind == HookKind.Fixed) return abi.encode(FixedTermEnd);
-    return abi.encode(FirstWindowStart, PeriodDuration, WindowDuration);
-  }
+  // ░░▒▒▓▓██ [ MARKET CREATION ] ──────────────────────────────────────────────
 
-  function _marketData(HookKind kind, uint256 minimum, bool disabled) internal pure returns (bytes memory) {
-    return bytes.concat(_termData(kind), abi.encode(minimum, disabled));
-  }
-
+  // ┌─ _createMarket ─────
   function _createMarket(
     BaseHooks target,
     address market,
@@ -70,6 +88,21 @@ abstract contract HookTemplateFixture is TestKernel {
     return target.onCreateMarket(address(this), market, inputs, data);
   }
 
+  // ┌─ _marketData ─────
+  function _marketData(HookKind kind, uint256 minimum, bool disabled) internal pure returns (bytes memory) {
+    return bytes.concat(_termData(kind), abi.encode(minimum, disabled));
+  }
+
+  // ┌─ _termData ─────
+  function _termData(HookKind kind) internal pure returns (bytes memory) {
+    if (kind == HookKind.Open) return '';
+    if (kind == HookKind.Fixed) return abi.encode(FixedTermEnd);
+    return abi.encode(FirstWindowStart, PeriodDuration, WindowDuration);
+  }
+
+  // ░░▒▒▓▓██ [ ACCESS QUERIES ] ───────────────────────────────────────────────
+
+  // ┌─ _access ─────
   /// @dev use the public getters so these checks cover the tuples callers actually receive.
   ///      don't add a test-only getter for shared state.
   function _access(HookKind kind, BaseHooks target, address market) internal view returns (AccessConfig memory access) {

@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // HooksTemplateData
+// ║  ██▀▀     ▀▀██   Template metadata and borrower origination-fee readiness.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  TEMPLATE AND FEE DATA
+// ║  fill(...)
+// ║  fill(...)
+// ╚═════
+
 import '../HooksFactory.sol';
 import './TokenData.sol';
 import './OptionalData.sol';
@@ -17,6 +29,7 @@ struct HooksTemplateData {
   uint24 index;
   string name;
   uint256 totalMarkets;
+
   /// @dev factory-registered creation-code commitment. older factories may not expose it.
   OptionalBytes32Data initCodeHash;
 }
@@ -24,21 +37,31 @@ struct HooksTemplateData {
 /// @notice template fee terms, with optional balance and allowance data for one borrower.
 struct FeeConfiguration {
   address feeRecipient;
+
   /// @dev basis points of lender interest charged to markets using this template.
   uint16 protocolFeeBips;
+
   /// @dev metadata for the origination-fee asset. zeroed when there is no fee asset.
   TokenMetadata originationFeeToken;
+
   /// @dev amount of the origination-fee asset required for market deployment.
   uint256 originationFeeAmount;
+
   /// @dev borrower balance in the fee asset. zero when no borrower was requested.
   uint256 borrowerOriginationFeeBalance;
+
   /// @dev borrower allowance to the hooks factory. zero when no borrower was requested.
   uint256 borrowerOriginationFeeApproval;
 }
 
+// ┌─ HooksTemplateDataLib ─────────────────────────────────────────────────────
 /// @notice fillers for hooks-template metadata and borrower fee readiness.
 library HooksTemplateDataLib {
+  // ░░▒▒▓▓██ [ TEMPLATE AND FEE DATA ] ────────────────────────────────────────
+
+  // ┌─ fill ─────
   /// @notice fills template metadata and fee readiness for `borrower`.
+  ///
   /// @dev pass a zero borrower to skip balance and allowance reads.
   function fill(
     HooksTemplateData memory data,
@@ -64,6 +87,7 @@ library HooksTemplateDataLib {
     data.initCodeHash.value = bytes32(hash);
   }
 
+  // ┌─ fill ─────
   /// @notice fills the fee tuple from an already-loaded template.
   function fill(
     FeeConfiguration memory data,

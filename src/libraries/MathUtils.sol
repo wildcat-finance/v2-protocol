@@ -1,6 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MathUtils
+// ║  ██▀▀     ▀▀██   Bounded arithmetic, fixed-point scaling, and linear interest.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  BOUNDS AND SELECTION
+// ║  min(...)
+// ║  max(...)
+// ║  ternary(...)
+// ║  satSub(...)
+// ║  satAdd(...)
+// ║
+// ║  MULTIPLY AND DIVIDE
+// ║  mulDiv(...)
+// ║  mulDivUp(...)
+// ║
+// ║  BASIS POINTS
+// ║  bipMul(...)
+// ║  bipDiv(...)
+// ║  bipToRay(...)
+// ║
+// ║  RAY ARITHMETIC
+// ║  rayMul(...)
+// ║  rayDiv(...)
+// ║
+// ║  INTEREST
+// ║  calculateLinearInterestFromBips(...)
+// ╚═════
+
 import './Errors.sol';
 
 uint256 constant BIP = 1e4;
@@ -13,6 +44,7 @@ uint256 constant BIP_RAY_RATIO = 1e23;
 
 uint256 constant SECONDS_IN_365_DAYS = 365 days;
 
+// ┌─ MathUtils ────────────────────────────────────────────────────────────────
 library MathUtils {
   /// @dev The multiply-divide operation failed, either due to a
   /// multiplication overflow, or a division by a zero.
@@ -20,39 +52,32 @@ library MathUtils {
 
   using MathUtils for uint256;
 
-  /**
-   * @dev Function to calculate the interest accumulated using a linear interest rate formula
-   *
-   * @param rateBip The interest rate, in bips
-   * @param timeDelta The time elapsed since the last interest accrual
-   * @return result The interest rate linearly accumulated during the timeDelta, in ray
-   */
-  function calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) internal pure returns (uint256 result) {
-    uint256 rate = rateBip.bipToRay();
-    uint256 accumulatedInterestRay = rate * timeDelta;
-    unchecked {
-      return accumulatedInterestRay / SECONDS_IN_365_DAYS;
-    }
-  }
+  // ░░▒▒▓▓██ [ BOUNDS AND SELECTION ] ─────────────────────────────────────────
 
-  /**
-   * @dev Return the smaller of `a` and `b`
-   */
+  // ┌─ min ─────
+  /// @dev Return the smaller of `a` and `b`
   function min(uint256 a, uint256 b) internal pure returns (uint256 c) {
     c = ternary(a < b, a, b);
   }
 
-  /**
-   * @dev Return the larger of `a` and `b`.
-   */
+  // ┌─ max ─────
+  /// @dev Return the larger of `a` and `b`.
   function max(uint256 a, uint256 b) internal pure returns (uint256 c) {
     c = ternary(a < b, b, a);
   }
 
-  /**
-   * @dev Saturation subtraction. Subtract `b` from `a` and return the result
-   *      if it is positive or zero if it underflows.
-   */
+  // ┌─ ternary ─────
+  /// @dev Return `valueIfTrue` if `condition` is true and `valueIfFalse` if it is false.
+  ///      Equivalent to `condition ? valueIfTrue : valueIfFalse`
+  function ternary(bool condition, uint256 valueIfTrue, uint256 valueIfFalse) internal pure returns (uint256 c) {
+    assembly ('memory-safe') {
+      c := add(valueIfFalse, mul(condition, sub(valueIfTrue, valueIfFalse)))
+    }
+  }
+
+  // ┌─ satSub ─────
+  /// @dev Saturation subtraction. Subtract `b` from `a` and return the result
+  ///      if it is positive or zero if it underflows.
   function satSub(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       // (a > b) * (a - b)
@@ -61,10 +86,9 @@ library MathUtils {
     }
   }
 
-  /**
-   * @dev Saturation addition. Add `a` to `b` and return the result
-   *      if it is less than `maxValue` or `maxValue` if it overflows.
-   */
+  // ┌─ satAdd ─────
+  /// @dev Saturation addition. Add `a` to `b` and return the result
+  ///      if it is less than `maxValue` or `maxValue` if it overflows.
   function satAdd(uint256 a, uint256 b, uint256 maxValue) internal pure returns (uint256 c) {
     unchecked {
       c = a + b;
@@ -72,20 +96,49 @@ library MathUtils {
     }
   }
 
-  /**
-   * @dev Return `valueIfTrue` if `condition` is true and `valueIfFalse` if it is false.
-   *      Equivalent to `condition ? valueIfTrue : valueIfFalse`
-   */
-  function ternary(bool condition, uint256 valueIfTrue, uint256 valueIfFalse) internal pure returns (uint256 c) {
+  // ░░▒▒▓▓██ [ MULTIPLY AND DIVIDE ] ──────────────────────────────────────────
+
+  // ┌─ mulDiv ─────
+  /// @dev Returns `floor(x * y / d)`.
+  ///      Reverts if `x * y` overflows, or `d` is zero.
+  ///
+  /// @custom:author solady/src/utils/FixedPointMathLib.sol
+  function mulDiv(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
     assembly ('memory-safe') {
-      c := add(valueIfFalse, mul(condition, sub(valueIfTrue, valueIfFalse)))
+      // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
+      if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
+        // Store the function selector of `MulDivFailed()`.
+        mstore(0x00, 0xad251c27)
+        // Revert with (offset, size).
+        revert(0x1c, 0x04)
+      }
+      z := div(mul(x, y), d)
     }
   }
 
-  /**
-   * @dev Multiplies two bip, rounding half up to the nearest bip
-   *      see https://twitter.com/transmissions11/status/1451131036377571328
-   */
+  // ┌─ mulDivUp ─────
+  /// @dev Returns `ceil(x * y / d)`.
+  ///      Reverts if `x * y` overflows, or `d` is zero.
+  ///
+  /// @custom:author solady/src/utils/FixedPointMathLib.sol
+  function mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
+    assembly ('memory-safe') {
+      // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
+      if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
+        // Store the function selector of `MulDivFailed()`.
+        mstore(0x00, 0xad251c27)
+        // Revert with (offset, size).
+        revert(0x1c, 0x04)
+      }
+      z := add(iszero(iszero(mod(mul(x, y), d))), div(mul(x, y), d))
+    }
+  }
+
+  // ░░▒▒▓▓██ [ BASIS POINTS ] ─────────────────────────────────────────────────
+
+  // ┌─ bipMul ─────
+  /// @dev Multiplies two bip, rounding half up to the nearest bip
+  ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function bipMul(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       // equivalent to `require(b == 0 || a <= (type(uint256).max - HALF_BIP) / b)`
@@ -102,10 +155,9 @@ library MathUtils {
     }
   }
 
-  /**
-   * @dev Divides two bip, rounding half up to the nearest bip
-   *      see https://twitter.com/transmissions11/status/1451131036377571328
-   */
+  // ┌─ bipDiv ─────
+  /// @dev Divides two bip, rounding half up to the nearest bip
+  ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function bipDiv(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       // equivalent to `require(b != 0 && a <= (type(uint256).max - b/2) / BIP)`
@@ -119,9 +171,8 @@ library MathUtils {
     }
   }
 
-  /**
-   * @dev Converts bip up to ray
-   */
+  // ┌─ bipToRay ─────
+  /// @dev Converts bip up to ray
   function bipToRay(uint256 a) internal pure returns (uint256 b) {
     // to avoid overflow, b/BIP_RAY_RATIO == a
     assembly ('memory-safe') {
@@ -135,10 +186,11 @@ library MathUtils {
     }
   }
 
-  /**
-   * @dev Multiplies two ray, rounding half up to the nearest ray
-   *      see https://twitter.com/transmissions11/status/1451131036377571328
-   */
+  // ░░▒▒▓▓██ [ RAY ARITHMETIC ] ───────────────────────────────────────────────
+
+  // ┌─ rayMul ─────
+  /// @dev Multiplies two ray, rounding half up to the nearest ray
+  ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function rayMul(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       // equivalent to `require(b == 0 || a <= (type(uint256).max - HALF_RAY) / b)`
@@ -152,10 +204,9 @@ library MathUtils {
     }
   }
 
-  /**
-   * @dev Divide two ray, rounding half up to the nearest ray
-   *      see https://twitter.com/transmissions11/status/1451131036377571328
-   */
+  // ┌─ rayDiv ─────
+  /// @dev Divide two ray, rounding half up to the nearest ray
+  ///      see https://twitter.com/transmissions11/status/1451131036377571328
   function rayDiv(uint256 a, uint256 b) internal pure returns (uint256 c) {
     assembly ('memory-safe') {
       // equivalent to `require(b != 0 && a <= (type(uint256).max - halfB) / RAY)`
@@ -169,39 +220,20 @@ library MathUtils {
     }
   }
 
-  /**
-   * @dev Returns `floor(x * y / d)`.
-   *      Reverts if `x * y` overflows, or `d` is zero.
-   * @custom:author solady/src/utils/FixedPointMathLib.sol
-   */
-  function mulDiv(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
-    assembly ('memory-safe') {
-      // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
-      if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
-        // Store the function selector of `MulDivFailed()`.
-        mstore(0x00, 0xad251c27)
-        // Revert with (offset, size).
-        revert(0x1c, 0x04)
-      }
-      z := div(mul(x, y), d)
-    }
-  }
+  // ░░▒▒▓▓██ [ INTEREST ] ─────────────────────────────────────────────────────
 
-  /**
-   * @dev Returns `ceil(x * y / d)`.
-   *      Reverts if `x * y` overflows, or `d` is zero.
-   * @custom:author solady/src/utils/FixedPointMathLib.sol
-   */
-  function mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
-    assembly ('memory-safe') {
-      // Equivalent to require(d != 0 && (y == 0 || x <= type(uint256).max / y))
-      if iszero(mul(d, iszero(mul(y, gt(x, div(not(0), y)))))) {
-        // Store the function selector of `MulDivFailed()`.
-        mstore(0x00, 0xad251c27)
-        // Revert with (offset, size).
-        revert(0x1c, 0x04)
-      }
-      z := add(iszero(iszero(mod(mul(x, y), d))), div(mul(x, y), d))
+  // ┌─ calculateLinearInterestFromBips ─────
+  /// @dev Function to calculate the interest accumulated using a linear interest rate formula
+  ///
+  /// @param rateBip   The interest rate, in bips
+  /// @param timeDelta The time elapsed since the last interest accrual
+  ///
+  /// @return result The interest rate linearly accumulated during the timeDelta, in ray
+  function calculateLinearInterestFromBips(uint256 rateBip, uint256 timeDelta) internal pure returns (uint256 result) {
+    uint256 rate = rateBip.bipToRay();
+    uint256 accumulatedInterestRay = rate * timeDelta;
+    unchecked {
+      return accumulatedInterestRay / SECONDS_IN_365_DAYS;
     }
   }
 }

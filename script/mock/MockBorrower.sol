@@ -1,6 +1,15 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MockBorrower
+// ║  ██▀▀     ▀▀██   Inactive borrower prototype retained as commented reference.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ╚═════
+
 // import 'src/WildcatArchController.sol';
 // import 'solady/utils/LibString.sol';
 // import './MockERC20Factory.sol';

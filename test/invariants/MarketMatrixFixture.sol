@@ -1,6 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // MarketMatrixFixture
+// ║  ██▀▀     ▀▀██   Six-cell market matrix deployment and actor configuration.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MATRIX DEPLOYMENT
+// ║  _deployMatrix(...)
+// ║  _deployMatrixCell(...)
+// ║
+// ║  MATRIX CONFIGURATION
+// ║  _matrixOptions(...)
+// ║  _fixedTermDelay()
+// ║  _actors()
+// ╚═════
+
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
@@ -11,6 +28,7 @@ import { MockRoleProvider } from '../mocks/MockRoleProvider.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';
 
 // shared setup only; concrete suites own their invariant entrypoints.
+// ┌─ MarketMatrixFixture ──────────────────────────────────────────────────────
 abstract contract MarketMatrixFixture is MarketFixture {
   struct MatrixDeployment {
     address[] markets;
@@ -33,14 +51,9 @@ abstract contract MarketMatrixFixture is MarketFixture {
   address internal constant Carol = address(0xCAFE);
   address internal constant Dave = address(0xD00D);
 
-  function _actors() internal pure returns (address[] memory actors) {
-    actors = new address[](4);
-    actors[0] = Alice;
-    actors[1] = Bob;
-    actors[2] = Carol;
-    actors[3] = Dave;
-  }
+  // ░░▒▒▓▓██ [ MATRIX DEPLOYMENT ] ────────────────────────────────────────────
 
+  // ┌─ _deployMatrix ─────
   function _deployMatrix(address[] memory actors) internal returns (MatrixDeployment memory matrix) {
     // Keep the arrays in one memory bundle. Besides making the matrix shape
     // explicit, this lets Forge's accurate non-IR coverage compiler lower setup.
@@ -71,16 +84,7 @@ abstract contract MarketMatrixFixture is MarketFixture {
     }
   }
 
-  function _matrixOptions(uint8, bool isRevolving) internal view virtual returns (Options memory options) {
-    options = _defaultOptions(HooksKind.OpenTerm);
-    options.maxTotalSupply = 1_000_000e18;
-    options.protocolFeeBips = 1_000;
-    options.delinquencyFeeBips = isRevolving ? 0 : 1_000;
-    options.delinquencyGracePeriod = 1 days;
-    options.revolving = isRevolving;
-    options.commitmentFeeBips = isRevolving ? 200 : 0;
-  }
-
+  // ┌─ _deployMatrixCell ─────
   function _deployMatrixCell(
     uint8 hooksKind,
     bool isRevolving,
@@ -120,7 +124,30 @@ abstract contract MarketMatrixFixture is MarketFixture {
     }
   }
 
+  // ░░▒▒▓▓██ [ MATRIX CONFIGURATION ] ─────────────────────────────────────────
+
+  // ┌─ _matrixOptions ─────
+  function _matrixOptions(uint8, bool isRevolving) internal view virtual returns (Options memory options) {
+    options = _defaultOptions(HooksKind.OpenTerm);
+    options.maxTotalSupply = 1_000_000e18;
+    options.protocolFeeBips = 1_000;
+    options.delinquencyFeeBips = isRevolving ? 0 : 1_000;
+    options.delinquencyGracePeriod = 1 days;
+    options.revolving = isRevolving;
+    options.commitmentFeeBips = isRevolving ? 200 : 0;
+  }
+
+  // ┌─ _fixedTermDelay ─────
   function _fixedTermDelay() internal pure virtual returns (uint256) {
     return 60 days;
+  }
+
+  // ┌─ _actors ─────
+  function _actors() internal pure returns (address[] memory actors) {
+    actors = new address[](4);
+    actors[0] = Alice;
+    actors[1] = Bob;
+    actors[2] = Carol;
+    actors[3] = Dave;
   }
 }

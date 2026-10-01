@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// ╔════════════════════════════════════════════════════════════════════════════
+// ║  █▄         ▄█
+// ║  ███▄     ▄███   WILDCAT v2.5 // Deploy4626Factory
+// ║  ██▀▀     ▀▀██   Validate a market and deploy or discover its wrapper.
+// ║  ▀▀███▄ ▄███▀▀
+// ║      ▀▀▄▀▀
+// ║
+// ║  MARKET QUERIES
+// ║  borrower()
+// ║  hooks()
+// ║
+// ║  DEPLOYMENT
+// ║  run()
+// ╚═════
+
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';
 
@@ -9,13 +24,22 @@ import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 
+// ┌─ IWildcatMarketFor4626Deploy ──────────────────────────────────────────────
 interface IWildcatMarketFor4626Deploy {
+  // ░░▒▒▓▓██ [ MARKET QUERIES ] ───────────────────────────────────────────────
+
+  // ┌─ borrower ─────
   function borrower() external view returns (address);
 
+  // ┌─ hooks ─────
   function hooks() external view returns (HooksConfig);
 }
 
+// ┌─ Deploy4626Factory ────────────────────────────────────────────────────────
 contract Deploy4626Factory is Script {
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ run ─────
   function run() external {
     address archController = vm.envAddress('ARCH_CONTROLLER');
     address market = vm.envAddress('MARKET');
