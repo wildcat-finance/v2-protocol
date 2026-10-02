@@ -1,22 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.25;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksConfigData
+//  \ ^ /   Expanded callback flags and hook-family market configuration.
+//    V
+//
+//  CONFIGURATION
+//  fill(...)
+//  fill(...)
+//  fill(...)
+//  _fillPendingAprChange(...)
+//
+//  HOOKS CLASSIFICATION
+//  kindForHooks(...)
+//  kindForVersion(...)
+//  _kindForVersionHash(...)
+// ═════
 
 import '../types/HooksConfig.sol';
 import '../access/IHooks.sol';
 import { HookedMarket as OpenTermHookedMarket, OpenTermHooks } from '../access/OpenTermHooks.sol';
 import { HookedMarket as FixedTermHookedMarket, FixedTermHooks } from '../access/FixedTermHooks.sol';
+import { HookedMarket as PeriodicTermHookedMarket, PeriodicTermHooks } from '../access/PeriodicTermHooks.sol';
 import { WildcatMarket } from '../market/WildcatMarket.sol';
 
+/// @notice hook families the lens knows how to decode beyond their common interface.
+/// @dev `Unknown` can still be a valid hooks implementation; it just gets no family-specific data.
 enum HooksInstanceKind {
   Unknown,
   OpenTerm,
-  FixedTermLoan
+  FixedTermLoan,
+  PeriodicTerm
 }
 
 using HooksConfigDataLib for HooksConfigData global;
 using HooksConfigDataLib for HooksDeploymentFlags global;
 using HooksConfigDataLib for MarketHooksData global;
 
+/// @notice expanded callback flags from a packed `HooksConfig`.
 struct HooksConfigData {
   bool useOnDeposit;
   bool useOnQueueWithdrawal;
@@ -29,40 +51,70 @@ struct HooksConfigData {
   bool useOnSetMaxTotalSupply;
   bool useOnSetAnnualInterestAndReserveRatioBips;
   bool useOnSetProtocolFeeBips;
+  bool useOnExecutePendingAnnualInterestBipsReduction;
 }
 
+/// @notice optional and required callbacks advertised by a hooks instance.
 struct HooksDeploymentFlags {
   HooksConfigData optional;
   HooksConfigData required;
 }
 
+/// @notice a periodic APR proposal and its response-window bounds from the hook.
+///
+/// @dev isPresent means the getter is supported; proposalTimestamp == 0 means no proposal.
+struct PeriodicPendingAprChangeData {
+  bool isPresent;
+  uint16 annualInterestBips;
+  uint32 proposalTimestamp;
+  uint32 responseWindowStart;
+  uint32 responseWindowEnd;
+}
+
+/// @notice callback flags and supported family-specific configuration for one market.
+///
+/// @dev fields that do not belong to the detected hook family stay at their zero value.
 struct MarketHooksData {
   address hooksAddress;
   HooksConfigData flags;
   HooksInstanceKind kind;
-  // Shared flags
+  // shared flags
   bool transferRequiresAccess;
   bool depositRequiresAccess;
   uint128 minimumDeposit;
   bool transfersDisabled;
-  // Fixed term loan flags
+  // fixed-term flags
   bool withdrawalRequiresAccess;
   uint32 fixedTermEndTime;
   bool allowClosureBeforeTerm;
   bool allowTermReduction;
+  // periodic-term flags
+  uint32 firstWithdrawalWindowStart;
+  uint32 periodDuration;
+  uint32 withdrawalWindowDuration;
+  bool periodicTermClosed;
+  bool periodicWithdrawalWindowOpen;
+  PeriodicPendingAprChangeData pendingAprChange;
 }
 
+// ┌─ HooksConfigDataLib ───────────────────────────────────────────────────────
+/// @notice decode packed hook flags and supported family-specific market settings.
 library HooksConfigDataLib {
   using HooksConfigDataLib for *;
 
+  // ░░▒▒▓▓██ [ CONFIGURATION ] ────────────────────────────────────────────────
+
+  // ┌─ fill ─────
+  /// @notice fill callback flags and supported typed configuration for `marketAddress`.
+  ///
+  /// @dev family-specific getters are strict once `version()` identifies a known implementation.
   function fill(MarketHooksData memory data, address marketAddress) internal view {
     WildcatMarket market = WildcatMarket(marketAddress);
     HooksConfig encodedHooksConfig = market.hooks();
     data.hooksAddress = encodedHooksConfig.hooksAddress();
     data.flags.fill(encodedHooksConfig);
-    bytes32 versionHash = keccak256(bytes(IHooks(encodedHooksConfig.hooksAddress()).version()));
-    if (versionHash == keccak256(bytes('OpenTermHooks'))) {
-      data.kind = HooksInstanceKind.OpenTerm;
+    data.kind = kindForHooks(data.hooksAddress);
+    if (data.kind == HooksInstanceKind.OpenTerm) {
       OpenTermHooks hooks = OpenTermHooks(data.hooksAddress);
       OpenTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
@@ -70,8 +122,7 @@ library HooksConfigDataLib {
       data.withdrawalRequiresAccess = encodedHooksConfig.useOnQueueWithdrawal();
       data.minimumDeposit = hookedMarket.minimumDeposit;
       data.transfersDisabled = hookedMarket.transfersDisabled;
-    } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
-      data.kind = HooksInstanceKind.FixedTermLoan;
+    } else if (data.kind == HooksInstanceKind.FixedTermLoan) {
       FixedTermHooks hooks = FixedTermHooks(data.hooksAddress);
       FixedTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
       data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
@@ -82,9 +133,25 @@ library HooksConfigDataLib {
       data.transfersDisabled = hookedMarket.transfersDisabled;
       data.allowClosureBeforeTerm = hookedMarket.allowClosureBeforeTerm;
       data.allowTermReduction = hookedMarket.allowTermReduction;
+    } else if (data.kind == HooksInstanceKind.PeriodicTerm) {
+      PeriodicTermHooks hooks = PeriodicTermHooks(data.hooksAddress);
+      PeriodicTermHookedMarket memory hookedMarket = hooks.getHookedMarket(marketAddress);
+      data.transferRequiresAccess = hookedMarket.transferRequiresAccess;
+      data.depositRequiresAccess = hookedMarket.depositRequiresAccess;
+      data.withdrawalRequiresAccess = hookedMarket.withdrawalRequiresAccess;
+      data.minimumDeposit = hookedMarket.minimumDeposit;
+      data.transfersDisabled = hookedMarket.transfersDisabled;
+      data.firstWithdrawalWindowStart = hookedMarket.firstWithdrawalWindowStart;
+      data.periodDuration = hookedMarket.periodDuration;
+      data.withdrawalWindowDuration = hookedMarket.withdrawalWindowDuration;
+      data.periodicTermClosed = hookedMarket.isClosed;
+      data.periodicWithdrawalWindowOpen = hooks.isWithdrawalWindowOpen(marketAddress);
+      _fillPendingAprChange(data.pendingAprChange, data.hooksAddress, marketAddress);
     }
   }
 
+  // ┌─ fill ─────
+  /// @notice expand the callback flags packed into `hooksConfig`.
   function fill(HooksConfigData memory data, HooksConfig hooksConfig) internal pure {
     data.useOnDeposit = hooksConfig.useOnDeposit();
     data.useOnQueueWithdrawal = hooksConfig.useOnQueueWithdrawal();
@@ -95,13 +162,114 @@ library HooksConfigDataLib {
     data.useOnCloseMarket = hooksConfig.useOnCloseMarket();
     data.useOnNukeFromOrbit = hooksConfig.useOnNukeFromOrbit();
     data.useOnSetMaxTotalSupply = hooksConfig.useOnSetMaxTotalSupply();
-    data.useOnSetAnnualInterestAndReserveRatioBips = hooksConfig
-      .useOnSetAnnualInterestAndReserveRatioBips();
+    data.useOnSetAnnualInterestAndReserveRatioBips = hooksConfig.useOnSetAnnualInterestAndReserveRatioBips();
     data.useOnSetProtocolFeeBips = hooksConfig.useOnSetProtocolFeeBips();
+    data.useOnExecutePendingAnnualInterestBipsReduction = hooksConfig.useOnExecutePendingAnnualInterestBipsReduction();
   }
 
+  // ┌─ fill ─────
+  /// @notice expand the optional and required callback flags in `config`.
   function fill(HooksDeploymentFlags memory data, HooksDeploymentConfig config) internal pure {
     data.optional.fill(config.optionalFlags());
     data.required.fill(config.requiredFlags());
+  }
+
+  // ┌─ _fillPendingAprChange ─────
+  function _fillPendingAprChange(
+    PeriodicPendingAprChangeData memory data,
+    address hooksAddress,
+    address marketAddress
+  )
+    internal
+    view
+  {
+    bytes memory input = abi.encodeWithSignature('getPendingAprChange(address)', marketAddress);
+    bytes memory result = new bytes(0x80);
+    bool success;
+    assembly ('memory-safe') {
+      success := staticcall(gas(), hooksAddress, add(input, 0x20), mload(input), add(result, 0x20), 0x80)
+      success := and(success, iszero(lt(returndatasize(), 0x80)))
+    }
+    // older periodic hooks lack the response-window getter. don't invent bounds from today's
+    // schedule; these are the bounds recorded when the proposal was made.
+    if (!success) return;
+    (data.annualInterestBips, data.proposalTimestamp, data.responseWindowStart, data.responseWindowEnd) =
+      abi.decode(result, (uint16, uint32, uint32, uint32));
+    data.isPresent = true;
+  }
+
+  // ░░▒▒▓▓██ [ HOOKS CLASSIFICATION ] ─────────────────────────────────────────
+
+  // ┌─ kindForHooks ─────
+  /// @notice read `version()` and classify a hooks instance.
+  ///
+  /// @dev a failed or malformed required response reverts. unknown valid strings return `Unknown`.
+  function kindForHooks(address hooksAddress) internal view returns (HooksInstanceKind) {
+    // every known hooks version fits in one word. longer names are still valid, but they can go
+    // straight to Unknown without making us copy and hash the whole string.
+    uint256 selectorWord = uint32(IHooks.version.selector);
+    bytes32 versionHash;
+    assembly ('memory-safe') {
+      // borrow three words at the free-memory pointer: the dynamic offset, string length, and
+      // first word of version data. nothing needs this buffer after the block.
+      let ptr := mload(0x40)
+
+      // put the selector in the first four bytes, then reuse the same buffer for the response.
+      mstore(ptr, shl(224, selectorWord))
+      let success := staticcall(gas(), hooksAddress, ptr, 4, ptr, 0x60)
+      let size := returndatasize()
+      if iszero(success) {
+        // version() is required here, so preserve the hook's full revert instead of treating it
+        // like one of the optional lens probes.
+        returndatacopy(ptr, 0, size)
+        revert(ptr, size)
+      }
+
+      // one dynamic return starts with offset 0x20 and its length. reject anything too short or
+      // shaped differently before reading the data word.
+      if lt(size, 0x40) {
+        revert(0, 0)
+      }
+      if iszero(eq(mload(ptr), 0x20)) {
+        revert(0, 0)
+      }
+      let length := mload(add(ptr, 0x20))
+
+      // round the claimed length up to a full ABI word, then catch both arithmetic wraparound
+      // and truncated return data. returndatasize covers the complete response even though we
+      // only copied its first three words.
+      let paddedLength := and(add(length, 0x1f), not(0x1f))
+      if lt(paddedLength, length) {
+        revert(0, 0)
+      }
+      if gt(paddedLength, sub(size, 0x40)) {
+        revert(0, 0)
+      }
+
+      // known names fit in the first data word. hash those exactly; leave versionHash at zero
+      // for longer valid names so _kindForVersionHash returns Unknown.
+      if iszero(gt(length, 0x20)) {
+        versionHash := keccak256(add(ptr, 0x40), length)
+      }
+    }
+    return _kindForVersionHash(versionHash);
+  }
+
+  // ┌─ kindForVersion ─────
+  /// @notice classify a hooks version string without making an external call.
+  function kindForVersion(string memory version) internal pure returns (HooksInstanceKind) {
+    return _kindForVersionHash(keccak256(bytes(version)));
+  }
+
+  // ┌─ _kindForVersionHash ─────
+  function _kindForVersionHash(bytes32 versionHash) private pure returns (HooksInstanceKind) {
+    if (versionHash == keccak256(bytes('OpenTermHooks'))) {
+      return HooksInstanceKind.OpenTerm;
+    } else if (versionHash == keccak256(bytes('FixedTermHooks'))) {
+      return HooksInstanceKind.FixedTermLoan;
+    } else if (versionHash == keccak256(bytes('PeriodicTermHooks'))) {
+      return HooksInstanceKind.PeriodicTerm;
+    }
+    return HooksInstanceKind.Unknown;
   }
 }

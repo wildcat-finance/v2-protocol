@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wildcat.finance/schemas/factory-inventory.schema-1-1.json",
+  "title": "Wildcat Factory Inventory 1.1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "network",
+    "chainId",
+    "marketTypes",
+    "recordCount",
+    "hooksFactories",
+    "wrapperFactories"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.1.0"
+    },
+    "network": {
+      "type": "string",
+      "minLength": 1
+    },
+    "chainId": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "marketTypes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "recordCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hooksFactories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hooksFactory"
+      }
+    },
+    "wrapperFactories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/wrapperFactory"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "address": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{40}$"
+    },
+    "bytes32": {
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^.]+$"
+    },
+    "lifecycle": {
+      "enum": ["canonical", "live", "retired"]
+    },
+    "hooksFactory": {
+      "type": "object",
+      "required": [
+        "label",
+        "marketType",
+        "address",
+        "startBlock",
+        "canonical",
+        "lifecycle",
+        "indexed",
+        "registered"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/label"
+        },
+        "marketType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "address": {
+          "$ref": "#/$defs/address"
+        },
+        "startBlock": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "canonical": {
+          "type": "boolean"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "indexed": {
+          "type": "boolean"
+        },
+        "registered": {
+          "type": "boolean"
+        },
+        "deploymentKey": {
+          "type": "string"
+        },
+        "deployTxHash": {
+          "$ref": "#/$defs/bytes32"
+        },
+        "registerTxHash": {
+          "$ref": "#/$defs/bytes32"
+        },
+        "wrapperFactory": {
+          "$ref": "#/$defs/address"
+        },
+        "initCodeStorage": {
+          "$ref": "#/$defs/address"
+        },
+        "initCodeHash": {
+          "$ref": "#/$defs/bytes32"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "lifecycle": {
+                "const": "canonical"
+              }
+            },
+            "required": ["lifecycle"]
+          },
+          "then": {
+            "properties": {
+              "canonical": {
+                "const": true
+              },
+              "indexed": {
+                "const": true
+              },
+              "registered": {
+                "const": true
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "canonical": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "lifecycle": {
+                "const": "retired"
+              }
+            },
+            "required": ["lifecycle"]
+          },
+          "then": {
+            "properties": {
+              "indexed": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "wrapperFactory": {
+      "type": "object",
+      "required": [
+        "label",
+        "address",
+        "startBlock",
+        "lifecycle",
+        "indexed",
+        "v1Factory"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/label"
+        },
+        "address": {
+          "$ref": "#/$defs/address"
+        },
+        "startBlock": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "indexed": {
+          "type": "boolean"
+        },
+        "deployTxHash": {
+          "$ref": "#/$defs/bytes32"
+        },
+        "v1Factory": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/address"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "lifecycle": {
+                "const": "canonical"
+              }
+            },
+            "required": ["lifecycle"]
+          },
+          "then": {
+            "properties": {
+              "indexed": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "lifecycle": {
+                "const": "retired"
+              }
+            },
+            "required": ["lifecycle"]
+          },
+          "then": {
+            "properties": {
+              "indexed": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

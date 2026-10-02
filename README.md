@@ -1,23 +1,50 @@
-# The Wildcat Protocol
+# Wildcat Protocol
 
-Here's the code. Enjoy it.
+Smart contracts, tests, and deployment tooling for Wildcat Protocol V2.5.
+Markets provide undercollateralized credit with rebasing lender balances,
+batched withdrawals, and configurable access and term hooks.
 
-For other bits and pieces:
+[Whitepaper v2.0](https://github.com/wildcat-finance/wildcat-whitepaper/blob/main/whitepaper_v2.0.pdf)
+· [The Wildcat Manifesto](https://medium.com/@wildcatprotocol/the-wildcat-manifesto-db23d4b9484d)
 
-### The Whitepaper [Out Of Date For V2]
+Product and user documentation lives at
+[docs.wildcat.finance](https://docs.wildcat.finance/).
 
-[https://tinyurl.com/wildcat-whitepaper](https://github.com/wildcat-finance/wildcat-whitepaper/blob/main/whitepaper_v1.0.pdf)
+## Build and test
 
-### The Manifesto 
+[Foundry](https://book.getfoundry.sh/getting-started/installation) `1.8.3` is
+required. [`.foundry-version`](./.foundry-version) supplies the version for CI
+and the Sepolia wrapper-factory installer.
 
-[https://tinyurl.com/wildcat-manifesto](https://medium.com/@wildcatprotocol/the-wildcat-manifesto-db23d4b9484d)
+The full test suite also needs Python 3 and a C compiler (`cc`) for its offline
+storage-codec reference.
 
-### The V1 Documentation [Out Of Date For V2]
+```sh
+foundryup --install "$(cat .foundry-version)"
+git submodule update --init
+forge build
+forge test
+```
 
-[https://wildcat-protocol.gitbook.io](https://wildcat-protocol.gitbook.io/wildcat/)
+[`foundry.toml`](./foundry.toml) pins Solidity `0.8.25`, the Cancun EVM target,
+via-IR, optimizer runs `1`, and the exact Yul optimizer sequence. These settings
+keep both market runtimes within the deployment size limit and apply to normal
+builds, tests, and the `deploy` profile. [`TESTS.md`](./TESTS.md) covers the full
+test setup.
 
-### Notes on memory layout
+See [deployment](./docs/operations/deployment.md) for creation-code storage,
+artifact verification, and release ceremonies.
 
-When modifying any type definition, look for any place where the type is directly accessed in yul.
+## Start here
 
-Most events and errors in this contract are emitted using custom emitter functions which rely on the specific order of parameters in the definition
+- [Technical documentation](./docs/README.md)
+- [External security reviews](./audits/README.md)
+- [Security reporting](./SECURITY.md)
+- [Contribution policy](./CONTRIBUTING.md)
+- [Solidity source layout](./STYLE_GUIDE.md) and [comment voice](./STYLE_VOICE.md)
+- [License](./LICENSE.md)
+
+These docs describe the source in this checkout, not the state of live
+deployments. See [V2.5](./docs/releases/v2.5.md) for source and compatibility
+boundaries, and [`deployments/`](./deployments/) for recorded deployment facts.
+Previous releases and their docs live in Git tags.

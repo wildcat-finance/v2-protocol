@@ -1,5 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.20;
+pragma solidity 0.8.25;
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Deploy4626Factory
+//  \ ^ /   Validate a market and deploy or discover its wrapper.
+//    V
+//
+//  MARKET QUERIES
+//  borrower()
+//  hooks()
+//
+//  DEPLOYMENT
+//  run()
+// ═════
 
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';
@@ -9,13 +22,22 @@ import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';
 import { HooksConfig } from 'src/types/HooksConfig.sol';
 
+// ┌─ IWildcatMarketFor4626Deploy ──────────────────────────────────────────────
 interface IWildcatMarketFor4626Deploy {
+  // ░░▒▒▓▓██ [ MARKET QUERIES ] ───────────────────────────────────────────────
+
+  // ┌─ borrower ─────
   function borrower() external view returns (address);
 
+  // ┌─ hooks ─────
   function hooks() external view returns (HooksConfig);
 }
 
+// ┌─ Deploy4626Factory ────────────────────────────────────────────────────────
 contract Deploy4626Factory is Script {
+  // ░░▒▒▓▓██ [ DEPLOYMENT ] ───────────────────────────────────────────────────
+
+  // ┌─ run ─────
   function run() external {
     address archController = vm.envAddress('ARCH_CONTROLLER');
     address market = vm.envAddress('MARKET');
@@ -47,9 +69,16 @@ contract Deploy4626Factory is Script {
       vm.startBroadcast();
     }
 
-    Wildcat4626WrapperFactory factory = existingFactory == address(0)
-      ? new Wildcat4626WrapperFactory(archController)
-      : Wildcat4626WrapperFactory(existingFactory);
+    Wildcat4626WrapperFactory factory;
+    if (existingFactory == address(0)) {
+      // legacy half-up markets route to V1. its address is immutable: a silent zero
+      // default would strand legacy markets on chains that have a V1 deployment.
+      // require an explicit zero on chains without one.
+      address v1Factory = vm.envAddress('WRAPPER_FACTORY_V1');
+      factory = new Wildcat4626WrapperFactory(archController, v1Factory);
+    } else {
+      factory = Wildcat4626WrapperFactory(existingFactory);
+    }
 
     console.log('Wrapper factory:', address(factory));
 
@@ -68,4 +97,3 @@ contract Deploy4626Factory is Script {
     console.log('Market borrower:', IWildcatMarketFor4626Deploy(market).borrower());
   }
 }
-

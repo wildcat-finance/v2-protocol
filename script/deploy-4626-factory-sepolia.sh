@@ -20,9 +20,15 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 ARCH_CONTROLLER="0xC003f20F2642c76B81e5e1620c6D8cdEE826408f"
+# v1 wrapper factory for legacy (pre-v2.5, half-up rounding) markets. Frozen
+# forever in the facade at deployment: REQUIRED, no default. Use the zero
+# address only on chains with no legacy wrapper factory deployment.
+if [[ -z "${WRAPPER_FACTORY_V1:-}" ]]; then
+  echo "ERROR: WRAPPER_FACTORY_V1 must be set (zero address if no legacy deployment)" >&2
+  exit 1
+fi
 NETWORK_NAME="Sepolia"
 CHAIN_ID=11155111
-FOUNDRY_MIN_DATE="2024"  # Minimum acceptable forge build year
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,6 +53,8 @@ if [[ -f "$PROJECT_ROOT/.env" ]]; then
   source "$PROJECT_ROOT/.env"
   set +a
 fi
+
+FOUNDRY_VERSION="$(<"$PROJECT_ROOT/.foundry-version")"
 
 # ---------------------------------------------------------------------------
 # Banner
@@ -99,7 +107,7 @@ ensure_foundry_in_path() {
 }
 
 install_foundry() {
-  info "Installing Foundry..."
+  info "Installing Foundry $FOUNDRY_VERSION..."
   echo ""
 
   # Download and run foundryup installer
@@ -122,20 +130,20 @@ install_foundry() {
 
   info "Running foundryup to install forge, cast, anvil, chisel..."
   echo ""
-  foundryup
+  foundryup --install "$FOUNDRY_VERSION"
   echo ""
 
   ensure_foundry_in_path
 }
 
 update_foundry() {
-  info "Updating Foundry to latest version..."
+  info "Switching to Foundry $FOUNDRY_VERSION..."
   ensure_foundry_in_path
 
   if command -v foundryup &>/dev/null; then
-    foundryup
+    foundryup --install "$FOUNDRY_VERSION"
   elif [[ -x "$FOUNDRY_BIN/foundryup" ]]; then
-    "$FOUNDRY_BIN/foundryup"
+    "$FOUNDRY_BIN/foundryup" --install "$FOUNDRY_VERSION"
   else
     warn "foundryup not found — reinstalling Foundry from scratch."
     install_foundry
@@ -152,7 +160,7 @@ ensure_foundry_in_path
 if ! command -v forge &>/dev/null; then
   warn "forge is not installed."
   echo ""
-  if ask "Install Foundry now?"; then
+  if ask "Install Foundry $FOUNDRY_VERSION now?"; then
     install_foundry
   else
     err "Cannot continue without forge. Install Foundry and re-run."
@@ -167,20 +175,24 @@ if ! command -v forge &>/dev/null; then
   fi
 fi
 
-# Display version and check if it's recent enough
-FORGE_VERSION_STR=$(forge --version 2>&1 | head -1)
+# Require the same Foundry release used by CI.
+FORGE_VERSION_STR=$(forge --version 2>&1 | sed -n '1p')
 info "Forge version: $FORGE_VERSION_STR"
 
-# Check if the build is from 2024 or later (simple heuristic on the date in version string)
-if ! echo "$FORGE_VERSION_STR" | grep -qE "20(2[4-9]|[3-9][0-9])"; then
-  warn "Your forge version appears to be older than $FOUNDRY_MIN_DATE."
+if [[ "$FORGE_VERSION_STR" != "forge Version: ${FOUNDRY_VERSION#v}" ]]; then
+  warn "This checkout requires Foundry $FOUNDRY_VERSION."
   echo ""
-  if ask "Update Foundry to the latest version?"; then
+  if ask "Install Foundry $FOUNDRY_VERSION?"; then
     update_foundry
-    FORGE_VERSION_STR=$(forge --version 2>&1 | head -1)
+    FORGE_VERSION_STR=$(forge --version 2>&1 | sed -n '1p')
     info "Forge version (updated): $FORGE_VERSION_STR"
   else
-    warn "Continuing with current version. Build or deploy may fail if too outdated."
+    err "Cannot continue without Foundry $FOUNDRY_VERSION."
+    exit 1
+  fi
+  if [[ "$FORGE_VERSION_STR" != "forge Version: ${FOUNDRY_VERSION#v}" ]]; then
+    err "forge on PATH does not match Foundry $FOUNDRY_VERSION."
+    exit 1
   fi
 fi
 
@@ -267,7 +279,7 @@ if [[ "$VERIFY" == true ]]; then
     --chain "$CHAIN_ID" \
     --verify \
     --etherscan-api-key "$ETHERSCAN_API_KEY" \
-    --constructor-args "$ARCH_CONTROLLER"
+    --constructor-args "$ARCH_CONTROLLER" "$WRAPPER_FACTORY_V1"
 else
   forge create \
     src/vault/Wildcat4626WrapperFactory.sol:Wildcat4626WrapperFactory \
@@ -275,7 +287,7 @@ else
     --private-key "$DEPLOYER_PRIVATE_KEY" \
     --chain "$CHAIN_ID" \
     --broadcast \
-    --constructor-args "$ARCH_CONTROLLER"
+    --constructor-args "$ARCH_CONTROLLER" "$WRAPPER_FACTORY_V1"
 fi
 
 echo ""

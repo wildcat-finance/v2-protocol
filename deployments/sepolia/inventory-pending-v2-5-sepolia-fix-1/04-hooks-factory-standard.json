@@ -1,0 +1,20 @@
+{
+  "recordType": "hooksFactory",
+  "network": "sepolia",
+  "chainId": 11155111,
+  "marketType": "legacy",
+  "deploymentKey": "HooksFactory_v2-5-sepolia-fix-1",
+  "address": {
+    "$ref": "hooks-factory-standard"
+  },
+  "wrapperFactory": {
+    "$ref": "wildcat-4626-wrapper-factory"
+  },
+  "borrowerIdentityRegistry": "0xc2cF90781595203D1e75c28246b306C95d4b8b21",
+  "initCodeStorage": {
+    "$ref": "wildcat-market-init-code-storage"
+  },
+  "initCodeHash": "0xbcd4a2afc72b667a3c3d6056c93d69091092d63aa6e737cfd29f3b3be5fea2cb",
+  "registerEntryId": "register-hooks-factory-standard",
+  "canonicalIntent": true
+}
