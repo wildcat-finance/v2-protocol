@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SphereXProtectedErrors
-// ║  ██▀▀     ▀▀██   Compact reverts for SphereX authority and engine checks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  AUTHORITY ERRORS
-// ║  revert_SphereXAdminRequired()
-// ║  revert_SphereXNotPendingAdmin()
-// ║  revert_SphereXOperatorRequired()
-// ║  revert_SphereXOperatorOrAdminRequired()
-// ║
-// ║  ENGINE ERRORS
-// ║  revert_SphereXNotEngine()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SphereXProtectedErrors
+//  \ ^ /   Compact reverts for SphereX authority and engine checks.
+//    V
+//
+//  AUTHORITY ERRORS
+//  revert_SphereXAdminRequired()
+//  revert_SphereXNotPendingAdmin()
+//  revert_SphereXOperatorRequired()
+//  revert_SphereXOperatorOrAdminRequired()
+//
+//  ENGINE ERRORS
+//  revert_SphereXNotEngine()
+// ═════
 
 // ░░▒▒▓▓██ [ AUTHORITY ERRORS ] ───────────────────────────────────────────────
 

@@ -2,25 +2,23 @@
 // (c) SphereX 2023 Terms&Conditions
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ISphereXEngine
-// ║  ██▀▀     ▀▀██   External and internal call validation around protected work.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  EXTERNAL VALIDATION
-// ║  sphereXValidatePre(...)
-// ║  sphereXValidatePost(...)
-// ║
-// ║  INTERNAL VALIDATION
-// ║  sphereXValidateInternalPre(...)
-// ║  sphereXValidateInternalPost(...)
-// ║
-// ║  ENGINE INTEGRATION
-// ║  addAllowedSenderOnChain(...)
-// ║  supportsInterface(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ISphereXEngine
+//  \ ^ /   External and internal call validation around protected work.
+//    V
+//
+//  EXTERNAL VALIDATION
+//  sphereXValidatePre(...)
+//  sphereXValidatePost(...)
+//
+//  INTERNAL VALIDATION
+//  sphereXValidateInternalPre(...)
+//  sphereXValidateInternalPost(...)
+//
+//  ENGINE INTEGRATION
+//  addAllowedSenderOnChain(...)
+//  supportsInterface(...)
+// ═════
 
 /// @dev state carried between the pre- and post-validation halves of a protected call.
 struct ModifierLocals {

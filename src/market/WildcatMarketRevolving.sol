@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketRevolving
-// ║  ██▀▀     ▀▀██   Drawn-principal accounting and revolving interest accrual.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor()
-// ║
-// ║  PRINCIPAL ACCOUNTING
-// ║  _onBorrow(...)
-// ║  _onRepay(...)
-// ║  _onRepayAndGetTotalAssets(...)
-// ║  _onCloseMarket()
-// ║  _setDrawnAmount(...)
-// ║  drawnAmount()
-// ║
-// ║  INTEREST
-// ║  _calculateBaseInterest(...)
-// ║  commitmentFeeBips()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarketRevolving
+//  \ ^ /   Drawn-principal accounting and revolving interest accrual.
+//    V
+//
+//  SETUP
+//  constructor()
+//
+//  PRINCIPAL ACCOUNTING
+//  _onBorrow(...)
+//  _onRepay(...)
+//  _onRepayAndGetTotalAssets(...)
+//  _onCloseMarket()
+//  _setDrawnAmount(...)
+//  drawnAmount()
+//
+//  INTEREST
+//  _calculateBaseInterest(...)
+//  commitmentFeeBips()
+// ═════
 
 import '../interfaces/IWildcatMarketRevolving.sol';
 import './WildcatMarket.sol';

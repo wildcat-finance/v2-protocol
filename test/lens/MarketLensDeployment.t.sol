@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensDeployment.t
-// ║  ██▀▀     ▀▀██   Real lens deployment limits and exact facade forwarding.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT AND FORWARDING
-// ║  test_realLimits_LensHelpersAndFacade()
-// ║  _assertForwarded(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensDeployment.t
+//  \ ^ /   Real lens deployment limits and exact facade forwarding.
+//    V
+//
+//  DEPLOYMENT AND FORWARDING
+//  test_realLimits_LensHelpersAndFacade()
+//  _assertForwarded(...)
+// ═════
 
 import { MarketLens } from 'src/lens/MarketLens.sol';
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';

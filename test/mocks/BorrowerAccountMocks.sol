@@ -1,51 +1,49 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BorrowerAccountMocks
-// ║  ██▀▀     ▀▀██   Executing borrower accounts and credentialed borrowing hooks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCOUNT SETUP
-// ║  constructor(...)
-// ║  receive()
-// ║
-// ║  ACCOUNT EXECUTION
-// ║  execute(...)
-// ║  principal()
-// ║
-// ║  ACCOUNT DEPLOYMENT
-// ║  constructor(...)
-// ║  deployAccount(...)
-// ║
-// ║  BORROWER IDENTITY
-// ║  borrower()
-// ║  borrowerPrincipal()
-// ║
-// ║  HOOK SETUP
-// ║  constructor(...)
-// ║  _onCreateMarket(...)
-// ║
-// ║  CREDENTIALED BORROWING
-// ║  onBorrow(...)
-// ║
-// ║  PASSIVE CALLBACKS
-// ║  onDeposit(...)
-// ║  onQueueWithdrawal(...)
-// ║  onExecuteWithdrawal(...)
-// ║  onTransfer(...)
-// ║  onRepay(...)
-// ║  onCloseMarket(...)
-// ║  onNukeFromOrbit(...)
-// ║  onSetMaxTotalSupply(...)
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║  onSetProtocolFeeBips(...)
-// ║
-// ║  HOOK IDENTITY
-// ║  version()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BorrowerAccountMocks
+//  \ ^ /   Executing borrower accounts and credentialed borrowing hooks.
+//    V
+//
+//  ACCOUNT SETUP
+//  constructor(...)
+//  receive()
+//
+//  ACCOUNT EXECUTION
+//  execute(...)
+//  principal()
+//
+//  ACCOUNT DEPLOYMENT
+//  constructor(...)
+//  deployAccount(...)
+//
+//  BORROWER IDENTITY
+//  borrower()
+//  borrowerPrincipal()
+//
+//  HOOK SETUP
+//  constructor(...)
+//  _onCreateMarket(...)
+//
+//  CREDENTIALED BORROWING
+//  onBorrow(...)
+//
+//  PASSIVE CALLBACKS
+//  onDeposit(...)
+//  onQueueWithdrawal(...)
+//  onExecuteWithdrawal(...)
+//  onTransfer(...)
+//  onRepay(...)
+//  onCloseMarket(...)
+//  onNukeFromOrbit(...)
+//  onSetMaxTotalSupply(...)
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//  onSetProtocolFeeBips(...)
+//
+//  HOOK IDENTITY
+//  version()
+// ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { IHooks } from 'src/access/IHooks.sol';

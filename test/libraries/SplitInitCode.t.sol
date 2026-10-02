@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SplitInitCode.t
-// ║  ██▀▀     ▀▀██   Split storage boundaries, integrity, and deployment context.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STORAGE ADAPTERS
-// ║  split(...)
-// ║  read(...)
-// ║  capacity()
-// ║  verify(...)
-// ║
-// ║  DEPLOYMENT ADAPTER
-// ║  create2WithValue(...)
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  STORAGE ROUND TRIPS
-// ║  testFuzz_roundTrip(...)
-// ║  testFuzz_roundTripAcrossChunkBoundary(...)
-// ║  test_chunkBoundariesAndCapacity()
-// ║  _check(...)
-// ║
-// ║  STORAGE INTEGRITY
-// ║  test_rejectsMissingTruncatedTrailingAndExecutableSecondary()
-// ║  test_attestationRejectsMutatedPayloadFooterAndReader()
-// ║
-// ║  DEPLOYMENT CONTEXT
-// ║  testFuzz_constructorContextValueAndCreate2(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SplitInitCode.t
+//  \ ^ /   Split storage boundaries, integrity, and deployment context.
+//    V
+//
+//  STORAGE ADAPTERS
+//  split(...)
+//  read(...)
+//  capacity()
+//  verify(...)
+//
+//  DEPLOYMENT ADAPTER
+//  create2WithValue(...)
+//
+//  FIXTURE
+//  setUp()
+//
+//  STORAGE ROUND TRIPS
+//  testFuzz_roundTrip(...)
+//  testFuzz_roundTripAcrossChunkBoundary(...)
+//  test_chunkBoundariesAndCapacity()
+//  _check(...)
+//
+//  STORAGE INTEGRITY
+//  test_rejectsMissingTruncatedTrailingAndExecutableSecondary()
+//  test_attestationRejectsMutatedPayloadFooterAndReader()
+//
+//  DEPLOYMENT CONTEXT
+//  testFuzz_constructorContextValueAndCreate2(...)
+// ═════
 
 import { LibSplitInitCode, SplitInitCodeReader } from 'src/libraries/LibSplitInitCode.sol';
 import { LibStoredInitCode } from 'src/libraries/LibStoredInitCode.sol';

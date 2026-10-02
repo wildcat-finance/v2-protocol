@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // OptionalData
-// ║  ██▀▀     ▀▀██   Presence-aware values and bounded optional getter reads.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  OPTIONAL READS
-// ║  readWord(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // OptionalData
+//  \ ^ /   Presence-aware values and bounded optional getter reads.
+//    V
+//
+//  OPTIONAL READS
+//  readWord(...)
+// ═════
 
 /// @notice distinguishes an unavailable getter from a real zero value.
 struct OptionalUintDataV2_5 {

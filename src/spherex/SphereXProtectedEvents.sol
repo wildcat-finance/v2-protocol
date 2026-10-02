@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SphereXProtectedEvents
-// ║  ██▀▀     ▀▀██   Compact emitters for SphereX authority and engine changes.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ADMINISTRATION
-// ║  emit_SpherexAdminTransferStarted(...)
-// ║  emit_SpherexAdminTransferCompleted(...)
-// ║  emit_ChangedSpherexOperator(...)
-// ║
-// ║  ENGINE INTEGRATION
-// ║  emit_ChangedSpherexEngineAddress(...)
-// ║  emit_NewAllowedSenderOnchain(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SphereXProtectedEvents
+//  \ ^ /   Compact emitters for SphereX authority and engine changes.
+//    V
+//
+//  ADMINISTRATION
+//  emit_SpherexAdminTransferStarted(...)
+//  emit_SpherexAdminTransferCompleted(...)
+//  emit_ChangedSpherexOperator(...)
+//
+//  ENGINE INTEGRATION
+//  emit_ChangedSpherexEngineAddress(...)
+//  emit_NewAllowedSenderOnchain(...)
+// ═════
 
 // ░░▒▒▓▓██ [ ADMINISTRATION ] ─────────────────────────────────────────────────
 

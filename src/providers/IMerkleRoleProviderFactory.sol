@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IMerkleRoleProviderFactory
-// ║  ██▀▀     ▀▀██   Merkle provider deployment inputs and address prediction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT
-// ║  createMerkleRoleProvider(...)
-// ║
-// ║  ADDRESS PREDICTION
-// ║  computeRoleProviderAddress(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IMerkleRoleProviderFactory
+//  \ ^ /   Merkle provider deployment inputs and address prediction.
+//    V
+//
+//  DEPLOYMENT
+//  createMerkleRoleProvider(...)
+//
+//  ADDRESS PREDICTION
+//  computeRoleProviderAddress(...)
+// ═════
 
 import '../access/IRoleProviderFactory.sol';
 

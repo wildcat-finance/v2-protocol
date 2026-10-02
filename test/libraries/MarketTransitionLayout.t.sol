@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketTransitionLayout.t
-// ║  ██▀▀     ▀▀██   Transition allocation against independent Solidity structs.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  TRANSITION ALLOCATION
-// ║  testFuzz_allocatorMatchesSolidityStructs(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketTransitionLayout.t
+//  \ ^ /   Transition allocation against independent Solidity structs.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  TRANSITION ALLOCATION
+//  testFuzz_allocatorMatchesSolidityStructs(...)
+// ═════
 
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { TransitionAllocatorHarness } from '../mocks/TransitionAllocatorHarness.sol';

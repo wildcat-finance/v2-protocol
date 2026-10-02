@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SanctionsMocks
-// ║  ██▀▀     ▀▀██   Mutable sanctions status for protocol tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SANCTIONS STATUS
-// ║  sanction(...)
-// ║  unsanction(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SanctionsMocks
+//  \ ^ /   Mutable sanctions status for protocol tests.
+//    V
+//
+//  SANCTIONS STATUS
+//  sanction(...)
+//  unsanction(...)
+// ═════
 
 // ┌─ SanctionsListMock ────────────────────────────────────────────────────────
 contract SanctionsListMock {

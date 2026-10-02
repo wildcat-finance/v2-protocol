@@ -1,43 +1,41 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksConfigTarget
-// ║  ██▀▀     ▀▀██   Exact callback-calldata recording and malformed responses.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  HOOK SETUP
-// ║  version()
-// ║  config()
-// ║  setShouldRevert(...)
-// ║  _onCreateMarket(...)
-// ║
-// ║  LENDER CALLBACKS
-// ║  onDeposit(...)
-// ║  onTransfer(...)
-// ║  onQueueWithdrawal(...)
-// ║  onExecuteWithdrawal(...)
-// ║
-// ║  BORROWER CALLBACKS
-// ║  onBorrow(...)
-// ║  onRepay(...)
-// ║  onCloseMarket(...)
-// ║
-// ║  CONFIGURATION CALLBACKS
-// ║  onSetMaxTotalSupply(...)
-// ║  setAnnualInterestAndReserveRatioBips(...)
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║  onSetProtocolFeeBips(...)
-// ║  onNukeFromOrbit(...)
-// ║
-// ║  CALL RECORDING
-// ║  _recordCall()
-// ║
-// ║  SHORT RESPONSES
-// ║  fallback()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksConfigTarget
+//  \ ^ /   Exact callback-calldata recording and malformed responses.
+//    V
+//
+//  HOOK SETUP
+//  version()
+//  config()
+//  setShouldRevert(...)
+//  _onCreateMarket(...)
+//
+//  LENDER CALLBACKS
+//  onDeposit(...)
+//  onTransfer(...)
+//  onQueueWithdrawal(...)
+//  onExecuteWithdrawal(...)
+//
+//  BORROWER CALLBACKS
+//  onBorrow(...)
+//  onRepay(...)
+//  onCloseMarket(...)
+//
+//  CONFIGURATION CALLBACKS
+//  onSetMaxTotalSupply(...)
+//  setAnnualInterestAndReserveRatioBips(...)
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//  onSetProtocolFeeBips(...)
+//  onNukeFromOrbit(...)
+//
+//  CALL RECORDING
+//  _recordCall()
+//
+//  SHORT RESPONSES
+//  fallback()
+// ═════
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

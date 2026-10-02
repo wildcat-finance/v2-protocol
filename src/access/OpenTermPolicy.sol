@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // OpenTermPolicy
-// ║  ██▀▀     ▀▀██   Open-term market initialization and access configuration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET SETUP
-// ║  _initializeMarket(...)
-// ║  _readUint128Cd(...)
-// ║  _readBoolCd(...)
-// ║
-// ║  ACCESS CONFIGURATION
-// ║  _readAccessConfig(...)
-// ║  _isDepositHookEnabled(...)
-// ║  _writeMinimumDeposit(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // OpenTermPolicy
+//  \ ^ /   Open-term market initialization and access configuration.
+//    V
+//
+//  MARKET SETUP
+//  _initializeMarket(...)
+//  _readUint128Cd(...)
+//  _readBoolCd(...)
+//
+//  ACCESS CONFIGURATION
+//  _readAccessConfig(...)
+//  _isDepositHookEnabled(...)
+//  _writeMinimumDeposit(...)
+// ═════
 
 import './BaseHooks.sol';
 import '../libraries/SafeCastLib.sol';

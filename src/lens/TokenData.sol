@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TokenData
-// ║  ██▀▀     ▀▀██   Token metadata and optional mock-marker queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TOKEN METADATA
-// ║  fill(...)
-// ║  checkIsMock(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TokenData
+//  \ ^ /   Token metadata and optional mock-marker queries.
+//    V
+//
+//  TOKEN METADATA
+//  fill(...)
+//  checkIsMock(...)
+// ═════
 
 import '../libraries/LibERC20.sol';
 import '../interfaces/IERC20.sol';

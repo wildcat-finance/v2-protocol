@@ -1,42 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketFixture
-// ║  ██▀▀     ▀▀██   Market deployment fixtures and lender lifecycle helpers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET CREATION
-// ║  _newMarket(...)
-// ║  _newMarket(...)
-// ║  _newMarket(...)
-// ║  _newMarket(...)
-// ║  _newRevolvingMarket(...)
-// ║  _defaultOptions(...)
-// ║  _defaultRevolvingOptions(...)
-// ║
-// ║  DEPENDENCIES AND HOOKS
-// ║  _deployFixtureDependencies()
-// ║  _deployHooks(...)
-// ║  _configureHooks(...)
-// ║  _deploymentInputs(...)
-// ║  _hookData(...)
-// ║
-// ║  MARKET DEPLOYMENT
-// ║  _deployMarketFromParameters(...)
-// ║  _deployMarketFromParameters(...)
-// ║  _deployStoredMarket(...)
-// ║  _deployStoredMarket(...)
-// ║  _buildMarketParameters(...)
-// ║  _packString(...)
-// ║
-// ║  LENDER OPERATIONS
-// ║  _deposit(...)
-// ║  _fundAndApprove(...)
-// ║  _queueAndExecuteWithdrawal(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketFixture
+//  \ ^ /   Market deployment fixtures and lender lifecycle helpers.
+//    V
+//
+//  MARKET CREATION
+//  _newMarket(...)
+//  _newMarket(...)
+//  _newMarket(...)
+//  _newMarket(...)
+//  _newRevolvingMarket(...)
+//  _defaultOptions(...)
+//  _defaultRevolvingOptions(...)
+//
+//  DEPENDENCIES AND HOOKS
+//  _deployFixtureDependencies()
+//  _deployHooks(...)
+//  _configureHooks(...)
+//  _deploymentInputs(...)
+//  _hookData(...)
+//
+//  MARKET DEPLOYMENT
+//  _deployMarketFromParameters(...)
+//  _deployMarketFromParameters(...)
+//  _deployStoredMarket(...)
+//  _deployStoredMarket(...)
+//  _buildMarketParameters(...)
+//  _packString(...)
+//
+//  LENDER OPERATIONS
+//  _deposit(...)
+//  _fundAndApprove(...)
+//  _queueAndExecuteWithdrawal(...)
+// ═════
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';

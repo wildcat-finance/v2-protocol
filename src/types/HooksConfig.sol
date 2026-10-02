@@ -1,81 +1,79 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksConfig
-// ║  ██▀▀     ▀▀██   Hook configuration, activation flags, and callback dispatch.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ENCODING
-// ║  encodeHooksDeploymentConfig(...)
-// ║  encodeHooksConfig(...)
-// ║
-// ║  HOOK ADDRESS
-// ║  setHooksAddress(...)
-// ║  hooksAddress(...)
-// ║
-// ║  FLAG COMPOSITION
-// ║  mergeFlags(...)
-// ║  mergeSharedFlags(...)
-// ║  mergeAllFlags(...)
-// ║  optionalFlags(...)
-// ║  requiredFlags(...)
-// ║
-// ║  FLAG OPERATIONS
-// ║  setFlag(...)
-// ║  clearFlag(...)
-// ║  readFlag(...)
-// ║
-// ║  DEPOSITS
-// ║  onDeposit(...)
-// ║  useOnDeposit(...)
-// ║
-// ║  WITHDRAWAL QUEUEING
-// ║  onQueueWithdrawal(...)
-// ║  useOnQueueWithdrawal(...)
-// ║
-// ║  CLAIM COLLECTION
-// ║  onExecuteWithdrawal(...)
-// ║  useOnExecuteWithdrawal(...)
-// ║
-// ║  TRANSFERS
-// ║  onTransfer(...)
-// ║  useOnTransfer(...)
-// ║
-// ║  BORROWING
-// ║  onBorrow(...)
-// ║  useOnBorrow(...)
-// ║
-// ║  REPAYMENT
-// ║  onRepay(...)
-// ║  useOnRepay(...)
-// ║
-// ║  CLOSURE
-// ║  onCloseMarket(...)
-// ║  useOnCloseMarket(...)
-// ║
-// ║  SUPPLY CAPACITY
-// ║  onSetMaxTotalSupply(...)
-// ║  useOnSetMaxTotalSupply(...)
-// ║
-// ║  INTEREST AND RESERVES
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║  useOnSetAnnualInterestAndReserveRatioBips(...)
-// ║  useOnExecutePendingAnnualInterestBipsReduction(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  onSetProtocolFeeBips(...)
-// ║  useOnSetProtocolFeeBips(...)
-// ║
-// ║  SANCTIONS
-// ║  onNukeFromOrbit(...)
-// ║  useOnNukeFromOrbit(...)
-// ║
-// ║  CALL DISPATCH
-// ║  _callHook(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksConfig
+//  \ ^ /   Hook configuration, activation flags, and callback dispatch.
+//    V
+//
+//  ENCODING
+//  encodeHooksDeploymentConfig(...)
+//  encodeHooksConfig(...)
+//
+//  HOOK ADDRESS
+//  setHooksAddress(...)
+//  hooksAddress(...)
+//
+//  FLAG COMPOSITION
+//  mergeFlags(...)
+//  mergeSharedFlags(...)
+//  mergeAllFlags(...)
+//  optionalFlags(...)
+//  requiredFlags(...)
+//
+//  FLAG OPERATIONS
+//  setFlag(...)
+//  clearFlag(...)
+//  readFlag(...)
+//
+//  DEPOSITS
+//  onDeposit(...)
+//  useOnDeposit(...)
+//
+//  WITHDRAWAL QUEUEING
+//  onQueueWithdrawal(...)
+//  useOnQueueWithdrawal(...)
+//
+//  CLAIM COLLECTION
+//  onExecuteWithdrawal(...)
+//  useOnExecuteWithdrawal(...)
+//
+//  TRANSFERS
+//  onTransfer(...)
+//  useOnTransfer(...)
+//
+//  BORROWING
+//  onBorrow(...)
+//  useOnBorrow(...)
+//
+//  REPAYMENT
+//  onRepay(...)
+//  useOnRepay(...)
+//
+//  CLOSURE
+//  onCloseMarket(...)
+//  useOnCloseMarket(...)
+//
+//  SUPPLY CAPACITY
+//  onSetMaxTotalSupply(...)
+//  useOnSetMaxTotalSupply(...)
+//
+//  INTEREST AND RESERVES
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//  useOnSetAnnualInterestAndReserveRatioBips(...)
+//  useOnExecutePendingAnnualInterestBipsReduction(...)
+//
+//  PROTOCOL FEES
+//  onSetProtocolFeeBips(...)
+//  useOnSetProtocolFeeBips(...)
+//
+//  SANCTIONS
+//  onNukeFromOrbit(...)
+//  useOnNukeFromOrbit(...)
+//
+//  CALL DISPATCH
+//  _callHook(...)
+// ═════
 
 import '../access/IHooks.sol';
 import '../libraries/MarketState.sol';

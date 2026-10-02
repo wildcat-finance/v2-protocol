@@ -1,46 +1,44 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DeployAndExercise4626
-// ║  ██▀▀     ▀▀██   Deploy and exercise wrapping, transfers, and redemption.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TOKEN OPERATIONS
-// ║  approve(...)
-// ║  transfer(...)
-// ║  balanceOf(...)
-// ║
-// ║  MARKET OPERATIONS
-// ║  deposit(...)
-// ║  asset()
-// ║  borrower()
-// ║  hooks()
-// ║
-// ║  EXECUTION FLOW
-// ║  run()
-// ║  _loadConfig()
-// ║  _preflight(...)
-// ║  _execute(...)
-// ║
-// ║  DEPOSITS AND WRAPPING
-// ║  _mintMarketTokens(...)
-// ║  _ensureUnderlyingBalance(...)
-// ║  _deployFactoryAndWrapper(...)
-// ║  _wrapInto4626(...)
-// ║
-// ║  TRANSFERS AND REDEMPTION
-// ║  _transferShares(...)
-// ║  _exerciseAsTestUser(...)
-// ║  _fundTestUser(...)
-// ║  _redeemAllAsDeployer(...)
-// ║
-// ║  BROADCAST AND REPORTING
-// ║  _startBroadcast(...)
-// ║  _logFinalBalances(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DeployAndExercise4626
+//  \ ^ /   Deploy and exercise wrapping, transfers, and redemption.
+//    V
+//
+//  TOKEN OPERATIONS
+//  approve(...)
+//  transfer(...)
+//  balanceOf(...)
+//
+//  MARKET OPERATIONS
+//  deposit(...)
+//  asset()
+//  borrower()
+//  hooks()
+//
+//  EXECUTION FLOW
+//  run()
+//  _loadConfig()
+//  _preflight(...)
+//  _execute(...)
+//
+//  DEPOSITS AND WRAPPING
+//  _mintMarketTokens(...)
+//  _ensureUnderlyingBalance(...)
+//  _deployFactoryAndWrapper(...)
+//  _wrapInto4626(...)
+//
+//  TRANSFERS AND REDEMPTION
+//  _transferShares(...)
+//  _exerciseAsTestUser(...)
+//  _fundTestUser(...)
+//  _redeemAllAsDeployer(...)
+//
+//  BROADCAST AND REPORTING
+//  _startBroadcast(...)
+//  _logFinalBalances(...)
+// ═════
 
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';

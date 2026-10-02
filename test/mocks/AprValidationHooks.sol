@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // AprValidationHooks
-// ║  ██▀▀     ▀▀██   Effective APR validation and callback-state capture.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  VALIDATION SETUP
-// ║  constructor(...)
-// ║  seedTemporaryReserve(...)
-// ║
-// ║  APR VALIDATION
-// ║  _checkAprChange(...)
-// ║  lastChange()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // AprValidationHooks
+//  \ ^ /   Effective APR validation and callback-state capture.
+//    V
+//
+//  VALIDATION SETUP
+//  constructor(...)
+//  seedTemporaryReserve(...)
+//
+//  APR VALIDATION
+//  _checkAprChange(...)
+//  lastChange()
+// ═════
 
 import { AprChange } from 'src/access/BaseHooks.sol';
 import { TemporaryReserveRatio } from 'src/access/MarketConstraintHooks.sol';

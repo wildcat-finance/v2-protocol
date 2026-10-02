@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // NukeBatchAveraging.t
-// ║  ██▀▀     ▀▀██   Sanctions queueing compared with voluntary late-batch entry.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BATCH ENTRY EQUIVALENCE
-// ║  test_nukeFromOrbitMatchesVoluntaryLateBatchEntry()
-// ║  _runScenario(...)
-// ║  _options()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // NukeBatchAveraging.t
+//  \ ^ /   Sanctions queueing compared with voluntary late-batch entry.
+//    V
+//
+//  BATCH ENTRY EQUIVALENCE
+//  test_nukeFromOrbitMatchesVoluntaryLateBatchEntry()
+//  _runScenario(...)
+//  _options()
+// ═════
 
 import { WithdrawalBatch } from 'src/libraries/Withdrawal.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';

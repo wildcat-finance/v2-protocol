@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalPaymentHarness
-// ║  ██▀▀     ▀▀██   Withdrawal payment, remainder, and liquidity test adapters.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  WITHDRAWAL FUNDING
-// ║  pendingLiquidity(...)
-// ║  applyPayment(...)
-// ║  release(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalPaymentHarness
+//  \ ^ /   Withdrawal payment, remainder, and liquidity test adapters.
+//    V
+//
+//  WITHDRAWAL FUNDING
+//  pendingLiquidity(...)
+//  applyPayment(...)
+//  release(...)
+// ═════
 
 import { WildcatMarketBase } from 'src/market/WildcatMarketBase.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

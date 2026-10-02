@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicTermHooks
-// ║  ██▀▀     ▀▀██   Periodic-window hook setup, identity, and market queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  METADATA
-// ║  version()
-// ║  templateVersion()
-// ║
-// ║  MARKET QUERIES
-// ║  getHookedMarket(...)
-// ║  getHookedMarkets(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PeriodicTermHooks
+//  \ ^ /   Periodic-window hook setup, identity, and market queries.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  METADATA
+//  version()
+//  templateVersion()
+//
+//  MARKET QUERIES
+//  getHookedMarket(...)
+//  getHookedMarkets(...)
+// ═════
 
 import './PeriodicTermPolicy.sol';
 import { HookedMarket } from './types/PeriodicTermHookTypes.sol';

@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Withdrawal.t
-// ║  ██▀▀     ▀▀██   Available liquidity for the pending withdrawal batch.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BATCH FUNDING
-// ║  test_availableLiquidityForPendingBatch(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Withdrawal.t
+//  \ ^ /   Available liquidity for the pending withdrawal batch.
+//    V
+//
+//  BATCH FUNDING
+//  test_availableLiquidityForPendingBatch(...)
+// ═════
 
 import 'src/libraries/Withdrawal.sol';
 import './wrappers/WithdrawalLibExternal.sol';

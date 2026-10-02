@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatSanctionsEscrow
-// ║  ██▀▀     ▀▀██   Borrower-scoped sanctioned assets and conditional release.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor()
-// ║
-// ║  ESCROW RELEASE
-// ║  releaseEscrow()
-// ║  canReleaseEscrow()
-// ║
-// ║  ASSET QUERIES
-// ║  escrowedAsset()
-// ║  balance()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatSanctionsEscrow
+//  \ ^ /   Borrower-scoped sanctioned assets and conditional release.
+//    V
+//
+//  SETUP
+//  constructor()
+//
+//  ESCROW RELEASE
+//  releaseEscrow()
+//  canReleaseEscrow()
+//
+//  ASSET QUERIES
+//  escrowedAsset()
+//  balance()
+// ═════
 
 import './interfaces/IERC20.sol';
 import './interfaces/IWildcatSanctionsEscrow.sol';

@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PeriodicAprMarketMock
-// ║  ██▀▀     ▀▀██   Mutable APR response for periodic hook tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  APR CONFIGURATION
-// ║  constructor(...)
-// ║  setAnnualInterestBips(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PeriodicAprMarketMock
+//  \ ^ /   Mutable APR response for periodic hook tests.
+//    V
+//
+//  APR CONFIGURATION
+//  constructor(...)
+//  setAnnualInterestBips(...)
+// ═════
 
 // ┌─ PeriodicAprMarketMock ────────────────────────────────────────────────────
 contract PeriodicAprMarketMock {

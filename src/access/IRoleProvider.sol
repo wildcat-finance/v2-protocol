@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IRoleProvider
-// ║  ██▀▀     ▀▀██   Provider discovery and timestamped credential validation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DISCOVERY
-// ║  isPullProvider()
-// ║
-// ║  CREDENTIALS
-// ║  getCredential(...)
-// ║  validateCredential(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IRoleProvider
+//  \ ^ /   Provider discovery and timestamped credential validation.
+//    V
+//
+//  DISCOVERY
+//  isPullProvider()
+//
+//  CREDENTIALS
+//  getCredential(...)
+//  validateCredential(...)
+// ═════
 
 // ┌─ IRoleProvider ────────────────────────────────────────────────────────────
 /// @notice source of timestamped lender credentials for access-control hooks.

@@ -1,53 +1,51 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatArchController.t
-// ║  ██▀▀     ▀▀██   Registry lifecycle matrices and engine propagation tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newRegistryFixture(...)
-// ║  _deployArchController()
-// ║
-// ║  REGISTRY ADDITION
-// ║  test_registryMatrix_AddEmitsAndRegisters()
-// ║  test_registryMatrix_AddRejectsUnauthorizedCaller()
-// ║  test_registryMatrix_AddRejectsDuplicateEntry()
-// ║  _add(...)
-// ║  _duplicateError(...)
-// ║  _unauthorizedAddError(...)
-// ║  _expectAddedEvent(...)
-// ║
-// ║  REGISTRY REMOVAL
-// ║  test_registryMatrix_RemoveEmitsAndUnregisters()
-// ║  test_registryMatrix_RemoveRejectsMissingEntry()
-// ║  test_registryMatrix_RemoveRequiresOwner()
-// ║  _remove(...)
-// ║  _missingError(...)
-// ║  _expectRemovedEvent(...)
-// ║
-// ║  REGISTRY QUERIES
-// ║  test_registryMatrix_EnumerationPaginationAndSwapPop()
-// ║  _isRegistered(...)
-// ║  _getAll(...)
-// ║  _getPage(...)
-// ║  _getCount(...)
-// ║
-// ║  ENGINE PROPAGATION
-// ║  test_updateSphereXEngine_UpdatesEveryRegistryAndEngineAllowlist()
-// ║  test_updateSphereXEngine_NullEngineStillUpdatesRegisteredContracts()
-// ║  test_updateSphereXEngine_RejectsMissingRegistryEntries()
-// ║  testFuzz_updateSphereXEngine_RequiresOperatorOrAdmin(...)
-// ║  test_updateSphereXEngine_BubblesRegisteredContractRevert()
-// ║  _registerSphereXTargets(...)
-// ║  _deployRegisteredTarget(...)
-// ║  _deployEngine()
-// ║  _setArchControllerEngine(...)
-// ║  _singleton(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatArchController.t
+//  \ ^ /   Registry lifecycle matrices and engine propagation tests.
+//    V
+//
+//  FIXTURE
+//  _newRegistryFixture(...)
+//  _deployArchController()
+//
+//  REGISTRY ADDITION
+//  test_registryMatrix_AddEmitsAndRegisters()
+//  test_registryMatrix_AddRejectsUnauthorizedCaller()
+//  test_registryMatrix_AddRejectsDuplicateEntry()
+//  _add(...)
+//  _duplicateError(...)
+//  _unauthorizedAddError(...)
+//  _expectAddedEvent(...)
+//
+//  REGISTRY REMOVAL
+//  test_registryMatrix_RemoveEmitsAndUnregisters()
+//  test_registryMatrix_RemoveRejectsMissingEntry()
+//  test_registryMatrix_RemoveRequiresOwner()
+//  _remove(...)
+//  _missingError(...)
+//  _expectRemovedEvent(...)
+//
+//  REGISTRY QUERIES
+//  test_registryMatrix_EnumerationPaginationAndSwapPop()
+//  _isRegistered(...)
+//  _getAll(...)
+//  _getPage(...)
+//  _getCount(...)
+//
+//  ENGINE PROPAGATION
+//  test_updateSphereXEngine_UpdatesEveryRegistryAndEngineAllowlist()
+//  test_updateSphereXEngine_NullEngineStillUpdatesRegisteredContracts()
+//  test_updateSphereXEngine_RejectsMissingRegistryEntries()
+//  testFuzz_updateSphereXEngine_RequiresOperatorOrAdmin(...)
+//  test_updateSphereXEngine_BubblesRegisteredContractRevert()
+//  _registerSphereXTargets(...)
+//  _deployRegisteredTarget(...)
+//  _deployEngine()
+//  _setArchControllerEngine(...)
+//  _singleton(...)
+// ═════
 
 import { Ownable } from 'solady/auth/Ownable.sol';
 import { WildcatArchController } from 'src/WildcatArchController.sol';

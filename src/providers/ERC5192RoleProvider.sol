@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ERC5192RoleProvider
-// ║  ██▀▀     ▀▀██   Token ownership and lock-status credentials.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║  _supportsERC165(...)
-// ║  _supportsInterface(...)
-// ║
-// ║  DISCOVERY
-// ║  isPullProvider()
-// ║
-// ║  CREDENTIALS
-// ║  getCredential(...)
-// ║  validateCredential(...)
-// ║  _credentialTimestamp(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ERC5192RoleProvider
+//  \ ^ /   Token ownership and lock-status credentials.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//  _supportsERC165(...)
+//  _supportsInterface(...)
+//
+//  DISCOVERY
+//  isPullProvider()
+//
+//  CREDENTIALS
+//  getCredential(...)
+//  validateCredential(...)
+//  _credentialTimestamp(...)
+// ═════
 
 import 'src/access/IRoleProvider.sol';
 import { IERC165SupportsInterface, IERC5192Locked, IERC721OwnerOf } from './TokenInterfaces.sol';

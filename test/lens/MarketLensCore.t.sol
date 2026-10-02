@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensCore.t
-// ║  ██▀▀     ▀▀██   Core market, live accounting, lender, and withdrawal lens reads.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  MARKET AND LIVE DATA
-// ║  test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints()
-// ║  test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches()
-// ║  test_legacyHookConstraints_FullReadsPreserveOriginalBounds()
-// ║  test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity()
-// ║  _assertLiveParity(...)
-// ║  test_periodicMarketRead_MapsTermConfigurationAndClosure()
-// ║  _newPeriodicMarketForLens()
-// ║
-// ║  LENDER ACCOUNTS
-// ║  test_lenderAccountReads_MapBalancesApprovalAndDepositBlock()
-// ║  _assertLenderAccount(...)
-// ║
-// ║  WITHDRAWAL DATA
-// ║  test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown()
-// ║  test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensCore.t
+//  \ ^ /   Core market, live accounting, lender, and withdrawal lens reads.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  MARKET AND LIVE DATA
+//  test_tokenAndMarketReads_MapCanonicalStateAndBatchEndpoints()
+//  test_tokenAndMarketReads_AcceptBytes32MetadataInMixedBatches()
+//  test_legacyHookConstraints_FullReadsPreserveOriginalBounds()
+//  test_v2AndLiveReads_TrackRevolvingFieldsAndBorrowerIdentity()
+//  _assertLiveParity(...)
+//  test_periodicMarketRead_MapsTermConfigurationAndClosure()
+//  _newPeriodicMarketForLens()
+//
+//  LENDER ACCOUNTS
+//  test_lenderAccountReads_MapBalancesApprovalAndDepositBlock()
+//  _assertLenderAccount(...)
+//
+//  WITHDRAWAL DATA
+//  test_withdrawalReads_MapPendingExpiredUnpaidCompleteAndUnknown()
+//  test_withdrawalReads_WideOwnershipAndAccruedUnpaidAmount()
+// ═════
 
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';

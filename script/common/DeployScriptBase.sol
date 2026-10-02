@@ -1,73 +1,71 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DeployScriptBase
-// ║  ██▀▀     ▀▀██   Deployment preparation, execution, verification, and plan records.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  RAW STORAGE
-// ║  constructor(...)
-// ║
-// ║  PREPARED STORAGE COMPATIBILITY
-// ║  constructor(...)
-// ║
-// ║  CONFIGURATION
-// ║  _resolveDeployments()
-// ║  _resolveOwnerMode()
-// ║  _isPlanMode(...)
-// ║  _label(...)
-// ║  _releaseTag()
-// ║  _resolveAddress(...)
-// ║  _resolveExisting(...)
-// ║  _resolveV1WrapperFactory(...)
-// ║  _expectedExecutor()
-// ║
-// ║  PREFLIGHT AND ARTIFACTS
-// ║  _assertEip1153Supported()
-// ║  _getCreationCode(...)
-// ║  _requireInitCodeStoragePayloadFits(...)
-// ║
-// ║  DEPLOYMENT
-// ║  _getOrDeployByLabel(...)
-// ║  _getOrDeployInitCodeStorageByLabel(...)
-// ║
-// ║  VERIFICATION
-// ║  _verifyStoredInitCode(...)
-// ║  _verifyAddressCall(...)
-// ║  _verifyUintCall(...)
-// ║  _requireCode(...)
-// ║
-// ║  PLAN ENTRIES
-// ║  _planInitCodeStorageEntry(...)
-// ║  _initCodeStorageArtifact(...)
-// ║  _initCodeStorageConstructorInput(...)
-// ║  _planInitCodeStoragePredicate(...)
-// ║  _planEntry(...)
-// ║  _callPlanEntry(...)
-// ║  _planCodePresentPredicate(...)
-// ║  _planCallEqPredicate(...)
-// ║  _planCallEqPredicateForTarget(...)
-// ║
-// ║  INVENTORY RECORDS
-// ║  _writePlanInitCodeStorageInventory(...)
-// ║  _writeLiveInitCodeStorageInventory(...)
-// ║  _writeInitCodeStorageInventory(...)
-// ║  _inventoryRecord(...)
-// ║
-// ║  LABELS AND JSON
-// ║  _sameStrings(...)
-// ║  _containsDot(...)
-// ║  _ref(...)
-// ║  _quoted(...)
-// ║  _jsonStringArray(...)
-// ║  _sequence(...)
-// ║
-// ║  OWNER MODE
-// ║  _ownerMode()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DeployScriptBase
+//  \ ^ /   Deployment preparation, execution, verification, and plan records.
+//    V
+//
+//  RAW STORAGE
+//  constructor(...)
+//
+//  PREPARED STORAGE COMPATIBILITY
+//  constructor(...)
+//
+//  CONFIGURATION
+//  _resolveDeployments()
+//  _resolveOwnerMode()
+//  _isPlanMode(...)
+//  _label(...)
+//  _releaseTag()
+//  _resolveAddress(...)
+//  _resolveExisting(...)
+//  _resolveV1WrapperFactory(...)
+//  _expectedExecutor()
+//
+//  PREFLIGHT AND ARTIFACTS
+//  _assertEip1153Supported()
+//  _getCreationCode(...)
+//  _requireInitCodeStoragePayloadFits(...)
+//
+//  DEPLOYMENT
+//  _getOrDeployByLabel(...)
+//  _getOrDeployInitCodeStorageByLabel(...)
+//
+//  VERIFICATION
+//  _verifyStoredInitCode(...)
+//  _verifyAddressCall(...)
+//  _verifyUintCall(...)
+//  _requireCode(...)
+//
+//  PLAN ENTRIES
+//  _planInitCodeStorageEntry(...)
+//  _initCodeStorageArtifact(...)
+//  _initCodeStorageConstructorInput(...)
+//  _planInitCodeStoragePredicate(...)
+//  _planEntry(...)
+//  _callPlanEntry(...)
+//  _planCodePresentPredicate(...)
+//  _planCallEqPredicate(...)
+//  _planCallEqPredicateForTarget(...)
+//
+//  INVENTORY RECORDS
+//  _writePlanInitCodeStorageInventory(...)
+//  _writeLiveInitCodeStorageInventory(...)
+//  _writeInitCodeStorageInventory(...)
+//  _inventoryRecord(...)
+//
+//  LABELS AND JSON
+//  _sameStrings(...)
+//  _containsDot(...)
+//  _ref(...)
+//  _quoted(...)
+//  _jsonStringArray(...)
+//  _sequence(...)
+//
+//  OWNER MODE
+//  _ownerMode()
+// ═════
 
 import { Script } from 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';

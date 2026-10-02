@@ -1,67 +1,65 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksFactories.t
-// ║  ██▀▀     ▀▀██   Standard and revolving factory deployment and indexing matrices.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FACTORY FIXTURE
-// ║  _newFixture()
-// ║  _deployFactory(...)
-// ║  _storeInitCode(...)
-// ║  _factories(...)
-// ║
-// ║  FACTORY REGISTRATION
-// ║  test_constructorAndRegistration_AcrossFactories()
-// ║
-// ║  HOOK TEMPLATES
-// ║  test_addTemplate_StoresValidBoundaryConfigurationsAcrossFactories()
-// ║  test_addTemplate_RejectsUnauthorizedAndDuplicateAcrossFactories()
-// ║  test_addTemplate_RejectsEveryInvalidFeeShapeAcrossFactories()
-// ║  test_updateTemplateFees_UpdatesAllFieldsAcrossFactories()
-// ║  test_updateTemplateFees_RejectsInvalidCallsAcrossFactories()
-// ║  test_disableTemplate_IsPermanentAndRetainsMetadataAcrossFactories()
-// ║  test_disableTemplate_RejectsInvalidCallsAcrossFactories()
-// ║  test_templatePagination_ClampsAndReturnsEmptyRangesAcrossFactories()
-// ║  _addTemplate(...)
-// ║  _assertTemplate(...)
-// ║
-// ║  HOOK INSTANCES
-// ║  test_deployHooksInstance_RecordsIdentityAndProviderSnapshotAcrossFactories()
-// ║  test_deployHooksInstance_RejectsInvalidPathsAcrossFactories()
-// ║
-// ║  MARKET DEPLOYMENT
-// ║  test_deployMarket_PreservesConfigurationHooksAndFeesAcrossFactories()
-// ║  test_deployMarket_UsesCurrentArchControllerSphereXEngineAcrossFactories()
-// ║  test_deployMarketAndHooks_IndexesBothDeploymentsAcrossFactories()
-// ║  test_deployMarket_RejectsIdentityHookSaltAndBlacklistAcrossFactories()
-// ║  test_deployMarket_EnforcesMetadataFeesAndUniqueSaltAcrossFactories()
-// ║  test_deployMarket_ExistingHookSurvivesTemplateDisableAcrossFactories()
-// ║  test_deployMarket_RejectsStoredInitcodeHashMismatchAcrossFactories()
-// ║  test_deployMarketAndHooks_RejectsIdentityTemplateAndDisableAcrossFactories()
-// ║  test_deployMarketAndHooks_RejectsSaltAndFeeMismatchAcrossFactories()
-// ║  test_revolvingMarketData_RejectsInvalidPayloadsBeforeStateChanges()
-// ║  test_revolvingCommitmentFeeGetter_RejectsOutsideDeployment()
-// ║  _deployMarket(...)
-// ║  _deployMarketAndHooks(...)
-// ║  _marketInputs(...)
-// ║  _marketSalt(...)
-// ║  _repeat(...)
-// ║
-// ║  MARKET INDEXES
-// ║  test_marketIndexesAndPagination_AcrossFactories()
-// ║
-// ║  PROTOCOL FEE UPDATES
-// ║  test_pushProtocolFeeBipsUpdates_FullAndPagedAcrossFactories()
-// ║  test_pushProtocolFeeBipsUpdates_SkipsStoredAndEffectiveClosureAcrossFactories()
-// ║  test_pushProtocolFeeBipsUpdates_RejectsBadClosureReadsAndRollsBackAcrossFactories()
-// ║  test_pushProtocolFeeBipsUpdates_RejectsPositiveFeeForZeroRecipientMarketsAcrossFactories()
-// ║  test_pushProtocolFeeBipsUpdates_HandlesEmptyAndInvalidRangesAcrossFactories()
-// ║  test_pushProtocolFeeBipsUpdates_RejectsUnknownTemplateAndFailedMarketAcrossFactories()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksFactories.t
+//  \ ^ /   Standard and revolving factory deployment and indexing matrices.
+//    V
+//
+//  FACTORY FIXTURE
+//  _newFixture()
+//  _deployFactory(...)
+//  _storeInitCode(...)
+//  _factories(...)
+//
+//  FACTORY REGISTRATION
+//  test_constructorAndRegistration_AcrossFactories()
+//
+//  HOOK TEMPLATES
+//  test_addTemplate_StoresValidBoundaryConfigurationsAcrossFactories()
+//  test_addTemplate_RejectsUnauthorizedAndDuplicateAcrossFactories()
+//  test_addTemplate_RejectsEveryInvalidFeeShapeAcrossFactories()
+//  test_updateTemplateFees_UpdatesAllFieldsAcrossFactories()
+//  test_updateTemplateFees_RejectsInvalidCallsAcrossFactories()
+//  test_disableTemplate_IsPermanentAndRetainsMetadataAcrossFactories()
+//  test_disableTemplate_RejectsInvalidCallsAcrossFactories()
+//  test_templatePagination_ClampsAndReturnsEmptyRangesAcrossFactories()
+//  _addTemplate(...)
+//  _assertTemplate(...)
+//
+//  HOOK INSTANCES
+//  test_deployHooksInstance_RecordsIdentityAndProviderSnapshotAcrossFactories()
+//  test_deployHooksInstance_RejectsInvalidPathsAcrossFactories()
+//
+//  MARKET DEPLOYMENT
+//  test_deployMarket_PreservesConfigurationHooksAndFeesAcrossFactories()
+//  test_deployMarket_UsesCurrentArchControllerSphereXEngineAcrossFactories()
+//  test_deployMarketAndHooks_IndexesBothDeploymentsAcrossFactories()
+//  test_deployMarket_RejectsIdentityHookSaltAndBlacklistAcrossFactories()
+//  test_deployMarket_EnforcesMetadataFeesAndUniqueSaltAcrossFactories()
+//  test_deployMarket_ExistingHookSurvivesTemplateDisableAcrossFactories()
+//  test_deployMarket_RejectsStoredInitcodeHashMismatchAcrossFactories()
+//  test_deployMarketAndHooks_RejectsIdentityTemplateAndDisableAcrossFactories()
+//  test_deployMarketAndHooks_RejectsSaltAndFeeMismatchAcrossFactories()
+//  test_revolvingMarketData_RejectsInvalidPayloadsBeforeStateChanges()
+//  test_revolvingCommitmentFeeGetter_RejectsOutsideDeployment()
+//  _deployMarket(...)
+//  _deployMarketAndHooks(...)
+//  _marketInputs(...)
+//  _marketSalt(...)
+//  _repeat(...)
+//
+//  MARKET INDEXES
+//  test_marketIndexesAndPagination_AcrossFactories()
+//
+//  PROTOCOL FEE UPDATES
+//  test_pushProtocolFeeBipsUpdates_FullAndPagedAcrossFactories()
+//  test_pushProtocolFeeBipsUpdates_SkipsStoredAndEffectiveClosureAcrossFactories()
+//  test_pushProtocolFeeBipsUpdates_RejectsBadClosureReadsAndRollsBackAcrossFactories()
+//  test_pushProtocolFeeBipsUpdates_RejectsPositiveFeeForZeroRecipientMarketsAcrossFactories()
+//  test_pushProtocolFeeBipsUpdates_HandlesEmptyAndInvalidRangesAcrossFactories()
+//  test_pushProtocolFeeBipsUpdates_RejectsUnknownTemplateAndFailedMarketAcrossFactories()
+// ═════
 
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';

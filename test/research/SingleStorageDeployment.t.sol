@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SingleStorageDeployment.t
-// ║  ██▀▀     ▀▀██   Single-storage deployments under actual contract size limits.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SINGLE STORAGE FIXTURE
-// ║  _storeInitCode(...)
-// ║
-// ║  REAL LIMIT DEPLOYMENTS
-// ║  test_realLimits_AllSixFactoryMarketCombinations()
-// ║  test_realLimits_PeriodicFeatureCompositions()
-// ║  _exerciseCell(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SingleStorageDeployment.t
+//  \ ^ /   Single-storage deployments under actual contract size limits.
+//    V
+//
+//  SINGLE STORAGE FIXTURE
+//  _storeInitCode(...)
+//
+//  REAL LIMIT DEPLOYMENTS
+//  test_realLimits_AllSixFactoryMarketCombinations()
+//  test_realLimits_PeriodicFeatureCompositions()
+//  _exerciseCell(...)
+// ═════
 
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { LibCompressedInitCode } from 'src/libraries/LibCompressedInitCode.sol';

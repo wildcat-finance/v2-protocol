@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksInstanceData
-// ║  ██▀▀     ▀▀██   Hooks provenance, administration, providers, and constraints.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  INSTANCE DATA
-// ║  fill(...)
-// ║  _readConstraints(...)
-// ║  _tryReadAddress(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksInstanceData
+//  \ ^ /   Hooks provenance, administration, providers, and constraints.
+//    V
+//
+//  INSTANCE DATA
+//  fill(...)
+//  _readConstraints(...)
+//  _tryReadAddress(...)
+// ═════
 
 import '../interfaces/WildcatStructsAndEnums.sol';
 import { OpenTermHooks, HookedMarket as OpenTermHookedMarket } from '../access/OpenTermHooks.sol';

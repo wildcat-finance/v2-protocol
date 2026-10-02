@@ -1,66 +1,64 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IWildcatArchController
-// ║  ██▀▀     ▀▀██   Protocol authorization registries and SphereX configuration.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  AUTHORITY
-// ║  owner()
-// ║
-// ║  SPHEREX CONFIGURATION
-// ║  transferSphereXAdminRole(...)
-// ║  acceptSphereXAdminRole()
-// ║  sphereXAdmin()
-// ║  pendingSphereXAdmin()
-// ║  changeSphereXOperator(...)
-// ║  sphereXOperator()
-// ║  changeSphereXEngine(...)
-// ║  sphereXEngine()
-// ║
-// ║  BORROWERS
-// ║  registerBorrower(...)
-// ║  removeBorrower(...)
-// ║  isRegisteredBorrower(...)
-// ║  getRegisteredBorrowers()
-// ║  getRegisteredBorrowers(...)
-// ║  getRegisteredBorrowersCount()
-// ║
-// ║  ASSET BLACKLIST
-// ║  addBlacklist(...)
-// ║  removeBlacklist(...)
-// ║  isBlacklistedAsset(...)
-// ║  getBlacklistedAssets()
-// ║  getBlacklistedAssets(...)
-// ║  getBlacklistedAssetsCount()
-// ║
-// ║  CONTROLLER FACTORIES
-// ║  registerControllerFactory(...)
-// ║  removeControllerFactory(...)
-// ║  isRegisteredControllerFactory(...)
-// ║  getRegisteredControllerFactories()
-// ║  getRegisteredControllerFactories(...)
-// ║  getRegisteredControllerFactoriesCount()
-// ║
-// ║  CONTROLLERS
-// ║  registerController(...)
-// ║  removeController(...)
-// ║  isRegisteredController(...)
-// ║  getRegisteredControllers()
-// ║  getRegisteredControllers(...)
-// ║  getRegisteredControllersCount()
-// ║
-// ║  MARKETS
-// ║  registerMarket(...)
-// ║  removeMarket(...)
-// ║  isRegisteredMarket(...)
-// ║  getRegisteredMarkets()
-// ║  getRegisteredMarkets(...)
-// ║  getRegisteredMarketsCount()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IWildcatArchController
+//  \ ^ /   Protocol authorization registries and SphereX configuration.
+//    V
+//
+//  AUTHORITY
+//  owner()
+//
+//  SPHEREX CONFIGURATION
+//  transferSphereXAdminRole(...)
+//  acceptSphereXAdminRole()
+//  sphereXAdmin()
+//  pendingSphereXAdmin()
+//  changeSphereXOperator(...)
+//  sphereXOperator()
+//  changeSphereXEngine(...)
+//  sphereXEngine()
+//
+//  BORROWERS
+//  registerBorrower(...)
+//  removeBorrower(...)
+//  isRegisteredBorrower(...)
+//  getRegisteredBorrowers()
+//  getRegisteredBorrowers(...)
+//  getRegisteredBorrowersCount()
+//
+//  ASSET BLACKLIST
+//  addBlacklist(...)
+//  removeBlacklist(...)
+//  isBlacklistedAsset(...)
+//  getBlacklistedAssets()
+//  getBlacklistedAssets(...)
+//  getBlacklistedAssetsCount()
+//
+//  CONTROLLER FACTORIES
+//  registerControllerFactory(...)
+//  removeControllerFactory(...)
+//  isRegisteredControllerFactory(...)
+//  getRegisteredControllerFactories()
+//  getRegisteredControllerFactories(...)
+//  getRegisteredControllerFactoriesCount()
+//
+//  CONTROLLERS
+//  registerController(...)
+//  removeController(...)
+//  isRegisteredController(...)
+//  getRegisteredControllers()
+//  getRegisteredControllers(...)
+//  getRegisteredControllersCount()
+//
+//  MARKETS
+//  registerMarket(...)
+//  removeMarket(...)
+//  isRegisteredMarket(...)
+//  getRegisteredMarkets()
+//  getRegisteredMarkets(...)
+//  getRegisteredMarketsCount()
+// ═════
 
 // ┌─ IWildcatArchController ───────────────────────────────────────────────────
 /// @title Wildcat architecture controller

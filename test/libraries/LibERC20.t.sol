@@ -1,55 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibERC20.t
-// ║  ██▀▀     ▀▀██   Safe-token transfer, balance, and metadata compatibility tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TRANSFER ADAPTERS
-// ║  safeTransfer(...)
-// ║  safeTransferFrom(...)
-// ║  safeTransferAll(...)
-// ║
-// ║  QUERY ADAPTERS
-// ║  balanceOf(...)
-// ║  decimals(...)
-// ║  name(...)
-// ║  symbol(...)
-// ║
-// ║  NO RETURN TOKEN
-// ║  transfer(...)
-// ║  transferFrom(...)
-// ║
-// ║  FALSE RETURN TOKEN
-// ║  transfer(...)
-// ║  transferFrom(...)
-// ║
-// ║  NO BALANCE RETURN TOKEN
-// ║  balanceOf(...)
-// ║  transfer(...)
-// ║
-// ║  FALSE TRANSFER TOKEN
-// ║  balanceOf(...)
-// ║  transfer(...)
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  SAFE TRANSFERS
-// ║  test_safeTransfer_NoReturnData()
-// ║  test_safeTransferFrom_NoReturnData()
-// ║  test_safeTransfer_ReturningFalseReverts()
-// ║  test_safeTransferAll_BalanceOfNoReturnReverts()
-// ║  test_safeTransferAll_TransferReturningFalseReverts()
-// ║
-// ║  TOKEN QUERIES
-// ║  test_balanceOf_NoReturnReverts()
-// ║  test_decimals_MissingDecimalsReverts()
-// ║  test_nameAndSymbol_Bytes32Metadata()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibERC20.t
+//  \ ^ /   Safe-token transfer, balance, and metadata compatibility tests.
+//    V
+//
+//  TRANSFER ADAPTERS
+//  safeTransfer(...)
+//  safeTransferFrom(...)
+//  safeTransferAll(...)
+//
+//  QUERY ADAPTERS
+//  balanceOf(...)
+//  decimals(...)
+//  name(...)
+//  symbol(...)
+//
+//  NO RETURN TOKEN
+//  transfer(...)
+//  transferFrom(...)
+//
+//  FALSE RETURN TOKEN
+//  transfer(...)
+//  transferFrom(...)
+//
+//  NO BALANCE RETURN TOKEN
+//  balanceOf(...)
+//  transfer(...)
+//
+//  FALSE TRANSFER TOKEN
+//  balanceOf(...)
+//  transfer(...)
+//
+//  FIXTURE
+//  setUp()
+//
+//  SAFE TRANSFERS
+//  test_safeTransfer_NoReturnData()
+//  test_safeTransferFrom_NoReturnData()
+//  test_safeTransfer_ReturningFalseReverts()
+//  test_safeTransferAll_BalanceOfNoReturnReverts()
+//  test_safeTransferAll_TransferReturningFalseReverts()
+//
+//  TOKEN QUERIES
+//  test_balanceOf_NoReturnReverts()
+//  test_decimals_MissingDecimalsReverts()
+//  test_nameAndSymbol_Bytes32Metadata()
+// ═════
 
 import 'src/libraries/LibERC20.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

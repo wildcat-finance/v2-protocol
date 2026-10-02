@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksAdministratorTransfer.t
-// ║  ██▀▀     ▀▀██   Administrator handoff through real factory callbacks and indexes.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _deployFactory(...)
-// ║  _configureFactory(...)
-// ║  _storeInitCode(...)
-// ║  _factories(...)
-// ║  _deployHooks(...)
-// ║
-// ║  ADMINISTRATOR ASSOCIATIONS
-// ║  test_initialAdministratorAssociation_AcrossFactories()
-// ║  test_administratorTransfer_UpdatesFactoryAssociationAcrossFactories()
-// ║  test_administratorTransfer_UpdatesSwapPopIndexAcrossFactories()
-// ║  _acceptTransfer(...)
-// ║
-// ║  CALLBACK AND NONCE INTEGRITY
-// ║  test_factoryCallback_AuthenticatesHooksAndPendingTransferAcrossFactories()
-// ║  test_deploymentNonce_SurvivesAdministratorTransferAcrossFactories()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksAdministratorTransfer.t
+//  \ ^ /   Administrator handoff through real factory callbacks and indexes.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _deployFactory(...)
+//  _configureFactory(...)
+//  _storeInitCode(...)
+//  _factories(...)
+//  _deployHooks(...)
+//
+//  ADMINISTRATOR ASSOCIATIONS
+//  test_initialAdministratorAssociation_AcrossFactories()
+//  test_administratorTransfer_UpdatesFactoryAssociationAcrossFactories()
+//  test_administratorTransfer_UpdatesSwapPopIndexAcrossFactories()
+//  _acceptTransfer(...)
+//
+//  CALLBACK AND NONCE INTEGRITY
+//  test_factoryCallback_AuthenticatesHooksAndPendingTransferAcrossFactories()
+//  test_deploymentNonce_SurvivesAdministratorTransferAcrossFactories()
+// ═════
 
 import { HooksFactory } from 'src/HooksFactory.sol';
 import { HooksFactoryRevolving } from 'src/HooksFactoryRevolving.sol';

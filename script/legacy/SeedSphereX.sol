@@ -1,14 +1,12 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SeedSphereX
-// ║  ██▀▀     ▀▀██   Inactive SphereX seeding prototype retained as reference.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SeedSphereX
+//  \ ^ /   Inactive SphereX seeding prototype retained as reference.
+//    V
+//
+// ═════
 
 // import 'src/WildcatSanctionsSentinel.sol';
 // import 'src/WildcatArchController.sol';

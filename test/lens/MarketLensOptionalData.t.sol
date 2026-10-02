@@ -1,32 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensOptionalData.t
-// ║  ██▀▀     ▀▀██   Optional constraints, lifecycle, and proposal response validation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  CONSTRAINT DATA
-// ║  test_constraints_CurrentAndTrailingResponsesPreserveEveryField()
-// ║  test_constraints_LegacyTenWordsKeepOriginalBounds()
-// ║  testFuzz_constraints_RejectIncompleteResponses(...)
-// ║  test_constraints_RejectDirtyIntegerWordsAndPreserveRevert()
-// ║  _constraints()
-// ║  _mockConstraints(...)
-// ║
-// ║  LIFECYCLE DATA
-// ║  test_lifecycle_ZeroIsSupportedButMissingOrPartialGetterIsAbsent()
-// ║  test_lifecycle_ClosureEndsPhaseWithoutDiscardingTermsOrDefault()
-// ║  _mockLifecycle(...)
-// ║
-// ║  PENDING APR DATA
-// ║  test_pendingAprChange_AbsentCompleteAndMalformedResponses()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensOptionalData.t
+//  \ ^ /   Optional constraints, lifecycle, and proposal response validation.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  CONSTRAINT DATA
+//  test_constraints_CurrentAndTrailingResponsesPreserveEveryField()
+//  test_constraints_LegacyTenWordsKeepOriginalBounds()
+//  testFuzz_constraints_RejectIncompleteResponses(...)
+//  test_constraints_RejectDirtyIntegerWordsAndPreserveRevert()
+//  _constraints()
+//  _mockConstraints(...)
+//
+//  LIFECYCLE DATA
+//  test_lifecycle_ZeroIsSupportedButMissingOrPartialGetterIsAbsent()
+//  test_lifecycle_ClosureEndsPhaseWithoutDiscardingTermsOrDefault()
+//  _mockLifecycle(...)
+//
+//  PENDING APR DATA
+//  test_pendingAprChange_AbsentCompleteAndMalformedResponses()
+// ═════
 
 import { HooksInstanceDataLib, MarketParameterConstraints } from 'src/lens/HooksInstanceData.sol';
 import { MarketLifecycleData } from 'src/lens/MarketLifecycleData.sol';

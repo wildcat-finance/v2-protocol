@@ -1,32 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IWildcatSanctionsSentinel
-// ║  ██▀▀     ▀▀██   Borrower-scoped sanctions overrides and escrow deployment.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONFIGURATION
-// ║  chainalysisSanctionsList()
-// ║  archController()
-// ║
-// ║  SANCTION OVERRIDES
-// ║  overrideSanction(...)
-// ║  removeSanctionOverride(...)
-// ║  sanctionOverrides(...)
-// ║
-// ║  SANCTION QUERIES
-// ║  isSanctioned(...)
-// ║  isFlaggedByChainalysis(...)
-// ║
-// ║  ESCROW DEPLOYMENT
-// ║  createEscrow(...)
-// ║  getEscrowAddress(...)
-// ║  WildcatSanctionsEscrowInitcodeHash()
-// ║  tmpEscrowParams()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IWildcatSanctionsSentinel
+//  \ ^ /   Borrower-scoped sanctions overrides and escrow deployment.
+//    V
+//
+//  CONFIGURATION
+//  chainalysisSanctionsList()
+//  archController()
+//
+//  SANCTION OVERRIDES
+//  overrideSanction(...)
+//  removeSanctionOverride(...)
+//  sanctionOverrides(...)
+//
+//  SANCTION QUERIES
+//  isSanctioned(...)
+//  isFlaggedByChainalysis(...)
+//
+//  ESCROW DEPLOYMENT
+//  createEscrow(...)
+//  getEscrowAddress(...)
+//  WildcatSanctionsEscrowInitcodeHash()
+//  tmpEscrowParams()
+// ═════
 
 // ┌─ IWildcatSanctionsSentinel ────────────────────────────────────────────────
 /// @title Wildcat sanctions sentinel

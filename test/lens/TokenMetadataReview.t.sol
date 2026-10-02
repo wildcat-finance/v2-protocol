@@ -1,45 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TokenMetadataReview.t
-// ║  ██▀▀     ▀▀██   Metadata compatibility, strict creation, and resilient lens reads.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  GAS EXHAUSTION TARGET
-// ║  name()
-// ║  symbol()
-// ║  decimals()
-// ║  isMock()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  deployMarket(...)
-// ║  _deployCell(...)
-// ║  _mockName(...)
-// ║  _mockSymbol(...)
-// ║  _repeat(...)
-// ║
-// ║  CREATION AND IDENTITY
-// ║  test_canonicalAndLegacyEmptyStringsDeploy()
-// ║  test_factoryNameLimitCountsCombinedUtf8Bytes()
-// ║  test_factorySymbolLimitCountsCombinedBytes()
-// ║  test_unicodeMetadataPreservedAndMarketIdentityCached()
-// ║  test_missingDecimalsRejectsCreationAndTokenRead()
-// ║
-// ║  OPTIONAL METADATA
-// ║  test_lensMalformedLabelsAreEmptyButFactoryRemainsStrict()
-// ║  test_optionalCallGasExhaustionDoesNotAbortTokenBatch()
-// ║  test_isMockRequiresCompleteCanonicalWord()
-// ║
-// ║  PROPAGATION AND UNIT BOUNDARIES
-// ║  test_failedDecimalsStillAbortsFullMarketRead()
-// ║  test_failedLabelsPropagateThroughAggregationAndFacade()
-// ║  test_mutableDecimalsProducesConflictingLensUnits()
-// ║  test_failedMetadataPreservesMixedMarketReadAndWithdrawal()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TokenMetadataReview.t
+//  \ ^ /   Metadata compatibility, strict creation, and resilient lens reads.
+//    V
+//
+//  GAS EXHAUSTION TARGET
+//  name()
+//  symbol()
+//  decimals()
+//  isMock()
+//
+//  FIXTURE
+//  setUp()
+//  deployMarket(...)
+//  _deployCell(...)
+//  _mockName(...)
+//  _mockSymbol(...)
+//  _repeat(...)
+//
+//  CREATION AND IDENTITY
+//  test_canonicalAndLegacyEmptyStringsDeploy()
+//  test_factoryNameLimitCountsCombinedUtf8Bytes()
+//  test_factorySymbolLimitCountsCombinedBytes()
+//  test_unicodeMetadataPreservedAndMarketIdentityCached()
+//  test_missingDecimalsRejectsCreationAndTokenRead()
+//
+//  OPTIONAL METADATA
+//  test_lensMalformedLabelsAreEmptyButFactoryRemainsStrict()
+//  test_optionalCallGasExhaustionDoesNotAbortTokenBatch()
+//  test_isMockRequiresCompleteCanonicalWord()
+//
+//  PROPAGATION AND UNIT BOUNDARIES
+//  test_failedDecimalsStillAbortsFullMarketRead()
+//  test_failedLabelsPropagateThroughAggregationAndFacade()
+//  test_mutableDecimalsProducesConflictingLensUnits()
+//  test_failedMetadataPreservesMixedMarketReadAndWithdrawal()
+// ═════
 
 import { LibERC20 } from 'src/libraries/LibERC20.sol';
 import { MarketData } from 'src/lens/MarketData.sol';

@@ -1,121 +1,119 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BaseAccessControls.t
-// ║  ██▀▀     ▀▀██   Administrator, provider, credential, and deposit-access tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PULL RESPONSE TARGET
-// ║  constructor(...)
-// ║  fallback()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  ADMINISTRATOR AUTHORITY
-// ║  test_constructor_DoesNotAddAdministratorAsProvider()
-// ║  test_requestAdministratorTransfer()
-// ║  test_requestAdministratorTransfer_ReplacesPendingAdministrator()
-// ║  test_requestAdministratorTransfer_InvalidTargets()
-// ║  test_requestAdministratorTransfer_CallerNotAdministrator()
-// ║  test_cancelAdministratorTransfer()
-// ║  test_cancelAdministratorTransfer_NoPendingTransfer()
-// ║  test_cancelAdministratorTransfer_CallerNotAdministrator()
-// ║  test_acceptAdministratorTransfer()
-// ║  test_acceptAdministratorTransfer_PendingAdministratorHasNoAuthority()
-// ║  test_acceptAdministratorTransfer_OnlyPendingAdministratorCanAccept()
-// ║  test_acceptAdministratorTransfer_RevalidatesRegistration()
-// ║  test_acceptAdministratorTransfer_CallbackFailureRevertsTransfer()
-// ║  test_acceptAdministratorTransfer_PreservesAccessState()
-// ║  test_setName_CallerNotAdministrator()
-// ║  test_setName()
-// ║  archController()
-// ║  isRegisteredBorrower(...)
-// ║  onHooksAdministratorTransferred(...)
-// ║  _registerAdministrator(...)
-// ║  _transferAdministrator(...)
-// ║
-// ║  ROLE PROVIDER LIFECYCLE
-// ║  test_createRoleProvider_CallerNotAdministrator()
-// ║  test_createRoleProvider(...)
-// ║  test_createRoleProvider_CreateRoleProviderFailed(...)
-// ║  test_addRoleProvider(...)
-// ║  test_addRoleProvider_CallerNotAdministrator()
-// ║  test_addRoleProvider_NonInterfaceProviderIsPushProvider(...)
-// ║  test_addRoleProvider_onlyCleanBooleanTrueIsPullProvider()
-// ║  test_addRoleProvider_updateTimeToLive(...)
-// ║  test_addRoleProvider_updateTimeToLive2(...)
-// ║  test_addRoleProvider_updateTimeToLive(...)
-// ║  test_removeRoleProvider(...)
-// ║  test_removeRoleProvider_CallerNotAdministrator()
-// ║  test_removeRoleProvider_ProviderNotFound()
-// ║  test_removeRoleProvider_LastPullProvider()
-// ║  test_removeRoleProvider_NotLastPullProvider()
-// ║  test_removeRoleProvider_NotLastPushProvider()
-// ║  _addExpectedProvider(...)
-// ║  _validateRoleProviders()
-// ║  _expectRoleProviderAdded(...)
-// ║  _expectRoleProviderUpdated(...)
-// ║  _expectRoleProviderRemoved(...)
-// ║
-// ║  CREDENTIAL GRANTS AND REVOCATION
-// ║  test_grantRole_PreservesDepositBlock()
-// ║  test_grantRole_ProviderNotFound(...)
-// ║  test_grantRole_GrantedCredentialExpired(...)
-// ║  test_grantRole_InvalidCredentialTimestamp_Zero(...)
-// ║  test_grantRole_InvalidCredentialTimestamp_Future(...)
-// ║  test_grantRole(...)
-// ║  test_grantRole_laterExpiry(...)
-// ║  test_grantRole_oldProviderRemoved(...)
-// ║  test_grantRole_ProviderCanNotReplaceCredential(...)
-// ║  test_grantRoles()
-// ║  test_grantRoles_InvalidCredentialTimestamp()
-// ║  test_grantRoles_InvalidArrayLength()
-// ║  test_grantRoles_ProviderNotFound()
-// ║  test_revokeRole()
-// ║  test_revokeRole_ProviderCanNotRevokeCredential()
-// ║  test_revokeRoles()
-// ║  test_revokeRoles_ProviderCanNotRevokeCredential()
-// ║  _expectAccountAccessGranted(...)
-// ║
-// ║  CREDENTIAL REFRESH AND VALIDATION
-// ║  test_refreshRole_PreservesDepositBlock()
-// ║  test_getLenderStatus_loop()
-// ║  test_getLenderStatus_refresh()
-// ║  test_getLenderStatus_RefreshesExpiredPullProviderCredential()
-// ║  test_getLenderStatus_ZeroTtlPullProviderRefreshesInSameBlock()
-// ║  test_fuzz_getOrValidateCredential(...)
-// ║  test_tryValidateAccess_existingCredential(...)
-// ║  test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedPull()
-// ║  test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedValidation()
-// ║  test_tryValidateAccess_HooksDataValidCredentialUpdatesStatus()
-// ║  test_tryValidateAccess_RefreshesExpiredCredentialFromLastProvider()
-// ║  test_tryValidateAccess_ZeroTtlPullProviderRefreshesInSameBlock()
-// ║  test_tryValidateAccess_ZeroTtlPushProviderUsesSameBlockCredential()
-// ║  _grantExpiredCredential(...)
-// ║  _validTimestamp(...)
-// ║
-// ║  TRANSFER ACCESS
-// ║  test_isMarketTransferRecipientAllowed()
-// ║  test_isMarketTransferRecipientAllowed_OnlyExemptsExactNonzeroRegisteredWrapper()
-// ║
-// ║  DEPOSIT BLOCKS
-// ║  test_blockFromDeposits_CallerNotAdministrator()
-// ║  test_blockFromDeposits(...)
-// ║  test_blockFromDeposits_UnsetsCredential(...)
-// ║  test_blockFromDeposits_multiple_CallerNotAdministrator()
-// ║  test_blockFromDeposits_multiple(...)
-// ║  test_blockFromDeposits_multiple_UnsetsCredential(...)
-// ║  test_unblockFromDeposits_CallerNotAdministrator()
-// ║  test_unblockFromDeposits(...)
-// ║
-// ║  STATE ASSERTIONS
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BaseAccessControls.t
+//  \ ^ /   Administrator, provider, credential, and deposit-access tests.
+//    V
+//
+//  PULL RESPONSE TARGET
+//  constructor(...)
+//  fallback()
+//
+//  FIXTURE
+//  setUp()
+//
+//  ADMINISTRATOR AUTHORITY
+//  test_constructor_DoesNotAddAdministratorAsProvider()
+//  test_requestAdministratorTransfer()
+//  test_requestAdministratorTransfer_ReplacesPendingAdministrator()
+//  test_requestAdministratorTransfer_InvalidTargets()
+//  test_requestAdministratorTransfer_CallerNotAdministrator()
+//  test_cancelAdministratorTransfer()
+//  test_cancelAdministratorTransfer_NoPendingTransfer()
+//  test_cancelAdministratorTransfer_CallerNotAdministrator()
+//  test_acceptAdministratorTransfer()
+//  test_acceptAdministratorTransfer_PendingAdministratorHasNoAuthority()
+//  test_acceptAdministratorTransfer_OnlyPendingAdministratorCanAccept()
+//  test_acceptAdministratorTransfer_RevalidatesRegistration()
+//  test_acceptAdministratorTransfer_CallbackFailureRevertsTransfer()
+//  test_acceptAdministratorTransfer_PreservesAccessState()
+//  test_setName_CallerNotAdministrator()
+//  test_setName()
+//  archController()
+//  isRegisteredBorrower(...)
+//  onHooksAdministratorTransferred(...)
+//  _registerAdministrator(...)
+//  _transferAdministrator(...)
+//
+//  ROLE PROVIDER LIFECYCLE
+//  test_createRoleProvider_CallerNotAdministrator()
+//  test_createRoleProvider(...)
+//  test_createRoleProvider_CreateRoleProviderFailed(...)
+//  test_addRoleProvider(...)
+//  test_addRoleProvider_CallerNotAdministrator()
+//  test_addRoleProvider_NonInterfaceProviderIsPushProvider(...)
+//  test_addRoleProvider_onlyCleanBooleanTrueIsPullProvider()
+//  test_addRoleProvider_updateTimeToLive(...)
+//  test_addRoleProvider_updateTimeToLive2(...)
+//  test_addRoleProvider_updateTimeToLive(...)
+//  test_removeRoleProvider(...)
+//  test_removeRoleProvider_CallerNotAdministrator()
+//  test_removeRoleProvider_ProviderNotFound()
+//  test_removeRoleProvider_LastPullProvider()
+//  test_removeRoleProvider_NotLastPullProvider()
+//  test_removeRoleProvider_NotLastPushProvider()
+//  _addExpectedProvider(...)
+//  _validateRoleProviders()
+//  _expectRoleProviderAdded(...)
+//  _expectRoleProviderUpdated(...)
+//  _expectRoleProviderRemoved(...)
+//
+//  CREDENTIAL GRANTS AND REVOCATION
+//  test_grantRole_PreservesDepositBlock()
+//  test_grantRole_ProviderNotFound(...)
+//  test_grantRole_GrantedCredentialExpired(...)
+//  test_grantRole_InvalidCredentialTimestamp_Zero(...)
+//  test_grantRole_InvalidCredentialTimestamp_Future(...)
+//  test_grantRole(...)
+//  test_grantRole_laterExpiry(...)
+//  test_grantRole_oldProviderRemoved(...)
+//  test_grantRole_ProviderCanNotReplaceCredential(...)
+//  test_grantRoles()
+//  test_grantRoles_InvalidCredentialTimestamp()
+//  test_grantRoles_InvalidArrayLength()
+//  test_grantRoles_ProviderNotFound()
+//  test_revokeRole()
+//  test_revokeRole_ProviderCanNotRevokeCredential()
+//  test_revokeRoles()
+//  test_revokeRoles_ProviderCanNotRevokeCredential()
+//  _expectAccountAccessGranted(...)
+//
+//  CREDENTIAL REFRESH AND VALIDATION
+//  test_refreshRole_PreservesDepositBlock()
+//  test_getLenderStatus_loop()
+//  test_getLenderStatus_refresh()
+//  test_getLenderStatus_RefreshesExpiredPullProviderCredential()
+//  test_getLenderStatus_ZeroTtlPullProviderRefreshesInSameBlock()
+//  test_fuzz_getOrValidateCredential(...)
+//  test_tryValidateAccess_existingCredential(...)
+//  test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedPull()
+//  test_tryValidateAccess_SkipsHooksDataPullProviderAfterFailedValidation()
+//  test_tryValidateAccess_HooksDataValidCredentialUpdatesStatus()
+//  test_tryValidateAccess_RefreshesExpiredCredentialFromLastProvider()
+//  test_tryValidateAccess_ZeroTtlPullProviderRefreshesInSameBlock()
+//  test_tryValidateAccess_ZeroTtlPushProviderUsesSameBlockCredential()
+//  _grantExpiredCredential(...)
+//  _validTimestamp(...)
+//
+//  TRANSFER ACCESS
+//  test_isMarketTransferRecipientAllowed()
+//  test_isMarketTransferRecipientAllowed_OnlyExemptsExactNonzeroRegisteredWrapper()
+//
+//  DEPOSIT BLOCKS
+//  test_blockFromDeposits_CallerNotAdministrator()
+//  test_blockFromDeposits(...)
+//  test_blockFromDeposits_UnsetsCredential(...)
+//  test_blockFromDeposits_multiple_CallerNotAdministrator()
+//  test_blockFromDeposits_multiple(...)
+//  test_blockFromDeposits_multiple_UnsetsCredential(...)
+//  test_unblockFromDeposits_CallerNotAdministrator()
+//  test_unblockFromDeposits(...)
+//
+//  STATE ASSERTIONS
+//  assertEq(...)
+//  assertEq(...)
+// ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { IRoleProvider } from 'src/access/IRoleProvider.sol';

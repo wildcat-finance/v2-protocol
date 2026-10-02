@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // CompressionFactoryIntegrity.t
-// ║  ██▀▀     ▀▀██   Raw and compressed factory deployment integrity comparisons.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT PARITY
-// ║  test_rawAndCompressedFactoryDeploymentsAreByteExact()
-// ║  _observe(...)
-// ║
-// ║  WRONG CODE REJECTION
-// ║  test_wrongCodeRejectedBeforeConstructorForBothFactories()
-// ║  _rejectWrongCode(...)
-// ║
-// ║  CONSTRUCTOR PROBE
-// ║  constructor(...)
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  CONSTRUCTOR ARGUMENTS
-// ║  testFuzz_factoryConstructorArgumentsAndAddress(...)
-// ║  _checkArguments(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // CompressionFactoryIntegrity.t
+//  \ ^ /   Raw and compressed factory deployment integrity comparisons.
+//    V
+//
+//  DEPLOYMENT PARITY
+//  test_rawAndCompressedFactoryDeploymentsAreByteExact()
+//  _observe(...)
+//
+//  WRONG CODE REJECTION
+//  test_wrongCodeRejectedBeforeConstructorForBothFactories()
+//  _rejectWrongCode(...)
+//
+//  CONSTRUCTOR PROBE
+//  constructor(...)
+//
+//  FIXTURE
+//  setUp()
+//
+//  CONSTRUCTOR ARGUMENTS
+//  testFuzz_factoryConstructorArgumentsAndAddress(...)
+//  _checkArguments(...)
+// ═════
 
 import { SingleStorageDeploymentFixture } from './SingleStorageDeployment.t.sol';
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';

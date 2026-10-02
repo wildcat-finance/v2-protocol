@@ -1,37 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // AprReplacementHooks
-// ║  ██▀▀     ▀▀██   APR replacement hooks across all three term families.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  OPEN APR REPLACEMENT
-// ║  constructor(...)
-// ║  setValidationBounds(...)
-// ║  seedTemporaryReserve(...)
-// ║  _applyDefaultAprUpdate(...)
-// ║  _checkAprChange(...)
-// ║  version()
-// ║
-// ║  FIXED APR REPLACEMENT
-// ║  constructor(...)
-// ║  setValidationBounds(...)
-// ║  seedTemporaryReserve(...)
-// ║  _applyDefaultAprUpdate(...)
-// ║  _checkAprChange(...)
-// ║  version()
-// ║
-// ║  PERIODIC APR REPLACEMENT
-// ║  constructor(...)
-// ║  setValidationBounds(...)
-// ║  seedTemporaryReserve(...)
-// ║  _applyDefaultAprUpdate(...)
-// ║  _checkAprChange(...)
-// ║  version()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // AprReplacementHooks
+//  \ ^ /   APR replacement hooks across all three term families.
+//    V
+//
+//  OPEN APR REPLACEMENT
+//  constructor(...)
+//  setValidationBounds(...)
+//  seedTemporaryReserve(...)
+//  _applyDefaultAprUpdate(...)
+//  _checkAprChange(...)
+//  version()
+//
+//  FIXED APR REPLACEMENT
+//  constructor(...)
+//  setValidationBounds(...)
+//  seedTemporaryReserve(...)
+//  _applyDefaultAprUpdate(...)
+//  _checkAprChange(...)
+//  version()
+//
+//  PERIODIC APR REPLACEMENT
+//  constructor(...)
+//  setValidationBounds(...)
+//  seedTemporaryReserve(...)
+//  _applyDefaultAprUpdate(...)
+//  _checkAprChange(...)
+//  version()
+// ═════
 
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

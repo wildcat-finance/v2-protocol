@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ERC1155RoleProviderFactory
-// ║  ██▀▀     ▀▀██   Deterministic ERC1155 provider deployment and address prediction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT
-// ║  createRoleProvider(...)
-// ║  createERC1155RoleProvider(...)
-// ║  _createRoleProvider(...)
-// ║
-// ║  ADDRESS PREDICTION
-// ║  computeRoleProviderAddress(...)
-// ║  _computeRoleProviderAddress(...)
-// ║  _deriveSalt(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ERC1155RoleProviderFactory
+//  \ ^ /   Deterministic ERC1155 provider deployment and address prediction.
+//    V
+//
+//  DEPLOYMENT
+//  createRoleProvider(...)
+//  createERC1155RoleProvider(...)
+//  _createRoleProvider(...)
+//
+//  ADDRESS PREDICTION
+//  computeRoleProviderAddress(...)
+//  _computeRoleProviderAddress(...)
+//  _deriveSalt(...)
+// ═════
 
 import './ERC1155RoleProvider.sol';
 import './IERC1155RoleProviderFactory.sol';

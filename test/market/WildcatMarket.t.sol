@@ -1,161 +1,159 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarket.t
-// ║  ██▀▀     ▀▀██   Market token, lending, withdrawal, and revolving lifecycle tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONSTRUCTION
-// ║  test_constructorAndInitialState_AcrossHookKinds()
-// ║  test_constructorPreservesDistinctBorrowerPrincipalAndParameterLayout_AcrossHookKinds()
-// ║  test_constructorRejectsInvalidIdentityInputs()
-// ║  _assertConstructorConfiguration(...)
-// ║  _expectedInitialState(...)
-// ║  _arithmeticPanic()
-// ║
-// ║  TOKEN OPERATIONS
-// ║  test_tokenMetadataAndRoundingMarker_AcrossHookKinds()
-// ║  test_tokenMintAndBurnAccounting_AcrossHookKinds(...)
-// ║  test_approveStoresExactAllowance_AcrossHookKinds(...)
-// ║  test_transferMovesBalanceAndPreservesSupply_AcrossHookKinds(...)
-// ║  test_transferFromHandlesFiniteInfiniteAndSelfTransfer_AcrossHookKinds(...)
-// ║  test_transfersRejectInsufficientBalancesAndAllowances_AcrossHookKinds(...)
-// ║  test_zeroTransfersAndBlockedRecipientsRevert_AcrossHookKinds()
-// ║  _newTokenMarket(...)
-// ║  _tokenOptions(...)
-// ║  _mintMarketTokens(...)
-// ║  _assertSupplyAndBalance(...)
-// ║
-// ║  DEPOSITS
-// ║  test_depositEntrypointsApplyCapacityExactnessAndRounding_AcrossHookKinds()
-// ║  test_depositEntrypointsEnforceProductionMinimumAcrossHookKinds()
-// ║
-// ║  BORROWING AND REPAYMENT
-// ║  test_borrowAppliesLiquidityAuthorityClosureAndSanctions_AcrossHookKinds()
-// ║  test_repayHandlesSuccessZeroClosedAndTransferFailure_AcrossHookKinds()
-// ║  _borrow(...)
-// ║  _approveBorrower(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  test_collectFeesHandlesEmptyAvailableAndUnavailableFees_AcrossHookKinds()
-// ║  test_withdrawableProtocolFeesRemainCappedAcrossPendingWithdrawals_AcrossHookKinds()
-// ║  test_withdrawableProtocolFeesRejectsStateChangingReentrancy()
-// ║
-// ║  MARKET CONFIGURATION
-// ║  test_configurationGettersAndMaximumDeposit_AcrossHookKinds(...)
-// ║  test_borrowerReservedStorageControlsAuthority_AcrossHookKinds()
-// ║  test_setMaxTotalSupplyAcceptsCapacityAboveAndBelowSupply_AcrossHookKinds(...)
-// ║  test_setMaxTotalSupplyRejectsInvalidCallerClosedMarketAndOverflow_AcrossHookKinds()
-// ║  test_setProtocolFeeBipsUpdatesFromFactory_AcrossHookKinds(...)
-// ║  test_setProtocolFeeBipsRejectsInvalidCallerFeeAndClosedMarket_AcrossHookKinds()
-// ║  test_setAnnualInterestAndReserveRatioBipsAppliesProductionConstraints_AcrossHookKinds(...)
-// ║  test_setAnnualInterestAndReserveRatioBipsEnforcesLiquidityBeforeAndAfterChange()
-// ║  test_setAprRejectsAuthorityBoundsAndClosure_AcrossHookKinds()
-// ║  test_setAprRollsBackMarketAndHookStateWhenPostHookLiquidityCheckReverts()
-// ║  test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts()
-// ║  test_executePendingAnnualInterestBipsReductionIsPermissionlessAndUsesHookState()
-// ║  test_executePendingAnnualInterestBipsReductionRejectsInvalidMarketAndHookStates()
-// ║  _newConfigMarket()
-// ║  _storedMarketStateHash(...)
-// ║  _temporaryReserveRatioHash(...)
-// ║
-// ║  STATE CHECKPOINTS
-// ║  test_stateQueriesReflectAccrualWithoutMutatingPreviousState_AcrossHookKinds()
-// ║  test_scaleFactorAccruesThroughZeroSupplyAndDelinquencyGrace_AcrossHookKinds()
-// ║  test_updateStatePersistsAccrualAndNoChange_AcrossHookKinds()
-// ║  test_updateStateProcessesExpiredBatchesWithDistinctAndSameBlockAccrual()
-// ║  test_expiredBatchSettlementRefreshesDelinquency_AcrossMarketTypes()
-// ║  test_zeroDelinquencyFeeStillTracksClockAcrossMarketTypes()
-// ║
-// ║  WITHDRAWAL QUEUEING
-// ║  test_queueWithdrawalEntrypointsRejectInvalidAmounts_AcrossHookKinds()
-// ║  test_queueWithdrawalEntrypointsShareAndAccumulateOneBatch_AcrossHookKinds()
-// ║  test_queueWithdrawalTracksLiquidityShortfall_AcrossHookKinds()
-// ║  test_queueScaledUsesLiveScaleFactorAndMatchesFullWithdrawal_AcrossHookKinds()
-// ║  test_closedMarketWithdrawalRejectsFallbackBatchKeyCollision_AcrossHookKinds()
-// ║  test_closedMarketWithdrawalUsesFreshFallbackBatchKey_AcrossHookKinds()
-// ║  test_closedMarketWithdrawalRejectsFallbackBatchKeyOverflow_AcrossHookKinds()
-// ║  test_closedMarketWithdrawalsDrainAcrossFreshBatches_AcrossHookKinds()
-// ║  test_openMarketWithdrawalRejectsExpiryOverflowWithoutMutatingState()
-// ║  _newWithdrawalMarket(...)
-// ║  _withdrawalOptions(...)
-// ║  _forceWithdrawalBatchExists(...)
-// ║
-// ║  WITHDRAWAL FUNDING
-// ║  test_processUnpaidBatchHandlesNoLiquidityAndOneWeiBoundary_AcrossHookKinds()
-// ║  test_processUnpaidBatchHandlesLargeAndSubScaledLiquidity_AcrossHookKinds()
-// ║  test_processUnpaidBatchProgressesPartialAndFullPayments_AcrossHookKinds()
-// ║  test_repayAndProcessHonorsLimitsAndAvailableLiquidity_AcrossHookKinds()
-// ║  test_repayAndProcessDrainsLargeFifoQueueInBoundedChunksThenCloses()
-// ║  test_repayAndProcessIncludesRepayAndRejectsClosedMarket_AcrossHookKinds()
-// ║  test_pendingBatchUsesIncomingLiquidityBeforeExpiry_AcrossHookKinds()
-// ║  _makeUnpaidBatch(...)
-// ║  _makeTwoUnpaidBatches(...)
-// ║  _assertBatch(...)
-// ║  _assertLargeFifoDrainToClose(...)
-// ║  _assertNoWithdrawalPayment(...)
-// ║
-// ║  WITHDRAWAL CLAIMS
-// ║  test_executeWithdrawalRejectsPendingAndDuplicateThenPays_AcrossHookKinds()
-// ║  test_executeWithdrawalAllowsClosedMarketBeforeAndAfterExpiry_AcrossHookKinds()
-// ║  test_executeWithdrawalsValidatesAndAtomicallyPaysBatches_AcrossHookKinds()
-// ║  test_availableWithdrawalRejectsPendingAndReadsExpiredView_AcrossHookKinds()
-// ║  test_withdrawalViewsReflectMissingPendingPaidAndUnpaidBatches_AcrossHookKinds()
-// ║  test_accountWithdrawalViewsTrackPartialAndCompleteClaims_AcrossHookKinds()
-// ║
-// ║  CLOSURE AND RECOVERY
-// ║  test_closeMarketBalancesDebtAndExcessAssets_AcrossHookKinds()
-// ║  test_closeMarketSettlesPendingAndUnpaidWithdrawalBatches_AcrossHookKinds()
-// ║  test_closeMarketCreatesFreshBatchKeyAtExactExpiry_AcrossHookKinds()
-// ║  test_rescueTokensAuthenticatesBorrowerAndProtectsMarketAssets_AcrossHookKinds()
-// ║  _assertClosedMarket(...)
-// ║
-// ║  SANCTIONS AND WRAPPERS
-// ║  test_nukeFromOrbitQueuesEntireSanctionedBalanceAndIsIdempotent_AcrossHookKinds(...)
-// ║  test_nukeFromOrbitHandlesEmptyBalancesAndRejectsUnsanctionedAccounts_AcrossHookKinds()
-// ║  test_nukeFromOrbitPreservesFixedTermWithdrawalRestriction()
-// ║  test_executeSanctionedWithdrawalsRouteToEscrow_AcrossHookKinds()
-// ║  test_registerWrapperAuthenticatesFactoryAndProtectsCanonicalWrapper_AcrossHookKinds()
-// ║
-// ║  INDEXER EVENTS
-// ║  test_marketLifecycleEmitsCanonicalIndexerEvents()
-// ║  _assertExactEvent(...)
-// ║  _addressTopic(...)
-// ║  _singleTopic(...)
-// ║  _twoTopics(...)
-// ║  _threeTopics(...)
-// ║
-// ║  REVOLVING CONFIGURATION
-// ║  test_revolvingConstructorValidatesAndStoresCommitmentFee()
-// ║  _revolvingOptions(...)
-// ║  _revolving(...)
-// ║
-// ║  REVOLVING DEBT
-// ║  test_revolvingDrawnAmountTracksBorrowAndSaturatingRepayment()
-// ║  test_revolvingDrawnAmountClampsOverRepayDonationAndLargeValues()
-// ║  test_revolvingRepayConsumesInterestBeforePrincipalAcrossBothEntrypoints()
-// ║  test_revolvingRepayDoesNotReclassifyDonationAcrossBothEntrypoints()
-// ║  test_revolvingBorrowDoesNotReclassifyDonationAsPrincipalRepayment()
-// ║  test_revolvingCloseZerosDrawnAndFreezesAccrual()
-// ║  test_revolvingBorrowerTransferPreservesDrawnAmountAndStorage()
-// ║  _accruedDebtAboveDrawn(...)
-// ║  _assertNoDrawnAmountUpdate(...)
-// ║
-// ║  REVOLVING ACCRUAL
-// ║  test_revolvingAccrualCombinesCommitmentUtilizationAndProtocolFees()
-// ║  test_revolvingAccrualAppliesDelinquencyFee()
-// ║  test_revolvingAccrualHandlesFeeOnlyZeroSupplyAndZeroTime()
-// ║  test_revolvingAccrualClampsUtilizationAndPreservesDustBoundaries()
-// ║  test_revolvingFullyDrawnFirstSegmentMatchesStandardThenDiverges()
-// ║  test_revolvingFullRepayReturnsToCommitmentOnlyAccrual()
-// ║  _utilizationInterestRay(...)
-// ║  _minimumDrawForInterest(...)
-// ║  _assertObservedRevolvingDust(...)
-// ║  _assertRevolvingDustBoundary(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarket.t
+//  \ ^ /   Market token, lending, withdrawal, and revolving lifecycle tests.
+//    V
+//
+//  CONSTRUCTION
+//  test_constructorAndInitialState_AcrossHookKinds()
+//  test_constructorPreservesDistinctBorrowerPrincipalAndParameterLayout_AcrossHookKinds()
+//  test_constructorRejectsInvalidIdentityInputs()
+//  _assertConstructorConfiguration(...)
+//  _expectedInitialState(...)
+//  _arithmeticPanic()
+//
+//  TOKEN OPERATIONS
+//  test_tokenMetadataAndRoundingMarker_AcrossHookKinds()
+//  test_tokenMintAndBurnAccounting_AcrossHookKinds(...)
+//  test_approveStoresExactAllowance_AcrossHookKinds(...)
+//  test_transferMovesBalanceAndPreservesSupply_AcrossHookKinds(...)
+//  test_transferFromHandlesFiniteInfiniteAndSelfTransfer_AcrossHookKinds(...)
+//  test_transfersRejectInsufficientBalancesAndAllowances_AcrossHookKinds(...)
+//  test_zeroTransfersAndBlockedRecipientsRevert_AcrossHookKinds()
+//  _newTokenMarket(...)
+//  _tokenOptions(...)
+//  _mintMarketTokens(...)
+//  _assertSupplyAndBalance(...)
+//
+//  DEPOSITS
+//  test_depositEntrypointsApplyCapacityExactnessAndRounding_AcrossHookKinds()
+//  test_depositEntrypointsEnforceProductionMinimumAcrossHookKinds()
+//
+//  BORROWING AND REPAYMENT
+//  test_borrowAppliesLiquidityAuthorityClosureAndSanctions_AcrossHookKinds()
+//  test_repayHandlesSuccessZeroClosedAndTransferFailure_AcrossHookKinds()
+//  _borrow(...)
+//  _approveBorrower(...)
+//
+//  PROTOCOL FEES
+//  test_collectFeesHandlesEmptyAvailableAndUnavailableFees_AcrossHookKinds()
+//  test_withdrawableProtocolFeesRemainCappedAcrossPendingWithdrawals_AcrossHookKinds()
+//  test_withdrawableProtocolFeesRejectsStateChangingReentrancy()
+//
+//  MARKET CONFIGURATION
+//  test_configurationGettersAndMaximumDeposit_AcrossHookKinds(...)
+//  test_borrowerReservedStorageControlsAuthority_AcrossHookKinds()
+//  test_setMaxTotalSupplyAcceptsCapacityAboveAndBelowSupply_AcrossHookKinds(...)
+//  test_setMaxTotalSupplyRejectsInvalidCallerClosedMarketAndOverflow_AcrossHookKinds()
+//  test_setProtocolFeeBipsUpdatesFromFactory_AcrossHookKinds(...)
+//  test_setProtocolFeeBipsRejectsInvalidCallerFeeAndClosedMarket_AcrossHookKinds()
+//  test_setAnnualInterestAndReserveRatioBipsAppliesProductionConstraints_AcrossHookKinds(...)
+//  test_setAnnualInterestAndReserveRatioBipsEnforcesLiquidityBeforeAndAfterChange()
+//  test_setAprRejectsAuthorityBoundsAndClosure_AcrossHookKinds()
+//  test_setAprRollsBackMarketAndHookStateWhenPostHookLiquidityCheckReverts()
+//  test_setAprRollsBackActiveTemporaryReserveWindowWhenLiquidityCheckReverts()
+//  test_executePendingAnnualInterestBipsReductionIsPermissionlessAndUsesHookState()
+//  test_executePendingAnnualInterestBipsReductionRejectsInvalidMarketAndHookStates()
+//  _newConfigMarket()
+//  _storedMarketStateHash(...)
+//  _temporaryReserveRatioHash(...)
+//
+//  STATE CHECKPOINTS
+//  test_stateQueriesReflectAccrualWithoutMutatingPreviousState_AcrossHookKinds()
+//  test_scaleFactorAccruesThroughZeroSupplyAndDelinquencyGrace_AcrossHookKinds()
+//  test_updateStatePersistsAccrualAndNoChange_AcrossHookKinds()
+//  test_updateStateProcessesExpiredBatchesWithDistinctAndSameBlockAccrual()
+//  test_expiredBatchSettlementRefreshesDelinquency_AcrossMarketTypes()
+//  test_zeroDelinquencyFeeStillTracksClockAcrossMarketTypes()
+//
+//  WITHDRAWAL QUEUEING
+//  test_queueWithdrawalEntrypointsRejectInvalidAmounts_AcrossHookKinds()
+//  test_queueWithdrawalEntrypointsShareAndAccumulateOneBatch_AcrossHookKinds()
+//  test_queueWithdrawalTracksLiquidityShortfall_AcrossHookKinds()
+//  test_queueScaledUsesLiveScaleFactorAndMatchesFullWithdrawal_AcrossHookKinds()
+//  test_closedMarketWithdrawalRejectsFallbackBatchKeyCollision_AcrossHookKinds()
+//  test_closedMarketWithdrawalUsesFreshFallbackBatchKey_AcrossHookKinds()
+//  test_closedMarketWithdrawalRejectsFallbackBatchKeyOverflow_AcrossHookKinds()
+//  test_closedMarketWithdrawalsDrainAcrossFreshBatches_AcrossHookKinds()
+//  test_openMarketWithdrawalRejectsExpiryOverflowWithoutMutatingState()
+//  _newWithdrawalMarket(...)
+//  _withdrawalOptions(...)
+//  _forceWithdrawalBatchExists(...)
+//
+//  WITHDRAWAL FUNDING
+//  test_processUnpaidBatchHandlesNoLiquidityAndOneWeiBoundary_AcrossHookKinds()
+//  test_processUnpaidBatchHandlesLargeAndSubScaledLiquidity_AcrossHookKinds()
+//  test_processUnpaidBatchProgressesPartialAndFullPayments_AcrossHookKinds()
+//  test_repayAndProcessHonorsLimitsAndAvailableLiquidity_AcrossHookKinds()
+//  test_repayAndProcessDrainsLargeFifoQueueInBoundedChunksThenCloses()
+//  test_repayAndProcessIncludesRepayAndRejectsClosedMarket_AcrossHookKinds()
+//  test_pendingBatchUsesIncomingLiquidityBeforeExpiry_AcrossHookKinds()
+//  _makeUnpaidBatch(...)
+//  _makeTwoUnpaidBatches(...)
+//  _assertBatch(...)
+//  _assertLargeFifoDrainToClose(...)
+//  _assertNoWithdrawalPayment(...)
+//
+//  WITHDRAWAL CLAIMS
+//  test_executeWithdrawalRejectsPendingAndDuplicateThenPays_AcrossHookKinds()
+//  test_executeWithdrawalAllowsClosedMarketBeforeAndAfterExpiry_AcrossHookKinds()
+//  test_executeWithdrawalsValidatesAndAtomicallyPaysBatches_AcrossHookKinds()
+//  test_availableWithdrawalRejectsPendingAndReadsExpiredView_AcrossHookKinds()
+//  test_withdrawalViewsReflectMissingPendingPaidAndUnpaidBatches_AcrossHookKinds()
+//  test_accountWithdrawalViewsTrackPartialAndCompleteClaims_AcrossHookKinds()
+//
+//  CLOSURE AND RECOVERY
+//  test_closeMarketBalancesDebtAndExcessAssets_AcrossHookKinds()
+//  test_closeMarketSettlesPendingAndUnpaidWithdrawalBatches_AcrossHookKinds()
+//  test_closeMarketCreatesFreshBatchKeyAtExactExpiry_AcrossHookKinds()
+//  test_rescueTokensAuthenticatesBorrowerAndProtectsMarketAssets_AcrossHookKinds()
+//  _assertClosedMarket(...)
+//
+//  SANCTIONS AND WRAPPERS
+//  test_nukeFromOrbitQueuesEntireSanctionedBalanceAndIsIdempotent_AcrossHookKinds(...)
+//  test_nukeFromOrbitHandlesEmptyBalancesAndRejectsUnsanctionedAccounts_AcrossHookKinds()
+//  test_nukeFromOrbitPreservesFixedTermWithdrawalRestriction()
+//  test_executeSanctionedWithdrawalsRouteToEscrow_AcrossHookKinds()
+//  test_registerWrapperAuthenticatesFactoryAndProtectsCanonicalWrapper_AcrossHookKinds()
+//
+//  INDEXER EVENTS
+//  test_marketLifecycleEmitsCanonicalIndexerEvents()
+//  _assertExactEvent(...)
+//  _addressTopic(...)
+//  _singleTopic(...)
+//  _twoTopics(...)
+//  _threeTopics(...)
+//
+//  REVOLVING CONFIGURATION
+//  test_revolvingConstructorValidatesAndStoresCommitmentFee()
+//  _revolvingOptions(...)
+//  _revolving(...)
+//
+//  REVOLVING DEBT
+//  test_revolvingDrawnAmountTracksBorrowAndSaturatingRepayment()
+//  test_revolvingDrawnAmountClampsOverRepayDonationAndLargeValues()
+//  test_revolvingRepayConsumesInterestBeforePrincipalAcrossBothEntrypoints()
+//  test_revolvingRepayDoesNotReclassifyDonationAcrossBothEntrypoints()
+//  test_revolvingBorrowDoesNotReclassifyDonationAsPrincipalRepayment()
+//  test_revolvingCloseZerosDrawnAndFreezesAccrual()
+//  test_revolvingBorrowerTransferPreservesDrawnAmountAndStorage()
+//  _accruedDebtAboveDrawn(...)
+//  _assertNoDrawnAmountUpdate(...)
+//
+//  REVOLVING ACCRUAL
+//  test_revolvingAccrualCombinesCommitmentUtilizationAndProtocolFees()
+//  test_revolvingAccrualAppliesDelinquencyFee()
+//  test_revolvingAccrualHandlesFeeOnlyZeroSupplyAndZeroTime()
+//  test_revolvingAccrualClampsUtilizationAndPreservesDustBoundaries()
+//  test_revolvingFullyDrawnFirstSegmentMatchesStandardThenDiverges()
+//  test_revolvingFullRepayReturnsToCommitmentOnlyAccrual()
+//  _utilizationInterestRay(...)
+//  _minimumDrawForInterest(...)
+//  _assertObservedRevolvingDust(...)
+//  _assertRevolvingDustBoundary(...)
+// ═════
 
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { IHooks } from 'src/access/IHooks.sol';

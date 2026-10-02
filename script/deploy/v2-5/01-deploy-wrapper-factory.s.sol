@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // 01-deploy-wrapper-factory.s
-// ║  ██▀▀     ▀▀██   Wrapper-factory deployment, verification, and inventory records.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT
-// ║  run()
-// ║
-// ║  DEPLOYMENT PLAN
-// ║  _writePlanEntry(...)
-// ║
-// ║  DEPLOYMENT VERIFICATION
-// ║  _verifyFactory(...)
-// ║
-// ║  INVENTORY RECORDS
-// ║  _writePlanInventoryRecord(...)
-// ║  _writeInventoryRecord(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // 01-deploy-wrapper-factory.s
+//  \ ^ /   Wrapper-factory deployment, verification, and inventory records.
+//    V
+//
+//  DEPLOYMENT
+//  run()
+//
+//  DEPLOYMENT PLAN
+//  _writePlanEntry(...)
+//
+//  DEPLOYMENT VERIFICATION
+//  _verifyFactory(...)
+//
+//  INVENTORY RECORDS
+//  _writePlanInventoryRecord(...)
+//  _writeInventoryRecord(...)
+// ═════
 
 // environment:
 // - both modes: DEPLOYMENTS_NETWORK; optional RELEASE_TAG (default v2-5),

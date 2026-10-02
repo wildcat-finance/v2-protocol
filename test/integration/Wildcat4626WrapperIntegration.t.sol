@@ -1,64 +1,62 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Wildcat4626WrapperIntegration.t
-// ║  ██▀▀     ▀▀██   Production wrapper backing, access, sanctions, and identity flows.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture(...)
-// ║  _newFixture(...)
-// ║  _deployHooks(...)
-// ║  _hooksData(...)
-// ║  _requestedHooks(...)
-// ║  _requestedHooks(...)
-// ║  _marketParameters(...)
-// ║  _deploymentInputs(...)
-// ║  _packString(...)
-// ║  _deployWrapper(...)
-// ║  _deposit(...)
-// ║  _fundAndApprove(...)
-// ║  _wrap(...)
-// ║  _authorize(...)
-// ║
-// ║  WRAPPER READINESS AND REDEMPTION
-// ║  test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook()
-// ║  test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks()
-// ║  test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook()
-// ║  test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes()
-// ║  _assertRedeemAndScaledQueue(...)
-// ║
-// ║  SANCTIONS AND ESCROW AUTHORIZATION
-// ║  test_wrapperCoordinatesDirectAndShareQuarantineWithoutFreezingOtherHolders()
-// ║  test_marketAndWrapperNukesComposeWithoutPuttingBackingAtRisk()
-// ║  test_foreignPrincipalEscrowCannotReleaseSharesToSanctionedHolder()
-// ║  test_precreatedCurrentPrincipalEscrowIsAuthorizedWhenWrapperNukesHolder()
-// ║  test_wrapperEscrowsRemainReleasableInTheirOriginalPrincipalNamespace()
-// ║  test_oldEscrowAuthorizationIsConsumedAfterPrincipalMigration()
-// ║  test_unsanctionedReleaseAlsoConsumesOldEscrowAuthorization()
-// ║  test_laterNukeReauthorizesConsumedEscrow()
-// ║  test_zeroBalanceRepeatAndRevolvingNukesShareTheSameQuarantineRules()
-// ║
-// ║  BORROWER IDENTITY
-// ║  test_wrapperNamespaceAndSweepAuthorityFollowTheLiveBorrowerIdentity()
-// ║  test_lenderOverridesStayWithThePrincipalAndWrapperReadinessTracksMigration()
-// ║  _registerPrincipal(...)
-// ║  _deployAccount(...)
-// ║  _transferBorrower(...)
-// ║
-// ║  TOKEN BACKED ACCESS
-// ║  test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket()
-// ║  test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket()
-// ║  test_wildcatWrapperInterestCanAuthorizeADifferentMarket()
-// ║  _replaceLenderAccessProvider(...)
-// ║  _deployAdditionalMarket(...)
-// ║  _newAsset(...)
-// ║  _fundTargetDeposit(...)
-// ║  _expectTargetDepositDenied(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Wildcat4626WrapperIntegration.t
+//  \ ^ /   Production wrapper backing, access, sanctions, and identity flows.
+//    V
+//
+//  FIXTURE
+//  _newFixture(...)
+//  _newFixture(...)
+//  _deployHooks(...)
+//  _hooksData(...)
+//  _requestedHooks(...)
+//  _requestedHooks(...)
+//  _marketParameters(...)
+//  _deploymentInputs(...)
+//  _packString(...)
+//  _deployWrapper(...)
+//  _deposit(...)
+//  _fundAndApprove(...)
+//  _wrap(...)
+//  _authorize(...)
+//
+//  WRAPPER READINESS AND REDEMPTION
+//  test_registrationAndReadinessUseProductionMarketsAndEveryBuiltInHook()
+//  test_depositAndMintIgnoreLocalBlockForRegisteredWrapperAcrossBuiltInHooks()
+//  test_redeemKeepsOrdinaryRecipientPolicyAcrossEveryBuiltInHook()
+//  test_redeemAndScaledQueueRemainAtomicAcrossMarketTypes()
+//  _assertRedeemAndScaledQueue(...)
+//
+//  SANCTIONS AND ESCROW AUTHORIZATION
+//  test_wrapperCoordinatesDirectAndShareQuarantineWithoutFreezingOtherHolders()
+//  test_marketAndWrapperNukesComposeWithoutPuttingBackingAtRisk()
+//  test_foreignPrincipalEscrowCannotReleaseSharesToSanctionedHolder()
+//  test_precreatedCurrentPrincipalEscrowIsAuthorizedWhenWrapperNukesHolder()
+//  test_wrapperEscrowsRemainReleasableInTheirOriginalPrincipalNamespace()
+//  test_oldEscrowAuthorizationIsConsumedAfterPrincipalMigration()
+//  test_unsanctionedReleaseAlsoConsumesOldEscrowAuthorization()
+//  test_laterNukeReauthorizesConsumedEscrow()
+//  test_zeroBalanceRepeatAndRevolvingNukesShareTheSameQuarantineRules()
+//
+//  BORROWER IDENTITY
+//  test_wrapperNamespaceAndSweepAuthorityFollowTheLiveBorrowerIdentity()
+//  test_lenderOverridesStayWithThePrincipalAndWrapperReadinessTracksMigration()
+//  _registerPrincipal(...)
+//  _deployAccount(...)
+//  _transferBorrower(...)
+//
+//  TOKEN BACKED ACCESS
+//  test_wildcatDebtTokenCannotAuthorizeDepositsIntoItsOwnMarket()
+//  test_wildcatDebtTokenInterestCanAuthorizeADifferentMarket()
+//  test_wildcatWrapperInterestCanAuthorizeADifferentMarket()
+//  _replaceLenderAccessProvider(...)
+//  _deployAdditionalMarket(...)
+//  _newAsset(...)
+//  _fundTargetDeposit(...)
+//  _expectTargetDepositDenied(...)
+// ═════
 
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';

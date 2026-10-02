@@ -1,39 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DeployV2Mainnet
-// ║  ██▀▀     ▀▀██   Legacy mainnet deployment and factory preparation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ENGINE RULES
-// ║  deactivateAllRules()
-// ║  configureRules(...)
-// ║  addAllowedPatterns(...)
-// ║  grantRole(...)
-// ║
-// ║  DEPLOYMENT
-// ║  run()
-// ║  deployAll()
-// ║
-// ║  FACTORY PREPARATION
-// ║  _setUpHooksFactory(...)
-// ║  _storeMarketInitCode(...)
-// ║  _getCreationCode(...)
-// ║
-// ║  ENGINE CONFIGURATION
-// ║  addSphereXPatterns(...)
-// ║
-// ║  ASSERTIONS
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DeployV2Mainnet
+//  \ ^ /   Legacy mainnet deployment and factory preparation.
+//    V
+//
+//  ENGINE RULES
+//  deactivateAllRules()
+//  configureRules(...)
+//  addAllowedPatterns(...)
+//  grantRole(...)
+//
+//  DEPLOYMENT
+//  run()
+//  deployAll()
+//
+//  FACTORY PREPARATION
+//  _setUpHooksFactory(...)
+//  _storeMarketInitCode(...)
+//  _getCreationCode(...)
+//
+//  ENGINE CONFIGURATION
+//  addSphereXPatterns(...)
+//
+//  ASSERTIONS
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+// ═════
 
 import 'src/WildcatSanctionsSentinel.sol';
 import 'src/WildcatArchController.sol';

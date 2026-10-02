@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MockRoleProviderFactory
-// ║  ██▀▀     ▀▀██   Credential-provider deployment and address prediction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PROVIDER DEPLOYMENT
-// ║  setNextProviderAddress(...)
-// ║  createRoleProvider(...)
-// ║  computeProviderAddress(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockRoleProviderFactory
+//  \ ^ /   Credential-provider deployment and address prediction.
+//    V
+//
+//  PROVIDER DEPLOYMENT
+//  setNextProviderAddress(...)
+//  createRoleProvider(...)
+//  computeProviderAddress(...)
+// ═════
 
 import { IRoleProviderFactory } from 'src/access/IRoleProviderFactory.sol';
 import { MockRoleProvider } from './MockRoleProvider.sol';

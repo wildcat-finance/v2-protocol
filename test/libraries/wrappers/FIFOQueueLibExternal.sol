@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FIFOQueueLibExternal
-// ║  ██▀▀     ▀▀██   External adapters for queue updates and queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  QUEUE UPDATES
-// ║  $push(...)
-// ║  $shift(...)
-// ║  $shiftN(...)
-// ║
-// ║  QUEUE QUERIES
-// ║  $empty(...)
-// ║  $length(...)
-// ║  $first(...)
-// ║  $at(...)
-// ║  $values(...)
-// ║  $word(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FIFOQueueLibExternal
+//  \ ^ /   External adapters for queue updates and queries.
+//    V
+//
+//  QUEUE UPDATES
+//  $push(...)
+//  $shift(...)
+//  $shiftN(...)
+//
+//  QUEUE QUERIES
+//  $empty(...)
+//  $length(...)
+//  $first(...)
+//  $at(...)
+//  $values(...)
+//  $word(...)
+// ═════
 
 import 'src/libraries/FIFOQueue.sol';
 

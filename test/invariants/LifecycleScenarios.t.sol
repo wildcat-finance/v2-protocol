@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleScenarios.t
-// ║  ██▀▀     ▀▀██   Deterministic and fuzzed lifecycle boundary and drain scenarios.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  TIMELINE AND CURE
-// ║  test_seededMatrixMatchesIndependentOracle()
-// ║  test_idleDateAndDeadlineCrossingMatchesOracle()
-// ║  testFuzz_deadlineCureIsInclusive(...)
-// ║  test_oneWeiShortDoesNotCloseAndSameTimestampCureCounts()
-// ║  testFuzz_lateDonationCannotRewriteFunding(...)
-// ║
-// ║  REPAYMENT ADMISSION
-// ║  test_repaymentRejectsAdmissionAndBothAprRoutes()
-// ║
-// ║  BATCH FUNDING AND DRAIN
-// ║  test_forcedQueueRetainsFractionalDebtAndItsBatchClaim()
-// ║  test_boundedPaymentPreservesDebtUntilFullyFunded()
-// ║  test_partialBatchesSanctionedCollectionAndScheduledDrain()
-// ║  testFuzz_batchExpiryAtInclusiveDeadline(...)
-// ║  test_surplusRecoveryPreservesScheduledDrain()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LifecycleScenarios.t
+//  \ ^ /   Deterministic and fuzzed lifecycle boundary and drain scenarios.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  TIMELINE AND CURE
+//  test_seededMatrixMatchesIndependentOracle()
+//  test_idleDateAndDeadlineCrossingMatchesOracle()
+//  testFuzz_deadlineCureIsInclusive(...)
+//  test_oneWeiShortDoesNotCloseAndSameTimestampCureCounts()
+//  testFuzz_lateDonationCannotRewriteFunding(...)
+//
+//  REPAYMENT ADMISSION
+//  test_repaymentRejectsAdmissionAndBothAprRoutes()
+//
+//  BATCH FUNDING AND DRAIN
+//  test_forcedQueueRetainsFractionalDebtAndItsBatchClaim()
+//  test_boundedPaymentPreservesDebtUntilFullyFunded()
+//  test_partialBatchesSanctionedCollectionAndScheduledDrain()
+//  testFuzz_batchExpiryAtInclusiveDeadline(...)
+//  test_surplusRecoveryPreservesScheduledDrain()
+// ═════
 
 import { LifecycleFixture } from './LifecycleFixture.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';

@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketConfigurationHooks
-// ║  ██▀▀     ▀▀██   Market-configuration capture and rejection hooks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONFIGURATION SETUP
-// ║  constructor(...)
-// ║  setRejectConfiguration(...)
-// ║
-// ║  MARKET CONFIGURATION
-// ║  _onMarketConfigured(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketConfigurationHooks
+//  \ ^ /   Market-configuration capture and rejection hooks.
+//    V
+//
+//  CONFIGURATION SETUP
+//  constructor(...)
+//  setRejectConfiguration(...)
+//
+//  MARKET CONFIGURATION
+//  _onMarketConfigured(...)
+// ═════
 
 import { PeriodicTermHooks } from 'src/access/PeriodicTermHooks.sol';
 import { AccessConfig } from 'src/access/BaseHooks.sol';

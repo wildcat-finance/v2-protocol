@@ -1,29 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TransferFeaturePolicies
-// ║  ██▀▀     ▀▀██   Transfer recipient, amount, and authority test policies.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FEATURE AUTHORITY
-// ║  _authorizeFeatureManagement(...)
-// ║
-// ║  RECIPIENT RESTRICTIONS
-// ║  setRestrictedRecipient(...)
-// ║  _checkTransferRecipient(...)
-// ║  _recipientAllowed(...)
-// ║
-// ║  TRANSFER LIMITS
-// ║  setTransferAmountLimit(...)
-// ║  _setTransferAmountLimit(...)
-// ║  _recordTransferAmount(...)
-// ║
-// ║  COMBINED TRANSFER CHECKS
-// ║  _applyTransferFeatures(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TransferFeaturePolicies
+//  \ ^ /   Transfer recipient, amount, and authority test policies.
+//    V
+//
+//  FEATURE AUTHORITY
+//  _authorizeFeatureManagement(...)
+//
+//  RECIPIENT RESTRICTIONS
+//  setRestrictedRecipient(...)
+//  _checkTransferRecipient(...)
+//  _recipientAllowed(...)
+//
+//  TRANSFER LIMITS
+//  setTransferAmountLimit(...)
+//  _setTransferAmountLimit(...)
+//  _recordTransferAmount(...)
+//
+//  COMBINED TRANSFER CHECKS
+//  _applyTransferFeatures(...)
+// ═════
 
 // ┌─ FeatureAuthority ─────────────────────────────────────────────────────────
 /// @dev the concrete hook delegates this to its existing administrator and registration checks.

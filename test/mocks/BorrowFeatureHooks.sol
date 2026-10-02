@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BorrowFeatureHooks
-// ║  ██▀▀     ▀▀██   Borrow-limit integrations across all three term families.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  OPEN BORROW HOOKS
-// ║  constructor(...)
-// ║  _onMarketConfigured(...)
-// ║  _checkBorrow(...)
-// ║  version()
-// ║
-// ║  FIXED BORROW HOOKS
-// ║  constructor(...)
-// ║  _onMarketConfigured(...)
-// ║  _checkBorrow(...)
-// ║  version()
-// ║
-// ║  PERIODIC BORROW HOOKS
-// ║  constructor(...)
-// ║  _onMarketConfigured(...)
-// ║  _checkBorrow(...)
-// ║  version()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BorrowFeatureHooks
+//  \ ^ /   Borrow-limit integrations across all three term families.
+//    V
+//
+//  OPEN BORROW HOOKS
+//  constructor(...)
+//  _onMarketConfigured(...)
+//  _checkBorrow(...)
+//  version()
+//
+//  FIXED BORROW HOOKS
+//  constructor(...)
+//  _onMarketConfigured(...)
+//  _checkBorrow(...)
+//  version()
+//
+//  PERIODIC BORROW HOOKS
+//  constructor(...)
+//  _onMarketConfigured(...)
+//  _checkBorrow(...)
+//  version()
+// ═════
 
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';

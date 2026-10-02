@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLifecycleData
-// ║  ██▀▀     ▀▀██   Repayment lifecycle and current underlying-asset capacity.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  LIFECYCLE AND LIQUIDITY
-// ║  fill(...)
-// ║  fill(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLifecycleData
+//  \ ^ /   Repayment lifecycle and current underlying-asset capacity.
+//    V
+//
+//  LIFECYCLE AND LIQUIDITY
+//  fill(...)
+//  fill(...)
+// ═════
 
 import '../market/WildcatMarket.sol';
 import './OptionalData.sol';

@@ -1,56 +1,54 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BaseHooks.t
-// ║  ██▀▀     ▀▀██   Shared hook construction, market configuration, and callbacks.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _requiredFlags(...)
-// ║  _addPullProvider(...)
-// ║
-// ║  HOOK CONSTRUCTION
-// ║  test_constructor_PreservesFactoryAdministratorFlagsAndEmptyArgs()
-// ║  test_constructor_InitializesExistingProviders(...)
-// ║  test_constructor_CreatesNewProviders(...)
-// ║  test_constructor_CombinesExistingAndNewProviders(...)
-// ║  test_constructor_RejectsMalformedArgsAndInvalidProviderFactoryResults()
-// ║
-// ║  MARKET CONFIGURATION
-// ║  test_onCreateMarket_OrdersFactoryBoundsAdministratorAndTemplateValidation()
-// ║  test_onCreateMarket_ConfigMatrix(...)
-// ║  test_onCreateMarket_PreservesMissingPartialAndLowBitOptionalWords()
-// ║  test_onCreateMarket_ChecksMinimumWidthBeforeAccessConfiguration()
-// ║  test_onCreateMarket_EmitsScheduleBeforeMinimum()
-// ║  test_onMarketConfigured_SeesBoundStateBeforeDeploymentAndRevertsAtomically()
-// ║  test_setMinimumDeposit_PreservesAuthorityDispatchWidthAndOtherFields()
-// ║  _assertUnchangedTermFields(...)
-// ║
-// ║  LENDER CALLBACKS
-// ║  test_lenderActionsAndTransferViews_RejectUnregisteredMarkets()
-// ║  test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst()
-// ║  test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(...)
-// ║  test_onTransfer_DisabledWinsOverKnownAndWrapperExemptions()
-// ║  test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(...)
-// ║  test_transferRecipientView_UsesPullCredentialsWithoutCachingThem()
-// ║  test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown()
-// ║  test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(...)
-// ║  _createQueueMarkets(...)
-// ║
-// ║  PASSIVE AND BORROWER CALLBACKS
-// ║  test_emptyCallbacks_StayUnguardedAndHaveNoEffects(...)
-// ║  test_onCloseMarket_DoesNotClearTemporaryReserves()
-// ║  test_onSetApr_OpenAndFixedDoNotRequireRegistration()
-// ║
-// ║  CREDENTIAL ASSERTIONS
-// ║  _expectCredentialEntry(...)
-// ║  _assertCachedCredential(...)
-// ║  _assertProvider(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BaseHooks.t
+//  \ ^ /   Shared hook construction, market configuration, and callbacks.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _requiredFlags(...)
+//  _addPullProvider(...)
+//
+//  HOOK CONSTRUCTION
+//  test_constructor_PreservesFactoryAdministratorFlagsAndEmptyArgs()
+//  test_constructor_InitializesExistingProviders(...)
+//  test_constructor_CreatesNewProviders(...)
+//  test_constructor_CombinesExistingAndNewProviders(...)
+//  test_constructor_RejectsMalformedArgsAndInvalidProviderFactoryResults()
+//
+//  MARKET CONFIGURATION
+//  test_onCreateMarket_OrdersFactoryBoundsAdministratorAndTemplateValidation()
+//  test_onCreateMarket_ConfigMatrix(...)
+//  test_onCreateMarket_PreservesMissingPartialAndLowBitOptionalWords()
+//  test_onCreateMarket_ChecksMinimumWidthBeforeAccessConfiguration()
+//  test_onCreateMarket_EmitsScheduleBeforeMinimum()
+//  test_onMarketConfigured_SeesBoundStateBeforeDeploymentAndRevertsAtomically()
+//  test_setMinimumDeposit_PreservesAuthorityDispatchWidthAndOtherFields()
+//  _assertUnchangedTermFields(...)
+//
+//  LENDER CALLBACKS
+//  test_lenderActionsAndTransferViews_RejectUnregisteredMarkets()
+//  test_onDeposit_FloorsMinimumAndChecksLocalBlockFirst()
+//  test_onDeposit_ResolvesOptionalOrRequiredCredentialsAndRecordsEntry(...)
+//  test_onTransfer_DisabledWinsOverKnownAndWrapperExemptions()
+//  test_onTransfer_ResolvesCredentialsAndPreservesKnownRecipientExemption(...)
+//  test_transferRecipientView_UsesPullCredentialsWithoutCachingThem()
+//  test_onQueueWithdrawal_ValidatesCredentialsWithoutMarkingKnown()
+//  test_onQueueWithdrawal_PreservesKnownAccessAndRequestedGating(...)
+//  _createQueueMarkets(...)
+//
+//  PASSIVE AND BORROWER CALLBACKS
+//  test_emptyCallbacks_StayUnguardedAndHaveNoEffects(...)
+//  test_onCloseMarket_DoesNotClearTemporaryReserves()
+//  test_onSetApr_OpenAndFixedDoNotRequireRegistration()
+//
+//  CREDENTIAL ASSERTIONS
+//  _expectCredentialEntry(...)
+//  _assertCachedCredential(...)
+//  _assertProvider(...)
+// ═════
 
 import { BaseHooks, AccessConfig } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';

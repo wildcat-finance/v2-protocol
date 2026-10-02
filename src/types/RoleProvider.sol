@@ -1,42 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProvider
-// ║  ██▀▀     ▀▀██   Packed provider identity, credential lifetime, and indexes.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ENCODING
-// ║  encodeRoleProvider(...)
-// ║
-// ║  DECODING
-// ║  decodeRoleProvider(...)
-// ║
-// ║  PROVIDER ADDRESS
-// ║  setProviderAddress(...)
-// ║  providerAddress(...)
-// ║
-// ║  CREDENTIAL LIFETIME
-// ║  setTimeToLive(...)
-// ║  timeToLive(...)
-// ║  calculateExpiry(...)
-// ║
-// ║  PULL PROVIDERS
-// ║  setPullProviderIndex(...)
-// ║  setNotPullProvider(...)
-// ║  pullProviderIndex(...)
-// ║  isPullProvider(...)
-// ║
-// ║  PUSH PROVIDERS
-// ║  setPushProviderIndex(...)
-// ║  pushProviderIndex(...)
-// ║
-// ║  COMPARISON
-// ║  eq(...)
-// ║  isNull(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RoleProvider
+//  \ ^ /   Packed provider identity, credential lifetime, and indexes.
+//    V
+//
+//  ENCODING
+//  encodeRoleProvider(...)
+//
+//  DECODING
+//  decodeRoleProvider(...)
+//
+//  PROVIDER ADDRESS
+//  setProviderAddress(...)
+//  providerAddress(...)
+//
+//  CREDENTIAL LIFETIME
+//  setTimeToLive(...)
+//  timeToLive(...)
+//  calculateExpiry(...)
+//
+//  PULL PROVIDERS
+//  setPullProviderIndex(...)
+//  setNotPullProvider(...)
+//  pullProviderIndex(...)
+//  isPullProvider(...)
+//
+//  PUSH PROVIDERS
+//  setPushProviderIndex(...)
+//  pushProviderIndex(...)
+//
+//  COMPARISON
+//  eq(...)
+//  isNull(...)
+// ═════
 
 import '../libraries/MathUtils.sol';
 

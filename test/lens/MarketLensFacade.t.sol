@@ -1,39 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensFacade.t
-// ║  ██▀▀     ▀▀██   Facade routing, capability probes, and response boundaries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  FACADE ROUTING
-// ║  test_constructorAndAggregationRoutes_AreComplete()
-// ║  test_aggregationMarketRoutes_AreComplete()
-// ║  test_coreAndLiveRoutes_AreComplete()
-// ║  _aggregationRoute(...)
-// ║  _coreRoute(...)
-// ║  _assertRoute(...)
-// ║
-// ║  FORWARDED ERRORS
-// ║  test_delegate_BubblesExactHelperRevert()
-// ║  test_getMarketData_BubblesCanonicalNotV2MarketError()
-// ║
-// ║  CAPABILITY PROBES
-// ║  test_versionAndHooksKindProbes_HandleValidBoundaries()
-// ║  test_versionAndHooksKindProbes_RejectMalformedDataAndBubbleReverts()
-// ║  _version(...)
-// ║
-// ║  OPTIONAL DATA AND FLAGS
-// ║  test_optionalUintProbe_DistinguishesPresenceFromFallback()
-// ║  _optionalTarget(...)
-// ║  _optionalResult(...)
-// ║  test_hooksConfigData_MapsEveryFlag()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensFacade.t
+//  \ ^ /   Facade routing, capability probes, and response boundaries.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  FACADE ROUTING
+//  test_constructorAndAggregationRoutes_AreComplete()
+//  test_aggregationMarketRoutes_AreComplete()
+//  test_coreAndLiveRoutes_AreComplete()
+//  _aggregationRoute(...)
+//  _coreRoute(...)
+//  _assertRoute(...)
+//
+//  FORWARDED ERRORS
+//  test_delegate_BubblesExactHelperRevert()
+//  test_getMarketData_BubblesCanonicalNotV2MarketError()
+//
+//  CAPABILITY PROBES
+//  test_versionAndHooksKindProbes_HandleValidBoundaries()
+//  test_versionAndHooksKindProbes_RejectMalformedDataAndBubbleReverts()
+//  _version(...)
+//
+//  OPTIONAL DATA AND FLAGS
+//  test_optionalUintProbe_DistinguishesPresenceFromFallback()
+//  _optionalTarget(...)
+//  _optionalResult(...)
+//  test_hooksConfigData_MapsEveryFlag()
+// ═════
 
 import { MarketLens } from 'src/lens/MarketLens.sol';
 import { MarketLensCore } from 'src/lens/MarketLensCore.sol';

@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DeployMarketLens
-// ║  ██▀▀     ▀▀██   Deploy, verify, and record a consistently wired lens set.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  EXECUTION FLOW
-// ║  run()
-// ║  _deployLensSet(...)
-// ║  _deployLensHelper(...)
-// ║  _deployMarketLensFacade(...)
-// ║  _getOrDeployByLabel(...)
-// ║  _deploymentLabel(...)
-// ║
-// ║  VERIFICATION
-// ║  _validateLensSet(...)
-// ║
-// ║  CANONICAL ALIASES
-// ║  _updateCanonicalAliases(...)
-// ║  _setCanonicalAlias(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DeployMarketLens
+//  \ ^ /   Deploy, verify, and record a consistently wired lens set.
+//    V
+//
+//  EXECUTION FLOW
+//  run()
+//  _deployLensSet(...)
+//  _deployLensHelper(...)
+//  _deployMarketLensFacade(...)
+//  _getOrDeployByLabel(...)
+//  _deploymentLabel(...)
+//
+//  VERIFICATION
+//  _validateLensSet(...)
+//
+//  CANONICAL ALIASES
+//  _updateCanonicalAliases(...)
+//  _setCanonicalAlias(...)
+// ═════
 
 import { console } from 'forge-std/console.sol';
 

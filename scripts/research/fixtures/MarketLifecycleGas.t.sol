@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLifecycleGas.t
-// ║  ██▀▀     ▀▀██   Repayment and penalty lifecycle gas-measurement fixtures.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  REPAYMENT LIFECYCLE
-// ║  test_gas_lifecycleStandard()
-// ║  test_gas_lifecycleRevolving()
-// ║  _lifecycle(...)
-// ║
-// ║  PENALTY LIFECYCLE
-// ║  test_gas_penaltyStandard()
-// ║  test_gas_penaltyRevolving()
-// ║  _penalty(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLifecycleGas.t
+//  \ ^ /   Repayment and penalty lifecycle gas-measurement fixtures.
+//    V
+//
+//  REPAYMENT LIFECYCLE
+//  test_gas_lifecycleStandard()
+//  test_gas_lifecycleRevolving()
+//  _lifecycle(...)
+//
+//  PENALTY LIFECYCLE
+//  test_gas_penaltyStandard()
+//  test_gas_penaltyRevolving()
+//  _penalty(...)
+// ═════
 
 import { MarketGasBase } from './MarketGas.t.sol';
 

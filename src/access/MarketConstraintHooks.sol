@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketConstraintHooks
-// ║  ██▀▀     ▀▀██   Market bounds and temporary reserves for APR reductions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CLOSURE QUERY
-// ║  isClosed()
-// ║
-// ║  MARKET SETUP
-// ║  _onCreateMarket(...)
-// ║  enforceParameterConstraints(...)
-// ║  getParameterConstraints()
-// ║  _getParameterConstraints()
-// ║  assertValueInRange(...)
-// ║
-// ║  INTEREST AND RESERVES
-// ║  _applyDefaultAprUpdate(...)
-// ║  _calculateTemporaryReserveRatioBips(...)
-// ║  _isMarketInRepayment(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketConstraintHooks
+//  \ ^ /   Market bounds and temporary reserves for APR reductions.
+//    V
+//
+//  CLOSURE QUERY
+//  isClosed()
+//
+//  MARKET SETUP
+//  _onCreateMarket(...)
+//  enforceParameterConstraints(...)
+//  getParameterConstraints()
+//  _getParameterConstraints()
+//  assertValueInRange(...)
+//
+//  INTEREST AND RESERVES
+//  _applyDefaultAprUpdate(...)
+//  _calculateTemporaryReserveRatioBips(...)
+//  _isMarketInRepayment(...)
+// ═════
 
 import './IHooks.sol';
 import '../libraries/BoolUtils.sol';

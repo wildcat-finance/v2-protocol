@@ -1,41 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalCounters.t
-// ║  ██▀▀     ▀▀██   Cumulative batch and global withdrawal-capacity boundaries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  NARROW WITHDRAWAL READS
-// ║  getWithdrawalBatch(...)
-// ║  getAccountWithdrawalStatus(...)
-// ║
-// ║  BATCH CAPACITY
-// ║  test_cumulativeBatchCapacityRejectsBeforeAdmission_AcrossMarketKinds()
-// ║  test_exactCumulativeBatchCapacityIsAccepted()
-// ║  test_allAdmissionRoutesUseCumulativeBatchCapacity()
-// ║  _checkCumulativeCap(...)
-// ║  _fixture(...)
-// ║  _queue(...)
-// ║  _fillCurrentBatchToCapMinusOne(...)
-// ║
-// ║  GLOBAL CAPACITY
-// ║  test_globalUnclaimedCapacityRecoversWhenPriorClaimExecutes()
-// ║  test_directDonationCannotBlockPriorClaim_AcrossMarketKinds()
-// ║  _checkDirectDonationDoesNotBlockPriorClaim(...)
-// ║  test_repaymentClosureQueuesHeadroomLimitedBatch_AcrossMarketKinds()
-// ║  _checkRepaymentClosureQueuesHeadroomLimitedBatch(...)
-// ║  _globalCapacityFixture(...)
-// ║  _openUnfundedBatch(...)
-// ║  _setFactor(...)
-// ║
-// ║  COUNTER WIDTHS
-// ║  test_uint104CapKeepsWorstCaseNormalizedPaymentWithinUint128()
-// ║  readNarrowBatch(...)
-// ║  readNarrowAccount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalCounters.t
+//  \ ^ /   Cumulative batch and global withdrawal-capacity boundaries.
+//    V
+//
+//  NARROW WITHDRAWAL READS
+//  getWithdrawalBatch(...)
+//  getAccountWithdrawalStatus(...)
+//
+//  BATCH CAPACITY
+//  test_cumulativeBatchCapacityRejectsBeforeAdmission_AcrossMarketKinds()
+//  test_exactCumulativeBatchCapacityIsAccepted()
+//  test_allAdmissionRoutesUseCumulativeBatchCapacity()
+//  _checkCumulativeCap(...)
+//  _fixture(...)
+//  _queue(...)
+//  _fillCurrentBatchToCapMinusOne(...)
+//
+//  GLOBAL CAPACITY
+//  test_globalUnclaimedCapacityRecoversWhenPriorClaimExecutes()
+//  test_directDonationCannotBlockPriorClaim_AcrossMarketKinds()
+//  _checkDirectDonationDoesNotBlockPriorClaim(...)
+//  test_repaymentClosureQueuesHeadroomLimitedBatch_AcrossMarketKinds()
+//  _checkRepaymentClosureQueuesHeadroomLimitedBatch(...)
+//  _globalCapacityFixture(...)
+//  _openUnfundedBatch(...)
+//  _setFactor(...)
+//
+//  COUNTER WIDTHS
+//  test_uint104CapKeepsWorstCaseNormalizedPaymentWithinUint128()
+//  readNarrowBatch(...)
+//  readNarrowAccount(...)
+// ═════
 
 import { WithdrawalBatch, AccountWithdrawalStatus } from 'src/libraries/Withdrawal.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';

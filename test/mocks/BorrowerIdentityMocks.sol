@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BorrowerIdentityMocks
-// ║  ██▀▀     ▀▀██   Borrower account and registry-registration test doubles.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCOUNT REGISTRATION
-// ║  constructor(...)
-// ║  registerAccount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BorrowerIdentityMocks
+//  \ ^ /   Borrower account and registry-registration test doubles.
+//    V
+//
+//  ACCOUNT REGISTRATION
+//  constructor(...)
+//  registerAccount(...)
+// ═════
 
 import { IBorrowerIdentityRegistry } from 'src/interfaces/IBorrowerIdentityRegistry.sol';
 

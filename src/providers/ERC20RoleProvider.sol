@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ERC20RoleProvider
-// ║  ██▀▀     ▀▀██   Immutable ERC20 balance thresholds for lender credentials.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  CREDENTIALS
-// ║  getCredential(...)
-// ║  validateCredential(...)
-// ║  _credentialTimestamp(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ERC20RoleProvider
+//  \ ^ /   Immutable ERC20 balance thresholds for lender credentials.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  CREDENTIALS
+//  getCredential(...)
+//  validateCredential(...)
+//  _credentialTimestamp(...)
+// ═════
 
 import '../libraries/SafeCastLib.sol';
 import './IERC20RoleProvider.sol';

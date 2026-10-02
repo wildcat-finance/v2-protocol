@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ProtocolFeeRoundingReview.t
-// ║  ██▀▀     ▀▀██   Characterization of checkpoint and protocol-fee rounding.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _fixture(...)
-// ║
-// ║  FEE ROUNDING
-// ║  test_dailyCheckpoints_SubUnitFeesDisappear_AcrossMarketAndHookKinds()
-// ║  test_dailyCheckpoints_NearestRoundingCanOvercharge_AcrossMarketAndHookKinds()
-// ║  test_intermediateFeeRateRounding_CanExceedHalfAnAtomicUnit()
-// ║  _runDaily(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ProtocolFeeRoundingReview.t
+//  \ ^ /   Characterization of checkpoint and protocol-fee rounding.
+//    V
+//
+//  FIXTURE
+//  _fixture(...)
+//
+//  FEE ROUNDING
+//  test_dailyCheckpoints_SubUnitFeesDisappear_AcrossMarketAndHookKinds()
+//  test_dailyCheckpoints_NearestRoundingCanOvercharge_AcrossMarketAndHookKinds()
+//  test_intermediateFeeRateRounding_CanExceedHalfAnAtomicUnit()
+//  _runDaily(...)
+// ═════
 
 import { FeeMath } from 'src/libraries/FeeMath.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

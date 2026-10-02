@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalCarrySequence.t
-// ║  ██▀▀     ▀▀██   Multi-batch carry conservation against an exact ledger.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  BATCH SEQUENCES
-// ║  testFuzz_multipleBatchSequenceConservesAndCloses(...)
-// ║  test_paidCurrentBatchRetainsFractionWhenItGrows()
-// ║
-// ║  PAYMENT AND RELEASE
-// ║  _pay(...)
-// ║  _affordable(...)
-// ║  _pendingAvailable(...)
-// ║  _release(...)
-// ║  _growCurrent(...)
-// ║
-// ║  LEDGER ASSERTIONS
-// ║  _assertLedger(...)
-// ║  _debts(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalCarrySequence.t
+//  \ ^ /   Multi-batch carry conservation against an exact ledger.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  BATCH SEQUENCES
+//  testFuzz_multipleBatchSequenceConservesAndCloses(...)
+//  test_paidCurrentBatchRetainsFractionWhenItGrows()
+//
+//  PAYMENT AND RELEASE
+//  _pay(...)
+//  _affordable(...)
+//  _pendingAvailable(...)
+//  _release(...)
+//  _growCurrent(...)
+//
+//  LEDGER ASSERTIONS
+//  _assertLedger(...)
+//  _debts(...)
+// ═════
 
 import { MarketFixture } from '../shared/MarketFixture.sol';
 import { WithdrawalPaymentHarness } from '../mocks/WithdrawalPaymentHarness.sol';

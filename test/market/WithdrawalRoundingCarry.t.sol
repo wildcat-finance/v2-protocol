@@ -1,30 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalRoundingCarry.t
-// ║  ██▀▀     ▀▀██   Withdrawal carry collection, closure, and numerator conservation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CARRY COLLECTION
-// ║  test_carryCollectsElevenInsteadOfTen_AcrossMarketKinds()
-// ║  _accrued(...)
-// ║
-// ║  CARRY SETTLEMENT
-// ║  test_carryDebtClosesExactly_AcrossMarketKinds()
-// ║  test_multipleBatchRemaindersCloseAndPayExactly_AcrossMarketKinds()
-// ║  test_automaticClosureProtectsCarryFromRescue_AcrossMarketKinds()
-// ║  test_finalFractionReleasedOnlyWhenBatchCannotGrow_AcrossMarketKinds()
-// ║  test_closeReturnsOnlyTrueSurplusThroughRescue_AcrossMarketKinds()
-// ║  prepareTwoBatches(...)
-// ║  _frozen(...)
-// ║  _setFactor(...)
-// ║
-// ║  NUMERATOR CONSERVATION
-// ║  testFuzz_paymentNumeratorsAccumulateAcrossChangingFactors(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalRoundingCarry.t
+//  \ ^ /   Withdrawal carry collection, closure, and numerator conservation.
+//    V
+//
+//  CARRY COLLECTION
+//  test_carryCollectsElevenInsteadOfTen_AcrossMarketKinds()
+//  _accrued(...)
+//
+//  CARRY SETTLEMENT
+//  test_carryDebtClosesExactly_AcrossMarketKinds()
+//  test_multipleBatchRemaindersCloseAndPayExactly_AcrossMarketKinds()
+//  test_automaticClosureProtectsCarryFromRescue_AcrossMarketKinds()
+//  test_finalFractionReleasedOnlyWhenBatchCannotGrow_AcrossMarketKinds()
+//  test_closeReturnsOnlyTrueSurplusThroughRescue_AcrossMarketKinds()
+//  prepareTwoBatches(...)
+//  _frozen(...)
+//  _setFactor(...)
+//
+//  NUMERATOR CONSERVATION
+//  testFuzz_paymentNumeratorsAccumulateAcrossChangingFactors(...)
+// ═════
 
 import { RAY } from 'src/libraries/MathUtils.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';

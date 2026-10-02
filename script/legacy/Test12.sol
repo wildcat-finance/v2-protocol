@@ -1,72 +1,70 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Test12
-// ║  ██▀▀     ▀▀██   Legacy JSON, transient-storage, and script experiments.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TRANSIENT JSON VALUES
-// ║  reserveTSlot()
-// ║  jsonValueToString(...)
-// ║
-// ║  TRANSIENT ALLOCATION
-// ║  next()
-// ║
-// ║  SCRIPT EXPERIMENTS
-// ║  run()
-// ║  internalFunction()
-// ║
-// ║  ENVIRONMENT CHECKS
-// ║  checkFfiEnabled()
-// ║  isFfiEnabled()
-// ║  checkDirectoryExistsAndAccessible(...)
-// ║  checkDirectoryAccess(...)
-// ║
-// ║  PATHS
-// ║  pathJoin(...)
-// ║  join(...)
-// ║
-// ║  COMPILER INPUT
-// ║  writeStandardJson(...)
-// ║  checkForBashFile()
-// ║
-// ║  COMPOSITE VALUES
-// ║  serializeObject(...)
-// ║  serializeArray(...)
-// ║
-// ║  SCALAR VALUES
-// ║  serializeBool(...)
-// ║  serializeUint256(...)
-// ║  serializeInt256(...)
-// ║  toHexString(...)
-// ║  serializeAddress(...)
-// ║  serializeBytes32(...)
-// ║  serializeBytes(...)
-// ║  serializeString(...)
-// ║
-// ║  TYPED ARRAYS
-// ║  serializeBoolArray(...)
-// ║  serializeUint256Array(...)
-// ║  serializeInt256Array(...)
-// ║  serializeAddressArray(...)
-// ║  serializeBytes32Array(...)
-// ║  serializeStringArray(...)
-// ║
-// ║  DECIMAL STRINGS
-// ║  toString(...)
-// ║  toString(...)
-// ║
-// ║  HEXADECIMAL STRINGS
-// ║  toHexString(...)
-// ║  toHexString(...)
-// ║  toHexString(...)
-// ║  toHexStringNoPrefix(...)
-// ║  toHexStringNoPrefix(...)
-// ║  toHexStringNoPrefix(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Test12
+//  \ ^ /   Legacy JSON, transient-storage, and script experiments.
+//    V
+//
+//  TRANSIENT JSON VALUES
+//  reserveTSlot()
+//  jsonValueToString(...)
+//
+//  TRANSIENT ALLOCATION
+//  next()
+//
+//  SCRIPT EXPERIMENTS
+//  run()
+//  internalFunction()
+//
+//  ENVIRONMENT CHECKS
+//  checkFfiEnabled()
+//  isFfiEnabled()
+//  checkDirectoryExistsAndAccessible(...)
+//  checkDirectoryAccess(...)
+//
+//  PATHS
+//  pathJoin(...)
+//  join(...)
+//
+//  COMPILER INPUT
+//  writeStandardJson(...)
+//  checkForBashFile()
+//
+//  COMPOSITE VALUES
+//  serializeObject(...)
+//  serializeArray(...)
+//
+//  SCALAR VALUES
+//  serializeBool(...)
+//  serializeUint256(...)
+//  serializeInt256(...)
+//  toHexString(...)
+//  serializeAddress(...)
+//  serializeBytes32(...)
+//  serializeBytes(...)
+//  serializeString(...)
+//
+//  TYPED ARRAYS
+//  serializeBoolArray(...)
+//  serializeUint256Array(...)
+//  serializeInt256Array(...)
+//  serializeAddressArray(...)
+//  serializeBytes32Array(...)
+//  serializeStringArray(...)
+//
+//  DECIMAL STRINGS
+//  toString(...)
+//  toString(...)
+//
+//  HEXADECIMAL STRINGS
+//  toHexString(...)
+//  toHexString(...)
+//  toHexString(...)
+//  toHexStringNoPrefix(...)
+//  toHexStringNoPrefix(...)
+//  toHexStringNoPrefix(...)
+// ═════
 
 import 'src/WildcatSanctionsSentinel.sol';
 import 'src/WildcatArchController.sol';

@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // AprValidationPolicy
-// ║  ██▀▀     ▀▀██   Shared APR floor and reserve ceiling test constraints.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  APR BOUNDS
-// ║  setValidationBounds(...)
-// ║  _validateAprChange(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // AprValidationPolicy
+//  \ ^ /   Shared APR floor and reserve ceiling test constraints.
+//    V
+//
+//  APR BOUNDS
+//  setValidationBounds(...)
+//  _validateAprChange(...)
+// ═════
 
 import { AprChange } from 'src/access/BaseHooks.sol';
 

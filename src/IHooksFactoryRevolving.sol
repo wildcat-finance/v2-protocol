@@ -1,72 +1,70 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IHooksFactoryRevolving
-// ║  ██▀▀     ▀▀██   Revolving factory registration, hooks lifecycle, and deployment.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  registerWithArchController()
-// ║  archController()
-// ║  name()
-// ║  sanctionsSentinel()
-// ║  wrapperFactory()
-// ║  borrowerIdentityRegistry()
-// ║  marketInitCodeStorage()
-// ║  marketInitCodeHash()
-// ║
-// ║  HOOKS TEMPLATES
-// ║  addHooksTemplate(...)
-// ║  disableHooksTemplate(...)
-// ║
-// ║  TEMPLATE FEES
-// ║  updateHooksTemplateFees(...)
-// ║  pushProtocolFeeBipsUpdates(...)
-// ║  pushProtocolFeeBipsUpdates(...)
-// ║
-// ║  TEMPLATE QUERIES
-// ║  getHooksTemplateDetails(...)
-// ║  getHooksTemplateInitCodeHash(...)
-// ║  isHooksTemplate(...)
-// ║  getHooksTemplates()
-// ║  getHooksTemplates(...)
-// ║  getHooksTemplatesCount()
-// ║
-// ║  HOOKS DEPLOYMENT
-// ║  deployHooksInstance(...)
-// ║  getHooksInstanceDeploymentNonce(...)
-// ║  isHooksInstance(...)
-// ║  getHooksTemplateForInstance(...)
-// ║
-// ║  HOOKS ADMINISTRATION
-// ║  onHooksAdministratorTransferred(...)
-// ║  getHooksAdministrator(...)
-// ║  getHooksInstancesForAdministrator(...)
-// ║  getHooksInstancesForAdministrator(...)
-// ║  getHooksInstancesCountForAdministrator(...)
-// ║  getHooksInstancesForBorrower(...)
-// ║  getHooksInstancesCountForBorrower(...)
-// ║
-// ║  MARKET DEPLOYMENT
-// ║  deployMarket(...)
-// ║  deployMarketAndHooks(...)
-// ║  computeMarketAddress(...)
-// ║
-// ║  CONSTRUCTOR PARAMETERS
-// ║  getMarketParameters()
-// ║  getRevolvingMarketCommitmentFeeBips()
-// ║
-// ║  MARKET QUERIES
-// ║  getMarketsForHooksTemplate(...)
-// ║  getMarketsForHooksTemplate(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksInstance(...)
-// ║  getMarketsForHooksInstance(...)
-// ║  getMarketsForHooksInstanceCount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IHooksFactoryRevolving
+//  \ ^ /   Revolving factory registration, hooks lifecycle, and deployment.
+//    V
+//
+//  SETUP
+//  registerWithArchController()
+//  archController()
+//  name()
+//  sanctionsSentinel()
+//  wrapperFactory()
+//  borrowerIdentityRegistry()
+//  marketInitCodeStorage()
+//  marketInitCodeHash()
+//
+//  HOOKS TEMPLATES
+//  addHooksTemplate(...)
+//  disableHooksTemplate(...)
+//
+//  TEMPLATE FEES
+//  updateHooksTemplateFees(...)
+//  pushProtocolFeeBipsUpdates(...)
+//  pushProtocolFeeBipsUpdates(...)
+//
+//  TEMPLATE QUERIES
+//  getHooksTemplateDetails(...)
+//  getHooksTemplateInitCodeHash(...)
+//  isHooksTemplate(...)
+//  getHooksTemplates()
+//  getHooksTemplates(...)
+//  getHooksTemplatesCount()
+//
+//  HOOKS DEPLOYMENT
+//  deployHooksInstance(...)
+//  getHooksInstanceDeploymentNonce(...)
+//  isHooksInstance(...)
+//  getHooksTemplateForInstance(...)
+//
+//  HOOKS ADMINISTRATION
+//  onHooksAdministratorTransferred(...)
+//  getHooksAdministrator(...)
+//  getHooksInstancesForAdministrator(...)
+//  getHooksInstancesForAdministrator(...)
+//  getHooksInstancesCountForAdministrator(...)
+//  getHooksInstancesForBorrower(...)
+//  getHooksInstancesCountForBorrower(...)
+//
+//  MARKET DEPLOYMENT
+//  deployMarket(...)
+//  deployMarketAndHooks(...)
+//  computeMarketAddress(...)
+//
+//  CONSTRUCTOR PARAMETERS
+//  getMarketParameters()
+//  getRevolvingMarketCommitmentFeeBips()
+//
+//  MARKET QUERIES
+//  getMarketsForHooksTemplate(...)
+//  getMarketsForHooksTemplate(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksInstance(...)
+//  getMarketsForHooksInstance(...)
+//  getMarketsForHooksInstanceCount(...)
+// ═════
 
 import './IHooksFactory.sol';
 import './interfaces/WildcatStructsAndEnums.sol';

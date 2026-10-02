@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MockERC20
-// ║  ██▀▀     ▀▀██   Development token with an unrestricted faucet.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  FAUCET
-// ║  faucet()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockERC20
+//  \ ^ /   Development token with an unrestricted faucet.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  FAUCET
+//  faucet()
+// ═════
 
 import { MockERC20 as SolmateMockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 

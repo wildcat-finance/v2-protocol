@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderFactoryMocks
-// ║  ██▀▀     ▀▀██   Factory callers and token capability test doubles.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FACTORY CALLS
-// ║  createRoleProvider(...)
-// ║
-// ║  TOKEN BALANCES
-// ║  setBalance(...)
-// ║  setBalance(...)
-// ║  balanceOf(...)
-// ║  balanceOf(...)
-// ║  convertToAssets(...)
-// ║
-// ║  TOKEN CAPABILITIES
-// ║  constructor(...)
-// ║  supportsInterface(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RoleProviderFactoryMocks
+//  \ ^ /   Factory callers and token capability test doubles.
+//    V
+//
+//  FACTORY CALLS
+//  createRoleProvider(...)
+//
+//  TOKEN BALANCES
+//  setBalance(...)
+//  setBalance(...)
+//  balanceOf(...)
+//  balanceOf(...)
+//  convertToAssets(...)
+//
+//  TOKEN CAPABILITIES
+//  constructor(...)
+//  supportsInterface(...)
+// ═════
 
 import { IRoleProviderFactory } from 'src/access/IRoleProviderFactory.sol';
 

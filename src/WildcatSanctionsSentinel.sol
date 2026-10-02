@@ -1,30 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatSanctionsSentinel
-// ║  ██▀▀     ▀▀██   Sanctions overrides, status queries, and escrow deployment.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  SANCTION OVERRIDES
-// ║  overrideSanction(...)
-// ║  removeSanctionOverride(...)
-// ║
-// ║  SANCTION QUERIES
-// ║  isSanctioned(...)
-// ║  isFlaggedByChainalysis(...)
-// ║
-// ║  ESCROW DEPLOYMENT
-// ║  createEscrow(...)
-// ║  getEscrowAddress(...)
-// ║  _deriveSalt(...)
-// ║  _resetTmpEscrowParams()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatSanctionsSentinel
+//  \ ^ /   Sanctions overrides, status queries, and escrow deployment.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  SANCTION OVERRIDES
+//  overrideSanction(...)
+//  removeSanctionOverride(...)
+//
+//  SANCTION QUERIES
+//  isSanctioned(...)
+//  isFlaggedByChainalysis(...)
+//
+//  ESCROW DEPLOYMENT
+//  createEscrow(...)
+//  getEscrowAddress(...)
+//  _deriveSalt(...)
+//  _resetTmpEscrowParams()
+// ═════
 
 import { IChainalysisSanctionsList } from './interfaces/IChainalysisSanctionsList.sol';
 import { IWildcatSanctionsSentinel } from './interfaces/IWildcatSanctionsSentinel.sol';

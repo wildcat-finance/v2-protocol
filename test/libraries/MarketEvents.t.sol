@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketEvents.t
-// ║  ██▀▀     ▀▀██   Assembly event and error encoding against Solidity references.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  LIFECYCLE ENCODING
-// ║  emitRepaymentDateReached(...)
-// ║  emitDefaultRecorded(...)
-// ║  emitLifecycleAccrual(...)
-// ║  revertLifecycle(...)
-// ║
-// ║  CONFIGURATION ENCODING
-// ║  emitMaxTotalSupplyUpdated(...)
-// ║  emitProtocolFeeBipsUpdated(...)
-// ║  emitAnnualInterestAndReserveRatioBipsUpdated(...)
-// ║
-// ║  OPERATION ENCODING
-// ║  emitBorrow(...)
-// ║  emitDrawnAmountUpdated(...)
-// ║  emitMarketClosed(...)
-// ║  emitFeesCollected(...)
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  LIFECYCLE ENCODING CHECKS
-// ║  testFuzz_emitRepaymentEvents_matchesSolidityEncoding(...)
-// ║  testFuzz_emitAccrualRecord_matchesSolidityEncoding(...)
-// ║  test_repaymentErrorsMatchSolidityEncoding()
-// ║
-// ║  CONFIGURATION ENCODING CHECKS
-// ║  test_emitMaxTotalSupplyUpdated_matchesSolidityEncoding()
-// ║  test_emitProtocolFeeBipsUpdated_matchesSolidityEncoding()
-// ║  test_emitAnnualInterestAndReserveRatioBipsUpdated_matchesSolidityEncoding()
-// ║
-// ║  OPERATION ENCODING CHECKS
-// ║  test_emitBorrow_matchesSolidityEncoding()
-// ║  test_emitDrawnAmountUpdated_matchesSolidityEncoding()
-// ║  test_emitMarketClosed_matchesSolidityEncoding()
-// ║  test_emitFeesCollected_matchesSolidityEncoding()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketEvents.t
+//  \ ^ /   Assembly event and error encoding against Solidity references.
+//    V
+//
+//  LIFECYCLE ENCODING
+//  emitRepaymentDateReached(...)
+//  emitDefaultRecorded(...)
+//  emitLifecycleAccrual(...)
+//  revertLifecycle(...)
+//
+//  CONFIGURATION ENCODING
+//  emitMaxTotalSupplyUpdated(...)
+//  emitProtocolFeeBipsUpdated(...)
+//  emitAnnualInterestAndReserveRatioBipsUpdated(...)
+//
+//  OPERATION ENCODING
+//  emitBorrow(...)
+//  emitDrawnAmountUpdated(...)
+//  emitMarketClosed(...)
+//  emitFeesCollected(...)
+//
+//  FIXTURE
+//  setUp()
+//
+//  LIFECYCLE ENCODING CHECKS
+//  testFuzz_emitRepaymentEvents_matchesSolidityEncoding(...)
+//  testFuzz_emitAccrualRecord_matchesSolidityEncoding(...)
+//  test_repaymentErrorsMatchSolidityEncoding()
+//
+//  CONFIGURATION ENCODING CHECKS
+//  test_emitMaxTotalSupplyUpdated_matchesSolidityEncoding()
+//  test_emitProtocolFeeBipsUpdated_matchesSolidityEncoding()
+//  test_emitAnnualInterestAndReserveRatioBipsUpdated_matchesSolidityEncoding()
+//
+//  OPERATION ENCODING CHECKS
+//  test_emitBorrow_matchesSolidityEncoding()
+//  test_emitDrawnAmountUpdated_matchesSolidityEncoding()
+//  test_emitMarketClosed_matchesSolidityEncoding()
+//  test_emitFeesCollected_matchesSolidityEncoding()
+// ═════
 
 import 'src/interfaces/IMarketEventsAndErrors.sol';
 import 'src/libraries/MarketEvents.sol';

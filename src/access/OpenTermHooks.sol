@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // OpenTermHooks
-// ║  ██▀▀     ▀▀██   Open-term hook setup and market configuration queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  METADATA
-// ║  version()
-// ║
-// ║  MARKET QUERIES
-// ║  getHookedMarket(...)
-// ║  getHookedMarkets(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // OpenTermHooks
+//  \ ^ /   Open-term hook setup and market configuration queries.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  METADATA
+//  version()
+//
+//  MARKET QUERIES
+//  getHookedMarket(...)
+//  getHookedMarkets(...)
+// ═════
 
 import './OpenTermPolicy.sol';
 import { HookedMarket } from './types/OpenTermHookTypes.sol';

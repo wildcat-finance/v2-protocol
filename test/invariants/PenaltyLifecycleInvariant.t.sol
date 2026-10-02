@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // PenaltyLifecycleInvariant.t
-// ║  ██▀▀     ▀▀██   Stateful penalty timeline, accounting, and scheduled-drain invariants.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CAMPAIGN SETUP
-// ║  setUp()
-// ║
-// ║  PENALTY INVARIANT
-// ║  invariant_penaltyTimelineAndAccounting()
-// ║
-// ║  FINAL DRAIN
-// ║  afterInvariant()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // PenaltyLifecycleInvariant.t
+//  \ ^ /   Stateful penalty timeline, accounting, and scheduled-drain invariants.
+//    V
+//
+//  CAMPAIGN SETUP
+//  setUp()
+//
+//  PENALTY INVARIANT
+//  invariant_penaltyTimelineAndAccounting()
+//
+//  FINAL DRAIN
+//  afterInvariant()
+// ═════
 
 import { StdInvariant } from 'forge-std/StdInvariant.sol';
 import { PenaltyLifecycleFixture } from './LifecycleFixture.sol';

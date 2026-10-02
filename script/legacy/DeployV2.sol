@@ -1,54 +1,52 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DeployV2
-// ║  ██▀▀     ▀▀██   Legacy Sepolia deployment and market-exercise helpers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ENGINE RULES
-// ║  deactivateAllRules()
-// ║  configureRules(...)
-// ║  addAllowedPatterns(...)
-// ║
-// ║  DEPLOYMENT
-// ║  run()
-// ║  deployAll()
-// ║  forceDeployLens()
-// ║
-// ║  FACTORY PREPARATION
-// ║  _setUpHooksFactory(...)
-// ║  _storeMarketInitCode(...)
-// ║  _getCreationCode(...)
-// ║
-// ║  OWNERSHIP AND BORROWERS
-// ║  _takeOwnershipOfArchController(...)
-// ║  _returnOwnershipOfArchController(...)
-// ║  _registerBorrower(...)
-// ║
-// ║  MARKET CREATION
-// ║  _createMarket(...)
-// ║  _buildMarketConfig(...)
-// ║  _deployMarketAndHooks(...)
-// ║  getHooksTemplateArgs(...)
-// ║  _deployToken(...)
-// ║  deployMarketAddTwoRemoveOne()
-// ║
-// ║  MARKET EXERCISE
-// ║  seedLender(...)
-// ║  _seedMarketFunctions(...)
-// ║  addCloseMarket()
-// ║
-// ║  ASSERTIONS
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DeployV2
+//  \ ^ /   Legacy Sepolia deployment and market-exercise helpers.
+//    V
+//
+//  ENGINE RULES
+//  deactivateAllRules()
+//  configureRules(...)
+//  addAllowedPatterns(...)
+//
+//  DEPLOYMENT
+//  run()
+//  deployAll()
+//  forceDeployLens()
+//
+//  FACTORY PREPARATION
+//  _setUpHooksFactory(...)
+//  _storeMarketInitCode(...)
+//  _getCreationCode(...)
+//
+//  OWNERSHIP AND BORROWERS
+//  _takeOwnershipOfArchController(...)
+//  _returnOwnershipOfArchController(...)
+//  _registerBorrower(...)
+//
+//  MARKET CREATION
+//  _createMarket(...)
+//  _buildMarketConfig(...)
+//  _deployMarketAndHooks(...)
+//  getHooksTemplateArgs(...)
+//  _deployToken(...)
+//  deployMarketAddTwoRemoveOne()
+//
+//  MARKET EXERCISE
+//  seedLender(...)
+//  _seedMarketFunctions(...)
+//  addCloseMarket()
+//
+//  ASSERTIONS
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+// ═════
 
 import 'src/WildcatSanctionsSentinel.sol';
 import 'src/WildcatArchController.sol';

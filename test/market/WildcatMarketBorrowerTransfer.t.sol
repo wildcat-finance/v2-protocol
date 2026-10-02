@@ -1,50 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatMarketBorrowerTransfer.t
-// ║  ██▀▀     ▀▀██   Borrower identity handoff, sanctions, and accounting preservation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _marketParameters(...)
-// ║  _deploymentInputs(...)
-// ║  _packString(...)
-// ║  _registerPrincipal(...)
-// ║  _deployAccount(...)
-// ║  _transferAccountPrincipal(...)
-// ║  _fundAndApprove(...)
-// ║  _deposit(...)
-// ║
-// ║  TRANSFER REQUESTS
-// ║  test_requestReplacementCancellationAndAuthorization()
-// ║  test_requestRejectsInvalidIdentityTargets()
-// ║  test_requestRejectsMalformedRegistryResponses()
-// ║  testFuzz_replacementAcceptsOnlyLatestTarget(...)
-// ║  _request(...)
-// ║  _assertPending(...)
-// ║
-// ║  TRANSFER ACCEPTANCE
-// ║  test_acceptSupportsEveryIdentityTransitionAndRemovedFactory()
-// ║  test_sameAccountPrincipalMigrationBindsPendingPrincipal()
-// ║  _accept(...)
-// ║  _transfer(...)
-// ║
-// ║  IDENTITY AND SANCTIONS
-// ║  test_requestUsesRawSanctionsAndCancellationRemainsAvailable()
-// ║  test_acceptRevalidatesIdentityAndEverySanctionsIdentity()
-// ║  test_borrowChecksOperationalBorrowerAndPrincipalRawSanctions()
-// ║  test_lenderSanctionsNamespaceFollowsBorrowerPrincipal()
-// ║  test_withdrawalEscrowUsesAndRetainsBorrowerPrincipalNamespace()
-// ║  _escrowSanctionedPosition(...)
-// ║
-// ║  ACCOUNTING PRESERVATION
-// ║  test_acceptPreservesActiveDelinquentAndClosedAccounting()
-// ║  _marketStateHash(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatMarketBorrowerTransfer.t
+//  \ ^ /   Borrower identity handoff, sanctions, and accounting preservation.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _marketParameters(...)
+//  _deploymentInputs(...)
+//  _packString(...)
+//  _registerPrincipal(...)
+//  _deployAccount(...)
+//  _transferAccountPrincipal(...)
+//  _fundAndApprove(...)
+//  _deposit(...)
+//
+//  TRANSFER REQUESTS
+//  test_requestReplacementCancellationAndAuthorization()
+//  test_requestRejectsInvalidIdentityTargets()
+//  test_requestRejectsMalformedRegistryResponses()
+//  testFuzz_replacementAcceptsOnlyLatestTarget(...)
+//  _request(...)
+//  _assertPending(...)
+//
+//  TRANSFER ACCEPTANCE
+//  test_acceptSupportsEveryIdentityTransitionAndRemovedFactory()
+//  test_sameAccountPrincipalMigrationBindsPendingPrincipal()
+//  _accept(...)
+//  _transfer(...)
+//
+//  IDENTITY AND SANCTIONS
+//  test_requestUsesRawSanctionsAndCancellationRemainsAvailable()
+//  test_acceptRevalidatesIdentityAndEverySanctionsIdentity()
+//  test_borrowChecksOperationalBorrowerAndPrincipalRawSanctions()
+//  test_lenderSanctionsNamespaceFollowsBorrowerPrincipal()
+//  test_withdrawalEscrowUsesAndRetainsBorrowerPrincipalNamespace()
+//  _escrowSanctionedPosition(...)
+//
+//  ACCOUNTING PRESERVATION
+//  test_acceptPreservesActiveDelinquentAndClosedAccounting()
+//  _marketStateHash(...)
+// ═════
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';

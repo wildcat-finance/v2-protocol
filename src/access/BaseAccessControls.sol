@@ -1,79 +1,77 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // BaseAccessControls
-// ║  ██▀▀     ▀▀██   Hooks authority, providers, credentials, and lender access.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║  _initialize(...)
-// ║
-// ║  ADMINISTRATOR AUTHORITY
-// ║  onlyAdministrator()
-// ║  requestAdministratorTransfer(...)
-// ║  acceptAdministratorTransfer()
-// ║  cancelAdministratorTransfer()
-// ║  _validateAdministratorTransferTarget(...)
-// ║  borrower()
-// ║
-// ║  INSTANCE METADATA
-// ║  setName(...)
-// ║
-// ║  PROVIDER ATTACHMENT
-// ║  createRoleProvider(...)
-// ║  _createRoleProvider(...)
-// ║  addRoleProvider(...)
-// ║  _addRoleProvider(...)
-// ║  _isPullProvider(...)
-// ║
-// ║  PROVIDER REMOVAL
-// ║  removeRoleProvider(...)
-// ║  _removePullProvider(...)
-// ║  _removePushProvider(...)
-// ║
-// ║  PROVIDER QUERIES
-// ║  getRoleProvider(...)
-// ║  getPullProviders()
-// ║  getPushProviders()
-// ║
-// ║  CREDENTIAL GRANTS
-// ║  grantRole(...)
-// ║  grantRoles(...)
-// ║  _grantRole(...)
-// ║  _setCredentialAndEmitAccessGranted(...)
-// ║
-// ║  CREDENTIAL REVOCATION
-// ║  revokeRole(...)
-// ║  revokeRoles(...)
-// ║  _revokeRole(...)
-// ║
-// ║  DEPOSIT BLOCKS
-// ║  blockFromDeposits(...)
-// ║  blockFromDeposits(...)
-// ║  _blockFromDeposits(...)
-// ║  unblockFromDeposits(...)
-// ║
-// ║  CREDENTIAL RESOLUTION
-// ║  getLenderStatus(...)
-// ║  getPreviousLenderStatus(...)
-// ║  _tryValidateAccess(...)
-// ║  _tryValidateAccessInner(...)
-// ║  _canUseCachedCredential(...)
-// ║  _handleHooksData(...)
-// ║  _readAddress(...)
-// ║  _tryValidateCredential(...)
-// ║  _loopTryGetCredential(...)
-// ║  _tryGetCredential(...)
-// ║  _writeLenderStatus(...)
-// ║
-// ║  TRANSFER POLICY
-// ║  _isMarketTransferRecipientAllowed(...)
-// ║  _isRegisteredWrapper(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // BaseAccessControls
+//  \ ^ /   Hooks authority, providers, credentials, and lender access.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//  _initialize(...)
+//
+//  ADMINISTRATOR AUTHORITY
+//  onlyAdministrator()
+//  requestAdministratorTransfer(...)
+//  acceptAdministratorTransfer()
+//  cancelAdministratorTransfer()
+//  _validateAdministratorTransferTarget(...)
+//  borrower()
+//
+//  INSTANCE METADATA
+//  setName(...)
+//
+//  PROVIDER ATTACHMENT
+//  createRoleProvider(...)
+//  _createRoleProvider(...)
+//  addRoleProvider(...)
+//  _addRoleProvider(...)
+//  _isPullProvider(...)
+//
+//  PROVIDER REMOVAL
+//  removeRoleProvider(...)
+//  _removePullProvider(...)
+//  _removePushProvider(...)
+//
+//  PROVIDER QUERIES
+//  getRoleProvider(...)
+//  getPullProviders()
+//  getPushProviders()
+//
+//  CREDENTIAL GRANTS
+//  grantRole(...)
+//  grantRoles(...)
+//  _grantRole(...)
+//  _setCredentialAndEmitAccessGranted(...)
+//
+//  CREDENTIAL REVOCATION
+//  revokeRole(...)
+//  revokeRoles(...)
+//  _revokeRole(...)
+//
+//  DEPOSIT BLOCKS
+//  blockFromDeposits(...)
+//  blockFromDeposits(...)
+//  _blockFromDeposits(...)
+//  unblockFromDeposits(...)
+//
+//  CREDENTIAL RESOLUTION
+//  getLenderStatus(...)
+//  getPreviousLenderStatus(...)
+//  _tryValidateAccess(...)
+//  _tryValidateAccessInner(...)
+//  _canUseCachedCredential(...)
+//  _handleHooksData(...)
+//  _readAddress(...)
+//  _tryValidateCredential(...)
+//  _loopTryGetCredential(...)
+//  _tryGetCredential(...)
+//  _writeLenderStatus(...)
+//
+//  TRANSFER POLICY
+//  _isMarketTransferRecipientAllowed(...)
+//  _isRegisteredWrapper(...)
+// ═════
 
 import '../libraries/BoolUtils.sol';
 import '../types/RoleProvider.sol';

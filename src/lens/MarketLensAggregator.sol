@@ -1,67 +1,65 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensAggregator
-// ║  ██▀▀     ▀▀██   Factory discovery and cross-generation hooks and market reads.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  FACTORY DISCOVERY
-// ║  getActiveHooksFactories()
-// ║  _isHooksFactory(...)
-// ║  _asFactory(...)
-// ║  _containsAddress(...)
-// ║  _shrinkAddressArray(...)
-// ║
-// ║  BORROWER HOOKS DATA
-// ║  getHooksDataForBorrower(...)
-// ║  getHooksDataForBorrower(...)
-// ║  getAggregatedHooksDataForBorrower(...)
-// ║
-// ║  HOOKS INSTANCES
-// ║  getHooksInstancesForBorrower(...)
-// ║  getHooksInstancesForBorrower(...)
-// ║  getAggregatedHooksInstancesForBorrower(...)
-// ║  getAggregatedHooksInstancesForBorrowerWithFactories(...)
-// ║  _containsHooksInstanceAddress(...)
-// ║  _shrinkHooksInstanceArray(...)
-// ║
-// ║  HOOKS TEMPLATES
-// ║  getHooksTemplateForBorrower(...)
-// ║  getHooksTemplateForBorrower(...)
-// ║  getHooksTemplatesForBorrower(...)
-// ║  getHooksTemplatesForBorrower(...)
-// ║  getAllHooksTemplatesForBorrower(...)
-// ║  getAllHooksTemplatesForBorrower(...)
-// ║  getAggregatedAllHooksTemplatesForBorrower(...)
-// ║  getAggregatedHooksTemplatesForBorrowerWithFactory(...)
-// ║  getAggregatedAllHooksTemplatesForBorrowerWithFactories(...)
-// ║  _collectHooksTemplatesByFactory(...)
-// ║  _containsHooksTemplateAddress(...)
-// ║  _shrinkHooksTemplateArray(...)
-// ║  _shrinkFactoryScopedHooksTemplateArray(...)
-// ║
-// ║  TEMPLATE MARKETS
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getAggregatedMarketsForHooksTemplateCount(...)
-// ║  getPaginatedMarketsDataForHooksTemplate(...)
-// ║  getPaginatedMarketsDataForHooksTemplate(...)
-// ║  getPaginatedMarketsDataV2ForHooksTemplate(...)
-// ║  getPaginatedMarketsDataV2ForHooksTemplate(...)
-// ║  getAllMarketsDataForHooksTemplate(...)
-// ║  getAllMarketsDataForHooksTemplate(...)
-// ║  getAllMarketsDataV2ForHooksTemplate(...)
-// ║  getAllMarketsDataV2ForHooksTemplate(...)
-// ║  getAggregatedAllMarketsDataForHooksTemplate(...)
-// ║  getAggregatedAllMarketsDataV2ForHooksTemplate(...)
-// ║  _getAggregatedMarketsForHooksTemplate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensAggregator
+//  \ ^ /   Factory discovery and cross-generation hooks and market reads.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  FACTORY DISCOVERY
+//  getActiveHooksFactories()
+//  _isHooksFactory(...)
+//  _asFactory(...)
+//  _containsAddress(...)
+//  _shrinkAddressArray(...)
+//
+//  BORROWER HOOKS DATA
+//  getHooksDataForBorrower(...)
+//  getHooksDataForBorrower(...)
+//  getAggregatedHooksDataForBorrower(...)
+//
+//  HOOKS INSTANCES
+//  getHooksInstancesForBorrower(...)
+//  getHooksInstancesForBorrower(...)
+//  getAggregatedHooksInstancesForBorrower(...)
+//  getAggregatedHooksInstancesForBorrowerWithFactories(...)
+//  _containsHooksInstanceAddress(...)
+//  _shrinkHooksInstanceArray(...)
+//
+//  HOOKS TEMPLATES
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAggregatedAllHooksTemplatesForBorrower(...)
+//  getAggregatedHooksTemplatesForBorrowerWithFactory(...)
+//  getAggregatedAllHooksTemplatesForBorrowerWithFactories(...)
+//  _collectHooksTemplatesByFactory(...)
+//  _containsHooksTemplateAddress(...)
+//  _shrinkHooksTemplateArray(...)
+//  _shrinkFactoryScopedHooksTemplateArray(...)
+//
+//  TEMPLATE MARKETS
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getAggregatedMarketsForHooksTemplateCount(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAggregatedAllMarketsDataForHooksTemplate(...)
+//  getAggregatedAllMarketsDataV2ForHooksTemplate(...)
+//  _getAggregatedMarketsForHooksTemplate(...)
+// ═════
 
 import '../IHooksFactory.sol';
 import './FactoryScopedHooksTemplateData.sol';

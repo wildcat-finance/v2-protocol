@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MerkleRoleProvider
-// ║  ██▀▀     ▀▀██   Managed Merkle roots and proof-based lender credentials.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  ROOT MANAGEMENT
-// ║  updateRoot(...)
-// ║  isMember(...)
-// ║
-// ║  CREDENTIALS
-// ║  getCredential(...)
-// ║  validateCredential(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MerkleRoleProvider
+//  \ ^ /   Managed Merkle roots and proof-based lender credentials.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  ROOT MANAGEMENT
+//  updateRoot(...)
+//  isMember(...)
+//
+//  CREDENTIALS
+//  getCredential(...)
+//  validateCredential(...)
+// ═════
 
 import 'solady/utils/MerkleProofLib.sol';
 import '../libraries/SafeCastLib.sol';

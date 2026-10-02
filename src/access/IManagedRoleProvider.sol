@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IManagedRoleProvider
-// ║  ██▀▀     ▀▀██   Optional two-step administration for mutable role providers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ADMINISTRATOR TRANSFER
-// ║  requestAdministratorTransfer(...)
-// ║  acceptAdministratorTransfer()
-// ║  cancelAdministratorTransfer()
-// ║
-// ║  AUTHORITY QUERIES
-// ║  administrator()
-// ║  pendingAdministrator()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IManagedRoleProvider
+//  \ ^ /   Optional two-step administration for mutable role providers.
+//    V
+//
+//  ADMINISTRATOR TRANSFER
+//  requestAdministratorTransfer(...)
+//  acceptAdministratorTransfer()
+//  cancelAdministratorTransfer()
+//
+//  AUTHORITY QUERIES
+//  administrator()
+//  pendingAdministrator()
+// ═════
 
 // ┌─ IManagedRoleProvider ─────────────────────────────────────────────────────
 /// @notice optional two-step administration for providers with mutable configuration.

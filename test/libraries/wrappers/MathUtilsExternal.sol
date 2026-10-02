@@ -1,35 +1,33 @@
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MathUtilsExternal
-// ║  ██▀▀     ▀▀██   External adapters for bounded and fixed-point arithmetic.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BOUNDS AND SELECTION
-// ║  min(...)
-// ║  max(...)
-// ║  satSub(...)
-// ║  satAdd(...)
-// ║  ternary(...)
-// ║
-// ║  MULTIPLY AND DIVIDE
-// ║  mulDiv(...)
-// ║  mulDivUp(...)
-// ║
-// ║  BASIS POINTS
-// ║  bipMul(...)
-// ║  bipDiv(...)
-// ║  bipToRay(...)
-// ║
-// ║  RAY ARITHMETIC
-// ║  rayMul(...)
-// ║  rayDiv(...)
-// ║
-// ║  INTEREST
-// ║  calculateLinearInterestFromBips(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MathUtilsExternal
+//  \ ^ /   External adapters for bounded and fixed-point arithmetic.
+//    V
+//
+//  BOUNDS AND SELECTION
+//  min(...)
+//  max(...)
+//  satSub(...)
+//  satAdd(...)
+//  ternary(...)
+//
+//  MULTIPLY AND DIVIDE
+//  mulDiv(...)
+//  mulDivUp(...)
+//
+//  BASIS POINTS
+//  bipMul(...)
+//  bipDiv(...)
+//  bipToRay(...)
+//
+//  RAY ARITHMETIC
+//  rayMul(...)
+//  rayDiv(...)
+//
+//  INTEREST
+//  calculateLinearInterestFromBips(...)
+// ═════
 
 import 'src/libraries/MathUtils.sol';
 

@@ -1,46 +1,44 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IBorrowerIdentityRegistry
-// ║  ██▀▀     ▀▀██   Borrower-account registration, authority transfer, and discovery.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONFIGURATION
-// ║  archController()
-// ║
-// ║  FACTORY AUTHORIZATION
-// ║  addAccountFactory(...)
-// ║  removeAccountFactory(...)
-// ║  isAccountFactory(...)
-// ║  getAccountFactories()
-// ║  getAccountFactories(...)
-// ║  getAccountFactoriesCount()
-// ║
-// ║  ACCOUNT REGISTRATION
-// ║  registerBorrowerAccount(...)
-// ║  accountFactoryOf(...)
-// ║
-// ║  PRINCIPAL TRANSFERS
-// ║  requestBorrowerAccountPrincipalTransfer(...)
-// ║  acceptBorrowerAccountPrincipalTransfer(...)
-// ║  cancelBorrowerAccountPrincipalTransfer(...)
-// ║  principalOf(...)
-// ║  pendingPrincipalOf(...)
-// ║
-// ║  IDENTITY RESOLUTION
-// ║  resolveBorrower(...)
-// ║
-// ║  ACCOUNT ENUMERATION
-// ║  getBorrowerAccounts(...)
-// ║  getBorrowerAccounts(...)
-// ║  getBorrowerAccountsCount(...)
-// ║  getBorrowerAccountsForFactory(...)
-// ║  getBorrowerAccountsForFactory(...)
-// ║  getBorrowerAccountsForFactoryCount(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IBorrowerIdentityRegistry
+//  \ ^ /   Borrower-account registration, authority transfer, and discovery.
+//    V
+//
+//  CONFIGURATION
+//  archController()
+//
+//  FACTORY AUTHORIZATION
+//  addAccountFactory(...)
+//  removeAccountFactory(...)
+//  isAccountFactory(...)
+//  getAccountFactories()
+//  getAccountFactories(...)
+//  getAccountFactoriesCount()
+//
+//  ACCOUNT REGISTRATION
+//  registerBorrowerAccount(...)
+//  accountFactoryOf(...)
+//
+//  PRINCIPAL TRANSFERS
+//  requestBorrowerAccountPrincipalTransfer(...)
+//  acceptBorrowerAccountPrincipalTransfer(...)
+//  cancelBorrowerAccountPrincipalTransfer(...)
+//  principalOf(...)
+//  pendingPrincipalOf(...)
+//
+//  IDENTITY RESOLUTION
+//  resolveBorrower(...)
+//
+//  ACCOUNT ENUMERATION
+//  getBorrowerAccounts(...)
+//  getBorrowerAccounts(...)
+//  getBorrowerAccountsCount(...)
+//  getBorrowerAccountsForFactory(...)
+//  getBorrowerAccountsForFactory(...)
+//  getBorrowerAccountsForFactoryCount(...)
+// ═════
 
 // ┌─ IBorrowerIdentityRegistry ────────────────────────────────────────────────
 /// @title borrower identity registry

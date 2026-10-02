@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // StringQuery
-// ║  ██▀▀     ▀▀██   Strict and best-effort reads of string or bytes32 metadata.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STRING QUERIES
-// ║  queryStringOrBytes32AsString(...)
-// ║  queryStringOrBytes32AsStringOrEmpty(...)
-// ║
-// ║  LEGACY DECODING
-// ║  bytes32ToString(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // StringQuery
+//  \ ^ /   Strict and best-effort reads of string or bytes32 metadata.
+//    V
+//
+//  STRING QUERIES
+//  queryStringOrBytes32AsString(...)
+//  queryStringOrBytes32AsStringOrEmpty(...)
+//
+//  LEGACY DECODING
+//  bytes32ToString(...)
+// ═════
 
 import { LibBit } from 'solady/utils/LibBit.sol';
 

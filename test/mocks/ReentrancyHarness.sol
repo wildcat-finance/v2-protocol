@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ReentrancyHarness
-// ║  ██▀▀     ▀▀██   Stateful and view reentrancy guard test entry points.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STATEFUL CALLS
-// ║  increment()
-// ║  callIncrement()
-// ║  reenterStateful()
-// ║
-// ║  VIEW CALLS
-// ║  readIndex()
-// ║  callRead()
-// ║  reenterView()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ReentrancyHarness
+//  \ ^ /   Stateful and view reentrancy guard test entry points.
+//    V
+//
+//  STATEFUL CALLS
+//  increment()
+//  callIncrement()
+//  reenterStateful()
+//
+//  VIEW CALLS
+//  readIndex()
+//  callRead()
+//  reenterView()
+// ═════
 
 import { ReentrancyGuard } from 'src/ReentrancyGuard.sol';
 

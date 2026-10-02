@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WildcatStructsAndEnums
-// ║  ██▀▀     ▀▀██   Market deployment payloads, fee terms, and parameter bounds.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WildcatStructsAndEnums
+//  \ ^ /   Market deployment payloads, fee terms, and parameter bounds.
+//    V
+//
+// ═════
 
 import { MarketState } from '../libraries/MarketState.sol';
 

@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleOracle
-// ║  ██▀▀     ▀▀██   Independent observed-cash lifecycle and withdrawal accounting model.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  LIFECYCLE PREVIEW
-// ║  preview(...)
-// ║  _accrue(...)
-// ║
-// ║  BATCH FUNDING
-// ║  _payBatch(...)
-// ║  _releaseFraction(...)
-// ║
-// ║  MODEL CLOSURE
-// ║  _close(...)
-// ║
-// ║  REFERENCE CALL BOUNDARY
-// ║  preview(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LifecycleOracle
+//  \ ^ /   Independent observed-cash lifecycle and withdrawal accounting model.
+//    V
+//
+//  LIFECYCLE PREVIEW
+//  preview(...)
+//  _accrue(...)
+//
+//  BATCH FUNDING
+//  _payBatch(...)
+//  _releaseFraction(...)
+//
+//  MODEL CLOSURE
+//  _close(...)
+//
+//  REFERENCE CALL BOUNDARY
+//  preview(...)
+// ═════
 
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { MathUtils, RAY, HALF_RAY } from 'src/libraries/MathUtils.sol';

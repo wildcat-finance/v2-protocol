@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TransientBytesArray
-// ║  ██▀▀     ▀▀██   Transaction-scoped byte storage, clearing, and decoding.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  WRITES
-// ║  write(...)
-// ║  setEmpty(...)
-// ║
-// ║  READS
-// ║  read(...)
-// ║  readToPointer(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TransientBytesArray
+//  \ ^ /   Transaction-scoped byte storage, clearing, and decoding.
+//    V
+//
+//  WRITES
+//  write(...)
+//  setEmpty(...)
+//
+//  READS
+//  read(...)
+//  readToPointer(...)
+// ═════
 
 import {
   Panic_ErrorSelector,

@@ -1,87 +1,85 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLens
-// ║  ██▀▀     ▀▀██   Read facade over core, aggregation, and live-data helpers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  BORROWER HOOKS DATA
-// ║  getHooksDataForBorrower(...)
-// ║  getHooksDataForBorrower(...)
-// ║  getAggregatedHooksDataForBorrower(...)
-// ║
-// ║  HOOKS INSTANCES
-// ║  getHooksInstancesForBorrower(...)
-// ║  getHooksInstancesForBorrower(...)
-// ║  getAggregatedHooksInstancesForBorrower(...)
-// ║
-// ║  HOOKS TEMPLATES
-// ║  getHooksTemplateForBorrower(...)
-// ║  getHooksTemplateForBorrower(...)
-// ║  getHooksTemplatesForBorrower(...)
-// ║  getHooksTemplatesForBorrower(...)
-// ║  getAllHooksTemplatesForBorrower(...)
-// ║  getAllHooksTemplatesForBorrower(...)
-// ║  getAggregatedAllHooksTemplatesForBorrower(...)
-// ║  getAggregatedHooksTemplatesForBorrowerWithFactory(...)
-// ║
-// ║  TOKEN METADATA
-// ║  getTokenInfo(...)
-// ║  getTokensInfo(...)
-// ║
-// ║  MARKET DATA
-// ║  getMarketData(...)
-// ║  getMarketsData(...)
-// ║  getMarketDataV2(...)
-// ║  getMarketsDataV2(...)
-// ║
-// ║  TEMPLATE MARKETS
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getMarketsForHooksTemplateCount(...)
-// ║  getAggregatedMarketsForHooksTemplateCount(...)
-// ║  getPaginatedMarketsDataForHooksTemplate(...)
-// ║  getPaginatedMarketsDataForHooksTemplate(...)
-// ║  getPaginatedMarketsDataV2ForHooksTemplate(...)
-// ║  getPaginatedMarketsDataV2ForHooksTemplate(...)
-// ║  getAllMarketsDataForHooksTemplate(...)
-// ║  getAllMarketsDataForHooksTemplate(...)
-// ║  getAllMarketsDataV2ForHooksTemplate(...)
-// ║  getAllMarketsDataV2ForHooksTemplate(...)
-// ║  getAggregatedAllMarketsDataForHooksTemplate(...)
-// ║  getAggregatedAllMarketsDataV2ForHooksTemplate(...)
-// ║
-// ║  LIVE MARKET DATA
-// ║  getMarketsLiveDataV2(...)
-// ║  getMarketsLiveDataWithLenderStatusV2(...)
-// ║
-// ║  LENDER DATA
-// ║  getMarketDataWithLenderStatus(...)
-// ║  getMarketsDataWithLenderStatus(...)
-// ║  getLenderAccountData(...)
-// ║  getLenderAccountData(...)
-// ║  getLenderAccountsData(...)
-// ║  queryLenderAccount(...)
-// ║  queryLenderAccounts(...)
-// ║
-// ║  WITHDRAWAL BATCHES
-// ║  getWithdrawalBatchData(...)
-// ║  getWithdrawalBatchesData(...)
-// ║  getWithdrawalBatchDataWithLenderStatus(...)
-// ║  getWithdrawalBatchesDataWithLenderStatus(...)
-// ║  getWithdrawalBatchDataWithLendersStatus(...)
-// ║
-// ║  QUERY FORWARDING
-// ║  _delegateCoreHelper()
-// ║  _delegateAggregationHelper()
-// ║  _delegateLiveHelper()
-// ║  _delegate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLens
+//  \ ^ /   Read facade over core, aggregation, and live-data helpers.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  BORROWER HOOKS DATA
+//  getHooksDataForBorrower(...)
+//  getHooksDataForBorrower(...)
+//  getAggregatedHooksDataForBorrower(...)
+//
+//  HOOKS INSTANCES
+//  getHooksInstancesForBorrower(...)
+//  getHooksInstancesForBorrower(...)
+//  getAggregatedHooksInstancesForBorrower(...)
+//
+//  HOOKS TEMPLATES
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplateForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAllHooksTemplatesForBorrower(...)
+//  getAggregatedAllHooksTemplatesForBorrower(...)
+//  getAggregatedHooksTemplatesForBorrowerWithFactory(...)
+//
+//  TOKEN METADATA
+//  getTokenInfo(...)
+//  getTokensInfo(...)
+//
+//  MARKET DATA
+//  getMarketData(...)
+//  getMarketsData(...)
+//  getMarketDataV2(...)
+//  getMarketsDataV2(...)
+//
+//  TEMPLATE MARKETS
+//  getMarketsForHooksTemplateCount(...)
+//  getMarketsForHooksTemplateCount(...)
+//  getAggregatedMarketsForHooksTemplateCount(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getPaginatedMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAllMarketsDataV2ForHooksTemplate(...)
+//  getAggregatedAllMarketsDataForHooksTemplate(...)
+//  getAggregatedAllMarketsDataV2ForHooksTemplate(...)
+//
+//  LIVE MARKET DATA
+//  getMarketsLiveDataV2(...)
+//  getMarketsLiveDataWithLenderStatusV2(...)
+//
+//  LENDER DATA
+//  getMarketDataWithLenderStatus(...)
+//  getMarketsDataWithLenderStatus(...)
+//  getLenderAccountData(...)
+//  getLenderAccountData(...)
+//  getLenderAccountsData(...)
+//  queryLenderAccount(...)
+//  queryLenderAccounts(...)
+//
+//  WITHDRAWAL BATCHES
+//  getWithdrawalBatchData(...)
+//  getWithdrawalBatchesData(...)
+//  getWithdrawalBatchDataWithLenderStatus(...)
+//  getWithdrawalBatchesDataWithLenderStatus(...)
+//  getWithdrawalBatchDataWithLendersStatus(...)
+//
+//  QUERY FORWARDING
+//  _delegateCoreHelper()
+//  _delegateAggregationHelper()
+//  _delegateLiveHelper()
+//  _delegate(...)
+// ═════
 
 import '../IHooksFactory.sol';
 import './FactoryScopedHooksTemplateData.sol';

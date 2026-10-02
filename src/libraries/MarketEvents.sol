@@ -1,61 +1,59 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketEvents
-// ║  ██▀▀     ▀▀██   Canonical market event encoding, ordered by lifecycle.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BORROWER AUTHORITY
-// ║  emit_BorrowerTransferRequested(...)
-// ║  emit_BorrowerTransferred(...)
-// ║  emit_BorrowerTransferCancelled(...)
-// ║
-// ║  CONFIGURATION
-// ║  emit_MaxTotalSupplyUpdated(...)
-// ║  emit_AnnualInterestAndReserveRatioBipsUpdated(...)
-// ║  emit_ProtocolFeeBipsUpdated(...)
-// ║
-// ║  TOKEN ACCOUNTING
-// ║  emit_Approval(...)
-// ║  emit_Transfer(...)
-// ║
-// ║  DEPOSITS AND BORROWING
-// ║  emit_Deposit(...)
-// ║  emit_Borrow(...)
-// ║  emit_DrawnAmountUpdated(...)
-// ║
-// ║  REPAYMENT AND CLOSURE
-// ║  emit_DebtRepaid(...)
-// ║  emit_RepaymentDateReached(...)
-// ║  emit_DefaultRecorded(...)
-// ║  emit_MarketClosed(...)
-// ║
-// ║  PROTOCOL FEES
-// ║  emit_FeesCollected(...)
-// ║
-// ║  STATE UPDATES
-// ║  emit_InterestAndFeesAccrued(...)
-// ║  emit_StateUpdated(...)
-// ║
-// ║  WITHDRAWAL QUEUEING
-// ║  emit_WithdrawalBatchCreated(...)
-// ║  emit_WithdrawalQueued(...)
-// ║
-// ║  BATCH FUNDING
-// ║  emit_WithdrawalBatchExpired(...)
-// ║  emit_WithdrawalBatchPayment(...)
-// ║  emit_WithdrawalBatchClosed(...)
-// ║
-// ║  CLAIM COLLECTION
-// ║  emit_WithdrawalExecuted(...)
-// ║
-// ║  SANCTIONS
-// ║  emit_SanctionedAccountAssetsQueuedForWithdrawal(...)
-// ║  emit_SanctionedAccountWithdrawalSentToEscrow(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketEvents
+//  \ ^ /   Canonical market event encoding, ordered by lifecycle.
+//    V
+//
+//  BORROWER AUTHORITY
+//  emit_BorrowerTransferRequested(...)
+//  emit_BorrowerTransferred(...)
+//  emit_BorrowerTransferCancelled(...)
+//
+//  CONFIGURATION
+//  emit_MaxTotalSupplyUpdated(...)
+//  emit_AnnualInterestAndReserveRatioBipsUpdated(...)
+//  emit_ProtocolFeeBipsUpdated(...)
+//
+//  TOKEN ACCOUNTING
+//  emit_Approval(...)
+//  emit_Transfer(...)
+//
+//  DEPOSITS AND BORROWING
+//  emit_Deposit(...)
+//  emit_Borrow(...)
+//  emit_DrawnAmountUpdated(...)
+//
+//  REPAYMENT AND CLOSURE
+//  emit_DebtRepaid(...)
+//  emit_RepaymentDateReached(...)
+//  emit_DefaultRecorded(...)
+//  emit_MarketClosed(...)
+//
+//  PROTOCOL FEES
+//  emit_FeesCollected(...)
+//
+//  STATE UPDATES
+//  emit_InterestAndFeesAccrued(...)
+//  emit_StateUpdated(...)
+//
+//  WITHDRAWAL QUEUEING
+//  emit_WithdrawalBatchCreated(...)
+//  emit_WithdrawalQueued(...)
+//
+//  BATCH FUNDING
+//  emit_WithdrawalBatchExpired(...)
+//  emit_WithdrawalBatchPayment(...)
+//  emit_WithdrawalBatchClosed(...)
+//
+//  CLAIM COLLECTION
+//  emit_WithdrawalExecuted(...)
+//
+//  SANCTIONS
+//  emit_SanctionedAccountAssetsQueuedForWithdrawal(...)
+//  emit_SanctionedAccountWithdrawalSentToEscrow(...)
+// ═════
 
 import { LifecycleAccrual } from './MarketLifecycle.sol';
 

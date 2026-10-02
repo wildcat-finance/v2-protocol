@@ -1,35 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketState.t
-// ║  ██▀▀     ▀▀██   Supply, share conversion, and reserve-accounting tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SUPPLY AND CAPACITY
-// ║  test_totalSupply(...)
-// ║  test_maximumDeposit()
-// ║
-// ║  SHARE CONVERSION
-// ║  test_normalizeAmount(...)
-// ║  test_normalizeAmount(...)
-// ║  test_scaleAmountDown(...)
-// ║  test_maxScaledSettleableAmount_SaturatesBeforeLiquidityOverflow()
-// ║  test_maxScaledSettleableAmount_IsMaximal(...)
-// ║
-// ║  LIABILITIES AND LIQUIDITY
-// ║  test_totalDebts(...)
-// ║  test_liquidityRequired(...)
-// ║  test_liquidityRequired_NormalizedSupplyPartition(...)
-// ║  test_liquidityRequired_HighScaleReserveRounding()
-// ║  test_borrowableAssets(...)
-// ║  test_withdrawableProtocolFees(...)
-// ║
-// ║  WITHDRAWAL STATUS
-// ║  test_hasPendingExpiredBatch(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketState.t
+//  \ ^ /   Supply, share conversion, and reserve-accounting tests.
+//    V
+//
+//  SUPPLY AND CAPACITY
+//  test_totalSupply(...)
+//  test_maximumDeposit()
+//
+//  SHARE CONVERSION
+//  test_normalizeAmount(...)
+//  test_normalizeAmount(...)
+//  test_scaleAmountDown(...)
+//  test_maxScaledSettleableAmount_SaturatesBeforeLiquidityOverflow()
+//  test_maxScaledSettleableAmount_IsMaximal(...)
+//
+//  LIABILITIES AND LIQUIDITY
+//  test_totalDebts(...)
+//  test_liquidityRequired(...)
+//  test_liquidityRequired_NormalizedSupplyPartition(...)
+//  test_liquidityRequired_HighScaleReserveRounding()
+//  test_borrowableAssets(...)
+//  test_withdrawableProtocolFees(...)
+//
+//  WITHDRAWAL STATUS
+//  test_hasPendingExpiredBatch(...)
+// ═════
 
 import 'src/libraries/MathUtils.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

@@ -1,39 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SphereXConfig.t
-// ║  ██▀▀     ▀▀██   Engine administration, sender registration, and disabled guards.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _newEngine(...)
-// ║  _assertConfig(...)
-// ║
-// ║  ENGINE ADMINISTRATION
-// ║  test_constructor_StoresInitialConfiguration()
-// ║  test_transferAdmin_IsTwoStepAndMovesAuthority()
-// ║  test_transferAdmin_RequiresCurrentAdmin()
-// ║  test_acceptAdmin_RequiresPendingAdmin()
-// ║  test_changeOperator_EmitsAndRequiresAdmin()
-// ║
-// ║  ENGINE SELECTION
-// ║  test_changeEngine_AcceptsDisabledAndCompatibleEngines()
-// ║  test_changeEngine_RejectsIncompatibleEngine()
-// ║  test_changeEngine_RequiresOperator()
-// ║
-// ║  SENDER REGISTRATION
-// ║  test_addSender_AllowsAdminAndOperator()
-// ║  test_addSender_RejectsOutsider()
-// ║  test_addSender_IsNoOpWhenEngineDisabled()
-// ║
-// ║  REGISTERED GUARDS
-// ║  test_registeredConfig_UsesControllerAsOperator()
-// ║  test_registeredGuard_AllowsCallWhenEngineDisabled()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SphereXConfig.t
+//  \ ^ /   Engine administration, sender registration, and disabled guards.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _newEngine(...)
+//  _assertConfig(...)
+//
+//  ENGINE ADMINISTRATION
+//  test_constructor_StoresInitialConfiguration()
+//  test_transferAdmin_IsTwoStepAndMovesAuthority()
+//  test_transferAdmin_RequiresCurrentAdmin()
+//  test_acceptAdmin_RequiresPendingAdmin()
+//  test_changeOperator_EmitsAndRequiresAdmin()
+//
+//  ENGINE SELECTION
+//  test_changeEngine_AcceptsDisabledAndCompatibleEngines()
+//  test_changeEngine_RejectsIncompatibleEngine()
+//  test_changeEngine_RequiresOperator()
+//
+//  SENDER REGISTRATION
+//  test_addSender_AllowsAdminAndOperator()
+//  test_addSender_RejectsOutsider()
+//  test_addSender_IsNoOpWhenEngineDisabled()
+//
+//  REGISTERED GUARDS
+//  test_registeredConfig_UsesControllerAsOperator()
+//  test_registeredGuard_AllowsCallWhenEngineDisabled()
+// ═════
 
 import { SphereXConfig } from 'src/spherex/SphereXConfig.sol';
 import { SphereXProtectedRegisteredBase } from 'src/spherex/SphereXProtectedRegisteredBase.sol';

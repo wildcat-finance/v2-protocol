@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibERC20
-// ║  ██▀▀     ▀▀██   Safe token transfers, balances, and metadata queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TRANSFERS
-// ║  safeTransfer(...)
-// ║  safeTransferFrom(...)
-// ║  safeTransferAll(...)
-// ║
-// ║  BALANCES
-// ║  balanceOf(...)
-// ║
-// ║  METADATA
-// ║  name(...)
-// ║  symbol(...)
-// ║  decimals(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibERC20
+//  \ ^ /   Safe token transfers, balances, and metadata queries.
+//    V
+//
+//  TRANSFERS
+//  safeTransfer(...)
+//  safeTransferFrom(...)
+//  safeTransferAll(...)
+//
+//  BALANCES
+//  balanceOf(...)
+//
+//  METADATA
+//  name(...)
+//  symbol(...)
+//  decimals(...)
+// ═════
 
 import './StringQuery.sol';
 

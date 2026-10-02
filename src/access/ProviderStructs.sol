@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ProviderStructs
-// ║  ██▀▀     ▀▀██   Provider attachment and hooks-instance constructor inputs.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ProviderStructs
+//  \ ^ /   Provider attachment and hooks-instance constructor inputs.
+//    V
+//
+// ═════
 
 /// @notice configuration for creating and attaching a provider during hooks deployment.
 ///

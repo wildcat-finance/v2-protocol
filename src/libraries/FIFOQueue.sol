@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FIFOQueue
-// ║  ██▀▀     ▀▀██   Packed FIFO storage, queue updates, and ordered queries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  QUEUE UPDATES
-// ║  push(...)
-// ║  shift(...)
-// ║  shiftN(...)
-// ║
-// ║  QUEUE QUERIES
-// ║  empty(...)
-// ║  length(...)
-// ║  first(...)
-// ║  at(...)
-// ║  values(...)
-// ║  _valueAt(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FIFOQueue
+//  \ ^ /   Packed FIFO storage, queue updates, and ordered queries.
+//    V
+//
+//  QUEUE UPDATES
+//  push(...)
+//  shift(...)
+//  shiftN(...)
+//
+//  QUEUE QUERIES
+//  empty(...)
+//  length(...)
+//  first(...)
+//  at(...)
+//  values(...)
+//  _valueAt(...)
+// ═════
 
 /// @notice storage queue of packed `uint32` values.
 ///

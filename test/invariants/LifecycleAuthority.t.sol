@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LifecycleAuthority.t
-// ║  ██▀▀     ▀▀██   Lifecycle accounting through authority and collection-policy changes.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  AUTHORITY HANDOFF
-// ║  test_termsAndDefaultSurviveBorrowerPrincipalAndHookAdminTransfers()
-// ║
-// ║  COLLECTION CONFIGURATION
-// ║  test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed()
-// ║  test_replacementAprPolicyCannotLowerRepaymentReserve()
-// ║  test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LifecycleAuthority.t
+//  \ ^ /   Lifecycle accounting through authority and collection-policy changes.
+//    V
+//
+//  AUTHORITY HANDOFF
+//  test_termsAndDefaultSurviveBorrowerPrincipalAndHookAdminTransfers()
+//
+//  COLLECTION CONFIGURATION
+//  test_queueVetoEndsAtRepaymentAndCollectionCannotBeVetoed()
+//  test_replacementAprPolicyCannotLowerRepaymentReserve()
+//  test_allNewModelsRejectEffectiveExecutionHookWithAndWithoutTerms()
+// ═════
 
 import { ProductionMatrixFixture } from '../shared/ProductionMatrixFixture.sol';
 import { MarketFixture } from '../shared/MarketFixture.sol';

@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SafeCastLib
-// ║  ██▀▀     ▀▀██   Checked unsigned narrowing casts with arithmetic panics.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  UNSIGNED CASTS
-// ║  toUint8(...)
-// ║  toUint16(...)
-// ║  toUint24(...)
-// ║  toUint32(...)
-// ║  toUint40(...)
-// ║  toUint48(...)
-// ║  toUint56(...)
-// ║  toUint64(...)
-// ║  toUint72(...)
-// ║  toUint80(...)
-// ║  toUint88(...)
-// ║  toUint96(...)
-// ║  toUint104(...)
-// ║  toUint112(...)
-// ║  toUint120(...)
-// ║  toUint128(...)
-// ║  toUint136(...)
-// ║  toUint144(...)
-// ║  toUint152(...)
-// ║  toUint160(...)
-// ║  toUint168(...)
-// ║  toUint176(...)
-// ║  toUint184(...)
-// ║  toUint192(...)
-// ║  toUint200(...)
-// ║  toUint208(...)
-// ║  toUint216(...)
-// ║  toUint224(...)
-// ║  toUint232(...)
-// ║  toUint240(...)
-// ║  toUint248(...)
-// ║
-// ║  OVERFLOW GUARD
-// ║  _assertNonOverflow(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SafeCastLib
+//  \ ^ /   Checked unsigned narrowing casts with arithmetic panics.
+//    V
+//
+//  UNSIGNED CASTS
+//  toUint8(...)
+//  toUint16(...)
+//  toUint24(...)
+//  toUint32(...)
+//  toUint40(...)
+//  toUint48(...)
+//  toUint56(...)
+//  toUint64(...)
+//  toUint72(...)
+//  toUint80(...)
+//  toUint88(...)
+//  toUint96(...)
+//  toUint104(...)
+//  toUint112(...)
+//  toUint120(...)
+//  toUint128(...)
+//  toUint136(...)
+//  toUint144(...)
+//  toUint152(...)
+//  toUint160(...)
+//  toUint168(...)
+//  toUint176(...)
+//  toUint184(...)
+//  toUint192(...)
+//  toUint200(...)
+//  toUint208(...)
+//  toUint216(...)
+//  toUint224(...)
+//  toUint232(...)
+//  toUint240(...)
+//  toUint248(...)
+//
+//  OVERFLOW GUARD
+//  _assertNonOverflow(...)
+// ═════
 
 import './Errors.sol';
 

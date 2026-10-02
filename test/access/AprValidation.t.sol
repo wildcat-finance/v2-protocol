@@ -1,54 +1,52 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // AprValidation.t
-// ║  ██▀▀     ▀▀██   APR replacement and effective-value validation across terms.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SHARED FIXTURE
-// ║  setUp()
-// ║  _state()
-// ║
-// ║  REPLACEMENT FIXTURES
-// ║  _newReplacement(...)
-// ║  _replacementArtifact(...)
-// ║  _temporaryHashFor(...)
-// ║  _seedFor(...)
-// ║  _proposeFor(...)
-// ║  _proposalHashFor(...)
-// ║
-// ║  REPLACEMENT VALIDATION
-// ║  test_replacementAprCallbackAuthenticatesBeforeFeatureState()
-// ║  test_replacementDefaultSkipsTemporaryReserveEffectsAcrossTerms()
-// ║  test_replacementDefaultRetainsInclusiveAprBounds()
-// ║  test_replacementValidationRejectsEffectiveValuesAndRollsBackSelection()
-// ║  test_replacementFixedMaturityPrecedesEffectiveValueValidation()
-// ║  _assertSelectionLogs(...)
-// ║
-// ║  REPLACEMENT TERM BEHAVIOR
-// ║  test_replacementPeriodicReductionBypassesDefaultOnBothRoutes(...)
-// ║  _replacementReduction(...)
-// ║  test_replacementRetainsAccessTransferScheduleAndManagementChecks()
-// ║
-// ║  PERIODIC EFFECTIVE VALUES
-// ║  test_periodicReduction_ValidatesBothRoutesWithoutDefaultEffects(...)
-// ║  test_periodicReduction_RejectionRestoresProposalOnBothRoutes(...)
-// ║  test_periodicIncrease_ValidatesEffectiveReservesAndRollsBackCancellation()
-// ║  test_periodicEquality_ValidatesRestoredReserveAndRollsBackDefaultEffects()
-// ║  test_dedicatedReduction_PassesEmptyDataEvenWithTrailingCalldata(...)
-// ║  _ready()
-// ║  _reduce(...)
-// ║  _assertChange(...)
-// ║  _proposalHash()
-// ║  _temporaryHash()
-// ║  _seedTemporaryReserve(...)
-// ║
-// ║  ARTIFACT LIMITS
-// ║  test_replacementArtifactsFitRuntimeAndStoredInitcodeLimits()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // AprValidation.t
+//  \ ^ /   APR replacement and effective-value validation across terms.
+//    V
+//
+//  SHARED FIXTURE
+//  setUp()
+//  _state()
+//
+//  REPLACEMENT FIXTURES
+//  _newReplacement(...)
+//  _replacementArtifact(...)
+//  _temporaryHashFor(...)
+//  _seedFor(...)
+//  _proposeFor(...)
+//  _proposalHashFor(...)
+//
+//  REPLACEMENT VALIDATION
+//  test_replacementAprCallbackAuthenticatesBeforeFeatureState()
+//  test_replacementDefaultSkipsTemporaryReserveEffectsAcrossTerms()
+//  test_replacementDefaultRetainsInclusiveAprBounds()
+//  test_replacementValidationRejectsEffectiveValuesAndRollsBackSelection()
+//  test_replacementFixedMaturityPrecedesEffectiveValueValidation()
+//  _assertSelectionLogs(...)
+//
+//  REPLACEMENT TERM BEHAVIOR
+//  test_replacementPeriodicReductionBypassesDefaultOnBothRoutes(...)
+//  _replacementReduction(...)
+//  test_replacementRetainsAccessTransferScheduleAndManagementChecks()
+//
+//  PERIODIC EFFECTIVE VALUES
+//  test_periodicReduction_ValidatesBothRoutesWithoutDefaultEffects(...)
+//  test_periodicReduction_RejectionRestoresProposalOnBothRoutes(...)
+//  test_periodicIncrease_ValidatesEffectiveReservesAndRollsBackCancellation()
+//  test_periodicEquality_ValidatesRestoredReserveAndRollsBackDefaultEffects()
+//  test_dedicatedReduction_PassesEmptyDataEvenWithTrailingCalldata(...)
+//  _ready()
+//  _reduce(...)
+//  _assertChange(...)
+//  _proposalHash()
+//  _temporaryHash()
+//  _seedTemporaryReserve(...)
+//
+//  ARTIFACT LIMITS
+//  test_replacementArtifactsFitRuntimeAndStoredInitcodeLimits()
+// ═════
 
 import { AprChange, AprRoute } from 'src/access/BaseHooks.sol';
 import { BaseHooks } from 'src/access/BaseHooks.sol';

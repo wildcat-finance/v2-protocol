@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketData
-// ║  ██▀▀     ▀▀██   Full market configuration, accounting, and lender views.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET DATA
-// ║  fillMarketsData(...)
-// ║  fillMarketsDataV2(...)
-// ║  fill(...)
-// ║  fill(...)
-// ║  fill(...)
-// ║  fill(...)
-// ║
-// ║  CONFIGURATION AND STATE
-// ║  _isV2Market(...)
-// ║  fillConfig(...)
-// ║  fillTemporaryExcessReserveRatio(...)
-// ║  fillState(...)
-// ║  _tryFillOptionalUint(...)
-// ║
-// ║  WITHDRAWAL BATCHES
-// ║  getUnpaidAndPendingWithdrawalBatches(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketData
+//  \ ^ /   Full market configuration, accounting, and lender views.
+//    V
+//
+//  MARKET DATA
+//  fillMarketsData(...)
+//  fillMarketsDataV2(...)
+//  fill(...)
+//  fill(...)
+//  fill(...)
+//  fill(...)
+//
+//  CONFIGURATION AND STATE
+//  _isV2Market(...)
+//  fillConfig(...)
+//  fillTemporaryExcessReserveRatio(...)
+//  fillState(...)
+//  _tryFillOptionalUint(...)
+//
+//  WITHDRAWAL BATCHES
+//  getUnpaidAndPendingWithdrawalBatches(...)
+// ═════
 
 import './MarketAccountingReader.sol';
 

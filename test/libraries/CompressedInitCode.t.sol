@@ -1,48 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // CompressedInitCode.t
-// ║  ██▀▀     ▀▀██   Compressed storage round trips, limits, and deployment context.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  COMPRESSION AND READING
-// ║  compress(...)
-// ║  read(...)
-// ║
-// ║  CREATE2 ADAPTERS
-// ║  create2Memory(...)
-// ║  create2Calldata(...)
-// ║
-// ║  CONSTRUCTOR PROBE
-// ║  constructor(...)
-// ║
-// ║  MUTATING READER
-// ║  fallback()
-// ║
-// ║  OVERSIZED READER
-// ║  fallback()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  STORAGE ROUND TRIPS
-// ║  testFuzz_roundTripAndExactlyOneStorageContract(...)
-// ║  test_roundTripLengthBoundaries()
-// ║  test_rawStorageRemainsByteExact()
-// ║
-// ║  STORAGE AND READER LIMITS
-// ║  test_compressionRejectsUndeployableInputLength()
-// ║  test_incompressiblePayloadStillEnforcesStorageLimit()
-// ║  test_readerIsStaticAndCapsOutput()
-// ║
-// ║  DEPLOYMENT CONTEXT
-// ║  test_createPreservesFactoryContextAndValue()
-// ║  test_create2HashesOriginalBytesAndRejectsDuplicateSalt()
-// ║  testFuzz_constructorArgsMemoryAndCalldata(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // CompressedInitCode.t
+//  \ ^ /   Compressed storage round trips, limits, and deployment context.
+//    V
+//
+//  COMPRESSION AND READING
+//  compress(...)
+//  read(...)
+//
+//  CREATE2 ADAPTERS
+//  create2Memory(...)
+//  create2Calldata(...)
+//
+//  CONSTRUCTOR PROBE
+//  constructor(...)
+//
+//  MUTATING READER
+//  fallback()
+//
+//  OVERSIZED READER
+//  fallback()
+//
+//  FIXTURE
+//  setUp()
+//
+//  STORAGE ROUND TRIPS
+//  testFuzz_roundTripAndExactlyOneStorageContract(...)
+//  test_roundTripLengthBoundaries()
+//  test_rawStorageRemainsByteExact()
+//
+//  STORAGE AND READER LIMITS
+//  test_compressionRejectsUndeployableInputLength()
+//  test_incompressiblePayloadStillEnforcesStorageLimit()
+//  test_readerIsStaticAndCapsOutput()
+//
+//  DEPLOYMENT CONTEXT
+//  test_createPreservesFactoryContextAndValue()
+//  test_create2HashesOriginalBytesAndRejectsDuplicateSalt()
+//  testFuzz_constructorArgsMemoryAndCalldata(...)
+// ═════
 
 import 'src/libraries/LibCompressedInitCode.sol';
 import './wrappers/LibStoredInitCodeExternal.sol';

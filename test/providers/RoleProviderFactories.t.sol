@@ -1,48 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderFactories.t
-// ║  ██▀▀     ▀▀██   Provider deployment matrices, validation, and hook attachment.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _case(...)
-// ║  _factory(...)
-// ║
-// ║  PROVIDER DEPLOYMENT
-// ║  testFuzz_typedAccessListFactoryCreatesExpectedProvider(...)
-// ║  testFuzz_typedERC20FactoryCreatesExpectedProvider(...)
-// ║  testFuzz_typedERC721FactoryCreatesExpectedProvider(...)
-// ║  testFuzz_typedERC1155FactoryCreatesExpectedProvider(...)
-// ║  testFuzz_typedERC4626FactoryCreatesExpectedProvider(...)
-// ║  testFuzz_typedMerkleFactoryCreatesExpectedProvider(...)
-// ║  test_genericInterfaceCreatesExpectedProviders()
-// ║  test_deploymentEvents()
-// ║  _createTyped(...)
-// ║  _assertProvider(...)
-// ║  _expectDeploymentEvent(...)
-// ║
-// ║  DETERMINISTIC ADDRESSES
-// ║  test_saltsAreNamespacedByCaller()
-// ║  test_duplicateDeploymentsRevert()
-// ║  _computeProviderAddress(...)
-// ║
-// ║  INPUT VALIDATION
-// ║  test_malformedGenericInputsRevert()
-// ║  test_invalidPrimaryAddressesRevert()
-// ║  test_zeroMinimumsRevert()
-// ║  test_invalidTokenInterfacesRevert()
-// ║  test_skippingTokenInterfaceChecksCreatesUsableProviders()
-// ║  test_merkleZeroRootIsAllowed()
-// ║
-// ║  PROVIDER AUTHORITY AND ATTACHMENT
-// ║  test_merkleFactoryHasNoProviderAuthority()
-// ║  test_hookConstructorsCreateAndAttachProviders()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RoleProviderFactories.t
+//  \ ^ /   Provider deployment matrices, validation, and hook attachment.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _case(...)
+//  _factory(...)
+//
+//  PROVIDER DEPLOYMENT
+//  testFuzz_typedAccessListFactoryCreatesExpectedProvider(...)
+//  testFuzz_typedERC20FactoryCreatesExpectedProvider(...)
+//  testFuzz_typedERC721FactoryCreatesExpectedProvider(...)
+//  testFuzz_typedERC1155FactoryCreatesExpectedProvider(...)
+//  testFuzz_typedERC4626FactoryCreatesExpectedProvider(...)
+//  testFuzz_typedMerkleFactoryCreatesExpectedProvider(...)
+//  test_genericInterfaceCreatesExpectedProviders()
+//  test_deploymentEvents()
+//  _createTyped(...)
+//  _assertProvider(...)
+//  _expectDeploymentEvent(...)
+//
+//  DETERMINISTIC ADDRESSES
+//  test_saltsAreNamespacedByCaller()
+//  test_duplicateDeploymentsRevert()
+//  _computeProviderAddress(...)
+//
+//  INPUT VALIDATION
+//  test_malformedGenericInputsRevert()
+//  test_invalidPrimaryAddressesRevert()
+//  test_zeroMinimumsRevert()
+//  test_invalidTokenInterfacesRevert()
+//  test_skippingTokenInterfaceChecksCreatesUsableProviders()
+//  test_merkleZeroRootIsAllowed()
+//
+//  PROVIDER AUTHORITY AND ATTACHMENT
+//  test_merkleFactoryHasNoProviderAuthority()
+//  test_hookConstructorsCreateAndAttachProviders()
+// ═════
 
 import { IManagedRoleProvider } from 'src/access/IManagedRoleProvider.sol';
 import { IRoleProvider } from 'src/access/IRoleProvider.sol';

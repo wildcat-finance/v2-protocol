@@ -1,35 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HookArtifactCommitment.t
-// ║  ██▀▀     ▀▀██   Hook artifact commitments at registration and deployment.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MUTABLE CODE TARGET
-// ║  setCode(...)
-// ║  fallback()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _register(...)
-// ║
-// ║  ARTIFACT REGISTRATION
-// ║  test_registrationCommitsArtifactForRawAndCompressedStores()
-// ║  testFuzz_registrationRejectsWrongHashWithoutWritingState(...)
-// ║  test_registrationRequiresTheNewHashArgument()
-// ║
-// ║  STANDALONE DEPLOYMENT INTEGRITY
-// ║  test_changedDecodedBytesRejectedBeforeStandaloneConstructor()
-// ║  test_readerChangingAfterRegistrationCannotDeployDifferentCode()
-// ║  _expectStandaloneMismatch(...)
-// ║
-// ║  COMBINED DEPLOYMENT INTEGRITY
-// ║  test_combinedDeploymentRejectsBeforeHookOrMarketAndCanRetry()
-// ║  _combined(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HookArtifactCommitment.t
+//  \ ^ /   Hook artifact commitments at registration and deployment.
+//    V
+//
+//  MUTABLE CODE TARGET
+//  setCode(...)
+//  fallback()
+//
+//  FIXTURE
+//  setUp()
+//  _register(...)
+//
+//  ARTIFACT REGISTRATION
+//  test_registrationCommitsArtifactForRawAndCompressedStores()
+//  testFuzz_registrationRejectsWrongHashWithoutWritingState(...)
+//  test_registrationRequiresTheNewHashArgument()
+//
+//  STANDALONE DEPLOYMENT INTEGRITY
+//  test_changedDecodedBytesRejectedBeforeStandaloneConstructor()
+//  test_readerChangingAfterRegistrationCannotDeployDifferentCode()
+//  _expectStandaloneMismatch(...)
+//
+//  COMBINED DEPLOYMENT INTEGRITY
+//  test_combinedDeploymentRejectsBeforeHookOrMarketAndCanRetry()
+//  _combined(...)
+// ═════
 
 import './SingleStorageDeployment.t.sol';
 import { IHooksFactory, IHooksFactoryEventsAndErrors } from 'src/IHooksFactory.sol';

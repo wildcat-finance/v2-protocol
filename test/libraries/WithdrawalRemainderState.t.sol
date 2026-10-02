@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalRemainderState.t
-// ║  ██▀▀     ▀▀██   Withdrawal carry, reserve monotonicity, and debt partitions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  RESERVE PARTITION
-// ║  test_carryPartitionCannotExceedFullyReservedDebt()
-// ║  testFuzz_reservesRemainMonotonicAndBounded(...)
-// ║  testFuzz_unifiedPartitionMatchesOriginalEndpointsAndIntermediateRatios(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalRemainderState.t
+//  \ ^ /   Withdrawal carry, reserve monotonicity, and debt partitions.
+//    V
+//
+//  RESERVE PARTITION
+//  test_carryPartitionCannotExceedFullyReservedDebt()
+//  testFuzz_reservesRemainMonotonicAndBounded(...)
+//  testFuzz_unifiedPartitionMatchesOriginalEndpointsAndIntermediateRatios(...)
+// ═════
 
 import { MarketState } from 'src/libraries/MarketState.sol';
 import { RAY, HALF_RAY, BIP, HALF_BIP } from 'src/libraries/MathUtils.sol';

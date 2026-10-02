@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // FixedTermManagementHooks
-// ║  ██▀▀     ▀▀██   Test-only maturity notice and reduction-budget constraints.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TERM LIMITS
-// ║  constructor(...)
-// ║  setTermChangeLimits(...)
-// ║
-// ║  TERM CHANGE VALIDATION
-// ║  _validateFixedTermChange(...)
-// ║  _afterFixedTermChange(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // FixedTermManagementHooks
+//  \ ^ /   Test-only maturity notice and reduction-budget constraints.
+//    V
+//
+//  TERM LIMITS
+//  constructor(...)
+//  setTermChangeLimits(...)
+//
+//  TERM CHANGE VALIDATION
+//  _validateFixedTermChange(...)
+//  _afterFixedTermChange(...)
+// ═════
 
 import { FixedTermHooks } from 'src/access/FixedTermHooks.sol';
 

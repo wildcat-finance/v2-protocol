@@ -1,58 +1,56 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketMocks
-// ║  ██▀▀     ▀▀██   Protocol-fee read probes and market APR callback responses.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FEE PROBE SETUP
-// ║  version()
-// ║  config()
-// ║  _onCreateMarket(...)
-// ║
-// ║  DEPOSIT FEE PROBE
-// ║  onDeposit(...)
-// ║
-// ║  FEE PROBE PASSIVE CALLBACKS
-// ║  onTransfer(...)
-// ║  onQueueWithdrawal(...)
-// ║  onExecuteWithdrawal(...)
-// ║  onBorrow(...)
-// ║  onRepay(...)
-// ║  onCloseMarket(...)
-// ║  onSetMaxTotalSupply(...)
-// ║  onSetProtocolFeeBips(...)
-// ║  onNukeFromOrbit(...)
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║
-// ║  APR HOOK SETUP
-// ║  version()
-// ║  config()
-// ║  _onCreateMarket(...)
-// ║
-// ║  APR UPDATES
-// ║  setAprAndReserveRatioReturn(...)
-// ║  onSetAnnualInterestAndReserveRatioBips(...)
-// ║
-// ║  PENDING APR REDUCTIONS
-// ║  setPendingAnnualInterestBipsReduction(...)
-// ║  executePendingAnnualInterestBipsReduction(...)
-// ║
-// ║  APR HOOK PASSIVE CALLBACKS
-// ║  onDeposit(...)
-// ║  onTransfer(...)
-// ║  onQueueWithdrawal(...)
-// ║  onExecuteWithdrawal(...)
-// ║  onBorrow(...)
-// ║  onRepay(...)
-// ║  onCloseMarket(...)
-// ║  onSetMaxTotalSupply(...)
-// ║  onSetProtocolFeeBips(...)
-// ║  onNukeFromOrbit(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketMocks
+//  \ ^ /   Protocol-fee read probes and market APR callback responses.
+//    V
+//
+//  FEE PROBE SETUP
+//  version()
+//  config()
+//  _onCreateMarket(...)
+//
+//  DEPOSIT FEE PROBE
+//  onDeposit(...)
+//
+//  FEE PROBE PASSIVE CALLBACKS
+//  onTransfer(...)
+//  onQueueWithdrawal(...)
+//  onExecuteWithdrawal(...)
+//  onBorrow(...)
+//  onRepay(...)
+//  onCloseMarket(...)
+//  onSetMaxTotalSupply(...)
+//  onSetProtocolFeeBips(...)
+//  onNukeFromOrbit(...)
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//
+//  APR HOOK SETUP
+//  version()
+//  config()
+//  _onCreateMarket(...)
+//
+//  APR UPDATES
+//  setAprAndReserveRatioReturn(...)
+//  onSetAnnualInterestAndReserveRatioBips(...)
+//
+//  PENDING APR REDUCTIONS
+//  setPendingAnnualInterestBipsReduction(...)
+//  executePendingAnnualInterestBipsReduction(...)
+//
+//  APR HOOK PASSIVE CALLBACKS
+//  onDeposit(...)
+//  onTransfer(...)
+//  onQueueWithdrawal(...)
+//  onExecuteWithdrawal(...)
+//  onBorrow(...)
+//  onRepay(...)
+//  onCloseMarket(...)
+//  onSetMaxTotalSupply(...)
+//  onSetProtocolFeeBips(...)
+//  onNukeFromOrbit(...)
+// ═════
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { DeployMarketInputs } from 'src/interfaces/WildcatStructsAndEnums.sol';

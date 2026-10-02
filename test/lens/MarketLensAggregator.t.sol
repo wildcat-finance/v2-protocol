@@ -1,37 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensAggregator.t
-// ║  ██▀▀     ▀▀██   Factory-scoped and aggregate hook and market lens reads.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _configureFactories()
-// ║  _newFactory()
-// ║  _newHooks(...)
-// ║  _newAggregator(...)
-// ║  _setTemplate(...)
-// ║
-// ║  FACTORY DISCOVERY
-// ║  test_activeFactories_FilterControllersAndAppendValidDefault()
-// ║
-// ║  HOOK AGGREGATION
-// ║  test_directAndFactoryParameterizedReads_PreserveScopeAndFeeData()
-// ║  test_templateCommitments_KeepFactoryScopeAndLegacyAbsence()
-// ║  test_aggregationHelpers_DedupeFirstSeenAndIsolateFactoryFailures()
-// ║  test_discoveredAggregation_ReturnsUnifiedAndFactoryScopedViews()
-// ║  _assertTemplate(...)
-// ║  _assertInstance(...)
-// ║
-// ║  MARKET AGGREGATION
-// ║  test_directMarketReads_RespectFactoryAndPagination()
-// ║  test_aggregatedMarketReads_DedupeStableOrderAndSkipReverts()
-// ║  test_templateWideMarketReads_AcceptBytes32UnderlyingMetadata()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensAggregator.t
+//  \ ^ /   Factory-scoped and aggregate hook and market lens reads.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _configureFactories()
+//  _newFactory()
+//  _newHooks(...)
+//  _newAggregator(...)
+//  _setTemplate(...)
+//
+//  FACTORY DISCOVERY
+//  test_activeFactories_FilterControllersAndAppendValidDefault()
+//
+//  HOOK AGGREGATION
+//  test_directAndFactoryParameterizedReads_PreserveScopeAndFeeData()
+//  test_templateCommitments_KeepFactoryScopeAndLegacyAbsence()
+//  test_aggregationHelpers_DedupeFirstSeenAndIsolateFactoryFailures()
+//  test_discoveredAggregation_ReturnsUnifiedAndFactoryScopedViews()
+//  _assertTemplate(...)
+//  _assertInstance(...)
+//
+//  MARKET AGGREGATION
+//  test_directMarketReads_RespectFactoryAndPagination()
+//  test_aggregatedMarketReads_DedupeStableOrderAndSkipReverts()
+//  test_templateWideMarketReads_AcceptBytes32UnderlyingMetadata()
+// ═════
 
 import { FactoryScopedHooksTemplateData } from 'src/lens/FactoryScopedHooksTemplateData.sol';
 import { HooksDataForBorrower } from 'src/lens/HooksDataForBorrower.sol';

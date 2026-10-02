@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IERC1155RoleProviderFactory
-// ║  ██▀▀     ▀▀██   ERC1155 provider deployment inputs and address prediction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  DEPLOYMENT
-// ║  createERC1155RoleProvider(...)
-// ║
-// ║  ADDRESS PREDICTION
-// ║  computeRoleProviderAddress(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IERC1155RoleProviderFactory
+//  \ ^ /   ERC1155 provider deployment inputs and address prediction.
+//    V
+//
+//  DEPLOYMENT
+//  createERC1155RoleProvider(...)
+//
+//  ADDRESS PREDICTION
+//  computeRoleProviderAddress(...)
+// ═════
 
 import '../access/IRoleProviderFactory.sol';
 

@@ -1,32 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // update-template-fee-recipient.s
-// ║  ██▀▀     ▀▀██   Sepolia template fee-recipient repair and verification.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  AUTHORITY
-// ║  archController()
-// ║  authorizedAccounts(...)
-// ║  executeProtocolAction(...)
-// ║
-// ║  FEE RECIPIENT REPAIR
-// ║  run()
-// ║
-// ║  PREFLIGHT
-// ║  _preflight(...)
-// ║  _requireRecordedAddress(...)
-// ║  _targets()
-// ║  _preflightTemplate(...)
-// ║  _assertExpectedTemplate(...)
-// ║
-// ║  TEMPLATE UPDATES
-// ║  _updateTemplate(...)
-// ║  _assertUpdate(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // update-template-fee-recipient.s
+//  \ ^ /   Sepolia template fee-recipient repair and verification.
+//    V
+//
+//  AUTHORITY
+//  archController()
+//  authorizedAccounts(...)
+//  executeProtocolAction(...)
+//
+//  FEE RECIPIENT REPAIR
+//  run()
+//
+//  PREFLIGHT
+//  _preflight(...)
+//  _requireRecordedAddress(...)
+//  _targets()
+//  _preflightTemplate(...)
+//  _assertExpectedTemplate(...)
+//
+//  TEMPLATE UPDATES
+//  _updateTemplate(...)
+//  _assertUpdate(...)
+// ═════
 
 // Sepolia-only repair for the v2.5 template fee recipient.
 //

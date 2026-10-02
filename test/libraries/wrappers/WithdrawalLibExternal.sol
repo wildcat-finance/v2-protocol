@@ -1,16 +1,14 @@
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // WithdrawalLibExternal
-// ║  ██▀▀     ▀▀██   External adapters for withdrawal debt and batch liquidity.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BATCH FUNDING
-// ║  $scaledOwedAmount(...)
-// ║  $availableLiquidityForPendingBatch(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // WithdrawalLibExternal
+//  \ ^ /   External adapters for withdrawal debt and batch liquidity.
+//    V
+//
+//  BATCH FUNDING
+//  $scaledOwedAmount(...)
+//  $availableLiquidityForPendingBatch(...)
+// ═════
 
 import { WithdrawalBatch, WithdrawalLib, MarketState } from 'src/libraries/Withdrawal.sol';
 

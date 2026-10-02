@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RevolvingInterestDustReview.t
-// ║  ██▀▀     ▀▀██   Characterization of revolving-interest representation boundaries.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _reviewMarket(...)
-// ║
-// ║  INTEREST REPRESENTATION
-// ║  test_sixDecimalSmallestDrawHasNonzeroRateAtObservedSizedSupplies()
-// ║  test_eighteenDecimalRepeatedCheckpointsLoseElevenAtomsAcrossHooks()
-// ║  test_eighteenDecimalExactThresholdRetainsOneRayAcrossHooks()
-// ║  test_representationBoundaryIsNotAUniversalEconomicBound()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RevolvingInterestDustReview.t
+//  \ ^ /   Characterization of revolving-interest representation boundaries.
+//    V
+//
+//  FIXTURE
+//  _reviewMarket(...)
+//
+//  INTEREST REPRESENTATION
+//  test_sixDecimalSmallestDrawHasNonzeroRateAtObservedSizedSupplies()
+//  test_eighteenDecimalRepeatedCheckpointsLoseElevenAtomsAcrossHooks()
+//  test_eighteenDecimalExactThresholdRetainsOneRayAcrossHooks()
+//  test_representationBoundaryIsNotAUniversalEconomicBound()
+// ═════
 
 import { MockERC20 } from 'solmate/test/utils/mocks/MockERC20.sol';
 import { MathUtils, RAY, SECONDS_IN_365_DAYS } from 'src/libraries/MathUtils.sol';

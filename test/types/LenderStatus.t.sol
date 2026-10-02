@@ -1,35 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LenderStatus.t
-// ║  ██▀▀     ▀▀██   Credential updates, presence, and saturated expiry tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CREDENTIAL UPDATE ADAPTERS
-// ║  setCredential(...)
-// ║  unsetCredential(...)
-// ║
-// ║  CREDENTIAL QUERY ADAPTERS
-// ║  hasCredential(...)
-// ║  credentialExpired(...)
-// ║  credentialNotExpired(...)
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _provider(...)
-// ║
-// ║  CREDENTIAL UPDATES
-// ║  test_setCredential(...)
-// ║  test_unsetCredential(...)
-// ║
-// ║  CREDENTIAL QUERIES
-// ║  test_hasCredential(...)
-// ║  test_credentialExpired(...)
-// ║  _expiry(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LenderStatus.t
+//  \ ^ /   Credential updates, presence, and saturated expiry tests.
+//    V
+//
+//  CREDENTIAL UPDATE ADAPTERS
+//  setCredential(...)
+//  unsetCredential(...)
+//
+//  CREDENTIAL QUERY ADAPTERS
+//  hasCredential(...)
+//  credentialExpired(...)
+//  credentialNotExpired(...)
+//
+//  FIXTURE
+//  setUp()
+//  _provider(...)
+//
+//  CREDENTIAL UPDATES
+//  test_setCredential(...)
+//  test_unsetCredential(...)
+//
+//  CREDENTIAL QUERIES
+//  test_hasCredential(...)
+//  test_credentialExpired(...)
+//  _expiry(...)
+// ═════
 
 import { LenderStatus } from 'src/types/LenderStatus.sol';
 import { NullProviderIndex, RoleProvider, encodeRoleProvider } from 'src/types/RoleProvider.sol';

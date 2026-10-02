@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IHooksAdministrator
-// ║  ██▀▀     ▀▀██   Hooks authority transfers and factory index synchronization.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ADMINISTRATOR TRANSFER
-// ║  requestAdministratorTransfer(...)
-// ║  acceptAdministratorTransfer()
-// ║  cancelAdministratorTransfer()
-// ║
-// ║  AUTHORITY QUERIES
-// ║  administrator()
-// ║  pendingAdministrator()
-// ║
-// ║  FACTORY CALLBACK
-// ║  onHooksAdministratorTransferred(...)
-// ║  archController()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IHooksAdministrator
+//  \ ^ /   Hooks authority transfers and factory index synchronization.
+//    V
+//
+//  ADMINISTRATOR TRANSFER
+//  requestAdministratorTransfer(...)
+//  acceptAdministratorTransfer()
+//  cancelAdministratorTransfer()
+//
+//  AUTHORITY QUERIES
+//  administrator()
+//  pendingAdministrator()
+//
+//  FACTORY CALLBACK
+//  onHooksAdministratorTransferred(...)
+//  archController()
+// ═════
 
 // ┌─ IHooksAdministrator ──────────────────────────────────────────────────────
 /// @notice two-step authority transfer used by administered hooks instances.

@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Deploy4626Factory
-// ║  ██▀▀     ▀▀██   Validate a market and deploy or discover its wrapper.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  MARKET QUERIES
-// ║  borrower()
-// ║  hooks()
-// ║
-// ║  DEPLOYMENT
-// ║  run()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Deploy4626Factory
+//  \ ^ /   Validate a market and deploy or discover its wrapper.
+//    V
+//
+//  MARKET QUERIES
+//  borrower()
+//  hooks()
+//
+//  DEPLOYMENT
+//  run()
+// ═════
 
 import 'forge-std/Script.sol';
 import { console } from 'forge-std/console.sol';

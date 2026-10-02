@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketAccountingReader.t
-// ║  ██▀▀     ▀▀██   Legacy and extended market accounting response validation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCOUNTING RESPONSES
-// ║  set(...)
-// ║  fallback(...)
-// ║
-// ║  STATE READS
-// ║  test_legacyAndExtendedStatePreserveAllFields()
-// ║  readState(...)
-// ║
-// ║  BATCH READS
-// ║  test_legacyAndExtendedBatchPreserveWideCounters()
-// ║  readBatch(...)
-// ║
-// ║  MALFORMED RESPONSES
-// ║  test_rejectsTruncatedAndDirtyResponsesAndBubblesReverts()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketAccountingReader.t
+//  \ ^ /   Legacy and extended market accounting response validation.
+//    V
+//
+//  ACCOUNTING RESPONSES
+//  set(...)
+//  fallback(...)
+//
+//  STATE READS
+//  test_legacyAndExtendedStatePreserveAllFields()
+//  readState(...)
+//
+//  BATCH READS
+//  test_legacyAndExtendedBatchPreserveWideCounters()
+//  readBatch(...)
+//
+//  MALFORMED RESPONSES
+//  test_rejectsTruncatedAndDirtyResponsesAndBubblesReverts()
+// ═════
 
 import { MarketAccountingReader } from 'src/lens/MarketAccountingReader.sol';
 import { WildcatMarket } from 'src/market/WildcatMarket.sol';

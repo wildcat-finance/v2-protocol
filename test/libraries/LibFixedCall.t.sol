@@ -1,44 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibFixedCall.t
-// ║  ██▀▀     ▀▀██   Bounded word and boolean staticcall equivalence tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  WORD READERS
-// ║  referenceWord(...)
-// ║  candidateWord(...)
-// ║
-// ║  BOOLEAN READERS
-// ║  referenceBool(...)
-// ║  candidateBool(...)
-// ║
-// ║  CONFIGURABLE RESPONSES
-// ║  configure(...)
-// ║  fallback()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  BOOLEAN RESPONSES
-// ║  testFuzz_boolMatchesSolidity(...)
-// ║  testFuzz_boolValidWithTrailingData(...)
-// ║  test_boolRejectsEveryShortLength()
-// ║  testFuzz_boolRejectsDirtyWord(...)
-// ║  test_boolRejectsEmptyAccount()
-// ║  _compare(...)
-// ║
-// ║  WORD RESPONSES
-// ║  testFuzz_wordMatchesSolidity(...)
-// ║  testFuzz_wordValidWithTrailingData(...)
-// ║  test_wordRejectsEveryShortLength()
-// ║  testFuzz_wordPreservesFullWidth(...)
-// ║  test_wordRejectsEmptyAccount()
-// ║  _compareWord(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibFixedCall.t
+//  \ ^ /   Bounded word and boolean staticcall equivalence tests.
+//    V
+//
+//  WORD READERS
+//  referenceWord(...)
+//  candidateWord(...)
+//
+//  BOOLEAN READERS
+//  referenceBool(...)
+//  candidateBool(...)
+//
+//  CONFIGURABLE RESPONSES
+//  configure(...)
+//  fallback()
+//
+//  FIXTURE
+//  setUp()
+//
+//  BOOLEAN RESPONSES
+//  testFuzz_boolMatchesSolidity(...)
+//  testFuzz_boolValidWithTrailingData(...)
+//  test_boolRejectsEveryShortLength()
+//  testFuzz_boolRejectsDirtyWord(...)
+//  test_boolRejectsEmptyAccount()
+//  _compare(...)
+//
+//  WORD RESPONSES
+//  testFuzz_wordMatchesSolidity(...)
+//  testFuzz_wordValidWithTrailingData(...)
+//  test_wordRejectsEveryShortLength()
+//  testFuzz_wordPreservesFullWidth(...)
+//  test_wordRejectsEmptyAccount()
+//  _compareWord(...)
+// ═════
 
 import 'src/libraries/LibFixedCall.sol';
 import 'src/interfaces/IWildcatArchController.sol';

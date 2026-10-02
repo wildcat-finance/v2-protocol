@@ -1,34 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketConstraintHooks.t
-// ║  ██▀▀     ▀▀██   Market parameter bounds and temporary reserve-ratio tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _createMarket(...)
-// ║
-// ║  MARKET CONSTRAINTS
-// ║  test_onCreateMarket_EnforcesAndAdvertisesEveryParameterConstraint()
-// ║
-// ║  APR AND RESERVE UPDATES
-// ║  test_onSetApr_CalculatesTemporaryReserveRatio(...)
-// ║  test_onSetApr_PreservesQuarterBoundaryAndRoundsOnlyAfterComparison()
-// ║  test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry()
-// ║  test_onSetApr_CancelsOrExpiresAndRestoresOriginalReserveRatio()
-// ║  test_onSetApr_FurtherReductionAfterExpiryStartsANewWindow()
-// ║  test_onSetApr_IncreaseOrEqualityDoesNotCreateTemporaryState(...)
-// ║  _setApr(...)
-// ║  _activateReduction(...)
-// ║
-// ║  RESERVE ASSERTIONS
-// ║  _assertTemporaryReserveRatio(...)
-// ║  _expectedTemporaryReserveRatio(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketConstraintHooks.t
+//  \ ^ /   Market parameter bounds and temporary reserve-ratio tests.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _createMarket(...)
+//
+//  MARKET CONSTRAINTS
+//  test_onCreateMarket_EnforcesAndAdvertisesEveryParameterConstraint()
+//
+//  APR AND RESERVE UPDATES
+//  test_onSetApr_CalculatesTemporaryReserveRatio(...)
+//  test_onSetApr_PreservesQuarterBoundaryAndRoundsOnlyAfterComparison()
+//  test_onSetApr_UpdatesActiveReductionAndPreservesOrExtendsExpiry()
+//  test_onSetApr_CancelsOrExpiresAndRestoresOriginalReserveRatio()
+//  test_onSetApr_FurtherReductionAfterExpiryStartsANewWindow()
+//  test_onSetApr_IncreaseOrEqualityDoesNotCreateTemporaryState(...)
+//  _setApr(...)
+//  _activateReduction(...)
+//
+//  RESERVE ASSERTIONS
+//  _assertTemporaryReserveRatio(...)
+//  _expectedTemporaryReserveRatio(...)
+// ═════
 
 import { MarketConstraintHooks } from 'src/access/MarketConstraintHooks.sol';
 import { OpenTermHooks } from 'src/access/OpenTermHooks.sol';

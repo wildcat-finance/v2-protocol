@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MockRoleProvider
-// ║  ██▀▀     ▀▀██   Configurable pull and push credential responses.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  PROVIDER BEHAVIOR
-// ║  setIsPullProvider(...)
-// ║  setCallShouldRevert(...)
-// ║  setCallShouldReturnCorruptedData(...)
-// ║
-// ║  PULL CREDENTIALS
-// ║  setCredential(...)
-// ║  getCredential(...)
-// ║
-// ║  PUSH CREDENTIALS
-// ║  approveCredentialData(...)
-// ║  validateCredential(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockRoleProvider
+//  \ ^ /   Configurable pull and push credential responses.
+//    V
+//
+//  PROVIDER BEHAVIOR
+//  setIsPullProvider(...)
+//  setCallShouldRevert(...)
+//  setCallShouldReturnCorruptedData(...)
+//
+//  PULL CREDENTIALS
+//  setCredential(...)
+//  getCredential(...)
+//
+//  PUSH CREDENTIALS
+//  approveCredentialData(...)
+//  validateCredential(...)
+// ═════
 
 import { IRoleProvider } from 'src/access/IRoleProvider.sol';
 

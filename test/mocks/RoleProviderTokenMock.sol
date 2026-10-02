@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // RoleProviderTokenMock
-// ║  ██▀▀     ▀▀██   Configurable token balances, ownership, and capabilities.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  TOKEN CAPABILITIES
-// ║  setInterfaceBehavior(...)
-// ║  supportsInterface(...)
-// ║  setReadReverts(...)
-// ║
-// ║  TOKEN BALANCES
-// ║  setBalance(...)
-// ║  setBalance(...)
-// ║  balanceOf(...)
-// ║  balanceOf(...)
-// ║
-// ║  ASSET CONVERSION
-// ║  setAssetsPerShare(...)
-// ║  convertToAssets(...)
-// ║
-// ║  TOKEN OWNERSHIP
-// ║  setOwner(...)
-// ║  ownerOf(...)
-// ║
-// ║  SOULBOUND STATUS
-// ║  setLocked(...)
-// ║  locked(...)
-// ║  setBurnAuth(...)
-// ║  burnAuth(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // RoleProviderTokenMock
+//  \ ^ /   Configurable token balances, ownership, and capabilities.
+//    V
+//
+//  TOKEN CAPABILITIES
+//  setInterfaceBehavior(...)
+//  supportsInterface(...)
+//  setReadReverts(...)
+//
+//  TOKEN BALANCES
+//  setBalance(...)
+//  setBalance(...)
+//  balanceOf(...)
+//  balanceOf(...)
+//
+//  ASSET CONVERSION
+//  setAssetsPerShare(...)
+//  convertToAssets(...)
+//
+//  TOKEN OWNERSHIP
+//  setOwner(...)
+//  ownerOf(...)
+//
+//  SOULBOUND STATUS
+//  setLocked(...)
+//  locked(...)
+//  setBurnAuth(...)
+//  burnAuth(...)
+// ═════
 
 // ┌─ RoleProviderTokenMock ────────────────────────────────────────────────────
 contract RoleProviderTokenMock {

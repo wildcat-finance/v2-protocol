@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LibSplitInitCode
-// ║  ██▀▀     ▀▀██   Split creation-code storage and runtime reconstruction.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STORAGE DEPLOYMENT
-// ║  deployInitCode(...)
-// ║  _deployRuntime(...)
-// ║
-// ║  CHUNK ENCODING
-// ║  getSecondaryRuntime(...)
-// ║  getPrimaryRuntime(...)
-// ║  _firstLength(...)
-// ║  _slice(...)
-// ║  firstChunkCapacity()
-// ║  maximumInitCodeSize()
-// ║
-// ║  STORAGE QUERIES
-// ║  getSecondaryAddress(...)
-// ║
-// ║  SPLIT READER
-// ║  fallback()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LibSplitInitCode
+//  \ ^ /   Split creation-code storage and runtime reconstruction.
+//    V
+//
+//  STORAGE DEPLOYMENT
+//  deployInitCode(...)
+//  _deployRuntime(...)
+//
+//  CHUNK ENCODING
+//  getSecondaryRuntime(...)
+//  getPrimaryRuntime(...)
+//  _firstLength(...)
+//  _slice(...)
+//  firstChunkCapacity()
+//  maximumInitCodeSize()
+//
+//  STORAGE QUERIES
+//  getSecondaryAddress(...)
+//
+//  SPLIT READER
+//  fallback()
+// ═════
 
 // ┌─ LibSplitInitCode ─────────────────────────────────────────────────────────
 /// @notice two-contract storage for uncompressed creation code.

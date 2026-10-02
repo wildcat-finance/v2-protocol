@@ -1,50 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // HooksConfig.t
-// ║  ██▀▀     ▀▀██   Packed hook flags and exact callback dispatch tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  CONFIGURATION ENCODING
-// ║  testEncode(...)
-// ║  test_encodeHooksDeploymentConfig(...)
-// ║  test_mergeSharedFlags(...)
-// ║  test_mergeFlags(...)
-// ║  test_configUtilities(...)
-// ║  _assertConfig(...)
-// ║
-// ║  DISPATCH SUPPORT
-// ║  _configure(...)
-// ║  _call(...)
-// ║  _assertHookCall(...)
-// ║
-// ║  LENDER CALLBACKS
-// ║  test_onDeposit(...)
-// ║  test_onTransfer(...)
-// ║  test_onQueueWithdrawal(...)
-// ║  test_onExecuteWithdrawal(...)
-// ║
-// ║  BORROWER CALLBACKS
-// ║  test_onBorrow(...)
-// ║  test_onRepay(...)
-// ║  test_onCloseMarket(...)
-// ║
-// ║  CONFIGURATION CALLBACKS
-// ║  test_onSetMaxTotalSupply(...)
-// ║  test_onSetAnnualInterestAndReserveRatioBips(...)
-// ║  test_onSetProtocolFeeBips(...)
-// ║  test_onNukeFromOrbit(...)
-// ║
-// ║  CALLBACK FAILURES
-// ║  test_hookRevertBubbles(...)
-// ║  test_aprHookRejectsShortReturnData(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // HooksConfig.t
+//  \ ^ /   Packed hook flags and exact callback dispatch tests.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//
+//  CONFIGURATION ENCODING
+//  testEncode(...)
+//  test_encodeHooksDeploymentConfig(...)
+//  test_mergeSharedFlags(...)
+//  test_mergeFlags(...)
+//  test_configUtilities(...)
+//  _assertConfig(...)
+//
+//  DISPATCH SUPPORT
+//  _configure(...)
+//  _call(...)
+//  _assertHookCall(...)
+//
+//  LENDER CALLBACKS
+//  test_onDeposit(...)
+//  test_onTransfer(...)
+//  test_onQueueWithdrawal(...)
+//  test_onExecuteWithdrawal(...)
+//
+//  BORROWER CALLBACKS
+//  test_onBorrow(...)
+//  test_onRepay(...)
+//  test_onCloseMarket(...)
+//
+//  CONFIGURATION CALLBACKS
+//  test_onSetMaxTotalSupply(...)
+//  test_onSetAnnualInterestAndReserveRatioBips(...)
+//  test_onSetProtocolFeeBips(...)
+//  test_onNukeFromOrbit(...)
+//
+//  CALLBACK FAILURES
+//  test_hookRevertBubbles(...)
+//  test_aprHookRejectsShortReturnData(...)
+// ═════
 
 import { IHooks } from 'src/access/IHooks.sol';
 import { MarketState } from 'src/libraries/MarketState.sol';

@@ -1,14 +1,12 @@
 // // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MockBorrower
-// ║  ██▀▀     ▀▀██   Inactive borrower prototype retained as commented reference.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MockBorrower
+//  \ ^ /   Inactive borrower prototype retained as commented reference.
+//    V
+//
+// ═════
 
 // import 'src/WildcatArchController.sol';
 // import 'solady/utils/LibString.sol';

@@ -1,41 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MathUtils.t
-// ║  ██▀▀     ▀▀██   Bounds, fixed-point arithmetic, and interest calculation tests.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  BOUNDS AND SELECTION
-// ║  test_max(...)
-// ║  test_satSub(...)
-// ║  test_satAdd(...)
-// ║  test_satAdd_OverflowReturnsMaximum()
-// ║
-// ║  MULTIPLY AND DIVIDE
-// ║  test_mulDiv(...)
-// ║  test_mulDivUp(...)
-// ║
-// ║  BASIS POINTS
-// ║  test_bipMul()
-// ║  test_bipMul(...)
-// ║  test_bipDiv(...)
-// ║  test_bipToRay()
-// ║  test_bipToRay(...)
-// ║
-// ║  RAY ARITHMETIC
-// ║  test_rayMul()
-// ║  test_rayMul(...)
-// ║  test_rayDiv()
-// ║  test_rayDiv_RevertsOnZeroDenominator()
-// ║  test_rayDiv_RevertsOnOverflow()
-// ║
-// ║  INTEREST
-// ║  test_calculateLinearInterestFromBips(...)
-// ║  test_calculateLinearInterestFromBips()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MathUtils.t
+//  \ ^ /   Bounds, fixed-point arithmetic, and interest calculation tests.
+//    V
+//
+//  BOUNDS AND SELECTION
+//  test_max(...)
+//  test_satSub(...)
+//  test_satAdd(...)
+//  test_satAdd_OverflowReturnsMaximum()
+//
+//  MULTIPLY AND DIVIDE
+//  test_mulDiv(...)
+//  test_mulDivUp(...)
+//
+//  BASIS POINTS
+//  test_bipMul()
+//  test_bipMul(...)
+//  test_bipDiv(...)
+//  test_bipToRay()
+//  test_bipToRay(...)
+//
+//  RAY ARITHMETIC
+//  test_rayMul()
+//  test_rayMul(...)
+//  test_rayDiv()
+//  test_rayDiv_RevertsOnZeroDenominator()
+//  test_rayDiv_RevertsOnOverflow()
+//
+//  INTEREST
+//  test_calculateLinearInterestFromBips(...)
+//  test_calculateLinearInterestFromBips()
+// ═════
 
 import './wrappers/MathUtilsExternal.sol';
 import { TestKernel } from '../shared/TestKernel.sol';

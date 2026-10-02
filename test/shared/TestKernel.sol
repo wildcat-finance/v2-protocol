@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // TestKernel
-// ║  ██▀▀     ▀▀██   Artifact deployment, time control, and shared assertions.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  ACCOUNT CONTEXT
-// ║  asAccount(...)
-// ║
-// ║  ARTIFACT DEPLOYMENT
-// ║  _deployCode(...)
-// ║  _deployCode(...)
-// ║
-// ║  FUZZ BOUNDS
-// ║  bound(...)
-// ║  _bound(...)
-// ║
-// ║  TIME CONTROL
-// ║  warp(...)
-// ║  _warp(...)
-// ║  fastForward(...)
-// ║  _fastForward(...)
-// ║  getTimestamp()
-// ║
-// ║  ASSERTIONS
-// ║  assertTrue(...)
-// ║  assertTrue(...)
-// ║  assertFalse(...)
-// ║  assertFalse(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ║  assertEq(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // TestKernel
+//  \ ^ /   Artifact deployment, time control, and shared assertions.
+//    V
+//
+//  ACCOUNT CONTEXT
+//  asAccount(...)
+//
+//  ARTIFACT DEPLOYMENT
+//  _deployCode(...)
+//  _deployCode(...)
+//
+//  FUZZ BOUNDS
+//  bound(...)
+//  _bound(...)
+//
+//  TIME CONTROL
+//  warp(...)
+//  _warp(...)
+//  fastForward(...)
+//  _fastForward(...)
+//  getTimestamp()
+//
+//  ASSERTIONS
+//  assertTrue(...)
+//  assertTrue(...)
+//  assertFalse(...)
+//  assertFalse(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+//  assertEq(...)
+// ═════
 
 import { Vm } from 'forge-std/Vm.sol';
 

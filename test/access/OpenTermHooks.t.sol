@@ -1,29 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // OpenTermHooks.t
-// ║  ██▀▀     ▀▀██   Open-term metadata, market queries, and administrator handoff.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _newHooks(...)
-// ║  _createMarket(...)
-// ║  _requestedConfig(...)
-// ║
-// ║  METADATA AND MARKET QUERIES
-// ║  test_metadata_IsCanonical()
-// ║  test_getHookedMarkets_PreservesOrderAndUnknownValues()
-// ║
-// ║  ADMINISTRATOR HANDOFF
-// ║  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
-// ║  archController()
-// ║  isRegisteredBorrower(...)
-// ║  onHooksAdministratorTransferred(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // OpenTermHooks.t
+//  \ ^ /   Open-term metadata, market queries, and administrator handoff.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _newHooks(...)
+//  _createMarket(...)
+//  _requestedConfig(...)
+//
+//  METADATA AND MARKET QUERIES
+//  test_metadata_IsCanonical()
+//  test_getHookedMarkets_PreservesOrderAndUnknownValues()
+//
+//  ADMINISTRATOR HANDOFF
+//  test_administratorTransfer_PreservesMarketConfigurationAndMovesAuthority()
+//  archController()
+//  isRegisteredBorrower(...)
+//  onHooksAdministratorTransferred(...)
+// ═════
 
 import { BaseHooks } from 'src/access/BaseHooks.sol';
 import { BaseAccessControls } from 'src/access/BaseAccessControls.sol';

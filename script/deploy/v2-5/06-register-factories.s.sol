@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // 06-register-factories.s
-// ║  ██▀▀     ▀▀██   Hooks-factory controller registration in plan or direct mode.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FACTORY REGISTRATION
-// ║  run()
-// ║
-// ║  REGISTRATION PLAN
-// ║  _writePlanEntry(...)
-// ║
-// ║  DIRECT REGISTRATION
-// ║  _registerStandard(...)
-// ║  _registerRevolving(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // 06-register-factories.s
+//  \ ^ /   Hooks-factory controller registration in plan or direct mode.
+//    V
+//
+//  FACTORY REGISTRATION
+//  run()
+//
+//  REGISTRATION PLAN
+//  _writePlanEntry(...)
+//
+//  DIRECT REGISTRATION
+//  _registerStandard(...)
+//  _registerRevolving(...)
+// ═════
 
 // register both v2.5 hooks factories as ArchController controllers.
 // superseded factories remain registered until the separate retirement

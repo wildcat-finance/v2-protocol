@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LicenseRef-Commons-Clause-1.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // ManagedRoleProvider
-// ║  ██▀▀     ▀▀██   Shared two-step authority transfer for mutable providers.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  constructor(...)
-// ║
-// ║  ADMINISTRATOR TRANSFER
-// ║  onlyAdministrator()
-// ║  requestAdministratorTransfer(...)
-// ║  acceptAdministratorTransfer()
-// ║  cancelAdministratorTransfer()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // ManagedRoleProvider
+//  \ ^ /   Shared two-step authority transfer for mutable providers.
+//    V
+//
+//  SETUP
+//  constructor(...)
+//
+//  ADMINISTRATOR TRANSFER
+//  onlyAdministrator()
+//  requestAdministratorTransfer(...)
+//  acceptAdministratorTransfer()
+//  cancelAdministratorTransfer()
+// ═════
 
 import '../access/IManagedRoleProvider.sol';
 

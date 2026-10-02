@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // Wildcat4626WrapperFactory.t
-// ║  ██▀▀     ▀▀██   Wrapper-factory generation routing and policy validation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  _newFixture()
-// ║  _deployFactory(...)
-// ║  _deployMarket(...)
-// ║
-// ║  FACTORY AND ROUNDING VALIDATION
-// ║  test_constructorAcceptsZeroOrValidV1AndRejectsMalformedFactory()
-// ║  test_roundingProbeIsTotalAndRecognizesOnlyFloorMarkets()
-// ║
-// ║  GENERATION ROUTING
-// ║  test_legacyCreationAndDiscoveryRouteThroughV1()
-// ║  test_factoryWithoutV1RejectsLegacyButStillCreatesFloorWrapper()
-// ║  test_declaredMarketsNeverFallThroughToV1()
-// ║
-// ║  WRAPPER CREATION
-// ║  test_floorCreationDeploysRecordsRegistersAndRejectsDuplicates()
-// ║  test_createRejectsZeroAndUnregisteredMarketsWithoutSideEffects()
-// ║  test_createValidatesCompleteAndEnabledTransferPolicy()
-// ║  test_wrapperCapacityFailsClosedWhenRecipientPolicyBreaksOrDenies()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // Wildcat4626WrapperFactory.t
+//  \ ^ /   Wrapper-factory generation routing and policy validation.
+//    V
+//
+//  FIXTURE
+//  _newFixture()
+//  _deployFactory(...)
+//  _deployMarket(...)
+//
+//  FACTORY AND ROUNDING VALIDATION
+//  test_constructorAcceptsZeroOrValidV1AndRejectsMalformedFactory()
+//  test_roundingProbeIsTotalAndRecognizesOnlyFloorMarkets()
+//
+//  GENERATION ROUTING
+//  test_legacyCreationAndDiscoveryRouteThroughV1()
+//  test_factoryWithoutV1RejectsLegacyButStillCreatesFloorWrapper()
+//  test_declaredMarketsNeverFallThroughToV1()
+//
+//  WRAPPER CREATION
+//  test_floorCreationDeploysRecordsRegistersAndRejectsDuplicates()
+//  test_createRejectsZeroAndUnregisteredMarketsWithoutSideEffects()
+//  test_createValidatesCompleteAndEnabledTransferPolicy()
+//  test_wrapperCapacityFailsClosedWhenRecipientPolicyBreaksOrDenies()
+// ═════
 
 import { Wildcat4626Wrapper } from 'src/vault/Wildcat4626Wrapper.sol';
 import { Wildcat4626WrapperFactory } from 'src/vault/Wildcat4626WrapperFactory.sol';

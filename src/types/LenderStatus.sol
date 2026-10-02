@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // LenderStatus
-// ║  ██▀▀     ▀▀██   Cached lender credentials, expiry checks, and refresh state.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CREDENTIAL UPDATES
-// ║  setCredential(...)
-// ║  unsetCredential(...)
-// ║
-// ║  CREDENTIAL STATUS
-// ║  hasCredential(...)
-// ║  credentialNotExpired(...)
-// ║  credentialExpired(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // LenderStatus
+//  \ ^ /   Cached lender credentials, expiry checks, and refresh state.
+//    V
+//
+//  CREDENTIAL UPDATES
+//  setCredential(...)
+//  unsetCredential(...)
+//
+//  CREDENTIAL STATUS
+//  hasCredential(...)
+//  credentialNotExpired(...)
+//  credentialExpired(...)
+// ═════
 
 import './RoleProvider.sol';
 

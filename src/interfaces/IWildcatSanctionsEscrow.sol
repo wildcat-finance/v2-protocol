@@ -1,26 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // IWildcatSanctionsEscrow
-// ║  ██▀▀     ▀▀██   Conditional release of borrower-scoped sanctioned assets.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  CONFIGURATION
-// ║  sentinel()
-// ║  borrower()
-// ║  account()
-// ║
-// ║  ESCROW RELEASE
-// ║  releaseEscrow()
-// ║  canReleaseEscrow()
-// ║
-// ║  ASSET QUERIES
-// ║  escrowedAsset()
-// ║  balance()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // IWildcatSanctionsEscrow
+//  \ ^ /   Conditional release of borrower-scoped sanctioned assets.
+//    V
+//
+//  CONFIGURATION
+//  sentinel()
+//  borrower()
+//  account()
+//
+//  ESCROW RELEASE
+//  releaseEscrow()
+//  canReleaseEscrow()
+//
+//  ASSET QUERIES
+//  escrowedAsset()
+//  balance()
+// ═════
 
 // ┌─ IWildcatSanctionsEscrow ──────────────────────────────────────────────────
 /// @notice deterministic escrow for one borrower namespace, sanctioned account, and asset.

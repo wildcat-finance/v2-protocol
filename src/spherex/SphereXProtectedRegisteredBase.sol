@@ -2,41 +2,39 @@
 // (c) SphereX 2023 Terms&Conditions
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // SphereXProtectedRegisteredBase
-// ║  ██▀▀     ▀▀██   ArchController-managed protection and call-state validation.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  SETUP
-// ║  __SphereXProtectedRegisteredBase_init(...)
-// ║
-// ║  ENGINE MANAGEMENT
-// ║  spherexOnlyOperator()
-// ║  changeSphereXEngine(...)
-// ║  sphereXOperator()
-// ║  sphereXEngine()
-// ║
-// ║  PROTECTED CALL FLOW
-// ║  sphereXGuardExternal()
-// ║  _sphereXValidateExternalPre()
-// ║  returnsIfNotActivatedPre(...)
-// ║  _getStorageSlotsAndPreparePostCalldata(...)
-// ║  _sphereXValidateExternalPost(...)
-// ║  returnsIfNotActivatedPost(...)
-// ║  _callSphereXValidatePost(...)
-// ║
-// ║  STORAGE ACCESS
-// ║  _setAddress(...)
-// ║  _getAddress(...)
-// ║  _readStorageTo(...)
-// ║
-// ║  CALL ADAPTERS
-// ║  _getSelector()
-// ║  _castFunctionToPointerOutput(...)
-// ║  _castFunctionToPointerInput(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // SphereXProtectedRegisteredBase
+//  \ ^ /   ArchController-managed protection and call-state validation.
+//    V
+//
+//  SETUP
+//  __SphereXProtectedRegisteredBase_init(...)
+//
+//  ENGINE MANAGEMENT
+//  spherexOnlyOperator()
+//  changeSphereXEngine(...)
+//  sphereXOperator()
+//  sphereXEngine()
+//
+//  PROTECTED CALL FLOW
+//  sphereXGuardExternal()
+//  _sphereXValidateExternalPre()
+//  returnsIfNotActivatedPre(...)
+//  _getStorageSlotsAndPreparePostCalldata(...)
+//  _sphereXValidateExternalPost(...)
+//  returnsIfNotActivatedPost(...)
+//  _callSphereXValidatePost(...)
+//
+//  STORAGE ACCESS
+//  _setAddress(...)
+//  _getAddress(...)
+//  _readStorageTo(...)
+//
+//  CALL ADAPTERS
+//  _getSelector()
+//  _castFunctionToPointerOutput(...)
+//  _castFunctionToPointerInput(...)
+// ═════
 
 import { ISphereXEngine, ModifierLocals } from './ISphereXEngine.sol';
 import './SphereXProtectedEvents.sol';

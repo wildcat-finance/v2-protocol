@@ -1,44 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // DeployHooksFactoryRevolving
-// ║  ██▀▀     ▀▀██   Deploy revolving artifacts, register authority, and record inventory.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  EXECUTION FLOW
-// ║  run()
-// ║
-// ║  CONFIGURATION
-// ║  _deploymentLabelSuffix()
-// ║  _ownerMode()
-// ║  _broadcasterAddress(...)
-// ║  _deploymentLabel(...)
-// ║  _equalStrings(...)
-// ║
-// ║  DEPLOYMENT
-// ║  _deployRevolvingSet(...)
-// ║  _deployRevolvingMarketInitCodeStorage(...)
-// ║  _getOrDeployInitcodeStorageByLabel(...)
-// ║  _deployHooksFactoryRevolving(...)
-// ║  _getOrDeployByLabel(...)
-// ║
-// ║  REGISTRATION
-// ║  _ensureArchControllerRegistration(...)
-// ║  _emitPendingRegisterControllerFactoryAction(...)
-// ║
-// ║  CANONICAL ALIASES
-// ║  _updateCanonicalAliases(...)
-// ║  _setCanonicalAlias(...)
-// ║
-// ║  FACTORY INVENTORY
-// ║  _updateFactoryInventory(...)
-// ║  _factoryInventoryLabel(...)
-// ║  _factoryInventoryStartBlock()
-// ║  _boolString(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // DeployHooksFactoryRevolving
+//  \ ^ /   Deploy revolving artifacts, register authority, and record inventory.
+//    V
+//
+//  EXECUTION FLOW
+//  run()
+//
+//  CONFIGURATION
+//  _deploymentLabelSuffix()
+//  _ownerMode()
+//  _broadcasterAddress(...)
+//  _deploymentLabel(...)
+//  _equalStrings(...)
+//
+//  DEPLOYMENT
+//  _deployRevolvingSet(...)
+//  _deployRevolvingMarketInitCodeStorage(...)
+//  _getOrDeployInitcodeStorageByLabel(...)
+//  _deployHooksFactoryRevolving(...)
+//  _getOrDeployByLabel(...)
+//
+//  REGISTRATION
+//  _ensureArchControllerRegistration(...)
+//  _emitPendingRegisterControllerFactoryAction(...)
+//
+//  CANONICAL ALIASES
+//  _updateCanonicalAliases(...)
+//  _setCanonicalAlias(...)
+//
+//  FACTORY INVENTORY
+//  _updateFactoryInventory(...)
+//  _factoryInventoryLabel(...)
+//  _factoryInventoryStartBlock()
+//  _boolString(...)
+// ═════
 
 import { console } from 'forge-std/console.sol';
 

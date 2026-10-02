@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // MarketLensLifecycle.t
-// ║  ██▀▀     ▀▀██   Lifecycle lens parity through repayment, default, and closure.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║  _cell(...)
-// ║  _options(...)
-// ║  _fundAndBorrow(...)
-// ║
-// ║  REPAYMENT AND DEFAULT DATA
-// ║  test_repaymentMatrix_AccruedPhaseAndRecordedDefaultStayDistinct()
-// ║  test_zeroPeriod_ExactDateCureAndLateDefault()
-// ║  test_noRepaymentTerms_StillReportsOrdinaryPenaltyDefault()
-// ║
-// ║  CLOSURE AND PROPOSAL DATA
-// ║  test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery()
-// ║  test_manualClosureBeforeDate_DoesNotReenterRepayment()
-// ║  test_periodicProposal_ExposesRecordedWindowAndAccruedClosure()
-// ║
-// ║  ROUTE PARITY
-// ║  test_routes_FullLiveLenderAggregatedAndFacadeCarryNewData()
-// ║  _assertReads(...)
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // MarketLensLifecycle.t
+//  \ ^ /   Lifecycle lens parity through repayment, default, and closure.
+//    V
+//
+//  FIXTURE
+//  setUp()
+//  _cell(...)
+//  _options(...)
+//  _fundAndBorrow(...)
+//
+//  REPAYMENT AND DEFAULT DATA
+//  test_repaymentMatrix_AccruedPhaseAndRecordedDefaultStayDistinct()
+//  test_zeroPeriod_ExactDateCureAndLateDefault()
+//  test_noRepaymentTerms_StillReportsOrdinaryPenaltyDefault()
+//
+//  CLOSURE AND PROPOSAL DATA
+//  test_automaticClosure_ReleasesFutureBatchAndProtectsClaimsFromRecovery()
+//  test_manualClosureBeforeDate_DoesNotReenterRepayment()
+//  test_periodicProposal_ExposesRecordedWindowAndAccruedClosure()
+//
+//  ROUTE PARITY
+//  test_routes_FullLiveLenderAggregatedAndFacadeCarryNewData()
+//  _assertReads(...)
+// ═════
 
 import { MarketLens } from 'src/lens/MarketLens.sol';
 import { MarketLensCore } from 'src/lens/MarketLensCore.sol';

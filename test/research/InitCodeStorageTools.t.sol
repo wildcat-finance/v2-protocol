@@ -1,49 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.25;
 
-// ╔════════════════════════════════════════════════════════════════════════════
-// ║  █▄         ▄█
-// ║  ███▄     ▄███   WILDCAT v2.5 // InitCodeStorageTools.t
-// ║  ██▀▀     ▀▀██   Stored-initcode verification, reuse, deployment, and plan parity.
-// ║  ▀▀███▄ ▄███▀▀
-// ║      ▀▀▄▀▀
-// ║
-// ║  STORAGE VERIFICATION ADAPTERS
-// ║  read(...)
-// ║  verify(...)
-// ║  fits(...)
-// ║
-// ║  DEPLOYMENT AND PLAN ADAPTERS
-// ║  reuse(...)
-// ║  planDeployment(...)
-// ║  predicate(...)
-// ║  exportPlan(...)
-// ║
-// ║  CONTEXT DEPENDENT TARGET
-// ║  constructor(...)
-// ║  fallback()
-// ║
-// ║  FIXTURE
-// ║  setUp()
-// ║
-// ║  STORAGE VERIFICATION
-// ║  testFuzz_verifiesRawSplitAndReusedStores(...)
-// ║  testFuzz_rejectsEveryMutatedPrimaryRegion(...)
-// ║  test_rejectsSecondaryMutationTruncationAndTrailingBytes()
-// ║  test_rejectsContextDependentReaderEvenWhenReadbackMatches()
-// ║  test_rejectsCompressedStoresEvenWhenReadbackMatches()
-// ║  _expectMismatch(...)
-// ║
-// ║  REUSE AND DIRECT DEPLOYMENT
-// ║  test_partialReuseAuthenticatesSecondaryAndRecoversInventoryLink()
-// ║  test_directDeploymentTracksBothPreparedArtifacts()
-// ║  test_linkedInstallerRejectsMissingOrAlreadyBoundAddress()
-// ║
-// ║  PLAN PARITY AND EXPORT
-// ║  test_planAndDirectFormatsMatchAtStorageThreshold()
-// ║  test_generatedPlanTracksAndBindsSecondary()
-// ║  test_exportHistoricalCompressionControl()
-// ╚═════
+// ═════════════════════════════════════════════════════════════════════════════
+//  |\ /|   WILDCAT v2.5 // InitCodeStorageTools.t
+//  \ ^ /   Stored-initcode verification, reuse, deployment, and plan parity.
+//    V
+//
+//  STORAGE VERIFICATION ADAPTERS
+//  read(...)
+//  verify(...)
+//  fits(...)
+//
+//  DEPLOYMENT AND PLAN ADAPTERS
+//  reuse(...)
+//  planDeployment(...)
+//  predicate(...)
+//  exportPlan(...)
+//
+//  CONTEXT DEPENDENT TARGET
+//  constructor(...)
+//  fallback()
+//
+//  FIXTURE
+//  setUp()
+//
+//  STORAGE VERIFICATION
+//  testFuzz_verifiesRawSplitAndReusedStores(...)
+//  testFuzz_rejectsEveryMutatedPrimaryRegion(...)
+//  test_rejectsSecondaryMutationTruncationAndTrailingBytes()
+//  test_rejectsContextDependentReaderEvenWhenReadbackMatches()
+//  test_rejectsCompressedStoresEvenWhenReadbackMatches()
+//  _expectMismatch(...)
+//
+//  REUSE AND DIRECT DEPLOYMENT
+//  test_partialReuseAuthenticatesSecondaryAndRecoversInventoryLink()
+//  test_directDeploymentTracksBothPreparedArtifacts()
+//  test_linkedInstallerRejectsMissingOrAlreadyBoundAddress()
+//
+//  PLAN PARITY AND EXPORT
+//  test_planAndDirectFormatsMatchAtStorageThreshold()
+//  test_generatedPlanTracksAndBindsSecondary()
+//  test_exportHistoricalCompressionControl()
+// ═════
 
 import 'script/common/DeployScriptBase.sol';
 import '../libraries/CompressedInitCode.t.sol';
